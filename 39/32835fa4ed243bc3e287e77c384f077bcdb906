@@ -1,0 +1,27 @@
+apps/emdash-desktop/src/renderer/lib/components/pr-badge.tsx
+  s_2f27de40468b38::t_a2fd7d64a81ced 1-2,62,67
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/checks-list.tsx
+  s_2f27de40468b38::t_a2fd7d64a81ced 1-7,11,79-80,84-85
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/comments-list.tsx
+  s_2f27de40468b38::t_a2fd7d64a81ced 1,3,74-75,78-79
+apps/emdash-desktop/src/renderer/features/tasks/components/issue-selector/issue-selector.tsx
+  s_2f27de40468b38::t_a2fd7d64a81ced 1,9,327-328,330-332,334-335
+apps/emdash-desktop/src/renderer/features/tasks/task-titlebar.tsx
+  s_2f27de40468b38::t_a2fd7d64a81ced 31,423-426,436
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/pr-entry.tsx
+  s_2f27de40468b38::t_a2fd7d64a81ced 1,8,109,114,116
+apps/emdash-desktop/src/renderer/features/skills/components/skills-info-box.tsx
+  s_2f27de40468b38::t_a2fd7d64a81ced 1,9,14,16,21,24,29
+.gitignore
+  s_2f27de40468b38::t_a2fd7d64a81ced 89
+apps/emdash-desktop/src/renderer/lib/components/external-link.tsx
+  s_d69198942d09ed::t_b7873a03c89f19 13
+apps/emdash-desktop/src/renderer/lib/components/reorder-list.tsx
+  s_2f27de40468b38::t_a2fd7d64a81ced 31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "3932835fa4ed243bc3e287e77c384f077bcdb906",
+  "prompts": {}
+}
