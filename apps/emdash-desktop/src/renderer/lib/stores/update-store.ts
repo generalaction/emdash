@@ -1,7 +1,6 @@
-import { ArrowUpRight } from 'lucide-react';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
-import { createElement } from 'react';
 import { toast } from 'sonner';
+import { createUpdateToastActionLabel } from '@renderer/lib/components/update-toast-action-label';
 import { events, rpc } from '@renderer/lib/ipc';
 import { appState } from '@renderer/lib/stores/app-state';
 import { menuCheckForUpdatesChannel } from '@shared/events/appEvents';
@@ -229,25 +228,19 @@ export class UpdateStore {
 
   private _showAvailableToast(version: string): void {
     toast('Update Available', {
-      description: `Version ${version} is ready to install.`,
+      description: `Version ${version} is available to download and install.`,
       duration: 10_000,
       classNames: {
         actionButton:
           'group/action cursor-pointer transition-all duration-150 hover:bg-primary/85 active:scale-[0.97]',
       },
       action: {
-        label: createElement(
-          'span',
-          { className: 'flex items-center gap-1.5' },
-          'Update',
-          createElement(ArrowUpRight, {
-            className:
-              'size-3.5 transition-transform duration-200 group-hover/action:-translate-y-px group-hover/action:translate-x-px',
-          })
-        ),
+        label: createUpdateToastActionLabel(),
         onClick: () => {
           appState.navigation.navigate('settings', { tab: 'general' });
-          void this.download();
+          if (this.state.status === 'available') {
+            void this.download();
+          }
         },
       },
     });
