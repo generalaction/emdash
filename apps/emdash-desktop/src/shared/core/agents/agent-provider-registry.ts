@@ -217,6 +217,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'gemini.svg',
     alt: 'Gemini CLI',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'antigravity',
