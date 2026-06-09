@@ -27,15 +27,3 @@ export type UpdateAutomationSettingsPatch = {
   conversationConfig?: ConversationConfig;
   taskConfig?: StoredAutomationTaskConfig | null;
 };
-
-export type BuiltinAutomationTemplate = {
-  id: string;
-  category: string;
-  name: string;
-  description: string;
-  icon: string;
-  defaultTrigger: TriggerConfig;
-  defaultConversationConfig: {
-    initialPrompt: string;
-  };
-};

@@ -8,8 +8,8 @@ import {
   DropdownMenuTrigger,
 } from '@renderer/lib/ui/dropdown-menu';
 import { cn } from '@renderer/utils/utils';
-import type { BuiltinAutomationTemplate } from '@shared/core/automations/automation';
-import { pinnedAutomationTemplates } from '@shared/core/automations/builtin-catalog';
+import type { BuiltinAutomationTemplate } from '../../automation-template';
+import { emptyStateAutomationTemplates } from '../../builtin-catalog';
 
 interface UseTemplateButtonProps {
   open: boolean;
@@ -39,7 +39,7 @@ export function UseTemplateButton({ open, onOpenChange, onSelect }: UseTemplateB
           <DropdownMenuLabel className="px-2 py-1 text-[11px] tracking-wider uppercase">
             Templates
           </DropdownMenuLabel>
-          {pinnedAutomationTemplates.map((template) => (
+          {emptyStateAutomationTemplates.map((template) => (
             <DropdownMenuItem
               key={template.id}
               onClick={() => onSelect(template)}
