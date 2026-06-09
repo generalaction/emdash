@@ -10,6 +10,7 @@ import {
 const config: Configuration = {
   appId: APP_ID,
   productName: PRODUCT_NAME,
+  executableName: PRODUCT_NAME,
   directories: { output: 'release' },
   artifactName: `${ARTIFACT_PREFIX}-\${arch}.\${ext}`,
   publish: [
