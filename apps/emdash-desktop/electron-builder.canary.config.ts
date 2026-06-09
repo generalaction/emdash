@@ -11,7 +11,7 @@ import {
 const config: Configuration = {
   appId: APP_ID,
   productName: PRODUCT_NAME,
-  executableName: PRODUCT_NAME,
+  executableName: APP_NAME_LOWER,
   directories: { output: 'release' },
   artifactName: `${ARTIFACT_PREFIX}-\${arch}.\${ext}`,
   publish: [
@@ -47,6 +47,7 @@ const config: Configuration = {
   linux: {
     category: 'Development',
     executableName: APP_NAME_LOWER,
+    packageName: APP_NAME_LOWER,
     target: [
       { target: 'AppImage', arch: ['x64'] },
       { target: 'deb', arch: ['x64'] },
