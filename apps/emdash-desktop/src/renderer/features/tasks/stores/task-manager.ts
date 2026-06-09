@@ -5,6 +5,7 @@ import type { ProjectSettingsStore } from '@renderer/features/projects/stores/pr
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors';
 import { events, rpc } from '@renderer/lib/ipc';
+import { appState } from '@renderer/lib/stores/app-state';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { AppSettings } from '@shared/core/app-settings';
@@ -288,7 +289,20 @@ export class TaskManagerStore {
     if (task.archivedAt || !prs.some((pr) => pr.status === 'merged')) return;
     const settings = (await rpc.appSettings.get('tasks')) as AppSettings['tasks'];
     if (!settings.archiveOnMerge) return;
+    this._leaveTaskViewBeforeArchive(task.id);
     await this.archiveTask(task.id);
+  }
+
+  private _leaveTaskViewBeforeArchive(taskId: string): void {
+    const navigation = appState.navigation;
+    const params = navigation.viewParamsStore.task as { projectId?: string; taskId?: string } | undefined;
+    if (
+      navigation.currentViewId === 'task' &&
+      params?.projectId === this.projectId &&
+      params.taskId === taskId
+    ) {
+      navigation.navigate('project', { projectId: this.projectId });
+    }
   }
 
   loadTasks(): Promise<void> {

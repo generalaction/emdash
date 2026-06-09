@@ -76,7 +76,11 @@ export const taskView = {
       return { ok: false, redirect: 'home' };
     }
     const taskManager = getTaskManagerStore(projectId);
-    if (taskManager && !taskManager.tasks.has(taskId)) {
+    const taskStore = taskManager?.tasks.get(taskId);
+    if (taskManager && !taskStore) {
+      return { ok: false, redirect: 'project', params: { projectId } };
+    }
+    if (taskStore && 'archivedAt' in taskStore.data && taskStore.data.archivedAt) {
       return { ok: false, redirect: 'project', params: { projectId } };
     }
     return { ok: true };
