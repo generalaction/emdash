@@ -1,6 +1,7 @@
 import type { Configuration } from 'electron-builder';
 import {
   APP_ID,
+  APP_NAME_LOWER,
   ARTIFACT_PREFIX,
   PRODUCT_NAME,
   R2_BASE_URL,
@@ -45,6 +46,7 @@ const config: Configuration = {
   },
   linux: {
     category: 'Development',
+    executableName: APP_NAME_LOWER,
     target: [
       { target: 'AppImage', arch: ['x64'] },
       { target: 'deb', arch: ['x64'] },
