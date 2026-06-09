@@ -1,26 +1,7 @@
-import type { CLIAgentPluginFs } from './plugin';
-import type { SettingsDescriptor } from './settings';
+// Shared enum/variant/primitive types used by both metadata and provider.
+// This file intentionally has no Node.js deps and no function types.
 
-export type PluginCapabilities = {
-  install: InstallationDescriptor;
-  models: ModelsDescriptor;
-  effort: EffortDescriptor;
-  promptDelivery: PromptDeliveryDescriptor;
-  sessions: SessionDescriptor;
-  autoApprove: AutoApproveDescriptor;
-  hooks: HooksDescriptor;
-  mcp: McpDescriptor;
-  plugin: PluginDescriptor;
-  settings: SettingsDescriptor;
-};
-
-// Installation
-
-export type InstallationDescriptor = {
-  binaryNames: string[];
-  buildVersionProbeCommand?: (binaryPath: string) => { command: string; args: string[] };
-  installCommands: Partial<Record<Platform, { command: string; method: InstallMethod }>>;
-};
+// ── Installation ─────────────────────────────────────────────────────────────
 
 export type Platform = 'macos' | 'windows' | 'linux';
 
@@ -34,9 +15,10 @@ export type InstallMethod =
   | 'apt'
   | 'curl'
   | 'pip'
-  | 'cargo';
+  | 'cargo'
+  | 'other';
 
-// Models
+// ── Models ───────────────────────────────────────────────────────────────────
 
 export type ModelOption = {
   name: string;
@@ -49,114 +31,58 @@ export type ModelOption = {
 };
 
 export type ModelsDescriptor =
-  | {
-      kind: 'selectable';
-      modelOptions: Record<string, ModelOption>;
-    }
-  | {
-      kind: 'none';
-    };
+  | { kind: 'selectable'; modelOptions: Record<string, ModelOption> }
+  | { kind: 'none' };
 
-// Effort
+// ── Effort ───────────────────────────────────────────────────────────────────
 
-export type EffortDescriptor =
-  | {
-      kind: 'selectable';
-    }
-  | {
-      kind: 'none';
-    };
+export type EffortDescriptor = { kind: 'selectable' } | { kind: 'none' };
 
-// Prompt Delivery
+// ── Prompt Delivery ──────────────────────────────────────────────────────────
 
 export type PromptDeliveryDescriptor =
-  | { kind: 'argv'; flag: string } // most providers
-  | {
-      kind: 'keystroke'; // grok, hermes, kimi, jules, letta
-      submitSequence?: string; // default '\r'
-      submitDelayMs?: number; // for TUIs that need paste settling
-    }
-  | { kind: 'stdin-pipe' } // amp
-  | { kind: 'none' }; // agents with no prompt input
+  | { kind: 'argv'; flag: string }
+  | { kind: 'keystroke'; submitSequence?: string; submitDelayMs?: number }
+  | { kind: 'stdin-pipe' }
+  | { kind: 'none' };
 
-// Sessions
-
-export type SessionDescriptor =
-  | { kind: 'resumable'; validateSessionId?(id: string): boolean }
-  | { kind: 'stateless' };
-
-// Auto-Approve
+// ── Auto-Approve ─────────────────────────────────────────────────────────────
 
 export type AutoApproveDescriptor = { kind: 'supported' } | { kind: 'none' };
 
-// Hooks
+// ── Hooks ────────────────────────────────────────────────────────────────────
 
-export type HookEvent = 'notification' | 'stop' | 'session' | 'start' | 'tool-use' | 'tool-use-failure';
+export type HookEvent =
+  | 'notification'
+  | 'stop'
+  | 'session'
+  | 'start'
+  | 'tool-use'
+  | 'tool-use-failure';
 
 export type HookRegistration = {
-  event: HookEvent;
+  /** The emdash event name (or 'emdash' as a sentinel when hooks are installed). */
+  event: string;
   command: string;
-  isEmdashHook: boolean;
+  isEmdashHook?: boolean;
 };
 
-export type HooksDescriptor =
-  | {
-      kind: 'config';
-      supportedEvents: HookEvent[];
-      // The app creates a CLIAgentPluginFs scoped to the appropriate root (global or workspace)
-      // and passes it here; the plugin handles all path logic internally.
-      readHooks(fs: CLIAgentPluginFs): Promise<HookRegistration[]>;
-      writeHooks(fs: CLIAgentPluginFs, hooks: HookRegistration[]): Promise<void>;
-      deleteHooks(fs: CLIAgentPluginFs): Promise<void>;
-      getHooksInstalled(fs: CLIAgentPluginFs): Promise<boolean>;
-    }
-  | { kind: 'plugin'; supportedEvents: HookEvent[] }
-  | { kind: 'none' };
-
-// Plugins (emdash's own agent-side plugin management)
-
-export type PluginScope = { kind: 'global' } | { kind: 'workspace'; path: string };
-
-export type PluginDescriptor =
-  | {
-      kind: 'file-drop';
-      scopes: PluginScope[];
-      installPlugin(fs: CLIAgentPluginFs, scope: PluginScope): Promise<void>;
-      uninstallPlugin(fs: CLIAgentPluginFs, scope: PluginScope): Promise<void>;
-      isPluginInstalled(fs: CLIAgentPluginFs, scope: PluginScope): Promise<boolean>;
-      getPluginVersion(fs: CLIAgentPluginFs, scope: PluginScope): Promise<string>;
-      getPluginPath(fs: CLIAgentPluginFs, scope: PluginScope): Promise<string>;
-    }
-  | {
-      kind: 'cli';
-      buildInstallCommand(binaryPath: string): string;
-      buildUninstallCommand(binaryPath: string): string;
-      buildCheckCommand(binaryPath: string): string;
-      parseCheckOutput(output: string): boolean;
-    }
-  | { kind: 'none' };
-
-// MCPs
+// ── MCP ──────────────────────────────────────────────────────────────────────
 
 export type McpTransport = 'stdio' | 'http';
 
 export type McpServerRegistration = {
   name: string;
-  transport: McpTransport;
+  transport?: McpTransport;
+  type?: string;
   command?: string;
   args?: string[];
   url?: string;
   headers?: Record<string, string>;
   env?: Record<string, string>;
+  [key: string]: unknown;
 };
 
-export type McpDescriptor =
-  | {
-      kind: 'supported';
-      supportedTransports: McpTransport[];
-      // The app creates a CLIAgentPluginFs scoped to the appropriate root and passes it here.
-      readServers(fs: CLIAgentPluginFs): Promise<McpServerRegistration[]>;
-      writeServers(fs: CLIAgentPluginFs, servers: McpServerRegistration[]): Promise<void>;
-      removeServer(fs: CLIAgentPluginFs, name: string): Promise<void>;
-    }
-  | { kind: 'none' };
+// ── Plugin scope ─────────────────────────────────────────────────────────────
+
+export type PluginScope = { kind: 'global' } | { kind: 'workspace'; path: string };

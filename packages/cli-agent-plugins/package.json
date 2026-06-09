@@ -6,29 +6,26 @@
   "license": "Apache-2.0",
   "author": "",
   "type": "module",
-  "main": "./dist/index.cjs",
+  "sideEffects": false,
+  "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
   "exports": {
     ".": {
-      "import": {
-        "types": "./dist/index.d.mts",
-        "default": "./dist/index.mjs"
-      },
-      "require": {
-        "types": "./dist/index.d.cts",
-        "default": "./dist/index.cjs"
-      }
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
     },
-    "./impl": {
-      "import": {
-        "types": "./dist/impl.d.mts",
-        "default": "./dist/impl.mjs"
-      },
-      "require": {
-        "types": "./dist/impl.d.cts",
-        "default": "./dist/impl.cjs"
-      }
+    "./metadata": {
+      "types": "./dist/metadata.d.mts",
+      "default": "./dist/metadata.mjs"
+    },
+    "./icons": {
+      "types": "./dist/icons.d.mts",
+      "default": "./dist/icons.mjs"
+    },
+    "./providers": {
+      "types": "./dist/providers.d.mts",
+      "default": "./dist/providers.mjs"
     }
   },
   "scripts": {
@@ -48,7 +45,7 @@
     "oxfmt": "^0.51.0",
     "react": "^19.2.7",
     "tsdown": "^0.22.2",
-    "vitest": "^4.1.8"
+    "vitest": "^3.1.4"
   },
   "packageManager": "pnpm@10.28.2"
 }

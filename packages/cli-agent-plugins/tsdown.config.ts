@@ -3,9 +3,11 @@ import { defineConfig } from 'tsdown';
 export default defineConfig({
   entry: {
     index: 'index.ts',
-    impl: 'impl/index.ts',
+    metadata: 'metadata.ts',
+    icons: 'icons.ts',
+    providers: 'providers.ts',
   },
-  format: ['esm', 'cjs'],
+  format: ['esm'],
   dts: true,
   deps: {
     neverBundle: ['react', 'zod', 'smol-toml'],

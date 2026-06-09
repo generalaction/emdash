@@ -9,7 +9,7 @@ export function mergeOverride<T>(base: T, override: Partial<T>): T {
  * Deep recursive merge — plain objects are merged recursively,
  * everything else (arrays, primitives) is replaced by override.
  */
-export function mergeDeep<T extends object>(base: T, override: Partial<T>): T {
+export function mergeDeep<T extends Record<string, unknown>>(base: T, override: Partial<T>): T {
   const result: Record<string, unknown> = { ...base };
   for (const key of Object.keys(override) as (keyof T)[]) {
     const overrideVal = override[key];
@@ -23,8 +23,8 @@ export function mergeDeep<T extends object>(base: T, override: Partial<T>): T {
       !Array.isArray(baseVal)
     ) {
       result[key as string] = mergeDeep(
-        baseVal as object,
-        overrideVal as Partial<object>,
+        baseVal as Record<string, unknown>,
+        overrideVal as Partial<Record<string, unknown>>,
       );
     } else if (overrideVal !== undefined) {
       result[key as string] = overrideVal;
@@ -38,7 +38,10 @@ export function mergeDeep<T extends object>(base: T, override: Partial<T>): T {
  * Objects are still merged recursively; the override's arrays are appended
  * to the base's arrays (duplicates are preserved).
  */
-export function mergeConcatArrays<T extends object>(base: T, override: Partial<T>): T {
+export function mergeConcatArrays<T extends Record<string, unknown>>(
+  base: T,
+  override: Partial<T>
+): T {
   const result: Record<string, unknown> = { ...base };
   for (const key of Object.keys(override) as (keyof T)[]) {
     const overrideVal = override[key];
@@ -55,8 +58,8 @@ export function mergeConcatArrays<T extends object>(base: T, override: Partial<T
       !Array.isArray(baseVal)
     ) {
       result[key as string] = mergeConcatArrays(
-        baseVal as object,
-        overrideVal as Partial<object>,
+        baseVal as Record<string, unknown>,
+        overrideVal as Partial<Record<string, unknown>>,
       );
     } else {
       result[key as string] = overrideVal;
