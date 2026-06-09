@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getPrSyncStore } from '@renderer/features/projects/stores/project-selectors';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { rpc } from '@renderer/lib/ipc';
@@ -101,10 +101,18 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
     if (value) setSortFilter(value as PrSortField);
   };
 
+  const prSyncStore = getPrSyncStore(projectId);
+  const backgroundSyncing = repositoryUrl
+    ? (prSyncStore?.isSyncing(repositoryUrl) ?? false)
+    : false;
+  const syncState = repositoryUrl ? prSyncStore?.getState(repositoryUrl) : undefined;
+  const syncStateRef = useRef(syncState);
+  syncStateRef.current = syncState;
+
   function captureRefreshError(error: unknown): void {
     setRefreshError({
       message: error instanceof Error ? error.message : String(error),
-      syncStatus: syncState?.status,
+      syncStatus: syncStateRef.current?.status,
     });
   }
 
@@ -137,11 +145,6 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
     }
   };
 
-  const prSyncStore = getPrSyncStore(projectId);
-  const backgroundSyncing = repositoryUrl
-    ? (prSyncStore?.isSyncing(repositoryUrl) ?? false)
-    : false;
-  const syncState = repositoryUrl ? prSyncStore?.getState(repositoryUrl) : undefined;
   const syncError = syncState?.status === 'error' ? (syncState.error ?? 'Sync failed') : null;
   const isSyncing = syncing || backgroundSyncing;
   const visibleRefreshError =

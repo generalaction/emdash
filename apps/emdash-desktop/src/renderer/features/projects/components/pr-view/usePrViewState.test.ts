@@ -54,6 +54,20 @@ vi.mock('./usePullRequests', () => ({
 const PROJECT_ID = 'project-1';
 const REPOSITORY_URL = 'https://github.com/acme/repo';
 
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason: unknown) => void;
+} {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 function Harness() {
   const viewState = usePrViewState(PROJECT_ID, REPOSITORY_URL);
   return React.createElement(
@@ -163,6 +177,28 @@ describe('usePrViewState', () => {
     await renderHarness();
 
     expect(state.getAttribute('data-error')).toBe('');
+  });
+
+  it('keeps fresh manual refresh errors visible when sync completes before rejection', async () => {
+    const refresh = deferred<void>();
+    mocks.syncState = { status: 'running' };
+    mocks.refresh.mockReturnValueOnce(refresh.promise);
+    const state = await renderHarness();
+    const refreshButton = container.querySelector('[data-testid="refresh"]');
+    expect(refreshButton).not.toBeNull();
+
+    await act(async () => {
+      refreshButton!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    });
+
+    mocks.syncState = { status: 'done' };
+    await renderHarness();
+
+    await act(async () => {
+      refresh.reject(new Error('sync failed'));
+    });
+
+    await vi.waitFor(() => expect(state.getAttribute('data-error')).toBe('sync failed'));
   });
 
   it('surfaces rejected force-full sync RPCs', async () => {
