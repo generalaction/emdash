@@ -190,7 +190,7 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
           focusUrlRef.current = focus;
         }}
       />
-      <div className="min-h-0 flex-1 bg-background">
+      <div className="emlight min-h-0 flex-1 bg-background">
         {showStartPage ? (
           <BrowserStartPage devServerUrls={devServers.urls} onOpenUrl={navigateTo} />
         ) : webviewProps && isRegistered ? (
