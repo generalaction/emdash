@@ -1,5 +1,10 @@
 import { useCallback, useMemo, useState } from 'react';
 
+interface SelectionAnchor {
+  id: string;
+  orderedIds: string[];
+}
+
 interface UseMultiSelectOptions<T> {
   items: ReadonlyArray<T>;
   getId: (item: T) => string;
@@ -20,7 +25,7 @@ export function useMultiSelect<T>({
   getId,
 }: UseMultiSelectOptions<T>): UseMultiSelectResult {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+  const [selectionAnchor, setSelectionAnchor] = useState<SelectionAnchor | null>(null);
   const allIds = useMemo(() => items.map(getId), [items, getId]);
   const selectedOrderedIds = useMemo(
     () => allIds.filter((id) => selectedIds.has(id)),
@@ -29,12 +34,18 @@ export function useMultiSelect<T>({
 
   const toggle = useCallback(
     (id: string, options?: { range?: boolean }) => {
-      if (options?.range && lastSelectedId && lastSelectedId !== id) {
-        const fromIndex = allIds.indexOf(lastSelectedId);
-        const toIndex = allIds.indexOf(id);
+      if (options?.range && selectionAnchor && selectionAnchor.id !== id) {
+        const fromIndex = selectionAnchor.orderedIds.indexOf(selectionAnchor.id);
+        const toIndex = selectionAnchor.orderedIds.indexOf(id);
         if (fromIndex !== -1 && toIndex !== -1) {
           const [start, end] = fromIndex < toIndex ? [fromIndex, toIndex] : [toIndex, fromIndex];
-          setSelectedIds(new Set(allIds.slice(start, end + 1)));
+          const rangeIds = selectionAnchor.orderedIds.slice(start, end + 1);
+          setSelectedIds((prev) => {
+            const next = new Set(prev);
+            rangeIds.forEach((rangeId) => next.add(rangeId));
+            return next;
+          });
+          setSelectionAnchor({ id, orderedIds: allIds });
           return;
         }
       }
@@ -45,19 +56,19 @@ export function useMultiSelect<T>({
         else next.add(id);
         return next;
       });
-      setLastSelectedId(id);
+      setSelectionAnchor({ id, orderedIds: allIds });
     },
-    [allIds, lastSelectedId]
+    [allIds, selectionAnchor]
   );
 
   const clear = useCallback(() => {
     setSelectedIds((prev) => (prev.size === 0 ? prev : new Set()));
-    setLastSelectedId(null);
+    setSelectionAnchor(null);
   }, []);
 
   const selectAll = useCallback(() => {
     setSelectedIds(new Set(allIds));
-    setLastSelectedId(null);
+    setSelectionAnchor(null);
   }, [allIds]);
 
   const isSelected = useCallback((id: string) => selectedIds.has(id), [selectedIds]);

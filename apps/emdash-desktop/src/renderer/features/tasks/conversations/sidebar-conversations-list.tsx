@@ -44,6 +44,7 @@ const ConversationRow = observer(function ConversationRow({
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const committedRef = useRef(false);
+  const checkboxShiftKeyRef = useRef(false);
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
   const { tabManager, tabGroupManager } = taskView;
@@ -142,7 +143,17 @@ const ConversationRow = observer(function ConversationRow({
           >
             <Checkbox
               checked={isSelected}
-              onClick={(e) => onToggleSelect(e.shiftKey)}
+              onMouseDown={(e) => {
+                checkboxShiftKeyRef.current = e.shiftKey;
+              }}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                checkboxShiftKeyRef.current = e.shiftKey;
+              }}
+              onCheckedChange={() => {
+                onToggleSelect(checkboxShiftKeyRef.current);
+                checkboxShiftKeyRef.current = false;
+              }}
               aria-label="Select conversation"
             />
           </div>
