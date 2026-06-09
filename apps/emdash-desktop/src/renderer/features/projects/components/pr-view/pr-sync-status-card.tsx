@@ -31,14 +31,38 @@ function SyncStatusCard({ icon, label, content, actions, className }: SyncStatus
   );
 }
 
+function SyncErrorStatusCard({
+  error,
+  actions,
+}: {
+  error: string | null | undefined;
+  actions?: ReactNode;
+}) {
+  return (
+    <SyncStatusCard
+      className={'border-border-destructive bg-background-destructive text-foreground-destructive'}
+      icon={<AlertCircle className="size-3.5 shrink-0 text-foreground-destructive" />}
+      label={<span className="font-medium text-foreground-destructive">Sync failed</span>}
+      content={
+        <span className="block truncate text-foreground-destructive/80" title={error ?? undefined}>
+          {error ?? 'Unknown error'}
+        </span>
+      }
+      actions={actions}
+    />
+  );
+}
+
 interface Props {
   projectId: string;
   repositoryUrl: string;
+  manualError?: string | null;
 }
 
 export const PrSyncStatusCard = observer(function PrSyncStatusCard({
   projectId,
   repositoryUrl,
+  manualError,
 }: Props) {
   const prSync = getPrSyncStore(projectId);
   const state = prSync?.getState(repositoryUrl);
@@ -54,6 +78,10 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
       return () => clearTimeout(timer);
     }
   }, [state?.status, prSync, repositoryUrl]);
+
+  if (manualError && (!state || state.status === 'done')) {
+    return <SyncErrorStatusCard error={manualError} />;
+  }
 
   if (showSuccess) {
     return (
@@ -113,14 +141,8 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
 
   // error state
   return (
-    <SyncStatusCard
-      icon={<AlertCircle className="size-3.5 shrink-0 text-foreground-destructive" />}
-      label={<span className="text-destructive font-medium">Sync failed</span>}
-      content={
-        <span className="block truncate" title={state.error}>
-          {state.error ?? 'Unknown error'}
-        </span>
-      }
+    <SyncErrorStatusCard
+      error={state.error}
       actions={
         <>
           <Button
