@@ -312,7 +312,10 @@ describe('executeTaskCreate', () => {
     vi.mocked(projectManager.getProject)
       .mockReturnValueOnce(undefined)
       .mockReturnValue({} as never);
-    vi.mocked(openProject).mockResolvedValue({ success: true, data: undefined });
+    vi.mocked(openProject).mockResolvedValue({
+      success: true,
+      data: { repositoryWorkspaceId: 'ws-repo-1' },
+    });
 
     const result = await executeTaskCreate(automation, run, noopStep);
 

@@ -2,16 +2,47 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ensureRepositoryWorkspace } from './ensure-repository-workspace';
 
 const mocks = vi.hoisted(() => ({
-  select: vi.fn(),
-  insert: vi.fn(),
-  update: vi.fn(),
+  selectAll: vi.fn(),
+  insertRun: vi.fn(),
+  updateRun: vi.fn(),
+  transaction: vi.fn(),
 }));
+
+function makeSelectChain(results: unknown[]) {
+  return {
+    from: () => ({
+      where: () => ({
+        limit: () => ({
+          all: () => results,
+        }),
+      }),
+    }),
+  };
+}
+
+function makeInsertChain(captureValues?: unknown[]) {
+  return {
+    values: (vals: unknown) => {
+      captureValues?.push(vals);
+      return { run: mocks.insertRun };
+    },
+  };
+}
+
+function makeUpdateChain() {
+  return {
+    set: () => ({
+      where: () => ({
+        run: mocks.updateRun,
+      }),
+    }),
+  };
+}
 
 vi.mock('@main/db/client', () => ({
   db: {
-    select: mocks.select,
-    insert: mocks.insert,
-    update: mocks.update,
+    select: () => makeSelectChain(mocks.selectAll()),
+    transaction: mocks.transaction,
   },
 }));
 
@@ -42,62 +73,48 @@ const sshProject = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
-function makeSingleSelectChain(result: unknown) {
-  return {
-    from: () => ({
-      where: () => ({
-        limit: () => Promise.resolve([result]),
-      }),
-    }),
-  };
-}
-
-function makeInsertChain() {
-  return {
-    values: () => ({ execute: () => Promise.resolve() }),
-  };
-}
-
-function makeUpdateChain() {
-  return {
-    set: () => ({
-      where: () => Promise.resolve(),
-    }),
-  };
-}
-
 describe('ensureRepositoryWorkspace', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.insert.mockReturnValue(makeInsertChain());
-    mocks.update.mockReturnValue(makeUpdateChain());
   });
 
-  it('returns existing repositoryWorkspaceId without DB writes when already set', async () => {
-    mocks.select.mockReturnValue(makeSingleSelectChain({ repositoryWorkspaceId: 'ws-existing-1' }));
+  it('returns existing repositoryWorkspaceId without entering a transaction', () => {
+    mocks.selectAll.mockReturnValue([{ repositoryWorkspaceId: 'ws-existing-1' }]);
 
-    const result = await ensureRepositoryWorkspace(localProject);
+    const result = ensureRepositoryWorkspace(localProject);
 
     expect(result).toBe('ws-existing-1');
-    expect(mocks.insert).not.toHaveBeenCalled();
-    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
-  it('creates a new project-root workspace and updates the project when not set', async () => {
-    mocks.select.mockReturnValue(makeSingleSelectChain({ repositoryWorkspaceId: null }));
+  it('creates a new project-root workspace inside a transaction when not set', () => {
+    mocks.selectAll.mockReturnValue([{ repositoryWorkspaceId: null }]);
+
     const insertedValues: unknown[] = [];
-    mocks.insert.mockReturnValue({
-      values: (vals: unknown) => {
-        insertedValues.push(vals);
-        return { execute: () => Promise.resolve() };
-      },
+
+    mocks.transaction.mockImplementation((fn: (tx: unknown) => unknown) => {
+      const tx = {
+        select: () => makeSelectChain([{ repositoryWorkspaceId: null }]),
+        insert: () => makeInsertChain(insertedValues),
+        update: () => makeUpdateChain(),
+      };
+      // First tx.select for re-check returns null
+      // Second tx.select for existing key returns empty
+      let selectCallCount = 0;
+      tx.select = () => {
+        selectCallCount++;
+        if (selectCallCount === 1) return makeSelectChain([{ repositoryWorkspaceId: null }]);
+        return makeSelectChain([]);
+      };
+      return fn(tx);
     });
 
-    const result = await ensureRepositoryWorkspace(localProject);
+    const result = ensureRepositoryWorkspace(localProject);
 
     expect(typeof result).toBe('string');
     expect(result.length).toBeGreaterThan(0);
-    expect(mocks.update).toHaveBeenCalled();
+    expect(mocks.insertRun).toHaveBeenCalled();
+    expect(mocks.updateRun).toHaveBeenCalled();
 
     const wsInsert = insertedValues[0] as Record<string, unknown>;
     expect(wsInsert.kind).toBe('project-root');
@@ -106,17 +123,26 @@ describe('ensureRepositoryWorkspace', () => {
     expect(wsInsert.sshConnectionId).toBeNull();
   });
 
-  it('sets location=remote and sshConnectionId for SSH projects', async () => {
-    mocks.select.mockReturnValue(makeSingleSelectChain({ repositoryWorkspaceId: null }));
+  it('sets location=remote and sshConnectionId for SSH projects', () => {
+    mocks.selectAll.mockReturnValue([{ repositoryWorkspaceId: null }]);
+
     const insertedValues: unknown[] = [];
-    mocks.insert.mockReturnValue({
-      values: (vals: unknown) => {
-        insertedValues.push(vals);
-        return { execute: () => Promise.resolve() };
-      },
+
+    mocks.transaction.mockImplementation((fn: (tx: unknown) => unknown) => {
+      let selectCallCount = 0;
+      const tx = {
+        select: () => {
+          selectCallCount++;
+          if (selectCallCount === 1) return makeSelectChain([{ repositoryWorkspaceId: null }]);
+          return makeSelectChain([]);
+        },
+        insert: () => makeInsertChain(insertedValues),
+        update: () => makeUpdateChain(),
+      };
+      return fn(tx);
     });
 
-    await ensureRepositoryWorkspace(sshProject);
+    ensureRepositoryWorkspace(sshProject);
 
     const wsInsert = insertedValues[0] as Record<string, unknown>;
     expect(wsInsert.kind).toBe('project-root');
@@ -124,25 +150,46 @@ describe('ensureRepositoryWorkspace', () => {
     expect(wsInsert.sshConnectionId).toBe('conn-1');
   });
 
-  it('is idempotent — second call returns same ID without inserting again', async () => {
-    // First call returns null → creates workspace
-    mocks.select.mockReturnValueOnce(makeSingleSelectChain({ repositoryWorkspaceId: null }));
-    const insertedValues: unknown[] = [];
-    mocks.insert.mockReturnValue({
-      values: (vals: unknown) => {
-        insertedValues.push(vals);
-        return { execute: () => Promise.resolve() };
-      },
+  it('is idempotent — returns existing ID from transaction re-check without inserting', () => {
+    mocks.selectAll.mockReturnValue([{ repositoryWorkspaceId: null }]);
+
+    mocks.transaction.mockImplementation((fn: (tx: unknown) => unknown) => {
+      const tx = {
+        select: () => makeSelectChain([{ repositoryWorkspaceId: 'ws-race-winner' }]),
+        insert: () => makeInsertChain(),
+        update: () => makeUpdateChain(),
+      };
+      return fn(tx);
     });
 
-    const firstId = await ensureRepositoryWorkspace(localProject);
+    const result = ensureRepositoryWorkspace(localProject);
 
-    // Second call returns the ID we just set
-    mocks.select.mockReturnValueOnce(makeSingleSelectChain({ repositoryWorkspaceId: firstId }));
+    expect(result).toBe('ws-race-winner');
+    expect(mocks.insertRun).not.toHaveBeenCalled();
+    expect(mocks.updateRun).not.toHaveBeenCalled();
+  });
 
-    const secondId = await ensureRepositoryWorkspace(localProject);
+  it('reuses existing workspace row when key already exists (orphan recovery)', () => {
+    mocks.selectAll.mockReturnValue([{ repositoryWorkspaceId: null }]);
 
-    expect(secondId).toBe(firstId);
-    expect(insertedValues).toHaveLength(1); // Only one workspace insert
+    mocks.transaction.mockImplementation((fn: (tx: unknown) => unknown) => {
+      let selectCallCount = 0;
+      const tx = {
+        select: () => {
+          selectCallCount++;
+          if (selectCallCount === 1) return makeSelectChain([{ repositoryWorkspaceId: null }]);
+          return makeSelectChain([{ id: 'ws-orphan-existing' }]);
+        },
+        insert: () => makeInsertChain(),
+        update: () => makeUpdateChain(),
+      };
+      return fn(tx);
+    });
+
+    const result = ensureRepositoryWorkspace(localProject);
+
+    expect(result).toBe('ws-orphan-existing');
+    expect(mocks.insertRun).not.toHaveBeenCalled();
+    expect(mocks.updateRun).toHaveBeenCalled();
   });
 });
