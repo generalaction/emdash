@@ -84,6 +84,7 @@ function waitForInstallPty(pty: Pty): Promise<Result<void, InstallCommandError>>
     }, INSTALL_COMMAND_TIMEOUT_MS);
 
     pty.onData((chunk: string) => {
+      if (settled) return;
       output = appendBoundedOutput(output, chunk);
     });
     pty.onExit(({ exitCode }) => {

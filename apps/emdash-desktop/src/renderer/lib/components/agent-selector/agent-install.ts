@@ -16,7 +16,7 @@ export function getAgentInstallErrorMessage(error: DependencyInstallError): stri
     case 'command-failed':
       return error.output ? `${error.message} ${error.output}` : error.message;
     case 'install-timed-out':
-      return error.output ? `${error.message} ${error.output}` : error.message;
+      return error.message;
     case 'pty-open-failed':
       return error.message;
     case 'unknown-dependency':

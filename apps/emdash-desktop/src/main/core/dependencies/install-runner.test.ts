@@ -87,6 +87,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   process.env = { ...originalEnv };
   if (originalPlatform) {
     Object.defineProperty(process, 'platform', originalPlatform);
@@ -193,7 +194,6 @@ describe('runLocalInstallCommand', () => {
         expect(result.error.output).toHaveLength(INSTALL_COMMAND_OUTPUT_LIMIT);
       }
     }
-    vi.useRealTimers();
   });
 });
 
