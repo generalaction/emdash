@@ -45,6 +45,7 @@ const config: Configuration = {
   },
   linux: {
     category: 'Development',
+    executableName: 'emdash-canary',
     target: [
       { target: 'AppImage', arch: ['x64'] },
       { target: 'deb', arch: ['x64'] },
