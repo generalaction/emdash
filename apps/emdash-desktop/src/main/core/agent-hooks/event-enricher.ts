@@ -37,6 +37,15 @@ function normalizePayload(
     payload.notificationType = 'permission_prompt';
   }
 
+  if (
+    !payload.notificationType &&
+    providerId === 'gemini' &&
+    eventType === 'notification' &&
+    body.notification_type === 'ToolPermission'
+  ) {
+    payload.notificationType = 'permission_prompt';
+  }
+
   return payload;
 }
 

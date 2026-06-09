@@ -357,6 +357,66 @@ describe('HookConfigWriter', () => {
     expect(fs.files.has('.gitignore')).toBe(false);
   });
 
+  it('writes Gemini hooks to project settings and ignores the settings file in git', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/gemini');
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    const wroteConfig = await writer.writeForProvider('gemini');
+
+    expect(wroteConfig).toBe(true);
+    const config = JSON.parse(fs.files.get('.gemini/settings.json')!);
+    expect(config.hooks.SessionStart[0].matcher).toBe('*');
+    expect(config.hooks.SessionStart[0].hooks[0].name).toBe('emdash-notify');
+    expect(config.hooks.SessionStart[0].hooks[0].timeout).toBe(5000);
+    expect(config.hooks.SessionStart[0].hooks[0].command).toContain('X-Emdash-Event-Type: session');
+    expect(config.hooks.BeforeAgent[0].hooks[0].command).toContain('X-Emdash-Event-Type: start');
+    expect(config.hooks.Notification[0].hooks[0].command).toContain(
+      'X-Emdash-Event-Type: notification'
+    );
+    expect(config.hooks.AfterAgent[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+    expect(config.hooks.SessionEnd[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+    expect(config.hooks.AfterAgent[0].hooks[0].command).toContain(
+      '{"decision":"allow","suppressOutput":true}'
+    );
+    expect(fs.files.get('.gitignore')).toBe('.gemini/settings.json\n');
+  });
+
+  it('preserves unrelated Gemini hooks while replacing Emdash-managed entries', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/gemini');
+    const fs = new MemoryFs();
+    fs.files.set(
+      '.gemini/settings.json',
+      JSON.stringify({
+        hooks: {
+          AfterAgent: [
+            { hooks: [{ type: 'command', command: 'echo user hook' }] },
+            { hooks: [{ type: 'command', command: 'echo $EMDASH_HOOK_PORT' }] },
+          ],
+        },
+      })
+    );
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('gemini');
+
+    const config = JSON.parse(fs.files.get('.gemini/settings.json')!);
+    expect(config.hooks.AfterAgent).toHaveLength(2);
+    expect(config.hooks.AfterAgent[0].hooks[0].command).toBe('echo user hook');
+    expect(config.hooks.AfterAgent[1].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+  });
+
+  it('skips Gemini hooks when gemini is unavailable', async () => {
+    mockResolveCommandPath.mockResolvedValue(undefined);
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('gemini');
+
+    expect(fs.files.has('.gemini/settings.json')).toBe(false);
+    expect(fs.files.has('.gitignore')).toBe(false);
+  });
+
   it('writes Devin stop and permission hooks and ignores the project hooks file in git', async () => {
     mockResolveCommandPath.mockResolvedValue('/usr/local/bin/devin');
     const fs = new MemoryFs();
