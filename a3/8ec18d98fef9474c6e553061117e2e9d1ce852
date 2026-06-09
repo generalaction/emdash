@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/main/core/app/service.ts
+  s_9f88f88f9fd93b::t_e814ef1e18f0c1 490-504
+apps/emdash-desktop/src/renderer/features/settings/components/CustomCommandModal.tsx
+  s_9f88f88f9fd93b::t_f73119df929a8c 1,5,76,125-142,269-287
+apps/emdash-desktop/src/main/core/app/controller.ts
+  s_9f88f88f9fd93b::t_434a85d6937b23 73-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "a38ec18d98fef9474c6e553061117e2e9d1ce852",
+  "prompts": {},
+  "sessions": {
+    "s_9f88f88f9fd93b": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eaca0-cb1a-75f4-b84f-1643b057a9b2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
