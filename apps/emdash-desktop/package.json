@@ -10,6 +10,7 @@
     "openai"
   ],
   "license": "Apache-2.0",
+  "homepage": "https://emdash.sh",
   "author": {
     "name": "Emdash Contributors",
     "email": "support@emdash.sh"
