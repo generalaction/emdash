@@ -1,3 +1,6 @@
+import { cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { exec } from './lib/exec.ts';
 import { fail, info, step } from './lib/log.ts';
@@ -29,25 +32,42 @@ const defaultTargets: Record<string, string> = {
 };
 const targets = values.targets ? values.targets.split(',').join(' ') : defaultTargets[platform];
 
-for (const arch of archs) {
-  step(`Building ${platform} ${targets} for ${arch}`);
+step('Creating deployment directory with production dependencies');
+const deployDir = mkdtempSync(join(tmpdir(), 'emdash-deploy-'));
+exec('pnpm deploy --prod ' + deployDir, { echo: true });
 
-  exec(`node --experimental-strip-types scripts/release/rebuild-native.ts --arch ${arch}`, {
-    echo: true,
-  });
+step('Copying built assets into deployment directory');
+cpSync('out', join(deployDir, 'out'), { recursive: true });
+cpSync('drizzle', join(deployDir, 'drizzle'), { recursive: true });
 
-  const platformFlag = `--${platform}`;
-  const archFlag = `--${arch}`;
-  const cmd = [
-    'pnpm exec electron-builder',
-    platformFlag,
-    targets,
-    archFlag,
-    '--publish always',
-    `--config ${values.config}`,
-    '--config.npmRebuild=false',
-  ].join(' ');
+try {
+  for (const arch of archs) {
+    step(`Building ${platform} ${targets} for ${arch}`);
 
-  exec(cmd, { echo: true });
-  info(`Built ${platform} ${targets} for ${arch}`);
+    exec(
+      `node --experimental-strip-types scripts/release/rebuild-native.ts --arch ${arch} --deploy-dir ${deployDir}`,
+      { echo: true }
+    );
+
+    const platformFlag = `--${platform}`;
+    const archFlag = `--${arch}`;
+    const cmd = [
+      'pnpm exec electron-builder',
+      platformFlag,
+      targets,
+      archFlag,
+      '--publish always',
+      `--config ${values.config}`,
+      `--projectDir ${deployDir}`,
+      '--config.npmRebuild=false',
+    ].join(' ');
+
+    exec(cmd, { echo: true });
+    info(`Built ${platform} ${targets} for ${arch}`);
+  }
+
+  step('Copying release artifacts to app directory');
+  cpSync(join(deployDir, 'release'), 'release', { recursive: true });
+} finally {
+  rmSync(deployDir, { recursive: true, force: true });
 }
