@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-manager.ts
+  s_5602d146fe46d0::t_bb84186157c714 8,292,296-305
+apps/emdash-desktop/src/renderer/features/tasks/view.tsx
+  s_5602d146fe46d0::t_baaf0dd23255e9 79-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "419ae394eb5035dd3a3d45c668660d539a8da4fb",
+  "prompts": {},
+  "sessions": {
+    "s_5602d146fe46d0": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eac63-d6a3-75f0-bf00-d9f4bd4f50ad",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
