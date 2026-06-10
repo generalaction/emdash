@@ -278,35 +278,6 @@ const AgentDetailSheetContent = observer(function AgentDetailSheetContent({
             ))}
         </div>
       </div>
-
-      <SheetFooter>
-        {isInstalled && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleResetToDefaults}
-            disabled={isLoading || saving}
-            className="mr-auto gap-1.5"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Reset to Defaults
-          </Button>
-        )}
-        <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={saving}>
-          {isInstalled ? 'Cancel' : 'Close'}
-        </Button>
-        {isInstalled && (
-          <ConfirmButton
-            type="button"
-            size="sm"
-            onClick={() => void handleSave()}
-            disabled={isLoading || saving || !hasChanges}
-          >
-            {saving ? 'Saving...' : 'Save'}
-          </ConfirmButton>
-        )}
-      </SheetFooter>
     </>
   );
 });

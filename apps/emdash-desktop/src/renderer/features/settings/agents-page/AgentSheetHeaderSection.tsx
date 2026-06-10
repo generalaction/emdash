@@ -1,10 +1,8 @@
 import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
-import { getAgentUpdateActionState } from '@renderer/lib/components/agent-selector/agent-install';
-import { appState } from '@renderer/lib/stores/app-state';
 import type { AgentPayload } from '@shared/core/agents/agent-payload';
-import { InstalledBadge, UninstalledBadge, UpdateAvailableBadge } from './agent-status-badge';
+
 
 function formatSupportsText(agent: AgentPayload): string {
   const supportsHooks = agent.capabilities.hooks.kind !== 'none';
@@ -17,21 +15,6 @@ export const AgentSheetHeaderSection = observer(function AgentSheetHeaderSection
 }: {
   agent: AgentPayload;
 }) {
-  const isInstalled = agent.status === 'available';
-
-  const updateStrategyKind =
-    agent.capabilities.updates.kind === 'supported'
-      ? agent.capabilities.updates.update.kind
-      : 'none';
-  const isUpdating = appState.dependencies.isUpdating(agent.id as never);
-  const updateState = getAgentUpdateActionState({
-    updateAvailable: agent.updateAvailable,
-    updateStrategyKind,
-    version: agent.version,
-    latestVersion: agent.latestVersion,
-    isUpdating,
-  });
-
   return (
     <div className="flex items-center gap-3">
       <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-background-1 p-1.5">
