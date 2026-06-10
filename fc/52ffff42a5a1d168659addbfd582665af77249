@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/settings/components/github-connect-modal.tsx
+  s_efc8d73fa69fe4::t_d4a4396850a718 224
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "fc52ffff42a5a1d168659addbfd582665af77249",
+  "prompts": {},
+  "sessions": {
+    "s_efc8d73fa69fe4": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eb281-7569-71d1-9d08-2ee5b3511419",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
