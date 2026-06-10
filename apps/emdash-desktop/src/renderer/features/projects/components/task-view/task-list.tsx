@@ -2,6 +2,7 @@ import { useHotkey } from '@tanstack/react-hotkeys';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Archive, CheckIcon, RotateCcw, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { AnimatePresence, motion } from 'motion/react';
 import { useRef } from 'react';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
@@ -306,34 +307,43 @@ export const TaskList = observer(function TaskList() {
             options={TASK_SORT_OPTIONS}
             onValueChange={(value) => taskView.setSortBy(value)}
           />
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm text-foreground-passive">Filter by</span>
-            <FilterMenu
-              label="Agent"
-              options={AGENT_FILTER_OPTIONS}
-              selected={taskView.agentFilter}
-              onToggle={(value) => taskView.toggleAgentFilter(value)}
-            />
-            <FilterMenu
-              label="PR"
-              options={PR_FILTER_OPTIONS}
-              selected={taskView.prFilter}
-              onToggle={(value) => taskView.togglePrFilter(value)}
-            />
-            <FilterMenu
-              label="Changes"
-              options={CHANGES_FILTER_OPTIONS}
-              selected={taskView.changesFilter}
-              onToggle={(value) => taskView.toggleChangesFilter(value)}
-            />
-            {taskView.hasActiveFilters && (
-              <button
-                className="text-xs text-foreground-muted hover:text-foreground"
-                onClick={() => taskView.clearFilters()}
-              >
-                Clear
-              </button>
-            )}
+          <div className="flex flex-wrap items-center">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm text-foreground-passive">Filter by</span>
+              <FilterMenu
+                label="Agent"
+                options={AGENT_FILTER_OPTIONS}
+                selected={taskView.agentFilter}
+                onToggle={(value) => taskView.toggleAgentFilter(value)}
+              />
+              <FilterMenu
+                label="PR"
+                options={PR_FILTER_OPTIONS}
+                selected={taskView.prFilter}
+                onToggle={(value) => taskView.togglePrFilter(value)}
+              />
+              <FilterMenu
+                label="Changes"
+                options={CHANGES_FILTER_OPTIONS}
+                selected={taskView.changesFilter}
+                onToggle={(value) => taskView.toggleChangesFilter(value)}
+              />
+            </div>
+            <AnimatePresence initial={false}>
+              {taskView.hasActiveFilters && (
+                <motion.button
+                  key="clear-filters"
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: 'auto' }}
+                  exit={{ opacity: 0, width: 0 }}
+                  transition={{ duration: 0.1, ease: 'easeOut' }}
+                  className="shrink-0 overflow-hidden pl-3 text-xs whitespace-nowrap text-foreground-muted hover:text-foreground"
+                  onClick={() => taskView.clearFilters()}
+                >
+                  Clear
+                </motion.button>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>

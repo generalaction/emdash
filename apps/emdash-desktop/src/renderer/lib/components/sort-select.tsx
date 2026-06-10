@@ -40,7 +40,7 @@ export function SortSelect<T extends string>({
             }
           </SelectValue>
         </SelectTrigger>
-        <SelectContent align="start" alignItemWithTrigger={false} className="w-auto min-w-44">
+        <SelectContent align="start" alignItemWithTrigger={false} className="w-auto">
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}
