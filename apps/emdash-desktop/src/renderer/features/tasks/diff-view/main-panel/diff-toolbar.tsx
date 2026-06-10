@@ -18,6 +18,7 @@ export const DiffToolbar = observer(function DiffToolbar({ tab }: DiffToolbarPro
     if (tab.diffGroup === 'disk') return 'Changed';
     if (tab.diffGroup === 'pr') return 'PR';
     if (tab.diffGroup === 'git') return 'Git';
+    if (tab.diffGroup === 'unified') return 'All changes (read-only)';
     return undefined;
   })();
 
