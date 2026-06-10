@@ -1,9 +1,9 @@
 import {
-  type SectionConfig,
+  type SectionSearchConfig,
   type SettingsContentTab,
   type SettingsNavTab,
   type SettingsPageTab,
-  settingsTabContent,
+  settingsSearchContent,
   settingsTabs,
 } from './settings-page-config';
 
@@ -31,7 +31,7 @@ export interface SettingsResultGroup {
   tab: ContentNavTab;
   title: string;
   description: string;
-  sections: SectionConfig[];
+  sections: SectionSearchConfig[];
 }
 
 function matchesSearch(parts: Array<string | undefined>, normalizedQuery: string) {
@@ -41,15 +41,15 @@ function matchesSearch(parts: Array<string | undefined>, normalizedQuery: string
 function tabHeaderMatchesSearch(tab: SettingsNavTab, normalizedQuery: string) {
   if (!normalizedQuery || tab.isExternal) return false;
 
-  const content = settingsTabContent[tab.id];
+  const content = settingsSearchContent[tab.id];
   return matchesSearch([tab.label, content.title, content.description], normalizedQuery);
 }
 
-function sectionMatchesSearch(section: SectionConfig, normalizedQuery: string) {
+function sectionMatchesSearch(section: SectionSearchConfig, normalizedQuery: string) {
   return matchesSearch([section.title, section.searchText], normalizedQuery);
 }
 
-function sectionLabel(section: SectionConfig) {
+function sectionLabel(section: SectionSearchConfig) {
   if (section.title) return section.title;
   return section.id
     .split('-')
@@ -60,7 +60,7 @@ function sectionLabel(section: SectionConfig) {
 /** Count of sections a tab would show under the current query (0 = no hit). */
 function tabMatchCount(tab: SettingsNavTab, normalizedQuery: string) {
   if (!normalizedQuery || tab.isExternal) return 0;
-  const content = settingsTabContent[tab.id];
+  const content = settingsSearchContent[tab.id];
   if (tabHeaderMatchesSearch(tab, normalizedQuery)) return content.sections.length;
   return content.sections.filter((section) => sectionMatchesSearch(section, normalizedQuery))
     .length;
@@ -87,7 +87,6 @@ export function getSettingsSearchView(activeTab: SettingsPageTab, query: string)
     : undefined;
   const displayedTab =
     normalizedQuery && !activeTabMatches && firstMatchingTab ? firstMatchingTab : activeNavTab;
-  const displayedContent = displayedTab ? settingsTabContent[displayedTab.id] : null;
 
   const tabMatches: SettingsTabMatch[] = settingsTabs.map((tab) => ({
     tab,
@@ -95,28 +94,10 @@ export function getSettingsSearchView(activeTab: SettingsPageTab, query: string)
   }));
   const totalMatches = tabMatches.reduce((sum, match) => sum + match.count, 0);
 
-  const headerMatches = displayedTab
-    ? tabHeaderMatchesSearch(displayedTab, normalizedQuery)
-    : false;
-  const matchingSections =
-    displayedContent && normalizedQuery
-      ? displayedContent.sections.filter((section) =>
-          sectionMatchesSearch(section, normalizedQuery)
-        )
-      : [];
-  // Partial hits → show only matching sections; header/whole-tab match or no query → show all.
-  const visibleSections =
-    normalizedQuery && !headerMatches && matchingSections.length > 0
-      ? matchingSections
-      : (displayedContent?.sections ?? []);
-  const noMatchesInActiveTab = Boolean(
-    normalizedQuery && displayedContent && !headerMatches && matchingSections.length === 0
-  );
-
   // Aggregated results across every tab so all findings are visible at once while searching.
   const resultGroups: SettingsResultGroup[] = normalizedQuery
     ? settingsTabs.filter(isContentTab).flatMap((tab) => {
-        const content = settingsTabContent[tab.id];
+        const content = settingsSearchContent[tab.id];
         const sections = tabHeaderMatchesSearch(tab, normalizedQuery)
           ? content.sections
           : content.sections.filter((section) => sectionMatchesSearch(section, normalizedQuery));
@@ -131,9 +112,6 @@ export function getSettingsSearchView(activeTab: SettingsPageTab, query: string)
     tabMatches,
     totalMatches,
     displayedTab,
-    displayedContent,
-    visibleSections,
-    noMatchesInActiveTab,
     resultGroups,
   };
 }
@@ -147,7 +125,7 @@ export function searchSettings(query: string): SettingsSearchResult[] {
   for (const tab of settingsTabs) {
     if (tab.isExternal) continue;
 
-    const content = settingsTabContent[tab.id];
+    const content = settingsSearchContent[tab.id];
     if (tabHeaderMatchesSearch(tab, normalizedQuery)) {
       results.push({
         id: `settings:${tab.id}`,

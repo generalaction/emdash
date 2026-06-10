@@ -4,7 +4,8 @@ import { PageHeader } from '@renderer/lib/components/page-header';
 import { rpc } from '@renderer/lib/ipc';
 import { SearchInput } from '@renderer/lib/ui/search-input';
 import { cn } from '@renderer/utils/utils';
-import type { SectionConfig, SettingsPageTab } from './settings-page-config';
+import type { SettingsPageTab } from './settings-page-config';
+import { type SectionConfig, settingsTabContent } from './settings-page-content';
 import { getSettingsSearchView } from './settings-search';
 
 export type { SettingsPageTab } from './settings-page-config';
@@ -34,8 +35,8 @@ export function SettingsPage({
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const searchView = getSettingsSearchView(activeTab, searchQuery);
-  const { normalizedQuery, displayedTab, displayedContent, resultGroups, totalMatches } =
-    searchView;
+  const { normalizedQuery, displayedTab, resultGroups, totalMatches } = searchView;
+  const displayedContent = displayedTab ? settingsTabContent[displayedTab.id] : null;
   const groupRefs = useRef<Record<string, HTMLElement | null>>({});
 
   const handleDocsClick = useCallback(() => {
@@ -150,7 +151,12 @@ export function SettingsPage({
                             {highlightMatch(group.title, normalizedQuery)}
                           </h2>
                         </div>
-                        {group.sections.map(renderSection)}
+                        {group.sections.map((section) => {
+                          const contentSection = settingsTabContent[group.tab.id].sections.find(
+                            (candidate) => candidate.id === section.id
+                          );
+                          return contentSection ? renderSection(contentSection) : null;
+                        })}
                       </section>
                     ))}
                   </div>
