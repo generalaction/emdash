@@ -117,7 +117,7 @@ export type ResolvedDiffTab = {
   kind: 'diff';
   tabId: string;
   path: string;
-  diffGroup: 'disk' | 'staged' | 'git' | 'pr';
+  diffGroup: 'disk' | 'staged' | 'git' | 'pr' | 'unified';
   originalRef: GitObjectRef;
   modifiedRef?: GitObjectRef;
   prNumber?: number;

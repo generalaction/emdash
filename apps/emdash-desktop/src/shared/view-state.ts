@@ -20,7 +20,7 @@ export type TabDescriptor =
       kind: 'diff';
       tabId: string;
       path: string;
-      diffGroup: 'disk' | 'staged' | 'git' | 'pr';
+      diffGroup: 'disk' | 'staged' | 'git' | 'pr' | 'unified';
       originalRef: GitObjectRef;
       modifiedRef?: GitObjectRef;
       prNumber?: number;
@@ -75,11 +75,12 @@ export interface ActiveFile {
   type: 'disk' | 'git';
   /** Semantic context: which diff panel/group this file belongs to.
    *  Determines which side is original/modified and which events make it stale.
-   *  'disk'   = working tree vs HEAD
-   *  'staged' = index vs HEAD
-   *  'git'    = arbitrary ref-to-ref comparison
-   *  'pr'     = PR diff (originalRef is remote-tracking base) */
-  group: 'disk' | 'staged' | 'git' | 'pr';
+   *  'disk'    = working tree vs HEAD
+   *  'staged'  = index vs HEAD
+   *  'git'     = arbitrary ref-to-ref comparison
+   *  'pr'      = PR diff (originalRef is remote-tracking base)
+   *  'unified' = working tree vs merge-base of (PR base | default branch) and HEAD */
+  group: 'disk' | 'staged' | 'git' | 'pr' | 'unified';
   originalRef: GitObjectRef;
   /** Fixed modified-side ref for 'git' and 'pr' diffs.
    *  When absent the diff viewer falls back to HEAD_REF. */

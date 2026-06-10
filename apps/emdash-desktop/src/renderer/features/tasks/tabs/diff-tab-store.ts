@@ -15,7 +15,7 @@ export class DiffTabStore {
   path: string;
   isPreview: boolean;
   renderer: DiffRendererData;
-  diffGroup: 'disk' | 'staged' | 'git' | 'pr';
+  diffGroup: 'disk' | 'staged' | 'git' | 'pr' | 'unified';
   originalRef: GitObjectRef;
   modifiedRef: GitObjectRef | undefined;
   prNumber: number | undefined;

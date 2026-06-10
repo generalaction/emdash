@@ -117,6 +117,7 @@ function loadModified(
 ): Promise<SideState> {
   switch (activeFile.group) {
     case 'disk':
+    case 'unified':
       return loadFromDisk(projectId, workspaceId, activeFile.path);
     case 'staged':
       return loadGitImage(() =>

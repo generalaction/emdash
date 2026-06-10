@@ -37,7 +37,7 @@ export class DiffTabLifecycleStore {
           if (tab) {
             const activeFile: ActiveFile = {
               path: tab.path,
-              type: tab.diffGroup === 'disk' ? 'disk' : 'git',
+              type: tab.diffGroup === 'disk' || tab.diffGroup === 'unified' ? 'disk' : 'git',
               group: tab.diffGroup,
               originalRef: tab.originalRef,
               modifiedRef: tab.modifiedRef,
@@ -79,6 +79,7 @@ export class DiffTabLifecycleStore {
                 t !== undefined &&
                 t.kind === 'diff' &&
                 t.diffGroup !== 'git' &&
+                t.diffGroup !== 'unified' &&
                 !validKeys.has(`${t.diffGroup}:${t.path}`)
             );
 

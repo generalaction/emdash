@@ -16,6 +16,8 @@ export function diffGroupSuffix(diffGroup: ResolvedDiffTab['diffGroup']): string
       return '(PR)';
     case 'git':
       return '(Git)';
+    case 'unified':
+      return '(All changes)';
   }
 }
 

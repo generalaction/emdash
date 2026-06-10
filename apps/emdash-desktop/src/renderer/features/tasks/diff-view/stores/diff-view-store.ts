@@ -81,7 +81,9 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
       reaction(
         () => this.activeFile,
         (file) => {
-          if (!file || file.group === 'git' || file.group === 'pr') return;
+          if (!file || file.group === 'git' || file.group === 'pr' || file.group === 'unified') {
+            return;
+          }
           this.changesView.expandForActiveFileType(file.group);
         }
       )
@@ -98,8 +100,10 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     const override = this.activeFileOverride;
     if (!override) return this._defaultActiveFile;
 
-    // git/pr groups cannot be validated against working-tree lists — trust the override
-    if (override.group === 'git' || override.group === 'pr') return override;
+    // git/pr/unified groups cannot be validated against working-tree lists — trust the override
+    if (override.group === 'git' || override.group === 'pr' || override.group === 'unified') {
+      return override;
+    }
 
     const isStaged = override.group === 'staged';
     const ownList = isStaged ? this.git.stagedFileChanges : this.git.unstagedFileChanges;

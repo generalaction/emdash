@@ -113,7 +113,7 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
     if (tab.diffGroup === 'disk') {
       return modelRegistry.toGitUri(uri, STAGED_REF);
     }
-    if (tab.diffGroup === 'git' || tab.diffGroup === 'pr') {
+    if (tab.diffGroup === 'git' || tab.diffGroup === 'pr' || tab.diffGroup === 'unified') {
       return modelRegistry.toGitUri(uri, tab.originalRef);
     }
     return modelRegistry.toGitUri(uri, HEAD_REF);
@@ -127,13 +127,14 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
     if (tab.diffGroup === 'git') {
       return modelRegistry.toGitUri(uri, tab.modifiedRef ?? HEAD_REF);
     }
+    // 'disk' and 'unified' both compare against the live working-tree buffer.
     return uri;
   })();
 
   useEffect(() => {
     let disposed = false;
 
-    if (tab.diffGroup === 'disk') {
+    if (tab.diffGroup === 'disk' || tab.diffGroup === 'unified') {
       const diskUri = modelRegistry.toDiskUri(uri);
       void (async () => {
         if (tab.status !== 'deleted') {
@@ -166,8 +167,9 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
           modelRegistry.unregisterModel(modifiedUri);
         }
       })().catch(() => {});
+      const originalRefForGit = tab.diffGroup === 'unified' ? tab.originalRef : STAGED_REF;
       void modelRegistry
-        .registerModel(projectId, workspaceId, root, tab.path, language, 'git', STAGED_REF)
+        .registerModel(projectId, workspaceId, root, tab.path, language, 'git', originalRefForGit)
         .catch(() => {});
     } else if (tab.diffGroup === 'staged') {
       void modelRegistry
@@ -198,7 +200,7 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
       disposed = true;
       modelRegistry.unregisterModel(originalUri);
       modelRegistry.unregisterModel(modifiedUri);
-      if (tab.diffGroup === 'disk') {
+      if (tab.diffGroup === 'disk' || tab.diffGroup === 'unified') {
         modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
       }
     };
@@ -265,7 +267,7 @@ function diffTabToCommentTarget(tab: DiffTabStore): DraftCommentTarget {
 function tabToActiveFile(tab: DiffTabStore): ActiveFile {
   return {
     path: tab.path,
-    type: tab.diffGroup === 'disk' ? 'disk' : 'git',
+    type: tab.diffGroup === 'disk' || tab.diffGroup === 'unified' ? 'disk' : 'git',
     group: tab.diffGroup,
     originalRef: tab.originalRef,
     modifiedRef: tab.modifiedRef,
