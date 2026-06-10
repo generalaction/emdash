@@ -1,7 +1,7 @@
 import { ChevronDown } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useMemo, useState } from 'react';
-import AgentLogo from '@renderer/lib/components/agent-logo';
+import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import {
   Combobox,
   ComboboxCollection,
@@ -13,7 +13,6 @@ import {
   ComboboxList,
   ComboboxTrigger,
 } from '@renderer/lib/ui/combobox';
-import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { AgentInstallButton } from './agent-install-button';
@@ -55,7 +54,6 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
     });
     const allOptions = useMemo(() => groups.flatMap((group) => group.items), [groups]);
 
-    const selectedConfig = value ? agentConfig[value] : null;
     const selectedOption = value ? allOptions.find((o) => o.value === value) : null;
 
     function handleValueChange(item: AgentOption | null) {
@@ -86,17 +84,10 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
             className
           )}
         >
-          {selectedConfig ? (
+          {value ? (
             <>
-              <AgentLogo
-                logo={selectedConfig.logo}
-                logoDark={selectedConfig.logoDark}
-                alt={selectedConfig.alt}
-                isSvg={selectedConfig.isSvg}
-                invertInDark={selectedConfig.invertInDark}
-                className="h-4 w-4 shrink-0 rounded-sm"
-              />
-              <span className="flex-1 truncate text-left">{selectedConfig.name}</span>
+              <AgentIcon id={value} size={16} className="rounded-sm" />
+              <span className="flex-1 truncate text-left">{selectedOption?.label ?? value}</span>
             </>
           ) : (
             <span className="flex-1 truncate text-foreground-muted">No agent installed</span>
@@ -111,7 +102,6 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
                 <ComboboxLabel>{group.label}</ComboboxLabel>
                 <ComboboxCollection>
                   {(item: AgentOption) => {
-                    const config = agentConfig[item.agentId];
                     const showInstall = canInstallAgentOption(item, installable);
                     return (
                       <AgentTooltipRow key={item.value} id={item.agentId}>
@@ -125,19 +115,11 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
                             showInstall && 'data-disabled:opacity-100'
                           )}
                         >
-                          {config && (
-                            <AgentLogo
-                              logo={config.logo}
-                              logoDark={config.logoDark}
-                              alt={config.alt}
-                              isSvg={config.isSvg}
-                              invertInDark={config.invertInDark}
-                              className={cn(
-                                'h-4 w-4 shrink-0 rounded-sm',
-                                showInstall && 'opacity-50'
-                              )}
-                            />
-                          )}
+                          <AgentIcon
+                            id={item.agentId}
+                            size={16}
+                            className={cn('rounded-sm', showInstall && 'opacity-50')}
+                          />
                           <span
                             className={cn(
                               'min-w-0 flex-1 truncate',

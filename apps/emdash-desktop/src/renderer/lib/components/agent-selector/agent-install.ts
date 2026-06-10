@@ -1,4 +1,4 @@
-import { agentConfig } from '@renderer/utils/agentConfig';
+import { metadataRegistry } from 'cli-agent-plugins/metadata';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { DependencyInstallError } from '@shared/core/dependencies';
 
@@ -41,6 +41,6 @@ export function getAgentInstallActionState({
     render: canInstall && !isInstalled,
     disabled: isInstalling,
     installing: isInstalling,
-    label: `Install ${agentConfig[agentId].name}`,
+    label: `Install ${metadataRegistry.get(agentId)?.name ?? agentId}`,
   };
 }

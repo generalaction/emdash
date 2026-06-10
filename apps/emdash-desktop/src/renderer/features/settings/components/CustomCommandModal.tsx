@@ -2,7 +2,7 @@ import { Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useProviderSettings } from '@renderer/features/settings/use-provider-settings';
 import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
-import { agentMeta } from '@renderer/lib/providers/meta';
+import { metadataRegistry } from 'cli-agent-plugins/metadata';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@renderer/lib/ui/dialog';
@@ -33,7 +33,7 @@ const configToFormState = (config: ProviderCustomConfig, defaultCli: string): Fo
 });
 
 const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose, providerId }) => {
-  const meta = agentMeta[providerId as keyof typeof agentMeta];
+  const meta = metadataRegistry.get(providerId);
 
   const {
     value: storedConfig,
@@ -153,7 +153,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
     return form.cli !== defaultCli || form.extraArgs !== '' || hasEnv;
   }, [form, defaultCli, isOverridden]);
 
-  const providerName = meta?.label ?? providerId;
+  const providerName = meta?.name ?? providerId;
   if (!meta) return null;
 
   return (

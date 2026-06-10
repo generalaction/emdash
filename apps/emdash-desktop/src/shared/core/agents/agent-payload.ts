@@ -34,10 +34,6 @@ export type AgentPayload = {
   name: string;
   description: string;
   websiteUrl: string | null;
-  iconName: string | null;
-  iconDarkName: string | null;
-  invertInDark: boolean;
-  alt: string | null;
   status: DependencyStatus | 'missing';
   version: string | null;
   command: string | null;

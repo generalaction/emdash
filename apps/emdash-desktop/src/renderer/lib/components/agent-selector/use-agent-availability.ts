@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { appState } from '@renderer/lib/stores/app-state';
-import { agentConfig } from '@renderer/utils/agentConfig';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import { metadataRegistry } from 'cli-agent-plugins/metadata';
+import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { getAgentInstallErrorMessage } from './agent-install';
 import { buildAgentGroups, getAssumedInstalledAgents } from './agent-selector-options';
 
@@ -35,7 +35,7 @@ export function useAgentAvailability({
   );
 
   const installingAgents = new Set<AgentProviderId>();
-  for (const id of Object.keys(agentConfig) as AgentProviderId[]) {
+  for (const { id } of AGENT_PROVIDERS) {
     if (appState.dependencies.isInstalling(id, connectionId)) {
       installingAgents.add(id);
     }
@@ -54,7 +54,7 @@ export function useAgentAvailability({
       return;
     }
 
-    toast({ title: 'Agent installed', description: `${agentConfig[agentId].name} is ready.` });
+    toast({ title: 'Agent installed', description: `${metadataRegistry.get(agentId)?.name ?? agentId} is ready.` });
   }
 
   return {

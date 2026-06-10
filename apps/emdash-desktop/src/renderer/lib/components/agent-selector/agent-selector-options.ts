@@ -1,5 +1,5 @@
-import { agentConfig } from '@renderer/utils/agentConfig';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import { metadataRegistry } from 'cli-agent-plugins/metadata';
+import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { getAgentInstallActionState } from './agent-install';
 
 export interface AgentOption {
@@ -20,18 +20,22 @@ export function buildAgentGroups(
   assumedInstalledAgents: string[] = [],
   installingAgents: ReadonlySet<AgentProviderId> = new Set()
 ): AgentGroup[] {
+  const allAgentIds = AGENT_PROVIDERS.map((p) => p.id);
   const installedSet = new Set(
-    [...installedAgents, ...assumedInstalledAgents].filter((id) => id in agentConfig)
+    [...installedAgents, ...assumedInstalledAgents].filter((id) =>
+      allAgentIds.includes(id as AgentProviderId)
+    )
   );
-  const allAgentIds = Object.keys(agentConfig) as AgentProviderId[];
+
+  const getName = (id: AgentProviderId) => metadataRegistry.get(id)?.name ?? id;
 
   const installedOptions: AgentOption[] = allAgentIds
     .filter((id) => installedSet.has(id) && !installingAgents.has(id))
-    .map((id) => ({ value: id, label: agentConfig[id].name, agentId: id, disabled: false }));
+    .map((id) => ({ value: id, label: getName(id), agentId: id, disabled: false }));
 
   const notInstalledOptions: AgentOption[] = allAgentIds
     .filter((id) => !installedSet.has(id) || installingAgents.has(id))
-    .map((id) => ({ value: id, label: agentConfig[id].name, agentId: id, disabled: true }));
+    .map((id) => ({ value: id, label: getName(id), agentId: id, disabled: true }));
 
   return [
     { value: 'installed', label: 'Installed', items: installedOptions },

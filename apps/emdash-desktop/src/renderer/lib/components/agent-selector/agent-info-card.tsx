@@ -1,23 +1,21 @@
 import { ArrowUpRight, Check, Copy } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import AgentLogo from '@renderer/lib/components/agent-logo';
-import { type UiAgent } from '@renderer/lib/providers/meta';
+import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { Button } from '@renderer/lib/ui/button';
-import { agentConfig } from '@renderer/utils/agentConfig';
 import {
   getDescriptionForProvider,
   getDocUrlForProvider,
   getInstallCommandForProvider,
   getProvider,
+  type AgentProviderId,
 } from '@shared/core/agents/agent-provider-registry';
 
 type Props = {
-  id: UiAgent;
+  id: AgentProviderId;
 };
 
 export const AgentInfoCard: React.FC<Props> = ({ id }) => {
   const provider = getProvider(id);
-  const config = agentConfig[id];
   const description = getDescriptionForProvider(id);
   const installCommand = getInstallCommandForProvider(id) ?? 'npm install -g @openai/codex';
   const docUrl = getDocUrlForProvider(id);
@@ -59,18 +57,9 @@ export const AgentInfoCard: React.FC<Props> = ({ id }) => {
   return (
     <div className="w-80 max-w-[20rem] rounded-lg border border-border bg-background p-3 text-foreground shadow-md">
       <div className="mb-2 flex items-center gap-2">
-        <AgentLogo
-          logo={config.logo}
-          logoDark={config.logoDark}
-          alt={config.alt}
-          isSvg={config.isSvg}
-          invertInDark={config.invertInDark}
-          className="h-5 w-5 rounded-sm"
-        />
+        <AgentIcon id={id} size={20} className="rounded-sm" />
         <div className="flex items-baseline gap-1 text-sm leading-none">
-          <span className="text-foreground-muted">{config.name}</span>
-          <span className="text-foreground-muted">/</span>
-          <strong className="font-medium text-foreground">{title}</strong>
+          <span className="text-foreground-muted">{title}</span>
         </div>
       </div>
 

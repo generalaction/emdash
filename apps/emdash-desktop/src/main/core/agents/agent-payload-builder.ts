@@ -4,8 +4,6 @@ import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/core/agents/agent
 import type { DependencyStatusMap } from '@shared/core/dependencies';
 import { providerOverrideSettings } from '../settings/provider-settings-service';
 
-const PROVIDER_MAP = new Map(AGENT_PROVIDERS.map((p) => [p.id, p]));
-
 async function buildOne(
   id: AgentProviderId,
   statuses: DependencyStatusMap
@@ -13,7 +11,6 @@ async function buildOne(
   const meta = metadataRegistry.get(id);
   if (!meta) return null;
 
-  const provider = PROVIDER_MAP.get(id);
   const state = statuses[id];
   const settingsMeta = await providerOverrideSettings.getItemWithMeta(id);
 
@@ -26,10 +23,6 @@ async function buildOne(
     name: meta.name,
     description: meta.description,
     websiteUrl: meta.websiteUrl ?? null,
-    iconName: provider?.icon ?? null,
-    iconDarkName: provider?.iconDark ?? null,
-    invertInDark: provider?.invertInDark ?? false,
-    alt: provider?.alt ?? null,
     status: state?.status ?? 'missing',
     version: state?.version ?? null,
     command: state?.path ?? null,

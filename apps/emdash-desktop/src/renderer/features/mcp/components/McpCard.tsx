@@ -1,11 +1,11 @@
 import { ExternalLink, Globe, Pencil, Plus, Terminal } from 'lucide-react';
 import React from 'react';
-import AgentLogo from '@renderer/lib/components/agent-logo';
+import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { CardGridItem } from '@renderer/lib/components/card-grid';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { agentConfig } from '@renderer/utils/agentConfig';
 import { McpServerIcon } from '@renderer/utils/mcpIcons';
+import { iconRegistry } from 'cli-agent-plugins/icons';
 import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { McpCatalogEntry, McpServer } from '@shared/core/mcp/types';
 
@@ -23,12 +23,9 @@ function getTransport(server?: McpServer, entry?: McpCatalogEntry): 'stdio' | 'h
   return 'stdio';
 }
 
-function getSyncedProviders(server?: McpServer) {
+function getSyncedProviders(server?: McpServer): AgentProviderId[] {
   if (!server) return [];
-  return server.providers.flatMap((id) => {
-    const cfg = agentConfig[id as AgentProviderId];
-    return cfg ? [{ id, ...cfg }] : [];
-  });
+  return server.providers.filter((id) => iconRegistry.get(id) != null) as AgentProviderId[];
 }
 
 export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, onAdd }) => {
@@ -72,16 +69,8 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
         {description && <p className="line-clamp-1 text-xs text-foreground-muted">{description}</p>}
         {syncedProviders.length > 0 && (
           <div className="mt-1.5 flex items-center gap-1">
-            {syncedProviders.map((p) => (
-              <AgentLogo
-                key={p.id}
-                logo={p.logo}
-                logoDark={p.logoDark}
-                alt={p.alt}
-                isSvg={p.isSvg}
-                invertInDark={p.invertInDark}
-                className="h-3.5 w-3.5 rounded-sm"
-              />
+            {syncedProviders.map((id) => (
+              <AgentIcon key={id} id={id} size={14} className="rounded-sm" />
             ))}
           </div>
         )}

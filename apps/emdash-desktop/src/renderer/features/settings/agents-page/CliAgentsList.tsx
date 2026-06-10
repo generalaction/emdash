@@ -7,7 +7,6 @@ import { getAgentInstallErrorMessage } from '@renderer/lib/components/agent-sele
 import { AgentInstallButton } from '@renderer/lib/components/agent-selector/agent-install-button';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
-import { resolveAgentIcon } from '@renderer/lib/providers/meta';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Label } from '@renderer/lib/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
@@ -39,8 +38,6 @@ const AgentRow: React.FC<AgentRowProps> = ({
   onInstallClick,
   onSettingsClick,
 }) => {
-  const logo = resolveAgentIcon(agent.iconName);
-  const logoDark = resolveAgentIcon(agent.iconDarkName);
   const providerId = isValidProviderId(agent.id) ? agent.id : null;
   const canInstall = Object.keys(agent.capabilities.install.installCommands).length > 0;
 

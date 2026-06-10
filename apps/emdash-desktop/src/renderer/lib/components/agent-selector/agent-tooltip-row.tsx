@@ -1,10 +1,10 @@
 import React from 'react';
-import { type UiAgent } from '@renderer/lib/providers/meta';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
+import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { AgentInfoCard } from './agent-info-card';
 
 interface AgentTooltipRowProps {
-  id: UiAgent;
+  id: AgentProviderId;
   children: React.ReactElement;
   side?: 'top' | 'bottom' | 'left' | 'right';
   align?: 'start' | 'center' | 'end';
