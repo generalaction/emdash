@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/settings/components/github-connect-modal.tsx
+  s_749f830f10eb2a::t_07f832bead5514 1-9,30,131-141,143-153,156-166,178-228,256,258-263
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "60fb0cd19964a471329f255f05e805e77e5a48e9",
+  "prompts": {},
+  "sessions": {
+    "s_749f830f10eb2a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4494e21b-0962-4d09-be06-c45f6cb954eb",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
