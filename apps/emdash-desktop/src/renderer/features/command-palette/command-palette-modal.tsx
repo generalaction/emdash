@@ -1,8 +1,16 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Command } from 'cmdk';
-import { Activity, FolderOpen, GitBranch, MessageSquare, type LucideIcon } from 'lucide-react';
+import {
+  Activity,
+  FolderOpen,
+  GitBranch,
+  MessageSquare,
+  Settings,
+  type LucideIcon,
+} from 'lucide-react';
 import { useObserver } from 'mobx-react-lite';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { searchSettings } from '@renderer/features/settings/components/settings-search';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { getTaskStore, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
@@ -223,6 +231,23 @@ export function CommandPaletteModal({
 
   const rankedDb = applyContextAffinity(dbResults, { projectId });
   const actionResults = actions;
+  const settingsResults = useMemo<PaletteAction[]>(
+    () =>
+      searchSettings(debouncedQuery)
+        .slice(0, 6)
+        .map((result) => ({
+          kind: 'action',
+          id: result.id,
+          title: result.title,
+          subtitle: result.subtitle,
+          icon: Settings,
+          execute: () => {
+            handleClose();
+            navigate('settings', { tab: result.tab });
+          },
+        })),
+    [debouncedQuery, handleClose, navigate]
+  );
 
   const q = debouncedQuery.toLowerCase();
   const matchedResourceMonitor =
@@ -322,6 +347,13 @@ export function CommandPaletteModal({
                 item={matchedResourceMonitor}
                 onSelect={matchedResourceMonitor.execute}
               />
+            )}
+            {settingsResults.length > 0 && (
+              <Command.Group heading="Settings" className={GROUP_CLASS}>
+                {settingsResults.map((item) => (
+                  <PaletteItem key={item.id} value={item.id} item={item} onSelect={item.execute} />
+                ))}
+              </Command.Group>
             )}
             {rankedDb.map((item) => {
               if (item.kind === 'command') {

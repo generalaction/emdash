@@ -17,6 +17,7 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(functio
     clearLabel = 'Clear search',
     containerClassName,
     onClear,
+    onKeyDown,
     selectOnHotkey = false,
     value,
     ...props
@@ -25,6 +26,19 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(functio
 ) {
   const inputRef = React.useRef<HTMLInputElement>(null);
   const showClearButton = Boolean(value) && onClear;
+
+  // Escape clears a non-empty search before falling back to blurring the field.
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    onKeyDown?.(event);
+    if (event.defaultPrevented || event.key !== 'Escape') return;
+    if (value && onClear) {
+      event.preventDefault();
+      event.stopPropagation();
+      onClear();
+    } else {
+      event.currentTarget.blur();
+    }
+  };
 
   React.useImperativeHandle(forwardedRef, () => inputRef.current as HTMLInputElement);
 
@@ -45,6 +59,7 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(functio
         className={cn('pl-8', showClearButton && 'pr-8', className)}
         {...props}
         value={value}
+        onKeyDown={handleKeyDown}
         ref={inputRef}
       />
       {showClearButton && (
