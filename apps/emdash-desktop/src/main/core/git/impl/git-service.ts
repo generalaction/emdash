@@ -957,6 +957,17 @@ export class GitService implements GitProvider, IDisposable {
     return changes;
   }
 
+  async getMergeBase(base: GitObjectRef): Promise<string | null> {
+    const baseStr = toRefString(base);
+    try {
+      const { stdout } = await this.ctx.exec('git', ['merge-base', baseStr, 'HEAD']);
+      const sha = stdout.trim();
+      return sha === '' ? null : sha;
+    } catch {
+      return null;
+    }
+  }
+
   async getCommitFiles(commitHash: string): Promise<CommitFile[]> {
     const { stdout } = await this.ctx.exec('git', [
       'diff-tree',

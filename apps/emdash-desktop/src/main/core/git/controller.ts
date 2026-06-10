@@ -89,6 +89,18 @@ export const gitController = createRPCController({
     }
   },
 
+  getMergeBase: async (projectId: string, workspaceId: string, base: GitObjectRef) => {
+    try {
+      const env = resolveWorkspace(projectId, workspaceId);
+      if (!env) return err({ type: 'not_found' as const });
+      const sha = await env.git.getMergeBase(base);
+      return ok({ sha });
+    } catch (e) {
+      log.error('gitCtrl.getMergeBase failed', { projectId, workspaceId, base, error: e });
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
   getFileAtHead: async (projectId: string, workspaceId: string, filePath: string) => {
     try {
       const env = resolveWorkspace(projectId, workspaceId);

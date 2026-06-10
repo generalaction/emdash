@@ -43,6 +43,7 @@ export interface WorkspaceGitProvider extends Hookable<WorkspaceGitHooks> {
    */
   getWorktreeGitDir(mainDotGitAbs: string): Promise<string>;
   getChangedFiles(base: DiffMode | GitObjectRef | MergeBaseRange): Promise<GitChange[]>;
+  getMergeBase(base: GitObjectRef): Promise<string | null>;
 
   getFileDiff(filePath: string, base?: DiffMode | GitObjectRef): Promise<DiffResult>;
   getFileAtHead(filePath: string): Promise<string | null>;
