@@ -117,7 +117,10 @@ export const changesViewModeSchema = z.object({
   unstaged: z.enum(['flat', 'tree']),
   staged: z.enum(['flat', 'tree']),
   pr: z.enum(['flat', 'tree']),
+  unified: z.enum(['flat', 'tree']),
 });
+
+export const changesPanelModeSchema = z.enum(['split', 'unified']);
 
 export const browserPreviewSettingsSchema = z.object({ enabled: z.boolean() });
 
@@ -143,6 +146,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   browserPreview: browserPreviewSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,
+  changesPanelMode: changesPanelModeSchema,
 } as const;
 
 export const appSettingsSchema = z.object({
@@ -160,4 +164,5 @@ export const appSettingsSchema = z.object({
   browserPreview: browserPreviewSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,
+  changesPanelMode: changesPanelModeSchema,
 });

@@ -70,7 +70,9 @@ export const SETTINGS_DEFAULTS = {
     unstaged: 'flat' as const,
     staged: 'flat' as const,
     pr: 'flat' as const,
+    unified: 'flat' as const,
   },
+  changesPanelMode: 'split' as const,
 } satisfies SettingsDefaultsMap;
 
 export function getDefaultForKey<K extends AppSettingsKey>(key: K): AppSettings[K] {
