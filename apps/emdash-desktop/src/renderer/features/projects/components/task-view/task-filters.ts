@@ -65,7 +65,10 @@ export function taskChangesFilterValue(task: FilterableTask): TaskChangesFilterV
 
 /** A task passes when it matches every active dimension (AND), with OR within a dimension. */
 export function taskMatchesFilters(task: FilterableTask, filters: TaskFilters): boolean {
-  if (filters.agent.size > 0 && !filters.agent.has(taskAgentStatus(task) ?? 'idle')) return false;
+  if (filters.agent.size > 0) {
+    const agentStatus = taskAgentStatus(task);
+    if (agentStatus === null || !filters.agent.has(agentStatus)) return false;
+  }
   if (filters.pr.size > 0 && !filters.pr.has(taskPrFilterValue(task))) return false;
   if (filters.changes.size > 0 && !filters.changes.has(taskChangesFilterValue(task))) return false;
   return true;

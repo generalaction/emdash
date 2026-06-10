@@ -272,8 +272,15 @@ export const TaskList = observer(function TaskList() {
     ),
     taskView.sortBy
   );
+  const hasSearchOrFilters = Boolean(q) || taskView.hasActiveFilters;
   const showOnboardingEmptyState =
-    filteredTasks.length === 0 && taskView.tab === 'active' && !q && !taskView.hasActiveFilters;
+    filteredTasks.length === 0 && taskView.tab === 'active' && !hasSearchOrFilters;
+  const showFilteredEmptyState = filteredTasks.length === 0 && hasSearchOrFilters;
+
+  const clearSearchAndFilters = () => {
+    taskView.setSearchQuery('');
+    taskView.clearFilters();
+  };
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-col">
@@ -350,6 +357,16 @@ export const TaskList = observer(function TaskList() {
 
       {showOnboardingEmptyState ? (
         <TaskListEmptyState projectId={projectId} />
+      ) : showFilteredEmptyState ? (
+        <EmptyState
+          label="No matching tasks"
+          description="Adjust your search or filters to see more tasks."
+          action={
+            <Button variant="outline" size="sm" onClick={clearSearchAndFilters}>
+              Clear search and filters
+            </Button>
+          }
+        />
       ) : (
         <TaskVirtualList
           tasks={filteredTasks}
