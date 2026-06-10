@@ -1,0 +1,46 @@
+apps/emdash-desktop/src/renderer/lib/ui/search-input.tsx
+  s_5f2e2929be8dc2::t_a65551d8ac1fcf 20,30-41
+  s_5f2e2929be8dc2::t_7b7d5819863e50 62
+apps/emdash-desktop/src/renderer/features/command-palette/command-palette-modal.tsx
+  s_5f2e2929be8dc2::t_a9b36912ae18b1 3-10
+  s_1fac329e8cdd7f::t_730e50e605b203 13,234-250,351-356
+apps/emdash-desktop/src/renderer/features/settings/components/SettingsPage.tsx
+  s_5f2e2929be8dc2::t_cfffb62dbe8115 20,37-38,89-90
+  s_5f2e2929be8dc2::t_0405a68c0c9654 2,7,39,45-58,91,99-103,130-144,146,148-171
+  s_5f2e2929be8dc2::t_e677e2abbdb8b0 12-19,21-27,77-88,92-98,104-119,121-127
+  s_5f2e2929be8dc2::t_b3c4e94e156975 120
+apps/emdash-desktop/src/renderer/features/settings/components/settings-search.ts
+  s_1fac329e8cdd7f::t_bd8e5031d31ebd 53-57
+  s_5f2e2929be8dc2::t_69e57669a3fab0 16-19,37-38,58-64,76,90,92-96,101-106,108-111,130-132
+  s_5f2e2929be8dc2::t_7bfc9015006a79 30-36
+  s_5f2e2929be8dc2::t_25e5f11a0d4324 77-78,82-84,86-89
+  s_5f2e2929be8dc2::t_da3dc571fd2d76 107
+  s_1fac329e8cdd7f::t_0a370293a88648 22-28,52,112-114,136,140-173
+  s_5f2e2929be8dc2::t_a9b36912ae18b1 85
+  s_5f2e2929be8dc2::t_b3c4e94e156975 65-66,98-100
+  s_5f2e2929be8dc2::t_873e79d8eb9fb8 116-127,137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "2e846b7a724d1f177702ad75601e5eb82bde765a",
+  "prompts": {},
+  "sessions": {
+    "s_1fac329e8cdd7f": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eb0ca-41d6-7a96-b20b-bcec27bde832",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_5f2e2929be8dc2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1eddaffa-ea2c-4f56-a828-66ec122ebd3e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
