@@ -14,6 +14,7 @@ import {
   type BrowserWebviewAdapter,
   type BrowserWebviewElement,
 } from './browser-webview-types';
+import { normalizeBrowserZoomFactor } from './browser-zoom';
 
 const WEBVIEW_ALLOW_POPUPS_ATTRIBUTE = 'true' as unknown as boolean;
 
@@ -137,13 +138,44 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
     if (decision.kind === 'retry-url') loadUrl(decision.url);
   }, [adapter, loadUrl, session]);
 
-  const attachWebview = (node: Element | null) => {
+  const forceReload = useCallback(() => {
+    if (adapter) {
+      adapter.reloadIgnoringCache();
+      return;
+    }
+    reload();
+  }, [adapter, reload]);
+
+  const setZoomFactor = useCallback(
+    (factor: number) => {
+      if (!sessionBrowserId) return;
+      browserSessionStore.updateSession(sessionBrowserId, {
+        zoomFactor: normalizeBrowserZoomFactor(factor),
+      });
+    },
+    [sessionBrowserId]
+  );
+
+  const sessionZoomFactor = normalizeBrowserZoomFactor(session?.zoomFactor);
+  const sessionCurrentUrl = session?.currentUrl;
+
+  // Electron tracks zoom per host within a partition, so re-apply the session
+  // zoom after every navigation as well as whenever the user changes it.
+  useEffect(() => {
+    if (!adapter) return;
+    adapter.setZoomFactor(sessionZoomFactor);
+  }, [adapter, sessionZoomFactor, sessionCurrentUrl]);
+
+  // Must stay referentially stable: React re-invokes inline ref callbacks with
+  // null + node on every render, which would wipe the adapter until the next
+  // dom-ready and break everything adapter-backed (zoom, stop, force reload).
+  const attachWebview = useCallback((node: Element | null) => {
     const next = node as BrowserWebviewElement | null;
     if (webviewRef.current === next) return;
     webviewRef.current = next;
     setWebviewElement(next);
     setAdapter(null);
-  };
+  }, []);
 
   useEffect(() => {
     if (!sessionBrowserId || !webviewElement) return;
@@ -187,6 +219,8 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
         autoFocusUrl={showStartPage}
         onNavigate={navigateTo}
         onReload={reload}
+        onForceReload={forceReload}
+        onSetZoomFactor={setZoomFactor}
         onFocusUrl={(focus) => {
           focusUrlRef.current = focus;
         }}

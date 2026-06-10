@@ -33,6 +33,7 @@ export type BrowserSessionSnapshot = BrowserSessionIdentity & {
   isLoading: boolean;
   canGoBack: boolean;
   canGoForward: boolean;
+  zoomFactor?: number;
   loadError?: BrowserLoadError;
   createdAt: number;
   updatedAt: number;

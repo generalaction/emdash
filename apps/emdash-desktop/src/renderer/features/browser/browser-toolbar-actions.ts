@@ -16,6 +16,24 @@ export function canOpenBrowserUrlExternally(url: string): boolean {
   return normalized.ok && (normalized.protocol === 'http:' || normalized.protocol === 'https:');
 }
 
+export function clearBrowserCookies(
+  session: BrowserSessionSnapshot,
+  adapter: BrowserWebviewAdapter | null
+): void {
+  void rpc.browser.clearCookies(session.browserId).then((result) => {
+    if (result.success) adapter?.reload();
+  });
+}
+
+export function clearBrowserCache(
+  session: BrowserSessionSnapshot,
+  adapter: BrowserWebviewAdapter | null
+): void {
+  void rpc.browser.clearCache(session.browserId).then((result) => {
+    if (result.success) adapter?.reloadIgnoringCache();
+  });
+}
+
 export function confirmClearBrowserStorage(
   session: BrowserSessionSnapshot,
   adapter: BrowserWebviewAdapter | null

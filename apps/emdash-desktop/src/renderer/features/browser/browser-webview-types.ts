@@ -18,8 +18,11 @@ export type BrowserWebviewElement = HTMLElement & {
   goBack(): void;
   goForward(): void;
   reload(): void;
+  reloadIgnoringCache(): void;
   stop(): void;
   loadURL(url: string): Promise<void> | void;
+  setZoomFactor(factor: number): void;
+  getZoomFactor(): number;
   addEventListener<K extends keyof BrowserWebviewEventMap>(
     type: K,
     listener: (event: BrowserWebviewEventMap[K]) => void
@@ -38,8 +41,11 @@ export type BrowserWebviewAdapter = {
   goBack(): void;
   goForward(): void;
   reload(): void;
+  reloadIgnoringCache(): void;
   stop(): void;
   loadUrl(url: string): Promise<void>;
+  setZoomFactor(factor: number): void;
+  getZoomFactor(): number;
   focus(): void;
 };
 
@@ -52,10 +58,13 @@ export function createBrowserWebviewAdapter(webview: BrowserWebviewElement): Bro
     goBack: () => webview.goBack(),
     goForward: () => webview.goForward(),
     reload: () => webview.reload(),
+    reloadIgnoringCache: () => webview.reloadIgnoringCache(),
     stop: () => webview.stop(),
     loadUrl: async (url: string) => {
       await webview.loadURL(url);
     },
+    setZoomFactor: (factor: number) => webview.setZoomFactor(factor),
+    getZoomFactor: () => webview.getZoomFactor(),
     focus: () => webview.focus(),
   };
 }

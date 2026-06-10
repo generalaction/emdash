@@ -66,4 +66,23 @@ describe('BrowserWebContentsRegistry', () => {
 
     expect(registry.getBrowserIdForWebContents(webContentsWithSession({}))).toBeUndefined();
   });
+
+  it('clears cookies and cache only for registered sessions', async () => {
+    const registry = new BrowserWebContentsRegistry();
+    const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
+    const clearStorageData = vi.fn().mockResolvedValue(undefined);
+    const clearCache = vi.fn().mockResolvedValue(undefined);
+    sessionsByPartition.set(partition, { partition, clearStorageData, clearCache });
+
+    registry.registerSession({ browserId: 'browser-1', partition });
+
+    expect(await registry.clearCookies('browser-1')).toBe(true);
+    expect(clearStorageData).toHaveBeenCalledWith({ storages: ['cookies'] });
+
+    expect(await registry.clearCache('browser-1')).toBe(true);
+    expect(clearCache).toHaveBeenCalledWith();
+
+    expect(await registry.clearCookies('missing')).toBe(false);
+    expect(await registry.clearCache('missing')).toBe(false);
+  });
 });

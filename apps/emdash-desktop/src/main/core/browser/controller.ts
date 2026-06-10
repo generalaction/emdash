@@ -30,4 +30,12 @@ export const browserController = createRPCController({
   clearStorage: async (browserId: string) => ({
     success: await browserWebContentsRegistry.clearStorage(browserId),
   }),
+
+  clearCookies: async (browserId: string) => ({
+    success: await browserWebContentsRegistry.clearCookies(browserId),
+  }),
+
+  clearCache: async (browserId: string) => ({
+    success: await browserWebContentsRegistry.clearCache(browserId),
+  }),
 });

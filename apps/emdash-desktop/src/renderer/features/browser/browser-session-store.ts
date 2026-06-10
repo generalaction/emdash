@@ -18,7 +18,7 @@ export type BrowserSessionCreateInput = {
 };
 
 export type BrowserSessionUpdate = Partial<
-  Pick<BrowserSessionSnapshot, 'canGoBack' | 'canGoForward' | 'isLoading' | 'title'>
+  Pick<BrowserSessionSnapshot, 'canGoBack' | 'canGoForward' | 'isLoading' | 'title' | 'zoomFactor'>
 > & {
   currentUrl?: string;
   faviconUrl?: string | null;

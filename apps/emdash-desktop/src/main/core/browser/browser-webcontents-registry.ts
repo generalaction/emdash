@@ -99,6 +99,20 @@ export class BrowserWebContentsRegistry {
     await session.fromPartition(registered.partition).clearStorageData();
     return true;
   }
+
+  async clearCookies(browserId: string): Promise<boolean> {
+    const registered = this.sessionsByBrowserId.get(browserId);
+    if (!registered) return false;
+    await session.fromPartition(registered.partition).clearStorageData({ storages: ['cookies'] });
+    return true;
+  }
+
+  async clearCache(browserId: string): Promise<boolean> {
+    const registered = this.sessionsByBrowserId.get(browserId);
+    if (!registered) return false;
+    await session.fromPartition(registered.partition).clearCache();
+    return true;
+  }
 }
 
 export const browserWebContentsRegistry = new BrowserWebContentsRegistry();
