@@ -62,8 +62,8 @@ export function AutomationsView() {
 
   return (
     <div className="mt-6 h-full overflow-hidden bg-background text-foreground">
-      <div className="mx-auto grid h-full min-h-0 w-full max-w-4xl grid-cols-1 gap-8 px-8">
-        <div className="relative min-h-0 w-full min-w-0 overflow-y-auto">
+      <div className="mx-auto grid h-full min-h-0 w-full max-w-4xl grid-cols-1 gap-8">
+        <div className="relative min-h-0 w-full min-w-0 overflow-y-auto px-8">
           <div className="w-full py-8">
             <AutomationsHeader
               search={search}
