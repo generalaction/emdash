@@ -22,7 +22,7 @@ const { values } = parseArgs({
 const platform = values.platform;
 if (!platform || !['mac', 'linux', 'win'].includes(platform)) {
   fail(
-    'Usage: build.ts --platform mac|linux|win [--arch arm64|x64|both] [--targets dmg,zip] [--config electron-builder.config.ts] [--channel stable|canary]',
+    'Usage: build.ts --platform mac|linux|win [--arch arm64|x64|both] [--targets dmg,zip] [--config electron-builder.config.ts] [--channel stable|canary]'
   );
 }
 
@@ -83,7 +83,7 @@ try {
 
     exec(
       `node --experimental-strip-types scripts/release/rebuild-native.ts --arch ${arch} --deploy-dir ${deployDir}`,
-      { echo: true },
+      { echo: true }
     );
 
     const archEnum = archMap[arch];
