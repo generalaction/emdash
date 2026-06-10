@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
+import { gitWatcherRegistry } from '@main/core/git/git-watcher-registry';
 import { computeWorkspaceKey } from '@main/core/workspaces/workspace-key';
 import { db } from '@main/db/client';
 import { projects, workspaces } from '@main/db/schema';
@@ -25,7 +26,10 @@ export function ensureRepositoryWorkspace(project: LocalProject | SshProject): s
     .limit(1)
     .all();
 
-  if (row?.repositoryWorkspaceId) return row.repositoryWorkspaceId;
+  if (row?.repositoryWorkspaceId) {
+    gitWatcherRegistry.registerWorkspace(project.id, row.repositoryWorkspaceId, '');
+    return row.repositoryWorkspaceId;
+  }
 
   const workspaceId = randomUUID();
   const location = project.type === 'ssh' ? 'remote' : 'local';
@@ -79,6 +83,8 @@ export function ensureRepositoryWorkspace(project: LocalProject | SshProject): s
       workspaceId: resolvedId,
       reusedExisting: !!existingWs,
     });
+
+    gitWatcherRegistry.registerWorkspace(project.id, resolvedId, '');
 
     return resolvedId;
   });
