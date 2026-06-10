@@ -1,17 +1,8 @@
 import type { InstallMethod, InstallOption } from '@emdash/cli-agent-plugins';
-import {
-  Check,
-  ChevronDown,
-  Copy,
-  ExternalLink,
-  Loader2,
-  MoreHorizontal,
-  Terminal,
-} from 'lucide-react';
+import { Check, ChevronDown, Copy, ExternalLink, MoreHorizontal, Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useMemo, useState } from 'react';
 import { appState } from '@renderer/lib/stores/app-state';
-import { Button } from '@renderer/lib/ui/button';
 import {
   Combobox,
   ComboboxContent,
@@ -90,7 +81,7 @@ function CopyButton({ command }: { command: string }) {
 
 function CommandRow({ command, action }: { command: string; action: React.ReactNode }) {
   return (
-    <div className="flex w-full gap-[2px] items-stretch">
+    <div className="flex w-full items-stretch gap-[2px]">
       <div className="group flex flex-1 items-center gap-2 rounded-l-lg bg-background-quaternary-1 px-2 py-1.5">
         <Terminal className="h-3.5 w-3.5 shrink-0 text-foreground-passive" />
         <code className="min-w-0 flex-1 truncate font-mono text-xs text-foreground-muted">
@@ -107,7 +98,7 @@ function CommandActionButton({ ...props }: React.HTMLAttributes<HTMLButtonElemen
   return (
     <button
       type="button"
-      className="group flex text-sm  items-center gap-2 rounded-r-lg bg-background-quaternary-1 hover:bg-background-quaternary-2 px-4"
+      className="group flex items-center gap-2 rounded-r-lg bg-background-quaternary-1 px-4 text-sm hover:bg-background-quaternary-2"
       {...props}
     />
   );
@@ -133,6 +124,12 @@ export type InstallSectionProps = {
   cliValue?: string | null;
   /** Called when the user clicks "Use this installation". */
   onUseInstallation?: (payload: UseInstallationPayload) => void;
+  /**
+   * When true, the synthetic "CLI Override" and "Path Override" select entries are hidden
+   * and the triple-dot "Use this installation" menu is suppressed.
+   * Use in the uninstalled view where these overrides are not meaningful.
+   */
+  hideOverrideOptions?: boolean;
 };
 
 export const InstallSection = observer(function InstallSection({
@@ -145,9 +142,9 @@ export const InstallSection = observer(function InstallSection({
   pathValue,
   cliValue,
   onUseInstallation,
+  hideOverrideOptions = false,
 }: InstallSectionProps) {
   const isInstallingAny = appState.dependencies.isInstalling(agentId as never);
-  const [installingMethod, setInstallingMethod] = useState<InstallMethod | null>(null);
   const [updatingMethod, setUpdatingMethod] = useState<InstallMethod | null>(null);
 
   // Local input state for path/cli synthetic options
@@ -173,12 +170,7 @@ export const InstallSection = observer(function InstallSection({
   const handleInstall = useCallback(
     async (method: InstallMethod) => {
       if (isInstallingAny) return;
-      setInstallingMethod(method);
-      try {
-        await appState.dependencies.install(agentId as never, undefined, method);
-      } finally {
-        setInstallingMethod(null);
-      }
+      await appState.dependencies.install(agentId as never, undefined, method);
     },
     [agentId, isInstallingAny]
   );
@@ -216,14 +208,22 @@ export const InstallSection = observer(function InstallSection({
     return value === (installSource as SelectionValue);
   };
 
+  const selectedIsActiveSource = isActiveSource(selectedValue);
+  const selectedIsInstalled = selectedIsActiveSource && isInstalled;
+  const selectedUpdateAvailable = selectedIsActiveSource && updateAvailable;
+
   const allSelectOptions: InstallSelectOption[] = [
     ...installOptions.map((opt) => ({
       value: opt.method as SelectionValue,
       label: opt.label ?? humanizeMethod(opt.method),
       recommended: opt.recommended,
     })),
-    { value: 'cli' as SyntheticSource, label: 'CLI Override' },
-    { value: 'path' as SyntheticSource, label: 'Path Override' },
+    ...(hideOverrideOptions
+      ? []
+      : ([
+          { value: 'cli' as SyntheticSource, label: 'CLI Override' },
+          { value: 'path' as SyntheticSource, label: 'Path Override' },
+        ] satisfies InstallSelectOption[])),
   ];
 
   const selectedOption =
@@ -248,7 +248,7 @@ export const InstallSection = observer(function InstallSection({
         <span className="text-sm text-foreground">Install</span>
         {docsLink}
       </div>
-      <div className="rounded-lg border p-3 space-y-2">
+      <div className="space-y-2 rounded-lg border p-3">
         <div className="flex items-center gap-2">
           <Combobox
             value={selectedOption ?? null}
@@ -281,9 +281,7 @@ export const InstallSection = observer(function InstallSection({
             </ComboboxContent>
           </Combobox>
           <div className="ml-auto flex items-center gap-1.5">
-            {isInstalled ? <InstalledBadge /> : <UninstalledBadge />}
-            {updateAvailable && <UpdateAvailableBadge />}
-            {onUseInstallation && (
+            {onUseInstallation && !hideOverrideOptions && selectedIsInstalled && !selectedIsActiveSource && (
               <DropdownMenu>
                 <DropdownMenuTrigger
                   className="rounded p-1 text-foreground-passive hover:bg-background-2 hover:text-foreground"
@@ -298,6 +296,9 @@ export const InstallSection = observer(function InstallSection({
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
+            {selectedIsInstalled ? <InstalledBadge /> : <UninstalledBadge />}
+            {selectedUpdateAvailable && <UpdateAvailableBadge />}
+            {selectedIsActiveSource && <UsedBadge />}
           </div>
         </div>
 
@@ -331,18 +332,20 @@ export const InstallSection = observer(function InstallSection({
         )}
 
         {/* Plugin-defined install method commands */}
-        {activeOption && (
+        {activeOption && (!selectedIsInstalled || selectedUpdateAvailable) && (
           <div className="space-y-2">
-            <CommandRow
-              command={activeOption.command}
-              action={
-                <CommandActionButton onClick={() => void handleInstall(activeOption.method)}>
-                  Install
-                </CommandActionButton>
-              }
-            />
+            {!selectedIsInstalled && (
+              <CommandRow
+                command={activeOption.command}
+                action={
+                  <CommandActionButton onClick={() => void handleInstall(activeOption.method)}>
+                    Install
+                  </CommandActionButton>
+                }
+              />
+            )}
 
-            {updateAvailable && activeOption.updateCommand && (
+            {selectedUpdateAvailable && activeOption.updateCommand && (
               <CommandRow
                 command={activeOption.updateCommand}
                 action={

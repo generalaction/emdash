@@ -35,7 +35,7 @@ export function AgentsSettingsPage() {
           >
             <ToggleGroupItem value="all">All</ToggleGroupItem>
             <ToggleGroupItem value="installed">Installed</ToggleGroupItem>
-            <ToggleGroupItem value="uninstalled">Uninstalled</ToggleGroupItem>
+            <ToggleGroupItem value="uninstalled">Not installed</ToggleGroupItem>
           </ToggleGroup>
           <div className="flex items-center gap-2">
             <SearchInput

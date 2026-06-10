@@ -135,7 +135,7 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = observer(
           <>
             {uninstalledRecommended.length > 0 && <Separator />}
             <div className="py-2">
-              <SectionLabel totalCount={uninstalledRest.length}>Uninstalled</SectionLabel>
+              <SectionLabel totalCount={uninstalledRest.length}>Not installed</SectionLabel>
               {uninstalledRest.map((agent) => (
                 <div key={agent.id} className="w-full py-0.5">
                   <AgentRow agent={agent} onClick={() => setSelectedAgentId(agent.id)} />
