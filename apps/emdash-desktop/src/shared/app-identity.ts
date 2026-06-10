@@ -11,3 +11,4 @@ export const USER_DATA_DIR_NAME = isDev ? 'emdash-dev' : isCanary ? 'emdash-cana
 export const UPDATE_CHANNEL = isCanary ? 'v1-canary' : 'v1-stable';
 export const ARTIFACT_PREFIX = isCanary ? 'emdash-canary' : 'emdash';
 export const R2_BASE_URL = 'https://releases.emdash.sh';
+export const IS_CANARY = isCanary;

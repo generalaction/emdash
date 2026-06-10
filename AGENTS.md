@@ -118,6 +118,11 @@ gh workflow run release-prod.yml --ref main -f arch=both
 gh workflow run release-canary.yml --ref main -f arch=both
 ```
 
+Production releases publish artifacts to **GitHub Releases** (primary update feed) and
+**Cloudflare R2** (fallback). All three platform build jobs run in parallel; a final
+`finalize-release` job publishes the draft GitHub release once all succeed.
+Canary releases currently publish to R2 only.
+
 ## Code Style & Conventions
 
 - Use Node `24.14.0` from `.nvmrc` and `pnpm@10.28.2`.
