@@ -34,7 +34,7 @@ export const DIFF_EDITOR_BASE_OPTIONS: editor.IDiffEditorConstructionOptions = {
   diffWordWrap: 'on',
   enableSplitViewResizing: false,
   smoothScrolling: true,
-  cursorSmoothCaretAnimation: 'on',
+  cursorSmoothCaretAnimation: 'off',
   padding: { top: 8, bottom: 8 },
   folding: false,
   useInlineViewWhenSpaceIsLimited: false,
