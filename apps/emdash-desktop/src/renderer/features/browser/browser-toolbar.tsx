@@ -22,12 +22,14 @@ import type { BrowserWebviewAdapter } from './browser-webview-types';
 export function BrowserToolbar({
   session,
   adapter,
+  autoFocusUrl,
   onNavigate,
   onReload,
   onFocusUrl,
 }: {
   session: BrowserSessionSnapshot;
   adapter: BrowserWebviewAdapter | null;
+  autoFocusUrl?: boolean;
   onNavigate?: (url: string) => boolean;
   onReload?: () => void;
   onFocusUrl?: (focus: () => void) => void;
@@ -53,6 +55,15 @@ export function BrowserToolbar({
       urlInputRef.current?.select();
     });
   }, [onFocusUrl]);
+
+  useEffect(() => {
+    if (!autoFocusUrl) return;
+    const timer = window.setTimeout(() => {
+      urlInputRef.current?.focus();
+      urlInputRef.current?.select();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [autoFocusUrl]);
 
   const navigate = () => {
     navigateTo(urlText);
