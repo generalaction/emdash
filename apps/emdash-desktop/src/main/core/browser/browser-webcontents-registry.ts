@@ -104,7 +104,7 @@ export class BrowserWebContentsRegistry {
 export const browserWebContentsRegistry = new BrowserWebContentsRegistry();
 
 function isSupportedBrowserNavigationUrl(url: string): boolean {
-  return normalizeBrowserUrl(url).ok;
+  return normalizeBrowserUrl(url, { allowSearchQueries: false }).ok;
 }
 
 function isExternalHttpUrl(url: string): boolean {

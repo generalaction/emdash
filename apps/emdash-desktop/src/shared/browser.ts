@@ -12,6 +12,11 @@ export type BrowserUrlRejectionReason =
   | 'unsupported-protocol'
   | 'unsupported-file-url';
 
+export type BrowserUrlNormalizeOptions = {
+  allowFileUrls?: boolean;
+  allowSearchQueries?: boolean;
+};
+
 export type BrowserSessionIdentity = {
   browserId: string;
   projectId: string;
@@ -59,7 +64,7 @@ const BROWSER_RESERVED_SCHEMES = new Set(['about', 'data', 'file', 'http', 'http
 
 export function normalizeBrowserUrl(
   rawInput: string,
-  options: { allowFileUrls?: boolean } = {}
+  options: BrowserUrlNormalizeOptions = {}
 ): BrowserUrlNormalizeResult {
   const trimmed = rawInput.trim();
   if (trimmed.length === 0) {
@@ -70,7 +75,7 @@ export function normalizeBrowserUrl(
     return { ok: true, url: BROWSER_DEFAULT_URL, protocol: 'about:' };
   }
 
-  if (isSearchQuery(trimmed)) {
+  if (options.allowSearchQueries !== false && isSearchQuery(trimmed)) {
     return { ok: true, url: browserSearchUrl(trimmed), protocol: 'https:' };
   }
 

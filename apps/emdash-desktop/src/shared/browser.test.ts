@@ -46,6 +46,17 @@ describe('normalizeBrowserUrl', () => {
     });
   });
 
+  it('can reject search-like inputs when validating actual navigation URLs', () => {
+    expect(normalizeBrowserUrl('react: useState', { allowSearchQueries: false })).toEqual({
+      ok: false,
+      reason: 'unsupported-protocol',
+    });
+    expect(normalizeBrowserUrl('mailto: user@example.com', { allowSearchQueries: false })).toEqual({
+      ok: false,
+      reason: 'unsupported-protocol',
+    });
+  });
+
   it('allows about blank and blocks unsupported protocols', () => {
     expect(normalizeBrowserUrl('about:blank')).toEqual({
       ok: true,
