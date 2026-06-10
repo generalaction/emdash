@@ -45,7 +45,8 @@ export function validateBrowserWebviewAttach(
   }
 
   const normalized = normalizeBrowserUrl(
-    typeof params.src === 'string' && params.src.trim() ? params.src : BROWSER_DEFAULT_URL
+    typeof params.src === 'string' && params.src.trim() ? params.src : BROWSER_DEFAULT_URL,
+    { allowSearchQueries: false }
   );
   if (!normalized.ok) {
     return { ok: false, reason: 'unsupported-url' };
