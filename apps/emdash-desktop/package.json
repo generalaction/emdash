@@ -50,6 +50,7 @@
     "docs:build": "cd docs && pnpm run build"
   },
   "dependencies": {
+    "@emdash/cli-agent-plugins": "workspace:*",
     "@gitbeaker/rest": "^43.8.0",
     "@linear/sdk": "^77.0.0",
     "@llamaduck/forgejo-ts": "^14.0.3",
@@ -57,7 +58,6 @@
     "@octokit/rest": "^22.0.1",
     "@parcel/watcher": "^2.5.6",
     "@team-plain/graphql": "^1.0.1",
-    "@emdash/cli-agent-plugins": "workspace:*",
     "better-sqlite3": "^12.6.0",
     "croner": "^10.0.1",
     "cronstrue": "^3.14.0",

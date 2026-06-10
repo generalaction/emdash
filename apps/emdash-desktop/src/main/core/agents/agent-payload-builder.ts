@@ -1,12 +1,7 @@
 import { metadataRegistry } from 'cli-agent-plugins/metadata';
-
-import {
-  AGENT_PROVIDERS,
-  type AgentProviderId,
-} from '@shared/core/agents/agent-provider-registry';
 import type { AgentPayload } from '@shared/core/agents/agent-payload';
+import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { DependencyStatusMap } from '@shared/core/dependencies';
-
 import { providerOverrideSettings } from '../settings/provider-settings-service';
 
 const PROVIDER_MAP = new Map(AGENT_PROVIDERS.map((p) => [p.id, p]));
@@ -22,7 +17,9 @@ async function buildOne(
   const state = statuses[id];
   const settingsMeta = await providerOverrideSettings.getItemWithMeta(id);
 
-  const defaultConfig = settingsMeta?.defaults ?? { cli: meta.capabilities.install.binaryNames[0] ?? id };
+  const defaultConfig = settingsMeta?.defaults ?? {
+    cli: meta.capabilities.install.binaryNames[0] ?? id,
+  };
 
   return {
     id,
@@ -52,11 +49,7 @@ export async function buildAgentPayload(
   return buildOne(id as AgentProviderId, statuses);
 }
 
-export async function buildAgentPayloads(
-  statuses: DependencyStatusMap
-): Promise<AgentPayload[]> {
-  const results = await Promise.all(
-    AGENT_PROVIDERS.map((p) => buildOne(p.id, statuses))
-  );
+export async function buildAgentPayloads(statuses: DependencyStatusMap): Promise<AgentPayload[]> {
+  const results = await Promise.all(AGENT_PROVIDERS.map((p) => buildOne(p.id, statuses)));
   return results.filter((r): r is AgentPayload => r !== null);
 }

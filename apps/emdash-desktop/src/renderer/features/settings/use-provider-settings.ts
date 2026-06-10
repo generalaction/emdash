@@ -10,7 +10,9 @@ export function useProviderSettings(providerId: string) {
     queryKey: ['agentSettings', providerId] as const,
     queryFn: async () => {
       // Pull the settings from the full agent payload returned by the controller.
-      const payload = await (rpc.agents.get(providerId) as Promise<{ settings: AgentSettings } | null>);
+      const payload = await (rpc.agents.get(providerId) as Promise<{
+        settings: AgentSettings;
+      } | null>);
       return payload?.settings ?? null;
     },
     staleTime: 60_000,
@@ -25,7 +27,9 @@ export function useProviderSettings(providerId: string) {
 
   const resetMutation = useMutation<void, Error, void>({
     mutationFn: async () => {
-      const defaults = await (rpc.agents.getDefaultSettings(providerId) as Promise<ProviderCustomConfig | null>);
+      const defaults = await (rpc.agents.getDefaultSettings(
+        providerId
+      ) as Promise<ProviderCustomConfig | null>);
       if (defaults) {
         await (rpc.agents.updateSettings(providerId, defaults) as Promise<void>);
       }

@@ -1,7 +1,6 @@
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
 import { createRPCController } from '@shared/lib/ipc/rpc';
-
 import { getDependencyManager } from '../dependencies/dependency-manager';
 import { providerOverrideSettings } from '../settings/provider-settings-service';
 import { buildAgentPayload, buildAgentPayloads } from './agent-payload-builder';

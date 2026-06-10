@@ -55,7 +55,7 @@ export class DependenciesStore {
     ]);
 
     this.agents = new Resource<AgentPayload[], DependencyStatusUpdatedEvent>(
-      async () => (await (rpc.agents.list() as Promise<AgentPayload[]>)),
+      async () => await (rpc.agents.list() as Promise<AgentPayload[]>),
       [
         {
           kind: 'event',

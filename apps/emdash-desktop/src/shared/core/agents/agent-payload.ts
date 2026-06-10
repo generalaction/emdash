@@ -8,7 +8,6 @@ import type {
   PluginInstallMetadata,
   PromptDeliveryDescriptor,
 } from 'cli-agent-plugins';
-
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
 import type { DependencyStatus } from '@shared/core/dependencies';
 

@@ -3,9 +3,8 @@ import React, { useCallback } from 'react';
 import { PageHeader } from '@renderer/lib/components/page-header';
 import { rpc } from '@renderer/lib/ipc';
 import { cn } from '@renderer/utils/utils';
+import { AgentsSettingsPage } from '../agents-page/AgentsSettingsPage';
 import { AccountTab } from './AccountTab';
-import { CliAgentsList } from './CliAgentsList';
-import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
 import InterfaceSettingsCard from './InterfaceSettingsCard';
@@ -38,11 +37,99 @@ export type SettingsPageTab =
   | 'interface'
   | 'docs';
 
-interface SectionConfig {
-  title?: string;
-  action?: React.ReactNode;
-  component: React.ReactNode;
+// ---------------------------------------------------------------------------
+// Tab page components
+// ---------------------------------------------------------------------------
+
+function GeneralSettingsPage() {
+  return (
+    <>
+      <PageHeader
+        title="General"
+        description="Manage your account, privacy settings, notifications, and app updates."
+      />
+      <TelemetryCard />
+      <AutoGenerateTaskNamesRow />
+      <AutoTrustWorktreesRow />
+      <CreateBranchAndWorktreeRow />
+      <PreserveTaskNameCapitalizationRow />
+      <IncludeIssueContextByDefaultRow />
+      <EnableTmuxRow />
+      <NotificationSettingsCard />
+      <UpdateCard />
+    </>
+  );
 }
+
+function AccountSettingsPage() {
+  return (
+    <>
+      <PageHeader title="Account" description="Manage your Emdash account." />
+      <AccountTab />
+    </>
+  );
+}
+
+function IntegrationsSettingsPage() {
+  return (
+    <>
+      <PageHeader title="Integrations" description="Connect external services and tools." />
+      <IntegrationsCard />
+    </>
+  );
+}
+
+function ConnectionsSettingsPage() {
+  return (
+    <>
+      <PageHeader
+        title="Connections"
+        description="Manage reusable SSH connections for remote projects."
+      />
+      <SshConnectionsSettingsCard />
+    </>
+  );
+}
+
+function RepositorySettingsPage() {
+  return (
+    <>
+      <PageHeader title="Repository" description="Configure repository and branch settings." />
+      <div className="flex flex-col gap-3">
+        <h3 className="text-sm font-normal text-foreground">Branch prefix</h3>
+        <RepositorySettingsCard />
+      </div>
+    </>
+  );
+}
+
+function InterfaceSettingsPage() {
+  return (
+    <>
+      <PageHeader
+        title="Interface"
+        description="Customize the appearance and behavior of the app."
+      />
+      <ThemeCard />
+      <TerminalSettingsCard />
+      <SidebarMetadataSettingsCard />
+      <ResourceMonitorSettingsCard />
+      <InterfaceSettingsCard />
+      <div className="flex flex-col gap-3">
+        <h3 className="text-sm font-normal text-foreground">Keyboard shortcuts</h3>
+        <KeyboardSettingsCard />
+      </div>
+      <div className="flex flex-col gap-3">
+        <h3 className="text-sm font-normal text-foreground">Tools</h3>
+        <HiddenToolsSettingsCard />
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SettingsPage
+// ---------------------------------------------------------------------------
 
 export function SettingsPage({
   tab: activeTab,
@@ -70,154 +157,55 @@ export function SettingsPage({
     { id: 'docs', label: 'Docs', isExternal: true },
   ];
 
-  const tabContent: Record<
-    string,
-    { title: string; description: string; sections: SectionConfig[] }
-  > = {
-    general: {
-      title: 'General',
-      description: 'Manage your account, privacy settings, notifications, and app updates.',
-      sections: [
-        {
-          component: <TelemetryCard />,
-        },
-        {
-          component: <AutoGenerateTaskNamesRow />,
-        },
-        {
-          component: <AutoTrustWorktreesRow />,
-        },
-        {
-          component: <CreateBranchAndWorktreeRow />,
-        },
-        {
-          component: <PreserveTaskNameCapitalizationRow />,
-        },
-        {
-          component: <IncludeIssueContextByDefaultRow />,
-        },
-        {
-          component: <EnableTmuxRow />,
-        },
-        {
-          component: <NotificationSettingsCard />,
-        },
-        {
-          component: <UpdateCard />,
-        },
-      ],
-    },
-    account: {
-      title: 'Account',
-      description: 'Manage your Emdash account.',
-      sections: [{ component: <AccountTab /> }],
-    },
-    'clis-models': {
-      title: 'Agents',
-      description: 'Manage CLI agents and model configurations.',
-      sections: [
-        { component: <DefaultAgentSettingsCard /> },
-        {
-          title: 'CLI agents',
-          component: (
-            <div className="bg-muted/10 rounded-xl border border-border/60 p-2">
-              <CliAgentsList />
-            </div>
-          ),
-        },
-      ],
-    },
-    integrations: {
-      title: 'Integrations',
-      description: 'Connect external services and tools.',
-      sections: [{ component: <IntegrationsCard /> }],
-    },
-    connections: {
-      title: 'Connections',
-      description: 'Manage reusable SSH connections for remote projects.',
-      sections: [{ component: <SshConnectionsSettingsCard /> }],
-    },
-    repository: {
-      title: 'Repository',
-      description: 'Configure repository and branch settings.',
-      sections: [{ title: 'Branch prefix', component: <RepositorySettingsCard /> }],
-    },
-    interface: {
-      title: 'Interface',
-      description: 'Customize the appearance and behavior of the app.',
-      sections: [
-        { component: <ThemeCard /> },
-        { component: <TerminalSettingsCard /> },
-        { component: <SidebarMetadataSettingsCard /> },
-        { component: <ResourceMonitorSettingsCard /> },
-        { component: <InterfaceSettingsCard /> },
-        { title: 'Keyboard shortcuts', component: <KeyboardSettingsCard /> },
-        {
-          title: 'Tools',
-          component: <HiddenToolsSettingsCard />,
-        },
-      ],
-    },
+  const tabContent: Record<string, React.ReactNode> = {
+    general: <GeneralSettingsPage />,
+    account: <AccountSettingsPage />,
+    'clis-models': <AgentsSettingsPage />,
+    integrations: <IntegrationsSettingsPage />,
+    connections: <ConnectionsSettingsPage />,
+    repository: <RepositorySettingsPage />,
+    interface: <InterfaceSettingsPage />,
   };
 
-  const currentContent = tabContent[activeTab as keyof typeof tabContent];
+  const currentContent = tabContent[activeTab];
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
-      <div className="mx-auto flex h-full min-h-0 w-full max-w-[1060px] flex-col gap-6 px-8">
-        <div className="grid min-h-0 flex-1 grid-cols-[13rem_minmax(0,1fr)] gap-8 overflow-hidden">
-          <div className="py-10">
-            <nav className="flex min-h-0 w-52 flex-col gap-0.5 overflow-y-auto">
-              {tabs.map((tab) => {
-                const isActive = tab.id === activeTab && !tab.isExternal;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => {
-                      if (tab.isExternal) {
-                        handleDocsClick();
-                      } else {
-                        onTabChange(tab.id);
-                      }
-                    }}
-                    className={cn(
-                      'flex w-full items-center gap-2 hover:bg-background-1 text-foreground-muted hover:text-foreground rounded-md px-3 py-2 text-sm font-normal transition-colors',
-                      isActive &&
-                        'bg-background-2 text-foreground hover:bg-background-2 hover:text-foreground'
-                    )}
-                  >
-                    <span className="text-left">{tab.label}</span>
-                    {tab.isExternal && <ExternalLink className="h-4 w-4" />}
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-          {/* Content container */}
-          {currentContent && (
-            <div
-              className={cn(
-                'min-h-0 min-w-0 flex-1 justify-center overflow-x-hidden overflow-y-auto',
-                '[scrollbar-gutter:stable]'
-              )}
-            >
-              <div className="mx-auto w-full max-w-4xl space-y-8 px-4 py-10">
-                <PageHeader title={currentContent.title} description={currentContent.description} />
-                {currentContent.sections.map((section) => (
-                  <div key={section.title} className="flex flex-col gap-3">
-                    {section.title && (
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-normal text-foreground">{section.title}</h3>
-                        {section.action && <div>{section.action}</div>}
-                      </div>
-                    )}
-                    {section.component}
-                  </div>
-                ))}
-              </div>
+      <div className="h-full scrollbar-gutter-stable overflow-x-hidden overflow-y-auto">
+        <div className="mx-auto w-full max-w-[1060px] px-8">
+          <div className="grid w-full grid-cols-[13rem_minmax(0,1fr)] gap-8">
+            <div className="sticky top-0 self-start py-10">
+              <nav className="flex w-52 flex-col gap-0.5">
+                {tabs.map((tab) => {
+                  const isActive = tab.id === activeTab && !tab.isExternal;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => {
+                        if (tab.isExternal) {
+                          handleDocsClick();
+                        } else {
+                          onTabChange(tab.id);
+                        }
+                      }}
+                      className={cn(
+                        'flex w-full items-center gap-2 hover:bg-background-1 text-foreground-muted hover:text-foreground rounded-md px-3 py-2 text-sm font-normal transition-colors',
+                        isActive &&
+                          'bg-background-2 text-foreground hover:bg-background-2 hover:text-foreground'
+                      )}
+                    >
+                      <span className="text-left">{tab.label}</span>
+                      {tab.isExternal && <ExternalLink className="h-4 w-4" />}
+                    </button>
+                  );
+                })}
+              </nav>
             </div>
-          )}
+            {currentContent && (
+              <div className="mx-auto w-full max-w-4xl px-4">{currentContent}</div>
+            )}
+          </div>
         </div>
       </div>
     </div>

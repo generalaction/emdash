@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
 import type { CLIAgentPluginMetadata } from 'cli-agent-plugins';
+import { describe, expect, it, vi } from 'vitest';
 import type { DependencyStatusMap } from '@shared/core/dependencies';
 
 vi.mock('cli-agent-plugins/metadata', () => ({
@@ -132,12 +132,16 @@ describe('buildAgentPayload', () => {
     const meta = makeMetadata('codex', 'codex');
     (meta.capabilities as Record<string, unknown>).models = {
       kind: 'selectable',
-      modelOptions: { 'gpt-4o': { name: 'GPT-4o', description: 'Fast', modelFeatures: { contextWindowSize: 128000, speed: 5, intelligence: 5 } } },
+      modelOptions: {
+        'gpt-4o': {
+          name: 'GPT-4o',
+          description: 'Fast',
+          modelFeatures: { contextWindowSize: 128000, speed: 5, intelligence: 5 },
+        },
+      },
     };
     vi.mocked(metadataRegistry.get).mockReturnValue(meta);
-    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(
-      defaultSettings('codex')
-    );
+    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings('codex'));
 
     const { buildAgentPayload } = await import('./agent-payload-builder');
     const payload = await buildAgentPayload('codex', {});
@@ -158,9 +162,7 @@ describe('buildAgentPayloads', () => {
       makeMetadata('claude', 'claude'),
       makeMetadata('codex', 'codex'),
     ]);
-    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(
-      defaultSettings('cli')
-    );
+    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings('cli'));
 
     const { buildAgentPayloads } = await import('./agent-payload-builder');
     const payloads = await buildAgentPayloads({});
