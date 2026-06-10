@@ -15,9 +15,9 @@ export class GitStore {
   readonly fullStatus: Resource<FullGitStatus>;
 
   constructor(
-    private readonly projectId: string,
-    private readonly workspaceId: string,
-    private readonly repositoryStore: RepositoryStore
+    readonly projectId: string,
+    readonly workspaceId: string,
+    readonly repositoryStore: RepositoryStore
   ) {
     this.fullStatus = new Resource<FullGitStatus>(
       () => this._fetchFullStatus(),

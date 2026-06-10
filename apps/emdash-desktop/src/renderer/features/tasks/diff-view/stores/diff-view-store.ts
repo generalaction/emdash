@@ -5,6 +5,7 @@ import { type Snapshottable } from '@renderer/lib/stores/snapshottable';
 import { commitRef, type GitObjectRef } from '@shared/core/git/git';
 import type { ActiveFile, DiffViewSnapshot } from '@shared/view-state';
 import { type GitStore } from './git-store';
+import { UnifiedChangesStore } from './unified-changes-store';
 
 export const MAX_STACKED_FILES = 8;
 
@@ -28,6 +29,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   prTab: 'files' | 'commits' | 'checks' = 'files';
 
   readonly changesView: ChangesViewStore;
+  readonly unifiedChanges: UnifiedChangesStore;
 
   /**
    * Index of the override file within its source list at the time it was set.
@@ -44,6 +46,13 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     private readonly pr: PrStore
   ) {
     this.changesView = new ChangesViewStore(git, pr);
+    this.unifiedChanges = new UnifiedChangesStore(
+      git.projectId,
+      git.workspaceId,
+      git.repositoryStore,
+      pr
+    );
+    this.unifiedChanges.start();
 
     makeObservable(this, {
       activeFileOverride: observable,
@@ -192,6 +201,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     for (const dispose of this._disposeReactions) dispose();
     this._disposeReactions = [];
     this.changesView.dispose();
+    this.unifiedChanges.dispose();
   }
 
   private get _defaultActiveFile(): ActiveFile | null {
