@@ -51,6 +51,7 @@ export function bindBrowserWebviewEvents(
 
   const onStartLoading = () => {
     browserSessionStore.updateSession(browserId, {
+      faviconUrl: null,
       isLoading: true,
       loadError: null,
     });
