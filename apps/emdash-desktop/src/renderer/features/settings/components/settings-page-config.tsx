@@ -128,7 +128,8 @@ export const settingsTabContent: Record<SettingsContentTab, TabContent> = {
       {
         id: 'notifications',
         component: <NotificationSettingsCard />,
-        searchText: 'notifications alerts sounds desktop updates task completion',
+        searchText:
+          'notifications alerts sound sounds custom sound custom sounds audio file cue desktop updates task completion',
       },
       {
         id: 'updates',
