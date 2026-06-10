@@ -1,4 +1,12 @@
-import { AlertCircle, ArrowRight, Github, KeyRound, Loader2, Terminal } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowRight,
+  Github,
+  KeyRound,
+  Loader2,
+  type LucideIcon,
+  Terminal,
+} from 'lucide-react';
 import { useState } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import {
@@ -19,6 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
+import { cn } from '@renderer/utils/utils';
 
 type MethodError = {
   method: 'oauth' | 'cli' | 'device_flow';
@@ -119,82 +128,42 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
         <DialogTitle>Connect GitHub</DialogTitle>
       </DialogHeader>
       <DialogContentArea className="gap-3">
-        <div className="rounded-lg border border-border p-3">
-          <div className="flex items-center gap-3">
-            <Github className="text-muted-foreground h-4 w-4 shrink-0" />
-            <div className="min-w-0 flex-1">
-              <h3 className="text-sm font-medium text-foreground">{oauthContent.title}</h3>
-              <p className="text-muted-foreground mt-0.5 text-xs">{oauthContent.description}</p>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => void connectOAuth()}
-              disabled={anyLoading}
-              aria-label={oauthLoading ? oauthContent.loadingLabel : oauthContent.buttonLabel}
-            >
-              {oauthLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ArrowRight className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-          {error?.method === 'oauth' && <InlineError message={error.message} />}
-        </div>
+        <ConnectMethodCard
+          icon={Github}
+          title={oauthContent.title}
+          description={oauthContent.description}
+          label={oauthContent.buttonLabel}
+          loadingLabel={oauthContent.loadingLabel}
+          loading={oauthLoading}
+          disabled={anyLoading}
+          onClick={() => void connectOAuth()}
+          error={error?.method === 'oauth' ? error.message : undefined}
+        />
 
-        <div className="rounded-lg border border-border p-3">
-          <div className="flex items-center gap-3">
-            <Terminal className="text-muted-foreground h-4 w-4 shrink-0" />
-            <div className="min-w-0 flex-1">
-              <h3 className="text-sm font-medium text-foreground">Import from GitHub CLI</h3>
-              <p className="text-muted-foreground mt-0.5 text-xs">
-                Use accounts already authenticated with GitHub CLI
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => void refreshCliAuth()}
-              disabled={anyLoading}
-              aria-label={cliLoading ? 'Checking GitHub CLI accounts' : 'Import from GitHub CLI'}
-            >
-              {cliLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ArrowRight className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-          {error?.method === 'cli' && <InlineError message={error.message} />}
-        </div>
+        <ConnectMethodCard
+          icon={Terminal}
+          title="Import from GitHub CLI"
+          description="Use accounts already authenticated with GitHub CLI"
+          label="Import from GitHub CLI"
+          loadingLabel="Checking GitHub CLI accounts"
+          loading={cliLoading}
+          disabled={anyLoading}
+          onClick={() => void refreshCliAuth()}
+          error={error?.method === 'cli' ? error.message : undefined}
+        />
 
         {showDeviceFlowMethod && (
-          <div className="rounded-lg border border-border p-3">
-            <div className="flex items-center gap-3">
-              <KeyRound className="text-muted-foreground h-4 w-4 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <h3 className="text-sm font-medium text-foreground">Use device flow</h3>
-                <p className="text-muted-foreground mt-0.5 text-xs">
-                  Connect GitHub on this device with a one-time code
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={connectDeviceFlow}
-                disabled={anyLoading}
-                aria-label={deviceFlowLoading ? 'Opening device flow' : 'Use device flow'}
-              >
-                {deviceFlowLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ArrowRight className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-            {error?.method === 'device_flow' && <InlineError message={error.message} />}
-          </div>
+          <ConnectMethodCard
+            icon={KeyRound}
+            title="Use device flow"
+            description="Connect GitHub on this device with a one-time code"
+            label="Use device flow"
+            loadingLabel="Opening device flow"
+            loading={deviceFlowLoading}
+            disabled={anyLoading}
+            onClick={connectDeviceFlow}
+            error={error?.method === 'device_flow' ? error.message : undefined}
+          />
         )}
       </DialogContentArea>
       <DialogFooter>
@@ -203,6 +172,57 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
         </Button>
       </DialogFooter>
     </>
+  );
+}
+
+function ConnectMethodCard({
+  icon: Icon,
+  title,
+  description,
+  label,
+  loadingLabel,
+  loading,
+  disabled,
+  onClick,
+  error,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  label: string;
+  loadingLabel: string;
+  loading: boolean;
+  disabled: boolean;
+  onClick: () => void;
+  error?: string;
+}) {
+  return (
+    <div className="overflow-hidden rounded-lg border border-border">
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        aria-label={loading ? loadingLabel : label}
+        className={cn(
+          'group flex w-full items-center gap-3 p-3 text-left transition-colors',
+          'hover:bg-background-2',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+          'disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent'
+        )}
+      >
+        <Icon className="text-muted-foreground h-4 w-4 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-medium text-foreground">{title}</h3>
+          <p className="text-muted-foreground mt-0.5 text-xs">{description}</p>
+        </div>
+        {loading ? (
+          <Loader2 className="text-muted-foreground h-4 w-4 shrink-0 animate-spin" />
+        ) : (
+          <ArrowRight className="text-muted-foreground h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
+        )}
+      </button>
+      {error && <InlineError message={error} className="mx-3 mb-3" />}
+    </div>
   );
 }
 
@@ -233,9 +253,14 @@ function getOAuthContent({ isSignedIn, hasAccount }: { isSignedIn: boolean; hasA
   };
 }
 
-function InlineError({ message }: { message: string }) {
+function InlineError({ message, className }: { message: string; className?: string }) {
   return (
-    <div className="bg-destructive/10 text-destructive mt-2 flex items-start gap-1.5 rounded-md px-2.5 py-2 text-xs">
+    <div
+      className={cn(
+        'bg-destructive/10 text-destructive flex items-start gap-1.5 rounded-md px-2.5 py-2 text-xs',
+        className
+      )}
+    >
       <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" />
       <span>{message}</span>
     </div>
