@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { BrowserWindow, Notification } from 'electron';
+import { app, BrowserWindow, Notification } from 'electron';
 import { getMainWindow } from '@main/app/window';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { db } from '@main/db/client';
@@ -9,6 +9,25 @@ import { log } from '@main/lib/logger';
 import { getProvider, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { isAttentionNotification, type AgentEvent } from '@shared/core/agents/agentEvents';
 import { notificationFocusTaskChannel } from '@shared/events/appEvents';
+
+const activeNotifications = new Set<Notification>();
+
+function focusAppFromNotification(): BrowserWindow | null {
+  const win = getMainWindow();
+  if (!win || win.isDestroyed()) return null;
+
+  if (win.isMinimized()) win.restore();
+  win.show();
+
+  if (process.platform === 'darwin') {
+    app.focus({ steal: true });
+  } else {
+    app.focus();
+  }
+
+  win.focus();
+  return win;
+}
 
 function getNotificationBody(event: AgentEvent): string | null {
   if (event.type === 'stop') return 'Your agent has finished working';
@@ -48,13 +67,16 @@ export async function maybeShowNotification(event: AgentEvent, appFocused: boole
     const title = taskName ? `${providerName} — ${taskName}` : providerName;
 
     const notification = new Notification({ title, body, silent: true });
+    activeNotifications.add(notification);
 
+    const releaseNotification = () => activeNotifications.delete(notification);
+    notification.on('close', releaseNotification);
+    notification.on('failed', releaseNotification);
     notification.on('click', () => {
-      const win = getMainWindow();
-      if (!win || win.isDestroyed()) return;
-      if (win.isMinimized()) win.restore();
-      win.show();
-      win.focus();
+      const win = focusAppFromNotification();
+      if (!win) return;
+
+      releaseNotification();
       if (event.taskId) {
         events.emit(notificationFocusTaskChannel, {
           projectId: event.projectId,
