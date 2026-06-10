@@ -1,0 +1,31 @@
+apps/emdash-desktop/src/renderer/lib/ui/search-input.tsx
+  s_da40d3ace27986::t_cf9de84022f614 2,9-11,15-23,27,35-37,50-54,56-59
+  s_da40d3ace27986::t_0682019ea7bb5f 55
+  s_da40d3ace27986::t_df35bebc999afb 44-49
+apps/emdash-desktop/src/renderer/features/settings/components/settings-search.ts
+  s_da40d3ace27986::t_7817913ffa6a4b 1,6-9,16-44,49-53,57-58,60-70,72-99
+  s_da40d3ace27986::t_105bb23d457be9 10-14,54-56,59
+  s_da40d3ace27986::t_d5021c2b48521a 15,45-48,71
+  s_da40d3ace27986::t_c55fd295c7f2b7 2-5
+apps/emdash-desktop/src/renderer/features/settings/components/settings-page-config.tsx
+  s_da40d3ace27986::t_41de81077878ea 1-249
+apps/emdash-desktop/src/renderer/features/settings/components/SettingsPage.tsx
+  s_da40d3ace27986::t_2e47b4000d5535 1-2,5,8,10,20,32-44,47,49-50,77,86-87,89
+  s_da40d3ace27986::t_cedce093ef1026 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "6c8f0eb9e7353a5172327a3f733e7bccbdae623a",
+  "prompts": {},
+  "sessions": {
+    "s_da40d3ace27986": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eaff9-3cf8-7750-bbb0-95096e46267c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
