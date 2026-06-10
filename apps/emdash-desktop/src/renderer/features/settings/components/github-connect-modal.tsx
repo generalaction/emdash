@@ -221,7 +221,7 @@ function ConnectMethodCard({
           <ArrowRight className="text-muted-foreground h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
         )}
       </button>
-      {error && <InlineError message={error} className="mx-3 mb-3" />}
+      {error && <InlineError message={error} className="mx-3 mt-2 mb-3" />}
     </div>
   );
 }
