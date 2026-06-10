@@ -136,7 +136,11 @@ export class DependenciesStore {
     return this._installingDependencyKeys.has(this.installKey(id, connectionId));
   }
 
-  async install(id: DependencyId, connectionId?: string, method?: InstallMethod): Promise<DependencyInstallResult> {
+  async install(
+    id: DependencyId,
+    connectionId?: string,
+    method?: InstallMethod
+  ): Promise<DependencyInstallResult> {
     const key = this.installKey(id, connectionId);
     const existing = this._inFlightInstalls.get(key);
     if (existing) return existing;
@@ -157,7 +161,11 @@ export class DependenciesStore {
     });
 
     try {
-      const result = (await rpc.dependencies.install(id, connectionId, method)) as DependencyInstallResult;
+      const result = (await rpc.dependencies.install(
+        id,
+        connectionId,
+        method
+      )) as DependencyInstallResult;
       if (!result.success) return result;
 
       await this.refreshAgents(connectionId, { refreshShellEnv: false });
@@ -174,12 +182,16 @@ export class DependenciesStore {
     return this._updatingDependencyKeys.has(this.installKey(id, connectionId));
   }
 
-  async update(id: DependencyId, connectionId?: string): Promise<DependencyUpdateResult> {
+  async update(
+    id: DependencyId,
+    connectionId?: string,
+    method?: InstallMethod
+  ): Promise<DependencyUpdateResult> {
     const key = this.installKey(id, connectionId);
     const existing = this._inFlightUpdates.get(key);
     if (existing) return existing;
 
-    const update = this.runUpdate(id, connectionId, key);
+    const update = this.runUpdate(id, connectionId, key, method);
     this._inFlightUpdates.set(key, update);
     return update;
   }
@@ -187,14 +199,19 @@ export class DependenciesStore {
   private async runUpdate(
     id: DependencyId,
     connectionId: string | undefined,
-    key: string
+    key: string,
+    method?: InstallMethod
   ): Promise<DependencyUpdateResult> {
     runInAction(() => {
       this._updatingDependencyKeys.add(key);
     });
 
     try {
-      const result = (await rpc.agents.update(id as never, connectionId)) as DependencyUpdateResult;
+      const result = (await rpc.agents.update(
+        id as never,
+        connectionId,
+        method
+      )) as DependencyUpdateResult;
       if (!result.success) return result;
 
       await this.refreshAgents(connectionId, { refreshShellEnv: false });

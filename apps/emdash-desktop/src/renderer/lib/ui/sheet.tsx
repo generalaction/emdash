@@ -1,8 +1,8 @@
 import { Dialog as SheetPrimitive } from '@base-ui/react/dialog';
 import { XIcon } from 'lucide-react';
 import * as React from 'react';
-import { Button } from '@renderer/lib/ui/button';
 import { cn } from '@renderer/utils/utils';
+import { MicroLabel } from './label';
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />;
@@ -56,27 +56,27 @@ function SheetContent({
         {...props}
       >
         {children}
-        {showCloseButton && (
-          <SheetPrimitive.Close
-            data-slot="sheet-close"
-            render={<Button variant="ghost" className="absolute top-4 right-4" size="icon-sm" />}
-          >
-            <XIcon />
-            <span className="sr-only">Close</span>
-          </SheetPrimitive.Close>
-        )}
       </SheetPrimitive.Popup>
     </SheetPortal>
   );
 }
 
-function SheetHeader({ className, ...props }: React.ComponentProps<'div'>) {
+function SheetHeader({ className, label, children, ...props }: React.ComponentProps<'div'> & { label?: string }) {
   return (
     <div
       data-slot="sheet-header"
-      className={cn('flex flex-col gap-1.5 p-4', className)}
+      className={cn('flex gap-1.5 p-4 justify-between', className)}
       {...props}
-    />
+    >
+      
+      {label && <MicroLabel>{label}</MicroLabel>}
+      {children}
+      <SheetClose>
+        <button className="text-foreground-muted hover:text-foreground ml-auto mr-0">
+          <XIcon className="size-4" />
+        </button>
+      </SheetClose>
+    </div>
   );
 }
 

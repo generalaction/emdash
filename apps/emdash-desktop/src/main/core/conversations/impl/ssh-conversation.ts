@@ -20,6 +20,7 @@ import { agentSessionExitedChannel } from '@shared/core/agents/agentEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
+import { resolveAgentExecutable } from './resolve-agent-executable';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -124,11 +125,16 @@ export class SshConversationProvider implements ConversationProvider {
       const plugin = getPlugin(conversation.providerId);
       const meta = getPluginMetadata(conversation.providerId);
 
+      const binaryName = meta.capabilities.install.binaryNames[0] ?? conversation.providerId;
+      const executableCli = await resolveAgentExecutable({
+        providerId: conversation.providerId,
+        cfg: providerConfig,
+        binaryName,
+        ctx: this.ctx,
+      });
+
       const agentCommand = plugin.buildCommand({
-        cli:
-          providerConfig?.cli ??
-          meta.capabilities.install.binaryNames[0] ??
-          conversation.providerId,
+        cli: executableCli,
         extraArgs: parseExtraArgs(providerConfig?.extraArgs),
         autoApprove: conversation.autoApprove ?? false,
         initialPrompt: agentSession.isResuming ? undefined : initialPrompt,

@@ -22,9 +22,9 @@ export const agentsController = createRPCController({
     return mgr.install(id, method);
   },
 
-  update: async (id: AgentProviderId, connectionId?: string) => {
+  update: async (id: AgentProviderId, connectionId?: string, method?: InstallMethod) => {
     const mgr = await getDependencyManager(connectionId);
-    return mgr.update(id);
+    return mgr.update(id, method);
   },
 
   getDefaultSettings: async (id: string): Promise<ProviderCustomConfig | null> => {

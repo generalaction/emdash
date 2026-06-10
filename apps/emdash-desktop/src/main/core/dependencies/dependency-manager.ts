@@ -1,6 +1,7 @@
+import type { InstallMethod } from '@emdash/cli-agent-plugins';
 import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
 import { providerRegistry } from '@emdash/cli-agent-plugins/providers';
-import type { InstallMethod } from '@emdash/cli-agent-plugins';
+import { clearResolvedPathCache } from '@main/core/conversations/impl/resolve-agent-executable';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import type { IExecutionContext } from '@main/core/execution-context/types';
@@ -266,7 +267,11 @@ export class DependencyManager implements IInitializable {
 
     if (method) {
       const platform =
-        process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux';
+        process.platform === 'darwin'
+          ? 'macos'
+          : process.platform === 'win32'
+            ? 'windows'
+            : 'linux';
       const meta = metadataRegistry.get(id);
       const options = meta?.capabilities.install.installCommands[platform];
       const match = options?.find((o) => o.method === method);
@@ -293,17 +298,19 @@ export class DependencyManager implements IInitializable {
       return err({ type: 'not-detected-after-install', id });
     }
 
+    clearResolvedPathCache(id);
     return ok(state);
   }
 
   /**
    * Apply an available update for an agent dependency, then re-probe.
    * Strategy is derived from capabilities.updates.update.kind:
-   *   - package-manager: re-run install (or explicit updateCommands)
-   *   - cli: run `<resolvedBinaryPath> <args>` (e.g. `claude update`)
+   *   - package-manager: re-run the update command for the matching InstallOption (or the
+   *     recommended/first option when no method is provided). Falls back to `descriptor.installCommand`.
+   *   - cli: run `<resolvedBinaryPath> <args>` (e.g. `claude update`), method-agnostic.
    *   - auto / none: no-op
    */
-  async update(id: DependencyId): Promise<DependencyUpdateResult> {
+  async update(id: DependencyId, method?: InstallMethod): Promise<DependencyUpdateResult> {
     const descriptor = getDependencyDescriptor(id);
     if (!descriptor) {
       return err({ type: 'unknown-dependency', id });
@@ -323,7 +330,9 @@ export class DependencyManager implements IInitializable {
       return err({ type: 'no-update-strategy', id });
     }
 
-    log.info(`[DependencyManager] Updating ${id} (strategy: ${strategy.kind})`);
+    log.info(
+      `[DependencyManager] Updating ${id} (strategy: ${strategy.kind}, method: ${method ?? 'default'})`
+    );
 
     await this.ctx.refreshShellEnv?.();
 
@@ -334,8 +343,11 @@ export class DependencyManager implements IInitializable {
           : process.platform === 'win32'
             ? 'windows'
             : 'linux';
-      const platformUpdateCmd = strategy.updateCommands?.[platform]?.command;
-      const updateCommand = platformUpdateCmd ?? descriptor.installCommand;
+      const meta = metadataRegistry.get(id);
+      const options = meta?.capabilities.install.installCommands[platform];
+      let chosen = method ? options?.find((o) => o.method === method) : undefined;
+      chosen ??= options?.find((o) => o.recommended) ?? options?.[0];
+      const updateCommand = chosen?.updateCommand ?? chosen?.command ?? descriptor.installCommand;
 
       if (!updateCommand) {
         return err({ type: 'no-update-strategy', id });
@@ -377,6 +389,7 @@ export class DependencyManager implements IInitializable {
       return err({ type: 'not-detected-after-update', id });
     }
 
+    clearResolvedPathCache(id);
     return ok(state);
   }
 

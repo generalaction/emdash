@@ -11,6 +11,7 @@ export type InstallMethod =
   | 'installer-linux'
   | 'homebrew'
   | 'winget'
+  | 'powershell'
   | 'npm'
   | 'apt'
   | 'curl'
@@ -25,6 +26,9 @@ export type InstallOption = {
   label?: string;
   /** When true this option is preselected and sorted first. */
   recommended?: boolean;
+  /** Update command for installs made via this method. When absent, falls back to re-running
+   *  `command` for package-manager updates or the agent's own CLI update command. */
+  updateCommand?: string;
 };
 
 // ── Models ───────────────────────────────────────────────────────────────────
@@ -106,11 +110,8 @@ export type ReleaseSource =
 
 /** How emdash should apply an update when one is available. */
 export type UpdateStrategy =
-  /** Re-run the package-manager install command (or an explicit override). */
-  | {
-      kind: 'package-manager';
-      updateCommands?: Partial<Record<Platform, { command: string; method: InstallMethod }>>;
-    }
+  /** Re-run the install command for the method that was used, or the first/recommended option. */
+  | { kind: 'package-manager' }
   /** Run the agent's own update subcommand, e.g. `claude update`. */
   | { kind: 'cli'; args: string[] }
   /** Agent manages its own updates; emdash reports the version diff but takes no action. */

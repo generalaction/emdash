@@ -1,5 +1,5 @@
+import type { CLIAgentPluginMetadata, InstallOption } from '@emdash/cli-agent-plugins';
 import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
-import type { InstallOption } from '@emdash/cli-agent-plugins';
 import type { AgentPayload } from '@shared/core/agents/agent-payload';
 import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { DependencyStatusMap } from '@shared/core/dependencies';
@@ -8,8 +8,24 @@ import { providerOverrideSettings } from '../settings/provider-settings-service'
 const CURRENT_PLATFORM =
   process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux';
 
-function resolveInstallOptions(meta: { capabilities: { install: { installCommands: Partial<Record<string, InstallOption[]>> } } }): InstallOption[] {
-  return meta.capabilities.install.installCommands[CURRENT_PLATFORM] ?? [];
+function resolveInstallOptions(meta: CLIAgentPluginMetadata): InstallOption[] {
+  const options = meta.capabilities.install.installCommands[CURRENT_PLATFORM] ?? [];
+  const updates = meta.capabilities.updates;
+
+  if (updates.kind !== 'supported') return options;
+
+  const strategy = updates.update;
+
+  return options.map((opt) => {
+    if (strategy.kind === 'package-manager') {
+      return { ...opt, updateCommand: opt.updateCommand ?? opt.command };
+    }
+    if (strategy.kind === 'cli') {
+      const binary = meta.capabilities.install.binaryNames[0] ?? meta.id;
+      return { ...opt, updateCommand: [binary, ...strategy.args].join(' ') };
+    }
+    return opt;
+  });
 }
 
 async function buildOne(
@@ -43,6 +59,7 @@ async function buildOne(
       overrides: {},
     },
     installOptions: resolveInstallOptions(meta),
+    installDocs: meta.capabilities.install.installDocs ?? null,
   };
 }
 

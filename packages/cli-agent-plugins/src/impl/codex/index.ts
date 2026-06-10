@@ -13,9 +13,9 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['codex'],
       installCommands: {
-        macos: [{ command: 'npm install -g @openai/codex', method: 'npm' }],
-        linux: [{ command: 'npm install -g @openai/codex', method: 'npm' }],
-        windows: [{ command: 'npm install -g @openai/codex', method: 'npm' }],
+        macos: [{ command: 'npm install -g @openai/codex', method: 'npm' }, { command: 'brew install --cask codex', method: 'homebrew', updateCommand: 'brew upgrade --cask codex' }],
+        linux: [{ command: 'npm install -g @openai/codex', method: 'npm' }, { command: 'brew install --cask codex', method: 'homebrew', updateCommand: 'brew upgrade --cask codex' }],
+        windows: [{ command: 'npm install -g @openai/codex', method: 'npm' }, { command: 'powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"', method: 'powershell', updateCommand: 'powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"' }],
       },
     },
     models: { kind: 'none' },

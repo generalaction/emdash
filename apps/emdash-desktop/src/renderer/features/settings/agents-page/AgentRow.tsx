@@ -3,6 +3,7 @@ import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { getAgentUpdateActionState } from '@renderer/lib/components/agent-selector/agent-install';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { AgentPayload } from '@shared/core/agents/agent-payload';
+import { InstalledBadge, UninstalledBadge, UpdateAvailableBadge } from './agent-status-badge';
 
 function formatSupportsText(agent: AgentPayload) {
   const supportsHooks = agent.capabilities.hooks.kind !== 'none';
@@ -41,23 +42,9 @@ export const AgentRow = observer(
           <div className="flex w-full items-center justify-between">
             <span className="text-sm text-foreground">{agent.name}</span>
             <div className="flex items-center gap-1.5">
-              {updateState.render && (
-                <span className="rounded-md bg-background-warning px-1.5 py-0.5 text-xs text-foreground-warning">
-                  Update available
-                </span>
-              )}
-              {isInstalled && !updateState.render && (
-                <span className="rounded-md bg-background-success px-1.5 py-0.5 text-xs text-foreground-success">
-                  Installed
-                </span>
-              )}
-              {
-                !isInstalled && ( 
-                  <span className="rounded-md bg-background-2 px-1.5 py-0.5 text-xs text-foreground-passive">
-                    Uninstalled
-                  </span>
-                )
-              }
+              {updateState.render && <UpdateAvailableBadge />}
+              {isInstalled && !updateState.render && <InstalledBadge />}
+              {!isInstalled && <UninstalledBadge />}
             </div>
           </div>
           <div className="flex w-full items-center justify-between">

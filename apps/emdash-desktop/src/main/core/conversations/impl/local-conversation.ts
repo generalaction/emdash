@@ -10,6 +10,7 @@ import {
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
+import { localDependencyManager } from '@main/core/dependencies/dependency-manager';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
@@ -29,6 +30,7 @@ import { makePtyId } from '@shared/core/pty/ptyId';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import { syncGrokThemeWithAppTheme } from './grok-theme-config';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
+import { resolveAgentExecutable } from './resolve-agent-executable';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -160,11 +162,18 @@ export class LocalConversationProvider implements ConversationProvider {
       const plugin = getPlugin(conversation.providerId);
       const meta = getPluginMetadata(conversation.providerId);
 
+      const binaryName = meta.capabilities.install.binaryNames[0] ?? conversation.providerId;
+      const cachedStatePath = localDependencyManager.get(conversation.providerId as never)?.path;
+      const executableCli = await resolveAgentExecutable({
+        providerId: conversation.providerId,
+        cfg: providerConfig,
+        binaryName,
+        ctx: this.ctx,
+        cachedStatePath,
+      });
+
       const agentCommand = plugin.buildCommand({
-        cli:
-          providerConfig?.cli ??
-          meta.capabilities.install.binaryNames[0] ??
-          conversation.providerId,
+        cli: executableCli,
         extraArgs: parseExtraArgs(providerConfig?.extraArgs),
         autoApprove: conversation.autoApprove ?? false,
         initialPrompt: agentSession.isResuming ? undefined : initialPrompt,

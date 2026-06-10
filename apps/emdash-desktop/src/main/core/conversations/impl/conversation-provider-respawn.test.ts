@@ -119,6 +119,20 @@ vi.mock('@main/core/settings/provider-settings-service', () => ({
   },
 }));
 
+vi.mock('@main/core/dependencies/dependency-manager', () => ({
+  localDependencyManager: {
+    get: vi.fn(() => undefined),
+  },
+  getDependencyManager: vi.fn(async () => ({
+    get: vi.fn(() => undefined),
+  })),
+}));
+
+vi.mock('./resolve-agent-executable', () => ({
+  resolveAgentExecutable: vi.fn(async ({ binaryName }: { binaryName: string }) => binaryName),
+  clearResolvedPathCache: vi.fn(),
+}));
+
 vi.mock('@main/core/settings/settings-service', () => ({
   appSettingsService: {
     get: vi.fn(async (key: string) =>

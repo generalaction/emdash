@@ -44,6 +44,8 @@ export type AgentPayload = {
   command: string | null;
   capabilities: AgentCapabilities;
   settings: AgentSettings;
-  /** Install options for the current platform, empty when none are defined. */
+  /** Install options for the current platform, each carrying its own effective updateCommand. */
   installOptions: InstallOption[];
+  /** Link to installation documentation, null if not set by the plugin. */
+  installDocs: string | null;
 };

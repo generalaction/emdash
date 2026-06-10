@@ -63,7 +63,7 @@ function GeneralSettingsPage() {
 
 function AccountSettingsPage() {
   return (
-    <div className="pt-10 space-y-8">
+    <div className="space-y-8 pt-10">
       <PageHeader title="Account" description="Manage your Emdash account." />
       <AccountTab />
     </div>
@@ -72,7 +72,7 @@ function AccountSettingsPage() {
 
 function IntegrationsSettingsPage() {
   return (
-    <div className="pt-10 space-y-8">
+    <div className="space-y-8 pt-10">
       <PageHeader title="Integrations" description="Connect external services and tools." />
       <IntegrationsCard />
     </div>
@@ -81,7 +81,7 @@ function IntegrationsSettingsPage() {
 
 function ConnectionsSettingsPage() {
   return (
-    <div className="pt-10 space-y-8">
+    <div className="space-y-8 pt-10">
       <PageHeader
         title="Connections"
         description="Manage reusable SSH connections for remote projects."
@@ -93,7 +93,7 @@ function ConnectionsSettingsPage() {
 
 function RepositorySettingsPage() {
   return (
-    <div className="pt-10 space-y-8">
+    <div className="space-y-8 pt-10">
       <PageHeader title="Repository" description="Configure repository and branch settings." />
       <div className="flex flex-col gap-3">
         <h3 className="text-sm font-normal text-foreground">Branch prefix</h3>
@@ -105,7 +105,7 @@ function RepositorySettingsPage() {
 
 function InterfaceSettingsPage() {
   return (
-    <div className="pt-10 space-y-8">
+    <div className="space-y-8 pt-10">
       <PageHeader
         title="Interface"
         description="Customize the appearance and behavior of the app."

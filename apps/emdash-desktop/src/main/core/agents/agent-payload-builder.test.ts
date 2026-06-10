@@ -106,6 +106,12 @@ describe('buildAgentPayload', () => {
     expect(payload!.capabilities.updates).toEqual({ kind: 'none' });
     // installOptions is resolved for the current platform (macos in CI/dev)
     expect(Array.isArray(payload!.installOptions)).toBe(true);
+    // installDocs is null when not set on the plugin
+    expect(payload!.installDocs).toBeNull();
+    // updateCommand is undefined on each option when updates.kind === 'none'
+    for (const opt of payload!.installOptions) {
+      expect(opt.updateCommand).toBeUndefined();
+    }
   });
 
   it('uses missing status when agent is not in the status map', async () => {
@@ -132,6 +138,66 @@ describe('buildAgentPayload', () => {
     const payload = await buildAgentPayload('unknown-agent', {});
 
     expect(payload).toBeNull();
+  });
+
+  it('resolves updateCommand per installOption for a cli update strategy', async () => {
+    const meta = makeMetadata('claude', 'claude');
+    (meta.capabilities as Record<string, unknown>).updates = {
+      kind: 'supported',
+      releaseSource: { kind: 'none' },
+      update: { kind: 'cli', args: ['update'] },
+    };
+    vi.mocked(metadataRegistry.get).mockReturnValue(meta);
+    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(
+      defaultSettings('claude')
+    );
+
+    const { buildAgentPayload } = await import('./agent-payload-builder');
+    const payload = await buildAgentPayload('claude', {});
+
+    // Each install option should carry the cli update command (binary + args)
+    for (const opt of payload!.installOptions) {
+      expect(opt.updateCommand).toBe('claude update');
+    }
+  });
+
+  it('resolves updateCommand per installOption for a package-manager update strategy', async () => {
+    const meta = makeMetadata('codex', 'codex');
+    (meta.capabilities as Record<string, unknown>).updates = {
+      kind: 'supported',
+      releaseSource: { kind: 'none' },
+      update: { kind: 'package-manager' },
+    };
+    vi.mocked(metadataRegistry.get).mockReturnValue(meta);
+    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings('codex'));
+
+    const { buildAgentPayload } = await import('./agent-payload-builder');
+    const payload = await buildAgentPayload('codex', {});
+
+    // Each option's updateCommand defaults to re-running that option's install command
+    for (const opt of payload!.installOptions) {
+      expect(opt.updateCommand).toBe(opt.command);
+    }
+  });
+
+  it('uses an explicit per-option updateCommand when provided', async () => {
+    const meta = makeMetadata('codex', 'codex');
+    (meta.capabilities.install.installCommands as Record<string, unknown>).macos = [
+      { command: 'npm install -g codex', method: 'npm', updateCommand: 'npm update -g codex' },
+    ];
+    (meta.capabilities as Record<string, unknown>).updates = {
+      kind: 'supported',
+      releaseSource: { kind: 'none' },
+      update: { kind: 'package-manager' },
+    };
+    vi.mocked(metadataRegistry.get).mockReturnValue(meta);
+    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings('codex'));
+
+    const { buildAgentPayload } = await import('./agent-payload-builder');
+    const payload = await buildAgentPayload('codex', {});
+
+    const npmOpt = payload!.installOptions.find((o) => o.method === 'npm');
+    expect(npmOpt?.updateCommand).toBe('npm update -g codex');
   });
 
   it('passes models and effort capabilities through verbatim', async () => {

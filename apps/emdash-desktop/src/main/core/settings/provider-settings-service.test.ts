@@ -1,5 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import { migrateProviderConfigOverrides } from './provider-config-migrations';
+import { providerCustomConfigEntrySchema } from './schema';
+
+describe('providerCustomConfigEntrySchema', () => {
+  it('round-trips path and installSource fields', () => {
+    const input = {
+      cli: 'claude',
+      path: '/usr/local/bin/claude',
+      installSource: 'path',
+      extraArgs: '--verbose',
+    };
+    expect(providerCustomConfigEntrySchema.parse(input)).toEqual(input);
+  });
+
+  it('treats absent path and installSource as undefined (no defaults)', () => {
+    const result = providerCustomConfigEntrySchema.parse({ cli: 'claude' });
+    expect(result.path).toBeUndefined();
+    expect(result.installSource).toBeUndefined();
+  });
+
+  it('accepts installSource as an InstallMethod value', () => {
+    const input = { installSource: 'homebrew' };
+    expect(providerCustomConfigEntrySchema.parse(input)).toEqual(input);
+  });
+});
 
 describe('migrateProviderConfigOverrides', () => {
   it('passes through an empty overrides object unchanged', () => {

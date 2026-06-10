@@ -73,6 +73,16 @@ export const keyboardSettingsSchema = z
 
 export const providerCustomConfigEntrySchema = z.object({
   cli: z.string().optional(),
+  /** Absolute path to the agent binary, set when the user chooses "Use this installation". */
+  path: z.string().optional(),
+  /**
+   * Which install source to use for conversation spawns.
+   * 'path' = use the stored `path` field.
+   * 'cli'  = use the stored `cli` field (resolved on PATH).
+   * Any InstallMethod value = auto-resolve via the probed dependency state.
+   * Absent = auto (same as method resolution without a stored preference).
+   */
+  installSource: z.string().optional(),
   extraArgs: z.string().optional(),
   env: z.record(z.string(), z.string()).optional(),
 });

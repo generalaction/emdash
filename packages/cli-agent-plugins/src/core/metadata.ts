@@ -17,6 +17,8 @@ export type InstallationMetadata = {
   /** When true, skip the --version probe for dependency detection. */
   skipVersionProbe?: boolean;
   installCommands: Partial<Record<Platform, InstallOption[]>>;
+  /** Optional link to installation documentation, shown in the agent detail view. */
+  installDocs?: string;
 };
 
 // ── Hooks (declarative only — no I/O functions) ─────────────────────────────
