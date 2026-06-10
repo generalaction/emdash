@@ -1,5 +1,6 @@
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { log } from '@renderer/utils/logger';
+import type { AgentPayload } from '@shared/core/agents/agent-payload';
 import type {
   DependencyId,
   DependencyInstallResult,
@@ -15,6 +16,7 @@ const FOCUS_AGENT_REFRESH_COOLDOWN_MS = 10_000;
 
 export class DependenciesStore {
   readonly local: Resource<DependencyStatusMap, DependencyStatusUpdatedEvent>;
+  readonly agents: Resource<AgentPayload[], DependencyStatusUpdatedEvent>;
 
   private readonly _remoteStores = new Map<string, Resource<DependencyStatusMap>>();
   private readonly _installingDependencyKeys = observable.set<string>();
@@ -51,6 +53,20 @@ export class DependenciesStore {
         },
       },
     ]);
+
+    this.agents = new Resource<AgentPayload[], DependencyStatusUpdatedEvent>(
+      async () => (await (rpc.agents.list() as Promise<AgentPayload[]>)),
+      [
+        {
+          kind: 'event',
+          subscribe: (handler) => events.on(dependencyStatusUpdatedChannel, handler),
+          onEvent: ({ connectionId }, ctx) => {
+            if (!connectionId) ctx.reload();
+          },
+          debounceMs: 300,
+        },
+      ]
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -175,6 +191,7 @@ export class DependenciesStore {
   /** Activate the event subscription and trigger the initial local fetch. */
   start(): void {
     this.local.start();
+    this.agents.start();
 
     if (this._stopFocusRefresh || typeof window === 'undefined') return;
 
@@ -205,6 +222,7 @@ export class DependenciesStore {
     this._stopFocusRefresh?.();
     this._stopFocusRefresh = null;
     this.local.dispose();
+    this.agents.dispose();
     for (const store of this._remoteStores.values()) {
       store.dispose();
     }

@@ -1,36 +1,37 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { rpc } from '@renderer/lib/ipc';
+import type { AgentSettings } from '@shared/core/agents/agent-payload';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
-
-type ProviderSettingsMeta = {
-  value: ProviderCustomConfig;
-  defaults: ProviderCustomConfig;
-  overrides: Partial<ProviderCustomConfig>;
-} | null;
 
 export function useProviderSettings(providerId: string) {
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery<ProviderSettingsMeta>({
-    queryKey: ['providerSettings', providerId, 'meta'] as const,
-    queryFn: () =>
-      rpc.providerSettings.getItemWithMeta(providerId) as Promise<ProviderSettingsMeta>,
+  const { data, isLoading } = useQuery<AgentSettings | null>({
+    queryKey: ['agentSettings', providerId] as const,
+    queryFn: async () => {
+      // Pull the settings from the full agent payload returned by the controller.
+      const payload = await (rpc.agents.get(providerId) as Promise<{ settings: AgentSettings } | null>);
+      return payload?.settings ?? null;
+    },
     staleTime: 60_000,
   });
 
   const updateMutation = useMutation<void, Error, Partial<ProviderCustomConfig>>({
-    mutationFn: (config) => rpc.providerSettings.updateItem(providerId, config) as Promise<void>,
+    mutationFn: (config) => rpc.agents.updateSettings(providerId, config) as Promise<void>,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['providerSettings', providerId, 'meta'] });
-      void queryClient.invalidateQueries({ queryKey: ['providerSettings', 'all'] });
+      void queryClient.invalidateQueries({ queryKey: ['agentSettings', providerId] });
     },
   });
 
   const resetMutation = useMutation<void, Error, void>({
-    mutationFn: () => rpc.providerSettings.resetItem(providerId) as Promise<void>,
+    mutationFn: async () => {
+      const defaults = await (rpc.agents.getDefaultSettings(providerId) as Promise<ProviderCustomConfig | null>);
+      if (defaults) {
+        await (rpc.agents.updateSettings(providerId, defaults) as Promise<void>);
+      }
+    },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['providerSettings', providerId, 'meta'] });
-      void queryClient.invalidateQueries({ queryKey: ['providerSettings', 'all'] });
+      void queryClient.invalidateQueries({ queryKey: ['agentSettings', providerId] });
     },
   });
 

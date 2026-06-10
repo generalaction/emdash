@@ -1,89 +1,63 @@
 import { Settings2, Sparkles } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useMemo, useState } from 'react';
-import { type CliAgentStatus } from '@renderer/features/settings/components/connections';
 import CustomCommandModal from '@renderer/features/settings/components/CustomCommandModal';
 import IntegrationRow from '@renderer/features/settings/components/IntegrationRow';
 import { getAgentInstallErrorMessage } from '@renderer/lib/components/agent-selector/agent-install';
 import { AgentInstallButton } from '@renderer/lib/components/agent-selector/agent-install-button';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
-import { agentMeta } from '@renderer/lib/providers/meta';
+import { resolveAgentIcon } from '@renderer/lib/providers/meta';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { log } from '@renderer/utils/logger';
-import {
-  AGENT_PROVIDERS,
-  isValidProviderId,
-  type AgentProviderId,
-} from '@shared/core/agents/agent-provider-registry';
-import type { DependencyState } from '@shared/core/dependencies';
-
-export const BASE_CLI_AGENTS: CliAgentStatus[] = AGENT_PROVIDERS.filter(
-  (provider) => provider.detectable !== false
-).map((provider) => ({
-  id: provider.id,
-  name: provider.name,
-  status: 'missing' as const,
-  docUrl: provider.docUrl ?? null,
-  installCommand: provider.installCommand ?? null,
-}));
-
-function mapDependencyStatesToCli(
-  agentStatuses: Record<string, DependencyState>
-): CliAgentStatus[] {
-  const mergedMap = new Map<string, CliAgentStatus>();
-  BASE_CLI_AGENTS.forEach((agent) => {
-    mergedMap.set(agent.id, { ...agent });
-  });
-  Object.entries(agentStatuses).forEach(([agentId, state]) => {
-    const base = mergedMap.get(agentId);
-    mergedMap.set(agentId, {
-      ...(base ?? { id: agentId, name: agentId, docUrl: null, installCommand: null }),
-      id: agentId,
-      name: base?.name ?? agentId,
-      status: state.status === 'available' ? 'connected' : state.status,
-      version: state.version ?? null,
-      command: state.path ?? null,
-    });
-  });
-  return Array.from(mergedMap.values());
-}
+import { isValidProviderId, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { AgentPayload } from '@shared/core/agents/agent-payload';
 
 const ICON_BUTTON =
   'rounded-md p-1.5 text-muted-foreground transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 
-type AgentRowActions = {
-  isInstalling: (id: AgentProviderId) => boolean;
-  onInstallClick: (agent: CliAgentStatus) => void;
-  onSettingsClick: (id: string) => void;
+// ---------------------------------------------------------------------------
+// AgentRow
+// ---------------------------------------------------------------------------
+
+type AgentRowProps = {
+  agent: AgentPayload;
+  isInstalling: boolean;
+  onInstallClick: () => void;
+  onSettingsClick: () => void;
 };
 
-const renderAgentRow = (agent: CliAgentStatus, actions: AgentRowActions) => {
-  const meta = agentMeta[agent.id as keyof typeof agentMeta];
-  const logo = meta?.icon;
+const AgentRow: React.FC<AgentRowProps> = ({
+  agent,
+  isInstalling,
+  onInstallClick,
+  onSettingsClick,
+}) => {
+  const logo = resolveAgentIcon(agent.iconName);
+  const logoDark = resolveAgentIcon(agent.iconDarkName);
   const providerId = isValidProviderId(agent.id) ? agent.id : null;
+  const canInstall = Object.keys(agent.capabilities.install.installCommands).length > 0;
 
-  const handleNameClick = agent.docUrl
+  const handleNameClick = agent.websiteUrl
     ? async () => {
         try {
-          await rpc.app.openExternal(agent.docUrl!);
+          await rpc.app.openExternal(agent.websiteUrl!);
         } catch (openError) {
           log.error(`Failed to open ${agent.name} docs:`, openError);
         }
       }
     : undefined;
 
-  const isDetected = agent.status === 'connected';
+  const isDetected = agent.status === 'available';
   const indicatorClass = isDetected ? 'bg-foreground-success' : 'bg-foreground-passive/50';
   const statusLabel = isDetected ? 'Detected' : 'Not detected';
 
   return (
     <IntegrationRow
-      key={agent.id}
       logoSrc={logo}
-      logoSrcDark={meta?.iconDark}
-      invertInDark={meta?.invertInDark}
+      logoSrcDark={logoDark}
+      invertInDark={agent.invertInDark}
       icon={
         logo ? undefined : (
           <Sparkles className="text-muted-foreground h-3.5 w-3.5" aria-hidden="true" />
@@ -91,10 +65,10 @@ const renderAgentRow = (agent: CliAgentStatus, actions: AgentRowActions) => {
       }
       name={agent.name}
       onNameClick={handleNameClick}
-      status={agent.status}
+      status={isDetected ? 'connected' : 'missing'}
       statusLabel={statusLabel}
       showStatusPill={false}
-      installCommand={agent.installCommand}
+      installCommand={agent.settings.defaults.cli ?? null}
       middle={
         <span className="text-muted-foreground flex items-center gap-2 text-sm">
           <span className={`h-1.5 w-1.5 rounded-full ${indicatorClass}`} />
@@ -108,7 +82,7 @@ const renderAgentRow = (agent: CliAgentStatus, actions: AgentRowActions) => {
               <TooltipTrigger>
                 <button
                   type="button"
-                  onClick={() => actions.onSettingsClick(agent.id)}
+                  onClick={onSettingsClick}
                   className={ICON_BUTTON}
                   aria-label={`${agent.name} execution settings`}
                 >
@@ -123,11 +97,11 @@ const renderAgentRow = (agent: CliAgentStatus, actions: AgentRowActions) => {
         ) : providerId ? (
           <AgentInstallButton
             agentId={providerId}
-            canInstall={!!agent.installCommand}
+            canInstall={canInstall}
             isInstalled={isDetected}
-            isInstalling={actions.isInstalling(providerId)}
+            isInstalling={isInstalling}
             tooltipSide="top"
-            onInstall={() => actions.onInstallClick(agent)}
+            onInstall={onInstallClick}
           />
         ) : null
       }
@@ -135,21 +109,45 @@ const renderAgentRow = (agent: CliAgentStatus, actions: AgentRowActions) => {
   );
 };
 
+// ---------------------------------------------------------------------------
+// SectionLabel
+// ---------------------------------------------------------------------------
+
+const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="px-3 pb-1 pt-2">
+    <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+      {children}
+    </span>
+  </div>
+);
+
+// ---------------------------------------------------------------------------
+// CliAgentsList
+// ---------------------------------------------------------------------------
+
 export const CliAgentsList: React.FC = observer(() => {
   const [customModalAgentId, setCustomModalAgentId] = useState<string | null>(null);
   const { toast } = useToast();
-  const agentStatuses = appState.dependencies.agentStatuses;
+  const agentPayloads = appState.dependencies.agents.data;
 
-  const sortedAgents = useMemo(() => {
-    return mapDependencyStatesToCli(agentStatuses).sort((a, b) => {
-      if (a.status === 'connected' && b.status !== 'connected') return -1;
-      if (b.status === 'connected' && a.status !== 'connected') return 1;
-      return a.name.localeCompare(b.name);
-    });
-  }, [agentStatuses]);
+  const installed = useMemo(
+    () =>
+      (agentPayloads ?? [])
+        .filter((a) => a.status === 'available')
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [agentPayloads]
+  );
+
+  const supported = useMemo(
+    () =>
+      (agentPayloads ?? [])
+        .filter((a) => a.status !== 'available')
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [agentPayloads]
+  );
 
   const handleInstall = useCallback(
-    async (agent: CliAgentStatus) => {
+    async (agent: AgentPayload) => {
       if (!isValidProviderId(agent.id) || appState.dependencies.isInstalling(agent.id)) {
         return;
       }
@@ -173,22 +171,38 @@ export const CliAgentsList: React.FC = observer(() => {
     [toast]
   );
 
-  const rowActions = useMemo<AgentRowActions>(
-    () => ({
-      isInstalling: (id) => appState.dependencies.isInstalling(id),
-      onInstallClick: (agent) => {
-        void handleInstall(agent);
-      },
-      onSettingsClick: setCustomModalAgentId,
-    }),
-    [handleInstall]
+  const isInstalling = useCallback(
+    (id: AgentProviderId) => appState.dependencies.isInstalling(id),
+    []
   );
 
   return (
-    <div className="space-y-3">
-      <div className="space-y-2">
-        {sortedAgents.map((agent) => renderAgentRow(agent, rowActions))}
-      </div>
+    <div className="space-y-1">
+      {installed.length > 0 && (
+        <>
+          <SectionLabel>Installed</SectionLabel>
+          {installed.map((agent) => (
+            <AgentRow
+              key={agent.id}
+              agent={agent}
+              isInstalling={isValidProviderId(agent.id) ? isInstalling(agent.id) : false}
+              onInstallClick={() => void handleInstall(agent)}
+              onSettingsClick={() => setCustomModalAgentId(agent.id)}
+            />
+          ))}
+        </>
+      )}
+
+      <SectionLabel>Supported</SectionLabel>
+      {supported.map((agent) => (
+        <AgentRow
+          key={agent.id}
+          agent={agent}
+          isInstalling={isValidProviderId(agent.id) ? isInstalling(agent.id) : false}
+          onInstallClick={() => void handleInstall(agent)}
+          onSettingsClick={() => setCustomModalAgentId(agent.id)}
+        />
+      ))}
 
       <CustomCommandModal
         isOpen={customModalAgentId !== null}

@@ -88,6 +88,11 @@ export type AgentMeta = {
   initialPromptViaStdinPipe?: boolean;
 };
 
+/** Resolve a provider icon name (e.g. "claude.svg") to a Vite-bundled asset string. */
+export function resolveAgentIcon(name: string | null | undefined): string | undefined {
+  return name ? ICONS[name] : undefined;
+}
+
 export const agentMeta: Record<UiAgent, AgentMeta> = Object.fromEntries(
   AGENT_PROVIDERS.map((p) => {
     const pluginMeta = metadataRegistry.get(p.id);

@@ -26,9 +26,6 @@ type FormState = {
   envEntries: EnvEntry[];
 };
 
-const getDefaultCli = (providerId: string): string =>
-  agentMeta[providerId as keyof typeof agentMeta]?.cli ?? providerId;
-
 const configToFormState = (config: ProviderCustomConfig, defaultCli: string): FormState => ({
   cli: config.cli ?? defaultCli,
   extraArgs: config.extraArgs ?? '',
@@ -37,19 +34,22 @@ const configToFormState = (config: ProviderCustomConfig, defaultCli: string): Fo
 
 const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose, providerId }) => {
   const meta = agentMeta[providerId as keyof typeof agentMeta];
-  const defaultCli = getDefaultCli(providerId);
-  const defaultFormState = useMemo<FormState>(
-    () => ({ cli: defaultCli, extraArgs: '', envEntries: [] }),
-    [defaultCli]
-  );
 
   const {
     value: storedConfig,
+    defaults: storedDefaults,
     isOverridden,
     isLoading,
     update,
     reset,
   } = useProviderSettings(providerId);
+
+  // Default CLI comes from server-side defaults (capabilities.install.binaryNames[0]).
+  const defaultCli = storedDefaults?.cli ?? providerId;
+  const defaultFormState = useMemo<FormState>(
+    () => ({ cli: defaultCli, extraArgs: '', envEntries: [] }),
+    [defaultCli]
+  );
 
   const [form, setForm] = useState<FormState>(defaultFormState);
   const [saving, setSaving] = useState(false);

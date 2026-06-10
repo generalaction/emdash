@@ -4,16 +4,25 @@ import type { DependencyState, DependencyStatusUpdatedEvent } from '@shared/core
 import { err, ok } from '@shared/lib/result';
 import { DependenciesStore } from './dependencies-store';
 
-let dependencyEventHandler: ((event: DependencyStatusUpdatedEvent) => void) | null = null;
+const dependencyEventHandlers: ((event: DependencyStatusUpdatedEvent) => void)[] = [];
+
+function fireDependencyEvent(event: DependencyStatusUpdatedEvent): void {
+  for (const handler of dependencyEventHandlers) {
+    handler(event);
+  }
+}
 
 vi.mock('../../lib/ipc', () => ({
   events: {
     on: vi.fn((_channel, handler) => {
-      dependencyEventHandler = handler;
+      dependencyEventHandlers.push(handler);
       return () => {};
     }),
   },
   rpc: {
+    agents: {
+      list: vi.fn(async () => []),
+    },
     dependencies: {
       getAll: vi.fn(async () => ({})),
       install: vi.fn(),
@@ -43,7 +52,7 @@ function flushPromises(): Promise<void> {
 describe('DependenciesStore install', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    dependencyEventHandler = null;
+    dependencyEventHandlers.length = 0;
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -173,7 +182,7 @@ describe('DependenciesStore install', () => {
     const store = new DependenciesStore();
     store.start();
 
-    dependencyEventHandler?.({
+    fireDependencyEvent({
       id: 'claude',
       connectionId: 'ssh-1',
       state: availableAgent('claude'),
