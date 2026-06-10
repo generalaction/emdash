@@ -42,6 +42,12 @@ const config: Configuration = {
   },
   dmg: {
     icon: 'src/assets/images/emdash/emdash-beta.icns',
+    background: 'build/dmg-background.tiff',
+    window: { width: 530, height: 319 },
+    contents: [
+      { x: 132, y: 150, type: 'file' },
+      { x: 398, y: 150, type: 'link', path: '/Applications' },
+    ],
   },
   linux: {
     category: 'Development',
