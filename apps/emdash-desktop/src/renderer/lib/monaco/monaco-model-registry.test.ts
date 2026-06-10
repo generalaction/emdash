@@ -147,6 +147,50 @@ describe('MonacoModelRegistry', () => {
     expect(registry.bufferVersions.get(uri) ?? 0).toBeGreaterThan(versionBefore);
   });
 
+  it('bumps bufferVersions when accepting incoming disk content for a conflicted buffer', async () => {
+    // Same regression as above, conflict-dialog path: reloadFromDisk ("Accept
+    // Incoming") sets the buffer from disk while reloadingFromDisk suppresses
+    // the onDidChangeContent listener, so it must bump bufferVersions itself.
+    const registry = new MonacoModelRegistry();
+    registry.notifyMonacoReady(makeFakeMonaco() as never);
+
+    const projectId = 'project';
+    const workspaceId = 'workspace';
+    const root = `workspace:${workspaceId}`;
+    const filePath = 'README.md';
+    const language = 'markdown';
+
+    rpcState.diskContent = 'base';
+    const uri = await registry.registerModel(
+      projectId,
+      workspaceId,
+      root,
+      filePath,
+      language,
+      'disk'
+    );
+    await registry.registerModel(projectId, workspaceId, root, filePath, language, 'buffer');
+    const diskUri = registry.toDiskUri(uri);
+
+    // User edits the buffer, then the file changes on disk underneath them:
+    // applyDiskUpdate must record a conflict instead of clobbering the edit.
+    registry.getModelByUri(uri)?.setValue('user edit');
+    expect(registry.isDirty(uri)).toBe(true);
+    rpcState.diskContent = 'external change';
+    await registry.invalidateModel(diskUri);
+
+    expect(registry.hasPendingConflict(uri)).toBe(true);
+    expect(registry.getValue(uri)).toBe('user edit');
+    const versionBefore = registry.bufferVersions.get(uri) ?? 0;
+
+    registry.reloadFromDisk(uri);
+
+    expect(registry.getValue(uri)).toBe('external change');
+    expect(registry.isDirty(uri)).toBe(false);
+    expect(registry.hasPendingConflict(uri)).toBe(false);
+    expect(registry.bufferVersions.get(uri) ?? 0).toBeGreaterThan(versionBefore);
+  });
+
   it('clears a staged git model when the index no longer contains the file', async () => {
     const registry = new MonacoModelRegistry();
     registry.notifyMonacoReady(makeFakeMonaco() as never);
