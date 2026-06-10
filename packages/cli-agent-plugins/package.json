@@ -40,6 +40,7 @@
   },
   "devDependencies": {
     "oxfmt": "^0.51.0",
+    "oxlint": "^1.69.0",
     "react": "^19.2.7",
     "tsdown": "^0.22.2",
     "vitest": "^3.1.4"

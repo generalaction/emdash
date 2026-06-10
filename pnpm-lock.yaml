@@ -306,6 +306,9 @@ importers:
       oxfmt:
         specifier: ^0.51.0
         version: 0.51.0
+      oxlint:
+        specifier: ^1.69.0
+        version: 1.69.0(oxlint-tsgolint@0.23.0)
       react:
         specifier: ^19.2.7
         version: 19.2.7
