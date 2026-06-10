@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/settings/components/settings-page-config.tsx
+  s_b7fe530ce1790f::t_685a771c23da36 131-132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "66e314f96649b9e4fa997dd766ef4ca8d7e32fcb",
+  "prompts": {},
+  "sessions": {
+    "s_b7fe530ce1790f": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eb108-ff35-7cf5-8442-1283c8c449e8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
