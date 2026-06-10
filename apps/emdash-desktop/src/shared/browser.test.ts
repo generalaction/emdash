@@ -28,6 +28,35 @@ describe('normalizeBrowserUrl', () => {
     });
   });
 
+  it('uses Google search for non-URL input', () => {
+    expect(normalizeBrowserUrl('react compiler')).toEqual({
+      ok: true,
+      url: 'https://www.google.com/search?q=react+compiler',
+      protocol: 'https:',
+    });
+    expect(normalizeBrowserUrl('vitest')).toEqual({
+      ok: true,
+      url: 'https://www.google.com/search?q=vitest',
+      protocol: 'https:',
+    });
+    expect(normalizeBrowserUrl('react: useState')).toEqual({
+      ok: true,
+      url: 'https://www.google.com/search?q=react%3A+useState',
+      protocol: 'https:',
+    });
+  });
+
+  it('can reject search-like inputs when validating actual navigation URLs', () => {
+    expect(normalizeBrowserUrl('react: useState', { allowSearchQueries: false })).toEqual({
+      ok: false,
+      reason: 'unsupported-protocol',
+    });
+    expect(normalizeBrowserUrl('mailto: user@example.com', { allowSearchQueries: false })).toEqual({
+      ok: false,
+      reason: 'unsupported-protocol',
+    });
+  });
+
   it('allows about blank and blocks unsupported protocols', () => {
     expect(normalizeBrowserUrl('about:blank')).toEqual({
       ok: true,
@@ -90,6 +119,25 @@ describe('browser session identity', () => {
       currentUrl: 'about:blank',
       createdAt: 100,
       updatedAt: 100,
+    });
+  });
+
+  it('preserves bare host URLs in snapshots', () => {
+    const identity = makeBrowserSessionIdentity({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+    });
+
+    expect(
+      createBrowserSessionSnapshot({
+        identity,
+        currentUrl: 'intranet',
+        now: 100,
+      })
+    ).toMatchObject({
+      currentUrl: 'https://intranet/',
     });
   });
 });

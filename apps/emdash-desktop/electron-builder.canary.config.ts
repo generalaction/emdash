@@ -1,6 +1,7 @@
 import type { Configuration } from 'electron-builder';
 import {
   APP_ID,
+  APP_NAME_LOWER,
   ARTIFACT_PREFIX,
   PRODUCT_NAME,
   R2_BASE_URL,
@@ -42,14 +43,27 @@ const config: Configuration = {
   },
   dmg: {
     icon: 'src/assets/images/emdash/emdash-canary.icns',
+    background: 'build/dmg-background.tiff',
+    window: { width: 530, height: 319 },
+    contents: [
+      { x: 132, y: 150, type: 'file' },
+      { x: 398, y: 150, type: 'link', path: '/Applications' },
+    ],
   },
   linux: {
     category: 'Development',
+    executableName: APP_NAME_LOWER,
     target: [
       { target: 'AppImage', arch: ['x64'] },
       { target: 'deb', arch: ['x64'] },
       { target: 'rpm', arch: ['x64'] },
     ],
+  },
+  deb: {
+    packageName: APP_NAME_LOWER,
+  },
+  rpm: {
+    packageName: APP_NAME_LOWER,
   },
   win: {
     icon: 'src/assets/images/emdash/app-icon-canary.png',

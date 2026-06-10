@@ -11,6 +11,7 @@ import {
   makeClaudeHookCommand,
   makeCodexHookCommand,
   makeCodexSessionStartHookCommand,
+  makeGeminiHookCommand,
   makeGrokSessionStartHookCommand,
   makeOpenCodePluginContent,
 } from './agent-notify-command';
@@ -27,6 +28,7 @@ const LEGACY_KIMI_CONFIG_PATH = '.kimi/config.toml';
 const GROK_HOOKS_PATH = '.grok/hooks/emdash.json';
 const COPILOT_HOOKS_PATH = '.github/hooks/emdash.json';
 const QWEN_SETTINGS_PATH = '.qwen/settings.json';
+const GEMINI_SETTINGS_PATH = '.gemini/settings.json';
 const DROID_SETTINGS_PATH = '.factory/settings.json';
 const AMP_PLUGIN_PATH = '.amp/plugins/emdash-hook.ts';
 const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
@@ -56,6 +58,12 @@ type GrokHookEvent =
   | 'StopFailure'
   | 'UserPromptSubmit';
 type QwenHookEvent = 'PermissionRequest' | 'SessionEnd' | 'Stop';
+type GeminiHookEvent =
+  | 'AfterAgent'
+  | 'BeforeAgent'
+  | 'Notification'
+  | 'SessionEnd'
+  | 'SessionStart';
 type DroidHookEvent = 'Notification' | 'Stop' | 'SessionStart';
 type DevinHookEvent = 'PermissionRequest' | 'SessionEnd' | 'Stop';
 type KiroHookEvent = 'agentSpawn' | 'userPromptSubmit' | 'preToolUse' | 'postToolUse' | 'stop';
@@ -393,6 +401,40 @@ export class HookConfigWriter {
     return true;
   }
 
+  async writeGeminiHooks(): Promise<boolean> {
+    if (!(await resolveCommandPath('gemini', this.exec))) return false;
+
+    const config: Record<string, unknown> = (await this.fs.exists(GEMINI_SETTINGS_PATH))
+      ? await this.fs
+          .read(GEMINI_SETTINGS_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
+          .catch(() => ({}))
+      : {};
+
+    const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+    const hookEntries = [
+      { hookKey: 'SessionStart', eventType: 'session' },
+      { hookKey: 'BeforeAgent', eventType: 'start' },
+      { hookKey: 'Notification', eventType: 'notification' },
+      { hookKey: 'AfterAgent', eventType: 'stop' },
+      { hookKey: 'SessionEnd', eventType: 'stop' },
+    ] satisfies {
+      hookKey: GeminiHookEvent;
+      eventType: 'notification' | 'session' | 'start' | 'stop';
+    }[];
+
+    for (const { hookKey, eventType } of hookEntries) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildGeminiHookEntries(
+        existing,
+        makeGeminiHookCommand(eventType, { platform: this.platform })
+      );
+    }
+
+    await this.fs.write(GEMINI_SETTINGS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
+    return true;
+  }
+
   async writeDroidHooks(): Promise<boolean> {
     if (!(await resolveCommandPath('droid', this.exec))) return false;
 
@@ -566,6 +608,14 @@ export class HookConfigWriter {
       return wroteConfig;
     }
 
+    if (providerId === 'gemini') {
+      const wroteConfig = await this.writeGeminiHooks();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([GEMINI_SETTINGS_PATH]);
+      }
+      return wroteConfig;
+    }
+
     if (providerId === 'droid') {
       const wroteConfig = await this.writeDroidHooks();
       if (wroteConfig && writeGitIgnoreEntries) {
@@ -627,6 +677,7 @@ export class HookConfigWriter {
           'kimi',
           'copilot',
           'qwen',
+          'gemini',
           'devin',
           'droid',
           'pi',
@@ -655,6 +706,24 @@ export class HookConfigWriter {
   private buildKiroHookEntries(existing: unknown[], command: string): unknown[] {
     const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
     return [...userEntries, { command }];
+  }
+
+  private buildGeminiHookEntries(existing: unknown[], command: string): unknown[] {
+    const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
+    return [
+      ...userEntries,
+      {
+        matcher: '*',
+        hooks: [
+          {
+            name: 'emdash-notify',
+            type: 'command',
+            command,
+            timeout: 5000,
+          },
+        ],
+      },
+    ];
   }
 
   private async removeLegacyCodexNotify(): Promise<void> {

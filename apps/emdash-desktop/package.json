@@ -1,6 +1,6 @@
 {
   "name": "@emdash/emdash-desktop",
-  "version": "1.1.31",
+  "version": "1.1.32",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "keywords": [
     "claude",
@@ -9,6 +9,7 @@
     "git",
     "openai"
   ],
+  "homepage": "https://emdash.sh",
   "license": "Apache-2.0",
   "author": {
     "name": "Emdash Contributors",

@@ -9,6 +9,7 @@ const SEARCH_LIMIT = 20;
 const SEARCH_DEBOUNCE_MS = 300;
 
 const SEARCH_MIN_LENGTH_BY_PROVIDER: Partial<Record<IssueProviderType, number>> = {
+  plane: 2,
   plain: 2,
 };
 

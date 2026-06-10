@@ -6,6 +6,7 @@ export const ISSUE_PROVIDER_ORDER: IssueProviderType[] = [
   'linear',
   'jira',
   'gitlab',
+  'plane',
   'forgejo',
   'trello',
   'asana',
@@ -49,6 +50,12 @@ export const ISSUE_PROVIDER_META: Record<
   gitlab: {
     displayName: 'GitLab',
     description: 'Work on GitLab issues',
+    features: ['issues'],
+    disconnectCredentialLabel: 'credentials',
+  },
+  plane: {
+    displayName: 'Plane',
+    description: 'Work on Plane work items',
     features: ['issues'],
     disconnectCredentialLabel: 'credentials',
   },
@@ -108,6 +115,10 @@ export const SETUP_PROVIDER_META: Record<
   gitlab: {
     title: 'Connect GitLab',
     subtitle: 'Enter your GitLab instance URL and personal access token.',
+  },
+  plane: {
+    title: 'Connect Plane',
+    subtitle: 'Enter your Plane API base URL, workspace slug, and API key.',
   },
   plain: {
     title: 'Connect Plain',

@@ -17,6 +17,7 @@ import {
   useWorkspaceConfig,
   type WorkspaceConfigInitial,
 } from '../tasks/create-task-modal/use-workspace-config';
+import type { BuiltinAutomationTemplate } from './automation-template';
 
 const DEFAULT_CRON = toCron(DEFAULT_CRON_STATE);
 
@@ -59,16 +60,23 @@ function workspaceInitialFromConfig(
 
 export type AutomationFormState = ReturnType<typeof useAutomationFormState>;
 
-export function useAutomationFormState(seed?: Automation) {
+export function useAutomationFormState(
+  seed?: Automation,
+  initialTemplate?: BuiltinAutomationTemplate
+) {
   const seedTrigger = seed?.triggerConfig;
   const seedConversationConfig = seed?.conversationConfig;
   const seedConfig = seed?.taskConfig;
+  const seedPrompt =
+    seedConversationConfig?.prompt ?? initialTemplate?.defaultConversationConfig.initialPrompt;
 
-  const [name, setName] = useState(seed?.name ?? '');
+  const [name, setName] = useState(seed?.name ?? initialTemplate?.name ?? '');
   const [projectId, setProjectId] = useState<string | undefined>(
     seed?.projectId ?? firstMountedProjectId()
   );
-  const [cronExpr, setCronExpr] = useState<string>(seedTrigger?.expr ?? DEFAULT_CRON);
+  const [cronExpr, setCronExpr] = useState<string>(
+    seedTrigger?.expr ?? initialTemplate?.defaultTrigger.expr ?? DEFAULT_CRON
+  );
   const [cronTz] = useState<string>(seedTrigger?.tz ?? getLocalTimeZone());
 
   const effectiveProjectId =
@@ -81,9 +89,9 @@ export function useAutomationFormState(seed?: Automation) {
   const initialConversation = useInitialConversationState(effectiveProjectId, seedProvider);
 
   const [promptSeeded, setPromptSeeded] = useState(false);
-  if (!promptSeeded && seedConversationConfig?.prompt) {
+  if (!promptSeeded && seedPrompt) {
     setPromptSeeded(true);
-    initialConversation.setPrompt(seedConversationConfig.prompt);
+    initialConversation.setPrompt(seedPrompt);
   }
 
   const repo = effectiveProjectId ? getRepositoryStore(effectiveProjectId) : undefined;
@@ -162,6 +170,12 @@ export function useAutomationFormState(seed?: Automation) {
 
   const triggerConfig: TriggerConfig = { expr: cronExpr.trim(), tz: cronTz };
 
+  function applyTemplate(template: BuiltinAutomationTemplate) {
+    setName(template.name);
+    setCronExpr(template.defaultTrigger.expr);
+    initialConversation.setPrompt(template.defaultConversationConfig.initialPrompt);
+  }
+
   return {
     name,
     setName,
@@ -179,6 +193,7 @@ export function useAutomationFormState(seed?: Automation) {
     provider,
     canSave,
     triggerConfig,
+    applyTemplate,
     buildTaskConfig,
   };
 }

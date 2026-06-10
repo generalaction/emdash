@@ -22,12 +22,14 @@ import type { BrowserWebviewAdapter } from './browser-webview-types';
 export function BrowserToolbar({
   session,
   adapter,
+  autoFocusUrl,
   onNavigate,
   onReload,
   onFocusUrl,
 }: {
   session: BrowserSessionSnapshot;
   adapter: BrowserWebviewAdapter | null;
+  autoFocusUrl?: boolean;
   onNavigate?: (url: string) => boolean;
   onReload?: () => void;
   onFocusUrl?: (focus: () => void) => void;
@@ -53,6 +55,15 @@ export function BrowserToolbar({
       urlInputRef.current?.select();
     });
   }, [onFocusUrl]);
+
+  useEffect(() => {
+    if (!autoFocusUrl) return;
+    const timer = window.setTimeout(() => {
+      urlInputRef.current?.focus();
+      urlInputRef.current?.select();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [autoFocusUrl]);
 
   const navigate = () => {
     navigateTo(urlText);
@@ -116,7 +127,7 @@ export function BrowserToolbar({
             onFocus={(event) => event.currentTarget.select()}
             className="h-7 truncate border-0 pr-8 pl-7 text-sm shadow-none hover:border-0 focus-visible:border-0 focus-visible:ring-0"
             aria-label="Browser URL"
-            placeholder="Enter URL"
+            placeholder="Search or enter URL"
             spellCheck={false}
             autoCapitalize="none"
           />

@@ -20,6 +20,7 @@ import { linearController } from './core/linear/controller';
 import { mcpController } from './core/mcp/controller';
 import { mondayController } from './core/monday/controller';
 import { plainController } from './core/plain/controller';
+import { planeController } from './core/plane/controller';
 import { projectController } from './core/projects/controller';
 import { promptLibraryController } from './core/prompt-library/controller';
 import { ptyController } from './core/pty/controller';
@@ -62,6 +63,7 @@ export const rpcRouter = createRPCRouter({
   jira: jiraController,
   linear: linearController,
   monday: mondayController,
+  plane: planeController,
   plain: plainController,
   trello: trelloController,
   promptLibrary: promptLibraryController,

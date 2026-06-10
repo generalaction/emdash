@@ -43,6 +43,15 @@ describe('browser webview security helpers', () => {
       ok: false,
       reason: 'unsupported-url',
     });
+    expect(
+      validateBrowserWebviewAttach(
+        { partition, src: 'mailto: user@example.com' },
+        new Set([partition])
+      )
+    ).toEqual({
+      ok: false,
+      reason: 'unsupported-url',
+    });
   });
 
   it('hardens Electron webview preferences', () => {

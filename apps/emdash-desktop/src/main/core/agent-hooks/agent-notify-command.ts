@@ -63,6 +63,30 @@ export function makeClaudeHookCommand(eventType: string, options: HookCommandOpt
   return makeHookPostCommand({ eventType, payload: 'stdin', platform: options.platform });
 }
 
+export function makeGeminiHookCommand(eventType: string, options: HookCommandOptions = {}): string {
+  if ((options.platform ?? process.platform) === 'win32') {
+    const script = [
+      "$ErrorActionPreference = 'SilentlyContinue'",
+      '$payload = [Console]::In.ReadToEnd()',
+      'if ($env:EMDASH_HOOK_PORT -and $env:EMDASH_HOOK_TOKEN -and $env:EMDASH_PTY_ID) { try { Invoke-WebRequest -UseBasicParsing -Method POST ' +
+        "-Uri ('http://127.0.0.1:' + $env:EMDASH_HOOK_PORT + '/hook') " +
+        '-Headers @{ ' +
+        "'Content-Type' = 'application/json'; " +
+        "'X-Emdash-Token' = $env:EMDASH_HOOK_TOKEN; " +
+        "'X-Emdash-Pty-Id' = $env:EMDASH_PTY_ID; " +
+        `'X-Emdash-Event-Type' = '${eventType}' ` +
+        '} -Body $payload | Out-Null } catch {} }',
+      'Write-Output \'{"decision":"allow","suppressOutput":true}\'',
+    ].join('; ');
+    const encodedScript = Buffer.from(script, 'utf16le').toString('base64');
+
+    return `cmd.exe /d /c "powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encodedScript}"`;
+  }
+
+  const post = makeHookPostCommand({ eventType, payload: 'stdin', platform: options.platform });
+  return `INPUT="\${1:-$(cat)}"; printf '%s' "$INPUT" | ${post} >/dev/null 2>&1; printf '{"decision":"allow","suppressOutput":true}'`;
+}
+
 export function makeGrokSessionStartHookCommand(options: HookCommandOptions = {}): string {
   if ((options.platform ?? process.platform) === 'win32') {
     const script = [

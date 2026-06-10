@@ -114,7 +114,7 @@ export function InitialConversationField({
     <Field>
       <div
         className={cn(
-          'flex flex-col rounded-md border border-border transition-colors',
+          'flex flex-col rounded-lg border border-border transition-colors',
           isDragOver && 'bg-accent/10 ring-2 ring-accent/50 ring-inset'
         )}
         {...dropHandlers}

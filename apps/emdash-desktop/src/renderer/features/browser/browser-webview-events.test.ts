@@ -113,6 +113,9 @@ describe('bindBrowserWebviewEvents', () => {
       faviconUrl: 'https://example.com/favicon.ico',
     });
 
+    webview.emit('did-start-loading');
+    expect(browserSessionStore.getSession(session.browserId)?.faviconUrl).toBeUndefined();
+
     webview.emit('did-fail-load', {
       errorCode: -105,
       errorDescription: 'Name not resolved',

@@ -6,6 +6,7 @@ export type ProviderInput = {
   linear: string;
   jira: { siteUrl: string; email: string; token: string };
   gitlab: { instanceUrl: string; token: string };
+  plane: { apiBaseUrl: string; workspaceSlug: string; token: string };
   plain: string;
   forgejo: { instanceUrl: string; token: string };
   featurebase: string;
