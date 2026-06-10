@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/lib/monaco/editorConfig.ts
+  s_b6ceb97b7ef2d2::t_747be120ff4956 37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "ae80835b9ae9d78a98dee5bccda0521d1657ea86",
+  "prompts": {},
+  "sessions": {
+    "s_b6ceb97b7ef2d2": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eade8-eb87-75d1-a32c-f3d3d5d8005a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
