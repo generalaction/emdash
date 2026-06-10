@@ -1,4 +1,4 @@
-import { CheckIcon, ChevronDownIcon, RefreshCw, X } from 'lucide-react';
+import { CheckIcon, RefreshCw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
 import { useState } from 'react';
@@ -9,6 +9,8 @@ import {
   type StatusFilter,
 } from '@renderer/features/projects/components/pr-view/usePrViewState';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
+import { FilterMenuButton } from '@renderer/lib/components/filter-menu-button';
+import { SortSelect } from '@renderer/lib/components/sort-select';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
 import { Button } from '@renderer/lib/ui/button';
 import {
@@ -18,15 +20,7 @@ import {
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
 import { Input } from '@renderer/lib/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { SearchInput } from '@renderer/lib/ui/search-input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@renderer/lib/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import type { PrSortField } from '@shared/core/pull-requests/pull-requests';
 import { PrSyncStatusCard } from './pr-sync-status-card';
@@ -37,36 +31,6 @@ const SORT_OPTIONS: { value: PrSortField; label: string }[] = [
   { value: 'oldest', label: 'Oldest' },
   { value: 'recently-updated', label: 'Recently Updated' },
 ];
-
-function FilterButton({
-  label,
-  active,
-  disabled,
-  children,
-}: {
-  label: string;
-  active: boolean;
-  disabled?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <Popover>
-      <PopoverTrigger
-        disabled={disabled}
-        className={
-          'flex items-center gap-1 text-sm hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40' +
-          (active ? 'font-medium text-foreground' : 'text-foreground-muted')
-        }
-      >
-        {label}
-        <ChevronDownIcon className="size-3.5" />
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-56 gap-0 p-2">
-        {children}
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 function UserFilterPopover({
   label,
@@ -83,7 +47,7 @@ function UserFilterPopover({
   const filtered = items.filter((i) => i.label.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <FilterButton label={label} active={selected !== null} disabled={items.length === 0}>
+    <FilterMenuButton label={label} active={selected !== null} disabled={items.length === 0}>
       <Input
         className="mb-1 h-7 text-xs"
         placeholder={`Search ${label.toLowerCase()}…`}
@@ -118,7 +82,7 @@ function UserFilterPopover({
           <li className="text-muted-foreground px-2 py-3 text-center text-xs">No results</li>
         )}
       </ul>
-    </FilterButton>
+    </FilterMenuButton>
   );
 }
 
@@ -138,7 +102,7 @@ function LabelFilterPopover({
     onChange(selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value]);
 
   return (
-    <FilterButton label="Label" active={selected.length > 0} disabled={items.length === 0}>
+    <FilterMenuButton label="Label" active={selected.length > 0} disabled={items.length === 0}>
       <Input
         className="mb-1 h-7 text-xs"
         placeholder="Search labels…"
@@ -172,7 +136,7 @@ function LabelFilterPopover({
           <li className="text-muted-foreground px-2 py-3 text-center text-xs">No results</li>
         )}
       </ul>
-    </FilterButton>
+    </FilterMenuButton>
   );
 }
 
@@ -301,24 +265,11 @@ export const PullRequestView = observer(function PullRequestView() {
         {/* ── Sort + filter row ── */}
         <div className="flex flex-col flex-wrap gap-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm text-foreground-passive">Sort</span>
-              <Select value={sortFilter} onValueChange={handleSortChange}>
-                <SelectTrigger
-                  size="sm"
-                  className="w-auto gap-1 border-none p-0 text-foreground-muted hover:text-foreground"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SORT_OPTIONS.map(({ value, label }) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <SortSelect
+              value={sortFilter}
+              options={SORT_OPTIONS}
+              onValueChange={handleSortChange}
+            />
 
             <div className="flex items-center gap-3">
               <span className="text-sm text-foreground-passive">Filter by</span>

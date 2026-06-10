@@ -1,12 +1,14 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Archive, RotateCcw, Trash2, X } from 'lucide-react';
+import { Archive, CheckIcon, RotateCcw, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
+import { FilterMenuButton } from '@renderer/lib/components/filter-menu-button';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
+import { SortSelect } from '@renderer/lib/components/sort-select';
 import {
   getEffectiveHotkey,
   getHotkeyRegistration,
@@ -20,8 +22,59 @@ import { SearchInput } from '@renderer/lib/ui/search-input';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
+import {
+  AGENT_FILTER_OPTIONS,
+  CHANGES_FILTER_OPTIONS,
+  PR_FILTER_OPTIONS,
+  TASK_SORT_OPTIONS,
+  sortTasks,
+  taskMatchesFilters,
+  type TaskFilters,
+} from './task-filters';
 import { TaskListEmptyState } from './task-list-empty-state';
 import { TaskRow, type ReadyTask } from './task-row';
+
+function FilterMenu<T extends string>({
+  label,
+  options,
+  selected,
+  onToggle,
+}: {
+  label: string;
+  options: readonly { value: T; label: string }[];
+  selected: ReadonlySet<T>;
+  onToggle: (value: T) => void;
+}) {
+  const active = selected.size > 0;
+  return (
+    <FilterMenuButton
+      label={label}
+      active={active}
+      badge={
+        active ? (
+          <span className="text-xs text-foreground-muted">({selected.size})</span>
+        ) : undefined
+      }
+      contentClassName="w-48 p-1"
+    >
+      <ul className="max-h-60 overflow-y-auto">
+        {options.map((option) => (
+          <li key={option.value}>
+            <button
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-background-1"
+              onClick={() => onToggle(option.value)}
+            >
+              <span className="flex-1 truncate text-left">{option.label}</span>
+              {selected.has(option.value) && (
+                <CheckIcon className="size-3.5 shrink-0 text-foreground" />
+              )}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </FilterMenuButton>
+  );
+}
 
 function TaskVirtualList({
   tasks,
@@ -207,9 +260,19 @@ export const TaskList = observer(function TaskList() {
 
   const displayTasks = taskView.tab === 'active' ? activeTasks : archivedTasks;
   const q = taskView.searchQuery.trim().toLowerCase();
-  const filteredTasks = q
-    ? displayTasks.filter((t) => t.data.name.toLowerCase().includes(q))
-    : displayTasks;
+  const filters: TaskFilters = {
+    agent: taskView.agentFilter,
+    pr: taskView.prFilter,
+    changes: taskView.changesFilter,
+  };
+  const filteredTasks = sortTasks(
+    displayTasks.filter(
+      (t) => (!q || t.data.name.toLowerCase().includes(q)) && taskMatchesFilters(t, filters)
+    ),
+    taskView.sortBy
+  );
+  const showOnboardingEmptyState =
+    filteredTasks.length === 0 && taskView.tab === 'active' && !q && !taskView.hasActiveFilters;
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-col">
@@ -237,9 +300,45 @@ export const TaskList = observer(function TaskList() {
             </Button>
           </div>
         </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <SortSelect
+            value={taskView.sortBy}
+            options={TASK_SORT_OPTIONS}
+            onValueChange={(value) => taskView.setSortBy(value)}
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm text-foreground-passive">Filter by</span>
+            <FilterMenu
+              label="Agent"
+              options={AGENT_FILTER_OPTIONS}
+              selected={taskView.agentFilter}
+              onToggle={(value) => taskView.toggleAgentFilter(value)}
+            />
+            <FilterMenu
+              label="PR"
+              options={PR_FILTER_OPTIONS}
+              selected={taskView.prFilter}
+              onToggle={(value) => taskView.togglePrFilter(value)}
+            />
+            <FilterMenu
+              label="Changes"
+              options={CHANGES_FILTER_OPTIONS}
+              selected={taskView.changesFilter}
+              onToggle={(value) => taskView.toggleChangesFilter(value)}
+            />
+            {taskView.hasActiveFilters && (
+              <button
+                className="text-xs text-foreground-muted hover:text-foreground"
+                onClick={() => taskView.clearFilters()}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
-      {filteredTasks.length === 0 && taskView.tab === 'active' ? (
+      {showOnboardingEmptyState ? (
         <TaskListEmptyState projectId={projectId} />
       ) : (
         <TaskVirtualList

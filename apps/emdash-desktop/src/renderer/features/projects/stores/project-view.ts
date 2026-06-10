@@ -1,5 +1,11 @@
 import { makeAutoObservable } from 'mobx';
+import type {
+  TaskChangesFilterValue,
+  TaskPrFilterValue,
+  TaskSortField,
+} from '@renderer/features/projects/components/task-view/task-filters';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
+import type { AgentStatus } from '@shared/core/agents/agentEvents';
 import type { IssueProviderType } from '@shared/issue-providers';
 import type { ProjectViewSnapshot } from '@shared/view-state';
 
@@ -41,6 +47,10 @@ export class ProjectViewStore implements Snapshottable<ProjectViewSnapshot> {
 class TaskViewStore {
   tab: 'active' | 'archived' = 'active';
   searchQuery: string = '';
+  sortBy: TaskSortField = 'newest';
+  agentFilter: Set<AgentStatus> = new Set();
+  prFilter: Set<TaskPrFilterValue> = new Set();
+  changesFilter: Set<TaskChangesFilterValue> = new Set();
   selectedIds: Set<string> = new Set();
   lastSelectedId: string | null = null;
 
@@ -49,15 +59,57 @@ class TaskViewStore {
   }
 
   setTab(tab: 'active' | 'archived') {
+    if (this.tab === tab) return;
     this.tab = tab;
+    this.clearSelection();
   }
 
   setSearchQuery(query: string) {
+    if (this.searchQuery === query) return;
     this.searchQuery = query;
+    this.clearSelection();
+  }
+
+  setSortBy(sortBy: TaskSortField) {
+    this.sortBy = sortBy;
+  }
+
+  toggleAgentFilter(value: AgentStatus) {
+    if (this.agentFilter.has(value)) this.agentFilter.delete(value);
+    else this.agentFilter.add(value);
+    this.clearSelection();
+  }
+
+  togglePrFilter(value: TaskPrFilterValue) {
+    if (this.prFilter.has(value)) this.prFilter.delete(value);
+    else this.prFilter.add(value);
+    this.clearSelection();
+  }
+
+  toggleChangesFilter(value: TaskChangesFilterValue) {
+    if (this.changesFilter.has(value)) this.changesFilter.delete(value);
+    else this.changesFilter.add(value);
+    this.clearSelection();
+  }
+
+  get hasActiveFilters(): boolean {
+    return this.agentFilter.size > 0 || this.prFilter.size > 0 || this.changesFilter.size > 0;
+  }
+
+  clearFilters() {
+    this.agentFilter = new Set();
+    this.prFilter = new Set();
+    this.changesFilter = new Set();
+    this.clearSelection();
   }
 
   setSelectedIds(ids: Set<string>) {
     this.selectedIds = ids;
+    this.lastSelectedId = null;
+  }
+
+  private clearSelection() {
+    this.selectedIds = new Set();
     this.lastSelectedId = null;
   }
 
