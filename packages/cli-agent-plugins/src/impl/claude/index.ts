@@ -13,9 +13,22 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['claude'],
       installCommands: {
-        macos: [{ command: 'curl -fsSL https://claude.ai/install.sh | bash', method: 'curl', recommended: true }, { command: 'brew install --cask claude-code', method: 'homebrew' }],
+        macos: [
+          {
+            command: 'curl -fsSL https://claude.ai/install.sh | bash',
+            method: 'curl',
+            recommended: true,
+          },
+          { command: 'brew install --cask claude-code', method: 'homebrew' },
+        ],
         linux: [{ command: 'curl -fsSL https://claude.ai/install.sh | bash', method: 'curl' }],
-        windows: [{ command: 'curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd', method: 'curl' }]
+        windows: [
+          {
+            command:
+              'curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd',
+            method: 'curl',
+          },
+        ],
       },
     },
     models: { kind: 'none' },

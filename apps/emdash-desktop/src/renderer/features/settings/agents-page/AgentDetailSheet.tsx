@@ -9,18 +9,13 @@ import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
-import {
-  Sheet,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-} from '@renderer/lib/ui/sheet';
+import { Sheet, SheetContent, SheetFooter, SheetHeader } from '@renderer/lib/ui/sheet';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { log } from '@renderer/utils/logger';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
+import { AgentSheetHeaderSection } from './AgentSheetHeaderSection';
 import type { UseInstallationPayload } from './InstallSection';
 import { InstallSection } from './InstallSection';
-import { AgentSheetHeaderSection } from './AgentSheetHeaderSection';
 
 interface AgentDetailSheetProps {
   agentId: string | null;

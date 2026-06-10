@@ -23,41 +23,39 @@ export function AgentsSettingsPage() {
 
   return (
     <>
-      <div className="sticky top-0 z-10 bg-background pt-10">
-        <PageHeader title="Agents" description="Manage CLI agents and model configurations.">
-          {/* <DefaultAgentSelector /> */}
-          <div className="flex items-center justify-between gap-2">
-            <ToggleGroup
-              multiple={false}
-              value={[filter]}
-              onValueChange={([value]) => {
-                if (value) setFilter(value as AgentFilter);
-              }}
+      <PageHeader sticky title="Agents" description="Manage CLI agents and model configurations.">
+        {/* <DefaultAgentSelector /> */}
+        <div className="flex items-center justify-between gap-2">
+          <ToggleGroup
+            multiple={false}
+            value={[filter]}
+            onValueChange={([value]) => {
+              if (value) setFilter(value as AgentFilter);
+            }}
+          >
+            <ToggleGroupItem value="all">All</ToggleGroupItem>
+            <ToggleGroupItem value="installed">Installed</ToggleGroupItem>
+            <ToggleGroupItem value="uninstalled">Uninstalled</ToggleGroupItem>
+          </ToggleGroup>
+          <div className="flex items-center gap-2">
+            <SearchInput
+              placeholder="Search agents…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              containerClassName="w-56"
+            />
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => void handleRefresh()}
+              disabled={refreshing}
+              aria-label="Refresh agent detection"
             >
-              <ToggleGroupItem value="all">All</ToggleGroupItem>
-              <ToggleGroupItem value="installed">Installed</ToggleGroupItem>
-              <ToggleGroupItem value="uninstalled">Uninstalled</ToggleGroupItem>
-            </ToggleGroup>
-            <div className="flex items-center gap-2">
-              <SearchInput
-                placeholder="Search agents…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                containerClassName="w-56"
-              />
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => void handleRefresh()}
-                disabled={refreshing}
-                aria-label="Refresh agent detection"
-              >
-                <RefreshCw className={refreshing ? 'animate-spin' : ''} />
-              </Button>
-            </div>
+              <RefreshCw className={refreshing ? 'animate-spin' : ''} />
+            </Button>
           </div>
-        </PageHeader>
-      </div>
+        </div>
+      </PageHeader>
       <div className="flex flex-col gap-3">
         <CliAgentsList searchQuery={searchQuery} filter={filter} onFilterChange={setFilter} />
       </div>

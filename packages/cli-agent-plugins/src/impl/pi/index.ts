@@ -16,12 +16,24 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['pi'],
       installCommands: {
-        macos: [{ command: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
-          method: 'npm', }],
-        linux: [{ command: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
-          method: 'npm', }],
-        windows: [{ command: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
-          method: 'npm', }],
+        macos: [
+          {
+            command: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
+            method: 'npm',
+          },
+        ],
+        linux: [
+          {
+            command: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
+            method: 'npm',
+          },
+        ],
+        windows: [
+          {
+            command: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
+            method: 'npm',
+          },
+        ],
       },
     },
     models: { kind: 'none' },

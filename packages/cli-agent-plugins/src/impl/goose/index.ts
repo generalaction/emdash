@@ -12,12 +12,20 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['goose'],
       installCommands: {
-        macos: [{ command:
-            'curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash',
-          method: 'curl', }],
-        linux: [{ command:
-            'curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash',
-          method: 'curl', }],
+        macos: [
+          {
+            command:
+              'curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash',
+            method: 'curl',
+          },
+        ],
+        linux: [
+          {
+            command:
+              'curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash',
+            method: 'curl',
+          },
+        ],
       },
     },
     models: { kind: 'none' },

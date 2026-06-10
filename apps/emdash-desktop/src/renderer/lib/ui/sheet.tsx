@@ -61,18 +61,22 @@ function SheetContent({
   );
 }
 
-function SheetHeader({ className, label, children, ...props }: React.ComponentProps<'div'> & { label?: string }) {
+function SheetHeader({
+  className,
+  label,
+  children,
+  ...props
+}: React.ComponentProps<'div'> & { label?: string }) {
   return (
     <div
       data-slot="sheet-header"
       className={cn('flex gap-1.5 p-4 justify-between', className)}
       {...props}
     >
-      
       {label && <MicroLabel>{label}</MicroLabel>}
       {children}
       <SheetClose>
-        <button className="text-foreground-muted hover:text-foreground ml-auto mr-0">
+        <button className="mr-0 ml-auto text-foreground-muted hover:text-foreground">
           <XIcon className="size-4" />
         </button>
       </SheetClose>

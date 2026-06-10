@@ -115,8 +115,17 @@ describe('metadataRegistry', () => {
 
   it('each defined platform installCommands entry is a non-empty array of valid InstallOptions', () => {
     const validMethods = [
-      'installer-macos', 'installer-windows', 'installer-linux',
-      'homebrew', 'winget', 'npm', 'apt', 'curl', 'pip', 'cargo', 'other',
+      'installer-macos',
+      'installer-windows',
+      'installer-linux',
+      'homebrew',
+      'winget',
+      'npm',
+      'apt',
+      'curl',
+      'pip',
+      'cargo',
+      'other',
     ];
     for (const m of metadataRegistry.getAll()) {
       const { installCommands } = m.capabilities.install;
@@ -124,8 +133,13 @@ describe('metadataRegistry', () => {
         expect(Array.isArray(options), `${m.id}.${platform} should be an array`).toBe(true);
         expect(options!.length, `${m.id}.${platform} array should be non-empty`).toBeGreaterThan(0);
         for (const opt of options!) {
-          expect(typeof opt.command, `${m.id}.${platform} command should be a string`).toBe('string');
-          expect(opt.command.length, `${m.id}.${platform} command should be non-empty`).toBeGreaterThan(0);
+          expect(typeof opt.command, `${m.id}.${platform} command should be a string`).toBe(
+            'string'
+          );
+          expect(
+            opt.command.length,
+            `${m.id}.${platform} command should be non-empty`
+          ).toBeGreaterThan(0);
           expect(validMethods, `${m.id}.${platform} method should be valid`).toContain(opt.method);
         }
       }

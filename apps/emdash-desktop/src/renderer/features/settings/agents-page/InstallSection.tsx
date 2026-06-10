@@ -1,5 +1,13 @@
 import type { InstallMethod, InstallOption } from '@emdash/cli-agent-plugins';
-import { Check, ChevronDown, Copy, ExternalLink, Loader2, MoreVertical, Terminal } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  ExternalLink,
+  Loader2,
+  MoreHorizontal,
+  Terminal,
+} from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useMemo, useState } from 'react';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -82,14 +90,26 @@ function CopyButton({ command }: { command: string }) {
 
 function CommandRow({ command, action }: { command: string; action: React.ReactNode }) {
   return (
-    <div className="group flex items-center gap-2 rounded-md bg-background-1 px-3 py-2">
-      <Terminal className="h-3.5 w-3.5 shrink-0 text-foreground-passive" />
-      <code className="min-w-0 flex-1 truncate font-mono text-xs text-foreground-muted">
-        {command}
-      </code>
-      <CopyButton command={command} />
+    <div className="flex w-full gap-[2px] items-stretch">
+      <div className="group flex flex-1 items-center gap-2 rounded-l-lg bg-background-quaternary-1 px-2 py-1.5">
+        <Terminal className="h-3.5 w-3.5 shrink-0 text-foreground-passive" />
+        <code className="min-w-0 flex-1 truncate font-mono text-xs text-foreground-muted">
+          {command}
+        </code>
+        <CopyButton command={command} />
+      </div>
       {action}
     </div>
+  );
+}
+
+function CommandActionButton({ ...props }: React.HTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      className="group flex text-sm  items-center gap-2 rounded-r-lg bg-background-quaternary-1 hover:bg-background-quaternary-2 px-4"
+      {...props}
+    />
   );
 }
 
@@ -216,147 +236,125 @@ export const InstallSection = observer(function InstallSection({
       rel="noreferrer"
       className="inline-flex items-center gap-1 text-xs text-foreground-muted hover:text-foreground hover:underline"
     >
-      Install docs
+      Installation Docs
       <ExternalLink className="h-3 w-3" />
     </a>
   ) : null;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {/* Section header */}
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-foreground">Install</span>
+        <span className="text-sm text-foreground">Install</span>
         {docsLink}
       </div>
+      <div className="rounded-lg border p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <Combobox
+            value={selectedOption ?? null}
+            onValueChange={(opt) => {
+              if (opt) setSelectedValue(opt.value);
+            }}
+            isItemEqualToValue={(a: InstallSelectOption, b: InstallSelectOption) =>
+              a.value === b.value
+            }
+          >
+            <ComboboxTrigger className="flex items-center gap-1 rounded-md px-2 py-0.5 text-sm text-foreground-muted transition-colors hover:bg-background-quaternary-2 hover:text-foreground">
+              <span className="truncate">{selectedOption?.label ?? selectedValue}</span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+            </ComboboxTrigger>
+            <ComboboxContent align="start" className="w-auto min-w-[--anchor-width+48px]">
+              <ComboboxList className="p-1!">
+                {allSelectOptions.map((opt) => (
+                  <ComboboxItem key={opt.value} value={opt} showCheck={false}>
+                    <span className="flex items-center gap-1.5">
+                      {opt.label}
+                      {opt.recommended && <RecommendedBadge />}
+                      {isInstalled && opt.value !== 'path' && opt.value !== 'cli' && (
+                        <InstalledBadge />
+                      )}
+                      {isActiveSource(opt.value) && <UsedBadge />}
+                    </span>
+                  </ComboboxItem>
+                ))}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+          <div className="ml-auto flex items-center gap-1.5">
+            {isInstalled ? <InstalledBadge /> : <UninstalledBadge />}
+            {updateAvailable && <UpdateAvailableBadge />}
+            {onUseInstallation && (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  className="rounded p-1 text-foreground-passive hover:bg-background-2 hover:text-foreground"
+                  aria-label="Installation options"
+                >
+                  <MoreHorizontal className="size-3.5" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onSelect={handleUseInstallation}>
+                    Use this installation
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </div>
 
-      {/* Method selector row: [Select] [⋮] ---- [status badge] */}
-      <div className="flex items-center gap-2">
-        <Combobox
-          value={selectedOption ?? null}
-          onValueChange={(opt) => {
-            if (opt) setSelectedValue(opt.value);
-          }}
-          isItemEqualToValue={(a: InstallSelectOption, b: InstallSelectOption) =>
-            a.value === b.value
-          }
-        >
-          <ComboboxTrigger className="flex h-8 min-w-[140px] items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 text-sm transition-colors hover:bg-background-1">
-            <span className="truncate">{selectedOption?.label ?? selectedValue}</span>
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
-          </ComboboxTrigger>
-          <ComboboxContent align="start" className="w-auto min-w-[--anchor-width]">
-            <ComboboxList>
-              {allSelectOptions.map((opt) => (
-                <ComboboxItem key={opt.value} value={opt} showCheck={false}>
-                  <span className="flex items-center gap-1.5">
-                    {opt.label}
-                    {opt.recommended && <RecommendedBadge />}
-                    {isInstalled && opt.value !== 'path' && opt.value !== 'cli' && (
-                      <InstalledBadge />
-                    )}
-                    {isActiveSource(opt.value) && <UsedBadge />}
-                  </span>
-                </ComboboxItem>
-              ))}
-            </ComboboxList>
-          </ComboboxContent>
-        </Combobox>
-
-        {onUseInstallation && (
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              className="rounded p-1 text-foreground-passive hover:bg-background-2 hover:text-foreground"
-              aria-label="Installation options"
-            >
-              <MoreVertical className="h-4 w-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onSelect={handleUseInstallation}>
-                Use this installation
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        {/* Selection content */}
+        {selectedValue === 'path' && (
+          <div className="space-y-1.5">
+            <p className="text-xs text-foreground-muted">
+              Absolute path to the agent binary. Overrides auto-resolution.
+            </p>
+            <Input
+              value={localPath}
+              onChange={(e) => setLocalPath(e.target.value)}
+              placeholder="/usr/local/bin/claude"
+              className="font-mono text-sm"
+            />
+          </div>
         )}
 
-        <div className="ml-auto flex items-center gap-1.5">
-          {isInstalled ? <InstalledBadge /> : <UninstalledBadge />}
-          {updateAvailable && <UpdateAvailableBadge />}
-        </div>
-      </div>
+        {selectedValue === 'cli' && (
+          <div className="space-y-1.5">
+            <p className="text-xs text-foreground-muted">
+              Command name or binary resolved on PATH. Overrides the default binary name.
+            </p>
+            <Input
+              value={localCli}
+              onChange={(e) => setLocalCli(e.target.value)}
+              placeholder="claude"
+              className="font-mono text-sm"
+            />
+          </div>
+        )}
 
-      {/* Selection content */}
-      {selectedValue === 'path' && (
-        <div className="space-y-1.5">
-          <p className="text-xs text-foreground-muted">
-            Absolute path to the agent binary. Overrides auto-resolution.
-          </p>
-          <Input
-            value={localPath}
-            onChange={(e) => setLocalPath(e.target.value)}
-            placeholder="/usr/local/bin/claude"
-            className="font-mono text-sm"
-          />
-        </div>
-      )}
-
-      {selectedValue === 'cli' && (
-        <div className="space-y-1.5">
-          <p className="text-xs text-foreground-muted">
-            Command name or binary resolved on PATH. Overrides the default binary name.
-          </p>
-          <Input
-            value={localCli}
-            onChange={(e) => setLocalCli(e.target.value)}
-            placeholder="claude"
-            className="font-mono text-sm"
-          />
-        </div>
-      )}
-
-      {/* Plugin-defined install method commands */}
-      {activeOption && (
-        <div className="space-y-2">
-          <CommandRow
-            command={activeOption.command}
-            action={
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="h-6 shrink-0 px-2 text-xs"
-                disabled={isInstallingAny}
-                onClick={() => void handleInstall(activeOption.method)}
-              >
-                {installingMethod === activeOption.method && (
-                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                )}
-                Install
-              </Button>
-            }
-          />
-
-          {updateAvailable && activeOption.updateCommand && (
+        {/* Plugin-defined install method commands */}
+        {activeOption && (
+          <div className="space-y-2">
             <CommandRow
-              command={activeOption.updateCommand}
+              command={activeOption.command}
               action={
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="h-6 shrink-0 px-2 text-xs"
-                  disabled={!!updatingMethod}
-                  onClick={() => void handleUpdate(activeOption.method)}
-                >
-                  {updatingMethod === activeOption.method && (
-                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                  )}
-                  Update
-                </Button>
+                <CommandActionButton onClick={() => void handleInstall(activeOption.method)}>
+                  Install
+                </CommandActionButton>
               }
             />
-          )}
-        </div>
-      )}
+
+            {updateAvailable && activeOption.updateCommand && (
+              <CommandRow
+                command={activeOption.updateCommand}
+                action={
+                  <CommandActionButton onClick={() => void handleUpdate(activeOption.method)}>
+                    Update
+                  </CommandActionButton>
+                }
+              />
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 });

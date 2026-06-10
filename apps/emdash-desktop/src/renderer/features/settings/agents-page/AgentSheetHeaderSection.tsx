@@ -3,7 +3,6 @@ import { observer } from 'mobx-react-lite';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import type { AgentPayload } from '@shared/core/agents/agent-payload';
 
-
 function formatSupportsText(agent: AgentPayload): string {
   const supportsHooks = agent.capabilities.hooks.kind !== 'none';
   const supportsSessions = agent.capabilities.sessions.kind !== 'stateless';
@@ -23,8 +22,8 @@ export const AgentSheetHeaderSection = observer(function AgentSheetHeaderSection
 
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="truncate text-lg  text-foreground">{agent.name}</span>
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-lg text-foreground">{agent.name}</span>
           </div>
 
           {agent.websiteUrl && (

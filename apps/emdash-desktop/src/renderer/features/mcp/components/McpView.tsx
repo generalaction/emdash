@@ -62,80 +62,79 @@ export const McpView: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex h-full items-center justify-center bg-background text-foreground">
+      <div className="flex min-h-64 items-center justify-center text-foreground">
         <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto text-foreground">
-      <div className="mx-auto w-full max-w-3xl px-8 py-8">
-        <PageHeader
-          title="MCP"
-          description="Connect your agents with external data sources and tools"
-        >
-          <div className="flex w-full items-center justify-between gap-2">
-            <SearchInput
-              placeholder="Search servers..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={refresh}
-                disabled={isRefreshing}
-                aria-label="Refresh providers"
-              >
-                <RefreshCw
-                  className={`text-muted-foreground h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
-                />
-              </Button>
-              <Button onClick={() => openModal({ type: 'add-custom' })}>
-                <Plus className="size-4" />
-                Custom MCP
-              </Button>
-            </div>
+    <div className="flex flex-col text-foreground">
+      <PageHeader
+        sticky
+        title="MCP"
+        description="Connect your agents with external data sources and tools"
+      >
+        <div className="flex w-full items-center justify-between gap-2">
+          <SearchInput
+            placeholder="Search servers..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={refresh}
+              disabled={isRefreshing}
+              aria-label="Refresh providers"
+            >
+              <RefreshCw
+                className={`text-muted-foreground h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+              />
+            </Button>
+            <Button onClick={() => openModal({ type: 'add-custom' })}>
+              <Plus className="size-4" />
+              Custom MCP
+            </Button>
           </div>
-        </PageHeader>
-
-        <div className="flex flex-col gap-8 py-8">
-          {filteredInstalled.length > 0 && (
-            <CardGridSection title="Added">
-              {filteredInstalled.map((server) => (
-                <McpCard
-                  key={server.name}
-                  server={server}
-                  catalogEntry={catalog.find((c) => c.key === server.name)}
-                  onEdit={(s) => openModal({ type: 'edit', server: s })}
-                />
-              ))}
-            </CardGridSection>
-          )}
-
-          {filteredCatalog.length > 0 && (
-            <CardGridSection title="Recommended">
-              {filteredCatalog.map((entry) => (
-                <McpCard
-                  key={entry.key}
-                  catalogEntry={entry}
-                  onEdit={() => {}}
-                  onAdd={(e) => openModal({ type: 'add-catalog', entry: e })}
-                />
-              ))}
-            </CardGridSection>
-          )}
-
-          {filteredInstalled.length === 0 && filteredCatalog.length === 0 && (
-            <div className="py-12 text-center">
-              <p className="text-muted-foreground text-sm">
-                {search ? 'No servers match your search.' : 'No servers available.'}
-              </p>
-            </div>
-          )}
         </div>
+      </PageHeader>
+
+      <div className="flex flex-col gap-8 py-8">
+        {filteredInstalled.length > 0 && (
+          <CardGridSection title="Added">
+            {filteredInstalled.map((server) => (
+              <McpCard
+                key={server.name}
+                server={server}
+                catalogEntry={catalog.find((c) => c.key === server.name)}
+                onEdit={(s) => openModal({ type: 'edit', server: s })}
+              />
+            ))}
+          </CardGridSection>
+        )}
+
+        {filteredCatalog.length > 0 && (
+          <CardGridSection title="Recommended">
+            {filteredCatalog.map((entry) => (
+              <McpCard
+                key={entry.key}
+                catalogEntry={entry}
+                onEdit={() => {}}
+                onAdd={(e) => openModal({ type: 'add-catalog', entry: e })}
+              />
+            ))}
+          </CardGridSection>
+        )}
+
+        {filteredInstalled.length === 0 && filteredCatalog.length === 0 && (
+          <div className="py-12 text-center">
+            <p className="text-muted-foreground text-sm">
+              {search ? 'No servers match your search.' : 'No servers available.'}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

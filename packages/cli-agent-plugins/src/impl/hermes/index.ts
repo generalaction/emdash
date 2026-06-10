@@ -13,10 +13,18 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['hermes'],
       installCommands: {
-        macos: [{ command: 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash',
-          method: 'curl', }],
-        linux: [{ command: 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash',
-          method: 'curl', }],
+        macos: [
+          {
+            command: 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash',
+            method: 'curl',
+          },
+        ],
+        linux: [
+          {
+            command: 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash',
+            method: 'curl',
+          },
+        ],
       },
     },
     models: { kind: 'none' },

@@ -137,49 +137,48 @@ export function PromptLibraryView() {
   };
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
-      <div className="mx-auto w-full max-w-3xl px-8 py-8">
-        <PageHeader
-          title="Prompts"
-          description="Manage reusable prompts that can be sent from task prompt menus."
-        >
-          <div className="flex w-full justify-between gap-2">
-            <SearchInput
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search prompts..."
-            />
-            <Button onClick={createPrompt} disabled={isDisabled} aria-label="New Prompt">
-              <Plus className="size-4" />
-              <span className="[@container(max-width:520px)]:hidden">New Prompt</span>
-            </Button>
-          </div>
-        </PageHeader>
-        <div className={cn('flex flex-col py-2', filteredItems.length === 0 && 'min-h-64')}>
-          {filteredItems.length > 0 ? (
-            filteredItems.map((prompt, index) => {
-              return (
-                <MultiLineListItem
-                  key={prompt.id}
-                  isLast={index === filteredItems.length - 1}
-                  className="py-3"
-                >
-                  <PromptRow
-                    item={prompt}
-                    disabled={isDisabled}
-                    onEdit={() => editPrompt(prompt)}
-                    onDelete={() => deletePrompt(prompt)}
-                  />
-                </MultiLineListItem>
-              );
-            })
-          ) : (
-            <EmptyState
-              label="No prompts"
-              description={search ? 'No prompts match your search.' : 'No prompts available.'}
-            />
-          )}
+    <div className="flex flex-col text-foreground">
+      <PageHeader
+        sticky
+        title="Prompts"
+        description="Manage reusable prompts that can be sent from task prompt menus."
+      >
+        <div className="flex w-full justify-between gap-2">
+          <SearchInput
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search prompts..."
+          />
+          <Button onClick={createPrompt} disabled={isDisabled} aria-label="New Prompt">
+            <Plus className="size-4" />
+            <span className="[@container(max-width:520px)]:hidden">New Prompt</span>
+          </Button>
         </div>
+      </PageHeader>
+      <div className={cn('flex flex-col py-2', filteredItems.length === 0 && 'min-h-64')}>
+        {filteredItems.length > 0 ? (
+          filteredItems.map((prompt, index) => {
+            return (
+              <MultiLineListItem
+                key={prompt.id}
+                isLast={index === filteredItems.length - 1}
+                className="py-3"
+              >
+                <PromptRow
+                  item={prompt}
+                  disabled={isDisabled}
+                  onEdit={() => editPrompt(prompt)}
+                  onDelete={() => deletePrompt(prompt)}
+                />
+              </MultiLineListItem>
+            );
+          })
+        ) : (
+          <EmptyState
+            label="No prompts"
+            description={search ? 'No prompts match your search.' : 'No prompts available.'}
+          />
+        )}
       </div>
     </div>
   );
