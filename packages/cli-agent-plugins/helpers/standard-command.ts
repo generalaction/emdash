@@ -48,6 +48,11 @@ export type StandardCommandSpec = {
   resumeWithoutSessionFlag?: string;
   /** A flag appended when starting a fresh conversation (e.g. letta's --new). */
   newConversationFlag?: string;
+  /**
+   * When true, sessionIdFlag is injected on both fresh AND resume sessions.
+   * Use for providers like Antigravity that identify conversations by ID on every invocation.
+   */
+  sessionIdAlways?: boolean;
   /** When true, skip auto-approve flag on resume (kimi special case). */
   omitAutoApproveOnResume?: boolean;
   /** List of singleton flags to deduplicate (keep first occurrence only). */
@@ -71,17 +76,24 @@ export function buildStandardCommand(ctx: CommandContext, spec: StandardCommandS
     args.push(...spec.defaultArgs);
   }
 
-  // Session / resume logic
-  const hasSessionId = !!ctx.sessionId;
+  // Session / resume logic.
+  // For sessionIdOnResumeOnly providers, use only the provider-native session id.
+  // If providerSessionId is absent, validSessionId will be undefined → fallback flags apply.
+  // For all other providers, the emdash session UUID (sessionId) is used.
+  const rawSessionId = spec.sessionIdOnResumeOnly ? ctx.providerSessionId : ctx.sessionId;
+  const hasSessionId = !!rawSessionId;
   const validSessionId =
     hasSessionId && spec.validateSessionId
-      ? spec.validateSessionId(ctx.sessionId!)
-        ? ctx.sessionId!
+      ? spec.validateSessionId(rawSessionId!)
+        ? rawSessionId!
         : undefined
-      : ctx.sessionId;
+      : rawSessionId;
 
   if (ctx.isResuming) {
-    if (spec.resumeFlag) {
+    if (spec.sessionIdAlways && spec.sessionIdFlag && ctx.sessionId) {
+      // Always inject session ID on resume too (e.g. Antigravity --conversation=)
+      appendFlagValue(args, spec.sessionIdFlag, ctx.sessionId);
+    } else if (spec.resumeFlag) {
       if (spec.sessionIdFlag && validSessionId) {
         // resumeFlag takes the session ID (e.g. '--resume <id>' or '-r <id>')
         args.push(spec.resumeFlag, validSessionId);

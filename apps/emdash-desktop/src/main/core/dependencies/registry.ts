@@ -1,4 +1,6 @@
-import { listDetectableProviders } from '@shared/core/agents/agent-provider-registry';
+import { metadataRegistry } from 'cli-agent-plugins/metadata';
+import { providerRegistry } from 'cli-agent-plugins/providers';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { DependencyStatus } from '@shared/core/dependencies';
 import type { DependencyDescriptor, ProbeResult } from './types';
 
@@ -73,19 +75,37 @@ function agentResolveStatus(result: ProbeResult): DependencyStatus {
   return result.exitCode === null ? 'missing' : 'error';
 }
 
+function getPlatformInstallCommand(
+  installCommands: Record<string, { command: string } | undefined>
+): string | undefined {
+  const platform =
+    process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux';
+  return installCommands[platform]?.command;
+}
+
 function buildAgentDependencies(): DependencyDescriptor[] {
-  return listDetectableProviders().map((provider) => ({
-    id: provider.id,
-    name: provider.name,
-    category: 'agent' as const,
-    commands: provider.commands ?? [provider.cli ?? provider.id],
-    versionArgs: provider.versionArgs ?? ['--version'],
-    skipVersionProbe: provider.skipVersionProbe,
-    docUrl: provider.docUrl,
-    installHint: provider.installCommand ? `Run: ${provider.installCommand}` : undefined,
-    installCommand: provider.installCommand,
-    resolveStatus: agentResolveStatus,
-  }));
+  return metadataRegistry.getAll().map((meta) => {
+    const binaryNames = meta.capabilities.install.binaryNames;
+    const primaryBinary = binaryNames[0] ?? meta.id;
+    const installCmd = getPlatformInstallCommand(meta.capabilities.install.installCommands);
+    const provPlugin = providerRegistry.get(meta.id);
+    const versionArgs = provPlugin?.buildVersionProbeCommand?.(primaryBinary)?.args ?? [
+      '--version',
+    ];
+
+    return {
+      id: meta.id as AgentProviderId,
+      name: meta.name,
+      category: 'agent' as const,
+      commands: binaryNames.length > 0 ? binaryNames : [meta.id],
+      skipVersionProbe: meta.capabilities.install.skipVersionProbe,
+      versionArgs,
+      docUrl: meta.websiteUrl,
+      installHint: installCmd ? `Run: ${installCmd}` : undefined,
+      installCommand: installCmd,
+      resolveStatus: agentResolveStatus,
+    };
+  });
 }
 
 export const DEPENDENCIES: DependencyDescriptor[] = [

@@ -2,6 +2,7 @@ import { Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useProviderSettings } from '@renderer/features/settings/use-provider-settings';
 import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
+import { agentMeta } from '@renderer/lib/providers/meta';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@renderer/lib/ui/dialog';
@@ -9,10 +10,6 @@ import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { log } from '@renderer/utils/logger';
-import {
-  AGENT_PROVIDERS,
-  type AgentProviderDefinition,
-} from '@shared/core/agents/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
 
 interface CustomCommandModalProps {
@@ -25,39 +22,26 @@ type EnvEntry = { key: string; value: string };
 
 type FormState = {
   cli: string;
-  resumeFlag: string;
-  defaultArgs: string;
   extraArgs: string;
-  autoApproveFlag: string;
-  initialPromptFlag: string;
   envEntries: EnvEntry[];
 };
 
-const getDefaultFromProvider = (provider: AgentProviderDefinition | undefined): FormState => ({
-  cli: provider?.cli ?? '',
-  resumeFlag: provider?.resumeFlag ?? '',
-  defaultArgs: provider?.defaultArgs?.join(' ') ?? '',
-  extraArgs: '',
-  autoApproveFlag: provider?.autoApproveFlag ?? '',
-  initialPromptFlag: provider?.initialPromptFlag ?? '',
-  envEntries: [],
-});
+const getDefaultCli = (providerId: string): string =>
+  agentMeta[providerId as keyof typeof agentMeta]?.cli ?? providerId;
 
-const configToFormState = (config: ProviderCustomConfig, fallback: FormState): FormState => ({
-  cli: config.cli ?? fallback.cli,
-  resumeFlag: config.resumeFlag ?? fallback.resumeFlag,
-  defaultArgs: Array.isArray(config.defaultArgs)
-    ? config.defaultArgs.join(' ')
-    : (config.defaultArgs ?? fallback.defaultArgs),
+const configToFormState = (config: ProviderCustomConfig, defaultCli: string): FormState => ({
+  cli: config.cli ?? defaultCli,
   extraArgs: config.extraArgs ?? '',
-  autoApproveFlag: config.autoApproveFlag ?? fallback.autoApproveFlag,
-  initialPromptFlag: config.initialPromptFlag ?? fallback.initialPromptFlag,
   envEntries: config.env ? Object.entries(config.env).map(([key, value]) => ({ key, value })) : [],
 });
 
 const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose, providerId }) => {
-  const provider = useMemo(() => AGENT_PROVIDERS.find((p) => p.id === providerId), [providerId]);
-  const registryDefaults = useMemo(() => getDefaultFromProvider(provider), [provider]);
+  const meta = agentMeta[providerId as keyof typeof agentMeta];
+  const defaultCli = getDefaultCli(providerId);
+  const defaultFormState = useMemo<FormState>(
+    () => ({ cli: defaultCli, extraArgs: '', envEntries: [] }),
+    [defaultCli]
+  );
 
   const {
     value: storedConfig,
@@ -67,17 +51,17 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
     reset,
   } = useProviderSettings(providerId);
 
-  const [form, setForm] = useState<FormState>(registryDefaults);
+  const [form, setForm] = useState<FormState>(defaultFormState);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!isOpen || isLoading) return;
     if (storedConfig && isOverridden) {
-      setForm(configToFormState(storedConfig, registryDefaults));
+      setForm(configToFormState(storedConfig, defaultCli));
     } else {
-      setForm(registryDefaults);
+      setForm(defaultFormState);
     }
-  }, [isOpen, isLoading, storedConfig, isOverridden, registryDefaults]);
+  }, [isOpen, isLoading, storedConfig, isOverridden, defaultFormState, defaultCli]);
 
   const handleChange = useCallback((field: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -114,8 +98,8 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
   }, []);
 
   const handleResetToDefaults = useCallback(() => {
-    setForm(registryDefaults);
-  }, [registryDefaults]);
+    setForm(defaultFormState);
+  }, [defaultFormState]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -129,12 +113,8 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
       }
 
       const isAtDefaults =
-        form.cli === registryDefaults.cli &&
-        form.resumeFlag === registryDefaults.resumeFlag &&
-        form.defaultArgs === registryDefaults.defaultArgs &&
+        form.cli === defaultCli &&
         form.extraArgs === '' &&
-        form.autoApproveFlag === registryDefaults.autoApproveFlag &&
-        form.initialPromptFlag === registryDefaults.initialPromptFlag &&
         form.envEntries.every((e) => !e.key.trim());
 
       if (isAtDefaults) {
@@ -144,11 +124,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
       } else {
         const config: ProviderCustomConfig = {
           cli: form.cli,
-          resumeFlag: form.resumeFlag,
-          defaultArgs: form.defaultArgs.trim() ? form.defaultArgs.trim().split(/\s+/) : undefined,
           extraArgs: form.extraArgs.trim() || undefined,
-          autoApproveFlag: form.autoApproveFlag,
-          initialPromptFlag: form.initialPromptFlag,
           env: Object.keys(envRecord).length > 0 ? envRecord : undefined,
         };
         await new Promise<void>((resolve, reject) =>
@@ -161,16 +137,12 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
     } finally {
       setSaving(false);
     }
-  }, [form, registryDefaults, reset, update, onClose]);
+  }, [form, defaultCli, reset, update, onClose]);
 
   const previewCommand = useMemo(() => {
     const parts: string[] = [];
     if (form.cli) parts.push(form.cli);
-    if (form.resumeFlag) parts.push(form.resumeFlag);
-    if (form.defaultArgs) parts.push(form.defaultArgs);
     if (form.extraArgs) parts.push(form.extraArgs);
-    if (form.autoApproveFlag) parts.push(form.autoApproveFlag);
-    if (form.initialPromptFlag) parts.push(form.initialPromptFlag);
     parts.push('{prompt}');
     return parts.join(' ');
   }, [form]);
@@ -178,18 +150,11 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
   const hasChanges = useMemo(() => {
     if (isOverridden) return true;
     const hasEnv = form.envEntries.some((e) => e.key.trim() !== '');
-    return (
-      form.cli !== registryDefaults.cli ||
-      form.resumeFlag !== registryDefaults.resumeFlag ||
-      form.defaultArgs !== registryDefaults.defaultArgs ||
-      form.extraArgs !== '' ||
-      form.autoApproveFlag !== registryDefaults.autoApproveFlag ||
-      form.initialPromptFlag !== registryDefaults.initialPromptFlag ||
-      hasEnv
-    );
-  }, [form, registryDefaults, isOverridden]);
+    return form.cli !== defaultCli || form.extraArgs !== '' || hasEnv;
+  }, [form, defaultCli, isOverridden]);
 
-  if (!provider) return null;
+  const providerName = meta?.label ?? providerId;
+  if (!meta) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -201,7 +166,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
           <DialogHeader className="flex-row items-start gap-4">
             <div>
               <DialogTitle className="text-lg font-semibold">
-                {provider.name} Execution Settings
+                {providerName} Execution Settings
               </DialogTitle>
             </div>
           </DialogHeader>
@@ -226,41 +191,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
                   id="cli"
                   value={form.cli}
                   onChange={(e) => handleChange('cli', e.target.value)}
-                  placeholder={registryDefaults.cli || 'CLI command'}
-                  className="font-mono text-sm"
-                />
-              </div>
-
-              {/* Resume Flag */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="resumeFlag" className="text-sm font-medium">
-                    Resume Flag
-                  </Label>
-                  <FieldTooltip content="Flag used when resuming a session (e.g., -c -r)" />
-                </div>
-                <Input
-                  id="resumeFlag"
-                  value={form.resumeFlag}
-                  onChange={(e) => handleChange('resumeFlag', e.target.value)}
-                  placeholder={registryDefaults.resumeFlag || '(none)'}
-                  className="font-mono text-sm"
-                />
-              </div>
-
-              {/* Default Args */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="defaultArgs" className="text-sm font-medium">
-                    Default Args
-                  </Label>
-                  <FieldTooltip content="Default arguments (e.g., run -s)" />
-                </div>
-                <Input
-                  id="defaultArgs"
-                  value={form.defaultArgs}
-                  onChange={(e) => handleChange('defaultArgs', e.target.value)}
-                  placeholder={registryDefaults.defaultArgs || '(none)'}
+                  placeholder={defaultCli || 'CLI command'}
                   className="font-mono text-sm"
                 />
               </div>
@@ -327,40 +258,6 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
                     Add variable
                   </Button>
                 </div>
-              </div>
-
-              {/* Auto-approve CLI flag */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="autoApproveFlag" className="text-sm font-medium">
-                    Auto-approve CLI flag
-                  </Label>
-                  <FieldTooltip content="Passed only when Auto-approve permissions is enabled for a conversation" />
-                </div>
-                <Input
-                  id="autoApproveFlag"
-                  value={form.autoApproveFlag}
-                  onChange={(e) => handleChange('autoApproveFlag', e.target.value)}
-                  placeholder={registryDefaults.autoApproveFlag || '(none)'}
-                  className="font-mono text-sm"
-                />
-              </div>
-
-              {/* Initial Prompt Flag */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="initialPromptFlag" className="text-sm font-medium">
-                    Initial Prompt Flag
-                  </Label>
-                  <FieldTooltip content="Flag for passing initial prompt (empty means pass directly)" />
-                </div>
-                <Input
-                  id="initialPromptFlag"
-                  value={form.initialPromptFlag}
-                  onChange={(e) => handleChange('initialPromptFlag', e.target.value)}
-                  placeholder={registryDefaults.initialPromptFlag || '(pass directly)'}
-                  className="font-mono text-sm"
-                />
               </div>
 
               {/* Preview */}

@@ -1,8 +1,8 @@
+import { metadataRegistry } from 'cli-agent-plugins/metadata';
 import { useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { appState } from '@renderer/lib/stores/app-state';
 import {
-  AGENT_PROVIDER_IDS,
   isValidProviderId,
   type AgentProviderId,
 } from '@shared/core/agents/agent-provider-registry';
@@ -31,7 +31,7 @@ export function useEffectiveProvider(
     ? appState.dependencies.getRemote(connectionId)
     : appState.dependencies.local;
   const availabilityKnown = dependencyResource.data !== null;
-  const installedProviderIds = AGENT_PROVIDER_IDS.filter(
+  const installedProviderIds = (metadataRegistry.ids() as AgentProviderId[]).filter(
     (id) => dependencyResource.data?.[id]?.status === 'available'
   );
 

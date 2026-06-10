@@ -1,3 +1,4 @@
+import { metadataRegistry } from 'cli-agent-plugins/metadata';
 import ampcodeIcon from '@/assets/images/ampcode.svg?raw';
 import antigravityIcon from '@/assets/images/antigravity.svg?raw';
 import atlassianIcon from '@/assets/images/atlassian.png';
@@ -81,30 +82,32 @@ export type AgentMeta = {
   cli?: string;
   planActivate?: string;
   autoStartCommand?: string;
-  autoApproveFlag?: string;
-  initialPromptFlag?: string;
+  /** True when the initial prompt is delivered via keystroke injection into the TUI. */
   useKeystrokeInjection?: boolean;
+  /** True when the initial prompt is piped via stdin. */
   initialPromptViaStdinPipe?: boolean;
 };
 
 export const agentMeta: Record<UiAgent, AgentMeta> = Object.fromEntries(
-  AGENT_PROVIDERS.map((p) => [
-    p.id,
-    {
-      label: p.name,
-      icon: p.icon ? ICONS[p.icon] : undefined,
-      iconDark: p.iconDark ? ICONS[p.iconDark] : undefined,
-      isSvg: p.icon ? p.icon.endsWith('.svg') : undefined,
-      invertInDark: p.invertInDark,
-      alt: p.alt,
-      terminalOnly: p.terminalOnly ?? true,
-      cli: p.cli,
-      planActivate: p.planActivateCommand,
-      autoStartCommand: p.autoStartCommand,
-      autoApproveFlag: p.autoApproveFlag,
-      initialPromptFlag: p.initialPromptFlag,
-      useKeystrokeInjection: p.useKeystrokeInjection,
-      initialPromptViaStdinPipe: p.initialPromptViaStdinPipe,
-    },
-  ])
+  AGENT_PROVIDERS.map((p) => {
+    const pluginMeta = metadataRegistry.get(p.id);
+    const promptDeliveryKind = pluginMeta?.capabilities.promptDelivery.kind;
+    return [
+      p.id,
+      {
+        label: pluginMeta?.name ?? p.name,
+        icon: p.icon ? ICONS[p.icon] : undefined,
+        iconDark: p.iconDark ? ICONS[p.iconDark] : undefined,
+        isSvg: p.icon ? p.icon.endsWith('.svg') : undefined,
+        invertInDark: p.invertInDark,
+        alt: p.alt,
+        terminalOnly: p.terminalOnly ?? true,
+        cli: pluginMeta?.capabilities.install.binaryNames[0] ?? p.cli,
+        planActivate: p.planActivateCommand,
+        autoStartCommand: p.autoStartCommand,
+        useKeystrokeInjection: promptDeliveryKind === 'keystroke',
+        initialPromptViaStdinPipe: promptDeliveryKind === 'stdin-pipe',
+      },
+    ];
+  })
 ) as Record<UiAgent, AgentMeta>;

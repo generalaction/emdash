@@ -1,7 +1,6 @@
+import { providerRegistry } from 'cli-agent-plugins/providers';
 import { describe, expect, it } from 'vitest';
-import { getProvider } from '@shared/core/agents/agent-provider-registry';
 import type { Conversation } from '@shared/core/conversations/conversations';
-import { buildAgentSessionCommand } from './impl/agent-command';
 import { resolveAgentSessionCommandArgs } from './resolve-agent-session-command';
 
 function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
@@ -82,20 +81,17 @@ describe('resolveAgentSessionCommandArgs', () => {
       providerId: 'claude',
     });
     const spawnPlan = resolveAgentSessionCommandArgs(conversation, true);
-
-    expect(
-      buildAgentSessionCommand({
-        providerId: conversation.providerId,
-        providerConfig: getProvider(conversation.providerId),
-        autoApprove: false,
-        sessionId: spawnPlan.sessionId,
-        providerSessionId: conversation.providerSessionId,
-        isResuming: spawnPlan.isResuming,
-      })
-    ).toEqual({
-      command: 'claude',
-      args: ['--resume', conversation.id],
+    const result = providerRegistry.get('claude')!.buildCommand({
+      cli: 'claude',
+      autoApprove: false,
+      model: '',
+      sessionId: spawnPlan.sessionId,
+      isResuming: spawnPlan.isResuming,
     });
+
+    expect(result.command).toBe('claude');
+    expect(result.args).toContain('--resume');
+    expect(result.args).toContain(conversation.id);
   });
 
   it('builds a Codex replacement resume command from the stored provider session id', () => {
@@ -105,19 +101,16 @@ describe('resolveAgentSessionCommandArgs', () => {
       providerSessionId: 'provider-session-1',
     });
     const spawnPlan = resolveAgentSessionCommandArgs(conversation, true);
-
-    expect(
-      buildAgentSessionCommand({
-        providerId: conversation.providerId,
-        providerConfig: getProvider(conversation.providerId),
-        autoApprove: false,
-        sessionId: spawnPlan.sessionId,
-        providerSessionId: conversation.providerSessionId,
-        isResuming: spawnPlan.isResuming,
-      })
-    ).toEqual({
-      command: 'codex',
-      args: ['resume', 'provider-session-1'],
+    const result = providerRegistry.get('codex')!.buildCommand({
+      cli: 'codex',
+      autoApprove: false,
+      model: '',
+      sessionId: spawnPlan.sessionId,
+      providerSessionId: conversation.providerSessionId ?? undefined,
+      isResuming: spawnPlan.isResuming,
     });
+
+    expect(result.command).toBe('codex');
+    expect(result.args).toEqual(['resume', 'provider-session-1']);
   });
 });

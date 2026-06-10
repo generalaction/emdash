@@ -1,6 +1,6 @@
+import { getPluginMetadata } from '@main/core/agents/plugin-registry';
 import type { Pty } from '@main/core/pty/pty';
 import { log } from '@main/lib/logger';
-import { getProvider } from '@shared/core/agents/agent-provider-registry';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { buildPromptInjectionPayload } from '@shared/prompt-injection';
 
@@ -18,8 +18,12 @@ export function scheduleInitialPromptInjection(args: {
   if (args.isResuming) return;
   if (!args.initialPrompt?.trim()) return;
 
-  const provider = getProvider(args.conversation.providerId);
-  if (!provider?.useKeystrokeInjection) return;
+  const meta = getPluginMetadata(args.conversation.providerId);
+  const promptDelivery = meta.capabilities.promptDelivery;
+  if (promptDelivery.kind !== 'keystroke') return;
+
+  const submitSequence = promptDelivery.submitSequence ?? '\r';
+  const submitDelayMs = promptDelivery.submitDelayMs;
 
   const payload = buildPromptInjectionPayload({
     providerId: args.conversation.providerId,
@@ -36,8 +40,6 @@ export function scheduleInitialPromptInjection(args: {
     if (quietTimer) clearTimeout(quietTimer);
     clearTimeout(maxWaitTimer);
     try {
-      const submitSequence = provider.keystrokeSubmitSequence ?? '\r';
-      const submitDelayMs = provider.keystrokeSubmitDelayMs;
       if (submitDelayMs) {
         args.pty.write(payload);
         setTimeout(() => args.pty.write(submitSequence), submitDelayMs);

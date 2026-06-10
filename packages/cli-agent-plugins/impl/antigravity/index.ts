@@ -40,6 +40,7 @@ export const provider = defineProvider(metadata, {
       autoApproveFlag: '--dangerously-skip-permissions',
       initialPromptFlag: '-i',
       sessionIdFlag: '--conversation=',
+      sessionIdAlways: true,
     }),
   buildVersionProbeCommand: (b) => ({ command: b, args: ['--version'] }),
 });

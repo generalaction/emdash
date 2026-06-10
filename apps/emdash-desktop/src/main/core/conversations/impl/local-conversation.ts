@@ -1,12 +1,16 @@
 import { homedir } from 'node:os';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
-import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
+import { createPluginFs } from '@main/core/agents/plugin-fs';
+import {
+  getPlugin,
+  getPluginMetadata,
+  WORKSPACE_GITIGNORE_PATHS,
+} from '@main/core/agents/plugin-registry';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
 import { buildAgentEnv } from '@main/core/pty/pty-env';
@@ -19,20 +23,49 @@ import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { getProvider } from '@shared/core/agents/agent-provider-registry';
 import { agentSessionExitedChannel } from '@shared/core/agents/agentEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { makePtyId } from '@shared/core/pty/ptyId';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
-import { buildAgentSessionCommand } from './agent-command';
 import { syncGrokThemeWithAppTheme } from './grok-theme-config';
-import { createInitialPromptDelivery } from './initial-prompt-delivery';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
-import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const RESPAWN_DELAY_MS = 500;
+const GITIGNORE_PATH = '.gitignore';
+
+function parseExtraArgs(value: string | undefined): string[] {
+  if (!value?.trim()) return [];
+  return value.trim().split(/\s+/);
+}
+
+async function ensureGitIgnoreEntries(
+  fs: ReturnType<typeof createPluginFs>,
+  entries: string[]
+): Promise<void> {
+  const existing = (await fs.read(GITIGNORE_PATH)) ?? '';
+  const existingLines = existing
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !l.startsWith('#'));
+  const isIgnored = (entry: string) => {
+    const norm = entry.replace(/^\/+/, '');
+    return existingLines.some((raw) => {
+      const p = raw.replace(/^\/+/, '');
+      if (p === norm) return true;
+      if (p.endsWith('/')) return norm.startsWith(p);
+      if (p.endsWith('/**')) return norm.startsWith(p.slice(0, -2));
+      return false;
+    });
+  };
+  const missing = entries.filter((e) => !isIgnored(e));
+  if (missing.length === 0) return;
+  const content = existing.replace(/\s*$/, '');
+  const next =
+    content.length > 0 ? `${content}\n${missing.join('\n')}\n` : `${missing.join('\n')}\n`;
+  await fs.write(GITIGNORE_PATH, next);
+}
 
 export class LocalConversationProvider implements ConversationProvider {
   private sessions = new Map<string, Pty>();
@@ -46,7 +79,6 @@ export class LocalConversationProvider implements ConversationProvider {
   private readonly shellProfile: ResolvedShellProfile;
   private readonly ctx: IExecutionContext;
   private readonly taskEnvVars: Record<string, string>;
-  private readonly hookConfigWriter: HookConfigWriter;
   private readonly preparedHookProviders = new Map<
     string,
     { writeGitIgnoreEntries: boolean; hooksAvailable: boolean }
@@ -79,7 +111,6 @@ export class LocalConversationProvider implements ConversationProvider {
     this.shellProfile = shellProfile;
     this.ctx = ctx;
     this.taskEnvVars = taskEnvVars;
-    this.hookConfigWriter = new HookConfigWriter(new LocalFileSystem(taskPath), ctx);
   }
 
   async startSession(
@@ -122,34 +153,32 @@ export class LocalConversationProvider implements ConversationProvider {
         homedir: homedir(),
         force: conversation.autoApprove === true,
       });
-      const hooksAvailable = await this.prepareHookConfig(conversation.providerId);
+      await this.prepareHookConfig(conversation.providerId);
 
       const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
-      const providerDef = getProvider(conversation.providerId);
       const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming);
-      const initialPromptDelivery = createInitialPromptDelivery({
-        providerId: conversation.providerId,
-        conversationId: conversation.id,
-        providerConfig,
-        initialPrompt,
-        isResuming: agentSession.isResuming,
-      });
-      const { command, args } = buildAgentSessionCommand({
-        providerId: conversation.providerId,
-        providerConfig,
-        autoApprove: conversation.autoApprove,
-        extraInitialArgs: initialPromptDelivery.argvAddition(),
-        initialPrompt,
+      const plugin = getPlugin(conversation.providerId);
+      const meta = getPluginMetadata(conversation.providerId);
+
+      const agentCommand = plugin.buildCommand({
+        cli:
+          providerConfig?.cli ??
+          meta.capabilities.install.binaryNames[0] ??
+          conversation.providerId,
+        extraArgs: parseExtraArgs(providerConfig?.extraArgs),
+        autoApprove: conversation.autoApprove ?? false,
+        initialPrompt: agentSession.isResuming ? undefined : initialPrompt,
         sessionId: agentSession.sessionId,
-        providerSessionId: conversation.providerSessionId,
+        providerSessionId: conversation.providerSessionId ?? undefined,
         isResuming: agentSession.isResuming,
+        model: '',
       });
-      const providerEnv = resolveProviderEnv(providerConfig, {
-        providerId: conversation.providerId,
-        autoApprove: conversation.autoApprove,
-      });
+
+      const customEnv = providerConfig?.env ?? {};
+      const providerVars: Record<string, string> = { ...agentCommand.env, ...customEnv };
+
       if (conversation.providerId === 'grok') {
-        await syncGrokThemeWithAppTheme({ env: providerEnv });
+        await syncGrokThemeWithAppTheme({ env: providerVars });
       }
 
       const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
@@ -160,7 +189,7 @@ export class LocalConversationProvider implements ConversationProvider {
         intent: {
           kind: 'run-command',
           cwd: this.taskPath,
-          command: { kind: 'argv', command, args },
+          command: { kind: 'argv', command: agentCommand.command, args: agentCommand.args },
           shellProfile: this.shellProfile,
           shellSetup: this.shellSetup,
           tmuxSessionName,
@@ -175,12 +204,6 @@ export class LocalConversationProvider implements ConversationProvider {
       const ptyId = makePtyId(conversation.providerId, conversation.id);
       const port = agentHookService.getPort();
       const token = agentHookService.getToken();
-      const hookActive = port > 0;
-      const ampHooksAvailable =
-        hookActive &&
-        conversation.providerId === 'amp' &&
-        providerDef?.supportsHooks &&
-        hooksAvailable;
       const pty = spawnLocalPty({
         id: sessionId,
         command: resolved.command,
@@ -189,11 +212,10 @@ export class LocalConversationProvider implements ConversationProvider {
         env: {
           ...buildAgentEnv({
             hook: port > 0 ? { port, ptyId, token } : undefined,
-            providerVars: providerEnv,
+            providerVars,
             shellProfile: this.shellProfile,
           }),
           ...this.taskEnvVars,
-          ...(ampHooksAvailable && !this.taskEnvVars['PLUGINS'] ? { PLUGINS: 'all' } : {}),
         },
         cols: spawnSize.cols,
         rows: spawnSize.rows,
@@ -270,9 +292,31 @@ export class LocalConversationProvider implements ConversationProvider {
         previous === undefined || (!previous.writeGitIgnoreEntries && writeGitIgnoreEntries);
       if (!shouldPrepareHookConfig) return previous?.hooksAvailable ?? false;
 
-      const hooksAvailable = await this.hookConfigWriter.writeForProvider(providerId, {
-        writeGitIgnoreEntries,
-      });
+      const plugin = getPlugin(providerId);
+      const meta = getPluginMetadata(providerId);
+      const hooksKind = meta.capabilities.hooks.kind;
+      let hooksAvailable = false;
+
+      if (hooksKind === 'config' && plugin.hooks) {
+        const scope = meta.capabilities.hooks.scope;
+        const root = scope === 'global' ? homedir() : this.taskPath;
+        const fs = createPluginFs(root);
+        await plugin.hooks.writeHooks(fs, []);
+        hooksAvailable = true;
+      } else if (hooksKind === 'plugin' && plugin.plugin) {
+        const fs = createPluginFs(this.taskPath);
+        await plugin.plugin.installPlugin(fs, { kind: 'workspace', path: this.taskPath });
+        hooksAvailable = true;
+      }
+
+      if (writeGitIgnoreEntries && hooksAvailable) {
+        const gitignorePaths = WORKSPACE_GITIGNORE_PATHS[providerId];
+        if (gitignorePaths?.length) {
+          const wsFs = createPluginFs(this.taskPath);
+          await ensureGitIgnoreEntries(wsFs, gitignorePaths);
+        }
+      }
+
       this.preparedHookProviders.set(providerId, {
         writeGitIgnoreEntries,
         hooksAvailable,

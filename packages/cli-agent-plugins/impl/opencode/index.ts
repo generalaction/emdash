@@ -41,7 +41,7 @@ export const provider = defineProvider(metadata, {
   buildCommand: (ctx) =>
     buildStandardCommand(ctx, {
       // OpenCode uses env var for auto-approve, not a CLI flag
-      extraEnv: ctx.autoApprove ? { OPENCODE_AUTO_APPROVE: 'true' } : {},
+      extraEnv: ctx.autoApprove ? { OPENCODE_PERMISSION: '{"*":"allow"}' } : {},
       initialPromptFlag: '--prompt',
       resumeFlag: '--session',
       sessionIdFlag: '--session',

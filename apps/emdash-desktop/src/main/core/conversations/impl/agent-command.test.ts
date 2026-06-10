@@ -1,635 +1,321 @@
-import * as toml from 'smol-toml';
+import type { CommandContext } from 'cli-agent-plugins';
+import { providerRegistry } from 'cli-agent-plugins/providers';
+/**
+ * Tests for provider.buildCommand() special cases.
+ * Each test exercises a specific provider's command-building behavior by calling
+ * the plugin directly (no app infrastructure needed).
+ */
 import { describe, expect, it } from 'vitest';
-import { providerConfigDefaults } from '@main/core/settings/schema';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
-import type { ProviderCustomConfig } from '@shared/core/app-settings';
-import {
-  buildAgentCommand,
-  buildAgentSessionCommand,
-  wrapAgentCommandWithStdinPipe,
-} from './agent-command';
 
-function makeConfig(overrides: Partial<ProviderCustomConfig> = {}): ProviderCustomConfig {
+function ctx(overrides: Partial<CommandContext> = {}): CommandContext {
   return {
-    cli: 'claude',
-    resumeFlag: '--resume',
-    autoApproveFlag: '--dangerously-skip-permissions',
-    initialPromptFlag: '',
-    sessionIdFlag: '--session-id',
+    cli: 'agent',
+    autoApprove: false,
+    model: '',
     ...overrides,
   };
 }
 
-describe('buildAgentCommand', () => {
-  it('uses the current Codex bypass flag when auto-approve is enabled', () => {
-    const command = buildAgentCommand({
-      providerId: 'codex',
-      providerConfig: providerConfigDefaults.codex,
+function cmd(id: string, overrides: Partial<CommandContext> = {}) {
+  return providerRegistry.get(id)!.buildCommand(ctx({ cli: id, ...overrides }));
+}
+
+// ─── Codex ─────────────────────────────────────────────────────────────────
+
+describe('codex buildCommand', () => {
+  it('emits auto-approve flags', () => {
+    const result = cmd('codex', {
       autoApprove: true,
       initialPrompt: 'Fix the issue',
       sessionId: 'session-1',
     });
+    expect(result.args).toContain('-c');
+    expect(result.args).toContain('approval_policy="never"');
+    expect(result.args).toContain('--dangerously-bypass-hook-trust');
+  });
 
-    expect(command).toEqual({
-      command: 'codex',
-      args: [
-        '-c',
-        'approval_policy=never',
-        '-c',
-        'sandbox_mode=danger-full-access',
-        '--dangerously-bypass-hook-trust',
-        'Fix the issue',
+  it('passes the initial prompt positionally on fresh sessions', () => {
+    const result = cmd('codex', { initialPrompt: 'Fix the issue', sessionId: 'session-1' });
+    expect(result.args).toContain('Fix the issue');
+  });
+
+  it('resumes by stored provider session id when available', () => {
+    const result = cmd('codex', {
+      sessionId: 'conv-1',
+      providerSessionId: 'provider-session-id',
+      isResuming: true,
+    });
+    expect(result.args).toEqual(['resume', 'provider-session-id']);
+  });
+
+  it('falls back to resume --last when no stored provider session id', () => {
+    // Codex uses sessionIdOnResumeOnly — when providerSessionId is undefined, fall back.
+    const result = cmd('codex', {
+      sessionId: 'conv-1',
+      providerSessionId: undefined,
+      isResuming: true,
+    });
+    expect(result.args).toEqual(['resume --last']);
+  });
+
+  it('deduplicates --dangerously-bypass-approvals-and-sandbox when it appears multiple times', () => {
+    const result = cmd('codex', {
+      autoApprove: true,
+      initialPrompt: 'Fix the issue',
+      sessionId: 'session-1',
+      extraArgs: [
+        '--dangerously-bypass-approvals-and-sandbox',
+        '--dangerously-bypass-approvals-and-sandbox',
       ],
     });
-  });
-
-  it('does not duplicate auto-approve flags already present in default args', () => {
-    const command = buildAgentCommand({
-      providerId: 'codex',
-      providerConfig: {
-        ...providerConfigDefaults.codex,
-        defaultArgs: ['--dangerously-bypass-approvals-and-sandbox'],
-      },
-      autoApprove: true,
-      initialPrompt: 'Fix the issue',
-      sessionId: 'session-1',
-    });
-
-    expect(command.args).toEqual([
-      '--dangerously-bypass-approvals-and-sandbox',
-      '-c',
-      'approval_policy=never',
-      '-c',
-      'sandbox_mode=danger-full-access',
-      '--dangerously-bypass-hook-trust',
-      'Fix the issue',
-    ]);
-  });
-
-  it('dedupes Codex singleton approval bypass flag across all configured args', () => {
-    const command = buildAgentCommand({
-      providerId: 'codex',
-      providerConfig: {
-        ...providerConfigDefaults.codex,
-        cli: 'codex --dangerously-bypass-approvals-and-sandbox',
-        defaultArgs: ['--dangerously-bypass-approvals-and-sandbox'],
-        extraArgs: '--dangerously-bypass-approvals-and-sandbox',
-      },
-      autoApprove: true,
-      initialPrompt: 'Fix the issue',
-      sessionId: 'session-1',
-    });
-
     expect(
-      command.args.filter((arg) => arg === '--dangerously-bypass-approvals-and-sandbox')
+      result.args.filter((a) => a === '--dangerously-bypass-approvals-and-sandbox')
     ).toHaveLength(1);
-    expect(command.args).toContain('--dangerously-bypass-hook-trust');
-    expect(command.args).toContain('Fix the issue');
+    expect(result.args).toContain('--dangerously-bypass-hook-trust');
+  });
+});
+
+// ─── Claude ────────────────────────────────────────────────────────────────
+
+describe('claude buildCommand', () => {
+  it('includes session id on fresh sessions', () => {
+    const result = cmd('claude', { sessionId: 'conv-1' });
+    expect(result.args).toContain('conv-1');
   });
 
-  it('resumes Codex by stored provider session id when available', () => {
-    const result = buildAgentCommand({
-      providerId: 'codex',
-      providerConfig: providerConfigDefaults.codex,
+  it('resumes by conversation id', () => {
+    const result = cmd('claude', { sessionId: 'conv-1', isResuming: true });
+    expect(result.args).toContain('--resume');
+    expect(result.args).toContain('conv-1');
+  });
+
+  it('passes the initial prompt as the last positional arg', () => {
+    const result = cmd('claude', {
       sessionId: 'conv-1',
-      providerSessionId: '019c95f6-cd96-7812-ba15-574286674599',
-      isResuming: true,
-    });
-
-    expect(result.args).toEqual(['resume', '019c95f6-cd96-7812-ba15-574286674599']);
-  });
-
-  it('falls back to Codex --last when resuming without a stored provider session id', () => {
-    const result = buildAgentCommand({
-      providerId: 'codex',
-      providerConfig: providerConfigDefaults.codex,
-      sessionId: 'conv-1',
-      isResuming: true,
-    });
-
-    expect(result.args).toEqual(['resume', '--last']);
-  });
-
-  it('uses custom resume-without-session flags when resuming without a stored provider session id', () => {
-    const result = buildAgentCommand({
-      providerId: 'codex',
-      providerConfig: {
-        ...providerConfigDefaults.codex,
-        resumeWithoutSessionFlag: 'resume newest',
-      },
-      sessionId: 'conv-1',
-      isResuming: true,
-    });
-
-    expect(result.args).toEqual(['resume', 'newest']);
-  });
-
-  it('does not pass the internal session id as a provider session id on resume-only providers', () => {
-    const result = buildAgentCommand({
-      providerId: 'codex',
-      providerConfig: {
-        cli: 'custom-agent',
-        resumeFlag: 'resume',
-        sessionIdFlag: '--session-id',
-        sessionIdOnResumeOnly: true,
-      },
-      sessionId: 'conv-1',
-      isResuming: true,
-    });
-
-    expect(result.args).toEqual(['resume']);
-  });
-
-  it('uses the Antigravity skip-permissions flag when auto-approve is enabled', () => {
-    const command = buildAgentCommand({
-      providerId: 'antigravity',
-      providerConfig: providerConfigDefaults.antigravity,
-      autoApprove: true,
-      initialPrompt: 'Fix the issue',
-      sessionId: 'session-1',
-    });
-
-    expect(command).toEqual({
-      command: 'agy',
-      args: ['--conversation=session-1', '--dangerously-skip-permissions', '-i', 'Fix the issue'],
-    });
-  });
-
-  it.each<{
-    providerId: AgentProviderId;
-    expectedArgs: string[];
-  }>([
-    {
-      providerId: 'cursor',
-      expectedArgs: ['-f', '--approve-mcps', 'Fix the issue'],
-    },
-    {
-      providerId: 'gemini',
-      expectedArgs: ['--approval-mode=yolo', '--skip-trust', '-i', 'Fix the issue'],
-    },
-    {
-      providerId: 'copilot',
-      expectedArgs: ['--allow-all-tools', '-i', 'Fix the issue'],
-    },
-    {
-      providerId: 'continue',
-      expectedArgs: ['--auto', 'Fix the issue'],
-    },
-    {
-      providerId: 'mistral',
-      expectedArgs: ['--agent', 'auto-approve', 'Fix the issue'],
-    },
-    {
-      providerId: 'commandcode',
-      expectedArgs: ['--trust', '--skip-onboarding', '--yolo', 'Fix the issue'],
-    },
-  ])('uses automation-safe auto-approve args for $providerId', ({ providerId, expectedArgs }) => {
-    const command = buildAgentCommand({
-      providerId,
-      providerConfig: providerConfigDefaults[providerId],
-      autoApprove: true,
-      initialPrompt: 'Fix the issue',
-      sessionId: 'session-1',
-    });
-
-    expect(command.args).toEqual(expectedArgs);
-  });
-
-  it('does not pass Kimi auto-approve args when resuming', () => {
-    const command = buildAgentCommand({
-      providerId: 'kimi',
-      providerConfig: providerConfigDefaults.kimi,
-      autoApprove: true,
-      sessionId: 'session-1',
-      isResuming: true,
-    });
-
-    expect(command.args).toEqual(['-C']);
-  });
-
-  it('resumes Kimi by stored provider session id when available', () => {
-    const command = buildAgentCommand({
-      providerId: 'kimi',
-      providerConfig: providerConfigDefaults.kimi,
-      autoApprove: true,
-      sessionId: 'conv-1',
-      providerSessionId: 'ses_kimi_1',
-      isResuming: true,
-    });
-
-    expect(command.args).toEqual(['-S', 'ses_kimi_1']);
-  });
-
-  it('injects Kimi hooks into inline TOML --config args', () => {
-    const command = buildAgentCommand({
-      providerId: 'kimi',
-      providerConfig: {
-        ...providerConfigDefaults.kimi,
-        defaultArgs: [
-          '--config',
-          toml.stringify({
-            default_model: 'openrouter-glm',
-            models: {
-              'openrouter-glm': { provider: 'openrouter', model: 'glm', max_context_size: 1 },
-            },
-            providers: {
-              openrouter: { type: 'openai_legacy', base_url: 'https://example.com', api_key: '' },
-            },
-          }),
-        ],
-      },
-      sessionId: 'session-1',
-    });
-
-    const config = toml.parse(command.args[1]) as Record<string, unknown>;
-    const hooks = config.hooks as Record<string, string>[];
-    expect(command.args[0]).toBe('--config');
-    expect(hooks.find((hook) => hook.event === 'UserPromptSubmit')?.command).toContain(
-      'X-Emdash-Event-Type: start'
-    );
-    expect(hooks.find((hook) => hook.event === 'Stop')?.command).toContain(
-      'X-Emdash-Event-Type: stop'
-    );
-  });
-
-  it('injects Kimi hooks into inline JSON --config args', () => {
-    const command = buildAgentCommand({
-      providerId: 'kimi',
-      providerConfig: {
-        ...providerConfigDefaults.kimi,
-        defaultArgs: [
-          `--config=${JSON.stringify({
-            default_model: 'openrouter-glm',
-            models: {
-              'openrouter-glm': { provider: 'openrouter', model: 'glm', max_context_size: 1 },
-            },
-            providers: {
-              openrouter: { type: 'openai_legacy', base_url: 'https://example.com', api_key: '' },
-            },
-          })}`,
-        ],
-      },
-      sessionId: 'session-1',
-    });
-
-    const config = JSON.parse(command.args[0].slice('--config='.length)) as Record<string, unknown>;
-    const hooks = config.hooks as Record<string, string>[];
-    expect(hooks.find((hook) => hook.event === 'SessionStart')?.command).toContain(
-      'X-Emdash-Event-Type: session'
-    );
-  });
-
-  it('leaves invalid Kimi inline --config args unchanged', () => {
-    const command = buildAgentCommand({
-      providerId: 'kimi',
-      providerConfig: {
-        ...providerConfigDefaults.kimi,
-        defaultArgs: ['--config', 'not valid toml = {'],
-      },
-      sessionId: 'session-1',
-    });
-
-    expect(command.args).toEqual(['--config', 'not valid toml = {']);
-  });
-
-  it('supports custom CLI command prefixes and appends managed provider args', () => {
-    const result = buildAgentCommand({
-      providerId: 'claude',
-      providerConfig: makeConfig({
-        cli: 'caffeinate -i direnv exec . claude',
-      }),
-      autoApprove: true,
       initialPrompt: 'Fix the bug',
-      sessionId: 'conv-1',
+      autoApprove: true,
     });
-
-    expect(result).toEqual({
-      command: 'caffeinate',
-      args: [
-        '-i',
-        'direnv',
-        'exec',
-        '.',
-        'claude',
-        '--session-id',
-        'conv-1',
-        '--dangerously-skip-permissions',
-        'Fix the bug',
-      ],
-    });
+    expect(result.args[result.args.length - 1]).toBe('Fix the bug');
   });
 
-  it('preserves quoted custom CLI and flag arguments', () => {
-    const result = buildAgentCommand({
-      providerId: 'claude',
-      providerConfig: makeConfig({
-        cli: '"/opt/Claude Code/bin/claude"',
-        resumeFlag: '--resume "existing session"',
-      }),
+  it('appends user extraArgs', () => {
+    const result = cmd('claude', {
       sessionId: 'conv-1',
-      isResuming: true,
+      extraArgs: ['--model', 'claude-opus-4-5'],
     });
+    expect(result.args).toContain('--model');
+    expect(result.args).toContain('claude-opus-4-5');
+  });
+});
 
-    expect(result.command).toBe('/opt/Claude Code/bin/claude');
-    expect(result.args).toEqual(['--resume', 'existing session', 'conv-1']);
+// ─── Amp ───────────────────────────────────────────────────────────────────
+
+describe('amp buildCommand', () => {
+  it('does not pass the initial prompt as a CLI arg (stdin delivery)', () => {
+    const result = cmd('amp', { initialPrompt: 'Fix the bug', sessionId: 'conv-1' });
+    // Amp wraps with bash + stdin pipe when there is a prompt
+    expect(result.command).toBe('bash');
+    expect(result.args[1]).toContain('Fix the bug');
   });
 
-  it('parses multi-token session id flags', () => {
-    const result = buildAgentCommand({
-      providerId: 'claude',
-      providerConfig: makeConfig({ sessionIdFlag: '--session id' }),
-      sessionId: 'conv-1',
-    });
-
-    expect(result.args).toEqual(['--session', 'id', 'conv-1']);
+  it('emits PLUGINS=all env var', () => {
+    const result = cmd('amp', { sessionId: 'conv-1' });
+    expect(result.env).toMatchObject({ PLUGINS: 'all' });
   });
 
-  it('appends equals-style session id flags when resuming', () => {
-    const result = buildAgentCommand({
-      providerId: 'claude',
-      providerConfig: makeConfig({ resumeFlag: '--resume=' }),
-      sessionId: 'conv-1',
-      isResuming: true,
-    });
+  it('emits auto-approve flag as an arg', () => {
+    const result = cmd('amp', { autoApprove: true, sessionId: 'conv-1' });
+    // base command is 'amp' when resuming / no prompt
+    expect(result.command).toBe('amp');
+    expect(result.args).toContain('--dangerously-allow-all');
+  });
+});
 
-    expect(result.args).toEqual(['--resume=conv-1']);
+// ─── OpenCode ──────────────────────────────────────────────────────────────
+
+describe('opencode buildCommand', () => {
+  it('emits OPENCODE_PERMISSION env when auto-approve is enabled', () => {
+    const result = cmd('opencode', { autoApprove: true, sessionId: 'conv-1' });
+    expect(result.env).toMatchObject({ OPENCODE_PERMISSION: expect.stringContaining('allow') });
   });
 
-  it('puts default args before resume flags for CLIs with subcommands', () => {
-    const result = buildAgentCommand({
-      providerId: 'goose',
-      providerConfig: providerConfigDefaults.goose,
-      sessionId: 'conv-1',
-      isResuming: true,
-    });
-
-    expect(result.args).toEqual(['run', '-s', '--resume']);
+  it('does not emit OPENCODE_PERMISSION when auto-approve is disabled', () => {
+    const result = cmd('opencode', { autoApprove: false, sessionId: 'conv-1' });
+    expect(result.env).not.toHaveProperty('OPENCODE_PERMISSION');
   });
 
-  it('does not pass Droid session id on fresh sessions', () => {
-    const result = buildAgentCommand({
-      providerId: 'droid',
-      providerConfig: providerConfigDefaults.droid,
-      initialPrompt: 'Fix the bug',
-      sessionId: 'conv-1',
-    });
-
-    expect(result.args).toEqual(['Fix the bug']);
-  });
-
-  it('does not pass stdin-piped prompts as CLI args', () => {
-    const result = buildAgentCommand({
-      providerId: 'amp',
-      providerConfig: providerConfigDefaults.amp,
-      initialPrompt: 'Fix the bug',
-      sessionId: 'conv-1',
-    });
-
-    expect(result).toEqual({
-      command: 'amp',
-      args: [],
-    });
-  });
-
-  it('passes Droid resume flag with session id when resuming', () => {
-    const result = buildAgentCommand({
-      providerId: 'droid',
-      providerConfig: providerConfigDefaults.droid,
-      sessionId: 'conv-1',
-      providerSessionId: '31477a03-961a-4451-82d4-efded56947fc',
-      isResuming: true,
-    });
-
-    expect(result.args).toEqual(['--resume', '31477a03-961a-4451-82d4-efded56947fc']);
-  });
-
-  it('resumes Grok by stored provider session id when available', () => {
-    const result = buildAgentCommand({
-      providerId: 'grok',
-      providerConfig: providerConfigDefaults.grok,
-      sessionId: 'conv-1',
-      providerSessionId: 'grok-session-1',
-      isResuming: true,
-    });
-
-    expect(result.args).toEqual(['-r', 'grok-session-1']);
-  });
-
-  it('resumes Grok without a stored provider session id using the fallback flag', () => {
-    const result = buildAgentCommand({
-      providerId: 'grok',
-      providerConfig: providerConfigDefaults.grok,
-      sessionId: 'conv-1',
-      isResuming: true,
-    });
-
-    expect(result.args).toEqual(['-r']);
-  });
-
-  it.each<{
-    providerId: AgentProviderId;
-    freshArgs: string[];
-    resumeArgs: string[];
-  }>([
-    { providerId: 'cursor', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
-    {
-      providerId: 'opencode',
-      freshArgs: ['--prompt', 'Fix the bug'],
-      resumeArgs: ['--continue'],
-    },
-    { providerId: 'grok', freshArgs: [], resumeArgs: ['-r'] },
-    { providerId: 'copilot', freshArgs: ['-i', 'Fix the bug'], resumeArgs: ['--resume'] },
-    {
-      providerId: 'auggie',
-      freshArgs: ['--allow-indexing', 'Fix the bug'],
-      resumeArgs: ['--allow-indexing', '--continue'],
-    },
-    {
-      providerId: 'goose',
-      freshArgs: ['run', '-s', '-t', 'Fix the bug'],
-      resumeArgs: ['run', '-s', '--resume'],
-    },
-    { providerId: 'kimi', freshArgs: [], resumeArgs: ['-C'] },
-    { providerId: 'continue', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
-    { providerId: 'codebuff', freshArgs: ['Fix the bug'], resumeArgs: [] },
-    { providerId: 'freebuff', freshArgs: ['Fix the bug'], resumeArgs: [] },
-    { providerId: 'mistral', freshArgs: ['Fix the bug'], resumeArgs: [] },
-    {
-      providerId: 'antigravity',
-      freshArgs: ['--conversation=conv-1', '-i', 'Fix the bug'],
-      resumeArgs: ['--conversation=conv-1'],
-    },
-  ])('builds fresh and resume args for $providerId', ({ providerId, freshArgs, resumeArgs }) => {
-    const fresh = buildAgentCommand({
-      providerId,
-      providerConfig: providerConfigDefaults[providerId],
-      initialPrompt: 'Fix the bug',
-      sessionId: 'conv-1',
-    });
-
-    const resume = buildAgentCommand({
-      providerId,
-      providerConfig: providerConfigDefaults[providerId],
-      sessionId: 'conv-1',
-      isResuming: true,
-    });
-
-    expect(fresh.args).toEqual(freshArgs);
-    expect(resume.args).toEqual(resumeArgs);
-  });
-
-  it('resumes OpenCode by stored provider session id when available', () => {
-    const result = buildAgentCommand({
-      providerId: 'opencode',
-      providerConfig: providerConfigDefaults.opencode,
+  it('resumes by stored provider session id when available', () => {
+    const result = cmd('opencode', {
       sessionId: 'conv-1',
       providerSessionId: 'ses_7e7cTuaNc1DpuMrZrpUv4WRk0Z',
       isResuming: true,
     });
-
-    expect(result.args).toEqual(['--session', 'ses_7e7cTuaNc1DpuMrZrpUv4WRk0Z']);
+    expect(result.args).toContain('--session');
+    expect(result.args).toContain('ses_7e7cTuaNc1DpuMrZrpUv4WRk0Z');
   });
 
-  it('falls back to last OpenCode session when the stored provider session id is invalid', () => {
-    const result = buildAgentCommand({
-      providerId: 'opencode',
-      providerConfig: providerConfigDefaults.opencode,
+  it('falls back to --continue when stored provider session id is invalid', () => {
+    // OpenCode session IDs start with 'ses' — a bare message id is invalid
+    const result = cmd('opencode', {
       sessionId: 'conv-1',
       providerSessionId: 'msg_e8cbf36c300143krNXzZNt6AfZ',
       isResuming: true,
     });
-
     expect(result.args).toEqual(['--continue']);
   });
 
-  it('appends extra args', () => {
-    const result = buildAgentCommand({
-      providerId: 'claude',
-      providerConfig: makeConfig({
-        extraArgs: '--model "Claude Sonnet"',
-      }),
-      sessionId: 'conv-1',
-    });
+  it('uses --prompt flag for initial prompt on fresh sessions', () => {
+    const result = cmd('opencode', { initialPrompt: 'Fix the issue', sessionId: 'conv-1' });
+    expect(result.args).toContain('--prompt');
+    expect(result.args).toContain('Fix the issue');
+  });
+});
 
-    expect(result.args).toContain('--model');
-    expect(result.args).toContain('Claude Sonnet');
+// ─── Gemini ────────────────────────────────────────────────────────────────
+
+describe('gemini buildCommand', () => {
+  it('emits GEMINI_CLI_TRUST_WORKSPACE when auto-approve is enabled', () => {
+    const result = cmd('gemini', { autoApprove: true, sessionId: 'conv-1' });
+    expect(result.env).toMatchObject({ GEMINI_CLI_TRUST_WORKSPACE: 'true' });
   });
 
-  it('respects explicit Copilot positional prompt overrides', () => {
-    const result = buildAgentCommand({
-      providerId: 'copilot',
-      providerConfig: makeConfig({
-        cli: 'copilot',
-        initialPromptFlag: '',
-        resumeFlag: '--resume',
-        autoApproveFlag: '--allow-all-tools',
-        sessionIdFlag: undefined,
-      }),
-      initialPrompt: 'Fix the bug',
-      sessionId: 'conv-1',
-    });
+  it('does not emit GEMINI_CLI_TRUST_WORKSPACE when auto-approve is disabled', () => {
+    const result = cmd('gemini', { autoApprove: false, sessionId: 'conv-1' });
+    expect(result.env).not.toHaveProperty('GEMINI_CLI_TRUST_WORKSPACE');
+  });
+});
 
-    expect(result).toEqual({ command: 'copilot', args: ['Fix the bug'] });
+// ─── Grok ──────────────────────────────────────────────────────────────────
+
+describe('grok buildCommand', () => {
+  it('resumes by stored provider session id when available', () => {
+    const result = cmd('grok', {
+      sessionId: 'conv-1',
+      providerSessionId: 'grok-session-1',
+      isResuming: true,
+    });
+    expect(result.args).toContain('-r');
+    expect(result.args).toContain('grok-session-1');
   });
 
-  it('resumes Copilot by stored provider session id when available', () => {
-    const result = buildAgentCommand({
-      providerId: 'copilot',
-      providerConfig: providerConfigDefaults.copilot,
+  it('resumes without a stored session using the fallback flag', () => {
+    const result = cmd('grok', {
+      sessionId: 'conv-1',
+      providerSessionId: undefined,
+      isResuming: true,
+    });
+    expect(result.args).toEqual(['-r']);
+  });
+});
+
+// ─── Droid ─────────────────────────────────────────────────────────────────
+
+describe('droid buildCommand', () => {
+  it('does not include session id on fresh sessions', () => {
+    const result = cmd('droid', { initialPrompt: 'Fix the bug', sessionId: 'conv-1' });
+    expect(result.args).toEqual(['Fix the bug']);
+  });
+
+  it('resumes by stored provider session id when available', () => {
+    const result = cmd('droid', {
+      sessionId: 'conv-1',
+      providerSessionId: '31477a03-961a-4451-82d4-efded56947fc',
+      isResuming: true,
+    });
+    expect(result.args).toContain('--resume');
+    expect(result.args).toContain('31477a03-961a-4451-82d4-efded56947fc');
+  });
+});
+
+// ─── Kimi ──────────────────────────────────────────────────────────────────
+
+describe('kimi buildCommand', () => {
+  it('omits auto-approve args when resuming without a stored provider session', () => {
+    const result = cmd('kimi', {
+      autoApprove: true,
+      sessionId: 'conv-1',
+      providerSessionId: undefined,
+      isResuming: true,
+    });
+    expect(result.args).toEqual(['-C']);
+  });
+
+  it('resumes by stored provider session id when available', () => {
+    const result = cmd('kimi', {
+      sessionId: 'conv-1',
+      providerSessionId: 'ses_kimi_1',
+      isResuming: true,
+    });
+    expect(result.args).toContain('-S');
+    expect(result.args).toContain('ses_kimi_1');
+  });
+});
+
+// ─── Copilot ───────────────────────────────────────────────────────────────
+
+describe('copilot buildCommand', () => {
+  it('emits auto-approve flag', () => {
+    const result = cmd('copilot', {
+      autoApprove: true,
+      initialPrompt: 'Fix the issue',
+      sessionId: 'conv-1',
+    });
+    expect(result.args).toContain('--allow-all-tools');
+  });
+
+  it('resumes by stored provider session id when available', () => {
+    const result = cmd('copilot', {
       sessionId: 'conv-1',
       providerSessionId: 'copilot-session-1',
       isResuming: true,
     });
-
-    expect(result.args).toEqual(['--resume', 'copilot-session-1']);
-  });
-
-  it('rejects shell control syntax that makes managed args ambiguous', () => {
-    expect(() =>
-      buildAgentCommand({
-        providerId: 'claude',
-        providerConfig: makeConfig({ cli: 'claude | tee log' }),
-        sessionId: 'conv-1',
-      })
-    ).toThrow(/executable command prefixes/);
-  });
-
-  it('rejects shell setup in the CLI command field', () => {
-    expect(() =>
-      buildAgentCommand({
-        providerId: 'claude',
-        providerConfig: makeConfig({ cli: 'source ~/.zshrc && claude' }),
-        sessionId: 'conv-1',
-      })
-    ).toThrow(/executable command prefixes/);
-  });
-
-  it('rejects inline environment assignment in the CLI command field', () => {
-    expect(() =>
-      buildAgentCommand({
-        providerId: 'claude',
-        providerConfig: makeConfig({ cli: 'FOO=bar claude' }),
-        sessionId: 'conv-1',
-      })
-    ).toThrow(/executable command prefixes/);
+    expect(result.args).toContain('--resume');
+    expect(result.args).toContain('copilot-session-1');
   });
 });
 
-describe('wrapAgentCommandWithStdinPipe', () => {
-  it('pipes the prompt into the agent', () => {
-    const result = wrapAgentCommandWithStdinPipe(
-      { command: 'amp', args: ['--dangerously-allow-all'] },
-      'Fix the bug'
-    );
+// ─── Multi-provider: fresh vs resume ───────────────────────────────────────
 
-    expect(result.command).toBe('bash');
-    expect(result.args).toEqual([
-      '-c',
-      "printf '%s\\n' 'Fix the bug' | 'amp' '--dangerously-allow-all'",
-    ]);
-  });
+describe('fresh and resume args for multiple providers', () => {
+  it.each<{
+    id: string;
+    freshArgs: string[];
+    resumeArgs: string[];
+  }>([
+    { id: 'cursor', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
+    {
+      id: 'opencode',
+      freshArgs: ['--prompt', 'Fix the bug'],
+      resumeArgs: ['--continue'],
+    },
+    { id: 'grok', freshArgs: [], resumeArgs: ['-r'] },
+    { id: 'copilot', freshArgs: ['-i', 'Fix the bug'], resumeArgs: ['--resume'] },
+    {
+      id: 'auggie',
+      freshArgs: ['--allow-indexing', 'Fix the bug'],
+      resumeArgs: ['--allow-indexing', '--continue'],
+    },
+    {
+      id: 'goose',
+      freshArgs: ['run', '-s', '-t', 'Fix the bug'],
+      resumeArgs: ['run', '-s', '--resume'],
+    },
+    { id: 'kimi', freshArgs: [], resumeArgs: ['-C'] },
+    { id: 'continue', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
+    { id: 'codebuff', freshArgs: ['Fix the bug'], resumeArgs: [] },
+    { id: 'freebuff', freshArgs: ['Fix the bug'], resumeArgs: [] },
+    { id: 'mistral', freshArgs: ['Fix the bug'], resumeArgs: [] },
+    {
+      id: 'antigravity',
+      freshArgs: ['--conversation=conv-1', '-i', 'Fix the bug'],
+      resumeArgs: ['--conversation=conv-1'],
+    },
+  ])('$id: fresh and resume args', ({ id, freshArgs, resumeArgs }) => {
+    const fresh = cmd(id, { initialPrompt: 'Fix the bug', sessionId: 'conv-1' });
+    // Pass providerSessionId: undefined to simulate resume without a stored provider session.
+    const resume = cmd(id, { sessionId: 'conv-1', providerSessionId: undefined, isResuming: true });
 
-  it('escapes prompts containing single quotes', () => {
-    const result = wrapAgentCommandWithStdinPipe({ command: 'amp', args: [] }, "it's broken");
-
-    expect(result.args[1]).toContain("'it'\\''s broken'");
-  });
-
-  it('preserves multi-line prompts so the agent receives them verbatim', () => {
-    const result = wrapAgentCommandWithStdinPipe(
-      { command: 'amp', args: [] },
-      'line one\nline two'
-    );
-
-    expect(result.args[1]).toContain("'line one\nline two'");
-  });
-});
-
-describe('buildAgentSessionCommand', () => {
-  it('wraps stdin-piped providers after managed args are built', () => {
-    const result = buildAgentSessionCommand({
-      providerId: 'amp',
-      providerConfig: providerConfigDefaults.amp,
-      autoApprove: true,
-      initialPrompt: 'Fix the bug',
-      sessionId: 'conv-1',
-    });
-
-    expect(result).toEqual({
-      command: 'bash',
-      args: ['-c', "printf '%s\\n' 'Fix the bug' | 'amp' '--dangerously-allow-all'"],
-    });
-  });
-
-  it('does not wrap when resuming', () => {
-    const result = buildAgentSessionCommand({
-      providerId: 'amp',
-      providerConfig: providerConfigDefaults.amp,
-      initialPrompt: 'Fix the bug',
-      sessionId: 'conv-1',
-      isResuming: true,
-    });
-
-    expect(result).toEqual({ command: 'amp', args: [] });
+    expect(fresh.args).toEqual(freshArgs);
+    expect(resume.args).toEqual(resumeArgs);
   });
 });

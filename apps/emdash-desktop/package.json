@@ -58,6 +58,7 @@
     "@parcel/watcher": "^2.5.6",
     "@team-plain/graphql": "^1.0.1",
     "better-sqlite3": "^12.6.0",
+    "cli-agent-plugins": "workspace:*",
     "croner": "^10.0.1",
     "cronstrue": "^3.14.0",
     "drizzle-orm": "^0.32.1",

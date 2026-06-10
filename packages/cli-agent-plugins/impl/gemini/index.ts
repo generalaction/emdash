@@ -35,6 +35,7 @@ export const provider = defineProvider(metadata, {
       autoApproveFlag: '--approval-mode=yolo --skip-trust',
       initialPromptFlag: '-i',
       resumeFlag: '--resume',
+      extraEnv: ctx.autoApprove ? { GEMINI_CLI_TRUST_WORKSPACE: 'true' } : {},
     }),
   buildVersionProbeCommand: (b) => ({ command: b, args: ['--version'] }),
   mcp: geminiMcpAdapter(),

@@ -1,4 +1,5 @@
 import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
+import { getPlugin, getPluginMetadata } from '@main/core/agents/plugin-registry';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
@@ -18,14 +19,16 @@ import type { AgentSessionConfig } from '@shared/core/agents/agent-session';
 import { agentSessionExitedChannel } from '@shared/core/agents/agentEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
-import { buildAgentSessionCommand } from './agent-command';
-import { createInitialPromptDelivery } from './initial-prompt-delivery';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
-import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const RESPAWN_DELAY_MS = 500;
+
+function parseExtraArgs(value: string | undefined): string[] {
+  if (!value?.trim()) return [];
+  return value.trim().split(/\s+/);
+}
 
 export class SshConversationProvider implements ConversationProvider {
   private sessions = new Map<string, Pty>();
@@ -118,27 +121,25 @@ export class SshConversationProvider implements ConversationProvider {
       const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming, {
         requireProviderSessionId: false,
       });
-      const initialPromptDelivery = createInitialPromptDelivery({
-        providerId: conversation.providerId,
-        conversationId: conversation.id,
-        providerConfig,
-        initialPrompt,
-        isResuming: agentSession.isResuming,
-      });
-      const { command, args } = buildAgentSessionCommand({
-        providerId: conversation.providerId,
-        providerConfig,
-        autoApprove: conversation.autoApprove,
-        extraInitialArgs: initialPromptDelivery.argvAddition(),
-        initialPrompt,
+      const plugin = getPlugin(conversation.providerId);
+      const meta = getPluginMetadata(conversation.providerId);
+
+      const agentCommand = plugin.buildCommand({
+        cli:
+          providerConfig?.cli ??
+          meta.capabilities.install.binaryNames[0] ??
+          conversation.providerId,
+        extraArgs: parseExtraArgs(providerConfig?.extraArgs),
+        autoApprove: conversation.autoApprove ?? false,
+        initialPrompt: agentSession.isResuming ? undefined : initialPrompt,
         sessionId: agentSession.sessionId,
-        providerSessionId: conversation.providerSessionId,
+        providerSessionId: conversation.providerSessionId ?? undefined,
         isResuming: agentSession.isResuming,
+        model: '',
       });
-      const providerEnv = resolveProviderEnv(providerConfig, {
-        providerId: conversation.providerId,
-        autoApprove: conversation.autoApprove,
-      });
+
+      const customEnv = providerConfig?.env ?? {};
+      const providerEnv: Record<string, string> = { ...agentCommand.env, ...customEnv };
 
       const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 
@@ -146,8 +147,8 @@ export class SshConversationProvider implements ConversationProvider {
         taskId: this.taskId,
         conversationId: conversation.id,
         providerId: conversation.providerId,
-        command,
-        args,
+        command: agentCommand.command,
+        args: agentCommand.args,
         cwd: this.taskPath,
         shellSetup: this.shellSetup,
         tmuxSessionName,
