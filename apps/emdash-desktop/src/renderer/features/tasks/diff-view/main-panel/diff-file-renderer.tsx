@@ -13,14 +13,22 @@ import {
 } from '@renderer/features/tasks/task-view-context';
 import { getFileKind } from '@renderer/lib/editor/fileKind';
 import { PreviewSourceToggle } from '@renderer/lib/editor/preview-source-toggle';
+import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
 import { ShowHide } from '@renderer/lib/ui/show-hide';
+import { Spinner } from '@renderer/lib/ui/spinner';
 import { getLanguageFromPath } from '@renderer/utils/languageUtils';
-import { gitRefToString, HEAD_REF, STAGED_REF, type GitObjectRef } from '@shared/core/git/git';
+import {
+  gitRefToString,
+  HEAD_REF,
+  STAGED_REF,
+  type GitObjectRef,
+  type GitRef,
+} from '@shared/core/git/git';
 import { getDraftCommentTargetKey, type DraftCommentTarget } from '@shared/lineComments';
 import type { ActiveFile } from '@shared/view-state';
 
@@ -277,35 +285,131 @@ const MarkdownDiffRenderer = observer(function MarkdownDiffRenderer({
   );
 });
 
+/** Where a rendered side's linked images come from, matching its diff source. */
+type ImageSource = { kind: 'disk' } | { kind: 'index' } | { kind: 'ref'; ref: GitRef };
+
+/**
+ * Resolves which source a rendered side's images come from, mirroring the
+ * original/modified ref selection in computeDiffUris so images stay consistent
+ * with the text being shown: working tree, index, or a specific git ref.
+ */
+function imageSourceForSide(tab: DiffTabStore, side: 'original' | 'modified'): ImageSource {
+  if (side === 'original') {
+    if (tab.diffGroup === 'disk') return { kind: 'index' };
+    if (tab.diffGroup === 'git' || tab.diffGroup === 'pr') {
+      return { kind: 'ref', ref: tab.originalRef };
+    }
+    return { kind: 'ref', ref: HEAD_REF };
+  }
+  if (tab.diffGroup === 'staged') return { kind: 'index' };
+  if (tab.diffGroup === 'git' || tab.diffGroup === 'pr') {
+    return { kind: 'ref', ref: tab.modifiedRef ?? HEAD_REF };
+  }
+  return { kind: 'disk' };
+}
+
+/** Resolves a relative markdown image against the correct side/source of the diff. */
+async function resolveSideImage(
+  tab: DiffTabStore,
+  side: 'original' | 'modified',
+  projectId: string,
+  workspaceId: string,
+  fileDir: string,
+  src: string
+): Promise<string | null> {
+  const imagePath = fileDir ? `${fileDir}/${src}` : src;
+  const source = imageSourceForSide(tab, side);
+  if (source.kind === 'disk') {
+    const res = await rpc.workspace.fs.readImage(projectId, workspaceId, imagePath);
+    return res.success ? (res.data?.dataUrl ?? null) : null;
+  }
+  const res =
+    source.kind === 'index'
+      ? await rpc.workspace.git.getImageAtIndex(projectId, workspaceId, imagePath)
+      : await rpc.workspace.git.getImageAtRef(
+          projectId,
+          workspaceId,
+          imagePath,
+          gitRefToString(source.ref)
+        );
+  if (!res.success) return null;
+  return res.data.result.kind === 'image' ? res.data.result.image.dataUrl : null;
+}
+
 /**
  * Renders the modified ("after") markdown content as a formatted preview. In
  * split mode it shows the original (left) and modified (right) side by side,
  * reusing the diff toolbar's unified/split toggle for consistency.
+ *
+ * Content is read from the Monaco diff models and kept in sync via
+ * onDidChangeContent, so the preview tracks model refreshes (e.g. index/disk
+ * reloads) instead of going stale. Linked images are resolved from the same
+ * source as the side being rendered.
  */
 const MarkdownDiffPreview = observer(function MarkdownDiffPreview({ tab }: DiffFileRendererProps) {
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
   const diffStyle = useWorkspaceViewModel().diffView?.diffStyle ?? 'unified';
-  const { uri, originalUri, modifiedUri } = computeDiffUris(tab, workspaceId);
+  const { originalUri, modifiedUri } = computeDiffUris(tab, workspaceId);
 
-  // Reading the model status / buffer version registers MobX dependencies so this
-  // observer re-renders once the underlying models load or their content changes.
-  const _origStatus = modelRegistry.modelStatus.get(originalUri);
-  const _modStatus = modelRegistry.modelStatus.get(modifiedUri);
-  const _bufferVersion = modelRegistry.bufferVersions.get(uri);
+  // Model load status drives the loading spinner and triggers the content
+  // listeners below to (re)attach once a model becomes available.
+  const originalStatus = modelRegistry.modelStatus.get(originalUri);
+  const modifiedStatus = modelRegistry.modelStatus.get(modifiedUri);
 
-  const newContent = modelRegistry.getModelByUri(modifiedUri)?.getValue() ?? '';
-  const oldContent = modelRegistry.getModelByUri(originalUri)?.getValue() ?? '';
+  const [newContent, setNewContent] = useState('');
+  const [oldContent, setOldContent] = useState('');
+
+  // Read content imperatively and keep it in sync via onDidChangeContent rather
+  // than the file-tab markdown renderer's bufferVersions MobX dependency: the
+  // registry only bumps bufferVersions for the editable buffer model, never for
+  // git/index models, so a bufferVersions dependency would go stale when a
+  // staged/ref/PR diff reloads. onDidChangeContent also fires for those in-place
+  // setValue() refreshes, so it covers every side.
+  useEffect(() => {
+    const model = modelRegistry.getModelByUri(modifiedUri);
+    if (!model) {
+      setNewContent('');
+      return;
+    }
+    setNewContent(model.getValue());
+    const sub = model.onDidChangeContent(() => setNewContent(model.getValue()));
+    return () => sub.dispose();
+  }, [modifiedUri, modifiedStatus]);
+
+  useEffect(() => {
+    const model = modelRegistry.getModelByUri(originalUri);
+    if (!model) {
+      setOldContent('');
+      return;
+    }
+    setOldContent(model.getValue());
+    const sub = model.onDidChangeContent(() => setOldContent(model.getValue()));
+    return () => sub.dispose();
+  }, [originalUri, originalStatus]);
 
   const fileDir = tab.path.includes('/') ? tab.path.substring(0, tab.path.lastIndexOf('/')) : '';
-  const resolveImage = useCallback(
-    async (src: string): Promise<string | null> => {
-      const imagePath = fileDir ? `${fileDir}/${src}` : src;
-      const result = await rpc.workspace.fs.readImage(projectId, workspaceId, imagePath);
-      return result.success ? (result.data?.dataUrl ?? null) : null;
-    },
-    [projectId, workspaceId, fileDir]
+  const resolveModifiedImage = useCallback(
+    (src: string) => resolveSideImage(tab, 'modified', projectId, workspaceId, fileDir, src),
+    [tab, projectId, workspaceId, fileDir]
   );
+  const resolveOriginalImage = useCallback(
+    (src: string) => resolveSideImage(tab, 'original', projectId, workspaceId, fileDir, src),
+    [tab, projectId, workspaceId, fileDir]
+  );
+
+  const modifiedLoading = !modifiedStatus || modifiedStatus === 'loading';
+  const originalLoading = !originalStatus || originalStatus === 'loading';
+  const waiting = diffStyle === 'split' ? modifiedLoading || originalLoading : modifiedLoading;
+  const showSpinner = useDelayedBoolean(waiting, 200);
+
+  if (showSpinner) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-background-secondary-1">
+        <Spinner />
+      </div>
+    );
+  }
 
   if (diffStyle === 'split') {
     return (
@@ -315,7 +419,7 @@ const MarkdownDiffPreview = observer(function MarkdownDiffPreview({ tab }: DiffF
             content={oldContent}
             variant="full"
             className="w-full max-w-3xl px-8 py-8"
-            resolveImage={resolveImage}
+            resolveImage={resolveOriginalImage}
           />
         </div>
         <div className="h-full flex-1 overflow-y-auto bg-background-secondary-1">
@@ -323,7 +427,7 @@ const MarkdownDiffPreview = observer(function MarkdownDiffPreview({ tab }: DiffF
             content={newContent}
             variant="full"
             className="w-full max-w-3xl px-8 py-8"
-            resolveImage={resolveImage}
+            resolveImage={resolveModifiedImage}
           />
         </div>
       </div>
@@ -336,7 +440,7 @@ const MarkdownDiffPreview = observer(function MarkdownDiffPreview({ tab }: DiffF
         content={newContent}
         variant="full"
         className="w-full max-w-3xl px-8 py-8"
-        resolveImage={resolveImage}
+        resolveImage={resolveModifiedImage}
       />
     </div>
   );
