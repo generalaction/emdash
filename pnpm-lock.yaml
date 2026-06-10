@@ -10,6 +10,9 @@ importers:
 
   apps/emdash-desktop:
     dependencies:
+      '@emdash/cli-agent-plugins':
+        specifier: workspace:*
+        version: link:../../packages/cli-agent-plugins
       '@gitbeaker/rest':
         specifier: ^43.8.0
         version: 43.8.0
@@ -34,9 +37,6 @@ importers:
       better-sqlite3:
         specifier: ^12.6.0
         version: 12.10.0
-      cli-agent-plugins:
-        specifier: workspace:*
-        version: link:../../packages/cli-agent-plugins
       croner:
         specifier: ^10.0.1
         version: 10.0.1

@@ -1,5 +1,5 @@
 {
-  "name": "cli-agent-plugins",
+  "name": "@emdash/cli-agent-plugins",
   "version": "1.0.0",
   "description": "Plugin interfaces and helpers for CLI agent providers",
   "keywords": [],
