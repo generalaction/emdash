@@ -41,6 +41,21 @@ describe('BrowserSessionStore', () => {
     });
   });
 
+  it('clears favicon state explicitly', () => {
+    const store = new BrowserSessionStore();
+    store.createSession({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+    });
+
+    store.updateSession('browser-1', { faviconUrl: 'https://example.com/favicon.ico' });
+    store.updateSession('browser-1', { faviconUrl: null });
+
+    expect(store.getSession('browser-1')?.faviconUrl).toBeUndefined();
+  });
+
   it('restores sessions with a derived partition and clears transient load state', () => {
     const store = new BrowserSessionStore();
 
