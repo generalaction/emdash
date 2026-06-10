@@ -28,6 +28,24 @@ describe('normalizeBrowserUrl', () => {
     });
   });
 
+  it('uses Google search for non-URL input', () => {
+    expect(normalizeBrowserUrl('react compiler')).toEqual({
+      ok: true,
+      url: 'https://www.google.com/search?q=react+compiler',
+      protocol: 'https:',
+    });
+    expect(normalizeBrowserUrl('vitest')).toEqual({
+      ok: true,
+      url: 'https://www.google.com/search?q=vitest',
+      protocol: 'https:',
+    });
+    expect(normalizeBrowserUrl('react: useState')).toEqual({
+      ok: true,
+      url: 'https://www.google.com/search?q=react%3A+useState',
+      protocol: 'https:',
+    });
+  });
+
   it('allows about blank and blocks unsupported protocols', () => {
     expect(normalizeBrowserUrl('about:blank')).toEqual({
       ok: true,
