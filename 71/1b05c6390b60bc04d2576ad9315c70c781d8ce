@@ -1,0 +1,56 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar-actions.test.ts
+  s_a156be3ed4bfec::t_aa411e9af1421f 94-115
+  s_a156be3ed4bfec::t_5958c92baec07d 57-58
+  s_a156be3ed4bfec::t_845582bc3177ae 4-5,11-12,16,26-27
+apps/emdash-desktop/src/renderer/features/browser/browser-zoom.ts
+  s_a156be3ed4bfec::t_da89ddec8d0638 7-8
+  s_a156be3ed4bfec::t_4b01dd4017cbcb 1-6,9-49
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.test.ts
+  s_a156be3ed4bfec::t_bbd1078d3beab1 69-87
+apps/emdash-desktop/src/main/core/browser/controller.ts
+  s_a156be3ed4bfec::t_e239265c7c534a 33-40
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_a156be3ed4bfec::t_cc4a7cc5fbffe7 102-115
+apps/emdash-desktop/src/shared/browser.ts
+  s_a156be3ed4bfec::t_4dc4207bc03eb7 36
+apps/emdash-desktop/src/renderer/features/browser/browser-session-store.ts
+  s_a156be3ed4bfec::t_40518cb49dc072 21
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_a156be3ed4bfec::t_e4f9e11450204f 141-168
+  s_a156be3ed4bfec::t_5ce87ef6eba3b2 222-223
+  s_a156be3ed4bfec::t_0915b69c304d5b 169-172,178
+  s_a156be3ed4bfec::t_e9d773fb2a10be 17
+apps/emdash-desktop/src/renderer/features/browser/browser-zoom.test.ts
+  s_a156be3ed4bfec::t_47698e14bcce54 1-62
+apps/emdash-desktop/src/renderer/features/browser/browser-webview-types.ts
+  s_a156be3ed4bfec::t_a5f18f0c25fc70 21,24-25
+  s_a156be3ed4bfec::t_909ab6c69f201b 44,47-48
+  s_a156be3ed4bfec::t_ec707ed4f80fe8 61,66-67
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_a156be3ed4bfec::t_49da539217f3ec 222
+  s_a156be3ed4bfec::t_e9d773fb2a10be 201
+  s_a156be3ed4bfec::t_a57d272e2c0389 40-41,49-50
+  s_a156be3ed4bfec::t_eef2d661c62714 175,179-181,185-195,197-200,202-209,211-221,223-235
+  s_a156be3ed4bfec::t_1379764517e10c 111
+  s_a156be3ed4bfec::t_53962c88a60981 210
+  s_a156be3ed4bfec::t_91c2e7655ad3fc 196
+  s_a156be3ed4bfec::t_41c27fd7596cc4 1,9,17-18,24-32
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar-actions.ts
+  s_a156be3ed4bfec::t_1b535a8c23bdc3 19-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "711b05c6390b60bc04d2576ad9315c70c781d8ce",
+  "prompts": {},
+  "sessions": {
+    "s_a156be3ed4bfec": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "02c26e2e-6cf1-4c7e-8919-b3d101fa026b",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
