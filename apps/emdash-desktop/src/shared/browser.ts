@@ -131,7 +131,9 @@ export function createBrowserSessionSnapshot(input: {
   now?: number;
 }): BrowserSessionSnapshot {
   const now = input.now ?? Date.now();
-  const normalized = normalizeBrowserUrl(input.currentUrl ?? BROWSER_DEFAULT_URL);
+  const normalized = normalizeBrowserUrl(input.currentUrl ?? BROWSER_DEFAULT_URL, {
+    allowSearchQueries: false,
+  });
   return {
     ...input.identity,
     partition: deriveBrowserPartition(input.identity),

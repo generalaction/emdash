@@ -121,4 +121,23 @@ describe('browser session identity', () => {
       updatedAt: 100,
     });
   });
+
+  it('preserves bare host URLs in snapshots', () => {
+    const identity = makeBrowserSessionIdentity({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+    });
+
+    expect(
+      createBrowserSessionSnapshot({
+        identity,
+        currentUrl: 'intranet',
+        now: 100,
+      })
+    ).toMatchObject({
+      currentUrl: 'https://intranet/',
+    });
+  });
 });
