@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/renderer/lib/components/sort-select.tsx
+  s_1aea4b1219ec43::t_3faf16a6bd46b7 43
+apps/emdash-desktop/src/renderer/features/projects/components/task-view/task-list.tsx
+  s_1aea4b1219ec43::t_19b1686a1a56ff 310-338,341-346
+  s_1aea4b1219ec43::t_ac8ab7c70f22e8 5
+  s_1aea4b1219ec43::t_79c09a1c536255 339
+  s_1aea4b1219ec43::t_51d46e85dba6e9 340
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "36bcf6e39a36d7919ba68ed9a8b7525e15264fb2",
+  "prompts": {},
+  "sessions": {
+    "s_1aea4b1219ec43": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7490077d-6722-4951-819f-e5fb50cd1632",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
