@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/shared/core/mcp/catalog.ts
+  s_d4c8afc743b88b::t_b49b3c9d311022 247-256
+apps/emdash-desktop/src/assets/images/mcp/parallel.svg
+  s_d4c8afc743b88b::t_02eac6e78e46e7 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "63bfadbe329363829e0695a8425f3286e85596d5",
+  "prompts": {},
+  "sessions": {
+    "s_d4c8afc743b88b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1bbf3b2-1e31-472c-9065-665c234e316b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
