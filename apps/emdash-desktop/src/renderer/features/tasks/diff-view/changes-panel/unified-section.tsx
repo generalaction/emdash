@@ -1,8 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import {
-  useWorkspace,
-  useWorkspaceViewModel,
-} from '@renderer/features/tasks/task-view-context';
+import { useWorkspace, useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { commitRef, type GitChange } from '@shared/core/git/git';
 import { ChangesListOrTree } from './components/changes-list-or-tree';

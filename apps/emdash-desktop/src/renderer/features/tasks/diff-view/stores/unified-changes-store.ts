@@ -97,11 +97,7 @@ export class UnifiedChangesStore {
   private async _fetchChanges(): Promise<GitChange[]> {
     const base = this.baseRef;
     if (!base) return [];
-    const mbResult = await rpc.workspace.git.getMergeBase(
-      this.projectId,
-      this.workspaceId,
-      base
-    );
+    const mbResult = await rpc.workspace.git.getMergeBase(this.projectId, this.workspaceId, base);
     if (!mbResult.success || !mbResult.data.sha) return [];
     const result = await rpc.workspace.git.getChangedFiles(
       this.projectId,
@@ -156,10 +152,7 @@ export class UnifiedChangesStore {
               handler();
               return;
             }
-            if (
-              !payload.changedRefs ||
-              payload.changedRefs.some((r) => refsEqual(r, baseRef))
-            ) {
+            if (!payload.changedRefs || payload.changedRefs.some((r) => refsEqual(r, baseRef))) {
               handler();
             }
           }),

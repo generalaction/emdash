@@ -24,12 +24,7 @@ export function SplitUnifiedToggle({ value, onChange }: SplitUnifiedToggleProps)
       }}
     >
       <TooltipTrigger>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={() => onChange(next)}
-          aria-label={tooltip}
-        >
+        <Button variant="ghost" size="icon-xs" onClick={() => onChange(next)} aria-label={tooltip}>
           <Icon className="size-3" />
         </Button>
       </TooltipTrigger>
