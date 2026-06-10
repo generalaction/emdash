@@ -29,10 +29,14 @@
     }
   },
   "scripts": {
+    "dev": "tsdown --watch",
     "build": "tsdown",
     "test": "vitest run",
     "test:watch": "vitest",
-    "format": "oxfmt --write"
+    "format": "oxfmt --write",
+    "format:check": "oxfmt --check",
+    "lint": "oxlint src/",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "smol-toml": "^1.6.0",

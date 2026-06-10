@@ -2,10 +2,10 @@ import { defineConfig } from 'tsdown';
 
 export default defineConfig({
   entry: {
-    index: 'index.ts',
-    metadata: 'metadata.ts',
-    icons: 'icons.ts',
-    providers: 'providers.ts',
+    index: 'src/index.ts',
+    metadata: 'src/metadata.ts',
+    icons: 'src/icons.ts',
+    providers: 'src/providers.ts',
   },
   format: ['esm'],
   dts: true,
