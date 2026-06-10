@@ -3,11 +3,13 @@ import type {
   EffortDescriptor,
   HooksMetadata,
   InstallationMetadata,
+  InstallOption,
   McpMetadata,
   ModelsDescriptor,
   PluginInstallMetadata,
   PromptDeliveryDescriptor,
-} from 'cli-agent-plugins';
+  UpdatesDescriptor,
+} from '@emdash/cli-agent-plugins';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
 import type { DependencyStatus } from '@shared/core/dependencies';
 
@@ -21,6 +23,7 @@ export type AgentCapabilities = {
   hooks: HooksMetadata;
   mcp: McpMetadata;
   plugin: PluginInstallMetadata;
+  updates: UpdatesDescriptor;
 };
 
 export type AgentSettings = {
@@ -36,7 +39,11 @@ export type AgentPayload = {
   websiteUrl: string | null;
   status: DependencyStatus | 'missing';
   version: string | null;
+  latestVersion: string | null;
+  updateAvailable: boolean;
   command: string | null;
   capabilities: AgentCapabilities;
   settings: AgentSettings;
+  /** Install options for the current platform, empty when none are defined. */
+  installOptions: InstallOption[];
 };

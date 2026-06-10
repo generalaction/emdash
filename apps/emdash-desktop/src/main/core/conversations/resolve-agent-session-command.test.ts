@@ -1,4 +1,4 @@
-import { providerRegistry } from 'cli-agent-plugins/providers';
+import { providerRegistry } from '@emdash/cli-agent-plugins/providers';
 import { describe, expect, it } from 'vitest';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { resolveAgentSessionCommandArgs } from './resolve-agent-session-command';

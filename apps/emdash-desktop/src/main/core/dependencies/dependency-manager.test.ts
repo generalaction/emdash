@@ -290,3 +290,77 @@ describe('DependencyManager install', () => {
     );
   });
 });
+
+describe('DependencyManager update', () => {
+  it('returns unknown-dependency error for an unrecognised id', async () => {
+    const manager = new DependencyManager(missingCtx, { emitEvents: false });
+    const result = await manager.update('unknown-agent' as never);
+    expect(result).toEqual({
+      success: false,
+      error: { type: 'unknown-dependency', id: 'unknown-agent' },
+    });
+  });
+
+  it('returns no-update-strategy for a core dependency without updates', async () => {
+    const manager = new DependencyManager(missingCtx, { emitEvents: false });
+    // git is a core dependency with no updates descriptor
+    const result = await manager.update('git');
+    expect(result).toEqual({ success: false, error: { type: 'no-update-strategy', id: 'git' } });
+  });
+
+  it('runs the install command for a package-manager update strategy', async () => {
+    const runInstallCommand = vi.fn(async () => ok<void>());
+    const manager = new DependencyManager(availableCtx, {
+      emitEvents: false,
+      runInstallCommand,
+    });
+
+    const result = await manager.update('codex');
+
+    // codex uses package-manager strategy
+    expect(runInstallCommand).toHaveBeenCalledWith('npm install -g @openai/codex');
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.status).toBe('available');
+  });
+
+  it('returns runner error without probing when update command fails', async () => {
+    const runInstallCommand = vi.fn(async () =>
+      err({
+        type: 'permission-denied' as const,
+        message: 'User does not have sufficient permissions.',
+        output: 'permission denied',
+        exitCode: 243,
+      })
+    );
+    const manager = new DependencyManager(missingCtx, {
+      emitEvents: false,
+      runInstallCommand,
+    });
+
+    const result = await manager.update('codex');
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.type).toBe('permission-denied');
+  });
+
+  it('uses claude update args for cli strategy', async () => {
+    const runInstallCommand = vi.fn(async () => ok<void>());
+    const claudeCtx = makeCtx(async (command, args = []) => {
+      if (command === 'which' && args[0] === 'claude') {
+        return { stdout: '/usr/local/bin/claude\n', stderr: '' };
+      }
+      if (command === '/usr/local/bin/claude' && args[0] === '--version') {
+        return { stdout: 'claude 1.0.0\n', stderr: '' };
+      }
+      throw new Error('missing');
+    });
+    const manager = new DependencyManager(claudeCtx, {
+      emitEvents: false,
+      runInstallCommand,
+    });
+
+    await manager.update('claude');
+
+    expect(runInstallCommand).toHaveBeenCalledWith(expect.stringContaining('update'));
+  });
+});

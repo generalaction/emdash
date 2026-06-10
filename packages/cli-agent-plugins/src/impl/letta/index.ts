@@ -13,9 +13,9 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['letta'],
       installCommands: {
-        macos: { command: 'npm install -g @letta-ai/letta-code', method: 'npm' },
-        linux: { command: 'npm install -g @letta-ai/letta-code', method: 'npm' },
-        windows: { command: 'npm install -g @letta-ai/letta-code', method: 'npm' },
+        macos: [{ command: 'npm install -g @letta-ai/letta-code', method: 'npm' }],
+        linux: [{ command: 'npm install -g @letta-ai/letta-code', method: 'npm' }],
+        windows: [{ command: 'npm install -g @letta-ai/letta-code', method: 'npm' }],
       },
       // Letta does not support a --version flag
       skipVersionProbe: true,
@@ -28,6 +28,11 @@ export const metadata = defineMetadata({
     hooks: { kind: 'none' },
     mcp: { kind: 'none' },
     plugin: { kind: 'none' },
+    updates: {
+      kind: 'supported',
+      releaseSource: { kind: 'npm', package: '@letta-ai/letta-code' },
+      update: { kind: 'package-manager' },
+    },
   },
 });
 

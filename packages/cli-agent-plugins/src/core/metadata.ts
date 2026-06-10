@@ -2,11 +2,12 @@ import type {
   AutoApproveDescriptor,
   EffortDescriptor,
   HookEvent,
-  InstallMethod,
+  InstallOption,
   McpTransport,
   ModelsDescriptor,
   Platform,
   PromptDeliveryDescriptor,
+  UpdatesDescriptor,
 } from './capabilities';
 
 // ── Installation ────────────────────────────────────────────────────────────
@@ -15,7 +16,7 @@ export type InstallationMetadata = {
   binaryNames: string[];
   /** When true, skip the --version probe for dependency detection. */
   skipVersionProbe?: boolean;
-  installCommands: Partial<Record<Platform, { command: string; method: InstallMethod }>>;
+  installCommands: Partial<Record<Platform, InstallOption[]>>;
 };
 
 // ── Hooks (declarative only — no I/O functions) ─────────────────────────────
@@ -56,6 +57,7 @@ export interface CLIAgentPluginMetadata {
     hooks: HooksMetadata;
     mcp: McpMetadata;
     plugin: PluginInstallMetadata;
+    updates: UpdatesDescriptor;
   };
 }
 

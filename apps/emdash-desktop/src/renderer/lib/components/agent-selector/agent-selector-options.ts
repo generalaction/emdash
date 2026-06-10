@@ -1,4 +1,4 @@
-import { metadataRegistry } from 'cli-agent-plugins/metadata';
+import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
 import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { getAgentInstallActionState } from './agent-install';
 

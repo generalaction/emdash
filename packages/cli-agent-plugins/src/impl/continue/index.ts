@@ -13,9 +13,9 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['cn'],
       installCommands: {
-        macos: { command: 'npm i -g @continuedev/cli', method: 'npm' },
-        linux: { command: 'npm i -g @continuedev/cli', method: 'npm' },
-        windows: { command: 'npm i -g @continuedev/cli', method: 'npm' },
+        macos: [{ command: 'npm i -g @continuedev/cli', method: 'npm' }],
+        linux: [{ command: 'npm i -g @continuedev/cli', method: 'npm' }],
+        windows: [{ command: 'npm i -g @continuedev/cli', method: 'npm' }],
       },
     },
     models: { kind: 'none' },
@@ -26,6 +26,11 @@ export const metadata = defineMetadata({
     hooks: { kind: 'none' },
     mcp: { kind: 'none' },
     plugin: { kind: 'none' },
+    updates: {
+      kind: 'supported',
+      releaseSource: { kind: 'npm', package: '@continuedev/cli' },
+      update: { kind: 'package-manager' },
+    },
   },
 });
 

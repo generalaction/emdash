@@ -65,7 +65,7 @@ describe('DependenciesStore install', () => {
     const result = await store.install('codex');
 
     expect(result.success).toBe(true);
-    expect(rpc.dependencies.install).toHaveBeenCalledWith('codex', undefined);
+    expect(rpc.dependencies.install).toHaveBeenCalledWith('codex', undefined, undefined);
     expect(rpc.dependencies.probeCategory).toHaveBeenCalledWith('agent', undefined, undefined);
     expect(store.local.data?.codex?.status).toBe('available');
   });
@@ -96,7 +96,7 @@ describe('DependenciesStore install', () => {
 
     await store.install('claude', 'ssh-1');
 
-    expect(rpc.dependencies.install).toHaveBeenCalledWith('claude', 'ssh-1');
+    expect(rpc.dependencies.install).toHaveBeenCalledWith('claude', 'ssh-1', undefined);
     expect(remote.data?.claude?.status).toBe('available');
     expect(store.local.data?.claude).toBeUndefined();
   });

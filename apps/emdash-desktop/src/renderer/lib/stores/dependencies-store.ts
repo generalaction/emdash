@@ -1,3 +1,4 @@
+import type { InstallMethod } from '@emdash/cli-agent-plugins';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { log } from '@renderer/utils/logger';
 import type { AgentPayload } from '@shared/core/agents/agent-payload';
@@ -7,6 +8,7 @@ import type {
   DependencyState,
   DependencyStatusMap,
   DependencyStatusUpdatedEvent,
+  DependencyUpdateResult,
 } from '@shared/core/dependencies';
 import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
 import { events, rpc } from '../../lib/ipc';
@@ -21,18 +23,22 @@ export class DependenciesStore {
   private readonly _remoteStores = new Map<string, Resource<DependencyStatusMap>>();
   private readonly _installingDependencyKeys = observable.set<string>();
   private readonly _inFlightInstalls = new Map<string, Promise<DependencyInstallResult>>();
+  private readonly _updatingDependencyKeys = observable.set<string>();
+  private readonly _inFlightUpdates = new Map<string, Promise<DependencyUpdateResult>>();
   private _focusRefresh: Promise<void> | null = null;
   private _lastFocusRefreshAt = 0;
   private _stopFocusRefresh: (() => void) | null = null;
   private _disposed = false;
 
   constructor() {
-    makeObservable<this, '_installingDependencyKeys'>(this, {
+    makeObservable<this, '_installingDependencyKeys' | '_updatingDependencyKeys'>(this, {
       _installingDependencyKeys: observable,
+      _updatingDependencyKeys: observable,
       allStatuses: computed,
       agentStatuses: computed,
       localInstalledAgents: computed,
       install: action,
+      update: action,
       probeAll: action,
     });
 
@@ -130,12 +136,12 @@ export class DependenciesStore {
     return this._installingDependencyKeys.has(this.installKey(id, connectionId));
   }
 
-  async install(id: DependencyId, connectionId?: string): Promise<DependencyInstallResult> {
+  async install(id: DependencyId, connectionId?: string, method?: InstallMethod): Promise<DependencyInstallResult> {
     const key = this.installKey(id, connectionId);
     const existing = this._inFlightInstalls.get(key);
     if (existing) return existing;
 
-    const install = this.runInstall(id, connectionId, key);
+    const install = this.runInstall(id, connectionId, key, method);
     this._inFlightInstalls.set(key, install);
     return install;
   }
@@ -143,14 +149,15 @@ export class DependenciesStore {
   private async runInstall(
     id: DependencyId,
     connectionId: string | undefined,
-    key: string
+    key: string,
+    method?: InstallMethod
   ): Promise<DependencyInstallResult> {
     runInAction(() => {
       this._installingDependencyKeys.add(key);
     });
 
     try {
-      const result = (await rpc.dependencies.install(id, connectionId)) as DependencyInstallResult;
+      const result = (await rpc.dependencies.install(id, connectionId, method)) as DependencyInstallResult;
       if (!result.success) return result;
 
       await this.refreshAgents(connectionId, { refreshShellEnv: false });
@@ -159,6 +166,43 @@ export class DependenciesStore {
       this._inFlightInstalls.delete(key);
       runInAction(() => {
         this._installingDependencyKeys.delete(key);
+      });
+    }
+  }
+
+  isUpdating(id: DependencyId, connectionId?: string): boolean {
+    return this._updatingDependencyKeys.has(this.installKey(id, connectionId));
+  }
+
+  async update(id: DependencyId, connectionId?: string): Promise<DependencyUpdateResult> {
+    const key = this.installKey(id, connectionId);
+    const existing = this._inFlightUpdates.get(key);
+    if (existing) return existing;
+
+    const update = this.runUpdate(id, connectionId, key);
+    this._inFlightUpdates.set(key, update);
+    return update;
+  }
+
+  private async runUpdate(
+    id: DependencyId,
+    connectionId: string | undefined,
+    key: string
+  ): Promise<DependencyUpdateResult> {
+    runInAction(() => {
+      this._updatingDependencyKeys.add(key);
+    });
+
+    try {
+      const result = (await rpc.agents.update(id as never, connectionId)) as DependencyUpdateResult;
+      if (!result.success) return result;
+
+      await this.refreshAgents(connectionId, { refreshShellEnv: false });
+      return result;
+    } finally {
+      this._inFlightUpdates.delete(key);
+      runInAction(() => {
+        this._updatingDependencyKeys.delete(key);
       });
     }
   }

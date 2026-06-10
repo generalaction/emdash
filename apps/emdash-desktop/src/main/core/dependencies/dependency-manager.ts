@@ -1,3 +1,6 @@
+import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
+import { providerRegistry } from '@emdash/cli-agent-plugins/providers';
+import type { InstallMethod } from '@emdash/cli-agent-plugins';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import type { IExecutionContext } from '@main/core/execution-context/types';
@@ -13,6 +16,7 @@ import type {
   DependencyInstallResult,
   DependencyState,
   DependencyStatus,
+  DependencyUpdateResult,
 } from '@shared/core/dependencies';
 import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
 import { err, ok } from '@shared/lib/result';
@@ -21,11 +25,31 @@ import {
   createSshInstallCommandRunner,
   type InstallCommandRunner,
 } from './install-runner';
+import { LatestVersionService } from './latest-version-service';
 import { resolveCommandPath, runVersionProbe } from './probe';
 import { DEPENDENCIES, getDependencyDescriptor } from './registry';
 import type { DependencyDescriptor, DependencyProbeOptions, ProbeResult } from './types';
 
 const VERSION_RE = /(\d+\.\d+[\d.]*)/;
+
+/** Returns true when latest > installed using simple numeric segment comparison. */
+function isNewerVersion(installed: string, latest: string): boolean {
+  const parse = (v: string) =>
+    v
+      .replace(/^v/, '')
+      .split('.')
+      .map((s) => parseInt(s, 10) || 0);
+  const a = parse(installed);
+  const b = parse(latest);
+  const len = Math.max(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    const ai = a[i] ?? 0;
+    const bi = b[i] ?? 0;
+    if (bi > ai) return true;
+    if (ai > bi) return false;
+  }
+  return false;
+}
 
 function resolveProbeStatus(
   descriptor: DependencyDescriptor,
@@ -84,6 +108,7 @@ export class DependencyManager implements IInitializable {
   private readonly emitEvents: boolean;
   private readonly runInstallCommand: InstallCommandRunner;
   private readonly connectionId: string | undefined;
+  private readonly latestVersionService: LatestVersionService;
 
   constructor(
     ctx: IExecutionContext,
@@ -91,16 +116,19 @@ export class DependencyManager implements IInitializable {
       emitEvents = true,
       runInstallCommand = createLocalInstallCommandRunner(resolveLocalInstallShellProfile),
       connectionId,
+      latestVersionService = new LatestVersionService(),
     }: {
       emitEvents?: boolean;
       runInstallCommand?: InstallCommandRunner;
       connectionId?: string;
+      latestVersionService?: LatestVersionService;
     } = {}
   ) {
     this.ctx = ctx;
     this.emitEvents = emitEvents;
     this.runInstallCommand = runInstallCommand;
     this.connectionId = connectionId;
+    this.latestVersionService = latestVersionService;
   }
 
   /**
@@ -143,6 +171,9 @@ export class DependencyManager implements IInitializable {
     this.updateState(pathState);
 
     if (pathState.status === 'missing' || descriptor.skipVersionProbe) {
+      // Still fetch the latest version for missing agents so the UI can show what
+      // version is available to install, even before the agent is present.
+      void this.fetchAndUpdateLatestVersion(descriptor, pathState);
       return pathState;
     }
 
@@ -157,7 +188,41 @@ export class DependencyManager implements IInitializable {
     const fullState = dependencyStateFromProbeResult(descriptor, resolvedPath, probeResult);
     this.updateState(fullState);
 
+    // Phase 3: fetch latest version (async, non-blocking for the return value)
+    void this.fetchAndUpdateLatestVersion(descriptor, fullState);
+
     return fullState;
+  }
+
+  private async fetchAndUpdateLatestVersion(
+    descriptor: DependencyDescriptor,
+    state: DependencyState
+  ): Promise<void> {
+    if (!descriptor.updates || descriptor.updates.kind !== 'supported') return;
+
+    const { releaseSource } = descriptor.updates;
+    if (releaseSource.kind === 'none') return;
+
+    const provider =
+      descriptor.category === 'agent' ? providerRegistry.get(descriptor.id) : undefined;
+    let latestVersion: string | null;
+    if (provider?.updates?.resolveLatestVersion) {
+      try {
+        latestVersion = await provider.updates.resolveLatestVersion();
+      } catch {
+        latestVersion = null;
+      }
+    } else {
+      latestVersion = await this.latestVersionService.fetchLatestVersion(releaseSource);
+    }
+
+    const updateAvailable =
+      latestVersion !== null && state.version !== null
+        ? isNewerVersion(state.version, latestVersion)
+        : false;
+
+    const enrichedState: DependencyState = { ...state, latestVersion, updateAvailable };
+    this.updateState(enrichedState);
   }
 
   async probeAll(options: DependencyProbeOptions = {}): Promise<void> {
@@ -188,22 +253,35 @@ export class DependencyManager implements IInitializable {
 
   /**
    * Run the installCommand for a dependency, then re-probe to update state.
-   * Returns the updated DependencyState after installation attempt.
+   * When `method` is provided, looks up the matching InstallOption command for
+   * the current platform; falls back to the default descriptor.installCommand.
    */
-  async install(id: DependencyId): Promise<DependencyInstallResult> {
+  async install(id: DependencyId, method?: InstallMethod): Promise<DependencyInstallResult> {
     const descriptor = getDependencyDescriptor(id);
     if (!descriptor) {
       return err({ type: 'unknown-dependency', id });
     }
-    if (!descriptor.installCommand) {
+
+    let command = descriptor.installCommand;
+
+    if (method) {
+      const platform =
+        process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux';
+      const meta = metadataRegistry.get(id);
+      const options = meta?.capabilities.install.installCommands[platform];
+      const match = options?.find((o) => o.method === method);
+      if (match) command = match.command;
+    }
+
+    if (!command) {
       return err({ type: 'no-install-command', id });
     }
 
-    log.info(`[DependencyManager] Installing ${id}: ${descriptor.installCommand}`);
+    log.info(`[DependencyManager] Installing ${id}: ${command}`);
 
     await this.ctx.refreshShellEnv?.();
 
-    const installResult = await this.runInstallCommand(descriptor.installCommand);
+    const installResult = await this.runInstallCommand(command);
     if (!installResult.success) {
       return err(installResult.error);
     }
@@ -213,6 +291,90 @@ export class DependencyManager implements IInitializable {
     const state = await this.probe(id);
     if (state.status !== 'available') {
       return err({ type: 'not-detected-after-install', id });
+    }
+
+    return ok(state);
+  }
+
+  /**
+   * Apply an available update for an agent dependency, then re-probe.
+   * Strategy is derived from capabilities.updates.update.kind:
+   *   - package-manager: re-run install (or explicit updateCommands)
+   *   - cli: run `<resolvedBinaryPath> <args>` (e.g. `claude update`)
+   *   - auto / none: no-op
+   */
+  async update(id: DependencyId): Promise<DependencyUpdateResult> {
+    const descriptor = getDependencyDescriptor(id);
+    if (!descriptor) {
+      return err({ type: 'unknown-dependency', id });
+    }
+
+    const updates = descriptor.updates;
+    if (!updates || updates.kind !== 'supported') {
+      return err({ type: 'no-update-strategy', id });
+    }
+
+    const strategy = updates.update;
+
+    if (strategy.kind === 'auto' || strategy.kind === 'none') {
+      // No action: agent self-updates or has no update mechanism.
+      const state = this.state.get(id);
+      if (state) return ok(state);
+      return err({ type: 'no-update-strategy', id });
+    }
+
+    log.info(`[DependencyManager] Updating ${id} (strategy: ${strategy.kind})`);
+
+    await this.ctx.refreshShellEnv?.();
+
+    if (strategy.kind === 'package-manager') {
+      const platform =
+        process.platform === 'darwin'
+          ? 'macos'
+          : process.platform === 'win32'
+            ? 'windows'
+            : 'linux';
+      const platformUpdateCmd = strategy.updateCommands?.[platform]?.command;
+      const updateCommand = platformUpdateCmd ?? descriptor.installCommand;
+
+      if (!updateCommand) {
+        return err({ type: 'no-update-strategy', id });
+      }
+
+      const runResult = await this.runInstallCommand(updateCommand);
+      if (!runResult.success) {
+        return err(runResult.error);
+      }
+    } else if (strategy.kind === 'cli') {
+      const resolvedPath = await this.resolveFirstPath(descriptor);
+      const provider = providerRegistry.get(id);
+      let command: string;
+      let args: string[];
+
+      if (provider?.updates?.buildUpdateCommand && resolvedPath) {
+        ({ command, args } = provider.updates.buildUpdateCommand(resolvedPath));
+      } else {
+        command = resolvedPath ?? descriptor.commands[0] ?? id;
+        args = strategy.args;
+      }
+
+      const commandLine = [command, ...args].join(' ');
+      const runResult = await this.runInstallCommand(commandLine);
+      if (!runResult.success) {
+        return err(runResult.error);
+      }
+    }
+
+    await this.ctx.refreshShellEnv?.();
+
+    // Invalidate latest-version cache so the next probe re-fetches
+    if (updates.releaseSource.kind !== 'none') {
+      this.latestVersionService.invalidate(updates.releaseSource);
+    }
+
+    const state = await this.probe(id);
+    if (state.status !== 'available') {
+      return err({ type: 'not-detected-after-update', id });
     }
 
     return ok(state);

@@ -13,8 +13,9 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['claude'],
       installCommands: {
-        macos: { command: 'curl -fsSL https://claude.ai/install.sh | bash', method: 'curl' },
-        linux: { command: 'curl -fsSL https://claude.ai/install.sh | bash', method: 'curl' },
+        macos: [{ command: 'curl -fsSL https://claude.ai/install.sh | bash', method: 'curl' }, { command: 'brew install --cask claude-code', method: 'homebrew' }],
+        linux: [{ command: 'curl -fsSL https://claude.ai/install.sh | bash', method: 'curl' }],
+        windows: [{ command: 'curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd', method: 'curl' }]
       },
     },
     models: { kind: 'none' },
@@ -25,6 +26,11 @@ export const metadata = defineMetadata({
     hooks: { kind: 'config', scope: 'workspace', supportedEvents: ['notification', 'stop'] },
     mcp: { kind: 'supported', scope: 'global', supportedTransports: ['stdio', 'http'] },
     plugin: { kind: 'none' },
+    updates: {
+      kind: 'supported',
+      releaseSource: { kind: 'github', repo: 'anthropics/claude-code' },
+      update: { kind: 'cli', args: ['update'] },
+    },
   },
 });
 

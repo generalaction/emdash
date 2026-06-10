@@ -13,9 +13,9 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['codebuff'],
       installCommands: {
-        macos: { command: 'npm install -g codebuff', method: 'npm' },
-        linux: { command: 'npm install -g codebuff', method: 'npm' },
-        windows: { command: 'npm install -g codebuff', method: 'npm' },
+        macos: [{ command: 'npm install -g codebuff', method: 'npm' }],
+        linux: [{ command: 'npm install -g codebuff', method: 'npm' }],
+        windows: [{ command: 'npm install -g codebuff', method: 'npm' }],
       },
     },
     models: { kind: 'none' },
@@ -26,6 +26,11 @@ export const metadata = defineMetadata({
     hooks: { kind: 'none' },
     mcp: { kind: 'none' },
     plugin: { kind: 'none' },
+    updates: {
+      kind: 'supported',
+      releaseSource: { kind: 'npm', package: 'codebuff' },
+      update: { kind: 'package-manager' },
+    },
   },
 });
 

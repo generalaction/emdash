@@ -1,8 +1,8 @@
-import type { CLIAgentPluginMetadata } from 'cli-agent-plugins';
+import type { CLIAgentPluginMetadata } from '@emdash/cli-agent-plugins';
 import { describe, expect, it, vi } from 'vitest';
 import type { DependencyStatusMap } from '@shared/core/dependencies';
 
-vi.mock('cli-agent-plugins/metadata', () => ({
+vi.mock('@emdash/cli-agent-plugins/metadata', () => ({
   metadataRegistry: {
     get: vi.fn(),
     getAll: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock('../settings/provider-settings-service', () => ({
   },
 }));
 
-const { metadataRegistry } = await import('cli-agent-plugins/metadata');
+const { metadataRegistry } = await import('@emdash/cli-agent-plugins/metadata');
 const { providerOverrideSettings } = await import('../settings/provider-settings-service');
 
 function makeMetadata(id: string, binaryName: string): CLIAgentPluginMetadata {
@@ -49,7 +49,7 @@ function makeMetadata(id: string, binaryName: string): CLIAgentPluginMetadata {
       install: {
         binaryNames: [binaryName],
         installCommands: {
-          macos: { command: `brew install ${id}`, method: 'homebrew' },
+          macos: [{ command: `brew install ${id}`, method: 'homebrew' }],
         },
       },
       models: { kind: 'none' },
@@ -60,6 +60,7 @@ function makeMetadata(id: string, binaryName: string): CLIAgentPluginMetadata {
       hooks: { kind: 'none' },
       mcp: { kind: 'none' },
       plugin: { kind: 'none' },
+      updates: { kind: 'none' },
     },
   };
 }
@@ -96,12 +97,15 @@ describe('buildAgentPayload', () => {
     expect(payload!.name).toBe('claude name');
     expect(payload!.status).toBe('available');
     expect(payload!.version).toBe('1.2.0');
+    expect(payload!.latestVersion).toBeNull();
+    expect(payload!.updateAvailable).toBe(false);
     expect(payload!.command).toBe('/usr/local/bin/claude');
-    expect(payload!.iconName).toBe('claude.svg');
-    expect(payload!.invertInDark).toBe(false);
     expect(payload!.settings.defaults.cli).toBe('claude');
     expect(payload!.capabilities.models).toEqual({ kind: 'none' });
     expect(payload!.capabilities.effort).toEqual({ kind: 'none' });
+    expect(payload!.capabilities.updates).toEqual({ kind: 'none' });
+    // installOptions is resolved for the current platform (macos in CI/dev)
+    expect(Array.isArray(payload!.installOptions)).toBe(true);
   });
 
   it('uses missing status when agent is not in the status map', async () => {
@@ -115,6 +119,8 @@ describe('buildAgentPayload', () => {
 
     expect(payload!.status).toBe('missing');
     expect(payload!.version).toBeNull();
+    expect(payload!.latestVersion).toBeNull();
+    expect(payload!.updateAvailable).toBe(false);
     expect(payload!.command).toBeNull();
   });
 

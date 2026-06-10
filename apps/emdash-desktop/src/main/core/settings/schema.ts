@@ -1,4 +1,4 @@
-import { metadataRegistry } from 'cli-agent-plugins/metadata';
+import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
 import z from 'zod';
 import { AGENT_PROVIDER_IDS } from '@shared/core/agents/agent-provider-registry';
 import {

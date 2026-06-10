@@ -13,14 +13,10 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['junie'],
       installCommands: {
-        macos: {
-          command: 'curl -fsSL https://junie.jetbrains.com/install.sh | bash',
-          method: 'curl',
-        },
-        linux: {
-          command: 'curl -fsSL https://junie.jetbrains.com/install.sh | bash',
-          method: 'curl',
-        },
+        macos: [{ command: 'curl -fsSL https://junie.jetbrains.com/install.sh | bash',
+          method: 'curl', }],
+        linux: [{ command: 'curl -fsSL https://junie.jetbrains.com/install.sh | bash',
+          method: 'curl', }],
       },
     },
     models: { kind: 'none' },
@@ -31,6 +27,11 @@ export const metadata = defineMetadata({
     hooks: { kind: 'none' },
     mcp: { kind: 'none' },
     plugin: { kind: 'none' },
+    updates: {
+      kind: 'supported',
+      releaseSource: { kind: 'none' },
+      update: { kind: 'package-manager' },
+    },
   },
 });
 

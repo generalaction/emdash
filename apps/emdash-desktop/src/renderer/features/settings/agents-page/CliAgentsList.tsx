@@ -1,88 +1,38 @@
-import { Settings2, Sparkles } from 'lucide-react';
+import { ArrowRightIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import React, { useCallback, useMemo, useState } from 'react';
-import CustomCommandModal from '@renderer/features/settings/components/CustomCommandModal';
-import IntegrationRow from '@renderer/features/settings/components/IntegrationRow';
-import { getAgentInstallErrorMessage } from '@renderer/lib/components/agent-selector/agent-install';
-import { AgentInstallButton } from '@renderer/lib/components/agent-selector/agent-install-button';
-import { useToast } from '@renderer/lib/hooks/use-toast';
-import { rpc } from '@renderer/lib/ipc';
+import React, { useMemo, useState } from 'react';
 import { appState } from '@renderer/lib/stores/app-state';
+import { Button } from '@renderer/lib/ui/button';
 import { Label } from '@renderer/lib/ui/label';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { log } from '@renderer/utils/logger';
-import type { AgentPayload } from '@shared/core/agents/agent-payload';
-import {
-  isValidProviderId,
-  type AgentProviderId,
-} from '@shared/core/agents/agent-provider-registry';
-import { InstalledAgentRow } from './InstalledAgentRow';
+import { Separator } from '@renderer/lib/ui/separator';
+import { AgentDetailSheet } from './AgentDetailSheet';
+import { AgentRow } from './AgentRow';
 
-const ICON_BUTTON =
-  'rounded-md p-1.5 text-muted-foreground transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
-
-// ---------------------------------------------------------------------------
-// AgentRow
-// ---------------------------------------------------------------------------
-
-type AgentRowProps = {
-  agent: AgentPayload;
-  isInstalling: boolean;
-  onInstallClick: () => void;
-  onSettingsClick: () => void;
-};
-
-const AgentRow: React.FC<AgentRowProps> = ({
-  agent,
-  isInstalling,
-  onInstallClick,
-  onSettingsClick,
-}) => {
-  const providerId = isValidProviderId(agent.id) ? agent.id : null;
-  const canInstall = Object.keys(agent.capabilities.install.installCommands).length > 0;
-
-  const handleNameClick = agent.websiteUrl
-    ? async () => {
-        try {
-          await rpc.app.openExternal(agent.websiteUrl!);
-        } catch (openError) {
-          log.error(`Failed to open ${agent.name} docs:`, openError);
-        }
-      }
-    : undefined;
-
-  const isDetected = agent.status === 'available';
-  const indicatorClass = isDetected ? 'bg-foreground-success' : 'bg-foreground-passive/50';
-  const statusLabel = isDetected ? 'Detected' : 'Not detected';
-
-  return (
-    <div className="flex w-full items-center justify-between rounded-lg border">
-      <span>{agent.name}</span>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// SectionLabel
-// ---------------------------------------------------------------------------
-
-const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="pt pb-1">
-    <Label>{children}</Label>
+const SectionLabel: React.FC<{ children: React.ReactNode; totalCount: number }> = ({
+  children,
+  totalCount,
+}) => (
+  <div className="px-3 py-2">
+    <Label>
+      {children}
+      {` (${totalCount})`}
+    </Label>
   </div>
 );
 
 export type AgentFilter = 'all' | 'installed' | 'uninstalled';
 
+const MAX_INSTALLED_PREVIEW = 4;
+
 type CliAgentsListProps = {
   searchQuery?: string;
   filter?: AgentFilter;
+  onFilterChange?: (filter: AgentFilter) => void;
 };
 
 export const CliAgentsList: React.FC<CliAgentsListProps> = observer(
-  ({ searchQuery = '', filter = 'all' }) => {
-    const [customModalAgentId, setCustomModalAgentId] = useState<string | null>(null);
-    const { toast } = useToast();
+  ({ searchQuery = '', filter = 'all', onFilterChange }) => {
+    const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
     const agentPayloads = appState.dependencies.agents.data;
     const normalizedQuery = searchQuery.toLowerCase();
 
@@ -107,72 +57,48 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = observer(
     const showInstalled = filter === 'all' || filter === 'installed';
     const showSupported = filter === 'all' || filter === 'uninstalled';
 
-    const handleInstall = useCallback(
-      async (agent: AgentPayload) => {
-        if (!isValidProviderId(agent.id) || appState.dependencies.isInstalling(agent.id)) {
-          return;
-        }
-
-        const result = await appState.dependencies.install(agent.id);
-
-        if (result.success) {
-          toast({
-            title: 'Agent installed',
-            description: `${agent.name} is ready.`,
-          });
-          return;
-        }
-
-        toast({
-          title: 'Install failed',
-          description: getAgentInstallErrorMessage(result.error),
-          variant: 'destructive',
-        });
-      },
-      [toast]
-    );
-
-    const isInstalling = useCallback(
-      (id: AgentProviderId) => appState.dependencies.isInstalling(id),
-      []
-    );
+    const visibleInstalled =
+      filter === 'all' ? installed.slice(0, MAX_INSTALLED_PREVIEW) : installed;
+    const hasMoreInstalled = filter === 'all' && installed.length > MAX_INSTALLED_PREVIEW;
 
     return (
-      <div>
+      <div className="pb-4">
         {showInstalled && installed.length > 0 && (
-          <>
-            {installed.map((agent) => (
-              <div key={agent.id} className="w-full  py-0.5">
-                <InstalledAgentRow key={agent.id} agent={agent} />
+          <div className="py-2">
+            <SectionLabel totalCount={installed.length}>Installed</SectionLabel>
+            {visibleInstalled.map((agent) => (
+              <div key={agent.id} className="w-full py-0.5">
+                <AgentRow agent={agent} onClick={() => setSelectedAgentId(agent.id)} />
               </div>
             ))}
-          </>
-        )}
-
-        {showSupported && (
-          <>
-            <SectionLabel>Supported</SectionLabel>
-            {supported.map((agent) => (
-              <div
-                key={agent.id}
-                className="w-full rounded-lg border p-3 py-1 hover:bg-background-1"
+            {hasMoreInstalled && (
+              <Button
+                variant="link"
+                className="text-xs text-foreground-muted hover:text-foreground"
+                onClick={() => onFilterChange?.('installed')}
               >
-                <AgentRow
-                  agent={agent}
-                  isInstalling={isValidProviderId(agent.id) ? isInstalling(agent.id) : false}
-                  onInstallClick={() => void handleInstall(agent)}
-                  onSettingsClick={() => setCustomModalAgentId(agent.id)}
-                />
-              </div>
-            ))}
-          </>
+                <ArrowRightIcon className="size-3.5" />
+                View all installed agents
+              </Button>
+            )}
+          </div>
         )}
 
-        <CustomCommandModal
-          isOpen={customModalAgentId !== null}
-          onClose={() => setCustomModalAgentId(null)}
-          providerId={customModalAgentId ?? ''}
-        />
+        {showSupported && supported.length > 0 && (
+          <>
+            {showInstalled && installed.length > 0 && <Separator />}
+
+            <div className="py-2">
+              <SectionLabel totalCount={supported.length}>Uninstalled</SectionLabel>
+              {supported.map((agent) => (
+                <div key={agent.id} className="w-full py-0.5">
+                  <AgentRow agent={agent} onClick={() => setSelectedAgentId(agent.id)} />
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+        <AgentDetailSheet agentId={selectedAgentId} onClose={() => setSelectedAgentId(null)} />
       </div>
     );
   }

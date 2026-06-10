@@ -1,8 +1,16 @@
-import { metadataRegistry } from 'cli-agent-plugins/metadata';
+import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
+import type { InstallOption } from '@emdash/cli-agent-plugins';
 import type { AgentPayload } from '@shared/core/agents/agent-payload';
 import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { DependencyStatusMap } from '@shared/core/dependencies';
 import { providerOverrideSettings } from '../settings/provider-settings-service';
+
+const CURRENT_PLATFORM =
+  process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux';
+
+function resolveInstallOptions(meta: { capabilities: { install: { installCommands: Partial<Record<string, InstallOption[]>> } } }): InstallOption[] {
+  return meta.capabilities.install.installCommands[CURRENT_PLATFORM] ?? [];
+}
 
 async function buildOne(
   id: AgentProviderId,
@@ -25,6 +33,8 @@ async function buildOne(
     websiteUrl: meta.websiteUrl ?? null,
     status: state?.status ?? 'missing',
     version: state?.version ?? null,
+    latestVersion: state?.latestVersion ?? null,
+    updateAvailable: state?.updateAvailable ?? false,
     command: state?.path ?? null,
     capabilities: meta.capabilities,
     settings: settingsMeta ?? {
@@ -32,6 +42,7 @@ async function buildOne(
       defaults: defaultConfig,
       overrides: {},
     },
+    installOptions: resolveInstallOptions(meta),
   };
 }
 

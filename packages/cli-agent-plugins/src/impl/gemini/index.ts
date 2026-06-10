@@ -13,9 +13,9 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['gemini'],
       installCommands: {
-        macos: { command: 'npm install -g @google/gemini-cli', method: 'npm' },
-        linux: { command: 'npm install -g @google/gemini-cli', method: 'npm' },
-        windows: { command: 'npm install -g @google/gemini-cli', method: 'npm' },
+        macos: [{ command: 'npm install -g @google/gemini-cli', method: 'npm' }],
+        linux: [{ command: 'npm install -g @google/gemini-cli', method: 'npm' }],
+        windows: [{ command: 'npm install -g @google/gemini-cli', method: 'npm' }],
       },
     },
     models: { kind: 'none' },
@@ -26,6 +26,11 @@ export const metadata = defineMetadata({
     hooks: { kind: 'none' },
     mcp: { kind: 'supported', scope: 'global', supportedTransports: ['stdio', 'http'] },
     plugin: { kind: 'none' },
+    updates: {
+      kind: 'supported',
+      releaseSource: { kind: 'npm', package: '@google/gemini-cli' },
+      update: { kind: 'package-manager' },
+    },
   },
 });
 

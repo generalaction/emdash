@@ -16,9 +16,9 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['amp'],
       installCommands: {
-        macos: { command: 'npm install -g @sourcegraph/amp@latest', method: 'npm' },
-        linux: { command: 'npm install -g @sourcegraph/amp@latest', method: 'npm' },
-        windows: { command: 'npm install -g @sourcegraph/amp@latest', method: 'npm' },
+        macos: [{ command: 'npm install -g @sourcegraph/amp@latest', method: 'npm' }],
+        linux: [{ command: 'npm install -g @sourcegraph/amp@latest', method: 'npm' }],
+        windows: [{ command: 'npm install -g @sourcegraph/amp@latest', method: 'npm' }],
       },
     },
     models: { kind: 'none' },
@@ -30,6 +30,11 @@ export const metadata = defineMetadata({
     hooks: { kind: 'plugin', scope: 'workspace', supportedEvents: ['start', 'stop'] },
     mcp: { kind: 'supported', scope: 'global', supportedTransports: ['stdio', 'http'] },
     plugin: { kind: 'file-drop', scope: 'workspace' },
+    updates: {
+      kind: 'supported',
+      releaseSource: { kind: 'npm', package: '@sourcegraph/amp' },
+      update: { kind: 'package-manager' },
+    },
   },
 });
 

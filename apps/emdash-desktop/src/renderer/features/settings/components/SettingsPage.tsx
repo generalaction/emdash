@@ -43,7 +43,7 @@ export type SettingsPageTab =
 
 function GeneralSettingsPage() {
   return (
-    <>
+    <div className="space-y-8 pt-10">
       <PageHeader
         title="General"
         description="Manage your account, privacy settings, notifications, and app updates."
@@ -57,55 +57,55 @@ function GeneralSettingsPage() {
       <EnableTmuxRow />
       <NotificationSettingsCard />
       <UpdateCard />
-    </>
+    </div>
   );
 }
 
 function AccountSettingsPage() {
   return (
-    <>
+    <div className="pt-10 space-y-8">
       <PageHeader title="Account" description="Manage your Emdash account." />
       <AccountTab />
-    </>
+    </div>
   );
 }
 
 function IntegrationsSettingsPage() {
   return (
-    <>
+    <div className="pt-10 space-y-8">
       <PageHeader title="Integrations" description="Connect external services and tools." />
       <IntegrationsCard />
-    </>
+    </div>
   );
 }
 
 function ConnectionsSettingsPage() {
   return (
-    <>
+    <div className="pt-10 space-y-8">
       <PageHeader
         title="Connections"
         description="Manage reusable SSH connections for remote projects."
       />
       <SshConnectionsSettingsCard />
-    </>
+    </div>
   );
 }
 
 function RepositorySettingsPage() {
   return (
-    <>
+    <div className="pt-10 space-y-8">
       <PageHeader title="Repository" description="Configure repository and branch settings." />
       <div className="flex flex-col gap-3">
         <h3 className="text-sm font-normal text-foreground">Branch prefix</h3>
         <RepositorySettingsCard />
       </div>
-    </>
+    </div>
   );
 }
 
 function InterfaceSettingsPage() {
   return (
-    <>
+    <div className="pt-10 space-y-8">
       <PageHeader
         title="Interface"
         description="Customize the appearance and behavior of the app."
@@ -123,7 +123,7 @@ function InterfaceSettingsPage() {
         <h3 className="text-sm font-normal text-foreground">Tools</h3>
         <HiddenToolsSettingsCard />
       </div>
-    </>
+    </div>
   );
 }
 

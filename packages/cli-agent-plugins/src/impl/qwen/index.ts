@@ -13,9 +13,9 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['qwen'],
       installCommands: {
-        macos: { command: 'npm install -g @qwen-code/qwen-code', method: 'npm' },
-        linux: { command: 'npm install -g @qwen-code/qwen-code', method: 'npm' },
-        windows: { command: 'npm install -g @qwen-code/qwen-code', method: 'npm' },
+        macos: [{ command: 'npm install -g @qwen-code/qwen-code', method: 'npm' }],
+        linux: [{ command: 'npm install -g @qwen-code/qwen-code', method: 'npm' }],
+        windows: [{ command: 'npm install -g @qwen-code/qwen-code', method: 'npm' }],
       },
     },
     models: { kind: 'none' },
@@ -30,6 +30,11 @@ export const metadata = defineMetadata({
     },
     mcp: { kind: 'supported', scope: 'global', supportedTransports: ['stdio', 'http'] },
     plugin: { kind: 'none' },
+    updates: {
+      kind: 'supported',
+      releaseSource: { kind: 'npm', package: '@qwen-code/qwen-code' },
+      update: { kind: 'package-manager' },
+    },
   },
 });
 

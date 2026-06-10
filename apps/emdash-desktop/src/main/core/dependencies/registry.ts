@@ -1,5 +1,5 @@
-import { metadataRegistry } from 'cli-agent-plugins/metadata';
-import { providerRegistry } from 'cli-agent-plugins/providers';
+import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
+import { providerRegistry } from '@emdash/cli-agent-plugins/providers';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { DependencyStatus } from '@shared/core/dependencies';
 import type { DependencyDescriptor, ProbeResult } from './types';
@@ -76,11 +76,13 @@ function agentResolveStatus(result: ProbeResult): DependencyStatus {
 }
 
 function getPlatformInstallCommand(
-  installCommands: Record<string, { command: string } | undefined>
+  installCommands: Record<string, Array<{ command: string; recommended?: boolean }> | undefined>
 ): string | undefined {
   const platform =
     process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux';
-  return installCommands[platform]?.command;
+  const options = installCommands[platform];
+  const chosen = options?.find((o) => o.recommended) ?? options?.[0];
+  return chosen?.command;
 }
 
 function buildAgentDependencies(): DependencyDescriptor[] {
@@ -104,6 +106,7 @@ function buildAgentDependencies(): DependencyDescriptor[] {
       installHint: installCmd ? `Run: ${installCmd}` : undefined,
       installCommand: installCmd,
       resolveStatus: agentResolveStatus,
+      updates: meta.capabilities.updates,
     };
   });
 }

@@ -26,6 +26,16 @@ export type PluginBehavior = {
   getPluginPath(fs: CLIAgentPluginFs, scope: PluginScope): Promise<string>;
 };
 
+export type UpdatesBehavior = {
+  /** Override the generic release-source resolution for unusual version feeds. */
+  resolveLatestVersion?(): Promise<string | null>;
+  /**
+   * Override the static UpdateStrategy.cli args with a computed command.
+   * Receives the resolved binary path; return { command, args } to run.
+   */
+  buildUpdateCommand?(binaryPath: string): { command: string; args: string[] };
+};
+
 // ── Provider interface ───────────────────────────────────────────────────────
 
 export interface CLIAgentPluginProvider {
@@ -42,6 +52,8 @@ export interface CLIAgentPluginProvider {
   mcp?: McpBehavior;
   /** Present only when metadata.capabilities.plugin.kind !== 'none'. */
   plugin?: PluginBehavior;
+  /** Optional overrides for update detection or command construction. */
+  updates?: UpdatesBehavior;
 }
 
 export type ProviderBehavior = Omit<CLIAgentPluginProvider, 'metadata'>;

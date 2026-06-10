@@ -43,8 +43,8 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['kimi'],
       installCommands: {
-        macos: { command: 'curl -LsSf https://code.kimi.com/install.sh | bash', method: 'curl' },
-        linux: { command: 'curl -LsSf https://code.kimi.com/install.sh | bash', method: 'curl' },
+        macos: [{ command: 'curl -LsSf https://code.kimi.com/install.sh | bash', method: 'curl' }],
+        linux: [{ command: 'curl -LsSf https://code.kimi.com/install.sh | bash', method: 'curl' }],
       },
     },
     models: { kind: 'none' },
@@ -59,6 +59,11 @@ export const metadata = defineMetadata({
     },
     mcp: { kind: 'none' },
     plugin: { kind: 'none' },
+    updates: {
+      kind: 'supported',
+      releaseSource: { kind: 'github', repo: 'moonshotai/kimi-cli' },
+      update: { kind: 'package-manager' },
+    },
   },
 });
 

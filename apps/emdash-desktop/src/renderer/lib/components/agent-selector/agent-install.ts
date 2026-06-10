@@ -1,6 +1,6 @@
-import { metadataRegistry } from 'cli-agent-plugins/metadata';
+import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
-import type { DependencyInstallError } from '@shared/core/dependencies';
+import type { DependencyInstallError, DependencyUpdateError } from '@shared/core/dependencies';
 
 export type AgentInstallActionState = {
   render: boolean;
@@ -42,5 +42,56 @@ export function getAgentInstallActionState({
     disabled: isInstalling,
     installing: isInstalling,
     label: `Install ${metadataRegistry.get(agentId)?.name ?? agentId}`,
+  };
+}
+
+export type AgentUpdateActionState = {
+  render: boolean;
+  disabled: boolean;
+  updating: boolean;
+  label: string;
+  versionLabel: string | null;
+};
+
+export function getAgentUpdateErrorMessage(error: DependencyUpdateError): string {
+  switch (error.type) {
+    case 'permission-denied':
+      return error.message;
+    case 'command-failed':
+      return error.output ? `${error.message} ${error.output}` : error.message;
+    case 'pty-open-failed':
+      return error.message;
+    case 'unknown-dependency':
+      return `Unknown dependency: ${error.id}`;
+    case 'no-update-strategy':
+      return `No update strategy is available for ${error.id}.`;
+    case 'not-detected-after-update':
+      return 'The agent was not detected after update.';
+  }
+}
+
+export function getAgentUpdateActionState({
+  updateAvailable,
+  updateStrategyKind,
+  version,
+  latestVersion,
+  isUpdating,
+}: {
+  updateAvailable: boolean;
+  updateStrategyKind: string;
+  version: string | null;
+  latestVersion: string | null;
+  isUpdating: boolean;
+}): AgentUpdateActionState {
+  const canUpdate =
+    updateAvailable && updateStrategyKind !== 'auto' && updateStrategyKind !== 'none';
+  const versionLabel = version && latestVersion ? `v${version} → v${latestVersion}` : null;
+
+  return {
+    render: canUpdate,
+    disabled: isUpdating,
+    updating: isUpdating,
+    label: isUpdating ? 'Updating...' : 'Update',
+    versionLabel,
   };
 }

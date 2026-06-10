@@ -13,9 +13,9 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['auggie'],
       installCommands: {
-        macos: { command: 'npm install -g @augmentcode/auggie', method: 'npm' },
-        linux: { command: 'npm install -g @augmentcode/auggie', method: 'npm' },
-        windows: { command: 'npm install -g @augmentcode/auggie', method: 'npm' },
+        macos: [{ command: 'npm install -g @augmentcode/auggie', method: 'npm' }],
+        linux: [{ command: 'npm install -g @augmentcode/auggie', method: 'npm' }],
+        windows: [{ command: 'npm install -g @augmentcode/auggie', method: 'npm' }],
       },
     },
     models: { kind: 'none' },
@@ -26,6 +26,11 @@ export const metadata = defineMetadata({
     hooks: { kind: 'none' },
     mcp: { kind: 'none' },
     plugin: { kind: 'none' },
+    updates: {
+      kind: 'supported',
+      releaseSource: { kind: 'npm', package: '@augmentcode/auggie' },
+      update: { kind: 'package-manager' },
+    },
   },
 });
 

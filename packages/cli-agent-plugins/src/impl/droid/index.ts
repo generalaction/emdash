@@ -12,8 +12,8 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['droid'],
       installCommands: {
-        macos: { command: 'curl -fsSL https://app.factory.ai/cli | sh', method: 'curl' },
-        linux: { command: 'curl -fsSL https://app.factory.ai/cli | sh', method: 'curl' },
+        macos: [{ command: 'curl -fsSL https://app.factory.ai/cli | sh', method: 'curl' }],
+        linux: [{ command: 'curl -fsSL https://app.factory.ai/cli | sh', method: 'curl' }],
       },
     },
     models: { kind: 'none' },
@@ -28,6 +28,11 @@ export const metadata = defineMetadata({
     },
     mcp: { kind: 'supported', scope: 'global', supportedTransports: ['stdio', 'http'] },
     plugin: { kind: 'none' },
+    updates: {
+      kind: 'supported',
+      releaseSource: { kind: 'none' },
+      update: { kind: 'package-manager' },
+    },
   },
 });
 

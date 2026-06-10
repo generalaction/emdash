@@ -1,4 +1,4 @@
-import { iconRegistry } from 'cli-agent-plugins/icons';
+import { iconRegistry } from '@emdash/cli-agent-plugins/icons';
 import { cn } from '@renderer/utils/utils';
 import { useTheme } from '../hooks/useTheme';
 

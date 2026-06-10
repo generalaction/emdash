@@ -17,6 +17,8 @@ export interface DependencyState {
   path: string | null;
   checkedAt: number;
   error?: string;
+  latestVersion?: string | null;
+  updateAvailable?: boolean;
 }
 
 export type DependencyStatusMap = Record<string, DependencyState>;
@@ -39,3 +41,11 @@ export type DependencyInstallError =
   | { type: 'not-detected-after-install'; id: string };
 
 export type DependencyInstallResult = Result<DependencyState, DependencyInstallError>;
+
+export type DependencyUpdateError =
+  | { type: 'unknown-dependency'; id: string }
+  | { type: 'no-update-strategy'; id: string }
+  | InstallCommandError
+  | { type: 'not-detected-after-update'; id: string };
+
+export type DependencyUpdateResult = Result<DependencyState, DependencyUpdateError>;

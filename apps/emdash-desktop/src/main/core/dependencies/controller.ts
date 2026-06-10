@@ -1,3 +1,4 @@
+import type { InstallMethod } from '@emdash/cli-agent-plugins';
 import type { DependencyCategory, DependencyId } from '@shared/core/dependencies';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { getDependencyManager } from './dependency-manager';
@@ -32,8 +33,12 @@ export const dependenciesController = createRPCController({
     const mgr = await getDependencyManager(connectionId);
     return mgr.probeCategory(cat, options);
   },
-  install: async (id: DependencyId, connectionId?: string) => {
+  install: async (id: DependencyId, connectionId?: string, method?: InstallMethod) => {
     const mgr = await getDependencyManager(connectionId);
-    return mgr.install(id);
+    return mgr.install(id, method);
+  },
+  update: async (id: DependencyId, connectionId?: string) => {
+    const mgr = await getDependencyManager(connectionId);
+    return mgr.update(id);
   },
 });

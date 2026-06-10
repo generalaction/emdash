@@ -1,5 +1,5 @@
-import type { CommandContext } from 'cli-agent-plugins';
-import { providerRegistry } from 'cli-agent-plugins/providers';
+import type { CommandContext } from '@emdash/cli-agent-plugins';
+import { providerRegistry } from '@emdash/cli-agent-plugins/providers';
 /**
  * Tests for provider.buildCommand() special cases.
  * Each test exercises a specific provider's command-building behavior by calling

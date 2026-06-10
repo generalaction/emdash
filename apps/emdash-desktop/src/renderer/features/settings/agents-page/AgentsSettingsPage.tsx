@@ -59,7 +59,7 @@ export function AgentsSettingsPage() {
         </PageHeader>
       </div>
       <div className="flex flex-col gap-3">
-        <CliAgentsList searchQuery={searchQuery} filter={filter} />
+        <CliAgentsList searchQuery={searchQuery} filter={filter} onFilterChange={setFilter} />
       </div>
     </>
   );

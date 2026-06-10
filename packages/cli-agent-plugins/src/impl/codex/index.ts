@@ -13,9 +13,9 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['codex'],
       installCommands: {
-        macos: { command: 'npm install -g @openai/codex', method: 'npm' },
-        linux: { command: 'npm install -g @openai/codex', method: 'npm' },
-        windows: { command: 'npm install -g @openai/codex', method: 'npm' },
+        macos: [{ command: 'npm install -g @openai/codex', method: 'npm' }],
+        linux: [{ command: 'npm install -g @openai/codex', method: 'npm' }],
+        windows: [{ command: 'npm install -g @openai/codex', method: 'npm' }],
       },
     },
     models: { kind: 'none' },
@@ -30,6 +30,11 @@ export const metadata = defineMetadata({
     },
     mcp: { kind: 'supported', scope: 'global', supportedTransports: ['stdio'] },
     plugin: { kind: 'none' },
+    updates: {
+      kind: 'supported',
+      releaseSource: { kind: 'npm', package: '@openai/codex' },
+      update: { kind: 'package-manager' },
+    },
   },
 });
 

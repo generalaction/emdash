@@ -1,8 +1,8 @@
+import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
 import {
   getConversationsForTask,
   getTerminalsForTask,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { metadataRegistry } from 'cli-agent-plugins/metadata';
 import { appState } from '@renderer/lib/stores/app-state';
 import { formatBytes } from '@renderer/utils/formatBytes';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';

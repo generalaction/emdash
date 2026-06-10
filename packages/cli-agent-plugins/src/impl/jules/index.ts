@@ -13,9 +13,9 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['jules'],
       installCommands: {
-        macos: { command: 'npm install -g @google/jules', method: 'npm' },
-        linux: { command: 'npm install -g @google/jules', method: 'npm' },
-        windows: { command: 'npm install -g @google/jules', method: 'npm' },
+        macos: [{ command: 'npm install -g @google/jules', method: 'npm' }],
+        linux: [{ command: 'npm install -g @google/jules', method: 'npm' }],
+        windows: [{ command: 'npm install -g @google/jules', method: 'npm' }],
       },
     },
     models: { kind: 'none' },
@@ -26,6 +26,11 @@ export const metadata = defineMetadata({
     hooks: { kind: 'none' },
     mcp: { kind: 'none' },
     plugin: { kind: 'none' },
+    updates: {
+      kind: 'supported',
+      releaseSource: { kind: 'npm', package: '@google/jules' },
+      update: { kind: 'package-manager' },
+    },
   },
 });
 

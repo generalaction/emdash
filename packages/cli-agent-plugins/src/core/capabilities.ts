@@ -18,6 +18,15 @@ export type InstallMethod =
   | 'cargo'
   | 'other';
 
+export type InstallOption = {
+  method: InstallMethod;
+  command: string;
+  /** Human-readable display name shown in the UI. Defaults to a humanized method label. */
+  label?: string;
+  /** When true this option is preselected and sorted first. */
+  recommended?: boolean;
+};
+
 // ── Models ───────────────────────────────────────────────────────────────────
 
 export type ModelOption = {
@@ -86,3 +95,28 @@ export type McpServerRegistration = {
 // ── Plugin scope ─────────────────────────────────────────────────────────────
 
 export type PluginScope = { kind: 'global' } | { kind: 'workspace'; path: string };
+
+// ── Updates ──────────────────────────────────────────────────────────────────
+
+/** Where to look up the latest published version. */
+export type ReleaseSource =
+  | { kind: 'npm'; package: string }
+  | { kind: 'github'; repo: `${string}/${string}` }
+  | { kind: 'none' };
+
+/** How emdash should apply an update when one is available. */
+export type UpdateStrategy =
+  /** Re-run the package-manager install command (or an explicit override). */
+  | {
+      kind: 'package-manager';
+      updateCommands?: Partial<Record<Platform, { command: string; method: InstallMethod }>>;
+    }
+  /** Run the agent's own update subcommand, e.g. `claude update`. */
+  | { kind: 'cli'; args: string[] }
+  /** Agent manages its own updates; emdash reports the version diff but takes no action. */
+  | { kind: 'auto' }
+  | { kind: 'none' };
+
+export type UpdatesDescriptor =
+  | { kind: 'supported'; releaseSource: ReleaseSource; update: UpdateStrategy }
+  | { kind: 'none' };

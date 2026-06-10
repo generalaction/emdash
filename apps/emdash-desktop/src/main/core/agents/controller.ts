@@ -1,3 +1,4 @@
+import type { InstallMethod } from '@emdash/cli-agent-plugins';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
 import { createRPCController } from '@shared/lib/ipc/rpc';
@@ -16,9 +17,14 @@ export const agentsController = createRPCController({
     return buildAgentPayload(id, Object.fromEntries(mgr.getAll()));
   },
 
-  install: async (id: AgentProviderId, connectionId?: string) => {
+  install: async (id: AgentProviderId, connectionId?: string, method?: InstallMethod) => {
     const mgr = await getDependencyManager(connectionId);
-    return mgr.install(id);
+    return mgr.install(id, method);
+  },
+
+  update: async (id: AgentProviderId, connectionId?: string) => {
+    const mgr = await getDependencyManager(connectionId);
+    return mgr.update(id);
   },
 
   getDefaultSettings: async (id: string): Promise<ProviderCustomConfig | null> => {

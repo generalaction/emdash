@@ -1,7 +1,7 @@
+import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
 import { useMemo } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { appState } from '@renderer/lib/stores/app-state';
-import { metadataRegistry } from 'cli-agent-plugins/metadata';
 import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { getAgentInstallErrorMessage } from './agent-install';
 import { buildAgentGroups, getAssumedInstalledAgents } from './agent-selector-options';
@@ -54,7 +54,10 @@ export function useAgentAvailability({
       return;
     }
 
-    toast({ title: 'Agent installed', description: `${metadataRegistry.get(agentId)?.name ?? agentId} is ready.` });
+    toast({
+      title: 'Agent installed',
+      description: `${metadataRegistry.get(agentId)?.name ?? agentId} is ready.`,
+    });
   }
 
   return {

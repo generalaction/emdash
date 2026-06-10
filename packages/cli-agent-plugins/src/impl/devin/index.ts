@@ -13,8 +13,8 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['devin'],
       installCommands: {
-        macos: { command: 'curl -fsSL https://cli.devin.ai/install.sh | bash', method: 'curl' },
-        linux: { command: 'curl -fsSL https://cli.devin.ai/install.sh | bash', method: 'curl' },
+        macos: [{ command: 'curl -fsSL https://cli.devin.ai/install.sh | bash', method: 'curl' }],
+        linux: [{ command: 'curl -fsSL https://cli.devin.ai/install.sh | bash', method: 'curl' }],
       },
     },
     models: { kind: 'none' },
@@ -29,6 +29,11 @@ export const metadata = defineMetadata({
     },
     mcp: { kind: 'none' },
     plugin: { kind: 'none' },
+    updates: {
+      kind: 'supported',
+      releaseSource: { kind: 'none' },
+      update: { kind: 'package-manager' },
+    },
   },
 });
 

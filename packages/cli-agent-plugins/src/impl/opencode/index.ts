@@ -17,9 +17,9 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['opencode'],
       installCommands: {
-        macos: { command: 'npm install -g opencode-ai', method: 'npm' },
-        linux: { command: 'npm install -g opencode-ai', method: 'npm' },
-        windows: { command: 'npm install -g opencode-ai', method: 'npm' },
+        macos: [{ command: 'npm install -g opencode-ai', method: 'npm' }],
+        linux: [{ command: 'npm install -g opencode-ai', method: 'npm' }],
+        windows: [{ command: 'npm install -g opencode-ai', method: 'npm' }],
       },
     },
     models: { kind: 'none' },
@@ -34,6 +34,11 @@ export const metadata = defineMetadata({
     },
     mcp: { kind: 'supported', scope: 'global', supportedTransports: ['stdio', 'http'] },
     plugin: { kind: 'file-drop', scope: 'workspace' },
+    updates: {
+      kind: 'supported',
+      releaseSource: { kind: 'npm', package: 'opencode-ai' },
+      update: { kind: 'package-manager' },
+    },
   },
 });
 

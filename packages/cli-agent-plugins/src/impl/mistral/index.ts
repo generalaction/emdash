@@ -13,14 +13,10 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['vibe'],
       installCommands: {
-        macos: {
-          command: 'curl -LsSf https://mistral.ai/vibe/install.sh | bash',
-          method: 'curl',
-        },
-        linux: {
-          command: 'curl -LsSf https://mistral.ai/vibe/install.sh | bash',
-          method: 'curl',
-        },
+        macos: [{ command: 'curl -LsSf https://mistral.ai/vibe/install.sh | bash',
+          method: 'curl', }],
+        linux: [{ command: 'curl -LsSf https://mistral.ai/vibe/install.sh | bash',
+          method: 'curl', }],
       },
     },
     models: { kind: 'none' },
@@ -31,6 +27,11 @@ export const metadata = defineMetadata({
     hooks: { kind: 'none' },
     mcp: { kind: 'none' },
     plugin: { kind: 'none' },
+    updates: {
+      kind: 'supported',
+      releaseSource: { kind: 'github', repo: 'mistralai/mistral-vibe' },
+      update: { kind: 'package-manager' },
+    },
   },
 });
 

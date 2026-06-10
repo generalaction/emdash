@@ -87,12 +87,47 @@ describe('metadataRegistry', () => {
     }
   });
 
+  it('each entry has capabilities.updates with valid kind', () => {
+    for (const m of metadataRegistry.getAll()) {
+      expect(m.capabilities.updates).toBeDefined();
+      expect(['supported', 'none']).toContain(m.capabilities.updates.kind);
+    }
+  });
+
+  it('supported updates have valid releaseSource and update strategy', () => {
+    for (const m of metadataRegistry.getAll()) {
+      if (m.capabilities.updates.kind !== 'supported') continue;
+      const { releaseSource, update } = m.capabilities.updates;
+      expect(['npm', 'github', 'none']).toContain(releaseSource.kind);
+      expect(['package-manager', 'cli', 'auto', 'none']).toContain(update.kind);
+    }
+  });
+
   it('all binaryNames are non-empty strings', () => {
     for (const m of metadataRegistry.getAll()) {
       expect(m.capabilities.install.binaryNames.length).toBeGreaterThan(0);
       for (const bin of m.capabilities.install.binaryNames) {
         expect(typeof bin).toBe('string');
         expect(bin.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('each defined platform installCommands entry is a non-empty array of valid InstallOptions', () => {
+    const validMethods = [
+      'installer-macos', 'installer-windows', 'installer-linux',
+      'homebrew', 'winget', 'npm', 'apt', 'curl', 'pip', 'cargo', 'other',
+    ];
+    for (const m of metadataRegistry.getAll()) {
+      const { installCommands } = m.capabilities.install;
+      for (const [platform, options] of Object.entries(installCommands)) {
+        expect(Array.isArray(options), `${m.id}.${platform} should be an array`).toBe(true);
+        expect(options!.length, `${m.id}.${platform} array should be non-empty`).toBeGreaterThan(0);
+        for (const opt of options!) {
+          expect(typeof opt.command, `${m.id}.${platform} command should be a string`).toBe('string');
+          expect(opt.command.length, `${m.id}.${platform} command should be non-empty`).toBeGreaterThan(0);
+          expect(validMethods, `${m.id}.${platform} method should be valid`).toContain(opt.method);
+        }
       }
     }
   });

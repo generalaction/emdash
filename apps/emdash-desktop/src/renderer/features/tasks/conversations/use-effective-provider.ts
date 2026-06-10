@@ -1,4 +1,4 @@
-import { metadataRegistry } from 'cli-agent-plugins/metadata';
+import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
 import { useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { appState } from '@renderer/lib/stores/app-state';

@@ -13,8 +13,8 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['cursor-agent'],
       installCommands: {
-        macos: { command: 'curl https://cursor.com/install -fsS | bash', method: 'curl' },
-        linux: { command: 'curl https://cursor.com/install -fsS | bash', method: 'curl' },
+        macos: [{ command: 'curl https://cursor.com/install -fsS | bash', method: 'curl' }],
+        linux: [{ command: 'curl https://cursor.com/install -fsS | bash', method: 'curl' }],
       },
     },
     models: { kind: 'none' },
@@ -25,6 +25,11 @@ export const metadata = defineMetadata({
     hooks: { kind: 'none' },
     mcp: { kind: 'supported', scope: 'global', supportedTransports: ['stdio', 'http'] },
     plugin: { kind: 'none' },
+    updates: {
+      kind: 'supported',
+      releaseSource: { kind: 'none' },
+      update: { kind: 'package-manager' },
+    },
   },
 });
 

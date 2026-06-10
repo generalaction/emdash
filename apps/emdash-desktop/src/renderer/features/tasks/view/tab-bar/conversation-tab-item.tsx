@@ -128,8 +128,7 @@ export const ConversationTabDragPreview = observer(function ConversationTabDragP
   return (
     <TabDragPreviewShell>
       {tab.store.data.providerId ? (
-        <AgentIcon id={tab.store.data.providerId} size={16} className="shrink-0"
-        />
+        <AgentIcon id={tab.store.data.providerId} size={16} className="shrink-0" />
       ) : null}
       <span className="max-w-[200px] truncate">{label}</span>
     </TabDragPreviewShell>

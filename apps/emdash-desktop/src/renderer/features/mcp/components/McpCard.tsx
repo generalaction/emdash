@@ -1,3 +1,4 @@
+import { iconRegistry } from '@emdash/cli-agent-plugins/icons';
 import { ExternalLink, Globe, Pencil, Plus, Terminal } from 'lucide-react';
 import React from 'react';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
@@ -5,7 +6,6 @@ import { CardGridItem } from '@renderer/lib/components/card-grid';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { McpServerIcon } from '@renderer/utils/mcpIcons';
-import { iconRegistry } from 'cli-agent-plugins/icons';
 import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { McpCatalogEntry, McpServer } from '@shared/core/mcp/types';
 

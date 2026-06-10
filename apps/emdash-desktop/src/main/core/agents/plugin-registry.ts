@@ -1,6 +1,6 @@
-import type { CLIAgentPluginMetadata, CLIAgentPluginProvider } from 'cli-agent-plugins';
-import { metadataRegistry } from 'cli-agent-plugins/metadata';
-import { providerRegistry } from 'cli-agent-plugins/providers';
+import type { CLIAgentPluginMetadata, CLIAgentPluginProvider } from '@emdash/cli-agent-plugins';
+import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
+import { providerRegistry } from '@emdash/cli-agent-plugins/providers';
 import { AGENT_PROVIDER_IDS } from '@shared/core/agents/agent-provider-registry';
 
 // Assert plugin ids match the canonical AGENT_PROVIDER_IDS list at startup.

@@ -14,8 +14,8 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['rovodev', 'acli'],
       installCommands: {
-        macos: { command: 'acli rovodev auth login', method: 'other' },
-        linux: { command: 'acli rovodev auth login', method: 'other' },
+        macos: [{ command: 'acli rovodev auth login', method: 'other' }],
+        linux: [{ command: 'acli rovodev auth login', method: 'other' }],
       },
     },
     models: { kind: 'none' },
@@ -26,6 +26,7 @@ export const metadata = defineMetadata({
     hooks: { kind: 'none' },
     mcp: { kind: 'none' },
     plugin: { kind: 'none' },
+    updates: { kind: 'none' },
   },
 });
 

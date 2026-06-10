@@ -13,9 +13,9 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['autohand'],
       installCommands: {
-        macos: { command: 'npm install -g autohand-cli', method: 'npm' },
-        linux: { command: 'npm install -g autohand-cli', method: 'npm' },
-        windows: { command: 'npm install -g autohand-cli', method: 'npm' },
+        macos: [{ command: 'npm install -g autohand-cli', method: 'npm' }],
+        linux: [{ command: 'npm install -g autohand-cli', method: 'npm' }],
+        windows: [{ command: 'npm install -g autohand-cli', method: 'npm' }],
       },
     },
     models: { kind: 'none' },
@@ -26,6 +26,11 @@ export const metadata = defineMetadata({
     hooks: { kind: 'none' },
     mcp: { kind: 'none' },
     plugin: { kind: 'none' },
+    updates: {
+      kind: 'supported',
+      releaseSource: { kind: 'npm', package: 'autohand-cli' },
+      update: { kind: 'package-manager' },
+    },
   },
 });
 

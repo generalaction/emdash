@@ -16,18 +16,12 @@ export const metadata = defineMetadata({
     install: {
       binaryNames: ['pi'],
       installCommands: {
-        macos: {
-          command: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
-          method: 'npm',
-        },
-        linux: {
-          command: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
-          method: 'npm',
-        },
-        windows: {
-          command: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
-          method: 'npm',
-        },
+        macos: [{ command: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
+          method: 'npm', }],
+        linux: [{ command: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
+          method: 'npm', }],
+        windows: [{ command: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
+          method: 'npm', }],
       },
     },
     models: { kind: 'none' },
@@ -38,6 +32,11 @@ export const metadata = defineMetadata({
     hooks: { kind: 'plugin', scope: 'workspace', supportedEvents: ['stop'] },
     mcp: { kind: 'none' },
     plugin: { kind: 'file-drop', scope: 'workspace' },
+    updates: {
+      kind: 'supported',
+      releaseSource: { kind: 'npm', package: '@earendil-works/pi-coding-agent' },
+      update: { kind: 'package-manager' },
+    },
   },
 });
 

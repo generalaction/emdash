@@ -1,3 +1,4 @@
+import type { UpdatesDescriptor } from '@emdash/cli-agent-plugins';
 import type { DependencyCategory, DependencyId, DependencyStatus } from '@shared/core/dependencies';
 
 export interface ProbeResult {
@@ -32,6 +33,8 @@ export interface DependencyDescriptor {
    * Useful for CLIs that exit non-zero on `--version` but are still available.
    */
   resolveStatus?: (result: ProbeResult) => DependencyStatus;
+  /** Updates capability from plugin metadata. Absent for core dependencies. */
+  updates?: UpdatesDescriptor;
 }
 
 export type DependencyProbeOptions = {
