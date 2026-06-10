@@ -5,6 +5,8 @@ import { Arch, Platform, build as electronBuild } from 'electron-builder';
 import type { Configuration } from 'electron-builder';
 import { exec } from './lib/exec.ts';
 import { fail, info, step } from './lib/log.ts';
+import { resolveReleaseVersion } from './lib/version.ts';
+import type { ReleaseChannel } from './lib/version.ts';
 
 const { values } = parseArgs({
   options: {
@@ -12,6 +14,7 @@ const { values } = parseArgs({
     arch: { type: 'string', default: 'both' },
     targets: { type: 'string' },
     config: { type: 'string', default: 'electron-builder.config.ts' },
+    channel: { type: 'string', default: 'stable' },
   },
   strict: true,
 });
@@ -19,8 +22,13 @@ const { values } = parseArgs({
 const platform = values.platform;
 if (!platform || !['mac', 'linux', 'win'].includes(platform)) {
   fail(
-    'Usage: build.ts --platform mac|linux|win [--arch arm64|x64|both] [--targets dmg,zip] [--config electron-builder.config.ts]',
+    'Usage: build.ts --platform mac|linux|win [--arch arm64|x64|both] [--targets dmg,zip] [--config electron-builder.config.ts] [--channel stable|canary]',
   );
+}
+
+const channel = (values.channel ?? 'stable') as ReleaseChannel;
+if (!['stable', 'canary'].includes(channel)) {
+  fail(`Unknown channel "${channel}"; must be "stable" or "canary"`);
 }
 
 const archInput = values.arch ?? 'both';
@@ -45,6 +53,11 @@ const archMap: Record<string, Arch> = {
 };
 
 const ebPlatform = platformMap[platform];
+
+const { version: overrideVersion, tag, isCanary } = resolveReleaseVersion(channel);
+if (isCanary) {
+  info(`Canary build: packaging as version ${overrideVersion} (tag ${tag})`);
+}
 
 step('Creating deployment directory with production dependencies');
 const workspaceRoot = resolve(process.cwd(), '../..');
@@ -77,7 +90,12 @@ try {
     if (!archEnum) fail(`Unknown arch: ${arch}`);
 
     const buildTargets = ebPlatform.createTarget(targetList, archEnum);
-    const config: Configuration = { ...baseConfig, electronVersion, npmRebuild: false };
+    const config: Configuration = {
+      ...baseConfig,
+      electronVersion,
+      npmRebuild: false,
+      ...(isCanary ? { extraMetadata: { version: overrideVersion } } : {}),
+    };
 
     await electronBuild({
       targets: buildTargets,
