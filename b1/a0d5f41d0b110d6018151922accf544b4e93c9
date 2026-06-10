@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/renderer/features/projects/components/task-view/task-list-empty-state.tsx
+  s_be4adbe6fac101::t_aba30d2568b20b 17
+  s_be4adbe6fac101::t_443b74ec70890a 6
+  s_be4adbe6fac101::t_a75658bc41a1c5 43,47-49,51-55,63,69
+  s_be4adbe6fac101::t_2efa5fbff8e6ae 77
+  s_be4adbe6fac101::t_ae3caa6b6b87ae 26
+  s_be4adbe6fac101::t_d39e3a5d3ba141 86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "b1a0d5f41d0b110d6018151922accf544b4e93c9",
+  "prompts": {},
+  "sessions": {
+    "s_be4adbe6fac101": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a1dec3c5-9db5-403f-8456-73a20f78cc77",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
