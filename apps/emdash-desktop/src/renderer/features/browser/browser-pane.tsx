@@ -94,6 +94,7 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
       pendingUrlRef.current = url;
       browserSessionStore.updateSession(sessionBrowserId, {
         currentUrl: url,
+        faviconUrl: null,
         isLoading: true,
         loadError: null,
       });

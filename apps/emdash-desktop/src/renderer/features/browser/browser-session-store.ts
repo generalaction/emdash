@@ -18,9 +18,10 @@ export type BrowserSessionCreateInput = {
 };
 
 export type BrowserSessionUpdate = Partial<
-  Pick<BrowserSessionSnapshot, 'canGoBack' | 'canGoForward' | 'faviconUrl' | 'isLoading' | 'title'>
+  Pick<BrowserSessionSnapshot, 'canGoBack' | 'canGoForward' | 'isLoading' | 'title'>
 > & {
   currentUrl?: string;
+  faviconUrl?: string | null;
   loadError?: BrowserLoadError | null;
 };
 
@@ -82,6 +83,8 @@ export class BrowserSessionStore {
           : normalized.ok
             ? normalized.url
             : existing.currentUrl,
+      faviconUrl:
+        update.faviconUrl === null ? undefined : (update.faviconUrl ?? existing.faviconUrl),
       loadError: update.loadError === null ? undefined : (update.loadError ?? existing.loadError),
       updatedAt: Date.now(),
     };
