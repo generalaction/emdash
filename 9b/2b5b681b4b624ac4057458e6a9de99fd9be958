@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/git-store.ts
+  s_e764d9c2d656f1::t_bd10e77a3c0abd 20-21,384
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace.ts
+  s_e764d9c2d656f1::t_243b758bb9bbda 31-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "9b2b5b681b4b624ac4057458e6a9de99fd9be958",
+  "prompts": {},
+  "sessions": {
+    "s_e764d9c2d656f1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_149e331d2ffeln1gzKgjunXzJM",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
