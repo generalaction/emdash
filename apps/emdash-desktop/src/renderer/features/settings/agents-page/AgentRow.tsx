@@ -5,12 +5,6 @@ import { appState } from '@renderer/lib/stores/app-state';
 import type { AgentPayload } from '@shared/core/agents/agent-payload';
 import { InstalledBadge, UninstalledBadge, UpdateAvailableBadge } from './agent-status-badge';
 
-function formatSupportsText(agent: AgentPayload) {
-  const supportsHooks = agent.capabilities.hooks.kind !== 'none';
-  const supportsSessions = agent.capabilities.sessions.kind !== 'stateless';
-  return `Supports: Prompts${supportsHooks ? ', Hooks' : ''}${supportsSessions ? ', Sessions' : ''}`;
-}
-
 export const AgentRow = observer(
   ({ agent, onClick }: { agent: AgentPayload; onClick?: () => void }) => {
     const isInstalled = agent.status === 'available';
@@ -35,8 +29,8 @@ export const AgentRow = observer(
         className={`group flex w-full items-center gap-3 rounded-lg p-3 hover:bg-background-1${isClickable ? ' cursor-pointer text-left' : ''}`}
         onClick={isClickable ? onClick : undefined}
       >
-        <div className="flex size-9 items-center justify-center rounded-lg bg-background-1 p-1.5 group-hover:bg-background-2">
-          <AgentIcon id={agent.id} size={20} />
+        <div className="flex size-6 items-center justify-center rounded-lg bg-background-1 p-1.5 group-hover:bg-background-2">
+          <AgentIcon id={agent.id} size={16} />
         </div>
         <div className="flex w-full flex-col gap-0.5">
           <div className="flex w-full items-center justify-between">
@@ -44,21 +38,6 @@ export const AgentRow = observer(
             <div className="flex items-center gap-1.5">
               {updateState.render && <UpdateAvailableBadge />}
               {isInstalled ? <InstalledBadge /> : <UninstalledBadge />}
-            </div>
-          </div>
-          <div className="flex w-full items-center justify-between">
-            <span className="text-xs text-foreground-muted">{formatSupportsText(agent)}</span>
-            <div className="flex items-center gap-2">
-              {agent.version && (
-                <span className="text-tiny text-foreground-passive">
-                  {updateState.versionLabel ?? `v${agent.version}`}
-                </span>
-              )}
-              {!agent.version && agent.latestVersion && (
-                <span className="text-tiny text-foreground-passive">
-                  v{agent.latestVersion} available
-                </span>
-              )}
             </div>
           </div>
         </div>
