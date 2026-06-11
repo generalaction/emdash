@@ -7,7 +7,7 @@ import { fsWatchEventChannel } from '@shared/core/fs/fsEvents';
 import { localRef, refsEqual, type FullGitStatus, type GitChange } from '@shared/core/git/git';
 import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/core/git/gitEvents';
 import { err, ok } from '@shared/lib/result';
-import { formatFetchErrorDetail, formatPushErrorDetail } from '../../utils';
+import { formatPushErrorDetail } from '../../utils';
 
 const TOO_MANY_FILES_MSG = 'Too many files changed to display';
 
@@ -17,8 +17,7 @@ export class GitStore {
   constructor(
     private readonly projectId: string,
     private readonly workspaceId: string,
-    private readonly repositoryStore: RepositoryStore,
-    private readonly opts?: { isSshProject?: boolean }
+    private readonly repositoryStore: RepositoryStore
   ) {
     this.fullStatus = new Resource<FullGitStatus>(
       () => this._fetchFullStatus(),
@@ -377,13 +376,7 @@ export class GitStore {
       this.repositoryStore.refreshRemote(); // fetch updates remote-tracking refs
       return ok();
     } else {
-      const detail =
-        result.error.type === 'not_found'
-          ? 'The project is no longer open.'
-          : formatFetchErrorDetail(result.error, {
-              isSshProject: this.opts?.isSshProject,
-            });
-      toast.error(`Failed to fetch remote changes: ${detail}`);
+      toast.error(`Failed to fetch remote changes: ${result.error.type} `);
       return err(result.error);
     }
   }

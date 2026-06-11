@@ -28,9 +28,7 @@ export class WorkspaceStore implements ILifecycle {
     this.path = path;
     this.sshConnectionId = sshConnectionId;
     this.repository = new RepositoryStore(projectId, settingsStore, baseRef, workspaceId);
-    this.git = new GitStore(projectId, workspaceId, this.repository, {
-      isSshProject: sshConnectionId !== undefined,
-    });
+    this.git = new GitStore(projectId, workspaceId, this.repository);
     this.files = new FilesStore(projectId, workspaceId);
     this.lifecycleScripts = new LifecycleScriptsStore(projectId, workspaceId);
   }
