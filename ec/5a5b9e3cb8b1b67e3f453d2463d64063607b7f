@@ -1,0 +1,20 @@
+apps/emdash-desktop/src/main/core/browser/browser-profile-session.ts
+  s_a44d85a475a480::t_cd31743d6c5c8c 18-24
+  s_a44d85a475a480::t_a4140fdca6d9a4 40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "ec5a5b9e3cb8b1b67e3f453d2463d64063607b7f",
+  "prompts": {},
+  "sessions": {
+    "s_a44d85a475a480": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "85de816c-4744-441c-b3a5-8a57cf83eb6e",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
