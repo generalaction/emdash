@@ -1,4 +1,4 @@
-import type { IExecutionContext } from '@emdash/shared/exec';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type { WorktreeHost } from '@main/core/projects/worktrees/hosts/worktree-host';
 

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import type { IExecutionContext } from '@emdash/shared/exec';
 import { describe, expect, it } from 'vitest';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitService } from './git-service';
 import { computeBaseRef } from './git-utils';

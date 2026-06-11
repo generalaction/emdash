@@ -1,4 +1,3 @@
-import type { ExecContextOptions, ExecResult, IExecutionContext } from '@emdash/shared/exec';
 import {
   buildRemoteShellCommand,
   FALLBACK_REMOTE_SHELL_PROFILE,
@@ -7,6 +6,7 @@ import {
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { quoteShellArg } from '@main/utils/shellEscape';
 import { NON_INTERACTIVE_GIT_ENV } from './non-interactive-git-env';
+import type { ExecOptions, ExecResult, IExecutionContext } from './types';
 
 function withNonInteractiveGitEnv(command: string): string {
   if (command !== 'git') return command;
@@ -47,11 +47,7 @@ export class SshExecutionContext implements IExecutionContext {
     this.root = opts.root;
   }
 
-  async exec(
-    command: string,
-    args: string[] = [],
-    opts: ExecContextOptions = {}
-  ): Promise<ExecResult> {
+  async exec(command: string, args: string[] = [], opts: ExecOptions = {}): Promise<ExecResult> {
     const { signal } = opts;
     const profile = await this.proxy.getRemoteShellProfile();
     const full = buildSshCommand(this.root, command, args, profile);

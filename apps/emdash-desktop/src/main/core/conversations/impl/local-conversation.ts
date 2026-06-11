@@ -1,5 +1,4 @@
 import { homedir } from 'node:os';
-import type { IExecutionContext } from '@emdash/shared/exec';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
 import { createPluginFs } from '@main/core/agents/plugin-fs';
@@ -13,6 +12,7 @@ import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { localDependencyManager } from '@main/core/dependencies/dependency-managers';
 import { hostDependencyStore } from '@main/core/dependencies/host-dependency-store';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
 import { buildAgentEnv } from '@main/core/pty/pty-env';

@@ -1,5 +1,5 @@
-import type { IExecutionContext } from '@emdash/shared/exec';
 import { describe, expect, it, vi } from 'vitest';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import { cloneRepository } from './git-repo-utils';
 
 function makeContext(): IExecutionContext & {
