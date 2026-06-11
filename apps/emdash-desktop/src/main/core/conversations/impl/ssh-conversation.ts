@@ -3,6 +3,7 @@ import { getPlugin, getPluginMetadata } from '@main/core/agents/plugin-registry'
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
+import { hostDependencyStore } from '@main/core/dependencies/host-dependency-store';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { Pty } from '@main/core/pty/pty';
@@ -128,9 +129,10 @@ export class SshConversationProvider implements ConversationProvider {
       const binaryName = meta.capabilities.install.binaryNames[0] ?? conversation.providerId;
       const executableCli = await resolveAgentExecutable({
         providerId: conversation.providerId,
-        cfg: providerConfig,
         binaryName,
         ctx: this.ctx,
+        hostDependencyStore,
+        connectionId: this.proxy.connectionId,
       });
 
       const agentCommand = plugin.buildCommand({

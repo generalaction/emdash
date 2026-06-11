@@ -10,6 +10,8 @@ import type {
   DependencyStatusMap,
   DependencyStatusUpdatedEvent,
   DependencyUpdateResult,
+  HostDependency,
+  HostDependencySelection,
 } from '@shared/core/dependencies';
 import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
 import { events, rpc } from '../../lib/ipc';
@@ -36,20 +38,27 @@ export class DependenciesStore {
   private readonly _remoteStores = new Map<string, Resource<DependencyStatusMap>>();
   /** Single observable map tracking all in-flight install and update operations. */
   private readonly _operations = observable.map<string, DependencyOperation>();
+  /**
+   * Per-host, per-dep HostDependency objects keyed by `${hostId}:${depId}`.
+   * Populated from DependencyStatusUpdatedEvent.hostDependency when present.
+   */
+  private readonly _hostDependencies = observable.map<string, HostDependency>();
   private _focusRefresh: Promise<void> | null = null;
   private _lastFocusRefreshAt = 0;
   private _stopFocusRefresh: (() => void) | null = null;
   private _disposed = false;
 
   constructor() {
-    makeObservable<this, '_operations'>(this, {
+    makeObservable<this, '_operations' | '_hostDependencies'>(this, {
       _operations: observable,
+      _hostDependencies: observable,
       allStatuses: computed,
       agentStatuses: computed,
       localInstalledAgents: computed,
       install: action,
       update: action,
       probeAll: action,
+      setUsedInstallation: action,
     });
 
     this.local = new Resource<DependencyStatusMap, DependencyStatusUpdatedEvent>(async () => {
@@ -59,7 +68,13 @@ export class DependenciesStore {
       {
         kind: 'event',
         subscribe: (handler) => events.on(dependencyStatusUpdatedChannel, handler),
-        onEvent: ({ id, state, connectionId }, ctx) => {
+        onEvent: ({ id, state, connectionId, hostDependency }, ctx) => {
+          if (hostDependency) {
+            const key = `${connectionId ?? 'local'}:${id}`;
+            runInAction(() => {
+              this._hostDependencies.set(key, hostDependency);
+            });
+          }
           if (connectionId) {
             const remote = this.getRemote(connectionId);
             remote.setValue({ ...remote.data, [id]: state as DependencyState });
@@ -254,6 +269,26 @@ export class DependenciesStore {
   async probeAll(): Promise<void> {
     await rpc.dependencies.probeAll(undefined, { refreshShellEnv: true });
     this.local.invalidate();
+  }
+
+  /** Returns the HostDependency for a dep on a specific host, if available. */
+  getHostDependency(id: DependencyId, connectionId?: string): HostDependency | undefined {
+    return this._hostDependencies.get(`${connectionId ?? 'local'}:${id}`);
+  }
+
+  /** Persists a host-scoped installation selection and triggers a re-probe. */
+  async setUsedInstallation(
+    id: DependencyId,
+    connectionId: string | undefined,
+    selection: HostDependencySelection
+  ): Promise<void> {
+    await rpc.dependencies.setUsedInstallation(id, connectionId, selection);
+    this.agents.invalidate();
+  }
+
+  /** Fetch the latest available version for a dep and update state. */
+  async refreshLatestVersion(id: DependencyId, connectionId?: string): Promise<void> {
+    await rpc.dependencies.refreshLatestVersion(id, connectionId);
   }
 
   async refreshAgents(

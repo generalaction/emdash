@@ -114,4 +114,24 @@ export class OverrideSettings<TConfig extends object> {
     await db.delete(appSettings).where(eq(appSettings.key, this.storageKey)).execute();
     this.cache = null;
   }
+
+  /** Expose the raw stored overrides (unvalidated) for migration purposes. */
+  async getRawOverrides(): Promise<Record<string, Record<string, unknown>>> {
+    const [row] = await db
+      .select()
+      .from(appSettings)
+      .where(eq(appSettings.key, this.storageKey))
+      .execute();
+    if (!row) return {};
+    try {
+      return JSON.parse(row.value) as Record<string, Record<string, unknown>>;
+    } catch {
+      return {};
+    }
+  }
+
+  /** Invalidate the in-memory cache (e.g. after an external write to the DB). */
+  invalidateCache(): void {
+    this.cache = null;
+  }
 }

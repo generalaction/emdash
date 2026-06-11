@@ -2,11 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback } from 'react';
-import {
-  InstallSection,
-  type UseInstallationPayload,
-} from '@renderer/features/settings/agents-page/InstallSection';
-import { useProviderSettings } from '@renderer/features/settings/use-provider-settings';
+import { InstallSection } from '@renderer/features/settings/agents-page/InstallSection';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { rpc } from '@renderer/lib/ipc';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -19,7 +15,7 @@ import {
   getProvider,
   type AgentProviderId,
 } from '@shared/core/agents/agent-provider-registry';
-import type { ProviderCustomConfig } from '@shared/core/app-settings';
+import type { DependencyId, HostDependencySelection } from '@shared/core/dependencies';
 
 type Props = {
   id: AgentProviderId;
@@ -47,24 +43,27 @@ export const AgentInfoCard: React.FC<Props> = observer(({ id, connectionId }) =>
   const isInstalled = (depState?.status ?? payload?.status) === 'available';
   const updateAvailable = depState?.updateAvailable ?? payload?.updateAvailable ?? false;
 
-  // Stored provider config (global, not per-connection).
-  const { value: storedConfig, update } = useProviderSettings(id);
-
   const handleUseInstallation = useCallback(
-    (p: UseInstallationPayload) => {
-      const current: ProviderCustomConfig = storedConfig ?? {};
-      update(
-        {
-          ...current,
-          installSource: p.installSource,
-          path: p.path !== undefined ? p.path : current.path,
-          cli: p.cli !== undefined ? p.cli : current.cli,
-        },
-        { onError: (err) => log.error('AgentInfoCard: failed to save install source', err) }
-      );
+    async (selection: HostDependencySelection) => {
+      try {
+        await appState.dependencies.setUsedInstallation(
+          id as DependencyId,
+          connectionId,
+          selection
+        );
+      } catch (err) {
+        log.error('AgentInfoCard: failed to save install source', err);
+      }
     },
-    [storedConfig, update]
+    [id, connectionId]
   );
+
+  const pathValue = payload?.installations.find((i) => i.id === 'path')?.source as
+    | { kind: 'path'; path: string }
+    | undefined;
+  const cliValue = payload?.installations.find((i) => i.id === 'cli')?.source as
+    | { kind: 'cli'; command: string }
+    | undefined;
 
   return (
     <div className="w-96 bg-background-quaternary p-3">
@@ -98,9 +97,9 @@ export const AgentInfoCard: React.FC<Props> = observer(({ id, connectionId }) =>
           installDocs={payload.installDocs}
           isInstalled={isInstalled}
           updateAvailable={updateAvailable}
-          installSource={storedConfig?.installSource}
-          pathValue={storedConfig?.path}
-          cliValue={storedConfig?.cli}
+          usedInstallationId={payload.usedId || null}
+          pathValue={pathValue?.path}
+          cliValue={cliValue?.command}
           onUseInstallation={handleUseInstallation}
           hideOverrideOptions={!isInstalled || !!connectionId}
         />

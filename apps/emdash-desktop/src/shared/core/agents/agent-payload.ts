@@ -11,7 +11,7 @@ import type {
   UpdatesDescriptor,
 } from '@emdash/cli-agent-plugins';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
-import type { DependencyStatus } from '@shared/core/dependencies';
+import type { DependencyStatus, Installation } from '@shared/core/dependencies';
 
 export type AgentCapabilities = {
   install: InstallationMetadata;
@@ -48,4 +48,8 @@ export type AgentPayload = {
   installOptions: InstallOption[];
   /** Link to installation documentation, null if not set by the plugin. */
   installDocs: string | null;
+  /** Per-installation status objects (from HostDependency). Empty until first probe. */
+  installations: Installation[];
+  /** ID of the currently selected installation for conversation spawns. */
+  usedId: string;
 };

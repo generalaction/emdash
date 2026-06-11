@@ -3,6 +3,13 @@ import type { IExecutionContext } from '@main/core/execution-context/types';
 import { err, ok } from '@shared/lib/result';
 import { DependencyManager } from './dependency-manager';
 
+vi.mock('./host-dependency-store', () => ({
+  hostDependencyStore: {
+    getSelection: vi.fn().mockResolvedValue(null),
+    setSelection: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 vi.mock('@main/core/settings/settings-service', () => ({
   appSettingsService: {
     get: vi.fn(async () => ({

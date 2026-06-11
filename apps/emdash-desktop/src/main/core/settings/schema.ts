@@ -1,4 +1,3 @@
-import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
 import z from 'zod';
 import { AGENT_PROVIDER_IDS } from '@shared/core/agents/agent-provider-registry';
 import {
@@ -71,28 +70,17 @@ export const keyboardSettingsSchema = z
   )
   .default({});
 
+/**
+ * Per-provider execution settings stored as host-agnostic overrides.
+ * Installation source/path/cli overrides are now stored host-specifically
+ * in the HostDependencyStore (KV for local, SSH connection metadata for remote).
+ */
 export const providerCustomConfigEntrySchema = z.object({
-  cli: z.string().optional(),
-  /** Absolute path to the agent binary, set when the user chooses "Use this installation". */
-  path: z.string().optional(),
-  /**
-   * Which install source to use for conversation spawns.
-   * 'path' = use the stored `path` field.
-   * 'cli'  = use the stored `cli` field (resolved on PATH).
-   * Any InstallMethod value = auto-resolve via the probed dependency state.
-   * Absent = auto (same as method resolution without a stored preference).
-   */
-  installSource: z.string().optional(),
   extraArgs: z.string().optional(),
   env: z.record(z.string(), z.string()).optional(),
 });
 
-export const providerConfigDefaults = Object.fromEntries(
-  metadataRegistry
-    .getAll()
-    .filter((m) => m.capabilities.install.binaryNames.length > 0)
-    .map((m) => [m.id, { cli: m.capabilities.install.binaryNames[0] }])
-);
+export const providerConfigDefaults: Record<string, unknown> = {};
 
 export const interfaceSettingsSchema = z.object({
   taskHoverAction: z.enum(['delete', 'archive']),

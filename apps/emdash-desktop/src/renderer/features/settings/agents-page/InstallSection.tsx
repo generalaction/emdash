@@ -3,6 +3,7 @@ import { Check, ChevronDown, Copy, Loader2, MoreHorizontal } from 'lucide-react'
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useMemo, useState } from 'react';
 import { appState } from '@renderer/lib/stores/app-state';
+import { Alert } from '@renderer/lib/ui/alert';
 import {
   Combobox,
   ComboboxContent,
@@ -27,7 +28,6 @@ import {
   UpdatingBadge,
   UsedBadge,
 } from './agent-status-badge';
-import { Alert } from '@renderer/lib/ui/alert';
 
 /** Synthetic option keys that represent user-override sources, not plugin-defined methods. */
 type SyntheticSource = 'path' | 'cli';
@@ -107,11 +107,7 @@ function CommandActionButton({ ...props }: React.ButtonHTMLAttributes<HTMLButton
   );
 }
 
-export type UseInstallationPayload = {
-  installSource: string;
-  path?: string;
-  cli?: string;
-};
+import type { HostDependencySelection } from '@shared/core/dependencies';
 
 export type InstallSectionProps = {
   agentId: string;
@@ -121,14 +117,17 @@ export type InstallSectionProps = {
   updateAvailable: boolean;
   /** SSH connection id; when provided, install/update/status operate on the remote host. */
   connectionId?: string;
-  /** Currently persisted install source (installSource value from storedConfig). */
-  installSource?: string | null;
-  /** Currently persisted custom path override. */
+  /**
+   * ID of the currently-selected installation (from agentPayload.usedId or HostDependency.usedId).
+   * Maps to: 'method:<InstallMethod>', 'path', 'cli', or 'auto'.
+   */
+  usedInstallationId?: string | null;
+  /** Path value from the 'path' installation override (agentPayload.installations). */
   pathValue?: string | null;
-  /** Currently persisted CLI override. */
+  /** CLI value from the 'cli' installation override (agentPayload.installations). */
   cliValue?: string | null;
   /** Called when the user clicks "Use this installation". */
-  onUseInstallation?: (payload: UseInstallationPayload) => void;
+  onUseInstallation?: (selection: HostDependencySelection) => void;
   /**
    * When true, the synthetic "CLI Override" and "Path Override" select entries are hidden
    * and the triple-dot "Use this installation" menu is suppressed.
@@ -143,7 +142,7 @@ export const InstallSection = observer(function InstallSection({
   isInstalled,
   updateAvailable,
   connectionId,
-  installSource,
+  usedInstallationId,
   pathValue,
   cliValue,
   onUseInstallation,
@@ -155,12 +154,23 @@ export const InstallSection = observer(function InstallSection({
   const [localPath, setLocalPath] = useState(pathValue ?? '');
   const [localCli, setLocalCli] = useState(cliValue ?? '');
 
+  // Derive the current SelectionValue from usedInstallationId.
+  // usedInstallationId is 'method:<InstallMethod>', 'path', 'cli', or 'auto'.
+  const resolvedInstallSource = useMemo<SelectionValue | null>(() => {
+    if (!usedInstallationId) return null;
+    if (usedInstallationId === 'path' || usedInstallationId === 'cli')
+      return usedInstallationId as SelectionValue;
+    if (usedInstallationId.startsWith('method:'))
+      return usedInstallationId.slice('method:'.length) as InstallMethod;
+    return null;
+  }, [usedInstallationId]);
+
   const defaultSelection = useMemo<SelectionValue>(() => {
-    if (installSource) return installSource as SelectionValue;
+    if (resolvedInstallSource) return resolvedInstallSource;
     const recommended = installOptions.find((o) => o.recommended);
     if (recommended) return recommended.method;
     return installOptions[0]?.method ?? 'path';
-  }, [installSource, installOptions]);
+  }, [resolvedInstallSource, installOptions]);
 
   const [selectedValue, setSelectedValue] = useState<SelectionValue>(defaultSelection);
 
@@ -191,21 +201,21 @@ export const InstallSection = observer(function InstallSection({
   const handleUseInstallation = useCallback(() => {
     if (!onUseInstallation) return;
     if (selectedValue === 'path') {
-      onUseInstallation({ installSource: 'path', path: localPath });
+      onUseInstallation({ usedId: 'path', path: localPath });
     } else if (selectedValue === 'cli') {
-      onUseInstallation({ installSource: 'cli', cli: localCli });
+      onUseInstallation({ usedId: 'cli', cli: localCli });
     } else {
-      onUseInstallation({ installSource: selectedValue });
+      onUseInstallation({ usedId: `method:${selectedValue}` });
     }
   }, [onUseInstallation, selectedValue, localPath, localCli]);
 
   const isActiveSource = (value: SelectionValue): boolean => {
-    if (!installSource) {
+    if (!resolvedInstallSource) {
       // default: check if this is the recommended/first option
       const defaultOpt = installOptions.find((o) => o.recommended) ?? installOptions[0];
       return value === (defaultOpt?.method ?? 'path');
     }
-    return value === (installSource as SelectionValue);
+    return value === resolvedInstallSource;
   };
 
   const selectedIsActiveSource = isActiveSource(selectedValue);
@@ -307,7 +317,8 @@ export const InstallSection = observer(function InstallSection({
             className="font-mono text-sm"
           />
           <Alert variant="warning">
-            Using an absolute path to the agent binary overrides auto-resolution and disables emdash's ability to update the agent
+            Using an absolute path to the agent binary overrides auto-resolution and disables
+            emdash's ability to update the agent
           </Alert>
         </div>
       )}
@@ -320,8 +331,9 @@ export const InstallSection = observer(function InstallSection({
             placeholder="claude"
             className="font-mono text-sm"
           />
-                    <Alert variant="warning">
-            Enter the command name or binary resolved on PATH. This overrides auto-resolution and disables emdash's ability to update the agent
+          <Alert variant="warning">
+            Enter the command name or binary resolved on PATH. This overrides auto-resolution and
+            disables emdash's ability to update the agent
           </Alert>
         </div>
       )}

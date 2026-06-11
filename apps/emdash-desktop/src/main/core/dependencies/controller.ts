@@ -1,5 +1,10 @@
 import type { InstallMethod } from '@emdash/cli-agent-plugins';
-import type { DependencyCategory, DependencyId } from '@shared/core/dependencies';
+import type {
+  DependencyCategory,
+  DependencyId,
+  HostDependency,
+  HostDependencySelection,
+} from '@shared/core/dependencies';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { getDependencyManager } from './dependency-manager';
 import type { DependencyProbeOptions } from './types';
@@ -37,8 +42,29 @@ export const dependenciesController = createRPCController({
     const mgr = await getDependencyManager(connectionId);
     return mgr.install(id, method);
   },
-  update: async (id: DependencyId, connectionId?: string) => {
+  /** Fixed: now forwards the method argument (previously dropped). */
+  update: async (id: DependencyId, connectionId?: string, method?: InstallMethod) => {
     const mgr = await getDependencyManager(connectionId);
-    return mgr.update(id);
+    return mgr.update(id, method);
+  },
+  getHostDependency: async (
+    id: DependencyId,
+    connectionId?: string
+  ): Promise<HostDependency | undefined> => {
+    const mgr = await getDependencyManager(connectionId);
+    return mgr.getHostDependency(id);
+  },
+  setUsedInstallation: async (
+    id: DependencyId,
+    connectionId?: string,
+    selection?: HostDependencySelection
+  ): Promise<void> => {
+    if (!selection) return;
+    const mgr = await getDependencyManager(connectionId);
+    await mgr.setSelection(id, selection);
+  },
+  refreshLatestVersion: async (id: DependencyId, connectionId?: string): Promise<void> => {
+    const mgr = await getDependencyManager(connectionId);
+    await mgr.fetchLatestVersion(id);
   },
 });

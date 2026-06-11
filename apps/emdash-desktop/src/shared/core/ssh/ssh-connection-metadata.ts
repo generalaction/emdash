@@ -1,4 +1,5 @@
 import z from 'zod';
+import { hostDependencySelectionSchema } from '@shared/core/dependencies';
 import { defineVersionedSchema } from '@shared/lib/versioned-schema/versioned-schema';
 
 // ---------------------------------------------------------------------------
@@ -12,6 +13,18 @@ const v0Schema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// v1 schema — adds per-agent host-scoped dependency selections
+// ---------------------------------------------------------------------------
+
+const v1Schema = v0Schema.extend({
+  /**
+   * Per-agent installation selections for this SSH host.
+   * Keys are DependencyId (agent provider IDs); values are the user's choice.
+   */
+  dependencySelections: z.record(z.string(), hostDependencySelectionSchema).optional(),
+});
+
+// ---------------------------------------------------------------------------
 // Versioned schema
 // ---------------------------------------------------------------------------
 
@@ -19,10 +32,15 @@ const v0Schema = z.object({
  * Versioned schema for SSH connection metadata stored in `sshConnections.metadata`.
  *
  * The stored object is intentionally small: only fields that cannot be captured
- * in dedicated DB columns live here (sshConfigAlias, forwardAgent, proxyJump).
- * Unknown keys (e.g. legacy `worktreesDir`) are silently stripped on read.
+ * in dedicated DB columns live here.
+ *
+ * v0 (unversioned): sshConfigAlias, forwardAgent, proxyJump
+ * v1: adds dependencySelections for per-agent host-scoped install preferences
  */
-export const sshConnectionMetadata = defineVersionedSchema().unversioned(v0Schema).build();
+export const sshConnectionMetadata = defineVersionedSchema()
+  .unversioned(v0Schema)
+  .version('1', v1Schema, (prev) => ({ ...prev, version: '1' }))
+  .build();
 
 // ---------------------------------------------------------------------------
 // Exports

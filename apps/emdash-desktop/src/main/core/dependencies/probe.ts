@@ -3,6 +3,7 @@ import type { ProbeResult } from './types';
 
 const WHICH_TIMEOUT_MS = 5_000;
 const VERSION_PROBE_TIMEOUT_MS = 10_000;
+const REALPATH_TIMEOUT_MS = 5_000;
 
 // `where` on Windows, `which` on macOS/Linux
 const RESOLVE_CMD = process.platform === 'win32' ? 'where' : 'which';
@@ -22,6 +23,27 @@ export async function resolveCommandPath(
     return firstLine ?? null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Resolves the canonical realpath of a binary by following symlinks.
+ * Runs `realpath` on Unix or falls back to the given path on failure/Windows.
+ * Used to determine the true install location for method inference.
+ */
+export async function resolveRealpath(
+  resolvedPath: string,
+  ctx: IExecutionContext
+): Promise<string> {
+  if (process.platform === 'win32') return resolvedPath;
+  try {
+    const { stdout } = await ctx.exec('realpath', [resolvedPath], {
+      timeout: REALPATH_TIMEOUT_MS,
+    });
+    const real = stdout.trim();
+    return real || resolvedPath;
+  } catch {
+    return resolvedPath;
   }
 }
 

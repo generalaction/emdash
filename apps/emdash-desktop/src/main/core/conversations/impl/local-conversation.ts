@@ -11,6 +11,7 @@ import { ConversationSessionSupervisor } from '@main/core/conversations/conversa
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { localDependencyManager } from '@main/core/dependencies/dependency-manager';
+import { hostDependencyStore } from '@main/core/dependencies/host-dependency-store';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
@@ -166,9 +167,9 @@ export class LocalConversationProvider implements ConversationProvider {
       const cachedStatePath = localDependencyManager.get(conversation.providerId as never)?.path;
       const executableCli = await resolveAgentExecutable({
         providerId: conversation.providerId,
-        cfg: providerConfig,
         binaryName,
         ctx: this.ctx,
+        hostDependencyStore,
         cachedStatePath,
       });
 

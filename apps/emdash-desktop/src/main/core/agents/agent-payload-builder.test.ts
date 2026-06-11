@@ -5,9 +5,30 @@ import type { DependencyStatusMap } from '@shared/core/dependencies';
 vi.mock('@emdash/cli-agent-plugins/metadata', () => ({
   metadataRegistry: {
     get: vi.fn(),
-    getAll: vi.fn(),
+    getAll: vi.fn().mockReturnValue([]),
   },
 }));
+
+vi.mock('../dependencies/registry', async () => {
+  const { metadataRegistry: mr } = await import('@emdash/cli-agent-plugins/metadata');
+  return {
+    getDependencyDescriptor: vi.fn().mockImplementation((id: string) => {
+      const m = mr.get(id as never);
+      if (!m) return undefined;
+      return {
+        id: m.id,
+        name: m.name,
+        category: 'agent' as const,
+        commands: m.capabilities.install.binaryNames,
+        versionArgs: ['--version'],
+        docUrl: m.websiteUrl,
+        installCommands: m.capabilities.install.installCommands,
+        updates: m.capabilities.updates,
+      };
+    }),
+    DEPENDENCIES: [],
+  };
+});
 
 vi.mock('@shared/core/agents/agent-provider-registry', () => ({
   AGENT_PROVIDERS: [
@@ -65,18 +86,16 @@ function makeMetadata(id: string, binaryName: string): CLIAgentPluginMetadata {
   };
 }
 
-const defaultSettings = (cli: string) => ({
-  value: { cli },
-  defaults: { cli },
+const defaultSettings = () => ({
+  value: {},
+  defaults: {},
   overrides: {},
 });
 
 describe('buildAgentPayload', () => {
   it('merges metadata, AGENT_PROVIDERS icons, status and settings into a payload', async () => {
     vi.mocked(metadataRegistry.get).mockReturnValue(makeMetadata('claude', 'claude'));
-    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(
-      defaultSettings('claude')
-    );
+    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings());
 
     const statuses: DependencyStatusMap = {
       claude: {
@@ -100,7 +119,7 @@ describe('buildAgentPayload', () => {
     expect(payload!.latestVersion).toBeNull();
     expect(payload!.updateAvailable).toBe(false);
     expect(payload!.command).toBe('/usr/local/bin/claude');
-    expect(payload!.settings.defaults.cli).toBe('claude');
+    expect(payload!.settings).toBeDefined();
     expect(payload!.capabilities.models).toEqual({ kind: 'none' });
     expect(payload!.capabilities.effort).toEqual({ kind: 'none' });
     expect(payload!.capabilities.updates).toEqual({ kind: 'none' });
@@ -116,9 +135,7 @@ describe('buildAgentPayload', () => {
 
   it('uses missing status when agent is not in the status map', async () => {
     vi.mocked(metadataRegistry.get).mockReturnValue(makeMetadata('claude', 'claude'));
-    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(
-      defaultSettings('claude')
-    );
+    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings());
 
     const { buildAgentPayload } = await import('./agent-payload-builder');
     const payload = await buildAgentPayload('claude', {});
@@ -148,9 +165,7 @@ describe('buildAgentPayload', () => {
       update: { kind: 'cli', args: ['update'] },
     };
     vi.mocked(metadataRegistry.get).mockReturnValue(meta);
-    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(
-      defaultSettings('claude')
-    );
+    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings());
 
     const { buildAgentPayload } = await import('./agent-payload-builder');
     const payload = await buildAgentPayload('claude', {});
@@ -169,7 +184,7 @@ describe('buildAgentPayload', () => {
       update: { kind: 'package-manager' },
     };
     vi.mocked(metadataRegistry.get).mockReturnValue(meta);
-    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings('codex'));
+    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings());
 
     const { buildAgentPayload } = await import('./agent-payload-builder');
     const payload = await buildAgentPayload('codex', {});
@@ -191,7 +206,7 @@ describe('buildAgentPayload', () => {
       update: { kind: 'package-manager' },
     };
     vi.mocked(metadataRegistry.get).mockReturnValue(meta);
-    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings('codex'));
+    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings());
 
     const { buildAgentPayload } = await import('./agent-payload-builder');
     const payload = await buildAgentPayload('codex', {});
@@ -213,7 +228,7 @@ describe('buildAgentPayload', () => {
       },
     };
     vi.mocked(metadataRegistry.get).mockReturnValue(meta);
-    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings('codex'));
+    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings());
 
     const { buildAgentPayload } = await import('./agent-payload-builder');
     const payload = await buildAgentPayload('codex', {});
@@ -234,7 +249,7 @@ describe('buildAgentPayloads', () => {
       makeMetadata('claude', 'claude'),
       makeMetadata('codex', 'codex'),
     ]);
-    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings('cli'));
+    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings());
 
     const { buildAgentPayloads } = await import('./agent-payload-builder');
     const payloads = await buildAgentPayloads({});

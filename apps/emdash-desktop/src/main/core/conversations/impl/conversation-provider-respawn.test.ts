@@ -21,6 +21,13 @@ const buildCommandMock = vi.hoisted(() =>
 const installPluginMock = vi.hoisted(() => vi.fn(async () => {}));
 const writeHooksMock = vi.hoisted(() => vi.fn(async () => {}));
 
+vi.mock('@main/core/dependencies/host-dependency-store', () => ({
+  hostDependencyStore: {
+    getSelection: vi.fn().mockResolvedValue(null),
+    setSelection: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 vi.mock('@main/core/agent-hooks/agent-hook-service', () => ({
   agentHookService: {
     getPort: vi.fn(() => 0),

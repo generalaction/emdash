@@ -1,7 +1,8 @@
+import type { IHostDependencyStore } from '@main/core/dependencies/host-dependency-store';
 import { resolveCommandPath } from '@main/core/dependencies/probe';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { log } from '@main/lib/logger';
-import type { ProviderCustomConfig } from '@shared/core/app-settings';
+import type { DependencyId } from '@shared/core/dependencies';
 
 /**
  * Per-context cache: keyed by `${connectionId ?? 'local'}:${providerId}` → resolved absolute path.
@@ -21,10 +22,13 @@ function cacheKey(providerId: string, connectionId?: string): string {
  * Resolve the absolute path of the agent binary to use for conversation spawns.
  *
  * Resolution order:
- * 1. installSource === 'path' and cfg.path is set → use cfg.path if it exists on disk,
- *    otherwise warn and fall through to auto.
- * 2. installSource === 'cli' and cfg.cli is set → return cfg.cli as-is (PTY resolves on PATH).
- * 3. auto (no installSource, or fallthrough from invalid path):
+ * 1. HostDependencySelection.usedId === 'path' and selection.path is set
+ *    → use selection.path if it exists on disk, otherwise warn and fall through.
+ * 2. HostDependencySelection.usedId === 'cli' and selection.cli is set
+ *    → return selection.cli as-is (PTY resolves on PATH).
+ * 3. HostDependencySelection.usedId starts with 'method:' → fall through to
+ *    cachedStatePath (probe result for the detected method).
+ * 4. auto (no selection, or fallthrough from invalid path):
  *    a. In-memory cached path from dependency probe (cachedStatePath).
  *    b. Probe via ctx (resolveCommandPath).
  *    c. Bare binaryName.
@@ -32,32 +36,34 @@ function cacheKey(providerId: string, connectionId?: string): string {
  */
 export async function resolveAgentExecutable({
   providerId,
-  cfg,
   binaryName,
   ctx,
+  hostDependencyStore,
   cachedStatePath,
   connectionId,
 }: {
   providerId: string;
-  cfg: ProviderCustomConfig | undefined;
   binaryName: string;
   ctx: IExecutionContext;
+  /** Store for reading the persisted host-scoped installation selection. */
+  hostDependencyStore: IHostDependencyStore;
   /** The absolute path the dependency manager resolved during its last probe, if available. */
   cachedStatePath?: string | null;
   connectionId?: string;
 }): Promise<string> {
-  const source = cfg?.installSource;
+  const hostId = connectionId ?? 'local';
+  const selection = await hostDependencyStore.getSelection(hostId, providerId as DependencyId);
 
-  if (source === 'path' && cfg?.path) {
-    const exists = await resolveCommandPath(cfg.path, ctx);
-    if (exists) return cfg.path;
+  if (selection?.usedId === 'path' && selection.path) {
+    const exists = await resolveCommandPath(selection.path, ctx);
+    if (exists) return selection.path;
     log.warn(
-      `[resolveAgentExecutable] Saved path "${cfg.path}" for ${providerId} not found — falling back to auto-resolution`
+      `[resolveAgentExecutable] Saved path "${selection.path}" for ${providerId} not found — falling back to auto-resolution`
     );
   }
 
-  if (source === 'cli' && cfg?.cli) {
-    return cfg.cli;
+  if (selection?.usedId === 'cli' && selection.cli) {
+    return selection.cli;
   }
 
   // Auto-resolution with in-memory cache

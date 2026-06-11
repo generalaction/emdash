@@ -68,8 +68,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
 
   const form = useForm({ defaultValues: makeDefaultValues(storedConfig) });
 
-  // Re-sync form when external config changes (e.g. after another part of the
-  // UI persists installSource/path/cli via "Use this installation").
+  // Re-sync form when external config changes (e.g. after a reset from outside).
   useEffect(() => {
     if (isLoading) return;
     const next = makeDefaultValues(storedConfig);
@@ -89,7 +88,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
 
     const isAtDefaults = extraArgs.trim() === '' && envEntries.every((e) => !e.key.trim());
 
-    if (isAtDefaults && !storedConfig?.installSource && !storedConfig?.path && !storedConfig?.cli) {
+    if (isAtDefaults) {
       reset(undefined, {
         onError: (err) => log.error('Failed to reset agent config:', err),
       });
