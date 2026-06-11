@@ -1,0 +1,21 @@
+apps/emdash-desktop/electron-builder.canary.config.ts
+  s_aa2ccc23753898::t_13b8315526ad52 103-108
+apps/emdash-desktop/electron-builder.config.ts
+  s_aa2ccc23753898::t_1d03f2030fd710 90-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "4726431c9290c47f665a436f1f79b8e449ba6be5",
+  "prompts": {},
+  "sessions": {
+    "s_aa2ccc23753898": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "77aba2c9-43a7-42eb-858f-36f1a5ba19d9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
