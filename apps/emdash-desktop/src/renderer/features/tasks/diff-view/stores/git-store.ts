@@ -1,6 +1,5 @@
 import { computed, makeObservable } from 'mobx';
 import { toast } from 'sonner';
-import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
@@ -381,7 +380,9 @@ export class GitStore {
         result.error.type === 'not_found'
           ? 'The project is no longer open.'
           : formatFetchErrorDetail(result.error, {
-              isSshProject: getProjectSshConnectionId(this.projectId) !== undefined,
+              isSshProject:
+                (await import('@renderer/features/projects/stores/project-selectors'))
+                  .getProjectSshConnectionId(this.projectId) !== undefined,
             });
       toast.error(`Failed to fetch remote changes: ${detail}`);
       return err(result.error);
