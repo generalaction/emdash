@@ -96,10 +96,14 @@ export class BrowserWebContentsRegistry {
   async captureScreenshotToClipboard(browserId: string): Promise<boolean> {
     const webContents = this.webContentsByBrowserId.get(browserId);
     if (!webContents || webContents.isDestroyed()) return false;
-    const image = await webContents.capturePage();
-    if (image.isEmpty()) return false;
-    clipboard.writeImage(image);
-    return true;
+    try {
+      const image = await webContents.capturePage();
+      if (image.isEmpty()) return false;
+      clipboard.writeImage(image);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async clearStorage(browserId: string): Promise<boolean> {

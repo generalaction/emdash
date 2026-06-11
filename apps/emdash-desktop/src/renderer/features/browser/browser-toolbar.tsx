@@ -168,7 +168,7 @@ export function BrowserToolbar({
       </form>
       <ToolbarIconButton
         label="Copy screenshot"
-        disabled={session.currentUrl === BROWSER_DEFAULT_URL}
+        disabled={session.currentUrl === BROWSER_DEFAULT_URL || session.isLoading}
         onClick={takeScreenshot}
       >
         <Focus
