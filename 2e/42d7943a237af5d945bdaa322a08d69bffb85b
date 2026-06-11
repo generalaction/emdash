@@ -1,0 +1,32 @@
+agents/architecture/renderer.md
+  s_324228bcc6809f::t_3e02ee60d92350 3-4,7,9-13,15-18,20-26,28,30-48,52-59
+agents/conventions/typescript.md
+  s_324228bcc6809f::t_1fa4bd2d21b53a 5,7-8,12-13,15-18
+agents/integrations/mcp.md
+  s_324228bcc6809f::t_23f77d0c97660f 9
+agents/conventions/renderer-patterns.md
+  s_324228bcc6809f::t_e9d716a5d508b1 94-98
+  s_324228bcc6809f::t_c0462b7b2f2de5 3-5,9-15,19,28,32,36-40,43,49,51,53-59,62-65
+agents/conventions/ipc.md
+  s_324228bcc6809f::t_61a927bc3f9b8e 40
+  s_324228bcc6809f::t_2f7b640ecedc14 10
+  s_324228bcc6809f::t_e30818a1ec2258 22,26,28-31
+agents/architecture/main-process.md
+  s_324228bcc6809f::t_a4961e0cfbab1a 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "2e42d7943a237af5d945bdaa322a08d69bffb85b",
+  "prompts": {},
+  "sessions": {
+    "s_324228bcc6809f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2fc8f915-0999-4beb-abf2-553a7f11ebe4",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
