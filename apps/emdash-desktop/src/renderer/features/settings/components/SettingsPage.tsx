@@ -42,12 +42,13 @@ export type SettingsPageTab =
 
 function GeneralSettingsPage() {
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-10">
       <PageHeader
         sticky
         title="General"
         description="Manage your account, privacy settings, notifications, and app updates."
       />
+      <UpdateCard />
       <TelemetryCard />
       <AutoGenerateTaskNamesRow />
       <AutoTrustWorktreesRow />
@@ -56,7 +57,6 @@ function GeneralSettingsPage() {
       <IncludeIssueContextByDefaultRow />
       <EnableTmuxRow />
       <NotificationSettingsCard />
-      <UpdateCard />
     </div>
   );
 }
@@ -110,7 +110,7 @@ function RepositorySettingsPage() {
 
 function InterfaceSettingsPage() {
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-4">
       <PageHeader
         sticky
         title="Interface"

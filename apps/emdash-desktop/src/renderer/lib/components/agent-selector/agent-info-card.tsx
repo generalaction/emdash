@@ -1,10 +1,9 @@
-import { ArrowUpRight, Check, Copy } from 'lucide-react';
+import { Check, Copy, ExternalLink } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { Button } from '@renderer/lib/ui/button';
 import {
   getDescriptionForProvider,
-  getDocUrlForProvider,
   getInstallCommandForProvider,
   getProvider,
   type AgentProviderId,
@@ -18,7 +17,6 @@ export const AgentInfoCard: React.FC<Props> = ({ id }) => {
   const provider = getProvider(id);
   const description = getDescriptionForProvider(id);
   const installCommand = getInstallCommandForProvider(id) ?? 'npm install -g @openai/codex';
-  const docUrl = getDocUrlForProvider(id);
   const title = provider?.name ?? id;
   const [copied, setCopied] = useState(false);
   const copyResetRef = useRef<number | null>(null);
@@ -55,43 +53,22 @@ export const AgentInfoCard: React.FC<Props> = ({ id }) => {
   const CopyIndicatorIcon = copied ? Check : Copy;
 
   return (
-    <div className="w-80 max-w-[20rem] rounded-lg border border-border bg-background p-3 text-foreground shadow-md">
-      <div className="mb-2 flex items-center gap-2">
-        <AgentIcon id={id} size={20} className="rounded-sm" />
-        <div className="flex items-baseline gap-1 text-sm leading-none">
-          <span className="text-foreground-muted">{title}</span>
+    <div className="w-80 bg-background-quaternary p-3">
+      <div className="mb-2 flex items-center justify-between gap-1.5">
+
+        <div className="flex items-center justify-between gap-2 text-sm">
+        <AgentIcon id={id} size={16} className="rounded-sm" />
+          <span className="text-sm text-foreground">{title}</span>
         </div>
+          <Button variant="ghost" size="xs" className="text-foreground-muted p-0" >
+            View Website
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+          </Button>
       </div>
 
       {description ? (
         <p className="mb-2 text-xs leading-relaxed text-foreground-muted">{description}</p>
       ) : null}
-
-      {docUrl ? (
-        <div className="mb-2">
-          <a
-            href={docUrl}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-background-1"
-          >
-            <span>Docs</span>
-            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-          </a>
-        </div>
-      ) : null}
-
-      <div className="mb-2">
-        <a
-          href="https://artificialanalysis.ai/insights/coding-agents-comparison"
-          target="_blank"
-          rel="noreferrer noopener"
-          className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-background-1"
-        >
-          <span>Compare agents</span>
-          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-        </a>
-      </div>
 
       <div className="mb-2 flex h-8 items-center justify-between rounded-md border border-border px-2 text-xs text-foreground">
         <code className="max-w-[calc(100%-2.5rem)] truncate font-mono leading-none">

@@ -15,14 +15,13 @@ import {
 } from '@renderer/lib/ui/combobox';
 import { cn } from '@renderer/utils/utils';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
-import { AgentInstallButton } from './agent-install-button';
+import { AgentHoverCard, useAgentHoverCard } from './agent-hover-card';
 import {
   canInstallAgentOption,
   isComboboxOptionDisabled,
   type AgentGroup,
   type AgentOption,
 } from './agent-selector-options';
-import { AgentTooltipRow } from './agent-tooltip-row';
 import { useAgentAvailability } from './use-agent-availability';
 
 interface AgentSelectorProps {
@@ -48,7 +47,9 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
     autoFocus = false,
   }) => {
     const [open, setOpen] = useState(false);
-    const { groups, installingAgents, installAgent } = useAgentAvailability({
+    const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+    const hoverCard = useAgentHoverCard();
+    const { groups } = useAgentAvailability({
       connectionId,
       value,
     });
@@ -56,8 +57,15 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
 
     const selectedOption = value ? allOptions.find((o) => o.value === value) : null;
 
+    function handleOpenChange(next: boolean) {
+      if (disabled) return;
+      if (!next) hoverCard.close();
+      setOpen(next);
+    }
+
     function handleValueChange(item: AgentOption | null) {
       if (!item || disabled || item.disabled) return;
+      hoverCard.close();
       onChange(item.agentId);
       setOpen(false);
     }
@@ -68,7 +76,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
         value={selectedOption ?? null}
         onValueChange={handleValueChange}
         open={open}
-        onOpenChange={disabled ? undefined : setOpen}
+        onOpenChange={disabled ? undefined : handleOpenChange}
         isItemEqualToValue={(a: AgentOption, b: AgentOption) => a.value === b.value}
         filter={(item: AgentOption, query) =>
           item.label.toLowerCase().includes(query.toLowerCase())
@@ -94,7 +102,10 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
           )}
           <ChevronDown className="size-3.5 shrink-0 text-foreground-muted" />
         </ComboboxTrigger>
-        <ComboboxContent className={cn('min-w-(--anchor-width)', contentClassName)}>
+        <ComboboxContent
+          ref={setAnchorEl}
+          className={cn('min-w-(--anchor-width)', contentClassName)}
+        >
           <ComboboxInput showTrigger={false} placeholder="Search agents..." />
           <ComboboxList className="pb-0">
             {(group: AgentGroup) => (
@@ -104,46 +115,32 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
                   {(item: AgentOption) => {
                     const showInstall = canInstallAgentOption(item, installable);
                     return (
-                      <AgentTooltipRow key={item.value} id={item.agentId}>
-                        <ComboboxItem
-                          value={item}
-                          disabled={isComboboxOptionDisabled(item)}
+                      <ComboboxItem
+                        key={item.value}
+                        value={item}
+                        disabled={isComboboxOptionDisabled(item)}
+                        className={cn(
+                          'group/agent-row',
+                          item.disabled &&
+                            'data-disabled:pointer-events-auto data-disabled:cursor-not-allowed',
+                          showInstall && 'data-disabled:opacity-100'
+                        )}
+                        {...hoverCard.getRowHoverProps(item.agentId)}
+                      >
+                        <AgentIcon
+                          id={item.agentId}
+                          size={16}
+                          className={cn('rounded-sm', showInstall && 'opacity-50')}
+                        />
+                        <span
                           className={cn(
-                            'group/agent-row',
-                            item.disabled &&
-                              'data-disabled:pointer-events-auto data-disabled:cursor-not-allowed',
-                            showInstall && 'data-disabled:opacity-100'
+                            'min-w-0 flex-1 truncate',
+                            showInstall && 'text-foreground-muted'
                           )}
                         >
-                          <AgentIcon
-                            id={item.agentId}
-                            size={16}
-                            className={cn('rounded-sm', showInstall && 'opacity-50')}
-                          />
-                          <span
-                            className={cn(
-                              'min-w-0 flex-1 truncate',
-                              showInstall && 'text-foreground-muted'
-                            )}
-                          >
-                            {item.label}
-                          </span>
-                          <AgentInstallButton
-                            agentId={item.agentId}
-                            canInstall={installable}
-                            isInstalled={!item.disabled}
-                            isInstalling={installingAgents.has(item.agentId)}
-                            disabled={disabled}
-                            className="size-6"
-                            onInstall={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              if (disabled) return;
-                              void installAgent(item.agentId);
-                            }}
-                          />
-                        </ComboboxItem>
-                      </AgentTooltipRow>
+                          {item.label}
+                        </span>
+                      </ComboboxItem>
                     );
                   }}
                 </ComboboxCollection>
@@ -151,6 +148,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
             )}
           </ComboboxList>
         </ComboboxContent>
+        <AgentHoverCard anchor={anchorEl} controller={hoverCard} />
       </Combobox>
     );
   }

@@ -1,5 +1,5 @@
 import type { InstallMethod, InstallOption } from '@emdash/cli-agent-plugins';
-import { Check, ChevronDown, Copy, Loader2, MoreHorizontal, Terminal } from 'lucide-react';
+import { Check, ChevronDown, Copy, Loader2, MoreHorizontal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useMemo, useState } from 'react';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -86,7 +86,6 @@ function CommandRow({ command, action }: { command: string; action: React.ReactN
   return (
     <div className="flex w-full items-stretch gap-[2px]">
       <div className="group flex min-w-0 flex-1 items-center gap-2 rounded-l-lg bg-background-quaternary-1 px-2 py-1.5">
-        <Terminal className="h-3.5 w-3.5 shrink-0 text-foreground-passive" />
         <code className="min-w-0 flex-1 truncate font-mono text-xs text-foreground-muted">
           {command}
         </code>
