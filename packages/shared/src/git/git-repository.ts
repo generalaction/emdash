@@ -240,24 +240,7 @@ export class GitRepository implements IGitRepository {
 
   async createBranch(
     options: CreateBranchOptions
-  ): Promise<Result<{ seqs: GitSeqs }, CreateBranchError>>;
-  async createBranch(
-    name: string,
-    from?: string
-  ): Promise<Result<{ seqs: GitSeqs }, CreateBranchError>>;
-  async createBranch(
-    input: string | CreateBranchOptions,
-    fallbackFrom = 'HEAD'
   ): Promise<Result<{ seqs: GitSeqs }, CreateBranchError>> {
-    const options =
-      typeof input === 'string'
-        ? { name: input, from: fallbackFrom, syncWithRemote: false, remote: undefined }
-        : {
-            name: input.name,
-            from: input.from ?? 'HEAD',
-            syncWithRemote: input.syncWithRemote ?? false,
-            remote: input.remote ?? 'origin',
-          };
     const name = options.name;
     const from = options.from ?? 'HEAD';
 

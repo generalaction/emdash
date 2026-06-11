@@ -100,7 +100,7 @@ describe('GitRepository', () => {
         ]),
       });
 
-      const created = await repository.createBranch('feature', 'main');
+      const created = await repository.createBranch({ name: 'feature', from: 'main' });
       expect(created).toMatchObject({
         success: true,
         data: { seqs: { refs: expect.any(Number) } },

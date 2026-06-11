@@ -104,7 +104,6 @@ export interface IGitRepository extends IDisposable {
   getRefs(): Promise<GitRefsModel>;
   getRemotes(): Promise<GitRemotesModel>;
   getSnapshot(): Promise<GitRepoSnapshot>;
-  /** Force-recompute all repository models and push to subscribers (manual refresh). */
   refresh(): Promise<GitRepoSnapshot>;
   subscribe(cb: (update: GitRepoUpdate) => void): Unsubscribe;
   subscribeWithSnapshot(
@@ -114,7 +113,6 @@ export interface IGitRepository extends IDisposable {
   fetch(remote?: string): Promise<Result<{ seqs: GitSeqs }, FetchError>>;
   addRemote(name: string, url: string): Promise<Result<{ seqs: GitSeqs }, GitCommandError>>;
   createBranch(options: CreateBranchOptions): Promise<Result<{ seqs: GitSeqs }, CreateBranchError>>;
-  createBranch(name: string, from?: string): Promise<Result<{ seqs: GitSeqs }, CreateBranchError>>;
   renameBranch(
     oldBranch: string,
     newBranch: string
@@ -139,7 +137,6 @@ export interface IGitWorktree extends IDisposable {
   getStatus(): Promise<GitStatusModel>;
   getHead(): Promise<GitHeadModel>;
   getSnapshot(): Promise<GitWorktreeSnapshot>;
-  /** Force-recompute all worktree models and push to subscribers (manual refresh). */
   refresh(): Promise<GitWorktreeSnapshot>;
   subscribe(cb: (update: GitWorktreeUpdate) => void): Unsubscribe;
   subscribeWithSnapshot(
