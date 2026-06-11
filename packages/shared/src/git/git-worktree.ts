@@ -16,9 +16,9 @@ import {
 } from './errors';
 import type { GitOnError, GitRepository } from './git-repository';
 import type { DiffResult, ImageReadResult } from './models/diff';
+import { toRangeString, toRefString, type DiffTarget } from './models/diff-target';
 import type { GitHeadModel } from './models/head';
 import type { Commit, CommitFile, GitLogResult } from './models/log';
-import { toRangeString, toRefString, type DiffTarget } from './models/refs';
 import type {
   GitChange,
   GitStatusFingerprint,

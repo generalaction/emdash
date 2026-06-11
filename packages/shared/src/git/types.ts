@@ -13,9 +13,10 @@ import type {
   SoftResetError,
 } from './errors';
 import type { DiffResult, ImageReadResult } from './models/diff';
+import type { DiffTarget } from './models/diff-target';
 import type { GitHeadModel } from './models/head';
 import type { Commit, CommitFile, GitLogResult } from './models/log';
-import type { DiffTarget, GitRefsModel, GitRemotesModel } from './models/refs';
+import type { GitRefsModel, GitRemotesModel } from './models/refs';
 import type {
   GitChange,
   GitStatusFingerprint,

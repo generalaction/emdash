@@ -20,16 +20,8 @@ export type {
 } from './models/diff';
 export type { GitHeadModel } from './models/head';
 export type { Commit, CommitFile, GitLogResult } from './models/log';
-export type {
-  DiffMode,
-  DiffTarget,
-  GitBranch,
-  GitObjectRef,
-  GitRefsModel,
-  GitRemote,
-  GitRemotesModel,
-  MergeBaseRange,
-} from './models/refs';
+export type { DiffMode, DiffTarget, GitObjectRef, MergeBaseRange } from './models/diff-target';
+export type { GitBranch, GitRefsModel, GitRemote, GitRemotesModel } from './models/refs';
 export type {
   GitChange,
   GitChangeStatus,
