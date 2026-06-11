@@ -1,0 +1,82 @@
+apps/emdash-desktop/src/renderer/features/tasks/conversations/add-context-popover.tsx
+  s_bf69e57bf30b98::t_8760f225ba17d4 275-284
+  s_bf69e57bf30b98::t_6a7adf830eaa11 2
+  s_bf69e57bf30b98::t_39d13a9dc1e6a0 152,167
+  s_bf69e57bf30b98::t_88a7bd5e1a0770 274
+  s_bf69e57bf30b98::t_39adf406a4f0ff 30,35,41-51,57,67,76,85
+  s_bf69e57bf30b98::t_9cdafc232e3ee8 263
+  s_a5639be4e37222::t_3de8a6063cd255 155-164
+  s_bf69e57bf30b98::t_79f71f4be864f6 197
+  s_bf69e57bf30b98::t_2b8c4353e95c7e 18
+  s_bf69e57bf30b98::t_69754d79d2a022 122-124
+  s_5dbfb5be847cc7::t_a446de889dd111 20-21,104,114
+  s_bf69e57bf30b98::t_9e150159fec51a 248
+  s_bf69e57bf30b98::t_0f377cb554b113 120
+  s_bf69e57bf30b98::t_516ec9ae67fdf6 149-151,153-154,165-166,168,175-176
+  s_a5639be4e37222::t_8ffd87b78a52b9 4
+apps/emdash-desktop/src/renderer/tests/context-actions.test.ts
+  s_a5639be4e37222::t_15871f97a80913 122-124
+  s_b7a9c252b56782::t_0aec8df0608fe5 85-99,121,125
+  s_a5639be4e37222::t_31363221fa3c6f 100-120
+apps/emdash-desktop/src/renderer/features/tasks/conversations/context-actions.ts
+  s_b7a9c252b56782::t_cb1476cb777664 2
+  s_b7a9c252b56782::t_2a07b4201a55f3 71-76
+  s_b7a9c252b56782::t_466e9e7e9bb123 50
+apps/emdash-desktop/src/renderer/features/tasks/conversations/resolve-context-action-text.ts
+  s_b7a9c252b56782::t_56a990408c69c4 1,23-25
+  s_5dbfb5be847cc7::t_a446de889dd111 14,17,22
+  s_b7a9c252b56782::t_466e9e7e9bb123 6
+apps/emdash-desktop/src/renderer/features/tasks/conversations/context-bar.tsx
+  s_5dbfb5be847cc7::t_a446de889dd111 97
+apps/emdash-desktop/src/renderer/tests/refresh-linked-issue-context.test.ts
+  s_b7a9c252b56782::t_4be72e808b4d0c 35,39,42-48,50-53,64
+apps/emdash-desktop/src/renderer/features/tasks/issue-context/refresh-linked-issue-context.ts
+  s_b7a9c252b56782::t_d6c7cf69636258 3-8,13-16,24,26
+apps/emdash-desktop/src/renderer/features/tasks/conversations/initial-conversation-section.tsx
+  s_b7a9c252b56782::t_297013d133931f 19
+  s_b7a9c252b56782::t_06dd033b946081 31
+  s_b7a9c252b56782::t_bdfe8c5f97db4d 15
+  s_a5639be4e37222::t_3de8a6063cd255 100-110
+  s_5dbfb5be847cc7::t_a446de889dd111 158
+  s_b7a9c252b56782::t_e654a759b946ed 90-99,111-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "0e6b726c105d3ca8aa8e6562a5dd59468d516f02",
+  "prompts": {},
+  "sessions": {
+    "s_5dbfb5be847cc7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1494addf2ffeI6BdEJNvJKfU3Q",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_a5639be4e37222": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_148ca8c78ffeOoEtAwhzDsyhbb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_b7a9c252b56782": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a7ea8dd9-9284-418a-bb1b-d15df0036031",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_bf69e57bf30b98": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f4364b1-f0cb-471b-b6b3-8f6ca94df633",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
