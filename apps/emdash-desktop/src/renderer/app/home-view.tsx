@@ -1,6 +1,5 @@
 import { FolderOpen, Github, Plus, Server, type LucideIcon } from 'lucide-react';
 import { motion } from 'motion/react';
-import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
 import { EmdashShimmerLogo } from '@renderer/lib/emdash-shimmer-logo';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
@@ -33,10 +32,6 @@ const PROJECT_ACTIONS = [
     modalArgs: { strategy: 'ssh', mode: 'pick' },
   },
 ] as const;
-
-export function HomeTitlebar() {
-  return <Titlebar />;
-}
 
 export function HomeMainPanel() {
   const showAddProjectModal = useShowModal('addProjectModal');
@@ -110,6 +105,5 @@ function HomeProjectAction({
 }
 
 export const homeView = {
-  TitlebarSlot: HomeTitlebar,
   MainPanel: HomeMainPanel,
 };

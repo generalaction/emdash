@@ -3,7 +3,7 @@ import { Popover, PopoverContent } from '@renderer/lib/ui/popover';
 import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { AgentInfoCard } from './agent-info-card';
 
-const OPEN_DELAY_MS = 1000;
+const OPEN_DELAY_MS = 500;
 const CLOSE_DELAY_MS = 200;
 
 interface RowHoverProps {

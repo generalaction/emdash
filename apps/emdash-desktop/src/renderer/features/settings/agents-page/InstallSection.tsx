@@ -27,6 +27,7 @@ import {
   UpdatingBadge,
   UsedBadge,
 } from './agent-status-badge';
+import { Alert } from '@renderer/lib/ui/alert';
 
 /** Synthetic option keys that represent user-override sources, not plugin-defined methods. */
 type SyntheticSource = 'path' | 'cli';
@@ -299,29 +300,29 @@ export const InstallSection = observer(function InstallSection({
       {/* Selection content */}
       {selectedValue === 'path' && (
         <div className="space-y-1.5">
-          <p className="text-xs text-foreground-muted">
-            Absolute path to the agent binary. Overrides auto-resolution.
-          </p>
           <Input
             value={localPath}
             onChange={(e) => setLocalPath(e.target.value)}
             placeholder="/usr/local/bin/claude"
             className="font-mono text-sm"
           />
+          <Alert variant="warning">
+            Using an absolute path to the agent binary overrides auto-resolution and disables emdash's ability to update the agent
+          </Alert>
         </div>
       )}
 
       {selectedValue === 'cli' && (
         <div className="space-y-1.5">
-          <p className="text-xs text-foreground-muted">
-            Command name or binary resolved on PATH. Overrides the default binary name.
-          </p>
           <Input
             value={localCli}
             onChange={(e) => setLocalCli(e.target.value)}
             placeholder="claude"
             className="font-mono text-sm"
           />
+                    <Alert variant="warning">
+            Enter the command name or binary resolved on PATH. This overrides auto-resolution and disables emdash's ability to update the agent
+          </Alert>
         </div>
       )}
 
