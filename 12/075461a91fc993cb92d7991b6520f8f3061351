@@ -1,0 +1,25 @@
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/changes-panel.tsx
+  s_b5c476159e5fcf::t_603e0beb3659cb 27
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.tsx
+  s_b5c476159e5fcf::t_fcbf6eab973a60 421-427
+apps/emdash-desktop/src/renderer/features/tasks/view/task-sidebar.tsx
+  s_b5c476159e5fcf::t_25c5aa0f050ae7 20
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/hooks/use-panel-layout.ts
+  s_b5c476159e5fcf::t_8f79d4104ac355 66-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "12075461a91fc993cb92d7991b6520f8f3061351",
+  "prompts": {},
+  "sessions": {
+    "s_b5c476159e5fcf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b75afd73-ed41-45ba-8f31-bcab26722c8a",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
