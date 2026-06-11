@@ -73,7 +73,7 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = observer(
       return (
         <div className="pb-4">
           {allRecommended.length > 0 && (
-            <div className="py-2">
+            <div className="pt-4">
               <SectionLabel totalCount={allRecommended.length}>Recommended</SectionLabel>
               {allRecommended.map((agent) => (
                 <div key={agent.id} className="w-full py-0.5">
@@ -84,8 +84,8 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = observer(
           )}
           {allOthers.length > 0 && (
             <>
-              {allRecommended.length > 0 && <Separator />}
-              <div className="py-2">
+              {/* {allRecommended.length > 0 && <Separator />} */}
+              <div className="pt-4">
                 <SectionLabel totalCount={allOthers.length}>All agents</SectionLabel>
                 {allOthers.map((agent) => (
                   <div key={agent.id} className="w-full py-0.5">
@@ -104,7 +104,7 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = observer(
       return (
         <div className="pb-4">
           {installed.length > 0 && (
-            <div className="py-2">
+            <div className="pt-4">
               <SectionLabel totalCount={installed.length}>Installed</SectionLabel>
               {installed.map((agent) => (
                 <div key={agent.id} className="w-full py-0.5">
@@ -122,7 +122,7 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = observer(
     return (
       <div className="pb-4">
         {uninstalledRecommended.length > 0 && (
-          <div className="py-2">
+          <div className="pt-4">
             <SectionLabel totalCount={uninstalledRecommended.length}>Recommended</SectionLabel>
             {uninstalledRecommended.map((agent) => (
               <div key={agent.id} className="w-full py-0.5">
@@ -134,7 +134,7 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = observer(
         {uninstalledRest.length > 0 && (
           <>
             {uninstalledRecommended.length > 0 && <Separator />}
-            <div className="py-2">
+            <div className="pt-4">
               <SectionLabel totalCount={uninstalledRest.length}>Not installed</SectionLabel>
               {uninstalledRest.map((agent) => (
                 <div key={agent.id} className="w-full py-0.5">
