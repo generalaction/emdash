@@ -1,11 +1,8 @@
-import { realpathSync } from 'node:fs';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import parcelWatcher from '@parcel/watcher';
-import { type IDisposable, ResourceMap } from '../lib';
+import type { IDisposable } from '../lib';
+import { ResourceMap } from '../lib';
+import { NativeWatch } from './native-watch';
+import { realpathOrResolve } from './paths';
 import type { FileWatchOptions, IFileWatchService, RawFileEvent, WatchHandle } from './types';
-
-const RESUBSCRIBE_DELAY_MS = 250;
 
 export type FileWatchServiceOptions = {
   /** Receives background failures (resubscribe attempts, teardown). */
@@ -26,84 +23,6 @@ function normalizeIgnore(ignore: string[] | undefined): string[] {
 
 function watchKey(root: string, ignore: string[]): string {
   return JSON.stringify({ root, ignore });
-}
-
-function toRawFileEvent(event: parcelWatcher.Event): RawFileEvent {
-  return {
-    kind: event.type,
-    path: event.path,
-  };
-}
-
-/**
- * One native subscription per (root, ignore set), shared across consumers.
- * Owns the resubscribe-with-retry reliability logic; after a successful resubscribe it
- * signals resync (events may have been lost in the gap).
- */
-class NativeWatch implements IDisposable {
-  private subscription: Promise<parcelWatcher.AsyncSubscription> | null = null;
-  private retryTimer: ReturnType<typeof setTimeout> | null = null;
-  private disposed = false;
-
-  constructor(
-    readonly root: string,
-    readonly ignore: string[],
-    private readonly deliver: (events: RawFileEvent[]) => void,
-    private readonly resync: () => void,
-    private readonly onError: (context: string, error: unknown) => void
-  ) {
-    this.subscription = this.subscribe();
-    this.subscription.catch(() => {});
-  }
-
-  async ready(): Promise<void> {
-    if (!this.subscription) throw new Error(`Watcher is not subscribed for ${this.root}`);
-    await this.subscription;
-  }
-
-  async dispose(): Promise<void> {
-    if (this.disposed) return;
-    this.disposed = true;
-    if (this.retryTimer) clearTimeout(this.retryTimer);
-    this.retryTimer = null;
-    const subscription = await this.subscription?.catch(() => null);
-    await subscription?.unsubscribe();
-  }
-
-  private async subscribe(): Promise<parcelWatcher.AsyncSubscription> {
-    await fs.stat(this.root);
-    return parcelWatcher.subscribe(
-      this.root,
-      (err, events) => {
-        if (err) {
-          this.onError(`watch ${this.root}`, err);
-          this.scheduleResubscribe();
-          return;
-        }
-        if (events.length === 0) return;
-        this.deliver(events.map(toRawFileEvent));
-      },
-      { ignore: this.ignore }
-    );
-  }
-
-  private scheduleResubscribe(): void {
-    if (this.retryTimer || this.disposed) return;
-    this.retryTimer = setTimeout(() => {
-      this.retryTimer = null;
-      if (this.disposed) return;
-      const previous = this.subscription;
-      this.subscription = this.subscribe();
-      this.subscription.then(
-        () => this.resync(),
-        (error) => {
-          this.onError(`resubscribe ${this.root}`, error);
-          this.scheduleResubscribe();
-        }
-      );
-      void previous?.then((subscription) => subscription.unsubscribe()).catch(() => {});
-    }, RESUBSCRIBE_DELAY_MS);
-  }
 }
 
 export class FileWatchService implements IFileWatchService, IDisposable {
@@ -238,16 +157,4 @@ function clearConsumer(consumer: WatchConsumer): void {
   if (consumer.timer) clearTimeout(consumer.timer);
   consumer.timer = null;
   consumer.pending = [];
-}
-
-function realpathOrResolve(root: string): string {
-  try {
-    return realpathSync.native(root);
-  } catch {
-    try {
-      return realpathSync(root);
-    } catch {
-      return path.resolve(root);
-    }
-  }
 }
