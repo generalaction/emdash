@@ -1,0 +1,19 @@
+agents/workflows/testing.md
+  s_69cc8f41ba4ece::t_308cded732f4db 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "f2324df8c8bcd0824967370b47356852d82c74b9",
+  "prompts": {},
+  "sessions": {
+    "s_69cc8f41ba4ece": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4793dd60-1939-45bb-b9b1-248273fee719",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
