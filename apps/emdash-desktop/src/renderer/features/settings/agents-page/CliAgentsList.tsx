@@ -83,17 +83,14 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = observer(
             </div>
           )}
           {allOthers.length > 0 && (
-            <>
-              {/* {allRecommended.length > 0 && <Separator />} */}
-              <div className="pt-4">
-                <SectionLabel totalCount={allOthers.length}>All agents</SectionLabel>
-                {allOthers.map((agent) => (
-                  <div key={agent.id} className="w-full py-0.5">
-                    <AgentRow agent={agent} onClick={() => setSelectedAgentId(agent.id)} />
-                  </div>
-                ))}
-              </div>
-            </>
+            <div className="pt-4">
+              <SectionLabel totalCount={allOthers.length}>All agents</SectionLabel>
+              {allOthers.map((agent) => (
+                <div key={agent.id} className="w-full py-0.5">
+                  <AgentRow agent={agent} onClick={() => setSelectedAgentId(agent.id)} />
+                </div>
+              ))}
+            </div>
           )}
           <AgentDetailSheet agentId={selectedAgentId} onClose={() => setSelectedAgentId(null)} />
         </div>

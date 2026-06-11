@@ -2,8 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback } from 'react';
+import {
+  InstallSection,
+  type UseInstallationPayload,
+} from '@renderer/features/settings/agents-page/InstallSection';
 import { useProviderSettings } from '@renderer/features/settings/use-provider-settings';
-import { InstallSection, type UseInstallationPayload } from '@renderer/features/settings/agents-page/InstallSection';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { rpc } from '@renderer/lib/ipc';
 import { appState } from '@renderer/lib/stores/app-state';
