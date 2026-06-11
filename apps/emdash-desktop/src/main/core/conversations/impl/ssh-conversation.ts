@@ -1,10 +1,10 @@
-import type { IExecutionContext } from '@emdash/shared/exec';
 import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
 import { getPlugin, getPluginMetadata } from '@main/core/agents/plugin-registry';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { hostDependencyStore } from '@main/core/dependencies/host-dependency-store';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';

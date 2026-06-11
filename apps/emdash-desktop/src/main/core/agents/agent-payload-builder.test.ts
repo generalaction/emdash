@@ -1,6 +1,6 @@
 import type { CLIAgentPluginMetadata } from '@emdash/cli-agent-plugins';
-import type { DependencyStatusMap } from '@emdash/shared/deps';
 import { describe, expect, it, vi } from 'vitest';
+import type { DependencyStatusMap } from '@shared/core/dependencies';
 
 vi.mock('@emdash/cli-agent-plugins/metadata', () => ({
   metadataRegistry: {
@@ -9,7 +9,7 @@ vi.mock('@emdash/cli-agent-plugins/metadata', () => ({
   },
 }));
 
-vi.mock('@emdash/shared/deps/runtime', async () => {
+vi.mock('../dependencies/registry', async () => {
   const { metadataRegistry: mr } = await import('@emdash/cli-agent-plugins/metadata');
   return {
     getDependencyDescriptor: vi.fn().mockImplementation((id: string) => {

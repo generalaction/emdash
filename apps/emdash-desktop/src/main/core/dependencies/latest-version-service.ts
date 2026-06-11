@@ -1,6 +1,6 @@
 import * as https from 'node:https';
 import type { ReleaseSource } from '@emdash/cli-agent-plugins';
-import type { DepsLogger } from './ports';
+import { log } from '@main/lib/logger';
 
 const MAX_REDIRECTS = 5;
 const MAX_RESPONSE_BYTES = 512 * 1024;
@@ -67,11 +67,6 @@ function httpsGet(url: string, options: { redirectCount?: number } = {}): Promis
 
 export class LatestVersionService {
   private cache = new Map<string, CacheEntry>();
-  private logger?: DepsLogger;
-
-  constructor(options?: { logger?: DepsLogger }) {
-    this.logger = options?.logger;
-  }
 
   /**
    * Fetch the latest published version for the given release source.
@@ -90,7 +85,7 @@ export class LatestVersionService {
       this.cache.set(cacheKey, { version, expiresAt: Date.now() + CACHE_TTL_MS });
       return version;
     } catch (err) {
-      this.logger?.debug(`[latest-version] failed to fetch ${cacheKey}: ${(err as Error).message}`);
+      log.debug(`[latest-version] failed to fetch ${cacheKey}: ${(err as Error).message}`);
       return null;
     }
   }

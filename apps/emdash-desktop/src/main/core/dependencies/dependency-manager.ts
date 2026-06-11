@@ -1,29 +1,39 @@
 import type { InstallMethod, Platform } from '@emdash/cli-agent-plugins';
-import type { IExecutionContext } from '../exec/execution-context';
-import { Emitter } from '../lib/emitter';
-import { err, ok } from '../lib/result';
-import { resolveInstallOptions, pickInstallOption, toPlatform } from './install-options';
-import { LatestVersionService } from './latest-version-service';
-import { inferMethod } from './location-hints';
-import type { DepsLogger, IHostDependencyStore, InstallCommandRunner } from './ports';
-import { consoleLogger } from './ports';
-import { resolveCommandPath, resolveRealpath, runVersionProbe } from './probe';
-import { DEPENDENCIES, getDependencyDescriptor } from './registry';
+import { clearResolvedPathCache } from '@main/core/conversations/impl/resolve-agent-executable';
+import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
+import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
+import type { IExecutionContext } from '@main/core/execution-context/types';
+import { appSettingsService } from '@main/core/settings/settings-service';
+import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
+import { resolveLocalAutomationShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
+import { events } from '@main/lib/events';
+import type { IInitializable } from '@main/lib/lifecycle';
+import { log } from '@main/lib/logger';
 import type {
   DependencyCategory,
-  DependencyDescriptor,
   DependencyId,
   DependencyInstallResult,
-  DependencyProbeOptions,
   DependencyState,
   DependencyStatus,
-  DependencyStatusUpdatedEvent,
   DependencyUpdateResult,
   HostDependency,
   HostDependencySelection,
   Installation,
-  ProbeResult,
-} from './types';
+} from '@shared/core/dependencies';
+import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
+import { err, ok } from '@shared/lib/result';
+import { hostDependencyStore, type IHostDependencyStore } from './host-dependency-store';
+import { pickInstallOption, toPlatform } from './install-options';
+import {
+  createLocalInstallCommandRunner,
+  createSshInstallCommandRunner,
+  type InstallCommandRunner,
+} from './install-runner';
+import { LatestVersionService } from './latest-version-service';
+import { inferMethod } from './location-hints';
+import { resolveCommandPath, resolveRealpath, runVersionProbe } from './probe';
+import { DEPENDENCIES, getDependencyDescriptor } from './registry';
+import type { DependencyDescriptor, DependencyProbeOptions, ProbeResult } from './types';
 
 const VERSION_RE = /(\d+\.\d+[\d.]*)/;
 
@@ -63,8 +73,14 @@ function resolveProbeStatus(
 function extractVersion(probe: ProbeResult): string | null {
   const raw = (probe.stdout || probe.stderr).trim();
   const firstLine = raw.split('\n')[0]?.trim() ?? '';
+  // Extract a version-like token, e.g. "git version 2.39.0" → "2.39.0"
   const m = VERSION_RE.exec(firstLine);
   return m ? m[1] : firstLine || null;
+}
+
+/** Exported alias for use inside buildAndStoreHostDependency. */
+function extractVersionFromProbe(probe: ProbeResult): string | null {
+  return extractVersion(probe);
 }
 
 function dependencyStateFromProbeResult(
@@ -96,69 +112,51 @@ function dependencyStateFromProbeResult(
   };
 }
 
-export type HostDependencyManagerOptions = {
-  /**
-   * Runs install / update command strings.
-   * Required when `install()` or `update()` will be called.
-   */
-  runInstallCommand?: InstallCommandRunner;
-  connectionId?: string;
-  latestVersionService?: LatestVersionService;
-  platform?: Platform;
-  hostDependencyStore?: IHostDependencyStore;
-  logger?: DepsLogger;
-};
-
-/**
- * Portable dependency manager for a single host.
- * Desktop composes this with PTY install-runner, KV-backed store, and event
- * bridge. Workspace Server will compose it with a plain-shell runner and a
- * file/sqlite store. Neither transport is imported here.
- */
-export class HostDependencyManager {
+export class DependencyManager implements IInitializable {
   private state = new Map<DependencyId, DependencyState>();
   /** Host-scoped installation data, populated for agent-category deps during probe(). */
   private hostState = new Map<DependencyId, HostDependency>();
-
   private readonly ctx: IExecutionContext;
+  private readonly emitEvents: boolean;
   private readonly runInstallCommand: InstallCommandRunner;
   private readonly connectionId: string | undefined;
   private readonly latestVersionService: LatestVersionService;
   private readonly hostDependencyStore: IHostDependencyStore | undefined;
-  private readonly logger: DepsLogger;
-  /** Platform of the target machine. Defaults to process.platform; SSH callers pass the remote platform. */
+  /** Platform of the target machine. Local defaults to process.platform; SSH resolves via remote probe. */
   readonly platform: Platform;
 
-  /** Fired after every state update — replace `events.emit(dependencyStatusUpdatedChannel, ...)`. */
-  readonly onStatusUpdated = new Emitter<DependencyStatusUpdatedEvent>();
-
-  /**
-   * Fired when a binary's resolved-path cache should be invalidated (after
-   * install / update / setSelection). Desktop bridges this to clearResolvedPathCache().
-   */
-  readonly onExecutableInvalidated = new Emitter<{ id: DependencyId }>();
-
-  constructor(ctx: IExecutionContext, options: HostDependencyManagerOptions = {}) {
+  constructor(
+    ctx: IExecutionContext,
+    {
+      emitEvents = true,
+      runInstallCommand,
+      connectionId,
+      latestVersionService = new LatestVersionService(),
+      platform = toPlatform(process.platform),
+      hostDependencyStore: injectedHostDepStore,
+    }: {
+      emitEvents?: boolean;
+      runInstallCommand?: InstallCommandRunner;
+      connectionId?: string;
+      latestVersionService?: LatestVersionService;
+      platform?: Platform;
+      hostDependencyStore?: IHostDependencyStore;
+    } = {}
+  ) {
     this.ctx = ctx;
-    this.connectionId = options.connectionId;
-    this.latestVersionService = options.latestVersionService ?? new LatestVersionService();
-    this.platform = options.platform ?? toPlatform(process.platform);
-    this.hostDependencyStore = options.hostDependencyStore;
-    this.logger = options.logger ?? consoleLogger;
+    this.emitEvents = emitEvents;
     this.runInstallCommand =
-      options.runInstallCommand ??
-      (() =>
-        Promise.resolve(
-          err({
-            type: 'command-failed' as const,
-            message: 'No install runner configured',
-            output: '',
-            exitCode: undefined,
-          })
-        ));
+      runInstallCommand ?? createLocalInstallCommandRunner(resolveLocalInstallShellProfile);
+    this.connectionId = connectionId;
+    this.latestVersionService = latestVersionService;
+    this.platform = platform;
+    this.hostDependencyStore = injectedHostDepStore;
   }
 
-  /** Kick off background probing for all dependencies. Returns immediately. */
+  /**
+   * Kick off background probing for all dependencies. Returns immediately;
+   * results stream in via `dependencyStatusUpdatedChannel` events.
+   */
   initialize(): void {
     void this.probeAll();
   }
@@ -185,8 +183,8 @@ export class HostDependencyManager {
 
   /**
    * Two-phase probe for a single dependency:
-   *   1. Resolve path (fast, ~5ms) — fires onStatusUpdated immediately.
-   *   2. Run version probe (slow, up to 10s) — fires a second update on completion.
+   *   1. Resolve path (fast, ~5ms) — emits an event immediately.
+   *   2. Run version probe (slow, up to 10s) — emits a second event on completion.
    *
    * For agent-category deps, also builds a HostDependency with per-installation
    * status (detected method + any user-defined path/cli overrides).
@@ -197,7 +195,10 @@ export class HostDependencyManager {
       throw new Error(`Unknown dependency id: ${id}`);
     }
 
-    // Phase 1: path resolution — carry forward latestVersion/updateAvailable to avoid badge blink
+    // Phase 1: path resolution
+    // Carry forward latestVersion/updateAvailable from any previous probe so they
+    // are not temporarily cleared while the version probe and latest-version fetch
+    // have not yet run. This prevents the "Update available" badge from blinking.
     const resolvedPath = await this.resolveFirstPath(descriptor);
     const pathState = dependencyStateFromProbeResult(descriptor, resolvedPath, null);
     const prev = this.state.get(id);
@@ -208,6 +209,8 @@ export class HostDependencyManager {
     });
 
     if (pathState.status === 'missing' || descriptor.skipVersionProbe) {
+      // Still fetch the latest version for missing agents so the UI can show what
+      // version is available to install, even before the agent is present.
       void this.fetchAndUpdateLatestVersion(descriptor, pathState);
       if (descriptor.category === 'agent') {
         void this.buildAndStoreHostDependency(id, descriptor, null, null, null);
@@ -302,7 +305,7 @@ export class HostDependencyManager {
           source: { kind: 'path', path: selection.path },
           status: dependencyStateFromProbeResult(descriptor, pathExists, pathProbe).status,
           path: pathExists,
-          version: extractVersion(pathProbe),
+          version: extractVersionFromProbe(pathProbe),
           latestVersion: null,
           updateAvailable: false,
         });
@@ -329,7 +332,7 @@ export class HostDependencyManager {
           source: { kind: 'cli', command: selection.cli },
           status: dependencyStateFromProbeResult(descriptor, cliPath, cliProbe).status,
           path: cliPath,
-          version: extractVersion(cliProbe),
+          version: extractVersionFromProbe(cliProbe),
           latestVersion: null,
           updateAvailable: false,
         });
@@ -357,12 +360,14 @@ export class HostDependencyManager {
     };
 
     this.hostState.set(id, hostDependency);
-    this.onStatusUpdated.emit({
-      id,
-      state: this.state.get(id)!,
-      connectionId: this.connectionId,
-      hostDependency,
-    });
+    if (this.emitEvents) {
+      events.emit(dependencyStatusUpdatedChannel, {
+        id,
+        state: this.state.get(id)!,
+        connectionId: this.connectionId,
+        hostDependency,
+      });
+    }
   }
 
   private deriveUsedId(
@@ -401,7 +406,7 @@ export class HostDependencyManager {
     if (!this.hostDependencyStore) return;
     const hostId = this.connectionId ?? 'local';
     await this.hostDependencyStore.setSelection(hostId, id, selection);
-    this.onExecutableInvalidated.emit({ id });
+    clearResolvedPathCache(id, this.connectionId);
     await this.probe(id);
   }
 
@@ -450,8 +455,8 @@ export class HostDependencyManager {
     await this.refreshShellEnvIfRequested(options);
     await Promise.all(
       DEPENDENCIES.map((d) =>
-        this.probe(d.id).catch((probErr) => {
-          this.logger.warn(`[HostDependencyManager] Failed to probe ${d.id}:`, probErr);
+        this.probe(d.id).catch((err) => {
+          log.warn(`[DependencyManager] Failed to probe ${d.id}:`, err);
         })
       )
     );
@@ -465,8 +470,8 @@ export class HostDependencyManager {
     const targets = DEPENDENCIES.filter((d) => d.category === cat);
     await Promise.all(
       targets.map((d) =>
-        this.probe(d.id).catch((probErr) => {
-          this.logger.warn(`[HostDependencyManager] Failed to probe ${d.id}:`, probErr);
+        this.probe(d.id).catch((err) => {
+          log.warn(`[DependencyManager] Failed to probe ${d.id}:`, err);
         })
       )
     );
@@ -490,7 +495,7 @@ export class HostDependencyManager {
       return err({ type: 'no-install-command', id });
     }
 
-    this.logger.info(`[HostDependencyManager] Installing ${id}: ${command}`);
+    log.info(`[DependencyManager] Installing ${id}: ${command}`);
 
     await this.ctx.refreshShellEnv?.();
 
@@ -506,15 +511,16 @@ export class HostDependencyManager {
       return err({ type: 'not-detected-after-install', id });
     }
 
-    this.onExecutableInvalidated.emit({ id });
+    clearResolvedPathCache(id);
     return ok(state);
   }
 
   /**
    * Apply an available update for an agent dependency, then re-probe.
    * Strategy is derived from capabilities.updates.update.kind:
-   *   - package-manager: re-run the update command for the matching InstallOption.
-   *   - cli: run `<resolvedBinaryPath> <args>` (e.g. `claude update`).
+   *   - package-manager: re-run the update command for the matching InstallOption (or the
+   *     recommended/first option when no method is provided). Falls back to `descriptor.installCommand`.
+   *   - cli: run `<resolvedBinaryPath> <args>` (e.g. `claude update`), method-agnostic.
    *   - auto / none: no-op
    */
   async update(id: DependencyId, method?: InstallMethod): Promise<DependencyUpdateResult> {
@@ -531,13 +537,14 @@ export class HostDependencyManager {
     const strategy = updates.update;
 
     if (strategy.kind === 'auto' || strategy.kind === 'none') {
+      // No action: agent self-updates or has no update mechanism.
       const state = this.state.get(id);
       if (state) return ok(state);
       return err({ type: 'no-update-strategy', id });
     }
 
-    this.logger.info(
-      `[HostDependencyManager] Updating ${id} (strategy: ${strategy.kind}, method: ${method ?? 'default'})`
+    log.info(
+      `[DependencyManager] Updating ${id} (strategy: ${strategy.kind}, method: ${method ?? 'default'})`
     );
 
     await this.ctx.refreshShellEnv?.();
@@ -585,15 +592,8 @@ export class HostDependencyManager {
       return err({ type: 'not-detected-after-update', id });
     }
 
-    this.onExecutableInvalidated.emit({ id });
+    clearResolvedPathCache(id);
     return ok(state);
-  }
-
-  /** Returns the resolved install options for an agent dep on the current platform. */
-  getInstallOptions(id: DependencyId) {
-    const descriptor = getDependencyDescriptor(id);
-    if (!descriptor) return [];
-    return resolveInstallOptions(descriptor, this.platform);
   }
 
   private async resolveFirstPath(descriptor: DependencyDescriptor): Promise<string | null> {
@@ -612,10 +612,63 @@ export class HostDependencyManager {
 
   private updateState(state: DependencyState): void {
     this.state.set(state.id, state);
-    this.onStatusUpdated.emit({
-      id: state.id,
-      state,
-      connectionId: this.connectionId,
-    });
+    if (this.emitEvents) {
+      events.emit(dependencyStatusUpdatedChannel, {
+        id: state.id,
+        state,
+        connectionId: this.connectionId,
+      });
+    }
   }
+}
+
+async function resolveLocalInstallShellProfile() {
+  const { defaultShell } = await appSettingsService.get('terminal');
+  return await resolveLocalAutomationShellWithSystemFallback({
+    intent: defaultShell,
+    onFallback: (error) => {
+      log.warn('[DependencyManager] Preferred install shell unavailable, using fallback', {
+        shell: error.shell,
+        target: error.target,
+      });
+    },
+  });
+}
+
+export const localDependencyManager = new DependencyManager(new LocalExecutionContext(), {
+  hostDependencyStore,
+});
+
+const sshManagers = new Map<string, DependencyManager>();
+
+/** Resolve the OS platform of a remote machine via a lightweight `uname -s` probe. */
+async function resolveRemotePlatform(ctx: IExecutionContext): Promise<Platform> {
+  try {
+    const { stdout } = await ctx.exec('uname', ['-s'], { timeout: 5000 });
+    const os = stdout.trim().toLowerCase();
+    if (os === 'darwin') return 'macos';
+    return 'linux';
+  } catch {
+    // Windows hosts won't have uname; default to linux for other unknowns.
+    return 'linux';
+  }
+}
+
+export async function getDependencyManager(connectionId?: string): Promise<DependencyManager> {
+  if (!connectionId) return localDependencyManager;
+  let mgr = sshManagers.get(connectionId);
+  if (!mgr) {
+    const proxy = await sshConnectionManager.connect(connectionId);
+    const sshCtx = new SshExecutionContext(proxy);
+    const platform = await resolveRemotePlatform(sshCtx);
+    mgr = new DependencyManager(sshCtx, {
+      emitEvents: true,
+      runInstallCommand: createSshInstallCommandRunner(proxy),
+      connectionId,
+      platform,
+      hostDependencyStore,
+    });
+    sshManagers.set(connectionId, mgr);
+  }
+  return mgr;
 }

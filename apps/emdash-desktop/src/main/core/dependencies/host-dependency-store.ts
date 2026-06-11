@@ -1,19 +1,27 @@
-import type {
-  DependencyId,
-  HostDependencySelection,
-  IHostDependencyStore,
-} from '@emdash/shared/deps';
 import { eq } from 'drizzle-orm';
 import { mergeDependencySelection } from '@main/core/ssh/config/connection-metadata';
 import { db } from '@main/db/client';
 import { KV } from '@main/db/kv';
 import { sshConnections } from '@main/db/schema';
 import { log } from '@main/lib/logger';
+import type { DependencyId } from '@shared/core/dependencies';
+import type { HostDependencySelection } from '@shared/core/dependencies';
 import { sshConnectionMetadata } from '@shared/core/ssh/ssh-connection-metadata';
 
 const LOCAL_HOST_ID = 'local';
 
-export type { IHostDependencyStore };
+// ---------------------------------------------------------------------------
+// Interface
+// ---------------------------------------------------------------------------
+
+export interface IHostDependencyStore {
+  getSelection(hostId: string, depId: DependencyId): Promise<HostDependencySelection | null>;
+  setSelection(
+    hostId: string,
+    depId: DependencyId,
+    selection: HostDependencySelection
+  ): Promise<void>;
+}
 
 // ---------------------------------------------------------------------------
 // Local store (KV table)

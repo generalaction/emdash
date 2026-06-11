@@ -1,22 +1,13 @@
-import type {
-  InstallMethod,
-  InstallOption,
-  Platform,
-  UpdatesDescriptor,
-} from '@emdash/cli-agent-plugins';
+import type { InstallMethod } from '@emdash/cli-agent-plugins';
 import z from 'zod';
-import type { Result } from '../lib/result';
-
-// ---------------------------------------------------------------------------
-// Dependency identity and status
-// ---------------------------------------------------------------------------
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { Result } from '@shared/lib/result';
 
 export type DependencyCategory = 'core' | 'agent';
 
 export type CoreDependencyId = 'git' | 'gh' | 'tmux' | 'ssh' | 'node';
 
-/** Widened to string so agent provider ids (from the plugins package) are subtypes. */
-export type DependencyId = string;
+export type DependencyId = CoreDependencyId | AgentProviderId;
 
 export type DependencyStatus = 'available' | 'missing' | 'error';
 
@@ -34,9 +25,13 @@ export interface DependencyState {
 
 export type DependencyStatusMap = Record<string, DependencyState>;
 
-// ---------------------------------------------------------------------------
-// Install / update result types
-// ---------------------------------------------------------------------------
+export type DependencyStatusUpdatedEvent = {
+  id: string;
+  state: DependencyState;
+  connectionId?: string;
+  /** Present for agent-category deps after the host dependency has been computed. */
+  hostDependency?: HostDependency;
+};
 
 export type InstallCommandError =
   | { type: 'permission-denied'; message: string; output: string; exitCode?: number }
@@ -76,7 +71,7 @@ export type InstallationSource =
 
 /**
  * A single resolved installation of an agent binary on a specific host.
- * id is stable and can be persisted: 'method:<InstallMethod>', 'path', or 'cli'.
+ * - id is stable and can be persisted: 'method:<InstallMethod>', 'path', or 'cli'.
  */
 export type Installation = {
   id: string;
@@ -126,73 +121,3 @@ export const hostDependencySelectionSchema = z.object({
 export function deriveHostDependencyStatus(dep: HostDependency): DependencyStatus {
   return dep.installations.find((i) => i.id === dep.usedId)?.status ?? 'missing';
 }
-
-// ---------------------------------------------------------------------------
-// Status event
-// ---------------------------------------------------------------------------
-
-export type DependencyStatusUpdatedEvent = {
-  id: string;
-  state: DependencyState;
-  connectionId?: string;
-  /** Present for agent-category deps after the host dependency has been computed. */
-  hostDependency?: HostDependency;
-};
-
-// ---------------------------------------------------------------------------
-// Probe and descriptor types
-// ---------------------------------------------------------------------------
-
-export interface ProbeResult {
-  command: string;
-  path: string | null;
-  stdout: string;
-  stderr: string;
-  exitCode: number | null;
-  timedOut: boolean;
-}
-
-export interface DependencyDescriptor {
-  id: DependencyId;
-  name: string;
-  category: DependencyCategory;
-  /** Binary names to try in order; first success wins. */
-  commands: string[];
-  /** Args passed when probing for a version string. Defaults to ['--version']. */
-  versionArgs?: string[];
-  /**
-   * Skip executing the CLI after resolving its path.
-   * Use for CLIs whose version command has project-local side effects.
-   */
-  skipVersionProbe?: boolean;
-  docUrl?: string;
-  /** Human-readable installation hint shown in UI. */
-  installHint?: string;
-  /** Machine-executable install command, e.g. "npm install -g @openai/codex". */
-  installCommand?: string;
-  /**
-   * Per-platform install options from plugin metadata.
-   * Takes precedence over `installCommand` when present.
-   * Core dependencies leave this undefined and rely on `installCommand`.
-   */
-  installCommands?: Partial<Record<Platform, InstallOption[]>>;
-  /**
-   * Optional imperative hooks from the provider implementation.
-   * Absent for core dependencies.
-   */
-  updateHooks?: {
-    resolveLatestVersion?(): Promise<string | null>;
-    buildUpdateCommand?(binaryPath: string): { command: string; args: string[] };
-  };
-  /**
-   * Override the default status resolution logic.
-   * Useful for CLIs that exit non-zero on `--version` but are still available.
-   */
-  resolveStatus?: (result: ProbeResult) => DependencyStatus;
-  /** Updates capability from plugin metadata. Absent for core dependencies. */
-  updates?: UpdatesDescriptor;
-}
-
-export type DependencyProbeOptions = {
-  refreshShellEnv?: boolean;
-};

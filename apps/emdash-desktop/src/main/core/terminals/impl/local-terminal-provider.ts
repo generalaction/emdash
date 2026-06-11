@@ -1,4 +1,4 @@
-import type { IExecutionContext } from '@emdash/shared/exec';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import { isUnexpectedPtyExit } from '@main/core/pty/exit-classification';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';

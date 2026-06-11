@@ -7,7 +7,7 @@
  * without touching the real filesystem or spawning real processes.
  */
 
-import type { IExecutionContext } from '@emdash/shared/exec';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { parseRepositoryRef } from '@shared/repository-ref';
 

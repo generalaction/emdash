@@ -1,19 +1,18 @@
-export type { ExecResult } from './types';
+export interface ExecResult {
+  stdout: string;
+  stderr: string;
+}
 
-/**
- * Options for a single exec call on an IExecutionContext.
- * Named distinctly from BoundExec's ExecOptions to avoid collisions.
- */
-export type ExecContextOptions = {
+export interface ExecOptions {
   timeout?: number;
   maxBuffer?: number;
   signal?: AbortSignal;
-};
+}
 
 /**
- * An execution context represents a host + optional working directory where
- * commands run. Implementations abstract the transport (local spawn vs SSH exec)
- * so consumers have no knowledge of whether they are running locally or remotely.
+ * An execution context represents a host + optional working directory where commands run.
+ * Implementations abstract the transport (local spawn vs SSH exec) so consumers
+ * have no knowledge of whether they are running locally or remotely.
  */
 export interface IExecutionContext {
   /** The working directory all commands run in. Undefined/empty = no cwd constraint. */
@@ -26,11 +25,7 @@ export interface IExecutionContext {
   readonly supportsLocalSpawn: boolean;
 
   /** Run a command and buffer all output. Rejects on non-zero exit code. */
-  exec(
-    command: string,
-    args?: string[],
-    opts?: ExecContextOptions
-  ): Promise<{ stdout: string; stderr: string }>;
+  exec(command: string, args?: string[], opts?: ExecOptions): Promise<ExecResult>;
 
   /**
    * Refresh any cached shell environment for this context. Installers often

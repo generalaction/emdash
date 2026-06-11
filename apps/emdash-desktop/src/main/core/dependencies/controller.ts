@@ -4,10 +4,10 @@ import type {
   DependencyId,
   HostDependency,
   HostDependencySelection,
-} from '@emdash/shared/deps';
-import type { DependencyProbeOptions } from '@emdash/shared/deps';
+} from '@shared/core/dependencies';
 import { createRPCController } from '@shared/lib/ipc/rpc';
-import { getDependencyManager } from './dependency-managers';
+import { getDependencyManager } from './dependency-manager';
+import type { DependencyProbeOptions } from './types';
 
 export const dependenciesController = createRPCController({
   getAll: async (connectionId?: string) => {

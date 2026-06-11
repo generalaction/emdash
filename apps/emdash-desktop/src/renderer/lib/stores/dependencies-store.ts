@@ -1,4 +1,8 @@
 import type { InstallMethod } from '@emdash/cli-agent-plugins';
+import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import { log } from '@renderer/utils/logger';
+import type { AgentPayload } from '@shared/core/agents/agent-payload';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type {
   DependencyId,
   DependencyInstallResult,
@@ -8,11 +12,7 @@ import type {
   DependencyUpdateResult,
   HostDependency,
   HostDependencySelection,
-} from '@emdash/shared/deps';
-import { action, computed, makeObservable, observable, runInAction } from 'mobx';
-import { log } from '@renderer/utils/logger';
-import type { AgentPayload } from '@shared/core/agents/agent-payload';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+} from '@shared/core/dependencies';
 import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
 import { events, rpc } from '../../lib/ipc';
 import { Resource } from './resource';

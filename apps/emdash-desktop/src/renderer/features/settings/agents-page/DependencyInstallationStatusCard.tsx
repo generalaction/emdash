@@ -1,5 +1,4 @@
-import type { InstallationSource, HostDependencySelection } from '@emdash/shared/deps';
-import { Check, MoreHorizontal, RefreshCw } from 'lucide-react';
+import { CheckCircle2, MoreHorizontal, RefreshCw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type { HostDependencyInstallation } from '@renderer/lib/stores/use-host-dependency-installation';
 import {
@@ -13,6 +12,8 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@renderer/lib/ui/dropdown-menu';
+import type { InstallationSource } from '@shared/core/dependencies';
+import type { HostDependencySelection } from '@shared/core/dependencies';
 import { humanizeMethod } from './install-command-row';
 
 function sourceLabel(source: InstallationSource): string {
@@ -59,9 +60,7 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
 
   return (
     <div className="flex items-center gap-2 rounded-lg border px-3 py-2">
-      <div className="bg-background-success-1 flex size-6 items-center justify-center rounded-lg">
-        <Check className="size-4 shrink-0 text-foreground-success" />
-      </div>
+      <CheckCircle2 className="h-4 w-4 shrink-0 text-foreground-success" />
       <div className="min-w-0 flex-1 truncate text-sm">
         <span className="text-foreground">Found</span>
         {versionText && <span className="ml-1 font-mono text-foreground-muted">{versionText}</span>}
@@ -86,7 +85,7 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
                   {installations.map((inst) => (
                     <DropdownMenuItem
                       key={inst.id}
-                      onSelect={() => setUsed(buildSelection(inst.id, installations))}
+                      onSelect={() => void setUsed(buildSelection(inst.id, installations))}
                     >
                       {sourceLabel(inst.source)}
                       {inst.id === used.id && (
@@ -99,11 +98,11 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
               <DropdownMenuSeparator />
             </>
           )}
-          <DropdownMenuItem onSelect={() => refresh()}>
+          <DropdownMenuItem onSelect={() => void refresh()}>
             <RefreshCw className="h-3.5 w-3.5" />
             Refresh
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => fetchLatestVersion()}>
+          <DropdownMenuItem onSelect={() => void fetchLatestVersion()}>
             Check for updates
           </DropdownMenuItem>
         </DropdownMenuContent>

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import type { IExecutionContext } from '@emdash/shared/exec';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import {
   FileSystemError,
   FileSystemErrorCodes,

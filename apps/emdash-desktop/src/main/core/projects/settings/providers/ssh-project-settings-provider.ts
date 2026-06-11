@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { IExecutionContext } from '@emdash/shared/exec';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { getDefaultSshWorktreeDirectory } from '@main/core/settings/worktree-defaults';

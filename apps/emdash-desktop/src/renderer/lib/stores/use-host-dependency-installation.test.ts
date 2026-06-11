@@ -1,5 +1,3 @@
-import { deriveHostDependencyStatus } from '@emdash/shared/deps';
-import type { HostDependency, Installation } from '@emdash/shared/deps';
 /**
  * Tests for the useHostDependencyInstallation hook's data model.
  *
@@ -11,6 +9,8 @@ import type { HostDependency, Installation } from '@emdash/shared/deps';
  * correct arguments.
  */
 import { describe, expect, it, vi } from 'vitest';
+import { deriveHostDependencyStatus } from '@shared/core/dependencies';
+import type { HostDependency, Installation } from '@shared/core/dependencies';
 
 // ---------------------------------------------------------------------------
 // deriveHostDependencyStatus (shared helper used by the hook)

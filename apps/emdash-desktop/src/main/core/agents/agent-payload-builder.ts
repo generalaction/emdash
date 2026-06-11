@@ -1,17 +1,18 @@
 import type { Platform } from '@emdash/cli-agent-plugins';
 import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
-import type { DependencyStatusMap } from '@emdash/shared/deps';
-import { resolveInstallOptions, toPlatform } from '@emdash/shared/deps';
-import { getDependencyDescriptor, type HostDependencyManager } from '@emdash/shared/deps/runtime';
 import type { AgentPayload } from '@shared/core/agents/agent-payload';
 import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { DependencyStatusMap } from '@shared/core/dependencies';
+import type { DependencyManager } from '../dependencies/dependency-manager';
+import { resolveInstallOptions, toPlatform } from '../dependencies/install-options';
+import { getDependencyDescriptor } from '../dependencies/registry';
 import { providerOverrideSettings } from '../settings/provider-settings-service';
 
 async function buildOne(
   id: AgentProviderId,
   statuses: DependencyStatusMap,
   platform: Platform,
-  dependencyManager?: HostDependencyManager
+  dependencyManager?: DependencyManager
 ): Promise<AgentPayload | null> {
   const meta = metadataRegistry.get(id);
   if (!meta) return null;
@@ -51,7 +52,7 @@ export async function buildAgentPayload(
   id: string,
   statuses: DependencyStatusMap,
   platform: Platform = toPlatform(process.platform),
-  dependencyManager?: HostDependencyManager
+  dependencyManager?: DependencyManager
 ): Promise<AgentPayload | null> {
   return buildOne(id as AgentProviderId, statuses, platform, dependencyManager);
 }
@@ -59,7 +60,7 @@ export async function buildAgentPayload(
 export async function buildAgentPayloads(
   statuses: DependencyStatusMap,
   platform: Platform = toPlatform(process.platform),
-  dependencyManager?: HostDependencyManager
+  dependencyManager?: DependencyManager
 ): Promise<AgentPayload[]> {
   const results = await Promise.all(
     AGENT_PROVIDERS.map((p) => buildOne(p.id, statuses, platform, dependencyManager))

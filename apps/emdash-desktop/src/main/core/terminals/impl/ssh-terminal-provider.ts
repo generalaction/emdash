@@ -1,4 +1,4 @@
-import type { IExecutionContext } from '@emdash/shared/exec';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import { isUnexpectedPtyExit } from '@main/core/pty/exit-classification';
 import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry, type PtySessionMetadata } from '@main/core/pty/pty-session-registry';

@@ -1,6 +1,6 @@
 import path from 'node:path';
-import type { IExecutionContext } from '@emdash/shared/exec';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import {
   FileSystemError,
   FileSystemErrorCodes,
