@@ -1,0 +1,63 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-session-store.test.ts
+  s_4547f44146b8d2::t_8f638da742f405 17,82,88-111
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_ae9742880b9c7c::t_3091e6c71d4905 230-232
+  s_4547f44146b8d2::t_040db9bc940fa5 21,23-25,27-32,108,111,235-237
+  s_4547f44146b8d2::t_c4ab5f6c422435 26
+apps/emdash-desktop/src/renderer/features/browser/browser-webview-events.test.ts
+  s_4547f44146b8d2::t_e29972e9379013 82,92,105
+  s_ae9742880b9c7c::t_e6d45f7fbea5cd 12,31-34,156-171
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.test.ts
+  s_4547f44146b8d2::t_759a1a3f9ad368 79,82,85-86
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar-actions.test.ts
+  s_4547f44146b8d2::t_39a253b769486c 4,10,23,53,73,85,90,93,97,100,104-106
+  s_4547f44146b8d2::t_7dda1e66296584 44
+apps/emdash-desktop/src/shared/browser.ts
+  s_ae9742880b9c7c::t_7ca562bc5fe9c6 48-51
+  s_4547f44146b8d2::t_e92f31c79aa405 36,42-47,68-117,192
+apps/emdash-desktop/src/shared/browser.test.ts
+  s_ae9742880b9c7c::t_3cc3918e229c10 10,110-116
+  s_4547f44146b8d2::t_d63352e31030cd 104
+  s_4547f44146b8d2::t_70946367042328 3-6,9,11,13-14,16,19-21,117-161
+apps/emdash-desktop/src/renderer/features/browser/browser-session-store.ts
+  s_4547f44146b8d2::t_5250c5be9a67e3 7,10,59,65,89-92
+apps/emdash-desktop/src/main/core/browser/controller.ts
+  s_ae9742880b9c7c::t_a54b80f2e1b73c 3,31
+  s_ae9742880b9c7c::t_8732f71b8aa41c 32-36
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_4547f44146b8d2::t_37c27066d458cd 151,153,155,157
+  s_ae9742880b9c7c::t_7c74d1a039d165 5
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar-actions.ts
+  s_4547f44146b8d2::t_6ff616888f7912 3-7,22,24-25,27-28,34,43
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_4547f44146b8d2::t_8855064ef15263 3,96,99
+  s_4547f44146b8d2::t_c591993f8397e9 100-110
+apps/emdash-desktop/src/renderer/features/browser/browser-webview-events.ts
+  s_ae9742880b9c7c::t_9a2c521a3eccfa 1
+  s_4547f44146b8d2::t_1c38ce540ef334 46,50-51,54,77,89
+  s_ae9742880b9c7c::t_833e98b72c73a8 47-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "af1d186d809c840f3b8f7c12656bb8d829585976",
+  "prompts": {},
+  "sessions": {
+    "s_4547f44146b8d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_14cb46f04ffeaIL2qmxQ8BeJQc",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_ae9742880b9c7c": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eb34c-f9a0-72af-bd2a-ecc512cab47b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
