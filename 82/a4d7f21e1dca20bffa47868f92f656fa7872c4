@@ -1,0 +1,42 @@
+AGENTS.md
+  s_324228bcc6809f::t_1cbdefe561839a 40-44,50,70-71,74-75
+  s_324228bcc6809f::t_ac59cff852e439 153-154
+  s_324228bcc6809f::t_fdd5056520ed66 10-16,20-26,35-36
+CONTRIBUTING.md
+  s_324228bcc6809f::t_bf1d6679b0e825 145-146
+  s_324228bcc6809f::t_e51357dc7f41f0 132
+  s_324228bcc6809f::t_fbce0ff756c9c3 67,73
+  s_324228bcc6809f::t_9172a466ef2ed3 38,42-45
+  s_324228bcc6809f::t_ff5980c3e5ee3d 175
+  s_86cabf130148d4::t_94f35492b3a308 24,128-131,133
+  s_324228bcc6809f::t_dcf282a41bcab3 97,99,101
+  s_324228bcc6809f::t_af56086f594f01 121
+agents/conventions/config-files.md
+  s_324228bcc6809f::t_8b7045865b212b 5-15,22
+agents/quickstart.md
+  s_324228bcc6809f::t_9809fd3b97cc6b 7,11-13,26-27,37-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "82a4d7f21e1dca20bffa47868f92f656fa7872c4",
+  "prompts": {},
+  "sessions": {
+    "s_324228bcc6809f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2fc8f915-0999-4beb-abf2-553a7f11ebe4",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_86cabf130148d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_149e5707bffeCA726BommxMBiY",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
