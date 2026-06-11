@@ -168,8 +168,11 @@ export interface IGitWorktree extends IDisposable {
   getLatestCommit(): Promise<Commit | null>;
   getCommitFiles(hash: string): Promise<CommitFile[]>;
   stage(paths: string[]): Promise<GitSeqs>;
+  stageAll(): Promise<GitSeqs>;
   unstage(paths: string[]): Promise<GitSeqs>;
+  unstageAll(): Promise<GitSeqs>;
   revert(paths: string[]): Promise<GitSeqs>;
+  revertAll(): Promise<GitSeqs>;
   commit(message: string): Promise<Result<{ hash: string; seqs: GitSeqs }, CommitError>>;
   push(remote?: string): Promise<Result<{ output: string; seqs: GitSeqs }, PushError>>;
   pull(): Promise<Result<{ output: string; seqs: GitSeqs }, PullError>>;

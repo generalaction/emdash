@@ -484,15 +484,35 @@ export class GitWorktree implements IGitWorktree {
     return this.refreshStatus();
   }
 
+  async stageAll(): Promise<GitSeqs> {
+    await this.exec.exec(['add', '-A']);
+    return this.refreshStatus();
+  }
+
   async unstage(paths: string[]): Promise<GitSeqs> {
     if (paths.length === 0) return {};
     await this.exec.exec(['reset', 'HEAD', '--', ...paths]);
     return this.refreshStatus();
   }
 
+  async unstageAll(): Promise<GitSeqs> {
+    try {
+      await this.exec.exec(['reset', 'HEAD']);
+    } catch {}
+    return this.refreshStatus();
+  }
+
   async revert(paths: string[]): Promise<GitSeqs> {
     if (paths.length === 0) return {};
     await this.exec.exec(['checkout', 'HEAD', '--', ...paths]);
+    return this.refreshStatus();
+  }
+
+  async revertAll(): Promise<GitSeqs> {
+    try {
+      await this.exec.exec(['reset', '--hard', 'HEAD']);
+    } catch {}
+    await this.exec.exec(['clean', '-fd']);
     return this.refreshStatus();
   }
 

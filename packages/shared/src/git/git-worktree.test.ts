@@ -353,6 +353,90 @@ describe('GitWorktree', () => {
     }
   });
 
+  it('stageAll, unstageAll, and revertAll mutate the full worktree state', async () => {
+    const repo = await makeRepo();
+    const watcher = new FileWatchService();
+    const runtime = new GitRuntime({ watcher });
+
+    try {
+      const lease = await runtime.openWorktree(repo);
+      const worktree = lease.value;
+
+      await writeFile(path.join(repo, 'tracked.txt'), 'modified\n', 'utf8');
+      await writeFile(path.join(repo, 'untracked.txt'), 'new\n', 'utf8');
+      await writeFile(path.join(repo, 'to-delete.txt'), 'gone\n', 'utf8');
+      await execFileAsync('git', ['add', 'to-delete.txt'], { cwd: repo });
+      await execFileAsync('git', ['commit', '-m', 'add to-delete'], { cwd: repo });
+      await rm(path.join(repo, 'to-delete.txt'));
+
+      const stageAllSeqs = await worktree.stageAll();
+      expect(stageAllSeqs.status).toBeGreaterThanOrEqual(1);
+      expect(await worktree.getStatus()).toMatchObject({
+        kind: 'ok',
+        staged: expect.arrayContaining([
+          expect.objectContaining({ path: 'tracked.txt', status: 'modified' }),
+          expect.objectContaining({ path: 'untracked.txt', status: 'added' }),
+          expect.objectContaining({ path: 'to-delete.txt', status: 'deleted' }),
+        ]),
+        unstaged: [],
+      });
+
+      const unstageAllSeqs = await worktree.unstageAll();
+      expect(unstageAllSeqs.status).toBeGreaterThanOrEqual(1);
+      expect(await worktree.getStatus()).toMatchObject({
+        kind: 'ok',
+        staged: [],
+        unstaged: expect.arrayContaining([
+          expect.objectContaining({ path: 'tracked.txt', status: 'modified' }),
+          expect.objectContaining({ path: 'untracked.txt', status: 'added' }),
+          expect.objectContaining({ path: 'to-delete.txt', status: 'deleted' }),
+        ]),
+      });
+
+      const revertAllSeqs = await worktree.revertAll();
+      expect(revertAllSeqs.status).toBeGreaterThanOrEqual(1);
+      expect(await worktree.getStatus()).toMatchObject({
+        kind: 'ok',
+        staged: [],
+        unstaged: [],
+      });
+      expect(await readFile(path.join(repo, 'tracked.txt'), 'utf8')).toBe('before\n');
+      expect(await readFile(path.join(repo, 'to-delete.txt'), 'utf8')).toBe('gone\n');
+      await expect(readFile(path.join(repo, 'untracked.txt'), 'utf8')).rejects.toThrow();
+
+      lease.release();
+    } finally {
+      await runtime.dispose();
+      await watcher.dispose();
+    }
+  });
+
+  it('unstageAll and revertAll tolerate unborn HEAD', async () => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'emdash-shared-worktree-unborn-'));
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: repo });
+    await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo });
+    await execFileAsync('git', ['config', 'user.name', 'Test User'], { cwd: repo });
+    await writeFile(path.join(repo, 'untracked.txt'), 'new\n', 'utf8');
+
+    const runtime = new GitRuntime();
+    try {
+      const lease = await runtime.openWorktree(repo);
+      await writeFile(path.join(repo, 'extra.txt'), 'bar\n', 'utf8');
+
+      const unstageSeqs = await lease.value.unstageAll();
+      expect(unstageSeqs.status).toBeGreaterThanOrEqual(1);
+
+      const revertSeqs = await lease.value.revertAll();
+      expect(revertSeqs.status).toBeGreaterThanOrEqual(1);
+      await expect(readFile(path.join(repo, 'untracked.txt'), 'utf8')).rejects.toThrow();
+      await expect(readFile(path.join(repo, 'extra.txt'), 'utf8')).rejects.toThrow();
+
+      lease.release();
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it('soft-resets the latest unpushed commit and returns its message', async () => {
     const repo = await makeRepo();
     const runtime = new GitRuntime();
