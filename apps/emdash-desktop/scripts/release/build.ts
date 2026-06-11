@@ -92,8 +92,11 @@ try {
     if (!archEnum) fail(`Unknown arch: ${arch}`);
 
     const buildTargets = ebPlatform.createTarget(targetList, archEnum);
+    // Clone per iteration: electron-builder's normalizeFiles mutates config.files in
+    // place (collapsing strings into a single fileset and leaving null holes), which
+    // crashes the second arch iteration if the same config object is reused.
     const config: Configuration = {
-      ...baseConfig,
+      ...structuredClone(baseConfig),
       electronVersion,
       npmRebuild: false,
       ...(isCanary ? { extraMetadata: { version: overrideVersion } } : {}),

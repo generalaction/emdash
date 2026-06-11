@@ -52,6 +52,7 @@
   },
   "dependencies": {
     "@emdash/cli-agent-plugins": "workspace:*",
+    "@emdash/shared": "workspace:*",
     "@gitbeaker/rest": "^43.8.0",
     "@linear/sdk": "^77.0.0",
     "@llamaduck/forgejo-ts": "^14.0.3",
