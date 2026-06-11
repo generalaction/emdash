@@ -21,10 +21,7 @@ cd emdash
 # Use the correct Node.js version (if using nvm)
 nvm use
 
-# Quick start: install dependencies and run dev server
-pnpm run d
-
-# Or run separately:
+# Install dependencies and run the dev server from the repo root
 pnpm install
 pnpm run dev
 
@@ -35,12 +32,17 @@ pnpm run typecheck
 pnpm run test
 ```
 
-Tip: During development, the renderer hot‑reloads. Changes to the Electron main process (files in `src/main`) require a restart of the dev app.
+If you are already in `apps/emdash-desktop/`, `pnpm run d` is shorthand for installing
+dependencies and starting the dev app.
+
+Tip: During development, the renderer hot‑reloads. Changes to the Electron main process (files in `apps/emdash-desktop/src/main`) require a restart of the dev app.
 
 ## Project Overview
 
-- `src/main/` – Electron main process, IPC handlers, services (Git, worktrees, PTY manager, DB, etc.)
-- `src/renderer/` – React UI (Vite), hooks, components
+The repo is a pnpm workspace monorepo; the Electron app lives in `apps/emdash-desktop/`. The root `package.json` provides aggregate scripts (`dev`, `build`, `test`, `lint`, `format`, `typecheck`); everything else runs from `apps/emdash-desktop/`.
+
+- `apps/emdash-desktop/src/main/` – Electron main process, RPC controllers, services (Git, worktrees, PTY manager, DB, etc.)
+- `apps/emdash-desktop/src/renderer/` – React UI (Vite), organized around `app/`, `features/`, and `lib/`
 - Local database – SQLite file created under the OS userData folder (see "Local DB" below)
 - Worktrees – Git worktrees are created outside your repo root in a sibling `worktrees/` folder
 - Logs – Agent terminal output and app logs are written to the OS userData folder (not inside repos)
@@ -62,15 +64,13 @@ Tip: During development, the renderer hot‑reloads. Changes to the Electron mai
 3. Run checks locally
 
 ```
-pnpm run format     # Format code with Prettier (required)
+pnpm run format     # Format code with oxfmt (required)
 pnpm run lint       # oxlint
 pnpm run typecheck  # TypeScript type checking
 pnpm run test       # Vitest test suite
 ```
 
-Pre-commit hooks run automatically via Husky + lint-staged. On each commit, staged files are auto-formatted with Prettier and linted with oxlint. Run the full local gate before opening or merging a PR.
-
-If you need to skip the hook for a work-in-progress commit, use `git commit --no-verify`. The checks will still run in CI when you open a PR.
+There are no pre-commit hooks; run the full local gate above before opening or merging a PR. CI enforces `format:check`, `typecheck`, and `lint` when you open a PR.
 
 4. Commit using Conventional Commits
 
@@ -94,11 +94,11 @@ feat(docs): add changelog tab with GitHub releases integration
 
 ## Code Style and Patterns
 
-TypeScript + oxlint + Prettier
+TypeScript + oxlint + oxfmt
 
-Pre-commit hooks handle formatting and linting automatically on staged files. For full-project checks you can run them manually:
+For full-project checks run:
 
-- `pnpm run format` -- format all files with Prettier
+- `pnpm run format` -- format all files with oxfmt
 - `pnpm run lint` -- oxlint across all files
 - `pnpm run typecheck` -- TypeScript type checking (whole project)
 - `pnpm run test` -- run the test suite
@@ -118,18 +118,19 @@ Git and worktrees
 
 Renderer (React)
 
-- Components live under `src/renderer/components`; hooks under `src/renderer/hooks`.
+- Feature UI lives under `apps/emdash-desktop/src/renderer/features/<feature>/`; shared primitives, hooks, and stores under `apps/emdash-desktop/src/renderer/lib/`.
 - Agent CLIs are embedded via terminal emulation (xterm.js) - each agent runs in its own PTY.
 - Use existing UI primitives and Tailwind utility classes for consistency.
 - Aim for accessible elements (labels, `aria-*` where appropriate).
 
 Local DB (SQLite)
 
-- Location (Electron `app.getPath('userData')`):
-  - macOS: `~/Library/Application Support/emdash/emdash.db`
-  - Linux: `~/.config/emdash/emdash.db`
-  - Windows: `%APPDATA%\emdash\emdash.db`
-- Reset: quit the app, delete the file, relaunch (the schema is recreated).
+- Development location (Electron `app.getPath('userData')`; dev builds use an `emdash-dev` folder):
+  - macOS: `~/Library/Application Support/emdash-dev/emdash4.db`
+  - Linux: `~/.config/emdash-dev/emdash4.db`
+  - Windows: `%APPDATA%\emdash-dev\emdash4.db`
+- Override the path with the `EMDASH_DB_FILE` environment variable for isolated/scratch databases.
+- Reset: quit the app and run `pnpm --filter @emdash/emdash-desktop run db:reset` from the repo root, or delete the dev database file and relaunch (the schema is recreated).
 
 ## Issue Reports and Feature Requests
 
@@ -141,7 +142,8 @@ Local DB (SQLite)
 
 ## Release Process (maintainers)
 
-Use pnpm's built-in versioning to ensure consistency:
+Use pnpm's built-in versioning to ensure consistency. The app version lives in
+`apps/emdash-desktop/package.json`, so run these from `apps/emdash-desktop/`:
 
 ```bash
 # For bug fixes (0.2.9 → 0.2.10)
@@ -170,7 +172,7 @@ The release pipeline is split across these GitHub Actions workflows:
 1. Builds Linux, Windows, and macOS packages
 2. Signs Windows builds when Azure Trusted Signing secrets are configured
 3. Signs, verifies, notarizes, and staples macOS DMGs and ZIPs
-4. Uploads release artifacts to Cloudflare R2
+4. Publishes artifacts to GitHub Releases (primary update feed) and Cloudflare R2 (fallback)
 
 **Linux/Nix Build** (`.github/workflows/nix-build.yml`):
 1. Computes the correct dependency hash from `pnpm-lock.yaml`
