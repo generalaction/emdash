@@ -1,0 +1,35 @@
+apps/emdash-desktop/src/renderer/features/tasks/utils.test.ts
+  s_77ebf93afa6957::t_92cf8ac1102781 2-29
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/git-store.ts
+  s_77ebf93afa6957::t_1c2d0cef2a0dd8 11
+  s_77ebf93afa6957::t_6f314335bd9b66 380-385
+  s_77ebf93afa6957::t_63b240a7adbaf8 3
+  s_77ebf93afa6957::t_42af9952ca35f2 386
+apps/emdash-desktop/src/renderer/features/tasks/utils.ts
+  s_77ebf93afa6957::t_7e034a2320b803 1
+  s_77ebf93afa6957::t_6a01ba6a5446ff 36-57
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-manager.ts
+  s_77ebf93afa6957::t_a02b05319035a0 33
+  s_77ebf93afa6957::t_d6227336ff7ddd 370-372
+  s_77ebf93afa6957::t_9684be01b0da1a 58
+  s_77ebf93afa6957::t_64f5bb24d4b20e 3-6
+  s_77ebf93afa6957::t_ef468e98bce1ad 47
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/git-store.test.ts
+  s_77ebf93afa6957::t_606e421c566eb9 32-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "b3e9769adce31cfad9c181312f7cdbc85e7f3294",
+  "prompts": {},
+  "sessions": {
+    "s_77ebf93afa6957": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "973b422f-838f-4eb5-830d-dcb62a560f54",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
