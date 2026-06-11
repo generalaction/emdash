@@ -1,4 +1,4 @@
-import { BROWSER_DEFAULT_URL } from '@shared/browser';
+import { BROWSER_DEFAULT_URL, normalizeBrowserZoomFactor } from '@shared/browser';
 import { browserDiagnosticsStore } from './browser-diagnostics-store';
 import { browserSessionStore } from './browser-session-store';
 import type { BrowserWebviewElement } from './browser-webview-types';
@@ -43,8 +43,15 @@ export function bindBrowserWebviewEvents(
     historySyncTimers.add(timer);
   };
 
+  const applySessionZoom = () => {
+    const session = browserSessionStore.getSession(browserId);
+    if (session?.zoomFactor === undefined) return;
+    webview.setZoomFactor(normalizeBrowserZoomFactor(session.zoomFactor));
+  };
+
   const onDomReady = () => {
     isDomReady = true;
+    applySessionZoom();
     syncHistoryState();
     options.onDomReady?.();
   };
@@ -67,6 +74,7 @@ export function bindBrowserWebviewEvents(
       canGoBack: webview.canGoBack(),
       canGoForward: webview.canGoForward(),
     });
+    applySessionZoom();
     scheduleHistoryStateSyncOnce();
   };
 
@@ -78,6 +86,7 @@ export function bindBrowserWebviewEvents(
       canGoForward: webview.canGoForward(),
       loadError: null,
     });
+    applySessionZoom();
     scheduleHistoryStateSync();
   };
 

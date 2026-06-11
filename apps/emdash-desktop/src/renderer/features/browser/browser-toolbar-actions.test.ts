@@ -1,16 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   canOpenBrowserUrlExternally,
-  clearBrowserCache,
-  clearBrowserCookies,
+  clearBrowserData,
   confirmClearBrowserStorage,
   openBrowserUrlExternally,
 } from './browser-toolbar-actions';
 
 const mocks = vi.hoisted(() => ({
-  clearCache: vi.fn(),
-  clearCookies: vi.fn(),
-  clearStorage: vi.fn(),
+  clearData: vi.fn(),
   openExternal: vi.fn(),
   reload: vi.fn(),
   reloadIgnoringCache: vi.fn(),
@@ -23,9 +20,7 @@ vi.mock('@renderer/lib/ipc', () => ({
       openExternal: mocks.openExternal,
     },
     browser: {
-      clearCache: mocks.clearCache,
-      clearCookies: mocks.clearCookies,
-      clearStorage: mocks.clearStorage,
+      clearData: mocks.clearData,
     },
   },
 }));
@@ -46,6 +41,7 @@ function session() {
     isLoading: false,
     canGoBack: false,
     canGoForward: false,
+    zoomFactor: 1,
     createdAt: 1,
     updatedAt: 1,
   };
@@ -54,9 +50,7 @@ function session() {
 describe('browser toolbar actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.clearCache.mockResolvedValue({ success: true });
-    mocks.clearCookies.mockResolvedValue({ success: true });
-    mocks.clearStorage.mockResolvedValue({ success: true });
+    mocks.clearData.mockResolvedValue({ success: true });
   });
 
   it('opens only http and https URLs externally', () => {
@@ -76,7 +70,7 @@ describe('browser toolbar actions', () => {
   });
 
   it('clears storage only after explicit modal confirmation and reloads on success', async () => {
-    confirmClearBrowserStorage(session(), { reload: mocks.reload } as never);
+    confirmClearBrowserStorage(session(), mocks.reload);
 
     expect(mocks.showModal).toHaveBeenCalledWith(
       'confirmActionModal',
@@ -88,28 +82,28 @@ describe('browser toolbar actions', () => {
     );
     await mocks.showModal.mock.calls[0][1].onSuccess();
 
-    expect(mocks.clearStorage).toHaveBeenCalledWith('browser-1');
+    expect(mocks.clearData).toHaveBeenCalledWith('browser-1', 'storage');
     expect(mocks.reload).toHaveBeenCalledWith();
   });
 
   it('clears cookies and reloads on success', async () => {
-    clearBrowserCookies(session(), { reload: mocks.reload } as never);
+    clearBrowserData(session(), 'cookies', mocks.reload);
     await vi.waitFor(() => expect(mocks.reload).toHaveBeenCalledWith());
 
-    expect(mocks.clearCookies).toHaveBeenCalledWith('browser-1');
+    expect(mocks.clearData).toHaveBeenCalledWith('browser-1', 'cookies');
   });
 
   it('clears the cache and force-reloads on success', async () => {
-    clearBrowserCache(session(), { reloadIgnoringCache: mocks.reloadIgnoringCache } as never);
+    clearBrowserData(session(), 'cache', mocks.reloadIgnoringCache);
     await vi.waitFor(() => expect(mocks.reloadIgnoringCache).toHaveBeenCalledWith());
 
-    expect(mocks.clearCache).toHaveBeenCalledWith('browser-1');
+    expect(mocks.clearData).toHaveBeenCalledWith('browser-1', 'cache');
   });
 
   it('does not reload when clearing cookies fails', async () => {
-    mocks.clearCookies.mockResolvedValue({ success: false });
-    clearBrowserCookies(session(), { reload: mocks.reload } as never);
-    await vi.waitFor(() => expect(mocks.clearCookies).toHaveBeenCalledWith('browser-1'));
+    mocks.clearData.mockResolvedValue({ success: false });
+    clearBrowserData(session(), 'cookies', mocks.reload);
+    await vi.waitFor(() => expect(mocks.clearData).toHaveBeenCalledWith('browser-1', 'cookies'));
 
     expect(mocks.reload).not.toHaveBeenCalled();
   });

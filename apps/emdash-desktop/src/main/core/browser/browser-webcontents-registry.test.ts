@@ -76,13 +76,13 @@ describe('BrowserWebContentsRegistry', () => {
 
     registry.registerSession({ browserId: 'browser-1', partition });
 
-    expect(await registry.clearCookies('browser-1')).toBe(true);
+    expect(await registry.clearData('browser-1', 'cookies')).toBe(true);
     expect(clearStorageData).toHaveBeenCalledWith({ storages: ['cookies'] });
 
-    expect(await registry.clearCache('browser-1')).toBe(true);
+    expect(await registry.clearData('browser-1', 'cache')).toBe(true);
     expect(clearCache).toHaveBeenCalledWith();
 
-    expect(await registry.clearCookies('missing')).toBe(false);
-    expect(await registry.clearCache('missing')).toBe(false);
+    expect(await registry.clearData('missing', 'cookies')).toBe(false);
+    expect(await registry.clearData('missing', 'cache')).toBe(false);
   });
 });

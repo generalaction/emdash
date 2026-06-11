@@ -1,7 +1,10 @@
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
-import { normalizeBrowserUrl, type BrowserSessionSnapshot } from '@shared/browser';
-import type { BrowserWebviewAdapter } from './browser-webview-types';
+import {
+  normalizeBrowserUrl,
+  type BrowserDataClearKind,
+  type BrowserSessionSnapshot,
+} from '@shared/browser';
 
 export function openBrowserUrlExternally(url: string): void {
   if (!canOpenBrowserUrlExternally(url)) return;
@@ -16,27 +19,19 @@ export function canOpenBrowserUrlExternally(url: string): boolean {
   return normalized.ok && (normalized.protocol === 'http:' || normalized.protocol === 'https:');
 }
 
-export function clearBrowserCookies(
+export function clearBrowserData(
   session: BrowserSessionSnapshot,
-  adapter: BrowserWebviewAdapter | null
+  kind: BrowserDataClearKind,
+  onSuccess: () => void
 ): void {
-  void rpc.browser.clearCookies(session.browserId).then((result) => {
-    if (result.success) adapter?.reload();
-  });
-}
-
-export function clearBrowserCache(
-  session: BrowserSessionSnapshot,
-  adapter: BrowserWebviewAdapter | null
-): void {
-  void rpc.browser.clearCache(session.browserId).then((result) => {
-    if (result.success) adapter?.reloadIgnoringCache();
+  void rpc.browser.clearData(session.browserId, kind).then((result) => {
+    if (result.success) onSuccess();
   });
 }
 
 export function confirmClearBrowserStorage(
   session: BrowserSessionSnapshot,
-  adapter: BrowserWebviewAdapter | null
+  onSuccess: () => void
 ): void {
   showModal('confirmActionModal', {
     title: 'Clear browser storage?',
@@ -45,9 +40,7 @@ export function confirmClearBrowserStorage(
     confirmLabel: 'Clear Storage',
     variant: 'destructive',
     onSuccess: () => {
-      void rpc.browser.clearStorage(session.browserId).then((result) => {
-        if (result.success) adapter?.reload();
-      });
+      clearBrowserData(session, 'storage', onSuccess);
     },
   });
 }

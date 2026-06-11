@@ -11,16 +11,6 @@ import {
 } from '@renderer/lib/ui/dropdown-menu';
 import { Input } from '@renderer/lib/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { normalizeBrowserUrl, type BrowserSessionSnapshot } from '@shared/browser';
-import {
-  canOpenBrowserUrlExternally,
-  clearBrowserCache,
-  clearBrowserCookies,
-  confirmClearBrowserStorage,
-  openBrowserUrlExternally,
-} from './browser-toolbar-actions';
-import { browserUrlInputText } from './browser-url-input';
-import type { BrowserWebviewAdapter } from './browser-webview-types';
 import {
   BROWSER_DEFAULT_ZOOM_FACTOR,
   canZoomIn,
@@ -28,8 +18,18 @@ import {
   formatBrowserZoomPercent,
   isDefaultBrowserZoomFactor,
   nextBrowserZoomFactor,
+  normalizeBrowserUrl,
   previousBrowserZoomFactor,
-} from './browser-zoom';
+  type BrowserSessionSnapshot,
+} from '@shared/browser';
+import {
+  canOpenBrowserUrlExternally,
+  clearBrowserData,
+  confirmClearBrowserStorage,
+  openBrowserUrlExternally,
+} from './browser-toolbar-actions';
+import { browserUrlInputText } from './browser-url-input';
+import type { BrowserWebviewAdapter } from './browser-webview-types';
 
 export function BrowserToolbar({
   session,
@@ -105,10 +105,10 @@ export function BrowserToolbar({
   };
 
   const confirmClearStorage = () => {
-    confirmClearBrowserStorage(session, adapter);
+    confirmClearBrowserStorage(session, () => adapter?.reload());
   };
   const canOpenExternal = canOpenBrowserUrlExternally(session.currentUrl);
-  const zoomFactor = session.zoomFactor ?? BROWSER_DEFAULT_ZOOM_FACTOR;
+  const zoomFactor = session.zoomFactor;
 
   return (
     <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border bg-background-secondary-1 px-2">
@@ -227,10 +227,14 @@ export function BrowserToolbar({
             </div>
           </div>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => clearBrowserCookies(session, adapter)}>
+          <DropdownMenuItem
+            onClick={() => clearBrowserData(session, 'cookies', () => adapter?.reload())}
+          >
             Clear cookies
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => clearBrowserCache(session, adapter)}>
+          <DropdownMenuItem
+            onClick={() => clearBrowserData(session, 'cache', () => adapter?.reloadIgnoringCache())}
+          >
             Clear cache
           </DropdownMenuItem>
           <DropdownMenuItem onClick={confirmClearStorage}>Clear browser storage</DropdownMenuItem>

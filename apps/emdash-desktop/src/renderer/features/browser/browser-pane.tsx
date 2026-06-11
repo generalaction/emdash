@@ -2,7 +2,7 @@ import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDevServers } from '@renderer/features/tasks/task-view-context';
 import { rpc } from '@renderer/lib/ipc';
-import { normalizeBrowserUrl } from '@shared/browser';
+import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
 import { browserControlsRegistry } from './browser-controls-registry';
 import { decideBrowserReload } from './browser-navigation-controls';
 import { browserSessionStore } from './browser-session-store';
@@ -14,7 +14,6 @@ import {
   type BrowserWebviewAdapter,
   type BrowserWebviewElement,
 } from './browser-webview-types';
-import { normalizeBrowserZoomFactor } from './browser-zoom';
 
 const WEBVIEW_ALLOW_POPUPS_ATTRIBUTE = 'true' as unknown as boolean;
 
@@ -149,22 +148,14 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
   const setZoomFactor = useCallback(
     (factor: number) => {
       if (!sessionBrowserId) return;
+      const zoomFactor = normalizeBrowserZoomFactor(factor);
       browserSessionStore.updateSession(sessionBrowserId, {
-        zoomFactor: normalizeBrowserZoomFactor(factor),
+        zoomFactor,
       });
+      adapter?.setZoomFactor(zoomFactor);
     },
-    [sessionBrowserId]
+    [adapter, sessionBrowserId]
   );
-
-  const sessionZoomFactor = normalizeBrowserZoomFactor(session?.zoomFactor);
-  const sessionCurrentUrl = session?.currentUrl;
-
-  // Electron tracks zoom per host within a partition, so re-apply the session
-  // zoom after every navigation as well as whenever the user changes it.
-  useEffect(() => {
-    if (!adapter) return;
-    adapter.setZoomFactor(sessionZoomFactor);
-  }, [adapter, sessionZoomFactor, sessionCurrentUrl]);
 
   // Must stay referentially stable: React re-invokes inline ref callbacks with
   // null + node on every render, which would wipe the adapter until the next
