@@ -1,0 +1,31 @@
+agents/risky-areas/database.md
+  s_324228bcc6809f::t_8485f0e881ddb7 67
+  s_324228bcc6809f::t_d677941e5fe8a3 26-28,44-46,49-50
+  s_324228bcc6809f::t_f30962cdf24aa6 170
+  s_324228bcc6809f::t_bdbc0be79f9aaa 72-73
+  s_324228bcc6809f::t_c20fcc0e332bc4 86
+agents/architecture/overview.md
+  s_324228bcc6809f::t_aae174fcdf76b8 3-4,9
+  s_324228bcc6809f::t_a78ba3c45167ca 19
+  s_324228bcc6809f::t_3702650e2ce345 24-25
+agents/workflows/testing.md
+  s_324228bcc6809f::t_61b55e7f57df00 47
+  s_324228bcc6809f::t_bc3cbafc8b0a51 3-4,7
+  s_324228bcc6809f::t_ab117e26b4d0a0 25-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "ea327ae06812ff484a23001cac8ddccf4c67ac25",
+  "prompts": {},
+  "sessions": {
+    "s_324228bcc6809f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2fc8f915-0999-4beb-abf2-553a7f11ebe4",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
