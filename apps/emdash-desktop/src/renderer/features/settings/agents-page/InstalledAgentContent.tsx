@@ -1,21 +1,19 @@
 import { useForm } from '@tanstack/react-form';
-import { ChevronDown, ChevronUp, Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { ChevronRight, Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect, useState } from 'react';
 import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
 import { Button } from '@renderer/lib/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/lib/ui/collapsible';
+import { Field } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { log } from '@renderer/utils/logger';
+import { cn } from '@renderer/utils/utils';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
 
-// ── Types ────────────────────────────────────────────────────────────────────
-
 type EnvEntry = { key: string; value: string };
-
-// ── FieldTooltip ─────────────────────────────────────────────────────────────
 
 const FieldTooltip: React.FC<{ content: string }> = ({ content }) => (
   <TooltipProvider>
@@ -35,8 +33,6 @@ const FieldTooltip: React.FC<{ content: string }> = ({ content }) => (
     </Tooltip>
   </TooltipProvider>
 );
-
-// ── InstalledAgentContent ─────────────────────────────────────────────────────
 
 export interface InstalledAgentContentProps {
   storedConfig: ProviderCustomConfig | undefined;
@@ -124,9 +120,11 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
           type="button"
           className="flex w-full items-center justify-between rounded-md py-2 text-sm font-medium text-foreground-muted hover:text-foreground"
         >
-          <span className="flex items-center gap-1.5">
-            Advanced Settings
-            {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          <span className="flex h-6 items-center gap-1.5">
+            <Label>Advanced settings</Label>
+            <ChevronRight
+              className={cn('size-3.5', 'transition-transform', open ? 'rotate-90' : '')}
+            />
           </span>
           {isOverridden && (
             <Button
@@ -139,21 +137,19 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                 handleResetToDefaults();
               }}
             >
-              <RotateCcw className="h-3 w-3" />
+              <RotateCcw className="size-3.5" />
               Reset to defaults
             </Button>
           )}
         </CollapsibleTrigger>
 
-        <CollapsibleContent className="space-y-4 pb-4 pt-2">
+        <CollapsibleContent className="space-y-4 rounded-lg border p-3">
           {/* Additional parameters */}
           <form.Field name="extraArgs">
             {(field) => (
-              <div className="space-y-2">
+              <Field>
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="sheet-extraArgs" className="text-sm font-medium">
-                    Additional parameters
-                  </Label>
+                  <Label htmlFor="sheet-extraArgs">Additional parameters</Label>
                   <FieldTooltip content="Extra flags appended to the command (e.g. --enable-all-github-mcp-tools)" />
                 </div>
                 <Input
@@ -164,16 +160,16 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                   placeholder="e.g. --enable-all-github-mcp-tools"
                   className="font-mono text-sm"
                 />
-              </div>
+              </Field>
             )}
           </form.Field>
 
           {/* Environment variables */}
           <form.Field name="envEntries">
             {(field) => (
-              <div className="space-y-2">
+              <Field>
                 <div className="flex items-center gap-2">
-                  <Label className="text-sm font-medium">Environment variables</Label>
+                  <Label>Environment variables</Label>
                   <FieldTooltip content="Environment variables set when running the agent" />
                 </div>
                 <div className="space-y-2">
@@ -192,9 +188,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                         }
                         onBlur={() => commit()}
                         onPaste={(e) => {
-                          const pasted = parseEnvAssignmentPaste(
-                            e.clipboardData.getData('text')
-                          );
+                          const pasted = parseEnvAssignmentPaste(e.clipboardData.getData('text'));
                           if (pasted.length === 0) return;
                           e.preventDefault();
                           field.handleChange(
@@ -243,7 +237,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                     Add variable
                   </Button>
                 </div>
-              </div>
+              </Field>
             )}
           </form.Field>
 

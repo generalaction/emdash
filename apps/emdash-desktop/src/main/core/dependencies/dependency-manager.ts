@@ -19,12 +19,12 @@ import type {
 } from '@shared/core/dependencies';
 import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
 import { err, ok } from '@shared/lib/result';
+import { pickInstallOption, toPlatform } from './install-options';
 import {
   createLocalInstallCommandRunner,
   createSshInstallCommandRunner,
   type InstallCommandRunner,
 } from './install-runner';
-import { pickInstallOption, toPlatform } from './install-options';
 import { LatestVersionService } from './latest-version-service';
 import { resolveCommandPath, runVersionProbe } from './probe';
 import { DEPENDENCIES, getDependencyDescriptor } from './registry';

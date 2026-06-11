@@ -16,7 +16,7 @@ export const AgentSheetHeaderSection = observer(function AgentSheetHeaderSection
 }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-background-1 p-1.5">
+      <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-background-quaternary-1 p-1.5">
         <AgentIcon id={agent.id} size={24} />
       </div>
 

@@ -293,7 +293,10 @@ describe('DependencyManager install', () => {
 
 describe('DependencyManager probe phase-1 enrichment preservation', () => {
   it('carries forward latestVersion and updateAvailable from the previous state during phase 1', async () => {
-    const manager = new DependencyManager(availableCtx, { emitEvents: true, connectionId: 'local' });
+    const manager = new DependencyManager(availableCtx, {
+      emitEvents: true,
+      connectionId: 'local',
+    });
 
     // First probe: populate the internal state with a known state.
     await manager.probe('codex');
