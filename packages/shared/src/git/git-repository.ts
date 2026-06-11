@@ -252,7 +252,7 @@ export class GitRepository implements IGitRepository {
 
     const base = options.syncWithRemote ? `${options.remote ?? 'origin'}/${from}` : from;
     try {
-      await this.exec.exec(['branch', '--no-track', name, base]);
+      await this.exec.exec(['branch', '--no-track', '--', name, base]);
       await this.setBranchBaseConfig(name, base);
       return ok({ seqs: { refs: await this.refreshRefs() } });
     } catch (error) {
@@ -265,7 +265,7 @@ export class GitRepository implements IGitRepository {
     force = false
   ): Promise<Result<{ seqs: GitSeqs }, DeleteBranchError>> {
     try {
-      await this.exec.exec(['branch', force ? '-D' : '-d', branch]);
+      await this.exec.exec(['branch', force ? '-D' : '-d', '--', branch]);
       return ok({ seqs: { refs: await this.refreshRefs() } });
     } catch (error) {
       return err(classifyDeleteBranchError(error, branch));
@@ -291,6 +291,7 @@ export class GitRepository implements IGitRepository {
         await this.exec.exec([
           'fetch',
           forkRemote,
+          '--',
           `${options.headRefName}:refs/heads/${options.localBranch}`,
           '--force',
         ]);
@@ -298,6 +299,7 @@ export class GitRepository implements IGitRepository {
           .exec([
             'branch',
             `--set-upstream-to=${forkRemote}/${options.headRefName}`,
+            '--',
             options.localBranch,
           ])
           .catch(() => ({ stdout: '', stderr: '' }));
@@ -312,11 +314,17 @@ export class GitRepository implements IGitRepository {
       await this.exec.exec([
         'fetch',
         remote,
+        '--',
         `refs/pull/${options.prNumber}/head:refs/heads/${options.localBranch}`,
         '--force',
       ]);
       await this.exec
-        .exec(['branch', `--set-upstream-to=${remote}/${options.headRefName}`, options.localBranch])
+        .exec([
+          'branch',
+          `--set-upstream-to=${remote}/${options.headRefName}`,
+          '--',
+          options.localBranch,
+        ])
         .catch(() => ({ stdout: '', stderr: '' }));
       return ok({ seqs: { refs: await this.refreshRefs() } });
     } catch (error) {
@@ -333,6 +341,7 @@ export class GitRepository implements IGitRepository {
         'push',
         '--set-upstream',
         remote,
+        '--',
         branchName,
       ]);
       return ok({

@@ -19,6 +19,8 @@ export class CatFileBatch implements IDisposable {
   private disposed = false;
   private proc: ChildProcessWithoutNullStreams | null = null;
   private buffer = Buffer.alloc(0);
+  private chunks: Buffer[] = [];
+  private chunksLength = 0;
   private wake: (() => void) | null = null;
   private queue: Pending[] = [];
   private processing = false;
@@ -47,6 +49,8 @@ export class CatFileBatch implements IDisposable {
     } catch {}
     this.proc = null;
     this.buffer = Buffer.alloc(0);
+    this.chunks = [];
+    this.chunksLength = 0;
     this.readAborted = new Error('CatFileBatch disposed');
     this.wake?.();
     this.wake = null;
@@ -71,7 +75,8 @@ export class CatFileBatch implements IDisposable {
     child.stderr.resume();
 
     child.stdout.on('data', (chunk: Buffer) => {
-      this.buffer = Buffer.concat([this.buffer, chunk]);
+      this.chunks.push(chunk);
+      this.chunksLength += chunk.length;
       this.wake?.();
     });
     child.stdout.on('end', () => {
@@ -142,7 +147,16 @@ export class CatFileBatch implements IDisposable {
     this.proc = null;
     this.readAborted = error;
     this.buffer = Buffer.alloc(0);
+    this.chunks = [];
+    this.chunksLength = 0;
     this.wake?.();
+  }
+
+  private consolidate(): void {
+    if (this.chunks.length === 0) return;
+    this.buffer = Buffer.concat([this.buffer, ...this.chunks]);
+    this.chunks = [];
+    this.chunksLength = 0;
   }
 
   private waitForData(): Promise<void> {
@@ -154,7 +168,11 @@ export class CatFileBatch implements IDisposable {
   private async readLine(): Promise<string> {
     while (true) {
       if (this.readAborted) throw this.readAborted;
-      const newline = this.buffer.indexOf(0x0a);
+      let newline = this.buffer.indexOf(0x0a);
+      if (newline === -1 && this.chunks.length > 0) {
+        this.consolidate();
+        newline = this.buffer.indexOf(0x0a);
+      }
       if (newline !== -1) {
         const line = this.buffer.subarray(0, newline).toString('utf8');
         this.buffer = this.buffer.subarray(newline + 1);
@@ -165,10 +183,11 @@ export class CatFileBatch implements IDisposable {
   }
 
   private async readBytes(count: number): Promise<Buffer> {
-    while (this.buffer.length < count) {
+    while (this.buffer.length + this.chunksLength < count) {
       if (this.readAborted) throw this.readAborted;
       await this.waitForData();
     }
+    this.consolidate();
     const output = this.buffer.subarray(0, count);
     this.buffer = this.buffer.subarray(count);
     return output;
