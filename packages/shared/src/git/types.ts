@@ -101,14 +101,20 @@ export type WorktreeLease = Lease<IGitWorktree>;
 export interface IGitRepository extends IDisposable {
   readonly gitCommonDir: string;
   readonly objectStoreDir: string;
+
+  /** Read models for the repository. */
   getRefs(): Promise<GitRefsModel>;
   getRemotes(): Promise<GitRemotesModel>;
+
+  /** Repository lifecycle operations. */
   getSnapshot(): Promise<GitRepoSnapshot>;
   refresh(): Promise<GitRepoSnapshot>;
   subscribe(cb: (update: GitRepoUpdate) => void): Unsubscribe;
   subscribeWithSnapshot(
     cb: (update: GitRepoUpdate) => void
   ): Promise<SubscribedSnapshot<GitRepoSnapshot>>;
+
+  /** Repository git operations. */
   getDefaultBranch(remote?: string): Promise<string>;
   fetch(remote?: string): Promise<Result<{ seqs: GitSeqs }, FetchError>>;
   addRemote(name: string, url: string): Promise<Result<{ seqs: GitSeqs }, GitCommandError>>;
@@ -134,14 +140,20 @@ export interface IGitRepository extends IDisposable {
 export interface IGitWorktree extends IDisposable {
   readonly worktree: string;
   readonly repository: IGitRepository;
+
+  /** Read models for the worktree. */
   getStatus(): Promise<GitStatusModel>;
   getHead(): Promise<GitHeadModel>;
+
+  /** Worktree lifecycle operations. */
   getSnapshot(): Promise<GitWorktreeSnapshot>;
   refresh(): Promise<GitWorktreeSnapshot>;
   subscribe(cb: (update: GitWorktreeUpdate) => void): Unsubscribe;
   subscribeWithSnapshot(
     cb: (update: GitWorktreeUpdate) => void
   ): Promise<SubscribedSnapshot<GitWorktreeSnapshot>>;
+
+  /** Worktree git operations. */
   getStatusFingerprint(untracked: GitStatusUntrackedMode): Promise<GitStatusFingerprint>;
   isFileCleanlyTracked(filePath: string): Promise<boolean>;
   getChangedFiles(base: DiffTarget): Promise<GitChange[]>;
