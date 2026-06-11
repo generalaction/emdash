@@ -148,7 +148,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
             )}
           </ComboboxList>
         </ComboboxContent>
-        <AgentHoverCard anchor={anchorEl} controller={hoverCard} />
+        <AgentHoverCard anchor={anchorEl} controller={hoverCard} connectionId={connectionId} />
       </Combobox>
     );
   }

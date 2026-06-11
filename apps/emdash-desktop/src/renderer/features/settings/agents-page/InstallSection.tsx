@@ -118,6 +118,8 @@ export type InstallSectionProps = {
   installDocs: string | null;
   isInstalled: boolean;
   updateAvailable: boolean;
+  /** SSH connection id; when provided, install/update/status operate on the remote host. */
+  connectionId?: string;
   /** Currently persisted install source (installSource value from storedConfig). */
   installSource?: string | null;
   /** Currently persisted custom path override. */
@@ -139,14 +141,15 @@ export const InstallSection = observer(function InstallSection({
   installOptions,
   isInstalled,
   updateAvailable,
+  connectionId,
   installSource,
   pathValue,
   cliValue,
   onUseInstallation,
   hideOverrideOptions = false,
 }: InstallSectionProps) {
-  const isInstallingAny = appState.dependencies.isInstalling(agentId as DependencyId);
-  const currentOp = appState.dependencies.getOperation(agentId as DependencyId);
+  const isInstallingAny = appState.dependencies.isInstalling(agentId as DependencyId, connectionId);
+  const currentOp = appState.dependencies.getOperation(agentId as DependencyId, connectionId);
 
   const [localPath, setLocalPath] = useState(pathValue ?? '');
   const [localCli, setLocalCli] = useState(cliValue ?? '');
@@ -171,17 +174,17 @@ export const InstallSection = observer(function InstallSection({
   const handleInstall = useCallback(
     async (method: InstallMethod) => {
       if (isInstallingAny) return;
-      await appState.dependencies.install(agentId as DependencyId, undefined, method);
+      await appState.dependencies.install(agentId as DependencyId, connectionId, method);
     },
-    [agentId, isInstallingAny]
+    [agentId, connectionId, isInstallingAny]
   );
 
   const handleUpdate = useCallback(
     async (method: InstallMethod) => {
       if (updatingMethod) return;
-      await appState.dependencies.update(agentId as DependencyId, undefined, method);
+      await appState.dependencies.update(agentId as DependencyId, connectionId, method);
     },
-    [agentId, updatingMethod]
+    [agentId, connectionId, updatingMethod]
   );
 
   const handleUseInstallation = useCallback(() => {

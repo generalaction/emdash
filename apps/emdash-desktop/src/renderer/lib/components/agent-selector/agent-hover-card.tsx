@@ -132,6 +132,7 @@ export function useAgentHoverCard(): AgentHoverCardController {
 interface AgentHoverCardProps {
   anchor: HTMLElement | null;
   controller: AgentHoverCardController;
+  connectionId?: string;
   side?: 'top' | 'bottom' | 'left' | 'right';
   align?: 'start' | 'center' | 'end';
 }
@@ -140,6 +141,7 @@ interface AgentHoverCardProps {
 export const AgentHoverCard: React.FC<AgentHoverCardProps> = ({
   anchor,
   controller,
+  connectionId,
   side = 'right',
   align = 'start',
 }) => {
@@ -160,7 +162,7 @@ export const AgentHoverCard: React.FC<AgentHoverCardProps> = ({
         onMouseEnter={popupHoverProps.onMouseEnter}
         onMouseLeave={popupHoverProps.onMouseLeave}
       >
-        <AgentInfoCard id={activeId} />
+        <AgentInfoCard id={activeId} connectionId={connectionId} />
       </PopoverContent>
     </Popover>
   );
