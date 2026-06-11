@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BROWSER_PROFILE_PARTITION,
   createBrowserSessionSnapshot,
-  deriveBrowserPartition,
   makeBrowserSessionIdentity,
   normalizeBrowserUrl,
 } from './browser';
@@ -87,7 +87,7 @@ describe('normalizeBrowserUrl', () => {
 });
 
 describe('browser session identity', () => {
-  it('derives sanitized persistent partitions from stable identity', () => {
+  it('assigns the shared persistent profile partition to every session', () => {
     const identity = makeBrowserSessionIdentity({
       browserId: 'Browser One',
       projectId: 'Project/One',
@@ -95,8 +95,9 @@ describe('browser session identity', () => {
       taskId: 'Task One',
     });
 
-    expect(deriveBrowserPartition(identity)).toBe(
-      'persist:emdash-browser-project-one-workspace-one-task-one-browser-one'
+    expect(BROWSER_PROFILE_PARTITION).toBe('persist:emdash-browser-profile');
+    expect(createBrowserSessionSnapshot({ identity, now: 100 }).partition).toBe(
+      BROWSER_PROFILE_PARTITION
     );
   });
 

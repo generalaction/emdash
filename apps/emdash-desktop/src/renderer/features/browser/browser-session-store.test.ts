@@ -14,7 +14,7 @@ describe('BrowserSessionStore', () => {
     });
 
     expect(session.currentUrl).toBe('http://localhost:5173/');
-    expect(session.partition).toBe('persist:emdash-browser-project-1-workspace-1-task-1-browser-1');
+    expect(session.partition).toBe('persist:emdash-browser-profile');
     expect(store.getSession('browser-1')).toEqual(session);
   });
 
@@ -56,7 +56,7 @@ describe('BrowserSessionStore', () => {
     expect(store.getSession('browser-1')?.faviconUrl).toBeUndefined();
   });
 
-  it('restores sessions with a derived partition and clears transient load state', () => {
+  it('restores sessions onto the shared profile partition and clears transient load state', () => {
     const store = new BrowserSessionStore();
 
     store.restoreSession({
@@ -76,7 +76,7 @@ describe('BrowserSessionStore', () => {
     });
 
     expect(store.getSession('browser-1')).toMatchObject({
-      partition: 'persist:emdash-browser-project-1-workspace-1-task-1-browser-1',
+      partition: 'persist:emdash-browser-profile',
       currentUrl: 'https://example.com/',
       isLoading: false,
       loadError: undefined,

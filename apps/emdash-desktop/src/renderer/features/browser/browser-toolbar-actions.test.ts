@@ -33,7 +33,7 @@ function session() {
     projectId: 'project-1',
     workspaceId: 'workspace-1',
     taskId: 'task-1',
-    partition: 'persist:emdash-browser-project-1-workspace-1-task-1-browser-1',
+    partition: 'persist:emdash-browser-profile',
     currentUrl: 'https://example.com/',
     title: 'Example',
     isLoading: false,

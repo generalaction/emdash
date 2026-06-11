@@ -1,5 +1,9 @@
 export const BROWSER_PARTITION_PREFIX = 'persist:emdash-browser';
 
+// All in-app browsers share one persistent profile so logins (GitHub, Google, …)
+// survive app restarts and carry across tasks, like a regular browser profile.
+export const BROWSER_PROFILE_PARTITION = `${BROWSER_PARTITION_PREFIX}-profile`;
+
 export type BrowserNavigationProtocol = 'about:' | 'file:' | 'http:' | 'https:';
 
 export type BrowserUrlNormalizeResult =
@@ -115,16 +119,6 @@ export function makeBrowserSessionIdentity(input: {
   };
 }
 
-export function deriveBrowserPartition(identity: BrowserSessionIdentity): string {
-  return [
-    BROWSER_PARTITION_PREFIX,
-    sanitizePartitionPart(identity.projectId),
-    sanitizePartitionPart(identity.workspaceId),
-    sanitizePartitionPart(identity.taskId),
-    sanitizePartitionPart(identity.browserId),
-  ].join('-');
-}
-
 export function createBrowserSessionSnapshot(input: {
   identity: BrowserSessionIdentity;
   currentUrl?: string;
@@ -136,7 +130,7 @@ export function createBrowserSessionSnapshot(input: {
   });
   return {
     ...input.identity,
-    partition: deriveBrowserPartition(input.identity),
+    partition: BROWSER_PROFILE_PARTITION,
     currentUrl: normalized.ok ? normalized.url : BROWSER_DEFAULT_URL,
     title: '',
     isLoading: false,
@@ -202,14 +196,4 @@ function isLocalhostLike(input: string): boolean {
     hostLike.endsWith('.localhost') ||
     hostLike.includes('.localhost:')
   );
-}
-
-function sanitizePartitionPart(value: string): string {
-  const sanitized = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-  return sanitized.length > 0 ? sanitized : 'unknown';
 }

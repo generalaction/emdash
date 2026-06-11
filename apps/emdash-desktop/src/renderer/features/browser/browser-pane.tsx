@@ -149,9 +149,14 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
     if (!sessionBrowserId || !webviewElement) return;
     return bindBrowserWebviewEvents(sessionBrowserId, webviewElement, {
       onDomReady: () => {
-        if (webviewRef.current === webviewElement) {
-          setAdapter(createBrowserWebviewAdapter(webviewElement));
-        }
+        if (webviewRef.current !== webviewElement) return;
+        // All browsers share one profile partition, so the main process cannot
+        // infer which browser a webview belongs to; bind it explicitly.
+        void rpc.browser.bindWebContents({
+          browserId: sessionBrowserId,
+          webContentsId: webviewElement.getWebContentsId(),
+        });
+        setAdapter(createBrowserWebviewAdapter(webviewElement));
       },
     });
   }, [sessionBrowserId, webviewElement]);

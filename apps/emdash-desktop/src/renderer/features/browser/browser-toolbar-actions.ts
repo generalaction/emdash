@@ -23,7 +23,7 @@ export function confirmClearBrowserStorage(
   showModal('confirmActionModal', {
     title: 'Clear browser storage?',
     description:
-      'This clears cookies, local storage, IndexedDB, and cache for this browser session only.',
+      'This clears cookies, local storage, IndexedDB, and cache for the shared in-app browser profile. You will be signed out of websites in all emdash browsers.',
     confirmLabel: 'Clear Storage',
     variant: 'destructive',
     onSuccess: () => {

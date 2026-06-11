@@ -1,8 +1,8 @@
 import { action, computed, makeObservable, observable } from 'mobx';
 import {
   BROWSER_DEFAULT_URL,
+  BROWSER_PROFILE_PARTITION,
   createBrowserSessionSnapshot,
-  deriveBrowserPartition,
   makeBrowserSessionIdentity,
   normalizeBrowserUrl,
   type BrowserLoadError,
@@ -58,7 +58,7 @@ export class BrowserSessionStore {
     const normalized = normalizeBrowserUrl(snapshot.currentUrl);
     const restored: BrowserSessionSnapshot = {
       ...snapshot,
-      partition: deriveBrowserPartition(snapshot),
+      partition: BROWSER_PROFILE_PARTITION,
       currentUrl: normalized.ok ? normalized.url : BROWSER_DEFAULT_URL,
       isLoading: false,
       loadError: undefined,
