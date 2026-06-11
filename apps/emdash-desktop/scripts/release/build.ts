@@ -1,5 +1,6 @@
 import { cpSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { Arch, Platform, build as electronBuild } from 'electron-builder';
 import type { Configuration } from 'electron-builder';
@@ -73,8 +74,9 @@ cpSync('drizzle', join(deployDir, 'drizzle'), { recursive: true });
 
 const electronVersion = exec(`node -p "require('electron/package.json').version"`);
 
-// Dynamically load the electron-builder config (TypeScript stripping via --experimental-strip-types)
-const configModule = await import(resolve(values.config));
+// Dynamically load the electron-builder config (TypeScript stripping via --experimental-strip-types).
+// Use a file:// URL so absolute Windows paths (e.g. D:\...) are not parsed as a URL scheme.
+const configModule = await import(pathToFileURL(resolve(values.config)).href);
 const baseConfig = (configModule.default ?? configModule) as Configuration;
 
 try {

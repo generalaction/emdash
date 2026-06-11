@@ -6,7 +6,7 @@ import {
   PRODUCT_NAME,
   R2_BASE_URL,
   UPDATE_CHANNEL,
-} from './src/shared/app-identity.canary';
+} from './src/shared/app-identity.canary.ts';
 
 const config: Configuration = {
   appId: APP_ID,
