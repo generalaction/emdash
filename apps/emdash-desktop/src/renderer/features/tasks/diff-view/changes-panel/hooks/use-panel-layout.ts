@@ -63,6 +63,9 @@ export function usePanelLayout(
     // cannot replace the flag here: Chromium delivers no resize event when an ancestor toggles
     // display:none. The offsetHeight check covers hide paths the flag does not know about, and
     // skipping already-applied states keeps user drag-resizes intact across hide/show.
+    // Reference equality is intentional: ChangesViewStore replaces the whole expandedSections
+    // object on every mutation, so a stable reference means "nothing changed". Returning fresh
+    // object literals per render here would re-apply the layout on every reveal and reset drags.
     if (!isVisible || appliedExpanded.current === expanded) return;
     if ((containerRef.current?.offsetHeight ?? 0) === 0) return;
     appliedExpanded.current = expanded;

@@ -17,7 +17,7 @@ export const TaskSidebar = observer(function TaskSidebar() {
       <ShowHide visible={activeTab === 'conversations'}>
         <SidebarConversationsList />
       </ShowHide>
-      <ShowHide visible={!isSidebarCollapsed && activeTab === 'changes'} lazy>
+      <ShowHide visible={taskView.isChangesPanelVisible} lazy>
         <ChangesPanel />
       </ShowHide>
       <ShowHide visible={activeTab === 'files'}>

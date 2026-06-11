@@ -14,10 +14,6 @@ export const ChangesPanel = observer(function ChangesPanel() {
   const diffView = taskView.diffView;
   const changesView = diffView?.changesView;
 
-  // Must match the ShowHide conditions in TaskSidebar — the panel stays mounted
-  // under display: none whenever this is false.
-  const isPanelVisible = !taskView.isSidebarCollapsed && taskView.sidebarTab === 'changes';
-
   const {
     expanded,
     toggleExpanded,
@@ -28,7 +24,7 @@ export const ChangesPanel = observer(function ChangesPanel() {
     prRef,
     spacerRef,
     containerRef,
-  } = usePanelLayout(changesView ?? null, isPanelVisible);
+  } = usePanelLayout(changesView ?? null, taskView.isChangesPanelVisible);
 
   if (!diffView || !changesView || !workspace.git.hasData) return null;
 
