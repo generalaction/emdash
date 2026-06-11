@@ -10,6 +10,9 @@ importers:
 
   apps/emdash-desktop:
     dependencies:
+      '@emdash/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@gitbeaker/rest':
         specifier: ^43.8.0
         version: 43.8.0
