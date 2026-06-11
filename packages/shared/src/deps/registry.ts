@@ -1,8 +1,6 @@
 import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
 import { providerRegistry } from '@emdash/cli-agent-plugins/providers';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
-import type { DependencyStatus } from '@shared/core/dependencies';
-import type { DependencyDescriptor, ProbeResult } from './types';
+import type { DependencyDescriptor, DependencyStatus, ProbeResult } from './types';
 
 const CORE_DEPENDENCIES: DependencyDescriptor[] = [
   {
@@ -92,7 +90,7 @@ function buildAgentDependencies(): DependencyDescriptor[] {
       : undefined;
 
     return {
-      id: meta.id as AgentProviderId,
+      id: meta.id,
       name: meta.name,
       category: 'agent' as const,
       commands: binaryNames.length > 0 ? binaryNames : [meta.id],

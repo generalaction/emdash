@@ -1,6 +1,6 @@
 import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
+import type { DependencyInstallError, DependencyUpdateError } from '@emdash/shared/deps';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
-import type { DependencyInstallError, DependencyUpdateError } from '@shared/core/dependencies';
 
 export type AgentInstallActionState = {
   render: boolean;

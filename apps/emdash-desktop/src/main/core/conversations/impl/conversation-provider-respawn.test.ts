@@ -126,7 +126,7 @@ vi.mock('@main/core/settings/provider-settings-service', () => ({
   },
 }));
 
-vi.mock('@main/core/dependencies/dependency-manager', () => ({
+vi.mock('@main/core/dependencies/dependency-managers', () => ({
   localDependencyManager: {
     get: vi.fn(() => undefined),
   },

@@ -1,4 +1,5 @@
 import os from 'node:os';
+import type { InstallCommandError } from '@emdash/shared/deps';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
 import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/pty-spawn-platform';
@@ -8,7 +9,6 @@ import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { log } from '@main/lib/logger';
 import { ensureUserBinDirsInPath } from '@main/utils/userEnv';
-import type { InstallCommandError } from '@shared/core/dependencies';
 import { err, ok, type Result } from '@shared/lib/result';
 
 export type InstallCommandRunner<TData = void, TError = InstallCommandError> = (

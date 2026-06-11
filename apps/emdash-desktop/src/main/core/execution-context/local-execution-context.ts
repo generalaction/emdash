@@ -1,12 +1,12 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
+import type { ExecContextOptions, ExecResult, IExecutionContext } from '@emdash/shared/exec';
 import {
   GIT_EXECUTABLE,
   isMissingGitExecutableError,
   missingGitExecutableError,
 } from '@main/core/utils/exec';
 import { NON_INTERACTIVE_GIT_ENV } from './non-interactive-git-env';
-import type { ExecOptions, ExecResult, IExecutionContext } from './types';
 
 const execFileAsync = promisify(execFile);
 
@@ -37,7 +37,7 @@ export class LocalExecutionContext implements IExecutionContext {
     return command === 'git' ? GIT_EXECUTABLE : command;
   }
 
-  exec(command: string, args: string[] = [], opts: ExecOptions = {}): Promise<ExecResult> {
+  exec(command: string, args: string[] = [], opts: ExecContextOptions = {}): Promise<ExecResult> {
     const { timeout, maxBuffer } = opts;
     return execFileAsync(this.resolveCommand(command), args, {
       cwd: this.root || undefined,

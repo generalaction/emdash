@@ -1,6 +1,6 @@
+import type { DependencyState, DependencyStatusUpdatedEvent } from '@emdash/shared/deps';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
-import type { DependencyState, DependencyStatusUpdatedEvent } from '@shared/core/dependencies';
 import { err, ok } from '@shared/lib/result';
 import { DependenciesStore } from './dependencies-store';
 

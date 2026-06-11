@@ -1,37 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { IExecutionContext } from '@main/core/execution-context/types';
-import { err, ok } from '@shared/lib/result';
-import { DependencyManager } from './dependency-manager';
-
-vi.mock('./host-dependency-store', () => ({
-  hostDependencyStore: {
-    getSelection: vi.fn().mockResolvedValue(null),
-    setSelection: vi.fn().mockResolvedValue(undefined),
-  },
-}));
-
-vi.mock('@main/core/settings/settings-service', () => ({
-  appSettingsService: {
-    get: vi.fn(async () => ({
-      autoCopyOnSelection: false,
-      macOptionIsMeta: false,
-      defaultShell: 'system',
-      fontSize: 13,
-    })),
-  },
-}));
-
-vi.mock('@main/lib/events', () => ({
-  events: {
-    emit: vi.fn(),
-  },
-}));
-
-vi.mock('../ssh/lifecycle/production-ssh-connection-manager', () => ({
-  sshConnectionManager: {
-    connect: vi.fn(),
-  },
-}));
+import type { IExecutionContext } from '../exec/execution-context';
+import { err, ok } from '../lib/result';
+import { HostDependencyManager } from './host-dependency-manager';
 
 function makeCtx(
   handler: (command: string, args: string[]) => Promise<{ stdout: string; stderr: string }>,
@@ -65,13 +35,10 @@ const availableCtx = makeCtx(async (command, args = []) => {
   throw new Error('missing');
 });
 
-const { events } = await import('@main/lib/events');
-
-describe('DependencyManager install', () => {
+describe('HostDependencyManager install', () => {
   it('runs dependency install commands through the configured runner before probing', async () => {
     const runInstallCommand = vi.fn(async () => ok<void>());
-    const manager = new DependencyManager(missingCtx, {
-      emitEvents: false,
+    const manager = new HostDependencyManager(missingCtx, {
       runInstallCommand,
     });
 
@@ -85,9 +52,9 @@ describe('DependencyManager install', () => {
   });
 
   it('returns an error result for unknown dependency ids', async () => {
-    const manager = new DependencyManager(missingCtx, { emitEvents: false });
+    const manager = new HostDependencyManager(missingCtx);
 
-    const result = await manager.install('missing-agent' as never);
+    const result = await manager.install('missing-agent');
 
     expect(result).toEqual({
       success: false,
@@ -96,7 +63,7 @@ describe('DependencyManager install', () => {
   });
 
   it('returns an error result when no install command is configured', async () => {
-    const manager = new DependencyManager(missingCtx, { emitEvents: false });
+    const manager = new HostDependencyManager(missingCtx);
 
     const result = await manager.install('git');
 
@@ -115,8 +82,7 @@ describe('DependencyManager install', () => {
         exitCode: 243,
       })
     );
-    const manager = new DependencyManager(availableCtx, {
-      emitEvents: false,
+    const manager = new HostDependencyManager(availableCtx, {
       runInstallCommand,
     });
 
@@ -147,8 +113,7 @@ describe('DependencyManager install', () => {
         exitCode: 127,
       });
     });
-    const manager = new DependencyManager(ctx, {
-      emitEvents: false,
+    const manager = new HostDependencyManager(ctx, {
       runInstallCommand,
     });
 
@@ -160,8 +125,7 @@ describe('DependencyManager install', () => {
   });
 
   it('returns the available dependency state on successful install and probe', async () => {
-    const manager = new DependencyManager(availableCtx, {
-      emitEvents: false,
+    const manager = new HostDependencyManager(availableCtx, {
       runInstallCommand: async () => ok<void>(),
     });
 
@@ -189,8 +153,7 @@ describe('DependencyManager install', () => {
         },
       }
     );
-    const manager = new DependencyManager(ctx, {
-      emitEvents: false,
+    const manager = new HostDependencyManager(ctx, {
       runInstallCommand: async () => ok<void>(),
     });
 
@@ -215,7 +178,7 @@ describe('DependencyManager install', () => {
         refreshShellEnv: async () => {},
       }
     );
-    const manager = new DependencyManager(ctx, { emitEvents: false });
+    const manager = new HostDependencyManager(ctx);
 
     await manager.probeCategory('agent', { refreshShellEnv: true });
 
@@ -231,7 +194,7 @@ describe('DependencyManager install', () => {
         refreshShellEnv: async () => {},
       }
     );
-    const manager = new DependencyManager(ctx, { emitEvents: false });
+    const manager = new HostDependencyManager(ctx);
 
     await manager.probeCategory('agent');
 
@@ -247,7 +210,7 @@ describe('DependencyManager install', () => {
         refreshShellEnv: async () => {},
       }
     );
-    const manager = new DependencyManager(ctx, { emitEvents: false });
+    const manager = new HostDependencyManager(ctx);
 
     await manager.probeAll({ refreshShellEnv: true });
 
@@ -264,7 +227,7 @@ describe('DependencyManager install', () => {
       }
       throw new Error('missing');
     });
-    const manager = new DependencyManager(ctx, { emitEvents: false });
+    const manager = new HostDependencyManager(ctx);
 
     const result = await manager.probe('letta');
 
@@ -280,15 +243,16 @@ describe('DependencyManager install', () => {
     expect(ctx.exec).toHaveBeenCalledWith('which', ['letta'], { timeout: 5000 });
   });
 
-  it('emits dependency updates with the SSH connection id', async () => {
-    const manager = new DependencyManager(availableCtx, {
+  it('fires onStatusUpdated with the SSH connection id', async () => {
+    const manager = new HostDependencyManager(availableCtx, {
       connectionId: 'ssh-1',
     });
+    const listener = vi.fn();
+    manager.onStatusUpdated.subscribe(listener);
 
     await manager.probe('codex');
 
-    expect(events.emit).toHaveBeenCalledWith(
-      expect.anything(),
+    expect(listener).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'codex',
         connectionId: 'ssh-1',
@@ -298,41 +262,41 @@ describe('DependencyManager install', () => {
   });
 });
 
-describe('DependencyManager probe phase-1 enrichment preservation', () => {
+describe('HostDependencyManager probe phase-1 enrichment preservation', () => {
   it('carries forward latestVersion and updateAvailable from the previous state during phase 1', async () => {
-    const manager = new DependencyManager(availableCtx, {
-      emitEvents: true,
+    const manager = new HostDependencyManager(availableCtx, {
       connectionId: 'local',
     });
+    const listener = vi.fn();
+    manager.onStatusUpdated.subscribe(listener);
 
     // First probe: populate the internal state with a known state.
     await manager.probe('codex');
 
-    // Manually inject latestVersion/updateAvailable into the stored state to
-    // simulate what fetchAndUpdateLatestVersion sets after a background version check.
+    // Manually inject latestVersion/updateAvailable into the stored state.
     const internalState = (manager as unknown as { state: Map<string, unknown> }).state;
     const existingState = internalState.get('codex') as Record<string, unknown>;
     internalState.set('codex', { ...existingState, latestVersion: '9.9.9', updateAvailable: true });
 
     // Reset the mock so we only look at emissions from the second probe.
-    vi.mocked(events.emit).mockClear();
+    listener.mockClear();
 
     // Second probe: phase 1 should preserve latestVersion/updateAvailable.
     await manager.probe('codex');
 
     // The first emit call is phase 1 (path resolution). It must carry the prior enrichment.
-    const firstCall = vi.mocked(events.emit).mock.calls[0];
+    const firstCall = listener.mock.calls[0];
     expect(firstCall).toBeDefined();
-    const firstPayload = firstCall?.[1] as { state: Record<string, unknown> };
+    const firstPayload = firstCall?.[0] as { state: Record<string, unknown> };
     expect(firstPayload.state.latestVersion).toBe('9.9.9');
     expect(firstPayload.state.updateAvailable).toBe(true);
   });
 });
 
-describe('DependencyManager update', () => {
+describe('HostDependencyManager update', () => {
   it('returns unknown-dependency error for an unrecognised id', async () => {
-    const manager = new DependencyManager(missingCtx, { emitEvents: false });
-    const result = await manager.update('unknown-agent' as never);
+    const manager = new HostDependencyManager(missingCtx);
+    const result = await manager.update('unknown-agent');
     expect(result).toEqual({
       success: false,
       error: { type: 'unknown-dependency', id: 'unknown-agent' },
@@ -340,16 +304,14 @@ describe('DependencyManager update', () => {
   });
 
   it('returns no-update-strategy for a core dependency without updates', async () => {
-    const manager = new DependencyManager(missingCtx, { emitEvents: false });
-    // git is a core dependency with no updates descriptor
+    const manager = new HostDependencyManager(missingCtx);
     const result = await manager.update('git');
     expect(result).toEqual({ success: false, error: { type: 'no-update-strategy', id: 'git' } });
   });
 
   it('runs the install command for a package-manager update strategy', async () => {
     const runInstallCommand = vi.fn(async () => ok<void>());
-    const manager = new DependencyManager(availableCtx, {
-      emitEvents: false,
+    const manager = new HostDependencyManager(availableCtx, {
       runInstallCommand,
     });
 
@@ -370,8 +332,7 @@ describe('DependencyManager update', () => {
         exitCode: 243,
       })
     );
-    const manager = new DependencyManager(missingCtx, {
-      emitEvents: false,
+    const manager = new HostDependencyManager(missingCtx, {
       runInstallCommand,
     });
 
@@ -392,8 +353,7 @@ describe('DependencyManager update', () => {
       }
       throw new Error('missing');
     });
-    const manager = new DependencyManager(claudeCtx, {
-      emitEvents: false,
+    const manager = new HostDependencyManager(claudeCtx, {
       runInstallCommand,
     });
 

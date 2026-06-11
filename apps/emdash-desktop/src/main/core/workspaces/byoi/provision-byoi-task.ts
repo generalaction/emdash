@@ -1,4 +1,4 @@
-import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { IExecutionContext } from '@emdash/shared/exec';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { buildTaskFromWorkspace, emitTaskProvisionProgress } from '@main/core/tasks/task-builder';

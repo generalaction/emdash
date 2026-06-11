@@ -1,4 +1,4 @@
-import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { IExecutionContext } from '@emdash/shared/exec';
 import type { GitHubUser } from '@shared/github';
 import { normalizeRepositoryHost } from '@shared/repository-ref';
 import type { GitHubAccount, GitHubAccountRegistry } from './github-account-registry';

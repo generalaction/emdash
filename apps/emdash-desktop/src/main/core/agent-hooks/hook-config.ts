@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
+import { resolveCommandPath } from '@emdash/shared/deps/runtime';
+import type { IExecutionContext } from '@emdash/shared/exec';
 import * as toml from 'smol-toml';
-import { resolveCommandPath } from '@main/core/dependencies/probe';
-import type { IExecutionContext } from '@main/core/execution-context/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';

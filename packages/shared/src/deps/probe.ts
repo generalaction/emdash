@@ -1,12 +1,15 @@
-import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { IExecutionContext } from '../exec/execution-context';
 import type { ProbeResult } from './types';
 
 const WHICH_TIMEOUT_MS = 5_000;
 const VERSION_PROBE_TIMEOUT_MS = 10_000;
 const REALPATH_TIMEOUT_MS = 5_000;
 
-// `where` on Windows, `which` on macOS/Linux
-const RESOLVE_CMD = process.platform === 'win32' ? 'where' : 'which';
+// `where` on Windows, `which` on macOS/Linux. Resolved lazily so importing
+// this module never touches `process` at evaluation time.
+function resolveCmd(): string {
+  return process.platform === 'win32' ? 'where' : 'which';
+}
 
 /**
  * Resolves the absolute path of a command binary.
@@ -18,7 +21,7 @@ export async function resolveCommandPath(
   ctx: IExecutionContext
 ): Promise<string | null> {
   try {
-    const { stdout } = await ctx.exec(RESOLVE_CMD, [command], { timeout: WHICH_TIMEOUT_MS });
+    const { stdout } = await ctx.exec(resolveCmd(), [command], { timeout: WHICH_TIMEOUT_MS });
     const firstLine = stdout.trim().split('\n')[0]?.trim();
     return firstLine ?? null;
   } catch {

@@ -1,15 +1,15 @@
 import type { InstallMethod } from '@emdash/cli-agent-plugins';
-import { useObserver } from 'mobx-react-lite';
-import { useCallback, useMemo } from 'react';
-import type { AgentPayload } from '@shared/core/agents/agent-payload';
 import type {
   DependencyId,
   DependencyStatus,
   HostDependency,
   HostDependencySelection,
   Installation,
-} from '@shared/core/dependencies';
-import { deriveHostDependencyStatus } from '@shared/core/dependencies';
+} from '@emdash/shared/deps';
+import { deriveHostDependencyStatus } from '@emdash/shared/deps';
+import { useObserver } from 'mobx-react-lite';
+import { useCallback, useMemo } from 'react';
+import type { AgentPayload } from '@shared/core/agents/agent-payload';
 import { appState } from './app-state';
 import type { DependencyOperation } from './dependencies-store';
 

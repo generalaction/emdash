@@ -1,12 +1,12 @@
+import type { IExecutionContext } from '@emdash/shared/exec';
 import * as toml from 'smol-toml';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { IExecutionContext } from '@main/core/execution-context/types';
 import { MemoryFs } from '@main/core/fs/test-helpers/memory-fs';
 import { HookConfigWriter } from './hook-config';
 
 const mockResolveCommandPath = vi.hoisted(() => vi.fn());
 
-vi.mock('@main/core/dependencies/probe', () => ({
+vi.mock('@emdash/shared/deps/runtime', () => ({
   resolveCommandPath: mockResolveCommandPath,
 }));
 

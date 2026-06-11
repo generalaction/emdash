@@ -1,8 +1,8 @@
+import type { DependencyId } from '@emdash/shared/deps';
+import { resolveCommandPath } from '@emdash/shared/deps/runtime';
+import type { IExecutionContext } from '@emdash/shared/exec';
 import type { IHostDependencyStore } from '@main/core/dependencies/host-dependency-store';
-import { resolveCommandPath } from '@main/core/dependencies/probe';
-import type { IExecutionContext } from '@main/core/execution-context/types';
 import { log } from '@main/lib/logger';
-import type { DependencyId } from '@shared/core/dependencies';
 
 /**
  * Per-context cache: keyed by `${connectionId ?? 'local'}:${providerId}` → resolved absolute path.

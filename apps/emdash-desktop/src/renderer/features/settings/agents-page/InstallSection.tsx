@@ -1,9 +1,9 @@
 import type { InstallOption } from '@emdash/cli-agent-plugins';
+import type { DependencyId } from '@emdash/shared/deps';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { useHostDependencyInstallation } from '@renderer/lib/stores/use-host-dependency-installation';
 import type { AgentPayload } from '@shared/core/agents/agent-payload';
-import type { DependencyId } from '@shared/core/dependencies';
 import { DependencyInstallationStatusCard } from './DependencyInstallationStatusCard';
 import { DependencyInstallationUpdateCard } from './DependencyInstallationUpdateCard';
 import { InstallDependencyCard } from './InstallDependencyCard';

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { IExecutionContext } from '@emdash/shared/exec';
 import { makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { conversations, tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';

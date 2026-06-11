@@ -1,5 +1,5 @@
+import type { IExecutionContext } from '@emdash/shared/exec';
 import type { ClientCallback, ClientChannel } from 'ssh2';
-import type { IExecutionContext } from '@main/core/execution-context/types';
 import { isValidEnvVarName, quoteCshArg, quoteShellArg } from '@main/utils/shellEscape';
 import { parseRemoteEnvOutput, SHELL_ENV_CAPTURE_GUARD } from '@main/utils/userEnv';
 import {
