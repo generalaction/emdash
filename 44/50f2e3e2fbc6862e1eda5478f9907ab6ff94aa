@@ -1,0 +1,22 @@
+apps/emdash-desktop/src/renderer/lib/providers/theme-provider.tsx
+  s_7e1a5347f4674b::t_cbc4fa810678a0 21-26
+  s_7e1a5347f4674b::t_5069f371c969c3 1-7
+  s_7e1a5347f4674b::t_f9f4e427750ee8 62
+  s_7e1a5347f4674b::t_4a971e04e9c562 47-48,50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "4450f2e3e2fbc6862e1eda5478f9907ab6ff94aa",
+  "prompts": {},
+  "sessions": {
+    "s_7e1a5347f4674b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a2ac2ab-a45c-4ad3-87df-10c04a2db43a",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
