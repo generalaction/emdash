@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { normalizeBrowserUrl, type BrowserSessionSnapshot } from '@shared/browser';
@@ -14,6 +15,15 @@ export function openBrowserUrlExternally(url: string): void {
 export function canOpenBrowserUrlExternally(url: string): boolean {
   const normalized = normalizeBrowserUrl(url);
   return normalized.ok && (normalized.protocol === 'http:' || normalized.protocol === 'https:');
+}
+
+export async function captureBrowserScreenshot(session: BrowserSessionSnapshot): Promise<void> {
+  const result = await rpc.browser.captureScreenshot(session.browserId);
+  if (result.success) {
+    toast.success('Screenshot copied to clipboard');
+  } else {
+    toast.error('Could not capture screenshot');
+  }
 }
 
 export function confirmClearBrowserStorage(

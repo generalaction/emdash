@@ -27,6 +27,10 @@ export const browserController = createRPCController({
     success: import.meta.env.DEV && browserWebContentsRegistry.openDevTools(browserId),
   }),
 
+  captureScreenshot: async (browserId: string) => ({
+    success: await browserWebContentsRegistry.captureScreenshotToClipboard(browserId),
+  }),
+
   clearStorage: async (browserId: string) => ({
     success: await browserWebContentsRegistry.clearStorage(browserId),
   }),

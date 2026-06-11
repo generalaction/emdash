@@ -1,4 +1,4 @@
-import { Ellipsis, Globe, Loader2, RefreshCw, RotateCcw, Square } from 'lucide-react';
+import { Ellipsis, Focus, Globe, Loader2, RefreshCw, RotateCcw, Square } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
@@ -10,9 +10,15 @@ import {
 } from '@renderer/lib/ui/dropdown-menu';
 import { Input } from '@renderer/lib/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { normalizeBrowserUrl, type BrowserSessionSnapshot } from '@shared/browser';
+import { cn } from '@renderer/utils/utils';
+import {
+  BROWSER_DEFAULT_URL,
+  normalizeBrowserUrl,
+  type BrowserSessionSnapshot,
+} from '@shared/browser';
 import {
   canOpenBrowserUrlExternally,
+  captureBrowserScreenshot,
   confirmClearBrowserStorage,
   openBrowserUrlExternally,
 } from './browser-toolbar-actions';
@@ -37,6 +43,8 @@ export function BrowserToolbar({
   const [urlText, setUrlText] = useState(browserUrlInputText(session.currentUrl));
   const [urlError, setUrlError] = useState<string | null>(null);
   const [failedFaviconUrl, setFailedFaviconUrl] = useState<string | null>(null);
+  const [screenshotSpin, setScreenshotSpin] = useState(false);
+  const screenshotSpinTimerRef = useRef<number | null>(null);
   const urlInputRef = useRef<HTMLInputElement | null>(null);
   const faviconUrl =
     session.faviconUrl && session.faviconUrl !== failedFaviconUrl ? session.faviconUrl : null;
@@ -91,6 +99,23 @@ export function BrowserToolbar({
   const confirmClearStorage = () => {
     confirmClearBrowserStorage(session, adapter);
   };
+
+  const takeScreenshot = () => {
+    setScreenshotSpin(true);
+    if (screenshotSpinTimerRef.current !== null) {
+      window.clearTimeout(screenshotSpinTimerRef.current);
+    }
+    screenshotSpinTimerRef.current = window.setTimeout(() => setScreenshotSpin(false), 300);
+    void captureBrowserScreenshot(session);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (screenshotSpinTimerRef.current !== null) {
+        window.clearTimeout(screenshotSpinTimerRef.current);
+      }
+    };
+  }, []);
   const canOpenExternal = canOpenBrowserUrlExternally(session.currentUrl);
 
   return (
@@ -141,6 +166,18 @@ export function BrowserToolbar({
           </div>
         )}
       </form>
+      <ToolbarIconButton
+        label="Copy screenshot"
+        disabled={session.currentUrl === BROWSER_DEFAULT_URL}
+        onClick={takeScreenshot}
+      >
+        <Focus
+          className={cn(
+            'size-4 transition-transform duration-300 ease-out',
+            screenshotSpin && 'rotate-90'
+          )}
+        />
+      </ToolbarIconButton>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={

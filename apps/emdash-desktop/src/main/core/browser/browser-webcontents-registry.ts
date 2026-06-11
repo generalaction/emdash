@@ -1,4 +1,4 @@
-import { session, type WebContents } from 'electron';
+import { clipboard, session, type WebContents } from 'electron';
 import { events } from '@main/lib/events';
 import { normalizeBrowserUrl } from '@shared/browser';
 import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
@@ -90,6 +90,15 @@ export class BrowserWebContentsRegistry {
     const webContents = this.webContentsByBrowserId.get(browserId);
     if (!webContents || webContents.isDestroyed()) return false;
     webContents.openDevTools({ mode: 'detach' });
+    return true;
+  }
+
+  async captureScreenshotToClipboard(browserId: string): Promise<boolean> {
+    const webContents = this.webContentsByBrowserId.get(browserId);
+    if (!webContents || webContents.isDestroyed()) return false;
+    const image = await webContents.capturePage();
+    if (image.isEmpty()) return false;
+    clipboard.writeImage(image);
     return true;
   }
 
