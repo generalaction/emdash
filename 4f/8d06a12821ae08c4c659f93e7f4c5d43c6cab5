@@ -1,0 +1,35 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_917ff828f7ee89::t_7456292d9826d6 46-47
+  s_917ff828f7ee89::t_f2071b62495521 21
+  s_917ff828f7ee89::t_b3c06c4e434cc3 102-118
+  s_917ff828f7ee89::t_d521cd0d65eb32 1
+  s_917ff828f7ee89::t_963ac91657739b 14-18
+  s_917ff828f7ee89::t_2d9d3fc32065db 169-170,173,180
+  s_917ff828f7ee89::t_caeadd661ff77f 172,174-179
+  s_917ff828f7ee89::t_7743041326abd7 13
+  s_917ff828f7ee89::t_f2bf5a098b6a3e 171
+apps/emdash-desktop/src/main/core/browser/controller.ts
+  s_917ff828f7ee89::t_67f9444acf85ea 30-33
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_917ff828f7ee89::t_60f34fce0bd7f4 1
+  s_917ff828f7ee89::t_bcf11e2f899219 96-104
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar-actions.ts
+  s_917ff828f7ee89::t_0d2c8f12d95d6f 20-28
+  s_917ff828f7ee89::t_23b3bb0f9e1d74 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "4f8d06a12821ae08c4c659f93e7f4c5d43c6cab5",
+  "prompts": {},
+  "sessions": {
+    "s_917ff828f7ee89": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d0a8c25c-6372-406a-8178-6fba520725e2",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
