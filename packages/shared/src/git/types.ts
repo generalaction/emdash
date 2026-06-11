@@ -132,7 +132,7 @@ export interface IGitRepository extends IDisposable {
 }
 
 export interface IGitWorktree extends IDisposable {
-  readonly workTree: string;
+  readonly worktree: string;
   readonly repository: IGitRepository;
   getStatus(): Promise<GitStatusModel>;
   getHead(): Promise<GitHeadModel>;

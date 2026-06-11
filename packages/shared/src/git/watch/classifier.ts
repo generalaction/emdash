@@ -13,7 +13,7 @@ export type WorktreeWatchEffects = {
 
 export type GitLayout = {
   gitCommonDir: string;
-  worktrees: { id: string; gitDir: string; workTree: string }[];
+  worktrees: { id: string; gitDir: string; worktree: string }[];
 };
 
 export type GitWatchClassification = {
@@ -31,7 +31,7 @@ export function classifyGitWatchEvents(
   const normalizedWorktrees = layout.worktrees.map((worktree) => ({
     ...worktree,
     gitDir: normalize(worktree.gitDir),
-    workTree: normalize(worktree.workTree),
+    worktree: normalize(worktree.worktree),
   }));
 
   const addWorktreeEffect = (id: string, effect: keyof WorktreeWatchEffects) => {
@@ -54,8 +54,8 @@ export function classifyGitWatchEvents(
         if (gitRel === 'index') addWorktreeEffect(worktree.id, 'status');
       }
 
-      const workTreeRel = relativeInside(worktree.workTree, eventPath);
-      if (workTreeRel !== null && !isDotGitPath(workTreeRel)) {
+      const worktreeRel = relativeInside(worktree.worktree, eventPath);
+      if (worktreeRel !== null && !isDotGitPath(worktreeRel)) {
         addWorktreeEffect(worktree.id, 'status');
       }
     }

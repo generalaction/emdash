@@ -66,7 +66,7 @@ const IMAGE_MIME_BY_EXT: Record<string, string> = {
 type Numstat = Map<string, { additions: number; deletions: number }>;
 
 export type GitWorktreeOptions = {
-  workTree: string;
+  worktree: string;
   gitDir: string;
   repository: GitRepository;
   exec: BoundExec;
@@ -77,18 +77,18 @@ export type GitWorktreeOptions = {
 };
 
 export class GitWorktree implements IGitWorktree {
-  readonly workTree: string;
+  readonly worktree: string;
   readonly gitDir: string;
   readonly repository: GitRepository;
   private readonly exec: BoundExec;
   private readonly fs: IFsService;
   private readonly statusModel: LiveModel<GitStatusModel>;
   private readonly headModel: LiveModel<GitHeadModel>;
-  private readonly workTreeWatch: WatchHandle;
+  private readonly worktreeWatch: WatchHandle;
   private readonly unregisterFromRepository: Unsubscribe;
 
   constructor(options: GitWorktreeOptions) {
-    this.workTree = options.workTree;
+    this.worktree = options.worktree;
     this.gitDir = options.gitDir;
     this.repository = options.repository;
     this.exec = options.exec;
@@ -99,31 +99,31 @@ export class GitWorktree implements IGitWorktree {
       compute: () => this.computeStatus(),
       debounceMs: WATCH_DEBOUNCE_MS,
       revalidateIntervalMs: REVALIDATE_INTERVAL_MS,
-      onError: (error) => onError(`status ${this.workTree}`, error),
+      onError: (error) => onError(`status ${this.worktree}`, error),
     });
     this.headModel = new LiveModel<GitHeadModel>({
       compute: () => this.computeHead(),
       debounceMs: WATCH_DEBOUNCE_MS,
       revalidateIntervalMs: REVALIDATE_INTERVAL_MS,
-      onError: (error) => onError(`head ${this.workTree}`, error),
+      onError: (error) => onError(`head ${this.worktree}`, error),
     });
 
     // The repository owns the `.git` (commonDir) watch and routes classified HEAD/index
     // effects here; this watch only covers working-tree file changes.
-    this.unregisterFromRepository = this.repository.registerWorktree(this.workTree, {
+    this.unregisterFromRepository = this.repository.registerWorktree(this.worktree, {
       gitDir: this.gitDir,
-      workTree: this.workTree,
+      worktree: this.worktree,
       onEffects: (effects) => {
         if (effects.status) this.statusModel.invalidate();
         if (effects.head) this.headModel.invalidate();
       },
     });
-    this.workTreeWatch = options.watcher.watch(
-      this.workTree,
+    this.worktreeWatch = options.watcher.watch(
+      this.worktree,
       (events) => {
         const classification = classifyGitWatchEvents(events, {
           gitCommonDir: this.repository.gitCommonDir,
-          worktrees: [{ id: 'self', gitDir: this.gitDir, workTree: this.workTree }],
+          worktrees: [{ id: 'self', gitDir: this.gitDir, worktree: this.worktree }],
         });
         const effects = classification.worktrees.get('self');
         if (effects?.status) this.statusModel.invalidate();
@@ -140,7 +140,7 @@ export class GitWorktree implements IGitWorktree {
   }
 
   async ready(): Promise<void> {
-    await this.workTreeWatch.ready();
+    await this.worktreeWatch.ready();
   }
 
   async getStatus(): Promise<GitStatusModel> {
@@ -211,7 +211,7 @@ export class GitWorktree implements IGitWorktree {
         return content === null ? undefined : stripTrailingNewline(content);
       }
       try {
-        const result = await this.fs.read(path.join(this.workTree, filePath), {
+        const result = await this.fs.read(path.join(this.worktree, filePath), {
           maxBytes: MAX_DIFF_CONTENT_BYTES,
         });
         if (result.truncated) return undefined;
@@ -556,7 +556,7 @@ export class GitWorktree implements IGitWorktree {
 
   dispose(): void {
     this.unregisterFromRepository();
-    this.workTreeWatch.release();
+    this.worktreeWatch.release();
     this.statusModel.dispose();
     this.headModel.dispose();
   }
@@ -658,7 +658,7 @@ export class GitWorktree implements IGitWorktree {
       const deletions = unstagedNumstat.get(filePath)?.deletions ?? 0;
       if (additions === 0 && deletions === 0 && isUntracked) {
         try {
-          const result = await this.fs.read(path.join(this.workTree, filePath), {
+          const result = await this.fs.read(path.join(this.worktree, filePath), {
             maxBytes: MAX_DIFF_CONTENT_BYTES,
           });
           if (!result.truncated) additions = (result.content.match(/\n/g) ?? []).length;

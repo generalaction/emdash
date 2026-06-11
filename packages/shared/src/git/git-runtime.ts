@@ -97,7 +97,7 @@ export class GitRuntime implements IGitRuntime {
       const repositoryLease = await this.acquireRepository(identity);
       try {
         const worktree = new GitWorktree({
-          workTree: identity.topLevel,
+          worktree: identity.topLevel,
           gitDir: identity.gitDir,
           repository: repositoryLease.value,
           exec: this.exec.withCwd(identity.topLevel),

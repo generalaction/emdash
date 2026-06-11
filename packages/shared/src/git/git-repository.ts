@@ -44,7 +44,7 @@ export type GitOnError = (context: string, error: unknown) => void;
  */
 export type WorktreeWatchRegistration = {
   gitDir: string;
-  workTree: string;
+  worktree: string;
   onEffects: (effects: WorktreeWatchEffects) => void;
 };
 
@@ -373,7 +373,7 @@ export class GitRepository implements IGitRepository {
       worktrees: [...this.worktrees.entries()].map(([id, registration]) => ({
         id,
         gitDir: registration.gitDir,
-        workTree: registration.workTree,
+        worktree: registration.worktree,
       })),
     };
   }
