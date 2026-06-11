@@ -228,11 +228,13 @@ export function BrowserToolbar({
           </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem
+            disabled={!adapter}
             onClick={() => clearBrowserData(session, 'cookies', () => adapter?.reload())}
           >
             Clear cookies
           </DropdownMenuItem>
           <DropdownMenuItem
+            disabled={!adapter}
             onClick={() => clearBrowserData(session, 'cache', () => adapter?.reloadIgnoringCache())}
           >
             Clear cache

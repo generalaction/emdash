@@ -67,7 +67,7 @@ describe('BrowserWebContentsRegistry', () => {
     expect(registry.getBrowserIdForWebContents(webContentsWithSession({}))).toBeUndefined();
   });
 
-  it('clears cookies and cache only for registered sessions', async () => {
+  it('clears browser data only for registered sessions', async () => {
     const registry = new BrowserWebContentsRegistry();
     const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
     const clearStorageData = vi.fn().mockResolvedValue(undefined);
@@ -76,12 +76,16 @@ describe('BrowserWebContentsRegistry', () => {
 
     registry.registerSession({ browserId: 'browser-1', partition });
 
+    expect(await registry.clearData('browser-1', 'storage')).toBe(true);
+    expect(clearStorageData).toHaveBeenCalledWith();
+
     expect(await registry.clearData('browser-1', 'cookies')).toBe(true);
     expect(clearStorageData).toHaveBeenCalledWith({ storages: ['cookies'] });
 
     expect(await registry.clearData('browser-1', 'cache')).toBe(true);
     expect(clearCache).toHaveBeenCalledWith();
 
+    expect(await registry.clearData('missing', 'storage')).toBe(false);
     expect(await registry.clearData('missing', 'cookies')).toBe(false);
     expect(await registry.clearData('missing', 'cache')).toBe(false);
   });

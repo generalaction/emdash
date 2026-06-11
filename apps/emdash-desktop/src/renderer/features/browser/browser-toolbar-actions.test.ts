@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   reload: vi.fn(),
   reloadIgnoringCache: vi.fn(),
   showModal: vi.fn(),
+  toast: vi.fn(),
 }));
 
 vi.mock('@renderer/lib/ipc', () => ({
@@ -27,6 +28,10 @@ vi.mock('@renderer/lib/ipc', () => ({
 
 vi.mock('@renderer/lib/modal/modal-provider', () => ({
   showModal: mocks.showModal,
+}));
+
+vi.mock('@renderer/lib/hooks/use-toast', () => ({
+  toast: mocks.toast,
 }));
 
 function session() {
@@ -87,24 +92,43 @@ describe('browser toolbar actions', () => {
   });
 
   it('clears cookies and reloads on success', async () => {
-    clearBrowserData(session(), 'cookies', mocks.reload);
-    await vi.waitFor(() => expect(mocks.reload).toHaveBeenCalledWith());
+    await clearBrowserData(session(), 'cookies', mocks.reload);
 
     expect(mocks.clearData).toHaveBeenCalledWith('browser-1', 'cookies');
+    expect(mocks.reload).toHaveBeenCalledWith();
   });
 
   it('clears the cache and force-reloads on success', async () => {
-    clearBrowserData(session(), 'cache', mocks.reloadIgnoringCache);
-    await vi.waitFor(() => expect(mocks.reloadIgnoringCache).toHaveBeenCalledWith());
+    await clearBrowserData(session(), 'cache', mocks.reloadIgnoringCache);
 
     expect(mocks.clearData).toHaveBeenCalledWith('browser-1', 'cache');
+    expect(mocks.reloadIgnoringCache).toHaveBeenCalledWith();
   });
 
-  it('does not reload when clearing cookies fails', async () => {
+  it('does not reload and shows feedback when clearing cookies fails', async () => {
     mocks.clearData.mockResolvedValue({ success: false });
-    clearBrowserData(session(), 'cookies', mocks.reload);
-    await vi.waitFor(() => expect(mocks.clearData).toHaveBeenCalledWith('browser-1', 'cookies'));
+    await clearBrowserData(session(), 'cookies', mocks.reload);
 
+    expect(mocks.clearData).toHaveBeenCalledWith('browser-1', 'cookies');
     expect(mocks.reload).not.toHaveBeenCalled();
+    expect(mocks.toast).toHaveBeenCalledWith({
+      title: 'Could not clear browser data',
+      description: 'Try again, or reload the browser view manually.',
+      variant: 'destructive',
+    });
+  });
+
+  it('does not reload and shows feedback when clearing browser data rejects', async () => {
+    const error = new Error('IPC failed');
+    mocks.clearData.mockRejectedValue(error);
+    await clearBrowserData(session(), 'cache', mocks.reloadIgnoringCache);
+
+    expect(mocks.clearData).toHaveBeenCalledWith('browser-1', 'cache');
+    expect(mocks.reloadIgnoringCache).not.toHaveBeenCalled();
+    expect(mocks.toast).toHaveBeenCalledWith({
+      title: 'Could not clear browser data',
+      description: 'IPC failed',
+      variant: 'destructive',
+    });
   });
 });

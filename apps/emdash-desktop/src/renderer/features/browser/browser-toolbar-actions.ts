@@ -1,3 +1,4 @@
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import {
@@ -23,10 +24,29 @@ export function clearBrowserData(
   session: BrowserSessionSnapshot,
   kind: BrowserDataClearKind,
   onSuccess: () => void
-): void {
-  void rpc.browser.clearData(session.browserId, kind).then((result) => {
-    if (result.success) onSuccess();
-  });
+): Promise<void> {
+  return rpc.browser
+    .clearData(session.browserId, kind)
+    .then((result) => {
+      if (result.success) {
+        onSuccess();
+        return;
+      }
+
+      toast({
+        title: 'Could not clear browser data',
+        description: 'Try again, or reload the browser view manually.',
+        variant: 'destructive',
+      });
+    })
+    .catch((error: unknown) => {
+      console.error('Failed to clear browser data', error);
+      toast({
+        title: 'Could not clear browser data',
+        description: error instanceof Error ? error.message : 'The browser data request failed.',
+        variant: 'destructive',
+      });
+    });
 }
 
 export function confirmClearBrowserStorage(
@@ -40,7 +60,7 @@ export function confirmClearBrowserStorage(
     confirmLabel: 'Clear Storage',
     variant: 'destructive',
     onSuccess: () => {
-      clearBrowserData(session, 'storage', onSuccess);
+      void clearBrowserData(session, 'storage', onSuccess);
     },
   });
 }
