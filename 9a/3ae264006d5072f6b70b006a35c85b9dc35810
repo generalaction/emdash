@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/renderer/features/sidebar/task-item.tsx
+  s_5a9d85a504777b::t_8bd3d7c704b221 119
+apps/emdash-desktop/src/renderer/features/sidebar/task-sidebar-agent-status.tsx
+  s_5a9d85a504777b::t_47f3e9997a6854 5
+  s_5a9d85a504777b::t_be3c2492324fc5 30
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-store.ts
+  s_5a9d85a504777b::t_ab922d0c90db2e 60,63-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "9a3ae264006d5072f6b70b006a35c85b9dc35810",
+  "prompts": {},
+  "sessions": {
+    "s_5a9d85a504777b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "46fe4c4a-b1e0-419e-8453-379d81e37537",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
