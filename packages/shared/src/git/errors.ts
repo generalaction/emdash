@@ -38,19 +38,9 @@ export type FetchPrForReviewError =
   | { type: 'not-found'; prNumber: number; message: string }
   | GitCommandError;
 
-export type RenameBranchError =
-  | { type: 'already-exists'; branch: string; message: string }
-  | { type: 'not-found'; branch: string; message: string }
-  | GitCommandError;
-
 export type DeleteBranchError =
   | { type: 'not-found'; branch: string; message: string }
   | { type: 'not-merged'; branch: string; message: string }
-  | GitCommandError;
-
-export type SoftResetError =
-  | { type: 'initial-commit'; message: string }
-  | { type: 'already-pushed'; message: string }
   | GitCommandError;
 
 export function gitErrorMessage(error: unknown): string {
@@ -156,22 +146,6 @@ export function classifyCreateBranchError(
   return commandError;
 }
 
-export function classifyRenameBranchError(
-  error: unknown,
-  oldBranch: string,
-  newBranch: string
-): RenameBranchError {
-  const commandError = toGitCommandError(error);
-  const stderr = commandError.stderr ?? '';
-  if (stderr.includes('already exists')) {
-    return { type: 'already-exists', branch: newBranch, message: commandError.message };
-  }
-  if (stderr.includes('No branch named')) {
-    return { type: 'not-found', branch: oldBranch, message: commandError.message };
-  }
-  return commandError;
-}
-
 export function classifyDeleteBranchError(error: unknown, branch: string): DeleteBranchError {
   const commandError = toGitCommandError(error);
   const stderr = commandError.stderr ?? '';
@@ -182,8 +156,4 @@ export function classifyDeleteBranchError(error: unknown, branch: string): Delet
     return { type: 'not-merged', branch, message: commandError.message };
   }
   return commandError;
-}
-
-export function classifySoftResetError(error: unknown): SoftResetError {
-  return toGitCommandError(error);
 }

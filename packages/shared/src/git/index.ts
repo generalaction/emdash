@@ -8,16 +8,8 @@ export type {
   GitCommandError,
   PullError,
   PushError,
-  RenameBranchError,
-  SoftResetError,
 } from './errors';
-export type {
-  DiffLine,
-  DiffResult,
-  ImageBlob,
-  ImageReadResult,
-  ImageUnavailableReason,
-} from './models/diff';
+export type { ImageBlob, ImageReadResult, ImageUnavailableReason } from './models/diff';
 export type { GitHeadModel } from './models/head';
 export type { Commit, CommitFile, GitLogResult } from './models/log';
 export type { DiffMode, DiffTarget, GitObjectRef, MergeBaseRange } from './models/diff-target';

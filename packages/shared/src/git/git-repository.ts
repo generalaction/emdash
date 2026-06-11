@@ -10,7 +10,6 @@ import {
   classifyFetchError,
   classifyFetchPrForReviewError,
   classifyPushError,
-  classifyRenameBranchError,
   toGitCommandError,
   type CreateBranchError,
   type DeleteBranchError,
@@ -18,7 +17,6 @@ import {
   type FetchPrForReviewError,
   type GitCommandError,
   type PushError,
-  type RenameBranchError,
 } from './errors';
 import type { GitBranch, GitRefsModel, GitRemote, GitRemotesModel } from './models/refs';
 import type {
@@ -259,18 +257,6 @@ export class GitRepository implements IGitRepository {
       return ok({ seqs: { refs: await this.refreshRefs() } });
     } catch (error) {
       return err(classifyCreateBranchError(error, name, from));
-    }
-  }
-
-  async renameBranch(
-    oldBranch: string,
-    newBranch: string
-  ): Promise<Result<{ seqs: GitSeqs }, RenameBranchError>> {
-    try {
-      await this.exec.exec(['branch', '-m', oldBranch, newBranch]);
-      return ok({ seqs: { refs: await this.refreshRefs() } });
-    } catch (error) {
-      return err(classifyRenameBranchError(error, oldBranch, newBranch));
     }
   }
 

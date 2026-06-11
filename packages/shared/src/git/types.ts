@@ -9,13 +9,11 @@ import type {
   GitCommandError,
   PullError,
   PushError,
-  RenameBranchError,
-  SoftResetError,
 } from './errors';
-import type { DiffResult, ImageReadResult } from './models/diff';
+import type { ImageReadResult } from './models/diff';
 import type { DiffTarget } from './models/diff-target';
 import type { GitHeadModel } from './models/head';
-import type { Commit, CommitFile, GitLogResult } from './models/log';
+import type { CommitFile, GitLogResult } from './models/log';
 import type { GitRefsModel, GitRemotesModel } from './models/refs';
 import type {
   GitChange,
@@ -119,10 +117,6 @@ export interface IGitRepository extends IDisposable {
   fetch(remote?: string): Promise<Result<{ seqs: GitSeqs }, FetchError>>;
   addRemote(name: string, url: string): Promise<Result<{ seqs: GitSeqs }, GitCommandError>>;
   createBranch(options: CreateBranchOptions): Promise<Result<{ seqs: GitSeqs }, CreateBranchError>>;
-  renameBranch(
-    oldBranch: string,
-    newBranch: string
-  ): Promise<Result<{ seqs: GitSeqs }, RenameBranchError>>;
   deleteBranch(
     branch: string,
     force?: boolean
@@ -157,15 +151,11 @@ export interface IGitWorktree extends IDisposable {
   getStatusFingerprint(untracked: GitStatusUntrackedMode): Promise<GitStatusFingerprint>;
   isFileCleanlyTracked(filePath: string): Promise<boolean>;
   getChangedFiles(base: DiffTarget): Promise<GitChange[]>;
-  getFileDiff(filePath: string, base?: string): Promise<DiffResult>;
-  getFileAtHead(filePath: string): Promise<string | null>;
   getFileAtRef(filePath: string, ref: string): Promise<string | null>;
   getFileAtIndex(filePath: string): Promise<string | null>;
   getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult>;
   getImageAtIndex(filePath: string): Promise<ImageReadResult>;
-  getCommitFileDiff(commitHash: string, filePath: string): Promise<DiffResult>;
   getLog(options?: GitLogOptions): Promise<GitLogResult>;
-  getLatestCommit(): Promise<Commit | null>;
   getCommitFiles(hash: string): Promise<CommitFile[]>;
   stage(paths: string[]): Promise<GitSeqs>;
   stageAll(): Promise<GitSeqs>;
@@ -176,7 +166,6 @@ export interface IGitWorktree extends IDisposable {
   commit(message: string): Promise<Result<{ hash: string; seqs: GitSeqs }, CommitError>>;
   push(remote?: string): Promise<Result<{ output: string; seqs: GitSeqs }, PushError>>;
   pull(): Promise<Result<{ output: string; seqs: GitSeqs }, PullError>>;
-  softReset(): Promise<Result<{ subject: string; body: string; seqs: GitSeqs }, SoftResetError>>;
 }
 
 export interface IGitRuntime extends IDisposable {

@@ -106,13 +106,6 @@ describe('GitWorktree', () => {
       expect(changedStatus).not.toHaveProperty('headKind');
       expect(changedStatus).not.toHaveProperty('shortHash');
 
-      const diff = await worktree.getFileDiff('tracked.txt');
-      expect(diff.lines).toEqual(
-        expect.arrayContaining([
-          { left: 'before', type: 'del' },
-          { right: 'after', type: 'add' },
-        ])
-      );
       await expect(worktree.getFileAtRef('tracked.txt', 'HEAD')).resolves.toBe('before\n');
       await expect(worktree.getChangedFiles({ kind: 'head' })).resolves.toEqual([
         expect.objectContaining({ path: 'tracked.txt', status: 'modified' }),
@@ -131,10 +124,7 @@ describe('GitWorktree', () => {
       });
       expect(await worktree.getStatus()).not.toHaveProperty('totalAdded');
       expect(await worktree.getStatus()).not.toHaveProperty('totalDeleted');
-      await expect(worktree.getFileDiff('tracked.txt', 'STAGED')).resolves.toMatchObject({
-        originalContent: 'before',
-        modifiedContent: 'after',
-      });
+      await expect(worktree.getFileAtIndex('tracked.txt')).resolves.toBe('after\n');
       await expect(worktree.getChangedFiles({ kind: 'staged' })).resolves.toEqual([
         expect.objectContaining({ path: 'tracked.txt', status: 'modified' }),
       ]);
@@ -168,12 +158,6 @@ describe('GitWorktree', () => {
       await expect(worktree.getCommitFiles(commit.data.hash)).resolves.toEqual([
         expect.objectContaining({ path: 'tracked.txt', status: 'modified' }),
       ]);
-      await expect(
-        worktree.getCommitFileDiff(commit.data.hash, 'tracked.txt')
-      ).resolves.toMatchObject({
-        originalContent: 'before',
-        modifiedContent: 'after',
-      });
 
       expect(updates.some((update) => update.kind === 'head')).toBe(true);
       expect(repoUpdates.some((update) => update.kind === 'refs')).toBe(true);
@@ -431,35 +415,6 @@ describe('GitWorktree', () => {
       await expect(readFile(path.join(repo, 'untracked.txt'), 'utf8')).rejects.toThrow();
       await expect(readFile(path.join(repo, 'extra.txt'), 'utf8')).rejects.toThrow();
 
-      lease.release();
-    } finally {
-      await runtime.dispose();
-    }
-  });
-
-  it('soft-resets the latest unpushed commit and returns its message', async () => {
-    const repo = await makeRepo();
-    const runtime = new GitRuntime();
-
-    try {
-      const lease = await runtime.openWorktree(repo);
-      await writeFile(path.join(repo, 'tracked.txt'), 'soft reset\n', 'utf8');
-      await lease.value.stage(['tracked.txt']);
-      const commit = await lease.value.commit('soft reset me\n\nbody text');
-      expect(commit.success).toBe(true);
-
-      await expect(lease.value.softReset()).resolves.toMatchObject({
-        success: true,
-        data: {
-          subject: 'soft reset me',
-          body: 'body text',
-          seqs: { status: expect.any(Number), head: expect.any(Number), refs: expect.any(Number) },
-        },
-      });
-      await expect(lease.value.getStatus()).resolves.toMatchObject({
-        kind: 'ok',
-        staged: [expect.objectContaining({ path: 'tracked.txt', status: 'modified' })],
-      });
       lease.release();
     } finally {
       await runtime.dispose();

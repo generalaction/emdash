@@ -7,25 +7,23 @@ import {
   classifyCommitError,
   classifyPullError,
   classifyPushError,
-  classifySoftResetError,
   gitErrorMessage,
   type CommitError,
   type PullError,
   type PushError,
-  type SoftResetError,
 } from './errors';
 import type { GitOnError, GitRepository } from './git-repository';
-import type { DiffResult, ImageReadResult } from './models/diff';
+import type { ImageReadResult } from './models/diff';
 import { toRangeString, toRefString, type DiffTarget } from './models/diff-target';
 import type { GitHeadModel } from './models/head';
-import type { Commit, CommitFile, GitLogResult } from './models/log';
+import type { CommitFile, GitLogResult } from './models/log';
 import type {
   GitChange,
   GitStatusFingerprint,
   GitStatusModel,
   GitStatusUntrackedMode,
 } from './models/status';
-import { mapGitChangeStatus, parseDiffLines } from './parsers/diff-parser';
+import { mapGitChangeStatus } from './parsers/diff-parser';
 import {
   MAX_STATUS_FILES,
   StatusParser,
@@ -43,7 +41,6 @@ import type {
 import { classifyGitWatchEvents } from './watch/classifier';
 
 const MAX_DIFF_CONTENT_BYTES = 512 * 1024;
-const MAX_DIFF_OUTPUT_BYTES = 10 * 1024 * 1024;
 const MAX_IMAGE_BLOB_BYTES = 10 * 1024 * 1024;
 const WATCH_DEBOUNCE_MS = 100;
 const REVALIDATE_INTERVAL_MS = 5 * 60_000;
@@ -190,73 +187,8 @@ export class GitWorktree implements IGitWorktree {
     }
   }
 
-  async getFileDiff(filePath: string, base = 'HEAD'): Promise<DiffResult> {
-    const staged = base === 'STAGED' || base === 'staged';
-    const diffArgs = staged
-      ? ['diff', '--no-color', '--unified=2000', '--cached', '--', filePath]
-      : ['diff', '--no-color', '--unified=2000', base, '--', filePath];
-    let diffStdout: string | undefined;
-    try {
-      const { stdout } = await this.exec.exec(diffArgs, { maxBuffer: MAX_DIFF_OUTPUT_BYTES });
-      diffStdout = stdout;
-    } catch {}
-
-    const getOriginalContent = async (): Promise<string | undefined> => {
-      const content = await this.repository.readBlobAtRef(staged ? 'HEAD' : base, filePath);
-      return content === null ? undefined : stripTrailingNewline(content);
-    };
-    const getModifiedContent = async (): Promise<string | undefined> => {
-      if (staged) {
-        const content = await this.getFileAtIndex(filePath);
-        return content === null ? undefined : stripTrailingNewline(content);
-      }
-      try {
-        const result = await this.fs.read(path.join(this.worktree, filePath), {
-          maxBytes: MAX_DIFF_CONTENT_BYTES,
-        });
-        if (result.truncated) return undefined;
-        return stripTrailingNewline(result.content);
-      } catch {
-        return undefined;
-      }
-    };
-
-    if (diffStdout !== undefined) {
-      const { lines, isBinary } = parseDiffLines(diffStdout);
-      if (isBinary) return { lines: [], isBinary: true };
-      const [originalContent, modifiedContent] = await Promise.all([
-        getOriginalContent(),
-        getModifiedContent(),
-      ]);
-      return { lines, originalContent, modifiedContent };
-    }
-
-    const [originalContent, modifiedContent] = await Promise.all([
-      getOriginalContent(),
-      getModifiedContent(),
-    ]);
-    if (modifiedContent !== undefined) {
-      return {
-        lines: modifiedContent.split('\n').map((line) => ({ right: line, type: 'add' as const })),
-        originalContent,
-        modifiedContent,
-      };
-    }
-    if (originalContent !== undefined) {
-      return {
-        lines: originalContent.split('\n').map((line) => ({ left: line, type: 'del' as const })),
-        originalContent,
-      };
-    }
-    return { lines: [] };
-  }
-
   async getFileAtRef(filePath: string, ref: string): Promise<string | null> {
     return this.repository.readBlobAtRef(ref, filePath);
-  }
-
-  async getFileAtHead(filePath: string): Promise<string | null> {
-    return this.getFileAtRef(filePath, 'HEAD');
   }
 
   async getFileAtIndex(filePath: string): Promise<string | null> {
@@ -308,67 +240,6 @@ export class GitWorktree implements IGitWorktree {
     return changes;
   }
 
-  async getCommitFileDiff(commitHash: string, filePath: string): Promise<DiffResult> {
-    const getContentAt = async (ref: string): Promise<string | undefined> => {
-      const content = await this.repository.readBlobAtRef(ref, filePath);
-      return content === null ? undefined : stripTrailingNewline(content);
-    };
-
-    let hasParent = true;
-    try {
-      await this.exec.exec(['rev-parse', '--verify', `${commitHash}~1`]);
-    } catch {
-      hasParent = false;
-    }
-
-    if (!hasParent) {
-      const modifiedContent = await getContentAt(commitHash);
-      if (modifiedContent === undefined) return { lines: [] };
-      return {
-        lines: modifiedContent
-          ? modifiedContent.split('\n').map((line) => ({ right: line, type: 'add' as const }))
-          : [],
-        modifiedContent,
-      };
-    }
-
-    let diffStdout: string | undefined;
-    try {
-      const { stdout } = await this.exec.exec(
-        ['diff', '--no-color', '--unified=2000', `${commitHash}~1`, commitHash, '--', filePath],
-        { maxBuffer: MAX_DIFF_OUTPUT_BYTES }
-      );
-      diffStdout = stdout;
-    } catch {}
-
-    const [originalContent, modifiedContent] = await Promise.all([
-      getContentAt(`${commitHash}~1`),
-      getContentAt(commitHash),
-    ]);
-
-    if (diffStdout !== undefined) {
-      const { lines, isBinary } = parseDiffLines(diffStdout);
-      if (isBinary) return { lines: [], isBinary: true };
-      if (lines.length > 0) return { lines, originalContent, modifiedContent };
-    }
-
-    if (modifiedContent !== undefined && modifiedContent !== '') {
-      return {
-        lines: modifiedContent.split('\n').map((line) => ({ right: line, type: 'add' as const })),
-        originalContent,
-        modifiedContent,
-      };
-    }
-    if (originalContent !== undefined) {
-      return {
-        lines: originalContent.split('\n').map((line) => ({ left: line, type: 'del' as const })),
-        originalContent,
-        modifiedContent,
-      };
-    }
-    return { lines: [], originalContent, modifiedContent };
-  }
-
   async getLog(options: GitLogOptions = {}): Promise<GitLogResult> {
     const maxCount =
       typeof options.maxCount === 'number'
@@ -418,11 +289,6 @@ export class GitWorktree implements IGitWorktree {
         };
       });
     return { commits, aheadCount };
-  }
-
-  async getLatestCommit(): Promise<Commit | null> {
-    const { commits } = await this.getLog({ maxCount: 1 });
-    return commits[0] ?? null;
   }
 
   async getCommitFiles(hash: string): Promise<CommitFile[]> {
@@ -541,36 +407,6 @@ export class GitWorktree implements IGitWorktree {
       return ok({ output: stdout || stderr, seqs: await this.refreshAfterHistoryChange() });
     } catch (error) {
       return err(classifyPullError(error));
-    }
-  }
-
-  async softReset(): Promise<
-    Result<{ subject: string; body: string; seqs: GitSeqs }, SoftResetError>
-  > {
-    try {
-      await this.exec.exec(['rev-parse', '--verify', 'HEAD~1']);
-    } catch (error) {
-      return err({ type: 'initial-commit', message: gitErrorMessage(error) });
-    }
-
-    const latest = await this.getLatestCommit();
-    if (latest?.isPushed) {
-      return err({ type: 'already-pushed', message: 'Latest commit is already pushed' });
-    }
-
-    try {
-      const [{ stdout: subject }, { stdout: body }] = await Promise.all([
-        this.exec.exec(['log', '-1', '--pretty=format:%s']),
-        this.exec.exec(['log', '-1', '--pretty=format:%b']),
-      ]);
-      await this.exec.exec(['reset', '--soft', 'HEAD~1']);
-      return ok({
-        subject: subject.trim(),
-        body: body.trim(),
-        seqs: await this.refreshAfterHistoryChange(),
-      });
-    } catch (error) {
-      return err(classifySoftResetError(error));
     }
   }
 
@@ -808,10 +644,6 @@ function parseDecoratedTags(decorations: string): string[] {
     .filter((decoration) => decoration.startsWith('tag: '))
     .map((decoration) => decoration.slice('tag: '.length).replace(/^refs\/tags\//, ''))
     .filter(Boolean);
-}
-
-function stripTrailingNewline(value: string): string {
-  return value.endsWith('\n') ? value.slice(0, -1) : value;
 }
 
 function imageMimeForPath(filePath: string): string | null {
