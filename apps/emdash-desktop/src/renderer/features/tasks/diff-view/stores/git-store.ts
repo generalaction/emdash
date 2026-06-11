@@ -17,7 +17,8 @@ export class GitStore {
   constructor(
     private readonly projectId: string,
     private readonly workspaceId: string,
-    private readonly repositoryStore: RepositoryStore
+    private readonly repositoryStore: RepositoryStore,
+    private readonly opts?: { isSshProject?: boolean }
   ) {
     this.fullStatus = new Resource<FullGitStatus>(
       () => this._fetchFullStatus(),
@@ -380,9 +381,7 @@ export class GitStore {
         result.error.type === 'not_found'
           ? 'The project is no longer open.'
           : formatFetchErrorDetail(result.error, {
-              isSshProject:
-                (await import('@renderer/features/projects/stores/project-selectors'))
-                  .getProjectSshConnectionId(this.projectId) !== undefined,
+              isSshProject: this.opts?.isSshProject,
             });
       toast.error(`Failed to fetch remote changes: ${detail}`);
       return err(result.error);
