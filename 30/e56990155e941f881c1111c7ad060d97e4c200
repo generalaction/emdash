@@ -1,0 +1,20 @@
+apps/emdash-desktop/src/main/core/browser/browser-partition-cleanup.test.ts
+  s_a44d85a475a480::t_d975165b7fecbe 3,45
+  s_a44d85a475a480::t_c47531d6646239 1-2,4-44,46-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "30e56990155e941f881c1111c7ad060d97e4c200",
+  "prompts": {},
+  "sessions": {
+    "s_a44d85a475a480": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "85de816c-4744-441c-b3a5-8a57cf83eb6e",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
