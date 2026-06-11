@@ -493,7 +493,7 @@ export class GitWorktree implements IGitWorktree {
 
     for (const entry of entries) {
       const code = `${entry.x}${entry.y}`;
-      const filePath = entry.path;
+      const filePath = entry.rename ?? entry.path;
       const status = mapGitChangeStatus(code);
 
       if (entry.x !== ' ' && entry.x !== '?') {
