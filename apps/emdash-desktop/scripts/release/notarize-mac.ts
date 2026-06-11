@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { notarize } from '@electron/notarize';
 import { RELEASE_DIR } from './lib/config.ts';
@@ -41,9 +41,11 @@ if (apiKeyContent.includes('BEGIN PRIVATE KEY') || apiKeyContent.length > 500) {
   writeFileSync(keyFile, apiKeyContent);
 }
 
+// Absolute paths: @electron/notarize resolves .dmg/.pkg appPath against an internal
+// temp dir, so a relative path would be looked up under that temp dir and fail.
 const dmgs = readdirSync(RELEASE_DIR)
   .filter((f) => f.endsWith('.dmg'))
-  .map((f) => join(RELEASE_DIR, f));
+  .map((f) => resolve(RELEASE_DIR, f));
 
 if (dmgs.length === 0) {
   warn('No DMG files found — nothing to notarize.');
