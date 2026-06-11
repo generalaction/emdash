@@ -7,17 +7,17 @@ export class Emitter<T> {
     return this.subscribers.size;
   }
 
-  emit(value: T): void {
-    for (const subscriber of [...this.subscribers]) {
-      subscriber(value);
-    }
-  }
-
   subscribe(cb: (value: T) => void): Unsubscribe {
     this.subscribers.add(cb);
     return () => {
       this.subscribers.delete(cb);
     };
+  }
+
+  emit(value: T): void {
+    for (const subscriber of [...this.subscribers]) {
+      subscriber(value);
+    }
   }
 
   clear(): void {

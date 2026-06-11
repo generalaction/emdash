@@ -71,7 +71,8 @@ export type GitWorktreeOptions = {
   repository: GitRepository;
   exec: BoundExec;
   fs: IFsService;
-  watch: IFileWatchService;
+  /** Injected file-watch service; disposed by the injector, not this class. */
+  watcher: IFileWatchService;
   onError?: GitOnError;
 };
 
@@ -117,7 +118,7 @@ export class GitWorktree implements IGitWorktree {
         if (effects.head) this.headModel.invalidate();
       },
     });
-    this.workTreeWatch = options.watch.watch(
+    this.workTreeWatch = options.watcher.watch(
       this.workTree,
       (events) => {
         const classification = classifyGitWatchEvents(events, {
@@ -155,36 +156,37 @@ export class GitWorktree implements IGitWorktree {
     return { status, head };
   }
 
-  async refresh(): Promise<GitWorktreeSnapshot> {
-    const [status, head] = await Promise.all([
-      this.statusModel.refresh(),
-      this.headModel.refresh(),
-    ]);
-    return { status, head };
-  }
-
-  subscribe(cb: (update: GitWorktreeUpdate) => void): Unsubscribe {
-    const unsubscribeStatus = this.statusModel.subscribe(({ value, seq }) =>
-      cb({ kind: 'status', model: value, seq })
-    );
-    const unsubscribeHead = this.headModel.subscribe(({ value, seq }) =>
-      cb({ kind: 'head', model: value, seq })
-    );
-    return () => {
-      unsubscribeStatus();
-      unsubscribeHead();
-    };
-  }
-
-  async subscribeWithSnapshot(
-    cb: (update: GitWorktreeUpdate) => void
-  ): Promise<SubscribedSnapshot<GitWorktreeSnapshot>> {
-    const unsubscribe = this.subscribe(cb);
+  async getStatusFingerprint(untracked: GitStatusUntrackedMode): Promise<GitStatusFingerprint> {
+    const abort = new AbortController();
+    const timeout = setTimeout(() => abort.abort(), STATUS_FINGERPRINT_TIMEOUT_MS[untracked]);
     try {
-      return { snapshot: await this.getSnapshot(), unsubscribe };
-    } catch (error) {
-      unsubscribe();
-      throw error;
+      const { stdout } = await this.exec.exec(
+        [
+          '--no-optional-locks',
+          'status',
+          '--porcelain=v1',
+          '-z',
+          untracked === 'normal' ? '--untracked-files=normal' : '-uno',
+        ],
+        { signal: abort.signal }
+      );
+      return {
+        hash: createHash('sha256').update(stdout).digest('hex'),
+        byteLength: Buffer.byteLength(stdout),
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async isFileCleanlyTracked(filePath: string): Promise<boolean> {
+    try {
+      await this.exec.exec(['ls-files', '--error-unmatch', '--', filePath]);
+      await this.exec.exec(['diff', '--quiet', '--', filePath]);
+      await this.exec.exec(['diff', '--cached', '--quiet', '--', filePath]);
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -272,40 +274,6 @@ export class GitWorktree implements IGitWorktree {
 
   async getImageAtIndex(filePath: string): Promise<ImageReadResult> {
     return this.getImageBlob(filePath, `:${filePath}`);
-  }
-
-  async getStatusFingerprint(untracked: GitStatusUntrackedMode): Promise<GitStatusFingerprint> {
-    const abort = new AbortController();
-    const timeout = setTimeout(() => abort.abort(), STATUS_FINGERPRINT_TIMEOUT_MS[untracked]);
-    try {
-      const { stdout } = await this.exec.exec(
-        [
-          '--no-optional-locks',
-          'status',
-          '--porcelain=v1',
-          '-z',
-          untracked === 'normal' ? '--untracked-files=normal' : '-uno',
-        ],
-        { signal: abort.signal }
-      );
-      return {
-        hash: createHash('sha256').update(stdout).digest('hex'),
-        byteLength: Buffer.byteLength(stdout),
-      };
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-
-  async isFileCleanlyTracked(filePath: string): Promise<boolean> {
-    try {
-      await this.exec.exec(['ls-files', '--error-unmatch', '--', filePath]);
-      await this.exec.exec(['diff', '--quiet', '--', filePath]);
-      await this.exec.exec(['diff', '--cached', '--quiet', '--', filePath]);
-      return true;
-    } catch {
-      return false;
-    }
   }
 
   async getChangedFiles(base: DiffTarget): Promise<GitChange[]> {
@@ -475,6 +443,39 @@ export class GitWorktree implements IGitWorktree {
       additions: stat.additions,
       deletions: stat.deletions,
     }));
+  }
+
+  subscribe(cb: (update: GitWorktreeUpdate) => void): Unsubscribe {
+    const unsubscribeStatus = this.statusModel.subscribe(({ value, seq }) =>
+      cb({ kind: 'status', model: value, seq })
+    );
+    const unsubscribeHead = this.headModel.subscribe(({ value, seq }) =>
+      cb({ kind: 'head', model: value, seq })
+    );
+    return () => {
+      unsubscribeStatus();
+      unsubscribeHead();
+    };
+  }
+
+  async subscribeWithSnapshot(
+    cb: (update: GitWorktreeUpdate) => void
+  ): Promise<SubscribedSnapshot<GitWorktreeSnapshot>> {
+    const unsubscribe = this.subscribe(cb);
+    try {
+      return { snapshot: await this.getSnapshot(), unsubscribe };
+    } catch (error) {
+      unsubscribe();
+      throw error;
+    }
+  }
+
+  async refresh(): Promise<GitWorktreeSnapshot> {
+    const [status, head] = await Promise.all([
+      this.statusModel.refresh(),
+      this.headModel.refresh(),
+    ]);
+    return { status, head };
   }
 
   async stage(paths: string[]): Promise<GitSeqs> {

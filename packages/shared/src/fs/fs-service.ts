@@ -46,10 +46,6 @@ export class FsService implements IFsService {
     };
   }
 
-  async remove(filePath: string, options: { recursive?: boolean } = {}): Promise<void> {
-    await fs.rm(filePath, { force: true, recursive: options.recursive ?? false });
-  }
-
   async exists(filePath: string): Promise<boolean> {
     try {
       await fs.access(filePath, constants.F_OK);
@@ -57,5 +53,9 @@ export class FsService implements IFsService {
     } catch {
       return false;
     }
+  }
+
+  async remove(filePath: string, options: { recursive?: boolean } = {}): Promise<void> {
+    await fs.rm(filePath, { force: true, recursive: options.recursive ?? false });
   }
 }

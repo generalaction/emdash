@@ -27,11 +27,15 @@ type StdoutSink =
   | { kind: 'stream'; onStdout: (chunk: string) => boolean | void };
 
 class ProcessBoundExec implements BoundExec {
-  constructor(
-    readonly file: string,
-    readonly cwd: string,
-    readonly env?: NodeJS.ProcessEnv
-  ) {}
+  readonly file: string;
+  readonly cwd: string;
+  readonly env?: NodeJS.ProcessEnv;
+
+  constructor(file: string, cwd: string, env?: NodeJS.ProcessEnv) {
+    this.file = file;
+    this.cwd = cwd;
+    this.env = env;
+  }
 
   async exec(args: string[], options: ExecOptions = {}): Promise<ExecResult> {
     const chunks: string[] = [];

@@ -58,18 +58,6 @@ export class LiveModel<T> implements IDisposable {
     return this.schedule();
   }
 
-  async refresh(): Promise<LiveValue<T>> {
-    this.assertNotDisposed();
-    return this.schedule();
-  }
-
-  invalidate(): void {
-    if (this.disposed) return;
-    this.dirty = true;
-    if (this.emitter.size === 0) return;
-    this.scheduleDebounced();
-  }
-
   subscribe(cb: (update: LiveValue<T>) => void): Unsubscribe {
     this.assertNotDisposed();
     const unsubscribe = this.emitter.subscribe(cb);
@@ -85,6 +73,18 @@ export class LiveModel<T> implements IDisposable {
       unsubscribe();
       if (this.emitter.size === 0) this.clearTimers();
     };
+  }
+
+  async refresh(): Promise<LiveValue<T>> {
+    this.assertNotDisposed();
+    return this.schedule();
+  }
+
+  invalidate(): void {
+    if (this.disposed) return;
+    this.dirty = true;
+    if (this.emitter.size === 0) return;
+    this.scheduleDebounced();
   }
 
   dispose(): void {

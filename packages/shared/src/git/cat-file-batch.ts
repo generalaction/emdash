@@ -15,6 +15,7 @@ export type CatFileBatchOptions = {
 };
 
 export class CatFileBatch implements IDisposable {
+  private readonly exec: BoundExec;
   private disposed = false;
   private proc: ChildProcessWithoutNullStreams | null = null;
   private buffer = Buffer.alloc(0);
@@ -22,10 +23,20 @@ export class CatFileBatch implements IDisposable {
   private queue: Pending[] = [];
   private processing = false;
   private readAborted: Error | null = null;
-  private readonly exec: BoundExec;
 
   constructor(options: CatFileBatchOptions) {
     this.exec = options.exec;
+  }
+
+  readText(query: string): Promise<string | null> {
+    return new Promise((resolve, reject) => {
+      if (this.disposed) {
+        reject(new Error('CatFileBatch disposed'));
+        return;
+      }
+      this.queue.push({ query, resolve, reject });
+      if (!this.processing) void this.next();
+    });
   }
 
   dispose(): void {
@@ -45,17 +56,6 @@ export class CatFileBatch implements IDisposable {
     for (const item of queue) {
       item.reject(this.readAborted);
     }
-  }
-
-  readText(query: string): Promise<string | null> {
-    return new Promise((resolve, reject) => {
-      if (this.disposed) {
-        reject(new Error('CatFileBatch disposed'));
-        return;
-      }
-      this.queue.push({ query, resolve, reject });
-      if (!this.processing) void this.next();
-    });
   }
 
   private ensureProc(): ChildProcessWithoutNullStreams {
@@ -87,13 +87,6 @@ export class CatFileBatch implements IDisposable {
 
     this.proc = child;
     return this.proc;
-  }
-
-  private recordProcDeath(error: Error): void {
-    this.proc = null;
-    this.readAborted = error;
-    this.buffer = Buffer.alloc(0);
-    this.wake?.();
   }
 
   private async next(): Promise<void> {
@@ -143,6 +136,13 @@ export class CatFileBatch implements IDisposable {
       this.queue.shift();
       void this.next();
     }
+  }
+
+  private recordProcDeath(error: Error): void {
+    this.proc = null;
+    this.readAborted = error;
+    this.buffer = Buffer.alloc(0);
+    this.wake?.();
   }
 
   private waitForData(): Promise<void> {
