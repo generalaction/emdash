@@ -1,5 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { formatPushErrorDetail } from './utils';
+import { formatFetchErrorDetail, formatPushErrorDetail } from './utils';
+
+describe('formatFetchErrorDetail', () => {
+  it('suggests gh auth login for GitHub authentication failures', () => {
+    const detail = formatFetchErrorDetail({
+      type: 'auth_failed',
+      message: "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+    });
+
+    expect(detail).toBe(
+      'GitHub authentication failed. Run "gh auth login" on this machine, then try again.'
+    );
+  });
+
+  it('points GitHub authentication fixes at the SSH machine for remote projects', () => {
+    const detail = formatFetchErrorDetail(
+      {
+        type: 'auth_failed',
+        message: 'git@github.com: Permission denied (publickey).',
+      },
+      { isSshProject: true }
+    );
+
+    expect(detail).toBe(
+      'GitHub authentication failed. Run "gh auth login" on the remote SSH machine, then try again.'
+    );
+  });
+});
 
 describe('formatPushErrorDetail', () => {
   it('explains GitHub repository-not-found push failures as credential or write-access issues', () => {

@@ -29,6 +29,11 @@ vi.mock('@renderer/lib/ipc', () => ({
   },
 }));
 
+// Block the appState singleton import chain — its SSH stores call rpc at module load.
+vi.mock('@renderer/features/projects/stores/project-selectors', () => ({
+  getProjectSshConnectionId: () => undefined,
+}));
+
 type GitFullStatusResult = Result<
   FullGitStatus,
   { type: 'too_many_files' } | { type: 'git_error'; message: string }

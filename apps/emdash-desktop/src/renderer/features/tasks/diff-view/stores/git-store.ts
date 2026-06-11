@@ -1,5 +1,6 @@
 import { computed, makeObservable } from 'mobx';
 import { toast } from 'sonner';
+import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
@@ -7,7 +8,7 @@ import { fsWatchEventChannel } from '@shared/core/fs/fsEvents';
 import { localRef, refsEqual, type FullGitStatus, type GitChange } from '@shared/core/git/git';
 import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/core/git/gitEvents';
 import { err, ok } from '@shared/lib/result';
-import { formatPushErrorDetail } from '../../utils';
+import { formatFetchErrorDetail, formatPushErrorDetail } from '../../utils';
 
 const TOO_MANY_FILES_MSG = 'Too many files changed to display';
 
@@ -376,7 +377,13 @@ export class GitStore {
       this.repositoryStore.refreshRemote(); // fetch updates remote-tracking refs
       return ok();
     } else {
-      toast.error(`Failed to fetch remote changes: ${result.error.type} `);
+      const detail =
+        result.error.type === 'not_found'
+          ? 'The project is no longer open.'
+          : formatFetchErrorDetail(result.error, {
+              isSshProject: getProjectSshConnectionId(this.projectId) !== undefined,
+            });
+      toast.error(`Failed to fetch remote changes: ${detail}`);
       return err(result.error);
     }
   }
