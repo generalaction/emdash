@@ -4,6 +4,7 @@ import { log } from '@main/lib/logger';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import {
   ISSUE_PROVIDER_CAPABILITIES,
+  type IssueAttachment,
   type IssueContextResult,
   type IssueListResult,
 } from '@shared/issue-providers';
@@ -14,6 +15,7 @@ import {
   LINEAR_ISSUE_ACTIVITY_FIELDS,
   type LinearIssueWithActivity,
 } from './linear-issue-activity';
+import { downloadLinearIssueAttachments } from './linear-issue-attachments';
 
 type LinearIssueSummaryNode = {
   id: string;
@@ -216,9 +218,21 @@ async function getIssueContext(identifier: string): Promise<IssueContextResult> 
       });
     }
 
+    let attachments: IssueAttachment[] = [];
+    try {
+      attachments = await downloadIssueAttachments(hydratedIssue);
+    } catch (error) {
+      log.warn('[Linear] failed to download issue attachments:', {
+        issueId: hydratedIssue.id,
+        identifier: hydratedIssue.identifier,
+        error,
+      });
+    }
+
     return {
       success: true,
       issue: toIssue(hydratedIssue, formatLinearContext(hydratedIssue)),
+      attachments: attachments.length > 0 ? attachments : undefined,
     };
   } catch (error) {
     log.error('[Linear] getIssueContext error:', error);
@@ -226,6 +240,19 @@ async function getIssueContext(identifier: string): Promise<IssueContextResult> 
       error instanceof Error ? error.message : 'Unable to fetch Linear issue context.';
     return { success: false, error: message };
   }
+}
+
+async function downloadIssueAttachments(issue: LinearIssueContextNode): Promise<IssueAttachment[]> {
+  const token = await linearConnectionService.getToken();
+  if (!token) return [];
+
+  return downloadLinearIssueAttachments({
+    token,
+    identifier: issue.identifier,
+    texts: [issue.description, ...(issue.comments?.nodes ?? []).map((c) => c.body)].filter(
+      (text): text is string => text != null
+    ),
+  });
 }
 
 export const linearIssueProvider: IssueProvider = {

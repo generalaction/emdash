@@ -95,6 +95,11 @@ export class LinearConnectionService {
     return !!(await this.getStoredToken());
   }
 
+  /** Raw token for authenticated requests outside the SDK (e.g. uploads.linear.app). */
+  async getToken(): Promise<string | null> {
+    return this.getStoredToken();
+  }
+
   async getClient(): Promise<LinearClient | null> {
     const token = await this.getStoredToken();
     if (!token) {

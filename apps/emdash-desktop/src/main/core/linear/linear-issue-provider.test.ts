@@ -1,14 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
 import { linearConnectionService } from './linear-connection-service';
+import { downloadLinearIssueAttachments } from './linear-issue-attachments';
 import { linearIssueProvider } from './linear-issue-provider';
 
 vi.mock('./linear-connection-service', () => ({
   linearConnectionService: {
     getClient: vi.fn(),
+    getToken: vi.fn().mockResolvedValue(null),
   },
 }));
 
+vi.mock('./linear-issue-attachments', () => ({
+  downloadLinearIssueAttachments: vi.fn().mockResolvedValue([]),
+}));
+
 const mockGetClient = vi.mocked(linearConnectionService.getClient);
+const mockGetToken = vi.mocked(linearConnectionService.getToken);
+const mockDownloadAttachments = vi.mocked(downloadLinearIssueAttachments);
 
 function makeLinearClient(rawRequest: ReturnType<typeof vi.fn>) {
   return {
@@ -309,5 +317,68 @@ describe('linearIssueProvider', () => {
     expect(result?.success ? result.issue.context : '').toContain(
       'First page comment still survives.'
     );
+  });
+
+  it('downloads issue attachments from description and comments when a token exists', async () => {
+    const rawRequest = vi.fn().mockResolvedValue({
+      data: {
+        searchIssues: {
+          nodes: [
+            {
+              id: 'issue-1',
+              identifier: 'GEN-626',
+              title: 'Linear issue branch name creation',
+              description: 'See ![shot](https://uploads.linear.app/abc/def/screenshot.png)',
+              url: 'https://linear.app/general-action/issue/GEN-626',
+              branchName: null,
+              state: { name: 'Backlog', type: 'unstarted', color: '#aaa' },
+              team: { name: 'General', key: 'GEN' },
+              project: null,
+              assignee: null,
+              updatedAt: '2026-04-17T12:00:00.000Z',
+              comments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
+                nodes: [
+                  {
+                    id: 'comment-1',
+                    body: 'Also ![more](https://uploads.linear.app/abc/ghi/more.png)',
+                    createdAt: '2026-04-17T12:05:00.000Z',
+                    updatedAt: '2026-04-17T12:05:00.000Z',
+                    url: 'https://linear.app/general-action/issue/GEN-626#comment-1',
+                    user: { displayName: 'Jona', name: 'jona' },
+                  },
+                ],
+              },
+              history: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [] },
+            },
+          ],
+        },
+      },
+    });
+    mockGetClient.mockResolvedValue(makeLinearClient(rawRequest) as never);
+    mockGetToken.mockResolvedValue('lin_api_test');
+    mockDownloadAttachments.mockResolvedValue([
+      {
+        url: 'https://uploads.linear.app/abc/def/screenshot.png',
+        localPath: '/tmp/emdash-drop-1-GEN-626-screenshot.png',
+      },
+    ]);
+
+    const result = await linearIssueProvider.getIssueContext?.({ identifier: 'GEN-626' });
+
+    expect(mockDownloadAttachments).toHaveBeenCalledWith({
+      token: 'lin_api_test',
+      identifier: 'GEN-626',
+      texts: [
+        'See ![shot](https://uploads.linear.app/abc/def/screenshot.png)',
+        'Also ![more](https://uploads.linear.app/abc/ghi/more.png)',
+      ],
+    });
+    expect(result?.success ? result.attachments : undefined).toEqual([
+      {
+        url: 'https://uploads.linear.app/abc/def/screenshot.png',
+        localPath: '/tmp/emdash-drop-1-GEN-626-screenshot.png',
+      },
+    ]);
   });
 });

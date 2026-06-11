@@ -110,6 +110,14 @@ export type IssueListResult =
       ssoUrl?: string;
     };
 
+/** An image referenced by an issue that was downloaded to a local temp copy. */
+export type IssueAttachment = {
+  /** Source URL as referenced in the issue description or comments. */
+  url: string;
+  /** Absolute local path of the downloaded copy. */
+  localPath: string;
+};
+
 export type IssueContextResult =
-  | { success: true; issue: LinkedIssue }
+  | { success: true; issue: LinkedIssue; attachments?: IssueAttachment[] }
   | { success: false; error: string };
