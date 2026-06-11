@@ -1,4 +1,5 @@
 import type { LinkedIssue } from '@shared/core/linked-issue';
+import type { IssueAttachment } from '@shared/issue-providers';
 import { formatCommentsForAgent } from '@shared/lineComments';
 import type { PromptLibraryPrompt } from '@shared/prompt-library';
 import type { DraftComment } from '../diff-view/stores/draft-comments-store';
@@ -46,7 +47,7 @@ const PROVIDER_LABELS: Record<LinkedIssue['provider'], string> = {
   trello: 'Trello',
 };
 
-export function buildIssueContextText(issue: LinkedIssue): string {
+export function buildIssueContextText(issue: LinkedIssue, attachments?: IssueAttachment[]): string {
   const normalize = (s: string) => s.replace(/[\r\n]+/g, ' ').trim();
 
   const parts: string[] = [
@@ -65,6 +66,12 @@ export function buildIssueContextText(issue: LinkedIssue): string {
 
   if (issue.context) {
     text += `\nContext:\n${issue.context}`;
+  }
+
+  if (attachments?.length) {
+    text += `\nAttachments (local copies of images from the issue — open these files to view them):\n${attachments
+      .map((attachment) => `- ${attachment.localPath} (source: ${attachment.url})`)
+      .join('\n')}`;
   }
 
   return text;

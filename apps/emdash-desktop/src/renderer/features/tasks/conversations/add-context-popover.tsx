@@ -1,6 +1,7 @@
 import { useHotkey, type Hotkey } from '@tanstack/react-hotkeys';
-import { ChevronDown, ChevronUp, MessageSquare, TextInitial } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2, MessageSquare, TextInitial } from 'lucide-react';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import {
   Combobox,
   ComboboxCollection,
@@ -14,8 +15,10 @@ import {
 } from '@renderer/lib/ui/combobox';
 import { Kbd } from '@renderer/lib/ui/kbd';
 import { Shortcut } from '@renderer/lib/ui/shortcut';
+import { cn } from '@renderer/utils/utils';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
-import { buildContextActionText, type ContextAction } from './context-actions';
+import type { ContextAction } from './context-actions';
+import { resolveContextActionText } from './resolve-context-action-text';
 
 const ADD_CONTEXT_HOTKEY: Hotkey = 'Mod+Shift+A';
 type AddContextPopoverSide = 'top' | 'bottom';
@@ -24,23 +27,34 @@ export function ActionItemBaseRow({
   icon,
   label,
   text,
+  shimmer = false,
 }: {
   icon: React.ReactNode;
   label: string;
   text: string;
+  shimmer?: boolean;
 }) {
   return (
     <div className="flex h-5 w-full min-w-0 items-center gap-4">
       <div className="flex items-center gap-1.5">
         {icon}
-        <div className="shrink-0 truncate text-sm font-normal text-foreground-muted">{label}</div>
+        <div
+          className={cn(
+            'shrink-0 truncate text-sm font-normal text-foreground-muted',
+            shimmer && 'text-shimmer'
+          )}
+        >
+          {label}
+        </div>
       </div>
-      <div className="truncate text-xs text-foreground-passive">{text}</div>
+      <div className={cn('truncate text-xs text-foreground-passive', shimmer && 'text-shimmer')}>
+        {text}
+      </div>
     </div>
   );
 }
 
-export function ActionItemRow({ action }: { action: ContextAction }) {
+export function ActionItemRow({ action, shimmer }: { action: ContextAction; shimmer?: boolean }) {
   switch (action.kind) {
     case 'linked-issue':
       return (
@@ -50,6 +64,7 @@ export function ActionItemRow({ action }: { action: ContextAction }) {
           }
           label={action.issue.title}
           text={action.issue.identifier}
+          shimmer={shimmer}
         />
       );
     case 'draft-comments':
@@ -58,6 +73,7 @@ export function ActionItemRow({ action }: { action: ContextAction }) {
           icon={<MessageSquare className="size-3.5 shrink-0 text-foreground-muted" />}
           label="Line comments"
           text={`${action.commentCount} comment${action.commentCount !== 1 ? 's' : ''} in ${action.fileCount} file${action.fileCount !== 1 ? 's' : ''}`}
+          shimmer={shimmer}
         />
       );
     case 'prompt':
@@ -66,6 +82,7 @@ export function ActionItemRow({ action }: { action: ContextAction }) {
           icon={<TextInitial className="size-3.5 shrink-0" />}
           label={action.prompt.title}
           text={action.prompt.prompt}
+          shimmer={shimmer}
         />
       );
     default:
@@ -84,6 +101,7 @@ export interface AddContextPopoverProps {
   ) => Promise<void>;
   /** Replace the default "Add context" button with a custom trigger. */
   renderTrigger?: (ctx: { open: boolean; disabled: boolean }) => ReactNode;
+  projectId?: string;
   side?: AddContextPopoverSide;
 }
 
@@ -93,12 +111,17 @@ export function AddContextPopover({
   isActivePane = true,
   onApplyAction,
   renderTrigger,
+  projectId,
   side = 'top',
 }: AddContextPopoverProps) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<ContextAction | null>(null);
   const [query, setQuery] = useState('');
+  const [resolvingAction, setResolvingAction] = useState<ContextAction | null>(null);
   const ignoreOpenUntilRef = useRef(0);
+  // The combobox requests close in the same tick as selection, before the
+  // isResolving state update lands — guard close/confirm through a ref.
+  const resolvingRef = useRef(false);
 
   const filteredActions = useMemo(() => {
     if (!query) return actions;
@@ -123,17 +146,34 @@ export function AddContextPopover({
 
   useHotkey(ADD_CONTEXT_HOTKEY, () => setOpen((v) => !v), { enabled: !disabled && isActivePane });
 
-  const handleConfirm = (action: ContextAction | null, opts?: { andSend?: boolean }) => {
-    if (!action) return;
-    const text = buildContextActionText(action);
-    void onApplyAction(text, action, opts);
-    setOpen(false);
+  const handleConfirm = async (action: ContextAction | null, opts?: { andSend?: boolean }) => {
+    if (!action || resolvingRef.current) return;
+    resolvingRef.current = true;
+    setResolvingAction(action);
+    try {
+      const text = await resolveContextActionText({ action, projectId });
+      await onApplyAction(text, action, opts);
+      setOpen(false);
+      setQuery('');
+    } catch (error) {
+      console.error('Failed to add context:', error);
+      toast({
+        title: 'Failed to add context',
+        description: error instanceof Error ? error.message : 'Unable to resolve context.',
+        variant: 'destructive',
+      });
+    } finally {
+      resolvingRef.current = false;
+      setResolvingAction(null);
+    }
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen && Date.now() < ignoreOpenUntilRef.current) {
       return;
     }
+    // Stay open while issue context is being fetched; handleConfirm closes when done.
+    if (!nextOpen && resolvingRef.current) return;
     setOpen(nextOpen);
     if (!nextOpen) setQuery('');
   };
@@ -154,7 +194,7 @@ export function AddContextPopover({
       value={null}
       onInputValueChange={(value) => setQuery(value ?? '')}
       inputValue={query}
-      onValueChange={(action) => handleConfirm(action)}
+      onValueChange={(action) => void handleConfirm(action)}
       onItemHighlighted={(value) => setSelected(value ?? null)}
       open={open}
       onOpenChange={handleOpenChange}
@@ -205,7 +245,7 @@ export function AddContextPopover({
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
             e.preventDefault();
-            handleConfirm(selected ?? filteredActions[0] ?? null, { andSend: true });
+            void handleConfirm(selected ?? filteredActions[0] ?? null, { andSend: true });
           }
         }}
       >
@@ -220,7 +260,7 @@ export function AddContextPopover({
                     value={action}
                     className="items-start data-highlighted:bg-background-2!"
                   >
-                    <ActionItemRow action={action} />
+                    <ActionItemRow action={action} shimmer={resolvingAction?.id === action.id} />
                   </ComboboxItem>
                 )}
               </ComboboxCollection>
@@ -231,10 +271,17 @@ export function AddContextPopover({
           No context found
         </ComboboxEmpty>
         <div className="flex items-center justify-end border-t px-2 py-1.5">
-          <span className="flex items-center gap-1">
-            <p className="text-xs text-foreground-passive">Add to input</p>
-            <Kbd className="text-foreground-passive">↵</Kbd>
-          </span>
+          {resolvingAction ? (
+            <span className="flex items-center gap-1.5">
+              <Loader2 className="size-3 animate-spin text-foreground-passive" />
+              <p className="text-xs text-foreground-passive">Fetching context…</p>
+            </span>
+          ) : (
+            <span className="flex items-center gap-1">
+              <p className="text-xs text-foreground-passive">Add to input</p>
+              <Kbd className="text-foreground-passive">↵</Kbd>
+            </span>
+          )}
         </div>
       </ComboboxContent>
     </Combobox>

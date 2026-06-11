@@ -82,6 +82,47 @@ describe('buildIssueContextText', () => {
       'Context:\nLinear issue activity\n\nComments:\n- 2026-04-17 by Jona: Looks good'
     );
   });
+
+  it('lists locally downloaded attachments with their source URLs', () => {
+    const text = buildIssueContextText(makeIssue({ provider: 'linear' }), [
+      {
+        url: 'https://uploads.linear.app/abc/def/screenshot.png',
+        localPath: '/tmp/emdash-drop-1-EMD-123-screenshot.png',
+      },
+    ]);
+
+    expect(text).toContain('Attachments');
+    expect(text).toContain(
+      '- /tmp/emdash-drop-1-EMD-123-screenshot.png (source: https://uploads.linear.app/abc/def/screenshot.png)'
+    );
+  });
+
+  it('lists multiple locally downloaded attachments with their source URLs', () => {
+    const text = buildIssueContextText(makeIssue({ provider: 'linear' }), [
+      {
+        url: 'https://uploads.linear.app/abc/def/screenshot.png',
+        localPath: '/tmp/emdash-drop-1-EMD-123-screenshot.png',
+      },
+      {
+        url: 'https://uploads.linear.app/abc/def/diagram.svg',
+        localPath: '/tmp/emdash-drop-1-EMD-123-diagram.svg',
+      },
+    ]);
+
+    expect(text).toContain('Attachments');
+    expect(text).toContain(
+      '- /tmp/emdash-drop-1-EMD-123-screenshot.png (source: https://uploads.linear.app/abc/def/screenshot.png)'
+    );
+    expect(text).toContain(
+      '- /tmp/emdash-drop-1-EMD-123-diagram.svg (source: https://uploads.linear.app/abc/def/diagram.svg)'
+    );
+  });
+
+  it('omits the attachments section when none are provided', () => {
+    expect(buildIssueContextText(makeIssue({ provider: 'linear' }), [])).not.toContain(
+      'Attachments'
+    );
+  });
 });
 
 describe('buildLinkedIssueContextAction', () => {

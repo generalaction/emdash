@@ -12,9 +12,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/toolti
 import { cn } from '@renderer/utils/utils';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { LinkedIssue } from '@shared/core/linked-issue';
+import { ISSUE_PROVIDER_CAPABILITIES } from '@shared/issue-providers';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
 import { appendInitialConversationText } from '../create-task-modal/initial-conversation-text';
 import { usePromptFileDrop } from '../create-task-modal/use-prompt-file-drop';
+import { refreshLinkedIssueContext } from '../issue-context/refresh-linked-issue-context';
 import { AddContextPopover } from './add-context-popover';
 import { buildIssueContextText, buildTaskContextActions } from './context-actions';
 import { useEffectiveProvider } from './use-effective-provider';
@@ -26,7 +28,7 @@ export type InitialConversationState = {
   prompt: string;
   setPrompt: Dispatch<SetStateAction<string>>;
   issueContext: string | null;
-  setIssueContext: (ctx: string | null) => void;
+  setIssueContext: Dispatch<SetStateAction<string | null>>;
   connectionId?: string;
 };
 
@@ -85,9 +87,30 @@ export function InitialConversationField({
 
   // Auto-inject issue context whenever the linked issue changes.
   useEffect(() => {
-    state.setIssueContext(
-      includeIssueContextByDefault && linkedIssue ? buildIssueContextText(linkedIssue) : null
-    );
+    if (!includeIssueContextByDefault || !linkedIssue) {
+      state.setIssueContext(null);
+      return;
+    }
+    state.setIssueContext(buildIssueContextText(linkedIssue));
+    if (!ISSUE_PROVIDER_CAPABILITIES[linkedIssue.provider].supportsIssueContext) return;
+
+    // Hydrate with comments and locally downloaded image attachments. Local
+    // attachment paths would not exist on the remote host of an SSH project.
+    let cancelled = false;
+    void refreshLinkedIssueContext(linkedIssue, state.projectId)
+      .then(({ issue, attachments }) => {
+        if (cancelled) return;
+        const text = buildIssueContextText(issue, state.connectionId ? undefined : attachments);
+        // If the user removed the context pill while the refresh was in flight, keep it removed.
+        state.setIssueContext((current) => (current === null ? null : text));
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error('Failed to refresh linked issue context:', error);
+      });
+    return () => {
+      cancelled = true;
+    };
     // oxlint-disable-next-line react/exhaustive-deps
   }, [includeIssueContextByDefault, linkedIssue?.identifier, linkedIssue?.provider]);
 
@@ -132,6 +155,7 @@ export function InitialConversationField({
               actions={contextActions}
               disabled={contextActions.length === 0}
               onApplyAction={handleActionClick}
+              projectId={state.projectId}
               renderTrigger={({ disabled: isDisabled }) => (
                 <Button variant="ghost" size="icon-xs" disabled={isDisabled}>
                   <PlusIcon className="size-4" />

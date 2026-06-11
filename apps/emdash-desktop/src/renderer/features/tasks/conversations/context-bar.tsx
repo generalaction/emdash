@@ -94,6 +94,7 @@ export const ContextBar = observer(function ContextBar({ conversationId }: Conte
             disabled={!canApplyContext || isSavingPromptLibrary}
             isActivePane={isActivePane}
             onApplyAction={handleApplyAction}
+            projectId={projectId}
             side="top"
           />
         </div>
