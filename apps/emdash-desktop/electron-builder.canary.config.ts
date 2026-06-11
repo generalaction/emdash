@@ -20,6 +20,11 @@ const config: Configuration = {
       owner: 'generalaction',
       repo: 'emdash',
       releaseType: 'draft',
+      // 'canary' must match the prerelease identifier in scripts/release/lib/version.ts
+      // (e.g. 1.1.33-canary.42 -> prerelease id "canary"). electron-updater uses this
+      // id to select the matching release from the Atom feed and to construct the
+      // channel filename (canary*.yml) it fetches from GitHub.
+      channel: 'canary',
     },
     {
       provider: 'generic',

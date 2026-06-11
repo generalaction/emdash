@@ -29,8 +29,17 @@ The stable release pipeline publishes to **GitHub Releases** (primary feed) and 
 
 - `electron-builder.config.ts` lists `provider: github` first, then `provider: generic` (R2). The first provider determines the runtime feed embedded in `app-update.yml`.
 - R2 uploads via `scripts/release/upload-r2.ts` continue until telemetry confirms all clients have migrated to the GitHub-backed feed, at which point R2 can be decommissioned (Phase 3 of the migration plan).
-- Canary currently uses R2 only. When canary moves to GitHub, use `releaseType: 'prerelease'` in its electron-builder config. `ALLOW_PRERELEASE` in `update-service.ts` is already driven by `IS_CANARY` so it will activate automatically.
+- Canary releases publish to GitHub as prereleases. `ALLOW_PRERELEASE` in `update-service.ts` is driven by `IS_CANARY` so canary clients accept prerelease versions automatically.
 - The `finalize-release.ts` script runs after all three platform builds complete to flip the draft GitHub release to published. Until that job finishes the release remains a draft and is invisible to electron-updater clients.
+
+### Update channels on GitHub
+
+The app does **not** override `autoUpdater.channel`; the GitHub provider resolves the channel naturally:
+
+- **Stable** (`allowPrerelease=false`): resolves to `latest`, fetches `latest*.yml` from the newest non-prerelease GitHub release.
+- **Canary** (`allowPrerelease=true`): resolves the target release tag from the Atom feed by matching the semver prerelease identifier of the installed version (`canary`) against each entry. Once a `-canary.N` tag is found it fetches `canary*.yml` from that release, as defined by `channel: 'canary'` in `electron-builder.canary.config.ts`.
+
+The `UPDATE_CHANNEL` / `v1-stable` / `v1-canary` naming applies **only** to the flat R2 bucket (via the `generic` publish block's `channel`). It is kept as a log label in `update-service.ts` for diagnostics but is not passed to `autoUpdater.channel`.
 
 ## Release Scripts Library Usage
 
