@@ -1,0 +1,29 @@
+apps/emdash-desktop/src/shared/core/mcp/catalog.ts
+  s_6ff3b0a602b45d::t_a470377ad9b567 257-269
+apps/emdash-desktop/src/assets/images/mcp/resend.svg
+  s_b7e1483bfcd406::t_79c31c03146d47 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "02ac3e4f116407b9a052c69a0b17bba604644cc3",
+  "prompts": {},
+  "sessions": {
+    "s_6ff3b0a602b45d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e9b2d890-493f-482e-a84d-2fe7854f8c84",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_b7e1483bfcd406": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_14af08f89ffeBK1hiKuYOQ96E9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
