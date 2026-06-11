@@ -3,6 +3,10 @@ import { eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectProvider, TaskProvider } from '@main/core/projects/project-provider';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
+import {
+  formatProvisionTaskError,
+  mapWorktreeErrorToProvisionError,
+} from '@main/core/tasks/provision-task-error';
 import { buildTaskFromWorkspace, emitTaskProvisionProgress } from '@main/core/tasks/task-builder';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db as appDb, type AppDb } from '@main/db/client';
@@ -41,8 +45,10 @@ export class WorkspaceBootstrapService {
    * Ensures the workspace for a task is fully set up on disk, acquires the
    * workspace (running lifecycle scripts), and builds task providers.
    *
-   * - **Fast path (idempotent)**: if `workspaceRow.path` is set and the directory
-   *   exists on disk, skips git setup and goes straight to workspace acquisition.
+   * - **Fast path (idempotent)**: if a non-worktree `workspaceRow.path` is set and
+   *   the directory exists on disk, skips git setup and goes straight to workspace
+   *   acquisition. Persisted worktree paths are resolved through `WorktreeService`
+   *   so stale partial directories are repaired before acquisition.
    * - **BYOI workspaces**: delegates to `provisionBYOITask` which runs the
    *   provision script, connects SSH, and acquires the workspace.
    * - **Local/SSH workspaces**: compiles and executes the `WorkspaceSetupSpec`,
@@ -76,6 +82,10 @@ export class WorkspaceBootstrapService {
     const workspaceBranchName = getProvisionedWorkspaceBranch(workspaceRow) ?? undefined;
     const workspaceSourceBranch: Branch | undefined =
       wsConfig?.git.kind === 'create-branch' ? wsConfig.git.fromBranch : undefined;
+    const connectionId =
+      project.defaultWorkspaceType.kind === 'ssh'
+        ? project.defaultWorkspaceType.connectionId
+        : undefined;
 
     // project-root fast-path: use the project repo path directly.
     // Path is set by ensureRepositoryWorkspace at mount time.
@@ -91,7 +101,51 @@ export class WorkspaceBootstrapService {
       );
     }
 
-    // Fast path: path already persisted and still exists on disk.
+    // Persisted worktree path: resolve through WorktreeService instead of trusting
+    // path existence. Archive/delete can leave a partial directory behind; the
+    // worktree service knows how to remove stale targets and recreate the checkout.
+    if (workspaceRow.path && workspaceBranchName && !isByoi) {
+      const serveResult = await project.worktreeService.serveBranchWorktree({
+        branchName: workspaceBranchName,
+        sourceBranch: workspaceSourceBranch,
+      });
+      if (!serveResult.success) {
+        const provisionError = mapWorktreeErrorToProvisionError(
+          workspaceBranchName,
+          serveResult.error
+        );
+        return err({
+          type: 'setup-failed',
+          stepKind: 'worktree',
+          stepErrorType: provisionError.type,
+          message: formatProvisionTaskError(provisionError),
+        });
+      }
+      const resolvedPath = serveResult.data;
+
+      await this.persistPath(
+        workspaceRow.id,
+        resolvedPath,
+        workspaceRow.type,
+        connectionId,
+        workspaceBranchName
+      );
+
+      if (connectionId) {
+        sshConnectionManager.reportChannelRecovered(connectionId);
+      }
+
+      return this._acquireAndBuild(
+        workspaceRow.id,
+        task,
+        project,
+        resolvedPath,
+        workspaceBranchName,
+        workspaceSourceBranch
+      );
+    }
+
+    // Fast path: non-worktree path already persisted and still exists on disk.
     if (workspaceRow.path && !isByoi) {
       const exists = await project.worktreeHost.existsAbsolute(workspaceRow.path);
       if (exists) {
@@ -115,11 +169,6 @@ export class WorkspaceBootstrapService {
     if (!intent) {
       return err({ type: 'no-intent' });
     }
-
-    const connectionId =
-      project.defaultWorkspaceType.kind === 'ssh'
-        ? project.defaultWorkspaceType.connectionId
-        : undefined;
 
     const { baseRemote, pushRemote } = await project.repository.getConfiguredRemotes();
     const spec = compileSetupSpec(intent.git, intent.workspace, { baseRemote, pushRemote });
@@ -158,6 +207,7 @@ export class WorkspaceBootstrapService {
       worktreePoolPath,
       host: project.worktreeHost,
       projectSettings: project.settings,
+      worktreeService: project.worktreeService,
     };
 
     const executor = new LocalWorkspaceSetupExecutor(stepCtx);
