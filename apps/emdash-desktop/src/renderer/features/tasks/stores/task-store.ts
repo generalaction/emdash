@@ -57,11 +57,11 @@ export class TaskStore {
     return this.data.name;
   }
 
+  /** True only while creation/provisioning is actively running — error phases are settled, not busy. */
   get isBootstrapping(): boolean {
     return (
-      this.state === 'unregistered' ||
-      (this.state === 'unprovisioned' &&
-        (this.phase === 'provision' || this.phase === 'provision-error'))
+      (this.state === 'unregistered' && this.phase === 'creating') ||
+      (this.state === 'unprovisioned' && this.phase === 'provision')
     );
   }
 
