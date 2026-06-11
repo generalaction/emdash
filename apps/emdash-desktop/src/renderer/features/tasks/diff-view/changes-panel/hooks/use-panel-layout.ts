@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { usePanelRef } from 'react-resizable-panels';
 import type {
   ChangesViewStore,
@@ -26,9 +26,13 @@ type usePanelLayoutReturn = {
   stagedRef: ReturnType<typeof usePanelRef>;
   prRef: ReturnType<typeof usePanelRef>;
   spacerRef: ReturnType<typeof usePanelRef>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
 };
 
-export function usePanelLayout(changesView: ChangesViewStore | null): usePanelLayoutReturn {
+export function usePanelLayout(
+  changesView: ChangesViewStore | null,
+  isVisible: boolean
+): usePanelLayoutReturn {
   const unstagedRef = usePanelRef();
   const stagedRef = usePanelRef();
   const prRef = usePanelRef();
@@ -48,7 +52,21 @@ export function usePanelLayout(changesView: ChangesViewStore | null): usePanelLa
 
   const expanded = changesView?.expandedSections ?? DEFAULT_EXPANDED;
 
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const appliedExpanded = useRef<ExpandedSections | null>(null);
+
   useLayoutEffect(() => {
+    // The panel stays mounted under `display: none` while the sidebar is hidden, and imperative
+    // resize/collapse calls against a zero-size group make react-resizable-panels compute NaN
+    // percentages that survive reopening (ENG-1559). Only apply the layout while visible; a state
+    // change that arrives while hidden is applied when isVisible flips back. A ResizeObserver
+    // cannot replace the flag here: Chromium delivers no resize event when an ancestor toggles
+    // display:none. The offsetHeight check covers hide paths the flag does not know about, and
+    // skipping already-applied states keeps user drag-resizes intact across hide/show.
+    if (!isVisible || appliedExpanded.current === expanded) return;
+    if ((containerRef.current?.offsetHeight ?? 0) === 0) return;
+    appliedExpanded.current = expanded;
+
     const sections = [
       { key: 'unstaged' as const, ref: unstagedRef },
       { key: 'staged' as const, ref: stagedRef },
@@ -67,7 +85,7 @@ export function usePanelLayout(changesView: ChangesViewStore | null): usePanelLa
         ref.current?.collapse();
       }
     });
-  }, [expanded, unstagedRef, stagedRef, prRef, spacerRef]);
+  }, [expanded, isVisible, unstagedRef, stagedRef, prRef, spacerRef]);
 
   return {
     expanded,
@@ -79,5 +97,6 @@ export function usePanelLayout(changesView: ChangesViewStore | null): usePanelLa
     stagedRef,
     prRef,
     spacerRef,
+    containerRef,
   };
 }
