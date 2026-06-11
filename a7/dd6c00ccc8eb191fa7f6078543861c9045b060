@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_cad47069c4e049::t_11c9733b972b59 99-106
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_cad47069c4e049::t_11c9733b972b59 171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "a7dd6c00ccc8eb191fa7f6078543861c9045b060",
+  "prompts": {},
+  "sessions": {
+    "s_cad47069c4e049": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_149b3b05afferyhdbzbHVejeYC",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
