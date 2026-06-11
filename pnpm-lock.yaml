@@ -92,6 +92,9 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@19.2.7)
+      '@electron/notarize':
+        specifier: ^2.5.0
+        version: 2.5.0
       '@electron/rebuild':
         specifier: ^4.0.1
         version: 4.0.4

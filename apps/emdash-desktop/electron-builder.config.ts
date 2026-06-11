@@ -5,7 +5,7 @@ import {
   PRODUCT_NAME,
   R2_BASE_URL,
   UPDATE_CHANNEL,
-} from './src/shared/app-identity';
+} from './src/shared/app-identity.ts';
 
 const config: Configuration = {
   appId: APP_ID,
@@ -14,6 +14,12 @@ const config: Configuration = {
   directories: { output: 'release' },
   artifactName: `${ARTIFACT_PREFIX}-\${arch}.\${ext}`,
   publish: [
+    {
+      provider: 'github',
+      owner: 'generalaction',
+      repo: 'emdash',
+      releaseType: 'draft',
+    },
     {
       provider: 'generic',
       url: R2_BASE_URL,

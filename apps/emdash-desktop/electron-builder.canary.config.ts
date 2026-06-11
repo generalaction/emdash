@@ -6,7 +6,7 @@ import {
   PRODUCT_NAME,
   R2_BASE_URL,
   UPDATE_CHANNEL,
-} from './src/shared/app-identity.canary';
+} from './src/shared/app-identity.canary.ts';
 
 const config: Configuration = {
   appId: APP_ID,
@@ -15,6 +15,17 @@ const config: Configuration = {
   directories: { output: 'release' },
   artifactName: `${ARTIFACT_PREFIX}-\${arch}.\${ext}`,
   publish: [
+    {
+      provider: 'github',
+      owner: 'generalaction',
+      repo: 'emdash',
+      releaseType: 'draft',
+      // 'canary' must match the prerelease identifier in scripts/release/lib/version.ts
+      // (e.g. 1.1.33-canary.42 -> prerelease id "canary"). electron-updater uses this
+      // id to select the matching release from the Atom feed and to construct the
+      // channel filename (canary*.yml) it fetches from GitHub.
+      channel: 'canary',
+    },
     {
       provider: 'generic',
       url: R2_BASE_URL,

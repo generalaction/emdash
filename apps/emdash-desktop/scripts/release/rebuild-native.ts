@@ -1,4 +1,6 @@
+import { cwd } from 'node:process';
 import { parseArgs } from 'node:util';
+import { rebuild } from '@electron/rebuild';
 import { NATIVE_MODULES } from './lib/config.ts';
 import { exec } from './lib/exec.ts';
 import { fail, info, step } from './lib/log.ts';
@@ -17,15 +19,18 @@ if (!arch || !['arm64', 'x64'].includes(arch)) {
 }
 
 const deployDir = values['deploy-dir'];
+const buildPath = deployDir ?? cwd();
 
 const electronVersion = exec('node -p "require(\'electron/package.json\').version"');
 step(`Rebuilding native modules for ${arch} (Electron ${electronVersion})`);
 
-const modules = NATIVE_MODULES.join(',');
-const moduleDirFlag = deployDir ? `-m ${deployDir}` : '';
-exec(
-  `pnpm exec electron-rebuild -f -a ${arch} -v ${electronVersion} -o ${modules} ${moduleDirFlag}`.trim(),
-  { echo: true, env: { npm_config_build_from_source: 'true' } }
-);
+await rebuild({
+  buildPath,
+  electronVersion,
+  arch,
+  onlyModules: NATIVE_MODULES,
+  force: true,
+  buildFromSource: true,
+});
 
 info(`Native modules rebuilt for ${arch}`);

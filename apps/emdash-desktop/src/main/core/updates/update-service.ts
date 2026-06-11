@@ -7,7 +7,7 @@ import { resolveAppVersion } from '@main/core/app/utils';
 import { events } from '@main/lib/events';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
-import { UPDATE_CHANNEL } from '@shared/app-identity';
+import { IS_CANARY, UPDATE_CHANNEL } from '@shared/app-identity';
 import {
   updateAvailableEvent,
   updateCheckingEvent,
@@ -22,7 +22,7 @@ import { formatUpdaterError, sanitizeUpdaterLogArgs } from './utils';
 
 const { autoUpdater } = _electronUpdater;
 
-const ALLOW_PRERELEASE = false;
+const ALLOW_PRERELEASE = IS_CANARY;
 const ALLOW_DOWNGRADE = false;
 const CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const STARTUP_DELAY_MS = 30 * 1000; // 30 seconds
@@ -86,7 +86,6 @@ class UpdateService implements IInitializable, IDisposable {
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = true;
     autoUpdater.autoRunAppAfterInstall = true;
-    autoUpdater.channel = UPDATE_CHANNEL;
     autoUpdater.allowPrerelease = ALLOW_PRERELEASE;
     autoUpdater.allowDowngrade = ALLOW_DOWNGRADE;
     autoUpdater.requestHeaders = { 'Cache-Control': 'no-cache' };

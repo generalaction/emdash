@@ -69,6 +69,14 @@ class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, I
     }
   }
 
+  /**
+   * Register a workspace for index/HEAD change detection.
+   * Called when the repository workspace is created or discovered.
+   */
+  registerWorkspace(projectId: string, workspaceId: string, relGitDir: string): void {
+    this._worktrees.get(projectId)?.set(workspaceId, relGitDir);
+  }
+
   private async _startWatching(projectId: string, repoPath: string): Promise<void> {
     const gitDir = path.join(repoPath, '.git');
     this._worktrees.set(projectId, new Map());
