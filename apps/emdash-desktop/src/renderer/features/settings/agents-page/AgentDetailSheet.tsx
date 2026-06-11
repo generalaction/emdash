@@ -49,12 +49,10 @@ const AgentDetailSheetContent = observer(function AgentDetailSheetContent({
   return (
     <>
       <SheetHeader label={isInstalled ? 'Agent Settings' : 'Install Agent'} />
-
-      <div className="overflow-y-auto px-4 pt-4">
+      <div className="overflow-y-auto px-4">
         {agentPayload && (
           <div className="space-y-6">
             <AgentSheetHeaderSection agent={agentPayload} />
-
             <InstallSection
               agentId={agentId}
               installOptions={agentPayload.installOptions}

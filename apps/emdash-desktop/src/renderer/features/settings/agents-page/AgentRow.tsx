@@ -43,8 +43,7 @@ export const AgentRow = observer(
             <span className="text-sm text-foreground">{agent.name}</span>
             <div className="flex items-center gap-1.5">
               {updateState.render && <UpdateAvailableBadge />}
-              {isInstalled && !updateState.render && <InstalledBadge />}
-              {!isInstalled && <UninstalledBadge />}
+              {isInstalled ? <InstalledBadge /> : <UninstalledBadge />}
             </div>
           </div>
           <div className="flex w-full items-center justify-between">

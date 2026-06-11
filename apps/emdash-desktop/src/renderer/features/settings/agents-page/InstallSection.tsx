@@ -82,7 +82,7 @@ function CopyButton({ command }: { command: string }) {
 function CommandRow({ command, action }: { command: string; action: React.ReactNode }) {
   return (
     <div className="flex w-full items-stretch gap-[2px]">
-      <div className="group flex flex-1 items-center gap-2 rounded-l-lg bg-background-quaternary-1 px-2 py-1.5">
+      <div className="group flex flex-1 items-center gap-2 rounded-l-lg bg-background-quaternary-1 min-w-0 px-2 py-1.5">
         <Terminal className="h-3.5 w-3.5 shrink-0 text-foreground-passive" />
         <code className="min-w-0 flex-1 truncate font-mono text-xs text-foreground-muted">
           {command}
@@ -242,12 +242,7 @@ export const InstallSection = observer(function InstallSection({
   ) : null;
 
   return (
-    <div className="space-y-2">
-      {/* Section header */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-foreground">Install</span>
-        {docsLink}
-      </div>
+
       <div className="space-y-2 rounded-lg border p-3">
         <div className="flex items-center gap-2">
           <Combobox
@@ -273,7 +268,7 @@ export const InstallSection = observer(function InstallSection({
                       {isInstalled && opt.value !== 'path' && opt.value !== 'cli' && (
                         <InstalledBadge />
                       )}
-                      {isActiveSource(opt.value) && <UsedBadge />}
+                      {isInstalled && installOptions.length > 1 && isActiveSource(opt.value) && <UsedBadge />}
                     </span>
                   </ComboboxItem>
                 ))}
@@ -296,9 +291,9 @@ export const InstallSection = observer(function InstallSection({
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
-            {selectedIsInstalled ? <InstalledBadge /> : <UninstalledBadge />}
+            {isInstalled && installOptions.length > 1 && selectedIsActiveSource && <UsedBadge />}
             {selectedUpdateAvailable && <UpdateAvailableBadge />}
-            {selectedIsActiveSource && <UsedBadge />}
+            {selectedIsInstalled ? <InstalledBadge /> : <UninstalledBadge />}
           </div>
         </div>
 
@@ -358,6 +353,6 @@ export const InstallSection = observer(function InstallSection({
           </div>
         )}
       </div>
-    </div>
+
   );
 });
