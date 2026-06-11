@@ -75,25 +75,21 @@ function agentResolveStatus(result: ProbeResult): DependencyStatus {
   return result.exitCode === null ? 'missing' : 'error';
 }
 
-function getPlatformInstallCommand(
-  installCommands: Record<string, Array<{ command: string; recommended?: boolean }> | undefined>
-): string | undefined {
-  const platform =
-    process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux';
-  const options = installCommands[platform];
-  const chosen = options?.find((o) => o.recommended) ?? options?.[0];
-  return chosen?.command;
-}
-
 function buildAgentDependencies(): DependencyDescriptor[] {
   return metadataRegistry.getAll().map((meta) => {
     const binaryNames = meta.capabilities.install.binaryNames;
     const primaryBinary = binaryNames[0] ?? meta.id;
-    const installCmd = getPlatformInstallCommand(meta.capabilities.install.installCommands);
     const provPlugin = providerRegistry.get(meta.id);
     const versionArgs = provPlugin?.buildVersionProbeCommand?.(primaryBinary)?.args ?? [
       '--version',
     ];
+
+    const updateHooks = provPlugin?.updates
+      ? {
+          resolveLatestVersion: provPlugin.updates.resolveLatestVersion,
+          buildUpdateCommand: provPlugin.updates.buildUpdateCommand,
+        }
+      : undefined;
 
     return {
       id: meta.id as AgentProviderId,
@@ -103,10 +99,10 @@ function buildAgentDependencies(): DependencyDescriptor[] {
       skipVersionProbe: meta.capabilities.install.skipVersionProbe,
       versionArgs,
       docUrl: meta.websiteUrl,
-      installHint: installCmd ? `Run: ${installCmd}` : undefined,
-      installCommand: installCmd,
       resolveStatus: agentResolveStatus,
       updates: meta.capabilities.updates,
+      installCommands: meta.capabilities.install.installCommands,
+      updateHooks,
     };
   });
 }

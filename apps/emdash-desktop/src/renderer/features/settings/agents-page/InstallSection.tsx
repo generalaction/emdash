@@ -1,8 +1,9 @@
 import type { InstallMethod, InstallOption } from '@emdash/cli-agent-plugins';
-import { Check, ChevronDown, Copy, ExternalLink, MoreHorizontal, Terminal } from 'lucide-react';
+import { Check, ChevronDown, Copy, Loader2, MoreHorizontal, Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useMemo, useState } from 'react';
 import { appState } from '@renderer/lib/stores/app-state';
+import type { DependencyId } from '@shared/core/dependencies';
 import {
   Combobox,
   ComboboxContent,
@@ -19,9 +20,11 @@ import {
 import { Input } from '@renderer/lib/ui/input';
 import {
   InstalledBadge,
+  InstallingBadge,
   RecommendedBadge,
   UninstalledBadge,
   UpdateAvailableBadge,
+  UpdatingBadge,
   UsedBadge,
 } from './agent-status-badge';
 
@@ -94,11 +97,11 @@ function CommandRow({ command, action }: { command: string; action: React.ReactN
   );
 }
 
-function CommandActionButton({ ...props }: React.HTMLAttributes<HTMLButtonElement>) {
+function CommandActionButton({ ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       type="button"
-      className="group flex items-center gap-2 rounded-r-lg bg-background-quaternary-1 px-4 text-sm hover:bg-background-quaternary-2"
+      className="group flex items-center gap-2 rounded-r-lg bg-background-quaternary-1 px-4 text-sm hover:bg-background-quaternary-2 disabled:cursor-not-allowed disabled:text-foreground-passive disabled:hover:bg-background-quaternary-1"
       {...props}
     />
   );
@@ -135,7 +138,6 @@ export type InstallSectionProps = {
 export const InstallSection = observer(function InstallSection({
   agentId,
   installOptions,
-  installDocs,
   isInstalled,
   updateAvailable,
   installSource,
@@ -144,8 +146,8 @@ export const InstallSection = observer(function InstallSection({
   onUseInstallation,
   hideOverrideOptions = false,
 }: InstallSectionProps) {
-  const isInstallingAny = appState.dependencies.isInstalling(agentId as never);
-  const [updatingMethod, setUpdatingMethod] = useState<InstallMethod | null>(null);
+  const isInstallingAny = appState.dependencies.isInstalling(agentId as DependencyId);
+  const currentOp = appState.dependencies.getOperation(agentId as DependencyId);
 
   // Local input state for path/cli synthetic options
   const [localPath, setLocalPath] = useState(pathValue ?? '');
@@ -167,10 +169,14 @@ export const InstallSection = observer(function InstallSection({
     return installOptions.find((o) => o.method === selectedValue) ?? installOptions[0] ?? null;
   }, [selectedValue, installOptions]);
 
+  // Derive the currently-updating method from the store (replaces local updatingMethod state).
+  const updatingMethod =
+    currentOp?.kind === 'update' ? (currentOp.method ?? null) : null;
+
   const handleInstall = useCallback(
     async (method: InstallMethod) => {
       if (isInstallingAny) return;
-      await appState.dependencies.install(agentId as never, undefined, method);
+      await appState.dependencies.install(agentId as DependencyId, undefined, method);
     },
     [agentId, isInstallingAny]
   );
@@ -178,12 +184,7 @@ export const InstallSection = observer(function InstallSection({
   const handleUpdate = useCallback(
     async (method: InstallMethod) => {
       if (updatingMethod) return;
-      setUpdatingMethod(method);
-      try {
-        await appState.dependencies.update(agentId as never, undefined, method);
-      } finally {
-        setUpdatingMethod(null);
-      }
+      await appState.dependencies.update(agentId as DependencyId, undefined, method);
     },
     [agentId, updatingMethod]
   );
@@ -228,18 +229,6 @@ export const InstallSection = observer(function InstallSection({
 
   const selectedOption =
     allSelectOptions.find((o) => o.value === selectedValue) ?? allSelectOptions[0];
-
-  const docsLink = installDocs ? (
-    <a
-      href={installDocs}
-      target="_blank"
-      rel="noreferrer"
-      className="inline-flex items-center gap-1 text-xs text-foreground-muted hover:text-foreground hover:underline"
-    >
-      Installation Docs
-      <ExternalLink className="h-3 w-3" />
-    </a>
-  ) : null;
 
   return (
 
@@ -292,8 +281,16 @@ export const InstallSection = observer(function InstallSection({
               </DropdownMenu>
             )}
             {isInstalled && installOptions.length > 1 && selectedIsActiveSource && <UsedBadge />}
-            {selectedUpdateAvailable && <UpdateAvailableBadge />}
-            {selectedIsInstalled ? <InstalledBadge /> : <UninstalledBadge />}
+            {currentOp?.kind === 'install' ? (
+              <InstallingBadge />
+            ) : currentOp?.kind === 'update' ? (
+              <UpdatingBadge />
+            ) : (
+              <>
+                {selectedUpdateAvailable && <UpdateAvailableBadge />}
+                {selectedIsInstalled ? <InstalledBadge /> : <UninstalledBadge />}
+              </>
+            )}
           </div>
         </div>
 
@@ -333,23 +330,41 @@ export const InstallSection = observer(function InstallSection({
               <CommandRow
                 command={activeOption.command}
                 action={
-                  <CommandActionButton onClick={() => void handleInstall(activeOption.method)}>
-                    Install
+                  <CommandActionButton
+                    disabled={isInstallingAny}
+                    onClick={() => void handleInstall(activeOption.method)}
+                  >
+                    {isInstallingAny ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      'Install'
+                    )}
                   </CommandActionButton>
                 }
               />
             )}
 
-            {selectedUpdateAvailable && activeOption.updateCommand && (
-              <CommandRow
-                command={activeOption.updateCommand}
-                action={
-                  <CommandActionButton onClick={() => void handleUpdate(activeOption.method)}>
-                    Update
-                  </CommandActionButton>
-                }
-              />
-            )}
+            {selectedUpdateAvailable && activeOption.updateCommand && (() => {
+              const isUpdatingThisMethod =
+                currentOp?.kind === 'update' && currentOp.method === activeOption.method;
+              return (
+                <CommandRow
+                  command={activeOption.updateCommand}
+                  action={
+                    <CommandActionButton
+                      disabled={isUpdatingThisMethod || isInstallingAny}
+                      onClick={() => void handleUpdate(activeOption.method)}
+                    >
+                      {isUpdatingThisMethod ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        'Update'
+                      )}
+                    </CommandActionButton>
+                  }
+                />
+              );
+            })()}
           </div>
         )}
       </div>

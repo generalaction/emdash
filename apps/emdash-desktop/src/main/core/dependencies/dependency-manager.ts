@@ -1,6 +1,4 @@
-import type { InstallMethod } from '@emdash/cli-agent-plugins';
-import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
-import { providerRegistry } from '@emdash/cli-agent-plugins/providers';
+import type { InstallMethod, Platform } from '@emdash/cli-agent-plugins';
 import { clearResolvedPathCache } from '@main/core/conversations/impl/resolve-agent-executable';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
@@ -26,6 +24,7 @@ import {
   createSshInstallCommandRunner,
   type InstallCommandRunner,
 } from './install-runner';
+import { pickInstallOption, toPlatform } from './install-options';
 import { LatestVersionService } from './latest-version-service';
 import { resolveCommandPath, runVersionProbe } from './probe';
 import { DEPENDENCIES, getDependencyDescriptor } from './registry';
@@ -110,6 +109,8 @@ export class DependencyManager implements IInitializable {
   private readonly runInstallCommand: InstallCommandRunner;
   private readonly connectionId: string | undefined;
   private readonly latestVersionService: LatestVersionService;
+  /** Platform of the target machine. Local defaults to process.platform; SSH resolves via remote probe. */
+  readonly platform: Platform;
 
   constructor(
     ctx: IExecutionContext,
@@ -118,11 +119,13 @@ export class DependencyManager implements IInitializable {
       runInstallCommand = createLocalInstallCommandRunner(resolveLocalInstallShellProfile),
       connectionId,
       latestVersionService = new LatestVersionService(),
+      platform = toPlatform(process.platform),
     }: {
       emitEvents?: boolean;
       runInstallCommand?: InstallCommandRunner;
       connectionId?: string;
       latestVersionService?: LatestVersionService;
+      platform?: Platform;
     } = {}
   ) {
     this.ctx = ctx;
@@ -130,6 +133,7 @@ export class DependencyManager implements IInitializable {
     this.runInstallCommand = runInstallCommand;
     this.connectionId = connectionId;
     this.latestVersionService = latestVersionService;
+    this.platform = platform;
   }
 
   /**
@@ -167,9 +171,17 @@ export class DependencyManager implements IInitializable {
     }
 
     // Phase 1: path resolution
+    // Carry forward latestVersion/updateAvailable from any previous probe so they
+    // are not temporarily cleared while the version probe and latest-version fetch
+    // have not yet run. This prevents the "Update available" badge from blinking.
     const resolvedPath = await this.resolveFirstPath(descriptor);
     const pathState = dependencyStateFromProbeResult(descriptor, resolvedPath, null);
-    this.updateState(pathState);
+    const prev = this.state.get(id);
+    this.updateState({
+      ...pathState,
+      latestVersion: prev?.latestVersion,
+      updateAvailable: prev?.updateAvailable,
+    });
 
     if (pathState.status === 'missing' || descriptor.skipVersionProbe) {
       // Still fetch the latest version for missing agents so the UI can show what
@@ -204,12 +216,10 @@ export class DependencyManager implements IInitializable {
     const { releaseSource } = descriptor.updates;
     if (releaseSource.kind === 'none') return;
 
-    const provider =
-      descriptor.category === 'agent' ? providerRegistry.get(descriptor.id) : undefined;
     let latestVersion: string | null;
-    if (provider?.updates?.resolveLatestVersion) {
+    if (descriptor.updateHooks?.resolveLatestVersion) {
       try {
-        latestVersion = await provider.updates.resolveLatestVersion();
+        latestVersion = await descriptor.updateHooks.resolveLatestVersion();
       } catch {
         latestVersion = null;
       }
@@ -254,8 +264,8 @@ export class DependencyManager implements IInitializable {
 
   /**
    * Run the installCommand for a dependency, then re-probe to update state.
-   * When `method` is provided, looks up the matching InstallOption command for
-   * the current platform; falls back to the default descriptor.installCommand.
+   * When `method` is provided, picks the matching InstallOption for the manager's platform;
+   * otherwise picks the recommended/first option. Falls back to descriptor.installCommand.
    */
   async install(id: DependencyId, method?: InstallMethod): Promise<DependencyInstallResult> {
     const descriptor = getDependencyDescriptor(id);
@@ -263,20 +273,8 @@ export class DependencyManager implements IInitializable {
       return err({ type: 'unknown-dependency', id });
     }
 
-    let command = descriptor.installCommand;
-
-    if (method) {
-      const platform =
-        process.platform === 'darwin'
-          ? 'macos'
-          : process.platform === 'win32'
-            ? 'windows'
-            : 'linux';
-      const meta = metadataRegistry.get(id);
-      const options = meta?.capabilities.install.installCommands[platform];
-      const match = options?.find((o) => o.method === method);
-      if (match) command = match.command;
-    }
+    const command =
+      pickInstallOption(descriptor, this.platform, method)?.command ?? descriptor.installCommand;
 
     if (!command) {
       return err({ type: 'no-install-command', id });
@@ -337,16 +335,7 @@ export class DependencyManager implements IInitializable {
     await this.ctx.refreshShellEnv?.();
 
     if (strategy.kind === 'package-manager') {
-      const platform =
-        process.platform === 'darwin'
-          ? 'macos'
-          : process.platform === 'win32'
-            ? 'windows'
-            : 'linux';
-      const meta = metadataRegistry.get(id);
-      const options = meta?.capabilities.install.installCommands[platform];
-      let chosen = method ? options?.find((o) => o.method === method) : undefined;
-      chosen ??= options?.find((o) => o.recommended) ?? options?.[0];
+      const chosen = pickInstallOption(descriptor, this.platform, method);
       const updateCommand = chosen?.updateCommand ?? chosen?.command ?? descriptor.installCommand;
 
       if (!updateCommand) {
@@ -359,12 +348,11 @@ export class DependencyManager implements IInitializable {
       }
     } else if (strategy.kind === 'cli') {
       const resolvedPath = await this.resolveFirstPath(descriptor);
-      const provider = providerRegistry.get(id);
       let command: string;
       let args: string[];
 
-      if (provider?.updates?.buildUpdateCommand && resolvedPath) {
-        ({ command, args } = provider.updates.buildUpdateCommand(resolvedPath));
+      if (descriptor.updateHooks?.buildUpdateCommand && resolvedPath) {
+        ({ command, args } = descriptor.updateHooks.buildUpdateCommand(resolvedPath));
       } else {
         command = resolvedPath ?? descriptor.commands[0] ?? id;
         args = strategy.args;
@@ -436,15 +424,31 @@ export const localDependencyManager = new DependencyManager(new LocalExecutionCo
 
 const sshManagers = new Map<string, DependencyManager>();
 
+/** Resolve the OS platform of a remote machine via a lightweight `uname -s` probe. */
+async function resolveRemotePlatform(ctx: IExecutionContext): Promise<Platform> {
+  try {
+    const { stdout } = await ctx.exec('uname', ['-s'], { timeout: 5000 });
+    const os = stdout.trim().toLowerCase();
+    if (os === 'darwin') return 'macos';
+    return 'linux';
+  } catch {
+    // Windows hosts won't have uname; default to linux for other unknowns.
+    return 'linux';
+  }
+}
+
 export async function getDependencyManager(connectionId?: string): Promise<DependencyManager> {
   if (!connectionId) return localDependencyManager;
   let mgr = sshManagers.get(connectionId);
   if (!mgr) {
     const proxy = await sshConnectionManager.connect(connectionId);
-    mgr = new DependencyManager(new SshExecutionContext(proxy), {
+    const sshCtx = new SshExecutionContext(proxy);
+    const platform = await resolveRemotePlatform(sshCtx);
+    mgr = new DependencyManager(sshCtx, {
       emitEvents: true,
       runInstallCommand: createSshInstallCommandRunner(proxy),
       connectionId,
+      platform,
     });
     sshManagers.set(connectionId, mgr);
   }

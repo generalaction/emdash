@@ -37,7 +37,7 @@ export type AgentPayload = {
   name: string;
   description: string;
   websiteUrl: string | null;
-  status: DependencyStatus | 'missing';
+  status: DependencyStatus;
   version: string | null;
   latestVersion: string | null;
   updateAvailable: boolean;

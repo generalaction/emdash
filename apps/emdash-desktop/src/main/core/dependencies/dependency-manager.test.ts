@@ -291,6 +291,34 @@ describe('DependencyManager install', () => {
   });
 });
 
+describe('DependencyManager probe phase-1 enrichment preservation', () => {
+  it('carries forward latestVersion and updateAvailable from the previous state during phase 1', async () => {
+    const manager = new DependencyManager(availableCtx, { emitEvents: true, connectionId: 'local' });
+
+    // First probe: populate the internal state with a known state.
+    await manager.probe('codex');
+
+    // Manually inject latestVersion/updateAvailable into the stored state to
+    // simulate what fetchAndUpdateLatestVersion sets after a background version check.
+    const internalState = (manager as unknown as { state: Map<string, unknown> }).state;
+    const existingState = internalState.get('codex') as Record<string, unknown>;
+    internalState.set('codex', { ...existingState, latestVersion: '9.9.9', updateAvailable: true });
+
+    // Reset the mock so we only look at emissions from the second probe.
+    vi.mocked(events.emit).mockClear();
+
+    // Second probe: phase 1 should preserve latestVersion/updateAvailable.
+    await manager.probe('codex');
+
+    // The first emit call is phase 1 (path resolution). It must carry the prior enrichment.
+    const firstCall = vi.mocked(events.emit).mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const firstPayload = firstCall?.[1] as { state: Record<string, unknown> };
+    expect(firstPayload.state.latestVersion).toBe('9.9.9');
+    expect(firstPayload.state.updateAvailable).toBe(true);
+  });
+});
+
 describe('DependencyManager update', () => {
   it('returns unknown-dependency error for an unrecognised id', async () => {
     const manager = new DependencyManager(missingCtx, { emitEvents: false });

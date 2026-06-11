@@ -2,6 +2,7 @@ import type { InstallMethod } from '@emdash/cli-agent-plugins';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { log } from '@renderer/utils/logger';
 import type { AgentPayload } from '@shared/core/agents/agent-payload';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type {
   DependencyId,
   DependencyInstallResult,
@@ -14,6 +15,18 @@ import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
 import { events, rpc } from '../../lib/ipc';
 import { Resource } from './resource';
 
+type InstallOperation = {
+  kind: 'install';
+  method?: InstallMethod;
+  promise: Promise<DependencyInstallResult>;
+};
+type UpdateOperation = {
+  kind: 'update';
+  method?: InstallMethod;
+  promise: Promise<DependencyUpdateResult>;
+};
+export type DependencyOperation = InstallOperation | UpdateOperation;
+
 const FOCUS_AGENT_REFRESH_COOLDOWN_MS = 10_000;
 
 export class DependenciesStore {
@@ -21,19 +34,16 @@ export class DependenciesStore {
   readonly agents: Resource<AgentPayload[], DependencyStatusUpdatedEvent>;
 
   private readonly _remoteStores = new Map<string, Resource<DependencyStatusMap>>();
-  private readonly _installingDependencyKeys = observable.set<string>();
-  private readonly _inFlightInstalls = new Map<string, Promise<DependencyInstallResult>>();
-  private readonly _updatingDependencyKeys = observable.set<string>();
-  private readonly _inFlightUpdates = new Map<string, Promise<DependencyUpdateResult>>();
+  /** Single observable map tracking all in-flight install and update operations. */
+  private readonly _operations = observable.map<string, DependencyOperation>();
   private _focusRefresh: Promise<void> | null = null;
   private _lastFocusRefreshAt = 0;
   private _stopFocusRefresh: (() => void) | null = null;
   private _disposed = false;
 
   constructor() {
-    makeObservable<this, '_installingDependencyKeys' | '_updatingDependencyKeys'>(this, {
-      _installingDependencyKeys: observable,
-      _updatingDependencyKeys: observable,
+    makeObservable<this, '_operations'>(this, {
+      _operations: observable,
       allStatuses: computed,
       agentStatuses: computed,
       localInstalledAgents: computed,
@@ -52,10 +62,10 @@ export class DependenciesStore {
         onEvent: ({ id, state, connectionId }, ctx) => {
           if (connectionId) {
             const remote = this.getRemote(connectionId);
-            remote.setValue({ ...(remote.data ?? {}), [id]: state as DependencyState });
+            remote.setValue({ ...remote.data, [id]: state as DependencyState });
             return;
           }
-          ctx.set({ ...(ctx.data ?? {}), [id]: state as DependencyState });
+          ctx.set({ ...ctx.data, [id]: state as DependencyState });
         },
       },
     ]);
@@ -133,7 +143,19 @@ export class DependenciesStore {
   // ---------------------------------------------------------------------------
 
   isInstalling(id: DependencyId, connectionId?: string): boolean {
-    return this._installingDependencyKeys.has(this.installKey(id, connectionId));
+    return this._operations.has(this.operationKey(id, connectionId, 'install'));
+  }
+
+  isUpdating(id: DependencyId, connectionId?: string): boolean {
+    return this._operations.has(this.operationKey(id, connectionId, 'update'));
+  }
+
+  /** Returns the current in-flight operation for a dependency, if any. */
+  getOperation(id: DependencyId, connectionId?: string): DependencyOperation | undefined {
+    return (
+      this._operations.get(this.operationKey(id, connectionId, 'install')) ??
+      this._operations.get(this.operationKey(id, connectionId, 'update'))
+    );
   }
 
   async install(
@@ -141,13 +163,15 @@ export class DependenciesStore {
     connectionId?: string,
     method?: InstallMethod
   ): Promise<DependencyInstallResult> {
-    const key = this.installKey(id, connectionId);
-    const existing = this._inFlightInstalls.get(key);
-    if (existing) return existing;
+    const key = this.operationKey(id, connectionId, 'install');
+    const existing = this._operations.get(key);
+    if (existing) return (existing as InstallOperation).promise;
 
-    const install = this.runInstall(id, connectionId, key, method);
-    this._inFlightInstalls.set(key, install);
-    return install;
+    const promise = this.runInstall(id, connectionId, key, method);
+    runInAction(() => {
+      this._operations.set(key, { kind: 'install', method, promise });
+    });
+    return promise;
   }
 
   private async runInstall(
@@ -156,30 +180,29 @@ export class DependenciesStore {
     key: string,
     method?: InstallMethod
   ): Promise<DependencyInstallResult> {
-    runInAction(() => {
-      this._installingDependencyKeys.add(key);
-    });
-
     try {
       const result = (await rpc.dependencies.install(
         id,
         connectionId,
         method
       )) as DependencyInstallResult;
-      if (!result.success) return result;
-
-      await this.refreshAgents(connectionId, { refreshShellEnv: false });
+      if (result.success) {
+        // Update state directly from the install result; the async latestVersion
+        // enrichment arrives via dependencyStatusUpdatedChannel events as usual.
+        const newState = result.data;
+        if (!connectionId) {
+          this.local.setValue({ ...this.local.data, [id]: newState });
+        } else {
+          const remote = this.getRemote(connectionId);
+          remote.setValue({ ...remote.data, [id]: newState });
+        }
+      }
       return result;
     } finally {
-      this._inFlightInstalls.delete(key);
       runInAction(() => {
-        this._installingDependencyKeys.delete(key);
+        this._operations.delete(key);
       });
     }
-  }
-
-  isUpdating(id: DependencyId, connectionId?: string): boolean {
-    return this._updatingDependencyKeys.has(this.installKey(id, connectionId));
   }
 
   async update(
@@ -187,13 +210,15 @@ export class DependenciesStore {
     connectionId?: string,
     method?: InstallMethod
   ): Promise<DependencyUpdateResult> {
-    const key = this.installKey(id, connectionId);
-    const existing = this._inFlightUpdates.get(key);
-    if (existing) return existing;
+    const key = this.operationKey(id, connectionId, 'update');
+    const existing = this._operations.get(key);
+    if (existing) return (existing as UpdateOperation).promise;
 
-    const update = this.runUpdate(id, connectionId, key, method);
-    this._inFlightUpdates.set(key, update);
-    return update;
+    const promise = this.runUpdate(id, connectionId, key, method);
+    runInAction(() => {
+      this._operations.set(key, { kind: 'update', method, promise });
+    });
+    return promise;
   }
 
   private async runUpdate(
@@ -202,24 +227,26 @@ export class DependenciesStore {
     key: string,
     method?: InstallMethod
   ): Promise<DependencyUpdateResult> {
-    runInAction(() => {
-      this._updatingDependencyKeys.add(key);
-    });
-
     try {
+      // update is agent-only; DependencyId is a superset of AgentProviderId
       const result = (await rpc.agents.update(
-        id as never,
+        id as AgentProviderId,
         connectionId,
         method
       )) as DependencyUpdateResult;
-      if (!result.success) return result;
-
-      await this.refreshAgents(connectionId, { refreshShellEnv: false });
+      if (result.success) {
+        const newState = result.data;
+        if (!connectionId) {
+          this.local.setValue({ ...this.local.data, [id]: newState });
+        } else {
+          const remote = this.getRemote(connectionId);
+          remote.setValue({ ...remote.data, [id]: newState });
+        }
+      }
       return result;
     } finally {
-      this._inFlightUpdates.delete(key);
       runInAction(() => {
-        this._updatingDependencyKeys.delete(key);
+        this._operations.delete(key);
       });
     }
   }
@@ -290,8 +317,12 @@ export class DependenciesStore {
     this._remoteStores.clear();
   }
 
-  private installKey(id: DependencyId, connectionId?: string): string {
-    return `${connectionId ?? 'local'}:${id}`;
+  private operationKey(
+    id: DependencyId,
+    connectionId: string | undefined,
+    kind: 'install' | 'update'
+  ): string {
+    return `${connectionId ?? 'local'}:${id}:${kind}`;
   }
 
   private async loadAgentStatuses(

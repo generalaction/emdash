@@ -3,7 +3,14 @@ import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { getAgentUpdateActionState } from '@renderer/lib/components/agent-selector/agent-install';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { AgentPayload } from '@shared/core/agents/agent-payload';
-import { InstalledBadge, UninstalledBadge, UpdateAvailableBadge } from './agent-status-badge';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import {
+  InstalledBadge,
+  InstallingBadge,
+  UninstalledBadge,
+  UpdateAvailableBadge,
+  UpdatingBadge,
+} from './agent-status-badge';
 
 export const AgentRow = observer(
   ({ agent, onClick }: { agent: AgentPayload; onClick?: () => void }) => {
@@ -15,7 +22,8 @@ export const AgentRow = observer(
       agent.capabilities.updates.kind === 'supported'
         ? agent.capabilities.updates.update.kind
         : 'none';
-    const isUpdating = appState.dependencies.isUpdating(agent.id as never);
+    const isInstalling = appState.dependencies.isInstalling(agent.id as AgentProviderId);
+    const isUpdating = appState.dependencies.isUpdating(agent.id as AgentProviderId);
     const updateState = getAgentUpdateActionState({
       updateAvailable: agent.updateAvailable,
       updateStrategyKind,
@@ -36,8 +44,16 @@ export const AgentRow = observer(
           <div className="flex w-full items-center justify-between">
             <span className="text-sm text-foreground">{agent.name}</span>
             <div className="flex items-center gap-1.5">
-              {updateState.render && <UpdateAvailableBadge />}
-              {isInstalled ? <InstalledBadge /> : <UninstalledBadge />}
+              {isInstalling ? (
+                <InstallingBadge />
+              ) : isUpdating ? (
+                <UpdatingBadge />
+              ) : (
+                <>
+                  {updateState.render && <UpdateAvailableBadge />}
+                  {isInstalled ? <InstalledBadge /> : <UninstalledBadge />}
+                </>
+              )}
             </div>
           </div>
         </div>

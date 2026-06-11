@@ -9,12 +9,12 @@ import { buildAgentPayload, buildAgentPayloads } from './agent-payload-builder';
 export const agentsController = createRPCController({
   list: async (connectionId?: string) => {
     const mgr = await getDependencyManager(connectionId);
-    return buildAgentPayloads(Object.fromEntries(mgr.getAll()));
+    return buildAgentPayloads(Object.fromEntries(mgr.getAll()), mgr.platform);
   },
 
   get: async (id: string, connectionId?: string) => {
     const mgr = await getDependencyManager(connectionId);
-    return buildAgentPayload(id, Object.fromEntries(mgr.getAll()));
+    return buildAgentPayload(id, Object.fromEntries(mgr.getAll()), mgr.platform);
   },
 
   install: async (id: AgentProviderId, connectionId?: string, method?: InstallMethod) => {

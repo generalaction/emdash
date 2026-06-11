@@ -1,4 +1,4 @@
-import type { UpdatesDescriptor } from '@emdash/cli-agent-plugins';
+import type { InstallOption, Platform, UpdatesDescriptor } from '@emdash/cli-agent-plugins';
 import type { DependencyCategory, DependencyId, DependencyStatus } from '@shared/core/dependencies';
 
 export interface ProbeResult {
@@ -28,6 +28,20 @@ export interface DependencyDescriptor {
   installHint?: string;
   /** Machine-executable install command, e.g. "npm install -g @openai/codex". */
   installCommand?: string;
+  /**
+   * Per-platform install options from plugin metadata.
+   * Takes precedence over `installCommand` when present.
+   * Core dependencies leave this undefined and rely on `installCommand`.
+   */
+  installCommands?: Partial<Record<Platform, InstallOption[]>>;
+  /**
+   * Optional imperative hooks from the provider implementation.
+   * Absent for core dependencies.
+   */
+  updateHooks?: {
+    resolveLatestVersion?(): Promise<string | null>;
+    buildUpdateCommand?(binaryPath: string): { command: string; args: string[] };
+  };
   /**
    * Override the default status resolution logic.
    * Useful for CLIs that exit non-zero on `--version` but are still available.

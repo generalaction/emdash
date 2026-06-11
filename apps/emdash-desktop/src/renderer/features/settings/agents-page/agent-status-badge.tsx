@@ -37,3 +37,19 @@ export function UsedBadge() {
     </span>
   );
 }
+
+export function InstallingBadge() {
+  return (
+    <span className="rounded-md bg-background-info px-1.5 py-0.5 text-xs text-foreground-info">
+      Installing…
+    </span>
+  );
+}
+
+export function UpdatingBadge() {
+  return (
+    <span className="rounded-md bg-background-info px-1.5 py-0.5 text-xs text-foreground-info">
+      Updating…
+    </span>
+  );
+}

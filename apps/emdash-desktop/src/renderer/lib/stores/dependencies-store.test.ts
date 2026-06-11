@@ -22,6 +22,7 @@ vi.mock('../../lib/ipc', () => ({
   rpc: {
     agents: {
       list: vi.fn(async () => []),
+      update: vi.fn(),
     },
     dependencies: {
       getAll: vi.fn(async () => ({})),
@@ -59,14 +60,13 @@ describe('DependenciesStore install', () => {
 
   it('updates local dependency state after a local install', async () => {
     vi.mocked(rpc.dependencies.install).mockResolvedValueOnce(ok(availableAgent('codex')));
-    vi.mocked(rpc.dependencies.getAll).mockResolvedValueOnce({ codex: availableAgent('codex') });
     const store = new DependenciesStore();
 
     const result = await store.install('codex');
 
     expect(result.success).toBe(true);
     expect(rpc.dependencies.install).toHaveBeenCalledWith('codex', undefined, undefined);
-    expect(rpc.dependencies.probeCategory).toHaveBeenCalledWith('agent', undefined, undefined);
+    expect(rpc.dependencies.probeCategory).not.toHaveBeenCalled();
     expect(store.local.data?.codex?.status).toBe('available');
   });
 
@@ -89,7 +89,6 @@ describe('DependenciesStore install', () => {
 
   it('updates remote dependency state after a remote install', async () => {
     vi.mocked(rpc.dependencies.install).mockResolvedValueOnce(ok(availableAgent('claude')));
-    vi.mocked(rpc.dependencies.getAll).mockResolvedValueOnce({ claude: availableAgent('claude') });
     const store = new DependenciesStore();
     const remote = store.getRemote('ssh-1');
     remote.setValue({});
@@ -103,10 +102,6 @@ describe('DependenciesStore install', () => {
 
   it('preserves existing remote dependency state after a remote install', async () => {
     vi.mocked(rpc.dependencies.install).mockResolvedValueOnce(ok(availableAgent('claude')));
-    vi.mocked(rpc.dependencies.getAll).mockResolvedValueOnce({
-      codex: availableAgent('codex'),
-      claude: availableAgent('claude'),
-    });
     const store = new DependenciesStore();
     const remote = store.getRemote('ssh-1');
     remote.setValue({ codex: availableAgent('codex') });
@@ -117,19 +112,14 @@ describe('DependenciesStore install', () => {
     expect(remote.data?.claude?.status).toBe('available');
   });
 
-  it('refreshes all remote agent states after an install when the remote state was unknown', async () => {
+  it('sets the installed agent state in the remote resource after a remote install', async () => {
     vi.mocked(rpc.dependencies.install).mockResolvedValueOnce(ok(availableAgent('claude')));
-    vi.mocked(rpc.dependencies.getAll).mockResolvedValueOnce({
-      codex: availableAgent('codex'),
-      claude: availableAgent('claude'),
-    });
     const store = new DependenciesStore();
 
     await store.install('claude', 'ssh-1');
 
-    expect(rpc.dependencies.probeCategory).toHaveBeenCalledWith('agent', 'ssh-1', undefined);
-    expect(rpc.dependencies.getAll).toHaveBeenCalledWith('ssh-1');
-    expect(store.getRemote('ssh-1').data?.codex?.status).toBe('available');
+    // Only the installed dependency's state is updated; no full category re-probe.
+    expect(rpc.dependencies.probeCategory).not.toHaveBeenCalled();
     expect(store.getRemote('ssh-1').data?.claude?.status).toBe('available');
   });
 
@@ -276,7 +266,6 @@ describe('DependenciesStore install', () => {
         resolveInstall = resolve;
       })
     );
-    vi.mocked(rpc.dependencies.getAll).mockResolvedValueOnce({ codex: availableAgent('codex') });
     const store = new DependenciesStore();
 
     const install = store.install('codex', 'ssh-1');
