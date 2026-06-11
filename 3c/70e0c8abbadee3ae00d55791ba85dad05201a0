@@ -1,0 +1,29 @@
+apps/emdash-desktop/src/main/core/browser/browser-auth-popups.ts
+  s_a44d85a475a480::t_81edfb31bcda5c 1-47
+apps/emdash-desktop/src/main/core/browser/browser-auth-popups.test.ts
+  s_a44d85a475a480::t_cf41ac78724007 72-74
+  s_a44d85a475a480::t_cef889a68607b3 70-71
+  s_a44d85a475a480::t_0e64782e63c7bd 1-69,75-123
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.test.ts
+  s_a44d85a475a480::t_a7003f62546df6 161-171
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_a44d85a475a480::t_4c747dde580a4f 198-200
+  s_a44d85a475a480::t_9c158b6bb512ce 8,11-12
+  s_a44d85a475a480::t_297372e6423369 162-164
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "3c70e0c8abbadee3ae00d55791ba85dad05201a0",
+  "prompts": {},
+  "sessions": {
+    "s_a44d85a475a480": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "85de816c-4744-441c-b3a5-8a57cf83eb6e",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
