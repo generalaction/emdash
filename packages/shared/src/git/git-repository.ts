@@ -1,6 +1,8 @@
 import type { BoundExec } from '../exec';
 import type { IFileWatchService, WatchHandle } from '../fs';
+import { realpathOrResolve } from '../fs';
 import { err, LiveModel, ok, type Result, type Unsubscribe } from '../lib';
+import type { KeyedMutex } from '../lib';
 import { CatFileBatch } from './cat-file-batch';
 import {
   classifyCreateBranchError,
@@ -50,8 +52,10 @@ export type GitRepositoryOptions = {
   gitCommonDir: string;
   objectStoreDir: string;
   exec: BoundExec;
-  watch: IFileWatchService;
-  runObjectStoreWrite: <T>(objectStoreDir: string, fn: () => Promise<T>) => Promise<T>;
+  /** Injected file-watch service; disposed by the injector, not this class. */
+  watcher: IFileWatchService;
+  /** Serializes concurrent fetch operations on the same object store directory. */
+  objectStoreMutex: KeyedMutex;
   onError?: GitOnError;
 };
 
@@ -59,10 +63,7 @@ export class GitRepository implements IGitRepository {
   readonly gitCommonDir: string;
   readonly objectStoreDir: string;
   private readonly exec: BoundExec;
-  private readonly runObjectStoreWrite: <T>(
-    objectStoreDir: string,
-    fn: () => Promise<T>
-  ) => Promise<T>;
+  private readonly objectStoreMutex: KeyedMutex;
   private readonly onError: GitOnError;
   private readonly refsModel: LiveModel<GitRefsModel>;
   private readonly remotesModel: LiveModel<GitRemotesModel>;
@@ -74,7 +75,7 @@ export class GitRepository implements IGitRepository {
     this.gitCommonDir = options.gitCommonDir;
     this.objectStoreDir = options.objectStoreDir;
     this.exec = options.exec;
-    this.runObjectStoreWrite = options.runObjectStoreWrite;
+    this.objectStoreMutex = options.objectStoreMutex;
     this.onError = options.onError ?? (() => {});
 
     this.refsModel = new LiveModel<GitRefsModel>({
@@ -90,7 +91,7 @@ export class GitRepository implements IGitRepository {
       onError: (error) => this.onError(`remotes ${this.gitCommonDir}`, error),
     });
 
-    this.commonDirWatch = options.watch.watch(
+    this.commonDirWatch = options.watcher.watch(
       this.gitCommonDir,
       (events) => {
         const classification = classifyGitWatchEvents(events, this.layout());
@@ -117,13 +118,6 @@ export class GitRepository implements IGitRepository {
     await this.commonDirWatch.ready();
   }
 
-  registerWorktree(id: string, registration: WorktreeWatchRegistration): Unsubscribe {
-    this.worktrees.set(id, registration);
-    return () => {
-      if (this.worktrees.get(id) === registration) this.worktrees.delete(id);
-    };
-  }
-
   async getRefs(): Promise<GitRefsModel> {
     return (await this.refsModel.get()).value;
   }
@@ -135,43 +129,6 @@ export class GitRepository implements IGitRepository {
   async getSnapshot(): Promise<GitRepoSnapshot> {
     const [refs, remotes] = await Promise.all([this.refsModel.get(), this.remotesModel.get()]);
     return { refs, remotes };
-  }
-
-  async refresh(): Promise<GitRepoSnapshot> {
-    const [refs, remotes] = await Promise.all([
-      this.refsModel.refresh(),
-      this.remotesModel.refresh(),
-    ]);
-    return { refs, remotes };
-  }
-
-  async refreshRefs(): Promise<number> {
-    return (await this.refsModel.refresh()).seq;
-  }
-
-  subscribe(cb: (update: GitRepoUpdate) => void): Unsubscribe {
-    const unsubscribeRefs = this.refsModel.subscribe(({ value, seq }) =>
-      cb({ kind: 'refs', model: value, seq })
-    );
-    const unsubscribeRemotes = this.remotesModel.subscribe(({ value, seq }) =>
-      cb({ kind: 'remotes', model: value, seq })
-    );
-    return () => {
-      unsubscribeRefs();
-      unsubscribeRemotes();
-    };
-  }
-
-  async subscribeWithSnapshot(
-    cb: (update: GitRepoUpdate) => void
-  ): Promise<SubscribedSnapshot<GitRepoSnapshot>> {
-    const unsubscribe = this.subscribe(cb);
-    try {
-      return { snapshot: await this.getSnapshot(), unsubscribe };
-    } catch (error) {
-      unsubscribe();
-      throw error;
-    }
   }
 
   async getDefaultBranch(remote = 'origin'): Promise<string> {
@@ -201,9 +158,68 @@ export class GitRepository implements IGitRepository {
     return 'main';
   }
 
+  async readBlobAtRef(ref: string, filePath: string): Promise<string | null> {
+    this.catFile ??= new CatFileBatch({ exec: this.exec });
+    try {
+      return await this.catFile.readText(`${ref}:${filePath}`);
+    } catch {
+      try {
+        const { stdout } = await this.exec.exec(['show', `${ref}:${filePath}`]);
+        return stdout;
+      } catch {
+        return null;
+      }
+    }
+  }
+
+  subscribe(cb: (update: GitRepoUpdate) => void): Unsubscribe {
+    const unsubscribeRefs = this.refsModel.subscribe(({ value, seq }) =>
+      cb({ kind: 'refs', model: value, seq })
+    );
+    const unsubscribeRemotes = this.remotesModel.subscribe(({ value, seq }) =>
+      cb({ kind: 'remotes', model: value, seq })
+    );
+    return () => {
+      unsubscribeRefs();
+      unsubscribeRemotes();
+    };
+  }
+
+  async subscribeWithSnapshot(
+    cb: (update: GitRepoUpdate) => void
+  ): Promise<SubscribedSnapshot<GitRepoSnapshot>> {
+    const unsubscribe = this.subscribe(cb);
+    try {
+      return { snapshot: await this.getSnapshot(), unsubscribe };
+    } catch (error) {
+      unsubscribe();
+      throw error;
+    }
+  }
+
+  registerWorktree(id: string, registration: WorktreeWatchRegistration): Unsubscribe {
+    this.worktrees.set(id, registration);
+    return () => {
+      if (this.worktrees.get(id) === registration) this.worktrees.delete(id);
+    };
+  }
+
+  async refresh(): Promise<GitRepoSnapshot> {
+    const [refs, remotes] = await Promise.all([
+      this.refsModel.refresh(),
+      this.remotesModel.refresh(),
+    ]);
+    return { refs, remotes };
+  }
+
+  async refreshRefs(): Promise<number> {
+    return (await this.refsModel.refresh()).seq;
+  }
+
   async fetch(remote?: string): Promise<Result<{ seqs: GitSeqs }, FetchError>> {
     try {
-      await this.runObjectStoreWrite(this.objectStoreDir, async () => {
+      const key = realpathOrResolve(this.objectStoreDir);
+      await this.objectStoreMutex.runExclusive(key, async () => {
         await this.exec.exec(['fetch', ...(remote ? [remote] : [])]);
       });
       return ok({ seqs: { refs: await this.refreshRefs() } });
@@ -356,20 +372,6 @@ export class GitRepository implements IGitRepository {
       });
     } catch (error) {
       return err(classifyPushError(error));
-    }
-  }
-
-  async readBlobAtRef(ref: string, filePath: string): Promise<string | null> {
-    this.catFile ??= new CatFileBatch({ exec: this.exec });
-    try {
-      return await this.catFile.readText(`${ref}:${filePath}`);
-    } catch {
-      try {
-        const { stdout } = await this.exec.exec(['show', `${ref}:${filePath}`]);
-        return stdout;
-      } catch {
-        return null;
-      }
     }
   }
 

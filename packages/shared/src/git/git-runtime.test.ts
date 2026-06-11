@@ -38,8 +38,8 @@ describe('GitRuntime', () => {
     const linked = await mkdtemp(path.join(tmpdir(), 'emdash-shared-runtime-linked-'));
     await execFileAsync('git', ['worktree', 'add', linked, '-b', 'feature'], { cwd: repo });
 
-    const watch = new FileWatchService();
-    const runtime = new GitRuntime({ watch });
+    const watcher = new FileWatchService();
+    const runtime = new GitRuntime({ watcher });
     try {
       const repoLease = await runtime.openRepository(repo);
       const worktreeLease = await runtime.openWorktree(linked);
@@ -52,7 +52,7 @@ describe('GitRuntime', () => {
       repoLease.release();
     } finally {
       await runtime.dispose();
-      await watch.dispose();
+      await watcher.dispose();
     }
   });
 

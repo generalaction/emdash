@@ -1,8 +1,13 @@
-import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import type { BoundExec } from '../exec';
-import { FileWatchService, FsService, type IFileWatchService, type IFsService } from '../fs';
-import { ResourceMap, type Lease } from '../lib';
+import {
+  FileWatchService,
+  FsService,
+  realpathOrResolve,
+  type IFileWatchService,
+  type IFsService,
+} from '../fs';
+import { KeyedMutex, ResourceMap, type Lease } from '../lib';
 import { createGitExec } from './git-env';
 import { GitRepository, type GitOnError } from './git-repository';
 import { GitWorktree } from './git-worktree';
@@ -22,7 +27,11 @@ type GitIdentity = {
 
 export type GitRuntimeOptions = {
   fs?: IFsService;
-  watch?: IFileWatchService;
+  /**
+   * File-watch service to use. Injected services are disposed by the injector;
+   * when omitted, the runtime creates and disposes its own service.
+   */
+  watcher?: IFileWatchService;
   executable?: string;
   env?: NodeJS.ProcessEnv;
   exec?: BoundExec;
@@ -32,20 +41,20 @@ export type GitRuntimeOptions = {
 export class GitRuntime implements IGitRuntime {
   private readonly repositories: ResourceMap<GitRepository>;
   private readonly worktrees: ResourceMap<WorktreeResource>;
-  private readonly objectStoreLocks = new Map<string, Promise<unknown>>();
+  private readonly mutex: KeyedMutex;
   private readonly exec: BoundExec;
   private readonly fs: IFsService;
-  private readonly watch: IFileWatchService;
-  private readonly ownedWatch: FileWatchService | null;
+  private readonly watcher: IFileWatchService;
+  private readonly ownsWatcher: boolean;
   private readonly onError: GitOnError;
   private disposeRequested = false;
 
   constructor(options: GitRuntimeOptions = {}) {
     this.onError = options.onError ?? (() => {});
-    const ownedWatch = options.watch ? null : new FileWatchService({ onError: this.onError });
-    this.ownedWatch = ownedWatch;
-    this.watch = options.watch ?? (ownedWatch as FileWatchService);
+    this.ownsWatcher = !options.watcher;
+    this.watcher = options.watcher ?? new FileWatchService({ onError: this.onError });
     this.fs = options.fs ?? new FsService();
+    this.mutex = new KeyedMutex();
     this.exec =
       options.exec ??
       createGitExec({
@@ -93,7 +102,7 @@ export class GitRuntime implements IGitRuntime {
           repository: repositoryLease.value,
           exec: this.exec.withCwd(identity.topLevel),
           fs: this.fs,
-          watch: this.watch,
+          watcher: this.watcher,
           onError: this.onError,
         });
         try {
@@ -124,8 +133,8 @@ export class GitRuntime implements IGitRuntime {
         gitCommonDir: identity.gitCommonDir,
         objectStoreDir: identity.objectStoreDir,
         exec: this.exec.withCwd(identity.topLevel),
-        watch: this.watch,
-        runObjectStoreWrite: (objectStoreDir, fn) => this.runObjectStoreWrite(objectStoreDir, fn),
+        watcher: this.watcher,
+        objectStoreMutex: this.mutex,
         onError: this.onError,
       });
       try {
@@ -136,28 +145,6 @@ export class GitRuntime implements IGitRuntime {
       }
       return repository;
     });
-  }
-
-  private async runObjectStoreWrite<T>(objectStoreDir: string, fn: () => Promise<T>): Promise<T> {
-    const key = realpathOrResolve(objectStoreDir);
-    const previous = this.objectStoreLocks.get(key) ?? Promise.resolve();
-
-    let release: () => void = () => {};
-    const current = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const chained = previous.catch(() => {}).then(() => current);
-    this.objectStoreLocks.set(key, chained);
-
-    await previous.catch(() => {});
-    try {
-      return await fn();
-    } finally {
-      release();
-      if (this.objectStoreLocks.get(key) === chained) {
-        this.objectStoreLocks.delete(key);
-      }
-    }
   }
 
   private async resolveIdentity(pathInsideRepo: string): Promise<GitIdentity> {
@@ -193,19 +180,6 @@ export class GitRuntime implements IGitRuntime {
   private async disposeIfIdle(): Promise<void> {
     if (!this.disposeRequested) return;
     if (!this.worktrees.idle || !this.repositories.idle) return;
-    this.objectStoreLocks.clear();
-    await this.ownedWatch?.dispose();
-  }
-}
-
-function realpathOrResolve(filePath: string): string {
-  try {
-    return realpathSync.native(filePath);
-  } catch {
-    try {
-      return realpathSync(filePath);
-    } catch {
-      return path.resolve(filePath);
-    }
+    if (this.ownsWatcher) await this.watcher.dispose();
   }
 }

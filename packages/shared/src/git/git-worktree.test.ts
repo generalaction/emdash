@@ -61,8 +61,8 @@ async function makeRecordingGitExecutable(): Promise<{ executable: string; logPa
 describe('GitWorktree', () => {
   it('refreshes and emits worktree facts for real file and git mutations', async () => {
     const repo = await makeRepo();
-    const watch = new FileWatchService();
-    const runtime = new GitRuntime({ watch });
+    const watcher = new FileWatchService();
+    const runtime = new GitRuntime({ watcher });
     const updates: GitWorktreeUpdate[] = [];
     const repoUpdates: GitRepoUpdate[] = [];
 
@@ -180,7 +180,7 @@ describe('GitWorktree', () => {
       lease.release();
     } finally {
       await runtime.dispose();
-      await watch.dispose();
+      await watcher.dispose();
     }
   });
 
@@ -189,8 +189,8 @@ describe('GitWorktree', () => {
     await writeFile(path.join(repo, 'tracked.txt'), 'pushed\n', 'utf8');
     await execFileAsync('git', ['add', 'tracked.txt'], { cwd: repo });
 
-    const watch = new FileWatchService();
-    const runtime = new GitRuntime({ watch });
+    const watcher = new FileWatchService();
+    const runtime = new GitRuntime({ watcher });
     const repoUpdates: string[] = [];
 
     try {
@@ -228,7 +228,7 @@ describe('GitWorktree', () => {
       lease.release();
     } finally {
       await runtime.dispose();
-      await watch.dispose();
+      await watcher.dispose();
     }
   });
 
@@ -254,8 +254,8 @@ describe('GitWorktree', () => {
     await execFileAsync('git', ['add', 'pixel.png'], { cwd: repo });
     await execFileAsync('git', ['commit', '-m', 'add pixel'], { cwd: repo });
 
-    const watch = new FileWatchService();
-    const runtime = new GitRuntime({ watch });
+    const watcher = new FileWatchService();
+    const runtime = new GitRuntime({ watcher });
     try {
       const lease = await runtime.openWorktree(repo);
       await expect(lease.value.getImageAtRef('pixel.png', 'HEAD')).resolves.toMatchObject({
@@ -269,7 +269,7 @@ describe('GitWorktree', () => {
       lease.release();
     } finally {
       await runtime.dispose();
-      await watch.dispose();
+      await watcher.dispose();
     }
   });
 
@@ -284,8 +284,8 @@ describe('GitWorktree', () => {
     await execFileAsync('git', ['commit', '-m', 'add pixel'], { cwd: repo });
     const { executable, logPath } = await makeRecordingGitExecutable();
 
-    const watch = new FileWatchService();
-    const runtime = new GitRuntime({ watch, executable });
+    const watcher = new FileWatchService();
+    const runtime = new GitRuntime({ watcher, executable });
     try {
       const lease = await runtime.openWorktree(repo);
       await expect(lease.value.getFileAtRef('tracked.txt', 'HEAD')).resolves.toBe('before\n');
@@ -295,7 +295,7 @@ describe('GitWorktree', () => {
       lease.release();
     } finally {
       await runtime.dispose();
-      await watch.dispose();
+      await watcher.dispose();
     }
 
     const calls = (await readFile(logPath, 'utf8')).trim().split('\n');

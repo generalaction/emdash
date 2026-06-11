@@ -63,8 +63,8 @@ async function eventually<T>(
 describe('GitRepository', () => {
   it('reads repository facts and emits updates after real git mutations', async () => {
     const { repo, remote } = await makeRepoWithRemote();
-    const watch = new FileWatchService();
-    const runtime = new GitRuntime({ watch });
+    const watcher = new FileWatchService();
+    const runtime = new GitRuntime({ watcher });
     const updates: GitRepoUpdate[] = [];
 
     try {
@@ -129,14 +129,14 @@ describe('GitRepository', () => {
       lease.release();
     } finally {
       await runtime.dispose();
-      await watch.dispose();
+      await watcher.dispose();
     }
   });
 
   it('emits refs updates for external git mutations under the common dir', async () => {
     const { repo } = await makeRepoWithRemote();
-    const watch = new FileWatchService();
-    const runtime = new GitRuntime({ watch });
+    const watcher = new FileWatchService();
+    const runtime = new GitRuntime({ watcher });
     const updates: GitRepoUpdate[] = [];
 
     try {
@@ -165,7 +165,7 @@ describe('GitRepository', () => {
       lease.release();
     } finally {
       await runtime.dispose();
-      await watch.dispose();
+      await watcher.dispose();
     }
   });
 
