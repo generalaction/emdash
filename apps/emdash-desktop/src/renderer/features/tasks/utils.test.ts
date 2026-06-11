@@ -26,6 +26,20 @@ describe('formatFetchErrorDetail', () => {
       'GitHub authentication failed. Run "gh auth login" on the remote SSH machine, then try again.'
     );
   });
+
+  it('points generic Git authentication fixes at the SSH machine for remote projects', () => {
+    const detail = formatFetchErrorDetail(
+      {
+        type: 'auth_failed',
+        message: 'fatal: Authentication failed for https://gitlab.com/example/project.git',
+      },
+      { isSshProject: true }
+    );
+
+    expect(detail).toBe(
+      'Git authentication failed. Authenticate Git on the remote SSH machine, then try again.'
+    );
+  });
 });
 
 describe('formatPushErrorDetail', () => {
