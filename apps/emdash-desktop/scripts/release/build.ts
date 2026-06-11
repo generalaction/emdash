@@ -1,8 +1,12 @@
 import { cpSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { Arch, Platform, build as electronBuild } from 'electron-builder';
+import type { Configuration } from 'electron-builder';
 import { exec } from './lib/exec.ts';
 import { fail, info, step } from './lib/log.ts';
+import { resolveReleaseVersion } from './lib/version.ts';
+import type { ReleaseChannel } from './lib/version.ts';
 
 const { values } = parseArgs({
   options: {
@@ -10,6 +14,7 @@ const { values } = parseArgs({
     arch: { type: 'string', default: 'both' },
     targets: { type: 'string' },
     config: { type: 'string', default: 'electron-builder.config.ts' },
+    channel: { type: 'string', default: 'stable' },
   },
   strict: true,
 });
@@ -17,19 +22,42 @@ const { values } = parseArgs({
 const platform = values.platform;
 if (!platform || !['mac', 'linux', 'win'].includes(platform)) {
   fail(
-    'Usage: build.ts --platform mac|linux|win [--arch arm64|x64|both] [--targets dmg,zip] [--config electron-builder.config.ts]'
+    'Usage: build.ts --platform mac|linux|win [--arch arm64|x64|both] [--targets dmg,zip] [--config electron-builder.config.ts] [--channel stable|canary]'
   );
+}
+
+const channel = (values.channel ?? 'stable') as ReleaseChannel;
+if (!['stable', 'canary'].includes(channel)) {
+  fail(`Unknown channel "${channel}"; must be "stable" or "canary"`);
 }
 
 const archInput = values.arch ?? 'both';
 const archs: string[] = archInput === 'both' ? ['x64', 'arm64'] : [archInput];
 
-const defaultTargets: Record<string, string> = {
-  mac: 'dmg zip',
-  linux: 'AppImage deb rpm',
-  win: 'nsis msi',
+const defaultTargets: Record<string, string[]> = {
+  mac: ['dmg', 'zip'],
+  linux: ['AppImage', 'deb', 'rpm'],
+  win: ['nsis', 'msi'],
 };
-const targets = values.targets ? values.targets.split(',').join(' ') : defaultTargets[platform];
+const targetList = values.targets ? values.targets.split(',') : defaultTargets[platform];
+
+const platformMap: Record<string, Platform> = {
+  mac: Platform.MAC,
+  linux: Platform.LINUX,
+  win: Platform.WINDOWS,
+};
+
+const archMap: Record<string, Arch> = {
+  x64: Arch.x64,
+  arm64: Arch.arm64,
+};
+
+const ebPlatform = platformMap[platform];
+
+const { version: overrideVersion, tag, isCanary } = resolveReleaseVersion(channel);
+if (isCanary) {
+  info(`Canary build: packaging as version ${overrideVersion} (tag ${tag})`);
+}
 
 step('Creating deployment directory with production dependencies');
 const workspaceRoot = resolve(process.cwd(), '../..');
@@ -45,31 +73,38 @@ cpSync('drizzle', join(deployDir, 'drizzle'), { recursive: true });
 
 const electronVersion = exec(`node -p "require('electron/package.json').version"`);
 
+// Dynamically load the electron-builder config (TypeScript stripping via --experimental-strip-types)
+const configModule = await import(resolve(values.config));
+const baseConfig = (configModule.default ?? configModule) as Configuration;
+
 try {
   for (const arch of archs) {
-    step(`Building ${platform} ${targets} for ${arch}`);
+    step(`Building ${platform} ${targetList.join(' ')} for ${arch}`);
 
     exec(
       `node --experimental-strip-types scripts/release/rebuild-native.ts --arch ${arch} --deploy-dir ${deployDir}`,
       { echo: true }
     );
 
-    const platformFlag = `--${platform}`;
-    const archFlag = `--${arch}`;
-    const cmd = [
-      'pnpm exec electron-builder',
-      platformFlag,
-      targets,
-      archFlag,
-      '--publish always',
-      `--config ${values.config}`,
-      `--projectDir ${deployDir}`,
-      `--config.electronVersion=${electronVersion}`,
-      '--config.npmRebuild=false',
-    ].join(' ');
+    const archEnum = archMap[arch];
+    if (!archEnum) fail(`Unknown arch: ${arch}`);
 
-    exec(cmd, { echo: true });
-    info(`Built ${platform} ${targets} for ${arch}`);
+    const buildTargets = ebPlatform.createTarget(targetList, archEnum);
+    const config: Configuration = {
+      ...baseConfig,
+      electronVersion,
+      npmRebuild: false,
+      ...(isCanary ? { extraMetadata: { version: overrideVersion } } : {}),
+    };
+
+    await electronBuild({
+      targets: buildTargets,
+      config,
+      projectDir: deployDir,
+      publish: 'always',
+    });
+
+    info(`Built ${platform} ${targetList.join(' ')} for ${arch}`);
   }
 
   step('Copying release artifacts to app directory');

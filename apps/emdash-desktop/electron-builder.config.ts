@@ -15,6 +15,12 @@ const config: Configuration = {
   artifactName: `${ARTIFACT_PREFIX}-\${arch}.\${ext}`,
   publish: [
     {
+      provider: 'github',
+      owner: 'generalaction',
+      repo: 'emdash',
+      releaseType: 'draft',
+    },
+    {
       provider: 'generic',
       url: R2_BASE_URL,
       channel: UPDATE_CHANNEL,
