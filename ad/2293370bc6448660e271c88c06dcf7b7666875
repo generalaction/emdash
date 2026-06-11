@@ -1,0 +1,26 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_46f61e5cd28240::t_5971f26e3e8d04 231,237
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar-actions.test.ts
+  s_46f61e5cd28240::t_5971f26e3e8d04 15,33-36,95,98,102,105,108,110,112,114-132
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar-actions.ts
+  s_46f61e5cd28240::t_5971f26e3e8d04 1,27-49
+  s_46f61e5cd28240::t_ed6dac36b013ed 63
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.test.ts
+  s_46f61e5cd28240::t_5971f26e3e8d04 70,79-81,88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "ad2293370bc6448660e271c88c06dcf7b7666875",
+  "prompts": {},
+  "sessions": {
+    "s_46f61e5cd28240": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_14afa58ceffeZ3pI9zEz2lNNgy",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
