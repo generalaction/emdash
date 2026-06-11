@@ -1,4 +1,4 @@
-import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { IExecutionContext } from '@emdash/shared/exec';
 import { log } from '@main/lib/logger';
 
 const TMUX_SESSION_PREFIX = 'emdash-';

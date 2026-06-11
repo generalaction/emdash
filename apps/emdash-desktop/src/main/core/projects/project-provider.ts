@@ -1,4 +1,4 @@
-import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { IExecutionContext } from '@emdash/shared/exec';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { GitFetchService } from '@main/core/git/git-fetch-service';
 import type { GitRepositoryService } from '@main/core/git/repository-service';

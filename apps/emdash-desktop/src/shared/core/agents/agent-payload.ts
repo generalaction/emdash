@@ -10,8 +10,8 @@ import type {
   PromptDeliveryDescriptor,
   UpdatesDescriptor,
 } from '@emdash/cli-agent-plugins';
+import type { DependencyStatus, Installation } from '@emdash/shared/deps';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
-import type { DependencyStatus, Installation } from '@shared/core/dependencies';
 
 export type AgentCapabilities = {
   install: InstallationMetadata;

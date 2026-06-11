@@ -1,5 +1,5 @@
 import { promises as fsPromises } from 'node:fs';
-import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { IExecutionContext } from '@emdash/shared/exec';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
 import type { Branch } from '@shared/core/git/git';

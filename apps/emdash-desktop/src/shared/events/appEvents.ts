@@ -1,4 +1,4 @@
-import type { DependencyStatusUpdatedEvent } from '@shared/core/dependencies';
+import type { DependencyStatusUpdatedEvent } from '@emdash/shared/deps';
 import { defineEvent } from '@shared/lib/ipc/events';
 
 // App editing actions (renderer → main, no payload)

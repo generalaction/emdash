@@ -1,4 +1,4 @@
-import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { IExecutionContext } from '@emdash/shared/exec';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { claudeTrustService } from './claude-trust-service';

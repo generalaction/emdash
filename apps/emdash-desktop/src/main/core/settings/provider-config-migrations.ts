@@ -1,5 +1,5 @@
+import type { DependencyId, HostDependencySelection } from '@emdash/shared/deps';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
-import type { DependencyId, HostDependencySelection } from '@shared/core/dependencies';
 import type { IHostDependencyStore } from '../dependencies/host-dependency-store';
 
 export function migrateProviderConfigOverrides(
