@@ -2,19 +2,26 @@
 
 ## Key Files
 
-- `package.json`
+Repo root:
+
+- `package.json` (aggregate workspace scripts)
+- `pnpm-workspace.yaml`
+- `.nvmrc`
+- `.oxfmtrc.json`, `.oxlintrc.json`
+- `.github/workflows/`
+
+In `apps/emdash-desktop/`:
+
+- `package.json` (app scripts and version)
 - `electron.vite.config.ts`
 - `vitest.config.ts`
 - `tsconfig.json`
 - `drizzle.config.ts`
-- `.emdash.json`
-- `.nvmrc`
-- `.husky/`
-- `.github/workflows/`
 - `flake.nix`
+
+Per-project (user repos): `.emdash.json`
 
 ## Repo Rules
 
 - avoid editing `dist/`, `release/`, and `build/` unless the task is explicitly about packaging or signing
-- the docs app in `docs/` is separate from the Electron renderer
 - update the narrowest relevant page in `agents/` instead of growing `AGENTS.md`

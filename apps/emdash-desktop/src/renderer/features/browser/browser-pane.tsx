@@ -2,7 +2,7 @@ import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDevServers } from '@renderer/features/tasks/task-view-context';
 import { rpc } from '@renderer/lib/ipc';
-import { normalizeBrowserUrl } from '@shared/browser';
+import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
 import { browserControlsRegistry } from './browser-controls-registry';
 import { decideBrowserReload } from './browser-navigation-controls';
 import { browserSessionStore } from './browser-session-store';
@@ -137,13 +137,36 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
     if (decision.kind === 'retry-url') loadUrl(decision.url);
   }, [adapter, loadUrl, session]);
 
-  const attachWebview = (node: Element | null) => {
+  const forceReload = useCallback(() => {
+    if (adapter) {
+      adapter.reloadIgnoringCache();
+      return;
+    }
+    reload();
+  }, [adapter, reload]);
+
+  const setZoomFactor = useCallback(
+    (factor: number) => {
+      if (!sessionBrowserId) return;
+      const zoomFactor = normalizeBrowserZoomFactor(factor);
+      browserSessionStore.updateSession(sessionBrowserId, {
+        zoomFactor,
+      });
+      adapter?.setZoomFactor(zoomFactor);
+    },
+    [adapter, sessionBrowserId]
+  );
+
+  // Must stay referentially stable: React re-invokes inline ref callbacks with
+  // null + node on every render, which would wipe the adapter until the next
+  // dom-ready and break everything adapter-backed (zoom, stop, force reload).
+  const attachWebview = useCallback((node: Element | null) => {
     const next = node as BrowserWebviewElement | null;
     if (webviewRef.current === next) return;
     webviewRef.current = next;
     setWebviewElement(next);
     setAdapter(null);
-  };
+  }, []);
 
   useEffect(() => {
     if (!sessionBrowserId || !webviewElement) return;
@@ -187,6 +210,8 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
         autoFocusUrl={showStartPage}
         onNavigate={navigateTo}
         onReload={reload}
+        onForceReload={forceReload}
+        onSetZoomFactor={setZoomFactor}
         onFocusUrl={(focus) => {
           focusUrlRef.current = focus;
         }}

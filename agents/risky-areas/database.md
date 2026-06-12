@@ -23,15 +23,14 @@
 
 ### Tooling folder
 
-All dev and test infrastructure lives in `tooling/` at the repo root. Nothing
-in `tooling/` is part of the production Electron bundle — the `@tooling` alias
-only exists in `vitest.config.ts`, not in `electron.vite.config.ts`.
+All dev and test infrastructure lives in `tooling/` inside `apps/emdash-desktop/`.
+Nothing in `tooling/` is part of the production Electron bundle — the `@tooling`
+alias only exists in `vitest.config.ts`, not in `electron.vite.config.ts`.
 
 ```
 tooling/
 ├── byoi/               SSH BYOI provisioning (Docker)
 ├── docker-ssh/         SSH test container (Docker)
-├── db/                 gitignored — per-developer dev database
 ├── fixtures/           committed SQLite snapshots (empty.db, baseline.db)
 ├── node-deps/          isolated better-sqlite3 compiled for system Node
 ├── seeds/              seed functions that populate fixtures
@@ -42,13 +41,13 @@ tooling/
 
 ### Isolated dev database
 
-Use `pnpm run db:dev` instead of `pnpm run dev` when working on migrations.
-This writes to `tooling/db/dev.db` (gitignored) instead of your personal
-emdash database, so schema experiments cannot corrupt your real app data.
+Point `EMDASH_DB_FILE` at a scratch path instead of using the default database
+when working on migrations, so schema experiments cannot corrupt your real app
+data. `pnpm run db:reset` wipes the default dev databases.
 
 ```bash
-pnpm run db:dev        # start app with isolated dev database
-pnpm run db:dev:reset  # wipe the dev database and start fresh
+EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev   # start app with isolated dev database
+pnpm run db:reset                                    # wipe the dev databases and start fresh
 ```
 
 ### Fixture databases
@@ -65,12 +64,13 @@ pnpm run db:fixtures   # writes .db files — no rebuild needed
 ```
 
 `db:fixtures` and `test:migrations` use an isolated copy of `better-sqlite3`
-installed under `tooling/node-deps/` (compiled for system Node). The root
+installed under `tooling/node-deps/` (compiled for system Node). The app's
 `node_modules/better-sqlite3` stays Electron-compiled at all times.
 
 ### Migration authoring checklist
 
-1. **Isolate your dev DB**: run `pnpm run db:dev` so you're working against `tooling/db/dev.db`
+1. **Isolate your dev DB**: run the app with `EMDASH_DB_FILE` pointing at a scratch path
+   so you're not working against your personal emdash database
 
 2. **Snapshot the pre-migration baseline**:
    ```bash
@@ -83,7 +83,7 @@ installed under `tooling/node-deps/` (compiled for system Node). The root
    pnpm run db:generate
    ```
 
-4. **Write a migration test** in `src/main/db/__tests__/migrations/` using `openFixture('pre-XXXX')`.
+4. **Write a migration test** in `src/main/db/tests/migrations/` using `openFixture('pre-XXXX')`.
    See `example.test.ts` in that directory for the pattern.
 
 5. **Regenerate fixtures** so `baseline.db` and `empty.db` include the new schema:
@@ -167,6 +167,6 @@ columns remain `text()` — call `schema.parseJson(row.col)` explicitly on read 
   temp file, applies any pending migrations (via our own `initializeDatabase()`),
   returns a `DrizzleClient`. Each call is fully isolated; `close()` deletes the temp file.
   Import via `@tooling/utils/db` (alias available in all Vitest projects).
-- Migration tests live in `src/main/db/__tests__/migrations/` and run via
+- Migration tests live in `src/main/db/tests/migrations/` and run via
   `pnpm run test:migrations` (separate from the main test suite because they
   use `import.meta.glob`, which requires Vite's transform pipeline).

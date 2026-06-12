@@ -6,8 +6,7 @@
 - `src/main/core/mcp/utils/` — adapters, catalog, config IO, config paths, conversion
 - `src/main/core/mcp/controller.ts`
 - `src/shared/mcp/`
-- `src/renderer/components/mcp/`
-- `src/renderer/views/mcp-view.tsx`
+- `src/renderer/features/mcp/` (`mcp-view.tsx`, `components/`)
 
 ## Current Behavior
 

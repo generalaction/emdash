@@ -434,7 +434,7 @@ export function AddSshConnModal({
                           onBlur={field.handleBlur}
                           onChange={(e) => field.handleChange(e.target.value)}
                           aria-invalid={isInvalid}
-                          placeholder="example.com"
+                          placeholder="203.0.113.10"
                           disabled={isAliasBacked}
                         />
                         {isInvalid && <FieldError errors={field.state.meta.errors} />}
