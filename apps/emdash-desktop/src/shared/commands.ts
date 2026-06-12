@@ -183,6 +183,22 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     iconKey: 'globe',
   },
   {
+    id: 'task.browserGoBack',
+    label: 'Browser Back',
+    description: 'Go back in the active browser tab',
+    scope: 'task',
+    group: 'Browser',
+    iconKey: 'arrow-left',
+  },
+  {
+    id: 'task.browserGoForward',
+    label: 'Browser Forward',
+    description: 'Go forward in the active browser tab',
+    scope: 'task',
+    group: 'Browser',
+    iconKey: 'arrow-right',
+  },
+  {
     id: 'task.browserReload',
     label: 'Reload Browser',
     description: 'Reload the active browser tab',

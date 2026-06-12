@@ -125,6 +125,16 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
     [loadUrl]
   );
 
+  const goBack = useCallback(() => {
+    if (!adapter?.canGoBack()) return;
+    adapter.goBack();
+  }, [adapter]);
+
+  const goForward = useCallback(() => {
+    if (!adapter?.canGoForward()) return;
+    adapter.goForward();
+  }, [adapter]);
+
   const reload = useCallback(() => {
     if (!session) return;
     const decision = decideBrowserReload({
@@ -209,6 +219,8 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
         adapter={adapter}
         autoFocusUrl={showStartPage}
         onNavigate={navigateTo}
+        onGoBack={goBack}
+        onGoForward={goForward}
         onReload={reload}
         onForceReload={forceReload}
         onSetZoomFactor={setZoomFactor}
