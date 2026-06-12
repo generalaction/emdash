@@ -5,7 +5,6 @@ import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import { DedupBadge } from './components/DedupBadge';
 import { CostsTab } from './costs-tab';
 import { OverviewTab } from './overview-tab';
 import { useUsageSnapshot } from './use-usage-snapshot';
@@ -74,7 +73,6 @@ export function UsagePanel() {
           ))}
         </div>
         <div className="flex items-center gap-2">
-          <DedupBadge />
           <Tooltip>
             <TooltipTrigger>
               <button

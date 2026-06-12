@@ -13,7 +13,11 @@ export function OverviewTab({ snapshot }: { snapshot: UsageSnapshot }) {
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <StatCard value={String(totals.sessions)} label="Sessions" />
         <StatCard value={fmtTokens(totals.messages)} label="Messages" />
-        <StatCard value={fmtTokens(totals.tokens)} label="Tokens" />
+        <StatCard
+          value={fmtTokens(totals.tokens)}
+          label="Tokens"
+          hint="Each API response is counted once — when you resume or fork a session, the copied earlier messages aren't counted again, so totals run lower (and truer) than tools that count every transcript line."
+        />
         <StatCard value={fmtUsd(totals.cost)} label="Est. Cost" />
       </div>
 
