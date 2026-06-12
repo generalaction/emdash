@@ -1,10 +1,17 @@
-import { Plus, Trash2 } from 'lucide-react';
+import { Ellipsis, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { browserSessionStore } from '@renderer/features/browser/browser-session-store';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@renderer/lib/ui/dropdown-menu';
 import { Input } from '@renderer/lib/ui/input';
 import {
   Select,
@@ -26,7 +33,8 @@ import { SettingRow } from './SettingRow';
 export function BrowserSettingsCard() {
   const { value: browserSettings, update, isLoading, isSaving } = useAppSettingsKey('browser');
   const showConfirm = useShowModal('confirmActionModal');
-  const [newProfileName, setNewProfileName] = useState('');
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
 
   const profiles = browserSettings?.profiles ?? DEFAULT_BROWSER_PROFILES;
   const defaultProfileId = browserSettings?.defaultProfileId ?? DEFAULT_BROWSER_PROFILE_ID;
@@ -35,16 +43,17 @@ export function BrowserSettingsCard() {
     : DEFAULT_BROWSER_PROFILE_ID;
   const disabled = isLoading || isSaving;
 
-  const addProfile = () => {
-    const name = newProfileName.trim();
-    if (!name) return;
-    const profile: BrowserProfile = { id: makeProfileId(name, profiles), name };
-    update({ profiles: [...profiles, profile], defaultProfileId: profile.id });
-    setNewProfileName('');
+  const addProfile = (name: string) => {
+    const nextName = name.trim();
+    setIsAdding(false);
+    if (!nextName) return;
+    const profile: BrowserProfile = { id: makeProfileId(nextName, profiles), name: nextName };
+    update({ profiles: [...profiles, profile] });
   };
 
   const renameProfile = (profileId: string, name: string) => {
     const nextName = name.trim();
+    setEditingProfileId(null);
     if (!nextName) return;
     update({
       profiles: profiles.map((profile) =>
@@ -57,7 +66,7 @@ export function BrowserSettingsCard() {
     showConfirm({
       title: `Clear ${profile.name} browser storage?`,
       description:
-        'This clears cookies, local storage, IndexedDB, and cache for this in-app browser profile. Browser tabs using this profile will be signed out.',
+        'This clears cookies, local storage, IndexedDB, and cache for this profile. Browser tabs using it will be signed out.',
       confirmLabel: 'Clear Storage',
       variant: 'destructive',
       onSuccess: () => {
@@ -71,7 +80,7 @@ export function BrowserSettingsCard() {
     showConfirm({
       title: `Delete ${profile.name} browser profile?`,
       description:
-        'This removes the profile from settings and clears its cookies, local storage, IndexedDB, and cache.',
+        'This removes the profile and clears its cookies, local storage, IndexedDB, and cache.',
       confirmLabel: 'Delete Profile',
       variant: 'destructive',
       onSuccess: () => {
@@ -94,7 +103,7 @@ export function BrowserSettingsCard() {
     <div className="flex flex-col gap-4">
       <SettingRow
         title="Default browser profile"
-        description="New in-app browser tabs use this persistence boundary. Tabs using the same named profile share logins; isolated tabs keep web state scoped to the current task."
+        description="New browser tabs open with this profile. You can switch an individual tab's profile from its toolbar menu."
         control={
           <Select
             value={selectedDefault}
@@ -119,75 +128,102 @@ export function BrowserSettingsCard() {
       />
 
       <div className="rounded-lg border border-border/70 bg-background-secondary-1 p-3">
-        <div className="mb-3 flex flex-col gap-1">
+        <div className="flex flex-col gap-1">
           <div className="text-sm text-foreground">Browser profiles</div>
           <div className="text-xs text-foreground-passive">
-            Named profiles persist and share authenticated web state across tasks. They do not
-            import cookies from your system browser.
+            Each profile keeps its own cookies and logins, shared across tasks. Profiles do not
+            import anything from your system browser.
           </div>
         </div>
 
-        <div className="flex flex-col gap-2">
+        <div className="mt-2 flex flex-col">
           {profiles.map((profile) => (
-            <div key={profile.id} className="flex items-center gap-2">
-              <Input
-                defaultValue={profile.name}
-                disabled={disabled}
-                aria-label={`Browser profile name: ${profile.name}`}
-                className="h-8 min-w-0 flex-1"
-                onBlur={(event) => renameProfile(profile.id, event.currentTarget.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.currentTarget.blur();
+            <div
+              key={profile.id}
+              className="flex h-9 items-center gap-2 border-b border-border/40 last:border-b-0"
+            >
+              {editingProfileId === profile.id ? (
+                <Input
+                  autoFocus
+                  defaultValue={profile.name}
+                  disabled={disabled}
+                  aria-label={`Rename ${profile.name} browser profile`}
+                  className="h-7 min-w-0 flex-1"
+                  onFocus={(event) => event.currentTarget.select()}
+                  onBlur={(event) => renameProfile(profile.id, event.currentTarget.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') event.currentTarget.blur();
+                    if (event.key === 'Escape') setEditingProfileId(null);
+                  }}
+                />
+              ) : (
+                <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                  {profile.name}
+                </span>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 shrink-0 text-foreground-muted"
+                      disabled={disabled}
+                      aria-label={`${profile.name} browser profile actions`}
+                    />
                   }
-                }}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={disabled}
-                onClick={() => clearProfileStorage(profile)}
-              >
-                Clear storage
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-8"
-                aria-label={`Delete ${profile.name} browser profile`}
-                disabled={disabled || profiles.length <= 1}
-                onClick={() => deleteProfile(profile)}
-              >
-                <Trash2 className="size-4" />
-              </Button>
+                >
+                  <Ellipsis className="size-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-40">
+                  <DropdownMenuItem onClick={() => setEditingProfileId(profile.id)}>
+                    Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => clearProfileStorage(profile)}>
+                    Clear storage
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={profiles.length <= 1}
+                    onClick={() => deleteProfile(profile)}
+                  >
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           ))}
         </div>
 
-        <div className="mt-3 flex items-center gap-2">
-          <Input
-            value={newProfileName}
-            disabled={disabled}
-            placeholder="New profile name"
-            aria-label="New browser profile name"
-            className="h-8 min-w-0 flex-1"
-            onChange={(event) => setNewProfileName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') addProfile();
-            }}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={disabled || !newProfileName.trim()}
-            onClick={addProfile}
-          >
-            <Plus className="size-4" />
-            Add profile
-          </Button>
+        <div className="mt-2">
+          {isAdding ? (
+            <Input
+              autoFocus
+              disabled={disabled}
+              placeholder="Profile name"
+              aria-label="New browser profile name"
+              className="h-7 w-full"
+              onBlur={(event) => addProfile(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') event.currentTarget.blur();
+                if (event.key === 'Escape') setIsAdding(false);
+              }}
+            />
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-foreground-muted"
+              disabled={disabled}
+              onClick={() => setIsAdding(true)}
+            >
+              <Plus className="size-4" />
+              Add profile
+            </Button>
+          )}
         </div>
       </div>
     </div>

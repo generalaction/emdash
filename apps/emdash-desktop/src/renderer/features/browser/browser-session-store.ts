@@ -38,6 +38,7 @@ export class BrowserSessionStore {
       activeSessions: computed,
       createSession: action,
       restoreSession: action,
+      setSessionProfile: action,
       migrateProfileSessions: action,
       updateSession: action,
       removeSession: action,
@@ -77,6 +78,27 @@ export class BrowserSessionStore {
     };
     this.sessions.set(restored.browserId, restored);
     return restored;
+  }
+
+  setSessionProfile(
+    browserId: string,
+    profileId: BrowserProfileSelection,
+    profiles?: readonly BrowserProfile[]
+  ): BrowserSessionSnapshot | null {
+    const existing = this.sessions.get(browserId);
+    if (!existing) return null;
+    const normalized = normalizeBrowserProfileSelection(profileId, profiles);
+    if (normalized === existing.profileId) return existing;
+    const next: BrowserSessionSnapshot = {
+      ...existing,
+      profileId: normalized,
+      partition: browserPartitionForProfile(existing, normalized),
+      isLoading: false,
+      loadError: undefined,
+      updatedAt: Date.now(),
+    };
+    this.sessions.set(browserId, next);
+    return next;
   }
 
   migrateProfileSessions(

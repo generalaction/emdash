@@ -35,6 +35,7 @@ export type SettingsPageTab =
   | 'clis-models'
   | 'integrations'
   | 'connections'
+  | 'browser'
   | 'repository'
   | 'interface'
   | 'docs';
@@ -66,6 +67,7 @@ export function SettingsPage({
     { id: 'clis-models', label: 'Agents' },
     { id: 'integrations', label: 'Integrations' },
     { id: 'connections', label: 'Connections' },
+    { id: 'browser', label: 'Browser' },
     { id: 'repository', label: 'Repository' },
     { id: 'interface', label: 'Interface' },
     { id: 'docs', label: 'Docs', isExternal: true },
@@ -138,6 +140,11 @@ export function SettingsPage({
       description: 'Manage reusable SSH connections for remote projects.',
       sections: [{ component: <SshConnectionsSettingsCard /> }],
     },
+    browser: {
+      title: 'Browser',
+      description: 'Manage browser profiles and their stored logins.',
+      sections: [{ component: <BrowserSettingsCard /> }],
+    },
     repository: {
       title: 'Repository',
       description: 'Configure repository and branch settings.',
@@ -149,7 +156,6 @@ export function SettingsPage({
       sections: [
         { component: <ThemeCard /> },
         { component: <TerminalSettingsCard /> },
-        { component: <BrowserSettingsCard /> },
         { component: <SidebarMetadataSettingsCard /> },
         { component: <ResourceMonitorSettingsCard /> },
         { component: <InterfaceSettingsCard /> },

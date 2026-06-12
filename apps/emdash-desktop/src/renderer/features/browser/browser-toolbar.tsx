@@ -2,21 +2,30 @@ import { Ellipsis, Globe, Loader2, RefreshCw, RotateCcw, Square } from 'lucide-r
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { rpc } from '@renderer/lib/ipc';
+import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { Button } from '@renderer/lib/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@renderer/lib/ui/dropdown-menu';
 import { Input } from '@renderer/lib/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import {
+  BROWSER_ISOLATED_PROFILE_ID,
   DEFAULT_BROWSER_PROFILES,
   browserProfileLabel,
   normalizeBrowserUrl,
   type BrowserSessionSnapshot,
 } from '@shared/browser';
+import { browserSessionStore } from './browser-session-store';
 import {
   canOpenBrowserUrlExternally,
   confirmClearBrowserStorage,
@@ -24,6 +33,10 @@ import {
 } from './browser-toolbar-actions';
 import { browserUrlInputText } from './browser-url-input';
 import type { BrowserWebviewAdapter } from './browser-webview-types';
+
+// Selection is conveyed by the checkmark alone (matching SelectItem); the base
+// radio item pins a background on the checked row and mutes unchecked rows.
+const PROFILE_RADIO_ITEM_CLASS = 'text-foreground data-checked:bg-transparent';
 
 export function BrowserToolbar({
   session,
@@ -45,10 +58,9 @@ export function BrowserToolbar({
   const [failedFaviconUrl, setFailedFaviconUrl] = useState<string | null>(null);
   const urlInputRef = useRef<HTMLInputElement | null>(null);
   const { value: browserSettings } = useAppSettingsKey('browser');
-  const profileLabel = browserProfileLabel(
-    session.profileId,
-    browserSettings?.profiles ?? DEFAULT_BROWSER_PROFILES
-  );
+  const { navigate: navigateToView } = useNavigate();
+  const profiles = browserSettings?.profiles ?? DEFAULT_BROWSER_PROFILES;
+  const profileLabel = browserProfileLabel(session.profileId, profiles);
   const faviconUrl =
     session.faviconUrl && session.faviconUrl !== failedFaviconUrl ? session.faviconUrl : null;
 
@@ -102,6 +114,11 @@ export function BrowserToolbar({
   const confirmClearStorage = () => {
     confirmClearBrowserStorage(session, adapter, profileLabel);
   };
+
+  const switchProfile = (profileId: string) => {
+    if (profileId === session.profileId) return;
+    browserSessionStore.setSessionProfile(session.browserId, profileId, profiles);
+  };
   const canOpenExternal = canOpenBrowserUrlExternally(session.currentUrl);
 
   return (
@@ -152,12 +169,6 @@ export function BrowserToolbar({
           </div>
         )}
       </form>
-      <div
-        className="hidden max-w-32 truncate rounded border border-border bg-background px-2 py-1 text-xs text-foreground-muted sm:block"
-        title={`Browser profile: ${profileLabel}`}
-      >
-        {profileLabel}
-      </div>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
@@ -179,6 +190,36 @@ export function BrowserToolbar({
           {import.meta.env.DEV && (
             <DropdownMenuItem onClick={openDevTools}>Open DevTools</DropdownMenuItem>
           )}
+          <DropdownMenuSeparator />
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>Browser profile</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="min-w-44">
+              <DropdownMenuRadioGroup
+                value={session.profileId}
+                onValueChange={(value) => switchProfile(String(value))}
+              >
+                {profiles.map((profile) => (
+                  <DropdownMenuRadioItem
+                    key={profile.id}
+                    value={profile.id}
+                    className={PROFILE_RADIO_ITEM_CLASS}
+                  >
+                    {profile.name}
+                  </DropdownMenuRadioItem>
+                ))}
+                <DropdownMenuRadioItem
+                  value={BROWSER_ISOLATED_PROFILE_ID}
+                  className={PROFILE_RADIO_ITEM_CLASS}
+                >
+                  Isolated per task
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigateToView('settings', { tab: 'browser' })}>
+                Manage profiles…
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
           <DropdownMenuItem onClick={confirmClearStorage}>Clear browser storage</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

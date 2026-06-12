@@ -10,8 +10,6 @@ export type BrowserProfile = {
 
 export const DEFAULT_BROWSER_PROFILES: BrowserProfile[] = [
   { id: DEFAULT_BROWSER_PROFILE_ID, name: 'Default' },
-  { id: 'work', name: 'Work' },
-  { id: 'personal', name: 'Personal' },
 ];
 
 export type BrowserProfileSelection = string;
