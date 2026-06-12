@@ -247,21 +247,13 @@ export interface DependencyDescriptor {
    */
   skipVersionProbe?: boolean;
   docUrl?: string;
-  /** Human-readable installation hint shown in UI. */
-  installHint?: string;
-  /** Machine-executable install command, e.g. "npm install -g @openai/codex". */
-  installCommand?: string;
-  /**
-   * Per-platform install options from plugin metadata.
-   * Takes precedence over `installCommand` when present.
-   * Core dependencies leave this undefined and rely on `installCommand`.
-   */
+  /** Per-platform install options from plugin metadata. */
   installCommands?: Partial<Record<Platform, InstallOption[]>>;
   /**
    * Optional imperative hooks from the provider implementation.
    * Absent for core dependencies.
    */
-  updateHooks?: {
+  commandHooks?: {
     resolveLatestVersion?(): Promise<string | null>;
     buildUpdateCommand?(binaryPath: string): { command: string; args: string[] };
     buildUninstallCommand?(binaryPath: string): { command: string; args: string[] };

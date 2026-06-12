@@ -210,6 +210,9 @@ export class HostDependencyManager {
 
     if (pathState.status === 'missing' || descriptor.skipVersionProbe) {
       if (descriptor.category === 'agent') {
+        // Fire-and-forget: hostState is populated asynchronously after probe() returns.
+        // Callers that need the unknown-source guard (update()) must either await probe()
+        // first or tolerate a missing hostState entry on first call.
         void this.buildAndStoreHostDependency(id, descriptor, null, null, null);
       }
       return pathState;
@@ -226,7 +229,8 @@ export class HostDependencyManager {
     const fullState = dependencyStateFromProbeResult(descriptor, resolvedPath, probeResult);
     this.updateState(fullState);
 
-    // Phase 3: build HostDependency for agent deps (async, non-blocking)
+    // Phase 3: build HostDependency for agent deps (async, non-blocking).
+    // Same fire-and-forget caveat as above.
     if (descriptor.category === 'agent') {
       void this.buildAndStoreHostDependency(id, descriptor, resolvedPath, probeResult, fullState);
     }
@@ -319,9 +323,11 @@ export class HostDependencyManager {
     };
 
     this.hostState.set(id, hostDependency);
+    const currentState = this.state.get(id);
+    if (!currentState) return;
     this.onStatusUpdated.emit({
       id,
-      state: this.state.get(id)!,
+      state: currentState,
       connectionId: this.connectionId,
       hostDependency,
     });
@@ -442,7 +448,7 @@ export class HostDependencyManager {
           return { kind: 'package-manager', command: opt.uninstallCommand };
         }
         if (operation === 'update') {
-          const cmd = opt.updateCommand ?? opt.command ?? descriptor.installCommand;
+          const cmd = opt.updateCommand ?? opt.command;
           if (cmd) return { kind: 'package-manager', command: cmd };
         }
       }
@@ -454,7 +460,7 @@ export class HostDependencyManager {
           return { kind: 'package-manager', command: fallback.uninstallCommand };
         }
         if (operation === 'update') {
-          const cmd = fallback.updateCommand ?? fallback.command ?? descriptor.installCommand;
+          const cmd = fallback.updateCommand ?? fallback.command;
           if (cmd) return { kind: 'package-manager', command: cmd };
         }
       }
@@ -503,9 +509,9 @@ export class HostDependencyManager {
   }
 
   /**
-   * Run the installCommand for a dependency, then re-probe to update state.
+   * Run the install command for a dependency, then re-probe to update state.
    * When `method` is provided, picks the matching InstallOption for the manager's platform;
-   * otherwise picks the recommended/first option. Falls back to descriptor.installCommand.
+   * otherwise picks the recommended/first option.
    */
   async install(id: DependencyId, method?: InstallMethod): Promise<DependencyInstallResult> {
     const descriptor = this._getDependencyDescriptor(id);
@@ -513,8 +519,7 @@ export class HostDependencyManager {
       return err({ type: 'unknown-dependency', id });
     }
 
-    const command =
-      pickInstallOption(descriptor, this.platform, method)?.command ?? descriptor.installCommand;
+    const command = pickInstallOption(descriptor, this.platform, method)?.command;
 
     if (!command) {
       return err({ type: 'no-install-command', id });
@@ -589,8 +594,8 @@ export class HostDependencyManager {
       let command: string;
       let args: string[];
 
-      if (descriptor.updateHooks?.buildUpdateCommand && resolvedPath) {
-        ({ command, args } = descriptor.updateHooks.buildUpdateCommand(resolvedPath));
+      if (descriptor.commandHooks?.buildUpdateCommand && resolvedPath) {
+        ({ command, args } = descriptor.commandHooks.buildUpdateCommand(resolvedPath));
       } else {
         command = resolvedPath ?? descriptor.commands[0] ?? id;
         args = plan.args;
@@ -661,8 +666,8 @@ export class HostDependencyManager {
       let command: string;
       let args: string[];
 
-      if (descriptor.updateHooks?.buildUninstallCommand && resolvedPath) {
-        ({ command, args } = descriptor.updateHooks.buildUninstallCommand(resolvedPath));
+      if (descriptor.commandHooks?.buildUninstallCommand && resolvedPath) {
+        ({ command, args } = descriptor.commandHooks.buildUninstallCommand(resolvedPath));
       } else {
         command = resolvedPath ?? descriptor.commands[0] ?? id;
         args = plan.args;

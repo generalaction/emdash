@@ -465,7 +465,7 @@ describe('HostDependencyManager uninstall', () => {
       versionArgs: ['--version'],
       updates: { kind: 'none' },
       uninstall: { kind: 'cli', args: ['uninstall'] },
-      updateHooks: {
+      commandHooks: {
         buildUninstallCommand: (binaryPath: string) => ({
           command: binaryPath,
           args: ['custom-remove', '--force'],

@@ -42,7 +42,7 @@ const npmDescriptor = {
     releaseSource: { kind: 'npm' as const, package: '@openai/codex' },
     update: { kind: 'package-manager' as const },
   },
-  updateHooks: undefined,
+  commandHooks: undefined,
 };
 
 const baseEvent: DependencyStatusUpdatedEvent = {
@@ -211,7 +211,7 @@ describe('AgentUpdateService', () => {
         releaseSource: { kind: 'npm' as const, package: '@sourcegraph/amp' },
         update: { kind: 'package-manager' as const },
       },
-      updateHooks: undefined,
+      commandHooks: undefined,
     };
     vi.mocked(getDependencyDescriptor).mockReturnValue(pmDescriptor as never);
 
@@ -253,7 +253,7 @@ describe('AgentUpdateService', () => {
         releaseSource: { kind: 'github' as const, repo: 'anthropics/claude-code' },
         update: { kind: 'cli' as const, args: ['update'] },
       },
-      updateHooks: undefined,
+      commandHooks: undefined,
     };
     vi.mocked(getDependencyDescriptor).mockReturnValue(cliDescriptor as never);
 

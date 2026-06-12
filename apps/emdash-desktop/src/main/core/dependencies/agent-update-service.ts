@@ -136,9 +136,9 @@ export class AgentUpdateService {
     if (releaseSource.kind === 'none') return;
 
     let latestVersion: string | null;
-    if (descriptor.updateHooks?.resolveLatestVersion) {
+    if (descriptor.commandHooks?.resolveLatestVersion) {
       try {
-        latestVersion = await descriptor.updateHooks.resolveLatestVersion();
+        latestVersion = await descriptor.commandHooks.resolveLatestVersion();
       } catch {
         latestVersion = null;
       }
