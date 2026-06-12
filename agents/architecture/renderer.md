@@ -1,50 +1,59 @@
 # Renderer
 
+All paths are relative to `apps/emdash-desktop/`.
+
 ## Main Entry Points
 
+- `src/renderer/main.tsx`: renderer bootstrap
 - `src/renderer/App.tsx`: top-level provider composition
-- `src/renderer/views/Workspace.tsx`: main post-onboarding shell
-- `src/renderer/components/MainContent.tsx`: switches between views (projects, tasks, settings, skills, MCP, home)
-- `src/renderer/core/ipc.ts`: typed RPC client (`rpc`) and event emitter (`events`) used throughout renderer
+- `src/renderer/app/workspace.tsx`: main post-onboarding shell
+- `src/renderer/app/view-registry.ts`: view definitions and navigation guards; switches between views
+- `src/renderer/lib/ipc.ts`: typed RPC client (`rpc`) and event emitter (`events`) used throughout renderer
 
-## View Areas (`src/renderer/views/`)
+## App Shell (`src/renderer/app/`)
 
-- `projects/` — project management: active project, pending project, create task modal, settings panel, task panel, branch selector, titlebar
-- `tasks/` — task experience:
-  - `conversations/` — conversation panel and tabs
-  - `diff-viewer/` — file changes panel, diff views (file, stacked), PR section, git state providers
-  - `editor/` — Monaco code editor, file tree, editor providers, conflict dialog
-  - `terminals/` — terminal panel and tabs
-  - `hooks/` — task-scoped hooks (use-task, use-conversations, use-terminals, use-task-view-navigation)
-- `settings/` — settings view
-- `home-view.tsx`, `mcp-view.tsx`, `skills-view.tsx`, `Welcome.tsx`
+- `workspace.tsx`, `home-view.tsx`, `welcome.tsx` — shell and top-level views
+- `modal-registry.ts` — central modal registry; all modals are registered here
+- `view-registry.ts` — central view registry; all views are registered here
+- `app-menu-events.tsx` — native app menu event wiring
 
-## Component Areas (`src/renderer/components/`)
+## Feature Areas (`src/renderer/features/`)
 
+- `tasks/` — task experience: `conversations/`, `diff-view/`, `editor/` (Monaco, file tree),
+  `terminals/`, `create-task-modal/`, `issue-context/`, `task-config/`, `tabs/`, `stores/`
+  (MobX task stores and `task-selectors.ts`), `hooks/`, `view/`
+- `projects/` — project management, settings panel, branch selector; `stores/` holds
+  project stores and `project-selectors.ts`
 - `sidebar/` — app sidebar
-- `diff/` — diff-related components
+- `mcp/` — MCP server management UI (`mcp-view.tsx`, `components/`)
 - `skills/` — skills catalog and management
-- `mcp/` — MCP server management
-- `kanban/` — kanban board
-- `integrations/` — integration management
-- `ssh/` — SSH connection UI
-- `FileExplorer/` — file tree navigation
-- `settings/` — settings components
-- `projects/` — project-related components
-- `ui/` — shared UI primitives
+- `integrations/` — integration management (GitHub, GitLab, Jira, Linear, ...)
+- `settings/` — settings view
+- `automations/`, `browser/`, `command-palette/`, `library/`, `onboarding/`
 
-## Supporting Structure
+## Shared Renderer Infrastructure (`src/renderer/lib/`)
 
-- Context providers: `src/renderer/contexts/`
-- Hooks: `src/renderer/hooks/`
-- Client-side state helpers, stores, and utilities: `src/renderer/lib/`
-- Core infrastructure: `src/renderer/core/` (IPC client, modals, project state, PTY helpers, view management)
+- `ipc.ts` — typed RPC client and event emitter
+- `modal/` — modal provider, renderer, store, and close-guard infrastructure
+- `layout/` — layout, navigation, and panel drag providers
+- `commands/` — command registry (`registry.ts`) and view-level `commandProvider` hooks
+- `pty/` — frontend PTY sessions, pool provider, panes, prompt injection
+- `monaco/`, `editor/` — Monaco editor integration
+- `stores/` — cross-feature stores (navigation, dependencies, resource monitor, ...)
+- `providers/`, `hooks/`, `components/`, `ui/`, `theme/` — shared providers, hooks, and UI primitives
+
+## Tests
+
+- Renderer unit tests: `src/renderer/tests/`
+- Playwright-backed browser tests: `src/renderer/tests/browser/`
 
 ## When Editing Here
 
-- Check `agents/conventions/renderer-patterns.md` for modal, view, PTY frontend, and context patterns.
-- Call RPC methods via the typed `rpc` client from `src/renderer/core/ipc.ts` (e.g., `rpc.tasks.create(...)`).
-- New modals must be registered in `src/renderer/core/modal/registry.ts`.
-- New views must be registered in `src/renderer/core/view/registry.ts`.
-- Only methods in `src/renderer/types/electron-api.d.ts` use direct `window.electronAPI` calls (PTY ops, fsList, openIn).
-- If you change user-visible workflows, update the matching page in `docs/` when appropriate.
+- Check `agents/conventions/renderer-patterns.md` for modal, view, PTY frontend, and store patterns.
+- Call RPC methods via the typed `rpc` client from `src/renderer/lib/ipc.ts`
+  (alias `@renderer/lib/ipc`), e.g. `rpc.tasks.create(...)`.
+- New modals must be registered in `src/renderer/app/modal-registry.ts`.
+- New views must be registered in `src/renderer/app/view-registry.ts`.
+- The preload bridge (`src/preload/index.ts`) exposes only `invoke`, `eventSend`,
+  `eventOn`, and `getPathForFile` on `window.electronAPI`; keep renderer-main calls on
+  typed RPC and typed events.
