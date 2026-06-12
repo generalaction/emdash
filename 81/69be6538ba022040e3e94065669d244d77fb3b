@@ -1,0 +1,47 @@
+apps/emdash-desktop/src/renderer/features/settings/components/SettingsPage.tsx
+  s_d4152d85c31f43::t_39759f926dc2c0 143-147
+  s_d4152d85c31f43::t_9f324c6f45659c 38
+  s_d4152d85c31f43::t_d80cef0cfd2f94 70
+apps/emdash-desktop/src/renderer/features/browser/browser-session-store.ts
+  s_d9d291b9764638::t_ea3c268152a530 41
+  s_d9d291b9764638::t_db4e3184e25b62 83-103
+apps/emdash-desktop/src/renderer/lib/ui/dropdown-menu.tsx
+  s_d9d291b9764638::t_6b8a0f944dd85a 135
+apps/emdash-desktop/src/renderer/features/settings/components/BrowserSettingsCard.tsx
+  s_d9d291b9764638::t_0f810af20ecc02 1,8-14,36-37,46-51,56,69,83,106,131,134-135,139,141-174,176-195,200-226
+apps/emdash-desktop/src/renderer/features/browser/browser-session-store.test.ts
+  s_d9d291b9764638::t_813d07b16ff9ba 142-208
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_d9d291b9764638::t_3c784f6e401f5f 117-121
+  s_d9d291b9764638::t_1d25630f05a726 37-40
+  s_d9d291b9764638::t_7794ddb247085f 62-63
+  s_d9d291b9764638::t_7d0543d1630585 202-206,210-213
+  s_d4152d85c31f43::t_0f2f571c25c336 218
+  s_d9d291b9764638::t_828d3c0f8978b7 61
+  s_d9d291b9764638::t_ea20648e7dec55 193-201,207-209,214-217,219-222
+  s_d9d291b9764638::t_4410160bde2f45 5,11-16,22,28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "8169be6538ba022040e3e94065669d244d77fb3b",
+  "prompts": {},
+  "sessions": {
+    "s_d4152d85c31f43": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d5342063-f736-482c-9e62-ac784812d825",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_d9d291b9764638": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ea6cd6de-3741-4330-8cdf-9e2b0295b1b9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
