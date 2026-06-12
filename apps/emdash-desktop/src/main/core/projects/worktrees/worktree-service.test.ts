@@ -292,6 +292,9 @@ describe('WorktreeService', () => {
         if (key === 'worktree prune' || key === 'worktree list --porcelain') {
           return { stdout: '', stderr: '' };
         }
+        if (key === `-C ${targetPath} rev-parse --is-inside-work-tree`) {
+          return { stdout: 'true\n', stderr: '' };
+        }
         if (key === `config --get branch.${branchName}.base`) {
           throw Object.assign(new Error('missing config'), { code: 1 });
         }

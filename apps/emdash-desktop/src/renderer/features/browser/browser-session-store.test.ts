@@ -14,6 +14,7 @@ describe('BrowserSessionStore', () => {
     });
 
     expect(session.currentUrl).toBe('http://localhost:5173/');
+    expect(session.zoomFactor).toBe(1);
     expect(session.partition).toBe('persist:emdash-browser-project-1-workspace-1-task-1-browser-1');
     expect(store.getSession('browser-1')).toEqual(session);
   });
@@ -78,9 +79,36 @@ describe('BrowserSessionStore', () => {
     expect(store.getSession('browser-1')).toMatchObject({
       partition: 'persist:emdash-browser-project-1-workspace-1-task-1-browser-1',
       currentUrl: 'https://example.com/',
+      zoomFactor: 1,
       isLoading: false,
       loadError: undefined,
     });
+  });
+
+  it('normalizes restored and updated zoom factors', () => {
+    const store = new BrowserSessionStore();
+
+    store.restoreSession({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+      partition: 'persist:wrong',
+      currentUrl: 'about:blank',
+      title: '',
+      isLoading: false,
+      canGoBack: false,
+      canGoForward: false,
+      zoomFactor: 99,
+      createdAt: 100,
+      updatedAt: 100,
+    });
+
+    expect(store.getSession('browser-1')?.zoomFactor).toBe(5);
+
+    store.updateSession('browser-1', { zoomFactor: Number.NaN });
+
+    expect(store.getSession('browser-1')?.zoomFactor).toBe(1);
   });
 
   it('removes sessions explicitly', () => {

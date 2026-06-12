@@ -1,6 +1,6 @@
 import { clipboard, session, type WebContents } from 'electron';
 import { events } from '@main/lib/events';
-import { normalizeBrowserUrl } from '@shared/browser';
+import { normalizeBrowserUrl, type BrowserDataClearKind } from '@shared/browser';
 import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 
 type RegisteredBrowserSession = {
@@ -106,10 +106,21 @@ export class BrowserWebContentsRegistry {
     }
   }
 
-  async clearStorage(browserId: string): Promise<boolean> {
+  async clearData(browserId: string, kind: BrowserDataClearKind): Promise<boolean> {
     const registered = this.sessionsByBrowserId.get(browserId);
     if (!registered) return false;
-    await session.fromPartition(registered.partition).clearStorageData();
+    const partitionSession = session.fromPartition(registered.partition);
+    switch (kind) {
+      case 'storage':
+        await partitionSession.clearStorageData();
+        break;
+      case 'cookies':
+        await partitionSession.clearStorageData({ storages: ['cookies'] });
+        break;
+      case 'cache':
+        await partitionSession.clearCache();
+        break;
+    }
     return true;
   }
 }
