@@ -1,4 +1,5 @@
 import { action, autorun, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { browserAnnotationStore } from '@renderer/features/browser/browser-annotation-store';
 import { browserDiagnosticsStore } from '@renderer/features/browser/browser-diagnostics-store';
 import { browserSessionStore } from '@renderer/features/browser/browser-session-store';
 import type {
@@ -928,6 +929,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   }
 
   private _removeBrowserSession(browserId: string): void {
+    browserAnnotationStore.remove(browserId);
     browserDiagnosticsStore.clearBrowser(browserId);
     browserSessionStore.removeSession(browserId);
     void rpc.browser.unregisterSession(browserId);

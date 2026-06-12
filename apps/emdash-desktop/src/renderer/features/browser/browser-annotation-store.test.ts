@@ -91,6 +91,36 @@ describe('BrowserAnnotationState', () => {
     expect(state.annotations).toHaveLength(1);
   });
 
+  it('keeps old-page markers hidden when a new draft starts after navigation', () => {
+    const state = new BrowserAnnotationState();
+    state.startDraft(1, makeElement(), 'http://localhost:5173/');
+    state.commitDraft('Old page');
+
+    state.handleNavigation();
+    state.startDraft(1, makeElement(), 'http://localhost:5173/about');
+
+    expect(state.markers).toEqual([]);
+  });
+
+  it('disambiguates colliding page tokens across navigations', () => {
+    const state = new BrowserAnnotationState();
+    state.startDraft(1, makeElement(), 'http://localhost:5173/');
+    state.commitDraft('Old page');
+
+    state.handleNavigation();
+    state.startDraft(1, makeElement(), 'http://localhost:5173/about');
+    state.commitDraft('New page');
+
+    expect(state.annotations).toHaveLength(2);
+    // Only the current epoch's annotation renders a marker.
+    expect(state.markers).toHaveLength(1);
+    expect(state.markers[0]?.comment).toBe('New page');
+
+    // Removing by current-epoch token must not delete the old-page annotation.
+    state.removeAnnotation(1);
+    expect(state.annotations.map((annotation) => annotation.comment)).toEqual(['Old page']);
+  });
+
   it('removes and clears annotations', () => {
     const state = new BrowserAnnotationState();
     state.startDraft(1, makeElement(), 'http://localhost:5173/');

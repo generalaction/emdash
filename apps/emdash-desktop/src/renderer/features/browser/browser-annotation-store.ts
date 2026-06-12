@@ -20,15 +20,19 @@ export class BrowserAnnotationState {
   annotations: BrowserAnnotation[] = [];
   /** Live viewport rects per token, updated by the in-page picker on scroll/resize. */
   readonly liveRects = observable.map<number, AnnotationRect | null>();
-  /** Set after a full navigation: tracked elements are gone, markers hide. */
-  markersDetached = false;
+  /**
+   * Incremented on each full navigation. The in-page picker context (and its token
+   * counter) resets with the page, so tokens are only unique within one epoch; markers
+   * render only for the current epoch.
+   */
+  navigationEpoch = 0;
 
   constructor() {
     makeObservable(this, {
       picking: observable,
       draft: observable,
       annotations: observable,
-      markersDetached: observable,
+      navigationEpoch: observable,
       markers: computed,
       setPicking: action,
       startDraft: action,
@@ -42,9 +46,9 @@ export class BrowserAnnotationState {
   }
 
   get markers(): AnnotationMarker[] {
-    if (this.markersDetached) return [];
     const markers: AnnotationMarker[] = [];
     this.annotations.forEach((annotation, index) => {
+      if (annotation.epoch !== this.navigationEpoch) return;
       const live = this.liveRects.has(annotation.token)
         ? this.liveRects.get(annotation.token)
         : annotation.element.rect;
@@ -65,7 +69,6 @@ export class BrowserAnnotationState {
 
   startDraft(token: number, element: AnnotatedElementInfo, pageUrl: string): void {
     this.draft = { token, element, pageUrl };
-    this.markersDetached = false;
   }
 
   cancelDraft(): AnnotationDraft | null {
@@ -80,6 +83,7 @@ export class BrowserAnnotationState {
     if (!draft || !trimmed) return null;
     const annotation: BrowserAnnotation = {
       token: draft.token,
+      epoch: this.navigationEpoch,
       comment: trimmed,
       element: draft.element,
       pageUrl: draft.pageUrl,
@@ -89,9 +93,12 @@ export class BrowserAnnotationState {
     return annotation;
   }
 
-  removeAnnotation(token: number): void {
-    this.annotations = this.annotations.filter((annotation) => annotation.token !== token);
-    this.liveRects.delete(token);
+  /** Removes by (epoch, token) — page tokens repeat across navigations. */
+  removeAnnotation(token: number, epoch: number = this.navigationEpoch): void {
+    this.annotations = this.annotations.filter(
+      (annotation) => annotation.token !== token || annotation.epoch !== epoch
+    );
+    if (epoch === this.navigationEpoch) this.liveRects.delete(token);
   }
 
   clearAll(): void {
@@ -110,7 +117,7 @@ export class BrowserAnnotationState {
     this.picking = false;
     this.draft = null;
     this.liveRects.clear();
-    this.markersDetached = true;
+    this.navigationEpoch += 1;
   }
 }
 

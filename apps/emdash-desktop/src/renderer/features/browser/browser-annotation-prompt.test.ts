@@ -5,6 +5,7 @@ import type { BrowserAnnotation } from './browser-annotation-types';
 function makeAnnotation(overrides: Partial<BrowserAnnotation> = {}): BrowserAnnotation {
   return {
     token: 1,
+    epoch: 0,
     comment: 'Make this button blue',
     pageUrl: 'http://localhost:5173/',
     element: {

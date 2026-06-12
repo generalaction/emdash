@@ -22,12 +22,13 @@ export type AnnotationPickerCommand =
 
 const PICKER_BOOTSTRAP = `(() => {
   'use strict';
-  const MARKER = '${ANNOTATION_CONSOLE_MARKER}';
+  const MARKER = ${JSON.stringify(ANNOTATION_CONSOLE_MARKER)};
   const KEY = '__emdashAnnotationPicker';
   if (!window[KEY]) {
+    const emit = console.log.bind(console);
     const post = (payload) => {
       try {
-        console.log(MARKER + JSON.stringify(payload));
+        emit(MARKER + JSON.stringify(payload));
       } catch {}
     };
     const tracked = new Map();
@@ -36,6 +37,7 @@ const PICKER_BOOTSTRAP = `(() => {
     let hoverTarget = null;
     let box = null;
     let label = null;
+    let cursorStyle = null;
     let rafPending = false;
 
     const escapePart = (value) =>
@@ -187,7 +189,8 @@ const PICKER_BOOTSTRAP = `(() => {
       box.style.top = r.y + 'px';
       box.style.width = r.width + 'px';
       box.style.height = r.height + 'px';
-      label.textContent = selectorFor(el);
+      label.textContent =
+        el.tagName.toLowerCase() + '  ' + Math.round(r.width) + ' \\u00d7 ' + Math.round(r.height);
       label.style.bottom = r.y < 24 ? 'auto' : '100%';
       label.style.top = r.y < 24 ? '100%' : 'auto';
     };
@@ -246,6 +249,11 @@ const PICKER_BOOTSTRAP = `(() => {
       if (active) return;
       active = true;
       ensureBox();
+      if (!cursorStyle) {
+        cursorStyle = document.createElement('style');
+        cursorStyle.textContent = '*, *::before, *::after { cursor: crosshair !important; }';
+      }
+      document.documentElement.appendChild(cursorStyle);
       post({ type: 'mode', active: true });
     };
 
@@ -253,17 +261,9 @@ const PICKER_BOOTSTRAP = `(() => {
       if (!active) return;
       active = false;
       hideBox();
+      if (cursorStyle && cursorStyle.parentNode) cursorStyle.parentNode.removeChild(cursorStyle);
       post({ type: 'mode', active: false, cancelled: !!cancelled });
     };
-
-    document.addEventListener('mousemove', onMove, true);
-    document.addEventListener('pointerdown', swallow, true);
-    document.addEventListener('mousedown', swallow, true);
-    document.addEventListener('mouseup', swallow, true);
-    document.addEventListener('click', onClick, true);
-    document.addEventListener('keydown', onKey, true);
-    window.addEventListener('scroll', scheduleRects, true);
-    window.addEventListener('resize', scheduleRects, true);
 
     window[KEY] = {
       start,
@@ -276,13 +276,23 @@ const PICKER_BOOTSTRAP = `(() => {
       },
       requestRects: scheduleRects,
     };
+
+    document.addEventListener('mousemove', onMove, true);
+    document.addEventListener('pointerdown', swallow, true);
+    document.addEventListener('mousedown', swallow, true);
+    document.addEventListener('mouseup', swallow, true);
+    document.addEventListener('click', onClick, true);
+    document.addEventListener('keydown', onKey, true);
+    window.addEventListener('scroll', scheduleRects, true);
+    window.addEventListener('resize', scheduleRects, true);
   }
   __COMMAND__;
   return true;
 })();`;
 
 export function buildAnnotationPickerScript(command: AnnotationPickerCommand): string {
-  return PICKER_BOOTSTRAP.replace('__COMMAND__', pickerCommandCall(command));
+  // Callback form: avoids `$`-pattern interpretation in the replacement string.
+  return PICKER_BOOTSTRAP.replace('__COMMAND__', () => pickerCommandCall(command));
 }
 
 function pickerCommandCall(command: AnnotationPickerCommand): string {

@@ -25,6 +25,8 @@ export type AnnotatedElementInfo = {
 
 export type BrowserAnnotation = {
   token: number;
+  /** Navigation epoch the annotation was created in — page tokens are only unique per epoch. */
+  epoch: number;
   comment: string;
   element: AnnotatedElementInfo;
   pageUrl: string;

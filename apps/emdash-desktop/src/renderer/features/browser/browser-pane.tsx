@@ -198,17 +198,26 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
       }
     };
     const onAnnotationNavigate = () => annotationState.handleNavigation();
+    // SPA route changes keep the page context but may detach tracked elements
+    // without a scroll — ask the picker for fresh rects so stale markers hide.
+    const onInPageNavigate = () => {
+      webviewElement
+        .executeJavaScript(buildAnnotationPickerScript({ kind: 'request-rects' }))
+        .catch(() => {});
+    };
     webviewElement.addEventListener('console-message', onConsoleMessage);
     webviewElement.addEventListener('did-navigate', onAnnotationNavigate);
+    webviewElement.addEventListener('did-navigate-in-page', onInPageNavigate);
     return () => {
       webviewElement.removeEventListener('console-message', onConsoleMessage);
       webviewElement.removeEventListener('did-navigate', onAnnotationNavigate);
+      webviewElement.removeEventListener('did-navigate-in-page', onInPageNavigate);
     };
   }, [annotationState, webviewElement]);
 
   const runPickerCommand = useCallback(
     (command: Parameters<typeof buildAnnotationPickerScript>[0]) => {
-      void adapter?.executeJavaScript(buildAnnotationPickerScript(command));
+      adapter?.executeJavaScript(buildAnnotationPickerScript(command)).catch(() => {});
     },
     [adapter]
   );
@@ -297,6 +306,7 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
             />
             <BrowserAnnotationOverlay
               state={annotationState}
+              zoomFactor={session.zoomFactor}
               onCommitDraft={commitDraft}
               onCancelDraft={cancelDraft}
               onRemoveAnnotation={removeAnnotation}
@@ -307,12 +317,12 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
             Preparing browser session
           </div>
         )}
+        <BrowserAnnotationBar
+          state={annotationState}
+          onSent={clearAnnotations}
+          onClearAll={clearAnnotations}
+        />
       </div>
-      <BrowserAnnotationBar
-        state={annotationState}
-        onSent={clearAnnotations}
-        onClearAll={clearAnnotations}
-      />
     </div>
   );
 });
