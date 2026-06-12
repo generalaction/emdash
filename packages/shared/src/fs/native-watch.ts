@@ -4,13 +4,7 @@ import type { IDisposable } from '../lib';
 import type { RawFileEvent } from './types';
 
 const RESUBSCRIBE_DELAY_MS = 250;
-
-function toRawFileEvent(event: parcelWatcher.Event): RawFileEvent {
-  return {
-    kind: event.type,
-    path: event.path,
-  };
-}
+const MAX_RESUBSCRIBE_DELAY_MS = 30_000;
 
 /**
  * One native subscription per (root, ignore set), shared across consumers.
@@ -25,6 +19,7 @@ export class NativeWatch implements IDisposable {
   private readonly onError: (context: string, error: unknown) => void;
   private subscription: Promise<parcelWatcher.AsyncSubscription> | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private retryAttempts = 0;
   private disposed = false;
 
   constructor(
@@ -76,19 +71,34 @@ export class NativeWatch implements IDisposable {
 
   private scheduleResubscribe(): void {
     if (this.retryTimer || this.disposed) return;
+    const delay = Math.min(
+      RESUBSCRIBE_DELAY_MS * 2 ** this.retryAttempts,
+      MAX_RESUBSCRIBE_DELAY_MS
+    );
+    this.retryAttempts += 1;
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
       if (this.disposed) return;
       const previous = this.subscription;
       this.subscription = this.subscribe();
       this.subscription.then(
-        () => this.resync(),
+        () => {
+          this.retryAttempts = 0;
+          this.resync();
+        },
         (error) => {
           this.onError(`resubscribe ${this.root}`, error);
           this.scheduleResubscribe();
         }
       );
       void previous?.then((subscription) => subscription.unsubscribe()).catch(() => {});
-    }, RESUBSCRIBE_DELAY_MS);
+    }, delay);
   }
+}
+
+function toRawFileEvent(event: parcelWatcher.Event): RawFileEvent {
+  return {
+    kind: event.type,
+    path: event.path,
+  };
 }

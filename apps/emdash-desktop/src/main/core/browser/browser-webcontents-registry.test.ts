@@ -3,11 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { browserLinkCopiedChannel, browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 import { BrowserWebContentsRegistry } from './browser-webcontents-registry';
 
-const sessionsByPartition = new Map<string, object>();
 const mocks = vi.hoisted(() => {
   const menuPopup = vi.fn();
   return {
+    sessionsByPartition: new Map<string, object>(),
     clipboardWriteText: vi.fn(),
+    writeImage: vi.fn(),
     menuPopup,
     menuBuildFromTemplate: vi.fn((template: unknown[]) => ({ popup: menuPopup, template })),
     eventsEmit: vi.fn(),
@@ -21,16 +22,17 @@ vi.mock('electron', () => ({
   },
   clipboard: {
     writeText: mocks.clipboardWriteText,
+    writeImage: mocks.writeImage,
   },
   Menu: {
     buildFromTemplate: mocks.menuBuildFromTemplate,
   },
   session: {
     fromPartition: (partition: string) => {
-      let value = sessionsByPartition.get(partition);
+      let value = mocks.sessionsByPartition.get(partition);
       if (!value) {
         value = { partition };
-        sessionsByPartition.set(partition, value);
+        mocks.sessionsByPartition.set(partition, value);
       }
       return value;
     },
@@ -49,7 +51,10 @@ function webContentsWithSession(session: object): WebContents {
   } as WebContents;
 }
 
-function attachedWebContents(session: object): WebContents & {
+function attachedWebContents(
+  session: object,
+  image: { isEmpty: () => boolean } = { isEmpty: () => false }
+): WebContents & {
   emitContextMenu: (params: string | Partial<Electron.ContextMenuParams>) => void;
   emitCopyUrlShortcut: (input?: Partial<Electron.Input>) => void;
 } {
@@ -60,6 +65,7 @@ function attachedWebContents(session: object): WebContents & {
   return {
     id: 1,
     session,
+    capturePage: vi.fn().mockResolvedValue(image),
     getURL: vi.fn(() => 'https://example.com/current'),
     isDestroyed: () => false,
     executeJavaScript: vi.fn(() => Promise.resolve()),
@@ -107,8 +113,9 @@ function ownerWindow() {
 
 describe('BrowserWebContentsRegistry', () => {
   beforeEach(() => {
-    sessionsByPartition.clear();
+    mocks.sessionsByPartition.clear();
     mocks.clipboardWriteText.mockClear();
+    mocks.writeImage.mockClear();
     mocks.menuPopup.mockClear();
     mocks.menuBuildFromTemplate.mockClear();
     mocks.eventsEmit.mockClear();
@@ -120,8 +127,8 @@ describe('BrowserWebContentsRegistry', () => {
     const secondPartition = 'persist:emdash-browser-project-workspace-task-browser-2';
     const firstSession = { partition: firstPartition };
     const secondSession = { partition: secondPartition };
-    sessionsByPartition.set(firstPartition, firstSession);
-    sessionsByPartition.set(secondPartition, secondSession);
+    mocks.sessionsByPartition.set(firstPartition, firstSession);
+    mocks.sessionsByPartition.set(secondPartition, secondSession);
 
     registry.registerSession({
       browserId: 'browser-1',
@@ -151,7 +158,7 @@ describe('BrowserWebContentsRegistry', () => {
     const registry = new BrowserWebContentsRegistry();
     const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
     const webContentsSession = { partition };
-    sessionsByPartition.set(partition, webContentsSession);
+    mocks.sessionsByPartition.set(partition, webContentsSession);
     const webContents = attachedWebContents(webContentsSession);
     registry.registerSession({ browserId: 'browser-1', partition });
 
@@ -205,7 +212,7 @@ describe('BrowserWebContentsRegistry', () => {
     const registry = new BrowserWebContentsRegistry();
     const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
     const webContentsSession = { partition };
-    sessionsByPartition.set(partition, webContentsSession);
+    mocks.sessionsByPartition.set(partition, webContentsSession);
     const webContents = attachedWebContents(webContentsSession);
     registry.registerSession({ browserId: 'browser-1', partition });
 
@@ -283,5 +290,42 @@ describe('BrowserWebContentsRegistry', () => {
 
     expect(mocks.clipboardWriteText).not.toHaveBeenCalled();
     expect(mocks.eventsEmit).not.toHaveBeenCalledWith(browserLinkCopiedChannel, expect.any(Object));
+  });
+
+  it('clears browser data only for registered sessions', async () => {
+    const registry = new BrowserWebContentsRegistry();
+    const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
+    const clearStorageData = vi.fn().mockResolvedValue(undefined);
+    const clearCache = vi.fn().mockResolvedValue(undefined);
+    mocks.sessionsByPartition.set(partition, { partition, clearStorageData, clearCache });
+
+    registry.registerSession({ browserId: 'browser-1', partition });
+
+    expect(await registry.clearData('browser-1', 'storage')).toBe(true);
+    expect(clearStorageData).toHaveBeenCalledWith();
+
+    expect(await registry.clearData('browser-1', 'cookies')).toBe(true);
+    expect(clearStorageData).toHaveBeenCalledWith({ storages: ['cookies'] });
+
+    expect(await registry.clearData('browser-1', 'cache')).toBe(true);
+    expect(clearCache).toHaveBeenCalledWith();
+
+    expect(await registry.clearData('missing', 'storage')).toBe(false);
+    expect(await registry.clearData('missing', 'cookies')).toBe(false);
+    expect(await registry.clearData('missing', 'cache')).toBe(false);
+  });
+
+  it('captures screenshots from attached webContents to the clipboard', async () => {
+    const registry = new BrowserWebContentsRegistry();
+    const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
+    const partitionSession = { partition };
+    const image = { isEmpty: vi.fn().mockReturnValue(false) };
+    mocks.sessionsByPartition.set(partition, partitionSession);
+
+    registry.registerSession({ browserId: 'browser-1', partition });
+    registry.attachWebContents('browser-1', attachedWebContents(partitionSession, image), ownerWindow());
+
+    expect(await registry.captureScreenshotToClipboard('browser-1')).toBe(true);
+    expect(mocks.writeImage).toHaveBeenCalledWith(image);
   });
 });
