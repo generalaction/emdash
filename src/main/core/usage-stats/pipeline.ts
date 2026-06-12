@@ -35,7 +35,7 @@ function parseScannedFile(text: string, file: ScannedFile): UsageRecord[] {
 export function runPipeline(indexPath: string, now: Date): UsageSnapshot {
   const prev = loadIndex(indexPath);
   const scan = scanAll();
-  const { index, records } = reconcileCache(prev, scan, readScannedText, parseScannedFile);
-  saveIndex(indexPath, index);
+  const { index, records, changed } = reconcileCache(prev, scan, readScannedText, parseScannedFile);
+  if (changed) saveIndex(indexPath, index);
   return aggregate(records, now);
 }

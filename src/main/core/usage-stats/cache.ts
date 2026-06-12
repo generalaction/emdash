@@ -11,22 +11,26 @@ export type UsageIndex = { version: number; files: Record<string, CachedFile> };
 export type ReadText = (file: ScannedFile) => string;
 export type ParseFn = (text: string, file: ScannedFile) => UsageRecord[];
 
-/** Returns the next index plus the flattened records across all current files. */
+/** Returns the next index, the flattened records across all current files, and whether the index changed. */
 export function reconcileCache(
   prev: UsageIndex,
   scan: ScannedFile[],
   readText: ReadText,
   parse: ParseFn
-): { index: UsageIndex; records: UsageRecord[] } {
+): { index: UsageIndex; records: UsageRecord[]; changed: boolean } {
   const usable = prev.version === CACHE_VERSION ? prev.files : {};
   const nextFiles: Record<string, CachedFile> = {};
   const records: UsageRecord[] = [];
+  // A re-parse or version reset always dirties the index; a deleted file changes the key count;
+  // an added file implies a parse. A thrown parse that was never cached leaves the index unchanged.
+  let parsedAny = false;
 
   for (const file of scan) {
     const cached = usable[file.path];
     if (cached && cached.mtimeMs === file.mtimeMs && cached.size === file.size) {
       nextFiles[file.path] = cached;
-      records.push(...cached.records);
+      // no spread: a single huge file's records would exceed V8's argument limit
+      for (const r of cached.records) records.push(r);
       continue;
     }
     let parsed: UsageRecord[];
@@ -37,11 +41,17 @@ export function reconcileCache(
       // an empty-record entry, which would match next run's mtime+size and never re-parse.
       continue;
     }
+    parsedAny = true;
     nextFiles[file.path] = { mtimeMs: file.mtimeMs, size: file.size, records: parsed };
-    records.push(...parsed);
+    for (const r of parsed) records.push(r);
   }
 
-  return { index: { version: CACHE_VERSION, files: nextFiles }, records };
+  const changed =
+    prev.version !== CACHE_VERSION ||
+    parsedAny ||
+    Object.keys(nextFiles).length !== Object.keys(usable).length;
+
+  return { index: { version: CACHE_VERSION, files: nextFiles }, records, changed };
 }
 
 export function loadIndex(path: string): UsageIndex {
