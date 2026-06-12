@@ -196,6 +196,7 @@ export type HostDependencyInstallation = {
   setUsed(selection: HostDependencySelection): Promise<void>;
   refresh(): Promise<void>;
   fetchLatestVersion(): Promise<void>;
+  probeOverride(selection: { path?: string; cli?: string }): Promise<Installation | null>;
 };
 
 /**
@@ -314,6 +315,16 @@ export function useAgentInstallationStatus(
     [refreshLatestVersion, id]
   );
 
+  const probeOverride = useCallback(
+    (selection: { path?: string; cli?: string }) =>
+      rpc.agents.probeOverride(
+        id as AgentProviderId,
+        selection,
+        connectionId
+      ) as Promise<Installation | null>,
+    [id, connectionId]
+  );
+
   return {
     data: statusEntry,
     installations,
@@ -331,5 +342,6 @@ export function useAgentInstallationStatus(
     setUsed,
     refresh,
     fetchLatestVersion,
+    probeOverride,
   };
 }

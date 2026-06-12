@@ -118,6 +118,15 @@ export const agentsController = createRPCController({
     return mgr.probe(id);
   },
 
+  probeOverride: async (
+    id: DependencyId,
+    selection: { path?: string; cli?: string },
+    connectionId?: string
+  ) => {
+    const mgr = await getDependencyManager(connectionId);
+    return mgr.probeOverride(id, selection);
+  },
+
   probeAll: async (connectionId?: string, options?: DependencyProbeOptions) => {
     const mgr = await getDependencyManager(connectionId);
     return mgr.probeAll(options);
