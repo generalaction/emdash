@@ -302,6 +302,9 @@ importers:
 
   packages/cli-agent-plugins:
     dependencies:
+      '@emdash/shared':
+        specifier: workspace:*
+        version: link:../shared
       smol-toml:
         specifier: ^1.6.0
         version: 1.6.1
@@ -327,12 +330,15 @@ importers:
 
   packages/shared:
     dependencies:
-      '@emdash/cli-agent-plugins':
-        specifier: workspace:*
-        version: link:../cli-agent-plugins
       '@parcel/watcher':
         specifier: ^2.5.6
         version: 2.5.6
+      react:
+        specifier: '>=18'
+        version: 19.2.7
+      smol-toml:
+        specifier: ^1.6.0
+        version: 1.6.1
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -340,6 +346,9 @@ importers:
       '@types/node':
         specifier: ^20.19.42
         version: 20.19.42
+      '@types/react':
+        specifier: ^19.2.17
+        version: 19.2.17
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260609.1
         version: 7.0.0-dev.20260609.1

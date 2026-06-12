@@ -12,6 +12,7 @@ import { log } from '@main/lib/logger';
 import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
 import { hostDependencyStore } from './host-dependency-store';
 import { createLocalInstallCommandRunner, createSshInstallCommandRunner } from './install-runner';
+import { DEPENDENCIES, getDependencyDescriptor } from './registry';
 
 // ---------------------------------------------------------------------------
 // Shell profile resolver (uses desktop settings service)
@@ -51,6 +52,8 @@ export const localDependencyManager = new HostDependencyManager(new LocalExecuti
   runInstallCommand: createLocalInstallCommandRunner(resolveLocalInstallShellProfile),
   hostDependencyStore,
   logger: log,
+  dependencies: DEPENDENCIES,
+  getDependencyDescriptor,
 });
 wireDesktopBridges(localDependencyManager, undefined);
 
@@ -85,6 +88,8 @@ export async function getDependencyManager(connectionId?: string): Promise<HostD
       platform,
       hostDependencyStore,
       logger: log,
+      dependencies: DEPENDENCIES,
+      getDependencyDescriptor,
     });
     wireDesktopBridges(mgr, connectionId);
     sshManagers.set(connectionId, mgr);

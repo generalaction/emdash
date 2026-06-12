@@ -9,7 +9,7 @@ vi.mock('@emdash/cli-agent-plugins/metadata', () => ({
   },
 }));
 
-vi.mock('@emdash/shared/deps/runtime', async () => {
+vi.mock('@main/core/dependencies/registry', async () => {
   const { metadataRegistry: mr } = await import('@emdash/cli-agent-plugins/metadata');
   return {
     getDependencyDescriptor: vi.fn().mockImplementation((id: string) => {
