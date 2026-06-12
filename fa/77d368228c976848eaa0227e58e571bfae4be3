@@ -1,0 +1,75 @@
+apps/emdash-desktop/src/shared/events/browserEvents.ts
+  s_6097e8a4129c4f::t_e377601048fc51 7
+  s_6097e8a4129c4f::t_11a13c4af019bc 8-10
+apps/emdash-desktop/src/shared/commands.ts
+  s_6097e8a4129c4f::t_3a6c0cadbdd360 210-217
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.test.ts
+  s_6097e8a4129c4f::t_7a5c08cdcde892 69,74-77
+  s_6097e8a4129c4f::t_9fb6d6ca3a8fff 63,80,83-86,91-94,96,164,197-213
+  s_6097e8a4129c4f::t_b36ba3ebd6b4c6 7-15,23,26,42,106-109,156-157,162,168
+  s_6097e8a4129c4f::t_779a4f8938a964 18-19,21
+  s_6097e8a4129c4f::t_08093b1e6e753a 56-59,70-73
+  s_6097e8a4129c4f::t_172b8a43633863 65,160,167,192
+  s_6097e8a4129c4f::t_2932491d3fdb95 66,99,101-102,153,186,194-195
+  s_a341874fd88e4b::t_db5b43fc4e8fe9 87-88
+  s_6097e8a4129c4f::t_2f4244644695a4 172-176
+  s_6097e8a4129c4f::t_48c59b75ac0cce 1,100
+  s_6097e8a4129c4f::t_b9705b480183f1 22,24-25,27,52-53,55,60-62,64,67-68,78-79,81,144-152,154-155,158-159,161,169-171,177-178,180-185,187-188
+  s_a341874fd88e4b::t_c6d4ce271a8b5a 54,82,89-90,95,214-244
+  s_6097e8a4129c4f::t_18c8221bc15bd9 3,163,165-166
+  s_6097e8a4129c4f::t_6a77c148ea14f6 20,179,189-191,193,196
+apps/emdash-desktop/src/renderer/features/tasks/commands.ts
+  s_6097e8a4129c4f::t_b0947bd7cbc272 10
+  s_6097e8a4129c4f::t_00d310a0e60de1 239-246,248-250,259-262
+  s_6097e8a4129c4f::t_8f4ea17b27ebfd 65
+  s_6097e8a4129c4f::t_417343b4b615a6 49-50,238,247
+  s_6097e8a4129c4f::t_b4740c633b4112 251-258
+apps/emdash-desktop/src/renderer/app/app-menu-events.tsx
+  s_6097e8a4129c4f::t_46bba06489c1ac 4,15,53,56-57
+  s_6097e8a4129c4f::t_3ea8724536ebe9 54-55
+apps/emdash-desktop/src/main/core/settings/controller.ts
+  s_a341874fd88e4b::t_7bea37b1cc8657 1,29-31,37-39
+  s_a341874fd88e4b::t_9251c75d59f78d 22-23
+apps/emdash-desktop/src/main/app/window.ts
+  s_6097e8a4129c4f::t_69605daf6e0154 110
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_6097e8a4129c4f::t_08093b1e6e753a 196-197,203
+  s_a341874fd88e4b::t_9251c75d59f78d 206-212
+  s_a341874fd88e4b::t_54b97546397115 11,13,25,44-47,79,184-188,191-195,198-202,204-205,213-261
+  s_6097e8a4129c4f::t_6f71e931e0d3b4 78,80-87,103,189-190
+  s_6097e8a4129c4f::t_f00c2fe35789a0 12,101-102
+  s_6097e8a4129c4f::t_e3dee1bff7b98e 107-113
+  s_6097e8a4129c4f::t_6096d145833f19 94,97-98,105-106,114,116,120-121
+  s_6097e8a4129c4f::t_9c12649ba4aeac 1-4,6-8,95-96,99-100,104,115,117-119,127-129,133
+  s_6097e8a4129c4f::t_2d0d45f34f627a 5
+apps/emdash-desktop/src/main/index.ts
+  s_a341874fd88e4b::t_4f1dc4cc614236 17,136
+apps/emdash-desktop/src/renderer/features/tasks/commands.test.ts
+  s_6097e8a4129c4f::t_4ba1652bafc8e9 16,18,55-58,127-132,211-214,219
+apps/emdash-desktop/src/shared/shortcuts.ts
+  s_6097e8a4129c4f::t_4bf7c04e83dd89 153-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "fa77d368228c976848eaa0227e58e571bfae4be3",
+  "prompts": {},
+  "sessions": {
+    "s_6097e8a4129c4f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_147f7aeaaffea0GLiF7z2uiuEj",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_a341874fd88e4b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_147da8d29ffejedcZmO50s3OiY",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
