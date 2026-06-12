@@ -48,15 +48,30 @@ export class WorktreeService {
     // directory. For local execution we bypass host path-restriction checks and use
     // fs directly so external worktrees (outside allowedRoots) are still detected.
     // For SSH we rely on the host (SshWorktreeHost has no root restrictions).
+    let hasGitFile = false;
     if (this.ctx.supportsLocalSpawn) {
       try {
         await fsPromises.access(this.host.pathApi.join(worktreePath, '.git'));
-        return true;
+        hasGitFile = true;
       } catch {
         return false;
       }
+    } else {
+      hasGitFile = await this.host.existsAbsolute(this.host.pathApi.join(worktreePath, '.git'));
     }
-    return this.host.existsAbsolute(this.host.pathApi.join(worktreePath, '.git'));
+    if (!hasGitFile) return false;
+
+    try {
+      const { stdout } = await this.ctx.exec('git', [
+        '-C',
+        worktreePath,
+        'rev-parse',
+        '--is-inside-work-tree',
+      ]);
+      return stdout.trim() === 'true';
+    } catch {
+      return false;
+    }
   }
 
   /** Returns the resolved path to the worktree pool directory. */
@@ -210,15 +225,19 @@ export class WorktreeService {
 
   async checkoutBranchWorktree(
     sourceBranch: Branch | undefined,
-    branchName: string
+    branchName: string,
+    options: { copyPreservedFiles?: boolean } = {}
   ): Promise<Result<string, ServeWorktreeError>> {
     await this.ensureWorktreePoolDirExists();
-    return this.enqueueGitOp(() => this.doCheckoutBranchWorktree(sourceBranch, branchName));
+    return this.enqueueGitOp(() =>
+      this.doCheckoutBranchWorktree(sourceBranch, branchName, options)
+    );
   }
 
   private async doCheckoutBranchWorktree(
     sourceBranch: Branch | undefined,
-    branchName: string
+    branchName: string,
+    options: { copyPreservedFiles?: boolean }
   ): Promise<Result<string, ServeWorktreeError>> {
     const baseConfigValue = this.getBranchBaseConfigValue(sourceBranch);
     const checkedOutPath = await this.findBranchAnywhere(branchName);
@@ -264,23 +283,44 @@ export class WorktreeService {
       return err({ type: 'worktree-setup-failed', cause });
     }
 
-    await this.copyPreservedFiles(targetPath).catch((e) => {
-      log.warn('WorktreeService: failed to copy preserved files', {
-        targetPath,
-        error: String(e),
+    if (options.copyPreservedFiles ?? true) {
+      await this.copyPreservedFiles(targetPath).catch((e) => {
+        log.warn('WorktreeService: failed to copy preserved files', {
+          targetPath,
+          error: String(e),
+        });
       });
-    });
+    }
 
     return ok(targetPath);
   }
 
-  async checkoutExistingBranch(branchName: string): Promise<Result<string, ServeWorktreeError>> {
+  async checkoutExistingBranch(
+    branchName: string,
+    options: { copyPreservedFiles?: boolean } = {}
+  ): Promise<Result<string, ServeWorktreeError>> {
     await this.ensureWorktreePoolDirExists();
-    return this.enqueueGitOp(() => this.doCheckoutExistingBranch(branchName));
+    return this.enqueueGitOp(() => this.doCheckoutExistingBranch(branchName, options));
+  }
+
+  async serveBranchWorktree(
+    branchName: string,
+    sourceBranch?: Branch,
+    copyPreservedFiles?: boolean
+  ): Promise<Result<string, ServeWorktreeError>> {
+    const existing = await this.getWorktree(branchName);
+    if (existing) return ok(existing);
+
+    if (!sourceBranch || branchName === sourceBranch.branch) {
+      return this.checkoutExistingBranch(branchName, { copyPreservedFiles });
+    }
+
+    return this.checkoutBranchWorktree(sourceBranch, branchName, { copyPreservedFiles });
   }
 
   private async doCheckoutExistingBranch(
-    branchName: string
+    branchName: string,
+    options: { copyPreservedFiles?: boolean }
   ): Promise<Result<string, ServeWorktreeError>> {
     const checkedOutPath = await this.findBranchAnywhere(branchName);
     if (checkedOutPath) {
@@ -341,12 +381,14 @@ export class WorktreeService {
       return err({ type: 'worktree-setup-failed', cause });
     }
 
-    await this.copyPreservedFiles(targetPath).catch((e) => {
-      log.warn('WorktreeService: failed to copy preserved files', {
-        targetPath,
-        error: String(e),
+    if (options.copyPreservedFiles ?? true) {
+      await this.copyPreservedFiles(targetPath).catch((e) => {
+        log.warn('WorktreeService: failed to copy preserved files', {
+          targetPath,
+          error: String(e),
+        });
       });
-    });
+    }
 
     return ok(targetPath);
   }
@@ -420,4 +462,5 @@ export type WorktreeBootstrapOps = Pick<
   | 'findBranchAnywhere'
   | 'checkoutExistingBranch'
   | 'checkoutBranchWorktree'
+  | 'serveBranchWorktree'
 >;
