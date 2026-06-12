@@ -276,6 +276,11 @@ export class TaskManagerStore {
     });
   }
 
+  private _releaseTaskRegistries(taskId: string): void {
+    conversationRegistry.release(taskId);
+    terminalRegistry.release(taskId);
+  }
+
   loadTasks(): Promise<void> {
     if (!this._loadPromise) {
       this._loadPromise = Promise.all([
@@ -471,6 +476,9 @@ export class TaskManagerStore {
     runInAction(() => {
       const current = this.tasks.get(taskId);
       if (current && isUnprovisioned(current)) {
+        conversationRegistry.acquire(taskId, this.projectId);
+        terminalRegistry.acquire(taskId, this.projectId);
+        current.ensureRegisteredStores();
         if (savedSnapshot && current.viewModel) {
           current.viewModel.restoreSnapshot(savedSnapshot);
         }
@@ -499,6 +507,9 @@ export class TaskManagerStore {
     runInAction(() => {
       const current = this.tasks.get(taskId);
       if (current && isUnprovisioned(current)) {
+        conversationRegistry.acquire(taskId, this.projectId);
+        terminalRegistry.acquire(taskId, this.projectId);
+        current.ensureRegisteredStores();
         if (savedSnapshot && current.viewModel) {
           current.viewModel.restoreSnapshot(savedSnapshot);
         }
@@ -578,7 +589,6 @@ export class TaskManagerStore {
         }
       });
       await rpc.tasks.archiveTask(this.projectId, taskId);
-      void this.teardownTask(taskId).catch(() => {});
     } catch (e) {
       runInAction(() => {
         const task = this.tasks.get(taskId);
@@ -588,6 +598,14 @@ export class TaskManagerStore {
       });
       throw e;
     }
+
+    this._releaseTaskRegistries(taskId);
+    runInAction(() => {
+      const task = this.tasks.get(taskId);
+      if (task && isRegistered(task)) {
+        task.transitionToDryUnprovisioned({ ...task.data }, 'idle');
+      }
+    });
   }
 
   async restoreTask(taskId: string): Promise<void> {
@@ -634,8 +652,7 @@ export class TaskManagerStore {
     try {
       // Release conversation and terminal registries before disposing each task.
       removed.forEach((t, id) => {
-        conversationRegistry.release(id);
-        terminalRegistry.release(id);
+        this._releaseTaskRegistries(id);
         t.dispose();
       });
       await rpc.tasks.deleteTasks(this.projectId, taskIds, opts);

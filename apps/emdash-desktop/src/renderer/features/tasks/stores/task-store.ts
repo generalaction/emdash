@@ -82,14 +82,19 @@ export class TaskStore {
 
     // Create stable task-lifetime stores immediately for registered tasks.
     if (state !== 'unregistered') {
-      this._initRegisteredStores();
+      this.ensureRegisteredStores();
     }
   }
 
-  private _initRegisteredStores(): void {
+  ensureRegisteredStores(): void {
+    if (this.state === 'unregistered') return;
     const taskData = this.data as Task;
-    this.draftComments = new DraftCommentsStore(taskData.id);
-    this.viewModel = new WorkspaceViewModel(this);
+    if (!this.draftComments) {
+      this.draftComments = new DraftCommentsStore(taskData.id);
+    }
+    if (!this.viewModel) {
+      this.viewModel = new WorkspaceViewModel(this);
+    }
   }
 
   transitionToProvisioned(
@@ -101,6 +106,7 @@ export class TaskStore {
     sshConnectionId?: string
   ): void {
     this.data = data;
+    this.ensureRegisteredStores();
     workspaceRegistry.acquire(
       data.projectId,
       workspaceId,
@@ -130,7 +136,16 @@ export class TaskStore {
     this.provisionProgressMessage = null;
 
     // Create stable stores on first registration (when transitioning from unregistered).
-    if (!this.draftComments) this._initRegisteredStores();
+    if (!this.draftComments || !this.viewModel) this.ensureRegisteredStores();
+  }
+
+  transitionToDryUnprovisioned(data: Task, phase: UnprovisionedTaskPhase = 'idle'): void {
+    this.disposeFrontendRuntime();
+    this.data = data;
+    this.state = 'unprovisioned';
+    this.phase = phase;
+    this.errorMessage = undefined;
+    this.provisionProgressMessage = null;
   }
 
   transitionToUnregistered(data: UnregisteredTaskData): void {
@@ -153,7 +168,7 @@ export class TaskStore {
     }
   }
 
-  dispose(): void {
+  disposeFrontendRuntime(): void {
     this.viewModel?.dispose();
     this.viewModel = null;
     if (this.workspaceId) {
@@ -163,6 +178,10 @@ export class TaskStore {
     }
     this.draftComments?.dispose();
     this.draftComments = null;
+  }
+
+  dispose(): void {
+    this.disposeFrontendRuntime();
   }
 
   get conversationStats(): Record<string, number> {
