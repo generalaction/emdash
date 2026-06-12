@@ -1,0 +1,26 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-bar.tsx
+  s_1416c62cc9dcbf::t_09978d34f7a0b9 118-143
+  s_1416c62cc9dcbf::t_c975ca2fe65517 257-274,282-300
+  s_1416c62cc9dcbf::t_83a930ecb0d9fa 83
+  s_1416c62cc9dcbf::t_118e94cb6aeabc 52-64
+  s_1416c62cc9dcbf::t_5f9c8aa7b4b9a4 1
+  s_1416c62cc9dcbf::t_f714b2162042d9 23-32
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_1416c62cc9dcbf::t_4bdc62a35e8657 226-228
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "2e75ecd1f215456ab79f6a68772fd08210cc70e2",
+  "prompts": {},
+  "sessions": {
+    "s_1416c62cc9dcbf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f95a86b7-3c91-4986-80e7-40a60e2cbe23",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
