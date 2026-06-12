@@ -1,0 +1,74 @@
+apps/emdash-desktop/src/renderer/features/tasks/tabs/tab-manager-store.test.ts
+  s_4628e7e4d19060::t_d3e25516a259c0 47,61
+apps/emdash-desktop/src/renderer/features/tasks/tabs/tab-manager-store.ts
+  s_4628e7e4d19060::t_5c07c1023cd1a7 26,585-588
+  s_4628e7e4d19060::t_e3a8b1b16fa996 4,25,27-29,582-584,593
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_4628e7e4d19060::t_6e523b531dce96 3,14-19,47-51,103
+  s_4628e7e4d19060::t_c11a4a0601f184 155-160
+apps/emdash-desktop/src/main/core/settings/schema.ts
+  s_4628e7e4d19060::t_86f07170b7857b 142,145-150
+  s_4628e7e4d19060::t_7ed6bc3fbc30bf 125-129,151,172,190
+  s_4628e7e4d19060::t_1599f48393597f 130-141
+  s_4628e7e4d19060::t_bbbb0d8089e8d7 2,143-144
+apps/emdash-desktop/src/main/core/browser/controller.ts
+  s_4628e7e4d19060::t_1f327c429c4bb0 44-47
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar-actions.ts
+  s_4628e7e4d19060::t_bbbb0d8089e8d7 26
+  s_4628e7e4d19060::t_0efac86347ee0f 21-22
+apps/emdash-desktop/src/shared/browser.test.ts
+  s_4628e7e4d19060::t_8bb61c64878354 4,6,92,100,106-126
+apps/emdash-desktop/src/shared/core/app-settings.ts
+  s_4628e7e4d19060::t_13612ca73a3d41 5,29
+apps/emdash-desktop/src/main/core/settings/settings-registry.ts
+  s_4628e7e4d19060::t_7b90ee8bd3f997 3,67-69
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_4628e7e4d19060::t_ac90a307d89eb2 153-154,204
+apps/emdash-desktop/src/renderer/features/settings/components/SettingsPage.tsx
+  s_4628e7e4d19060::t_95e8fa2fdcd7f9 7,152
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_4628e7e4d19060::t_bbbb0d8089e8d7 8-12
+  s_4628e7e4d19060::t_a8439043f94ad6 145-150
+apps/emdash-desktop/src/shared/browser.ts
+  s_4628e7e4d19060::t_9c726dcca0d92b 3-19,52,137-166,183-186,189,200-201,212,217
+  s_4628e7e4d19060::t_9310211b5e1d71 167-169,174-178,194
+  s_4628e7e4d19060::t_bbbb0d8089e8d7 179-182,213-216
+  s_4628e7e4d19060::t_c4a421e8cce00c 170-173
+apps/emdash-desktop/src/renderer/features/settings/components/BrowserSettingsCard.tsx
+  s_4628e7e4d19060::t_b7c763fa63605e 178-184
+  s_4628e7e4d19060::t_935e9b8c9bcbe6 98-100
+  s_4628e7e4d19060::t_bbbb0d8089e8d7 81-83,122-123
+  s_4628e7e4d19060::t_7a50694c2ff36d 1-80,84-97,101-121,124-177,185-221
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar-actions.test.ts
+  s_4628e7e4d19060::t_a28d2871cf2cfd 36-37
+apps/emdash-desktop/src/renderer/features/browser/browser-session-store.ts
+  s_4628e7e4d19060::t_705adfa6491bfd 4
+  s_4628e7e4d19060::t_e3bffd85cf5bbe 7,65
+  s_4628e7e4d19060::t_cb98eb4655a419 10,19,54,61-63,68-69
+apps/emdash-desktop/src/renderer/features/browser/browser-session-store.test.ts
+  s_4628e7e4d19060::t_a2fb00fa4df70c 89-113
+  s_4628e7e4d19060::t_6454b10bb31057 17-18,60,68,81-82
+apps/emdash-desktop/src/renderer/features/tasks/commands.test.ts
+  s_4628e7e4d19060::t_059d9430f4d794 76
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.test.ts
+  s_4628e7e4d19060::t_7545f6c48eadbb 223-234
+  s_4628e7e4d19060::t_aaca858054109e 27
+apps/emdash-desktop/src/renderer/main.tsx
+  s_4628e7e4d19060::t_fe568e6f753337 48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "27644c942685f12f0908370f8573dbf63a3e9df3",
+  "prompts": {},
+  "sessions": {
+    "s_4628e7e4d19060": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_145da6519ffe4SnFJvO5FQ6jr3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
