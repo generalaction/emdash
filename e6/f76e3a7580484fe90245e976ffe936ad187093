@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/main/core/browser/browser-partition-cleanup.ts
+  s_4628e7e4d19060::t_c0cf061dca910d 5,9-10,13-15,27-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "e6f76e3a7580484fe90245e976ffe936ad187093",
+  "prompts": {},
+  "sessions": {
+    "s_4628e7e4d19060": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_145da6519ffe4SnFJvO5FQ6jr3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
