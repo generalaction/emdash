@@ -1,0 +1,56 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-store.ts
+  s_1416c62cc9dcbf::t_99b40dce469208 23-28,35,51,86,96-101,120
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-prompt.test.ts
+  s_1416c62cc9dcbf::t_a96a2407a1696d 8
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-script.ts
+  s_1416c62cc9dcbf::t_a630018f679cdd 294-295
+  s_1416c62cc9dcbf::t_59722dcecdd6ed 252-256,264
+  s_1416c62cc9dcbf::t_b7686be50c682c 25,28,31
+  s_1416c62cc9dcbf::t_33d36ba64b9fc0 40
+  s_1416c62cc9dcbf::t_9beb24afe361b5 192-193
+  s_1416c62cc9dcbf::t_942f07dd7d678a 279-287
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-store.test.ts
+  s_1416c62cc9dcbf::t_6865bfed7a5942 94-123
+apps/emdash-desktop/src/renderer/features/tasks/tabs/tab-manager-store.ts
+  s_1416c62cc9dcbf::t_414b4cf0f8a781 2,932
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-bar.tsx
+  s_1416c62cc9dcbf::t_77c605fa8e5633 3
+  s_1416c62cc9dcbf::t_f03f67528ef3e2 5-8,11-16,21,23-24
+  s_1416c62cc9dcbf::t_b9eb2e95959ed8 148,159,174,177-184,189,195,202-226
+  s_1416c62cc9dcbf::t_77704ba6fae7ce 59-61
+  s_1416c62cc9dcbf::t_3b0ee13bd2ac12 47-56
+  s_1416c62cc9dcbf::t_295ec7c3f81c15 124-132
+  s_1416c62cc9dcbf::t_e7a12100b1e424 4,9,22,37,40-43,58,63-66,68,78,85,87-88,90,97-105,107,109-115,118-121,149,152-158,160-173,175-176,185-188,190-194,197
+  s_1416c62cc9dcbf::t_28c89beff934a0 39
+  s_1416c62cc9dcbf::t_df20881d03b480 106,108,116-117
+  s_1416c62cc9dcbf::t_e146ada6aa30b6 10
+  s_1416c62cc9dcbf::t_ce7d77b55df451 69,71-77,79-84,86,89,91-96
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-overlay.tsx
+  s_1416c62cc9dcbf::t_f4956bacb69e2b 184
+  s_1416c62cc9dcbf::t_463417c130a665 43,47-71,76-79,85,95-106
+  s_1416c62cc9dcbf::t_99a4790d741f32 4,8,11,74,84,107-114,129,134,151-152,157-158,171-172,175-183,185-186
+  s_1416c62cc9dcbf::t_b61093756cf504 15,21-22
+  s_1416c62cc9dcbf::t_e146ada6aa30b6 148
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-types.ts
+  s_1416c62cc9dcbf::t_ba2e16b75e22f5 28-29
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_1416c62cc9dcbf::t_f552e3f10e8f73 309
+  s_1416c62cc9dcbf::t_b27e5ca50d74f7 320-324
+  s_1416c62cc9dcbf::t_d6fa1cae0c45fb 201-207,210,214,220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "11b9045baace49d6f1c823b5442f76443ff125ea",
+  "prompts": {},
+  "sessions": {
+    "s_1416c62cc9dcbf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f95a86b7-3c91-4986-80e7-40a60e2cbe23",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
