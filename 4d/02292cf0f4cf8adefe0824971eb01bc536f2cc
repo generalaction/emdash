@@ -1,0 +1,22 @@
+apps/emdash-desktop/src/renderer/features/library/prompts/use-prompt-library.ts
+  s_e7a67081941359::t_0d58c0fef7593a 2
+  s_e7a67081941359::t_7faf019c32b0d4 12,28-31,45-47,49-51
+apps/emdash-desktop/src/main/core/prompt-library/service.ts
+  s_e7a67081941359::t_e3fdcea46c8e6e 4,24-27,137-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "4d02292cf0f4cf8adefe0824971eb01bc536f2cc",
+  "prompts": {},
+  "sessions": {
+    "s_e7a67081941359": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ebd75-9f13-7fc7-8288-789ddd70aac2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
