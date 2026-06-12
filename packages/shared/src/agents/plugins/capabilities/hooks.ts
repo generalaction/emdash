@@ -9,7 +9,8 @@ export { HOOK_EVENTS } from './hooks-types';
 
 export type IHooksBehavior = {
   readHooks(fs: PluginFs): Promise<HookRegistration[]>;
-  writeHooks(fs: PluginFs, hooks: HookRegistration[]): Promise<void>;
+  /** Write hooks and return the root-relative paths written. */
+  writeHooks(fs: PluginFs, hooks: HookRegistration[]): Promise<string[]>;
   deleteHooks(fs: PluginFs): Promise<void>;
   getHooksInstalled(fs: PluginFs): Promise<boolean>;
 };

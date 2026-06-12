@@ -1,4 +1,5 @@
 import type { DependencyStatusUpdatedEvent } from '@emdash/shared/deps/runtime';
+import type { AgentInstallationStatus } from '@shared/core/agents/agent-payload';
 import { defineEvent } from '@shared/lib/ipc/events';
 
 // App editing actions (renderer → main, no payload)
@@ -63,6 +64,6 @@ export const dependencyStatusUpdatedChannel = defineEvent<DependencyStatusUpdate
 );
 
 /** Emitted when an agent installation status changes (probe, install, update, or selection change). */
-export const agentInstallationStatusUpdatedChannel = defineEvent<DependencyStatusUpdatedEvent>(
+export const agentInstallationStatusUpdatedChannel = defineEvent<AgentInstallationStatus>(
   'agent:installation-status-updated'
 );

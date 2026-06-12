@@ -60,7 +60,7 @@ export const plugin = definePlugin(
         },
         update: {
           kind: 'cli',
-          args: ['update'],
+          args: ['install', 'latest'],
         },
       },
     },

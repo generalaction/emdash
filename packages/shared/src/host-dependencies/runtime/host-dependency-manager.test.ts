@@ -320,38 +320,6 @@ describe('HostDependencyManager install', () => {
   });
 });
 
-describe('HostDependencyManager probe phase-1 enrichment preservation', () => {
-  it('carries forward latestVersion and updateAvailable from the previous state during phase 1', async () => {
-    const manager = new HostDependencyManager(availableCtx, {
-      dependencies: TEST_DEPENDENCIES,
-      connectionId: 'local',
-    });
-    const listener = vi.fn();
-    manager.onStatusUpdated.subscribe(listener);
-
-    // First probe: populate the internal state with a known state.
-    await manager.probe('codex');
-
-    // Manually inject latestVersion/updateAvailable into the stored state.
-    const internalState = (manager as unknown as { state: Map<string, unknown> }).state;
-    const existingState = internalState.get('codex') as Record<string, unknown>;
-    internalState.set('codex', { ...existingState, latestVersion: '9.9.9', updateAvailable: true });
-
-    // Reset the mock so we only look at emissions from the second probe.
-    listener.mockClear();
-
-    // Second probe: phase 1 should preserve latestVersion/updateAvailable.
-    await manager.probe('codex');
-
-    // The first emit call is phase 1 (path resolution). It must carry the prior enrichment.
-    const firstCall = listener.mock.calls[0];
-    expect(firstCall).toBeDefined();
-    const firstPayload = firstCall?.[0] as { state: Record<string, unknown> };
-    expect(firstPayload.state.latestVersion).toBe('9.9.9');
-    expect(firstPayload.state.updateAvailable).toBe(true);
-  });
-});
-
 describe('HostDependencyManager update', () => {
   it('returns unknown-dependency error for an unrecognised id', async () => {
     const manager = new HostDependencyManager(missingCtx, { dependencies: TEST_DEPENDENCIES });
@@ -422,5 +390,255 @@ describe('HostDependencyManager update', () => {
     await manager.update('claude');
 
     expect(runInstallCommand).toHaveBeenCalledWith(expect.stringContaining('update'));
+  });
+});
+
+describe('HostDependencyManager uninstall', () => {
+  const UNINSTALL_DEPENDENCIES: typeof TEST_DEPENDENCIES = [
+    ...TEST_DEPENDENCIES,
+    {
+      id: 'codex-pm',
+      name: 'Codex (package-manager uninstall)',
+      category: 'agent',
+      commands: ['codex'],
+      versionArgs: ['--version'],
+      docUrl: 'https://openai.com',
+      installCommands: {
+        macos: [
+          {
+            method: 'npm',
+            command: 'npm install -g @openai/codex',
+            recommended: true,
+            uninstallCommand: 'npm uninstall -g @openai/codex',
+          },
+        ],
+        linux: [
+          {
+            method: 'npm',
+            command: 'npm install -g @openai/codex',
+            recommended: true,
+            uninstallCommand: 'npm uninstall -g @openai/codex',
+          },
+        ],
+        windows: [
+          {
+            method: 'npm',
+            command: 'npm install -g @openai/codex',
+            recommended: true,
+            uninstallCommand: 'npm uninstall -g @openai/codex',
+          },
+        ],
+      },
+      updates: {
+        kind: 'supported',
+        releaseSource: { kind: 'npm', package: '@openai/codex' },
+        update: { kind: 'package-manager' },
+      },
+      uninstall: { kind: 'package-manager' },
+    },
+    {
+      id: 'codex-pm-no-cmd',
+      name: 'Codex (package-manager, no uninstallCommand)',
+      category: 'agent',
+      commands: ['codex'],
+      versionArgs: ['--version'],
+      installCommands: {
+        macos: [{ method: 'npm', command: 'npm install -g @openai/codex', recommended: true }],
+      },
+      updates: { kind: 'none' },
+      uninstall: { kind: 'package-manager' },
+    },
+    {
+      id: 'claude-cli-uninstall',
+      name: 'Claude (cli uninstall)',
+      category: 'agent',
+      commands: ['claude'],
+      versionArgs: ['--version'],
+      updates: { kind: 'none' },
+      uninstall: { kind: 'cli', args: ['uninstall'] },
+    },
+    {
+      id: 'claude-hook-uninstall',
+      name: 'Claude (hook uninstall)',
+      category: 'agent',
+      commands: ['claude'],
+      versionArgs: ['--version'],
+      updates: { kind: 'none' },
+      uninstall: { kind: 'cli', args: ['uninstall'] },
+      updateHooks: {
+        buildUninstallCommand: (binaryPath: string) => ({
+          command: binaryPath,
+          args: ['custom-remove', '--force'],
+        }),
+      },
+    },
+  ];
+
+  it('returns unknown-dependency error for an unrecognised id', async () => {
+    const manager = new HostDependencyManager(missingCtx, {
+      dependencies: UNINSTALL_DEPENDENCIES,
+    });
+    const result = await manager.uninstall('unknown-agent');
+    expect(result).toEqual({
+      success: false,
+      error: { type: 'unknown-dependency', id: 'unknown-agent' },
+    });
+  });
+
+  it('returns no-uninstall-strategy when strategy is none', async () => {
+    const manager = new HostDependencyManager(missingCtx, {
+      dependencies: UNINSTALL_DEPENDENCIES,
+    });
+    // 'git' has no uninstall field (undefined → treated as none)
+    const result = await manager.uninstall('git');
+    expect(result).toEqual({
+      success: false,
+      error: { type: 'no-uninstall-strategy', id: 'git' },
+    });
+  });
+
+  it('returns no-uninstall-command when strategy is package-manager but the option has no uninstallCommand', async () => {
+    const manager = new HostDependencyManager(missingCtx, {
+      dependencies: UNINSTALL_DEPENDENCIES,
+    });
+    const result = await manager.uninstall('codex-pm-no-cmd');
+    expect(result).toEqual({
+      success: false,
+      error: { type: 'no-uninstall-command', id: 'codex-pm-no-cmd' },
+    });
+  });
+
+  it('runs the uninstallCommand for package-manager strategy and re-probes', async () => {
+    const runInstallCommand = vi.fn(async () => ok<void>());
+    const manager = new HostDependencyManager(missingCtx, {
+      dependencies: UNINSTALL_DEPENDENCIES,
+      runInstallCommand,
+    });
+
+    const result = await manager.uninstall('codex-pm');
+
+    expect(runInstallCommand).toHaveBeenCalledWith('npm uninstall -g @openai/codex');
+    // After uninstall the binary is gone → status is 'missing', which is success
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.status).toBe('missing');
+  });
+
+  it('returns runner error when the uninstall command fails', async () => {
+    const runInstallCommand = vi.fn(async () =>
+      err({
+        type: 'permission-denied' as const,
+        message: 'User does not have sufficient permissions.',
+        output: 'permission denied',
+        exitCode: 243,
+      })
+    );
+    const manager = new HostDependencyManager(missingCtx, {
+      dependencies: UNINSTALL_DEPENDENCIES,
+      runInstallCommand,
+    });
+
+    const result = await manager.uninstall('codex-pm');
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.type).toBe('permission-denied');
+  });
+
+  it('runs <binary> <args> for cli strategy and re-probes', async () => {
+    const runInstallCommand = vi.fn(async () => ok<void>());
+    const claudeCtx = makeCtx(async (command, args = []) => {
+      if (command === 'which' && args[0] === 'claude') {
+        return { stdout: '/usr/local/bin/claude\n', stderr: '' };
+      }
+      throw new Error('missing');
+    });
+    const manager = new HostDependencyManager(claudeCtx, {
+      dependencies: UNINSTALL_DEPENDENCIES,
+      runInstallCommand,
+    });
+
+    await manager.uninstall('claude-cli-uninstall');
+
+    expect(runInstallCommand).toHaveBeenCalledWith(expect.stringContaining('uninstall'));
+  });
+
+  it('uses buildUninstallCommand hook when provided', async () => {
+    const runInstallCommand = vi.fn(async () => ok<void>());
+    const claudeCtx = makeCtx(async (command, args = []) => {
+      if (command === 'which' && args[0] === 'claude') {
+        return { stdout: '/usr/local/bin/claude\n', stderr: '' };
+      }
+      throw new Error('missing');
+    });
+    const manager = new HostDependencyManager(claudeCtx, {
+      dependencies: UNINSTALL_DEPENDENCIES,
+      runInstallCommand,
+    });
+
+    await manager.uninstall('claude-hook-uninstall');
+
+    expect(runInstallCommand).toHaveBeenCalledWith('/usr/local/bin/claude custom-remove --force');
+  });
+});
+
+describe('HostDependencyManager unknown install source', () => {
+  // A path that won't match any location hint so inferMethod() returns null
+  const UNKNOWN_PATH = '/opt/custom-shims/codex';
+
+  const unknownCtx = makeCtx(async (command, args = []) => {
+    if (command === 'which' && args[0] === 'codex') {
+      return { stdout: `${UNKNOWN_PATH}\n`, stderr: '' };
+    }
+    if (command === 'realpath') {
+      return { stdout: `${UNKNOWN_PATH}\n`, stderr: '' };
+    }
+    if (command === UNKNOWN_PATH && args[0] === '--version') {
+      return { stdout: 'codex-cli 1.0.0\n', stderr: '' };
+    }
+    throw new Error('missing');
+  });
+
+  it('emits source { kind: "unknown" } when method inference fails', async () => {
+    const manager = new HostDependencyManager(unknownCtx, {
+      dependencies: TEST_DEPENDENCIES,
+      connectionId: 'local',
+    });
+    const events: unknown[] = [];
+    manager.onStatusUpdated.subscribe((e) => events.push(e));
+
+    await manager.probe('codex');
+    // Wait for the async buildAndStoreHostDependency
+    await new Promise((r) => setTimeout(r, 50));
+
+    const hostDepEvent = (events as Array<{ hostDependency?: unknown }>).find(
+      (e) => e.hostDependency !== undefined
+    );
+    expect(hostDepEvent).toBeDefined();
+
+    const hostDep = (hostDepEvent as { hostDependency: { installations: Array<{ source: unknown }> } }).hostDependency;
+    const autoInst = hostDep.installations.find(
+      (i: { id: string }) => i.id === 'auto'
+    );
+    expect(autoInst).toBeDefined();
+    expect((autoInst as { source: { kind: string } }).source.kind).toBe('unknown');
+  });
+
+  it('refuses package-manager update when used installation has unknown source', async () => {
+    const runInstallCommand = vi.fn(async () => ok<void>());
+    const manager = new HostDependencyManager(unknownCtx, {
+      dependencies: TEST_DEPENDENCIES,
+      runInstallCommand,
+    });
+
+    await manager.probe('codex');
+    // Wait for the async buildAndStoreHostDependency so hostState is populated
+    await new Promise((r) => setTimeout(r, 50));
+
+    const result = await manager.update('codex');
+
+    expect(result).toEqual({
+      success: false,
+      error: { type: 'no-update-strategy', id: 'codex' },
+    });
+    expect(runInstallCommand).not.toHaveBeenCalled();
   });
 });

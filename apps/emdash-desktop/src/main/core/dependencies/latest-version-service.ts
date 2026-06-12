@@ -1,5 +1,5 @@
-import type { Logger } from '../../lib/logger';
-import type { ReleaseSource } from '../capability';
+import type { ReleaseSource } from '@emdash/shared/deps';
+import type { Logger } from '@emdash/shared/lib';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours

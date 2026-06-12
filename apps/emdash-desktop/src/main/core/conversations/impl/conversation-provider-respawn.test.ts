@@ -18,8 +18,8 @@ const buildCommandMock = vi.hoisted(() =>
     env: {} as Record<string, string>,
   }))
 );
-const installPluginMock = vi.hoisted(() => vi.fn(async () => {}));
-const writeHooksMock = vi.hoisted(() => vi.fn(async () => {}));
+const installPluginMock = vi.hoisted(() => vi.fn(async () => []));
+const writeHooksMock = vi.hoisted(() => vi.fn(async () => []));
 
 vi.mock('@main/core/dependencies/host-dependency-store', () => ({
   hostDependencyStore: {
@@ -70,7 +70,6 @@ vi.mock('@main/core/agents/plugin-registry', () => ({
       },
     },
   })),
-  WORKSPACE_GITIGNORE_PATHS: {} as Record<string, string[]>,
 }));
 
 vi.mock('@main/core/agents/plugin-fs', () => ({
@@ -252,9 +251,9 @@ describe('conversation provider respawn state', () => {
     buildCommandMock.mockReset();
     buildCommandMock.mockReturnValue({ command: 'agent', args: [], env: {} });
     installPluginMock.mockReset();
-    installPluginMock.mockResolvedValue(undefined);
+    installPluginMock.mockResolvedValue([]);
     writeHooksMock.mockReset();
-    writeHooksMock.mockResolvedValue(undefined);
+    writeHooksMock.mockResolvedValue([]);
     mockSettings();
     vi.mocked(events.emit).mockClear();
     vi.mocked(agentHookService.getPort).mockReturnValue(0);

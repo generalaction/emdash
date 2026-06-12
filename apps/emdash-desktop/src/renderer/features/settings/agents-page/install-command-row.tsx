@@ -1,6 +1,6 @@
-import type { InstallMethod } from '@emdash/shared/deps';
 import { Check, Copy } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
+import type { InstallMethod } from '@shared/core/agents/agent-payload';
 
 // ---------------------------------------------------------------------------
 // humanizeMethod

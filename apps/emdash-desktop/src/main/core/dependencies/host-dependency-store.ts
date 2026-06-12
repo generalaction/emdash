@@ -1,8 +1,4 @@
-import type {
-  DependencyId,
-  HostDependencySelection,
-  IHostDependencyStore,
-} from '@emdash/shared/deps/runtime';
+import type { DependencyId, HostDependencySelection } from '@emdash/shared/deps/runtime';
 import { eq } from 'drizzle-orm';
 import { mergeDependencySelection } from '@main/core/ssh/config/connection-metadata';
 import { db } from '@main/db/client';
@@ -13,7 +9,19 @@ import { sshConnectionMetadata } from '@shared/core/ssh/ssh-connection-metadata'
 
 const LOCAL_HOST_ID = 'local';
 
-export type { IHostDependencyStore };
+/**
+ * Persistence for host-scoped installation selections. Owned entirely by the
+ * desktop app; the shared HostDependencyManager only reads selections through
+ * its injected `getSelection` option.
+ */
+export interface IHostDependencyStore {
+  getSelection(hostId: string, depId: DependencyId): Promise<HostDependencySelection | null>;
+  setSelection(
+    hostId: string,
+    depId: DependencyId,
+    selection: HostDependencySelection
+  ): Promise<void>;
+}
 
 // ---------------------------------------------------------------------------
 // Local store (KV table)

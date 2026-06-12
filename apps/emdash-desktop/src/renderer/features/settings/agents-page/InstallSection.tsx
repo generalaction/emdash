@@ -1,7 +1,7 @@
-import type { InstallOption } from '@emdash/shared/deps';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { useAgentInstallationStatus } from '@renderer/lib/stores/use-agent-installation-statuses';
+import type { InstallOption } from '@shared/core/agents/agent-payload';
 import type { AgentPayload } from '@shared/core/agents/agent-payload';
 import { DependencyInstallationStatusCard } from './DependencyInstallationStatusCard';
 import { DependencyInstallationUpdateCard } from './DependencyInstallationUpdateCard';
@@ -56,7 +56,7 @@ export const InstallSection = observer(function InstallSection({
   return (
     <div className="space-y-2">
       {/* Status card: shown when an installation is found */}
-      {isInstalled && <DependencyInstallationStatusCard vm={vm} />}
+      {isInstalled && <DependencyInstallationStatusCard vm={vm} agentPayload={agentPayload} />}
 
       {/* Update card: shown when the used installation has an update available */}
       {isInstalled && (

@@ -1,13 +1,10 @@
-import semver from 'semver';
 import type { IExecutionContext } from '../../exec/execution-context';
 import { Emitter } from '../../lib/emitter';
 import { consoleLogger, type Logger } from '../../lib/logger';
-import { err, ok } from '../../lib/result';
+import { err, ok, type Result } from '../../lib/result';
 import type { InstallMethod, Platform } from '../capability';
 import { resolveInstallOptions, pickInstallOption, toPlatform } from './install-options';
-import { LatestVersionService } from './latest-version-service';
 import { inferMethod } from './location-hints';
-import type { IHostDependencyStore, InstallCommandRunner } from './ports';
 import { resolveCommandPath, resolveRealpath, runVersionProbe } from './probe';
 import type {
   DependencyCategory,
@@ -18,21 +15,24 @@ import type {
   DependencyState,
   DependencyStatus,
   DependencyStatusUpdatedEvent,
+  DependencyUninstallResult,
   DependencyUpdateResult,
   HostDependency,
   HostDependencySelection,
+  InstallCommandError,
   Installation,
   ProbeResult,
 } from './types';
 
-const VERSION_RE = /(\d+\.\d+[\d.]*)/;
+/**
+ * Runs an install or update command string (e.g. "brew install claude") through the
+ * host's shell. Deliberately not part of IExecutionContext: install commands are full
+ * shell lines run through the user's shell profile (typically in a PTY), with failures
+ * classified into InstallCommandError instead of thrown.
+ */
+export type InstallCommandRunner = (command: string) => Promise<Result<void, InstallCommandError>>;
 
-function isNewerVersion(installed: string, latest: string): boolean {
-  const a = semver.coerce(installed);
-  const b = semver.coerce(latest);
-  if (a === null || b === null) return false;
-  return semver.gt(b, a);
-}
+const VERSION_RE = /(\d+\.\d+[\d.]*)/;
 
 function resolveProbeStatus(
   descriptor: DependencyDescriptor,
@@ -91,9 +91,13 @@ export type HostDependencyManagerOptions = {
    */
   runInstallCommand?: InstallCommandRunner;
   connectionId?: string;
-  latestVersionService?: LatestVersionService;
   platform?: Platform;
-  hostDependencyStore?: IHostDependencyStore;
+  /**
+   * Reads the user's persisted installation selection for a dependency on this host.
+   * Persistence is owned entirely by the application layer; the manager only asks
+   * for the current preference when building host-scoped installation state.
+   */
+  getSelection?: (depId: DependencyId) => Promise<HostDependencySelection | null>;
   logger?: Logger;
   /** All dependency descriptors to manage. Injected by the application layer (e.g. desktop registry). */
   dependencies?: DependencyDescriptor[];
@@ -103,9 +107,10 @@ export type HostDependencyManagerOptions = {
 
 /**
  * Portable dependency manager for a single host.
- * Desktop composes this with PTY install-runner, KV-backed store, and event
- * bridge. Workspace Server will compose it with a plain-shell runner and a
- * file/sqlite store. Neither transport is imported here.
+ * Responsible only for probing installed versions and running install/update/uninstall
+ * commands. It does NOT fetch latest published versions or compute updateAvailable — that
+ * is the responsibility of the application layer (e.g. AgentUpdateService in desktop).
+ * Desktop composes this with PTY install-runner, KV-backed store, and event bridge.
  */
 export class HostDependencyManager {
   private state = new Map<DependencyId, DependencyState>();
@@ -115,15 +120,14 @@ export class HostDependencyManager {
   private readonly ctx: IExecutionContext;
   private readonly runInstallCommand: InstallCommandRunner;
   private readonly connectionId: string | undefined;
-  private readonly latestVersionService: LatestVersionService;
-  private readonly hostDependencyStore: IHostDependencyStore | undefined;
+  private readonly getSelection: (depId: DependencyId) => Promise<HostDependencySelection | null>;
   private readonly logger: Logger;
   private readonly _dependencies: DependencyDescriptor[];
   private readonly _getDependencyDescriptor: (id: string) => DependencyDescriptor | undefined;
   /** Platform of the target machine. Defaults to process.platform; SSH callers pass the remote platform. */
   readonly platform: Platform;
 
-  /** Fired after every state update — replace `events.emit(dependencyStatusUpdatedChannel, ...)`. */
+  /** Fired after every state update. */
   readonly onStatusUpdated = new Emitter<DependencyStatusUpdatedEvent>();
 
   /**
@@ -135,9 +139,8 @@ export class HostDependencyManager {
   constructor(ctx: IExecutionContext, options: HostDependencyManagerOptions = {}) {
     this.ctx = ctx;
     this.connectionId = options.connectionId;
-    this.latestVersionService = options.latestVersionService ?? new LatestVersionService();
     this.platform = options.platform ?? toPlatform(process.platform);
-    this.hostDependencyStore = options.hostDependencyStore;
+    this.getSelection = options.getSelection ?? (() => Promise.resolve(null));
     this.logger = options.logger ?? consoleLogger;
     this._dependencies = options.dependencies ?? [];
     this._getDependencyDescriptor =
@@ -187,6 +190,9 @@ export class HostDependencyManager {
    *
    * For agent-category deps, also builds a HostDependency with per-installation
    * status (detected method + any user-defined path/cli overrides).
+   *
+   * Note: emitted state does not carry latestVersion/updateAvailable — those are
+   * filled in by the application layer (AgentUpdateService) after receiving this event.
    */
   async probe(id: DependencyId): Promise<DependencyState> {
     const descriptor = this._getDependencyDescriptor(id);
@@ -194,18 +200,12 @@ export class HostDependencyManager {
       throw new Error(`Unknown dependency id: ${id}`);
     }
 
-    // Phase 1: path resolution — carry forward latestVersion/updateAvailable to avoid badge blink
+    // Phase 1: path resolution
     const resolvedPath = await this.resolveFirstPath(descriptor);
     const pathState = dependencyStateFromProbeResult(descriptor, resolvedPath, null);
-    const prev = this.state.get(id);
-    this.updateState({
-      ...pathState,
-      latestVersion: prev?.latestVersion,
-      updateAvailable: prev?.updateAvailable,
-    });
+    this.updateState(pathState);
 
     if (pathState.status === 'missing' || descriptor.skipVersionProbe) {
-      void this.fetchAndUpdateLatestVersion(descriptor, pathState);
       if (descriptor.category === 'agent') {
         void this.buildAndStoreHostDependency(id, descriptor, null, null, null);
       }
@@ -223,10 +223,7 @@ export class HostDependencyManager {
     const fullState = dependencyStateFromProbeResult(descriptor, resolvedPath, probeResult);
     this.updateState(fullState);
 
-    // Phase 3: fetch latest version (async, non-blocking for the return value)
-    void this.fetchAndUpdateLatestVersion(descriptor, fullState);
-
-    // Phase 4: build HostDependency for agent deps (async, non-blocking)
+    // Phase 3: build HostDependency for agent deps (async, non-blocking)
     if (descriptor.category === 'agent') {
       void this.buildAndStoreHostDependency(id, descriptor, resolvedPath, probeResult, fullState);
     }
@@ -237,6 +234,8 @@ export class HostDependencyManager {
   /**
    * Builds and stores a HostDependency for an agent dep, incorporating the
    * detected method installation plus any user-defined path/cli overrides.
+   * latestVersion/updateAvailable are always null/false here; the application
+   * layer enriches them after receiving the emitted event.
    */
   private async buildAndStoreHostDependency(
     id: DependencyId,
@@ -246,29 +245,24 @@ export class HostDependencyManager {
     fullState: DependencyState | null
   ): Promise<void> {
     const hostId = this.connectionId ?? 'local';
-    const selection = await this.hostDependencyStore?.getSelection(hostId, id);
+    const selection = await this.getSelection(id);
     const versionArgs = descriptor.versionArgs ?? ['--version'];
 
     const installations: Installation[] = [];
 
     // Primary installation: detected from realpath + method inference
     if (resolvedPath) {
-      const realPath = await resolveRealpath(resolvedPath, this.ctx);
+      const realPath = await resolveRealpath(resolvedPath, this.ctx, this.platform);
       const inferredMethod = inferMethod(realPath, this.platform);
-      // Prefer the freshest aggregate state: the latest-version fetch may have
-      // completed before this runs and already enriched it with updateAvailable.
-      const currentState = this.state.get(id) ?? fullState;
 
       installations.push({
         id: inferredMethod ? `method:${inferredMethod}` : 'auto',
-        source: inferredMethod
-          ? { kind: 'method', method: inferredMethod }
-          : { kind: 'cli', command: descriptor.commands[0] ?? id },
+        source: inferredMethod ? { kind: 'method', method: inferredMethod } : { kind: 'unknown' },
         status: fullState?.status ?? 'available',
         path: resolvedPath,
         version: fullState?.version ?? null,
-        latestVersion: currentState?.latestVersion ?? null,
-        updateAvailable: currentState?.updateAvailable ?? false,
+        latestVersion: null,
+        updateAvailable: false,
       });
     } else {
       // Not found — still include as a placeholder so UI can show "not installed"
@@ -285,7 +279,7 @@ export class HostDependencyManager {
 
     // User-defined path override
     if (selection?.path) {
-      const pathExists = await resolveCommandPath(selection.path, this.ctx);
+      const pathExists = await resolveCommandPath(selection.path, this.ctx, this.platform);
       if (pathExists) {
         const pathProbe = await runVersionProbe(
           selection.path,
@@ -317,7 +311,7 @@ export class HostDependencyManager {
 
     // User-defined CLI override
     if (selection?.cli) {
-      const cliPath = await resolveCommandPath(selection.cli, this.ctx);
+      const cliPath = await resolveCommandPath(selection.cli, this.ctx, this.platform);
       if (cliPath) {
         const cliProbe = await runVersionProbe(selection.cli, cliPath, versionArgs, this.ctx);
         installations.push({
@@ -388,93 +382,6 @@ export class HostDependencyManager {
 
     // 4. First installation as fallback
     return installations[0]?.id ?? 'auto';
-  }
-
-  /**
-   * Persist a host-scoped installation selection and re-probe to update state.
-   */
-  async setSelection(id: DependencyId, selection: HostDependencySelection): Promise<void> {
-    if (!this.hostDependencyStore) return;
-    const hostId = this.connectionId ?? 'local';
-    await this.hostDependencyStore.setSelection(hostId, id, selection);
-    this.onExecutableInvalidated.emit({ id });
-    await this.probe(id);
-  }
-
-  /**
-   * Fetch the latest version for a dependency and update state.
-   * Exposed publicly for on-demand refresh (e.g. from the RPC controller).
-   */
-  async fetchLatestVersion(id: DependencyId): Promise<void> {
-    const descriptor = this._getDependencyDescriptor(id);
-    if (!descriptor) return;
-    const state = this.state.get(id);
-    if (!state) return;
-    await this.fetchAndUpdateLatestVersion(descriptor, state);
-  }
-
-  private async fetchAndUpdateLatestVersion(
-    descriptor: DependencyDescriptor,
-    state: DependencyState
-  ): Promise<void> {
-    if (!descriptor.updates || descriptor.updates.kind !== 'supported') return;
-
-    const { releaseSource } = descriptor.updates;
-    if (releaseSource.kind === 'none') return;
-
-    let latestVersion: string | null;
-    if (descriptor.updateHooks?.resolveLatestVersion) {
-      try {
-        latestVersion = await descriptor.updateHooks.resolveLatestVersion();
-      } catch {
-        latestVersion = null;
-      }
-    } else {
-      latestVersion = await this.latestVersionService.fetchLatestVersion(releaseSource);
-    }
-
-    const updateAvailable =
-      latestVersion !== null && state.version !== null
-        ? isNewerVersion(state.version, latestVersion)
-        : false;
-
-    const enrichedState: DependencyState = { ...state, latestVersion, updateAvailable };
-    this.updateState(enrichedState);
-
-    // Keep the per-installation updateAvailable/latestVersion in sync with the
-    // freshly fetched latest version. Without this, the aggregate state reports
-    // an available update while the stored installations (read by the UI's
-    // update card via `used.updateAvailable`) stay stale at the probe-time value.
-    this.propagateLatestVersionToHostDependency(state.id, latestVersion);
-  }
-
-  /**
-   * Re-derives each stored installation's `latestVersion`/`updateAvailable` from
-   * the given latest version and re-emits the HostDependency so renderers patch
-   * their cached installations.
-   */
-  private propagateLatestVersionToHostDependency(
-    id: DependencyId,
-    latestVersion: string | null
-  ): void {
-    const hostDependency = this.hostState.get(id);
-    if (!hostDependency) return;
-
-    const installations = hostDependency.installations.map((inst) => {
-      if (inst.version === null) return inst;
-      const updateAvailable =
-        latestVersion !== null ? isNewerVersion(inst.version, latestVersion) : false;
-      return { ...inst, latestVersion, updateAvailable };
-    });
-
-    const updated: HostDependency = { ...hostDependency, installations };
-    this.hostState.set(id, updated);
-    this.onStatusUpdated.emit({
-      id,
-      state: this.state.get(id)!,
-      connectionId: this.connectionId,
-      hostDependency: updated,
-    });
   }
 
   async probeAll(options: DependencyProbeOptions = {}): Promise<void> {
@@ -574,6 +481,15 @@ export class HostDependencyManager {
     await this.ctx.refreshShellEnv?.();
 
     if (strategy.kind === 'package-manager') {
+      // Refuse if the used installation has an unknown source — no package-manager
+      // command can be selected without knowing which method installed the binary.
+      const usedInstall = this.hostState
+        .get(id)
+        ?.installations.find((i) => i.id === (this.hostState.get(id)?.usedId ?? ''));
+      if (usedInstall?.source.kind === 'unknown') {
+        return err({ type: 'no-update-strategy', id });
+      }
+
       const chosen = pickInstallOption(descriptor, this.platform, method);
       const updateCommand = chosen?.updateCommand ?? chosen?.command ?? descriptor.installCommand;
 
@@ -606,16 +522,77 @@ export class HostDependencyManager {
 
     await this.ctx.refreshShellEnv?.();
 
-    // Invalidate latest-version cache so the next probe re-fetches
-    if (updates.releaseSource.kind !== 'none') {
-      this.latestVersionService.invalidate(updates.releaseSource);
-    }
-
     const state = await this.probe(id);
     if (state.status !== 'available') {
       return err({ type: 'not-detected-after-update', id });
     }
 
+    this.onExecutableInvalidated.emit({ id });
+    return ok(state);
+  }
+
+  /**
+   * Uninstall an agent dependency on this host, then re-probe to confirm it is gone.
+   * Strategy is derived from the descriptor's `uninstall.kind`:
+   *   - package-manager: run the per-method `uninstallCommand` from the matching InstallOption.
+   *   - cli: run `<resolvedBinaryPath> <args>` (e.g. `claude uninstall`), or delegate to
+   *     `updateHooks.buildUninstallCommand` for dynamic command construction.
+   *   - none: return an error immediately.
+   *
+   * A `status: 'missing'` result after the command is the success condition — the binary
+   * should be gone. There is no 'not-detected-after-uninstall' error.
+   */
+  async uninstall(id: DependencyId, method?: InstallMethod): Promise<DependencyUninstallResult> {
+    const descriptor = this._getDependencyDescriptor(id);
+    if (!descriptor) {
+      return err({ type: 'unknown-dependency', id });
+    }
+
+    const strategy = descriptor.uninstall;
+    if (!strategy || strategy.kind === 'none') {
+      return err({ type: 'no-uninstall-strategy', id });
+    }
+
+    this.logger.info(
+      `[HostDependencyManager] Uninstalling ${id} (strategy: ${strategy.kind}, method: ${method ?? 'default'})`
+    );
+
+    await this.ctx.refreshShellEnv?.();
+
+    if (strategy.kind === 'package-manager') {
+      const chosen = pickInstallOption(descriptor, this.platform, method);
+      const uninstallCommand = chosen?.uninstallCommand;
+
+      if (!uninstallCommand) {
+        return err({ type: 'no-uninstall-command', id });
+      }
+
+      const runResult = await this.runInstallCommand(uninstallCommand);
+      if (!runResult.success) {
+        return err(runResult.error);
+      }
+    } else if (strategy.kind === 'cli') {
+      const resolvedPath = await this.resolveFirstPath(descriptor);
+      let command: string;
+      let args: string[];
+
+      if (descriptor.updateHooks?.buildUninstallCommand && resolvedPath) {
+        ({ command, args } = descriptor.updateHooks.buildUninstallCommand(resolvedPath));
+      } else {
+        command = resolvedPath ?? descriptor.commands[0] ?? id;
+        args = strategy.args;
+      }
+
+      const commandLine = [command, ...args].join(' ');
+      const runResult = await this.runInstallCommand(commandLine);
+      if (!runResult.success) {
+        return err(runResult.error);
+      }
+    }
+
+    await this.ctx.refreshShellEnv?.();
+
+    const state = await this.probe(id);
     this.onExecutableInvalidated.emit({ id });
     return ok(state);
   }
@@ -629,7 +606,7 @@ export class HostDependencyManager {
 
   private async resolveFirstPath(descriptor: DependencyDescriptor): Promise<string | null> {
     for (const command of descriptor.commands) {
-      const path = await resolveCommandPath(command, this.ctx);
+      const path = await resolveCommandPath(command, this.ctx, this.platform);
       if (path) return path;
     }
     return null;

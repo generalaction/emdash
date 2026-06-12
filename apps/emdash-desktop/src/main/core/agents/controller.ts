@@ -7,48 +7,49 @@ import type {
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
 import { createRPCController } from '@shared/lib/ipc/rpc';
+import { clearResolvedPathCache } from '../conversations/impl/resolve-agent-executable';
+import { agentUpdateService } from '../dependencies/agent-update-service';
 import { getDependencyManager } from '../dependencies/dependency-managers';
+import { hostDependencyStore } from '../dependencies/host-dependency-store';
 import { providerOverrideSettings } from '../settings/provider-settings-service';
 import {
   buildAgentMetadataList,
   buildAgentPayload,
   buildAgentPayloads,
+  toAgentInstallationStatus,
 } from './agent-payload-builder';
+
+/** Enrich a manager HostDependency snapshot with latestVersion/updateAvailable from the coordinator. */
+const enrichHostDep = (
+  id: DependencyId,
+  hostDep: Parameters<typeof agentUpdateService.enrichHostDependency>[1]
+) => agentUpdateService.enrichHostDependency(id, hostDep);
 
 export const agentsController = createRPCController({
   // ── Metadata ────────────────────────────────────────────────────────────────
 
   list: async (connectionId?: string) => {
     const mgr = await getDependencyManager(connectionId);
-    return buildAgentPayloads(mgr.platform, mgr);
+    return buildAgentPayloads(mgr.platform, mgr, enrichHostDep);
   },
 
   get: async (id: string, connectionId?: string) => {
     const mgr = await getDependencyManager(connectionId);
-    return buildAgentPayload(id, mgr.platform, mgr);
+    return buildAgentPayload(id, mgr.platform, mgr, enrichHostDep);
   },
 
   // ── Installation status ──────────────────────────────────────────────────────
 
   listAgentInstallationStatus: async (connectionId?: string) => {
     const mgr = await getDependencyManager(connectionId);
-    const all = mgr.getAll();
-    return Array.from(all.values())
+    return Array.from(mgr.getAll().values())
       .filter((s) => s.category === 'agent')
       .map((state) => {
-        const hostDep = mgr.getHostDependency(state.id as DependencyId);
-        return {
-          id: state.id,
-          connectionId,
-          status: state.status,
-          version: state.version,
-          latestVersion: state.latestVersion ?? null,
-          updateAvailable: state.updateAvailable ?? false,
-          command: state.path,
-          installations: hostDep?.installations ?? [],
-          usedId: hostDep?.usedId ?? '',
-          installOptions: [],
-        };
+        const rawHostDep = mgr.getHostDependency(state.id as DependencyId);
+        const hostDep = rawHostDep
+          ? agentUpdateService.enrichHostDependency(state.id as DependencyId, rawHostDep)
+          : undefined;
+        return toAgentInstallationStatus(state.id, connectionId, state, hostDep);
       });
   },
 
@@ -56,19 +57,11 @@ export const agentsController = createRPCController({
     const mgr = await getDependencyManager(connectionId);
     const state = mgr.get(id as DependencyId);
     if (!state) return null;
-    const hostDep = mgr.getHostDependency(id as DependencyId);
-    return {
-      id,
-      connectionId,
-      status: state.status,
-      version: state.version,
-      latestVersion: state.latestVersion ?? null,
-      updateAvailable: state.updateAvailable ?? false,
-      command: state.path,
-      installations: hostDep?.installations ?? [],
-      usedId: hostDep?.usedId ?? '',
-      installOptions: [],
-    };
+    const rawHostDep = mgr.getHostDependency(id as DependencyId);
+    const hostDep = rawHostDep
+      ? agentUpdateService.enrichHostDependency(id as DependencyId, rawHostDep)
+      : undefined;
+    return toAgentInstallationStatus(id, connectionId, state, hostDep);
   },
 
   // ── Install / update ─────────────────────────────────────────────────────────
@@ -81,6 +74,11 @@ export const agentsController = createRPCController({
   update: async (id: AgentProviderId, connectionId?: string, method?: InstallMethod) => {
     const mgr = await getDependencyManager(connectionId);
     return mgr.update(id, method);
+  },
+
+  uninstall: async (id: AgentProviderId, connectionId?: string, method?: InstallMethod) => {
+    const mgr = await getDependencyManager(connectionId);
+    return mgr.uninstall(id, method);
   },
 
   // ── Settings ─────────────────────────────────────────────────────────────────
@@ -105,13 +103,14 @@ export const agentsController = createRPCController({
     selection?: HostDependencySelection
   ): Promise<void> => {
     if (!selection) return;
+    await hostDependencyStore.setSelection(connectionId ?? 'local', id, selection);
+    clearResolvedPathCache(id, connectionId);
     const mgr = await getDependencyManager(connectionId);
-    await mgr.setSelection(id, selection);
+    await mgr.probe(id);
   },
 
   refreshLatestVersion: async (id: DependencyId, connectionId?: string): Promise<void> => {
-    const mgr = await getDependencyManager(connectionId);
-    await mgr.fetchLatestVersion(id);
+    await agentUpdateService.refreshLatestVersion(id, connectionId);
   },
 
   probe: async (id: DependencyId, connectionId?: string) => {

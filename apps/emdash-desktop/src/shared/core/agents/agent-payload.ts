@@ -1,7 +1,27 @@
 import type { AgentIconAsset } from '@emdash/shared/agents/plugins';
-import type { HostDependencyDescriptor, InstallOption } from '@emdash/shared/deps';
-import type { DependencyStatus, Installation } from '@emdash/shared/deps/runtime';
+import type { HostDependencyDescriptor, InstallMethod, InstallOption } from '@emdash/shared/deps';
+import {
+  installationCanUpdate,
+  type DependencyInstallError,
+  type DependencyStatus,
+  type DependencyUninstallError,
+  type DependencyUpdateError,
+  type HostDependencySelection,
+  type Installation,
+  type InstallationSource,
+} from '@emdash/shared/deps/runtime';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
+
+// ---------------------------------------------------------------------------
+// Re-exports — renderer-facing vocabulary for host-dependency types.
+// All renderer code imports these aliases instead of @emdash/shared/deps*.
+// ---------------------------------------------------------------------------
+export type { InstallMethod, InstallOption };
+export type { DependencyStatus, HostDependencySelection, Installation, InstallationSource };
+export type { DependencyInstallError as AgentInstallError };
+export type { DependencyUninstallError as AgentUninstallError };
+export type { DependencyUpdateError as AgentUpdateError };
+export { installationCanUpdate };
 
 export type AgentCapabilities = {
   hostDependency: HostDependencyDescriptor;

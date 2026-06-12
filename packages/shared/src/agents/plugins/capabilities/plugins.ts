@@ -5,7 +5,8 @@ import type { PluginFs } from '../../runtime/fs';
 export type PluginScope = { kind: 'global' } | { kind: 'workspace'; path: string };
 
 export type IPlugins = {
-  installPlugin(fs: PluginFs, scope: PluginScope): Promise<void>;
+  /** Install the plugin and return the root-relative paths written. */
+  installPlugin(fs: PluginFs, scope: PluginScope): Promise<string[]>;
   uninstallPlugin(fs: PluginFs, scope: PluginScope): Promise<void>;
   isPluginInstalled(fs: PluginFs, scope: PluginScope): Promise<boolean>;
   getPluginVersion(fs: PluginFs, scope: PluginScope): Promise<string>;

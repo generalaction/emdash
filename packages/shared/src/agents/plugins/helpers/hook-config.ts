@@ -77,7 +77,7 @@ export function buildNestedJsonHookConfig(configPath: string, hookSpecs: HookSpe
       });
       return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
     },
-    async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<void> {
+    async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, configPath);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
       for (const { hookKey, command } of hookSpecs) {
@@ -85,6 +85,7 @@ export function buildNestedJsonHookConfig(configPath: string, hookSpecs: HookSpe
         hooks[hookKey] = mergeNestedEntries(existing, command);
       }
       await writeJsonConfig(fs, configPath, { ...config, hooks });
+      return [configPath];
     },
     async deleteHooks(fs: PluginFs): Promise<void> {
       const config = await readJsonConfig(fs, configPath);
@@ -126,7 +127,7 @@ export function buildFlatJsonHookConfig(
       });
       return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
     },
-    async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<void> {
+    async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, configPath);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
       for (const { hookKey, command } of hookSpecs) {
@@ -134,6 +135,7 @@ export function buildFlatJsonHookConfig(
         hooks[hookKey] = mergeFlatEntries(existing, command);
       }
       await writeJsonConfig(fs, configPath, { ...config, ...extraRoot, hooks });
+      return [configPath];
     },
     async deleteHooks(fs: PluginFs): Promise<void> {
       const config = await readJsonConfig(fs, configPath);
@@ -173,7 +175,7 @@ export function buildMinimalJsonHookConfig(
       });
       return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
     },
-    async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<void> {
+    async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, configPath);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
       for (const { hookKey, command } of hookSpecs) {
@@ -181,6 +183,7 @@ export function buildMinimalJsonHookConfig(
         hooks[hookKey] = mergeMinimalEntries(existing, command);
       }
       await writeJsonConfig(fs, configPath, { ...config, ...extraRoot, hooks });
+      return [configPath];
     },
     async deleteHooks(fs: PluginFs): Promise<void> {
       const config = await readJsonConfig(fs, configPath);

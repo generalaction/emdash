@@ -25,21 +25,3 @@ export function getPluginMetadata(id: string): CLIAgentPluginMetadata {
 export function listPlugins(): CLIAgentPluginProvider[] {
   return pluginRegistry.getAll();
 }
-
-/**
- * Workspace-relative paths that should be added to .gitignore when
- * writeAgentConfigToGitIgnore is enabled.
- * Only workspace-scoped (scope: 'workspace') hook and plugin files need to be gitignored.
- * Global-scoped providers (codex, grok, kimi) write to homedir and are not gitignored.
- */
-export const WORKSPACE_GITIGNORE_PATHS: Partial<Record<string, string[]>> = {
-  claude: ['.claude/settings.local.json'],
-  amp: ['.amp/plugins/emdash-hook.ts'],
-  pi: ['.pi/extensions/emdash-hook.ts'],
-  opencode: ['.opencode/plugins/emdash-notifications.js'],
-  kiro: ['.kiro/agents/emdash.json'],
-  copilot: ['.github/hooks/emdash.json'],
-  droid: ['.factory/settings.json'],
-  devin: ['.devin/hooks.v1.json'],
-  qwen: ['.qwen/settings.json'],
-};

@@ -8,9 +8,10 @@ export function createFileDropPlugin(opts: {
   const getContent = typeof opts.content === 'string' ? () => opts.content as string : opts.content;
 
   return {
-    async installPlugin(fs: PluginFs, _scope: PluginScope): Promise<void> {
+    async installPlugin(fs: PluginFs, _scope: PluginScope): Promise<string[]> {
       const content = getContent({ platform: process.platform });
       await fs.write(opts.relativePath, content);
+      return [opts.relativePath];
     },
     async uninstallPlugin(fs: PluginFs, _scope: PluginScope): Promise<void> {
       await fs.delete(opts.relativePath);

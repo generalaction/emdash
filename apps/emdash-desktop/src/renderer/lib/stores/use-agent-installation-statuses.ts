@@ -1,17 +1,14 @@
-import type { InstallMethod } from '@emdash/shared/deps';
-import type {
-  DependencyId,
-  DependencyStatus,
-  DependencyStatusUpdatedEvent,
-  HostDependency,
-  HostDependencySelection,
-  Installation,
-} from '@emdash/shared/deps/runtime';
-import { deriveHostDependencyStatus } from '@emdash/shared/deps/runtime';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo } from 'react';
 import { events, rpc } from '@renderer/lib/ipc';
-import type { AgentInstallationStatus, AgentPayload } from '@shared/core/agents/agent-payload';
+import type {
+  AgentInstallationStatus,
+  DependencyStatus,
+  HostDependencySelection,
+  Installation,
+  InstallMethod,
+} from '@shared/core/agents/agent-payload';
+import type { AgentPayload } from '@shared/core/agents/agent-payload';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { agentInstallationStatusUpdatedChannel } from '@shared/events/appEvents';
 import { AGENTS_METADATA_QUERY_KEY } from './use-agents';
@@ -38,27 +35,15 @@ export function useAgentInstallationStatuses(connectionId?: string) {
     staleTime: 30_000,
   });
 
-  // Live-patch cache from background events
+  // Live-patch cache from background events — the event is already a full DTO
   useEffect(() => {
     const stop = events.on(
       agentInstallationStatusUpdatedChannel,
-      (event: DependencyStatusUpdatedEvent) => {
+      (event: AgentInstallationStatus) => {
         if ((event.connectionId ?? undefined) !== connectionId) return;
         queryClient.setQueryData<AgentInstallationStatus[]>(key, (prev) => {
           if (!prev) return prev;
-          return prev.map((s) => {
-            if (s.id !== event.id) return s;
-            return {
-              ...s,
-              status: event.state.status,
-              version: event.state.version,
-              latestVersion: event.state.latestVersion ?? null,
-              updateAvailable: event.state.updateAvailable ?? false,
-              command: event.state.path,
-              installations: event.hostDependency?.installations ?? s.installations,
-              usedId: event.hostDependency?.usedId ?? s.usedId,
-            };
-          });
+          return prev.map((s) => (s.id === event.id ? event : s));
         });
         // Also invalidate the full agents list to keep the combined payload consistent
         void queryClient.invalidateQueries({ queryKey: AGENTS_METADATA_QUERY_KEY });
@@ -91,6 +76,16 @@ export function useAgentInstallationStatuses(connectionId?: string) {
     onSuccess: invalidate,
   });
 
+  const uninstallMutation = useMutation<
+    unknown,
+    Error,
+    { id: AgentProviderId; method?: InstallMethod }
+  >({
+    mutationFn: ({ id, method }) =>
+      rpc.agents.uninstall(id, connectionId, method) as Promise<unknown>,
+    onSuccess: invalidate,
+  });
+
   const setUsedMutation = useMutation<
     void,
     Error,
@@ -115,37 +110,47 @@ export function useAgentInstallationStatuses(connectionId?: string) {
     ...query,
     install: installMutation.mutate,
     update: updateMutation.mutate,
+    uninstall: uninstallMutation.mutate,
     setUsedInstallation: setUsedMutation.mutate,
     refreshLatestVersion: refreshLatestMutation.mutate,
     probeAll: probeAllMutation.mutate,
     isInstalling: installMutation.isPending,
     isUpdating: updateMutation.isPending,
+    isUninstalling: uninstallMutation.isPending,
     installingMethod: installMutation.isPending ? installMutation.variables?.method : undefined,
     updatingMethod: updateMutation.isPending ? updateMutation.variables?.method : undefined,
+    uninstallingMethod: uninstallMutation.isPending
+      ? uninstallMutation.variables?.method
+      : undefined,
   };
 }
 
 /**
- * Per-agent view-model derived from `useAgentInstallationStatuses`. Provides the
- * single agent's installation list, the currently used installation, a derived
- * status, and agent-bound, awaitable action wrappers. Consumed by the install
- * cards as the single source of truth (`vm`).
+ * View-model type for a single agent's installation state. Consumed by the
+ * install cards as the single source of truth (`vm`).
  */
 export type HostDependencyInstallation = {
+  /** The raw status DTO for this agent from the host probe, or null before the first probe. */
+  data: AgentInstallationStatus | null;
   installations: Installation[];
   used: Installation | undefined;
+  /** Dependency status — 'available', 'missing', 'outdated', etc. (not the query status). */
   status: DependencyStatus;
-  hostDependency: HostDependency | undefined;
   /** True while an install mutation is in flight for this host. */
   isInstalling: boolean;
   /** True while an update mutation is in flight for this host. */
   isUpdating: boolean;
+  /** True while an uninstall mutation is in flight for this host. */
+  isUninstalling: boolean;
   /** The install method currently being installed, if any. */
   installingMethod: InstallMethod | undefined;
   /** The install method currently being updated, if any. */
   updatingMethod: InstallMethod | undefined;
+  /** The install method currently being uninstalled, if any. */
+  uninstallingMethod: InstallMethod | undefined;
   install(method: InstallMethod): Promise<void>;
-  update(method: InstallMethod): Promise<void>;
+  update(method?: InstallMethod): Promise<void>;
+  uninstall(method?: InstallMethod): Promise<void>;
   setUsed(selection: HostDependencySelection): Promise<void>;
   refresh(): Promise<void>;
   fetchLatestVersion(): Promise<void>;
@@ -160,30 +165,27 @@ export function useAgentInstallationStatus(
   id: string,
   connectionId?: string,
   agentPayload?: AgentPayload
-) {
-  const base = useAgentInstallationStatuses(connectionId);
+): HostDependencyInstallation {
   const {
     data: statuses,
     install: installMutate,
     update: updateMutate,
+    uninstall: uninstallMutate,
     setUsedInstallation,
     refreshLatestVersion,
     probeAll,
-  } = base;
+    isInstalling,
+    isUpdating,
+    isUninstalling,
+    installingMethod,
+    updatingMethod,
+    uninstallingMethod,
+  } = useAgentInstallationStatuses(connectionId);
 
   const statusEntry = statuses?.find((s) => s.id === id) ?? null;
 
-  const hostDependency: HostDependency | undefined = statusEntry
-    ? {
-        hostId: connectionId ?? 'local',
-        dependencyId: id as DependencyId,
-        installations: statusEntry.installations,
-        usedId: statusEntry.usedId,
-      }
-    : undefined;
-
   const installations = useMemo<Installation[]>(() => {
-    if (hostDependency) return hostDependency.installations;
+    if (statusEntry) return statusEntry.installations;
     if (!agentPayload) return [];
     return [
       {
@@ -196,15 +198,11 @@ export function useAgentInstallationStatus(
         updateAvailable: agentPayload.updateAvailable,
       },
     ];
-  }, [hostDependency, agentPayload]);
+  }, [statusEntry, agentPayload]);
 
-  const usedId = hostDependency?.usedId ?? agentPayload?.usedId;
+  const usedId = statusEntry?.usedId ?? agentPayload?.usedId;
   const used = useMemo(() => installations.find((i) => i.id === usedId), [installations, usedId]);
-
-  const status = useMemo<DependencyStatus>(() => {
-    if (hostDependency) return deriveHostDependencyStatus(hostDependency);
-    return agentPayload?.status ?? 'missing';
-  }, [hostDependency, agentPayload]);
+  const status: DependencyStatus = statusEntry?.status ?? agentPayload?.status ?? 'missing';
 
   const install = useCallback(
     (method: InstallMethod) =>
@@ -215,11 +213,19 @@ export function useAgentInstallationStatus(
   );
 
   const update = useCallback(
-    (method: InstallMethod) =>
+    (method?: InstallMethod) =>
       new Promise<void>((resolve) => {
         updateMutate({ id: id as AgentProviderId, method }, { onSettled: () => resolve() });
       }),
     [updateMutate, id]
+  );
+
+  const uninstall = useCallback(
+    (method?: InstallMethod) =>
+      new Promise<void>((resolve) => {
+        uninstallMutate({ id: id as AgentProviderId, method }, { onSettled: () => resolve() });
+      }),
+    [uninstallMutate, id]
   );
 
   const setUsed = useCallback(
@@ -247,14 +253,19 @@ export function useAgentInstallationStatus(
   );
 
   return {
-    ...base,
     data: statusEntry,
     installations,
     used,
     status,
-    hostDependency,
+    isInstalling,
+    isUpdating,
+    isUninstalling,
+    installingMethod,
+    updatingMethod,
+    uninstallingMethod,
     install,
     update,
+    uninstall,
     setUsed,
     refresh,
     fetchLatestVersion,

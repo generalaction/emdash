@@ -13,7 +13,6 @@ vi.mock('@emdash/cli-agent-plugins/registry', () => ({
 vi.mock('@main/core/agents/plugin-registry', () => ({
   getPlugin: vi.fn(),
   listPlugins: vi.fn().mockReturnValue([]),
-  WORKSPACE_GITIGNORE_PATHS: {},
 }));
 
 vi.mock('@main/core/dependencies/registry', () => ({

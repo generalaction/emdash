@@ -7,19 +7,11 @@ import type { IExecutionContext } from '@main/core/execution-context/types';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { resolveLocalAutomationShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
-import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import {
-  agentInstallationStatusUpdatedChannel,
-  dependencyStatusUpdatedChannel,
-} from '@shared/events/appEvents';
+import { agentUpdateService } from './agent-update-service';
 import { hostDependencyStore } from './host-dependency-store';
 import { createLocalInstallCommandRunner, createSshInstallCommandRunner } from './install-runner';
 import { DEPENDENCIES, getDependencyDescriptor } from './registry';
-
-// ---------------------------------------------------------------------------
-// Shell profile resolver (uses desktop settings service)
-// ---------------------------------------------------------------------------
 
 async function resolveLocalInstallShellProfile() {
   const { defaultShell } = await appSettingsService.get('terminal');
@@ -34,38 +26,22 @@ async function resolveLocalInstallShellProfile() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Event + invalidation bridges
-// ---------------------------------------------------------------------------
-
 function wireDesktopBridges(manager: HostDependencyManager, connectionId?: string): void {
-  manager.onStatusUpdated.subscribe((event) => {
-    events.emit(dependencyStatusUpdatedChannel, event);
-    if (event.hostDependency) {
-      events.emit(agentInstallationStatusUpdatedChannel, event);
-    }
-  });
+  // AgentUpdateService owns the enriched event emission (adds latestVersion/updateAvailable)
+  agentUpdateService.attach(manager, connectionId);
   manager.onExecutableInvalidated.subscribe(({ id }) => {
     clearResolvedPathCache(id, connectionId);
   });
 }
 
-// ---------------------------------------------------------------------------
-// Local singleton
-// ---------------------------------------------------------------------------
-
 export const localDependencyManager = new HostDependencyManager(new LocalExecutionContext(), {
   runInstallCommand: createLocalInstallCommandRunner(resolveLocalInstallShellProfile),
-  hostDependencyStore,
+  getSelection: (depId) => hostDependencyStore.getSelection('local', depId),
   logger: log,
   dependencies: DEPENDENCIES,
   getDependencyDescriptor,
 });
 wireDesktopBridges(localDependencyManager, undefined);
-
-// ---------------------------------------------------------------------------
-// SSH factory
-// ---------------------------------------------------------------------------
 
 const sshManagers = new Map<string, HostDependencyManager>();
 
@@ -92,7 +68,7 @@ export async function getDependencyManager(connectionId?: string): Promise<HostD
       runInstallCommand: createSshInstallCommandRunner(proxy),
       connectionId,
       platform,
-      hostDependencyStore,
+      getSelection: (depId) => hostDependencyStore.getSelection(connectionId, depId),
       logger: log,
       dependencies: DEPENDENCIES,
       getDependencyDescriptor,

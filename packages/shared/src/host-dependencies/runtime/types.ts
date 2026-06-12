@@ -1,10 +1,15 @@
 import z from 'zod';
 import type { Result } from '../../lib/result';
-import type { InstallMethod, InstallOption, Platform, UpdatesDescriptor } from '../capability';
+import type {
+  InstallMethod,
+  InstallOption,
+  Platform,
+  UninstallStrategy,
+  UpdateStrategy,
+  UpdatesDescriptor,
+} from '../capability';
 
 export type DependencyCategory = 'core' | 'agent';
-
-export type CoreDependencyId = 'git' | 'gh' | 'tmux' | 'ssh' | 'node';
 
 export type DependencyId = string;
 
@@ -45,16 +50,45 @@ export type DependencyUpdateError =
 
 export type DependencyUpdateResult = Result<DependencyState, DependencyUpdateError>;
 
+export type DependencyUninstallError =
+  | { type: 'unknown-dependency'; id: string }
+  | { type: 'no-uninstall-strategy'; id: string }
+  | { type: 'no-uninstall-command'; id: string }
+  | InstallCommandError;
+// Note: no 'not-detected-after-uninstall' — missing status after uninstall is the success condition.
+
+export type DependencyUninstallResult = Result<DependencyState, DependencyUninstallError>;
+
 /**
  * Describes the origin of a specific installation of an agent binary.
  * - 'method': detected from the binary's realpath using location hints.
  * - 'path': user-supplied absolute path override.
  * - 'cli': user-supplied command name (resolved on PATH).
+ * - 'unknown': binary was found but its install method could not be inferred
+ *   (e.g. installed via a version manager shim like Volta or asdf).
  */
 export type InstallationSource =
   | { kind: 'method'; method: InstallMethod }
   | { kind: 'path'; path: string }
-  | { kind: 'cli'; command: string };
+  | { kind: 'cli'; command: string }
+  | { kind: 'unknown' };
+
+/**
+ * Returns true when an installation can be updated via emdash's update action.
+ *
+ * - auto / none: never updatable through emdash.
+ * - cli strategy: always updatable — the binary self-updates regardless of how it was installed.
+ * - package-manager strategy: requires a known method so the correct package-manager command
+ *   can be selected; unknown-source installs show "Automatic updates not available" instead.
+ */
+export function installationCanUpdate(
+  source: InstallationSource,
+  strategyKind: UpdateStrategy['kind']
+): boolean {
+  if (strategyKind === 'auto' || strategyKind === 'none') return false;
+  if (source.kind === 'unknown') return strategyKind === 'cli';
+  return true;
+}
 
 /**
  * A single resolved installation of an agent binary on a specific host.
@@ -157,6 +191,7 @@ export interface DependencyDescriptor {
   updateHooks?: {
     resolveLatestVersion?(): Promise<string | null>;
     buildUpdateCommand?(binaryPath: string): { command: string; args: string[] };
+    buildUninstallCommand?(binaryPath: string): { command: string; args: string[] };
   };
   /**
    * Override the default status resolution logic.
@@ -165,6 +200,8 @@ export interface DependencyDescriptor {
   resolveStatus?: (result: ProbeResult) => DependencyStatus;
   /** Updates capability from plugin metadata. Absent for core dependencies. */
   updates?: UpdatesDescriptor;
+  /** Uninstall strategy from plugin metadata. Absent for core dependencies. */
+  uninstall?: UninstallStrategy;
 }
 
 export type DependencyProbeOptions = {

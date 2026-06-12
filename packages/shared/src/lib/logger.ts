@@ -1,10 +1,3 @@
-/**
- * Minimal structural subset of a pino-style logger.
- *
- * Any `pino` instance satisfies this interface (pino's `LogFn` includes the
- * `(msg: string, ...args) => void` overload), as do most console-like loggers.
- * Shared modules depend on this shape instead of a concrete logging library.
- */
 export interface Logger {
   debug(message: string, ...args: unknown[]): void;
   info(message: string, ...args: unknown[]): void;

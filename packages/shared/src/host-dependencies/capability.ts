@@ -31,6 +31,9 @@ export const installOptionSchema = z.object({
   /** Update command for installs made via this method. When absent, falls back to re-running
    *  `command` for package-manager updates or the dependency's own CLI update command. */
   updateCommand: z.string().optional(),
+  /** Uninstall command for installs made via this method. Required when the descriptor's
+   *  `uninstall.kind` is `'package-manager'`. */
+  uninstallCommand: z.string().optional(),
 });
 export type InstallOption = z.output<typeof installOptionSchema>;
 
@@ -63,6 +66,16 @@ export const updatesDescriptorSchema = z.discriminatedUnion('kind', [
 ]);
 export type UpdatesDescriptor = z.output<typeof updatesDescriptorSchema>;
 
+export const uninstallStrategySchema = z.discriminatedUnion('kind', [
+  /** Run the per-method `uninstallCommand` declared on the matching InstallOption. */
+  z.object({ kind: z.literal('package-manager') }),
+  /** Run the dependency's own uninstall subcommand, e.g. `claude uninstall`. */
+  z.object({ kind: z.literal('cli'), args: z.array(z.string()) }),
+  /** Uninstall not supported via emdash; hide the option in the UI. */
+  z.object({ kind: z.literal('none') }),
+]);
+export type UninstallStrategy = z.output<typeof uninstallStrategySchema>;
+
 export const hostDependencyDescriptorSchema = z.object({
   id: z.string(),
   /** Binary names to try in order; first success wins. */
@@ -76,6 +89,8 @@ export const hostDependencyDescriptorSchema = z.object({
   /** Optional link to installation documentation, shown in the dependency detail view. */
   installDocs: z.string().optional(),
   updates: updatesDescriptorSchema,
+  /** Uninstall strategy. When absent, uninstall is not supported. */
+  uninstall: uninstallStrategySchema.optional(),
 });
 export type HostDependencyDescriptor = z.output<typeof hostDependencyDescriptorSchema>;
 
@@ -87,6 +102,11 @@ export type IHostDependencyBehavior = {
    * Receives the resolved binary path; return { command, args } to run.
    */
   buildUpdateCommand?(binaryPath: string): { command: string; args: string[] };
+  /**
+   * Override the static UninstallStrategy.cli args with a computed command.
+   * Receives the resolved binary path; return { command, args } to run.
+   */
+  buildUninstallCommand?(binaryPath: string): { command: string; args: string[] };
   /**
    * Override the default status resolution logic.
    * Useful for CLIs that exit non-zero on `--version` but are still available.

@@ -27,7 +27,7 @@ export function buildCopilotHookConfig() {
       });
       return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
     },
-    async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<void> {
+    async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, COPILOT_HOOKS_PATH);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
 
@@ -51,6 +51,7 @@ export function buildCopilotHookConfig() {
       }
 
       await writeJsonConfig(fs, COPILOT_HOOKS_PATH, { ...config, version: 1, hooks });
+      return [COPILOT_HOOKS_PATH];
     },
     async deleteHooks(fs: PluginFs): Promise<void> {
       const config = await readJsonConfig(fs, COPILOT_HOOKS_PATH);

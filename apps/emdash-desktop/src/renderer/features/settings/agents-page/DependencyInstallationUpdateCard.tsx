@@ -1,22 +1,29 @@
 import { ArrowRight, Loader2, RefreshCw } from 'lucide-react';
 import { useMemo } from 'react';
 import { useAgentInstallationStatus } from '@renderer/lib/stores/use-agent-installation-statuses';
-import type { AgentPayload } from '@shared/core/agents/agent-payload';
+import type { AgentPayload, InstallMethod } from '@shared/core/agents/agent-payload';
 import { CommandActionButton, CommandRow } from './install-command-row';
 
 export type DependencyInstallationUpdateCardProps = {
   agentId: string;
   /** SSH connection id; when provided, the update operates on the remote host. */
   connectionId?: string;
-  /** Full agent payload used to hydrate the hook and derive per-method update commands. */
+  /** Full agent payload used to hydrate the hook and derive the update strategy. */
   agentPayload: AgentPayload | undefined;
 };
 
 /**
  * Self-contained update card for a single agent dependency. Reads the
  * host-scoped installation state via useAgentInstallationStatus and renders
- * the update command for the currently used installation when an update is
+ * the update action for the currently used installation when an update is
  * available. Renders nothing when no update is applicable.
+ *
+ * Strategy-aware:
+ * - package-manager: shows the per-method updateCommand (or re-runs `command`),
+ *   calls update(method).
+ * - cli: shows `<binary> <args>` and calls update() with no method (the binary
+ *   self-updates; works for any source including 'unknown').
+ * - auto / none: renders nothing.
  */
 export function DependencyInstallationUpdateCard({
   agentId,
@@ -26,6 +33,10 @@ export function DependencyInstallationUpdateCard({
   const vm = useAgentInstallationStatus(agentId, connectionId, agentPayload);
   const { used, update, isUpdating, updatingMethod } = vm;
 
+  const updates = agentPayload?.capabilities.hostDependency.updates;
+  const strategyKind = updates?.kind === 'supported' ? updates.update.kind : ('none' as const);
+
+  // Build a map of method -> updateCommand for package-manager strategy
   const updateCommands = useMemo(() => {
     const map: Record<string, string> = {};
     for (const opt of agentPayload?.installOptions ?? []) {
@@ -37,15 +48,77 @@ export function DependencyInstallationUpdateCard({
   }, [agentPayload]);
 
   if (!used?.updateAvailable) return null;
+  if (strategyKind === 'auto' || strategyKind === 'none') return null;
 
-  const usedMethod = used.source.kind === 'method' ? used.source.method : null;
-  const updateCommand = usedMethod ? (updateCommands[usedMethod] ?? null) : null;
+  const versionArrow =
+    used.version && used.latestVersion ? (
+      <span className="flex items-center gap-1 text-xs text-foreground-muted">
+        <span className="font-mono">{used.version}</span>
+        <ArrowRight className="h-3 w-3 shrink-0" />
+        <span className="font-mono">{used.latestVersion}</span>
+      </span>
+    ) : null;
 
-  if (!updateCommand) return null;
+  if (strategyKind === 'package-manager') {
+    const usedMethod = used.source.kind === 'method' ? used.source.method : null;
+    if (!usedMethod) return null; // unknown source; coordinator already set updateAvailable=false but guard anyway
 
-  const isUpdatingThis =
-    isUpdating && (updatingMethod === undefined || updatingMethod === usedMethod);
+    // Prefer explicit updateCommand; fall back to the install command for that method
+    const installOption = agentPayload?.installOptions.find((o) => o.method === usedMethod);
+    const command = updateCommands[usedMethod] ?? installOption?.command ?? null;
+    if (!command) return null;
 
+    const isUpdatingThis =
+      isUpdating && (updatingMethod === undefined || updatingMethod === usedMethod);
+
+    return (
+      <UpdateCard versionArrow={versionArrow}>
+        <CommandRow
+          command={command}
+          action={
+            <CommandActionButton
+              disabled={isUpdatingThis}
+              onClick={() => void update(usedMethod as InstallMethod)}
+            >
+              {isUpdatingThis ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Update'}
+            </CommandActionButton>
+          }
+        />
+      </UpdateCard>
+    );
+  }
+
+  // cli strategy — binary self-updates regardless of install source
+  if (strategyKind === 'cli' && updates?.kind === 'supported' && updates.update.kind === 'cli') {
+    const cliUpdate = updates.update;
+    const binary = used.path ?? agentPayload?.id ?? agentId;
+    const command = [binary, ...cliUpdate.args].join(' ');
+    const isUpdatingThis = isUpdating && updatingMethod === undefined;
+
+    return (
+      <UpdateCard versionArrow={versionArrow}>
+        <CommandRow
+          command={command}
+          action={
+            <CommandActionButton disabled={isUpdatingThis} onClick={() => void update()}>
+              {isUpdatingThis ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Update'}
+            </CommandActionButton>
+          }
+        />
+      </UpdateCard>
+    );
+  }
+
+  return null;
+}
+
+function UpdateCard({
+  versionArrow,
+  children,
+}: {
+  versionArrow: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-2 rounded-lg border p-3">
       <div className="flex items-center justify-between gap-2">
@@ -59,25 +132,9 @@ export function DependencyInstallationUpdateCard({
           </div>
           <span>Update available</span>
         </div>
-        {used.version && used.latestVersion && (
-          <span className="flex items-center gap-1 text-xs text-foreground-muted">
-            <span className="font-mono">{used.version}</span>
-            <ArrowRight className="h-3 w-3 shrink-0" />
-            <span className="font-mono">{used.latestVersion}</span>
-          </span>
-        )}
+        {versionArrow}
       </div>
-      <CommandRow
-        command={updateCommand}
-        action={
-          <CommandActionButton
-            disabled={isUpdatingThis}
-            onClick={() => usedMethod && void update(usedMethod)}
-          >
-            {isUpdatingThis ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Update'}
-          </CommandActionButton>
-        }
-      />
+      {children}
     </div>
   );
 }

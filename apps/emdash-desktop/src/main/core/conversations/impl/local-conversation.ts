@@ -2,7 +2,7 @@ import { homedir } from 'node:os';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
 import { createPluginFs } from '@main/core/agents/plugin-fs';
-import { getPlugin, WORKSPACE_GITIGNORE_PATHS } from '@main/core/agents/plugin-registry';
+import { getPlugin } from '@main/core/agents/plugin-registry';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
@@ -303,27 +303,26 @@ export class LocalConversationProvider implements ConversationProvider {
       const hooksKind = hooksDescriptor.kind;
       let hooksAvailable = false;
 
+      let writtenPaths: string[] = [];
       if (hooksKind === 'config' && plugin.behavior.hooks) {
         const scope = hooksDescriptor.scope;
         const root = scope === 'global' ? homedir() : this.taskPath;
         const fs = createPluginFs(root);
-        await plugin.behavior.hooks.writeHooks(fs, []);
+        const paths = await plugin.behavior.hooks.writeHooks(fs, []);
+        writtenPaths = scope === 'global' ? [] : paths;
         hooksAvailable = true;
       } else if (hooksKind === 'plugin' && plugin.behavior.plugins) {
         const fs = createPluginFs(this.taskPath);
-        await plugin.behavior.plugins.installPlugin(fs, {
+        writtenPaths = await plugin.behavior.plugins.installPlugin(fs, {
           kind: 'workspace',
           path: this.taskPath,
         });
         hooksAvailable = true;
       }
 
-      if (writeGitIgnoreEntries && hooksAvailable) {
-        const gitignorePaths = WORKSPACE_GITIGNORE_PATHS[providerId];
-        if (gitignorePaths?.length) {
-          const wsFs = createPluginFs(this.taskPath);
-          await ensureGitIgnoreEntries(wsFs, gitignorePaths);
-        }
+      if (writeGitIgnoreEntries && writtenPaths.length) {
+        const wsFs = createPluginFs(this.taskPath);
+        await ensureGitIgnoreEntries(wsFs, writtenPaths);
       }
 
       this.preparedHookProviders.set(providerId, {

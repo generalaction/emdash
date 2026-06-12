@@ -1,4 +1,4 @@
-import type { DependencyInstallError, DependencyUpdateError } from '@emdash/shared/deps/runtime';
+import type { AgentInstallError, AgentUpdateError } from '@shared/core/agents/agent-payload';
 import { getProvider, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 
 export type AgentInstallActionState = {
@@ -8,7 +8,7 @@ export type AgentInstallActionState = {
   label: string;
 };
 
-export function getAgentInstallErrorMessage(error: DependencyInstallError): string {
+export function getAgentInstallErrorMessage(error: AgentInstallError): string {
   switch (error.type) {
     case 'permission-denied':
       return error.message;
@@ -54,7 +54,7 @@ export type AgentUpdateActionState = {
   versionLabel: string | null;
 };
 
-export function getAgentUpdateErrorMessage(error: DependencyUpdateError): string {
+export function getAgentUpdateErrorMessage(error: AgentUpdateError): string {
   switch (error.type) {
     case 'permission-denied':
       return error.message;

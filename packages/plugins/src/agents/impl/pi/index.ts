@@ -33,6 +33,7 @@ export const plugin = definePlugin(
           {
             method: 'npm',
             command: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
+            updateCommand: 'pi update',
           },
         ],
         linux: [

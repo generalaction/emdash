@@ -1,14 +1,14 @@
 import type { IExecutionContext } from '../../exec/execution-context';
+import type { Platform } from '../capability';
+import { toPlatform } from './install-options';
 import type { ProbeResult } from './types';
 
 const WHICH_TIMEOUT_MS = 5_000;
 const VERSION_PROBE_TIMEOUT_MS = 10_000;
 const REALPATH_TIMEOUT_MS = 5_000;
 
-// `where` on Windows, `which` on macOS/Linux. Resolved lazily so importing
-// this module never touches `process` at evaluation time.
-function resolveCmd(): string {
-  return process.platform === 'win32' ? 'where' : 'which';
+function targetPlatform(platform?: Platform): Platform {
+  return platform ?? toPlatform(process.platform);
 }
 
 /**
@@ -18,10 +18,12 @@ function resolveCmd(): string {
  */
 export async function resolveCommandPath(
   command: string,
-  ctx: IExecutionContext
+  ctx: IExecutionContext,
+  platform?: Platform
 ): Promise<string | null> {
+  const resolveCmd = targetPlatform(platform) === 'windows' ? 'where' : 'which';
   try {
-    const { stdout } = await ctx.exec(resolveCmd(), [command], { timeout: WHICH_TIMEOUT_MS });
+    const { stdout } = await ctx.exec(resolveCmd, [command], { timeout: WHICH_TIMEOUT_MS });
     const firstLine = stdout.trim().split('\n')[0]?.trim();
     return firstLine ?? null;
   } catch {
@@ -36,9 +38,10 @@ export async function resolveCommandPath(
  */
 export async function resolveRealpath(
   resolvedPath: string,
-  ctx: IExecutionContext
+  ctx: IExecutionContext,
+  platform?: Platform
 ): Promise<string> {
-  if (process.platform === 'win32') return resolvedPath;
+  if (targetPlatform(platform) === 'windows') return resolvedPath;
   try {
     const { stdout } = await ctx.exec('realpath', [resolvedPath], {
       timeout: REALPATH_TIMEOUT_MS,

@@ -87,9 +87,10 @@ export function buildKimiHookConfig() {
       }
       return [];
     },
-    async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<void> {
+    async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       await writeKimiHookPath(fs, KIMI_CONFIG_PATH);
       await writeKimiHookPath(fs, KIMI_LEGACY_CONFIG_PATH);
+      return [KIMI_CONFIG_PATH, KIMI_LEGACY_CONFIG_PATH];
     },
     async deleteHooks(fs: PluginFs): Promise<void> {
       for (const path of [KIMI_CONFIG_PATH, KIMI_LEGACY_CONFIG_PATH]) {

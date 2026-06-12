@@ -1,12 +1,29 @@
 import type { CLIAgentPluginProvider } from '@emdash/shared/agents/plugins';
 import type { Platform } from '@emdash/shared/deps';
-import { resolveInstallOptions, toPlatform } from '@emdash/shared/deps/runtime';
+import {
+  deriveHostDependencyStatus,
+  resolveInstallOptions,
+  toPlatform,
+} from '@emdash/shared/deps/runtime';
+import type { DependencyId, DependencyState, HostDependency } from '@emdash/shared/deps/runtime';
 import type { HostDependencyManager } from '@emdash/shared/deps/runtime/node';
-import type { AgentMetadata, AgentPayload } from '@shared/core/agents/agent-payload';
+import type {
+  AgentInstallationStatus,
+  AgentMetadata,
+  AgentPayload,
+  InstallOption,
+} from '@shared/core/agents/agent-payload';
 import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { getDependencyDescriptor } from '../dependencies/registry';
 import { providerOverrideSettings } from '../settings/provider-settings-service';
 import { getPlugin, listPlugins } from './plugin-registry';
+
+/**
+ * Optional callback injected by the controller so the builder can enrich the
+ * manager's HostDependency snapshot with latestVersion/updateAvailable from the
+ * AgentUpdateService before building the payload.
+ */
+type EnrichHostDep = (id: DependencyId, hostDep: HostDependency) => HostDependency;
 
 function buildMetadata(provider: CLIAgentPluginProvider): AgentMetadata {
   const { metadata, capabilities, assets } = provider;
@@ -34,7 +51,8 @@ function buildMetadata(provider: CLIAgentPluginProvider): AgentMetadata {
 async function buildOne(
   id: AgentProviderId,
   platform: Platform,
-  dependencyManager?: HostDependencyManager
+  dependencyManager?: HostDependencyManager,
+  enrichHostDep?: EnrichHostDep
 ): Promise<AgentPayload | null> {
   const provider = getPlugin(id);
   if (!provider) return null;
@@ -45,14 +63,22 @@ async function buildOne(
 
   const defaultConfig = settingsMeta?.defaults ?? {};
 
-  const hostDep = dependencyManager?.getHostDependency(id);
+  const rawHostDep = dependencyManager?.getHostDependency(id);
+  const hostDep =
+    rawHostDep && enrichHostDep ? enrichHostDep(id as DependencyId, rawHostDep) : rawHostDep;
+
+  // Derive top-level update fields from the used installation so the row badge
+  // always matches the detail card (both read the gated per-installation value).
+  const usedInst = hostDep?.installations.find((i) => i.id === hostDep.usedId);
+  const latestVersion = usedInst?.latestVersion ?? null;
+  const updateAvailable = usedInst?.updateAvailable ?? false;
 
   return {
     ...buildMetadata(provider),
     status: state?.status ?? 'missing',
     version: state?.version ?? null,
-    latestVersion: state?.latestVersion ?? null,
-    updateAvailable: state?.updateAvailable ?? false,
+    latestVersion,
+    updateAvailable,
     command: state?.path ?? null,
     settings: settingsMeta ?? {
       value: defaultConfig,
@@ -68,21 +94,50 @@ async function buildOne(
 export async function buildAgentPayload(
   id: string,
   platform: Platform = toPlatform(process.platform),
-  dependencyManager?: HostDependencyManager
+  dependencyManager?: HostDependencyManager,
+  enrichHostDep?: EnrichHostDep
 ): Promise<AgentPayload | null> {
-  return buildOne(id as AgentProviderId, platform, dependencyManager);
+  return buildOne(id as AgentProviderId, platform, dependencyManager, enrichHostDep);
 }
 
 export async function buildAgentPayloads(
   platform: Platform = toPlatform(process.platform),
-  dependencyManager?: HostDependencyManager
+  dependencyManager?: HostDependencyManager,
+  enrichHostDep?: EnrichHostDep
 ): Promise<AgentPayload[]> {
   const results = await Promise.all(
-    AGENT_PROVIDERS.map((p) => buildOne(p.id, platform, dependencyManager))
+    AGENT_PROVIDERS.map((p) => buildOne(p.id, platform, dependencyManager, enrichHostDep))
   );
   return results.filter((r): r is AgentPayload => r !== null);
 }
 
 export function buildAgentMetadataList(): AgentMetadata[] {
   return listPlugins().map(buildMetadata);
+}
+
+/**
+ * Maps manager state for a single agent to the renderer-facing AgentInstallationStatus DTO.
+ * Top-level latestVersion/updateAvailable are derived from the used installation when
+ * host-dependency data is available, so the row badge always matches the update card.
+ */
+export function toAgentInstallationStatus(
+  id: string,
+  connectionId: string | undefined,
+  state: DependencyState,
+  hostDep: HostDependency | undefined,
+  installOptions: InstallOption[] = []
+): AgentInstallationStatus {
+  const usedInst = hostDep?.installations.find((i) => i.id === hostDep.usedId);
+  return {
+    id,
+    connectionId,
+    status: hostDep ? deriveHostDependencyStatus(hostDep) : state.status,
+    version: state.version,
+    latestVersion: usedInst?.latestVersion ?? state.latestVersion ?? null,
+    updateAvailable: usedInst?.updateAvailable ?? state.updateAvailable ?? false,
+    command: state.path,
+    installations: hostDep?.installations ?? [],
+    usedId: hostDep?.usedId ?? '',
+    installOptions,
+  };
 }

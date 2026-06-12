@@ -1,4 +1,3 @@
-import type { InstallMethod, InstallOption } from '@emdash/shared/deps';
 import { ChevronDown, Loader2 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import type { HostDependencyInstallation } from '@renderer/lib/stores/use-agent-installation-statuses';
@@ -12,6 +11,7 @@ import {
 } from '@renderer/lib/ui/combobox';
 import { Input } from '@renderer/lib/ui/input';
 import { cn } from '@renderer/utils/utils';
+import type { InstallMethod, InstallOption } from '@shared/core/agents/agent-payload';
 import { InstalledBadge, RecommendedBadge, UsedBadge } from './agent-status-badge';
 import { CommandActionButton, CommandRow, humanizeMethod } from './install-command-row';
 
