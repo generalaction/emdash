@@ -1,0 +1,133 @@
+apps/emdash-desktop/src/renderer/features/tasks/conversations/add-context-popover.tsx
+  s_96992641f3c113::t_5650ec33089f2c 24,31-41,62,90-106,112-128,131,146,154,156,158-161,163-201,205-224,232-234,236-239,254,256-260,262,313-318,322-333,335,338,340-341,344,352,354-362,364-366
+  s_96992641f3c113::t_97ffc7914c1508 2-9
+apps/emdash-desktop/src/renderer/features/tasks/conversations/context-bar.tsx
+  s_96992641f3c113::t_fdb096145a0999 39-43
+  s_96992641f3c113::t_c94fc79c601831 98
+apps/emdash-desktop/src/renderer/features/library/prompts/prompt-modal.tsx
+  s_a7ea6ad6219440::t_cac1034c68e2fc 82
+  s_a7ea6ad6219440::t_bf28a800a091a3 13-19,21-23,25,29,34,39,55,74-81,83-86,88-99
+  s_96992641f3c113::t_8b20742c45526a 45-48
+  s_96992641f3c113::t_e457f140211a84 87
+apps/emdash-desktop/src/shared/prompt-library.ts
+  s_a7ea6ad6219440::t_7210b74fd4e1fd 10,15-21,23-28
+apps/emdash-desktop/src/renderer/features/library/prompts/prompt-library-view.tsx
+  s_a7ea6ad6219440::t_00284c342b1f6c 360
+  s_a7ea6ad6219440::t_0693855fed8ab0 72,81-91,107
+  s_a7ea6ad6219440::t_f511ebc66447a7 39,480-498,676-685,687,735-738,780-782,800-802,809-812,815-825,830,832-833
+  s_a7ea6ad6219440::t_7795b2bd4e78b9 124-127
+  s_96992641f3c113::t_1d91705f9450ab 262-288
+  s_96992641f3c113::t_cc0fa1f5e17b69 28,33,71,93-96,98-105,202,205,207-211,221-222,231-232,242,289-315,321-330,338,340,365-375,378,383-388,411-412,414-427,558-570,584-588,591-593,595-620,623-630,634-636,639,642-645,648-649,652-673,745,783-795,797-799,803-808,813-814,831,836
+  s_0a421a6acb2147::t_8e76bce6c45ebf 352
+  s_0a421a6acb2147::t_3719092ce80273 429
+  s_a7ea6ad6219440::t_ff4404bfd6b4d5 583,589-590,594,621-622,631-633,637-638
+  s_a7ea6ad6219440::t_f826f39a965d36 827-828
+  s_a7ea6ad6219440::t_a214a9bf4c0f94 4,12-13
+  s_a2e55bf983435d::t_78d85d7f588c21 182,187,192,407
+  s_0a421a6acb2147::t_df40789b3d27f7 361-364
+  s_a7ea6ad6219440::t_c23aeaa06f3ef8 834-835,837-838
+  s_a7ea6ad6219440::t_337ea5bd093bf3 52,62-64,78-79,114-123,128,213-220,223-230,233-238,245-261,349-350,357,381-382,389-404,436-441,446,448,456,469-472,499-525,531-538,542-551,553-557,571-573,641,675,753-767,770-771,778,829
+  s_a7ea6ad6219440::t_201c330302ce85 339
+  s_96992641f3c113::t_4225e3f0d8ce44 796
+  s_a7ea6ad6219440::t_a5c8c0e7039d1e 552
+  s_0a421a6acb2147::t_c53297f928b6e4 190,203
+  s_465093aa1fc002::t_9997cb6068935b 67-68
+  s_0a421a6acb2147::t_1dfe49ea64ff62 180,185,191
+  s_96992641f3c113::t_4a239764fa9c3b 206,212
+  s_96992641f3c113::t_9bc3c045ca9486 332-337
+  s_6527458aa774d0::t_7e383d25a360b0 377
+  s_f7187b2284e2f2::t_f6c4f7316ccd14 408-409
+  s_a7ea6ad6219440::t_3f98ebf8398e48 410
+  s_a7ea6ad6219440::t_e340df63604334 413,428
+  s_a7ea6ad6219440::t_e2aa3fb150a7ec 539-541
+  s_465093aa1fc002::t_35a7532b449965 640
+  s_a7ea6ad6219440::t_df7a2fdd94333e 574-575
+  s_a7ea6ad6219440::t_dff74c67970f67 775-777
+  s_96992641f3c113::t_af02692f4d8d93 826
+  s_0a421a6acb2147::t_6c4ee93d7974bd 1-3,5,8-9,11,14-21,179,181,183-184,186,188-189,193-201,204,316-319,430,529-530,646,772-773,779,839
+  s_a7ea6ad6219440::t_8c0dd1e186537b 320,331,341-346
+  s_a7ea6ad6219440::t_5ee00f4459bfb3 6-7,10,22-27,29-32,40-48,65-66,69-70,73-75,92,97,106,239-241,243-244,576-582,647,650-651,686,688-734,774
+apps/emdash-desktop/src/renderer/features/library/prompts/prompt-folder-modal.tsx
+  s_a7ea6ad6219440::t_3bc5ea4ff2aab2 1-26,30-73
+  s_a7ea6ad6219440::t_6b30d801770fec 27-29
+apps/emdash-desktop/src/renderer/features/tasks/conversations/initial-conversation-section.tsx
+  s_96992641f3c113::t_0a4dc56dff51b8 79
+  s_96992641f3c113::t_92592ce3ca9922 133
+apps/emdash-desktop/src/main/core/prompt-library/controller.ts
+  s_a7ea6ad6219440::t_56af6bd09beff9 2,6-7
+apps/emdash-desktop/src/renderer/app/modal-registry.ts
+  s_a7ea6ad6219440::t_30e6a0fb33c916 3
+  s_a7ea6ad6219440::t_a007cb8ccec5f5 56
+apps/emdash-desktop/src/main/core/prompt-library/service.ts
+  s_a7ea6ad6219440::t_407944556d3a16 9,11,13,18
+  s_a7ea6ad6219440::t_a4c07cd3b9fa9b 33-52
+  s_a7ea6ad6219440::t_205b7ba1d6f9f4 124,126-127,130-134
+apps/emdash-desktop/src/renderer/features/library/prompts/use-prompt-library.ts
+  s_a7ea6ad6219440::t_64c5352823ee6e 3,7-8,20-21,23-24,26-28,30-31,42-44,46-47,50-51
+  s_0a421a6acb2147::t_18963d6e1495f7 39-41
+  s_0a421a6acb2147::t_bf968cd5243ade 45,48,53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "39265f8d590e145a32465e816d3154d2542bdc96",
+  "prompts": {},
+  "sessions": {
+    "s_0a421a6acb2147": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3d533f86-07b3-46d2-ab28-7c4cbd4e7b26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_465093aa1fc002": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3766d8b9-923b-4879-9f69-023bae83f866",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_6527458aa774d0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "809bee6f-9701-496d-bf75-2ec3099e3dc8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_96992641f3c113": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "45db9dce-af57-4441-a2dd-21433ec115c4",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_a2e55bf983435d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1494774cdffeK9qF62ohkN6Cmt",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_a7ea6ad6219440": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8e10bda-01d7-43e6-9fec-a843b6da5999",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_f7187b2284e2f2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1431f0b5dffe8z6UXGJGMVRiMf",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
