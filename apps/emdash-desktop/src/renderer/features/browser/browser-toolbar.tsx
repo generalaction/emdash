@@ -1,5 +1,6 @@
 import { Ellipsis, Globe, Loader2, RefreshCw, RotateCcw, Square } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import {
@@ -10,7 +11,12 @@ import {
 } from '@renderer/lib/ui/dropdown-menu';
 import { Input } from '@renderer/lib/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { normalizeBrowserUrl, type BrowserSessionSnapshot } from '@shared/browser';
+import {
+  DEFAULT_BROWSER_PROFILES,
+  browserProfileLabel,
+  normalizeBrowserUrl,
+  type BrowserSessionSnapshot,
+} from '@shared/browser';
 import {
   canOpenBrowserUrlExternally,
   confirmClearBrowserStorage,
@@ -38,6 +44,11 @@ export function BrowserToolbar({
   const [urlError, setUrlError] = useState<string | null>(null);
   const [failedFaviconUrl, setFailedFaviconUrl] = useState<string | null>(null);
   const urlInputRef = useRef<HTMLInputElement | null>(null);
+  const { value: browserSettings } = useAppSettingsKey('browser');
+  const profileLabel = browserProfileLabel(
+    session.profileId,
+    browserSettings?.profiles ?? DEFAULT_BROWSER_PROFILES
+  );
   const faviconUrl =
     session.faviconUrl && session.faviconUrl !== failedFaviconUrl ? session.faviconUrl : null;
 
@@ -89,7 +100,7 @@ export function BrowserToolbar({
   };
 
   const confirmClearStorage = () => {
-    confirmClearBrowserStorage(session, adapter);
+    confirmClearBrowserStorage(session, adapter, profileLabel);
   };
   const canOpenExternal = canOpenBrowserUrlExternally(session.currentUrl);
 
@@ -141,6 +152,12 @@ export function BrowserToolbar({
           </div>
         )}
       </form>
+      <div
+        className="hidden max-w-32 truncate rounded border border-border bg-background px-2 py-1 text-xs text-foreground-muted sm:block"
+        title={`Browser profile: ${profileLabel}`}
+      >
+        {profileLabel}
+      </div>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={

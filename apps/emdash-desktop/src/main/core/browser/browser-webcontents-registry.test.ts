@@ -24,7 +24,7 @@ vi.mock('@main/lib/events', () => ({
   },
 }));
 
-const PROFILE_PARTITION = 'persist:emdash-browser-profile';
+const PROFILE_PARTITION = 'persist:emdash-browser-profile-default';
 
 type FakeWebContents = WebContents & {
   windowOpenHandler: Parameters<WebContents['setWindowOpenHandler']>[0] | null;
@@ -219,5 +219,17 @@ describe('BrowserWebContentsRegistry', () => {
 
     expect(registry.getActiveBrowser()).toBeNull();
     expect(registry.openDevTools('browser-1')).toBe(false);
+  });
+
+  it('clears storage for a named profile without requiring an open browser', async () => {
+    const registry = new BrowserWebContentsRegistry();
+
+    await expect(registry.clearProfileStorage('work')).resolves.toBe(true);
+    await expect(registry.clearProfileStorage('isolated-per-task')).resolves.toBe(false);
+
+    const profileSession = sessionsByPartition.get('persist:emdash-browser-profile-work') as
+      | { clearData: ReturnType<typeof vi.fn> }
+      | undefined;
+    expect(profileSession?.clearData).toHaveBeenCalled();
   });
 });

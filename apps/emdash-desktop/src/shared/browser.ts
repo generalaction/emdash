@@ -1,8 +1,22 @@
 export const BROWSER_PARTITION_PREFIX = 'persist:emdash-browser';
 
-// All in-app browsers share one persistent profile so logins (GitHub, Google, …)
-// survive app restarts and carry across tasks, like a regular browser profile.
-export const BROWSER_PROFILE_PARTITION = `${BROWSER_PARTITION_PREFIX}-profile`;
+export const DEFAULT_BROWSER_PROFILE_ID = 'default';
+export const BROWSER_ISOLATED_PROFILE_ID = 'isolated-per-task';
+
+export type BrowserProfile = {
+  id: string;
+  name: string;
+};
+
+export const DEFAULT_BROWSER_PROFILES: BrowserProfile[] = [
+  { id: DEFAULT_BROWSER_PROFILE_ID, name: 'Default' },
+  { id: 'work', name: 'Work' },
+  { id: 'personal', name: 'Personal' },
+];
+
+export type BrowserProfileSelection = string;
+
+export const BROWSER_PROFILE_PARTITION = browserProfilePartition(DEFAULT_BROWSER_PROFILE_ID);
 
 export type BrowserNavigationProtocol = 'about:' | 'file:' | 'http:' | 'https:';
 
@@ -35,6 +49,7 @@ export type BrowserLoadError = {
 };
 
 export type BrowserSessionSnapshot = BrowserSessionIdentity & {
+  profileId: BrowserProfileSelection;
   partition: string;
   currentUrl: string;
   title: string;
@@ -119,18 +134,71 @@ export function makeBrowserSessionIdentity(input: {
   };
 }
 
+export function browserProfilePartition(profileId: string): string {
+  return `${BROWSER_PARTITION_PREFIX}-profile-${profileId}`;
+}
+
+export function makeIsolatedBrowserPartition(identity: BrowserSessionIdentity): string {
+  return [
+    BROWSER_PARTITION_PREFIX,
+    'isolated',
+    partitionComponent(identity.projectId),
+    partitionComponent(identity.workspaceId),
+    partitionComponent(identity.taskId),
+  ].join('-');
+}
+
+export function browserPartitionForProfile(
+  identity: BrowserSessionIdentity,
+  profileId: BrowserProfileSelection
+): string {
+  if (profileId === BROWSER_ISOLATED_PROFILE_ID) return makeIsolatedBrowserPartition(identity);
+  return browserProfilePartition(profileId);
+}
+
+export function isBrowserProfileId(value: string): boolean {
+  return /^[a-z0-9][a-z0-9-]{0,63}$/.test(value);
+}
+
+export function isNamedBrowserProfileId(value: string): boolean {
+  return value !== BROWSER_ISOLATED_PROFILE_ID && isBrowserProfileId(value);
+}
+
+export function normalizeBrowserProfileSelection(
+  profileId: string | undefined
+): BrowserProfileSelection {
+  if (
+    profileId === BROWSER_ISOLATED_PROFILE_ID ||
+    (profileId && isNamedBrowserProfileId(profileId))
+  ) {
+    return profileId;
+  }
+  return DEFAULT_BROWSER_PROFILE_ID;
+}
+
+export function browserProfileLabel(
+  profileId: string,
+  profiles: readonly BrowserProfile[]
+): string {
+  if (profileId === BROWSER_ISOLATED_PROFILE_ID) return 'Isolated per task';
+  return profiles.find((profile) => profile.id === profileId)?.name ?? profileId;
+}
+
 export function createBrowserSessionSnapshot(input: {
   identity: BrowserSessionIdentity;
+  profileId?: BrowserProfileSelection;
   currentUrl?: string;
   now?: number;
 }): BrowserSessionSnapshot {
   const now = input.now ?? Date.now();
+  const profileId = normalizeBrowserProfileSelection(input.profileId);
   const normalized = normalizeBrowserUrl(input.currentUrl ?? BROWSER_DEFAULT_URL, {
     allowSearchQueries: false,
   });
   return {
     ...input.identity,
-    partition: BROWSER_PROFILE_PARTITION,
+    profileId,
+    partition: browserPartitionForProfile(input.identity, profileId),
     currentUrl: normalized.ok ? normalized.url : BROWSER_DEFAULT_URL,
     title: '',
     isLoading: false,
@@ -139,6 +207,14 @@ export function createBrowserSessionSnapshot(input: {
     createdAt: now,
     updatedAt: now,
   };
+}
+
+function partitionComponent(value: string): string {
+  const safe = value
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return safe || 'unknown';
 }
 
 function browserSearchUrl(query: string): string {

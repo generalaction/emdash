@@ -73,6 +73,7 @@ function activeBrowserTab() {
       projectId: 'project-1',
       workspaceId: 'workspace-1',
       taskId: 'task-1',
+      profileId: 'default',
       partition: 'persist:emdash-browser-project-1-workspace-1-task-1-browser-1',
       currentUrl: 'example.com',
       title: 'Example',

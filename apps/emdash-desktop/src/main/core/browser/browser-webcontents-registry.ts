@@ -5,7 +5,11 @@ import {
   type WebContents,
 } from 'electron';
 import { events } from '@main/lib/events';
-import { normalizeBrowserUrl } from '@shared/browser';
+import {
+  browserProfilePartition,
+  isNamedBrowserProfileId,
+  normalizeBrowserUrl,
+} from '@shared/browser';
 import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 import { isGoogleAuthUrl, userAgentForBrowserUrl } from './browser-user-agent';
 
@@ -135,6 +139,12 @@ export class BrowserWebContentsRegistry {
     const registered = this.sessionsByBrowserId.get(browserId);
     if (!registered) return false;
     await session.fromPartition(registered.partition).clearData();
+    return true;
+  }
+
+  async clearProfileStorage(profileId: string): Promise<boolean> {
+    if (!isNamedBrowserProfileId(profileId)) return false;
+    await session.fromPartition(browserProfilePartition(profileId)).clearData();
     return true;
   }
 

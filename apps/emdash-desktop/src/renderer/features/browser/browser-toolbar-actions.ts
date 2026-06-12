@@ -18,12 +18,12 @@ export function canOpenBrowserUrlExternally(url: string): boolean {
 
 export function confirmClearBrowserStorage(
   session: BrowserSessionSnapshot,
-  adapter: BrowserWebviewAdapter | null
+  adapter: BrowserWebviewAdapter | null,
+  profileLabel = 'this browser profile'
 ): void {
   showModal('confirmActionModal', {
     title: 'Clear browser storage?',
-    description:
-      'This clears cookies, local storage, IndexedDB, and cache for the shared in-app browser profile. You will be signed out of websites in all emdash browsers.',
+    description: `This clears cookies, local storage, IndexedDB, and cache for ${profileLabel}. Browser tabs using the same storage boundary will be signed out.`,
     confirmLabel: 'Clear Storage',
     variant: 'destructive',
     onSuccess: () => {

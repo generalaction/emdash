@@ -44,7 +44,7 @@ describe('TabManagerStore browser tabs', () => {
     browserSessionStore.clear();
   });
 
-  it('opens browser tabs backed by the shared browser profile session', () => {
+  it('opens browser tabs backed by the default browser profile session', () => {
     const manager = createTabManager();
 
     manager.openBrowser('localhost:5173');
@@ -58,7 +58,7 @@ describe('TabManagerStore browser tabs', () => {
       'http://localhost:5173/'
     );
     expect(tab?.kind === 'browser' ? tab.session.partition : undefined).toBe(
-      'persist:emdash-browser-profile'
+      'persist:emdash-browser-profile-default'
     );
   });
 

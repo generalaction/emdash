@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   BROWSER_PROFILE_PARTITION,
+  BROWSER_ISOLATED_PROFILE_ID,
   createBrowserSessionSnapshot,
+  makeIsolatedBrowserPartition,
   makeBrowserSessionIdentity,
   normalizeBrowserUrl,
 } from './browser';
@@ -87,7 +89,7 @@ describe('normalizeBrowserUrl', () => {
 });
 
 describe('browser session identity', () => {
-  it('assigns the shared persistent profile partition to every session', () => {
+  it('assigns the default persistent profile partition to new sessions', () => {
     const identity = makeBrowserSessionIdentity({
       browserId: 'Browser One',
       projectId: 'Project/One',
@@ -95,10 +97,33 @@ describe('browser session identity', () => {
       taskId: 'Task One',
     });
 
-    expect(BROWSER_PROFILE_PARTITION).toBe('persist:emdash-browser-profile');
+    expect(BROWSER_PROFILE_PARTITION).toBe('persist:emdash-browser-profile-default');
     expect(createBrowserSessionSnapshot({ identity, now: 100 }).partition).toBe(
       BROWSER_PROFILE_PARTITION
     );
+  });
+
+  it('can assign an isolated persistent task partition', () => {
+    const identity = makeBrowserSessionIdentity({
+      browserId: 'Browser One',
+      projectId: 'Project/One',
+      workspaceId: 'Workspace.One',
+      taskId: 'Task One',
+    });
+
+    expect(makeIsolatedBrowserPartition(identity)).toBe(
+      'persist:emdash-browser-isolated-Project_One-Workspace_One-Task_One'
+    );
+    expect(
+      createBrowserSessionSnapshot({
+        identity,
+        profileId: BROWSER_ISOLATED_PROFILE_ID,
+        now: 100,
+      })
+    ).toMatchObject({
+      profileId: BROWSER_ISOLATED_PROFILE_ID,
+      partition: 'persist:emdash-browser-isolated-Project_One-Workspace_One-Task_One',
+    });
   });
 
   it('creates safe snapshots with normalized URLs', () => {

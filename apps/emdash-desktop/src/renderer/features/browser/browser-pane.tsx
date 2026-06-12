@@ -150,8 +150,8 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
     return bindBrowserWebviewEvents(sessionBrowserId, webviewElement, {
       onDomReady: () => {
         if (webviewRef.current !== webviewElement) return;
-        // All browsers share one profile partition, so the main process cannot
-        // infer which browser a webview belongs to; bind it explicitly.
+        // Browsers can share profile partitions, so the main process cannot infer
+        // which browser a webview belongs to; bind it explicitly.
         void rpc.browser.bindWebContents({
           browserId: sessionBrowserId,
           webContentsId: webviewElement.getWebContentsId(),
@@ -201,7 +201,7 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
           <BrowserStartPage devServerUrls={devServers.urls} onOpenUrl={navigateTo} />
         ) : webviewProps && isRegistered ? (
           <webview
-            key={`${webviewMount?.browserId ?? 'browser'}:${webviewMount?.revision ?? 0}`}
+            key={`${webviewMount?.browserId ?? 'browser'}:${webviewMount?.partition ?? 'partition'}:${webviewMount?.revision ?? 0}`}
             ref={attachWebview}
             {...webviewProps}
             className="h-full w-full bg-background"

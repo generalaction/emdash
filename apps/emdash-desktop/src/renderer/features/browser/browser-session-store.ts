@@ -1,11 +1,13 @@
 import { action, computed, makeObservable, observable } from 'mobx';
 import {
   BROWSER_DEFAULT_URL,
-  BROWSER_PROFILE_PARTITION,
+  browserPartitionForProfile,
   createBrowserSessionSnapshot,
   makeBrowserSessionIdentity,
+  normalizeBrowserProfileSelection,
   normalizeBrowserUrl,
   type BrowserLoadError,
+  type BrowserProfileSelection,
   type BrowserSessionSnapshot,
 } from '@shared/browser';
 
@@ -14,6 +16,7 @@ export type BrowserSessionCreateInput = {
   workspaceId: string;
   taskId: string;
   browserId?: string;
+  profileId?: BrowserProfileSelection;
   initialUrl?: string;
 };
 
@@ -48,17 +51,22 @@ export class BrowserSessionStore {
     const identity = makeBrowserSessionIdentity(input);
     const snapshot = createBrowserSessionSnapshot({
       identity,
+      profileId: input.profileId,
       currentUrl: input.initialUrl,
     });
     this.sessions.set(snapshot.browserId, snapshot);
     return snapshot;
   }
 
-  restoreSession(snapshot: BrowserSessionSnapshot): BrowserSessionSnapshot {
+  restoreSession(
+    snapshot: BrowserSessionSnapshot & { profileId?: BrowserProfileSelection }
+  ): BrowserSessionSnapshot {
     const normalized = normalizeBrowserUrl(snapshot.currentUrl);
+    const profileId = normalizeBrowserProfileSelection(snapshot.profileId);
     const restored: BrowserSessionSnapshot = {
       ...snapshot,
-      partition: BROWSER_PROFILE_PARTITION,
+      profileId,
+      partition: browserPartitionForProfile(snapshot, profileId),
       currentUrl: normalized.ok ? normalized.url : BROWSER_DEFAULT_URL,
       isLoading: false,
       loadError: undefined,

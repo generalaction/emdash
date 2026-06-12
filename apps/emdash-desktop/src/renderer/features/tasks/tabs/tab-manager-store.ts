@@ -1,6 +1,7 @@
 import { action, autorun, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { browserDiagnosticsStore } from '@renderer/features/browser/browser-diagnostics-store';
 import { browserSessionStore } from '@renderer/features/browser/browser-session-store';
+import { getAppSettingValueSnapshot } from '@renderer/features/settings/app-settings-client';
 import type {
   ConversationManagerStore,
   ConversationStore,
@@ -21,7 +22,11 @@ import {
   setTabActiveIndex as tabUtilsSetTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
-import type { BrowserSessionSnapshot } from '@shared/browser';
+import {
+  BROWSER_ISOLATED_PROFILE_ID,
+  DEFAULT_BROWSER_PROFILE_ID,
+  type BrowserSessionSnapshot,
+} from '@shared/browser';
 import { refsEqual, type GitChangeStatus, type GitObjectRef } from '@shared/core/git/git';
 import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
@@ -574,10 +579,18 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   // ---------------------------------------------------------------------------
 
   openBrowser(initialUrl?: string): void {
+    const browserSettings = getAppSettingValueSnapshot('browser');
+    const defaultProfileId = browserSettings?.defaultProfileId ?? DEFAULT_BROWSER_PROFILE_ID;
+    const profileId =
+      defaultProfileId === BROWSER_ISOLATED_PROFILE_ID ||
+      browserSettings?.profiles.some((profile) => profile.id === defaultProfileId)
+        ? defaultProfileId
+        : DEFAULT_BROWSER_PROFILE_ID;
     const session = browserSessionStore.createSession({
       projectId: this._projectId,
       workspaceId: this._workspaceId,
       taskId: this._taskId,
+      profileId,
       initialUrl,
     });
     const entry = new BrowserTabEntry(session.browserId, false);

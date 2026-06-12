@@ -4,6 +4,7 @@ import { PageHeader } from '@renderer/lib/components/page-header';
 import { rpc } from '@renderer/lib/ipc';
 import { cn } from '@renderer/utils/utils';
 import { AccountTab } from './AccountTab';
+import { BrowserSettingsCard } from './BrowserSettingsCard';
 import { CliAgentsList } from './CliAgentsList';
 import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
@@ -148,6 +149,7 @@ export function SettingsPage({
       sections: [
         { component: <ThemeCard /> },
         { component: <TerminalSettingsCard /> },
+        { component: <BrowserSettingsCard /> },
         { component: <SidebarMetadataSettingsCard /> },
         { component: <ResourceMonitorSettingsCard /> },
         { component: <InterfaceSettingsCard /> },
