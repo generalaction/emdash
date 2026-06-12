@@ -3,6 +3,7 @@ import {
   Focus,
   Globe,
   Loader2,
+  MousePointerClick,
   Minus,
   Plus,
   RefreshCw,
@@ -48,6 +49,9 @@ export function BrowserToolbar({
   session,
   adapter,
   autoFocusUrl,
+  annotateActive,
+  canAnnotate,
+  onToggleAnnotate,
   onNavigate,
   onReload,
   onForceReload,
@@ -57,6 +61,9 @@ export function BrowserToolbar({
   session: BrowserSessionSnapshot;
   adapter: BrowserWebviewAdapter | null;
   autoFocusUrl?: boolean;
+  annotateActive?: boolean;
+  canAnnotate?: boolean;
+  onToggleAnnotate?: () => void;
   onNavigate?: (url: string) => boolean;
   onReload?: () => void;
   onForceReload?: () => void;
@@ -202,6 +209,29 @@ export function BrowserToolbar({
           )}
         />
       </ToolbarIconButton>
+      {onToggleAnnotate && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={`size-7 shrink-0 ${annotateActive ? 'text-primary bg-background-tertiary' : ''}`}
+                disabled={!canAnnotate}
+                aria-label="Annotate elements"
+                aria-pressed={annotateActive}
+                onClick={onToggleAnnotate}
+              >
+                <MousePointerClick className="size-4" />
+              </Button>
+            }
+          />
+          <TooltipContent>
+            {annotateActive ? 'Stop annotating' : 'Annotate elements for an agent'}
+          </TooltipContent>
+        </Tooltip>
+      )}
       <DropdownMenu>
         <DropdownMenuTrigger
           render={

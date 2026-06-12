@@ -1,4 +1,5 @@
 import { BROWSER_DEFAULT_URL, normalizeBrowserZoomFactor } from '@shared/browser';
+import { ANNOTATION_CONSOLE_MARKER } from './browser-annotation-script';
 import { browserDiagnosticsStore } from './browser-diagnostics-store';
 import { browserSessionStore } from './browser-session-store';
 import type { BrowserWebviewElement } from './browser-webview-types';
@@ -170,6 +171,7 @@ function consoleLevelToDiagnosticsLevel(level: number) {
 }
 
 function shouldRecordConsoleDiagnostic(event: { message: string; sourceId: string }): boolean {
+  if (event.message.startsWith(ANNOTATION_CONSOLE_MARKER)) return false;
   if (!event.sourceId.startsWith('node:electron/')) return true;
   return !event.message.includes('Electron Security Warning');
 }

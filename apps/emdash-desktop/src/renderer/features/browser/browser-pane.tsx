@@ -3,6 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDevServers } from '@renderer/features/tasks/task-view-context';
 import { rpc } from '@renderer/lib/ipc';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
+import { BrowserAnnotationBar } from './browser-annotation-bar';
+import { BrowserAnnotationOverlay } from './browser-annotation-overlay';
+import { buildAnnotationPickerScript, parseAnnotationMessage } from './browser-annotation-script';
+import { browserAnnotationStore } from './browser-annotation-store';
 import { browserControlsRegistry } from './browser-controls-registry';
 import { decideBrowserReload } from './browser-navigation-controls';
 import { browserSessionStore } from './browser-session-store';
@@ -35,6 +39,7 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
   const sessionBrowserId = session?.browserId;
   const sessionPartition = session?.partition;
   const showStartPage = session?.currentUrl === 'about:blank' && !session.isLoading;
+  const annotationState = browserAnnotationStore.get(browserId);
 
   useEffect(() => {
     if (!sessionBrowserId || !sessionPartition || !session) {
@@ -180,6 +185,66 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
   }, [sessionBrowserId, webviewElement]);
 
   useEffect(() => {
+    if (!webviewElement) return;
+    const onConsoleMessage = (event: { message: string }) => {
+      const parsed = parseAnnotationMessage(event.message);
+      if (!parsed) return;
+      if (parsed.type === 'picked') {
+        annotationState.startDraft(parsed.token, parsed.element, webviewElement.getURL());
+      } else if (parsed.type === 'mode') {
+        annotationState.setPicking(parsed.active);
+      } else {
+        annotationState.applyRects(parsed.rects);
+      }
+    };
+    const onAnnotationNavigate = () => annotationState.handleNavigation();
+    webviewElement.addEventListener('console-message', onConsoleMessage);
+    webviewElement.addEventListener('did-navigate', onAnnotationNavigate);
+    return () => {
+      webviewElement.removeEventListener('console-message', onConsoleMessage);
+      webviewElement.removeEventListener('did-navigate', onAnnotationNavigate);
+    };
+  }, [annotationState, webviewElement]);
+
+  const runPickerCommand = useCallback(
+    (command: Parameters<typeof buildAnnotationPickerScript>[0]) => {
+      void adapter?.executeJavaScript(buildAnnotationPickerScript(command));
+    },
+    [adapter]
+  );
+
+  const toggleAnnotate = useCallback(() => {
+    runPickerCommand({ kind: annotationState.picking ? 'stop' : 'start' });
+  }, [annotationState, runPickerCommand]);
+
+  const commitDraft = useCallback(
+    (comment: string) => {
+      if (annotationState.commitDraft(comment)) {
+        runPickerCommand({ kind: 'request-rects' });
+      }
+    },
+    [annotationState, runPickerCommand]
+  );
+
+  const cancelDraft = useCallback(() => {
+    const draft = annotationState.cancelDraft();
+    if (draft) runPickerCommand({ kind: 'untrack', token: draft.token });
+  }, [annotationState, runPickerCommand]);
+
+  const removeAnnotation = useCallback(
+    (token: number) => {
+      annotationState.removeAnnotation(token);
+      runPickerCommand({ kind: 'untrack', token });
+    },
+    [annotationState, runPickerCommand]
+  );
+
+  const clearAnnotations = useCallback(() => {
+    annotationState.clearAll();
+    runPickerCommand({ kind: 'clear-tracked' });
+  }, [annotationState, runPickerCommand]);
+
+  useEffect(() => {
     if (!adapter || !pendingUrlRef.current) return;
     const pendingUrl = pendingUrlRef.current;
     pendingUrlRef.current = null;
@@ -208,6 +273,9 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
         session={session}
         adapter={adapter}
         autoFocusUrl={showStartPage}
+        annotateActive={annotationState.picking}
+        canAnnotate={adapter !== null && !showStartPage}
+        onToggleAnnotate={toggleAnnotate}
         onNavigate={navigateTo}
         onReload={reload}
         onForceReload={forceReload}
@@ -216,22 +284,35 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
           focusUrlRef.current = focus;
         }}
       />
-      <div className="emlight min-h-0 flex-1 bg-background">
+      <div className="emlight relative min-h-0 flex-1 bg-background">
         {showStartPage ? (
           <BrowserStartPage devServerUrls={devServers.urls} onOpenUrl={navigateTo} />
         ) : webviewProps && isRegistered ? (
-          <webview
-            key={`${webviewMount?.browserId ?? 'browser'}:${webviewMount?.revision ?? 0}`}
-            ref={attachWebview}
-            {...webviewProps}
-            className="h-full w-full bg-background"
-          />
+          <>
+            <webview
+              key={`${webviewMount?.browserId ?? 'browser'}:${webviewMount?.revision ?? 0}`}
+              ref={attachWebview}
+              {...webviewProps}
+              className="h-full w-full bg-background"
+            />
+            <BrowserAnnotationOverlay
+              state={annotationState}
+              onCommitDraft={commitDraft}
+              onCancelDraft={cancelDraft}
+              onRemoveAnnotation={removeAnnotation}
+            />
+          </>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-foreground-muted">
             Preparing browser session
           </div>
         )}
       </div>
+      <BrowserAnnotationBar
+        state={annotationState}
+        onSent={clearAnnotations}
+        onClearAll={clearAnnotations}
+      />
     </div>
   );
 });
