@@ -1,0 +1,37 @@
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-manager.ts
+  s_35dc7a4308eaf7::t_60f59762249660 3,19,32,102,143-156,284-285
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-script.test.ts
+  s_35dc7a4308eaf7::t_b83fe5f36b69e0 8-13,31-32,36-38,42,46-47,55,59-60,66,70-71,80,84-85,89,96-97,109-119,123-125,129-131
+apps/emdash-desktop/src/main/core/conversations/impl/keystroke-injection.ts
+  s_35dc7a4308eaf7::t_ad5b6671db00ea 2,5,100-107
+apps/emdash-desktop/src/shared/core/conversations/conversationEvents.ts
+  s_35dc7a4308eaf7::t_63f6eed19f680b 24-30
+apps/emdash-desktop/src/main/core/conversations/impl/keystroke-injection.test.ts
+  s_35dc7a4308eaf7::t_9d49828438ec4e 56,193,206-211
+  s_35dc7a4308eaf7::t_430cda583d1960 3-4,8-10
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-prompt.test.ts
+  s_35dc7a4308eaf7::t_bde82df590e2a8 63-64
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_35dc7a4308eaf7::t_426a6ee83e7319 30,191-193,207,209-218,220-225,244-248
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-prompt.ts
+  s_35dc7a4308eaf7::t_bd0dd19d6b4a30 21-23,27
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-script.ts
+  s_35dc7a4308eaf7::t_9eedd65941e26c 23-26,30,36,289-292,315-318,326
+  s_35dc7a4308eaf7::t_3d5a5f1e373507 294-296
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "8c3f21246275d75528a2de5c0ed5521c7c5c5791",
+  "prompts": {},
+  "sessions": {
+    "s_35dc7a4308eaf7": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ebd49-6b3b-74a3-93e8-ccb92991d3c0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
