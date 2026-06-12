@@ -1,6 +1,8 @@
 import type { Pty } from '@main/core/pty/pty';
+import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { getProvider } from '@shared/core/agents/agent-provider-registry';
+import { conversationInitialPromptInjectionFailedChannel } from '@shared/core/conversations/conversationEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { buildPromptInjectionPayload } from '@shared/prompt-injection';
 
@@ -95,6 +97,14 @@ export function scheduleInitialPromptInjection(args: {
         sawAnyOutput,
         sawReadyOutput,
       });
+      if (!sawReadyOutput) {
+        events.emit(conversationInitialPromptInjectionFailedChannel, {
+          conversationId: args.conversation.id,
+          taskId: args.conversation.taskId,
+          projectId: args.conversation.projectId,
+          providerId: args.conversation.providerId,
+        });
+      }
     }
   });
 }

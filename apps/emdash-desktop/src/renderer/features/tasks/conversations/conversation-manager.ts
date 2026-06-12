@@ -1,5 +1,6 @@
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import type { IDisposable } from '@renderer/lib/stores/lifecycle';
@@ -15,6 +16,7 @@ import {
   conversationAgentStatusChangedChannel,
   conversationChangedChannel,
   conversationCreatedChannel,
+  conversationInitialPromptInjectionFailedChannel,
 } from '@shared/core/conversations/conversationEvents';
 import {
   type Conversation,
@@ -27,6 +29,7 @@ export class ConversationManagerStore implements IDisposable {
   private offSessionExited: (() => void) | null = null;
   private offConversationCreated: (() => void) | null = null;
   private offConversationChanges: (() => void) | null = null;
+  private offInitialPromptInjectionFailed: (() => void) | null = null;
   private readonly _disposeReaction: () => void;
 
   /** Data layer: plain Conversation records loaded from the main process. */
@@ -96,6 +99,7 @@ export class ConversationManagerStore implements IDisposable {
     this.offSessionExited = this.listenToSessionExited();
     this.offConversationCreated = this.listenToConversationCreated();
     this.offConversationChanges = this.listenToConversationChanges();
+    this.offInitialPromptInjectionFailed = this.listenToInitialPromptInjectionFailed();
   }
 
   private addConversation(conversation: Conversation): void {
@@ -133,6 +137,20 @@ export class ConversationManagerStore implements IDisposable {
       const conversationStore = this.conversations.get(event.conversationId);
       if (!conversationStore) return;
       conversationStore.clearWorking();
+    });
+  }
+
+  private listenToInitialPromptInjectionFailed(): () => void {
+    return events.on(conversationInitialPromptInjectionFailedChannel, (event) => {
+      if (event.taskId !== this.taskId || event.projectId !== this.projectId) return;
+      const conversationStore = this.conversations.get(event.conversationId);
+      toast({
+        title: 'Initial prompt was not sent',
+        description: conversationStore
+          ? `${conversationStore.data.title || 'Agent'} exited before it was ready. Please retry or paste the prompt manually.`
+          : 'The agent exited before it was ready. Please retry or paste the prompt manually.',
+        variant: 'destructive',
+      });
     });
   }
 
@@ -263,6 +281,8 @@ export class ConversationManagerStore implements IDisposable {
     this.offConversationCreated = null;
     this.offConversationChanges?.();
     this.offConversationChanges = null;
+    this.offInitialPromptInjectionFailed?.();
+    this.offInitialPromptInjectionFailed = null;
     for (const session of this.sessions.values()) {
       session.destroy();
     }

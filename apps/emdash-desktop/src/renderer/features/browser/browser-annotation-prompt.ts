@@ -18,12 +18,13 @@ export function buildAnnotationPrompt(
   const lines: string[] = [
     'I annotated UI elements in the running app preview. Implement the requested change for each annotated element.',
   ];
-  let counter = 0;
+  const ordinals = new Map<BrowserAnnotation, number>();
+  annotations.forEach((annotation, index) => ordinals.set(annotation, index + 1));
+
   for (const [pageUrl, pageAnnotations] of byPage) {
     lines.push('', `Page: ${pageUrl}`);
     for (const annotation of pageAnnotations) {
-      counter += 1;
-      lines.push('', `${counter}. ${annotation.comment}`);
+      lines.push('', `${ordinals.get(annotation) ?? 0}. ${annotation.comment}`);
       lines.push(...describeElementLines(annotation.element));
     }
   }

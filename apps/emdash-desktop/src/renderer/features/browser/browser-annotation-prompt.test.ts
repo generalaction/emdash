@@ -60,8 +60,8 @@ describe('buildAnnotationPrompt', () => {
     expect(prompt).toContain('Page: http://localhost:5173/');
     expect(prompt).toContain('Page: http://localhost:5173/about');
     expect(prompt).toContain('1. First change');
-    expect(prompt).toContain('2. Third change');
-    expect(prompt).toContain('3. Second change');
+    expect(prompt).toContain('2. Second change');
+    expect(prompt).toContain('3. Third change');
   });
 
   it('omits empty optional element details', () => {

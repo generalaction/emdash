@@ -27,6 +27,7 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
   const webviewRef = useRef<BrowserWebviewElement | null>(null);
   const focusUrlRef = useRef<() => void>(() => {});
   const pendingUrlRef = useRef<string | null>(null);
+  const annotationChannelIdRef = useRef(crypto.randomUUID());
   const [adapter, setAdapter] = useState<BrowserWebviewAdapter | null>(null);
   const [webviewElement, setWebviewElement] = useState<BrowserWebviewElement | null>(null);
   const [webviewMount, setWebviewMount] = useState<{
@@ -187,7 +188,9 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
   useEffect(() => {
     if (!webviewElement) return;
     const onConsoleMessage = (event: { message: string }) => {
-      const parsed = parseAnnotationMessage(event.message);
+      const parsed = parseAnnotationMessage(event.message, {
+        channelId: annotationChannelIdRef.current,
+      });
       if (!parsed) return;
       if (parsed.type === 'picked') {
         annotationState.startDraft(parsed.token, parsed.element, webviewElement.getURL());
@@ -201,9 +204,25 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
     // SPA route changes keep the page context but may detach tracked elements
     // without a scroll — ask the picker for fresh rects so stale markers hide.
     const onInPageNavigate = () => {
+      const draft = annotationState.cancelDraft();
       try {
+        if (draft) {
+          webviewElement
+            .executeJavaScript(
+              buildAnnotationPickerScript(
+                { kind: 'untrack', token: draft.token },
+                { channelId: annotationChannelIdRef.current }
+              )
+            )
+            .catch(() => {});
+        }
         webviewElement
-          .executeJavaScript(buildAnnotationPickerScript({ kind: 'request-rects' }))
+          .executeJavaScript(
+            buildAnnotationPickerScript(
+              { kind: 'request-rects' },
+              { channelId: annotationChannelIdRef.current }
+            )
+          )
           .catch(() => {});
       } catch {
         // WebViews can detach during tab transitions; rect refresh is best-effort.
@@ -222,7 +241,11 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
   const runPickerCommand = useCallback(
     (command: Parameters<typeof buildAnnotationPickerScript>[0]) => {
       try {
-        adapter?.executeJavaScript(buildAnnotationPickerScript(command)).catch(() => {});
+        adapter
+          ?.executeJavaScript(
+            buildAnnotationPickerScript(command, { channelId: annotationChannelIdRef.current })
+          )
+          .catch(() => {});
       } catch {
         // Annotation cleanup should not fail a successfully delivered prompt.
       }

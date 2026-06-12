@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Pty, PtyExitInfo } from '@main/core/pty/pty';
+import { events } from '@main/lib/events';
+import { conversationInitialPromptInjectionFailedChannel } from '@shared/core/conversations/conversationEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
+
+vi.mock('@main/lib/events', () => ({
+  events: { emit: vi.fn() },
+}));
 
 function makeConversation(providerId: Conversation['providerId']): Conversation {
   return {
@@ -47,6 +53,7 @@ function makePty(): {
 describe('scheduleInitialPromptInjection', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.mocked(events.emit).mockClear();
   });
 
   afterEach(() => {
@@ -183,7 +190,7 @@ describe('scheduleInitialPromptInjection', () => {
     expect(write).not.toHaveBeenCalled();
   });
 
-  it('cancels injection when the PTY exits before idle', () => {
+  it('emits a user-visible failure event when the PTY exits before ready output', () => {
     const { pty, write, emitData, emitExit } = makePty();
     scheduleInitialPromptInjection({
       pty,
@@ -196,5 +203,11 @@ describe('scheduleInitialPromptInjection', () => {
     emitExit();
     vi.advanceTimersByTime(20_000);
     expect(write).not.toHaveBeenCalled();
+    expect(events.emit).toHaveBeenCalledWith(conversationInitialPromptInjectionFailedChannel, {
+      conversationId: 'conv-1',
+      taskId: 'task-1',
+      projectId: 'proj-1',
+      providerId: 'hermes',
+    });
   });
 });

@@ -20,15 +20,20 @@ export type AnnotationPickerCommand =
   | { kind: 'clear-tracked' }
   | { kind: 'request-rects' };
 
+export type AnnotationPickerScriptOptions = {
+  channelId: string;
+};
+
 const PICKER_BOOTSTRAP = `(() => {
   'use strict';
   const MARKER = ${JSON.stringify(ANNOTATION_CONSOLE_MARKER)};
+  const CHANNEL_ID = __CHANNEL_ID__;
   const KEY = '__emdashAnnotationPicker';
   if (!window[KEY]) {
     const emit = console.log.bind(console);
     const post = (payload) => {
       try {
-        emit(MARKER + JSON.stringify(payload));
+        emit(MARKER + JSON.stringify({ ...payload, channelId: CHANNEL_ID }));
       } catch {}
     };
     const tracked = new Map();
@@ -281,9 +286,14 @@ const PICKER_BOOTSTRAP = `(() => {
   return true;
 })();`;
 
-export function buildAnnotationPickerScript(command: AnnotationPickerCommand): string {
+export function buildAnnotationPickerScript(
+  command: AnnotationPickerCommand,
+  options: AnnotationPickerScriptOptions
+): string {
   // Callback form: avoids `$`-pattern interpretation in the replacement string.
-  return PICKER_BOOTSTRAP.replace('__COMMAND__', () => pickerCommandCall(command));
+  return PICKER_BOOTSTRAP.replace('__CHANNEL_ID__', () =>
+    JSON.stringify(options.channelId)
+  ).replace('__COMMAND__', () => pickerCommandCall(command));
 }
 
 function pickerCommandCall(command: AnnotationPickerCommand): string {
@@ -302,7 +312,10 @@ function pickerCommandCall(command: AnnotationPickerCommand): string {
   }
 }
 
-export function parseAnnotationMessage(message: string): AnnotationPickerMessage | null {
+export function parseAnnotationMessage(
+  message: string,
+  options: AnnotationPickerScriptOptions
+): AnnotationPickerMessage | null {
   if (!message.startsWith(ANNOTATION_CONSOLE_MARKER)) return null;
   let parsed: unknown;
   try {
@@ -310,7 +323,7 @@ export function parseAnnotationMessage(message: string): AnnotationPickerMessage
   } catch {
     return null;
   }
-  if (!isRecord(parsed)) return null;
+  if (!isRecord(parsed) || parsed.channelId !== options.channelId) return null;
   if (parsed.type === 'mode' && typeof parsed.active === 'boolean') {
     return {
       type: 'mode',

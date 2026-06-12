@@ -21,3 +21,10 @@ export const conversationAgentStatusChangedChannel = defineEvent<{
   seen: boolean;
   soundEvent?: 'needs_attention' | 'task_complete';
 }>('conversation:agent-status-changed');
+
+export const conversationInitialPromptInjectionFailedChannel = defineEvent<{
+  conversationId: string;
+  taskId: string;
+  projectId: string;
+  providerId: Conversation['providerId'];
+}>('conversation:initial-prompt-injection-failed');
