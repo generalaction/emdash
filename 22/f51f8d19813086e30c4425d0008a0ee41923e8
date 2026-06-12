@@ -1,0 +1,36 @@
+apps/emdash-desktop/src/renderer/lib/pty/url-link-provider.ts
+  s_dec382ccef86a5::t_ed237aec30775d 1-30
+apps/emdash-desktop/src/renderer/lib/pty/file-link-detection.ts
+  s_dec382ccef86a5::t_33f23cd90a5519 285
+  s_dec382ccef86a5::t_b7918ccff02f7b 3,7-9
+  s_dec382ccef86a5::t_df7a1564607b2b 14-16
+  s_dec382ccef86a5::t_074eb636c012a2 30-34
+  s_dec382ccef86a5::t_ab88575af5f9a7 57-62,73-128
+  s_dec382ccef86a5::t_b5d80f7d9d63c0 260-263,276-284
+  s_dec382ccef86a5::t_1201a9f9f1f23e 165,173,178-193,207-209,212-229,231,237-238,241-259
+apps/emdash-desktop/src/renderer/lib/pty/pty.ts
+  s_dec382ccef86a5::t_0229c1708bf0b1 109-113
+apps/emdash-desktop/src/renderer/tests/file-link-provider.test.ts
+  s_dec382ccef86a5::t_79eaffee097887 3
+  s_dec382ccef86a5::t_4973dc5a15a6c4 191-211,213-214,216-217,221-228,230-232,272-283
+  s_dec382ccef86a5::t_608fb9fbaac3e6 233-271
+  s_dec382ccef86a5::t_10cf65f954ef74 127
+  s_dec382ccef86a5::t_8eaae8d06acefa 13-16
+  s_dec382ccef86a5::t_681713bf88af49 212,215,218-220,229
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "22f51f8d19813086e30c4425d0008a0ee41923e8",
+  "prompts": {},
+  "sessions": {
+    "s_dec382ccef86a5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0e91aca9-5f87-49af-8778-3ae0169fd8f3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
