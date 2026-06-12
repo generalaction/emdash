@@ -5,10 +5,16 @@ import { EMPTY_USAGE_SNAPSHOT, type UsageSnapshot } from '@shared/usage';
 import { ensureModelsDevPricing } from './models-dev';
 import { runPipeline } from './pipeline';
 import { getRemoteRates, type ModelRate } from './pricing';
+import { isSnapshotStale } from './staleness';
 import type { WorkerResponse } from './usage-worker';
 
 // Generous: protects against a wedged worker. On timeout we fall back to the inline pass.
 const WORKER_TIMEOUT_MS = 120_000;
+
+// Serve-stale-while-revalidate window. Old snapshots are served instantly; a background
+// refresh runs so the renderer's next poll picks up fresh numbers. Cheap: the mtime+size
+// cache means only changed transcript files re-parse.
+const SNAPSHOT_TTL_MS = 5 * 60_000;
 
 class UsageStatsService {
   private snapshot: UsageSnapshot = EMPTY_USAGE_SNAPSHOT;
@@ -24,6 +30,11 @@ class UsageStatsService {
    */
   async getSnapshot(): Promise<UsageSnapshot> {
     if (this.snapshot.generatedAt === '') return this.refresh();
+    if (isSnapshotStale(this.snapshot.generatedAt, Date.now(), SNAPSHOT_TTL_MS)) {
+      this.refresh().catch((error) =>
+        log.warn('usage-stats: background refresh failed', { error })
+      );
+    }
     return this.snapshot;
   }
 
