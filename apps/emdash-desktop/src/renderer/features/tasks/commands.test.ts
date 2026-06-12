@@ -13,7 +13,9 @@ const mocks = vi.hoisted(() => ({
   openExternal: vi.fn(),
   reload: vi.fn(),
   showModal: vi.fn(),
+  toast: vi.fn(),
   visibleTaskIdsForProject: vi.fn(),
+  writeText: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('@renderer/features/browser/browser-controls-registry', () => ({
@@ -48,6 +50,10 @@ vi.mock('@renderer/lib/ipc', () => ({
       openExternal: mocks.openExternal,
     },
   },
+}));
+
+vi.mock('@renderer/lib/hooks/use-toast', () => ({
+  toast: mocks.toast,
 }));
 
 vi.mock('@renderer/lib/stores/app-state', () => ({
@@ -117,6 +123,12 @@ describe('createTaskCommandProvider', () => {
     mocks.getRegisteredTaskData.mockReturnValue({
       id: 'task-1',
       isPinned: false,
+    });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: mocks.writeText,
+      },
     });
   });
 
@@ -196,9 +208,14 @@ describe('createTaskCommandProvider', () => {
       .getCommands()
       .find((candidate) => candidate.id === 'task.browserOpenExternal')
       ?.execute();
+    provider
+      .getCommands()
+      .find((candidate) => candidate.id === 'task.browserCopyUrl')
+      ?.execute();
 
     expect(mocks.reload).toHaveBeenCalledWith();
     expect(mocks.focusUrl).toHaveBeenCalledWith();
     expect(mocks.openExternal).toHaveBeenCalledWith('https://example.com/');
+    expect(mocks.writeText).toHaveBeenCalledWith('https://example.com/');
   });
 });

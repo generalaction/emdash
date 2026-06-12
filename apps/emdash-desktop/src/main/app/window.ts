@@ -107,6 +107,6 @@ function registerBrowserWebviewHandlers(win: BrowserWindow): void {
       webContents.close();
       return;
     }
-    browserWebContentsRegistry.attachWebContents(browserId, webContents);
+    browserWebContentsRegistry.attachWebContents(browserId, webContents, win);
   });
 }

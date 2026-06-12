@@ -207,6 +207,15 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     iconKey: 'external-link',
   },
   {
+    id: 'task.browserCopyUrl',
+    label: 'Copy Browser URL',
+    description: 'Copy the active browser URL',
+    scope: 'task',
+    shortcutKey: 'browserCopyUrl',
+    group: 'Browser',
+    iconKey: 'copy',
+  },
+  {
     id: 'task.gitFetch',
     label: 'Git Fetch',
     description: 'Fetch latest changes from remote',

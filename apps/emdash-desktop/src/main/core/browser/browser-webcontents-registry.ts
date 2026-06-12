@@ -1,7 +1,17 @@
-import { clipboard, session, type WebContents } from 'electron';
+import {
+  clipboard,
+  Menu,
+  session,
+  type BrowserWindow,
+  type MenuItemConstructorOptions,
+  type WebContents,
+} from 'electron';
 import { events } from '@main/lib/events';
+import { log } from '@main/lib/logger';
 import { normalizeBrowserUrl, type BrowserDataClearKind } from '@shared/browser';
-import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
+import type { AppSettings } from '@shared/core/app-settings';
+import { browserLinkCopiedChannel, browserOpenInNewTabChannel } from '@shared/events/browserEvents';
+import { APP_SHORTCUTS, resolveDefaultHotkey } from '@shared/shortcuts';
 
 type RegisteredBrowserSession = {
   browserId: string;
@@ -13,6 +23,7 @@ export class BrowserWebContentsRegistry {
   private readonly browserIdByPartition = new Map<string, string>();
   private readonly webContentsByBrowserId = new Map<string, WebContents>();
   private activeBrowserId: string | null = null;
+  private copyBrowserUrlShortcut = getBrowserCopyUrlShortcut();
 
   registerSession(input: RegisteredBrowserSession): void {
     this.sessionsByBrowserId.set(input.browserId, input);
@@ -29,6 +40,10 @@ export class BrowserWebContentsRegistry {
     if (this.activeBrowserId === browserId) {
       this.activeBrowserId = null;
     }
+  }
+
+  setKeyboardSettings(keyboard: AppSettings['keyboard']): void {
+    this.copyBrowserUrlShortcut = getBrowserCopyUrlShortcut(keyboard);
   }
 
   get registeredPartitions(): ReadonlySet<string> {
@@ -48,7 +63,7 @@ export class BrowserWebContentsRegistry {
     return undefined;
   }
 
-  attachWebContents(browserId: string, webContents: WebContents): void {
+  attachWebContents(browserId: string, webContents: WebContents, ownerWindow: BrowserWindow): void {
     if (!this.sessionsByBrowserId.has(browserId)) return;
 
     this.webContentsByBrowserId.set(browserId, webContents);
@@ -61,10 +76,80 @@ export class BrowserWebContentsRegistry {
       return { action: 'deny' };
     });
 
+    webContents.on('before-input-event', (event, input) => {
+      if (!isCopyBrowserUrlShortcut(input, this.copyBrowserUrlShortcut)) return;
+
+      const normalized = normalizeBrowserUrl(webContents.getURL(), { allowSearchQueries: false });
+      if (!normalized.ok || !isExternalHttpUrl(normalized.url)) return;
+      event.preventDefault();
+      clipboard.writeText(normalized.url);
+      events.emit(browserLinkCopiedChannel, { kind: 'url', url: normalized.url });
+    });
+
     webContents.on('will-navigate', (event, url) => {
       if (!isSupportedBrowserNavigationUrl(url)) {
         event.preventDefault();
       }
+    });
+
+    webContents.on('context-menu', (event, params) => {
+      event.preventDefault();
+      const selectionText = (params.selectionText ?? '').trim();
+      if (!selectionText) {
+        clearWebviewSelection(webContents);
+      }
+
+      const target = getBrowserContextTarget(params);
+      const template: MenuItemConstructorOptions[] = [
+        ...(selectionText
+          ? [
+              {
+                label: 'Copy',
+                click: () => clipboard.writeText(selectionText),
+              },
+              { type: 'separator' as const },
+            ]
+          : []),
+        {
+          label: target?.kind === 'image' ? 'Copy Image URL' : 'Copy Link',
+          enabled: target !== null,
+          click: () => {
+            if (!target) return;
+            clipboard.writeText(target.url);
+            events.emit(browserLinkCopiedChannel, { kind: target.kind, url: target.url });
+          },
+        },
+        {
+          label: target?.kind === 'image' ? 'Open Image' : 'Open Link',
+          enabled: target !== null,
+          click: () => {
+            if (target) void webContents.loadURL(target.url);
+          },
+        },
+        {
+          label: target?.kind === 'image' ? 'Open Image in New Tab' : 'Open Link in New Tab',
+          enabled: target !== null,
+          click: () => {
+            if (target) {
+              events.emit(browserOpenInNewTabChannel, {
+                sourceBrowserId: browserId,
+                url: target.url,
+              });
+            }
+          },
+        },
+        { type: 'separator' },
+        {
+          label: 'Reload',
+          click: () => webContents.reload(),
+        },
+      ];
+
+      Menu.buildFromTemplate(template).popup({
+        window: ownerWindow,
+        x: params.x,
+        y: params.y,
+      });
     });
 
     webContents.once('destroyed', () => {
@@ -138,4 +223,107 @@ function isExternalHttpUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+function getBrowserContextTarget(
+  params: Electron.ContextMenuParams
+): { kind: 'link' | 'image'; url: string } | null {
+  if (params.mediaType === 'image' && isExternalHttpUrl(params.srcURL)) {
+    return { kind: 'image', url: params.srcURL };
+  }
+  if (isExternalHttpUrl(params.linkURL)) return { kind: 'link', url: params.linkURL };
+  return null;
+}
+
+function getBrowserCopyUrlShortcut(keyboard?: AppSettings['keyboard']): string | null {
+  const configured = keyboard?.browserCopyUrl;
+  if (configured === null) return null;
+  const fallback = resolveDefaultHotkey(APP_SHORTCUTS.browserCopyUrl) ?? null;
+  if (configured && !parseShortcut(configured)) {
+    log.warn('Invalid browser copy URL shortcut, falling back to default', {
+      shortcut: configured,
+    });
+    return fallback;
+  }
+  return configured ?? fallback;
+}
+
+function isCopyBrowserUrlShortcut(input: Electron.Input, shortcut: string | null): boolean {
+  if (shortcut === null) return false;
+  const parsed = parseShortcut(shortcut);
+  if (!parsed) return false;
+
+  return (
+    input.type === 'keyDown' &&
+    normalizeInputKey(input.key) === parsed.key &&
+    Boolean(input.shift) === parsed.shift &&
+    Boolean(input.alt) === parsed.alt &&
+    Boolean(input.meta) === parsed.meta &&
+    Boolean(input.control) === parsed.control
+  );
+}
+
+function parseShortcut(shortcut: string): {
+  key: string;
+  shift: boolean;
+  alt: boolean;
+  meta: boolean;
+  control: boolean;
+} | null {
+  const parts = shortcut
+    .split('+')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const key = parts.pop();
+  if (!key) return null;
+
+  const modifiers = {
+    shift: false,
+    alt: false,
+    meta: false,
+    control: false,
+  };
+
+  for (const part of parts) {
+    switch (part.toLowerCase()) {
+      case 'shift':
+        modifiers.shift = true;
+        break;
+      case 'alt':
+      case 'option':
+        modifiers.alt = true;
+        break;
+      case 'meta':
+      case 'cmd':
+      case 'command':
+        modifiers.meta = true;
+        break;
+      case 'ctrl':
+      case 'control':
+        modifiers.control = true;
+        break;
+      case 'mod':
+        if (process.platform === 'darwin') {
+          modifiers.meta = true;
+        } else {
+          modifiers.control = true;
+        }
+        break;
+      default:
+        return null;
+    }
+  }
+
+  return { key: normalizeInputKey(key), ...modifiers };
+}
+
+function normalizeInputKey(key: string): string {
+  return key.toLowerCase();
+}
+
+function clearWebviewSelection(webContents: WebContents): void {
+  if (webContents.isDestroyed()) return;
+  void webContents
+    .executeJavaScript('window.getSelection()?.removeAllRanges();', true)
+    .catch(() => {});
 }
