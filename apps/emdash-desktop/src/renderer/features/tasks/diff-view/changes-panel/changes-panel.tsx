@@ -23,12 +23,13 @@ export const ChangesPanel = observer(function ChangesPanel() {
     stagedRef,
     prRef,
     spacerRef,
-  } = usePanelLayout(changesView ?? null);
+    containerRef,
+  } = usePanelLayout(changesView ?? null, taskView.isChangesPanelVisible);
 
   if (!diffView || !changesView || !workspace.git.hasData) return null;
 
   return (
-    <div className="flex h-full flex-col">
+    <div ref={containerRef} className="flex h-full flex-col">
       <ResizablePanelGroup
         orientation="vertical"
         className="min-h-0 flex-1"
