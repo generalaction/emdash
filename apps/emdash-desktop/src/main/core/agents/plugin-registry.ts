@@ -1,4 +1,4 @@
-import { pluginRegistry } from '@emdash/cli-agent-plugins/registry';
+import { pluginRegistry } from '@emdash/plugins/agents';
 import type { CLIAgentPluginMetadata, CLIAgentPluginProvider } from '@emdash/shared/agents/plugins';
 import { AGENT_PROVIDER_IDS } from '@shared/core/agents/agent-provider-registry';
 

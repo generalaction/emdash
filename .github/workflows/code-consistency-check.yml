@@ -41,10 +41,7 @@ jobs:
           done
 
       - name: Build shared packages
-        # @emdash/shared and @emdash/cli-agent-plugins export from dist/ and must be
-        # built before the desktop app can typecheck or lint against them.
-        # Build shared first because cli-agent-plugins depends on it.
-        run: pnpm --filter @emdash/shared run build && pnpm --filter @emdash/cli-agent-plugins run build
+        run: pnpm --filter @emdash/shared run build && pnpm --filter @emdash/plugins run build
 
       - name: Check formatting
         run: pnpm run format:check

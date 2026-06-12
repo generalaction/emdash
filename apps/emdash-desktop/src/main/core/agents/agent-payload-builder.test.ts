@@ -2,7 +2,7 @@ import type { CLIAgentPluginProvider } from '@emdash/shared/agents/plugins';
 import type { DependencyState } from '@emdash/shared/deps/runtime';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@emdash/cli-agent-plugins/registry', () => ({
+vi.mock('@emdash/plugins/agents', () => ({
   pluginRegistry: {
     get: vi.fn(),
     getAll: vi.fn().mockReturnValue([]),

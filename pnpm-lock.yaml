@@ -10,7 +10,7 @@ importers:
 
   apps/emdash-desktop:
     dependencies:
-      '@emdash/cli-agent-plugins':
+      '@emdash/plugins':
         specifier: workspace:*
         version: link:../../packages/plugins
       '@emdash/shared':

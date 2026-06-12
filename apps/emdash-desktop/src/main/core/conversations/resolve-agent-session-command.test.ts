@@ -1,4 +1,4 @@
-import { pluginRegistry } from '@emdash/cli-agent-plugins/registry';
+import { pluginRegistry } from '@emdash/plugins/agents';
 import { describe, expect, it } from 'vitest';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { resolveAgentSessionCommandArgs } from './resolve-agent-session-command';

@@ -1,5 +1,6 @@
 import { Check, MoreHorizontal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { toast } from 'sonner';
 import type { HostDependencyInstallation } from '@renderer/lib/stores/use-agent-installation-statuses';
 import {
   DropdownMenu,
@@ -126,8 +127,26 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
                 <DropdownMenuSeparator />
               </>
             )}
-            <DropdownMenuItem onSelect={() => refresh()}>Refresh</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => fetchLatestVersion()}>
+            <DropdownMenuItem
+              onSelect={() => {
+                void toast.promise(refresh(), {
+                  loading: 'Refreshing installations...',
+                  success: 'Installations refreshed',
+                  error: 'Failed to refresh installations',
+                });
+              }}
+            >
+              Refresh
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                void toast.promise(fetchLatestVersion(), {
+                  loading: 'Checking for updates...',
+                  success: 'Checked for updates',
+                  error: 'Failed to check for updates',
+                });
+              }}
+            >
               Check for updates
             </DropdownMenuItem>
             {canUninstall && (
@@ -136,9 +155,17 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
                 <DropdownMenuItem
                   variant="destructive"
                   disabled={isUninstalling}
-                  onSelect={() =>
-                    void uninstall(used.source.kind === 'method' ? used.source.method : undefined)
-                  }
+                  onSelect={() => {
+                    const name = agentPayload?.name ?? 'Agent';
+                    void toast.promise(
+                      uninstall(used.source.kind === 'method' ? used.source.method : undefined),
+                      {
+                        loading: `Uninstalling ${name}...`,
+                        success: `${name} successfully uninstalled`,
+                        error: `Failed to uninstall ${name}`,
+                      }
+                    );
+                  }}
                 >
                   Uninstall
                 </DropdownMenuItem>

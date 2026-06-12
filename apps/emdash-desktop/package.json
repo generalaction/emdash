@@ -51,7 +51,7 @@
     "docs:build": "cd docs && pnpm run build"
   },
   "dependencies": {
-    "@emdash/cli-agent-plugins": "workspace:*",
+    "@emdash/plugins": "workspace:*",
     "@emdash/shared": "workspace:*",
     "@gitbeaker/rest": "^43.8.0",
     "@linear/sdk": "^77.0.0",

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo } from 'react';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { events, rpc } from '@renderer/lib/ipc';
@@ -17,6 +17,14 @@ import { AGENTS_METADATA_QUERY_KEY, useAgents } from './use-agents';
 function statusQueryKey(connectionId?: string) {
   return ['agents', 'status', connectionId ?? 'local'] as const;
 }
+
+function opKey(op: 'install' | 'update' | 'uninstall', connectionId?: string) {
+  return ['agents', op, connectionId ?? 'local'] as const;
+}
+
+type OpVars = { id: AgentProviderId; method?: InstallMethod };
+const selectOpVars = (m: { state: { variables?: unknown } }) =>
+  m.state.variables as OpVars | undefined;
 
 /**
  * Returns installation statuses for all agents on the given host, and provides
@@ -71,6 +79,7 @@ export function useAgentInstallationStatuses(connectionId?: string) {
     Error,
     { id: AgentProviderId; method?: InstallMethod }
   >({
+    mutationKey: opKey('install', connectionId),
     mutationFn: ({ id, method }) =>
       rpc.agents.install(id, connectionId, method) as Promise<unknown>,
     onSuccess: (result, vars) => {
@@ -92,6 +101,7 @@ export function useAgentInstallationStatuses(connectionId?: string) {
     Error,
     { id: AgentProviderId; method?: InstallMethod }
   >({
+    mutationKey: opKey('update', connectionId),
     mutationFn: ({ id, method }) => rpc.agents.update(id, connectionId, method) as Promise<unknown>,
     onSuccess: (result, vars) => {
       invalidate();
@@ -112,20 +122,10 @@ export function useAgentInstallationStatuses(connectionId?: string) {
     Error,
     { id: AgentProviderId; method?: InstallMethod }
   >({
+    mutationKey: opKey('uninstall', connectionId),
     mutationFn: ({ id, method }) =>
       rpc.agents.uninstall(id, connectionId, method) as Promise<unknown>,
-    onSuccess: (result, vars) => {
-      invalidate();
-      const name = nameOf(vars.id);
-      if ((result as { success: boolean }).success) {
-        toast({ title: `${name} successfully uninstalled` });
-      } else {
-        toast({ title: `Failed to uninstall ${name}`, variant: 'destructive' });
-      }
-    },
-    onError: (_, vars) => {
-      toast({ title: `Failed to uninstall ${nameOf(vars.id)}`, variant: 'destructive' });
-    },
+    onSuccess: invalidate,
   });
 
   const setUsedMutation = useMutation<
@@ -216,13 +216,33 @@ export function useAgentInstallationStatus(
     setUsedInstallation,
     refreshLatestVersion,
     probeAll,
-    isInstalling,
-    isUpdating,
-    isUninstalling,
-    installingMethod,
-    updatingMethod,
-    uninstallingMethod,
   } = useAgentInstallationStatuses(connectionId);
+
+  // Derive per-agent pending state from the global MutationCache so it
+  // survives the sheet being closed and reopened while the operation runs.
+  const pendingInstalls = useMutationState({
+    filters: { mutationKey: opKey('install', connectionId), status: 'pending' },
+    select: selectOpVars,
+  });
+  const installVar = pendingInstalls.find((v) => v?.id === id);
+  const isInstalling = !!installVar;
+  const installingMethod = installVar?.method;
+
+  const pendingUpdates = useMutationState({
+    filters: { mutationKey: opKey('update', connectionId), status: 'pending' },
+    select: selectOpVars,
+  });
+  const updateVar = pendingUpdates.find((v) => v?.id === id);
+  const isUpdating = !!updateVar;
+  const updatingMethod = updateVar?.method;
+
+  const pendingUninstalls = useMutationState({
+    filters: { mutationKey: opKey('uninstall', connectionId), status: 'pending' },
+    select: selectOpVars,
+  });
+  const uninstallVar = pendingUninstalls.find((v) => v?.id === id);
+  const isUninstalling = !!uninstallVar;
+  const uninstallingMethod = uninstallVar?.method;
 
   const statusEntry = statuses?.find((s) => s.id === id) ?? null;
 

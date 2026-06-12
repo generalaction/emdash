@@ -66,7 +66,7 @@ export const plugin = definePlugin(
       uninstall: {
         kind: 'cli',
         args: ['uninstall'],
-      }
+      },
     },
     mcp: {
       kind: 'supported',

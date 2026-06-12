@@ -1,4 +1,4 @@
-import { pluginRegistry } from '@emdash/cli-agent-plugins/registry';
+import { pluginRegistry } from '@emdash/plugins/agents';
 import type {
   DependencyDescriptor,
   DependencyStatus,

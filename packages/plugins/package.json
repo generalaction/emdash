@@ -1,7 +1,7 @@
 {
-  "name": "@emdash/cli-agent-plugins",
+  "name": "@emdash/plugins",
   "version": "1.0.0",
-  "description": "Plugin interfaces and helpers for CLI agent providers",
+  "description": "Plugin interfaces and helpers for agent providers",
   "keywords": [],
   "license": "Apache-2.0",
   "author": "",
@@ -11,9 +11,9 @@
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
   "exports": {
-    "./registry": {
-      "types": "./dist/registry.d.mts",
-      "default": "./dist/registry.mjs"
+    "./agents": {
+      "types": "./dist/agents.d.mts",
+      "default": "./dist/agents.mjs"
     }
   },
   "scripts": {
