@@ -1,4 +1,4 @@
-import { Ellipsis, Globe, Loader2, RefreshCw, RotateCcw, Square } from 'lucide-react';
+import { Ellipsis, Globe, Loader2, Minus, Plus, RefreshCw, RotateCcw, Square } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
@@ -6,13 +6,25 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@renderer/lib/ui/dropdown-menu';
 import { Input } from '@renderer/lib/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { normalizeBrowserUrl, type BrowserSessionSnapshot } from '@shared/browser';
+import {
+  BROWSER_DEFAULT_ZOOM_FACTOR,
+  canZoomIn,
+  canZoomOut,
+  formatBrowserZoomPercent,
+  isDefaultBrowserZoomFactor,
+  nextBrowserZoomFactor,
+  normalizeBrowserUrl,
+  previousBrowserZoomFactor,
+  type BrowserSessionSnapshot,
+} from '@shared/browser';
 import {
   canOpenBrowserUrlExternally,
+  clearBrowserData,
   confirmClearBrowserStorage,
   openBrowserUrlExternally,
 } from './browser-toolbar-actions';
@@ -25,6 +37,8 @@ export function BrowserToolbar({
   autoFocusUrl,
   onNavigate,
   onReload,
+  onForceReload,
+  onSetZoomFactor,
   onFocusUrl,
 }: {
   session: BrowserSessionSnapshot;
@@ -32,6 +46,8 @@ export function BrowserToolbar({
   autoFocusUrl?: boolean;
   onNavigate?: (url: string) => boolean;
   onReload?: () => void;
+  onForceReload?: () => void;
+  onSetZoomFactor?: (factor: number) => void;
   onFocusUrl?: (focus: () => void) => void;
 }) {
   const [urlText, setUrlText] = useState(browserUrlInputText(session.currentUrl));
@@ -89,9 +105,10 @@ export function BrowserToolbar({
   };
 
   const confirmClearStorage = () => {
-    confirmClearBrowserStorage(session, adapter);
+    confirmClearBrowserStorage(session, () => adapter?.reload());
   };
   const canOpenExternal = canOpenBrowserUrlExternally(session.currentUrl);
+  const zoomFactor = session.zoomFactor;
 
   return (
     <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border bg-background-secondary-1 px-2">
@@ -155,13 +172,73 @@ export function BrowserToolbar({
         >
           <Ellipsis className="size-4" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-44">
+        <DropdownMenuContent align="end" className="min-w-56">
           <DropdownMenuItem disabled={!canOpenExternal} onClick={openExternal}>
             Open externally
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={!adapter} onClick={() => onForceReload?.()}>
+            Force reload
           </DropdownMenuItem>
           {import.meta.env.DEV && (
             <DropdownMenuItem onClick={openDevTools}>Open DevTools</DropdownMenuItem>
           )}
+          <DropdownMenuSeparator />
+          <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-sm">
+            <span>Zoom</span>
+            <div className="flex items-center gap-1">
+              <div className="flex items-center rounded-md bg-background-quaternary-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  aria-label="Zoom out"
+                  disabled={!canZoomOut(zoomFactor)}
+                  onClick={() => onSetZoomFactor?.(previousBrowserZoomFactor(zoomFactor))}
+                >
+                  <Minus className="size-3.5" />
+                </Button>
+                <span className="min-w-11 text-center text-xs text-foreground-muted tabular-nums">
+                  {formatBrowserZoomPercent(zoomFactor)}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  aria-label="Zoom in"
+                  disabled={!canZoomIn(zoomFactor)}
+                  onClick={() => onSetZoomFactor?.(nextBrowserZoomFactor(zoomFactor))}
+                >
+                  <Plus className="size-3.5" />
+                </Button>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-6"
+                aria-label="Reset zoom"
+                disabled={isDefaultBrowserZoomFactor(zoomFactor)}
+                onClick={() => onSetZoomFactor?.(BROWSER_DEFAULT_ZOOM_FACTOR)}
+              >
+                <RotateCcw className="size-3.5" />
+              </Button>
+            </div>
+          </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            disabled={!adapter}
+            onClick={() => clearBrowserData(session, 'cookies', () => adapter?.reload())}
+          >
+            Clear cookies
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!adapter}
+            onClick={() => clearBrowserData(session, 'cache', () => adapter?.reloadIgnoringCache())}
+          >
+            Clear cache
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={confirmClearStorage}>Clear browser storage</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

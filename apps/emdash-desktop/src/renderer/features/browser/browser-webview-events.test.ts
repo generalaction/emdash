@@ -9,6 +9,7 @@ class FakeBrowserWebview {
   titleText = '';
   back = false;
   forward = false;
+  readonly zoomFactors: number[] = [];
   readonly listeners = new Map<string, Set<(event: unknown) => void>>();
 
   canGoBack(): boolean {
@@ -25,6 +26,10 @@ class FakeBrowserWebview {
 
   getTitle(): string {
     return this.titleText;
+  }
+
+  setZoomFactor(factor: number): void {
+    this.zoomFactors.push(factor);
   }
 
   addEventListener<K extends keyof BrowserWebviewEventMap>(
@@ -74,6 +79,7 @@ describe('bindBrowserWebviewEvents', () => {
     webview.back = true;
 
     bindBrowserWebviewEvents(session.browserId, asWebview(webview));
+    browserSessionStore.updateSession(session.browserId, { zoomFactor: 1.25 });
 
     expect(browserSessionStore.getSession(session.browserId)).toMatchObject({
       currentUrl: 'about:blank',
@@ -83,6 +89,7 @@ describe('bindBrowserWebviewEvents', () => {
     });
 
     webview.emit('dom-ready');
+    expect(webview.zoomFactors).toEqual([1.25]);
 
     expect(browserSessionStore.getSession(session.browserId)).toMatchObject({
       currentUrl: 'https://example.com/',
@@ -95,6 +102,7 @@ describe('bindBrowserWebviewEvents', () => {
     expect(browserSessionStore.getSession(session.browserId)?.isLoading).toBe(true);
 
     webview.emit('did-navigate', { url: 'https://example.com/docs' });
+    expect(webview.zoomFactors).toEqual([1.25, 1.25]);
     expect(browserSessionStore.getSession(session.browserId)).toMatchObject({
       currentUrl: 'https://example.com/docs',
       loadError: undefined,
@@ -143,6 +151,24 @@ describe('bindBrowserWebviewEvents', () => {
         url: 'https://missing.invalid/',
       },
     ]);
+  });
+
+  it('reapplies the session zoom after navigation commits', () => {
+    const session = browserSessionStore.createSession({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+    });
+    browserSessionStore.updateSession(session.browserId, { zoomFactor: 1.5 });
+    const webview = new FakeBrowserWebview();
+
+    bindBrowserWebviewEvents(session.browserId, asWebview(webview));
+    webview.emit('dom-ready');
+    webview.emit('did-navigate', { url: 'https://example.com/' });
+    webview.emit('did-stop-loading');
+
+    expect(webview.zoomFactors).toEqual([1.5, 1.5, 1.5]);
   });
 
   it('removes listeners when disposed', () => {
