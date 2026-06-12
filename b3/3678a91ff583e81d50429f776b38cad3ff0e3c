@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-script.ts
+  s_1416c62cc9dcbf::t_369a05c377a4e2 208
+  s_1416c62cc9dcbf::t_5a557281969dec 89-91
+  s_1416c62cc9dcbf::t_d56ba93bc85f1a 180
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-overlay.tsx
+  s_1416c62cc9dcbf::t_2599da45b6d384 144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "b33678a91ff583e81d50429f776b38cad3ff0e3c",
+  "prompts": {},
+  "sessions": {
+    "s_1416c62cc9dcbf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f95a86b7-3c91-4986-80e7-40a60e2cbe23",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
