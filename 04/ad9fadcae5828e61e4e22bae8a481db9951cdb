@@ -1,0 +1,40 @@
+apps/emdash-desktop/src/renderer/features/settings/app-settings-client.ts
+  s_4628e7e4d19060::t_091f6922fbb3a0 18
+apps/emdash-desktop/src/shared/browser.test.ts
+  s_4628e7e4d19060::t_f928e7cc8b9ac2 100
+apps/emdash-desktop/src/renderer/features/browser/browser-session-store.test.ts
+  s_4628e7e4d19060::t_8da9a93aebbaee 18,110-113,142-156
+  s_4628e7e4d19060::t_4830c87553d3e9 114-141
+apps/emdash-desktop/src/shared/browser.ts
+  s_4628e7e4d19060::t_66d88995c5cfec 19,138,169-170,172,175-176
+apps/emdash-desktop/src/renderer/features/settings/components/BrowserSettingsCard.tsx
+  s_4628e7e4d19060::t_803db5ff4c1d63 211-212
+  s_4628e7e4d19060::t_f8597172bf2bc1 3,79-83,86,210
+apps/emdash-desktop/src/renderer/features/tasks/tabs/tab-manager-store.test.ts
+  s_4628e7e4d19060::t_96aa32357f404e 61
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar-actions.test.ts
+  s_4628e7e4d19060::t_acf67fc4198272 37
+apps/emdash-desktop/src/renderer/features/browser/browser-session-store.ts
+  s_4628e7e4d19060::t_5f7ea708f0689b 10,64-65
+  s_4628e7e4d19060::t_7c9beb5d6a2843 41,68,82-97
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.test.ts
+  s_4628e7e4d19060::t_79661506b40915 27
+apps/emdash-desktop/src/renderer/features/tasks/tabs/tab-manager-store.ts
+  s_4628e7e4d19060::t_a77fa18a21a5e1 797-800
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "04ad9fadcae5828e61e4e22bae8a481db9951cdb",
+  "prompts": {},
+  "sessions": {
+    "s_4628e7e4d19060": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_145da6519ffe4SnFJvO5FQ6jr3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
