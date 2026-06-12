@@ -105,10 +105,10 @@ export class WorkspaceBootstrapService {
     // path existence. Archive/delete can leave a partial directory behind; the
     // worktree service knows how to remove stale targets and recreate the checkout.
     if (workspaceRow.path && workspaceBranchName && !isByoi) {
-      const serveResult = await project.worktreeService.serveBranchWorktree({
-        branchName: workspaceBranchName,
-        sourceBranch: workspaceSourceBranch,
-      });
+      const serveResult = await project.worktreeService.serveBranchWorktree(
+        workspaceBranchName,
+        workspaceSourceBranch
+      );
       if (!serveResult.success) {
         const provisionError = mapWorktreeErrorToProvisionError(
           workspaceBranchName,

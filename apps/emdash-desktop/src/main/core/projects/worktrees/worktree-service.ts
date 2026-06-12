@@ -13,12 +13,6 @@ export type ServeWorktreeError =
   | { type: 'worktree-setup-failed'; cause: unknown }
   | { type: 'branch-not-found'; branch: string };
 
-export type ServeBranchWorktreeParams = {
-  branchName: string;
-  sourceBranch?: Branch;
-  copyPreservedFiles?: boolean;
-};
-
 export class WorktreeService {
   private gitOpQueue: Promise<unknown> = Promise.resolve();
   private readonly resolveWorktreePoolPath: () => Promise<string>;
@@ -309,11 +303,11 @@ export class WorktreeService {
     return this.enqueueGitOp(() => this.doCheckoutExistingBranch(branchName, options));
   }
 
-  async serveBranchWorktree({
-    branchName,
-    sourceBranch,
-    copyPreservedFiles,
-  }: ServeBranchWorktreeParams): Promise<Result<string, ServeWorktreeError>> {
+  async serveBranchWorktree(
+    branchName: string,
+    sourceBranch?: Branch,
+    copyPreservedFiles?: boolean
+  ): Promise<Result<string, ServeWorktreeError>> {
     const existing = await this.getWorktree(branchName);
     if (existing) return ok(existing);
 

@@ -140,7 +140,7 @@ export class TaskStore {
   }
 
   transitionToDryUnprovisioned(data: Task, phase: UnprovisionedTaskPhase = 'idle'): void {
-    this.disposeFrontendRuntime();
+    this.dispose();
     this.data = data;
     this.state = 'unprovisioned';
     this.phase = phase;
@@ -168,7 +168,7 @@ export class TaskStore {
     }
   }
 
-  disposeFrontendRuntime(): void {
+  dispose(): void {
     this.viewModel?.dispose();
     this.viewModel = null;
     if (this.workspaceId) {
@@ -178,10 +178,6 @@ export class TaskStore {
     }
     this.draftComments?.dispose();
     this.draftComments = null;
-  }
-
-  dispose(): void {
-    this.disposeFrontendRuntime();
   }
 
   get conversationStats(): Record<string, number> {
