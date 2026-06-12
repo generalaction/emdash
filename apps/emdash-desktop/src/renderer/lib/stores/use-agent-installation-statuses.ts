@@ -1,17 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo } from 'react';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { events, rpc } from '@renderer/lib/ipc';
 import type {
   AgentInstallationStatus,
+  AgentPayload,
   DependencyStatus,
   HostDependencySelection,
   Installation,
   InstallMethod,
 } from '@shared/core/agents/agent-payload';
-import type { AgentPayload } from '@shared/core/agents/agent-payload';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { agentInstallationStatusUpdatedChannel } from '@shared/events/appEvents';
-import { AGENTS_METADATA_QUERY_KEY } from './use-agents';
+import { AGENTS_METADATA_QUERY_KEY, useAgents } from './use-agents';
 
 function statusQueryKey(connectionId?: string) {
   return ['agents', 'status', connectionId ?? 'local'] as const;
@@ -27,6 +28,14 @@ function statusQueryKey(connectionId?: string) {
 export function useAgentInstallationStatuses(connectionId?: string) {
   const queryClient = useQueryClient();
   const key = statusQueryKey(connectionId);
+
+  const { data: agents } = useAgents();
+  const agentNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of agents ?? []) map.set(a.id, a.name);
+    return map;
+  }, [agents]);
+  const nameOf = (id: string) => agentNameMap.get(id) ?? id;
 
   const query = useQuery<AgentInstallationStatus[]>({
     queryKey: key,
@@ -64,7 +73,18 @@ export function useAgentInstallationStatuses(connectionId?: string) {
   >({
     mutationFn: ({ id, method }) =>
       rpc.agents.install(id, connectionId, method) as Promise<unknown>,
-    onSuccess: invalidate,
+    onSuccess: (result, vars) => {
+      invalidate();
+      const name = nameOf(vars.id);
+      if ((result as { success: boolean }).success) {
+        toast({ title: `${name} successfully installed` });
+      } else {
+        toast({ title: `Failed to install ${name}`, variant: 'destructive' });
+      }
+    },
+    onError: (_, vars) => {
+      toast({ title: `Failed to install ${nameOf(vars.id)}`, variant: 'destructive' });
+    },
   });
 
   const updateMutation = useMutation<
@@ -73,7 +93,18 @@ export function useAgentInstallationStatuses(connectionId?: string) {
     { id: AgentProviderId; method?: InstallMethod }
   >({
     mutationFn: ({ id, method }) => rpc.agents.update(id, connectionId, method) as Promise<unknown>,
-    onSuccess: invalidate,
+    onSuccess: (result, vars) => {
+      invalidate();
+      const name = nameOf(vars.id);
+      if ((result as { success: boolean }).success) {
+        toast({ title: `${name} successfully updated` });
+      } else {
+        toast({ title: `Failed to update ${name}`, variant: 'destructive' });
+      }
+    },
+    onError: (_, vars) => {
+      toast({ title: `Failed to update ${nameOf(vars.id)}`, variant: 'destructive' });
+    },
   });
 
   const uninstallMutation = useMutation<
@@ -83,7 +114,18 @@ export function useAgentInstallationStatuses(connectionId?: string) {
   >({
     mutationFn: ({ id, method }) =>
       rpc.agents.uninstall(id, connectionId, method) as Promise<unknown>,
-    onSuccess: invalidate,
+    onSuccess: (result, vars) => {
+      invalidate();
+      const name = nameOf(vars.id);
+      if ((result as { success: boolean }).success) {
+        toast({ title: `${name} successfully uninstalled` });
+      } else {
+        toast({ title: `Failed to uninstall ${name}`, variant: 'destructive' });
+      }
+    },
+    onError: (_, vars) => {
+      toast({ title: `Failed to uninstall ${nameOf(vars.id)}`, variant: 'destructive' });
+    },
   });
 
   const setUsedMutation = useMutation<

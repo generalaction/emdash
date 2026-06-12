@@ -63,6 +63,10 @@ export const plugin = definePlugin(
           args: ['install', 'latest'],
         },
       },
+      uninstall: {
+        kind: 'cli',
+        args: ['uninstall'],
+      }
     },
     mcp: {
       kind: 'supported',

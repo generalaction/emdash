@@ -59,7 +59,8 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
   vm,
   agentPayload,
 }: DependencyInstallationStatusCardProps) {
-  const { used, installations, setUsed, refresh, fetchLatestVersion } = vm;
+  const { used, installations, setUsed, refresh, fetchLatestVersion, uninstall, isUninstalling } =
+    vm;
 
   if (!used) return null;
 
@@ -71,6 +72,9 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
   const updates = agentPayload?.capabilities.hostDependency.updates;
   const strategyKind = updates?.kind === 'supported' ? updates.update.kind : 'none';
   const showNoAutoUpdateHint = used.source.kind === 'unknown' && strategyKind === 'package-manager';
+
+  const uninstallDescriptor = agentPayload?.capabilities.hostDependency.uninstall;
+  const canUninstall = !!uninstallDescriptor && uninstallDescriptor.kind !== 'none';
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -126,6 +130,20 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
             <DropdownMenuItem onSelect={() => fetchLatestVersion()}>
               Check for updates
             </DropdownMenuItem>
+            {canUninstall && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={isUninstalling}
+                  onSelect={() =>
+                    void uninstall(used.source.kind === 'method' ? used.source.method : undefined)
+                  }
+                >
+                  Uninstall
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

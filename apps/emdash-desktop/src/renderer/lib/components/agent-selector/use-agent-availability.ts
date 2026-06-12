@@ -1,9 +1,7 @@
 import { useMemo } from 'react';
-import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useAgentInstallationStatuses } from '@renderer/lib/stores/use-agent-installation-statuses';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
-import { getAgentInstallErrorMessage } from './agent-install';
 import { buildAgentGroups, getAssumedInstalledAgents } from './agent-selector-options';
 
 export function useAgentAvailability({
@@ -13,7 +11,6 @@ export function useAgentAvailability({
   connectionId?: string;
   value: AgentProviderId | null;
 }) {
-  const { toast } = useToast();
   const { data: agents } = useAgents();
   const { data: statuses, install, isInstalling } = useAgentInstallationStatuses(connectionId);
 
@@ -59,30 +56,7 @@ export function useAgentAvailability({
 
   async function installAgent(agentId: AgentProviderId): Promise<void> {
     return new Promise((resolve) => {
-      install(
-        { id: agentId },
-        {
-          onSuccess: (result: unknown) => {
-            const r = result as { success: boolean; error?: { type: string } };
-            if (!r.success && r.error) {
-              toast({
-                title: 'Install failed',
-                description: getAgentInstallErrorMessage(
-                  r.error as Parameters<typeof getAgentInstallErrorMessage>[0]
-                ),
-                variant: 'destructive',
-              });
-            } else {
-              toast({
-                title: 'Agent installed',
-                description: `${getName(agentId)} is ready.`,
-              });
-            }
-            resolve();
-          },
-          onError: () => resolve(),
-        }
-      );
+      install({ id: agentId }, { onSettled: () => resolve() });
     });
   }
 
