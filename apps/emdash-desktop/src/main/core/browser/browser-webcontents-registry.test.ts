@@ -1,15 +1,31 @@
-import type { WebContents } from 'electron';
+import type { BrowserWindow as ElectronBrowserWindow, WebContents } from 'electron';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { browserLinkCopiedChannel, browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 import { BrowserWebContentsRegistry } from './browser-webcontents-registry';
 
-const mocks = vi.hoisted(() => ({
-  sessionsByPartition: new Map<string, object>(),
-  writeImage: vi.fn(),
-}));
+const mocks = vi.hoisted(() => {
+  const menuPopup = vi.fn();
+  return {
+    sessionsByPartition: new Map<string, object>(),
+    clipboardWriteText: vi.fn(),
+    writeImage: vi.fn(),
+    menuPopup,
+    menuBuildFromTemplate: vi.fn((template: unknown[]) => ({ popup: menuPopup, template })),
+    eventsEmit: vi.fn(),
+  };
+});
 
 vi.mock('electron', () => ({
+  BrowserWindow: {
+    fromWebContents: vi.fn(() => null),
+    getFocusedWindow: vi.fn(() => null),
+  },
   clipboard: {
+    writeText: mocks.clipboardWriteText,
     writeImage: mocks.writeImage,
+  },
+  Menu: {
+    buildFromTemplate: mocks.menuBuildFromTemplate,
   },
   session: {
     fromPartition: (partition: string) => {
@@ -25,7 +41,7 @@ vi.mock('electron', () => ({
 
 vi.mock('@main/lib/events', () => ({
   events: {
-    emit: vi.fn(),
+    emit: mocks.eventsEmit,
   },
 }));
 
@@ -35,22 +51,74 @@ function webContentsWithSession(session: object): WebContents {
   } as WebContents;
 }
 
-function attachedWebContents(session: object, image: { isEmpty: () => boolean }): WebContents {
+function attachedWebContents(
+  session: object,
+  image: { isEmpty: () => boolean } = { isEmpty: () => false }
+): WebContents & {
+  emitContextMenu: (params: string | Partial<Electron.ContextMenuParams>) => void;
+  emitCopyUrlShortcut: (input?: Partial<Electron.Input>) => void;
+} {
+  const listeners = new Map<
+    string,
+    (event: { preventDefault: () => void }, params: never) => void
+  >();
   return {
     id: 1,
     session,
     capturePage: vi.fn().mockResolvedValue(image),
-    isDestroyed: vi.fn().mockReturnValue(false),
-    on: vi.fn(),
-    once: vi.fn(),
+    getURL: vi.fn(() => 'https://example.com/current'),
+    isDestroyed: () => false,
+    executeJavaScript: vi.fn(() => Promise.resolve()),
+    loadURL: vi.fn(),
+    reload: vi.fn(),
     setWindowOpenHandler: vi.fn(),
-  } as unknown as WebContents;
+    getOwnerBrowserWindow: () => null,
+    on: vi.fn(
+      (
+        eventName: string,
+        listener: (event: { preventDefault: () => void }, params: never) => void
+      ) => {
+        listeners.set(eventName, listener);
+        return undefined;
+      }
+    ),
+    once: vi.fn(),
+    emitContextMenu: (params: string | Partial<Electron.ContextMenuParams>) => {
+      const contextParams =
+        typeof params === 'string'
+          ? { linkURL: params }
+          : { linkURL: '', srcURL: '', mediaType: 'none', ...params };
+      listeners.get('context-menu')?.({ preventDefault: vi.fn() }, contextParams as never);
+    },
+    emitCopyUrlShortcut: (input = {}) => {
+      listeners.get('before-input-event')?.({ preventDefault: vi.fn() }, {
+        type: 'keyDown',
+        key: 'c',
+        shift: true,
+        meta: process.platform === 'darwin',
+        control: process.platform !== 'darwin',
+        alt: false,
+        ...input,
+      } as never);
+    },
+  } as unknown as WebContents & {
+    emitContextMenu: (params: string | Partial<Electron.ContextMenuParams>) => void;
+    emitCopyUrlShortcut: (input?: Partial<Electron.Input>) => void;
+  };
+}
+
+function ownerWindow() {
+  return {} as ElectronBrowserWindow;
 }
 
 describe('BrowserWebContentsRegistry', () => {
   beforeEach(() => {
     mocks.sessionsByPartition.clear();
+    mocks.clipboardWriteText.mockClear();
     mocks.writeImage.mockClear();
+    mocks.menuPopup.mockClear();
+    mocks.menuBuildFromTemplate.mockClear();
+    mocks.eventsEmit.mockClear();
   });
 
   it('resolves the browser id from the attached webContents session', () => {
@@ -86,6 +154,196 @@ describe('BrowserWebContentsRegistry', () => {
     expect(registry.getBrowserIdForWebContents(webContentsWithSession({}))).toBeUndefined();
   });
 
+  it('shows link context menu with copy and open in new tab actions', () => {
+    const registry = new BrowserWebContentsRegistry();
+    const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
+    const webContentsSession = { partition };
+    mocks.sessionsByPartition.set(partition, webContentsSession);
+    const webContents = attachedWebContents(webContentsSession);
+    registry.registerSession({ browserId: 'browser-1', partition });
+
+    registry.attachWebContents('browser-1', webContents, ownerWindow());
+    webContents.emitContextMenu('https://example.com/docs');
+
+    expect(mocks.menuBuildFromTemplate).toHaveBeenCalledTimes(1);
+    const template = mocks.menuBuildFromTemplate.mock.calls[0]?.[0] as Array<{ click: () => void }>;
+    template[0]?.click();
+    template[1]?.click();
+    template[2]?.click();
+
+    expect(mocks.clipboardWriteText).toHaveBeenCalledWith('https://example.com/docs');
+    expect(mocks.eventsEmit).toHaveBeenCalledWith(browserLinkCopiedChannel, {
+      kind: 'link',
+      url: 'https://example.com/docs',
+    });
+    expect(webContents.loadURL).toHaveBeenCalledWith('https://example.com/docs');
+    expect(mocks.eventsEmit).toHaveBeenCalledWith(browserOpenInNewTabChannel, {
+      sourceBrowserId: 'browser-1',
+      url: 'https://example.com/docs',
+    });
+    expect(mocks.menuPopup).toHaveBeenCalledWith({
+      window: expect.any(Object),
+      x: undefined,
+      y: undefined,
+    });
+  });
+
+  it('shows disabled link actions for unsupported URLs', () => {
+    const registry = new BrowserWebContentsRegistry();
+    const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
+    const webContentsSession = { partition };
+    const webContents = attachedWebContents(webContentsSession);
+    registry.registerSession({ browserId: 'browser-1', partition });
+
+    registry.attachWebContents('browser-1', webContents, ownerWindow());
+    webContents.emitContextMenu('javascript:alert(1)');
+
+    expect(mocks.menuBuildFromTemplate).toHaveBeenCalledTimes(1);
+    expect(mocks.menuBuildFromTemplate.mock.calls[0]?.[0]).toMatchObject([
+      { label: 'Copy Link', enabled: false },
+      { label: 'Open Link', enabled: false },
+      { label: 'Open Link in New Tab', enabled: false },
+      { type: 'separator' },
+      { label: 'Reload' },
+    ]);
+  });
+
+  it('shows image context menu actions for image URLs', () => {
+    const registry = new BrowserWebContentsRegistry();
+    const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
+    const webContentsSession = { partition };
+    mocks.sessionsByPartition.set(partition, webContentsSession);
+    const webContents = attachedWebContents(webContentsSession);
+    registry.registerSession({ browserId: 'browser-1', partition });
+
+    registry.attachWebContents('browser-1', webContents, ownerWindow());
+    webContents.emitContextMenu({
+      mediaType: 'image',
+      srcURL: 'https://example.com/image.png',
+    });
+
+    expect(mocks.menuBuildFromTemplate).toHaveBeenCalledTimes(1);
+    const template = mocks.menuBuildFromTemplate.mock.calls[0]?.[0] as Array<{ click: () => void }>;
+    expect(template).toMatchObject([
+      { label: 'Copy Image URL', enabled: true },
+      { label: 'Open Image', enabled: true },
+      { label: 'Open Image in New Tab', enabled: true },
+      { type: 'separator' },
+      { label: 'Reload' },
+    ]);
+
+    template[0]?.click();
+    template[1]?.click();
+    template[2]?.click();
+
+    expect(mocks.clipboardWriteText).toHaveBeenCalledWith('https://example.com/image.png');
+    expect(mocks.eventsEmit).toHaveBeenCalledWith(browserLinkCopiedChannel, {
+      kind: 'image',
+      url: 'https://example.com/image.png',
+    });
+    expect(webContents.loadURL).toHaveBeenCalledWith('https://example.com/image.png');
+    expect(mocks.eventsEmit).toHaveBeenCalledWith(browserOpenInNewTabChannel, {
+      sourceBrowserId: 'browser-1',
+      url: 'https://example.com/image.png',
+    });
+  });
+
+  it('copies the current browser URL from the webview shortcut', () => {
+    const registry = new BrowserWebContentsRegistry();
+    const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
+    const webContentsSession = { partition };
+    const webContents = attachedWebContents(webContentsSession);
+    registry.registerSession({ browserId: 'browser-1', partition });
+
+    registry.attachWebContents('browser-1', webContents, ownerWindow());
+    webContents.emitCopyUrlShortcut();
+
+    expect(mocks.clipboardWriteText).toHaveBeenCalledWith('https://example.com/current');
+    expect(mocks.eventsEmit).toHaveBeenCalledWith(browserLinkCopiedChannel, {
+      kind: 'url',
+      url: 'https://example.com/current',
+    });
+  });
+
+  it('does not copy unsupported webview URLs from the shortcut', () => {
+    const registry = new BrowserWebContentsRegistry();
+    const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
+    const webContentsSession = { partition };
+    const webContents = attachedWebContents(webContentsSession);
+    vi.mocked(webContents.getURL).mockReturnValue('about:blank');
+    registry.registerSession({ browserId: 'browser-1', partition });
+
+    registry.attachWebContents('browser-1', webContents, ownerWindow());
+    webContents.emitCopyUrlShortcut();
+
+    expect(mocks.clipboardWriteText).not.toHaveBeenCalled();
+    expect(mocks.eventsEmit).not.toHaveBeenCalledWith(browserLinkCopiedChannel, expect.any(Object));
+  });
+
+  it('preserves selected text and offers a copy action in the context menu', () => {
+    const registry = new BrowserWebContentsRegistry();
+    const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
+    const webContentsSession = { partition };
+    const webContents = attachedWebContents(webContentsSession);
+    registry.registerSession({ browserId: 'browser-1', partition });
+
+    registry.attachWebContents('browser-1', webContents, ownerWindow());
+    webContents.emitContextMenu({ selectionText: ' selected text ' });
+
+    expect(webContents.executeJavaScript).not.toHaveBeenCalled();
+    const template = mocks.menuBuildFromTemplate.mock.calls[0]?.[0] as Array<{ click: () => void }>;
+    expect(template.slice(0, 2)).toMatchObject([{ label: 'Copy' }, { type: 'separator' }]);
+
+    template[0]?.click();
+
+    expect(mocks.clipboardWriteText).toHaveBeenCalledWith('selected text');
+  });
+
+  it('uses the configured webview copy URL shortcut', () => {
+    const registry = new BrowserWebContentsRegistry();
+    const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
+    const webContentsSession = { partition };
+    const webContents = attachedWebContents(webContentsSession);
+    registry.registerSession({ browserId: 'browser-1', partition });
+    registry.setKeyboardSettings({ browserCopyUrl: 'Control+Shift+U' });
+
+    registry.attachWebContents('browser-1', webContents, ownerWindow());
+    webContents.emitCopyUrlShortcut();
+    webContents.emitCopyUrlShortcut({ key: 'u', meta: false, control: true });
+
+    expect(mocks.clipboardWriteText).toHaveBeenCalledTimes(1);
+    expect(mocks.clipboardWriteText).toHaveBeenCalledWith('https://example.com/current');
+  });
+
+  it('falls back to the default webview copy URL shortcut when configured shortcut is invalid', () => {
+    const registry = new BrowserWebContentsRegistry();
+    const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
+    const webContentsSession = { partition };
+    const webContents = attachedWebContents(webContentsSession);
+    registry.registerSession({ browserId: 'browser-1', partition });
+    registry.setKeyboardSettings({ browserCopyUrl: 'Super+Shift+C' });
+
+    registry.attachWebContents('browser-1', webContents, ownerWindow());
+    webContents.emitCopyUrlShortcut();
+
+    expect(mocks.clipboardWriteText).toHaveBeenCalledWith('https://example.com/current');
+  });
+
+  it('does not copy from the webview when the copy URL shortcut is cleared', () => {
+    const registry = new BrowserWebContentsRegistry();
+    const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
+    const webContentsSession = { partition };
+    const webContents = attachedWebContents(webContentsSession);
+    registry.registerSession({ browserId: 'browser-1', partition });
+    registry.setKeyboardSettings({ browserCopyUrl: null });
+
+    registry.attachWebContents('browser-1', webContents, ownerWindow());
+    webContents.emitCopyUrlShortcut();
+
+    expect(mocks.clipboardWriteText).not.toHaveBeenCalled();
+    expect(mocks.eventsEmit).not.toHaveBeenCalledWith(browserLinkCopiedChannel, expect.any(Object));
+  });
+
   it('clears browser data only for registered sessions', async () => {
     const registry = new BrowserWebContentsRegistry();
     const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
@@ -117,7 +375,11 @@ describe('BrowserWebContentsRegistry', () => {
     mocks.sessionsByPartition.set(partition, partitionSession);
 
     registry.registerSession({ browserId: 'browser-1', partition });
-    registry.attachWebContents('browser-1', attachedWebContents(partitionSession, image));
+    registry.attachWebContents(
+      'browser-1',
+      attachedWebContents(partitionSession, image),
+      ownerWindow()
+    );
 
     expect(await registry.captureScreenshotToClipboard('browser-1')).toBe(true);
     expect(mocks.writeImage).toHaveBeenCalledWith(image);
