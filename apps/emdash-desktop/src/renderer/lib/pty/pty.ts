@@ -1,4 +1,3 @@
-import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import { events, rpc } from '@renderer/lib/ipc';
 import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
@@ -8,6 +7,7 @@ import { ptyDataChannel } from '@shared/core/pty/ptyEvents';
 import { FileLinkProvider } from './file-link-provider';
 import { decodeOsc52ClipboardData } from './pty-clipboard';
 import { buildTerminalFontFamily } from './terminal-font';
+import { UrlLinkProvider } from './url-link-provider';
 import { ensureXtermHost } from './xterm-host';
 
 const SCROLLBACK_LINES = 100_000;
@@ -106,12 +106,11 @@ export class FrontendPty {
     // Keep xterm on its DOM renderer: CanvasAddon repaints the full canvas on resize,
     // which makes panel/sidebar transitions visibly flicker.
 
-    const webLinksAddon = new WebLinksAddon((event, uri) => {
-      event.preventDefault();
-      confirmOpenExternalLink(uri);
-    });
-
-    this.terminal.loadAddon(webLinksAddon);
+    this.terminal.registerLinkProvider(
+      new UrlLinkProvider(this.terminal, (uri) => {
+        confirmOpenExternalLink(uri);
+      })
+    );
     if (onOpenFile && onOpenExternal) {
       this.terminal.registerLinkProvider(
         new FileLinkProvider(this.terminal, onOpenFile, onOpenExternal)

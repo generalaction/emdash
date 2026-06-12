@@ -1,6 +1,6 @@
 import type { ILink } from '@xterm/xterm';
 import { describe, expect, it } from 'vitest';
-import { findFileLinks } from '@renderer/lib/pty/file-link-detection';
+import { findFileLinks, findUrlLinks } from '@renderer/lib/pty/file-link-detection';
 import {
   ActivationModifierTracker,
   FileLinkProvider,
@@ -10,7 +10,10 @@ import {
 class MockBufferLine {
   constructor(
     private readonly text: string,
-    readonly isWrapped = false
+    readonly isWrapped = false,
+    // Cell width of the row. Defaults to wider than the text so rows do not
+    // accidentally count as filled-to-the-last-column in unrelated tests.
+    readonly length = 120
   ) {}
 
   translateToString(): string {
@@ -121,7 +124,7 @@ describe('file link provider', () => {
     ]);
   });
 
-  it('keeps URL paths delegated to the web links addon', () => {
+  it('keeps URL paths delegated to the url link provider', () => {
     const buffer = makeBuffer([new MockBufferLine('see https://example.com/src/file.ts')]);
 
     expect(findFileLinks(buffer, 1)).toEqual([]);
@@ -183,5 +186,98 @@ describe('file link provider', () => {
 
     expect(openedFiles).toEqual(['src/app.ts']);
     expect(openedExternal).toEqual(['/tmp/report.md']);
+  });
+});
+
+describe('url link detection', () => {
+  it('detects one URL across soft-wrapped terminal lines', () => {
+    const buffer = makeBuffer([
+      new MockBufferLine('visit https://example.com/very/long/'),
+      new MockBufferLine('path/to/page.html now', true),
+    ]);
+
+    const expected = [
+      {
+        range: {
+          start: { x: 7, y: 1 },
+          end: { x: 17, y: 2 },
+        },
+        text: 'https://example.com/very/long/path/to/page.html',
+      },
+    ];
+    expect(findUrlLinks(buffer, 1)).toEqual(expected);
+    expect(findUrlLinks(buffer, 2)).toEqual(expected);
+  });
+
+  it('joins a bracketed query string split by a hard line break', () => {
+    const buffer = makeBuffer([
+      new MockBufferLine('open https://example.com/search?'),
+      new MockBufferLine('filter[status]=pending&page=2 found it'),
+    ]);
+
+    const fullUrl = 'https://example.com/search?filter[status]=pending&page=2';
+    expect(findUrlLinks(buffer, 1)[0]?.text).toBe(fullUrl);
+    expect(findUrlLinks(buffer, 2)[0]?.text).toBe(fullUrl);
+  });
+
+  it('does not join prose lines following a URL', () => {
+    const buffer = makeBuffer([
+      new MockBufferLine('Visit https://example.com'),
+      new MockBufferLine('and then run the tests.'),
+    ]);
+
+    expect(findUrlLinks(buffer, 1)[0]?.text).toBe('https://example.com');
+    expect(findUrlLinks(buffer, 2)).toEqual([]);
+  });
+
+  it('reconstructs an edge-to-edge URL hard-wrapped across many rows from any row', () => {
+    const longUrl =
+      'https://api.staging-eu-west-1.internal-services.mega-ultra-long-subdomain.beispiel-unternehmen-gmbh-und-co-kg.de/v3/customers/8f4e2a1b-9c7d-4e6f-a3b2-1d5c8e9f0a47/orders/2026/06/12/items?include=shipping,billing,tracking&filter[status]=pending&filter[region]=eu-central&sort=-created_at&page[number]=17&page[size]=50&expand=line_items.product.variants&locale=de-DE&currency=EUR&api_key=demo_pk_51JxK2mNoPqRsTuVwXyZ&signature=a1b2c3d4e5f67890deadbeefcafe1234&timestamp=1718203947#section-tracking-details';
+    const cols = 96;
+    const rows: MockBufferLine[] = [];
+    for (let offset = 0; offset < longUrl.length; offset += cols) {
+      rows.push(new MockBufferLine(longUrl.slice(offset, offset + cols), false, cols));
+    }
+    const buffer = makeBuffer(rows);
+
+    expect(rows.length).toBeGreaterThan(2);
+    for (let lineNumber = 1; lineNumber <= rows.length; lineNumber += 1) {
+      expect(findUrlLinks(buffer, lineNumber).map((link) => link.text)).toEqual([longUrl]);
+    }
+  });
+
+  it('joins indented hard-wrapped continuations across more than one extra line', () => {
+    const buffer = makeBuffer([
+      new MockBufferLine('  Read https://example.com/docs/very/'),
+      new MockBufferLine('  long/nested/path/'),
+      new MockBufferLine('  page.html for details.'),
+    ]);
+    const fullUrl = 'https://example.com/docs/very/long/nested/path/page.html';
+
+    expect(findUrlLinks(buffer, 1)[0]?.text).toBe(fullUrl);
+    expect(findUrlLinks(buffer, 2)[0]?.text).toBe(fullUrl);
+    expect(findUrlLinks(buffer, 3)[0]?.text).toBe(fullUrl);
+  });
+
+  it('does not width-join onto an indented next row', () => {
+    const text = 'See the docs at https://example.com/a/b';
+    const buffer = makeBuffer([
+      new MockBufferLine(text, false, text.length),
+      new MockBufferLine('  unrelated prose below.', false, 80),
+    ]);
+
+    expect(findUrlLinks(buffer, 1)[0]?.text).toBe('https://example.com/a/b');
+  });
+
+  it('does not emit a file link for the continuation of a hard-wrapped URL', () => {
+    const buffer = makeBuffer([
+      new MockBufferLine('Docs at https://github.com/org/repo/blob/'),
+      new MockBufferLine('main/docs/page.md for details'),
+    ]);
+
+    expect(findFileLinks(buffer, 2)).toEqual([]);
+    expect(findUrlLinks(buffer, 2)[0]?.text).toBe(
+      'https://github.com/org/repo/blob/main/docs/page.md'
+    );
   });
 });

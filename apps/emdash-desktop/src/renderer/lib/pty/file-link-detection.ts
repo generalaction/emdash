@@ -1,13 +1,19 @@
 import type { ILink } from '@xterm/xterm';
 
-// Lookbehind on `:` keeps URLs (`https://...`) with WebLinksAddon.
+// Lookbehind on `:` keeps URLs (`https://...`) with findUrlLinks below.
 const FILE_PATH_PATTERN =
   '(?<![\\w\\-./@:])(~/|/|\\.{1,2}/)?(?:[\\w\\-.@]+/)+[\\w\\-.@]+\\.[a-zA-Z][a-zA-Z0-9]{0,9}\\b';
 const URL_PROTOCOL_PATTERN = /[a-zA-Z][a-zA-Z0-9+.-]*:\/\//;
+// Same shape as @xterm/addon-web-links: greedy URL body, then one final char that
+// excludes trailing punctuation so sentence-ending `.`/`,`/`)` stay out of the link.
+const WEB_URL_PATTERN = /https?:\/\/[^\s"'!*(){}|\\^<>`]*[^\s"':,.!?{}|\\^~[\]`()<>]/i;
 const MAX_WRAPPED_LINE_LENGTH = 4096;
 
 export type BufferLineLike = {
   isWrapped: boolean;
+  /** Cell width of the row (xterm IBufferLine.length). A trimmed text of this
+   * exact length means the row is filled to its last column. */
+  length: number;
   translateToString(trimRight?: boolean): string;
 };
 
@@ -19,6 +25,11 @@ export type FileLinkMatch = {
   range: ILink['range'];
   text: string;
   isExternal: boolean;
+};
+
+export type UrlLinkMatch = {
+  range: ILink['range'];
+  text: string;
 };
 
 type LogicalLine = {
@@ -43,13 +54,12 @@ export function findFileLinks(buffer: BufferLike, bufferLineNumber: number): Fil
     const startOffset = match.index;
     if (isEmbeddedInUrl(logicalLine.text, startOffset)) continue;
     const endOffset = startOffset + matched.length;
-    const range = mapOffsetRangeToBufferRange(logicalLine, startOffset, endOffset);
-    if (!range) continue;
-
-    const visibleRanges = mapOffsetRangeToVisibleBufferRanges(logicalLine, startOffset, endOffset);
-    const linkRanges = shouldUseVisibleRanges(visibleRanges) ? visibleRanges : [range];
-    for (const linkRange of linkRanges) {
-      if (!rangeContainsBufferLine(linkRange, bufferLineNumber)) continue;
+    for (const linkRange of mapMatchToLinkRanges(
+      logicalLine,
+      startOffset,
+      endOffset,
+      bufferLineNumber
+    )) {
       links.push({
         range: linkRange,
         text: matched,
@@ -58,6 +68,64 @@ export function findFileLinks(buffer: BufferLike, bufferLineNumber: number): Fil
     }
   }
   return links;
+}
+
+export function findUrlLinks(buffer: BufferLike, bufferLineNumber: number): UrlLinkMatch[] {
+  const logicalLine = getWrappedLogicalLine(buffer, bufferLineNumber - 1);
+  if (!logicalLine || logicalLine.text.indexOf('://') === -1) {
+    return [];
+  }
+
+  const links: UrlLinkMatch[] = [];
+  const regex = new RegExp(WEB_URL_PATTERN.source, 'gi');
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(logicalLine.text)) !== null) {
+    const matched = match[0];
+    if (!hasValidUrlHostPrefix(matched)) continue;
+    const startOffset = match.index;
+    const endOffset = startOffset + matched.length;
+    for (const linkRange of mapMatchToLinkRanges(
+      logicalLine,
+      startOffset,
+      endOffset,
+      bufferLineNumber
+    )) {
+      links.push({ range: linkRange, text: matched });
+    }
+  }
+  return links;
+}
+
+function mapMatchToLinkRanges(
+  logicalLine: LogicalLine,
+  startOffset: number,
+  endOffset: number,
+  bufferLineNumber: number
+): ILink['range'][] {
+  const range = mapOffsetRangeToBufferRange(logicalLine, startOffset, endOffset);
+  if (!range) return [];
+
+  const visibleRanges = mapOffsetRangeToVisibleBufferRanges(logicalLine, startOffset, endOffset);
+  const linkRanges = shouldUseVisibleRanges(visibleRanges) ? visibleRanges : [range];
+  return linkRanges.filter((linkRange) => rangeContainsBufferLine(linkRange, bufferLineNumber));
+}
+
+// Mirrors @xterm/addon-web-links: the match must parse as a URL whose
+// scheme://[auth@]host prefix reproduces the matched text's start.
+function hasValidUrlHostPrefix(text: string): boolean {
+  try {
+    const url = new URL(text);
+    const auth =
+      url.password && url.username
+        ? `${url.username}:${url.password}@`
+        : url.username
+          ? `${url.username}@`
+          : '';
+    const prefix = `${url.protocol}//${auth}${url.host}`;
+    return text.toLowerCase().startsWith(prefix.toLowerCase());
+  } catch {
+    return false;
+  }
 }
 
 function isEmbeddedInUrl(text: string, startCol: number): boolean {
@@ -94,7 +162,7 @@ function getWrappedLogicalLine(buffer: BufferLike, bufferIndex: number): Logical
     currentIndex += 1;
   }
 
-  return expandHardLineBreakPathContinuations(buffer, {
+  return expandHardLineBreakLinkContinuations(buffer, {
     startBufferIndex,
     lineTexts,
     lineStartColumns,
@@ -102,23 +170,27 @@ function getWrappedLogicalLine(buffer: BufferLike, bufferIndex: number): Logical
   });
 }
 
-function expandHardLineBreakPathContinuations(
+function expandHardLineBreakLinkContinuations(
   buffer: BufferLike,
   logicalLine: LogicalLine
 ): LogicalLine {
   let expanded = logicalLine;
-  const firstLine = expanded.lineTexts[0];
-  const previousBufferLine = buffer.getLine(expanded.startBufferIndex - 1);
-  const previousLine = previousBufferLine?.isWrapped
-    ? undefined
-    : previousBufferLine?.translateToString(true);
-  if (
-    firstLine !== undefined &&
-    previousLine !== undefined &&
-    endsWithPathContinuation(previousLine) &&
-    startsWithPathContinuation(firstLine)
-  ) {
-    expanded = {
+
+  while (true) {
+    const firstLine = expanded.lineTexts[0];
+    const previousBufferLine = buffer.getLine(expanded.startBufferIndex - 1);
+    if (firstLine === undefined || !previousBufferLine || previousBufferLine.isWrapped) break;
+    const previousLine = previousBufferLine.translateToString(true);
+    if (
+      !isHardBreakLinkContinuation(
+        previousLine,
+        firstLine,
+        rowIsFull(previousBufferLine, 0, previousLine)
+      )
+    ) {
+      break;
+    }
+    const joined: LogicalLine = {
       startBufferIndex: expanded.startBufferIndex - 1,
       lineTexts: [
         previousLine,
@@ -132,26 +204,63 @@ function expandHardLineBreakPathContinuations(
       ],
       text: '',
     };
-    expanded.text = expanded.lineTexts.join('');
+    joined.text = joined.lineTexts.join('');
+    if (joined.text.length > MAX_WRAPPED_LINE_LENGTH) break;
+    expanded = joined;
   }
 
-  const lastLineIndex = expanded.startBufferIndex + expanded.lineTexts.length - 1;
-  const nextLine = buffer.getLine(lastLineIndex + 1)?.translateToString(true);
-  if (
-    nextLine !== undefined &&
-    endsWithPathContinuation(expanded.text) &&
-    startsWithPathContinuation(nextLine)
-  ) {
+  while (true) {
+    const lastLineIndex = expanded.startBufferIndex + expanded.lineTexts.length - 1;
+    const lastBufferLine = buffer.getLine(lastLineIndex);
+    const nextLine = buffer.getLine(lastLineIndex + 1)?.translateToString(true);
+    if (!lastBufferLine || nextLine === undefined) break;
+    const lastLineStartColumn = expanded.lineStartColumns[expanded.lineStartColumns.length - 1];
+    const lastLineText = expanded.lineTexts[expanded.lineTexts.length - 1];
+    if (
+      lastLineText === undefined ||
+      lastLineStartColumn === undefined ||
+      !isHardBreakLinkContinuation(
+        expanded.text,
+        nextLine,
+        rowIsFull(lastBufferLine, lastLineStartColumn, lastLineText)
+      )
+    ) {
+      break;
+    }
     const trimmedNextLine = trimPathContinuationStart(nextLine);
-    expanded = {
+    const joined: LogicalLine = {
       startBufferIndex: expanded.startBufferIndex,
       lineTexts: [...expanded.lineTexts, trimmedNextLine],
       lineStartColumns: [...expanded.lineStartColumns, countLeadingWhitespace(nextLine)],
       text: expanded.text + trimmedNextLine,
     };
+    if (joined.text.length > MAX_WRAPPED_LINE_LENGTH) break;
+    expanded = joined;
   }
 
-  return expanded.text.length > MAX_WRAPPED_LINE_LENGTH ? logicalLine : expanded;
+  return expanded;
+}
+
+function rowIsFull(bufferLine: BufferLineLike, startColumn: number, trimmedText: string): boolean {
+  return startColumn + trimmedText.length === bufferLine.length;
+}
+
+function isHardBreakLinkContinuation(
+  previousText: string,
+  nextText: string,
+  previousRowIsFull: boolean
+): boolean {
+  // Width rule (iTerm-style): a row filled to its last column followed by text
+  // starting at column 0 is a hard wrap regardless of token shape. This is what
+  // reconstructs edge-to-edge wrapped URLs when hovering a middle line, where
+  // the protocol is out of sight of the token heuristics.
+  if (previousRowIsFull && nextText.length > 0 && countLeadingWhitespace(nextText) === 0) {
+    return true;
+  }
+  if (endsWithUrlContinuation(previousText)) {
+    return startsWithUrlContinuation(nextText);
+  }
+  return endsWithPathContinuation(previousText) && startsWithPathContinuation(nextText);
 }
 
 function endsWithPathContinuation(text: string): boolean {
@@ -162,6 +271,18 @@ function endsWithPathContinuation(text: string): boolean {
 function startsWithPathContinuation(text: string): boolean {
   const trimmed = trimPathContinuationStart(text);
   return /^[\w.\-@]+(?:\/|[\w.\-@]*\.[a-zA-Z][a-zA-Z0-9]{0,9}\b)/.test(trimmed);
+}
+
+function endsWithUrlContinuation(text: string): boolean {
+  return URL_PROTOCOL_PATTERN.test(trailingToken(text));
+}
+
+// Stricter than the path variant: prose after a URL line ("and then ...") must not
+// join, so the continuation needs a URL-ish shape — a slash, query/fragment chars,
+// or an extension-like dot suffix in its first token.
+function startsWithUrlContinuation(text: string): boolean {
+  const trimmed = trimPathContinuationStart(text);
+  return /^[\w.\-~%[\]]*(?:[/?#=&[\]]|\.[a-zA-Z][a-zA-Z0-9]{0,9}\b)/.test(trimmed);
 }
 
 function trimPathContinuationStart(text: string): string {
