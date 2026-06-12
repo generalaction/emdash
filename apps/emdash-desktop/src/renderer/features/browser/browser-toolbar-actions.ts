@@ -20,6 +20,15 @@ export function canOpenBrowserUrlExternally(url: string): boolean {
   return normalized.ok && (normalized.protocol === 'http:' || normalized.protocol === 'https:');
 }
 
+export async function captureBrowserScreenshot(session: BrowserSessionSnapshot): Promise<void> {
+  const result = await rpc.browser.captureScreenshot(session.browserId);
+  if (result.success) {
+    toast({ title: 'Screenshot copied to clipboard' });
+  } else {
+    toast({ title: 'Could not capture screenshot', variant: 'destructive' });
+  }
+}
+
 export function clearBrowserData(
   session: BrowserSessionSnapshot,
   kind: BrowserDataClearKind,

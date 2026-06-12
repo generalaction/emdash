@@ -1,4 +1,4 @@
-import { session, type WebContents } from 'electron';
+import { clipboard, session, type WebContents } from 'electron';
 import { events } from '@main/lib/events';
 import { normalizeBrowserUrl, type BrowserDataClearKind } from '@shared/browser';
 import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
@@ -91,6 +91,19 @@ export class BrowserWebContentsRegistry {
     if (!webContents || webContents.isDestroyed()) return false;
     webContents.openDevTools({ mode: 'detach' });
     return true;
+  }
+
+  async captureScreenshotToClipboard(browserId: string): Promise<boolean> {
+    const webContents = this.webContentsByBrowserId.get(browserId);
+    if (!webContents || webContents.isDestroyed()) return false;
+    try {
+      const image = await webContents.capturePage();
+      if (image.isEmpty()) return false;
+      clipboard.writeImage(image);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async clearData(browserId: string, kind: BrowserDataClearKind): Promise<boolean> {

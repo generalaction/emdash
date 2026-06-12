@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   canOpenBrowserUrlExternally,
+  captureBrowserScreenshot,
   clearBrowserData,
   confirmClearBrowserStorage,
   openBrowserUrlExternally,
 } from './browser-toolbar-actions';
 
 const mocks = vi.hoisted(() => ({
+  captureScreenshot: vi.fn(),
   clearData: vi.fn(),
   openExternal: vi.fn(),
   reload: vi.fn(),
@@ -21,6 +23,7 @@ vi.mock('@renderer/lib/ipc', () => ({
       openExternal: mocks.openExternal,
     },
     browser: {
+      captureScreenshot: mocks.captureScreenshot,
       clearData: mocks.clearData,
     },
   },
@@ -55,6 +58,7 @@ function session() {
 describe('browser toolbar actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.captureScreenshot.mockResolvedValue({ success: true });
     mocks.clearData.mockResolvedValue({ success: true });
   });
 
@@ -72,6 +76,24 @@ describe('browser toolbar actions', () => {
     expect(canOpenBrowserUrlExternally('localhost:3000')).toBe(true);
     expect(canOpenBrowserUrlExternally('about:blank')).toBe(false);
     expect(canOpenBrowserUrlExternally('javascript:alert(1)')).toBe(false);
+  });
+
+  it('captures screenshots and shows feedback on success', async () => {
+    await captureBrowserScreenshot(session());
+
+    expect(mocks.captureScreenshot).toHaveBeenCalledWith('browser-1');
+    expect(mocks.toast).toHaveBeenCalledWith({ title: 'Screenshot copied to clipboard' });
+  });
+
+  it('shows feedback when screenshot capture fails', async () => {
+    mocks.captureScreenshot.mockResolvedValue({ success: false });
+    await captureBrowserScreenshot(session());
+
+    expect(mocks.captureScreenshot).toHaveBeenCalledWith('browser-1');
+    expect(mocks.toast).toHaveBeenCalledWith({
+      title: 'Could not capture screenshot',
+      variant: 'destructive',
+    });
   });
 
   it('clears storage only after explicit modal confirmation and reloads on success', async () => {

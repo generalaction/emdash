@@ -2,15 +2,21 @@ import type { WebContents } from 'electron';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BrowserWebContentsRegistry } from './browser-webcontents-registry';
 
-const sessionsByPartition = new Map<string, object>();
+const mocks = vi.hoisted(() => ({
+  sessionsByPartition: new Map<string, object>(),
+  writeImage: vi.fn(),
+}));
 
 vi.mock('electron', () => ({
+  clipboard: {
+    writeImage: mocks.writeImage,
+  },
   session: {
     fromPartition: (partition: string) => {
-      let value = sessionsByPartition.get(partition);
+      let value = mocks.sessionsByPartition.get(partition);
       if (!value) {
         value = { partition };
-        sessionsByPartition.set(partition, value);
+        mocks.sessionsByPartition.set(partition, value);
       }
       return value;
     },
@@ -29,9 +35,22 @@ function webContentsWithSession(session: object): WebContents {
   } as WebContents;
 }
 
+function attachedWebContents(session: object, image: { isEmpty: () => boolean }): WebContents {
+  return {
+    id: 1,
+    session,
+    capturePage: vi.fn().mockResolvedValue(image),
+    isDestroyed: vi.fn().mockReturnValue(false),
+    on: vi.fn(),
+    once: vi.fn(),
+    setWindowOpenHandler: vi.fn(),
+  } as unknown as WebContents;
+}
+
 describe('BrowserWebContentsRegistry', () => {
   beforeEach(() => {
-    sessionsByPartition.clear();
+    mocks.sessionsByPartition.clear();
+    mocks.writeImage.mockClear();
   });
 
   it('resolves the browser id from the attached webContents session', () => {
@@ -40,8 +59,8 @@ describe('BrowserWebContentsRegistry', () => {
     const secondPartition = 'persist:emdash-browser-project-workspace-task-browser-2';
     const firstSession = { partition: firstPartition };
     const secondSession = { partition: secondPartition };
-    sessionsByPartition.set(firstPartition, firstSession);
-    sessionsByPartition.set(secondPartition, secondSession);
+    mocks.sessionsByPartition.set(firstPartition, firstSession);
+    mocks.sessionsByPartition.set(secondPartition, secondSession);
 
     registry.registerSession({
       browserId: 'browser-1',
@@ -72,7 +91,7 @@ describe('BrowserWebContentsRegistry', () => {
     const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
     const clearStorageData = vi.fn().mockResolvedValue(undefined);
     const clearCache = vi.fn().mockResolvedValue(undefined);
-    sessionsByPartition.set(partition, { partition, clearStorageData, clearCache });
+    mocks.sessionsByPartition.set(partition, { partition, clearStorageData, clearCache });
 
     registry.registerSession({ browserId: 'browser-1', partition });
 
@@ -88,5 +107,19 @@ describe('BrowserWebContentsRegistry', () => {
     expect(await registry.clearData('missing', 'storage')).toBe(false);
     expect(await registry.clearData('missing', 'cookies')).toBe(false);
     expect(await registry.clearData('missing', 'cache')).toBe(false);
+  });
+
+  it('captures screenshots from attached webContents to the clipboard', async () => {
+    const registry = new BrowserWebContentsRegistry();
+    const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
+    const partitionSession = { partition };
+    const image = { isEmpty: vi.fn().mockReturnValue(false) };
+    mocks.sessionsByPartition.set(partition, partitionSession);
+
+    registry.registerSession({ browserId: 'browser-1', partition });
+    registry.attachWebContents('browser-1', attachedWebContents(partitionSession, image));
+
+    expect(await registry.captureScreenshotToClipboard('browser-1')).toBe(true);
+    expect(mocks.writeImage).toHaveBeenCalledWith(image);
   });
 });

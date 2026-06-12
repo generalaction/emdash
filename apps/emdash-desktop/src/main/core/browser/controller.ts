@@ -28,6 +28,10 @@ export const browserController = createRPCController({
     success: import.meta.env.DEV && browserWebContentsRegistry.openDevTools(browserId),
   }),
 
+  captureScreenshot: async (browserId: string) => ({
+    success: await browserWebContentsRegistry.captureScreenshotToClipboard(browserId),
+  }),
+
   clearData: async (browserId: string, kind: BrowserDataClearKind) => {
     if (!isBrowserDataClearKind(kind)) {
       return { success: false as const, error: 'Invalid browser data clear kind' };
