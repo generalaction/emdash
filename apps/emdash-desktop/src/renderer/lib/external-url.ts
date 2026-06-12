@@ -38,6 +38,14 @@ function joinMultilineUrl(value: string): string {
 
     const hasIndent = /[ \t]$/.test(lineBreak);
     const breaksUrlSegment = /[-._~:/?#[\]@!$&'()*+,;=%]/.test(previousChar);
+    const startsIndentedLabel = /^[A-Za-z][A-Za-z0-9_-]*:/.test(
+      value.slice(offset + lineBreak.length)
+    );
+
+    if (hasIndent && !breaksUrlSegment && startsIndentedLabel) {
+      return lineBreak;
+    }
+
     return hasIndent || breaksUrlSegment ? '' : lineBreak;
   });
 }

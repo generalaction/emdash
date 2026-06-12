@@ -31,6 +31,9 @@ describe('normalizeExternalHttpUrl', () => {
     expect(normalizeExternalHttpUrl('https://example.com/path\nStatus: Todo')).toBe(
       'https://example.com/path'
     );
+    expect(normalizeExternalHttpUrl('https://example.com/path\n  Status: Todo')).toBe(
+      'https://example.com/path'
+    );
   });
 
   it('removes trailing punctuation commonly printed after URLs', () => {
