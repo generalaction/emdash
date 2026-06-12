@@ -6,7 +6,7 @@ const resolveCommandPathMock = vi.hoisted(() =>
   vi.fn<() => Promise<string | null>>().mockResolvedValue(null)
 );
 
-vi.mock('@emdash/shared/deps/runtime/node', () => ({
+vi.mock('@emdash/shared/deps/runtime', () => ({
   resolveCommandPath: resolveCommandPathMock,
 }));
 

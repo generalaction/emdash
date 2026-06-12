@@ -1,5 +1,5 @@
 import { homedir } from 'node:os';
-import { resolveCommandPath } from '@emdash/shared/deps/runtime/node';
+import { resolveCommandPath } from '@emdash/shared/deps/runtime';
 import * as toml from 'smol-toml';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';

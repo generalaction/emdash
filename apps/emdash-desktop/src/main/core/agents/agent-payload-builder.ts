@@ -6,7 +6,7 @@ import {
   toPlatform,
 } from '@emdash/shared/deps/runtime';
 import type { DependencyId, DependencyState, HostDependency } from '@emdash/shared/deps/runtime';
-import type { HostDependencyManager } from '@emdash/shared/deps/runtime/node';
+import type { HostDependencyManager } from '@emdash/shared/deps/runtime';
 import type {
   AgentInstallationStatus,
   AgentMetadata,

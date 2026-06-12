@@ -1,4 +1,3 @@
-import { hostDependencySelectionSchema } from '@emdash/shared/deps/runtime';
 import z from 'zod';
 import { defineVersionedSchema } from '@shared/lib/versioned-schema/versioned-schema';
 
@@ -10,6 +9,14 @@ const v0Schema = z.object({
   sshConfigAlias: z.string().optional(),
   forwardAgent: z.boolean().optional(),
   proxyJump: z.string().optional(),
+});
+
+// App-owned schema — mirrors hostDependencySelectionSchema from @emdash/shared/deps/runtime.
+// Declared locally so this persisted DB contract is frozen and not coupled to the package.
+const hostDependencySelectionSchema = z.object({
+  usedId: z.string().optional(),
+  path: z.string().optional(),
+  cli: z.string().optional(),
 });
 
 // ---------------------------------------------------------------------------

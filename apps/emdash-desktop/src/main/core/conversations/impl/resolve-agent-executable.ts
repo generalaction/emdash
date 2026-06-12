@@ -1,5 +1,5 @@
 import type { DependencyId } from '@emdash/shared/deps/runtime';
-import { resolveCommandPath } from '@emdash/shared/deps/runtime/node';
+import { resolveCommandPath } from '@emdash/shared/deps/runtime';
 import type { IHostDependencyStore } from '@main/core/dependencies/host-dependency-store';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { log } from '@main/lib/logger';

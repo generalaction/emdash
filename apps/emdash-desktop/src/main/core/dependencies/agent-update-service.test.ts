@@ -1,5 +1,5 @@
 import type { DependencyStatusUpdatedEvent, DependencyId } from '@emdash/shared/deps/runtime';
-import type { HostDependencyManager } from '@emdash/shared/deps/runtime/node';
+import type { HostDependencyManager } from '@emdash/shared/deps/runtime';
 import { Emitter } from '@emdash/shared/lib';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
@@ -19,6 +19,7 @@ vi.mock('../agents/agent-payload-builder', () => ({
 }));
 
 import { events } from '@main/lib/events';
+import { toAgentInstallationStatus } from '../agents/agent-payload-builder';
 import { AgentUpdateService } from './agent-update-service';
 import { getDependencyDescriptor } from './registry';
 
@@ -62,9 +63,11 @@ describe('AgentUpdateService', () => {
   beforeEach(() => {
     vi.mocked(getDependencyDescriptor).mockReset();
     vi.mocked(events.emit).mockReset();
+    vi.mocked(toAgentInstallationStatus).mockReset();
+    vi.mocked(toAgentInstallationStatus).mockReturnValue({ id: 'mock' } as never);
   });
 
-  it('emits enriched event with null latest version when dep has no descriptor', () => {
+  it('does not emit when event has no hostDependency', () => {
     vi.mocked(getDependencyDescriptor).mockReturnValue(undefined);
 
     const service = new AgentUpdateService();
@@ -73,15 +76,10 @@ describe('AgentUpdateService', () => {
 
     emitStatus(baseEvent);
 
-    expect(events.emit).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        state: expect.objectContaining({ latestVersion: null, updateAvailable: false }),
-      })
-    );
+    expect(events.emit).not.toHaveBeenCalled();
   });
 
-  it('computes updateAvailable=false when cache is empty (emits immediately with null, then re-emits)', async () => {
+  it('emits twice for hostDependency event when version fetch completes', async () => {
     vi.mocked(getDependencyDescriptor).mockReturnValue(npmDescriptor as never);
 
     const fetchMock = vi
@@ -93,26 +91,36 @@ describe('AgentUpdateService', () => {
     const { manager, emitStatus } = makeManager();
     service.attach(manager as unknown as HostDependencyManager, undefined);
 
-    emitStatus(baseEvent);
+    const eventWithHostDep: DependencyStatusUpdatedEvent = {
+      ...baseEvent,
+      hostDependency: {
+        hostId: 'local',
+        dependencyId: baseEvent.id,
+        usedId: 'method:npm',
+        installations: [
+          {
+            id: 'method:npm',
+            source: { kind: 'method', method: 'npm' },
+            status: 'available',
+            path: '/usr/bin/codex',
+            version: '1.0.0',
+            latestVersion: null,
+            updateAvailable: false,
+          },
+        ],
+      },
+    };
 
-    // First emit is immediate with null latest
-    expect(events.emit).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        state: expect.objectContaining({ latestVersion: null, updateAvailable: false }),
-      })
-    );
+    emitStatus(eventWithHostDep);
+
+    // First emit is immediate (updateAvailable=false, no cached version yet)
+    expect(events.emit).toHaveBeenCalledTimes(1);
 
     // Wait for async fetch to complete
     await new Promise((r) => setTimeout(r, 10));
 
-    // Second emit should have enriched version info
-    expect(events.emit).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        state: expect.objectContaining({ latestVersion: '2.0.0', updateAvailable: true }),
-      })
-    );
+    // Second emit after fetch
+    expect(events.emit).toHaveBeenCalledTimes(2);
 
     vi.unstubAllGlobals();
   });
@@ -181,30 +189,14 @@ describe('AgentUpdateService', () => {
     emitStatus(eventWithHostDep);
     await new Promise((r) => setTimeout(r, 10));
 
-    // Find the last emit call with a hostDependency (the enriched one after async fetch)
-    type EmitArgs = Parameters<typeof events.emit>;
-    type HostDepPayload = {
-      hostDependency: {
-        installations: Array<{ updateAvailable: boolean; latestVersion: string | null }>;
-      };
-    };
-    const calls = vi.mocked(events.emit).mock.calls as EmitArgs[];
-    // Filter all calls that carry a hostDependency and take the last one (post-fetch)
-    const hostDepCalls = calls.filter((args) => {
-      const payload = args[1];
-      return (
-        typeof payload === 'object' &&
-        payload !== null &&
-        'hostDependency' in payload &&
-        Boolean((payload as { hostDependency?: unknown }).hostDependency)
-      );
-    });
-    const enrichedCall = hostDepCalls.at(-1);
+    // The last call to toAgentInstallationStatus receives the enriched hostDependency
+    const statusCalls = vi.mocked(toAgentInstallationStatus).mock.calls;
+    const lastCall = statusCalls.at(-1);
+    const enrichedHostDep = lastCall?.[3];
 
-    expect(enrichedCall).toBeDefined();
-    const dep = (enrichedCall![1] as HostDepPayload).hostDependency;
-    expect(dep.installations[0]?.latestVersion).toBe('2.0.0');
-    expect(dep.installations[0]?.updateAvailable).toBe(true);
+    expect(enrichedHostDep).toBeDefined();
+    expect(enrichedHostDep?.installations[0]?.latestVersion).toBe('2.0.0');
+    expect(enrichedHostDep?.installations[0]?.updateAvailable).toBe(true);
 
     vi.unstubAllGlobals();
   });

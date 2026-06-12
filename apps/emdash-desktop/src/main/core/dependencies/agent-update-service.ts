@@ -7,14 +7,11 @@ import {
   type HostDependency,
   type Installation,
 } from '@emdash/shared/deps/runtime';
-import type { HostDependencyManager } from '@emdash/shared/deps/runtime/node';
+import type { HostDependencyManager } from '@emdash/shared/deps/runtime';
 import type { Logger } from '@emdash/shared/lib';
 import semver from 'semver';
 import { events } from '@main/lib/events';
-import {
-  agentInstallationStatusUpdatedChannel,
-  dependencyStatusUpdatedChannel,
-} from '@shared/events/appEvents';
+import { agentInstallationStatusUpdatedChannel } from '@shared/events/appEvents';
 import { toAgentInstallationStatus } from '../agents/agent-payload-builder';
 import { LatestVersionService } from './latest-version-service';
 import { getDependencyDescriptor } from './registry';
@@ -178,14 +175,6 @@ export class AgentUpdateService {
     const enrichedHostDep = event.hostDependency
       ? this.applyEnrichment(event.id as DependencyId, event.hostDependency, latestVersion)
       : undefined;
-
-    const enrichedEvent: DependencyStatusUpdatedEvent = {
-      ...event,
-      state: enrichedState,
-      hostDependency: enrichedHostDep,
-    };
-
-    events.emit(dependencyStatusUpdatedChannel, enrichedEvent);
 
     if (enrichedHostDep) {
       const dto = toAgentInstallationStatus(event.id, connectionId, enrichedState, enrichedHostDep);

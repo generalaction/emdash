@@ -1,30 +1,110 @@
-import type { AgentIconAsset } from '@emdash/shared/agents/plugins';
-import type { HostDependencyDescriptor, InstallMethod, InstallOption } from '@emdash/shared/deps';
-import {
-  installationCanUpdate,
-  type DependencyInstallError,
-  type DependencyStatus,
-  type DependencyUninstallError,
-  type DependencyUpdateError,
-  type HostDependencySelection,
-  type Installation,
-  type InstallationSource,
-} from '@emdash/shared/deps/runtime';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
 
 // ---------------------------------------------------------------------------
-// Re-exports — renderer-facing vocabulary for host-dependency types.
-// All renderer code imports these aliases instead of @emdash/shared/deps*.
+// Install methods — mirrors INSTALL_METHODS in @emdash/shared/deps/capability.ts
 // ---------------------------------------------------------------------------
-export type { InstallMethod, InstallOption };
-export type { DependencyStatus, HostDependencySelection, Installation, InstallationSource };
-export type { DependencyInstallError as AgentInstallError };
-export type { DependencyUninstallError as AgentUninstallError };
-export type { DependencyUpdateError as AgentUpdateError };
-export { installationCanUpdate };
+
+export type InstallMethod =
+  | 'installer-macos'
+  | 'installer-windows'
+  | 'installer-linux'
+  | 'homebrew'
+  | 'winget'
+  | 'powershell'
+  | 'npm'
+  | 'apt'
+  | 'curl'
+  | 'pip'
+  | 'cargo'
+  | 'other';
+
+export type InstallOption = {
+  method: InstallMethod;
+  command: string;
+  label?: string;
+  recommended?: boolean;
+  updateCommand?: string;
+  uninstallCommand?: string;
+};
+
+// ---------------------------------------------------------------------------
+// Installation state — mirrors @emdash/shared/deps/runtime types.ts
+// ---------------------------------------------------------------------------
+
+export type DependencyStatus = 'available' | 'missing' | 'error';
+
+export type InstallationSource =
+  | { kind: 'method'; method: InstallMethod }
+  | { kind: 'path'; path: string }
+  | { kind: 'cli'; command: string }
+  | { kind: 'unknown' };
+
+export type Installation = {
+  id: string;
+  source: InstallationSource;
+  status: DependencyStatus;
+  path: string | null;
+  version: string | null;
+  latestVersion: string | null;
+  updateAvailable: boolean;
+};
+
+/** Persisted user preference for which installation to use on a specific host. */
+export type HostDependencySelection = {
+  usedId?: string;
+  path?: string;
+  cli?: string;
+};
+
+// ---------------------------------------------------------------------------
+// Error DTOs — mirrors Dependency*Error types in @emdash/shared/deps/runtime
+// ---------------------------------------------------------------------------
+
+type InstallCommandError =
+  | { type: 'permission-denied'; message: string; output: string; exitCode?: number }
+  | { type: 'command-failed'; message: string; output: string; exitCode?: number }
+  | { type: 'pty-open-failed'; message: string };
+
+export type AgentInstallError =
+  | { type: 'unknown-dependency'; id: string }
+  | { type: 'no-install-command'; id: string }
+  | InstallCommandError
+  | { type: 'not-detected-after-install'; id: string };
+
+export type AgentUpdateError =
+  | { type: 'unknown-dependency'; id: string }
+  | { type: 'no-update-strategy'; id: string }
+  | InstallCommandError
+  | { type: 'not-detected-after-update'; id: string };
+
+export type AgentUninstallError =
+  | { type: 'unknown-dependency'; id: string }
+  | { type: 'no-uninstall-strategy'; id: string }
+  | { type: 'no-uninstall-command'; id: string }
+  | InstallCommandError;
+
+// ---------------------------------------------------------------------------
+// Narrowed capability types — only the subset the renderer reads
+// ---------------------------------------------------------------------------
+
+export type AgentUpdateStrategy =
+  | { kind: 'package-manager' }
+  | { kind: 'cli'; args: string[] }
+  | { kind: 'auto' }
+  | { kind: 'none' };
+
+export type AgentUninstallStrategy =
+  | { kind: 'package-manager' }
+  | { kind: 'cli'; args: string[] }
+  | { kind: 'none' };
+
+export type AgentHostDependencyInfo = {
+  updates: { kind: 'supported'; update: AgentUpdateStrategy } | { kind: 'none' };
+  uninstall?: AgentUninstallStrategy;
+};
 
 export type AgentCapabilities = {
-  hostDependency: HostDependencyDescriptor;
+  hostDependency: AgentHostDependencyInfo;
   models: { kind: string };
   effort: { kind: string };
   prompt: { kind: string };
@@ -35,11 +115,36 @@ export type AgentCapabilities = {
   plugins: { kind: string };
 };
 
+// ---------------------------------------------------------------------------
+// Icon asset DTO — mirrors AgentIconAsset from @emdash/shared/agents/plugins
+// ---------------------------------------------------------------------------
+
+export type AgentIconVariant = {
+  minSize: number;
+  light: string;
+  dark?: string;
+};
+
+export type AgentIconAsset = {
+  kind: 'svg' | 'image';
+  alt?: string;
+  variants: AgentIconVariant[];
+  invertInDark?: boolean;
+};
+
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
+
 export type AgentSettings = {
   value: ProviderCustomConfig;
   defaults: ProviderCustomConfig;
   overrides: Partial<ProviderCustomConfig>;
 };
+
+// ---------------------------------------------------------------------------
+// Top-level DTOs sent over IPC
+// ---------------------------------------------------------------------------
 
 /** Static agent metadata; host-independent and returned by `agents.list()`/`agents.get()`. */
 export type AgentMetadata = {

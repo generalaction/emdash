@@ -50,7 +50,6 @@ export const { definePlugin, registerPluginBehavior } = createPluginFramework(
 export type CLIAgentPluginDefinition = ReturnType<typeof definePlugin>;
 export type CLIAgentPluginProvider = ReturnType<typeof registerPluginBehavior>;
 
-export { pickIconVariant } from './assets/icon';
 export type { AgentIconAsset, AgentIconVariant } from './assets/icon';
 
 // Convenience re-exports for impl packages

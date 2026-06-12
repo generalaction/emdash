@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { pickIconVariant, type AgentIconVariant } from './icon';
+import { pickIconVariant } from '@renderer/lib/components/agent-icon-variant';
+import type { AgentIconVariant } from '@shared/core/agents/agent-payload';
 
 const small: AgentIconVariant = { minSize: 0, light: '<svg>mark</svg>' };
 const large: AgentIconVariant = { minSize: 24, light: '<svg>wordmark</svg>' };

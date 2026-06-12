@@ -1,5 +1,5 @@
 import type { Platform } from '@emdash/shared/deps';
-import { HostDependencyManager } from '@emdash/shared/deps/runtime/node';
+import { HostDependencyManager } from '@emdash/shared/deps/runtime';
 import { clearResolvedPathCache } from '@main/core/conversations/impl/resolve-agent-executable';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';

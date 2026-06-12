@@ -1,7 +1,7 @@
-import { pickIconVariant } from '@emdash/shared/agents/plugins';
 import { cn } from '@renderer/utils/utils';
 import { useTheme } from '../hooks/useTheme';
 import { useAgentIcon } from '../stores/use-agents';
+import { pickIconVariant } from './agent-icon-variant';
 
 interface AgentIconProps {
   id: string;

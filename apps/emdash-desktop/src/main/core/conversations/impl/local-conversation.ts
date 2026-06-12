@@ -14,6 +14,7 @@ import type { Pty } from '@main/core/pty/pty';
 import { buildAgentEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/pty-spawn-platform';
+import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import { appSettingsService } from '@main/core/settings/settings-service';
@@ -25,7 +26,6 @@ import { agentSessionExitedChannel } from '@shared/core/agents/agentEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { makePtyId } from '@shared/core/pty/ptyId';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
-import { syncGrokThemeWithAppTheme } from './grok-theme-config';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveAgentExecutable } from './resolve-agent-executable';
 
@@ -183,10 +183,6 @@ export class LocalConversationProvider implements ConversationProvider {
       const customEnv = providerConfig?.env ?? {};
       const providerVars: Record<string, string> = { ...agentCommand.env, ...customEnv };
 
-      if (conversation.providerId === 'grok') {
-        await syncGrokThemeWithAppTheme({ env: providerVars });
-      }
-
       const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 
       const resolved = resolveLocalPtySpawn({
@@ -210,6 +206,7 @@ export class LocalConversationProvider implements ConversationProvider {
       const ptyId = makePtyId(conversation.providerId, conversation.id);
       const port = agentHookService.getPort();
       const token = agentHookService.getToken();
+      const colorEnv = await getTerminalColorEnv();
       const pty = spawnLocalPty({
         id: sessionId,
         command: resolved.command,
@@ -221,6 +218,7 @@ export class LocalConversationProvider implements ConversationProvider {
             providerVars,
             shellProfile: this.shellProfile,
           }),
+          ...colorEnv,
           ...this.taskEnvVars,
         },
         cols: spawnSize.cols,

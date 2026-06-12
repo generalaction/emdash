@@ -4,6 +4,7 @@ import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry, type PtySessionMetadata } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
+import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
@@ -167,8 +168,16 @@ export class SshTerminalProvider implements TerminalProvider {
       args: command?.args,
     };
 
-    const shellProfile = await this.getSessionShellProfile(sessionId, shellIntent);
-    const sshCommand = resolveSshCommand('general', cfg, this.taskEnvVars, shellProfile);
+    const [shellProfile, colorEnv] = await Promise.all([
+      this.getSessionShellProfile(sessionId, shellIntent),
+      getTerminalColorEnv(),
+    ]);
+    const sshCommand = resolveSshCommand(
+      'general',
+      cfg,
+      { ...colorEnv, ...this.taskEnvVars },
+      shellProfile
+    );
 
     const result = await openSsh2Pty(this.proxy, {
       id: sessionId,

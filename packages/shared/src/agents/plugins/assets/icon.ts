@@ -43,11 +43,3 @@ export const iconAsset = definePluginAsset(
 
 export type AgentIconAsset = InferPluginAssetType<typeof iconAsset>;
 export type AgentIconVariant = AgentIconAsset['variants'][number];
-
-/** Pick the variant with the largest minSize that fits the rendered size. */
-export function pickIconVariant(variants: AgentIconVariant[], size: number): AgentIconVariant {
-  return (
-    [...variants].sort((a, b) => b.minSize - a.minSize).find((v) => v.minSize <= size) ??
-    variants[0]
-  );
-}
