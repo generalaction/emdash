@@ -201,9 +201,13 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
     // SPA route changes keep the page context but may detach tracked elements
     // without a scroll — ask the picker for fresh rects so stale markers hide.
     const onInPageNavigate = () => {
-      webviewElement
-        .executeJavaScript(buildAnnotationPickerScript({ kind: 'request-rects' }))
-        .catch(() => {});
+      try {
+        webviewElement
+          .executeJavaScript(buildAnnotationPickerScript({ kind: 'request-rects' }))
+          .catch(() => {});
+      } catch {
+        // WebViews can detach during tab transitions; rect refresh is best-effort.
+      }
     };
     webviewElement.addEventListener('console-message', onConsoleMessage);
     webviewElement.addEventListener('did-navigate', onAnnotationNavigate);
@@ -217,7 +221,11 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
 
   const runPickerCommand = useCallback(
     (command: Parameters<typeof buildAnnotationPickerScript>[0]) => {
-      adapter?.executeJavaScript(buildAnnotationPickerScript(command)).catch(() => {});
+      try {
+        adapter?.executeJavaScript(buildAnnotationPickerScript(command)).catch(() => {});
+      } catch {
+        // Annotation cleanup should not fail a successfully delivered prompt.
+      }
     },
     [adapter]
   );

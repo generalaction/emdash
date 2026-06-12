@@ -93,3 +93,4 @@ apps/*/tooling/node-deps/node_modules/
 # Vitest / Browser testing
 .vitest-attachments/
 **/__screenshots__/
+.amp/plugins/emdash-hook.ts

@@ -23,6 +23,7 @@ import {
   Combobox,
   ComboboxCollection,
   ComboboxContent,
+  ComboboxEmpty,
   ComboboxGroup,
   ComboboxInput,
   ComboboxItem,
@@ -83,16 +84,26 @@ export const BrowserAnnotationBar = observer(function BrowserAnnotationBar({
   const [targetPickerOpen, setTargetPickerOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
-  // No useMemo: the conversations map is a stable MobX observable.map instance, so a
-  // memo would never recompute and would drop the observer subscription entirely.
-  const options = Array.from(conversations.conversations.values())
-    .map((store) => ({
-      id: store.data.id,
-      title: store.data.title,
-      providerId: store.data.providerId,
-      lastInteractedAt: store.data.lastInteractedAt ?? '',
-    }))
-    .sort((a, b) => b.lastInteractedAt.localeCompare(a.lastInteractedAt));
+  // Match the tabbar: only conversations with an open tab are editable targets here.
+  const openConversationOptions = new Map<
+    string,
+    {
+      id: string;
+      title: string;
+      providerId: AgentProviderId;
+    }
+  >();
+  for (const group of taskView.tabGroupManager.groups) {
+    for (const tab of group.tabManager.resolvedTabs) {
+      if (tab.kind !== 'conversation' || openConversationOptions.has(tab.conversationId)) continue;
+      openConversationOptions.set(tab.conversationId, {
+        id: tab.conversationId,
+        title: tab.store.data.title,
+        providerId: tab.store.data.providerId,
+      });
+    }
+  }
+  const options = Array.from(openConversationOptions.values());
 
   const dependencyResource = connectionId
     ? appState.dependencies.getRemote(connectionId)
@@ -129,7 +140,7 @@ export const BrowserAnnotationBar = observer(function BrowserAnnotationBar({
   }));
   const targetGroups: TargetGroup[] = [
     ...(conversationOptions.length
-      ? [{ value: 'conversations', label: 'Conversations', items: conversationOptions }]
+      ? [{ value: 'conversations', label: 'Agents', items: conversationOptions }]
       : []),
     ...(providerOptions.length
       ? [{ value: 'providers', label: 'New agent', items: providerOptions }]
@@ -280,7 +291,7 @@ export const BrowserAnnotationBar = observer(function BrowserAnnotationBar({
           )}
           <ChevronDown className="size-3.5 shrink-0 text-foreground-muted" />
         </ComboboxTrigger>
-        <ComboboxContent className="min-w-56">
+        <ComboboxContent className="min-w-64">
           <ComboboxInput showTrigger={false} placeholder="Search agents…" />
           <ComboboxList>
             {(group: TargetGroup) => (
@@ -296,6 +307,7 @@ export const BrowserAnnotationBar = observer(function BrowserAnnotationBar({
               </ComboboxGroup>
             )}
           </ComboboxList>
+          <ComboboxEmpty>No open agents or installed agents</ComboboxEmpty>
         </ComboboxContent>
       </Combobox>
       <Button type="button" size="sm" className="h-7 gap-1.5" disabled={!canSend} onClick={send}>
