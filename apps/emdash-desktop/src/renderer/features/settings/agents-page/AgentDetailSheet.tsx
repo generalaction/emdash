@@ -43,9 +43,6 @@ const AgentDetailSheetContent = observer(function AgentDetailSheetContent({
                 hideOverrideOptions={!isInstalled}
               />
             </Field>
-            {isInstalled && agentPayload.capabilities.mcp.kind === 'supported' && (
-              <AgentMcpSection agentId={agentId} />
-            )}
           </div>
         )}
       </div>
