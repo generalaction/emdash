@@ -1,0 +1,38 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_034059bec5b145::t_85ff0d3c876005 222-223
+  s_034059bec5b145::t_9dd7533f0a5fe2 128-137
+apps/emdash-desktop/src/renderer/features/tasks/commands.test.ts
+  s_034059bec5b145::t_e433094edba7f1 12-13
+  s_034059bec5b145::t_4e50cde14d69e0 25-28
+  s_034059bec5b145::t_10d73e7014e022 210-248
+apps/emdash-desktop/src/shared/commands.ts
+  s_034059bec5b145::t_283b582ffd4d2f 186-200
+apps/emdash-desktop/src/renderer/features/tasks/commands.ts
+  s_034059bec5b145::t_97146dcbc0037a 59-60
+  s_034059bec5b145::t_38f398f3c38daf 198-220
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_034059bec5b145::t_16eb1528150712 54-55,65-66
+  s_034059bec5b145::t_7df3521f029013 134
+  s_034059bec5b145::t_bef7c27d136475 143-145,150,157-160,165,172
+  s_034059bec5b145::t_36cea0fecc41e3 146-149,151-156,161-164,166-171
+  s_034059bec5b145::t_3dcc3dcaa7bd52 75-77
+  s_034059bec5b145::t_7ca07411e7d262 14
+  s_034059bec5b145::t_aad29e06747654 2-3
+  s_034059bec5b145::t_eac12c62f6644c 332-351,371
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "d7cae1183208b45492067be10b5365203650a1ae",
+  "prompts": {},
+  "sessions": {
+    "s_034059bec5b145": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "243f959e-9128-4397-8f6c-e114f5d3ca11",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
