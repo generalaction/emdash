@@ -1,4 +1,6 @@
 import {
+  ArrowLeft,
+  ArrowRight,
   Ellipsis,
   Focus,
   Globe,
@@ -9,7 +11,7 @@ import {
   RotateCcw,
   Square,
 } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import {
@@ -49,6 +51,8 @@ export function BrowserToolbar({
   adapter,
   autoFocusUrl,
   onNavigate,
+  onGoBack,
+  onGoForward,
   onReload,
   onForceReload,
   onSetZoomFactor,
@@ -58,6 +62,8 @@ export function BrowserToolbar({
   adapter: BrowserWebviewAdapter | null;
   autoFocusUrl?: boolean;
   onNavigate?: (url: string) => boolean;
+  onGoBack?: () => void;
+  onGoForward?: () => void;
   onReload?: () => void;
   onForceReload?: () => void;
   onSetZoomFactor?: (factor: number) => void;
@@ -66,8 +72,9 @@ export function BrowserToolbar({
   const [urlText, setUrlText] = useState(browserUrlInputText(session.currentUrl));
   const [urlError, setUrlError] = useState<string | null>(null);
   const [failedFaviconUrl, setFailedFaviconUrl] = useState<string | null>(null);
-  const [screenshotSpin, setScreenshotSpin] = useState(false);
-  const screenshotSpinTimerRef = useRef<number | null>(null);
+  const [screenshotSpin, triggerScreenshotSpin] = useTransientFlag(300);
+  const [backNudge, triggerBackNudge] = useTransientFlag(200);
+  const [forwardNudge, triggerForwardNudge] = useTransientFlag(200);
   const urlInputRef = useRef<HTMLInputElement | null>(null);
   const faviconUrl =
     session.faviconUrl && session.faviconUrl !== failedFaviconUrl ? session.faviconUrl : null;
@@ -124,26 +131,45 @@ export function BrowserToolbar({
   };
 
   const takeScreenshot = () => {
-    setScreenshotSpin(true);
-    if (screenshotSpinTimerRef.current !== null) {
-      window.clearTimeout(screenshotSpinTimerRef.current);
-    }
-    screenshotSpinTimerRef.current = window.setTimeout(() => setScreenshotSpin(false), 300);
+    triggerScreenshotSpin();
     void captureBrowserScreenshot(session);
   };
 
-  useEffect(() => {
-    return () => {
-      if (screenshotSpinTimerRef.current !== null) {
-        window.clearTimeout(screenshotSpinTimerRef.current);
-      }
-    };
-  }, []);
   const canOpenExternal = canOpenBrowserUrlExternally(session.currentUrl);
   const zoomFactor = session.zoomFactor;
 
   return (
     <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border bg-background-secondary-1 px-2">
+      <ToolbarIconButton
+        label="Back"
+        disabled={!adapter || !session.canGoBack}
+        onClick={() => {
+          triggerBackNudge();
+          onGoBack?.();
+        }}
+      >
+        <ArrowLeft
+          className={cn(
+            'size-4 transition-transform duration-200 ease-out',
+            backNudge && '-translate-x-0.5'
+          )}
+        />
+      </ToolbarIconButton>
+      <ToolbarIconButton
+        label="Forward"
+        disabled={!adapter || !session.canGoForward}
+        onClick={() => {
+          triggerForwardNudge();
+          onGoForward?.();
+        }}
+      >
+        <ArrowRight
+          className={cn(
+            'size-4 transition-transform duration-200 ease-out',
+            forwardNudge && 'translate-x-0.5'
+          )}
+        />
+      </ToolbarIconButton>
       <ToolbarIconButton label={session.isLoading ? 'Stop' : 'Reload'} onClick={() => onReload?.()}>
         {session.isLoading ? <Square className="size-3.5" /> : <RefreshCw className="size-4" />}
       </ToolbarIconButton>
@@ -303,6 +329,26 @@ export function BrowserToolbar({
   );
 }
 
+/** Returns a flag that turns on when triggered and resets itself after `durationMs`. */
+function useTransientFlag(durationMs: number): [boolean, () => void] {
+  const [active, setActive] = useState(false);
+  const timerRef = useRef<number | null>(null);
+
+  const trigger = useCallback(() => {
+    setActive(true);
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(() => setActive(false), durationMs);
+  }, [durationMs]);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  return [active, trigger];
+}
+
 function ToolbarIconButton({
   label,
   disabled,
@@ -322,7 +368,7 @@ function ToolbarIconButton({
             type="button"
             variant="ghost"
             size="icon"
-            className="size-7 shrink-0"
+            className="size-7 shrink-0 transition-transform duration-150 ease-out active:scale-[0.96]"
             disabled={disabled}
             aria-label={label}
             onClick={onClick}
