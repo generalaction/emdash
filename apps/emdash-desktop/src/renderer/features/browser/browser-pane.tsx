@@ -223,7 +223,9 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
   );
 
   const canAnnotate =
-    adapter !== null && !showStartPage && (annotationState.picking || annotationState.draft === null);
+    adapter !== null &&
+    !showStartPage &&
+    (annotationState.picking || annotationState.draft === null);
 
   const toggleAnnotate = useCallback(() => {
     if (annotationState.draft && !annotationState.picking) return;

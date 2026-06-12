@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Plus, Send, Trash2 } from 'lucide-react';
+import { ChevronDown, Send, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
@@ -20,13 +20,21 @@ import { pastePromptInjection } from '@renderer/lib/pty/prompt-injection';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
 import {
+  Combobox,
+  ComboboxCollection,
+  ComboboxContent,
+  ComboboxGroup,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxLabel,
+  ComboboxList,
+  ComboboxTrigger,
+} from '@renderer/lib/ui/combobox';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@renderer/lib/ui/dropdown-menu';
 import { agentConfig } from '@renderer/utils/agentConfig';
@@ -40,6 +48,19 @@ import type { BrowserAnnotationState } from './browser-annotation-store';
 type AnnotationSendTarget =
   | { kind: 'existing'; conversationId: string }
   | { kind: 'new'; providerId: AgentProviderId };
+
+type TargetOption = {
+  value: string;
+  label: string;
+  providerId: AgentProviderId;
+  target: AnnotationSendTarget;
+};
+
+type TargetGroup = { value: string; label: string; items: TargetOption[] };
+
+function targetValue(target: AnnotationSendTarget): string {
+  return target.kind === 'existing' ? `conv:${target.conversationId}` : `new:${target.providerId}`;
+}
 
 export const BrowserAnnotationBar = observer(function BrowserAnnotationBar({
   state,
@@ -59,6 +80,7 @@ export const BrowserAnnotationBar = observer(function BrowserAnnotationBar({
   const { providerId: defaultNewProviderId, createDisabled } = useEffectiveProvider(connectionId);
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const [target, setTarget] = useState<AnnotationSendTarget | null>(null);
+  const [targetPickerOpen, setTargetPickerOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
   // No useMemo: the conversations map is a stable MobX observable.map instance, so a
@@ -92,6 +114,32 @@ export const BrowserAnnotationBar = observer(function BrowserAnnotationBar({
     }
     return null;
   })();
+
+  const conversationOptions: TargetOption[] = options.map((option) => ({
+    value: `conv:${option.id}`,
+    label: formatConversationTitleForDisplay(option.providerId, option.title),
+    providerId: option.providerId,
+    target: { kind: 'existing', conversationId: option.id },
+  }));
+  const providerOptions: TargetOption[] = installedProviders.map((providerId) => ({
+    value: `new:${providerId}`,
+    label: agentConfig[providerId]?.name ?? providerId,
+    providerId,
+    target: { kind: 'new', providerId },
+  }));
+  const targetGroups: TargetGroup[] = [
+    ...(conversationOptions.length
+      ? [{ value: 'conversations', label: 'Conversations', items: conversationOptions }]
+      : []),
+    ...(providerOptions.length
+      ? [{ value: 'providers', label: 'New agent', items: providerOptions }]
+      : []),
+  ];
+  const selectedTargetOption = resolvedTarget
+    ? [...conversationOptions, ...providerOptions].find(
+        (option) => option.value === targetValue(resolvedTarget)
+      )
+    : undefined;
 
   const count = state.annotations.length;
   const canSend = count > 0 && !isSending && resolvedTarget !== null;
@@ -206,17 +254,24 @@ export const BrowserAnnotationBar = observer(function BrowserAnnotationBar({
         </DropdownMenuContent>
       </DropdownMenu>
       <div className="mx-1 h-4 w-px shrink-0 bg-border" />
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 max-w-56 gap-1.5 px-2 font-normal"
-              aria-label="Send target"
-            />
-          }
+      <Combobox
+        items={targetGroups}
+        value={selectedTargetOption ?? null}
+        onValueChange={(item: TargetOption | null) => {
+          if (item) setTarget(item.target);
+          setTargetPickerOpen(false);
+        }}
+        open={targetPickerOpen}
+        onOpenChange={setTargetPickerOpen}
+        isItemEqualToValue={(a: TargetOption, b: TargetOption) => a.value === b.value}
+        filter={(item: TargetOption, query) =>
+          item.label.toLowerCase().includes(query.toLowerCase())
+        }
+        autoHighlight
+      >
+        <ComboboxTrigger
+          aria-label="Send target"
+          className="flex h-7 max-w-56 min-w-0 items-center gap-1.5 rounded-md px-2 text-sm outline-none hover:bg-background-secondary"
         >
           {resolvedTarget ? (
             <SendTargetLabel target={resolvedTarget} conversations={options} />
@@ -224,53 +279,25 @@ export const BrowserAnnotationBar = observer(function BrowserAnnotationBar({
             <span className="text-foreground-muted">No agent available</span>
           )}
           <ChevronDown className="size-3.5 shrink-0 text-foreground-muted" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-52">
-          {options.map((option) => {
-            const isSelected =
-              resolvedTarget?.kind === 'existing' && resolvedTarget.conversationId === option.id;
-            return (
-              <DropdownMenuItem
-                key={option.id}
-                className="gap-2"
-                onClick={() => setTarget({ kind: 'existing', conversationId: option.id })}
-              >
-                <ProviderLabel
-                  providerId={option.providerId}
-                  label={formatConversationTitleForDisplay(option.providerId, option.title)}
-                />
-                {isSelected && <Check className="ml-auto size-3.5 shrink-0" />}
-              </DropdownMenuItem>
-            );
-          })}
-          {options.length > 0 && <DropdownMenuSeparator />}
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger className="gap-2">
-              <Plus className="size-3.5 shrink-0 text-foreground-muted" />
-              New agent
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="min-w-44">
-              {installedProviders.map((providerId) => {
-                const isSelected =
-                  resolvedTarget?.kind === 'new' && resolvedTarget.providerId === providerId;
-                return (
-                  <DropdownMenuItem
-                    key={providerId}
-                    className="gap-2"
-                    onClick={() => setTarget({ kind: 'new', providerId })}
-                  >
-                    <ProviderLabel
-                      providerId={providerId}
-                      label={agentConfig[providerId]?.name ?? providerId}
-                    />
-                    {isSelected && <Check className="ml-auto size-3.5 shrink-0" />}
-                  </DropdownMenuItem>
-                );
-              })}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </ComboboxTrigger>
+        <ComboboxContent className="min-w-56">
+          <ComboboxInput showTrigger={false} placeholder="Search agents…" />
+          <ComboboxList>
+            {(group: TargetGroup) => (
+              <ComboboxGroup key={group.value} items={group.items} className="py-1">
+                <ComboboxLabel>{group.label}</ComboboxLabel>
+                <ComboboxCollection>
+                  {(item: TargetOption) => (
+                    <ComboboxItem key={item.value} value={item}>
+                      <ProviderLabel providerId={item.providerId} label={item.label} />
+                    </ComboboxItem>
+                  )}
+                </ComboboxCollection>
+              </ComboboxGroup>
+            )}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
       <Button type="button" size="sm" className="h-7 gap-1.5" disabled={!canSend} onClick={send}>
         <Send className="size-3.5" />
         {resolvedTarget?.kind === 'new' ? 'Send to new agent' : 'Send to agent'}
