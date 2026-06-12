@@ -1,9 +1,6 @@
-import * as https from 'node:https';
+import type { Logger } from '../../lib/logger';
 import type { ReleaseSource } from '../capability';
-import type { DepsLogger } from './ports';
 
-const MAX_REDIRECTS = 5;
-const MAX_RESPONSE_BYTES = 512 * 1024;
 const REQUEST_TIMEOUT_MS = 10_000;
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
@@ -12,64 +9,23 @@ interface CacheEntry {
   expiresAt: number;
 }
 
-function httpsGet(url: string, options: { redirectCount?: number } = {}): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const redirectCount = options.redirectCount ?? 0;
-    if (redirectCount >= MAX_REDIRECTS) {
-      reject(new Error(`Too many redirects (>${MAX_REDIRECTS}) for ${url}`));
-      return;
-    }
-    const req = https.get(
-      url,
-      {
-        headers: {
-          'User-Agent': 'emdash-latest-version',
-          Accept: 'application/json',
-        },
-      },
-      (res) => {
-        if (res.statusCode === 301 || res.statusCode === 302) {
-          const location = res.headers.location;
-          if (location) {
-            const resolved = new URL(location, url).href;
-            httpsGet(resolved, { redirectCount: redirectCount + 1 }).then(resolve, reject);
-            return;
-          }
-        }
-        if (res.statusCode && res.statusCode >= 400) {
-          reject(new Error(`HTTP ${res.statusCode} for ${url}`));
-          return;
-        }
-        let data = '';
-        let bytes = 0;
-        let destroyed = false;
-        res.on('data', (chunk: Buffer | string) => {
-          bytes += Buffer.byteLength(chunk);
-          if (bytes > MAX_RESPONSE_BYTES) {
-            destroyed = true;
-            req.destroy(new Error(`Response too large for ${url}`));
-            return;
-          }
-          data += chunk;
-        });
-        res.on('end', () => {
-          if (!destroyed) resolve(data);
-        });
-        res.on('error', reject);
-      }
-    );
-    req.on('error', reject);
-    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
-      req.destroy(new Error('Request timed out'));
-    });
+async function fetchJson(url: string): Promise<unknown> {
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'emdash-latest-version',
+      Accept: 'application/json',
+    },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+  return res.json();
 }
 
 export class LatestVersionService {
   private cache = new Map<string, CacheEntry>();
-  private logger?: DepsLogger;
+  private logger?: Logger;
 
-  constructor(options?: { logger?: DepsLogger }) {
+  constructor(options?: { logger?: Logger }) {
     this.logger = options?.logger;
   }
 
@@ -98,15 +54,13 @@ export class LatestVersionService {
   private async resolve(source: ReleaseSource): Promise<string | null> {
     if (source.kind === 'npm') {
       const url = `https://registry.npmjs.org/${encodeURIComponent(source.package)}/latest`;
-      const body = await httpsGet(url);
-      const json = JSON.parse(body) as { version?: string };
+      const json = (await fetchJson(url)) as { version?: string };
       return json.version ?? null;
     }
 
     if (source.kind === 'github') {
       const url = `https://api.github.com/repos/${source.repo}/releases/latest`;
-      const body = await httpsGet(url);
-      const json = JSON.parse(body) as { tag_name?: string };
+      const json = (await fetchJson(url)) as { tag_name?: string };
       const tag = json.tag_name ?? null;
       return tag ? tag.replace(/^v/, '') : null;
     }

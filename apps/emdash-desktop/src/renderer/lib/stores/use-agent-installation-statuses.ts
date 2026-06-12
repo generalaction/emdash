@@ -1,12 +1,17 @@
 import type { InstallMethod } from '@emdash/shared/deps';
 import type {
+  DependencyId,
+  DependencyStatus,
   DependencyStatusUpdatedEvent,
+  HostDependency,
   HostDependencySelection,
+  Installation,
 } from '@emdash/shared/deps/runtime';
+import { deriveHostDependencyStatus } from '@emdash/shared/deps/runtime';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { events, rpc } from '@renderer/lib/ipc';
-import type { AgentInstallationStatus } from '@shared/core/agents/agent-payload';
+import type { AgentInstallationStatus, AgentPayload } from '@shared/core/agents/agent-payload';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { agentInstallationStatusUpdatedChannel } from '@shared/events/appEvents';
 import { AGENTS_METADATA_QUERY_KEY } from './use-agents';
@@ -115,13 +120,143 @@ export function useAgentInstallationStatuses(connectionId?: string) {
     probeAll: probeAllMutation.mutate,
     isInstalling: installMutation.isPending,
     isUpdating: updateMutation.isPending,
+    installingMethod: installMutation.isPending ? installMutation.variables?.method : undefined,
+    updatingMethod: updateMutation.isPending ? updateMutation.variables?.method : undefined,
   };
 }
 
 /**
- * Returns the installation status for a single agent.
+ * Per-agent view-model derived from `useAgentInstallationStatuses`. Provides the
+ * single agent's installation list, the currently used installation, a derived
+ * status, and agent-bound, awaitable action wrappers. Consumed by the install
+ * cards as the single source of truth (`vm`).
  */
-export function useAgentInstallationStatus(id: string, connectionId?: string) {
-  const { data, ...rest } = useAgentInstallationStatuses(connectionId);
-  return { data: data?.find((s) => s.id === id) ?? null, ...rest };
+export type HostDependencyInstallation = {
+  installations: Installation[];
+  used: Installation | undefined;
+  status: DependencyStatus;
+  hostDependency: HostDependency | undefined;
+  /** True while an install mutation is in flight for this host. */
+  isInstalling: boolean;
+  /** True while an update mutation is in flight for this host. */
+  isUpdating: boolean;
+  /** The install method currently being installed, if any. */
+  installingMethod: InstallMethod | undefined;
+  /** The install method currently being updated, if any. */
+  updatingMethod: InstallMethod | undefined;
+  install(method: InstallMethod): Promise<void>;
+  update(method: InstallMethod): Promise<void>;
+  setUsed(selection: HostDependencySelection): Promise<void>;
+  refresh(): Promise<void>;
+  fetchLatestVersion(): Promise<void>;
+};
+
+/**
+ * Returns the installation status and full per-agent view-model for a single
+ * agent. `agentPayload` (optional) hydrates a synthetic installation before the
+ * first probe completes so the UI can render immediately.
+ */
+export function useAgentInstallationStatus(
+  id: string,
+  connectionId?: string,
+  agentPayload?: AgentPayload
+) {
+  const base = useAgentInstallationStatuses(connectionId);
+  const {
+    data: statuses,
+    install: installMutate,
+    update: updateMutate,
+    setUsedInstallation,
+    refreshLatestVersion,
+    probeAll,
+  } = base;
+
+  const statusEntry = statuses?.find((s) => s.id === id) ?? null;
+
+  const hostDependency: HostDependency | undefined = statusEntry
+    ? {
+        hostId: connectionId ?? 'local',
+        dependencyId: id as DependencyId,
+        installations: statusEntry.installations,
+        usedId: statusEntry.usedId,
+      }
+    : undefined;
+
+  const installations = useMemo<Installation[]>(() => {
+    if (hostDependency) return hostDependency.installations;
+    if (!agentPayload) return [];
+    return [
+      {
+        id: 'auto',
+        source: { kind: 'cli' as const, command: agentPayload.id },
+        status: agentPayload.status,
+        path: agentPayload.command,
+        version: agentPayload.version,
+        latestVersion: agentPayload.latestVersion,
+        updateAvailable: agentPayload.updateAvailable,
+      },
+    ];
+  }, [hostDependency, agentPayload]);
+
+  const usedId = hostDependency?.usedId ?? agentPayload?.usedId;
+  const used = useMemo(() => installations.find((i) => i.id === usedId), [installations, usedId]);
+
+  const status = useMemo<DependencyStatus>(() => {
+    if (hostDependency) return deriveHostDependencyStatus(hostDependency);
+    return agentPayload?.status ?? 'missing';
+  }, [hostDependency, agentPayload]);
+
+  const install = useCallback(
+    (method: InstallMethod) =>
+      new Promise<void>((resolve) => {
+        installMutate({ id: id as AgentProviderId, method }, { onSettled: () => resolve() });
+      }),
+    [installMutate, id]
+  );
+
+  const update = useCallback(
+    (method: InstallMethod) =>
+      new Promise<void>((resolve) => {
+        updateMutate({ id: id as AgentProviderId, method }, { onSettled: () => resolve() });
+      }),
+    [updateMutate, id]
+  );
+
+  const setUsed = useCallback(
+    (selection: HostDependencySelection) =>
+      new Promise<void>((resolve) => {
+        setUsedInstallation({ id, selection }, { onSettled: () => resolve() });
+      }),
+    [setUsedInstallation, id]
+  );
+
+  const refresh = useCallback(
+    () =>
+      new Promise<void>((resolve) => {
+        probeAll(undefined, { onSettled: () => resolve() });
+      }),
+    [probeAll]
+  );
+
+  const fetchLatestVersion = useCallback(
+    () =>
+      new Promise<void>((resolve) => {
+        refreshLatestVersion(id, { onSettled: () => resolve() });
+      }),
+    [refreshLatestVersion, id]
+  );
+
+  return {
+    ...base,
+    data: statusEntry,
+    installations,
+    used,
+    status,
+    hostDependency,
+    install,
+    update,
+    setUsed,
+    refresh,
+    fetchLatestVersion,
+  };
 }

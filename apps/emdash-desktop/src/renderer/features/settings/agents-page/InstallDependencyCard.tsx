@@ -1,7 +1,7 @@
 import type { InstallMethod, InstallOption } from '@emdash/shared/deps';
 import { ChevronDown, Loader2 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
-import type { HostDependencyInstallation } from '@renderer/lib/stores/use-host-dependency-installation';
+import type { HostDependencyInstallation } from '@renderer/lib/stores/use-agent-installation-statuses';
 import { Alert } from '@renderer/lib/ui/alert';
 import {
   Combobox,
@@ -11,6 +11,7 @@ import {
   ComboboxTrigger,
 } from '@renderer/lib/ui/combobox';
 import { Input } from '@renderer/lib/ui/input';
+import { cn } from '@renderer/utils/utils';
 import { InstalledBadge, RecommendedBadge, UsedBadge } from './agent-status-badge';
 import { CommandActionButton, CommandRow, humanizeMethod } from './install-command-row';
 
@@ -33,8 +34,12 @@ export type InstallDependencyCardProps = {
   initialPath?: string;
   /** Current persisted cli override value for initialising the cli input. */
   initialCli?: string;
-  /** Whether an install is currently in progress. */
+  /** Whether an install is currently in progress (any method). */
   isInstalling?: boolean;
+  /** The install method currently being installed, if any. */
+  installingMethod?: InstallMethod;
+  /** Additional class name for the container. */
+  className?: string;
 };
 
 export function InstallDependencyCard({
@@ -44,6 +49,8 @@ export function InstallDependencyCard({
   initialPath = '',
   initialCli = '',
   isInstalling = false,
+  installingMethod,
+  className,
 }: InstallDependencyCardProps) {
   const { install, installations } = vm;
 
@@ -92,8 +99,9 @@ export function InstallDependencyCard({
   };
 
   return (
-    <div className="space-y-2 rounded-lg border p-3">
-      <div className="flex items-center gap-2">
+    <div className={cn('space-y-2 rounded-lg border p-3', className)}>
+      <div className="flex items-center justify-between gap-2 text-foreground-muted">
+        Install
         <Combobox
           value={selectedOption ?? null}
           onValueChange={(opt) => {
@@ -165,7 +173,12 @@ export function InstallDependencyCard({
               disabled={isInstalling}
               onClick={() => void install(activeOption.method)}
             >
-              {isInstalling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Install'}
+              {isInstalling &&
+              (installingMethod === undefined || installingMethod === activeOption.method) ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                'Install'
+              )}
             </CommandActionButton>
           }
         />

@@ -330,6 +330,9 @@ importers:
       '@parcel/watcher':
         specifier: ^2.5.6
         version: 2.5.6
+      semver:
+        specifier: ^7.8.4
+        version: 7.8.4
       smol-toml:
         specifier: ^1.6.0
         version: 1.6.1
@@ -340,6 +343,9 @@ importers:
       '@types/node':
         specifier: ^20.19.42
         version: 20.19.42
+      '@types/semver':
+        specifier: ^7.7.1
+        version: 7.7.1
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260609.1
         version: 7.0.0-dev.20260609.1
@@ -2412,6 +2418,9 @@ packages:
 
   '@types/responselike@1.0.3':
     resolution: {integrity: sha512-H/+L+UkTV33uf49PH5pCAUBVPNj2nDBXTN+qS1dOwyyg24l3CcicicCA7ca+HMvJBZcFgl5r8e+RR6elsb4Lyw==}
+
+  '@types/semver@7.7.1':
+    resolution: {integrity: sha512-FmgJfu+MOcQ370SD0ev7EI8TlCAfKYU+B4m5T3yXc1CiRN94g/SZPtsCkk506aUDtlMnFZvasDwHHUcZUEaYuA==}
 
   '@types/ssh2@1.15.5':
     resolution: {integrity: sha512-N1ASjp/nXH3ovBHddRJpli4ozpk6UdDYIX4RJWFa9L1YKnzdhTlVmiGHm4DZnj/jLbqZpes4aeR30EFGQtvhQQ==}
@@ -4852,6 +4861,11 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
+  semver@7.8.4:
+    resolution: {integrity: sha512-rUCObTnP32Q08R2uuIrt7r9PlEonuTmtuXYcW6s5kjdlj3xbnwe+21yXptAUYcMAABLkYYTtnmzb3w3EDZfueA==}
+    engines: {node: '>=10'}
+    hasBin: true
+
   serialize-error@7.0.1:
     resolution: {integrity: sha512-8I8TjW5KMOKsZQTvoxjuSIa7foAwPWGOts+6o7sgjz41/qMD9VQHEDxi6PBvK2l0MXUmqZyNpUK+T2tQaaElvw==}
     engines: {node: '>=10'}
@@ -7220,6 +7234,8 @@ snapshots:
   '@types/responselike@1.0.3':
     dependencies:
       '@types/node': 20.19.42
+
+  '@types/semver@7.7.1': {}
 
   '@types/ssh2@1.15.5':
     dependencies:
@@ -10140,6 +10156,8 @@ snapshots:
 
   semver@7.8.3: {}
 
+  semver@7.8.4: {}
+
   serialize-error@7.0.1:
     dependencies:
       type-fest: 0.13.1
@@ -10417,7 +10435,7 @@ snapshots:
       picomatch: 4.0.4
       rolldown: 1.1.0
       rolldown-plugin-dts: 0.25.2(@typescript/native-preview@7.0.0-dev.20260609.1)(rolldown@1.1.0)(typescript@6.0.3)
-      semver: 7.8.3
+      semver: 7.8.4
       tinyexec: 1.2.4
       tinyglobby: 0.2.17
       tree-kill: 1.2.2

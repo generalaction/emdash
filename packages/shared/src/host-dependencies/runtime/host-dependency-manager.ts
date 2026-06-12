@@ -1,12 +1,13 @@
+import semver from 'semver';
 import type { IExecutionContext } from '../../exec/execution-context';
 import { Emitter } from '../../lib/emitter';
+import { consoleLogger, type Logger } from '../../lib/logger';
 import { err, ok } from '../../lib/result';
 import type { InstallMethod, Platform } from '../capability';
 import { resolveInstallOptions, pickInstallOption, toPlatform } from './install-options';
 import { LatestVersionService } from './latest-version-service';
 import { inferMethod } from './location-hints';
-import type { DepsLogger, IHostDependencyStore, InstallCommandRunner } from './ports';
-import { consoleLogger } from './ports';
+import type { IHostDependencyStore, InstallCommandRunner } from './ports';
 import { resolveCommandPath, resolveRealpath, runVersionProbe } from './probe';
 import type {
   DependencyCategory,
@@ -26,23 +27,11 @@ import type {
 
 const VERSION_RE = /(\d+\.\d+[\d.]*)/;
 
-/** Returns true when latest > installed using simple numeric segment comparison. */
 function isNewerVersion(installed: string, latest: string): boolean {
-  const parse = (v: string) =>
-    v
-      .replace(/^v/, '')
-      .split('.')
-      .map((s) => parseInt(s, 10) || 0);
-  const a = parse(installed);
-  const b = parse(latest);
-  const len = Math.max(a.length, b.length);
-  for (let i = 0; i < len; i++) {
-    const ai = a[i] ?? 0;
-    const bi = b[i] ?? 0;
-    if (bi > ai) return true;
-    if (ai > bi) return false;
-  }
-  return false;
+  const a = semver.coerce(installed);
+  const b = semver.coerce(latest);
+  if (a === null || b === null) return false;
+  return semver.gt(b, a);
 }
 
 function resolveProbeStatus(
@@ -105,7 +94,7 @@ export type HostDependencyManagerOptions = {
   latestVersionService?: LatestVersionService;
   platform?: Platform;
   hostDependencyStore?: IHostDependencyStore;
-  logger?: DepsLogger;
+  logger?: Logger;
   /** All dependency descriptors to manage. Injected by the application layer (e.g. desktop registry). */
   dependencies?: DependencyDescriptor[];
   /** Lookup function for a single descriptor by id. Defaults to searching `dependencies`. */
@@ -128,7 +117,7 @@ export class HostDependencyManager {
   private readonly connectionId: string | undefined;
   private readonly latestVersionService: LatestVersionService;
   private readonly hostDependencyStore: IHostDependencyStore | undefined;
-  private readonly logger: DepsLogger;
+  private readonly logger: Logger;
   private readonly _dependencies: DependencyDescriptor[];
   private readonly _getDependencyDescriptor: (id: string) => DependencyDescriptor | undefined;
   /** Platform of the target machine. Defaults to process.platform; SSH callers pass the remote platform. */
@@ -266,10 +255,9 @@ export class HostDependencyManager {
     if (resolvedPath) {
       const realPath = await resolveRealpath(resolvedPath, this.ctx);
       const inferredMethod = inferMethod(realPath, this.platform);
-      const prevHostDep = this.hostState.get(id);
-      const prevPrimary = prevHostDep?.installations.find(
-        (i) => i.source.kind === 'method' || (i.source.kind === 'cli' && i.id === 'auto')
-      );
+      // Prefer the freshest aggregate state: the latest-version fetch may have
+      // completed before this runs and already enriched it with updateAvailable.
+      const currentState = this.state.get(id) ?? fullState;
 
       installations.push({
         id: inferredMethod ? `method:${inferredMethod}` : 'auto',
@@ -279,8 +267,8 @@ export class HostDependencyManager {
         status: fullState?.status ?? 'available',
         path: resolvedPath,
         version: fullState?.version ?? null,
-        latestVersion: prevPrimary?.latestVersion ?? fullState?.latestVersion ?? null,
-        updateAvailable: prevPrimary?.updateAvailable ?? fullState?.updateAvailable ?? false,
+        latestVersion: currentState?.latestVersion ?? null,
+        updateAvailable: currentState?.updateAvailable ?? false,
       });
     } else {
       // Not found — still include as a placeholder so UI can show "not installed"
@@ -452,6 +440,41 @@ export class HostDependencyManager {
 
     const enrichedState: DependencyState = { ...state, latestVersion, updateAvailable };
     this.updateState(enrichedState);
+
+    // Keep the per-installation updateAvailable/latestVersion in sync with the
+    // freshly fetched latest version. Without this, the aggregate state reports
+    // an available update while the stored installations (read by the UI's
+    // update card via `used.updateAvailable`) stay stale at the probe-time value.
+    this.propagateLatestVersionToHostDependency(state.id, latestVersion);
+  }
+
+  /**
+   * Re-derives each stored installation's `latestVersion`/`updateAvailable` from
+   * the given latest version and re-emits the HostDependency so renderers patch
+   * their cached installations.
+   */
+  private propagateLatestVersionToHostDependency(
+    id: DependencyId,
+    latestVersion: string | null
+  ): void {
+    const hostDependency = this.hostState.get(id);
+    if (!hostDependency) return;
+
+    const installations = hostDependency.installations.map((inst) => {
+      if (inst.version === null) return inst;
+      const updateAvailable =
+        latestVersion !== null ? isNewerVersion(inst.version, latestVersion) : false;
+      return { ...inst, latestVersion, updateAvailable };
+    });
+
+    const updated: HostDependency = { ...hostDependency, installations };
+    this.hostState.set(id, updated);
+    this.onStatusUpdated.emit({
+      id,
+      state: this.state.get(id)!,
+      connectionId: this.connectionId,
+      hostDependency: updated,
+    });
   }
 
   async probeAll(options: DependencyProbeOptions = {}): Promise<void> {

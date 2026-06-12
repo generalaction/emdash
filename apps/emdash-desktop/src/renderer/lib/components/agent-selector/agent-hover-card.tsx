@@ -1,3 +1,4 @@
+import type { PopoverRootChangeEventDetails } from '@base-ui/react/popover';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Popover, PopoverContent } from '@renderer/lib/ui/popover';
 import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
@@ -5,6 +6,49 @@ import { AgentInfoCard } from './agent-info-card';
 
 const OPEN_DELAY_MS = 500;
 const CLOSE_DELAY_MS = 200;
+
+const HOVER_CARD_ATTR = 'data-agent-hover-card';
+
+/**
+ * True when a dismissal event originated inside the agent hover card or inside a popup
+ * spawned from it (e.g. the install-method select, which portals to document.body and
+ * therefore fails plain DOM containment checks against the card).
+ *
+ * `ownPopup` is the popup element of the surrounding agent list itself; clicks inside it
+ * are never attributed to the hover card.
+ */
+export function isEventInsideAgentHoverCard(
+  event: Event | null | undefined,
+  ownPopup: HTMLElement | null
+): boolean {
+  if (!event) return false;
+  const targets: Element[] = [];
+  if (event.target instanceof Element) targets.push(event.target);
+  const related = (event as FocusEvent).relatedTarget;
+  if (related instanceof Element) targets.push(related);
+  return targets.some((el) => {
+    if (el.closest(`[${HOVER_CARD_ATTR}]`)) return true;
+    const popup = el.closest('[data-slot="popover-content"], [data-slot="combobox-content"]');
+    return popup !== null && popup !== ownPopup;
+  });
+}
+
+/**
+ * True while the user is actively engaged with the hover card: typing in one of its
+ * inputs, or a nested popup (install-method select) opened from it is expanded.
+ * Used to suppress the hover-out close timer mid-interaction.
+ */
+function isHoverCardEngaged(): boolean {
+  const card = document.querySelector(`[${HOVER_CARD_ATTR}]`);
+  if (!card) return false;
+  if (card.querySelector('[aria-expanded="true"]')) return true;
+  const active = document.activeElement;
+  return (
+    active instanceof HTMLElement &&
+    card.contains(active) &&
+    (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')
+  );
+}
 
 interface RowHoverProps {
   onMouseEnter: (event: React.MouseEvent<HTMLElement>) => void;
@@ -64,6 +108,8 @@ export function useAgentHoverCard(): AgentHoverCardController {
     clearCloseTimer();
     closeTimer.current = window.setTimeout(() => {
       closeTimer.current = null;
+      // Keep the card open while the user is typing in it or has a nested popup open.
+      if (isHoverCardEngaged()) return;
       setOpenState(false);
     }, CLOSE_DELAY_MS);
   }, [clearCloseTimer, setOpenState]);
@@ -147,11 +193,25 @@ export const AgentHoverCard: React.FC<AgentHoverCardProps> = ({
 }) => {
   const { open, activeId, popupHoverProps, handleOpenChange } = controller;
 
+  const onOpenChange = useCallback(
+    (next: boolean, eventDetails: PopoverRootChangeEventDetails) => {
+      // Interactions with popups spawned from the card (install-method select) register
+      // as outside presses on this popover; keep the card open for them.
+      if (!next && isEventInsideAgentHoverCard(eventDetails.event, anchor)) {
+        eventDetails.cancel();
+        return;
+      }
+      handleOpenChange(next);
+    },
+    [anchor, handleOpenChange]
+  );
+
   if (!anchor || !activeId) return null;
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
+    <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverContent
+        {...{ [HOVER_CARD_ATTR]: '' }}
         anchor={anchor}
         side={side}
         align={align}

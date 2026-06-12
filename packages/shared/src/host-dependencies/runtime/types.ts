@@ -2,15 +2,10 @@ import z from 'zod';
 import type { Result } from '../../lib/result';
 import type { InstallMethod, InstallOption, Platform, UpdatesDescriptor } from '../capability';
 
-// ---------------------------------------------------------------------------
-// Dependency identity and status
-// ---------------------------------------------------------------------------
-
 export type DependencyCategory = 'core' | 'agent';
 
 export type CoreDependencyId = 'git' | 'gh' | 'tmux' | 'ssh' | 'node';
 
-/** Widened to string so agent provider ids (from the plugins package) are subtypes. */
 export type DependencyId = string;
 
 export type DependencyStatus = 'available' | 'missing' | 'error';
@@ -28,10 +23,6 @@ export interface DependencyState {
 }
 
 export type DependencyStatusMap = Record<string, DependencyState>;
-
-// ---------------------------------------------------------------------------
-// Install / update result types
-// ---------------------------------------------------------------------------
 
 export type InstallCommandError =
   | { type: 'permission-denied'; message: string; output: string; exitCode?: number }
@@ -53,10 +44,6 @@ export type DependencyUpdateError =
   | { type: 'not-detected-after-update'; id: string };
 
 export type DependencyUpdateResult = Result<DependencyState, DependencyUpdateError>;
-
-// ---------------------------------------------------------------------------
-// Host-scoped installation model
-// ---------------------------------------------------------------------------
 
 /**
  * Describes the origin of a specific installation of an agent binary.
@@ -122,10 +109,6 @@ export function deriveHostDependencyStatus(dep: HostDependency): DependencyStatu
   return dep.installations.find((i) => i.id === dep.usedId)?.status ?? 'missing';
 }
 
-// ---------------------------------------------------------------------------
-// Status event
-// ---------------------------------------------------------------------------
-
 export type DependencyStatusUpdatedEvent = {
   id: string;
   state: DependencyState;
@@ -133,10 +116,6 @@ export type DependencyStatusUpdatedEvent = {
   /** Present for agent-category deps after the host dependency has been computed. */
   hostDependency?: HostDependency;
 };
-
-// ---------------------------------------------------------------------------
-// Probe and descriptor types
-// ---------------------------------------------------------------------------
 
 export interface ProbeResult {
   command: string;

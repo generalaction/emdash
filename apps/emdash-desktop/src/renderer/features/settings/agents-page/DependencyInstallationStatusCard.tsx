@@ -1,7 +1,7 @@
 import type { InstallationSource, HostDependencySelection } from '@emdash/shared/deps/runtime';
-import { Check, MoreHorizontal, RefreshCw } from 'lucide-react';
+import { Check, MoreHorizontal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import type { HostDependencyInstallation } from '@renderer/lib/stores/use-host-dependency-installation';
+import type { HostDependencyInstallation } from '@renderer/lib/stores/use-agent-installation-statuses';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,15 +58,22 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
   const versionText = used.version ? `v${used.version}` : null;
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border px-3 py-2">
-      <div className="bg-background-success-1 flex size-6 items-center justify-center rounded-lg">
-        <Check className="size-4 shrink-0 text-foreground-success" />
+    <div className="flex items-center gap-2 rounded-lg border p-3">
+      <div className="flex size-6 items-center justify-center rounded-lg bg-background-success">
+        <Check
+          className="size-3.5 shrink-0 text-foreground-success"
+          absoluteStrokeWidth
+          strokeWidth={3}
+        />
       </div>
       <div className="min-w-0 flex-1 truncate text-sm">
-        <span className="text-foreground">Found</span>
-        {versionText && <span className="ml-1 font-mono text-foreground-muted">{versionText}</span>}
-        <span className="ml-1 text-foreground-muted">using</span>
-        <span className="ml-1 font-medium text-foreground">{label}</span>
+        <span>Found</span>
+        {versionText && (
+          <span className="ml-1 rounded-md bg-background-quaternary-2 px-1 py-0.5 font-mono text-xs text-foreground-muted">
+            {versionText}
+          </span>
+        )}
+        <span className="ml-1">installed using {label}</span>
       </div>
       <DropdownMenu>
         <DropdownMenuTrigger
@@ -99,10 +106,7 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
               <DropdownMenuSeparator />
             </>
           )}
-          <DropdownMenuItem onSelect={() => refresh()}>
-            <RefreshCw className="h-3.5 w-3.5" />
-            Refresh
-          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => refresh()}>Refresh</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => fetchLatestVersion()}>
             Check for updates
           </DropdownMenuItem>

@@ -1,3 +1,4 @@
+import type { ComboboxRootChangeEventDetails } from '@base-ui/react/combobox';
 import { ChevronDown } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useMemo, useState } from 'react';
@@ -15,7 +16,7 @@ import {
 } from '@renderer/lib/ui/combobox';
 import { cn } from '@renderer/utils/utils';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
-import { AgentHoverCard, useAgentHoverCard } from './agent-hover-card';
+import { AgentHoverCard, isEventInsideAgentHoverCard, useAgentHoverCard } from './agent-hover-card';
 import {
   canInstallAgentOption,
   isComboboxOptionDisabled,
@@ -57,8 +58,14 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
 
     const selectedOption = value ? allOptions.find((o) => o.value === value) : null;
 
-    function handleOpenChange(next: boolean) {
+    function handleOpenChange(next: boolean, eventDetails: ComboboxRootChangeEventDetails) {
       if (disabled) return;
+      // Clicks/focus inside the hover card register as outside presses on the combobox;
+      // they must not dismiss the agent list (which would unmount the card too).
+      if (!next && hoverCard.open && isEventInsideAgentHoverCard(eventDetails.event, anchorEl)) {
+        eventDetails.cancel();
+        return;
+      }
       if (!next) hoverCard.close();
       setOpen(next);
     }

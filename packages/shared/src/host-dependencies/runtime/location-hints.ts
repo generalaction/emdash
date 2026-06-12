@@ -25,6 +25,11 @@ export const INSTALL_METHOD_LOCATION_HINTS: Record<
   'installer-linux': {
     linux: ['/opt/bin/', '/opt/sbin/'],
   },
+  npm: {
+    macos: ['node_modules', '/.npm-global/', '/npm-packages/', '/.nvm/'],
+    linux: ['node_modules', '/.npm-global/', '/npm-packages/', '/.nvm/'],
+    windows: ['node_modules', '\\npm\\', '\\nvm\\'],
+  },
   homebrew: {
     macos: ['/opt/homebrew/', '/usr/local/cellar/', '/usr/local/opt/'],
     linux: ['/home/linuxbrew/', '/usr/local/cellar/'],
@@ -34,11 +39,6 @@ export const INSTALL_METHOD_LOCATION_HINTS: Record<
   },
   powershell: {
     windows: ['\\powershell\\modules\\'],
-  },
-  npm: {
-    macos: ['node_modules', '/.npm-global/', '/npm-packages/', '/.nvm/'],
-    linux: ['node_modules', '/.npm-global/', '/npm-packages/', '/.nvm/'],
-    windows: ['node_modules', '\\npm\\', '\\nvm\\'],
   },
   apt: {
     linux: ['/usr/bin/', '/usr/sbin/'],

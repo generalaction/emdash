@@ -3,13 +3,7 @@
 // './deps/runtime' entry and must only be imported from main-process code.
 export { INSTALL_METHOD_LOCATION_HINTS, inferMethod } from './location-hints';
 export { resolveInstallOptions, pickInstallOption, toPlatform } from './install-options';
-export {
-  consoleLogger,
-  noopLogger,
-  type DepsLogger,
-  type IHostDependencyStore,
-  type InstallCommandRunner,
-} from './ports';
+export { type IHostDependencyStore, type InstallCommandRunner } from './ports';
 export {
   deriveHostDependencyStatus,
   hostDependencySelectionSchema,

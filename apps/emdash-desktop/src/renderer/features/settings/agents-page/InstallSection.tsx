@@ -1,8 +1,7 @@
 import type { InstallOption } from '@emdash/shared/deps';
-import type { DependencyId } from '@emdash/shared/deps/runtime';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import { useHostDependencyInstallation } from '@renderer/lib/stores/use-host-dependency-installation';
+import { useAgentInstallationStatus } from '@renderer/lib/stores/use-agent-installation-statuses';
 import type { AgentPayload } from '@shared/core/agents/agent-payload';
 import { DependencyInstallationStatusCard } from './DependencyInstallationStatusCard';
 import { DependencyInstallationUpdateCard } from './DependencyInstallationUpdateCard';
@@ -27,10 +26,10 @@ export type InstallSectionProps = {
 
 /**
  * Status-driven composer that renders the appropriate installation card(s) based on
- * the current host-scoped dependency state from useHostDependencyInstallation.
+ * the current host-scoped dependency state from useAgentInstallationStatus.
  *
  * The hook is the single source of truth; select rows and status badges always
- * read from the same `installations`/`used`/`status`/`operation` objects.
+ * read from the same `installations`/`used`/`status` objects.
  */
 export const InstallSection = observer(function InstallSection({
   agentId,
@@ -39,20 +38,9 @@ export const InstallSection = observer(function InstallSection({
   installOptions,
   hideOverrideOptions = false,
 }: InstallSectionProps) {
-  const vm = useHostDependencyInstallation(agentId as DependencyId, connectionId, agentPayload);
+  const vm = useAgentInstallationStatus(agentId, connectionId, agentPayload);
 
   const isInstalled = vm.status === 'available';
-
-  // Build the update command map keyed by method for DependencyInstallationUpdateCard
-  const updateCommands = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const opt of installOptions) {
-      if (opt.updateCommand) {
-        map[opt.method] = opt.updateCommand;
-      }
-    }
-    return map;
-  }, [installOptions]);
 
   // Derive initial path/cli values from the hook's installations for the install card inputs
   const initialPath = useMemo(() => {
@@ -71,18 +59,25 @@ export const InstallSection = observer(function InstallSection({
       {isInstalled && <DependencyInstallationStatusCard vm={vm} />}
 
       {/* Update card: shown when the used installation has an update available */}
-      {isInstalled && vm.used?.updateAvailable && (
-        <DependencyInstallationUpdateCard vm={vm} updateCommands={updateCommands} />
+      {isInstalled && (
+        <DependencyInstallationUpdateCard
+          agentId={agentId}
+          connectionId={connectionId}
+          agentPayload={agentPayload}
+        />
       )}
 
-      {/* Install card: always shown so the user can add/switch installation methods */}
-      <InstallDependencyCard
-        vm={vm}
-        installOptions={installOptions}
-        hideOverrideOptions={hideOverrideOptions}
-        initialPath={initialPath}
-        initialCli={initialCli}
-      />
+      {!isInstalled && (
+        <InstallDependencyCard
+          vm={vm}
+          installOptions={installOptions}
+          hideOverrideOptions={hideOverrideOptions}
+          initialPath={initialPath}
+          initialCli={initialCli}
+          isInstalling={vm.isInstalling}
+          installingMethod={vm.installingMethod}
+        />
+      )}
     </div>
   );
 });
