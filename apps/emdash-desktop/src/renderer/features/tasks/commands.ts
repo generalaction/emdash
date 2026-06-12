@@ -7,6 +7,7 @@ import {
 } from '@renderer/features/tasks/stores/task-selectors';
 import { closeActiveTabWithConfirm } from '@renderer/features/tasks/tabs/close-tab-with-confirm';
 import type { CommandProvider } from '@renderer/lib/commands/types';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
@@ -45,6 +46,8 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       const activeBrowserTab = tabManager?.resolvedTabs.find(
         (tab) => tab.isActive && tab.kind === 'browser'
       );
+      const activeBrowserSession =
+        activeBrowserTab?.kind === 'browser' ? activeBrowserTab.session : null;
 
       const newConversationDef = taskDef('task.newConversation');
       const newConversationSplitRightDef = taskDef('task.newConversationSplitRight');
@@ -59,6 +62,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       const browserReloadDef = taskDef('task.browserReload');
       const browserFocusUrlDef = taskDef('task.browserFocusUrl');
       const browserOpenExternalDef = taskDef('task.browserOpenExternal');
+      const browserCopyUrlDef = taskDef('task.browserCopyUrl');
       const gitFetchDef = taskDef('task.gitFetch');
       const gitPullDef = taskDef('task.gitPull');
       const gitPushDef = taskDef('task.gitPush');
@@ -231,6 +235,31 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
             }
           },
         },
+        ...(activeBrowserSession
+          ? [
+              {
+                id: browserCopyUrlDef.id,
+                label: browserCopyUrlDef.label,
+                description: browserCopyUrlDef.description,
+                shortcutKey: browserCopyUrlDef.shortcutKey,
+                group: browserCopyUrlDef.group,
+                execute() {
+                  const normalized = normalizeBrowserUrl(activeBrowserSession.currentUrl, {
+                    allowSearchQueries: false,
+                  });
+                  if (!normalized.ok) return;
+                  void navigator.clipboard
+                    .writeText(normalized.url)
+                    .then(() => {
+                      toast({ title: 'Browser URL copied' });
+                    })
+                    .catch(() => {
+                      toast({ title: 'Could not copy browser URL', variant: 'destructive' });
+                    });
+                },
+              },
+            ]
+          : []),
 
         // ── Tab management ─────────────────────────────────────────────────
         {

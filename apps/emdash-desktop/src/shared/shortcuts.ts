@@ -150,6 +150,12 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Open an in-app browser in the current task',
     category: 'Task View',
   },
+  browserCopyUrl: {
+    defaultHotkey: 'Mod+Shift+C',
+    label: 'Copy Browser URL',
+    description: 'Copy the current in-app browser URL',
+    category: 'Task View',
+  },
   toggleTerminalDrawer: {
     defaultHotkey: 'Mod+J',
     label: 'Toggle Terminal Drawer',
