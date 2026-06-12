@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRef } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import { type PromptLibraryState } from '@shared/prompt-library';
 
@@ -8,6 +9,7 @@ const EMPTY_STATE: PromptLibraryState = { prompts: [], folders: [] };
 
 export function usePromptLibrary() {
   const queryClient = useQueryClient();
+  const prewrittenPreviousState = useRef<{ state: PromptLibraryState | undefined } | null>(null);
   const { data, isLoading } = useQuery({
     queryKey: promptLibraryQueryKey,
     queryFn: () => rpc.promptLibrary.get(),
@@ -23,7 +25,10 @@ export function usePromptLibrary() {
     mutationFn: (state) => rpc.promptLibrary.update(state),
     onMutate: async (state) => {
       await queryClient.cancelQueries({ queryKey: promptLibraryQueryKey });
-      const previousState = queryClient.getQueryData<PromptLibraryState>(promptLibraryQueryKey);
+      const previousState =
+        prewrittenPreviousState.current?.state ??
+        queryClient.getQueryData<PromptLibraryState>(promptLibraryQueryKey);
+      prewrittenPreviousState.current = null;
       queryClient.setQueryData(promptLibraryQueryKey, state);
       return { previousState };
     },
@@ -37,9 +42,13 @@ export function usePromptLibrary() {
   });
 
   // Sets the cache before mutating so the cache already holds the new order
-  // when the caller's drop-time local state is cleared. Errors are recovered
-  // by the mutation's invalidate.
+  // when the caller's drop-time local state is cleared. Keep the true prior
+  // state so mutation errors can roll back immediately instead of waiting for
+  // invalidateQueries to refetch.
   const reorder: typeof updateMutation.mutate = (state, options) => {
+    prewrittenPreviousState.current = {
+      state: queryClient.getQueryData<PromptLibraryState>(promptLibraryQueryKey),
+    };
     queryClient.setQueryData(promptLibraryQueryKey, state);
     updateMutation.mutate(state, options);
   };

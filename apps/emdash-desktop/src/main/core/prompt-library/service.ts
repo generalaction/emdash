@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { KV } from '@main/db/kv';
-import { appSettings } from '@main/db/schema';
+import { appSettings, kv } from '@main/db/schema';
 import type { IInitializable } from '@main/lib/lifecycle';
 import {
   DEFAULT_PROMPT_LIBRARY,
@@ -20,6 +20,10 @@ type PromptLibraryKV = {
 };
 
 const promptLibraryKV = new KV<PromptLibraryKV>('prompt-library');
+
+function promptLibraryKey(key: keyof PromptLibraryKV & string): string {
+  return `prompt-library:${key}`;
+}
 
 export class PromptLibraryService implements IInitializable {
   private seedPromise: Promise<void> | null = null;
@@ -130,8 +134,27 @@ export class PromptLibraryService implements IInitializable {
   async updateState(state: PromptLibraryState): Promise<void> {
     const prompts = promptLibrarySchema.parse(state.prompts);
     const folders = promptLibraryFoldersSchema.parse(state.folders);
-    await promptLibraryKV.set('prompts', this.sanitizePrompts(prompts, folders));
-    await promptLibraryKV.set('folders', folders);
+    const nextPrompts = this.sanitizePrompts(prompts, folders);
+    db.transaction((tx) => {
+      const now = Date.now();
+      const serialisedPrompts = JSON.stringify(nextPrompts);
+      const serialisedFolders = JSON.stringify(folders);
+
+      tx.insert(kv)
+        .values({ key: promptLibraryKey('prompts'), value: serialisedPrompts, updatedAt: now })
+        .onConflictDoUpdate({
+          target: kv.key,
+          set: { value: serialisedPrompts, updatedAt: now },
+        })
+        .run();
+      tx.insert(kv)
+        .values({ key: promptLibraryKey('folders'), value: serialisedFolders, updatedAt: now })
+        .onConflictDoUpdate({
+          target: kv.key,
+          set: { value: serialisedFolders, updatedAt: now },
+        })
+        .run();
+    });
   }
 
   async upsertReviewPrompt(prompt: string): Promise<void> {
