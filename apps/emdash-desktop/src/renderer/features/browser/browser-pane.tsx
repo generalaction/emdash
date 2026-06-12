@@ -222,7 +222,11 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
     [adapter]
   );
 
+  const canAnnotate =
+    adapter !== null && !showStartPage && (annotationState.picking || annotationState.draft === null);
+
   const toggleAnnotate = useCallback(() => {
+    if (annotationState.draft && !annotationState.picking) return;
     runPickerCommand({ kind: annotationState.picking ? 'stop' : 'start' });
   }, [annotationState, runPickerCommand]);
 
@@ -241,9 +245,11 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
   }, [annotationState, runPickerCommand]);
 
   const removeAnnotation = useCallback(
-    (token: number) => {
-      annotationState.removeAnnotation(token);
-      runPickerCommand({ kind: 'untrack', token });
+    (token: number, epoch: number) => {
+      const isCurrentEpoch = epoch === annotationState.navigationEpoch;
+      annotationState.removeAnnotation(token, epoch);
+      // The page tracker only knows tokens from the current page context.
+      if (isCurrentEpoch) runPickerCommand({ kind: 'untrack', token });
     },
     [annotationState, runPickerCommand]
   );
@@ -283,7 +289,7 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
         adapter={adapter}
         autoFocusUrl={showStartPage}
         annotateActive={annotationState.picking}
-        canAnnotate={adapter !== null && !showStartPage}
+        canAnnotate={canAnnotate}
         onToggleAnnotate={toggleAnnotate}
         onNavigate={navigateTo}
         onReload={reload}
@@ -321,6 +327,7 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
           state={annotationState}
           onSent={clearAnnotations}
           onClearAll={clearAnnotations}
+          onRemoveAnnotation={removeAnnotation}
         />
       </div>
     </div>

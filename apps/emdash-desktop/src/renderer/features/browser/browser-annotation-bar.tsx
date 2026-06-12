@@ -1,4 +1,4 @@
-import { Send, X } from 'lucide-react';
+import { Check, ChevronDown, Plus, Send, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
@@ -17,31 +17,48 @@ import AgentLogo from '@renderer/lib/components/agent-logo';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { pastePromptInjection } from '@renderer/lib/pty/prompt-injection';
+import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@renderer/lib/ui/dropdown-menu';
 import { agentConfig } from '@renderer/utils/agentConfig';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import {
+  AGENT_PROVIDER_IDS,
+  type AgentProviderId,
+} from '@shared/core/agents/agent-provider-registry';
 import { buildAnnotationPrompt } from './browser-annotation-prompt';
 import type { BrowserAnnotationState } from './browser-annotation-store';
+
+type AnnotationSendTarget =
+  | { kind: 'existing'; conversationId: string }
+  | { kind: 'new'; providerId: AgentProviderId };
 
 export const BrowserAnnotationBar = observer(function BrowserAnnotationBar({
   state,
   onSent,
   onClearAll,
+  onRemoveAnnotation,
 }: {
   state: BrowserAnnotationState;
   onSent: () => void;
   onClearAll: () => void;
+  onRemoveAnnotation: (token: number, epoch: number) => void;
 }) {
   const { projectId, taskId } = useTaskViewContext();
   const conversations = useConversations();
   const taskView = useWorkspaceViewModel();
   const connectionId = getProjectSshConnectionId(projectId);
-  const { providerId: newConversationProviderId, createDisabled } =
-    useEffectiveProvider(connectionId);
+  const { providerId: defaultNewProviderId, createDisabled } = useEffectiveProvider(connectionId);
   const autoApproveDefaults = useAgentAutoApproveDefaults();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [target, setTarget] = useState<AnnotationSendTarget | null>(null);
   const [isSending, setIsSending] = useState(false);
 
   // No useMemo: the conversations map is a stable MobX observable.map instance, so a
@@ -55,25 +72,38 @@ export const BrowserAnnotationBar = observer(function BrowserAnnotationBar({
     }))
     .sort((a, b) => b.lastInteractedAt.localeCompare(a.lastInteractedAt));
 
-  const hasConversations = options.length > 0;
-  const targetOption =
-    (selectedId ? options.find((option) => option.id === selectedId) : undefined) ?? options[0];
-  const targetId = targetOption?.id ?? null;
-  const count = state.annotations.length;
-  const canSend =
-    count > 0 &&
-    !isSending &&
-    (hasConversations ? targetId !== null : newConversationProviderId !== null && !createDisabled);
+  const dependencyResource = connectionId
+    ? appState.dependencies.getRemote(connectionId)
+    : appState.dependencies.local;
+  const installedProviders = AGENT_PROVIDER_IDS.filter(
+    (id) => dependencyResource.data?.[id]?.status === 'available'
+  );
 
-  const sendToExisting = async () => {
-    if (!targetId) throw new Error('No conversation selected');
-    const session = conversations.sessions.get(targetId);
-    const conversation = conversations.conversations.get(targetId);
+  const resolvedTarget: AnnotationSendTarget | null = (() => {
+    if (target?.kind === 'existing' && options.some((o) => o.id === target.conversationId)) {
+      return target;
+    }
+    if (target?.kind === 'new' && installedProviders.includes(target.providerId)) {
+      return target;
+    }
+    if (options[0]) return { kind: 'existing', conversationId: options[0].id };
+    if (defaultNewProviderId && !createDisabled) {
+      return { kind: 'new', providerId: defaultNewProviderId };
+    }
+    return null;
+  })();
+
+  const count = state.annotations.length;
+  const canSend = count > 0 && !isSending && resolvedTarget !== null;
+
+  const sendToExisting = async (conversationId: string) => {
+    const session = conversations.sessions.get(conversationId);
+    const conversation = conversations.conversations.get(conversationId);
     if (!session || !conversation) throw new Error('Conversation unavailable');
 
     // The target may be dehydrated (tab closed → PTY killed). Hydrating is
     // idempotent: the session supervisor ignores it when the PTY is running.
-    await conversations.hydrateConversation(targetId);
+    await conversations.hydrateConversation(conversationId);
 
     const text = buildAnnotationPrompt(state.annotations.slice());
     let delivered = true;
@@ -94,13 +124,14 @@ export const BrowserAnnotationBar = observer(function BrowserAnnotationBar({
     }
     if (!delivered) throw new Error('Agent session is not running');
     conversation.setWorking();
+    taskView.tabGroupManager.openConversation(conversationId);
+    taskView.setFocusedRegion('main');
   };
 
-  const sendToNewConversation = async () => {
-    if (!newConversationProviderId || createDisabled) return;
+  const sendToNewConversation = async (providerId: AgentProviderId) => {
     const text = buildAnnotationPrompt(state.annotations.slice());
     const title = nextDefaultConversationTitle(
-      newConversationProviderId,
+      providerId,
       Array.from(conversations.conversations.values(), (store) => store.data)
     );
     const conversationId = crypto.randomUUID();
@@ -108,9 +139,9 @@ export const BrowserAnnotationBar = observer(function BrowserAnnotationBar({
       id: conversationId,
       projectId,
       taskId,
-      provider: newConversationProviderId,
+      provider: providerId,
       title,
-      autoApprove: autoApproveDefaults.getDefault(newConversationProviderId),
+      autoApprove: autoApproveDefaults.getDefault(providerId),
       initialPrompt: text,
     });
     taskView.tabGroupManager.openConversation(conversationId);
@@ -118,17 +149,13 @@ export const BrowserAnnotationBar = observer(function BrowserAnnotationBar({
   };
 
   const send = async () => {
-    if (count === 0 || isSending) return;
+    if (count === 0 || isSending || !resolvedTarget) return;
     setIsSending(true);
     try {
-      if (hasConversations) {
-        await sendToExisting();
-        if (targetId) {
-          taskView.tabGroupManager.openConversation(targetId);
-          taskView.setFocusedRegion('main');
-        }
+      if (resolvedTarget.kind === 'existing') {
+        await sendToExisting(resolvedTarget.conversationId);
       } else {
-        await sendToNewConversation();
+        await sendToNewConversation(resolvedTarget.providerId);
       }
       onSent();
     } catch (error) {
@@ -145,68 +172,139 @@ export const BrowserAnnotationBar = observer(function BrowserAnnotationBar({
   if (count === 0) return null;
 
   return (
-    <div className="pointer-events-auto absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 animate-in items-center gap-1 rounded-xl bg-background-quaternary py-1.5 pr-1.5 pl-3.5 shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_4px_12px_rgba(0,0,0,0.1),0_12px_32px_rgba(0,0,0,0.08)] duration-200 fade-in-0 slide-in-from-bottom-2">
-      <span className="text-sm font-medium whitespace-nowrap tabular-nums">
-        {count} {count === 1 ? 'annotation' : 'annotations'}
-      </span>
-      <Tooltip>
-        <TooltipTrigger
+    <div className="pointer-events-auto absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 animate-in items-center gap-1 rounded-xl bg-background-quaternary p-1.5 shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_4px_12px_rgba(0,0,0,0.1),0_12px_32px_rgba(0,0,0,0.08)] duration-200 fade-in-0 slide-in-from-bottom-2">
+      <DropdownMenu>
+        <DropdownMenuTrigger
           render={
             <Button
               type="button"
               variant="ghost"
-              size="icon"
-              className="size-7 text-foreground-muted"
-              aria-label="Clear annotations"
-              onClick={onClearAll}
-            >
-              <X className="size-3.5" />
-            </Button>
+              size="sm"
+              className="h-7 gap-1 px-2 text-sm font-medium tabular-nums"
+            />
           }
-        />
-        <TooltipContent>Clear annotations</TooltipContent>
-      </Tooltip>
+        >
+          {count} {count === 1 ? 'annotation' : 'annotations'}
+          <ChevronDown className="size-3.5 text-foreground-muted" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="max-w-80 min-w-56">
+          {state.annotations.map((annotation, index) => (
+            <DropdownMenuItem
+              key={`${annotation.epoch}:${annotation.token}`}
+              className="gap-2"
+              onClick={() => onRemoveAnnotation(annotation.token, annotation.epoch)}
+            >
+              <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[10px] font-semibold text-white tabular-nums">
+                {index + 1}
+              </span>
+              <span className="min-w-0 flex-1 truncate">{annotation.comment}</span>
+              <Trash2 className="size-3.5 shrink-0 text-foreground-muted" />
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={onClearAll}>Clear all annotations</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <div className="mx-1 h-4 w-px shrink-0 bg-border" />
-      {hasConversations && (
-        <Select value={targetId ?? undefined} onValueChange={(next) => setSelectedId(next)}>
-          <SelectTrigger
-            size="sm"
-            className="max-w-52 border-0 bg-transparent shadow-none hover:bg-background-secondary dark:bg-transparent"
-            aria-label="Agent conversation"
-          >
-            {targetOption ? (
-              <ConversationOptionLabel
-                providerId={targetOption.providerId}
-                title={targetOption.title}
-              />
-            ) : (
-              <span className="text-foreground-muted">Select conversation</span>
-            )}
-          </SelectTrigger>
-          <SelectContent className="min-w-max">
-            {options.map((option) => (
-              <SelectItem key={option.id} value={option.id}>
-                <ConversationOptionLabel providerId={option.providerId} title={option.title} />
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 max-w-56 gap-1.5 px-2 font-normal"
+              aria-label="Send target"
+            />
+          }
+        >
+          {resolvedTarget ? (
+            <SendTargetLabel target={resolvedTarget} conversations={options} />
+          ) : (
+            <span className="text-foreground-muted">No agent available</span>
+          )}
+          <ChevronDown className="size-3.5 shrink-0 text-foreground-muted" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-52">
+          {options.map((option) => {
+            const isSelected =
+              resolvedTarget?.kind === 'existing' && resolvedTarget.conversationId === option.id;
+            return (
+              <DropdownMenuItem
+                key={option.id}
+                className="gap-2"
+                onClick={() => setTarget({ kind: 'existing', conversationId: option.id })}
+              >
+                <ProviderLabel
+                  providerId={option.providerId}
+                  label={formatConversationTitleForDisplay(option.providerId, option.title)}
+                />
+                {isSelected && <Check className="ml-auto size-3.5 shrink-0" />}
+              </DropdownMenuItem>
+            );
+          })}
+          {options.length > 0 && <DropdownMenuSeparator />}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="gap-2">
+              <Plus className="size-3.5 shrink-0 text-foreground-muted" />
+              New agent
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="min-w-44">
+              {installedProviders.map((providerId) => {
+                const isSelected =
+                  resolvedTarget?.kind === 'new' && resolvedTarget.providerId === providerId;
+                return (
+                  <DropdownMenuItem
+                    key={providerId}
+                    className="gap-2"
+                    onClick={() => setTarget({ kind: 'new', providerId })}
+                  >
+                    <ProviderLabel
+                      providerId={providerId}
+                      label={agentConfig[providerId]?.name ?? providerId}
+                    />
+                    {isSelected && <Check className="ml-auto size-3.5 shrink-0" />}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <Button type="button" size="sm" className="h-7 gap-1.5" disabled={!canSend} onClick={send}>
         <Send className="size-3.5" />
-        {hasConversations ? 'Send to agent' : 'Send to new agent'}
+        {resolvedTarget?.kind === 'new' ? 'Send to new agent' : 'Send to agent'}
       </Button>
     </div>
   );
 });
 
-function ConversationOptionLabel({
-  providerId,
-  title,
+function SendTargetLabel({
+  target,
+  conversations,
 }: {
-  providerId: AgentProviderId;
-  title: string;
+  target: AnnotationSendTarget;
+  conversations: Array<{ id: string; title: string; providerId: AgentProviderId }>;
 }) {
+  if (target.kind === 'existing') {
+    const conversation = conversations.find((option) => option.id === target.conversationId);
+    if (!conversation) return null;
+    return (
+      <ProviderLabel
+        providerId={conversation.providerId}
+        label={formatConversationTitleForDisplay(conversation.providerId, conversation.title)}
+      />
+    );
+  }
+  return (
+    <ProviderLabel
+      providerId={target.providerId}
+      label={`New ${agentConfig[target.providerId]?.name ?? target.providerId}`}
+    />
+  );
+}
+
+function ProviderLabel({ providerId, label }: { providerId: AgentProviderId; label: string }) {
   const config = agentConfig[providerId];
   return (
     <span className="flex min-w-0 items-center gap-1.5">
@@ -220,7 +318,7 @@ function ConversationOptionLabel({
           className="size-3.5 shrink-0"
         />
       )}
-      <span className="truncate">{formatConversationTitleForDisplay(providerId, title)}</span>
+      <span className="truncate">{label}</span>
     </span>
   );
 }

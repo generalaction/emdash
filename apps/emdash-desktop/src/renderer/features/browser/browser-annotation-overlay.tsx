@@ -21,7 +21,7 @@ export const BrowserAnnotationOverlay = observer(function BrowserAnnotationOverl
   zoomFactor: number;
   onCommitDraft: (comment: string) => void;
   onCancelDraft: () => void;
-  onRemoveAnnotation: (token: number) => void;
+  onRemoveAnnotation: (token: number, epoch: number) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
@@ -54,7 +54,7 @@ export const BrowserAnnotationOverlay = observer(function BrowserAnnotationOverl
                   className="pointer-events-auto absolute flex size-5 -translate-x-1/2 -translate-y-1/2 animate-in items-center justify-center rounded-full bg-blue-500 text-[11px] font-semibold text-white tabular-nums shadow-md ring-2 ring-white/90 transition-[scale,background-color] duration-150 fade-in-0 zoom-in-75 hover:bg-red-500 active:scale-[0.96]"
                   style={{ left: rect.x, top: rect.y }}
                   aria-label={`Remove annotation ${marker.ordinal}`}
-                  onClick={() => onRemoveAnnotation(marker.token)}
+                  onClick={() => onRemoveAnnotation(marker.token, state.navigationEpoch)}
                 >
                   {marker.ordinal}
                 </button>
