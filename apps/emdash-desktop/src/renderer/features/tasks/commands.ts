@@ -59,6 +59,8 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       const toggleRightSidebarDef = taskDef('task.toggleRightSidebar');
       const newTerminalDef = taskDef('task.newTerminal');
       const openBrowserDef = taskDef('task.openBrowser');
+      const browserGoBackDef = taskDef('task.browserGoBack');
+      const browserGoForwardDef = taskDef('task.browserGoForward');
       const browserReloadDef = taskDef('task.browserReload');
       const browserFocusUrlDef = taskDef('task.browserFocusUrl');
       const browserOpenExternalDef = taskDef('task.browserOpenExternal');
@@ -194,6 +196,30 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           execute() {
             taskView?.tabGroupManager.openBrowser();
             taskView?.setFocusedRegion('main');
+          },
+        },
+        {
+          id: browserGoBackDef.id,
+          label: browserGoBackDef.label,
+          description: browserGoBackDef.description,
+          group: browserGoBackDef.group,
+          enabled: activeBrowserTab?.kind === 'browser' && activeBrowserTab.session.canGoBack,
+          execute() {
+            if (activeBrowserTab?.kind !== 'browser') return;
+            const adapter = browserControlsRegistry.get(activeBrowserTab.browserId)?.adapter;
+            if (adapter?.canGoBack()) adapter.goBack();
+          },
+        },
+        {
+          id: browserGoForwardDef.id,
+          label: browserGoForwardDef.label,
+          description: browserGoForwardDef.description,
+          group: browserGoForwardDef.group,
+          enabled: activeBrowserTab?.kind === 'browser' && activeBrowserTab.session.canGoForward,
+          execute() {
+            if (activeBrowserTab?.kind !== 'browser') return;
+            const adapter = browserControlsRegistry.get(activeBrowserTab.browserId)?.adapter;
+            if (adapter?.canGoForward()) adapter.goForward();
           },
         },
         {
