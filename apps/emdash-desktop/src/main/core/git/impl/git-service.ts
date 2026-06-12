@@ -500,19 +500,15 @@ export class GitService implements GitProvider, IDisposable {
   }
 
   async getFileAtIndex(filePath: string): Promise<string | null> {
-    const cf = this._getCatFile();
-    if (cf) {
-      try {
-        return await cf.read(`:0:${filePath}`);
-      } catch {
-        // Fall back
-      }
-    }
+    // Must NOT go through the persistent cat-file --batch channel: git caches
+    // the in-core index on the first `:0:<path>` read and never re-reads it,
+    // so a long-lived batch process keeps serving stale staged content after
+    // the index changes (git add / commit). A one-shot process is always fresh.
     try {
-      const { stdout } = await this.ctx.exec('git', ['show', `:0:${filePath}`], {
+      const { stdout } = await this.ctx.exec('git', ['cat-file', 'blob', `:0:${filePath}`], {
         maxBuffer: MAX_DIFF_CONTENT_BYTES,
       });
-      return stripTrailingNewline(stdout);
+      return stdout;
     } catch {
       return null;
     }

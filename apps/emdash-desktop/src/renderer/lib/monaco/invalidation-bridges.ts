@@ -58,6 +58,14 @@ export function wireModelRegistryInvalidation(registry: MonacoModelRegistry): ()
   // Local/remote ref changes → invalidate matching git:// models (exact ref when known).
   const unsubRefs = events.on(gitRefChangedChannel, ({ projectId, kind, changedRefs }) => {
     if (kind === 'config') return;
+    // A commit moves the local branch ref but never touches the worktree HEAD
+    // file, so no workspace-level 'head' event fires — refresh HEAD models on
+    // any local ref change to keep HEAD-based diffs in sync after commits.
+    if (kind === 'local-refs') {
+      for (const uri of registry.findGitUris({ projectId, ref: HEAD_REF })) {
+        void registry.invalidateModel(uri);
+      }
+    }
     if (changedRefs) {
       for (const ref of changedRefs) {
         for (const uri of registry.findGitUris({ projectId, ref })) {
