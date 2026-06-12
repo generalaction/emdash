@@ -1,7 +1,7 @@
-import type { CommandContext } from '@emdash/cli-agent-plugins';
-import { providerRegistry } from '@emdash/cli-agent-plugins/providers';
+import { pluginRegistry } from '@emdash/cli-agent-plugins/registry';
+import type { CommandContext } from '@emdash/shared/agents/plugins';
 /**
- * Tests for provider.buildCommand() special cases.
+ * Tests for provider.behavior.prompt.buildCommand() special cases.
  * Each test exercises a specific provider's command-building behavior by calling
  * the plugin directly (no app infrastructure needed).
  */
@@ -17,7 +17,7 @@ function ctx(overrides: Partial<CommandContext> = {}): CommandContext {
 }
 
 function cmd(id: string, overrides: Partial<CommandContext> = {}) {
-  return providerRegistry.get(id)!.buildCommand(ctx({ cli: id, ...overrides }));
+  return pluginRegistry.get(id)!.behavior.prompt!.buildCommand(ctx({ cli: id, ...overrides }));
 }
 
 // ─── Codex ─────────────────────────────────────────────────────────────────

@@ -1,6 +1,5 @@
-import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
-import type { DependencyInstallError, DependencyUpdateError } from '@emdash/shared/deps';
-import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { DependencyInstallError, DependencyUpdateError } from '@emdash/shared/deps/runtime';
+import { getProvider, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 
 export type AgentInstallActionState = {
   render: boolean;
@@ -28,11 +27,13 @@ export function getAgentInstallErrorMessage(error: DependencyInstallError): stri
 
 export function getAgentInstallActionState({
   agentId,
+  agentName,
   canInstall,
   isInstalled,
   isInstalling,
 }: {
   agentId: AgentProviderId;
+  agentName?: string;
   canInstall: boolean;
   isInstalled: boolean;
   isInstalling: boolean;
@@ -41,7 +42,7 @@ export function getAgentInstallActionState({
     render: canInstall && !isInstalled,
     disabled: isInstalling,
     installing: isInstalling,
-    label: `Install ${metadataRegistry.get(agentId)?.name ?? agentId}`,
+    label: `Install ${agentName ?? getProvider(agentId)?.name ?? agentId}`,
   };
 }
 

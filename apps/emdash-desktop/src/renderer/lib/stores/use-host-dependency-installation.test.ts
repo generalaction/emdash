@@ -1,5 +1,5 @@
-import { deriveHostDependencyStatus } from '@emdash/shared/deps';
-import type { HostDependency, Installation } from '@emdash/shared/deps';
+import { deriveHostDependencyStatus } from '@emdash/shared/deps/runtime';
+import type { HostDependency, Installation } from '@emdash/shared/deps/runtime';
 /**
  * Tests for the useHostDependencyInstallation hook's data model.
  *

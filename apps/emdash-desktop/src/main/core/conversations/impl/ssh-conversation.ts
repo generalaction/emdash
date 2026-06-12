@@ -1,5 +1,5 @@
 import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
-import { getPlugin, getPluginMetadata } from '@main/core/agents/plugin-registry';
+import { getPlugin } from '@main/core/agents/plugin-registry';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
@@ -124,9 +124,9 @@ export class SshConversationProvider implements ConversationProvider {
         requireProviderSessionId: false,
       });
       const plugin = getPlugin(conversation.providerId);
-      const meta = getPluginMetadata(conversation.providerId);
 
-      const binaryName = meta.capabilities.install.binaryNames[0] ?? conversation.providerId;
+      const binaryName =
+        plugin.capabilities.hostDependency.binaryNames[0] ?? conversation.providerId;
       const executableCli = await resolveAgentExecutable({
         providerId: conversation.providerId,
         binaryName,
@@ -135,7 +135,7 @@ export class SshConversationProvider implements ConversationProvider {
         connectionId: this.proxy.connectionId,
       });
 
-      const agentCommand = plugin.buildCommand({
+      const agentCommand = plugin.behavior.prompt!.buildCommand({
         cli: executableCli,
         extraArgs: parseExtraArgs(providerConfig?.extraArgs),
         autoApprove: conversation.autoApprove ?? false,

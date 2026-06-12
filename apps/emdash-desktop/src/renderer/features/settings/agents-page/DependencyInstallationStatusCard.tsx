@@ -1,4 +1,4 @@
-import type { InstallationSource, HostDependencySelection } from '@emdash/shared/deps';
+import type { InstallationSource, HostDependencySelection } from '@emdash/shared/deps/runtime';
 import { Check, MoreHorizontal, RefreshCw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type { HostDependencyInstallation } from '@renderer/lib/stores/use-host-dependency-installation';

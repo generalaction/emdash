@@ -2,7 +2,7 @@ import type {
   DependencyId,
   HostDependencySelection,
   IHostDependencyStore,
-} from '@emdash/shared/deps';
+} from '@emdash/shared/deps/runtime';
 import { eq } from 'drizzle-orm';
 import { mergeDependencySelection } from '@main/core/ssh/config/connection-metadata';
 import { db } from '@main/db/client';

@@ -1,70 +1,59 @@
-import type { InstallMethod } from '@emdash/cli-agent-plugins';
+import type { InstallMethod } from '@emdash/shared/deps';
 import type {
   DependencyId,
   DependencyStatus,
   HostDependency,
   HostDependencySelection,
   Installation,
-} from '@emdash/shared/deps';
-import { deriveHostDependencyStatus } from '@emdash/shared/deps';
-import { useObserver } from 'mobx-react-lite';
+} from '@emdash/shared/deps/runtime';
+import { deriveHostDependencyStatus } from '@emdash/shared/deps/runtime';
 import { useCallback, useMemo } from 'react';
 import type { AgentPayload } from '@shared/core/agents/agent-payload';
-import { appState } from './app-state';
-import type { DependencyOperation } from './dependencies-store';
+import { useAgentInstallationStatuses } from './use-agent-installation-statuses';
 
 export type HostDependencyInstallationActions = {
-  /** Run the install command for the given method. */
   install(method: InstallMethod): Promise<void>;
-  /** Run the update command for the given method. */
   update(method: InstallMethod): Promise<void>;
-  /** Persist the user's chosen installation and trigger a re-probe. */
   setUsed(selection: HostDependencySelection): Promise<void>;
-  /** Trigger a fresh probe for this dependency. */
   refresh(): Promise<void>;
-  /** Fetch the latest available version from the release source. */
   fetchLatestVersion(): Promise<void>;
 };
 
 export type HostDependencyInstallation = {
-  /** All resolved installations (detected method + user overrides). */
   installations: Installation[];
-  /** The currently selected installation, or undefined before first probe. */
   used: Installation | undefined;
-  /** Derived status from the selected installation. */
   status: DependencyStatus;
-  /**
-   * The current in-flight operation (install or update), if any.
-   * The `method` field on the operation identifies which installation is affected.
-   */
-  operation: DependencyOperation | undefined;
-  /** The raw HostDependency, if available. */
+  operation: undefined;
   hostDependency: HostDependency | undefined;
 } & HostDependencyInstallationActions;
 
-/**
- * Returns installation status and actions for a single agent dependency on a
- * specific host (local or SSH connection). Uses the HostDependency model to
- * provide per-method status, so spinners and badges can be scoped to the
- * specific method being installed/updated.
- *
- * Falls back to the AgentPayload's flat status when no HostDependency has been
- * populated yet (before the first probe completes).
- */
 export function useHostDependencyInstallation(
   agentId: DependencyId,
   connectionId: string | undefined,
   agentPayload: AgentPayload | undefined
 ): HostDependencyInstallation {
-  const { dependencies } = appState;
+  const {
+    data: statuses,
+    install: installMutate,
+    update: updateMutate,
+    setUsedInstallation,
+    refreshLatestVersion,
+    probeAll,
+  } = useAgentInstallationStatuses(connectionId);
 
-  const hostDependency = useObserver(() => dependencies.getHostDependency(agentId, connectionId));
-  const operation = useObserver(() => dependencies.getOperation(agentId, connectionId));
+  const statusEntry = statuses?.find((s) => s.id === agentId);
+
+  const hostDependency: HostDependency | undefined = statusEntry
+    ? {
+        hostId: connectionId ?? 'local',
+        dependencyId: agentId,
+        installations: statusEntry.installations,
+        usedId: statusEntry.usedId,
+      }
+    : undefined;
 
   const installations = useMemo(() => {
     if (hostDependency) return hostDependency.installations;
-    // Before HostDependency is populated, synthesise a single "auto" installation
-    // from the flat AgentPayload status so the UI renders without waiting.
     if (!agentPayload) return [];
     return [
       {
@@ -88,39 +77,50 @@ export function useHostDependencyInstallation(
   }, [hostDependency, agentPayload]);
 
   const install = useCallback(
-    async (method: InstallMethod) => {
-      await dependencies.install(agentId, connectionId, method);
-    },
-    [dependencies, agentId, connectionId]
+    (method: InstallMethod) =>
+      new Promise<void>((resolve) => {
+        installMutate({ id: agentId as never, method }, { onSettled: () => resolve() });
+      }),
+    [installMutate, agentId]
   );
 
   const update = useCallback(
-    async (method: InstallMethod) => {
-      await dependencies.update(agentId, connectionId, method);
-    },
-    [dependencies, agentId, connectionId]
+    (method: InstallMethod) =>
+      new Promise<void>((resolve) => {
+        updateMutate({ id: agentId as never, method }, { onSettled: () => resolve() });
+      }),
+    [updateMutate, agentId]
   );
 
   const setUsed = useCallback(
-    async (selection: HostDependencySelection) => {
-      await dependencies.setUsedInstallation(agentId, connectionId, selection);
-    },
-    [dependencies, agentId, connectionId]
+    (selection: HostDependencySelection) =>
+      new Promise<void>((resolve) => {
+        setUsedInstallation({ id: agentId, selection }, { onSettled: () => resolve() });
+      }),
+    [setUsedInstallation, agentId]
   );
 
-  const refresh = useCallback(async () => {
-    await dependencies.refreshAgents(connectionId, { refreshShellEnv: true });
-  }, [dependencies, connectionId]);
+  const refresh = useCallback(
+    () =>
+      new Promise<void>((resolve) => {
+        probeAll(undefined, { onSettled: () => resolve() });
+      }),
+    [probeAll]
+  );
 
-  const fetchLatestVersion = useCallback(async () => {
-    await dependencies.refreshLatestVersion(agentId, connectionId);
-  }, [dependencies, agentId, connectionId]);
+  const fetchLatestVersion = useCallback(
+    () =>
+      new Promise<void>((resolve) => {
+        refreshLatestVersion(agentId, { onSettled: () => resolve() });
+      }),
+    [refreshLatestVersion, agentId]
+  );
 
   return {
     installations,
     used,
     status,
-    operation,
+    operation: undefined,
     hostDependency,
     install,
     update,

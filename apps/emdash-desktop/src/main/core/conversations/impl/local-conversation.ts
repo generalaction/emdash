@@ -2,11 +2,7 @@ import { homedir } from 'node:os';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
 import { createPluginFs } from '@main/core/agents/plugin-fs';
-import {
-  getPlugin,
-  getPluginMetadata,
-  WORKSPACE_GITIGNORE_PATHS,
-} from '@main/core/agents/plugin-registry';
+import { getPlugin, WORKSPACE_GITIGNORE_PATHS } from '@main/core/agents/plugin-registry';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
@@ -161,9 +157,9 @@ export class LocalConversationProvider implements ConversationProvider {
       const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
       const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming);
       const plugin = getPlugin(conversation.providerId);
-      const meta = getPluginMetadata(conversation.providerId);
 
-      const binaryName = meta.capabilities.install.binaryNames[0] ?? conversation.providerId;
+      const binaryName =
+        plugin.capabilities.hostDependency.binaryNames[0] ?? conversation.providerId;
       const cachedStatePath = localDependencyManager.get(conversation.providerId as never)?.path;
       const executableCli = await resolveAgentExecutable({
         providerId: conversation.providerId,
@@ -173,7 +169,7 @@ export class LocalConversationProvider implements ConversationProvider {
         cachedStatePath,
       });
 
-      const agentCommand = plugin.buildCommand({
+      const agentCommand = plugin.behavior.prompt!.buildCommand({
         cli: executableCli,
         extraArgs: parseExtraArgs(providerConfig?.extraArgs),
         autoApprove: conversation.autoApprove ?? false,
@@ -303,19 +299,22 @@ export class LocalConversationProvider implements ConversationProvider {
       if (!shouldPrepareHookConfig) return previous?.hooksAvailable ?? false;
 
       const plugin = getPlugin(providerId);
-      const meta = getPluginMetadata(providerId);
-      const hooksKind = meta.capabilities.hooks.kind;
+      const hooksDescriptor = plugin.capabilities.hooks;
+      const hooksKind = hooksDescriptor.kind;
       let hooksAvailable = false;
 
-      if (hooksKind === 'config' && plugin.hooks) {
-        const scope = meta.capabilities.hooks.scope;
+      if (hooksKind === 'config' && plugin.behavior.hooks) {
+        const scope = hooksDescriptor.scope;
         const root = scope === 'global' ? homedir() : this.taskPath;
         const fs = createPluginFs(root);
-        await plugin.hooks.writeHooks(fs, []);
+        await plugin.behavior.hooks.writeHooks(fs, []);
         hooksAvailable = true;
-      } else if (hooksKind === 'plugin' && plugin.plugin) {
+      } else if (hooksKind === 'plugin' && plugin.behavior.plugins) {
         const fs = createPluginFs(this.taskPath);
-        await plugin.plugin.installPlugin(fs, { kind: 'workspace', path: this.taskPath });
+        await plugin.behavior.plugins.installPlugin(fs, {
+          kind: 'workspace',
+          path: this.taskPath,
+        });
         hooksAvailable = true;
       }
 

@@ -1,4 +1,4 @@
-import type { InstallMethod } from '@emdash/cli-agent-plugins';
+import type { InstallMethod } from '@emdash/shared/deps';
 import { Check, Copy } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
 

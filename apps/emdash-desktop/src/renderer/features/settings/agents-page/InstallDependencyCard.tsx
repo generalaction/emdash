@@ -1,6 +1,5 @@
-import type { InstallMethod, InstallOption } from '@emdash/cli-agent-plugins';
+import type { InstallMethod, InstallOption } from '@emdash/shared/deps';
 import { ChevronDown, Loader2 } from 'lucide-react';
-import { observer } from 'mobx-react-lite';
 import React, { useMemo, useState } from 'react';
 import type { HostDependencyInstallation } from '@renderer/lib/stores/use-host-dependency-installation';
 import { Alert } from '@renderer/lib/ui/alert';
@@ -34,16 +33,19 @@ export type InstallDependencyCardProps = {
   initialPath?: string;
   /** Current persisted cli override value for initialising the cli input. */
   initialCli?: string;
+  /** Whether an install is currently in progress. */
+  isInstalling?: boolean;
 };
 
-export const InstallDependencyCard = observer(function InstallDependencyCard({
+export function InstallDependencyCard({
   vm,
   installOptions,
   hideOverrideOptions = false,
   initialPath = '',
   initialCli = '',
+  isInstalling = false,
 }: InstallDependencyCardProps) {
-  const { operation, install, installations } = vm;
+  const { install, installations } = vm;
 
   const defaultSelection = useMemo<SelectionValue>(() => {
     const recommended = installOptions.find((o) => o.recommended);
@@ -59,11 +61,6 @@ export const InstallDependencyCard = observer(function InstallDependencyCard({
     if (selectedValue === 'path' || selectedValue === 'cli') return null;
     return installOptions.find((o) => o.method === selectedValue) ?? installOptions[0] ?? null;
   }, [selectedValue, installOptions]);
-
-  const isInstallingAny = operation?.kind === 'install';
-  const isInstallingSelected =
-    operation?.kind === 'install' &&
-    (operation.method === selectedValue || operation.method == null);
 
   const allSelectOptions: InstallSelectOption[] = [
     ...installOptions.map((opt) => ({
@@ -82,7 +79,6 @@ export const InstallDependencyCard = observer(function InstallDependencyCard({
   const selectedOption =
     allSelectOptions.find((o) => o.value === selectedValue) ?? allSelectOptions[0];
 
-  // Determine if the selected option is the currently used one
   const usedInstallId = vm.used?.id;
   const isSelectedUsed = (value: SelectionValue) => {
     if (value === 'path') return usedInstallId === 'path';
@@ -90,7 +86,6 @@ export const InstallDependencyCard = observer(function InstallDependencyCard({
     return usedInstallId === `method:${value}`;
   };
 
-  // Determine if any installation is 'available' for a given select option
   const isOptionInstalled = (value: SelectionValue) => {
     if (value === 'path' || value === 'cli') return false;
     return installations.some((i) => i.id === `method:${value}` && i.status === 'available');
@@ -109,7 +104,7 @@ export const InstallDependencyCard = observer(function InstallDependencyCard({
           }
         >
           <ComboboxTrigger
-            disabled={isInstallingAny}
+            disabled={isInstalling}
             className="flex items-center gap-1 rounded-md px-2 py-0.5 text-sm text-foreground-muted transition-colors hover:bg-background-quaternary-2 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
           >
             <span className="truncate">{selectedOption?.label ?? selectedValue}</span>
@@ -132,7 +127,6 @@ export const InstallDependencyCard = observer(function InstallDependencyCard({
         </Combobox>
       </div>
 
-      {/* Path override input */}
       {selectedValue === 'path' && (
         <div className="space-y-1.5">
           <Input
@@ -148,7 +142,6 @@ export const InstallDependencyCard = observer(function InstallDependencyCard({
         </div>
       )}
 
-      {/* CLI override input */}
       {selectedValue === 'cli' && (
         <div className="space-y-1.5">
           <Input
@@ -164,20 +157,19 @@ export const InstallDependencyCard = observer(function InstallDependencyCard({
         </div>
       )}
 
-      {/* Install command */}
       {activeOption && (
         <CommandRow
           command={activeOption.command}
           action={
             <CommandActionButton
-              disabled={isInstallingAny}
+              disabled={isInstalling}
               onClick={() => void install(activeOption.method)}
             >
-              {isInstallingSelected ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Install'}
+              {isInstalling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Install'}
             </CommandActionButton>
           }
         />
       )}
     </div>
   );
-});
+}

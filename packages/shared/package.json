@@ -21,6 +21,10 @@
       "types": "./dist/deps-runtime.d.mts",
       "default": "./dist/deps-runtime.mjs"
     },
+    "./deps/runtime/node": {
+      "types": "./dist/deps-runtime-node.d.mts",
+      "default": "./dist/deps-runtime-node.mjs"
+    },
     "./exec": {
       "types": "./dist/exec.d.mts",
       "default": "./dist/exec.mjs"

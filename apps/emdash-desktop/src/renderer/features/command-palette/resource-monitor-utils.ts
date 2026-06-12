@@ -1,4 +1,3 @@
-import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
 import {
   getConversationsForTask,
   getTerminalsForTask,
@@ -52,11 +51,11 @@ export function isLifecycleScriptEntry(entry: Pick<Entry, 'leafId'>): boolean {
 }
 
 /** Single source of truth for an entry's display label. */
-export function entryLabel(entry: Entry): string {
+export function entryLabel(entry: Entry, agentNames?: Map<string, string>): string {
   return (
     LIFECYCLE_SCRIPT_LABELS[entry.leafId] ||
     entry.displayTitle ||
-    (entry.providerId ? metadataRegistry.get(entry.providerId)?.name : undefined) ||
+    (entry.providerId ? agentNames?.get(entry.providerId) : undefined) ||
     entry.providerId ||
     entry.leafId.slice(0, 8)
   );

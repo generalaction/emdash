@@ -1,29 +1,18 @@
-import type {
-  AutoApproveDescriptor,
-  EffortDescriptor,
-  HooksMetadata,
-  InstallationMetadata,
-  InstallOption,
-  McpMetadata,
-  ModelsDescriptor,
-  PluginInstallMetadata,
-  PromptDeliveryDescriptor,
-  UpdatesDescriptor,
-} from '@emdash/cli-agent-plugins';
-import type { DependencyStatus, Installation } from '@emdash/shared/deps';
+import type { AgentIconAsset } from '@emdash/shared/agents/plugins';
+import type { HostDependencyDescriptor, InstallOption } from '@emdash/shared/deps';
+import type { DependencyStatus, Installation } from '@emdash/shared/deps/runtime';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
 
 export type AgentCapabilities = {
-  install: InstallationMetadata;
-  models: ModelsDescriptor;
-  effort: EffortDescriptor;
-  promptDelivery: PromptDeliveryDescriptor;
-  sessions: { kind: 'resumable' } | { kind: 'stateless' };
-  autoApprove: AutoApproveDescriptor;
-  hooks: HooksMetadata;
-  mcp: McpMetadata;
-  plugin: PluginInstallMetadata;
-  updates: UpdatesDescriptor;
+  hostDependency: HostDependencyDescriptor;
+  models: { kind: string };
+  effort: { kind: string };
+  prompt: { kind: string };
+  sessions: { kind: string };
+  autoApprove: { kind: string };
+  hooks: { kind: string; scope?: string };
+  mcp: { kind: string };
+  plugins: { kind: string };
 };
 
 export type AgentSettings = {
@@ -32,24 +21,35 @@ export type AgentSettings = {
   overrides: Partial<ProviderCustomConfig>;
 };
 
-export type AgentPayload = {
+/** Static agent metadata; host-independent and returned by `agents.list()`/`agents.get()`. */
+export type AgentMetadata = {
   id: string;
   name: string;
   description: string;
-  websiteUrl: string | null;
+  websiteUrl: string;
+  icon: AgentIconAsset;
+  capabilities: AgentCapabilities;
+  /** Link to installation documentation, null if not set by the plugin. */
+  installDocs: string | null;
+};
+
+/** Host-scoped installation status; returned by `agents.listAgentInstallationStatus()`. */
+export type AgentInstallationStatus = {
+  id: string;
+  connectionId?: string;
   status: DependencyStatus;
   version: string | null;
   latestVersion: string | null;
   updateAvailable: boolean;
   command: string | null;
-  capabilities: AgentCapabilities;
-  settings: AgentSettings;
-  /** Install options for the current platform, each carrying its own effective updateCommand. */
-  installOptions: InstallOption[];
-  /** Link to installation documentation, null if not set by the plugin. */
-  installDocs: string | null;
-  /** Per-installation status objects (from HostDependency). Empty until first probe. */
   installations: Installation[];
-  /** ID of the currently selected installation for conversation spawns. */
   usedId: string;
+  /** Platform-resolved install options for this agent on the host. */
+  installOptions: InstallOption[];
 };
+
+/** Combined payload — used for gradual renderer migration. */
+export type AgentPayload = AgentMetadata &
+  Omit<AgentInstallationStatus, 'id'> & {
+    settings: AgentSettings;
+  };

@@ -1,4 +1,4 @@
-import { getPluginMetadata } from '@main/core/agents/plugin-registry';
+import { getPlugin } from '@main/core/agents/plugin-registry';
 import type { Pty } from '@main/core/pty/pty';
 import { log } from '@main/lib/logger';
 import type { Conversation } from '@shared/core/conversations/conversations';
@@ -18,8 +18,8 @@ export function scheduleInitialPromptInjection(args: {
   if (args.isResuming) return;
   if (!args.initialPrompt?.trim()) return;
 
-  const meta = getPluginMetadata(args.conversation.providerId);
-  const promptDelivery = meta.capabilities.promptDelivery;
+  const plugin = getPlugin(args.conversation.providerId);
+  const promptDelivery = plugin.capabilities.prompt;
   if (promptDelivery.kind !== 'keystroke') return;
 
   const submitSequence = promptDelivery.submitSequence ?? '\r';

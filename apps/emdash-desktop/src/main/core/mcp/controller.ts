@@ -1,4 +1,4 @@
-import type { DependencyId } from '@emdash/shared/deps';
+import type { DependencyId } from '@emdash/shared/deps/runtime';
 import { localDependencyManager } from '@main/core/dependencies/dependency-managers';
 import { log } from '@main/lib/logger';
 import { AGENT_PROVIDERS } from '@shared/core/agents/agent-provider-registry';

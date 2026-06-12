@@ -1,5 +1,5 @@
 import os from 'node:os';
-import type { InstallCommandError } from '@emdash/shared/deps';
+import type { InstallCommandError } from '@emdash/shared/deps/runtime';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
 import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/pty-spawn-platform';

@@ -1,10 +1,11 @@
-import { iconRegistry } from '@emdash/cli-agent-plugins/icons';
+import { pickIconVariant } from '@emdash/shared/agents/plugins';
 import { cn } from '@renderer/utils/utils';
 import { useTheme } from '../hooks/useTheme';
+import { useAgentIcon } from '../stores/use-agents';
 
 interface AgentIconProps {
   id: string;
-  /** Icon size in pixels, passed directly to the PluginIcon component. Default: 16. */
+  /** Icon size in pixels. Default: 16. */
   size?: number;
   /** Applied to the outer wrapper span — use for positioning, rounding, overflow, etc. */
   className?: string;
@@ -14,17 +15,27 @@ interface AgentIconProps {
 export function AgentIcon({ id, size = 16, className, grayscale }: AgentIconProps) {
   const { effectiveTheme } = useTheme();
   const mode = effectiveTheme === 'emdark' ? 'dark' : 'light';
-  const Icon = iconRegistry.get(id);
-  if (!Icon) return null;
+  const icon = useAgentIcon(id);
+
+  if (!icon) return null;
+
+  const variant = pickIconVariant(icon.variants, size);
+  if (!variant) return null;
+
+  const shouldInvert = mode === 'dark' && icon.invertInDark;
+  const svgContent = mode === 'dark' && variant.dark ? variant.dark : variant.light;
+
   return (
     <span
       className={cn(
         'inline-flex shrink-0 items-center justify-center',
         grayscale && 'grayscale',
+        shouldInvert && 'invert',
         className
       )}
-    >
-      <Icon size={size} mode={mode} />
-    </span>
+      style={{ width: size, height: size }}
+      // eslint-disable-next-line react/no-danger
+      dangerouslySetInnerHTML={{ __html: svgContent }}
+    />
   );
 }

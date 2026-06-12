@@ -1,13 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
 import { ExternalLink } from 'lucide-react';
-import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { InstallSection } from '@renderer/features/settings/agents-page/InstallSection';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
-import { rpc } from '@renderer/lib/ipc';
-import { appState } from '@renderer/lib/stores/app-state';
+import { useAgentInstallationStatus } from '@renderer/lib/stores/use-agent-installation-statuses';
+import { useAgent } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
-import type { AgentPayload } from '@shared/core/agents/agent-payload';
 import {
   getDescriptionForProvider,
   getDocUrlForProvider,
@@ -20,25 +17,16 @@ type Props = {
   connectionId?: string;
 };
 
-export const AgentInfoCard: React.FC<Props> = observer(({ id, connectionId }) => {
+export const AgentInfoCard: React.FC<Props> = ({ id, connectionId }) => {
   const provider = getProvider(id);
   const description = getDescriptionForProvider(id);
   const docUrl = getDocUrlForProvider(id);
   const title = provider?.name ?? id;
 
-  // Fetch the full agent payload (platform-specific install options) from the main process.
-  const { data: payload } = useQuery({
-    queryKey: ['agentPayload', id, connectionId ?? 'local'],
-    queryFn: () => rpc.agents.get(id, connectionId) as Promise<AgentPayload | null>,
-    staleTime: 60_000,
-  });
+  const { data: payload } = useAgent(id, connectionId);
+  const { data: statusData } = useAgentInstallationStatus(id, connectionId);
 
-  // Reactively read live status from the appropriate dependency resource.
-  const statuses = connectionId
-    ? appState.dependencies.getRemote(connectionId).data
-    : appState.dependencies.local.data;
-  const depState = statuses?.[id];
-  const isInstalled = (depState?.status ?? payload?.status) === 'available';
+  const isInstalled = (statusData?.status ?? payload?.status) === 'available';
 
   return (
     <div className="w-96 bg-background-quaternary p-3">
@@ -76,4 +64,4 @@ export const AgentInfoCard: React.FC<Props> = observer(({ id, connectionId }) =>
       )}
     </div>
   );
-});
+};

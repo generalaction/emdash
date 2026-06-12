@@ -1,5 +1,5 @@
-import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
+import { useAgents } from '@renderer/lib/stores/use-agents';
 
 interface StackedAgentLogosProps {
   /** Map of providerId to conversation count, same shape as task.conversationStats */
@@ -8,12 +8,15 @@ interface StackedAgentLogosProps {
 
 export function StackedAgentLogos({ stats }: StackedAgentLogosProps) {
   const entries = Object.entries(stats);
+  const { data: agents } = useAgents();
   if (entries.length === 0) return null;
+
+  const nameMap = new Map((agents ?? []).map((a) => [a.id, a.name]));
 
   return (
     <div className="flex shrink-0 items-center [&>span]:ring-2 [&>span]:ring-background [&>span:not(:first-child)]:-ml-1.5">
       {entries.map(([providerId, count]) => {
-        const name = metadataRegistry.get(providerId)?.name ?? providerId;
+        const name = nameMap.get(providerId) ?? providerId;
         return (
           <span
             key={providerId}

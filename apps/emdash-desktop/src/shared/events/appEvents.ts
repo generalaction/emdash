@@ -1,4 +1,4 @@
-import type { DependencyStatusUpdatedEvent } from '@emdash/shared/deps';
+import type { DependencyStatusUpdatedEvent } from '@emdash/shared/deps/runtime';
 import { defineEvent } from '@shared/lib/ipc/events';
 
 // App editing actions (renderer → main, no payload)
@@ -60,4 +60,9 @@ export const shellSessionStartedChannel = defineEvent<{
 /** Emitted after each dependency probe completes (path resolution or version check). */
 export const dependencyStatusUpdatedChannel = defineEvent<DependencyStatusUpdatedEvent>(
   'dependency:status-updated'
+);
+
+/** Emitted when an agent installation status changes (probe, install, update, or selection change). */
+export const agentInstallationStatusUpdatedChannel = defineEvent<DependencyStatusUpdatedEvent>(
+  'agent:installation-status-updated'
 );

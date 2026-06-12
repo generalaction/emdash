@@ -1,7 +1,7 @@
 import { RefreshCw } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
 import { PageHeader } from '@renderer/lib/components/page-header';
-import { appState } from '@renderer/lib/stores/app-state';
+import { useAgentInstallationStatuses } from '@renderer/lib/stores/use-agent-installation-statuses';
 import { Button } from '@renderer/lib/ui/button';
 import { SearchInput } from '@renderer/lib/ui/search-input';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
@@ -11,15 +11,14 @@ export function AgentsSettingsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<AgentFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
+  const { probeAll } = useAgentInstallationStatuses();
 
-  const handleRefresh = useCallback(async () => {
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    try {
-      await appState.dependencies.probeAll();
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
+    probeAll(undefined, {
+      onSettled: () => setRefreshing(false),
+    });
+  }, [probeAll]);
 
   return (
     <>

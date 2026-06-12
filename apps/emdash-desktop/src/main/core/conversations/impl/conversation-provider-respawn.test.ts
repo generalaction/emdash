@@ -44,38 +44,30 @@ vi.mock('@main/core/agent-hooks/workspace-trust-service', () => ({
 
 vi.mock('@main/core/agents/plugin-registry', () => ({
   getPlugin: vi.fn((id: string) => ({
-    buildCommand: buildCommandMock,
-    hooks: {
-      writeHooks: writeHooksMock,
-      deleteHooks: vi.fn(),
-      readHooks: vi.fn(),
-      getHooksInstalled: vi.fn(),
-    },
-    plugin: {
-      installPlugin: installPluginMock,
-      uninstallPlugin: vi.fn(),
-      isPluginInstalled: vi.fn(),
-      getPluginVersion: vi.fn(),
-      getPluginPath: vi.fn(),
-    },
-    metadata: {
-      id,
-      capabilities: {
-        install: { binaryNames: [id] },
-        hooks: { kind: 'none' },
-        promptDelivery: { kind: 'argv', flag: '' },
-      },
-    },
-  })),
-  getPluginMetadata: vi.fn((id: string) => ({
-    id,
+    metadata: { id },
     capabilities: {
-      install: { binaryNames: [id] },
+      hostDependency: { binaryNames: [id] },
       hooks:
         id === 'opencode'
           ? { kind: 'plugin', scope: 'workspace', supportedEvents: [] }
           : { kind: 'none' },
-      promptDelivery: { kind: 'argv', flag: '' },
+      prompt: { kind: 'argv', flag: '' },
+    },
+    behavior: {
+      prompt: { buildCommand: buildCommandMock },
+      hooks: {
+        writeHooks: writeHooksMock,
+        deleteHooks: vi.fn(),
+        readHooks: vi.fn(),
+        getHooksInstalled: vi.fn(),
+      },
+      plugins: {
+        installPlugin: installPluginMock,
+        uninstallPlugin: vi.fn(),
+        isPluginInstalled: vi.fn(),
+        getPluginVersion: vi.fn(),
+        getPluginPath: vi.fn(),
+      },
     },
   })),
   WORKSPACE_GITIGNORE_PATHS: {} as Record<string, string[]>,

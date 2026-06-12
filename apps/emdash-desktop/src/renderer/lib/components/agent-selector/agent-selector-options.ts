@@ -1,5 +1,8 @@
-import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
-import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import {
+  AGENT_PROVIDERS,
+  getProvider,
+  type AgentProviderId,
+} from '@shared/core/agents/agent-provider-registry';
 import { getAgentInstallActionState } from './agent-install';
 
 export interface AgentOption {
@@ -18,7 +21,8 @@ export interface AgentGroup {
 export function buildAgentGroups(
   installedAgents: string[],
   assumedInstalledAgents: string[] = [],
-  installingAgents: ReadonlySet<AgentProviderId> = new Set()
+  installingAgents: ReadonlySet<AgentProviderId> = new Set(),
+  getName?: (id: AgentProviderId) => string
 ): AgentGroup[] {
   const allAgentIds = AGENT_PROVIDERS.map((p) => p.id);
   const installedSet = new Set(
@@ -27,15 +31,15 @@ export function buildAgentGroups(
     )
   );
 
-  const getName = (id: AgentProviderId) => metadataRegistry.get(id)?.name ?? id;
+  const resolveName = getName ?? ((id: AgentProviderId) => getProvider(id)?.name ?? id);
 
   const installedOptions: AgentOption[] = allAgentIds
     .filter((id) => installedSet.has(id) && !installingAgents.has(id))
-    .map((id) => ({ value: id, label: getName(id), agentId: id, disabled: false }));
+    .map((id) => ({ value: id, label: resolveName(id), agentId: id, disabled: false }));
 
   const notInstalledOptions: AgentOption[] = allAgentIds
     .filter((id) => !installedSet.has(id) || installingAgents.has(id))
-    .map((id) => ({ value: id, label: getName(id), agentId: id, disabled: true }));
+    .map((id) => ({ value: id, label: resolveName(id), agentId: id, disabled: true }));
 
   return [
     { value: 'installed', label: 'Installed', items: installedOptions },
@@ -65,6 +69,7 @@ export function getInstallButtonState(
 ): { render: boolean; disabled: boolean; installing: boolean; label: string } {
   return getAgentInstallActionState({
     agentId: item.agentId,
+    agentName: item.label,
     canInstall: allowInstall,
     isInstalled: !item.disabled,
     isInstalling: installingAgents.has(item.agentId),

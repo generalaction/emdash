@@ -1,5 +1,4 @@
 import { ArrowRight, Loader2 } from 'lucide-react';
-import { observer } from 'mobx-react-lite';
 import type { HostDependencyInstallation } from '@renderer/lib/stores/use-host-dependency-installation';
 import { UpdateAvailableBadge } from './agent-status-badge';
 import { CommandActionButton, CommandRow } from './install-command-row';
@@ -8,25 +7,23 @@ export type DependencyInstallationUpdateCardProps = {
   vm: HostDependencyInstallation;
   /** Per-method update command, keyed by the install method string. */
   updateCommands: Record<string, string>;
+  /** Whether an update is currently in progress. */
+  isUpdating?: boolean;
 };
 
-export const DependencyInstallationUpdateCard = observer(function DependencyInstallationUpdateCard({
+export function DependencyInstallationUpdateCard({
   vm,
   updateCommands,
+  isUpdating = false,
 }: DependencyInstallationUpdateCardProps) {
-  const { used, operation, update } = vm;
+  const { used, update } = vm;
 
   if (!used?.updateAvailable) return null;
 
-  // Derive the install method from the used installation source
   const usedMethod = used.source.kind === 'method' ? used.source.method : null;
-
   const updateCommand = usedMethod ? (updateCommands[usedMethod] ?? null) : null;
 
   if (!updateCommand) return null;
-
-  const isUpdatingThis =
-    operation?.kind === 'update' && (operation.method === usedMethod || operation.method == null);
 
   return (
     <div className="space-y-2 rounded-lg border border-border-warning p-3">
@@ -44,13 +41,13 @@ export const DependencyInstallationUpdateCard = observer(function DependencyInst
         command={updateCommand}
         action={
           <CommandActionButton
-            disabled={isUpdatingThis}
+            disabled={isUpdating}
             onClick={() => usedMethod && void update(usedMethod)}
           >
-            {isUpdatingThis ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Update'}
+            {isUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Update'}
           </CommandActionButton>
         }
       />
     </div>
   );
-});
+}

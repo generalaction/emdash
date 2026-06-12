@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite';
-import { useProviderSettings } from '@renderer/features/settings/use-provider-settings';
-import { appState } from '@renderer/lib/stores/app-state';
+import { useAgentSettings } from '@renderer/lib/stores/use-agent-settings';
+import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Field } from '@renderer/lib/ui/field';
 import { Label } from '@renderer/lib/ui/label';
 import { Sheet, SheetContent, SheetHeader } from '@renderer/lib/ui/sheet';
@@ -19,15 +19,10 @@ const AgentDetailSheetContent = observer(function AgentDetailSheetContent({
   agentId: string;
   onClose: () => void;
 }) {
-  const agentPayload = appState.dependencies.agents.data?.find((a) => a.id === agentId);
+  const { data: agents } = useAgents();
+  const agentPayload = agents?.find((a) => a.id === agentId);
 
-  const {
-    value: storedConfig,
-    isOverridden,
-    isLoading,
-    update,
-    reset,
-  } = useProviderSettings(agentId);
+  const { value: storedConfig, isOverridden, isLoading, update, reset } = useAgentSettings(agentId);
 
   const isInstalled = agentPayload?.status === 'available';
 

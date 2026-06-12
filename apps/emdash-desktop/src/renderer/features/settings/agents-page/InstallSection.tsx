@@ -1,5 +1,5 @@
-import type { InstallOption } from '@emdash/cli-agent-plugins';
-import type { DependencyId } from '@emdash/shared/deps';
+import type { InstallOption } from '@emdash/shared/deps';
+import type { DependencyId } from '@emdash/shared/deps/runtime';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { useHostDependencyInstallation } from '@renderer/lib/stores/use-host-dependency-installation';

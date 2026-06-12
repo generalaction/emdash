@@ -1,12 +1,12 @@
 import { promises as fs } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
-import type { CLIAgentPluginFs } from '@emdash/cli-agent-plugins';
+import type { PluginFs } from '@emdash/shared/agents/plugins';
 
 /**
  * Create a CLIAgentPluginFs scoped to a given root directory.
  * All paths are resolved relative to root; path-escape attempts throw.
  */
-export function createPluginFs(root: string): CLIAgentPluginFs {
+export function createPluginFs(root: string): PluginFs {
   const absRoot = resolve(root);
 
   function resolveSafe(path: string): string {

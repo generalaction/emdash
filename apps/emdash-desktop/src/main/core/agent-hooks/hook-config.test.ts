@@ -6,7 +6,7 @@ import { HookConfigWriter } from './hook-config';
 
 const mockResolveCommandPath = vi.hoisted(() => vi.fn());
 
-vi.mock('@emdash/shared/deps/runtime', () => ({
+vi.mock('@emdash/shared/deps/runtime/node', () => ({
   resolveCommandPath: mockResolveCommandPath,
 }));
 

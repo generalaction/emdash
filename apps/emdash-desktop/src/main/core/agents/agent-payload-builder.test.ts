@@ -1,54 +1,28 @@
-import type { CLIAgentPluginMetadata } from '@emdash/cli-agent-plugins';
-import type { DependencyStatusMap } from '@emdash/shared/deps';
+import type { CLIAgentPluginProvider } from '@emdash/shared/agents/plugins';
+import type { DependencyState } from '@emdash/shared/deps/runtime';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@emdash/cli-agent-plugins/metadata', () => ({
-  metadataRegistry: {
+vi.mock('@emdash/cli-agent-plugins/registry', () => ({
+  pluginRegistry: {
     get: vi.fn(),
     getAll: vi.fn().mockReturnValue([]),
+    ids: vi.fn().mockReturnValue([]),
   },
 }));
 
-vi.mock('@main/core/dependencies/registry', async () => {
-  const { metadataRegistry: mr } = await import('@emdash/cli-agent-plugins/metadata');
-  return {
-    getDependencyDescriptor: vi.fn().mockImplementation((id: string) => {
-      const m = mr.get(id as never);
-      if (!m) return undefined;
-      return {
-        id: m.id,
-        name: m.name,
-        category: 'agent' as const,
-        commands: m.capabilities.install.binaryNames,
-        versionArgs: ['--version'],
-        docUrl: m.websiteUrl,
-        installCommands: m.capabilities.install.installCommands,
-        updates: m.capabilities.updates,
-      };
-    }),
-    DEPENDENCIES: [],
-  };
-});
+vi.mock('@main/core/agents/plugin-registry', () => ({
+  getPlugin: vi.fn(),
+  listPlugins: vi.fn().mockReturnValue([]),
+  WORKSPACE_GITIGNORE_PATHS: {},
+}));
+
+vi.mock('@main/core/dependencies/registry', () => ({
+  getDependencyDescriptor: vi.fn().mockReturnValue(undefined),
+  DEPENDENCIES: [],
+}));
 
 vi.mock('@shared/core/agents/agent-provider-registry', () => ({
-  AGENT_PROVIDERS: [
-    {
-      id: 'claude',
-      name: 'Claude Code',
-      icon: 'claude.svg',
-      iconDark: undefined,
-      invertInDark: false,
-      alt: 'Claude Code',
-    },
-    {
-      id: 'codex',
-      name: 'Codex',
-      icon: 'openai.svg',
-      iconDark: undefined,
-      invertInDark: true,
-      alt: 'Codex',
-    },
-  ],
+  AGENT_PROVIDERS: [{ id: 'claude' }, { id: 'codex' }],
 }));
 
 vi.mock('../settings/provider-settings-service', () => ({
@@ -57,32 +31,58 @@ vi.mock('../settings/provider-settings-service', () => ({
   },
 }));
 
-const { metadataRegistry } = await import('@emdash/cli-agent-plugins/metadata');
+const { getPlugin } = await import('@main/core/agents/plugin-registry');
 const { providerOverrideSettings } = await import('../settings/provider-settings-service');
+void (await import('@main/core/dependencies/registry'));
 
-function makeMetadata(id: string, binaryName: string): CLIAgentPluginMetadata {
+const dummyIcon = {
+  variants: [{ svg: '<svg/>', minSize: 0, maxSize: Infinity }],
+  invertInDark: false,
+};
+
+function makeProvider(id: string, binaryName: string): CLIAgentPluginProvider {
   return {
-    id,
-    name: `${id} name`,
-    description: `${id} description`,
-    websiteUrl: `https://${id}.example.com`,
+    metadata: {
+      id,
+      name: `${id} name`,
+      description: `${id} description`,
+      websiteUrl: `https://${id}.example.com`,
+    },
     capabilities: {
-      install: {
+      hostDependency: {
         binaryNames: [binaryName],
         installCommands: {
           macos: [{ command: `brew install ${id}`, method: 'homebrew' }],
         },
+        updates: { kind: 'none' },
       },
       models: { kind: 'none' },
       effort: { kind: 'none' },
-      promptDelivery: { kind: 'argv', flag: '' },
+      prompt: { kind: 'argv', flag: '' },
       sessions: { kind: 'resumable' },
       autoApprove: { kind: 'supported' },
       hooks: { kind: 'none' },
       mcp: { kind: 'none' },
-      plugin: { kind: 'none' },
-      updates: { kind: 'none' },
+      plugins: { kind: 'none' },
     },
+    assets: { icon: dummyIcon },
+    behavior: {
+      prompt: { buildCommand: vi.fn() },
+    },
+    validate: () => [],
+  } as unknown as CLIAgentPluginProvider;
+}
+
+function makeDependencyManager(states: Record<string, Partial<DependencyState>>) {
+  return {
+    get: vi.fn((id: string) => states[id] ?? undefined),
+    getAll: vi.fn(() => {
+      const m = new Map<string, DependencyState>();
+      for (const [k, v] of Object.entries(states)) m.set(k, v as DependencyState);
+      return m;
+    }),
+    getHostDependency: vi.fn(() => undefined),
+    platform: 'macos' as const,
   };
 }
 
@@ -93,11 +93,11 @@ const defaultSettings = () => ({
 });
 
 describe('buildAgentPayload', () => {
-  it('merges metadata, AGENT_PROVIDERS icons, status and settings into a payload', async () => {
-    vi.mocked(metadataRegistry.get).mockReturnValue(makeMetadata('claude', 'claude'));
+  it('merges provider, status and settings into a payload', async () => {
+    vi.mocked(getPlugin).mockReturnValue(makeProvider('claude', 'claude'));
     vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings());
 
-    const statuses: DependencyStatusMap = {
+    const mgr = makeDependencyManager({
       claude: {
         id: 'claude',
         category: 'agent',
@@ -106,10 +106,10 @@ describe('buildAgentPayload', () => {
         path: '/usr/local/bin/claude',
         checkedAt: 1,
       },
-    };
+    });
 
     const { buildAgentPayload } = await import('./agent-payload-builder');
-    const payload = await buildAgentPayload('claude', statuses);
+    const payload = await buildAgentPayload('claude', 'macos', mgr as never);
 
     expect(payload).not.toBeNull();
     expect(payload!.id).toBe('claude');
@@ -122,23 +122,18 @@ describe('buildAgentPayload', () => {
     expect(payload!.settings).toBeDefined();
     expect(payload!.capabilities.models).toEqual({ kind: 'none' });
     expect(payload!.capabilities.effort).toEqual({ kind: 'none' });
-    expect(payload!.capabilities.updates).toEqual({ kind: 'none' });
-    // installOptions is resolved for the current platform (macos in CI/dev)
     expect(Array.isArray(payload!.installOptions)).toBe(true);
-    // installDocs is null when not set on the plugin
     expect(payload!.installDocs).toBeNull();
-    // updateCommand is undefined on each option when updates.kind === 'none'
-    for (const opt of payload!.installOptions) {
-      expect(opt.updateCommand).toBeUndefined();
-    }
   });
 
-  it('uses missing status when agent is not in the status map', async () => {
-    vi.mocked(metadataRegistry.get).mockReturnValue(makeMetadata('claude', 'claude'));
+  it('uses missing status when agent is not in the dependency manager', async () => {
+    vi.mocked(getPlugin).mockReturnValue(makeProvider('claude', 'claude'));
     vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings());
 
+    const mgr = makeDependencyManager({});
+
     const { buildAgentPayload } = await import('./agent-payload-builder');
-    const payload = await buildAgentPayload('claude', {});
+    const payload = await buildAgentPayload('claude', 'macos', mgr as never);
 
     expect(payload!.status).toBe('missing');
     expect(payload!.version).toBeNull();
@@ -147,77 +142,19 @@ describe('buildAgentPayload', () => {
     expect(payload!.command).toBeNull();
   });
 
-  it('returns null when there is no plugin metadata for the id', async () => {
-    vi.mocked(metadataRegistry.get).mockReturnValue(undefined);
+  it('returns null when there is no plugin for the id', async () => {
+    vi.mocked(getPlugin).mockImplementation(() => {
+      throw new Error('No plugin found');
+    });
     vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(null);
 
     const { buildAgentPayload } = await import('./agent-payload-builder');
-    const payload = await buildAgentPayload('unknown-agent', {});
-
-    expect(payload).toBeNull();
+    await expect(buildAgentPayload('unknown-agent')).rejects.toThrow('No plugin found');
   });
 
-  it('resolves updateCommand per installOption for a cli update strategy', async () => {
-    const meta = makeMetadata('claude', 'claude');
-    (meta.capabilities as Record<string, unknown>).updates = {
-      kind: 'supported',
-      releaseSource: { kind: 'none' },
-      update: { kind: 'cli', args: ['update'] },
-    };
-    vi.mocked(metadataRegistry.get).mockReturnValue(meta);
-    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings());
-
-    const { buildAgentPayload } = await import('./agent-payload-builder');
-    const payload = await buildAgentPayload('claude', {});
-
-    // Each install option should carry the cli update command (binary + args)
-    for (const opt of payload!.installOptions) {
-      expect(opt.updateCommand).toBe('claude update');
-    }
-  });
-
-  it('resolves updateCommand per installOption for a package-manager update strategy', async () => {
-    const meta = makeMetadata('codex', 'codex');
-    (meta.capabilities as Record<string, unknown>).updates = {
-      kind: 'supported',
-      releaseSource: { kind: 'none' },
-      update: { kind: 'package-manager' },
-    };
-    vi.mocked(metadataRegistry.get).mockReturnValue(meta);
-    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings());
-
-    const { buildAgentPayload } = await import('./agent-payload-builder');
-    const payload = await buildAgentPayload('codex', {});
-
-    // Each option's updateCommand defaults to re-running that option's install command
-    for (const opt of payload!.installOptions) {
-      expect(opt.updateCommand).toBe(opt.command);
-    }
-  });
-
-  it('uses an explicit per-option updateCommand when provided', async () => {
-    const meta = makeMetadata('codex', 'codex');
-    (meta.capabilities.install.installCommands as Record<string, unknown>).macos = [
-      { command: 'npm install -g codex', method: 'npm', updateCommand: 'npm update -g codex' },
-    ];
-    (meta.capabilities as Record<string, unknown>).updates = {
-      kind: 'supported',
-      releaseSource: { kind: 'none' },
-      update: { kind: 'package-manager' },
-    };
-    vi.mocked(metadataRegistry.get).mockReturnValue(meta);
-    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings());
-
-    const { buildAgentPayload } = await import('./agent-payload-builder');
-    const payload = await buildAgentPayload('codex', {});
-
-    const npmOpt = payload!.installOptions.find((o) => o.method === 'npm');
-    expect(npmOpt?.updateCommand).toBe('npm update -g codex');
-  });
-
-  it('passes models and effort capabilities through verbatim', async () => {
-    const meta = makeMetadata('codex', 'codex');
-    (meta.capabilities as Record<string, unknown>).models = {
+  it('passes models capability through verbatim', async () => {
+    const provider = makeProvider('codex', 'codex');
+    (provider.capabilities as Record<string, unknown>).models = {
       kind: 'selectable',
       modelOptions: {
         'gpt-4o': {
@@ -227,11 +164,11 @@ describe('buildAgentPayload', () => {
         },
       },
     };
-    vi.mocked(metadataRegistry.get).mockReturnValue(meta);
+    vi.mocked(getPlugin).mockReturnValue(provider);
     vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings());
 
     const { buildAgentPayload } = await import('./agent-payload-builder');
-    const payload = await buildAgentPayload('codex', {});
+    const payload = await buildAgentPayload('codex');
 
     expect(payload!.capabilities.models).toEqual({
       kind: 'selectable',
@@ -242,17 +179,11 @@ describe('buildAgentPayload', () => {
 
 describe('buildAgentPayloads', () => {
   it('returns one entry per AGENT_PROVIDERS entry', async () => {
-    vi.mocked(metadataRegistry.get).mockImplementation((id) =>
-      id === 'claude' || id === 'codex' ? makeMetadata(id, id) : undefined
-    );
-    vi.mocked(metadataRegistry.getAll).mockReturnValue([
-      makeMetadata('claude', 'claude'),
-      makeMetadata('codex', 'codex'),
-    ]);
+    vi.mocked(getPlugin).mockImplementation((id) => makeProvider(id, id));
     vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(defaultSettings());
 
     const { buildAgentPayloads } = await import('./agent-payload-builder');
-    const payloads = await buildAgentPayloads({});
+    const payloads = await buildAgentPayloads();
 
     expect(payloads).toHaveLength(2);
     expect(payloads.map((p) => p.id)).toEqual(['claude', 'codex']);

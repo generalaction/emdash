@@ -1,4 +1,4 @@
-import { providerRegistry } from '@emdash/cli-agent-plugins/providers';
+import { pluginRegistry } from '@emdash/cli-agent-plugins/registry';
 import { describe, expect, it } from 'vitest';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { resolveAgentSessionCommandArgs } from './resolve-agent-session-command';
@@ -81,7 +81,7 @@ describe('resolveAgentSessionCommandArgs', () => {
       providerId: 'claude',
     });
     const spawnPlan = resolveAgentSessionCommandArgs(conversation, true);
-    const result = providerRegistry.get('claude')!.buildCommand({
+    const result = pluginRegistry.get('claude')!.behavior.prompt!.buildCommand({
       cli: 'claude',
       autoApprove: false,
       model: '',
@@ -101,7 +101,7 @@ describe('resolveAgentSessionCommandArgs', () => {
       providerSessionId: 'provider-session-1',
     });
     const spawnPlan = resolveAgentSessionCommandArgs(conversation, true);
-    const result = providerRegistry.get('codex')!.buildCommand({
+    const result = pluginRegistry.get('codex')!.behavior.prompt!.buildCommand({
       cli: 'codex',
       autoApprove: false,
       model: '',

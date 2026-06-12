@@ -1,7 +1,6 @@
-import { metadataRegistry } from '@emdash/cli-agent-plugins/metadata';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { appState } from '@renderer/lib/stores/app-state';
+import { useAgentInstallationStatuses } from '@renderer/lib/stores/use-agent-installation-statuses';
 import {
   isValidProviderId,
   type AgentProviderId,
@@ -27,12 +26,13 @@ export function useEffectiveProvider(
     ? defaultAgentValue
     : 'claude';
 
-  const dependencyResource = connectionId
-    ? appState.dependencies.getRemote(connectionId)
-    : appState.dependencies.local;
-  const availabilityKnown = dependencyResource.data !== null;
-  const installedProviderIds = (metadataRegistry.ids() as AgentProviderId[]).filter(
-    (id) => dependencyResource.data?.[id]?.status === 'available'
+  const { data: statuses } = useAgentInstallationStatuses(connectionId);
+  const availabilityKnown = statuses !== undefined;
+
+  const installedProviderIds = useMemo(
+    () =>
+      (statuses ?? []).filter((s) => s.status === 'available').map((s) => s.id as AgentProviderId),
+    [statuses]
   );
 
   const { providerId, createDisabled } = resolveConversationProviderSelection({

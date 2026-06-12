@@ -1,4 +1,4 @@
-import { hostDependencySelectionSchema } from '@emdash/shared/deps';
+import { hostDependencySelectionSchema } from '@emdash/shared/deps/runtime';
 import z from 'zod';
 import { defineVersionedSchema } from '@shared/lib/versioned-schema/versioned-schema';
 

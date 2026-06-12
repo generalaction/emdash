@@ -1,8 +1,8 @@
-import { iconRegistry } from '@emdash/cli-agent-plugins/icons';
 import { ExternalLink, Globe, Pencil, Plus, Terminal } from 'lucide-react';
 import React from 'react';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { CardGridItem } from '@renderer/lib/components/card-grid';
+import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { McpServerIcon } from '@renderer/utils/mcpIcons';
@@ -23,18 +23,17 @@ function getTransport(server?: McpServer, entry?: McpCatalogEntry): 'stdio' | 'h
   return 'stdio';
 }
 
-function getSyncedProviders(server?: McpServer): AgentProviderId[] {
-  if (!server) return [];
-  return server.providers.filter((id) => iconRegistry.get(id) != null) as AgentProviderId[];
-}
-
 export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, onAdd }) => {
   const name = server?.name ?? catalogEntry?.name ?? 'Unknown';
   const description = catalogEntry?.description ?? (server ? `${server.transport} server` : '');
   const isInstalled = !!server;
   const transport = getTransport(server, catalogEntry);
   const docsUrl = catalogEntry?.docsUrl;
-  const syncedProviders = getSyncedProviders(server);
+  const { data: agents } = useAgents();
+  const agentIds = new Set((agents ?? []).map((a) => a.id));
+  const syncedProviders = (server?.providers ?? []).filter((id) =>
+    agentIds.has(id)
+  ) as AgentProviderId[];
 
   const handleClick = () => {
     if (isInstalled && server) {

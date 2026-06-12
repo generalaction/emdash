@@ -12,7 +12,7 @@ importers:
     dependencies:
       '@emdash/cli-agent-plugins':
         specifier: workspace:*
-        version: link:../../packages/cli-agent-plugins
+        version: link:../../packages/plugins
       '@emdash/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -300,7 +300,7 @@ importers:
         specifier: ^2.1.0
         version: 2.2.0(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@4.1.8)
 
-  packages/cli-agent-plugins:
+  packages/plugins:
     dependencies:
       '@emdash/shared':
         specifier: workspace:*
@@ -318,9 +318,6 @@ importers:
       oxlint:
         specifier: ^1.69.0
         version: 1.69.0(oxlint-tsgolint@0.23.0)
-      react:
-        specifier: ^19.2.7
-        version: 19.2.7
       tsdown:
         specifier: ^0.22.2
         version: 0.22.2(@typescript/native-preview@7.0.0-dev.20260609.1)(typescript@6.0.3)
@@ -333,9 +330,6 @@ importers:
       '@parcel/watcher':
         specifier: ^2.5.6
         version: 2.5.6
-      react:
-        specifier: '>=18'
-        version: 19.2.7
       smol-toml:
         specifier: ^1.6.0
         version: 1.6.1
@@ -346,9 +340,6 @@ importers:
       '@types/node':
         specifier: ^20.19.42
         version: 20.19.42
-      '@types/react':
-        specifier: ^19.2.17
-        version: 19.2.17
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260609.1
         version: 7.0.0-dev.20260609.1

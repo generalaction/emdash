@@ -1,5 +1,5 @@
-import type { Platform } from '@emdash/cli-agent-plugins';
-import { HostDependencyManager } from '@emdash/shared/deps/runtime';
+import type { Platform } from '@emdash/shared/deps';
+import { HostDependencyManager } from '@emdash/shared/deps/runtime/node';
 import { clearResolvedPathCache } from '@main/core/conversations/impl/resolve-agent-executable';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
@@ -9,7 +9,10 @@ import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-co
 import { resolveLocalAutomationShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
+import {
+  agentInstallationStatusUpdatedChannel,
+  dependencyStatusUpdatedChannel,
+} from '@shared/events/appEvents';
 import { hostDependencyStore } from './host-dependency-store';
 import { createLocalInstallCommandRunner, createSshInstallCommandRunner } from './install-runner';
 import { DEPENDENCIES, getDependencyDescriptor } from './registry';
@@ -38,6 +41,9 @@ async function resolveLocalInstallShellProfile() {
 function wireDesktopBridges(manager: HostDependencyManager, connectionId?: string): void {
   manager.onStatusUpdated.subscribe((event) => {
     events.emit(dependencyStatusUpdatedChannel, event);
+    if (event.hostDependency) {
+      events.emit(agentInstallationStatusUpdatedChannel, event);
+    }
   });
   manager.onExecutableInvalidated.subscribe(({ id }) => {
     clearResolvedPathCache(id, connectionId);
