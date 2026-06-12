@@ -71,7 +71,10 @@ export class NativeWatch implements IDisposable {
 
   private scheduleResubscribe(): void {
     if (this.retryTimer || this.disposed) return;
-    const delay = Math.min(RESUBSCRIBE_DELAY_MS * 2 ** this.retryAttempts, MAX_RESUBSCRIBE_DELAY_MS);
+    const delay = Math.min(
+      RESUBSCRIBE_DELAY_MS * 2 ** this.retryAttempts,
+      MAX_RESUBSCRIBE_DELAY_MS
+    );
     this.retryAttempts += 1;
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
