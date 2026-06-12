@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { EMPTY_USAGE_SNAPSHOT, type UsageSnapshot } from '@shared/usage';
 
@@ -12,6 +13,7 @@ async function fetchSnapshot(): Promise<UsageSnapshot> {
 
 export function useUsageSnapshot() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const query = useQuery({ queryKey: KEY, queryFn: fetchSnapshot, staleTime: 60_000 });
 
   const refresh = useMutation({
@@ -20,6 +22,12 @@ export function useUsageSnapshot() {
       return res.data;
     },
     onSuccess: (snapshot) => queryClient.setQueryData(KEY, snapshot),
+    onError: (error) =>
+      toast({
+        title: 'Refresh failed',
+        description: error instanceof Error ? error.message : 'Could not refresh usage data.',
+        variant: 'destructive',
+      }),
   });
 
   return {
