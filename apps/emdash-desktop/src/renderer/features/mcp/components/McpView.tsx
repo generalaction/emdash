@@ -121,7 +121,6 @@ export const McpView: React.FC = () => {
               <McpCard
                 key={entry.key}
                 catalogEntry={entry}
-                onEdit={() => {}}
                 onAdd={(e) => openModal({ type: 'add-catalog', entry: e })}
               />
             ))}

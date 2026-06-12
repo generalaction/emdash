@@ -64,7 +64,7 @@ export type { PluginFs } from '../runtime/fs';
 // Capability behavior interfaces — needed for dts portability
 export type { IHostDependencyBehavior } from '../../host-dependencies/capability';
 export type { IHooksBehavior } from './capabilities/hooks';
-export type { IMcpBehavior } from './capabilities/mcp';
+export type { IMcpBehavior, McpServerRegistration } from './capabilities/mcp';
 export type { IPlugins } from './capabilities/plugins';
 export type { ISessionsBehavior } from './capabilities/sessions';
 

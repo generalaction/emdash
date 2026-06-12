@@ -4,6 +4,7 @@ import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Field } from '@renderer/lib/ui/field';
 import { Label } from '@renderer/lib/ui/label';
 import { Sheet, SheetContent, SheetHeader } from '@renderer/lib/ui/sheet';
+import { AgentMcpSection } from './AgentMcpSection';
 import { AgentSheetHeaderSection } from './AgentSheetHeaderSection';
 import { InstalledAgentContent } from './InstalledAgentContent';
 import { InstallSection } from './InstallSection';
@@ -39,10 +40,12 @@ const AgentDetailSheetContent = observer(function AgentDetailSheetContent({
                 agentId={agentId}
                 agentPayload={agentPayload}
                 installOptions={agentPayload.installOptions}
-                installDocs={agentPayload.installDocs}
                 hideOverrideOptions={!isInstalled}
               />
             </Field>
+            {isInstalled && agentPayload.capabilities.mcp.kind === 'supported' && (
+              <AgentMcpSection agentId={agentId} />
+            )}
           </div>
         )}
       </div>

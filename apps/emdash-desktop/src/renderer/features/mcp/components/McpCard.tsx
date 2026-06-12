@@ -12,7 +12,7 @@ import type { McpCatalogEntry, McpServer } from '@shared/core/mcp/types';
 interface McpCardProps {
   server?: McpServer;
   catalogEntry?: McpCatalogEntry;
-  onEdit: (server: McpServer) => void;
+  onEdit?: (server: McpServer) => void;
   onAdd?: (entry: McpCatalogEntry) => void;
 }
 
@@ -36,7 +36,7 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
   ) as AgentProviderId[];
 
   const handleClick = () => {
-    if (isInstalled && server) {
+    if (isInstalled && server && onEdit) {
       onEdit(server);
     } else if (catalogEntry && onAdd) {
       onAdd(catalogEntry);
@@ -101,7 +101,7 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
               variant="ghost"
               onClick={(e) => {
                 e.stopPropagation();
-                if (isInstalled && server) {
+                if (isInstalled && server && onEdit) {
                   onEdit(server);
                 } else if (catalogEntry && onAdd) {
                   onAdd(catalogEntry);

@@ -46,34 +46,81 @@ function stripInjectedHeaders(entry: Record<string, unknown>): void {
 // ── McpConfigShape ──────────────────────────────────────────────────────────
 
 type McpConfigShape = {
+  /** Primary config path: the only file written to. */
   configPath: string;
+  /** Extra paths read for migration only — never written. */
+  legacyReadPaths?: string[];
   format: 'json' | 'toml';
   serversKey: string;
   toNative(server: McpServerRegistration): Record<string, unknown>;
   fromNative(name: string, raw: Record<string, unknown>): McpServerRegistration;
 };
 
+function parseMcpFile(content: string, format: 'json' | 'toml'): Record<string, unknown> {
+  return format === 'json'
+    ? (JSON.parse(content) as Record<string, unknown>)
+    : (parseTOML(content) as Record<string, unknown>);
+}
+
 export function createMcpAdapter(shape: McpConfigShape) {
+  async function readFromPath(
+    fs: PluginFs,
+    filePath: string
+  ): Promise<Map<string, McpServerRegistration>> {
+    const content = await fs.read(filePath);
+    if (!content) return new Map();
+    try {
+      const parsed = parseMcpFile(content, shape.format);
+      const servers = getNestedValue(parsed, shape.serversKey) ?? {};
+      return new Map(
+        Object.entries(servers as Record<string, unknown>).map(([name, raw]) => [
+          name,
+          shape.fromNative(name, raw as Record<string, unknown>),
+        ])
+      );
+    } catch {
+      return new Map();
+    }
+  }
+
+  async function removeFromPath(fs: PluginFs, filePath: string, name: string): Promise<void> {
+    const content = await fs.read(filePath);
+    if (!content) return;
+    try {
+      const parsed = parseMcpFile(content, shape.format);
+      const servers = getNestedValue(parsed, shape.serversKey) ?? {};
+      if (!(name in (servers as Record<string, unknown>))) return;
+      const filtered = Object.fromEntries(
+        Object.entries(servers as Record<string, unknown>).filter(([k]) => k !== name)
+      );
+      setNestedValue(parsed, shape.serversKey, filtered);
+      const output =
+        shape.format === 'json' ? JSON.stringify(parsed, null, 2) + '\n' : stringifyTOML(parsed);
+      await fs.write(filePath, output);
+    } catch {
+      // ignore parse errors in legacy files
+    }
+  }
+
   return {
     async readServers(fs: PluginFs): Promise<McpServerRegistration[]> {
-      const content = await fs.read(shape.configPath);
-      if (!content) return [];
-      const parsed =
-        shape.format === 'json'
-          ? (JSON.parse(content) as Record<string, unknown>)
-          : (parseTOML(content) as Record<string, unknown>);
-      const servers = getNestedValue(parsed, shape.serversKey) ?? {};
-      return Object.entries(servers as Record<string, unknown>).map(([name, raw]) =>
-        shape.fromNative(name, raw as Record<string, unknown>)
-      );
+      const serverMap = new Map<string, McpServerRegistration>();
+      // Legacy paths first (lower priority — canonical wins on name conflict)
+      for (const legacyPath of shape.legacyReadPaths ?? []) {
+        for (const [name, reg] of await readFromPath(fs, legacyPath)) {
+          if (!serverMap.has(name)) serverMap.set(name, reg);
+        }
+      }
+      // Canonical path — overwrites any legacy entry with the same name
+      for (const [name, reg] of await readFromPath(fs, shape.configPath)) {
+        serverMap.set(name, reg);
+      }
+      return Array.from(serverMap.values());
     },
     async writeServers(fs: PluginFs, servers: McpServerRegistration[]): Promise<void> {
+      // Always write the canonical path only; legacy paths are read-only
       const content = await fs.read(shape.configPath);
-      const parsed: Record<string, unknown> = content
-        ? shape.format === 'json'
-          ? (JSON.parse(content) as Record<string, unknown>)
-          : (parseTOML(content) as Record<string, unknown>)
-        : {};
+      const parsed: Record<string, unknown> = content ? parseMcpFile(content, shape.format) : {};
       const native = Object.fromEntries(servers.map((s) => [s.name, shape.toNative(s)]));
       setNestedValue(parsed, shape.serversKey, native);
       const output =
@@ -81,11 +128,12 @@ export function createMcpAdapter(shape: McpConfigShape) {
       await fs.write(shape.configPath, output);
     },
     async removeServer(fs: PluginFs, name: string): Promise<void> {
-      const servers = await this.readServers(fs);
-      await this.writeServers(
-        fs,
-        servers.filter((s) => s.name !== name)
-      );
+      // Remove from canonical path
+      await removeFromPath(fs, shape.configPath, name);
+      // Remove from all legacy paths so a stale copy cannot resurface on next read
+      for (const legacyPath of shape.legacyReadPaths ?? []) {
+        await removeFromPath(fs, legacyPath, name);
+      }
     },
   };
 }
@@ -93,9 +141,10 @@ export function createMcpAdapter(shape: McpConfigShape) {
 // ── Per-provider adapters ───────────────────────────────────────────────────
 
 /** Passthrough adapter — agent uses canonical format (mcpServers JSON key). */
-export function passthroughMcpAdapter(configPath: string) {
+export function passthroughMcpAdapter(configPath: string, legacyReadPaths?: string[]) {
   return createMcpAdapter({
     configPath,
+    legacyReadPaths,
     format: 'json',
     serversKey: 'mcpServers',
     toNative(s) {
@@ -200,11 +249,15 @@ export function qwenMcpAdapter(configPath = '.qwen/settings.json') {
 
 /**
  * OpenCode adapter — type:'remote'/httpUrl for HTTP; type:'local'/command[] for stdio.
- * Config: ~/.opencode/config.json, key: mcp (NOT mcpServers), JSON.
+ * Write: ~/.config/opencode/opencode.json; legacy read: ~/.opencode/config.json.
  */
-export function opencodeMcpAdapter(configPath = '.opencode/config.json') {
+export function opencodeMcpAdapter(
+  configPath = '.config/opencode/opencode.json',
+  legacyReadPaths = ['.opencode/config.json']
+) {
   return createMcpAdapter({
     configPath,
+    legacyReadPaths,
     format: 'json',
     serversKey: 'mcp',
     toNative(s) {
@@ -256,11 +309,15 @@ export function opencodeMcpAdapter(configPath = '.opencode/config.json') {
 
 /**
  * Copilot adapter — injects `tools: ['*']` on write; strips it on read.
- * Config: ~/.config/github-copilot/mcp.json, key: mcpServers, JSON.
+ * Write: ~/.copilot/mcp-config.json; legacy read: ~/.config/github-copilot/mcp.json.
  */
-export function copilotMcpAdapter(configPath = '.config/github-copilot/mcp.json') {
+export function copilotMcpAdapter(
+  configPath = '.copilot/mcp-config.json',
+  legacyReadPaths = ['.config/github-copilot/mcp.json']
+) {
   return createMcpAdapter({
     configPath,
+    legacyReadPaths,
     format: 'json',
     serversKey: 'mcpServers',
     toNative(s) {
@@ -281,16 +338,22 @@ export function copilotMcpAdapter(configPath = '.config/github-copilot/mcp.json'
 
 /**
  * Droid (Factory AI) adapter — passthrough, uses mcpServers JSON key.
- * Config: ~/.factory/config.json.
+ * Write: ~/.droid/settings.json; legacy read: ~/.factory/config.json.
  */
-export function droidMcpAdapter(configPath = '.factory/config.json') {
-  return passthroughMcpAdapter(configPath);
+export function droidMcpAdapter(
+  configPath = '.droid/settings.json',
+  legacyReadPaths = ['.factory/config.json']
+) {
+  return passthroughMcpAdapter(configPath, legacyReadPaths);
 }
 
 /**
  * Amp adapter — passthrough, uses mcpServers JSON key.
- * Config: ~/.amp/config.json.
+ * Write: ~/.config/amp/settings.json; legacy read: ~/.amp/config.json.
  */
-export function ampMcpAdapter(configPath = '.amp/config.json') {
-  return passthroughMcpAdapter(configPath);
+export function ampMcpAdapter(
+  configPath = '.config/amp/settings.json',
+  legacyReadPaths = ['.amp/config.json']
+) {
+  return passthroughMcpAdapter(configPath, legacyReadPaths);
 }

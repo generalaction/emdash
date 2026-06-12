@@ -15,8 +15,6 @@ export type InstallSectionProps = {
   agentPayload: AgentPayload | undefined;
   /** Platform-specific install options from the agent payload. */
   installOptions: InstallOption[];
-  /** Link to installation documentation, null if not set. */
-  installDocs: string | null;
   /**
    * When true, the synthetic "CLI Override" and "Path Override" select entries are hidden.
    * Use in the uninstalled view where these overrides are not meaningful.
@@ -36,8 +34,7 @@ export const InstallSection = observer(function InstallSection({
   connectionId,
   agentPayload,
   installOptions,
-  installDocs: _installDocs,
-  hideOverrideOptions: _hideOverrideOptions,
+  hideOverrideOptions,
 }: InstallSectionProps) {
   const vm = useAgentInstallationStatus(agentId, connectionId, agentPayload);
 
