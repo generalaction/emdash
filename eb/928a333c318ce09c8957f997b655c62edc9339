@@ -1,0 +1,44 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-store.ts
+  s_db53567f1383a7::t_96c1ca155d3e13 1-137
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-types.ts
+  s_db53567f1383a7::t_96c1ca155d3e13 1-48
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-prompt.test.ts
+  s_db53567f1383a7::t_96c1ca155d3e13 1-105
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-prompt.ts
+  s_db53567f1383a7::t_96c1ca155d3e13 1-48
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-script.test.ts
+  s_db53567f1383a7::t_96c1ca155d3e13 1-117
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_db53567f1383a7::t_96c1ca155d3e13 6-9,42,187-246,276-278,287,291-304,311-315
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-script.ts
+  s_db53567f1383a7::t_96c1ca155d3e13 1-387
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-store.test.ts
+  s_db53567f1383a7::t_96c1ca155d3e13 1-109
+apps/emdash-desktop/src/renderer/features/browser/browser-webview-events.ts
+  s_db53567f1383a7::t_96c1ca155d3e13 2,174
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-overlay.tsx
+  s_db53567f1383a7::t_96c1ca155d3e13 1-156
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_db53567f1383a7::t_96c1ca155d3e13 52-54,64-66,212-234
+  s_db53567f1383a7::t_adca11dcb14ed3 6
+apps/emdash-desktop/src/renderer/features/browser/browser-webview-types.ts
+  s_db53567f1383a7::t_96c1ca155d3e13 25,48,67
+apps/emdash-desktop/src/renderer/features/browser/browser-annotation-bar.tsx
+  s_db53567f1383a7::t_96c1ca155d3e13 1-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "eb928a333c318ce09c8957f997b655c62edc9339",
+  "prompts": {},
+  "sessions": {
+    "s_db53567f1383a7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_145d00e23ffedTFRLuLoph2mtb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
