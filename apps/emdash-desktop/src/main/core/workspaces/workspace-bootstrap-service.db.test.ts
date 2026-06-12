@@ -165,9 +165,9 @@ describe('WorkspaceBootstrapService', () => {
       expect(result.success).toBe(true);
       if (!result.success) throw new Error('expected success');
       expect(result.data.path).toBe('/worktrees/task-branch');
-      expect(serveBranchWorktree).toHaveBeenCalledWith({
-        branchName: 'task/branch',
-        sourceBranch: { type: 'local', branch: 'main' },
+      expect(serveBranchWorktree).toHaveBeenCalledWith('task/branch', {
+        type: 'local',
+        branch: 'main',
       });
       expect(existsAbsolute).not.toHaveBeenCalledWith('/worktrees/broken-task-branch');
       expect(mocks.acquireWorkspace).toHaveBeenCalled();

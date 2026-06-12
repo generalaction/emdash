@@ -80,6 +80,7 @@ export class WorkspaceBootstrapService {
     // Derive branch info from workspace config for passing to task providers.
     const wsConfig = workspaceRow.config;
     const workspaceBranchName = getProvisionedWorkspaceBranch(workspaceRow) ?? undefined;
+    const isWorktreeWorkspace = wsKind === 'worktree' || (!wsKind && !!workspaceBranchName);
     const workspaceSourceBranch: Branch | undefined =
       wsConfig?.git.kind === 'create-branch' ? wsConfig.git.fromBranch : undefined;
     const connectionId =
@@ -104,7 +105,7 @@ export class WorkspaceBootstrapService {
     // Persisted worktree path: resolve through WorktreeService instead of trusting
     // path existence. Archive/delete can leave a partial directory behind; the
     // worktree service knows how to remove stale targets and recreate the checkout.
-    if (workspaceRow.path && workspaceBranchName && !isByoi) {
+    if (workspaceRow.path && workspaceBranchName && isWorktreeWorkspace && !isByoi) {
       const serveResult = await project.worktreeService.serveBranchWorktree(
         workspaceBranchName,
         workspaceSourceBranch
