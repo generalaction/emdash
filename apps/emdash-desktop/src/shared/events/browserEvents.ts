@@ -5,6 +5,7 @@ export const browserOpenInNewTabChannel = defineEvent<{
   url: string;
 }>('browser:open-in-new-tab');
 
-export const browserLinkCopiedChannel = defineEvent<{ kind: 'link' | 'url'; url: string }>(
-  'browser:link-copied'
-);
+export const browserLinkCopiedChannel = defineEvent<{
+  kind: 'image' | 'link' | 'url';
+  url: string;
+}>('browser:link-copied');

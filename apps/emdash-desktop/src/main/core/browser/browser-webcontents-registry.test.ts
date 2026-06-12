@@ -237,6 +237,10 @@ describe('BrowserWebContentsRegistry', () => {
     template[2]?.click();
 
     expect(mocks.clipboardWriteText).toHaveBeenCalledWith('https://example.com/image.png');
+    expect(mocks.eventsEmit).toHaveBeenCalledWith(browserLinkCopiedChannel, {
+      kind: 'image',
+      url: 'https://example.com/image.png',
+    });
     expect(webContents.loadURL).toHaveBeenCalledWith('https://example.com/image.png');
     expect(mocks.eventsEmit).toHaveBeenCalledWith(browserOpenInNewTabChannel, {
       sourceBrowserId: 'browser-1',
@@ -261,6 +265,40 @@ describe('BrowserWebContentsRegistry', () => {
     });
   });
 
+  it('does not copy unsupported webview URLs from the shortcut', () => {
+    const registry = new BrowserWebContentsRegistry();
+    const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
+    const webContentsSession = { partition };
+    const webContents = attachedWebContents(webContentsSession);
+    vi.mocked(webContents.getURL).mockReturnValue('about:blank');
+    registry.registerSession({ browserId: 'browser-1', partition });
+
+    registry.attachWebContents('browser-1', webContents, ownerWindow());
+    webContents.emitCopyUrlShortcut();
+
+    expect(mocks.clipboardWriteText).not.toHaveBeenCalled();
+    expect(mocks.eventsEmit).not.toHaveBeenCalledWith(browserLinkCopiedChannel, expect.any(Object));
+  });
+
+  it('preserves selected text and offers a copy action in the context menu', () => {
+    const registry = new BrowserWebContentsRegistry();
+    const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
+    const webContentsSession = { partition };
+    const webContents = attachedWebContents(webContentsSession);
+    registry.registerSession({ browserId: 'browser-1', partition });
+
+    registry.attachWebContents('browser-1', webContents, ownerWindow());
+    webContents.emitContextMenu({ selectionText: ' selected text ' });
+
+    expect(webContents.executeJavaScript).not.toHaveBeenCalled();
+    const template = mocks.menuBuildFromTemplate.mock.calls[0]?.[0] as Array<{ click: () => void }>;
+    expect(template.slice(0, 2)).toMatchObject([{ label: 'Copy' }, { type: 'separator' }]);
+
+    template[0]?.click();
+
+    expect(mocks.clipboardWriteText).toHaveBeenCalledWith('selected text');
+  });
+
   it('uses the configured webview copy URL shortcut', () => {
     const registry = new BrowserWebContentsRegistry();
     const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
@@ -274,6 +312,20 @@ describe('BrowserWebContentsRegistry', () => {
     webContents.emitCopyUrlShortcut({ key: 'u', meta: false, control: true });
 
     expect(mocks.clipboardWriteText).toHaveBeenCalledTimes(1);
+    expect(mocks.clipboardWriteText).toHaveBeenCalledWith('https://example.com/current');
+  });
+
+  it('falls back to the default webview copy URL shortcut when configured shortcut is invalid', () => {
+    const registry = new BrowserWebContentsRegistry();
+    const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
+    const webContentsSession = { partition };
+    const webContents = attachedWebContents(webContentsSession);
+    registry.registerSession({ browserId: 'browser-1', partition });
+    registry.setKeyboardSettings({ browserCopyUrl: 'Super+Shift+C' });
+
+    registry.attachWebContents('browser-1', webContents, ownerWindow());
+    webContents.emitCopyUrlShortcut();
+
     expect(mocks.clipboardWriteText).toHaveBeenCalledWith('https://example.com/current');
   });
 
@@ -323,7 +375,11 @@ describe('BrowserWebContentsRegistry', () => {
     mocks.sessionsByPartition.set(partition, partitionSession);
 
     registry.registerSession({ browserId: 'browser-1', partition });
-    registry.attachWebContents('browser-1', attachedWebContents(partitionSession, image), ownerWindow());
+    registry.attachWebContents(
+      'browser-1',
+      attachedWebContents(partitionSession, image),
+      ownerWindow()
+    );
 
     expect(await registry.captureScreenshotToClipboard('browser-1')).toBe(true);
     expect(mocks.writeImage).toHaveBeenCalledWith(image);

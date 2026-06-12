@@ -7,6 +7,7 @@ import {
   type WebContents,
 } from 'electron';
 import { events } from '@main/lib/events';
+import { log } from '@main/lib/logger';
 import { normalizeBrowserUrl, type BrowserDataClearKind } from '@shared/browser';
 import type { AppSettings } from '@shared/core/app-settings';
 import { browserLinkCopiedChannel, browserOpenInNewTabChannel } from '@shared/events/browserEvents';
@@ -78,11 +79,11 @@ export class BrowserWebContentsRegistry {
     webContents.on('before-input-event', (event, input) => {
       if (!isCopyBrowserUrlShortcut(input, this.copyBrowserUrlShortcut)) return;
 
-      const url = webContents.getURL();
-      if (!url) return;
+      const normalized = normalizeBrowserUrl(webContents.getURL(), { allowSearchQueries: false });
+      if (!normalized.ok || !isExternalHttpUrl(normalized.url)) return;
       event.preventDefault();
-      clipboard.writeText(url);
-      events.emit(browserLinkCopiedChannel, { kind: 'url', url });
+      clipboard.writeText(normalized.url);
+      events.emit(browserLinkCopiedChannel, { kind: 'url', url: normalized.url });
     });
 
     webContents.on('will-navigate', (event, url) => {
@@ -93,17 +94,29 @@ export class BrowserWebContentsRegistry {
 
     webContents.on('context-menu', (event, params) => {
       event.preventDefault();
-      clearWebviewSelection(webContents);
+      const selectionText = (params.selectionText ?? '').trim();
+      if (!selectionText) {
+        clearWebviewSelection(webContents);
+      }
 
       const target = getBrowserContextTarget(params);
       const template: MenuItemConstructorOptions[] = [
+        ...(selectionText
+          ? [
+              {
+                label: 'Copy',
+                click: () => clipboard.writeText(selectionText),
+              },
+              { type: 'separator' as const },
+            ]
+          : []),
         {
           label: target?.kind === 'image' ? 'Copy Image URL' : 'Copy Link',
           enabled: target !== null,
           click: () => {
             if (!target) return;
             clipboard.writeText(target.url);
-            events.emit(browserLinkCopiedChannel, { kind: 'link', url: target.url });
+            events.emit(browserLinkCopiedChannel, { kind: target.kind, url: target.url });
           },
         },
         {
@@ -225,7 +238,14 @@ function getBrowserContextTarget(
 function getBrowserCopyUrlShortcut(keyboard?: AppSettings['keyboard']): string | null {
   const configured = keyboard?.browserCopyUrl;
   if (configured === null) return null;
-  return configured ?? resolveDefaultHotkey(APP_SHORTCUTS.browserCopyUrl) ?? null;
+  const fallback = resolveDefaultHotkey(APP_SHORTCUTS.browserCopyUrl) ?? null;
+  if (configured && !parseShortcut(configured)) {
+    log.warn('Invalid browser copy URL shortcut, falling back to default', {
+      shortcut: configured,
+    });
+    return fallback;
+  }
+  return configured ?? fallback;
 }
 
 function isCopyBrowserUrlShortcut(input: Electron.Input, shortcut: string | null): boolean {

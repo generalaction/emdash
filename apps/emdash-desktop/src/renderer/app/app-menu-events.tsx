@@ -52,7 +52,13 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
 
   useEffect(() => {
     return events.on(browserLinkCopiedChannel, ({ kind }) => {
-      toast({ title: kind === 'url' ? 'Browser URL copied' : 'Link copied' });
+      const title =
+        kind === 'url'
+          ? 'Browser URL copied'
+          : kind === 'image'
+            ? 'Image URL copied'
+            : 'Link copied';
+      toast({ title });
     });
   }, []);
 
