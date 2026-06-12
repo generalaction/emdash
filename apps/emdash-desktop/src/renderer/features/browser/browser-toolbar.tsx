@@ -73,8 +73,6 @@ export function BrowserToolbar({
   const [urlError, setUrlError] = useState<string | null>(null);
   const [failedFaviconUrl, setFailedFaviconUrl] = useState<string | null>(null);
   const [screenshotSpin, triggerScreenshotSpin] = useTransientFlag(300);
-  const [backNudge, triggerBackNudge] = useTransientFlag(200);
-  const [forwardNudge, triggerForwardNudge] = useTransientFlag(200);
   const urlInputRef = useRef<HTMLInputElement | null>(null);
   const faviconUrl =
     session.faviconUrl && session.faviconUrl !== failedFaviconUrl ? session.faviconUrl : null;
@@ -143,32 +141,16 @@ export function BrowserToolbar({
       <ToolbarIconButton
         label="Back"
         disabled={!adapter || !session.canGoBack}
-        onClick={() => {
-          triggerBackNudge();
-          onGoBack?.();
-        }}
+        onClick={() => onGoBack?.()}
       >
-        <ArrowLeft
-          className={cn(
-            'size-4 transition-transform duration-200 ease-out',
-            backNudge && '-translate-x-0.5'
-          )}
-        />
+        <ArrowLeft className="size-4" />
       </ToolbarIconButton>
       <ToolbarIconButton
         label="Forward"
         disabled={!adapter || !session.canGoForward}
-        onClick={() => {
-          triggerForwardNudge();
-          onGoForward?.();
-        }}
+        onClick={() => onGoForward?.()}
       >
-        <ArrowRight
-          className={cn(
-            'size-4 transition-transform duration-200 ease-out',
-            forwardNudge && 'translate-x-0.5'
-          )}
-        />
+        <ArrowRight className="size-4" />
       </ToolbarIconButton>
       <ToolbarIconButton label={session.isLoading ? 'Stop' : 'Reload'} onClick={() => onReload?.()}>
         {session.isLoading ? <Square className="size-3.5" /> : <RefreshCw className="size-4" />}
@@ -368,7 +350,7 @@ function ToolbarIconButton({
             type="button"
             variant="ghost"
             size="icon"
-            className="size-7 shrink-0 transition-transform duration-150 ease-out active:scale-[0.96]"
+            className="size-7 shrink-0"
             disabled={disabled}
             aria-label={label}
             onClick={onClick}
