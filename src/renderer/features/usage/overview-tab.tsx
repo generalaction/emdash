@@ -26,7 +26,7 @@ export function OverviewTab({ snapshot }: { snapshot: UsageSnapshot }) {
       </Panel>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <CostByModel byModel={byModel} />
+        <CostByModel byModel={byModel} unpricedTokens={totals.unpricedTokens} />
         <TopProjects byProject={byProject} />
       </div>
 

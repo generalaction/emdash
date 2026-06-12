@@ -82,6 +82,19 @@ describe('aggregate', () => {
     expect(snap.byHour).toHaveLength(24);
   });
 
+  it('tracks unpriced tokens and flags unpriced models instead of hiding them', () => {
+    const snap = aggregate(
+      [
+        rec({ id: 'a', input: 1000, output: 500, vendor: 'anthropic', model: 'claude-opus-4-8' }),
+        rec({ id: 'b', input: 200, output: 100, vendor: 'meta', model: 'llama-3' }),
+      ],
+      new Date('2026-05-30T18:00:00Z')
+    );
+    expect(snap.totals.unpricedTokens).toBe(300);
+    expect(snap.byModel.find((m) => m.model === 'llama-3')?.priced).toBe(false);
+    expect(snap.byModel.find((m) => m.model === 'claude-opus-4-8')?.priced).toBe(true);
+  });
+
   it('keeps windows.allTime equal to totals.cost even for records with no timestamp', () => {
     const snap = aggregate(
       [

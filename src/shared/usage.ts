@@ -15,6 +15,7 @@ export type ModelUsage = TokenBuckets & {
   provider: UsageProvider;
   tokens: number; // input + output (excludes cache), for headline figures
   cost: number;
+  priced: boolean; // false when no rate was found — cost is 0 and meaningless
 };
 
 export type ProjectUsage = {
@@ -42,6 +43,7 @@ export type UsageTotals = {
   messages: number;
   tokens: number; // input + output (excludes cache)
   cost: number;
+  unpricedTokens: number; // input+output tokens excluded from cost because their model had no rate
 };
 
 export type UsageSnapshot = {
@@ -57,7 +59,7 @@ export type UsageSnapshot = {
 
 export const EMPTY_USAGE_SNAPSHOT: UsageSnapshot = {
   generatedAt: '',
-  totals: { sessions: 0, messages: 0, tokens: 0, cost: 0 },
+  totals: { sessions: 0, messages: 0, tokens: 0, cost: 0, unpricedTokens: 0 },
   windows: { today: 0, week: 0, month: 0, allTime: 0 },
   byModel: [],
   byProject: [],

@@ -6,7 +6,7 @@ import type {
   RecentSession,
   UsageSnapshot,
 } from '@shared/usage';
-import { costOf } from './pricing';
+import { costOf, isPriced } from './pricing';
 import type { UsageRecord } from './types';
 
 const TOP_PROJECTS = 8;
@@ -58,7 +58,7 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
   const sessions = new Map<string, RecentSession>();
   const byHour = Array.from({ length: 24 }, () => 0);
 
-  const totals = { sessions: 0, messages: 0, tokens: 0, cost: 0 };
+  const totals = { sessions: 0, messages: 0, tokens: 0, cost: 0, unpricedTokens: 0 };
   const windows = { today: 0, week: 0, month: 0, allTime: 0 };
   const sessionIds = new Set<string>();
 
@@ -71,6 +71,8 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
     };
     const cost = r.model ? costOf(buckets, r.vendor, r.model) : 0;
     const tokens = r.input + r.output;
+    const priced = r.model ? isPriced(r.vendor, r.model) : false;
+    if (r.model && !priced) totals.unpricedTokens += tokens;
 
     totals.tokens += tokens;
     totals.cost += cost;
@@ -89,6 +91,7 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
         provider: r.provider,
         tokens: 0,
         cost: 0,
+        priced: false,
       };
       mu.input += r.input;
       mu.output += r.output;
@@ -96,6 +99,7 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
       mu.cacheWrite += r.cacheWrite;
       mu.tokens += tokens;
       mu.cost += cost;
+      mu.priced = mu.priced || priced;
       models.set(r.model, mu);
     }
 

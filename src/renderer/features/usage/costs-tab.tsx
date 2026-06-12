@@ -11,7 +11,7 @@ function projectMonthly(monthToDate: number, now: Date): number {
 }
 
 export function CostsTab({ snapshot }: { snapshot: UsageSnapshot }) {
-  const { windows, byModel, byProject, daily } = snapshot;
+  const { windows, totals, byModel, byProject, daily } = snapshot;
   const projected = projectMonthly(windows.month, new Date());
 
   return (
@@ -23,7 +23,7 @@ export function CostsTab({ snapshot }: { snapshot: UsageSnapshot }) {
         <StatCard value={fmtUsd(windows.allTime)} label="All Time" />
       </div>
 
-      <CostByModel byModel={byModel} />
+      <CostByModel byModel={byModel} unpricedTokens={totals.unpricedTokens} />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Panel title="Monthly projection">
