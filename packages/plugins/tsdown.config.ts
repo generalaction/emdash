@@ -2,9 +2,7 @@ import { defineConfig } from 'tsdown';
 
 export default defineConfig({
   entry: {
-    index: 'src/agents/index.ts',
-    definitions: 'src/agents/definitions.ts',
-    providers: 'src/agents/providers.ts',
+    registry: 'src/agents/registry.ts',
   },
   format: ['esm'],
   dts: true,

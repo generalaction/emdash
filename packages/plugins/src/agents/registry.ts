@@ -1,4 +1,4 @@
-// Main-process only: imports full provider implementations (buildCommand, hooks, mcp, plugins).
+// The single plugin registry
 import { type CLIAgentPluginProvider, createPluginRegistry } from '@emdash/shared/agents/plugins';
 import { provider as amp } from './impl/amp';
 import { provider as antigravity } from './impl/antigravity';
@@ -32,7 +32,7 @@ import { provider as pi } from './impl/pi';
 import { provider as qwen } from './impl/qwen';
 import { provider as rovo } from './impl/rovo';
 
-export const providerRegistry = createPluginRegistry<CLIAgentPluginProvider>();
+export const pluginRegistry = createPluginRegistry<CLIAgentPluginProvider>();
 
 for (const p of [
   amp,
@@ -67,5 +67,5 @@ for (const p of [
   qwen,
   rovo,
 ]) {
-  providerRegistry.register(p);
+  pluginRegistry.register(p);
 }
