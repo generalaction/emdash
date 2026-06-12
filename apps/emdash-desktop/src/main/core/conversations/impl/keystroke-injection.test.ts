@@ -53,7 +53,7 @@ describe('scheduleInitialPromptInjection', () => {
     vi.useRealTimers();
   });
 
-  it('injects after PTY output goes quiet', () => {
+  it('injects after provider output goes quiet', () => {
     const { pty, write, emitData } = makePty();
     scheduleInitialPromptInjection({
       pty,
@@ -62,7 +62,7 @@ describe('scheduleInitialPromptInjection', () => {
       isResuming: false,
     });
 
-    emitData('booting...');
+    emitData('Hermes booting...');
     vi.advanceTimersByTime(200);
     emitData('still booting...');
     expect(write).not.toHaveBeenCalled();
@@ -71,7 +71,7 @@ describe('scheduleInitialPromptInjection', () => {
     expect(write).toHaveBeenCalledExactlyOnceWith('Fix the bug\r');
   });
 
-  it('falls back to a max wait when no output ever arrives', () => {
+  it('does not inject when no provider output ever arrives', () => {
     const { pty, write } = makePty();
     scheduleInitialPromptInjection({
       pty,
@@ -81,7 +81,7 @@ describe('scheduleInitialPromptInjection', () => {
     });
 
     vi.advanceTimersByTime(15_000);
-    expect(write).toHaveBeenCalledExactlyOnceWith('Fix the bug\r');
+    expect(write).not.toHaveBeenCalled();
   });
 
   it('wraps multi-line prompts in bracketed paste sequences', () => {
@@ -93,9 +93,38 @@ describe('scheduleInitialPromptInjection', () => {
       isResuming: false,
     });
 
-    emitData('ready');
+    emitData('Hermes ready');
     vi.advanceTimersByTime(900);
     expect(write).toHaveBeenCalledExactlyOnceWith('\x1b[200~line one\nline two\x1b[201~\r');
+  });
+
+  it('does not inject into generic shell output', () => {
+    const { pty, write, emitData } = makePty();
+    scheduleInitialPromptInjection({
+      pty,
+      conversation: makeConversation('hermes'),
+      initialPrompt: 'Fix the bug',
+      isResuming: false,
+    });
+
+    emitData('Last login: Fri Jun 12\n% ');
+    vi.advanceTimersByTime(20_000);
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it('cancels injection when shell failures appear before provider output', () => {
+    const { pty, write, emitData } = makePty();
+    scheduleInitialPromptInjection({
+      pty,
+      conversation: makeConversation('hermes'),
+      initialPrompt: 'Fix the bug',
+      isResuming: false,
+    });
+
+    emitData('zsh:1: command not found: hermes\n% ');
+    emitData('Hermes ready');
+    vi.advanceTimersByTime(900);
+    expect(write).not.toHaveBeenCalled();
   });
 
   it('does nothing for OpenCode because its initial prompt is passed with --prompt', () => {

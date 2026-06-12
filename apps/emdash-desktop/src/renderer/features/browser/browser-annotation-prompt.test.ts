@@ -36,12 +36,12 @@ describe('buildAnnotationPrompt', () => {
         'Page: http://localhost:5173/',
         '',
         '1. Make this button blue',
-        '   Element: `form > button.primary`',
-        '   Component: `SubmitButton` (src/components/SubmitButton.tsx:12)',
+        '   Element: form > button.primary',
+        '   Component: SubmitButton (src/components/SubmitButton.tsx:12)',
         '   Attributes: data-testid="submit-button", role="button"',
         '   Text: "Submit"',
         '   Styles: display: flex; color: rgb(255, 0, 0)',
-        '   HTML: `<button id="submit">Submit</button>`',
+        '   HTML: <button id="submit">Submit</button>',
       ].join('\n')
     );
   });
@@ -102,5 +102,40 @@ describe('buildAnnotationPrompt', () => {
     ]);
     expect(prompt).toContain('   Source: src/App.tsx:7');
     expect(prompt).not.toContain('Component:');
+  });
+
+  it('does not wrap selectors or HTML in shell-active backticks', () => {
+    const prompt = buildAnnotationPrompt([
+      makeAnnotation({
+        element: {
+          ...makeAnnotation().element,
+          html: '<div data-auth_type="SIGN_UP">Outlet</div>',
+        },
+      }),
+    ]);
+
+    expect(prompt).not.toContain('`');
+    expect(prompt).toContain('data-auth_type="SIGN_UP"');
+  });
+
+  it('builds a compact initial prompt for new agents', () => {
+    const prompt = buildAnnotationPrompt(
+      [
+        makeAnnotation({
+          comment: 'Change this\nnow',
+          element: {
+            ...makeAnnotation().element,
+            html: '<div data-auth_type="SIGN_UP">Outlet</div>',
+          },
+        }),
+      ],
+      { mode: 'initial' }
+    );
+
+    expect(prompt).not.toContain('\n');
+    expect(prompt).not.toContain('`');
+    expect(prompt).not.toContain('HTML:');
+    expect(prompt).toContain('Change this now');
+    expect(prompt).toContain('selector: form > button.primary');
   });
 });

@@ -7,7 +7,17 @@ import { buildPromptInjectionPayload } from '@shared/prompt-injection';
 // Inject only after the TUI has produced output and stayed idle for a beat;
 // fixed delays race the agent's startup (auth, sync, model load).
 const QUIET_PERIOD_MS = 800;
-const MAX_WAIT_MS = 15_000;
+
+const KEYSTROKE_READY_OUTPUT: Partial<Record<Conversation['providerId'], RegExp>> = {
+  grok: /\b(grok|xai|x\.ai)\b/i,
+  hermes: /\bhermes\b/i,
+  kimi: /\bkimi\b/i,
+  jules: /\bjules\b/i,
+  letta: /\bletta\b/i,
+};
+
+const SHELL_FAILURE_OUTPUT =
+  /(?:^|\n)(?:zsh|bash|sh|fish)(?::\d+)?(?::\s+|\s+)(?:command not found|parse error|no such file or directory)\b/i;
 
 export function scheduleInitialPromptInjection(args: {
   pty: Pty;
@@ -21,6 +31,9 @@ export function scheduleInitialPromptInjection(args: {
   const provider = getProvider(args.conversation.providerId);
   if (!provider?.useKeystrokeInjection) return;
 
+  const readyOutput = KEYSTROKE_READY_OUTPUT[args.conversation.providerId];
+  if (!readyOutput) return;
+
   const payload = buildPromptInjectionPayload({
     providerId: args.conversation.providerId,
     text: args.initialPrompt,
@@ -28,13 +41,13 @@ export function scheduleInitialPromptInjection(args: {
 
   let injected = false;
   let sawAnyOutput = false;
+  let sawReadyOutput = false;
   let quietTimer: ReturnType<typeof setTimeout> | null = null;
 
   const inject = () => {
     if (injected) return;
     injected = true;
     if (quietTimer) clearTimeout(quietTimer);
-    clearTimeout(maxWaitTimer);
     try {
       const submitSequence = provider.keystrokeSubmitSequence ?? '\r';
       const submitDelayMs = provider.keystrokeSubmitDelayMs;
@@ -53,11 +66,20 @@ export function scheduleInitialPromptInjection(args: {
     }
   };
 
-  const maxWaitTimer = setTimeout(inject, MAX_WAIT_MS);
-
-  args.pty.onData(() => {
+  args.pty.onData((data) => {
     if (injected) return;
     sawAnyOutput = true;
+    if (SHELL_FAILURE_OUTPUT.test(data)) {
+      injected = true;
+      if (quietTimer) clearTimeout(quietTimer);
+      log.warn('ConversationProvider: shell output detected before initial prompt injection', {
+        providerId: args.conversation.providerId,
+        conversationId: args.conversation.id,
+      });
+      return;
+    }
+    sawReadyOutput = sawReadyOutput || readyOutput.test(data);
+    if (!sawReadyOutput) return;
     if (quietTimer) clearTimeout(quietTimer);
     quietTimer = setTimeout(inject, QUIET_PERIOD_MS);
   });
@@ -66,12 +88,12 @@ export function scheduleInitialPromptInjection(args: {
     const promptWasInjected = injected;
     injected = true;
     if (quietTimer) clearTimeout(quietTimer);
-    clearTimeout(maxWaitTimer);
     if (!promptWasInjected) {
       log.warn('ConversationProvider: PTY exited before initial prompt could be injected', {
         providerId: args.conversation.providerId,
         conversationId: args.conversation.id,
         sawAnyOutput,
+        sawReadyOutput,
       });
     }
   });

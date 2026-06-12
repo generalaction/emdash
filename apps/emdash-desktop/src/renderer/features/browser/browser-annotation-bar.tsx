@@ -188,7 +188,7 @@ export const BrowserAnnotationBar = observer(function BrowserAnnotationBar({
   };
 
   const sendToNewConversation = async (providerId: AgentProviderId) => {
-    const text = buildAnnotationPrompt(state.annotations.slice());
+    const text = buildAnnotationPrompt(state.annotations.slice(), { mode: 'initial' });
     const title = nextDefaultConversationTitle(
       providerId,
       Array.from(conversations.conversations.values(), (store) => store.data)
