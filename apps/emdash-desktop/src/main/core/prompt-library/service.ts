@@ -6,12 +6,16 @@ import type { IInitializable } from '@main/lib/lifecycle';
 import {
   DEFAULT_PROMPT_LIBRARY,
   PROMPT_LIBRARY_SEED_VERSION,
+  promptLibraryFoldersSchema,
   promptLibrarySchema,
+  type PromptLibraryFolder,
   type PromptLibraryPrompt,
+  type PromptLibraryState,
 } from '@shared/prompt-library';
 
 type PromptLibraryKV = {
   prompts: PromptLibraryPrompt[];
+  folders: PromptLibraryFolder[];
   seedVersion: number;
 };
 
@@ -24,6 +28,26 @@ export class PromptLibraryService implements IInitializable {
     const prompts = await promptLibraryKV.get('prompts');
     const parsed = promptLibrarySchema.safeParse(prompts ?? []);
     return parsed.success ? parsed.data : [];
+  }
+
+  private async readFolders(): Promise<PromptLibraryFolder[]> {
+    const folders = await promptLibraryKV.get('folders');
+    const parsed = promptLibraryFoldersSchema.safeParse(folders ?? []);
+    return parsed.success ? parsed.data : [];
+  }
+
+  // Prompts pointing at a deleted/unknown folder fall back to ungrouped instead
+  // of disappearing from the grouped UI.
+  private sanitizePrompts(
+    prompts: PromptLibraryPrompt[],
+    folders: PromptLibraryFolder[]
+  ): PromptLibraryPrompt[] {
+    const folderIds = new Set(folders.map((folder) => folder.id));
+    return prompts.map((prompt) => {
+      if (!prompt.folderId || folderIds.has(prompt.folderId)) return prompt;
+      const { folderId: _folderId, ...rest } = prompt;
+      return rest;
+    });
   }
 
   private async readLegacyAppSetting(key: string): Promise<unknown | null> {
@@ -97,14 +121,17 @@ export class PromptLibraryService implements IInitializable {
     await this.seedIfNeeded();
   }
 
-  async getPrompts(): Promise<PromptLibraryPrompt[]> {
+  async getState(): Promise<PromptLibraryState> {
     await this.seedIfNeeded();
-    return this.readPrompts();
+    const [prompts, folders] = await Promise.all([this.readPrompts(), this.readFolders()]);
+    return { prompts: this.sanitizePrompts(prompts, folders), folders };
   }
 
-  async updatePrompts(prompts: PromptLibraryPrompt[]): Promise<void> {
-    const validated = promptLibrarySchema.parse(prompts);
-    await promptLibraryKV.set('prompts', validated);
+  async updateState(state: PromptLibraryState): Promise<void> {
+    const prompts = promptLibrarySchema.parse(state.prompts);
+    const folders = promptLibraryFoldersSchema.parse(state.folders);
+    await promptLibraryKV.set('prompts', this.sanitizePrompts(prompts, folders));
+    await promptLibraryKV.set('folders', folders);
   }
 
   async upsertReviewPrompt(prompt: string): Promise<void> {

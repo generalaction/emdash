@@ -7,11 +7,25 @@ export const promptLibraryPromptSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
   prompt: z.string().min(1),
+  folderId: z.string().min(1).optional(),
 });
 
 export const promptLibrarySchema = z.array(promptLibraryPromptSchema);
 
+export const promptLibraryFolderSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+});
+
+export const promptLibraryFoldersSchema = z.array(promptLibraryFolderSchema);
+
 export type PromptLibraryPrompt = z.infer<typeof promptLibraryPromptSchema>;
+export type PromptLibraryFolder = z.infer<typeof promptLibraryFolderSchema>;
+
+export type PromptLibraryState = {
+  prompts: PromptLibraryPrompt[];
+  folders: PromptLibraryFolder[];
+};
 
 export const DEFAULT_PROMPT_LIBRARY: PromptLibraryPrompt[] = [
   {

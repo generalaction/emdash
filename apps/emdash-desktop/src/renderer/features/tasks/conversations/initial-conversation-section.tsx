@@ -76,7 +76,7 @@ export function InitialConversationField({
   placeholder,
   textareaClassName,
 }: InitialConversationFieldProps) {
-  const { value: promptLibrary } = usePromptLibrary();
+  const { prompts: promptLibrary, folders: promptFolders } = usePromptLibrary();
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const contextActions = useMemo(
     () => buildTaskContextActions(linkedIssue, [], promptLibrary),
@@ -130,6 +130,7 @@ export function InitialConversationField({
           <div className="flex items-center gap-2">
             <AddContextPopover
               actions={contextActions}
+              folders={promptFolders}
               disabled={contextActions.length === 0}
               onApplyAction={handleActionClick}
               renderTrigger={({ disabled: isDisabled }) => (

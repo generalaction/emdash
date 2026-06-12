@@ -36,7 +36,11 @@ export const ContextBar = observer(function ContextBar({ conversationId }: Conte
     useAppSettingsKey('interface');
   const task = getRegisteredTaskData(projectId, taskId);
   const draftComments = getTaskStore(projectId, taskId)?.draftComments;
-  const { value: promptLibrary, isSaving: isSavingPromptLibrary } = usePromptLibrary();
+  const {
+    prompts: promptLibrary,
+    folders: promptFolders,
+    isSaving: isSavingPromptLibrary,
+  } = usePromptLibrary();
   const activeSession = conversationId ? conversations.sessions.get(conversationId) : undefined;
   const activeConversationStore = conversationId
     ? conversations.conversations.get(conversationId)
@@ -91,6 +95,7 @@ export const ContextBar = observer(function ContextBar({ conversationId }: Conte
         <div className="flex w-full items-center justify-center bg-background-secondary-1 px-4 py-2">
           <AddContextPopover
             actions={actions}
+            folders={promptFolders}
             disabled={!canApplyContext || isSavingPromptLibrary}
             isActivePane={isActivePane}
             onApplyAction={handleApplyAction}

@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { rpc } from '@renderer/lib/ipc';
-import { type PromptLibraryPrompt } from '@shared/prompt-library';
+import { type PromptLibraryState } from '@shared/prompt-library';
 
 const promptLibraryQueryKey = ['promptLibrary'] as const;
+
+const EMPTY_STATE: PromptLibraryState = { prompts: [], folders: [] };
 
 export function usePromptLibrary() {
   const queryClient = useQueryClient();
@@ -15,19 +17,18 @@ export function usePromptLibrary() {
   const updateMutation = useMutation<
     void,
     Error,
-    PromptLibraryPrompt[],
-    { previousPrompts: PromptLibraryPrompt[] | undefined }
+    PromptLibraryState,
+    { previousState: PromptLibraryState | undefined }
   >({
-    mutationFn: (prompts) => rpc.promptLibrary.update(prompts),
-    onMutate: async (prompts) => {
+    mutationFn: (state) => rpc.promptLibrary.update(state),
+    onMutate: async (state) => {
       await queryClient.cancelQueries({ queryKey: promptLibraryQueryKey });
-      const previousPrompts =
-        queryClient.getQueryData<PromptLibraryPrompt[]>(promptLibraryQueryKey);
-      queryClient.setQueryData(promptLibraryQueryKey, prompts);
-      return { previousPrompts };
+      const previousState = queryClient.getQueryData<PromptLibraryState>(promptLibraryQueryKey);
+      queryClient.setQueryData(promptLibraryQueryKey, state);
+      return { previousState };
     },
-    onError: (_error, _prompts, context) => {
-      queryClient.setQueryData(promptLibraryQueryKey, context?.previousPrompts);
+    onError: (_error, _state, context) => {
+      queryClient.setQueryData(promptLibraryQueryKey, context?.previousState);
       void queryClient.invalidateQueries({ queryKey: promptLibraryQueryKey });
     },
     onSettled: () => {
@@ -35,9 +36,21 @@ export function usePromptLibrary() {
     },
   });
 
+  // Sets the cache before mutating so the cache already holds the new order
+  // when the caller's drop-time local state is cleared. Errors are recovered
+  // by the mutation's invalidate.
+  const reorder: typeof updateMutation.mutate = (state, options) => {
+    queryClient.setQueryData(promptLibraryQueryKey, state);
+    updateMutation.mutate(state, options);
+  };
+
+  const state = data ?? EMPTY_STATE;
+
   return {
-    value: data ?? [],
+    prompts: state.prompts,
+    folders: state.folders,
     update: updateMutation.mutate,
+    reorder,
     isLoading,
     isSaving: updateMutation.isPending,
   };

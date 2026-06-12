@@ -10,26 +10,41 @@ import {
 } from '@renderer/lib/ui/dialog';
 import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@renderer/lib/ui/select';
 import { Textarea } from '@renderer/lib/ui/textarea';
-import type { PromptLibraryPrompt } from '@shared/prompt-library';
+import type { PromptLibraryFolder, PromptLibraryPrompt } from '@shared/prompt-library';
 
-export type PromptFormResult = Pick<PromptLibraryPrompt, 'title' | 'prompt'>;
+export type PromptFormResult = Pick<PromptLibraryPrompt, 'title' | 'prompt' | 'folderId'>;
+
+const NO_FOLDER = 'no-folder';
 
 type PromptModalArgs = {
   initialPrompt?: PromptLibraryPrompt | PromptFormResult;
+  folders?: PromptLibraryFolder[];
 };
 
 type Props = BaseModalProps<PromptFormResult> & PromptModalArgs;
 
-export function PromptModal({ initialPrompt, onSuccess, onClose }: Props) {
+export function PromptModal({ initialPrompt, folders = [], onSuccess, onClose }: Props) {
   const initialForm = useMemo<PromptFormResult>(
     () => ({
       title: initialPrompt?.title ?? '',
       prompt: initialPrompt?.prompt ?? '',
+      folderId: initialPrompt?.folderId,
     }),
     [initialPrompt]
   );
   const [form, setForm] = useState(initialForm);
+
+  const selectedFolderName = form.folderId
+    ? folders.find((folder) => folder.id === form.folderId)?.name
+    : undefined;
 
   const normalizedTitle = form.title.trim();
   const normalizedPrompt = form.prompt.trim();
@@ -37,7 +52,7 @@ export function PromptModal({ initialPrompt, onSuccess, onClose }: Props) {
 
   const handleSave = () => {
     if (!canSave) return;
-    onSuccess({ title: normalizedTitle, prompt: normalizedPrompt });
+    onSuccess({ title: normalizedTitle, prompt: normalizedPrompt, folderId: form.folderId });
   };
 
   return (
@@ -56,6 +71,32 @@ export function PromptModal({ initialPrompt, onSuccess, onClose }: Props) {
               placeholder="Security review"
             />
           </Field>
+          {folders.length > 0 && (
+            <Field>
+              <FieldLabel>Folder</FieldLabel>
+              <Select
+                value={form.folderId ?? NO_FOLDER}
+                onValueChange={(next) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    folderId: next && next !== NO_FOLDER ? next : undefined,
+                  }))
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>{selectedFolderName ?? 'No folder'}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_FOLDER}>No folder</SelectItem>
+                  {folders.map((folder) => (
+                    <SelectItem key={folder.id} value={folder.id}>
+                      {folder.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
           <Field>
             <FieldLabel>Prompt</FieldLabel>
             <Textarea
