@@ -6,7 +6,7 @@ import { ensureModelsDevPricing } from './models-dev';
 import { runPipeline } from './pipeline';
 import { getRemoteRates, type ModelRate } from './pricing';
 import { isSnapshotStale } from './staleness';
-import type { WorkerResponse } from './usage-worker';
+import { requestSnapshot } from './worker-request';
 
 // Generous: protects against a wedged worker. On timeout we fall back to the inline pass.
 const WORKER_TIMEOUT_MS = 120_000;
@@ -62,33 +62,12 @@ class UsageStatsService {
   }
 
   private computeInWorker(indexPath: string, now: Date): Promise<UsageSnapshot> {
-    const worker = this.ensureWorker();
     const rates: Array<[string, ModelRate]> = [...getRemoteRates().entries()];
-
-    return new Promise<UsageSnapshot>((resolve, reject) => {
-      const cleanup = (): void => {
-        clearTimeout(timer);
-        worker.off('message', onMessage);
-        worker.off('exit', onExit);
-      };
-      const onMessage = (res: WorkerResponse): void => {
-        cleanup();
-        if (res.ok) resolve(res.snapshot);
-        else reject(new Error(res.error));
-      };
-      const onExit = (code: number): void => {
-        cleanup();
-        reject(new Error(`usage worker exited (${code}) before responding`));
-      };
-      const timer = setTimeout(() => {
-        cleanup();
-        reject(new Error('usage worker timed out'));
-      }, WORKER_TIMEOUT_MS);
-
-      worker.on('message', onMessage);
-      worker.on('exit', onExit);
-      worker.postMessage({ indexPath, rates, nowISO: now.toISOString() });
-    });
+    return requestSnapshot(
+      this.ensureWorker(),
+      { indexPath, rates, nowISO: now.toISOString() },
+      WORKER_TIMEOUT_MS
+    );
   }
 
   /** Fork the worker lazily and reuse it across refreshes; respawn after an exit. */

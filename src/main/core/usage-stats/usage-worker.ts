@@ -1,6 +1,6 @@
-import type { UsageSnapshot } from '@shared/usage';
 import { runPipeline } from './pipeline';
-import { setRemoteRates, type ModelRate } from './pricing';
+import { setRemoteRates } from './pricing';
+import type { WorkerRequest, WorkerResponse } from './worker-request';
 
 /**
  * utilityProcess worker entry. Runs the synchronous scan/read/parse/aggregate pass off the
@@ -8,17 +8,14 @@ import { setRemoteRates, type ModelRate } from './pricing';
  * main process forwards the models.dev rate map (this is a separate process with its own pricing
  * module state) and we reply with the finished snapshot — small, so the cross-process copy is cheap.
  */
-type Request = { indexPath: string; rates: Array<[string, ModelRate]>; nowISO: string };
-export type WorkerResponse = { ok: true; snapshot: UsageSnapshot } | { ok: false; error: string };
-
 process.parentPort.on('message', (e) => {
-  const { indexPath, rates, nowISO } = e.data as Request;
+  const { reqId, indexPath, rates, nowISO } = e.data as WorkerRequest;
   let res: WorkerResponse;
   try {
     setRemoteRates(new Map(rates));
-    res = { ok: true, snapshot: runPipeline(indexPath, new Date(nowISO)) };
+    res = { reqId, ok: true, snapshot: runPipeline(indexPath, new Date(nowISO)) };
   } catch (err) {
-    res = { ok: false, error: err instanceof Error ? err.message : String(err) };
+    res = { reqId, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
   process.parentPort.postMessage(res);
 });
