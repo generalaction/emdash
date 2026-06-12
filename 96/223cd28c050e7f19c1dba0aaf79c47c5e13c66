@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/main/core/git/impl/git-service.ts
+  s_076be1d8098345::t_7e9ebe1ac52824 503-506,508,511
+apps/emdash-desktop/src/renderer/lib/monaco/invalidation-bridges.ts
+  s_076be1d8098345::t_8bc5888c7f1848 61-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "96223cd28c050e7f19c1dba0aaf79c47c5e13c66",
+  "prompts": {},
+  "sessions": {
+    "s_076be1d8098345": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0575c0d4-42a0-48a9-9385-a7f5aaa54344",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
