@@ -46,6 +46,7 @@ import { cn } from '@renderer/utils/utils';
 import type { Issue } from '@shared/tasks';
 import { DevServerPills } from './components/dev-server-pills';
 import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
+import { TaskCostBadge } from './components/task-cost-badge';
 import { type SidebarTab } from './types';
 import { useGitActions } from './use-git-actions';
 
@@ -308,6 +309,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
       }
       rightSlot={
         <div className="flex items-center gap-2">
+          <TaskCostBadge workspacePath={workspace.path} />
           <DevServerPills projectId={projectId} taskId={taskId} />
           {!isRemoteProject && (
             <OpenInMenu path={workspace.path} className="h-7 bg-transparent" borderless />

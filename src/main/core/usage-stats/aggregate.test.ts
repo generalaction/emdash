@@ -95,6 +95,24 @@ describe('aggregate', () => {
     expect(snap.byModel.find((m) => m.model === 'claude-opus-4-8')?.priced).toBe(true);
   });
 
+  it('rolls up cost by literal cwd without project collapse, post-dedup', () => {
+    const a = rec({ id: 'a', input: 1_000_000, cwd: '/Users/x/emdash/worktrees/proj/task-1' });
+    const snap = aggregate(
+      [
+        a,
+        { ...a }, // duplicate id — must not double-count in byCwd
+        rec({ id: 'b', input: 500_000, cwd: '/Users/x/emdash/worktrees/proj/task-2' }),
+      ],
+      new Date('2026-05-30T18:00:00Z')
+    );
+    const t1 = snap.byCwd.find((c) => c.cwd === '/Users/x/emdash/worktrees/proj/task-1');
+    const t2 = snap.byCwd.find((c) => c.cwd === '/Users/x/emdash/worktrees/proj/task-2');
+    expect(t1?.tokens).toBe(1_000_000); // deduped
+    expect(t1?.cost).toBeCloseTo(5, 6); // opus input $5/1M
+    expect(t2?.tokens).toBe(500_000);
+    expect(snap.byCwd).toHaveLength(2); // two distinct cwds, NOT collapsed to one project
+  });
+
   it('keeps windows.allTime equal to totals.cost even for records with no timestamp', () => {
     const snap = aggregate(
       [

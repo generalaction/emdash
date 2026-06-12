@@ -1,5 +1,6 @@
 import { basenameFromAnyPath } from '@shared/path-name';
 import type {
+  CwdUsage,
   DailyPoint,
   ModelUsage,
   ProjectUsage,
@@ -54,6 +55,7 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
 
   const models = new Map<string, ModelUsage>();
   const projects = new Map<string, ProjectUsage>();
+  const byCwd = new Map<string, CwdUsage>();
   const daily = new Map<string, DailyPoint>();
   const sessions = new Map<string, RecentSession>();
   const byHour = Array.from({ length: 24 }, () => 0);
@@ -110,6 +112,12 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
       pu.tokens += tokens;
       pu.cost += cost;
       projects.set(pk, pu);
+
+      // by literal cwd (no project collapse) — the renderer joins this against task worktree paths
+      const cu = byCwd.get(r.cwd) ?? { cwd: r.cwd, tokens: 0, cost: 0 };
+      cu.tokens += tokens;
+      cu.cost += cost;
+      byCwd.set(r.cwd, cu);
     }
 
     const parts = localParts(r.ts);
@@ -171,6 +179,7 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
     windows,
     byModel: [...models.values()].sort((a, b) => b.cost - a.cost),
     byProject,
+    byCwd: [...byCwd.values()],
     daily: [...daily.values()].sort((a, b) => a.date.localeCompare(b.date)),
     byHour,
     recentSessions: [...sessions.values()]

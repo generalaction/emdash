@@ -26,6 +26,9 @@ export type ProjectUsage = {
   sessions: number;
 };
 
+/** Cost rolled up by literal working directory — joined against task worktree paths. */
+export type CwdUsage = { cwd: string; tokens: number; cost: number };
+
 export type DailyPoint = { date: string; cost: number; tokens: number }; // local YYYY-MM-DD
 
 export type RecentSession = {
@@ -52,6 +55,7 @@ export type UsageSnapshot = {
   windows: UsageWindows;
   byModel: ModelUsage[];
   byProject: ProjectUsage[];
+  byCwd: CwdUsage[];
   daily: DailyPoint[];
   byHour: number[]; // length 24
   recentSessions: RecentSession[];
@@ -63,6 +67,7 @@ export const EMPTY_USAGE_SNAPSHOT: UsageSnapshot = {
   windows: { today: 0, week: 0, month: 0, allTime: 0 },
   byModel: [],
   byProject: [],
+  byCwd: [],
   daily: [],
   byHour: Array.from({ length: 24 }, () => 0),
   recentSessions: [],
