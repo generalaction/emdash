@@ -1,22 +1,11 @@
 import z from 'zod';
 import { definePluginCapability } from '../../../lib/plugins/capability';
 import type { PluginFs } from '../../runtime/fs';
+import type { HookRegistration } from './hooks-types';
 
-export const HOOK_EVENTS = [
-  'notification',
-  'stop',
-  'session',
-  'start',
-  'tool-use',
-  'tool-use-failure',
-] as const;
-
-export type HookEvent = (typeof HOOK_EVENTS)[number];
-
-export type HookRegistration = {
-  event: string;
-  command: string;
-};
+export type { HookRegistration };
+export type { HookEvent } from './hooks-types';
+export { HOOK_EVENTS } from './hooks-types';
 
 export type IHooksBehavior = {
   readHooks(fs: PluginFs): Promise<HookRegistration[]>;
@@ -27,10 +16,10 @@ export type IHooksBehavior = {
 
 /**
  * hooksDescriptor is used to describe the hooks that an agent supports.
- * @param kind - The kind of hooks descriptor.
- * @param kind: 'supported' - The agent supports hooks.
- * @param kind: 'none' - The agent does not support hooks.
- * @param hookEvents - The events that the agent supports.
+ *
+ * kind: 'config'  — hooks written into agent config file(s)
+ * kind: 'plugin'  — hooks delivered via a dropped file/plugin
+ * kind: 'none'    — agent does not support lifecycle hooks
  */
 export const hooksCapability = definePluginCapability<IHooksBehavior>()(
   'hooks',
@@ -38,15 +27,17 @@ export const hooksCapability = definePluginCapability<IHooksBehavior>()(
     z.object({
       kind: z.literal('config'),
       scope: z.enum(['global', 'workspace']),
-      supportedEvents: z.array(z.enum(HOOK_EVENTS)),
+      supportedEvents: z.array(
+        z.enum(['notification', 'stop', 'session', 'start', 'tool-use', 'tool-use-failure'])
+      ),
     }),
     z.object({
       kind: z.literal('plugin'),
-      scope: z.enum(['workspace']),
-      supportedEvents: z.array(z.enum(HOOK_EVENTS)),
+      scope: z.enum(['global', 'workspace']),
+      supportedEvents: z.array(
+        z.enum(['notification', 'stop', 'session', 'start', 'tool-use', 'tool-use-failure'])
+      ),
     }),
-    z.object({
-      kind: z.literal('none'),
-    }),
+    z.object({ kind: z.literal('none') }),
   ])
 );

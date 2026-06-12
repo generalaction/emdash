@@ -1,39 +1,72 @@
-import { defineMetadata, defineProvider } from '../../core';
-import { buildStandardCommand } from '../../helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { icon } from './icon';
 
-export { default as Icon } from './icon';
-
-export const metadata = defineMetadata({
-  id: 'rovo',
-  name: 'Rovo Dev',
-  description:
-    'Atlassian Rovo Dev CLI integrates terminal assistance with Jira, Confluence, and Bitbucket workflows.',
-  websiteUrl:
-    'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
-  capabilities: {
-    install: {
+export const plugin = definePlugin(
+  {
+    id: 'rovo',
+    name: 'Rovo Dev',
+    description:
+      'Atlassian Rovo Dev CLI integrates terminal assistance with Jira, Confluence, and Bitbucket workflows.',
+    websiteUrl:
+      'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
+  },
+  {
+    autoApprove: {
+      kind: 'supported',
+    },
+    effort: {
+      kind: 'none',
+    },
+    hooks: {
+      kind: 'none',
+    },
+    hostDependency: {
+      id: 'rovo',
       binaryNames: ['rovodev', 'acli'],
       installCommands: {
-        macos: [{ command: 'acli rovodev auth login', method: 'other' }],
-        linux: [{ command: 'acli rovodev auth login', method: 'other' }],
+        macos: [
+          {
+            method: 'other',
+            command: 'acli rovodev auth login',
+          },
+        ],
+        linux: [
+          {
+            method: 'other',
+            command: 'acli rovodev auth login',
+          },
+        ],
+      },
+      updates: {
+        kind: 'none',
       },
     },
-    models: { kind: 'none' },
-    effort: { kind: 'none' },
-    promptDelivery: { kind: 'argv', flag: '' },
-    sessions: { kind: 'stateless' },
-    autoApprove: { kind: 'supported' },
-    hooks: { kind: 'none' },
-    mcp: { kind: 'none' },
-    plugin: { kind: 'none' },
-    updates: { kind: 'none' },
+    mcp: {
+      kind: 'none',
+    },
+    models: {
+      kind: 'none',
+    },
+    plugins: {
+      kind: 'none',
+    },
+    prompt: {
+      kind: 'argv',
+      flag: '',
+    },
+    sessions: {
+      kind: 'stateless',
+    },
   },
-});
+  { icon }
+);
 
-export const provider = defineProvider(metadata, {
-  buildCommand: (ctx) =>
-    buildStandardCommand(ctx, {
-      autoApproveFlag: '--yolo',
-    }),
-  buildVersionProbeCommand: (b) => ({ command: b, args: ['--version'] }),
+export const provider = registerPluginBehavior(plugin, {
+  prompt: {
+    buildCommand: (ctx) =>
+      buildStandardCommand(ctx, {
+        autoApproveFlag: '--yolo',
+      }),
+  },
 });

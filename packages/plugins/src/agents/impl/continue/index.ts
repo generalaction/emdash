@@ -1,45 +1,86 @@
-import { defineMetadata, defineProvider } from '../../core';
-import { buildStandardCommand } from '../../helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { icon } from './icon';
 
-export { default as Icon } from './icon';
-
-export const metadata = defineMetadata({
-  id: 'continue',
-  name: 'Continue',
-  description:
-    'Continue CLI is a modular coding agent with configurable models, rules, and MCP tool support.',
-  websiteUrl: 'https://docs.continue.dev/guides/cli',
-  capabilities: {
-    install: {
+export const plugin = definePlugin(
+  {
+    id: 'continue',
+    name: 'Continue',
+    description:
+      'Continue CLI is a modular coding agent with configurable models, rules, and MCP tool support.',
+    websiteUrl: 'https://docs.continue.dev/guides/cli',
+  },
+  {
+    autoApprove: {
+      kind: 'supported',
+    },
+    effort: {
+      kind: 'none',
+    },
+    hooks: {
+      kind: 'none',
+    },
+    hostDependency: {
+      id: 'continue',
       binaryNames: ['cn'],
       installCommands: {
-        macos: [{ command: 'npm i -g @continuedev/cli', method: 'npm' }],
-        linux: [{ command: 'npm i -g @continuedev/cli', method: 'npm' }],
-        windows: [{ command: 'npm i -g @continuedev/cli', method: 'npm' }],
+        macos: [
+          {
+            method: 'npm',
+            command: 'npm i -g @continuedev/cli',
+          },
+        ],
+        linux: [
+          {
+            method: 'npm',
+            command: 'npm i -g @continuedev/cli',
+          },
+        ],
+        windows: [
+          {
+            method: 'npm',
+            command: 'npm i -g @continuedev/cli',
+          },
+        ],
+      },
+      updates: {
+        kind: 'supported',
+        releaseSource: {
+          kind: 'npm',
+          package: '@continuedev/cli',
+        },
+        update: {
+          kind: 'package-manager',
+        },
       },
     },
-    models: { kind: 'none' },
-    effort: { kind: 'none' },
-    promptDelivery: { kind: 'argv', flag: '' },
-    sessions: { kind: 'resumable' },
-    autoApprove: { kind: 'supported' },
-    hooks: { kind: 'none' },
-    mcp: { kind: 'none' },
-    plugin: { kind: 'none' },
-    updates: {
-      kind: 'supported',
-      releaseSource: { kind: 'npm', package: '@continuedev/cli' },
-      update: { kind: 'package-manager' },
+    mcp: {
+      kind: 'none',
+    },
+    models: {
+      kind: 'none',
+    },
+    plugins: {
+      kind: 'none',
+    },
+    prompt: {
+      kind: 'argv',
+      flag: '',
+    },
+    sessions: {
+      kind: 'resumable',
     },
   },
-});
+  { icon }
+);
 
-export const provider = defineProvider(metadata, {
-  buildCommand: (ctx) =>
-    buildStandardCommand(ctx, {
-      autoApproveFlag: '--auto',
-      initialPromptFlag: '',
-      resumeFlag: '--resume',
-    }),
-  buildVersionProbeCommand: (b) => ({ command: b, args: ['--version'] }),
+export const provider = registerPluginBehavior(plugin, {
+  prompt: {
+    buildCommand: (ctx) =>
+      buildStandardCommand(ctx, {
+        autoApproveFlag: '--auto',
+        initialPromptFlag: '',
+        resumeFlag: '--resume',
+      }),
+  },
 });

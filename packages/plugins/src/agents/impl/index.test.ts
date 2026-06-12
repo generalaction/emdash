@@ -1,6 +1,6 @@
+import type { CommandContext } from '@emdash/shared/agents/plugins';
 import { describe, expect, it } from 'vitest';
-import { iconRegistry } from '../icons';
-import { metadataRegistry } from '../metadata';
+import { definitionRegistry } from '../definitions';
 import { providerRegistry } from '../providers';
 
 const EXPECTED_IDS = [
@@ -37,76 +37,79 @@ const EXPECTED_IDS = [
   'autohand',
 ] as const;
 
-// ── metadataRegistry ──────────────────────────────────────────────────────────
+// ── definitionRegistry ────────────────────────────────────────────────────────
 
-describe('metadataRegistry', () => {
+describe('definitionRegistry', () => {
   it('has exactly 31 entries', () => {
-    expect(metadataRegistry.getAll()).toHaveLength(31);
+    expect(definitionRegistry.getAll()).toHaveLength(31);
   });
 
   it('contains all expected provider ids', () => {
-    const ids = metadataRegistry.ids();
+    const ids = definitionRegistry.ids();
     for (const expected of EXPECTED_IDS) {
       expect(ids).toContain(expected);
     }
   });
 
   it('each entry has required string fields', () => {
-    for (const m of metadataRegistry.getAll()) {
-      expect(typeof m.id).toBe('string');
-      expect(m.id.length).toBeGreaterThan(0);
-      expect(typeof m.name).toBe('string');
-      expect(typeof m.description).toBe('string');
-      expect(typeof m.websiteUrl).toBe('string');
+    for (const d of definitionRegistry.getAll()) {
+      expect(typeof d.metadata.id).toBe('string');
+      expect(d.metadata.id.length).toBeGreaterThan(0);
+      expect(typeof d.metadata.name).toBe('string');
+      expect(typeof d.metadata.description).toBe('string');
+      expect(typeof d.metadata.websiteUrl).toBe('string');
     }
   });
 
-  it('metadata entries contain no function values', () => {
-    for (const m of metadataRegistry.getAll()) {
-      const values = Object.values(m as unknown as Record<string, unknown>);
-      // Top-level fields must not be functions
-      for (const v of values) {
-        expect(typeof v).not.toBe('function');
-      }
-      // Capabilities fields must not be functions
-      for (const v of Object.values(m.capabilities as unknown as Record<string, unknown>)) {
+  it('each entry passes validate() with no errors', () => {
+    for (const d of definitionRegistry.getAll()) {
+      const errors = d.validate();
+      expect(errors, `${d.metadata.id} validate() errors: ${JSON.stringify(errors)}`).toHaveLength(
+        0
+      );
+    }
+  });
+
+  it('capabilities contain no function values at top level', () => {
+    for (const d of definitionRegistry.getAll()) {
+      for (const v of Object.values(d.capabilities as Record<string, unknown>)) {
         expect(typeof v).not.toBe('function');
       }
     }
   });
 
   it('each entry has required capabilities', () => {
-    for (const m of metadataRegistry.getAll()) {
-      const { capabilities } = m;
-      expect(capabilities.install).toBeDefined();
+    for (const d of definitionRegistry.getAll()) {
+      const { capabilities } = d;
+      expect(capabilities.hostDependency).toBeDefined();
       expect(capabilities.hooks).toBeDefined();
       expect(capabilities.mcp).toBeDefined();
-      expect(capabilities.plugin).toBeDefined();
+      expect(capabilities.plugins).toBeDefined();
       expect(['supported', 'none']).toContain(capabilities.autoApprove.kind);
       expect(['resumable', 'stateless']).toContain(capabilities.sessions.kind);
     }
   });
 
-  it('each entry has capabilities.updates with valid kind', () => {
-    for (const m of metadataRegistry.getAll()) {
-      expect(m.capabilities.updates).toBeDefined();
-      expect(['supported', 'none']).toContain(m.capabilities.updates.kind);
+  it('each entry has hostDependency.updates with valid kind', () => {
+    for (const d of definitionRegistry.getAll()) {
+      expect(d.capabilities.hostDependency.updates).toBeDefined();
+      expect(['supported', 'none']).toContain(d.capabilities.hostDependency.updates.kind);
     }
   });
 
   it('supported updates have valid releaseSource and update strategy', () => {
-    for (const m of metadataRegistry.getAll()) {
-      if (m.capabilities.updates.kind !== 'supported') continue;
-      const { releaseSource, update } = m.capabilities.updates;
+    for (const d of definitionRegistry.getAll()) {
+      if (d.capabilities.hostDependency.updates.kind !== 'supported') continue;
+      const { releaseSource, update } = d.capabilities.hostDependency.updates;
       expect(['npm', 'github', 'none']).toContain(releaseSource.kind);
       expect(['package-manager', 'cli', 'auto', 'none']).toContain(update.kind);
     }
   });
 
   it('all binaryNames are non-empty strings', () => {
-    for (const m of metadataRegistry.getAll()) {
-      expect(m.capabilities.install.binaryNames.length).toBeGreaterThan(0);
-      for (const bin of m.capabilities.install.binaryNames) {
+    for (const d of definitionRegistry.getAll()) {
+      expect(d.capabilities.hostDependency.binaryNames.length).toBeGreaterThan(0);
+      for (const bin of d.capabilities.hostDependency.binaryNames) {
         expect(typeof bin).toBe('string');
         expect(bin.length).toBeGreaterThan(0);
       }
@@ -120,6 +123,7 @@ describe('metadataRegistry', () => {
       'installer-linux',
       'homebrew',
       'winget',
+      'powershell',
       'npm',
       'apt',
       'curl',
@@ -127,53 +131,49 @@ describe('metadataRegistry', () => {
       'cargo',
       'other',
     ];
-    for (const m of metadataRegistry.getAll()) {
-      const { installCommands } = m.capabilities.install;
+    for (const d of definitionRegistry.getAll()) {
+      const { installCommands } = d.capabilities.hostDependency;
       for (const [platform, options] of Object.entries(installCommands)) {
-        expect(Array.isArray(options), `${m.id}.${platform} should be an array`).toBe(true);
-        expect(options!.length, `${m.id}.${platform} array should be non-empty`).toBeGreaterThan(0);
+        expect(Array.isArray(options), `${d.metadata.id}.${platform} should be an array`).toBe(
+          true
+        );
+        expect(
+          options!.length,
+          `${d.metadata.id}.${platform} array should be non-empty`
+        ).toBeGreaterThan(0);
         for (const opt of options!) {
-          expect(typeof opt.command, `${m.id}.${platform} command should be a string`).toBe(
-            'string'
-          );
+          expect(
+            typeof opt.command,
+            `${d.metadata.id}.${platform} command should be a string`
+          ).toBe('string');
           expect(
             opt.command.length,
-            `${m.id}.${platform} command should be non-empty`
+            `${d.metadata.id}.${platform} command should be non-empty`
           ).toBeGreaterThan(0);
-          expect(validMethods, `${m.id}.${platform} method should be valid`).toContain(opt.method);
+          expect(validMethods, `${d.metadata.id}.${platform} method should be valid`).toContain(
+            opt.method
+          );
         }
       }
     }
   });
 
-  it('models and effort are all kind:none', () => {
-    for (const m of metadataRegistry.getAll()) {
-      expect(m.capabilities.models.kind).toBe('none');
-      expect(m.capabilities.effort.kind).toBe('none');
+  it('each entry has an icon asset with at least one variant', () => {
+    for (const d of definitionRegistry.getAll()) {
+      expect(d.assets.icon).toBeDefined();
+      expect(d.assets.icon.variants.length).toBeGreaterThan(0);
+      for (const v of d.assets.icon.variants) {
+        expect(typeof v.light).toBe('string');
+        expect(v.light.length).toBeGreaterThan(0);
+      }
     }
   });
 
   it('each expected id is retrievable', () => {
     for (const id of EXPECTED_IDS) {
-      const m = metadataRegistry.get(id);
-      expect(m).toBeDefined();
-      expect(m?.id).toBe(id);
-    }
-  });
-});
-
-// ── iconRegistry ──────────────────────────────────────────────────────────────
-
-describe('iconRegistry', () => {
-  it('has exactly 31 entries', () => {
-    expect(iconRegistry.ids()).toHaveLength(31);
-  });
-
-  it('each icon is a React component (function)', () => {
-    for (const id of EXPECTED_IDS) {
-      const icon = iconRegistry.get(id);
-      expect(icon).toBeDefined();
-      expect(typeof icon).toBe('function');
+      const d = definitionRegistry.get(id);
+      expect(d).toBeDefined();
+      expect(d?.metadata.id).toBe(id);
     }
   });
 });
@@ -192,16 +192,17 @@ describe('providerRegistry', () => {
     }
   });
 
-  it('each provider has a buildCommand function', () => {
+  it('each provider has a behavior.prompt.buildCommand function', () => {
     for (const p of providerRegistry.getAll()) {
-      expect(typeof p.buildCommand).toBe('function');
+      expect(typeof p.behavior.prompt?.buildCommand).toBe('function');
     }
   });
 
-  it('each provider references its metadata', () => {
+  it('each provider metadata matches its definition', () => {
     for (const p of providerRegistry.getAll()) {
-      const meta = metadataRegistry.get(p.metadata.id);
-      expect(meta).toBe(p.metadata);
+      const def = definitionRegistry.get(p.metadata.id);
+      expect(def).toBeDefined();
+      expect(def?.metadata.id).toBe(p.metadata.id);
     }
   });
 
@@ -217,7 +218,7 @@ describe('providerRegistry', () => {
 // ── Special cases via providerRegistry ───────────────────────────────────────
 
 describe('special case buildCommand', () => {
-  const makeCtx = (overrides = {}) => ({
+  const makeCtx = (overrides: Partial<CommandContext> = {}): CommandContext => ({
     cli: '/usr/local/bin/agent',
     autoApprove: false,
     model: '',
@@ -226,7 +227,7 @@ describe('special case buildCommand', () => {
 
   it('codex deduplicates --dangerously-bypass-approvals-and-sandbox', () => {
     const p = providerRegistry.get('codex')!;
-    const cmd = p.buildCommand(
+    const cmd = p.behavior.prompt!.buildCommand(
       makeCtx({
         autoApprove: true,
         extraArgs: ['--dangerously-bypass-approvals-and-sandbox'],
@@ -238,59 +239,59 @@ describe('special case buildCommand', () => {
 
   it('kimi omits auto-approve flag on resume', () => {
     const p = providerRegistry.get('kimi')!;
-    const cmd = p.buildCommand(
-      makeCtx({ autoApprove: true, isResuming: true, sessionId: 'ses-1' })
+    const cmd = p.behavior.prompt!.buildCommand(
+      makeCtx({ autoApprove: true, isResuming: true, providerSessionId: 'ses-1' })
     );
     expect(cmd.args).not.toContain('--yolo');
   });
 
   it('kimi includes auto-approve on fresh session', () => {
     const p = providerRegistry.get('kimi')!;
-    const cmd = p.buildCommand(makeCtx({ autoApprove: true, isResuming: false }));
+    const cmd = p.behavior.prompt!.buildCommand(makeCtx({ autoApprove: true, isResuming: false }));
     expect(cmd.args).toContain('--yolo');
   });
 
   it('amp wraps with stdin pipe when prompt given', () => {
     const p = providerRegistry.get('amp')!;
-    const cmd = p.buildCommand(makeCtx({ initialPrompt: 'hello amp' }));
+    const cmd = p.behavior.prompt!.buildCommand(makeCtx({ initialPrompt: 'hello amp' }));
     expect(cmd.command).toBe('bash');
     expect(cmd.args[1]).toContain('hello amp');
   });
 
   it('amp includes PLUGINS=all env', () => {
     const p = providerRegistry.get('amp')!;
-    const cmd = p.buildCommand(makeCtx({}));
+    const cmd = p.behavior.prompt!.buildCommand(makeCtx({}));
     expect(cmd.env).toHaveProperty('PLUGINS', 'all');
   });
 
-  it('opencode uses env var for auto-approve', () => {
+  it('opencode uses OPENCODE_PERMISSION env var for auto-approve', () => {
     const p = providerRegistry.get('opencode')!;
-    const cmd = p.buildCommand(makeCtx({ autoApprove: true }));
-    expect(cmd.env).toHaveProperty('OPENCODE_AUTO_APPROVE', 'true');
+    const cmd = p.behavior.prompt!.buildCommand(makeCtx({ autoApprove: true }));
+    expect(cmd.env).toHaveProperty('OPENCODE_PERMISSION');
     expect(cmd.args).not.toContain('--auto-approve');
   });
 
   it('opencode validateSessionId accepts ses-prefixed ids', () => {
     const p = providerRegistry.get('opencode')!;
-    expect(p.validateSessionId?.('ses-abc123')).toBe(true);
-    expect(p.validateSessionId?.('ses')).toBe(true);
-    expect(p.validateSessionId?.('other-id')).toBe(false);
+    expect(p.behavior.sessions?.validateSessionId?.('ses-abc123')).toBe(true);
+    expect(p.behavior.sessions?.validateSessionId?.('ses')).toBe(true);
+    expect(p.behavior.sessions?.validateSessionId?.('other-id')).toBe(false);
   });
 
   it('letta appends --new for fresh session', () => {
     const p = providerRegistry.get('letta')!;
-    const cmd = p.buildCommand(makeCtx({ isResuming: false }));
+    const cmd = p.behavior.prompt!.buildCommand(makeCtx({ isResuming: false }));
     expect(cmd.args).toContain('--new');
   });
 
   it('letta does not append --new on resume', () => {
     const p = providerRegistry.get('letta')!;
-    const cmd = p.buildCommand(makeCtx({ isResuming: true }));
+    const cmd = p.behavior.prompt!.buildCommand(makeCtx({ isResuming: true }));
     expect(cmd.args).not.toContain('--new');
   });
 
-  it('letta skipVersionProbe is true in metadata', () => {
-    const m = metadataRegistry.get('letta')!;
-    expect(m.capabilities.install.skipVersionProbe).toBe(true);
+  it('letta skipVersionProbe is true in hostDependency', () => {
+    const d = definitionRegistry.get('letta')!;
+    expect(d.capabilities.hostDependency.skipVersionProbe).toBe(true);
   });
 });

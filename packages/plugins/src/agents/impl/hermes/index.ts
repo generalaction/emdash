@@ -1,54 +1,77 @@
-import { defineMetadata, defineProvider } from '../../core';
-import { buildStandardCommand } from '../../helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { icon } from './icon';
 
-export { default as Icon } from './icon';
-
-export const metadata = defineMetadata({
-  id: 'hermes',
-  name: 'Hermes Agent',
-  description:
-    'Nous Research terminal agent with interactive chat, model-provider routing, skills, and session workflows.',
-  websiteUrl: 'https://hermes-agent.nousresearch.com/docs/',
-  capabilities: {
-    install: {
+export const plugin = definePlugin(
+  {
+    id: 'hermes',
+    name: 'Hermes Agent',
+    description:
+      'Nous Research terminal agent with interactive chat, model-provider routing, skills, and session workflows.',
+    websiteUrl: 'https://hermes-agent.nousresearch.com/docs/',
+  },
+  {
+    autoApprove: {
+      kind: 'supported',
+    },
+    effort: {
+      kind: 'none',
+    },
+    hooks: {
+      kind: 'none',
+    },
+    hostDependency: {
+      id: 'hermes',
       binaryNames: ['hermes'],
       installCommands: {
         macos: [
           {
-            command: 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash',
             method: 'curl',
+            command: 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash',
           },
         ],
         linux: [
           {
-            command: 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash',
             method: 'curl',
+            command: 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash',
           },
         ],
       },
+      updates: {
+        kind: 'supported',
+        releaseSource: {
+          kind: 'none',
+        },
+        update: {
+          kind: 'package-manager',
+        },
+      },
     },
-    models: { kind: 'none' },
-    effort: { kind: 'none' },
-    promptDelivery: { kind: 'keystroke' },
-    sessions: { kind: 'resumable' },
-    autoApprove: { kind: 'supported' },
-    hooks: { kind: 'none' },
-    mcp: { kind: 'none' },
-    plugin: { kind: 'none' },
-    updates: {
-      kind: 'supported',
-      releaseSource: { kind: 'none' },
-      update: { kind: 'package-manager' },
+    mcp: {
+      kind: 'none',
+    },
+    models: {
+      kind: 'none',
+    },
+    plugins: {
+      kind: 'none',
+    },
+    prompt: {
+      kind: 'keystroke',
+    },
+    sessions: {
+      kind: 'resumable',
     },
   },
-});
+  { icon }
+);
 
-export const provider = defineProvider(metadata, {
-  buildCommand: (ctx) =>
-    buildStandardCommand(ctx, {
-      autoApproveFlag: '--yolo',
-      // hermes: useKeystrokeInjection
-      resumeFlag: '--continue',
-    }),
-  buildVersionProbeCommand: (b) => ({ command: b, args: ['--version'] }),
+export const provider = registerPluginBehavior(plugin, {
+  prompt: {
+    buildCommand: (ctx) =>
+      buildStandardCommand(ctx, {
+        autoApproveFlag: '--yolo',
+        resumeFlag: '--continue',
+      }),
+  },
 });

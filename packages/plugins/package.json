@@ -15,13 +15,9 @@
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
     },
-    "./metadata": {
-      "types": "./dist/metadata.d.mts",
-      "default": "./dist/metadata.mjs"
-    },
-    "./icons": {
-      "types": "./dist/icons.d.mts",
-      "default": "./dist/icons.mjs"
+    "./definitions": {
+      "types": "./dist/definitions.d.mts",
+      "default": "./dist/definitions.mjs"
     },
     "./providers": {
       "types": "./dist/providers.d.mts",
@@ -35,7 +31,7 @@
     "test:watch": "vitest",
     "format": "oxfmt --write",
     "format:check": "oxfmt --check",
-    "lint": "oxlint src/",
+    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/plugins/src\"'",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -46,12 +42,8 @@
   "devDependencies": {
     "oxfmt": "^0.51.0",
     "oxlint": "^1.69.0",
-    "react": "^19.2.7",
     "tsdown": "^0.22.2",
     "vitest": "^3.1.4"
-  },
-  "peerDependencies": {
-    "react": ">=18"
   },
   "packageManager": "pnpm@10.28.2"
 }

@@ -1,53 +1,95 @@
-import { defineMetadata, defineProvider } from '../../core';
-import { buildCopilotHookConfig, buildStandardCommand, copilotMcpAdapter } from '../../helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { buildStandardCommand, copilotMcpAdapter } from '@emdash/shared/agents/plugins/helpers';
+import { buildCopilotHookConfig } from './hooks';
+import { icon } from './icon';
 
-export { default as Icon } from './icon';
-
-export const metadata = defineMetadata({
-  id: 'copilot',
-  name: 'GitHub Copilot',
-  description:
-    'GitHub Copilot CLI brings Copilot prompts to the terminal for code, shell, and search help.',
-  websiteUrl: 'https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli',
-  capabilities: {
-    install: {
-      binaryNames: ['copilot'],
-      installCommands: {
-        macos: [{ command: 'npm install -g @github/copilot', method: 'npm' }],
-        linux: [{ command: 'npm install -g @github/copilot', method: 'npm' }],
-        windows: [{ command: 'npm install -g @github/copilot', method: 'npm' }],
-      },
+export const plugin = definePlugin(
+  {
+    id: 'copilot',
+    name: 'GitHub Copilot',
+    description:
+      'GitHub Copilot CLI brings Copilot prompts to the terminal for code, shell, and search help.',
+    websiteUrl: 'https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli',
+  },
+  {
+    autoApprove: {
+      kind: 'supported',
     },
-    models: { kind: 'none' },
-    effort: { kind: 'none' },
-    promptDelivery: { kind: 'argv', flag: '-i' },
-    sessions: { kind: 'resumable' },
-    autoApprove: { kind: 'supported' },
+    effort: {
+      kind: 'none',
+    },
     hooks: {
       kind: 'config',
       scope: 'workspace',
       supportedEvents: ['stop', 'session', 'notification'],
     },
-    mcp: { kind: 'supported', scope: 'global', supportedTransports: ['stdio', 'http'] },
-    plugin: { kind: 'none' },
-    updates: {
+    hostDependency: {
+      id: 'copilot',
+      binaryNames: ['copilot'],
+      installCommands: {
+        macos: [
+          {
+            method: 'npm',
+            command: 'npm install -g @github/copilot',
+          },
+        ],
+        linux: [
+          {
+            method: 'npm',
+            command: 'npm install -g @github/copilot',
+          },
+        ],
+        windows: [
+          {
+            method: 'npm',
+            command: 'npm install -g @github/copilot',
+          },
+        ],
+      },
+      updates: {
+        kind: 'supported',
+        releaseSource: {
+          kind: 'npm',
+          package: '@github/copilot',
+        },
+        update: {
+          kind: 'package-manager',
+        },
+      },
+    },
+    mcp: {
       kind: 'supported',
-      releaseSource: { kind: 'npm', package: '@github/copilot' },
-      update: { kind: 'package-manager' },
+      scope: 'global',
+      supportedTransports: ['stdio', 'http'],
+    },
+    models: {
+      kind: 'none',
+    },
+    plugins: {
+      kind: 'none',
+    },
+    prompt: {
+      kind: 'argv',
+      flag: '-i',
+    },
+    sessions: {
+      kind: 'resumable',
     },
   },
-});
+  { icon }
+);
 
-export const provider = defineProvider(metadata, {
-  buildCommand: (ctx) =>
-    buildStandardCommand(ctx, {
-      autoApproveFlag: '--allow-all-tools',
-      initialPromptFlag: '-i',
-      resumeFlag: '--resume',
-      sessionIdFlag: '--resume',
-      sessionIdOnResumeOnly: true,
-    }),
-  buildVersionProbeCommand: (b) => ({ command: b, args: ['--version'] }),
+export const provider = registerPluginBehavior(plugin, {
+  prompt: {
+    buildCommand: (ctx) =>
+      buildStandardCommand(ctx, {
+        autoApproveFlag: '--allow-all-tools',
+        initialPromptFlag: '-i',
+        resumeFlag: '--resume',
+        sessionIdFlag: '--resume',
+        sessionIdOnResumeOnly: true,
+      }),
+  },
   hooks: buildCopilotHookConfig(),
   mcp: copilotMcpAdapter(),
 });

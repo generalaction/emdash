@@ -1,55 +1,80 @@
-import { defineMetadata, defineProvider } from '../../core';
-import { buildStandardCommand } from '../../helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { icon } from './icon';
 
-export { default as Icon } from './icon';
-
-export const metadata = defineMetadata({
-  id: 'antigravity',
-  name: 'Antigravity',
-  description:
-    'Google Antigravity CLI for terminal-first agent sessions with shared Antigravity settings and conversation history.',
-  websiteUrl: 'https://antigravity.google/docs/cli-overview',
-  capabilities: {
-    install: {
+export const plugin = definePlugin(
+  {
+    id: 'antigravity',
+    name: 'Antigravity',
+    description:
+      'Google Antigravity CLI for terminal-first agent sessions with shared Antigravity settings and conversation history.',
+    websiteUrl: 'https://antigravity.google/docs/cli-overview',
+  },
+  {
+    autoApprove: {
+      kind: 'supported',
+    },
+    effort: {
+      kind: 'none',
+    },
+    hooks: {
+      kind: 'none',
+    },
+    hostDependency: {
+      id: 'antigravity',
       binaryNames: ['agy', 'antigravity'],
       installCommands: {
         macos: [
           {
-            command: 'curl -fsSL https://antigravity.google/cli/install.sh | bash',
             method: 'curl',
+            command: 'curl -fsSL https://antigravity.google/cli/install.sh | bash',
           },
         ],
         linux: [
           {
-            command: 'curl -fsSL https://antigravity.google/cli/install.sh | bash',
             method: 'curl',
+            command: 'curl -fsSL https://antigravity.google/cli/install.sh | bash',
           },
         ],
       },
+      updates: {
+        kind: 'supported',
+        releaseSource: {
+          kind: 'none',
+        },
+        update: {
+          kind: 'package-manager',
+        },
+      },
     },
-    models: { kind: 'none' },
-    effort: { kind: 'none' },
-    promptDelivery: { kind: 'argv', flag: '-i' },
-    sessions: { kind: 'resumable' },
-    autoApprove: { kind: 'supported' },
-    hooks: { kind: 'none' },
-    mcp: { kind: 'none' },
-    plugin: { kind: 'none' },
-    updates: {
-      kind: 'supported',
-      releaseSource: { kind: 'none' },
-      update: { kind: 'package-manager' },
+    mcp: {
+      kind: 'none',
+    },
+    models: {
+      kind: 'none',
+    },
+    plugins: {
+      kind: 'none',
+    },
+    prompt: {
+      kind: 'argv',
+      flag: '-i',
+    },
+    sessions: {
+      kind: 'resumable',
     },
   },
-});
+  { icon }
+);
 
-export const provider = defineProvider(metadata, {
-  buildCommand: (ctx) =>
-    buildStandardCommand(ctx, {
-      autoApproveFlag: '--dangerously-skip-permissions',
-      initialPromptFlag: '-i',
-      sessionIdFlag: '--conversation=',
-      sessionIdAlways: true,
-    }),
-  buildVersionProbeCommand: (b) => ({ command: b, args: ['--version'] }),
+export const provider = registerPluginBehavior(plugin, {
+  prompt: {
+    buildCommand: (ctx) =>
+      buildStandardCommand(ctx, {
+        autoApproveFlag: '--dangerously-skip-permissions',
+        initialPromptFlag: '-i',
+        sessionIdFlag: '--conversation=',
+        sessionIdAlways: true,
+      }),
+  },
 });

@@ -1,18 +1,14 @@
-import { defineMetadata, defineProvider } from '../../core';
-import type { AgentCommand, CommandContext } from '../../core';
-import { addKimiHooksToConfigText, buildKimiHookConfig, buildStandardCommand } from '../../helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import type { AgentCommand, CommandContext } from '@emdash/shared/agents/plugins';
+import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { addKimiHooksToConfigText, buildKimiHookConfig } from './hooks';
 
 function injectKimiHooksIntoInlineConfig(args: string[]): string[] {
   return args.map((arg, index) => {
-    if (arg === '--config' && args[index + 1] !== undefined) {
-      return arg;
-    }
-    if (index > 0 && args[index - 1] === '--config') {
-      return addKimiHooksToConfigText(arg);
-    }
-    if (arg.startsWith('--config=')) {
+    if (arg === '--config' && args[index + 1] !== undefined) return arg;
+    if (index > 0 && args[index - 1] === '--config') return addKimiHooksToConfigText(arg);
+    if (arg.startsWith('--config='))
       return `--config=${addKimiHooksToConfigText(arg.slice('--config='.length))}`;
-    }
     return arg;
   });
 }
@@ -20,55 +16,89 @@ function injectKimiHooksIntoInlineConfig(args: string[]): string[] {
 function buildKimiCommand(ctx: CommandContext): AgentCommand {
   const cmd = buildStandardCommand(ctx, {
     autoApproveFlag: '--yolo',
-    // kimi: useKeystrokeInjection — no initialPromptFlag needed
     resumeFlag: '-S',
     sessionIdFlag: '-S',
     sessionIdOnResumeOnly: true,
     resumeWithoutSessionFlag: '-C',
-    // Kimi preserves approval settings on resume; rejects --yolo with --continue/--session.
     omitAutoApproveOnResume: true,
   });
   return { ...cmd, args: injectKimiHooksIntoInlineConfig(cmd.args) };
 }
+import { icon } from './icon';
 
-export { default as Icon } from './icon';
-
-export const metadata = defineMetadata({
-  id: 'kimi',
-  name: 'Kimi',
-  description:
-    'Kimi CLI by Moonshot AI, with shell execution, Zsh integration, ACP, and MCP support.',
-  websiteUrl: 'https://moonshotai.github.io/kimi-cli/en/guides/getting-started.html',
-  capabilities: {
-    install: {
-      binaryNames: ['kimi'],
-      installCommands: {
-        macos: [{ command: 'curl -LsSf https://code.kimi.com/install.sh | bash', method: 'curl' }],
-        linux: [{ command: 'curl -LsSf https://code.kimi.com/install.sh | bash', method: 'curl' }],
-      },
+export const plugin = definePlugin(
+  {
+    id: 'kimi',
+    name: 'Kimi',
+    description:
+      'Kimi CLI by Moonshot AI, with shell execution, Zsh integration, ACP, and MCP support.',
+    websiteUrl: 'https://moonshotai.github.io/kimi-cli/en/guides/getting-started.html',
+  },
+  {
+    autoApprove: {
+      kind: 'supported',
     },
-    models: { kind: 'none' },
-    effort: { kind: 'none' },
-    promptDelivery: { kind: 'keystroke' },
-    sessions: { kind: 'resumable' },
-    autoApprove: { kind: 'supported' },
+    effort: {
+      kind: 'none',
+    },
     hooks: {
       kind: 'config',
       scope: 'global',
       supportedEvents: ['notification', 'stop', 'session', 'start'],
     },
-    mcp: { kind: 'none' },
-    plugin: { kind: 'none' },
-    updates: {
-      kind: 'supported',
-      releaseSource: { kind: 'github', repo: 'moonshotai/kimi-cli' },
-      update: { kind: 'package-manager' },
+    hostDependency: {
+      id: 'kimi',
+      binaryNames: ['kimi'],
+      installCommands: {
+        macos: [
+          {
+            method: 'curl',
+            command: 'curl -LsSf https://code.kimi.com/install.sh | bash',
+          },
+        ],
+        linux: [
+          {
+            method: 'curl',
+            command: 'curl -LsSf https://code.kimi.com/install.sh | bash',
+          },
+        ],
+      },
+      updates: {
+        kind: 'supported',
+        releaseSource: {
+          kind: 'github',
+          repo: 'moonshotai/kimi-cli',
+        },
+        update: {
+          kind: 'package-manager',
+        },
+      },
+    },
+    mcp: {
+      kind: 'none',
+    },
+    models: {
+      kind: 'none',
+    },
+    plugins: {
+      kind: 'none',
+    },
+    prompt: {
+      kind: 'keystroke',
+    },
+    sessions: {
+      kind: 'resumable',
     },
   },
-});
+  { icon }
+);
 
-export const provider = defineProvider(metadata, {
-  buildCommand: buildKimiCommand,
-  buildVersionProbeCommand: (b) => ({ command: b, args: ['--version'] }),
+export const provider = registerPluginBehavior(plugin, {
+  prompt: {
+    buildCommand: buildKimiCommand,
+  },
   hooks: buildKimiHookConfig(),
+  sessions: {
+    validateSessionId: undefined,
+  },
 });

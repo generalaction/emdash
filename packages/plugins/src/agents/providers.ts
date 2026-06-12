@@ -1,5 +1,5 @@
-// Main process only: imports full provider implementations (buildCommand, hooks, mcp, plugin).
-import { CLIAgentPluginProviderRegistry } from '@emdash/shared/agents/plugins';
+// Main-process only: imports full provider implementations (buildCommand, hooks, mcp, plugins).
+import { type CLIAgentPluginProvider, createPluginRegistry } from '@emdash/shared/agents/plugins';
 import { provider as amp } from './impl/amp';
 import { provider as antigravity } from './impl/antigravity';
 import { provider as auggie } from './impl/auggie';
@@ -32,7 +32,7 @@ import { provider as pi } from './impl/pi';
 import { provider as qwen } from './impl/qwen';
 import { provider as rovo } from './impl/rovo';
 
-export const providerRegistry = new CLIAgentPluginProviderRegistry();
+export const providerRegistry = createPluginRegistry<CLIAgentPluginProvider>();
 
 for (const p of [
   amp,
@@ -55,8 +55,8 @@ for (const p of [
   goose,
   grok,
   hermes,
-  junie,
   jules,
+  junie,
   kilocode,
   kimi,
   kiro,

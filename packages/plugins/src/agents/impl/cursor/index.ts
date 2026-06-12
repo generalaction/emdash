@@ -1,45 +1,82 @@
-import { defineMetadata, defineProvider } from '../../core';
-import { buildStandardCommand, cursorMcpAdapter } from '../../helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { buildStandardCommand, cursorMcpAdapter } from '@emdash/shared/agents/plugins/helpers';
+import { icon } from './icon';
 
-export { default as Icon } from './icon';
-
-export const metadata = defineMetadata({
-  id: 'cursor',
-  name: 'Cursor',
-  description:
-    "Cursor's agent CLI; provides editor-style, project-aware assistance from the shell.",
-  websiteUrl: 'https://cursor.com/docs/cli/overview',
-  capabilities: {
-    install: {
+export const plugin = definePlugin(
+  {
+    id: 'cursor',
+    name: 'Cursor',
+    description:
+      "Cursor's agent CLI; provides editor-style, project-aware assistance from the shell.",
+    websiteUrl: 'https://cursor.com/docs/cli/overview',
+  },
+  {
+    autoApprove: {
+      kind: 'supported',
+    },
+    effort: {
+      kind: 'none',
+    },
+    hooks: {
+      kind: 'none',
+    },
+    hostDependency: {
+      id: 'cursor',
       binaryNames: ['cursor-agent'],
       installCommands: {
-        macos: [{ command: 'curl https://cursor.com/install -fsS | bash', method: 'curl' }],
-        linux: [{ command: 'curl https://cursor.com/install -fsS | bash', method: 'curl' }],
+        macos: [
+          {
+            method: 'curl',
+            command: 'curl https://cursor.com/install -fsS | bash',
+          },
+        ],
+        linux: [
+          {
+            method: 'curl',
+            command: 'curl https://cursor.com/install -fsS | bash',
+          },
+        ],
+      },
+      updates: {
+        kind: 'supported',
+        releaseSource: {
+          kind: 'none',
+        },
+        update: {
+          kind: 'package-manager',
+        },
       },
     },
-    models: { kind: 'none' },
-    effort: { kind: 'none' },
-    promptDelivery: { kind: 'argv', flag: '' },
-    sessions: { kind: 'resumable' },
-    autoApprove: { kind: 'supported' },
-    hooks: { kind: 'none' },
-    mcp: { kind: 'supported', scope: 'global', supportedTransports: ['stdio', 'http'] },
-    plugin: { kind: 'none' },
-    updates: {
+    mcp: {
       kind: 'supported',
-      releaseSource: { kind: 'none' },
-      update: { kind: 'package-manager' },
+      scope: 'global',
+      supportedTransports: ['stdio', 'http'],
+    },
+    models: {
+      kind: 'none',
+    },
+    plugins: {
+      kind: 'none',
+    },
+    prompt: {
+      kind: 'argv',
+      flag: '',
+    },
+    sessions: {
+      kind: 'resumable',
     },
   },
-});
+  { icon }
+);
 
-export const provider = defineProvider(metadata, {
-  buildCommand: (ctx) =>
-    buildStandardCommand(ctx, {
-      autoApproveFlag: '-f --approve-mcps',
-      initialPromptFlag: '',
-      resumeFlag: '--resume',
-    }),
-  buildVersionProbeCommand: (b) => ({ command: b, args: ['--version'] }),
+export const provider = registerPluginBehavior(plugin, {
+  prompt: {
+    buildCommand: (ctx) =>
+      buildStandardCommand(ctx, {
+        autoApproveFlag: '-f --approve-mcps',
+        initialPromptFlag: '',
+        resumeFlag: '--resume',
+      }),
+  },
   mcp: cursorMcpAdapter(),
 });

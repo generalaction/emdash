@@ -63,12 +63,8 @@
   },
   "devDependencies": {
     "@types/node": "^20.19.42",
-    "@types/react": "^19.2.17",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",
     "tsdown": "^0.22.2",
     "vitest": "^4.1.0"
-  },
-  "peerDependencies": {
-    "react": ">=18"
   }
 }

@@ -2,15 +2,14 @@ import { defineConfig } from 'tsdown';
 
 export default defineConfig({
   entry: {
-    index: 'src/index.ts',
-    metadata: 'src/metadata.ts',
-    icons: 'src/icons.ts',
-    providers: 'src/providers.ts',
+    index: 'src/agents/index.ts',
+    definitions: 'src/agents/definitions.ts',
+    providers: 'src/agents/providers.ts',
   },
   format: ['esm'],
   dts: true,
   deps: {
-    neverBundle: ['react', 'zod', 'smol-toml', '@emdash/shared'],
+    neverBundle: ['zod', 'smol-toml', '@emdash/shared'],
   },
   sourcemap: true,
   clean: true,

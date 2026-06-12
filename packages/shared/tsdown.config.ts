@@ -2,8 +2,8 @@ import { defineConfig } from 'tsdown';
 
 export default defineConfig({
   entry: {
-    deps: 'src/deps/runtime/index.ts',
-    'deps-runtime': 'src/deps/runtime/runtime.ts',
+    deps: 'src/host-dependencies/capability.ts',
+    'deps-runtime': 'src/host-dependencies/runtime/index.ts',
     exec: 'src/exec/index.ts',
     fs: 'src/fs/index.ts',
     git: 'src/git/index.ts',

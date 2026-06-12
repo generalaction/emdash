@@ -1,46 +1,86 @@
-import { defineMetadata, defineProvider } from '../../core';
-import { buildStandardCommand } from '../../helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { icon } from './icon';
 
-export { default as Icon } from './icon';
-
-export const metadata = defineMetadata({
-  id: 'auggie',
-  name: 'Auggie',
-  description:
-    'Augment Code CLI to run an agent against your repository for code changes and reviews.',
-  websiteUrl: 'https://docs.augmentcode.com/cli/overview',
-  capabilities: {
-    install: {
+export const plugin = definePlugin(
+  {
+    id: 'auggie',
+    name: 'Auggie',
+    description:
+      'Augment Code CLI to run an agent against your repository for code changes and reviews.',
+    websiteUrl: 'https://docs.augmentcode.com/cli/overview',
+  },
+  {
+    autoApprove: {
+      kind: 'none',
+    },
+    effort: {
+      kind: 'none',
+    },
+    hooks: {
+      kind: 'none',
+    },
+    hostDependency: {
+      id: 'auggie',
       binaryNames: ['auggie'],
       installCommands: {
-        macos: [{ command: 'npm install -g @augmentcode/auggie', method: 'npm' }],
-        linux: [{ command: 'npm install -g @augmentcode/auggie', method: 'npm' }],
-        windows: [{ command: 'npm install -g @augmentcode/auggie', method: 'npm' }],
+        macos: [
+          {
+            method: 'npm',
+            command: 'npm install -g @augmentcode/auggie',
+          },
+        ],
+        linux: [
+          {
+            method: 'npm',
+            command: 'npm install -g @augmentcode/auggie',
+          },
+        ],
+        windows: [
+          {
+            method: 'npm',
+            command: 'npm install -g @augmentcode/auggie',
+          },
+        ],
+      },
+      updates: {
+        kind: 'supported',
+        releaseSource: {
+          kind: 'npm',
+          package: '@augmentcode/auggie',
+        },
+        update: {
+          kind: 'package-manager',
+        },
       },
     },
-    models: { kind: 'none' },
-    effort: { kind: 'none' },
-    promptDelivery: { kind: 'argv', flag: '' },
-    sessions: { kind: 'resumable' },
-    autoApprove: { kind: 'none' },
-    hooks: { kind: 'none' },
-    mcp: { kind: 'none' },
-    plugin: { kind: 'none' },
-    updates: {
-      kind: 'supported',
-      releaseSource: { kind: 'npm', package: '@augmentcode/auggie' },
-      update: { kind: 'package-manager' },
+    mcp: {
+      kind: 'none',
+    },
+    models: {
+      kind: 'none',
+    },
+    plugins: {
+      kind: 'none',
+    },
+    prompt: {
+      kind: 'argv',
+      flag: '',
+    },
+    sessions: {
+      kind: 'resumable',
     },
   },
-});
+  { icon }
+);
 
-export const provider = defineProvider(metadata, {
-  buildCommand: (ctx) =>
-    buildStandardCommand(ctx, {
-      // --allow-indexing: suppress the indexing prompt so the initial prompt is passed cleanly
-      defaultArgs: ['--allow-indexing'],
-      initialPromptFlag: '',
-      resumeFlag: '--continue',
-    }),
-  buildVersionProbeCommand: (b) => ({ command: b, args: ['--version'] }),
+export const provider = registerPluginBehavior(plugin, {
+  prompt: {
+    buildCommand: (ctx) =>
+      buildStandardCommand(ctx, {
+        defaultArgs: ['--allow-indexing'],
+        initialPromptFlag: '',
+        resumeFlag: '--continue',
+      }),
+  },
 });

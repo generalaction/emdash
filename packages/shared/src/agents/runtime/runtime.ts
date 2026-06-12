@@ -1,1 +1,1 @@
-/** Runtime interface for agent plugins. */
+/** Runtime interface for agent plugins. Will be orchestrated by the conversations */

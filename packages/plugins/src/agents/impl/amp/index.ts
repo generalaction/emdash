@@ -1,52 +1,97 @@
-import { defineMetadata, defineProvider } from '../../core';
-import { ampMcpAdapter, buildStandardCommand, createFileDropPlugin } from '../../helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import {
+  ampMcpAdapter,
+  buildStandardCommand,
+  createFileDropPlugin,
+} from '@emdash/shared/agents/plugins/helpers';
 import { AMP_PLUGIN_CONTENT } from './plugin-file';
 
 const AMP_PLUGIN_PATH = '.amp/plugins/emdash-hook.ts';
+import { icon } from './icon';
 
-export { default as Icon } from './icon';
-
-export const metadata = defineMetadata({
-  id: 'amp',
-  name: 'Amp',
-  description:
-    'Amp Code CLI for agentic coding sessions against your repository from the terminal.',
-  websiteUrl: 'https://ampcode.com/manual#install',
-  capabilities: {
-    install: {
+export const plugin = definePlugin(
+  {
+    id: 'amp',
+    name: 'Amp',
+    description:
+      'Amp Code CLI for agentic coding sessions against your repository from the terminal.',
+    websiteUrl: 'https://ampcode.com/manual#install',
+  },
+  {
+    autoApprove: {
+      kind: 'supported',
+    },
+    effort: {
+      kind: 'none',
+    },
+    hooks: {
+      kind: 'none',
+    },
+    hostDependency: {
+      id: 'amp',
       binaryNames: ['amp'],
       installCommands: {
-        macos: [{ command: 'npm install -g @sourcegraph/amp@latest', method: 'npm' }],
-        linux: [{ command: 'npm install -g @sourcegraph/amp@latest', method: 'npm' }],
-        windows: [{ command: 'npm install -g @sourcegraph/amp@latest', method: 'npm' }],
+        macos: [
+          {
+            method: 'npm',
+            command: 'npm install -g @sourcegraph/amp@latest',
+          },
+        ],
+        linux: [
+          {
+            method: 'npm',
+            command: 'npm install -g @sourcegraph/amp@latest',
+          },
+        ],
+        windows: [
+          {
+            method: 'npm',
+            command: 'npm install -g @sourcegraph/amp@latest',
+          },
+        ],
+      },
+      updates: {
+        kind: 'supported',
+        releaseSource: {
+          kind: 'npm',
+          package: '@sourcegraph/amp',
+        },
+        update: {
+          kind: 'package-manager',
+        },
       },
     },
-    models: { kind: 'none' },
-    effort: { kind: 'none' },
-    // Amp receives the initial prompt via stdin pipe
-    promptDelivery: { kind: 'stdin-pipe' },
-    sessions: { kind: 'stateless' },
-    autoApprove: { kind: 'supported' },
-    hooks: { kind: 'plugin', scope: 'workspace', supportedEvents: ['start', 'stop'] },
-    mcp: { kind: 'supported', scope: 'global', supportedTransports: ['stdio', 'http'] },
-    plugin: { kind: 'file-drop', scope: 'workspace' },
-    updates: {
+    mcp: {
       kind: 'supported',
-      releaseSource: { kind: 'npm', package: '@sourcegraph/amp' },
-      update: { kind: 'package-manager' },
+      scope: 'global',
+      supportedTransports: ['stdio', 'http'],
+    },
+    models: {
+      kind: 'none',
+    },
+    plugins: {
+      kind: 'file-drop',
+      scope: 'workspace',
+    },
+    prompt: {
+      kind: 'stdin-pipe',
+    },
+    sessions: {
+      kind: 'stateless',
     },
   },
-});
+  { icon }
+);
 
-export const provider = defineProvider(metadata, {
-  buildCommand: (ctx) =>
-    buildStandardCommand(ctx, {
-      autoApproveFlag: '--dangerously-allow-all',
-      initialPromptViaStdinPipe: true,
-      // Amp requires PLUGINS=all env var to load plugins
-      extraEnv: { PLUGINS: 'all' },
-    }),
-  buildVersionProbeCommand: (b) => ({ command: b, args: ['--version'] }),
+export const provider = registerPluginBehavior(plugin, {
+  prompt: {
+    buildCommand: (ctx) =>
+      buildStandardCommand(ctx, {
+        autoApproveFlag: '--dangerously-allow-all',
+        initialPromptViaStdinPipe: true,
+        extraEnv: { PLUGINS: 'all' },
+      }),
+  },
   mcp: ampMcpAdapter(),
-  plugin: createFileDropPlugin({ relativePath: AMP_PLUGIN_PATH, content: AMP_PLUGIN_CONTENT }),
+  plugins: createFileDropPlugin({ relativePath: AMP_PLUGIN_PATH, content: AMP_PLUGIN_CONTENT }),
 });

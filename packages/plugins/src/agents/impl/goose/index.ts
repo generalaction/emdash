@@ -1,56 +1,81 @@
-import { defineMetadata, defineProvider } from '../../core';
-import { buildStandardCommand } from '../../helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { icon } from './icon';
 
-export { default as Icon } from './icon';
-
-export const metadata = defineMetadata({
-  id: 'goose',
-  name: 'Goose',
-  description: 'Goose CLI that routes tasks to tools and models for coding workflows.',
-  websiteUrl: 'https://goose-docs.ai/docs/quickstart/',
-  capabilities: {
-    install: {
+export const plugin = definePlugin(
+  {
+    id: 'goose',
+    name: 'Goose',
+    description: 'Goose CLI that routes tasks to tools and models for coding workflows.',
+    websiteUrl: 'https://goose-docs.ai/docs/quickstart/',
+  },
+  {
+    autoApprove: {
+      kind: 'none',
+    },
+    effort: {
+      kind: 'none',
+    },
+    hooks: {
+      kind: 'none',
+    },
+    hostDependency: {
+      id: 'goose',
       binaryNames: ['goose'],
       installCommands: {
         macos: [
           {
+            method: 'curl',
             command:
               'curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash',
-            method: 'curl',
           },
         ],
         linux: [
           {
+            method: 'curl',
             command:
               'curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash',
-            method: 'curl',
           },
         ],
       },
+      updates: {
+        kind: 'supported',
+        releaseSource: {
+          kind: 'github',
+          repo: 'aaif-goose/goose',
+        },
+        update: {
+          kind: 'package-manager',
+        },
+      },
     },
-    models: { kind: 'none' },
-    effort: { kind: 'none' },
-    promptDelivery: { kind: 'argv', flag: '-t' },
-    sessions: { kind: 'resumable' },
-    autoApprove: { kind: 'none' },
-    hooks: { kind: 'none' },
-    mcp: { kind: 'none' },
-    plugin: { kind: 'none' },
-    updates: {
-      kind: 'supported',
-      releaseSource: { kind: 'github', repo: 'aaif-goose/goose' },
-      update: { kind: 'package-manager' },
+    mcp: {
+      kind: 'none',
+    },
+    models: {
+      kind: 'none',
+    },
+    plugins: {
+      kind: 'none',
+    },
+    prompt: {
+      kind: 'argv',
+      flag: '-t',
+    },
+    sessions: {
+      kind: 'resumable',
     },
   },
-});
+  { icon }
+);
 
-export const provider = defineProvider(metadata, {
-  buildCommand: (ctx) =>
-    buildStandardCommand(ctx, {
-      // goose run -s enters interactive mode after the initial prompt
-      defaultArgs: ['run', '-s'],
-      initialPromptFlag: '-t',
-      resumeFlag: '--resume',
-    }),
-  buildVersionProbeCommand: (b) => ({ command: b, args: ['--version'] }),
+export const provider = registerPluginBehavior(plugin, {
+  prompt: {
+    buildCommand: (ctx) =>
+      buildStandardCommand(ctx, {
+        defaultArgs: ['run', '-s'],
+        initialPromptFlag: '-t',
+        resumeFlag: '--resume',
+      }),
+  },
 });

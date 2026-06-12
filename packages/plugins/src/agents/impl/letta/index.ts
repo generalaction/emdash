@@ -1,47 +1,85 @@
-import { defineMetadata, defineProvider } from '../../core';
-import { buildStandardCommand } from '../../helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { icon } from './icon';
 
-export { default as Icon } from './icon';
-
-export const metadata = defineMetadata({
-  id: 'letta',
-  name: 'Letta',
-  description:
-    'Memory-first coding agent CLI with persistent agents that learn across sessions and portable memory across models.',
-  websiteUrl: 'https://docs.letta.com/letta-code/cli',
-  capabilities: {
-    install: {
-      binaryNames: ['letta'],
-      installCommands: {
-        macos: [{ command: 'npm install -g @letta-ai/letta-code', method: 'npm' }],
-        linux: [{ command: 'npm install -g @letta-ai/letta-code', method: 'npm' }],
-        windows: [{ command: 'npm install -g @letta-ai/letta-code', method: 'npm' }],
-      },
-      // Letta does not support a --version flag
-      skipVersionProbe: true,
-    },
-    models: { kind: 'none' },
-    effort: { kind: 'none' },
-    promptDelivery: { kind: 'keystroke' },
-    sessions: { kind: 'resumable' },
-    autoApprove: { kind: 'supported' },
-    hooks: { kind: 'none' },
-    mcp: { kind: 'none' },
-    plugin: { kind: 'none' },
-    updates: {
+export const plugin = definePlugin(
+  {
+    id: 'letta',
+    name: 'Letta',
+    description:
+      'Memory-first coding agent CLI with persistent agents that learn across sessions and portable memory across models.',
+    websiteUrl: 'https://docs.letta.com/letta-code/cli',
+  },
+  {
+    autoApprove: {
       kind: 'supported',
-      releaseSource: { kind: 'npm', package: '@letta-ai/letta-code' },
-      update: { kind: 'package-manager' },
+    },
+    effort: {
+      kind: 'none',
+    },
+    hooks: {
+      kind: 'none',
+    },
+    hostDependency: {
+      id: 'letta',
+      binaryNames: ['letta'],
+      skipVersionProbe: true,
+      installCommands: {
+        macos: [
+          {
+            method: 'npm',
+            command: 'npm install -g @letta-ai/letta-code',
+          },
+        ],
+        linux: [
+          {
+            method: 'npm',
+            command: 'npm install -g @letta-ai/letta-code',
+          },
+        ],
+        windows: [
+          {
+            method: 'npm',
+            command: 'npm install -g @letta-ai/letta-code',
+          },
+        ],
+      },
+      updates: {
+        kind: 'supported',
+        releaseSource: {
+          kind: 'npm',
+          package: '@letta-ai/letta-code',
+        },
+        update: {
+          kind: 'package-manager',
+        },
+      },
+    },
+    mcp: {
+      kind: 'none',
+    },
+    models: {
+      kind: 'none',
+    },
+    plugins: {
+      kind: 'none',
+    },
+    prompt: {
+      kind: 'keystroke',
+    },
+    sessions: {
+      kind: 'resumable',
     },
   },
-});
+  { icon }
+);
 
-export const provider = defineProvider(metadata, {
-  buildCommand: (ctx) =>
-    buildStandardCommand(ctx, {
-      autoApproveFlag: '--yolo',
-      // letta: useKeystrokeInjection
-      // Bare `letta` auto-resumes; --new starts a fresh conversation.
-      newConversationFlag: '--new',
-    }),
+export const provider = registerPluginBehavior(plugin, {
+  prompt: {
+    buildCommand: (ctx) =>
+      buildStandardCommand(ctx, {
+        autoApproveFlag: '--yolo',
+        newConversationFlag: '--new',
+      }),
+  },
 });

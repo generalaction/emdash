@@ -1,5 +1,5 @@
 import z from 'zod';
-import { hostDependencyCapability } from '../../deps/capability';
+import { hostDependencyCapability } from '../../host-dependencies/capability';
 import { createPluginFramework } from '../../lib/plugins/framework';
 import { iconAsset } from './assets/icon';
 import { autoApproveCapability } from './capabilities/auto-approve';
@@ -52,3 +52,17 @@ export type CLIAgentPluginProvider = ReturnType<typeof registerPluginBehavior>;
 
 export { pickIconVariant } from './assets/icon';
 export type { AgentIconAsset, AgentIconVariant } from './assets/icon';
+
+// Convenience re-exports for impl packages
+export type { AgentCommand, CommandContext } from './capabilities/prompt';
+export type { HookRegistration, HookEvent } from './capabilities/hooks-types';
+export type { PluginFs } from '../runtime/fs';
+// Capability behavior interfaces — needed for dts portability
+export type { IHostDependencyBehavior } from '../../host-dependencies/capability';
+export type { IHooksBehavior } from './capabilities/hooks';
+export type { IMcpBehavior } from './capabilities/mcp';
+export type { IPlugins } from './capabilities/plugins';
+export type { ISessionsBehavior } from './capabilities/sessions';
+
+// Typed registry factory
+export { createPluginRegistry } from '../../lib/plugins/registry';

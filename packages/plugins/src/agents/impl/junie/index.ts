@@ -1,47 +1,78 @@
-import { defineMetadata, defineProvider } from '../../core';
-import { buildStandardCommand } from '../../helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { icon } from './icon';
 
-export { default as Icon } from './icon';
-
-export const metadata = defineMetadata({
-  id: 'junie',
-  name: 'Junie',
-  description:
-    'JetBrains agentic coding CLI for interactive terminal and headless project workflows.',
-  websiteUrl: 'https://junie.jetbrains.com/docs/junie-cli.html',
-  capabilities: {
-    install: {
+export const plugin = definePlugin(
+  {
+    id: 'junie',
+    name: 'Junie',
+    description:
+      'JetBrains agentic coding CLI for interactive terminal and headless project workflows.',
+    websiteUrl: 'https://junie.jetbrains.com/docs/junie-cli.html',
+  },
+  {
+    autoApprove: {
+      kind: 'none',
+    },
+    effort: {
+      kind: 'none',
+    },
+    hooks: {
+      kind: 'none',
+    },
+    hostDependency: {
+      id: 'junie',
       binaryNames: ['junie'],
       installCommands: {
         macos: [
-          { command: 'curl -fsSL https://junie.jetbrains.com/install.sh | bash', method: 'curl' },
+          {
+            method: 'curl',
+            command: 'curl -fsSL https://junie.jetbrains.com/install.sh | bash',
+          },
         ],
         linux: [
-          { command: 'curl -fsSL https://junie.jetbrains.com/install.sh | bash', method: 'curl' },
+          {
+            method: 'curl',
+            command: 'curl -fsSL https://junie.jetbrains.com/install.sh | bash',
+          },
         ],
       },
+      updates: {
+        kind: 'supported',
+        releaseSource: {
+          kind: 'none',
+        },
+        update: {
+          kind: 'package-manager',
+        },
+      },
     },
-    models: { kind: 'none' },
-    effort: { kind: 'none' },
-    promptDelivery: { kind: 'argv', flag: '--task' },
-    sessions: { kind: 'resumable' },
-    autoApprove: { kind: 'none' },
-    hooks: { kind: 'none' },
-    mcp: { kind: 'none' },
-    plugin: { kind: 'none' },
-    updates: {
-      kind: 'supported',
-      releaseSource: { kind: 'none' },
-      update: { kind: 'package-manager' },
+    mcp: {
+      kind: 'none',
+    },
+    models: {
+      kind: 'none',
+    },
+    plugins: {
+      kind: 'none',
+    },
+    prompt: {
+      kind: 'argv',
+      flag: '--task',
+    },
+    sessions: {
+      kind: 'resumable',
     },
   },
-});
+  { icon }
+);
 
-export const provider = defineProvider(metadata, {
-  buildCommand: (ctx) =>
-    buildStandardCommand(ctx, {
-      initialPromptFlag: '--task',
-      sessionIdFlag: '--session-id',
-    }),
-  buildVersionProbeCommand: (b) => ({ command: b, args: ['--version'] }),
+export const provider = registerPluginBehavior(plugin, {
+  prompt: {
+    buildCommand: (ctx) =>
+      buildStandardCommand(ctx, {
+        initialPromptFlag: '--task',
+        sessionIdFlag: '--session-id',
+      }),
+  },
 });

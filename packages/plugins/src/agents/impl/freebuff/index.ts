@@ -1,43 +1,84 @@
-import { defineMetadata, defineProvider } from '../../core';
-import { buildStandardCommand } from '../../helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { icon } from './icon';
 
-export { default as Icon } from './icon';
-
-export const metadata = defineMetadata({
-  id: 'freebuff',
-  name: 'Freebuff',
-  description:
-    'Freebuff is a standalone Codebuff package for project-directory assistance and day-to-day development tasks.',
-  websiteUrl: 'https://freebuff.com',
-  capabilities: {
-    install: {
+export const plugin = definePlugin(
+  {
+    id: 'freebuff',
+    name: 'Freebuff',
+    description:
+      'Freebuff is a standalone Codebuff package for project-directory assistance and day-to-day development tasks.',
+    websiteUrl: 'https://freebuff.com',
+  },
+  {
+    autoApprove: {
+      kind: 'none',
+    },
+    effort: {
+      kind: 'none',
+    },
+    hooks: {
+      kind: 'none',
+    },
+    hostDependency: {
+      id: 'freebuff',
       binaryNames: ['freebuff'],
       installCommands: {
-        macos: [{ command: 'npm install -g freebuff', method: 'npm' }],
-        linux: [{ command: 'npm install -g freebuff', method: 'npm' }],
-        windows: [{ command: 'npm install -g freebuff', method: 'npm' }],
+        macos: [
+          {
+            method: 'npm',
+            command: 'npm install -g freebuff',
+          },
+        ],
+        linux: [
+          {
+            method: 'npm',
+            command: 'npm install -g freebuff',
+          },
+        ],
+        windows: [
+          {
+            method: 'npm',
+            command: 'npm install -g freebuff',
+          },
+        ],
+      },
+      updates: {
+        kind: 'supported',
+        releaseSource: {
+          kind: 'npm',
+          package: 'freebuff',
+        },
+        update: {
+          kind: 'package-manager',
+        },
       },
     },
-    models: { kind: 'none' },
-    effort: { kind: 'none' },
-    promptDelivery: { kind: 'argv', flag: '' },
-    sessions: { kind: 'stateless' },
-    autoApprove: { kind: 'none' },
-    hooks: { kind: 'none' },
-    mcp: { kind: 'none' },
-    plugin: { kind: 'none' },
-    updates: {
-      kind: 'supported',
-      releaseSource: { kind: 'npm', package: 'freebuff' },
-      update: { kind: 'package-manager' },
+    mcp: {
+      kind: 'none',
+    },
+    models: {
+      kind: 'none',
+    },
+    plugins: {
+      kind: 'none',
+    },
+    prompt: {
+      kind: 'argv',
+      flag: '',
+    },
+    sessions: {
+      kind: 'stateless',
     },
   },
-});
+  { icon }
+);
 
-export const provider = defineProvider(metadata, {
-  buildCommand: (ctx) =>
-    buildStandardCommand(ctx, {
-      initialPromptFlag: '',
-    }),
-  buildVersionProbeCommand: (b) => ({ command: b, args: ['--version'] }),
+export const provider = registerPluginBehavior(plugin, {
+  prompt: {
+    buildCommand: (ctx) =>
+      buildStandardCommand(ctx, {
+        initialPromptFlag: '',
+      }),
+  },
 });
