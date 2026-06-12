@@ -31,9 +31,19 @@ const PICKER_BOOTSTRAP = `(() => {
   const KEY = '__emdashAnnotationPicker';
   if (!window[KEY]) {
     const emit = console.log.bind(console);
+    const sign = (body) => {
+      let hash = 2166136261;
+      const input = CHANNEL_ID + '\n' + body;
+      for (let i = 0; i < input.length; i++) {
+        hash ^= input.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }
+      return (hash >>> 0).toString(16);
+    };
     const post = (payload) => {
       try {
-        emit(MARKER + JSON.stringify({ ...payload, channelId: CHANNEL_ID }));
+        const body = JSON.stringify(payload);
+        emit(MARKER + JSON.stringify({ payload, signature: sign(body) }));
       } catch {}
     };
     const tracked = new Map();
@@ -323,22 +333,27 @@ export function parseAnnotationMessage(
   } catch {
     return null;
   }
-  if (!isRecord(parsed) || parsed.channelId !== options.channelId) return null;
-  if (parsed.type === 'mode' && typeof parsed.active === 'boolean') {
+  if (!isRecord(parsed) || !isRecord(parsed.payload) || typeof parsed.signature !== 'string') {
+    return null;
+  }
+  const payload = parsed.payload;
+  const body = JSON.stringify(payload);
+  if (parsed.signature !== signAnnotationPayload(body, options.channelId)) return null;
+  if (payload.type === 'mode' && typeof payload.active === 'boolean') {
     return {
       type: 'mode',
-      active: parsed.active,
-      cancelled: typeof parsed.cancelled === 'boolean' ? parsed.cancelled : undefined,
+      active: payload.active,
+      cancelled: typeof payload.cancelled === 'boolean' ? payload.cancelled : undefined,
     };
   }
-  if (parsed.type === 'picked' && typeof parsed.token === 'number') {
-    const element = parseElementInfo(parsed.element);
+  if (payload.type === 'picked' && typeof payload.token === 'number') {
+    const element = parseElementInfo(payload.element);
     if (!element) return null;
-    return { type: 'picked', token: parsed.token, element };
+    return { type: 'picked', token: payload.token, element };
   }
-  if (parsed.type === 'rects' && Array.isArray(parsed.rects)) {
+  if (payload.type === 'rects' && Array.isArray(payload.rects)) {
     const rects: AnnotationTrackedRect[] = [];
-    for (const entry of parsed.rects) {
+    for (const entry of payload.rects) {
       if (!isRecord(entry) || typeof entry.token !== 'number') continue;
       rects.push({
         token: entry.token,
@@ -349,6 +364,16 @@ export function parseAnnotationMessage(
     return { type: 'rects', rects };
   }
   return null;
+}
+
+function signAnnotationPayload(body: string, channelId: string): string {
+  let hash = 2166136261;
+  const input = `${channelId}\n${body}`;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
 }
 
 function parseElementInfo(value: unknown): AnnotatedElementInfo | null {

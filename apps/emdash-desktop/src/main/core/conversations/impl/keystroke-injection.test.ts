@@ -134,6 +134,21 @@ describe('scheduleInitialPromptInjection', () => {
     expect(write).not.toHaveBeenCalled();
   });
 
+  it('cancels injection when shell failure output is split across chunks', () => {
+    const { pty, write, emitData } = makePty();
+    scheduleInitialPromptInjection({
+      pty,
+      conversation: makeConversation('hermes'),
+      initialPrompt: 'Fix the bug',
+      isResuming: false,
+    });
+
+    emitData('zsh: ');
+    emitData('command not found: hermes\n% ');
+    vi.advanceTimersByTime(900);
+    expect(write).not.toHaveBeenCalled();
+  });
+
   it('does nothing for OpenCode because its initial prompt is passed with --prompt', () => {
     const { pty, write, emitData } = makePty();
     scheduleInitialPromptInjection({

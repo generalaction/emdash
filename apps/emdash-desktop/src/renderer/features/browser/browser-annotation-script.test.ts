@@ -7,8 +7,19 @@ import {
 
 const options = { channelId: 'test-channel' };
 
+function signPayload(body: string): string {
+  let hash = 2166136261;
+  const input = `${options.channelId}\n${body}`;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
+}
+
 function messagePayload(payload: Record<string, unknown>): string {
-  return `${ANNOTATION_CONSOLE_MARKER}${JSON.stringify({ ...payload, channelId: options.channelId })}`;
+  const body = JSON.stringify(payload);
+  return `${ANNOTATION_CONSOLE_MARKER}${JSON.stringify({ payload, signature: signPayload(body) })}`;
 }
 
 const elementPayload = {
@@ -36,6 +47,14 @@ describe('parseAnnotationMessage', () => {
     expect(parseAnnotationMessage(`${ANNOTATION_CONSOLE_MARKER}not-json`, options)).toBeNull();
     expect(parseAnnotationMessage(messagePayload({ type: 'other' }), options)).toBeNull();
     expect(parseAnnotationMessage(`${ANNOTATION_CONSOLE_MARKER}null`, options)).toBeNull();
+  });
+
+  it('rejects unsigned payloads even when page code learns a prior message body', () => {
+    const forged = `${ANNOTATION_CONSOLE_MARKER}${JSON.stringify({
+      payload: { type: 'mode', active: true },
+      signature: 'bad-signature',
+    })}`;
+    expect(parseAnnotationMessage(forged, options)).toBeNull();
   });
 
   it('parses mode messages', () => {

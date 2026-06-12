@@ -20,6 +20,7 @@ const KEYSTROKE_READY_OUTPUT: Partial<Record<Conversation['providerId'], RegExp>
 
 const SHELL_FAILURE_OUTPUT =
   /(?:^|\n)(?:zsh|bash|sh|fish)(?::\d+)?(?::\s+|\s+)(?:command not found|parse error|no such file or directory)\b/i;
+const OUTPUT_BUFFER_MAX = 4096;
 
 export function scheduleInitialPromptInjection(args: {
   pty: Pty;
@@ -44,6 +45,7 @@ export function scheduleInitialPromptInjection(args: {
   let injected = false;
   let sawAnyOutput = false;
   let sawReadyOutput = false;
+  let outputBuffer = '';
   let quietTimer: ReturnType<typeof setTimeout> | null = null;
 
   const inject = () => {
@@ -71,7 +73,8 @@ export function scheduleInitialPromptInjection(args: {
   args.pty.onData((data) => {
     if (injected) return;
     sawAnyOutput = true;
-    if (SHELL_FAILURE_OUTPUT.test(data)) {
+    outputBuffer = `${outputBuffer}${data}`.slice(-OUTPUT_BUFFER_MAX);
+    if (SHELL_FAILURE_OUTPUT.test(outputBuffer)) {
       injected = true;
       if (quietTimer) clearTimeout(quietTimer);
       log.warn('ConversationProvider: shell output detected before initial prompt injection', {
@@ -80,7 +83,7 @@ export function scheduleInitialPromptInjection(args: {
       });
       return;
     }
-    sawReadyOutput = sawReadyOutput || readyOutput.test(data);
+    sawReadyOutput = sawReadyOutput || readyOutput.test(outputBuffer);
     if (!sawReadyOutput) return;
     if (quietTimer) clearTimeout(quietTimer);
     quietTimer = setTimeout(inject, QUIET_PERIOD_MS);
