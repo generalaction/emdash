@@ -36,7 +36,8 @@ export const InstallSection = observer(function InstallSection({
   connectionId,
   agentPayload,
   installOptions,
-  hideOverrideOptions = false,
+  installDocs: _installDocs,
+  hideOverrideOptions: _hideOverrideOptions,
 }: InstallSectionProps) {
   const vm = useAgentInstallationStatus(agentId, connectionId, agentPayload);
 

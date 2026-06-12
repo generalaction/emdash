@@ -1,10 +1,10 @@
 import z from 'zod';
 import { definePluginCapability } from '../../../lib/plugins/capability';
 import type { PluginFs } from '../../runtime/fs';
-import type { HookRegistration } from './hooks-types';
+import type { CanonicalHookEvent, HookRegistration } from './hooks-types';
 
 export type { HookRegistration };
-export type { HookEvent } from './hooks-types';
+export type { CanonicalHookEvent, HookEvent, NotificationType } from './hooks-types';
 export { HOOK_EVENTS } from './hooks-types';
 
 export type IHooksBehavior = {
@@ -13,6 +13,11 @@ export type IHooksBehavior = {
   writeHooks(fs: PluginFs, hooks: HookRegistration[]): Promise<string[]>;
   deleteHooks(fs: PluginFs): Promise<void>;
   getHooksInstalled(fs: PluginFs): Promise<boolean>;
+  /**
+   * Parse a raw hook event (event type header + JSON body) into a canonical form.
+   * Optional — the desktop falls back to defaultHookEventParser when absent.
+   */
+  parseHookEvent?(eventType: string, body: Record<string, unknown>): CanonicalHookEvent;
 };
 
 /**

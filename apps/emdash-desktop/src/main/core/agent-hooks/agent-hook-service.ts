@@ -1,5 +1,8 @@
 import { eq } from 'drizzle-orm';
+import { getPlugin } from '@main/core/agents/plugin-registry';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
+import { saveProviderSessionId } from '@main/core/conversations/save-provider-session-id';
+import { setProviderSessionId } from '@main/core/conversations/set-provider-session-id';
 import { touchConversation } from '@main/core/conversations/touchConversation';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
@@ -8,7 +11,9 @@ import { HookCore, type Hookable } from '@main/lib/hookable';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import { isValidProviderSessionId } from '@shared/core/agents/agent-provider-registry';
 import {
+  agentSessionExitedChannel,
   isAttentionNotification,
   type AgentEvent,
   type AgentStatus,
@@ -17,9 +22,7 @@ import {
   conversationAgentStatusChangedChannel,
   conversationChangedChannel,
 } from '@shared/core/conversations/conversationEvents';
-import { handleCodexSessionStartHook } from './codex-session-start';
-import { enrichEvent } from './event-enricher';
-import { handleProviderSessionHook } from './handle-provider-session-hook';
+import { parseHookEvent } from './event-enricher';
 import { HookServer } from './hook-server';
 import { isAppFocused, maybeShowNotification } from './notification';
 
@@ -34,10 +37,6 @@ function deriveAgentStatus(event: AgentEvent): AgentStatus | null {
   if (event.type === 'notification') {
     const nt = event.payload.notificationType;
     if (!nt) return null;
-    // idle_prompt for codex/amp signals done
-    if (nt === 'idle_prompt' && (event.providerId === 'codex' || event.providerId === 'amp')) {
-      return 'completed';
-    }
     if (isAttentionNotification(nt)) return 'awaiting-input';
   }
   return null;
@@ -49,15 +48,29 @@ function determineSoundEvent(
 ): 'needs_attention' | 'task_complete' | undefined {
   if (status === 'awaiting-input') return 'needs_attention';
   if (status === 'completed' && event.type === 'stop') return 'task_complete';
-  if (
-    status === 'completed' &&
-    event.type === 'notification' &&
-    event.payload.notificationType === 'idle_prompt' &&
-    (event.providerId === 'codex' || event.providerId === 'amp')
-  ) {
-    return 'task_complete';
-  }
   return undefined;
+}
+
+async function handleSessionEvent(
+  ctx: { conversationId: string; taskId: string; projectId: string; providerId: string },
+  providerSessionId: string
+): Promise<void> {
+  if (!isValidProviderSessionId(ctx.providerId, providerSessionId)) return;
+
+  if (ctx.providerId === 'droid') {
+    await saveProviderSessionId(ctx.conversationId, providerSessionId);
+    return;
+  }
+
+  const updated = await setProviderSessionId(ctx.conversationId, providerSessionId);
+  if (!updated) return;
+
+  events.emit(conversationChangedChannel, {
+    conversationId: ctx.conversationId,
+    taskId: ctx.taskId,
+    projectId: ctx.projectId,
+    changes: { providerSessionId },
+  });
 }
 
 class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHookServiceHooks> {
@@ -76,18 +89,31 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
 
   async initialize(): Promise<void> {
     await this.server.start(async (raw) => {
-      if (raw.type === 'session') {
-        await handleProviderSessionHook(raw);
+      let parsed;
+      try {
+        parsed = await parseHookEvent(raw);
+      } catch (error) {
+        log.warn('AgentHookService: failed to parse hook event', {
+          ptyId: raw.ptyId,
+          type: raw.type,
+          error: String(error),
+        });
         return;
       }
 
-      if (raw.type === 'session-start') {
-        await handleCodexSessionStartHook(raw);
+      if (parsed.kind === 'ignore') return;
+
+      if (parsed.kind === 'session') {
+        await handleSessionEvent(parsed.ctx, parsed.providerSessionId).catch((error) => {
+          log.warn('AgentHookService: failed to persist session id', {
+            ptyId: raw.ptyId,
+            error: String(error),
+          });
+        });
         return;
       }
 
-      const event = await enrichEvent(raw);
-      event.source = 'hook';
+      const event = parsed.event;
       const appFocused = isAppFocused();
       await maybeShowNotification(event, appFocused);
       this.emitAgentEvent(event, appFocused);
@@ -96,17 +122,28 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
     conversationEvents.on(
       'conversation:input-submitted',
       ({ projectId, taskId, conversationId, providerId }) => {
-        const agentEvent: AgentEvent = {
-          type: 'start',
-          source: 'input',
-          providerId,
-          projectId,
-          taskId,
-          conversationId,
-          timestamp: Date.now(),
-          payload: {},
-        };
-        this.emitAgentEvent(agentEvent, isAppFocused());
+        // Only synthesise a 'start' event when the plugin does not supply its own
+        // start hook (e.g. UserPromptSubmit). Providers with start-capable hooks
+        // get 'working' from the real hook event instead.
+        const plugin = getPlugin(providerId);
+        const hooksDesc = plugin?.capabilities.hooks;
+        const supportedEvents =
+          hooksDesc && hooksDesc.kind !== 'none' ? hooksDesc.supportedEvents : [];
+        const hasStartHook = supportedEvents.includes('start');
+
+        if (!hasStartHook) {
+          const agentEvent: AgentEvent = {
+            type: 'start',
+            source: 'input',
+            providerId,
+            projectId,
+            taskId,
+            conversationId,
+            timestamp: Date.now(),
+            payload: {},
+          };
+          this.emitAgentEvent(agentEvent, isAppFocused());
+        }
 
         telemetryService.capture('agent_run_started', {
           provider: providerId,
@@ -146,6 +183,42 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
         seen: seen === 1,
         soundEvent: determineSoundEvent(event, status),
       });
+    });
+
+    // Reset a stuck 'working' status to 'idle' when the agent PTY exits.
+    // This handles the case where the user interrupts/kills the agent before
+    // a 'stop' or 'error' hook fires.
+    events.on(agentSessionExitedChannel, ({ conversationId, taskId }) => {
+      void (async () => {
+        try {
+          const [row] = await db
+            .select({ agentStatus: conversations.agentStatus, projectId: conversations.projectId })
+            .from(conversations)
+            .where(eq(conversations.id, conversationId))
+            .limit(1);
+
+          if (!row || row.agentStatus !== 'working') return;
+
+          await db
+            .update(conversations)
+            .set({ agentStatus: 'idle', agentStatusSeen: 1 })
+            .where(eq(conversations.id, conversationId));
+
+          events.emit(conversationAgentStatusChangedChannel, {
+            conversationId,
+            taskId,
+            projectId: row.projectId,
+            status: 'idle',
+            seen: true,
+            soundEvent: undefined,
+          });
+        } catch (error) {
+          log.warn('AgentHookService: failed to reset stuck working status on exit', {
+            conversationId,
+            error: String(error),
+          });
+        }
+      })();
     });
   }
 

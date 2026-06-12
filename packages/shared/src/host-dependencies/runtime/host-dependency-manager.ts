@@ -246,7 +246,6 @@ export class HostDependencyManager {
   ): Promise<void> {
     const hostId = this.connectionId ?? 'local';
     const selection = await this.getSelection(id);
-    const versionArgs = descriptor.versionArgs ?? ['--version'];
 
     const installations: Installation[] = [];
 
@@ -279,61 +278,12 @@ export class HostDependencyManager {
 
     // User-defined path override
     if (selection?.path) {
-      const pathExists = await resolveCommandPath(selection.path, this.ctx, this.platform);
-      if (pathExists) {
-        const pathProbe = await runVersionProbe(
-          selection.path,
-          selection.path,
-          versionArgs,
-          this.ctx
-        );
-        installations.push({
-          id: 'path',
-          source: { kind: 'path', path: selection.path },
-          status: dependencyStateFromProbeResult(descriptor, pathExists, pathProbe).status,
-          path: pathExists,
-          version: extractVersion(pathProbe),
-          latestVersion: null,
-          updateAvailable: false,
-        });
-      } else {
-        installations.push({
-          id: 'path',
-          source: { kind: 'path', path: selection.path },
-          status: 'missing',
-          path: null,
-          version: null,
-          latestVersion: null,
-          updateAvailable: false,
-        });
-      }
+      installations.push(await this.probeOverrideSource(descriptor, 'path', selection.path));
     }
 
     // User-defined CLI override
     if (selection?.cli) {
-      const cliPath = await resolveCommandPath(selection.cli, this.ctx, this.platform);
-      if (cliPath) {
-        const cliProbe = await runVersionProbe(selection.cli, cliPath, versionArgs, this.ctx);
-        installations.push({
-          id: 'cli',
-          source: { kind: 'cli', command: selection.cli },
-          status: dependencyStateFromProbeResult(descriptor, cliPath, cliProbe).status,
-          path: cliPath,
-          version: extractVersion(cliProbe),
-          latestVersion: null,
-          updateAvailable: false,
-        });
-      } else {
-        installations.push({
-          id: 'cli',
-          source: { kind: 'cli', command: selection.cli },
-          status: 'missing',
-          path: null,
-          version: null,
-          latestVersion: null,
-          updateAvailable: false,
-        });
-      }
+      installations.push(await this.probeOverrideSource(descriptor, 'cli', selection.cli));
     }
 
     // Derive usedId: stored selection → recommended install option → first valid → first
@@ -353,6 +303,82 @@ export class HostDependencyManager {
       connectionId: this.connectionId,
       hostDependency,
     });
+  }
+
+  /**
+   * Probe a single path or cli override value without persisting or emitting any events.
+   * Used both internally by buildAndStoreHostDependency and publicly by probeOverride.
+   */
+  private async probeOverrideSource(
+    descriptor: DependencyDescriptor,
+    kind: 'path' | 'cli',
+    value: string
+  ): Promise<Installation> {
+    const versionArgs = descriptor.versionArgs ?? ['--version'];
+    if (kind === 'path') {
+      const pathExists = await resolveCommandPath(value, this.ctx, this.platform);
+      if (pathExists) {
+        const pathProbe = await runVersionProbe(value, value, versionArgs, this.ctx);
+        return {
+          id: 'path',
+          source: { kind: 'path', path: value },
+          status: dependencyStateFromProbeResult(descriptor, pathExists, pathProbe).status,
+          path: pathExists,
+          version: extractVersion(pathProbe),
+          latestVersion: null,
+          updateAvailable: false,
+        };
+      }
+      return {
+        id: 'path',
+        source: { kind: 'path', path: value },
+        status: 'missing',
+        path: null,
+        version: null,
+        latestVersion: null,
+        updateAvailable: false,
+      };
+    }
+
+    // cli
+    const cliPath = await resolveCommandPath(value, this.ctx, this.platform);
+    if (cliPath) {
+      const cliProbe = await runVersionProbe(value, cliPath, versionArgs, this.ctx);
+      return {
+        id: 'cli',
+        source: { kind: 'cli', command: value },
+        status: dependencyStateFromProbeResult(descriptor, cliPath, cliProbe).status,
+        path: cliPath,
+        version: extractVersion(cliProbe),
+        latestVersion: null,
+        updateAvailable: false,
+      };
+    }
+    return {
+      id: 'cli',
+      source: { kind: 'cli', command: value },
+      status: 'missing',
+      path: null,
+      version: null,
+      latestVersion: null,
+      updateAvailable: false,
+    };
+  }
+
+  /**
+   * Dry-run probe of a path or cli override value.
+   * Does NOT persist any selection, mutate hostState, or emit onStatusUpdated.
+   * Returns null when selection is empty.
+   */
+  async probeOverride(
+    id: DependencyId,
+    selection: { path?: string; cli?: string }
+  ): Promise<Installation | null> {
+    const descriptor = this._getDependencyDescriptor(id);
+    if (!descriptor) throw new Error(`Unknown dependency id: ${id}`);
+    if (selection.path) return this.probeOverrideSource(descriptor, 'path', selection.path);
+    if (selection.cli) return this.probeOverrideSource(descriptor, 'cli', selection.cli);
+    return null;
   }
 
   private deriveUsedId(

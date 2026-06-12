@@ -644,3 +644,84 @@ describe('HostDependencyManager unknown install source', () => {
     expect(runInstallCommand).not.toHaveBeenCalled();
   });
 });
+
+describe('HostDependencyManager probeOverride', () => {
+  // which /custom/codex returns the path itself for an absolute path override
+  const pathCtx = makeCtx(async (command, args = []) => {
+    if (command === 'which' && args[0] === '/custom/codex') {
+      return { stdout: '/custom/codex\n', stderr: '' };
+    }
+    if (command === '/custom/codex' && args[0] === '--version') {
+      return { stdout: 'codex-cli 2.0.0\n', stderr: '' };
+    }
+    throw new Error('missing');
+  });
+
+  it('returns an available Installation for a valid path override without mutating hostState', async () => {
+    const manager = new HostDependencyManager(pathCtx, {
+      dependencies: TEST_DEPENDENCIES,
+    });
+    const emitted: unknown[] = [];
+    manager.onStatusUpdated.subscribe((e) => emitted.push(e));
+
+    const result = await manager.probeOverride('codex', { path: '/custom/codex' });
+
+    expect(result).not.toBeNull();
+    expect(result?.id).toBe('path');
+    expect(result?.status).toBe('available');
+    expect(result?.version).toBe('2.0.0');
+    expect(result?.source).toEqual({ kind: 'path', path: '/custom/codex' });
+    // Must not emit any status updated events
+    expect(emitted).toHaveLength(0);
+    // Must not populate hostState
+    expect(manager.getHostDependency('codex')).toBeUndefined();
+  });
+
+  it('returns a missing Installation when the path does not exist', async () => {
+    const manager = new HostDependencyManager(missingCtx, {
+      dependencies: TEST_DEPENDENCIES,
+    });
+
+    const result = await manager.probeOverride('codex', { path: '/nonexistent/codex' });
+
+    expect(result).not.toBeNull();
+    expect(result?.id).toBe('path');
+    expect(result?.status).toBe('missing');
+    expect(result?.path).toBeNull();
+  });
+
+  it('returns an available Installation for a valid cli override', async () => {
+    const manager = new HostDependencyManager(availableCtx, {
+      dependencies: TEST_DEPENDENCIES,
+    });
+    const emitted: unknown[] = [];
+    manager.onStatusUpdated.subscribe((e) => emitted.push(e));
+
+    const result = await manager.probeOverride('codex', { cli: 'codex' });
+
+    expect(result).not.toBeNull();
+    expect(result?.id).toBe('cli');
+    expect(result?.status).toBe('available');
+    expect(result?.source).toEqual({ kind: 'cli', command: 'codex' });
+    expect(emitted).toHaveLength(0);
+  });
+
+  it('returns null when the selection is empty', async () => {
+    const manager = new HostDependencyManager(missingCtx, {
+      dependencies: TEST_DEPENDENCIES,
+    });
+
+    const result = await manager.probeOverride('codex', {});
+    expect(result).toBeNull();
+  });
+
+  it('throws for an unknown dependency id', async () => {
+    const manager = new HostDependencyManager(missingCtx, {
+      dependencies: TEST_DEPENDENCIES,
+    });
+
+    await expect(manager.probeOverride('nonexistent', { cli: 'foo' })).rejects.toThrow(
+      'Unknown dependency id: nonexistent'
+    );
+  });
+});

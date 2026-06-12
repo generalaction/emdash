@@ -25,7 +25,9 @@ export const plugin = definePlugin(
       kind: 'none',
     },
     hooks: {
-      kind: 'none',
+      kind: 'plugin',
+      scope: 'workspace',
+      supportedEvents: ['start', 'stop'],
     },
     hostDependency: {
       id: 'amp',

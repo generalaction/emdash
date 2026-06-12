@@ -1,4 +1,4 @@
-name: CI Check
+name: Code Consistency Check
 
 on:
   pull_request:

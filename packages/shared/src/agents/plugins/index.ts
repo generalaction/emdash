@@ -54,7 +54,12 @@ export type { AgentIconAsset, AgentIconVariant } from './assets/icon';
 
 // Convenience re-exports for impl packages
 export type { AgentCommand, CommandContext } from './capabilities/prompt';
-export type { HookRegistration, HookEvent } from './capabilities/hooks-types';
+export type {
+  CanonicalHookEvent,
+  HookEvent,
+  HookRegistration,
+  NotificationType,
+} from './capabilities/hooks-types';
 export type { PluginFs } from '../runtime/fs';
 // Capability behavior interfaces — needed for dts portability
 export type { IHostDependencyBehavior } from '../../host-dependencies/capability';

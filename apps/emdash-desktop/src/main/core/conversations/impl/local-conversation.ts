@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
+import { ensureHooksInstalled } from '@main/core/agent-hooks/hook-config-service';
 import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
-import { createPluginFs } from '@main/core/agents/plugin-fs';
 import { getPlugin } from '@main/core/agents/plugin-registry';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
@@ -17,7 +17,6 @@ import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/p
 import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
-import { appSettingsService } from '@main/core/settings/settings-service';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
@@ -32,38 +31,10 @@ import { resolveAgentExecutable } from './resolve-agent-executable';
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const RESPAWN_DELAY_MS = 500;
-const GITIGNORE_PATH = '.gitignore';
 
 function parseExtraArgs(value: string | undefined): string[] {
   if (!value?.trim()) return [];
   return value.trim().split(/\s+/);
-}
-
-async function ensureGitIgnoreEntries(
-  fs: ReturnType<typeof createPluginFs>,
-  entries: string[]
-): Promise<void> {
-  const existing = (await fs.read(GITIGNORE_PATH)) ?? '';
-  const existingLines = existing
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0 && !l.startsWith('#'));
-  const isIgnored = (entry: string) => {
-    const norm = entry.replace(/^\/+/, '');
-    return existingLines.some((raw) => {
-      const p = raw.replace(/^\/+/, '');
-      if (p === norm) return true;
-      if (p.endsWith('/')) return norm.startsWith(p);
-      if (p.endsWith('/**')) return norm.startsWith(p.slice(0, -2));
-      return false;
-    });
-  };
-  const missing = entries.filter((e) => !isIgnored(e));
-  if (missing.length === 0) return;
-  const content = existing.replace(/\s*$/, '');
-  const next =
-    content.length > 0 ? `${content}\n${missing.join('\n')}\n` : `${missing.join('\n')}\n`;
-  await fs.write(GITIGNORE_PATH, next);
 }
 
 export class LocalConversationProvider implements ConversationProvider {
@@ -78,11 +49,6 @@ export class LocalConversationProvider implements ConversationProvider {
   private readonly shellProfile: ResolvedShellProfile;
   private readonly ctx: IExecutionContext;
   private readonly taskEnvVars: Record<string, string>;
-  private readonly preparedHookProviders = new Map<
-    string,
-    { writeGitIgnoreEntries: boolean; hooksAvailable: boolean }
-  >();
-
   constructor({
     projectId,
     taskPath,
@@ -152,7 +118,10 @@ export class LocalConversationProvider implements ConversationProvider {
         homedir: homedir(),
         force: conversation.autoApprove === true,
       });
-      await this.prepareHookConfig(conversation.providerId);
+      await ensureHooksInstalled({
+        providerId: conversation.providerId,
+        taskPath: this.taskPath,
+      });
 
       const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
       const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming);
@@ -284,57 +253,6 @@ export class LocalConversationProvider implements ConversationProvider {
     } catch (error) {
       this.supervisor.failSpawn(sessionId, spawnToken);
       throw error;
-    }
-  }
-
-  private async prepareHookConfig(providerId: Conversation['providerId']): Promise<boolean> {
-    try {
-      const localProjectSettings = await appSettingsService.get('localProject');
-      const writeGitIgnoreEntries = localProjectSettings.writeAgentConfigToGitIgnore ?? true;
-      const previous = this.preparedHookProviders.get(providerId);
-      const shouldPrepareHookConfig =
-        previous === undefined || (!previous.writeGitIgnoreEntries && writeGitIgnoreEntries);
-      if (!shouldPrepareHookConfig) return previous?.hooksAvailable ?? false;
-
-      const plugin = getPlugin(providerId);
-      const hooksDescriptor = plugin.capabilities.hooks;
-      const hooksKind = hooksDescriptor.kind;
-      let hooksAvailable = false;
-
-      let writtenPaths: string[] = [];
-      if (hooksKind === 'config' && plugin.behavior.hooks) {
-        const scope = hooksDescriptor.scope;
-        const root = scope === 'global' ? homedir() : this.taskPath;
-        const fs = createPluginFs(root);
-        const paths = await plugin.behavior.hooks.writeHooks(fs, []);
-        writtenPaths = scope === 'global' ? [] : paths;
-        hooksAvailable = true;
-      } else if (hooksKind === 'plugin' && plugin.behavior.plugins) {
-        const fs = createPluginFs(this.taskPath);
-        writtenPaths = await plugin.behavior.plugins.installPlugin(fs, {
-          kind: 'workspace',
-          path: this.taskPath,
-        });
-        hooksAvailable = true;
-      }
-
-      if (writeGitIgnoreEntries && writtenPaths.length) {
-        const wsFs = createPluginFs(this.taskPath);
-        await ensureGitIgnoreEntries(wsFs, writtenPaths);
-      }
-
-      this.preparedHookProviders.set(providerId, {
-        writeGitIgnoreEntries,
-        hooksAvailable,
-      });
-      return hooksAvailable;
-    } catch (error) {
-      log.warn('LocalConversationProvider: failed to prepare hook config', {
-        providerId,
-        taskPath: this.taskPath,
-        error: String(error),
-      });
-      return false;
     }
   }
 

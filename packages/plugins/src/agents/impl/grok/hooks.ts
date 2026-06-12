@@ -1,9 +1,10 @@
 import { Buffer } from 'node:buffer';
 import type { PluginFs } from '@emdash/shared/agents/plugins';
-import type { HookRegistration } from '@emdash/shared/agents/plugins';
+import type { CanonicalHookEvent, HookRegistration } from '@emdash/shared/agents/plugins';
 import {
   EMDASH_MARKER,
   buildNestedEntry,
+  defaultHookEventParser,
   filterUserHooks,
   makeStdinHookCommand,
   readJsonConfig,
@@ -53,6 +54,23 @@ const hookEntries = () => [
   { hookKey: 'SessionEnd', command: makeStdinHookCommand('stop') },
 ];
 
+/**
+ * Grok sends Notification events without a notification_type field.
+ * All Grok notifications are permission-style prompts.
+ */
+function parseGrokHookEvent(eventType: string, body: Record<string, unknown>): CanonicalHookEvent {
+  if (eventType === 'notification') {
+    return {
+      kind: 'status',
+      type: 'notification',
+      notificationType: 'permission_prompt',
+      message: typeof body.message === 'string' ? body.message : undefined,
+      title: typeof body.title === 'string' ? body.title : undefined,
+    };
+  }
+  return defaultHookEventParser(eventType, body);
+}
+
 export function buildGrokHookConfig() {
   const specs = hookEntries();
   return {
@@ -94,5 +112,6 @@ export function buildGrokHookConfig() {
         return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
       });
     },
+    parseHookEvent: parseGrokHookEvent,
   };
 }

@@ -6,4 +6,5 @@ export * from './hook-config';
 export * from './hooks';
 export * from './mcp';
 export * from './merge';
+export * from './parse-hook-event';
 export * from './standard-command';
