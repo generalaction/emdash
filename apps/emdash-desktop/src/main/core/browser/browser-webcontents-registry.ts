@@ -91,31 +91,37 @@ export class BrowserWebContentsRegistry {
       }
     });
 
-    webContents.on('context-menu', (_event, params) => {
-      const linkUrl = isExternalHttpUrl(params.linkURL) ? params.linkURL : null;
+    webContents.on('context-menu', (event, params) => {
+      event.preventDefault();
+      clearWebviewSelection(webContents);
+
+      const target = getBrowserContextTarget(params);
       const template: MenuItemConstructorOptions[] = [
         {
-          label: 'Copy Link',
-          enabled: linkUrl !== null,
+          label: target?.kind === 'image' ? 'Copy Image URL' : 'Copy Link',
+          enabled: target !== null,
           click: () => {
-            if (!linkUrl) return;
-            clipboard.writeText(linkUrl);
-            events.emit(browserLinkCopiedChannel, { kind: 'link', url: linkUrl });
+            if (!target) return;
+            clipboard.writeText(target.url);
+            events.emit(browserLinkCopiedChannel, { kind: 'link', url: target.url });
           },
         },
         {
-          label: 'Open Link',
-          enabled: linkUrl !== null,
+          label: target?.kind === 'image' ? 'Open Image' : 'Open Link',
+          enabled: target !== null,
           click: () => {
-            if (linkUrl) void webContents.loadURL(linkUrl);
+            if (target) void webContents.loadURL(target.url);
           },
         },
         {
-          label: 'Open Link in New Tab',
-          enabled: linkUrl !== null,
+          label: target?.kind === 'image' ? 'Open Image in New Tab' : 'Open Link in New Tab',
+          enabled: target !== null,
           click: () => {
-            if (linkUrl) {
-              events.emit(browserOpenInNewTabChannel, { sourceBrowserId: browserId, url: linkUrl });
+            if (target) {
+              events.emit(browserOpenInNewTabChannel, {
+                sourceBrowserId: browserId,
+                url: target.url,
+              });
             }
           },
         },
@@ -180,6 +186,16 @@ function isExternalHttpUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+function getBrowserContextTarget(
+  params: Electron.ContextMenuParams
+): { kind: 'link' | 'image'; url: string } | null {
+  if (params.mediaType === 'image' && isExternalHttpUrl(params.srcURL)) {
+    return { kind: 'image', url: params.srcURL };
+  }
+  if (isExternalHttpUrl(params.linkURL)) return { kind: 'link', url: params.linkURL };
+  return null;
 }
 
 function getBrowserCopyUrlShortcut(keyboard?: AppSettings['keyboard']): string | null {
@@ -259,4 +275,11 @@ function parseShortcut(shortcut: string): {
 
 function normalizeInputKey(key: string): string {
   return key.toLowerCase();
+}
+
+function clearWebviewSelection(webContents: WebContents): void {
+  if (webContents.isDestroyed()) return;
+  void webContents
+    .executeJavaScript('window.getSelection()?.removeAllRanges();', true)
+    .catch(() => {});
 }

@@ -50,7 +50,7 @@ function webContentsWithSession(session: object): WebContents {
 }
 
 function attachedWebContents(session: object): WebContents & {
-  emitContextMenu: (linkURL: string) => void;
+  emitContextMenu: (params: string | Partial<Electron.ContextMenuParams>) => void;
   emitCopyUrlShortcut: (input?: Partial<Electron.Input>) => void;
 } {
   const listeners = new Map<
@@ -62,6 +62,7 @@ function attachedWebContents(session: object): WebContents & {
     session,
     getURL: vi.fn(() => 'https://example.com/current'),
     isDestroyed: () => false,
+    executeJavaScript: vi.fn(() => Promise.resolve()),
     loadURL: vi.fn(),
     reload: vi.fn(),
     setWindowOpenHandler: vi.fn(),
@@ -76,8 +77,12 @@ function attachedWebContents(session: object): WebContents & {
       }
     ),
     once: vi.fn(),
-    emitContextMenu: (linkURL: string) => {
-      listeners.get('context-menu')?.({ preventDefault: vi.fn() }, { linkURL } as never);
+    emitContextMenu: (params: string | Partial<Electron.ContextMenuParams>) => {
+      const contextParams =
+        typeof params === 'string'
+          ? { linkURL: params }
+          : { linkURL: '', srcURL: '', mediaType: 'none', ...params };
+      listeners.get('context-menu')?.({ preventDefault: vi.fn() }, contextParams as never);
     },
     emitCopyUrlShortcut: (input = {}) => {
       listeners.get('before-input-event')?.({ preventDefault: vi.fn() }, {
@@ -91,7 +96,7 @@ function attachedWebContents(session: object): WebContents & {
       } as never);
     },
   } as unknown as WebContents & {
-    emitContextMenu: (linkURL: string) => void;
+    emitContextMenu: (params: string | Partial<Electron.ContextMenuParams>) => void;
     emitCopyUrlShortcut: (input?: Partial<Electron.Input>) => void;
   };
 }
@@ -194,6 +199,42 @@ describe('BrowserWebContentsRegistry', () => {
       { type: 'separator' },
       { label: 'Reload' },
     ]);
+  });
+
+  it('shows image context menu actions for image URLs', () => {
+    const registry = new BrowserWebContentsRegistry();
+    const partition = 'persist:emdash-browser-project-workspace-task-browser-1';
+    const webContentsSession = { partition };
+    sessionsByPartition.set(partition, webContentsSession);
+    const webContents = attachedWebContents(webContentsSession);
+    registry.registerSession({ browserId: 'browser-1', partition });
+
+    registry.attachWebContents('browser-1', webContents, ownerWindow());
+    webContents.emitContextMenu({
+      mediaType: 'image',
+      srcURL: 'https://example.com/image.png',
+    });
+
+    expect(mocks.menuBuildFromTemplate).toHaveBeenCalledTimes(1);
+    const template = mocks.menuBuildFromTemplate.mock.calls[0]?.[0] as Array<{ click: () => void }>;
+    expect(template).toMatchObject([
+      { label: 'Copy Image URL', enabled: true },
+      { label: 'Open Image', enabled: true },
+      { label: 'Open Image in New Tab', enabled: true },
+      { type: 'separator' },
+      { label: 'Reload' },
+    ]);
+
+    template[0]?.click();
+    template[1]?.click();
+    template[2]?.click();
+
+    expect(mocks.clipboardWriteText).toHaveBeenCalledWith('https://example.com/image.png');
+    expect(webContents.loadURL).toHaveBeenCalledWith('https://example.com/image.png');
+    expect(mocks.eventsEmit).toHaveBeenCalledWith(browserOpenInNewTabChannel, {
+      sourceBrowserId: 'browser-1',
+      url: 'https://example.com/image.png',
+    });
   });
 
   it('copies the current browser URL from the webview shortcut', () => {
