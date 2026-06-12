@@ -1,0 +1,113 @@
+CONTRIBUTING.md
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 24,35-38,42-45,67,73,97,99,101,121,128-133,145-146,175
+apps/emdash-desktop/src/main/core/projects/worktrees/worktree-service.test.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 295-297
+packages/shared/src/git/cat-file-batch.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 22-23,52-53,78-79,150-151,155-161,171-175,186,190
+apps/emdash-desktop/src/renderer/features/projects/components/task-view/task-list-empty-state.tsx
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 6,17,26,43,47-49,51-55,63,69,77,86
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/add-worktree.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 10,12-13,16-21,24-29
+apps/emdash-desktop/src/main/core/agent-hooks/notification.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 2,13-31,70,72-74,76-79
+agents/conventions/config-files.md
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 5-15,22
+agents/conventions/typescript.md
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 5,7-8,12-13,15-18
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/step-context.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 4,22-23
+apps/emdash-desktop/src/renderer/features/tasks/utils.test.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 2-43
+apps/emdash-desktop/src/main/core/pty/tmux-session-name.test.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 10-12,15
+AGENTS.md
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 10-16,20-26,35-36,40-44,50,70-71,74-75,153-154
+agents/architecture/renderer.md
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 3-4,7,9-13,15-18,20-26,28,30-48,52-59
+agents/integrations/mcp.md
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 9
+apps/emdash-desktop/src/shared/browser.test.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 3-6,9-11,13-14,16,19-21,133,158-209
+agents/architecture/overview.md
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 3-4,9,19,24-25
+packages/shared/src/fs/native-watch.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 7,22,74-78,85-88,95,98-103
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar-actions.test.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 4-5,11-12,15,17,26-27,36-39,52,61-62,81-98,100,112,115-154
+apps/emdash-desktop/src/main/core/browser/controller.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 3,31-32,34-40
+apps/emdash-desktop/src/main/core/pty/tmux-session-name.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 10-12,14,18
+apps/emdash-desktop/src/renderer/features/settings/components/github-connect-modal.tsx
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 1-9,30,131-141,143-153,156-166,178-228,256,258-263
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 1-11,19,24-36,39-40,53-54,62-63,69-70,123-132,134-141,143,193-204,219,223-225,229-285
+agents/architecture/main-process.md
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 45
+apps/emdash-desktop/src/renderer/features/browser/browser-webview-events.test.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 12,31-34,82,92,105,156-171
+apps/emdash-desktop/src/shared/browser.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 41,47-56,76-125,206
+agents/conventions/ipc.md
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 10,22,26,28-31,40
+packages/shared/src/git/git-repository.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 255,268,294,302,317,322-327,344
+agents/workflows/testing.md
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 3-4,7,25-31,47
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-manager.test.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 1-223
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-store.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 85,89-90,92-97,109,139-148
+packages/shared/src/git/cat-file-batch.test.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 24-46
+agents/quickstart.md
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 7,11-13,26-27,37-38
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-manager.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 3-6,33,47,58,266-270,375-377,468-470,499-501,590-597,644
+apps/emdash-desktop/src/renderer/features/browser/browser-session-store.test.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 17,82,88-111
+apps/emdash-desktop/src/main/core/pty/spawn-utils.test.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 152-153
+agents/risky-areas/database.md
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 26-28,44-46,49-50,67,72-73,86,170
+agents/conventions/renderer-patterns.md
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 3-5,9-15,19,28,32,36-40,43,49,51,53-59,62-65,94-98
+apps/emdash-desktop/src/main/core/workspaces/workspace-bootstrap-service.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 6-9,48-51,83,86-89,105-149,211
+apps/emdash-desktop/src/renderer/features/browser/browser-webview-types.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 21,24,43,46,59,64
+packages/shared/src/git/git-worktree.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 496
+apps/emdash-desktop/src/main/core/projects/worktrees/worktree-service.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 51,55,59-73,228-229,232-234,239-240,286-291,293,298-301,303-318,322-323,384-389,391,465
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 5,140-163,169,213-214
+apps/emdash-desktop/src/main/core/workspaces/workspace-bootstrap-service.db.test.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 5,7-8,12-18,22-33,36-50,61-77,118-177
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar-actions.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 1,4-8,23-60,63,72
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-store.test.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 1-138
+apps/emdash-desktop/src/renderer/features/browser/browser-webview-events.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 1,46-51,54,77,89
+apps/emdash-desktop/src/renderer/features/browser/browser-session-store.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 7,10,23,59,65,89-92
+apps/emdash-desktop/src/renderer/features/tasks/utils.ts
+  s_3d122eae30b6da::t_c4d7bc3b753bcf 1,36-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "6e039b9caff6b611c48c7d27fe5fea2a08113d3b",
+  "prompts": {},
+  "sessions": {
+    "s_3d122eae30b6da": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_144b91995ffeDuWqa2CvpraQtl",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
