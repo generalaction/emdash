@@ -1,5 +1,9 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand, copilotMcpAdapter } from '@emdash/shared/agents/plugins/helpers';
+import {
+  buildStandardCommand,
+  copilotMcpAdapter,
+  npmDependency,
+} from '@emdash/shared/agents/plugins/helpers';
 import { buildCopilotHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -23,40 +27,7 @@ export const plugin = definePlugin(
       scope: 'workspace',
       supportedEvents: ['stop', 'session', 'notification'],
     },
-    hostDependency: {
-      id: 'copilot',
-      binaryNames: ['copilot'],
-      installCommands: {
-        macos: [
-          {
-            method: 'npm',
-            command: 'npm install -g @github/copilot',
-          },
-        ],
-        linux: [
-          {
-            method: 'npm',
-            command: 'npm install -g @github/copilot',
-          },
-        ],
-        windows: [
-          {
-            method: 'npm',
-            command: 'npm install -g @github/copilot',
-          },
-        ],
-      },
-      updates: {
-        kind: 'supported',
-        releaseSource: {
-          kind: 'npm',
-          package: '@github/copilot',
-        },
-        update: {
-          kind: 'package-manager',
-        },
-      },
-    },
+    hostDependency: npmDependency({ id: 'copilot', package: '@github/copilot' }),
     mcp: {
       kind: 'supported',
       scope: 'global',

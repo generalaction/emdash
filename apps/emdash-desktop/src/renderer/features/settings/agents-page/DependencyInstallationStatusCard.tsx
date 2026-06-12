@@ -1,10 +1,11 @@
-import { Check, MoreHorizontal } from 'lucide-react';
+import { Check, Loader2, MoreHorizontal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { toast } from 'sonner';
 import type { HostDependencyInstallation } from '@renderer/lib/stores/use-agent-installation-statuses';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -15,87 +16,102 @@ import {
 } from '@renderer/lib/ui/dropdown-menu';
 import type {
   AgentPayload,
-  HostDependencySelection,
-  InstallationSource,
+  InstallOption,
+  SelectedSource,
 } from '@shared/core/agents/agent-payload';
-import { humanizeMethod } from './install-command-row';
+import { sourceKey } from '@shared/core/agents/agent-payload';
+import { InstalledBadge, RecommendedBadge, UsedBadge } from './agent-status-badge';
+import { buildSourceRows } from './installation-sources';
 
-function sourceLabel(source: InstallationSource): string {
-  switch (source.kind) {
-    case 'method':
-      return humanizeMethod(source.method);
-    case 'path':
-      return source.path;
-    case 'cli':
-      return source.command;
-    case 'unknown':
-      return 'unknown method';
-  }
-}
-
-function buildSelection(
-  id: string,
-  installations: HostDependencyInstallation['installations']
-): HostDependencySelection {
-  if (id === 'path') {
-    const inst = installations.find((i) => i.id === 'path');
-    const path = inst?.source.kind === 'path' ? inst.source.path : '';
-    return { usedId: 'path', path };
-  }
-  if (id === 'cli') {
-    const inst = installations.find((i) => i.id === 'cli');
-    const cli = inst?.source.kind === 'cli' ? inst.source.command : '';
-    return { usedId: 'cli', cli };
-  }
-  return { usedId: id };
-}
+export type InstallationState = 'found' | 'not-found' | 'uninstalled' | 'checking';
 
 export type DependencyInstallationStatusCardProps = {
   vm: HostDependencyInstallation;
   /** Full agent payload; used to detect when automatic updates are unavailable. */
   agentPayload?: AgentPayload;
+  /** Platform-specific install options from the agent. */
+  installOptions: InstallOption[];
+  /** The currently selected source (renderer-local intent). */
+  selectedSource: SelectedSource;
+  /** The derived state to render. */
+  state: InstallationState;
+  /** Called when the user picks a different source from the menu. */
+  onSelectSource: (ref: SelectedSource) => void;
 };
 
 export const DependencyInstallationStatusCard = observer(function DependencyInstallationStatusCard({
   vm,
   agentPayload,
+  installOptions,
+  selectedSource,
+  state,
+  onSelectSource,
 }: DependencyInstallationStatusCardProps) {
-  const { used, installations, setUsed, refresh, fetchLatestVersion, uninstall, isUninstalling } =
-    vm;
+  const { used, installations, refresh, fetchLatestVersion, uninstall, isUninstalling } = vm;
 
-  if (!used) return null;
+  const selectedInstall = installations.find((i) => i.id === sourceKey(selectedSource));
+  const versionText =
+    state === 'found' && selectedInstall?.version ? `v${selectedInstall.version}` : null;
 
-  const label = sourceLabel(used.source);
-  const versionText = used.version ? `v${used.version}` : null;
-
-  // Show the "no automatic updates" hint when the source is unknown and the
-  // update strategy is package-manager (the update card will be hidden).
+  // Show the "no automatic updates" hint when auto is selected but method cannot be inferred.
   const updates = agentPayload?.capabilities.hostDependency.updates;
   const strategyKind = updates?.kind === 'supported' ? updates.update.kind : 'none';
-  const showNoAutoUpdateHint = used.source.kind === 'unknown' && strategyKind === 'package-manager';
+  const showNoAutoUpdateHint =
+    state === 'found' &&
+    selectedSource.kind === 'auto' &&
+    selectedInstall?.inferredMethod === null &&
+    strategyKind === 'package-manager';
 
   const uninstallDescriptor = agentPayload?.capabilities.hostDependency.uninstall;
-  const canUninstall = !!uninstallDescriptor && uninstallDescriptor.kind !== 'none';
+  const canUninstall =
+    !!uninstallDescriptor && uninstallDescriptor.kind !== 'none' && state === 'found';
+
+  const sourceRows = buildSourceRows(installOptions, installations);
+  const selectedRow = sourceRows.find((r) => sourceKey(r.ref) === sourceKey(selectedSource));
+  const selectedLabel = selectedRow?.label ?? selectedSource.kind;
 
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-2 rounded-lg border p-3">
-        <div className="flex size-6 items-center justify-center rounded-lg bg-background-success">
-          <Check
-            className="size-3.5 shrink-0 text-foreground-success"
-            absoluteStrokeWidth
-            strokeWidth={3}
-          />
-        </div>
+        {state === 'found' && (
+          <div className="flex size-6 items-center justify-center rounded-lg bg-background-success">
+            <Check
+              className="size-3.5 shrink-0 text-foreground-success"
+              absoluteStrokeWidth
+              strokeWidth={3}
+            />
+          </div>
+        )}
+        {state === 'checking' && (
+          <div className="flex size-6 items-center justify-center rounded-lg bg-background-2">
+            <Loader2 className="size-3.5 animate-spin text-foreground-muted" />
+          </div>
+        )}
+        {(state === 'not-found' || state === 'uninstalled') && (
+          <div className="flex size-6 items-center justify-center rounded-lg bg-background-2">
+            <X className="size-3.5 shrink-0 text-foreground-passive" strokeWidth={2.5} />
+          </div>
+        )}
+
         <div className="min-w-0 flex-1 truncate text-sm">
-          <span>Found</span>
-          {versionText && (
-            <span className="ml-1 rounded-md bg-background-quaternary-2 px-1 py-0.5 font-mono text-xs text-foreground-muted">
-              {versionText}
-            </span>
+          {state === 'found' && (
+            <>
+              <span>Found</span>
+              {versionText && (
+                <span className="ml-1 rounded-md bg-background-quaternary-2 px-1 py-0.5 font-mono text-xs text-foreground-muted">
+                  {versionText}
+                </span>
+              )}
+              <span className="ml-1">installed using {selectedLabel}</span>
+            </>
           )}
-          <span className="ml-1">installed using {label}</span>
+          {state === 'checking' && <span className="text-foreground-muted">Checking…</span>}
+          {state === 'not-found' && (
+            <span className="text-foreground-muted">Not found — install below</span>
+          )}
+          {state === 'uninstalled' && <span className="text-foreground-muted">Uninstalled</span>}
         </div>
+
         <DropdownMenu>
           <DropdownMenuTrigger
             className="shrink-0 rounded p-1 text-foreground-passive hover:bg-background-2 hover:text-foreground"
@@ -104,31 +120,38 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
             <MoreHorizontal className="h-3.5 w-3.5" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {installations.length > 1 && (
-              <>
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>Change used</DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    <DropdownMenuLabel>Select installation</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {installations.map((inst) => (
-                      <DropdownMenuItem
-                        key={inst.id}
-                        onSelect={() => setUsed(buildSelection(inst.id, installations))}
-                      >
-                        {sourceLabel(inst.source)}
-                        {inst.id === used.id && (
-                          <span className="ml-auto text-xs text-foreground-passive">current</span>
-                        )}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>Change source</DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Select source</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {sourceRows.map((row) => {
+                    const rowKey = sourceKey(row.ref);
+                    const isCurrentSource = rowKey === sourceKey(selectedSource);
+                    const isCurrentUsed = !!used && rowKey === sourceKey(used);
+                    return (
+                      <DropdownMenuItem key={rowKey} onClick={() => onSelectSource(row.ref)}>
+                        <span className="flex items-center gap-1.5 truncate">
+                          <span className="truncate">{row.label}</span>
+                          {row.recommended && <RecommendedBadge />}
+                          {row.status === 'available' && !isCurrentUsed && <InstalledBadge />}
+                          {isCurrentUsed && <UsedBadge />}
+                          {isCurrentSource && !isCurrentUsed && (
+                            <span className="ml-auto text-xs text-foreground-passive">
+                              selected
+                            </span>
+                          )}
+                        </span>
                       </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-                <DropdownMenuSeparator />
-              </>
-            )}
+                    );
+                  })}
+                </DropdownMenuGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+            <DropdownMenuSeparator />
             <DropdownMenuItem
-              onSelect={() => {
+              onClick={() => {
                 void toast.promise(refresh(), {
                   loading: 'Refreshing installations...',
                   success: 'Installations refreshed',
@@ -139,7 +162,7 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
               Refresh
             </DropdownMenuItem>
             <DropdownMenuItem
-              onSelect={() => {
+              onClick={() => {
                 void toast.promise(fetchLatestVersion(), {
                   loading: 'Checking for updates...',
                   success: 'Checked for updates',
@@ -155,10 +178,10 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
                 <DropdownMenuItem
                   variant="destructive"
                   disabled={isUninstalling}
-                  onSelect={() => {
+                  onClick={() => {
                     const name = agentPayload?.name ?? 'Agent';
                     void toast.promise(
-                      uninstall(used.source.kind === 'method' ? used.source.method : undefined),
+                      uninstall(used?.kind === 'method' ? used.method : undefined),
                       {
                         loading: `Uninstalling ${name}...`,
                         success: `${name} successfully uninstalled`,

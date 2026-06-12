@@ -33,15 +33,35 @@ export type InstallOption = {
 
 export type DependencyStatus = 'available' | 'missing' | 'error';
 
-export type InstallationSource =
+/**
+ * Persisted discriminated union for a user-chosen install override.
+ * null = auto. Never store { kind: 'auto' }.
+ */
+export type InstallOverride =
   | { kind: 'method'; method: InstallMethod }
   | { kind: 'path'; path: string }
-  | { kind: 'cli'; command: string }
-  | { kind: 'unknown' };
+  | { kind: 'cli'; command: string };
+
+/**
+ * Runtime / UI union that adds 'auto' to the persisted override kinds.
+ */
+export type SelectedSource = { kind: 'auto' } | InstallOverride;
+
+/**
+ * Returns a stable string key for a SelectedSource.
+ * 'auto' | 'method:<m>' | 'path' | 'cli'
+ */
+export function sourceKey(s: SelectedSource): string {
+  if (s.kind === 'method') return `method:${s.method}`;
+  return s.kind;
+}
 
 export type Installation = {
+  /** Stable string key: sourceKey(source). */
   id: string;
-  source: InstallationSource;
+  source: SelectedSource;
+  /** Inferred install method from binary realpath. Null when unresolvable. */
+  inferredMethod: InstallMethod | null;
   status: DependencyStatus;
   path: string | null;
   version: string | null;
@@ -50,11 +70,7 @@ export type Installation = {
 };
 
 /** Persisted user preference for which installation to use on a specific host. */
-export type HostDependencySelection = {
-  usedId?: string;
-  path?: string;
-  cli?: string;
-};
+export type HostDependencySelection = InstallOverride | null;
 
 // ---------------------------------------------------------------------------
 // Error DTOs — mirrors Dependency*Error types in @emdash/shared/deps/runtime
@@ -168,6 +184,9 @@ export type AgentInstallationStatus = {
   updateAvailable: boolean;
   command: string | null;
   installations: Installation[];
+  /** The authoritative source (persisted override or auto). */
+  used: SelectedSource;
+  /** @deprecated Use `used` instead. Kept for backward compat during migration. */
   usedId: string;
   /** Platform-resolved install options for this agent on the host. */
   installOptions: InstallOption[];

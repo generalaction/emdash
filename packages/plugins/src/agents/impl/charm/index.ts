@@ -1,5 +1,5 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { buildStandardCommand, npmDependency } from '@emdash/shared/agents/plugins/helpers';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -19,40 +19,11 @@ export const plugin = definePlugin(
     hooks: {
       kind: 'none',
     },
-    hostDependency: {
+    hostDependency: npmDependency({
       id: 'charm',
+      package: '@charmland/crush',
       binaryNames: ['crush'],
-      installCommands: {
-        macos: [
-          {
-            method: 'npm',
-            command: 'npm install -g @charmland/crush',
-          },
-        ],
-        linux: [
-          {
-            method: 'npm',
-            command: 'npm install -g @charmland/crush',
-          },
-        ],
-        windows: [
-          {
-            method: 'npm',
-            command: 'npm install -g @charmland/crush',
-          },
-        ],
-      },
-      updates: {
-        kind: 'supported',
-        releaseSource: {
-          kind: 'npm',
-          package: '@charmland/crush',
-        },
-        update: {
-          kind: 'package-manager',
-        },
-      },
-    },
+    }),
     mcp: {
       kind: 'none',
     },

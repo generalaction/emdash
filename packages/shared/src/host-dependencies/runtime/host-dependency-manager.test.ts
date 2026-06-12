@@ -597,7 +597,7 @@ describe('HostDependencyManager unknown install source', () => {
     throw new Error('missing');
   });
 
-  it('emits source { kind: "unknown" } when method inference fails', async () => {
+  it('emits source { kind: "auto" } and inferredMethod: null when method inference fails', async () => {
     const manager = new HostDependencyManager(unknownCtx, {
       dependencies: TEST_DEPENDENCIES,
       connectionId: 'local',
@@ -616,15 +616,23 @@ describe('HostDependencyManager unknown install source', () => {
 
     const hostDep = (
       hostDepEvent as {
-        hostDependency: { installations: Array<{ id: string; source: { kind: string } }> };
+        hostDependency: {
+          installations: Array<{
+            id: string;
+            source: { kind: string };
+            inferredMethod: string | null;
+          }>;
+        };
       }
     ).hostDependency;
     const autoInst = hostDep.installations.find((i) => i.id === 'auto');
     expect(autoInst).toBeDefined();
-    expect(autoInst?.source.kind).toBe('unknown');
+    // New model: 'auto' source with null inferredMethod instead of 'unknown' source
+    expect(autoInst?.source.kind).toBe('auto');
+    expect(autoInst?.inferredMethod).toBeNull();
   });
 
-  it('refuses package-manager update when used installation has unknown source', async () => {
+  it('refuses package-manager update when inferredMethod is null (probed, source unrecognized)', async () => {
     const runInstallCommand = vi.fn(async () => ok<void>());
     const manager = new HostDependencyManager(unknownCtx, {
       dependencies: TEST_DEPENDENCIES,

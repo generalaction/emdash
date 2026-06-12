@@ -9,6 +9,7 @@ import type {
   HostDependencySelection,
   Installation,
   InstallMethod,
+  SelectedSource,
 } from '@shared/core/agents/agent-payload';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { agentInstallationStatusUpdatedChannel } from '@shared/events/appEvents';
@@ -175,7 +176,8 @@ export type HostDependencyInstallation = {
   /** The raw status DTO for this agent from the host probe, or null before the first probe. */
   data: AgentInstallationStatus | null;
   installations: Installation[];
-  used: Installation | undefined;
+  /** The authoritative source (persisted override or auto). */
+  used: SelectedSource | undefined;
   /** Dependency status — 'available', 'missing', 'outdated', etc. (not the query status). */
   status: DependencyStatus;
   /** True while an install mutation is in flight for this host. */
@@ -253,7 +255,8 @@ export function useAgentInstallationStatus(
     return [
       {
         id: 'auto',
-        source: { kind: 'cli' as const, command: agentPayload.id },
+        source: { kind: 'auto' as const },
+        inferredMethod: null,
         status: agentPayload.status,
         path: agentPayload.command,
         version: agentPayload.version,
@@ -263,8 +266,7 @@ export function useAgentInstallationStatus(
     ];
   }, [statusEntry, agentPayload]);
 
-  const usedId = statusEntry?.usedId ?? agentPayload?.usedId;
-  const used = useMemo(() => installations.find((i) => i.id === usedId), [installations, usedId]);
+  const used: SelectedSource | undefined = statusEntry?.used ?? agentPayload?.used;
   const status: DependencyStatus = statusEntry?.status ?? agentPayload?.status ?? 'missing';
 
   const install = useCallback(

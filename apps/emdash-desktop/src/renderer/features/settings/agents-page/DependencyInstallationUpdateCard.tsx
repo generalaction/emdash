@@ -2,6 +2,7 @@ import { ArrowRight, Loader2, RefreshCw } from 'lucide-react';
 import { useMemo } from 'react';
 import { useAgentInstallationStatus } from '@renderer/lib/stores/use-agent-installation-statuses';
 import type { AgentPayload, InstallMethod } from '@shared/core/agents/agent-payload';
+import { sourceKey } from '@shared/core/agents/agent-payload';
 import { CommandActionButton, CommandRow } from './install-command-row';
 
 export type DependencyInstallationUpdateCardProps = {
@@ -31,10 +32,16 @@ export function DependencyInstallationUpdateCard({
   agentPayload,
 }: DependencyInstallationUpdateCardProps) {
   const vm = useAgentInstallationStatus(agentId, connectionId, agentPayload);
-  const { used, update, isUpdating, updatingMethod } = vm;
+  const { used, installations, update, isUpdating, updatingMethod } = vm;
 
   const updates = agentPayload?.capabilities.hostDependency.updates;
   const strategyKind = updates?.kind === 'supported' ? updates.update.kind : ('none' as const);
+
+  // Resolve the Installation for the currently used source
+  const usedInstallation = useMemo(() => {
+    if (!used) return undefined;
+    return installations.find((i) => i.id === sourceKey(used));
+  }, [used, installations]);
 
   // Build a map of method -> updateCommand for package-manager strategy
   const updateCommands = useMemo(() => {
@@ -47,21 +54,27 @@ export function DependencyInstallationUpdateCard({
     return map;
   }, [agentPayload]);
 
-  if (!used?.updateAvailable) return null;
+  if (!usedInstallation?.updateAvailable) return null;
   if (strategyKind === 'auto' || strategyKind === 'none') return null;
 
   const versionArrow =
-    used.version && used.latestVersion ? (
+    usedInstallation.version && usedInstallation.latestVersion ? (
       <span className="flex items-center gap-1 text-xs text-foreground-muted">
-        <span className="font-mono">{used.version}</span>
+        <span className="font-mono">{usedInstallation.version}</span>
         <ArrowRight className="h-3 w-3 shrink-0" />
-        <span className="font-mono">{used.latestVersion}</span>
+        <span className="font-mono">{usedInstallation.latestVersion}</span>
       </span>
     ) : null;
 
   if (strategyKind === 'package-manager') {
-    const usedMethod = used.source.kind === 'method' ? used.source.method : null;
-    if (!usedMethod) return null; // unknown source; coordinator already set updateAvailable=false but guard anyway
+    // Determine the effective method: explicit override or inferred from auto
+    const usedMethod =
+      used?.kind === 'method'
+        ? used.method
+        : used?.kind === 'auto'
+          ? (usedInstallation.inferredMethod ?? null)
+          : null;
+    if (!usedMethod) return null;
 
     // Prefer explicit updateCommand; fall back to the install command for that method
     const installOption = agentPayload?.installOptions.find((o) => o.method === usedMethod);
@@ -91,7 +104,7 @@ export function DependencyInstallationUpdateCard({
   // cli strategy — binary self-updates regardless of install source
   if (strategyKind === 'cli' && updates?.kind === 'supported' && updates.update.kind === 'cli') {
     const cliUpdate = updates.update;
-    const binary = used.path ?? agentPayload?.id ?? agentId;
+    const binary = usedInstallation.path ?? agentPayload?.id ?? agentId;
     const command = [binary, ...cliUpdate.args].join(' ');
     const isUpdatingThis = isUpdating && updatingMethod === undefined;
 

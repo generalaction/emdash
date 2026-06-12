@@ -1,5 +1,9 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand, passthroughMcpAdapter } from '@emdash/shared/agents/plugins/helpers';
+import {
+  buildStandardCommand,
+  homebrewOption,
+  passthroughMcpAdapter,
+} from '@emdash/shared/agents/plugins/helpers';
 import { buildClaudeHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -31,17 +35,16 @@ export const plugin = definePlugin(
           {
             method: 'curl',
             command: 'curl -fsSL https://claude.ai/install.sh | bash',
+            uninstallCommand: 'claude uninstall',
             recommended: true,
           },
-          {
-            method: 'homebrew',
-            command: 'brew install --cask claude-code',
-          },
+          homebrewOption({ formula: 'claude-code', cask: true }),
         ],
         linux: [
           {
             method: 'curl',
             command: 'curl -fsSL https://claude.ai/install.sh | bash',
+            uninstallCommand: 'claude uninstall',
           },
         ],
         windows: [
@@ -49,6 +52,7 @@ export const plugin = definePlugin(
             method: 'curl',
             command:
               'curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd',
+            uninstallCommand: 'claude uninstall',
           },
         ],
       },
@@ -64,8 +68,7 @@ export const plugin = definePlugin(
         },
       },
       uninstall: {
-        kind: 'cli',
-        args: ['uninstall'],
+        kind: 'package-manager',
       },
     },
     mcp: {

@@ -1,45 +1,65 @@
 import { describe, expect, it } from 'vitest';
-import type { Installation, InstallOption } from '@shared/core/agents/agent-payload';
+import type {
+  Installation,
+  InstallOption,
+  SelectedSource,
+} from '@shared/core/agents/agent-payload';
+import { sourceKey } from '@shared/core/agents/agent-payload';
 import {
   buildSourceRows,
   findInstallation,
-  installIdOf,
   refFromUsed,
   toSelection,
 } from './installation-sources';
 
-const makeInstall = (id: string, status: 'available' | 'missing' = 'available'): Installation => ({
-  id,
-  source:
-    id === 'path'
-      ? { kind: 'path', path: '/usr/bin/tool' }
-      : id === 'cli'
-        ? { kind: 'cli', command: 'tool' }
-        : id === 'auto'
-          ? { kind: 'cli', command: 'tool' }
-          : { kind: 'method', method: id.replace('method:', '') as never },
-  status,
-  path: status === 'available' ? '/usr/bin/tool' : null,
-  version: status === 'available' ? '1.0.0' : null,
-  latestVersion: null,
-  updateAvailable: false,
-});
+const makeInstall = (
+  sourceOrId: SelectedSource | string,
+  status: 'available' | 'missing' = 'available'
+): Installation => {
+  const source: SelectedSource =
+    typeof sourceOrId === 'string'
+      ? sourceOrId === 'auto'
+        ? { kind: 'auto' }
+        : sourceOrId === 'path'
+          ? { kind: 'path', path: '/usr/bin/tool' }
+          : sourceOrId === 'cli'
+            ? { kind: 'cli', command: 'tool' }
+            : sourceOrId.startsWith('method:')
+              ? { kind: 'method', method: sourceOrId.replace('method:', '') as never }
+              : { kind: 'auto' }
+      : sourceOrId;
+  return {
+    id: sourceKey(source),
+    source,
+    inferredMethod: null,
+    status,
+    path: status === 'available' ? '/usr/bin/tool' : null,
+    version: status === 'available' ? '1.0.0' : null,
+    latestVersion: null,
+    updateAvailable: false,
+  };
+};
 
 const installOptions: InstallOption[] = [
   { method: 'npm', command: 'npm install -g mytool', recommended: true },
   { method: 'homebrew', command: 'brew install mytool' },
 ];
 
-describe('installIdOf', () => {
-  it('returns auto for auto ref', () => expect(installIdOf({ kind: 'auto' })).toBe('auto'));
-  it('returns method:<m> for method ref', () =>
-    expect(installIdOf({ kind: 'method', method: 'npm' })).toBe('method:npm'));
-  it('returns path for path ref', () => expect(installIdOf({ kind: 'path' })).toBe('path'));
-  it('returns cli for cli ref', () => expect(installIdOf({ kind: 'cli' })).toBe('cli'));
+describe('sourceKey (installIdOf)', () => {
+  it('returns auto for auto', () => expect(sourceKey({ kind: 'auto' })).toBe('auto'));
+  it('returns method:<m> for method', () =>
+    expect(sourceKey({ kind: 'method', method: 'npm' })).toBe('method:npm'));
+  it('returns path for path', () =>
+    expect(sourceKey({ kind: 'path', path: '/usr/bin/foo' })).toBe('path'));
+  it('returns cli for cli', () => expect(sourceKey({ kind: 'cli', command: 'foo' })).toBe('cli'));
 });
 
 describe('findInstallation', () => {
-  const installs = [makeInstall('auto'), makeInstall('method:npm'), makeInstall('path', 'missing')];
+  const installs = [
+    makeInstall('auto'),
+    makeInstall('method:npm'),
+    makeInstall({ kind: 'path', path: '/usr/bin/tool' }, 'missing'),
+  ];
 
   it('finds by auto ref', () => {
     expect(findInstallation(installs, { kind: 'auto' })?.id).toBe('auto');
@@ -50,31 +70,34 @@ describe('findInstallation', () => {
   });
 
   it('returns undefined for missing cli ref', () => {
-    expect(findInstallation(installs, { kind: 'cli' })).toBeUndefined();
+    expect(findInstallation(installs, { kind: 'cli', command: 'tool' })).toBeUndefined();
   });
 });
 
 describe('toSelection', () => {
   it('builds path selection', () => {
-    expect(toSelection({ kind: 'path' }, { path: '/usr/bin/foo' })).toEqual({
-      usedId: 'path',
+    expect(toSelection({ kind: 'path', path: '' }, { path: '/usr/bin/foo' })).toEqual({
+      kind: 'path',
       path: '/usr/bin/foo',
     });
   });
 
   it('builds cli selection', () => {
-    expect(toSelection({ kind: 'cli' }, { cli: 'foo' })).toEqual({
-      usedId: 'cli',
-      cli: 'foo',
+    expect(toSelection({ kind: 'cli', command: '' }, { cli: 'foo' })).toEqual({
+      kind: 'cli',
+      command: 'foo',
     });
   });
 
   it('builds method selection', () => {
-    expect(toSelection({ kind: 'method', method: 'npm' })).toEqual({ usedId: 'method:npm' });
+    expect(toSelection({ kind: 'method', method: 'npm' })).toEqual({
+      kind: 'method',
+      method: 'npm',
+    });
   });
 
-  it('builds auto selection', () => {
-    expect(toSelection({ kind: 'auto' })).toEqual({ usedId: 'auto' });
+  it('returns null for auto (clear override)', () => {
+    expect(toSelection({ kind: 'auto' })).toBeNull();
   });
 });
 
@@ -102,7 +125,7 @@ describe('buildSourceRows', () => {
     expect(refs).toContain('cli');
   });
 
-  it('reflects available status from detected installations', () => {
+  it('reflects available status from method installation in list', () => {
     const installs = [makeInstall('method:npm', 'available'), makeInstall('auto', 'missing')];
     const rows = buildSourceRows(installOptions, installs);
     const npmRow = rows.find((r) => r.ref.kind === 'method' && r.ref.method === 'npm');
@@ -111,7 +134,23 @@ describe('buildSourceRows', () => {
     expect(autoRow?.status).toBe('missing');
   });
 
-  it('marks method as missing when not in installations', () => {
+  it('shows available for method row when auto inferredMethod matches', () => {
+    const autoInst: Installation = {
+      id: 'auto',
+      source: { kind: 'auto' },
+      inferredMethod: 'homebrew',
+      status: 'available',
+      path: '/opt/homebrew/bin/tool',
+      version: '1.0.0',
+      latestVersion: null,
+      updateAvailable: false,
+    };
+    const rows = buildSourceRows(installOptions, [autoInst]);
+    const homebrewRow = rows.find((r) => r.ref.kind === 'method' && r.ref.method === 'homebrew');
+    expect(homebrewRow?.status).toBe('available');
+  });
+
+  it('marks method as missing when not in installations and inferredMethod does not match', () => {
     const rows = buildSourceRows(installOptions, []);
     const homebrewRow = rows.find((r) => r.ref.kind === 'method' && r.ref.method === 'homebrew');
     expect(homebrewRow?.status).toBe('missing');
@@ -129,19 +168,24 @@ describe('refFromUsed', () => {
     expect(refFromUsed(undefined)).toEqual({ kind: 'auto' });
   });
 
-  it('returns auto for auto installation', () => {
-    expect(refFromUsed(makeInstall('auto'))).toEqual({ kind: 'auto' });
+  it('returns auto for auto SelectedSource', () => {
+    expect(refFromUsed({ kind: 'auto' })).toEqual({ kind: 'auto' });
   });
 
-  it('returns method ref for method installation', () => {
-    expect(refFromUsed(makeInstall('method:npm'))).toEqual({ kind: 'method', method: 'npm' });
+  it('returns method ref for method SelectedSource', () => {
+    expect(refFromUsed({ kind: 'method', method: 'npm' })).toEqual({
+      kind: 'method',
+      method: 'npm',
+    });
   });
 
-  it('returns path ref for path installation', () => {
-    expect(refFromUsed(makeInstall('path'))).toEqual({ kind: 'path' });
+  it('returns path ref for path SelectedSource', () => {
+    const pathSrc: SelectedSource = { kind: 'path', path: '/usr/bin/foo' };
+    expect(refFromUsed(pathSrc)).toEqual(pathSrc);
   });
 
-  it('returns cli ref for cli installation', () => {
-    expect(refFromUsed(makeInstall('cli'))).toEqual({ kind: 'cli' });
+  it('returns cli ref for cli SelectedSource', () => {
+    const cliSrc: SelectedSource = { kind: 'cli', command: 'foo' };
+    expect(refFromUsed(cliSrc)).toEqual(cliSrc);
   });
 });

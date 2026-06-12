@@ -3,6 +3,7 @@ import type {
   DependencyId,
   DependencyProbeOptions,
   HostDependencySelection,
+  InstallOverride,
 } from '@emdash/shared/deps/runtime';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
@@ -68,7 +69,15 @@ export const agentsController = createRPCController({
 
   install: async (id: AgentProviderId, connectionId?: string, method?: InstallMethod) => {
     const mgr = await getDependencyManager(connectionId);
-    return mgr.install(id, method);
+    const result = await mgr.install(id, method);
+    if (result.success) {
+      // Persist the chosen method as an override, or clear to auto when no method was chosen.
+      // Do NOT auto-promote the inferred method — that would freeze a heuristic guess.
+      const override: InstallOverride | null = method ? { kind: 'method', method } : null;
+      await hostDependencyStore.setSelection(connectionId ?? 'local', id, override);
+      clearResolvedPathCache(id, connectionId);
+    }
+    return result;
   },
 
   update: async (id: AgentProviderId, connectionId?: string, method?: InstallMethod) => {
@@ -102,7 +111,8 @@ export const agentsController = createRPCController({
     connectionId?: string,
     selection?: HostDependencySelection
   ): Promise<void> => {
-    if (!selection) return;
+    // undefined = no-op; null = explicit auto (clear override)
+    if (selection === undefined) return;
     await hostDependencyStore.setSelection(connectionId ?? 'local', id, selection);
     clearResolvedPathCache(id, connectionId);
     const mgr = await getDependencyManager(connectionId);

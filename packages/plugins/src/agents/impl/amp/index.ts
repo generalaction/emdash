@@ -3,6 +3,7 @@ import {
   ampMcpAdapter,
   buildStandardCommand,
   createFileDropPlugin,
+  npmDependency,
 } from '@emdash/shared/agents/plugins/helpers';
 import { AMP_PLUGIN_CONTENT } from './plugin-file';
 
@@ -29,40 +30,11 @@ export const plugin = definePlugin(
       scope: 'workspace',
       supportedEvents: ['start', 'stop'],
     },
-    hostDependency: {
+    hostDependency: npmDependency({
       id: 'amp',
-      binaryNames: ['amp'],
-      installCommands: {
-        macos: [
-          {
-            method: 'npm',
-            command: 'npm install -g @sourcegraph/amp@latest',
-          },
-        ],
-        linux: [
-          {
-            method: 'npm',
-            command: 'npm install -g @sourcegraph/amp@latest',
-          },
-        ],
-        windows: [
-          {
-            method: 'npm',
-            command: 'npm install -g @sourcegraph/amp@latest',
-          },
-        ],
-      },
-      updates: {
-        kind: 'supported',
-        releaseSource: {
-          kind: 'npm',
-          package: '@sourcegraph/amp',
-        },
-        update: {
-          kind: 'package-manager',
-        },
-      },
-    },
+      package: '@sourcegraph/amp',
+      versionSuffix: '@latest',
+    }),
     mcp: {
       kind: 'supported',
       scope: 'global',

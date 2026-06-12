@@ -1,5 +1,10 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand, codexMcpAdapter } from '@emdash/shared/agents/plugins/helpers';
+import {
+  buildStandardCommand,
+  codexMcpAdapter,
+  homebrewOption,
+  npmDependency,
+} from '@emdash/shared/agents/plugins/helpers';
 import { buildCodexHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -23,37 +28,13 @@ export const plugin = definePlugin(
       scope: 'global',
       supportedEvents: ['notification', 'stop', 'session'],
     },
-    hostDependency: {
+    hostDependency: npmDependency({
       id: 'codex',
-      binaryNames: ['codex'],
-      installCommands: {
-        macos: [
-          {
-            method: 'npm',
-            command: 'npm install -g @openai/codex',
-          },
-          {
-            method: 'homebrew',
-            command: 'brew install --cask codex',
-            updateCommand: 'brew upgrade --cask codex',
-          },
-        ],
-        linux: [
-          {
-            method: 'npm',
-            command: 'npm install -g @openai/codex',
-          },
-          {
-            method: 'homebrew',
-            command: 'brew install --cask codex',
-            updateCommand: 'brew upgrade --cask codex',
-          },
-        ],
+      package: '@openai/codex',
+      extraOptions: {
+        macos: [homebrewOption({ formula: 'codex', cask: true })],
+        linux: [homebrewOption({ formula: 'codex', cask: true })],
         windows: [
-          {
-            method: 'npm',
-            command: 'npm install -g @openai/codex',
-          },
           {
             method: 'powershell',
             command:
@@ -63,17 +44,7 @@ export const plugin = definePlugin(
           },
         ],
       },
-      updates: {
-        kind: 'supported',
-        releaseSource: {
-          kind: 'npm',
-          package: '@openai/codex',
-        },
-        update: {
-          kind: 'package-manager',
-        },
-      },
-    },
+    }),
     mcp: {
       kind: 'supported',
       scope: 'global',

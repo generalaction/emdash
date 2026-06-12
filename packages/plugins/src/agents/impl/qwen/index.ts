@@ -1,5 +1,9 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand, qwenMcpAdapter } from '@emdash/shared/agents/plugins/helpers';
+import {
+  buildStandardCommand,
+  npmDependency,
+  qwenMcpAdapter,
+} from '@emdash/shared/agents/plugins/helpers';
 import { buildQwenHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -23,40 +27,7 @@ export const plugin = definePlugin(
       scope: 'workspace',
       supportedEvents: ['notification', 'stop'],
     },
-    hostDependency: {
-      id: 'qwen',
-      binaryNames: ['qwen'],
-      installCommands: {
-        macos: [
-          {
-            method: 'npm',
-            command: 'npm install -g @qwen-code/qwen-code',
-          },
-        ],
-        linux: [
-          {
-            method: 'npm',
-            command: 'npm install -g @qwen-code/qwen-code',
-          },
-        ],
-        windows: [
-          {
-            method: 'npm',
-            command: 'npm install -g @qwen-code/qwen-code',
-          },
-        ],
-      },
-      updates: {
-        kind: 'supported',
-        releaseSource: {
-          kind: 'npm',
-          package: '@qwen-code/qwen-code',
-        },
-        update: {
-          kind: 'package-manager',
-        },
-      },
-    },
+    hostDependency: npmDependency({ id: 'qwen', package: '@qwen-code/qwen-code' }),
     mcp: {
       kind: 'supported',
       scope: 'global',

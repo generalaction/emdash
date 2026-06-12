@@ -1,5 +1,9 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand, geminiMcpAdapter } from '@emdash/shared/agents/plugins/helpers';
+import {
+  buildStandardCommand,
+  geminiMcpAdapter,
+  npmDependency,
+} from '@emdash/shared/agents/plugins/helpers';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -20,40 +24,7 @@ export const plugin = definePlugin(
     hooks: {
       kind: 'none',
     },
-    hostDependency: {
-      id: 'gemini',
-      binaryNames: ['gemini'],
-      installCommands: {
-        macos: [
-          {
-            method: 'npm',
-            command: 'npm install -g @google/gemini-cli',
-          },
-        ],
-        linux: [
-          {
-            method: 'npm',
-            command: 'npm install -g @google/gemini-cli',
-          },
-        ],
-        windows: [
-          {
-            method: 'npm',
-            command: 'npm install -g @google/gemini-cli',
-          },
-        ],
-      },
-      updates: {
-        kind: 'supported',
-        releaseSource: {
-          kind: 'npm',
-          package: '@google/gemini-cli',
-        },
-        update: {
-          kind: 'package-manager',
-        },
-      },
-    },
+    hostDependency: npmDependency({ id: 'gemini', package: '@google/gemini-cli' }),
     mcp: {
       kind: 'supported',
       scope: 'global',

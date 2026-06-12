@@ -59,7 +59,7 @@ describe('migrateProviderConfigOverrides', () => {
 });
 
 describe('migrateProviderConfigToHostDependencyStore', () => {
-  it('migrates path+installSource=path to selection usedId=path', async () => {
+  it('migrates path+installSource=path to kind:path selection', async () => {
     const mockStore: IHostDependencyStore = {
       getSelection: vi.fn(),
       setSelection: vi.fn().mockResolvedValue(undefined),
@@ -69,12 +69,12 @@ describe('migrateProviderConfigToHostDependencyStore', () => {
       mockStore
     );
     expect(mockStore.setSelection).toHaveBeenCalledWith('local', 'claude', {
-      usedId: 'path',
+      kind: 'path',
       path: '/usr/local/bin/claude',
     });
   });
 
-  it('migrates cli+installSource=cli to selection usedId=cli', async () => {
+  it('migrates cli+installSource=cli to kind:cli selection', async () => {
     const mockStore: IHostDependencyStore = {
       getSelection: vi.fn(),
       setSelection: vi.fn().mockResolvedValue(undefined),
@@ -84,12 +84,12 @@ describe('migrateProviderConfigToHostDependencyStore', () => {
       mockStore
     );
     expect(mockStore.setSelection).toHaveBeenCalledWith('local', 'claude', {
-      usedId: 'cli',
-      cli: 'my-claude',
+      kind: 'cli',
+      command: 'my-claude',
     });
   });
 
-  it('migrates installSource=homebrew to usedId=method:homebrew', async () => {
+  it('migrates installSource=homebrew to kind:method homebrew selection', async () => {
     const mockStore: IHostDependencyStore = {
       getSelection: vi.fn(),
       setSelection: vi.fn().mockResolvedValue(undefined),
@@ -99,7 +99,8 @@ describe('migrateProviderConfigToHostDependencyStore', () => {
       mockStore
     );
     expect(mockStore.setSelection).toHaveBeenCalledWith('local', 'claude', {
-      usedId: 'method:homebrew',
+      kind: 'method',
+      method: 'homebrew',
     });
   });
 

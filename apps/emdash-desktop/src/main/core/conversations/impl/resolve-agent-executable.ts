@@ -22,13 +22,10 @@ function cacheKey(providerId: string, connectionId?: string): string {
  * Resolve the absolute path of the agent binary to use for conversation spawns.
  *
  * Resolution order:
- * 1. HostDependencySelection.usedId === 'path' and selection.path is set
- *    → use selection.path if it exists on disk, otherwise warn and fall through.
- * 2. HostDependencySelection.usedId === 'cli' and selection.cli is set
- *    → return selection.cli as-is (PTY resolves on PATH).
- * 3. HostDependencySelection.usedId starts with 'method:' → fall through to
- *    cachedStatePath (probe result for the detected method).
- * 4. auto (no selection, or fallthrough from invalid path):
+ * 1. selection.kind === 'path': use selection.path if it exists on disk; otherwise fall through.
+ * 2. selection.kind === 'cli': return selection.command as-is (PTY resolves on PATH).
+ * 3. selection.kind === 'method' or 'auto' (no override): fall through to cachedStatePath.
+ * 4. auto:
  *    a. In-memory cached path from dependency probe (cachedStatePath).
  *    b. Probe via ctx (resolveCommandPath).
  *    c. Bare binaryName.
@@ -54,7 +51,7 @@ export async function resolveAgentExecutable({
   const hostId = connectionId ?? 'local';
   const selection = await hostDependencyStore.getSelection(hostId, providerId as DependencyId);
 
-  if (selection?.usedId === 'path' && selection.path) {
+  if (selection?.kind === 'path') {
     const exists = await resolveCommandPath(selection.path, ctx);
     if (exists) return selection.path;
     log.warn(
@@ -62,8 +59,8 @@ export async function resolveAgentExecutable({
     );
   }
 
-  if (selection?.usedId === 'cli' && selection.cli) {
-    return selection.cli;
+  if (selection?.kind === 'cli') {
+    return selection.command;
   }
 
   // Auto-resolution with in-memory cache

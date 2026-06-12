@@ -1,5 +1,5 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { buildStandardCommand, npmDependency } from '@emdash/shared/agents/plugins/helpers';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -20,41 +20,11 @@ export const plugin = definePlugin(
     hooks: {
       kind: 'none',
     },
-    hostDependency: {
+    hostDependency: npmDependency({
       id: 'letta',
-      binaryNames: ['letta'],
+      package: '@letta-ai/letta-code',
       skipVersionProbe: true,
-      installCommands: {
-        macos: [
-          {
-            method: 'npm',
-            command: 'npm install -g @letta-ai/letta-code',
-          },
-        ],
-        linux: [
-          {
-            method: 'npm',
-            command: 'npm install -g @letta-ai/letta-code',
-          },
-        ],
-        windows: [
-          {
-            method: 'npm',
-            command: 'npm install -g @letta-ai/letta-code',
-          },
-        ],
-      },
-      updates: {
-        kind: 'supported',
-        releaseSource: {
-          kind: 'npm',
-          package: '@letta-ai/letta-code',
-        },
-        update: {
-          kind: 'package-manager',
-        },
-      },
-    },
+    }),
     mcp: {
       kind: 'none',
     },

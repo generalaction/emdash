@@ -1,5 +1,9 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand, createFileDropPlugin } from '@emdash/shared/agents/plugins/helpers';
+import {
+  buildStandardCommand,
+  createFileDropPlugin,
+  npmDependency,
+} from '@emdash/shared/agents/plugins/helpers';
 import { PI_EXTENSION_CONTENT } from './plugin-file';
 
 const PI_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
@@ -25,41 +29,11 @@ export const plugin = definePlugin(
       scope: 'workspace',
       supportedEvents: ['stop'],
     },
-    hostDependency: {
+    hostDependency: npmDependency({
       id: 'pi',
-      binaryNames: ['pi'],
-      installCommands: {
-        macos: [
-          {
-            method: 'npm',
-            command: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
-            updateCommand: 'pi update',
-          },
-        ],
-        linux: [
-          {
-            method: 'npm',
-            command: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
-          },
-        ],
-        windows: [
-          {
-            method: 'npm',
-            command: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
-          },
-        ],
-      },
-      updates: {
-        kind: 'supported',
-        releaseSource: {
-          kind: 'npm',
-          package: '@earendil-works/pi-coding-agent',
-        },
-        update: {
-          kind: 'package-manager',
-        },
-      },
-    },
+      package: '@earendil-works/pi-coding-agent',
+      installFlags: '--ignore-scripts',
+    }),
     mcp: {
       kind: 'none',
     },

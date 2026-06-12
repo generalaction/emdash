@@ -1,5 +1,5 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { buildStandardCommand, npmDependency } from '@emdash/shared/agents/plugins/helpers';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -20,40 +20,7 @@ export const plugin = definePlugin(
     hooks: {
       kind: 'none',
     },
-    hostDependency: {
-      id: 'freebuff',
-      binaryNames: ['freebuff'],
-      installCommands: {
-        macos: [
-          {
-            method: 'npm',
-            command: 'npm install -g freebuff',
-          },
-        ],
-        linux: [
-          {
-            method: 'npm',
-            command: 'npm install -g freebuff',
-          },
-        ],
-        windows: [
-          {
-            method: 'npm',
-            command: 'npm install -g freebuff',
-          },
-        ],
-      },
-      updates: {
-        kind: 'supported',
-        releaseSource: {
-          kind: 'npm',
-          package: 'freebuff',
-        },
-        update: {
-          kind: 'package-manager',
-        },
-      },
-    },
+    hostDependency: npmDependency({ id: 'freebuff', package: 'freebuff' }),
     mcp: {
       kind: 'none',
     },

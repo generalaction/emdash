@@ -2,6 +2,7 @@ import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plug
 import {
   buildStandardCommand,
   createFileDropPlugin,
+  npmDependency,
   opencodeMcpAdapter,
 } from '@emdash/shared/agents/plugins/helpers';
 import { OPENCODE_PLUGIN_CONTENT } from './plugin-file';
@@ -30,40 +31,7 @@ export const plugin = definePlugin(
       scope: 'workspace',
       supportedEvents: ['notification', 'stop', 'session'],
     },
-    hostDependency: {
-      id: 'opencode',
-      binaryNames: ['opencode'],
-      installCommands: {
-        macos: [
-          {
-            method: 'npm',
-            command: 'npm install -g opencode-ai',
-          },
-        ],
-        linux: [
-          {
-            method: 'npm',
-            command: 'npm install -g opencode-ai',
-          },
-        ],
-        windows: [
-          {
-            method: 'npm',
-            command: 'npm install -g opencode-ai',
-          },
-        ],
-      },
-      updates: {
-        kind: 'supported',
-        releaseSource: {
-          kind: 'npm',
-          package: 'opencode-ai',
-        },
-        update: {
-          kind: 'package-manager',
-        },
-      },
-    },
+    hostDependency: npmDependency({ id: 'opencode', package: 'opencode-ai' }),
     mcp: {
       kind: 'supported',
       scope: 'global',

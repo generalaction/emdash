@@ -4,42 +4,34 @@ import type {
   Installation,
   InstallMethod,
   InstallOption,
+  SelectedSource,
 } from '@shared/core/agents/agent-payload';
+import { sourceKey } from '@shared/core/agents/agent-payload';
 import { humanizeMethod } from './install-command-row';
 
-// ---------------------------------------------------------------------------
-// SourceRef — the renderer-local representation of a selected source.
-// Mirrors the installation id scheme: auto | method:<m> | path | cli
-// ---------------------------------------------------------------------------
-
-export type SourceRef =
-  | { kind: 'auto' }
-  | { kind: 'method'; method: InstallMethod }
-  | { kind: 'path' }
-  | { kind: 'cli' };
-
-export function installIdOf(ref: SourceRef): string {
-  if (ref.kind === 'method') return `method:${ref.method}`;
-  return ref.kind;
-}
+// Re-export shared SelectedSource as SourceRef for backward compat with callers.
+export type { SelectedSource as SourceRef };
+export { sourceKey as installIdOf };
 
 export function findInstallation(
   installs: Installation[],
-  ref: SourceRef
+  ref: SelectedSource
 ): Installation | undefined {
-  return installs.find((i) => i.id === installIdOf(ref));
+  return installs.find((i) => i.id === sourceKey(ref));
 }
 
 export function toSelection(
-  ref: SourceRef,
+  ref: SelectedSource,
   overrideValues: { path?: string; cli?: string } = {}
 ): HostDependencySelection {
-  if (ref.kind === 'path') return { usedId: 'path', path: overrideValues.path ?? '' };
-  if (ref.kind === 'cli') return { usedId: 'cli', cli: overrideValues.cli ?? '' };
-  return { usedId: installIdOf(ref) };
+  if (ref.kind === 'path') return { kind: 'path', path: overrideValues.path ?? '' };
+  if (ref.kind === 'cli') return { kind: 'cli', command: overrideValues.cli ?? '' };
+  if (ref.kind === 'method') return { kind: 'method', method: ref.method };
+  // auto → null (clear override)
+  return null;
 }
 
-export function refLabel(ref: SourceRef, installOptions: InstallOption[]): string {
+export function refLabel(ref: SelectedSource, installOptions: InstallOption[]): string {
   if (ref.kind === 'auto') return 'Auto';
   if (ref.kind === 'path') return 'Path Override';
   if (ref.kind === 'cli') return 'CLI Override';
@@ -52,7 +44,7 @@ export function refLabel(ref: SourceRef, installOptions: InstallOption[]): strin
 // ---------------------------------------------------------------------------
 
 export type SourceRow = {
-  ref: SourceRef;
+  ref: SelectedSource;
   label: string;
   status: DependencyStatus | 'missing';
   recommended?: boolean;
@@ -63,6 +55,8 @@ export type SourceRow = {
  * detected installations, then appends auto + path/cli overrides.
  *
  * Order: auto first, then methods (preserving installOptions order), then overrides.
+ *
+ * Method rows show 'available' only when the auto installation's inferredMethod matches.
  */
 export function buildSourceRows(
   installOptions: InstallOption[],
@@ -70,36 +64,40 @@ export function buildSourceRows(
 ): SourceRow[] {
   const rows: SourceRow[] = [];
 
-  // Auto: the detected installation that doesn't match a known method
   const autoInst = installs.find((i) => i.id === 'auto');
+
   rows.push({
     ref: { kind: 'auto' },
     label: 'Auto',
     status: autoInst?.status ?? 'missing',
   });
 
-  // Concrete methods from the plugin's install options
   for (const opt of installOptions) {
     const methodInst = installs.find((i) => i.id === `method:${opt.method}`);
+    // Show 'available' only when explicitly probed or inferredMethod matches the auto install
+    const methodStatus =
+      methodInst?.status ??
+      (autoInst?.inferredMethod === opt.method && autoInst?.status === 'available'
+        ? 'available'
+        : 'missing');
     rows.push({
-      ref: { kind: 'method', method: opt.method },
-      label: opt.label ?? humanizeMethod(opt.method),
-      status: methodInst?.status ?? 'missing',
+      ref: { kind: 'method', method: opt.method as InstallMethod },
+      label: opt.label ?? humanizeMethod(opt.method as InstallMethod),
+      status: methodStatus,
       recommended: opt.recommended,
     });
   }
 
-  // Override rows always present
   const pathInst = installs.find((i) => i.id === 'path');
   rows.push({
-    ref: { kind: 'path' },
+    ref: { kind: 'path', path: pathInst?.source.kind === 'path' ? pathInst.source.path : '' },
     label: 'Path Override',
     status: pathInst?.status ?? 'missing',
   });
 
   const cliInst = installs.find((i) => i.id === 'cli');
   rows.push({
-    ref: { kind: 'cli' },
+    ref: { kind: 'cli', command: cliInst?.source.kind === 'cli' ? cliInst.source.command : '' },
     label: 'CLI Override',
     status: cliInst?.status ?? 'missing',
   });
@@ -108,17 +106,9 @@ export function buildSourceRows(
 }
 
 /**
- * Derives a SourceRef from the currently used Installation (if any).
- * Falls back to { kind: 'auto' }.
+ * Derives a SelectedSource from the current `used` value.
+ * Falls back to { kind: 'auto' } when undefined.
  */
-export function refFromUsed(used: Installation | undefined): SourceRef {
-  if (!used) return { kind: 'auto' };
-  if (used.id === 'auto') return { kind: 'auto' };
-  if (used.id === 'path') return { kind: 'path' };
-  if (used.id === 'cli') return { kind: 'cli' };
-  if (used.id.startsWith('method:')) {
-    const method = used.id.slice('method:'.length) as InstallMethod;
-    return { kind: 'method', method };
-  }
-  return { kind: 'auto' };
+export function refFromUsed(used: SelectedSource | undefined): SelectedSource {
+  return used ?? { kind: 'auto' };
 }

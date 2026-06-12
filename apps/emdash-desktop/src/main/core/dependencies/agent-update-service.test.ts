@@ -96,12 +96,13 @@ describe('AgentUpdateService', () => {
       hostDependency: {
         hostId: 'local',
         dependencyId: baseEvent.id,
-        usedId: 'method:npm',
+        used: { kind: 'method' as const, method: 'npm' as const },
         installations: [
           {
             id: 'method:npm',
-            source: { kind: 'method', method: 'npm' },
-            status: 'available',
+            source: { kind: 'method' as const, method: 'npm' as const },
+            inferredMethod: 'npm' as const,
+            status: 'available' as const,
             path: '/usr/bin/codex',
             version: '1.0.0',
             latestVersion: null,
@@ -171,12 +172,13 @@ describe('AgentUpdateService', () => {
       hostDependency: {
         hostId: 'local',
         dependencyId: 'codex' as DependencyId,
-        usedId: 'method:npm',
+        used: { kind: 'method' as const, method: 'npm' as const },
         installations: [
           {
             id: 'method:npm',
-            source: { kind: 'method', method: 'npm' },
-            status: 'available',
+            source: { kind: 'method' as const, method: 'npm' as const },
+            inferredMethod: 'npm' as const,
+            status: 'available' as const,
             path: '/usr/bin/codex',
             version: '1.0.0',
             latestVersion: null,
@@ -222,11 +224,12 @@ describe('AgentUpdateService', () => {
     const hostDep = {
       hostId: 'local',
       dependencyId: 'amp' as DependencyId,
-      usedId: 'auto',
+      used: { kind: 'auto' as const },
       installations: [
         {
           id: 'auto',
-          source: { kind: 'unknown' as const },
+          source: { kind: 'auto' as const },
+          inferredMethod: null,
           status: 'available' as const,
           path: '/opt/shims/amp',
           version: '1.0.0',
@@ -238,6 +241,7 @@ describe('AgentUpdateService', () => {
 
     const enriched = service.enrichHostDependency('amp' as DependencyId, hostDep);
     expect(enriched.installations[0]?.latestVersion).toBe('2.0.0');
+    // auto + package-manager + no inferredMethod → updateAvailable=false
     expect(enriched.installations[0]?.updateAvailable).toBe(false);
   });
 
@@ -261,11 +265,12 @@ describe('AgentUpdateService', () => {
     const hostDep = {
       hostId: 'local',
       dependencyId: 'claude' as DependencyId,
-      usedId: 'auto',
+      used: { kind: 'auto' as const },
       installations: [
         {
           id: 'auto',
-          source: { kind: 'unknown' as const },
+          source: { kind: 'auto' as const },
+          inferredMethod: null,
           status: 'available' as const,
           path: '/opt/shims/claude',
           version: '1.0.0',
@@ -277,6 +282,7 @@ describe('AgentUpdateService', () => {
 
     const enriched = service.enrichHostDependency('claude' as DependencyId, hostDep);
     expect(enriched.installations[0]?.latestVersion).toBe('2.0.0');
+    // auto + cli strategy → always updatable
     expect(enriched.installations[0]?.updateAvailable).toBe(true);
   });
 

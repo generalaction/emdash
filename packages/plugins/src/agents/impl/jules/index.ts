@@ -1,5 +1,5 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { buildStandardCommand, npmDependency } from '@emdash/shared/agents/plugins/helpers';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -20,41 +20,11 @@ export const plugin = definePlugin(
     hooks: {
       kind: 'none',
     },
-    hostDependency: {
+    hostDependency: npmDependency({
       id: 'jules',
-      binaryNames: ['jules'],
+      package: '@google/jules',
       versionArgs: ['version'],
-      installCommands: {
-        macos: [
-          {
-            method: 'npm',
-            command: 'npm install -g @google/jules',
-          },
-        ],
-        linux: [
-          {
-            method: 'npm',
-            command: 'npm install -g @google/jules',
-          },
-        ],
-        windows: [
-          {
-            method: 'npm',
-            command: 'npm install -g @google/jules',
-          },
-        ],
-      },
-      updates: {
-        kind: 'supported',
-        releaseSource: {
-          kind: 'npm',
-          package: '@google/jules',
-        },
-        update: {
-          kind: 'package-manager',
-        },
-      },
-    },
+    }),
     mcp: {
       kind: 'none',
     },

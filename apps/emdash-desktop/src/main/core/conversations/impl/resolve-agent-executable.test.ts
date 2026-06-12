@@ -34,14 +34,14 @@ beforeEach(() => {
 });
 
 describe('resolveAgentExecutable', () => {
-  describe('usedId = path', () => {
+  describe('kind = path', () => {
     it('returns the stored path when it exists on disk', async () => {
       resolveCommandPathMock.mockResolvedValue('/usr/local/bin/claude');
       const result = await resolveAgentExecutable({
         providerId: 'claude',
         binaryName: 'claude',
         ctx,
-        hostDependencyStore: makeStore({ usedId: 'path', path: '/usr/local/bin/claude' }),
+        hostDependencyStore: makeStore({ kind: 'path', path: '/usr/local/bin/claude' }),
       });
       expect(result).toBe('/usr/local/bin/claude');
       expect(resolveCommandPathMock).toHaveBeenCalledWith('/usr/local/bin/claude', ctx);
@@ -56,7 +56,7 @@ describe('resolveAgentExecutable', () => {
         providerId: 'claude',
         binaryName: 'claude',
         ctx,
-        hostDependencyStore: makeStore({ usedId: 'path', path: '/nonexistent/claude' }),
+        hostDependencyStore: makeStore({ kind: 'path', path: '/nonexistent/claude' }),
       });
       expect(result).toBe('/opt/homebrew/bin/claude');
     });
@@ -68,34 +68,23 @@ describe('resolveAgentExecutable', () => {
         providerId: 'claude',
         binaryName: 'claude',
         ctx,
-        hostDependencyStore: makeStore({ usedId: 'path', path: '/nonexistent/claude' }),
+        hostDependencyStore: makeStore({ kind: 'path', path: '/nonexistent/claude' }),
         cachedStatePath: '/cached/path/claude',
       });
       expect(result).toBe('/cached/path/claude');
     });
   });
 
-  describe('usedId = cli', () => {
+  describe('kind = cli', () => {
     it('returns the stored CLI command without probing', async () => {
       const result = await resolveAgentExecutable({
         providerId: 'claude',
         binaryName: 'claude',
         ctx,
-        hostDependencyStore: makeStore({ usedId: 'cli', cli: 'my-claude' }),
+        hostDependencyStore: makeStore({ kind: 'cli', command: 'my-claude' }),
       });
       expect(result).toBe('my-claude');
       expect(resolveCommandPathMock).not.toHaveBeenCalled();
-    });
-
-    it('falls through to auto when cli is absent even if usedId is cli', async () => {
-      resolveCommandPathMock.mockResolvedValue('/usr/bin/claude');
-      const result = await resolveAgentExecutable({
-        providerId: 'claude',
-        binaryName: 'claude',
-        ctx,
-        hostDependencyStore: makeStore({ usedId: 'cli', cli: undefined }),
-      });
-      expect(result).toBe('/usr/bin/claude');
     });
   });
 

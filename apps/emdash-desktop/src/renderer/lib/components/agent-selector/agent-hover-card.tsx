@@ -28,7 +28,9 @@ export function isEventInsideAgentHoverCard(
   if (related instanceof Element) targets.push(related);
   return targets.some((el) => {
     if (el.closest(`[${HOVER_CARD_ATTR}]`)) return true;
-    const popup = el.closest('[data-slot="popover-content"], [data-slot="combobox-content"]');
+    const popup = el.closest(
+      '[data-slot="popover-content"], [data-slot="combobox-content"], [data-slot="dropdown-menu-content"]'
+    );
     return popup !== null && popup !== ownPopup;
   });
 }

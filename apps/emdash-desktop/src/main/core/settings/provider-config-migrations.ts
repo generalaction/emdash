@@ -1,3 +1,4 @@
+import type { InstallMethod } from '@emdash/shared/deps';
 import type { DependencyId, HostDependencySelection } from '@emdash/shared/deps/runtime';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
 import type { IHostDependencyStore } from '../dependencies/host-dependency-store';
@@ -31,24 +32,20 @@ export async function migrateProviderConfigToHostDependencyStore(
 
     if (!cli && !path && !installSource) continue;
 
-    const selection: HostDependencySelection = {};
+    let selection: HostDependencySelection = null;
     if (installSource === 'path' && path) {
-      selection.usedId = 'path';
-      selection.path = path;
+      selection = { kind: 'path', path };
     } else if (installSource === 'cli' && cli) {
-      selection.usedId = 'cli';
-      selection.cli = cli;
+      selection = { kind: 'cli', command: cli };
     } else if (installSource && installSource !== 'path' && installSource !== 'cli') {
-      selection.usedId = `method:${installSource}`;
+      selection = { kind: 'method', method: installSource as InstallMethod };
     } else if (path) {
-      selection.usedId = 'path';
-      selection.path = path;
+      selection = { kind: 'path', path };
     } else if (cli) {
-      selection.usedId = 'cli';
-      selection.cli = cli;
+      selection = { kind: 'cli', command: cli };
     }
 
-    if (Object.keys(selection).length > 0) {
+    if (selection !== null) {
       migrations.push(store.setSelection('local', providerId as DependencyId, selection));
     }
   }

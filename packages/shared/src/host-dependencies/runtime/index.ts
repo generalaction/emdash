@@ -4,6 +4,9 @@ export {
   deriveHostDependencyStatus,
   hostDependencySelectionSchema,
   installationCanUpdate,
+  normalizeSelection,
+  resolveSelectedSource,
+  sourceKey,
   type DependencyCategory,
   type DependencyDescriptor,
   type DependencyId,
@@ -21,8 +24,9 @@ export {
   type HostDependency,
   type HostDependencySelection,
   type InstallCommandError,
+  type InstallOverride,
   type Installation,
-  type InstallationSource,
+  type SelectedSource,
   type ProbeResult,
 } from './types';
 export {

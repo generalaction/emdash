@@ -1,5 +1,5 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { buildStandardCommand, npmDependency } from '@emdash/shared/agents/plugins/helpers';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -20,40 +20,7 @@ export const plugin = definePlugin(
     hooks: {
       kind: 'none',
     },
-    hostDependency: {
-      id: 'codebuff',
-      binaryNames: ['codebuff'],
-      installCommands: {
-        macos: [
-          {
-            method: 'npm',
-            command: 'npm install -g codebuff',
-          },
-        ],
-        linux: [
-          {
-            method: 'npm',
-            command: 'npm install -g codebuff',
-          },
-        ],
-        windows: [
-          {
-            method: 'npm',
-            command: 'npm install -g codebuff',
-          },
-        ],
-      },
-      updates: {
-        kind: 'supported',
-        releaseSource: {
-          kind: 'npm',
-          package: 'codebuff',
-        },
-        update: {
-          kind: 'package-manager',
-        },
-      },
-    },
+    hostDependency: npmDependency({ id: 'codebuff', package: 'codebuff' }),
     mcp: {
       kind: 'none',
     },

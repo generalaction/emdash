@@ -54,49 +54,125 @@ export type DependencyUninstallError =
   | { type: 'unknown-dependency'; id: string }
   | { type: 'no-uninstall-strategy'; id: string }
   | { type: 'no-uninstall-command'; id: string }
+  | { type: 'still-present'; id: string }
   | InstallCommandError;
-// Note: no 'not-detected-after-uninstall' — missing status after uninstall is the success condition.
 
 export type DependencyUninstallResult = Result<DependencyState, DependencyUninstallError>;
 
 /**
- * Describes the origin of a specific installation of an agent binary.
- * - 'method': detected from the binary's realpath using location hints.
- * - 'path': user-supplied absolute path override.
- * - 'cli': user-supplied command name (resolved on PATH).
- * - 'unknown': binary was found but its install method could not be inferred
- *   (e.g. installed via a version manager shim like Volta or asdf).
+ * Persisted discriminated union for a user-chosen install override.
+ * Only the three concrete override kinds are stored — 'auto' is never persisted;
+ * its absence implies auto. Replaces the legacy { usedId, path?, cli? } shape.
  */
-export type InstallationSource =
+export type InstallOverride =
   | { kind: 'method'; method: InstallMethod }
   | { kind: 'path'; path: string }
-  | { kind: 'cli'; command: string }
-  | { kind: 'unknown' };
+  | { kind: 'cli'; command: string };
+
+/**
+ * Runtime / UI union that adds 'auto' to the persisted override kinds.
+ * Derived as: stored override ?? { kind: 'auto' }.
+ */
+export type SelectedSource = { kind: 'auto' } | InstallOverride;
+
+/**
+ * Returns a stable string key for a SelectedSource — the former Installation.id values.
+ * 'auto' | 'method:<m>' | 'path' | 'cli'
+ */
+export function sourceKey(s: SelectedSource): string {
+  if (s.kind === 'method') return `method:${s.method}`;
+  return s.kind;
+}
+
+/**
+ * Resolves a nullable persisted override to a SelectedSource.
+ * null → { kind: 'auto' }
+ */
+export function resolveSelectedSource(override: InstallOverride | null): SelectedSource {
+  return override ?? { kind: 'auto' };
+}
 
 /**
  * Returns true when an installation can be updated via emdash's update action.
  *
- * - auto / none: never updatable through emdash.
- * - cli strategy: always updatable — the binary self-updates regardless of how it was installed.
- * - package-manager strategy: requires a known method so the correct package-manager command
- *   can be selected; unknown-source installs show "Automatic updates not available" instead.
+ * - auto/none strategy: never updatable through emdash.
+ * - cli strategy: always updatable regardless of selection — the binary self-updates.
+ * - package-manager strategy:
+ *   - method selection: always (we know which PM to call).
+ *   - auto selection: yes when inferredMethod is known (preserves auto-update for
+ *     pre-existing installs without a persisted override).
+ *   - path/cli overrides: no PM command applies.
  */
 export function installationCanUpdate(
-  source: InstallationSource,
+  selection: SelectedSource,
+  inferredMethod: InstallMethod | null,
   strategyKind: UpdateStrategy['kind']
 ): boolean {
   if (strategyKind === 'auto' || strategyKind === 'none') return false;
-  if (source.kind === 'unknown') return strategyKind === 'cli';
-  return true;
+  if (strategyKind === 'cli') return true;
+  // package-manager strategy
+  if (selection.kind === 'method') return true;
+  if (selection.kind === 'auto') return inferredMethod !== null;
+  return false;
+}
+
+/**
+ * Migrates a raw/legacy persisted value to the canonical InstallOverride | null shape.
+ *
+ * New format (discriminated union): round-trips as-is.
+ * Legacy format ({ usedId?, path?, cli? }):
+ *   - usedId === 'path' and path present → { kind:'path', path }
+ *   - usedId === 'cli' and cli present    → { kind:'cli', command: cli }
+ *   - usedId starts with 'method:'        → { kind:'method', method }
+ *   - 'auto' / 'unknown' / absent         → null
+ */
+export function normalizeSelection(raw: unknown): InstallOverride | null {
+  if (raw === null || raw === undefined) return null;
+
+  // Try new discriminated-union format first
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    const obj = raw as Record<string, unknown>;
+    const kind = obj['kind'];
+    if (kind === 'method' && typeof obj['method'] === 'string') {
+      return { kind: 'method', method: obj['method'] as InstallMethod };
+    }
+    if (kind === 'path' && typeof obj['path'] === 'string') {
+      return { kind: 'path', path: obj['path'] };
+    }
+    if (kind === 'cli' && typeof obj['command'] === 'string') {
+      return { kind: 'cli', command: obj['command'] };
+    }
+
+    // Legacy format: { usedId?, path?, cli? }
+    const usedId = typeof obj['usedId'] === 'string' ? obj['usedId'] : undefined;
+    const legacyPath = typeof obj['path'] === 'string' ? obj['path'] : undefined;
+    const legacyCli = typeof obj['cli'] === 'string' ? obj['cli'] : undefined;
+
+    if (usedId === 'path' && legacyPath) return { kind: 'path', path: legacyPath };
+    if (usedId === 'cli' && legacyCli) return { kind: 'cli', command: legacyCli };
+    if (usedId?.startsWith('method:')) {
+      const method = usedId.slice('method:'.length) as InstallMethod;
+      return { kind: 'method', method };
+    }
+  }
+
+  return null;
 }
 
 /**
  * A single resolved installation of an agent binary on a specific host.
- * id is stable and can be persisted: 'method:<InstallMethod>', 'path', or 'cli'.
+ *
+ * id is stable and backward-compatible: sourceKey(source).
+ * source reflects the authoritative SelectedSource (user override or auto).
+ * inferredMethod is the result of path-heuristic inference — used only as a
+ * routing hint for auto updates, never as identity.
  */
 export type Installation = {
+  /** Stable string key: sourceKey(source). Kept for backward compat with existing find() calls. */
   id: string;
-  source: InstallationSource;
+  source: SelectedSource;
+  /** Inferred install method from binary realpath (location-hints). Null when unresolvable. */
+  inferredMethod: InstallMethod | null;
   status: DependencyStatus;
   path: string | null;
   version: string | null;
@@ -105,42 +181,39 @@ export type Installation = {
 };
 
 /**
- * All installations of one agent on one host, plus which one is currently
- * selected for conversation spawns.
+ * All installations of one agent on one host, plus which SelectedSource is
+ * currently authoritative for conversation spawns.
  */
 export type HostDependency = {
   hostId: string;
   dependencyId: DependencyId;
   installations: Installation[];
-  /** ID of the installation used when spawning conversations. */
-  usedId: string;
+  /** The authoritative source — the persisted override or auto. */
+  used: SelectedSource;
 };
 
 /**
  * Persisted user preference for which installation to use on a specific host.
+ * null = auto (no override). Never store { kind: 'auto' } — use null instead.
  * Stored in the local KV store (host='local') or SSH connection metadata (remote).
  */
-export type HostDependencySelection = {
-  /** ID of the chosen installation (e.g. 'method:homebrew', 'path', 'cli'). */
-  usedId?: string;
-  /** User-defined absolute binary path. Active when usedId === 'path'. */
-  path?: string;
-  /** User-defined CLI command name. Active when usedId === 'cli'. */
-  cli?: string;
-};
+export type HostDependencySelection = InstallOverride | null;
 
-export const hostDependencySelectionSchema = z.object({
-  usedId: z.string().optional(),
-  path: z.string().optional(),
-  cli: z.string().optional(),
-});
+export const hostDependencySelectionSchema: z.ZodType<HostDependencySelection> = z.nullable(
+  z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('method'), method: z.string() }),
+    z.object({ kind: z.literal('path'), path: z.string() }),
+    z.object({ kind: z.literal('cli'), command: z.string() }),
+  ])
+) as z.ZodType<HostDependencySelection>;
 
 /**
  * Derives the overall dependency status from the currently-used installation.
  * Returns 'missing' when no matching installation is found.
  */
 export function deriveHostDependencyStatus(dep: HostDependency): DependencyStatus {
-  return dep.installations.find((i) => i.id === dep.usedId)?.status ?? 'missing';
+  const key = sourceKey(dep.used);
+  return dep.installations.find((i) => i.id === key)?.status ?? 'missing';
 }
 
 export type DependencyStatusUpdatedEvent = {

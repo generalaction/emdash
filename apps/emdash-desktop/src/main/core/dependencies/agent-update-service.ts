@@ -6,8 +6,8 @@ import {
   type DependencyStatusUpdatedEvent,
   type HostDependency,
   type Installation,
+  type HostDependencyManager,
 } from '@emdash/shared/deps/runtime';
-import type { HostDependencyManager } from '@emdash/shared/deps/runtime';
 import type { Logger } from '@emdash/shared/lib';
 import semver from 'semver';
 import { events } from '@main/lib/events';
@@ -199,7 +199,8 @@ export class AgentUpdateService {
     const installations = hostDep.installations.map((inst): Installation => {
       if (inst.version === null) return { ...inst, latestVersion: null, updateAvailable: false };
       const rawDiff = latestVersion !== null ? isNewerVersion(inst.version, latestVersion) : false;
-      const updateAvailable = rawDiff && installationCanUpdate(inst.source, strategyKind);
+      const updateAvailable =
+        rawDiff && installationCanUpdate(inst.source, inst.inferredMethod ?? null, strategyKind);
       return { ...inst, latestVersion, updateAvailable };
     });
     return { ...hostDep, installations };

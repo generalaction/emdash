@@ -3,6 +3,7 @@ import type { Platform } from '@emdash/shared/deps';
 import {
   deriveHostDependencyStatus,
   resolveInstallOptions,
+  sourceKey,
   toPlatform,
 } from '@emdash/shared/deps/runtime';
 import type { DependencyId, DependencyState, HostDependency } from '@emdash/shared/deps/runtime';
@@ -69,7 +70,9 @@ async function buildOne(
 
   // Derive top-level update fields from the used installation so the row badge
   // always matches the detail card (both read the gated per-installation value).
-  const usedInst = hostDep?.installations.find((i) => i.id === hostDep.usedId);
+  const used = hostDep?.used ?? { kind: 'auto' as const };
+  const usedKey = sourceKey(used);
+  const usedInst = hostDep?.installations.find((i) => i.id === usedKey);
   const latestVersion = usedInst?.latestVersion ?? null;
   const updateAvailable = usedInst?.updateAvailable ?? false;
 
@@ -87,7 +90,8 @@ async function buildOne(
     },
     installOptions: descriptor ? resolveInstallOptions(descriptor, platform) : [],
     installations: hostDep?.installations ?? [],
-    usedId: hostDep?.usedId ?? '',
+    used,
+    usedId: usedKey,
   };
 }
 
@@ -127,7 +131,9 @@ export function toAgentInstallationStatus(
   hostDep: HostDependency | undefined,
   installOptions: InstallOption[] = []
 ): AgentInstallationStatus {
-  const usedInst = hostDep?.installations.find((i) => i.id === hostDep.usedId);
+  const used = hostDep?.used ?? { kind: 'auto' as const };
+  const usedKey = sourceKey(used);
+  const usedInst = hostDep?.installations.find((i) => i.id === usedKey);
   return {
     id,
     connectionId,
@@ -137,7 +143,8 @@ export function toAgentInstallationStatus(
     updateAvailable: usedInst?.updateAvailable ?? state.updateAvailable ?? false,
     command: state.path,
     installations: hostDep?.installations ?? [],
-    usedId: hostDep?.usedId ?? '',
+    used,
+    usedId: usedKey,
     installOptions,
   };
 }

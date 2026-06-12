@@ -20,9 +20,12 @@ import type {
   HostDependency,
   HostDependencySelection,
   InstallCommandError,
+  InstallOverride,
   Installation,
   ProbeResult,
+  SelectedSource,
 } from './types';
+import { resolveSelectedSource, sourceKey } from './types';
 
 /**
  * Runs an install or update command string (e.g. "brew install claude") through the
@@ -232,8 +235,12 @@ export class HostDependencyManager {
   }
 
   /**
-   * Builds and stores a HostDependency for an agent dep, incorporating the
-   * detected method installation plus any user-defined path/cli overrides.
+   * Builds and stores a HostDependency for an agent dep.
+   *
+   * The authoritative 'used' source is the persisted override (or auto when none).
+   * We always emit one 'auto' installation reflecting the PATH probe, and one
+   * installation per override kind present in the selection.
+   *
    * latestVersion/updateAvailable are always null/false here; the application
    * layer enriches them after receiving the emitted event.
    */
@@ -246,17 +253,18 @@ export class HostDependencyManager {
   ): Promise<void> {
     const hostId = this.connectionId ?? 'local';
     const selection = await this.getSelection(id);
+    const used: SelectedSource = resolveSelectedSource(selection);
 
     const installations: Installation[] = [];
 
-    // Primary installation: detected from realpath + method inference
+    // Auto installation: reflects what is found on PATH (with inferredMethod hint)
     if (resolvedPath) {
       const realPath = await resolveRealpath(resolvedPath, this.ctx, this.platform);
-      const inferredMethod = inferMethod(realPath, this.platform);
-
+      const inferred = inferMethod(realPath, this.platform);
       installations.push({
-        id: inferredMethod ? `method:${inferredMethod}` : 'auto',
-        source: inferredMethod ? { kind: 'method', method: inferredMethod } : { kind: 'unknown' },
+        id: 'auto',
+        source: { kind: 'auto' },
+        inferredMethod: inferred,
         status: fullState?.status ?? 'available',
         path: resolvedPath,
         version: fullState?.version ?? null,
@@ -264,10 +272,10 @@ export class HostDependencyManager {
         updateAvailable: false,
       });
     } else {
-      // Not found — still include as a placeholder so UI can show "not installed"
       installations.push({
         id: 'auto',
-        source: { kind: 'cli', command: descriptor.commands[0] ?? id },
+        source: { kind: 'auto' },
+        inferredMethod: null,
         status: 'missing',
         path: null,
         version: null,
@@ -276,24 +284,38 @@ export class HostDependencyManager {
       });
     }
 
-    // User-defined path override
-    if (selection?.path) {
+    // Path override installation (probe it when selected or previously saved)
+    if (selection?.kind === 'path') {
       installations.push(await this.probeOverrideSource(descriptor, 'path', selection.path));
     }
 
-    // User-defined CLI override
-    if (selection?.cli) {
-      installations.push(await this.probeOverrideSource(descriptor, 'cli', selection.cli));
+    // CLI override installation
+    if (selection?.kind === 'cli') {
+      installations.push(await this.probeOverrideSource(descriptor, 'cli', selection.command));
     }
 
-    // Derive usedId: stored selection → recommended install option → first valid → first
-    const usedId = this.deriveUsedId(id, descriptor, installations, selection);
+    // Method selection: record the selected method as an additional installation entry
+    // so the status card can display its status distinctly from auto.
+    if (selection?.kind === 'method') {
+      const autoInst = installations.find((i) => i.id === 'auto');
+      const methodMatches = autoInst?.inferredMethod === selection.method;
+      installations.push({
+        id: sourceKey(used),
+        source: used as InstallOverride,
+        inferredMethod: autoInst?.inferredMethod ?? null,
+        status: methodMatches ? (autoInst?.status ?? 'missing') : 'missing',
+        path: methodMatches ? (autoInst?.path ?? null) : null,
+        version: methodMatches ? (autoInst?.version ?? null) : null,
+        latestVersion: null,
+        updateAvailable: false,
+      });
+    }
 
     const hostDependency: HostDependency = {
       hostId,
       dependencyId: id,
       installations,
-      usedId,
+      used,
     };
 
     this.hostState.set(id, hostDependency);
@@ -322,6 +344,7 @@ export class HostDependencyManager {
         return {
           id: 'path',
           source: { kind: 'path', path: value },
+          inferredMethod: null,
           status: dependencyStateFromProbeResult(descriptor, pathExists, pathProbe).status,
           path: pathExists,
           version: extractVersion(pathProbe),
@@ -332,6 +355,7 @@ export class HostDependencyManager {
       return {
         id: 'path',
         source: { kind: 'path', path: value },
+        inferredMethod: null,
         status: 'missing',
         path: null,
         version: null,
@@ -347,6 +371,7 @@ export class HostDependencyManager {
       return {
         id: 'cli',
         source: { kind: 'cli', command: value },
+        inferredMethod: null,
         status: dependencyStateFromProbeResult(descriptor, cliPath, cliProbe).status,
         path: cliPath,
         version: extractVersion(cliProbe),
@@ -357,6 +382,7 @@ export class HostDependencyManager {
     return {
       id: 'cli',
       source: { kind: 'cli', command: value },
+      inferredMethod: null,
       status: 'missing',
       path: null,
       version: null,
@@ -381,33 +407,73 @@ export class HostDependencyManager {
     return null;
   }
 
-  private deriveUsedId(
-    id: DependencyId,
+  /**
+   * Resolves the update/uninstall command based on selection and inferred method.
+   *
+   * inferredMethod semantics:
+   *   - InstallMethod: probed + method known → use that method for PM routing
+   *   - null:          probed but no method → refuse PM for auto (unknown source)
+   *   - undefined:     no probe yet → fall back to recommended option (backward compat)
+   */
+  private resolveUpdatePlan(
+    selection: SelectedSource,
+    inferredMethod: InstallMethod | null | undefined,
     descriptor: DependencyDescriptor,
-    installations: Installation[],
-    selection: HostDependencySelection | null | undefined
-  ): string {
-    // 1. Stored selection if it matches a known installation
-    if (selection?.usedId) {
-      if (installations.some((i) => i.id === selection.usedId)) {
-        return selection.usedId;
+    operation: 'update' | 'uninstall'
+  ):
+    | { kind: 'package-manager'; command: string }
+    | { kind: 'cli'; command: string; args: string[] }
+    | { kind: 'none' } {
+    const updates = descriptor.updates;
+    const strategyKind = updates?.kind === 'supported' ? updates.update.kind : 'none';
+
+    const effectiveMethod: InstallMethod | null | undefined =
+      selection.kind === 'method'
+        ? selection.method
+        : selection.kind === 'auto'
+          ? inferredMethod
+          : null; // path/cli → no PM routing
+
+    if (effectiveMethod != null) {
+      // Known method: route to the matching PM option
+      const opt = pickInstallOption(descriptor, this.platform, effectiveMethod);
+      if (opt) {
+        if (operation === 'uninstall' && opt.uninstallCommand) {
+          return { kind: 'package-manager', command: opt.uninstallCommand };
+        }
+        if (operation === 'update') {
+          const cmd = opt.updateCommand ?? opt.command ?? descriptor.installCommand;
+          if (cmd) return { kind: 'package-manager', command: cmd };
+        }
+      }
+    } else if (effectiveMethod === undefined) {
+      // No prior probe — fall back to the recommended install option (old behavior)
+      const fallback = pickInstallOption(descriptor, this.platform);
+      if (fallback) {
+        if (operation === 'uninstall' && fallback.uninstallCommand) {
+          return { kind: 'package-manager', command: fallback.uninstallCommand };
+        }
+        if (operation === 'update') {
+          const cmd = fallback.updateCommand ?? fallback.command ?? descriptor.installCommand;
+          if (cmd) return { kind: 'package-manager', command: cmd };
+        }
       }
     }
+    // effectiveMethod === null (probed + no inferred or path/cli) → skip PM, try CLI
 
-    // 2. Recommended install option for this platform
-    const recommended = pickInstallOption(descriptor, this.platform);
-    if (recommended) {
-      const methodId = `method:${recommended.method}`;
-      const inst = installations.find((i) => i.id === methodId);
-      if (inst) return methodId;
+    // CLI strategy fallback
+    if (operation === 'update' && strategyKind === 'cli' && updates?.kind === 'supported') {
+      return {
+        kind: 'cli',
+        command: '',
+        args: (updates.update as { kind: 'cli'; args: string[] }).args,
+      };
+    }
+    if (operation === 'uninstall' && descriptor.uninstall?.kind === 'cli') {
+      return { kind: 'cli', command: '', args: descriptor.uninstall.args };
     }
 
-    // 3. First valid (available) installation
-    const firstValid = installations.find((i) => i.status === 'available');
-    if (firstValid) return firstValid.id;
-
-    // 4. First installation as fallback
-    return installations[0]?.id ?? 'auto';
+    return { kind: 'none' };
   }
 
   async probeAll(options: DependencyProbeOptions = {}): Promise<void> {
@@ -476,10 +542,8 @@ export class HostDependencyManager {
 
   /**
    * Apply an available update for an agent dependency, then re-probe.
-   * Strategy is derived from capabilities.updates.update.kind:
-   *   - package-manager: re-run the update command for the matching InstallOption.
-   *   - cli: run `<resolvedBinaryPath> <args>` (e.g. `claude update`).
-   *   - auto / none: no-op
+   * Routing is driven by resolveUpdatePlan: method selection uses PM commands,
+   * auto selection routes through inferredMethod (falls back to CLI), path/cli use CLI.
    */
   async update(id: DependencyId, method?: InstallMethod): Promise<DependencyUpdateResult> {
     const descriptor = this._getDependencyDescriptor(id);
@@ -492,42 +556,35 @@ export class HostDependencyManager {
       return err({ type: 'no-update-strategy', id });
     }
 
-    const strategy = updates.update;
-
-    if (strategy.kind === 'auto' || strategy.kind === 'none') {
+    if (updates.update.kind === 'auto' || updates.update.kind === 'none') {
       const state = this.state.get(id);
       if (state) return ok(state);
       return err({ type: 'no-update-strategy', id });
     }
 
+    // Determine the effective selection: caller-supplied method overrides stored selection
+    const hostDep = this.hostState.get(id);
+    const storedSelection = await this.getSelection(id);
+    const selection: SelectedSource = method
+      ? { kind: 'method', method }
+      : resolveSelectedSource(storedSelection);
+    const autoInst = hostDep?.installations.find((i) => i.id === 'auto');
+    // undefined = no probe yet (fall back to recommended); null = probed but no method inferred
+    const inferredMethod: InstallMethod | null | undefined =
+      hostDep !== undefined ? (autoInst?.inferredMethod ?? null) : undefined;
+
     this.logger.info(
-      `[HostDependencyManager] Updating ${id} (strategy: ${strategy.kind}, method: ${method ?? 'default'})`
+      `[HostDependencyManager] Updating ${id} (selection: ${selection.kind}, inferredMethod: ${String(inferredMethod ?? 'none')})`
     );
 
     await this.ctx.refreshShellEnv?.();
 
-    if (strategy.kind === 'package-manager') {
-      // Refuse if the used installation has an unknown source — no package-manager
-      // command can be selected without knowing which method installed the binary.
-      const usedInstall = this.hostState
-        .get(id)
-        ?.installations.find((i) => i.id === (this.hostState.get(id)?.usedId ?? ''));
-      if (usedInstall?.source.kind === 'unknown') {
-        return err({ type: 'no-update-strategy', id });
-      }
+    const plan = this.resolveUpdatePlan(selection, inferredMethod, descriptor, 'update');
 
-      const chosen = pickInstallOption(descriptor, this.platform, method);
-      const updateCommand = chosen?.updateCommand ?? chosen?.command ?? descriptor.installCommand;
-
-      if (!updateCommand) {
-        return err({ type: 'no-update-strategy', id });
-      }
-
-      const runResult = await this.runInstallCommand(updateCommand);
-      if (!runResult.success) {
-        return err(runResult.error);
-      }
-    } else if (strategy.kind === 'cli') {
+    if (plan.kind === 'package-manager') {
+      const runResult = await this.runInstallCommand(plan.command);
+      if (!runResult.success) return err(runResult.error);
+    } else if (plan.kind === 'cli') {
       const resolvedPath = await this.resolveFirstPath(descriptor);
       let command: string;
       let args: string[];
@@ -536,14 +593,14 @@ export class HostDependencyManager {
         ({ command, args } = descriptor.updateHooks.buildUpdateCommand(resolvedPath));
       } else {
         command = resolvedPath ?? descriptor.commands[0] ?? id;
-        args = strategy.args;
+        args = plan.args;
       }
 
       const commandLine = [command, ...args].join(' ');
       const runResult = await this.runInstallCommand(commandLine);
-      if (!runResult.success) {
-        return err(runResult.error);
-      }
+      if (!runResult.success) return err(runResult.error);
+    } else {
+      return err({ type: 'no-update-strategy', id });
     }
 
     await this.ctx.refreshShellEnv?.();
@@ -559,14 +616,12 @@ export class HostDependencyManager {
 
   /**
    * Uninstall an agent dependency on this host, then re-probe to confirm it is gone.
-   * Strategy is derived from the descriptor's `uninstall.kind`:
-   *   - package-manager: run the per-method `uninstallCommand` from the matching InstallOption.
-   *   - cli: run `<resolvedBinaryPath> <args>` (e.g. `claude uninstall`), or delegate to
-   *     `updateHooks.buildUninstallCommand` for dynamic command construction.
-   *   - none: return an error immediately.
    *
-   * A `status: 'missing'` result after the command is the success condition — the binary
-   * should be gone. There is no 'not-detected-after-uninstall' error.
+   * Routing is driven by resolveUpdatePlan: method/auto selections use PM uninstall
+   * commands when available (e.g. `brew uninstall`), otherwise fall back to CLI self-uninstall.
+   *
+   * A `status: 'missing'` result after the command is the success condition.
+   * Returns a 'still-present' error when the binary is still found after the command completes.
    */
   async uninstall(id: DependencyId, method?: InstallMethod): Promise<DependencyUninstallResult> {
     const descriptor = this._getDependencyDescriptor(id);
@@ -579,25 +634,29 @@ export class HostDependencyManager {
       return err({ type: 'no-uninstall-strategy', id });
     }
 
+    // Determine the effective selection
+    const hostDep = this.hostState.get(id);
+    const storedSelection = await this.getSelection(id);
+    const selection: SelectedSource = method
+      ? { kind: 'method', method }
+      : resolveSelectedSource(storedSelection);
+    const autoInst = hostDep?.installations.find((i) => i.id === 'auto');
+    // undefined = no probe yet (fall back to recommended); null = probed but no method inferred
+    const inferredMethod: InstallMethod | null | undefined =
+      hostDep !== undefined ? (autoInst?.inferredMethod ?? null) : undefined;
+
     this.logger.info(
-      `[HostDependencyManager] Uninstalling ${id} (strategy: ${strategy.kind}, method: ${method ?? 'default'})`
+      `[HostDependencyManager] Uninstalling ${id} (selection: ${selection.kind}, inferredMethod: ${String(inferredMethod ?? 'none')})`
     );
 
     await this.ctx.refreshShellEnv?.();
 
-    if (strategy.kind === 'package-manager') {
-      const chosen = pickInstallOption(descriptor, this.platform, method);
-      const uninstallCommand = chosen?.uninstallCommand;
+    const plan = this.resolveUpdatePlan(selection, inferredMethod, descriptor, 'uninstall');
 
-      if (!uninstallCommand) {
-        return err({ type: 'no-uninstall-command', id });
-      }
-
-      const runResult = await this.runInstallCommand(uninstallCommand);
-      if (!runResult.success) {
-        return err(runResult.error);
-      }
-    } else if (strategy.kind === 'cli') {
+    if (plan.kind === 'package-manager') {
+      const runResult = await this.runInstallCommand(plan.command);
+      if (!runResult.success) return err(runResult.error);
+    } else if (plan.kind === 'cli') {
       const resolvedPath = await this.resolveFirstPath(descriptor);
       let command: string;
       let args: string[];
@@ -606,20 +665,25 @@ export class HostDependencyManager {
         ({ command, args } = descriptor.updateHooks.buildUninstallCommand(resolvedPath));
       } else {
         command = resolvedPath ?? descriptor.commands[0] ?? id;
-        args = strategy.args;
+        args = plan.args;
       }
 
       const commandLine = [command, ...args].join(' ');
       const runResult = await this.runInstallCommand(commandLine);
-      if (!runResult.success) {
-        return err(runResult.error);
-      }
+      if (!runResult.success) return err(runResult.error);
+    } else {
+      return err({ type: 'no-uninstall-command', id });
     }
 
     await this.ctx.refreshShellEnv?.();
 
     const state = await this.probe(id);
     this.onExecutableInvalidated.emit({ id });
+
+    if (state.status === 'available') {
+      return err({ type: 'still-present', id });
+    }
+
     return ok(state);
   }
 
