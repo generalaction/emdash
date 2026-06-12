@@ -36,7 +36,6 @@ const PICKER_BOOTSTRAP = `(() => {
     let active = false;
     let hoverTarget = null;
     let box = null;
-    let label = null;
     let cursorStyle = null;
     let rafPending = false;
 
@@ -87,7 +86,9 @@ const PICKER_BOOTSTRAP = `(() => {
           source = node._debugSource.fileName + ':' + node._debugSource.lineNumber;
         }
         if (!component && typeof node.type === 'function') {
-          component = node.type.displayName || node.type.name || null;
+          const name = node.type.displayName || node.type.name || '';
+          // Skip minified one-letter names from production builds — useless context.
+          if (name.length >= 2 && /^[A-Z]/.test(name)) component = name;
         }
         node = node.return;
         depth++;
@@ -167,12 +168,6 @@ const PICKER_BOOTSTRAP = `(() => {
       box.style.cssText =
         'position:fixed;z-index:2147483647;pointer-events:none;display:none;' +
         'border:1.5px solid #3b82f6;background:rgba(59,130,246,0.12);border-radius:2px;';
-      label = document.createElement('div');
-      label.style.cssText =
-        'position:absolute;left:-1.5px;bottom:100%;margin-bottom:2px;padding:1px 5px;' +
-        'background:#3b82f6;color:#fff;border-radius:3px;white-space:nowrap;' +
-        'font:11px/1.6 ui-monospace,monospace;max-width:60vw;overflow:hidden;text-overflow:ellipsis;';
-      box.appendChild(label);
       document.documentElement.appendChild(box);
     };
 
@@ -182,17 +177,13 @@ const PICKER_BOOTSTRAP = `(() => {
     };
 
     const positionBox = (el) => {
-      if (!box || !label) return;
+      if (!box) return;
       const r = el.getBoundingClientRect();
       box.style.display = 'block';
       box.style.left = r.x + 'px';
       box.style.top = r.y + 'px';
       box.style.width = r.width + 'px';
       box.style.height = r.height + 'px';
-      label.textContent =
-        el.tagName.toLowerCase() + '  ' + Math.round(r.width) + ' \\u00d7 ' + Math.round(r.height);
-      label.style.bottom = r.y < 24 ? 'auto' : '100%';
-      label.style.top = r.y < 24 ? '100%' : 'auto';
     };
 
     const emitRects = () => {
@@ -214,7 +205,7 @@ const PICKER_BOOTSTRAP = `(() => {
     const onMove = (event) => {
       if (!active) return;
       const el = document.elementFromPoint(event.clientX, event.clientY);
-      if (!el || el === box || el === label) return;
+      if (!el || el === box) return;
       hoverTarget = el;
       positionBox(el);
     };

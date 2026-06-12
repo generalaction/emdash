@@ -5,7 +5,6 @@ import { Shortcut } from '@renderer/lib/ui/shortcut';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import type { BrowserAnnotationState } from './browser-annotation-store';
-import type { AnnotatedElementInfo } from './browser-annotation-types';
 
 const DRAFT_CARD_WIDTH = 320;
 const DRAFT_CARD_ESTIMATED_HEIGHT = 170;
@@ -81,7 +80,6 @@ export const BrowserAnnotationOverlay = observer(function BrowserAnnotationOverl
           />
           <DraftCommentCard
             key={draft.token}
-            element={draft.element}
             position={draftCardPosition(draftRect, containerSize)}
             onCommit={onCommitDraft}
             onCancel={onCancelDraft}
@@ -105,13 +103,6 @@ function scaleRect(
   };
 }
 
-function annotationTargetLabel(element: AnnotatedElementInfo): string {
-  const base = element.component ?? `<${element.tag}>`;
-  if (!element.text) return base;
-  const text = element.text.length > 40 ? `${element.text.slice(0, 40)}…` : element.text;
-  return `${base} · “${text}”`;
-}
-
 function draftCardPosition(
   rect: { x: number; y: number; width: number; height: number },
   container: { width: number; height: number }
@@ -126,12 +117,10 @@ function draftCardPosition(
 }
 
 function DraftCommentCard({
-  element,
   position,
   onCommit,
   onCancel,
 }: {
-  element: AnnotatedElementInfo;
   position: { left: number; top: number };
   onCommit: (comment: string) => void;
   onCancel: () => void;
@@ -148,14 +137,11 @@ function DraftCommentCard({
       className="pointer-events-auto absolute flex w-80 animate-in flex-col rounded-lg bg-background-quaternary p-3 shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_4px_12px_rgba(0,0,0,0.1),0_12px_32px_rgba(0,0,0,0.08)] duration-150 fade-in-0 slide-in-from-top-1"
       style={{ left: position.left, top: position.top }}
     >
-      <div className="truncate pb-1 text-xs font-medium text-foreground-muted">
-        {annotationTargetLabel(element)}
-      </div>
       <Textarea
         autoFocus
         value={comment}
         placeholder="Describe the change…"
-        className="min-h-16 resize-none border-0 bg-transparent p-0 text-sm shadow-none hover:border-0 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+        className="max-h-40 min-h-16 resize-none overflow-y-auto border-0 bg-transparent p-0 text-sm shadow-none hover:border-0 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
         onChange={(event) => setComment(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {

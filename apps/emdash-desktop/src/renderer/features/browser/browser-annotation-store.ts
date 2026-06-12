@@ -47,19 +47,19 @@ export class BrowserAnnotationState {
 
   get markers(): AnnotationMarker[] {
     const markers: AnnotationMarker[] = [];
-    this.annotations.forEach((annotation, index) => {
-      if (annotation.epoch !== this.navigationEpoch) return;
+    for (const annotation of this.annotations) {
+      if (annotation.epoch !== this.navigationEpoch) continue;
       const live = this.liveRects.has(annotation.token)
         ? this.liveRects.get(annotation.token)
         : annotation.element.rect;
-      if (!live) return;
+      if (!live) continue;
       markers.push({
         token: annotation.token,
-        ordinal: index + 1,
+        ordinal: markers.length + 1,
         comment: annotation.comment,
         rect: live,
       });
-    });
+    }
     return markers;
   }
 

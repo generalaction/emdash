@@ -76,6 +76,24 @@ describe('BrowserAnnotationState', () => {
     ]);
   });
 
+  it('numbers rendered markers sequentially when an earlier element is detached', () => {
+    const state = new BrowserAnnotationState();
+    state.startDraft(1, makeElement(), 'http://localhost:5173/');
+    state.commitDraft('First');
+    state.startDraft(2, makeElement(), 'http://localhost:5173/');
+    state.commitDraft('Second');
+
+    // The first annotation's element is gone; only the second renders a marker.
+    state.applyRects([
+      { token: 1, attached: false, rect: null },
+      { token: 2, attached: true, rect: { x: 5, y: 6, width: 7, height: 8 } },
+    ]);
+
+    expect(state.markers).toEqual([
+      { token: 2, ordinal: 1, comment: 'Second', rect: { x: 5, y: 6, width: 7, height: 8 } },
+    ]);
+  });
+
   it('hides markers and resets transient state after navigation', () => {
     const state = new BrowserAnnotationState();
     state.setPicking(true);
@@ -112,9 +130,10 @@ describe('BrowserAnnotationState', () => {
     state.commitDraft('New page');
 
     expect(state.annotations).toHaveLength(2);
-    // Only the current epoch's annotation renders a marker.
+    // Only the current epoch's annotation renders a marker, numbered from 1.
     expect(state.markers).toHaveLength(1);
     expect(state.markers[0]?.comment).toBe('New page');
+    expect(state.markers[0]?.ordinal).toBe(1);
 
     // Removing by current-epoch token must not delete the old-page annotation.
     state.removeAnnotation(1);
