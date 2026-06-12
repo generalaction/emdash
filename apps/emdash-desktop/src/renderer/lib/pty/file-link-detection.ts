@@ -14,6 +14,7 @@ export type BufferLineLike = {
   /** Cell width of the row (xterm IBufferLine.length). A trimmed text of this
    * exact length means the row is filled to its last column. */
   length: number;
+  getCell(index: number): { getChars(): string; getWidth(): number } | undefined;
   translateToString(trimRight?: boolean): string;
 };
 
@@ -36,6 +37,7 @@ type LogicalLine = {
   startBufferIndex: number;
   lineTexts: string[];
   lineStartColumns: number[];
+  lineCellColumns: number[][];
   text: string;
 };
 
@@ -77,7 +79,7 @@ export function findUrlLinks(buffer: BufferLike, bufferLineNumber: number): UrlL
   }
 
   const links: UrlLinkMatch[] = [];
-  const regex = new RegExp(WEB_URL_PATTERN.source, 'gi');
+  const regex = new RegExp(WEB_URL_PATTERN.source, WEB_URL_PATTERN.flags + 'g');
   let match: RegExpExecArray | null;
   while ((match = regex.exec(logicalLine.text)) !== null) {
     const matched = match[0];
@@ -145,6 +147,7 @@ function getWrappedLogicalLine(buffer: BufferLike, bufferIndex: number): Logical
 
   const lineTexts: string[] = [];
   const lineStartColumns: number[] = [];
+  const lineCellColumns: number[][] = [];
   let currentIndex = startBufferIndex;
   let totalLength = 0;
   while (true) {
@@ -154,6 +157,7 @@ function getWrappedLogicalLine(buffer: BufferLike, bufferIndex: number): Logical
     const text = currentLine.translateToString(true);
     lineTexts.push(text);
     lineStartColumns.push(0);
+    lineCellColumns.push(buildLineCellColumns(currentLine, text));
     totalLength += text.length;
     if (totalLength > MAX_WRAPPED_LINE_LENGTH) return null;
 
@@ -166,6 +170,7 @@ function getWrappedLogicalLine(buffer: BufferLike, bufferIndex: number): Logical
     startBufferIndex,
     lineTexts,
     lineStartColumns,
+    lineCellColumns,
     text: lineTexts.join(''),
   });
 }
@@ -190,17 +195,23 @@ function expandHardLineBreakLinkContinuations(
     ) {
       break;
     }
+    const firstLineTrimOffset = countLeadingWhitespace(firstLine);
+    const firstLineColumns = expanded.lineCellColumns[0] ?? buildFallbackLineCellColumns(firstLine);
+    const firstLineStartColumn = expanded.lineStartColumns[0] ?? 0;
+    const trimmedFirstLineStartColumn =
+      firstLineStartColumn + cellColumnAtOffset(firstLineColumns, firstLineTrimOffset);
     const joined: LogicalLine = {
       startBufferIndex: expanded.startBufferIndex - 1,
       lineTexts: [
         previousLine,
-        trimPathContinuationStart(firstLine),
+        firstLine.slice(firstLineTrimOffset),
         ...expanded.lineTexts.slice(1),
       ],
-      lineStartColumns: [
-        0,
-        countLeadingWhitespace(firstLine),
-        ...expanded.lineStartColumns.slice(1),
+      lineStartColumns: [0, trimmedFirstLineStartColumn, ...expanded.lineStartColumns.slice(1)],
+      lineCellColumns: [
+        buildLineCellColumns(previousBufferLine, previousLine),
+        trimLineCellColumns(firstLineColumns, firstLineTrimOffset),
+        ...expanded.lineCellColumns.slice(1),
       ],
       text: '',
     };
@@ -212,8 +223,9 @@ function expandHardLineBreakLinkContinuations(
   while (true) {
     const lastLineIndex = expanded.startBufferIndex + expanded.lineTexts.length - 1;
     const lastBufferLine = buffer.getLine(lastLineIndex);
-    const nextLine = buffer.getLine(lastLineIndex + 1)?.translateToString(true);
-    if (!lastBufferLine || nextLine === undefined) break;
+    const nextBufferLine = buffer.getLine(lastLineIndex + 1);
+    const nextLine = nextBufferLine?.translateToString(true);
+    if (!lastBufferLine || !nextBufferLine || nextLine === undefined) break;
     const lastLineStartColumn = expanded.lineStartColumns[expanded.lineStartColumns.length - 1];
     const lastLineText = expanded.lineTexts[expanded.lineTexts.length - 1];
     if (
@@ -228,10 +240,17 @@ function expandHardLineBreakLinkContinuations(
       break;
     }
     const trimmedNextLine = trimPathContinuationStart(nextLine);
+    const nextLineTrimOffset = countLeadingWhitespace(nextLine);
+    const nextLineColumns = buildLineCellColumns(nextBufferLine, nextLine);
+    const trimmedNextLineStartColumn = cellColumnAtOffset(nextLineColumns, nextLineTrimOffset);
     const joined: LogicalLine = {
       startBufferIndex: expanded.startBufferIndex,
       lineTexts: [...expanded.lineTexts, trimmedNextLine],
-      lineStartColumns: [...expanded.lineStartColumns, countLeadingWhitespace(nextLine)],
+      lineStartColumns: [...expanded.lineStartColumns, trimmedNextLineStartColumn],
+      lineCellColumns: [
+        ...expanded.lineCellColumns,
+        trimLineCellColumns(nextLineColumns, nextLineTrimOffset),
+      ],
       text: expanded.text + trimmedNextLine,
     };
     if (joined.text.length > MAX_WRAPPED_LINE_LENGTH) break;
@@ -304,7 +323,7 @@ function mapOffsetRangeToBufferRange(
   endOffset: number
 ): ILink['range'] | null {
   const start = mapOffsetToBufferPosition(logicalLine, startOffset);
-  const end = mapOffsetToBufferPosition(logicalLine, endOffset - 1);
+  const end = mapEndOffsetToBufferPosition(logicalLine, endOffset);
   if (!start || !end) return null;
   return { start, end };
 }
@@ -323,14 +342,20 @@ function mapOffsetRangeToVisibleBufferRanges(
     const segmentEndOffset = Math.min(endOffset, lineEndOffset);
     if (segmentStartOffset < segmentEndOffset) {
       const xOffset = logicalLine.lineStartColumns[lineIndex] ?? 0;
+      const lineColumns = logicalLine.lineCellColumns[lineIndex] ?? [];
+      const segmentStartColumn = cellColumnAtOffset(
+        lineColumns,
+        segmentStartOffset - lineStartOffset
+      );
+      const segmentEndColumn = cellColumnAtOffset(lineColumns, segmentEndOffset - lineStartOffset);
       const y = logicalLine.startBufferIndex + lineIndex + 1;
       ranges.push({
         start: {
-          x: xOffset + segmentStartOffset - lineStartOffset + 1,
+          x: xOffset + segmentStartColumn + 1,
           y,
         },
         end: {
-          x: xOffset + segmentEndOffset - lineStartOffset,
+          x: xOffset + segmentEndColumn,
           y,
         },
       });
@@ -356,12 +381,84 @@ function mapOffsetToBufferPosition(
   for (let lineIndex = 0; lineIndex < logicalLine.lineTexts.length; lineIndex += 1) {
     const lineLength = logicalLine.lineTexts[lineIndex]?.length ?? 0;
     if (remaining < lineLength) {
+      const lineColumns = logicalLine.lineCellColumns[lineIndex] ?? [];
       return {
-        x: (logicalLine.lineStartColumns[lineIndex] ?? 0) + remaining + 1,
+        x:
+          (logicalLine.lineStartColumns[lineIndex] ?? 0) +
+          cellColumnAtOffset(lineColumns, remaining) +
+          1,
         y: logicalLine.startBufferIndex + lineIndex + 1,
       };
     }
     remaining -= lineLength;
   }
   return null;
+}
+
+function mapEndOffsetToBufferPosition(
+  logicalLine: LogicalLine,
+  offset: number
+): ILink['range']['end'] | null {
+  let remaining = offset;
+  for (let lineIndex = 0; lineIndex < logicalLine.lineTexts.length; lineIndex += 1) {
+    const lineLength = logicalLine.lineTexts[lineIndex]?.length ?? 0;
+    if (remaining <= lineLength) {
+      const lineColumns = logicalLine.lineCellColumns[lineIndex] ?? [];
+      return {
+        x:
+          (logicalLine.lineStartColumns[lineIndex] ?? 0) +
+          cellColumnAtOffset(lineColumns, remaining),
+        y: logicalLine.startBufferIndex + lineIndex + 1,
+      };
+    }
+    remaining -= lineLength;
+  }
+  return null;
+}
+
+function buildLineCellColumns(bufferLine: BufferLineLike, text: string): number[] {
+  const columns: number[] = [0];
+  let stringOffset = 0;
+  for (
+    let cellIndex = 0;
+    cellIndex < bufferLine.length && stringOffset < text.length;
+    cellIndex += 1
+  ) {
+    const cell = bufferLine.getCell(cellIndex);
+    if (!cell) break;
+
+    const width = cell.getWidth();
+    if (width === 0) continue;
+
+    let chars = cell.getChars();
+    if (!chars && text[stringOffset] === ' ') chars = ' ';
+    if (!chars) continue;
+
+    const cellEndColumn = cellIndex + width;
+    for (
+      let offset = 0;
+      offset < chars.length && stringOffset + offset < text.length;
+      offset += 1
+    ) {
+      columns[stringOffset + offset] = cellIndex;
+    }
+    stringOffset += chars.length;
+    columns[stringOffset] = cellEndColumn;
+  }
+
+  if (stringOffset !== text.length) return buildFallbackLineCellColumns(text);
+  return columns;
+}
+
+function buildFallbackLineCellColumns(text: string): number[] {
+  return Array.from({ length: text.length + 1 }, (_, index) => index);
+}
+
+function trimLineCellColumns(columns: number[], startOffset: number): number[] {
+  const startColumn = cellColumnAtOffset(columns, startOffset);
+  return columns.slice(startOffset).map((column) => column - startColumn);
+}
+
+function cellColumnAtOffset(columns: number[], offset: number): number {
+  return columns[offset] ?? offset;
 }

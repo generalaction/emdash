@@ -8,17 +8,60 @@ import {
 } from '@renderer/lib/pty/file-link-provider';
 
 class MockBufferLine {
+  private readonly cells: MockCell[];
+
   constructor(
     private readonly text: string,
     readonly isWrapped = false,
     // Cell width of the row. Defaults to wider than the text so rows do not
     // accidentally count as filled-to-the-last-column in unrelated tests.
     readonly length = 120
-  ) {}
+  ) {
+    this.cells = makeCells(text);
+  }
+
+  getCell(index: number): MockCell | undefined {
+    return this.cells[index];
+  }
 
   translateToString(): string {
     return this.text;
   }
+}
+
+class MockCell {
+  constructor(
+    private readonly chars: string,
+    private readonly width: number
+  ) {}
+
+  getChars(): string {
+    return this.chars;
+  }
+
+  getWidth(): number {
+    return this.width;
+  }
+}
+
+function makeCells(text: string): MockCell[] {
+  const cells: MockCell[] = [];
+  for (const char of text) {
+    if (/\p{Mark}/u.test(char) && cells.length > 0) {
+      const previous = cells[cells.length - 1]!;
+      cells[cells.length - 1] = new MockCell(previous.getChars() + char, previous.getWidth());
+      continue;
+    }
+
+    const width = isWideCodePoint(char.codePointAt(0) ?? 0) ? 2 : 1;
+    cells.push(new MockCell(char, width));
+    if (width === 2) cells.push(new MockCell('', 0));
+  }
+  return cells;
+}
+
+function isWideCodePoint(codePoint: number): boolean {
+  return codePoint >= 0x1100;
 }
 
 function makeBuffer(lines: MockBufferLine[]) {
@@ -130,6 +173,21 @@ describe('file link provider', () => {
     expect(findFileLinks(buffer, 1)).toEqual([]);
   });
 
+  it('maps file link ranges through terminal cells after combining characters', () => {
+    const buffer = makeBuffer([new MockBufferLine('e\u0301 src/app.ts')]);
+
+    expect(findFileLinks(buffer, 1)).toEqual([
+      {
+        range: {
+          start: { x: 3, y: 1 },
+          end: { x: 12, y: 1 },
+        },
+        text: 'src/app.ts',
+        isExternal: false,
+      },
+    ]);
+  });
+
   it('requires Command on macOS and Control elsewhere', () => {
     expect(isActivationModifierPressed({ metaKey: true, ctrlKey: false }, true)).toBe(true);
     expect(isActivationModifierPressed({ metaKey: false, ctrlKey: true }, true)).toBe(false);
@@ -207,6 +265,20 @@ describe('url link detection', () => {
     ];
     expect(findUrlLinks(buffer, 1)).toEqual(expected);
     expect(findUrlLinks(buffer, 2)).toEqual(expected);
+  });
+
+  it('maps URL ranges through terminal cells after wide characters', () => {
+    const buffer = makeBuffer([new MockBufferLine('\u754c https://example.com')]);
+
+    expect(findUrlLinks(buffer, 1)).toEqual([
+      {
+        range: {
+          start: { x: 4, y: 1 },
+          end: { x: 22, y: 1 },
+        },
+        text: 'https://example.com',
+      },
+    ]);
   });
 
   it('joins a bracketed query string split by a hard line break', () => {
