@@ -614,12 +614,12 @@ describe('HostDependencyManager unknown install source', () => {
     );
     expect(hostDepEvent).toBeDefined();
 
-    const hostDep = (hostDepEvent as { hostDependency: { installations: Array<{ source: unknown }> } }).hostDependency;
-    const autoInst = hostDep.installations.find(
-      (i: { id: string }) => i.id === 'auto'
-    );
+    const hostDep = (
+      hostDepEvent as { hostDependency: { installations: Array<{ id: string; source: { kind: string } }> } }
+    ).hostDependency;
+    const autoInst = hostDep.installations.find((i) => i.id === 'auto');
     expect(autoInst).toBeDefined();
-    expect((autoInst as { source: { kind: string } }).source.kind).toBe('unknown');
+    expect(autoInst?.source.kind).toBe('unknown');
   });
 
   it('refuses package-manager update when used installation has unknown source', async () => {
