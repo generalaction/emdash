@@ -97,7 +97,7 @@ describe('browser session identity', () => {
       taskId: 'Task One',
     });
 
-    expect(BROWSER_PROFILE_PARTITION).toBe('persist:emdash-browser-profile-default');
+    expect(BROWSER_PROFILE_PARTITION).toBe('persist:emdash-browser-profile');
     expect(createBrowserSessionSnapshot({ identity, now: 100 }).partition).toBe(
       BROWSER_PROFILE_PARTITION
     );

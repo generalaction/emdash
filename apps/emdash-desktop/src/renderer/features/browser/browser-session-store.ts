@@ -7,6 +7,7 @@ import {
   normalizeBrowserProfileSelection,
   normalizeBrowserUrl,
   type BrowserLoadError,
+  type BrowserProfile,
   type BrowserProfileSelection,
   type BrowserSessionSnapshot,
 } from '@shared/browser';
@@ -37,6 +38,7 @@ export class BrowserSessionStore {
       activeSessions: computed,
       createSession: action,
       restoreSession: action,
+      migrateProfileSessions: action,
       updateSession: action,
       removeSession: action,
       clear: action,
@@ -59,10 +61,11 @@ export class BrowserSessionStore {
   }
 
   restoreSession(
-    snapshot: BrowserSessionSnapshot & { profileId?: BrowserProfileSelection }
+    snapshot: BrowserSessionSnapshot & { profileId?: BrowserProfileSelection },
+    profiles?: readonly BrowserProfile[]
   ): BrowserSessionSnapshot {
     const normalized = normalizeBrowserUrl(snapshot.currentUrl);
-    const profileId = normalizeBrowserProfileSelection(snapshot.profileId);
+    const profileId = normalizeBrowserProfileSelection(snapshot.profileId, profiles);
     const restored: BrowserSessionSnapshot = {
       ...snapshot,
       profileId,
@@ -74,6 +77,24 @@ export class BrowserSessionStore {
     };
     this.sessions.set(restored.browserId, restored);
     return restored;
+  }
+
+  migrateProfileSessions(
+    fromProfileId: BrowserProfileSelection,
+    toProfileId: BrowserProfileSelection
+  ): void {
+    for (const [browserId, session] of this.sessions) {
+      if (session.profileId !== fromProfileId) continue;
+      const profileId = normalizeBrowserProfileSelection(toProfileId);
+      this.sessions.set(browserId, {
+        ...session,
+        profileId,
+        partition: browserPartitionForProfile(session, profileId),
+        isLoading: false,
+        loadError: undefined,
+        updatedAt: Date.now(),
+      });
+    }
   }
 
   updateSession(browserId: string, update: BrowserSessionUpdate): BrowserSessionSnapshot | null {

@@ -24,7 +24,7 @@ vi.mock('@main/lib/events', () => ({
   },
 }));
 
-const PROFILE_PARTITION = 'persist:emdash-browser-profile-default';
+const PROFILE_PARTITION = 'persist:emdash-browser-profile';
 
 type FakeWebContents = WebContents & {
   windowOpenHandler: Parameters<WebContents['setWindowOpenHandler']>[0] | null;

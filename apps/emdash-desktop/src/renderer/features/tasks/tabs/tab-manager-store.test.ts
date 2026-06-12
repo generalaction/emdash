@@ -58,7 +58,7 @@ describe('TabManagerStore browser tabs', () => {
       'http://localhost:5173/'
     );
     expect(tab?.kind === 'browser' ? tab.session.partition : undefined).toBe(
-      'persist:emdash-browser-profile-default'
+      'persist:emdash-browser-profile'
     );
   });
 

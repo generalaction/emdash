@@ -15,7 +15,7 @@ describe('BrowserSessionStore', () => {
 
     expect(session.currentUrl).toBe('http://localhost:5173/');
     expect(session.profileId).toBe('default');
-    expect(session.partition).toBe('persist:emdash-browser-profile-default');
+    expect(session.partition).toBe('persist:emdash-browser-profile');
     expect(store.getSession('browser-1')).toEqual(session);
   });
 
@@ -107,7 +107,53 @@ describe('BrowserSessionStore', () => {
 
     expect(store.getSession('browser-1')).toMatchObject({
       profileId: 'default',
-      partition: 'persist:emdash-browser-profile-default',
+      partition: 'persist:emdash-browser-profile',
+    });
+  });
+
+  it('falls back to the default profile when restoring deleted profile ids', () => {
+    const store = new BrowserSessionStore();
+
+    store.restoreSession(
+      {
+        browserId: 'browser-1',
+        projectId: 'project-1',
+        workspaceId: 'workspace-1',
+        taskId: 'task-1',
+        profileId: 'work',
+        partition: 'persist:wrong',
+        currentUrl: 'about:blank',
+        title: '',
+        isLoading: false,
+        canGoBack: false,
+        canGoForward: false,
+        createdAt: 100,
+        updatedAt: 100,
+      },
+      [{ id: 'default', name: 'Default' }]
+    );
+
+    expect(store.getSession('browser-1')).toMatchObject({
+      profileId: 'default',
+      partition: 'persist:emdash-browser-profile',
+    });
+  });
+
+  it('migrates active sessions away from deleted profiles', () => {
+    const store = new BrowserSessionStore();
+    store.createSession({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+      profileId: 'work',
+    });
+
+    store.migrateProfileSessions('work', 'personal');
+
+    expect(store.getSession('browser-1')).toMatchObject({
+      profileId: 'personal',
+      partition: 'persist:emdash-browser-profile-personal',
     });
   });
 

@@ -1,5 +1,6 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import { browserSessionStore } from '@renderer/features/browser/browser-session-store';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
@@ -75,12 +76,14 @@ export function BrowserSettingsCard() {
       variant: 'destructive',
       onSuccess: () => {
         const nextProfiles = profiles.filter((candidate) => candidate.id !== profile.id);
+        const replacementProfileId =
+          selectedDefault === profile.id
+            ? (nextProfiles[0]?.id ?? DEFAULT_BROWSER_PROFILE_ID)
+            : selectedDefault;
+        browserSessionStore.migrateProfileSessions(profile.id, replacementProfileId);
         update({
           profiles: nextProfiles,
-          defaultProfileId:
-            selectedDefault === profile.id
-              ? (nextProfiles[0]?.id ?? DEFAULT_BROWSER_PROFILE_ID)
-              : selectedDefault,
+          defaultProfileId: replacementProfileId,
         });
         void rpc.browser.clearProfileStorage(profile.id);
       },
@@ -204,7 +207,9 @@ function makeProfileId(name: string, profiles: readonly BrowserProfile[]): strin
   let candidate = base;
   let suffix = 2;
   while (existingIds.has(candidate) || !isNamedBrowserProfileId(candidate)) {
-    candidate = `${base}-${suffix}`;
+    const suffixText = String(suffix);
+    const prefixLength = Math.max(1, 63 - suffixText.length);
+    candidate = `${base.slice(0, prefixLength)}-${suffixText}`;
     suffix += 1;
   }
   return candidate;

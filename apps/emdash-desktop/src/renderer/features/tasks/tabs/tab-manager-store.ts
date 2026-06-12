@@ -794,7 +794,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           this.entries.set(entry.tabId, entry);
           this.tabOrder.push(entry.tabId);
         } else if (t.kind === 'browser') {
-          browserSessionStore.restoreSession(t.session);
+          browserSessionStore.restoreSession(
+            t.session,
+            getAppSettingValueSnapshot('browser')?.profiles
+          );
           const entry = new BrowserTabEntry(t.browserId, t.isPreview, t.tabId);
           this.entries.set(entry.tabId, entry);
           this.tabOrder.push(entry.tabId);

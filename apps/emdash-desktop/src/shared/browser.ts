@@ -16,7 +16,7 @@ export const DEFAULT_BROWSER_PROFILES: BrowserProfile[] = [
 
 export type BrowserProfileSelection = string;
 
-export const BROWSER_PROFILE_PARTITION = browserProfilePartition(DEFAULT_BROWSER_PROFILE_ID);
+export const BROWSER_PROFILE_PARTITION = `${BROWSER_PARTITION_PREFIX}-profile`;
 
 export type BrowserNavigationProtocol = 'about:' | 'file:' | 'http:' | 'https:';
 
@@ -135,6 +135,7 @@ export function makeBrowserSessionIdentity(input: {
 }
 
 export function browserProfilePartition(profileId: string): string {
+  if (profileId === DEFAULT_BROWSER_PROFILE_ID) return BROWSER_PROFILE_PARTITION;
   return `${BROWSER_PARTITION_PREFIX}-profile-${profileId}`;
 }
 
@@ -165,13 +166,14 @@ export function isNamedBrowserProfileId(value: string): boolean {
 }
 
 export function normalizeBrowserProfileSelection(
-  profileId: string | undefined
+  profileId: string | undefined,
+  profiles?: readonly BrowserProfile[]
 ): BrowserProfileSelection {
-  if (
-    profileId === BROWSER_ISOLATED_PROFILE_ID ||
-    (profileId && isNamedBrowserProfileId(profileId))
-  ) {
+  if (profileId === BROWSER_ISOLATED_PROFILE_ID) {
     return profileId;
+  }
+  if (profileId && isNamedBrowserProfileId(profileId)) {
+    if (!profiles || profiles.some((profile) => profile.id === profileId)) return profileId;
   }
   return DEFAULT_BROWSER_PROFILE_ID;
 }
