@@ -615,7 +615,9 @@ describe('HostDependencyManager unknown install source', () => {
     expect(hostDepEvent).toBeDefined();
 
     const hostDep = (
-      hostDepEvent as { hostDependency: { installations: Array<{ id: string; source: { kind: string } }> } }
+      hostDepEvent as {
+        hostDependency: { installations: Array<{ id: string; source: { kind: string } }> };
+      }
     ).hostDependency;
     const autoInst = hostDep.installations.find((i) => i.id === 'auto');
     expect(autoInst).toBeDefined();
