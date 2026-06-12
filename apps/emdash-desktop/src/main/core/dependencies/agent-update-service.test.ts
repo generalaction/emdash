@@ -209,6 +209,85 @@ describe('AgentUpdateService', () => {
     vi.unstubAllGlobals();
   });
 
+  it('enrichHostDependency: unknown+package-manager => updateAvailable=false', async () => {
+    const pmDescriptor = {
+      id: 'amp',
+      updates: {
+        kind: 'supported' as const,
+        releaseSource: { kind: 'npm' as const, package: '@sourcegraph/amp' },
+        update: { kind: 'package-manager' as const },
+      },
+      updateHooks: undefined,
+    };
+    vi.mocked(getDependencyDescriptor).mockReturnValue(pmDescriptor as never);
+
+    const service = new AgentUpdateService();
+
+    // Manually prime the cache so we can call enrichHostDependency synchronously
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (service as any).latestVersionCache.set('amp', '2.0.0');
+
+    const hostDep = {
+      hostId: 'local',
+      dependencyId: 'amp' as DependencyId,
+      usedId: 'auto',
+      installations: [
+        {
+          id: 'auto',
+          source: { kind: 'unknown' as const },
+          status: 'available' as const,
+          path: '/opt/shims/amp',
+          version: '1.0.0',
+          latestVersion: null,
+          updateAvailable: false,
+        },
+      ],
+    };
+
+    const enriched = service.enrichHostDependency('amp' as DependencyId, hostDep);
+    expect(enriched.installations[0]?.latestVersion).toBe('2.0.0');
+    expect(enriched.installations[0]?.updateAvailable).toBe(false);
+  });
+
+  it('enrichHostDependency: unknown+cli => updateAvailable=true', async () => {
+    const cliDescriptor = {
+      id: 'claude',
+      updates: {
+        kind: 'supported' as const,
+        releaseSource: { kind: 'github' as const, repo: 'anthropics/claude-code' },
+        update: { kind: 'cli' as const, args: ['update'] },
+      },
+      updateHooks: undefined,
+    };
+    vi.mocked(getDependencyDescriptor).mockReturnValue(cliDescriptor as never);
+
+    const service = new AgentUpdateService();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (service as any).latestVersionCache.set('claude', '2.0.0');
+
+    const hostDep = {
+      hostId: 'local',
+      dependencyId: 'claude' as DependencyId,
+      usedId: 'auto',
+      installations: [
+        {
+          id: 'auto',
+          source: { kind: 'unknown' as const },
+          status: 'available' as const,
+          path: '/opt/shims/claude',
+          version: '1.0.0',
+          latestVersion: null,
+          updateAvailable: false,
+        },
+      ],
+    };
+
+    const enriched = service.enrichHostDependency('claude' as DependencyId, hostDep);
+    expect(enriched.installations[0]?.latestVersion).toBe('2.0.0');
+    expect(enriched.installations[0]?.updateAvailable).toBe(true);
+  });
+
   it('refreshLatestVersion invalidates cache and re-emits', async () => {
     vi.mocked(getDependencyDescriptor).mockReturnValue(npmDescriptor as never);
 
