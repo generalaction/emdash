@@ -11,7 +11,11 @@ import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
 import type { LinkedIssue } from '@shared/core/linked-issue';
-import { taskCreatedChannel, taskProvisionedChannel } from '@shared/core/tasks/taskEvents';
+import {
+  taskArchivedChannel,
+  taskCreatedChannel,
+  taskProvisionedChannel,
+} from '@shared/core/tasks/taskEvents';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -182,6 +186,10 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   async archiveTask(projectId: string, taskId: string): Promise<void> {
     await archiveTask(projectId, taskId);
     this._hooks.callHookBackground('task:archived', taskId, projectId);
+    // Notify open windows — headless initiators (automations, inbound MCP)
+    // have no renderer-side optimistic update. The renderer handler is
+    // idempotent for GUI-initiated archives.
+    events.emit(taskArchivedChannel, { taskId, projectId });
   }
 
   async restoreTask(id: string): Promise<void> {

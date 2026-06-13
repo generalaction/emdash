@@ -15,6 +15,7 @@ import { gitWorkspaceChangedChannel } from '@shared/core/git/gitEvents';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
 import {
   lifecycleScriptStatusChannel,
+  taskArchivedChannel,
   taskCreatedChannel,
   taskProvisionProgressChannel,
   taskProvisionedChannel,
@@ -109,6 +110,7 @@ export class TaskManagerStore {
   private _provisionPromises = new Map<string, Promise<void>>();
 
   private _unsubTaskCreated: (() => void) | null = null;
+  private _unsubTaskArchived: (() => void) | null = null;
   private _unsubPrUpdated: (() => void) | null = null;
   private _unsubPrSyncProgress: (() => void) | null = null;
   private _unsubGitWorkspaceChanged: (() => void) | null = null;
@@ -143,6 +145,28 @@ export class TaskManagerStore {
         terminalRegistry.acquire(task.id, this.projectId);
       });
     });
+
+    this._unsubTaskArchived = events.on(
+      taskArchivedChannel,
+      ({ taskId, projectId: evtProjectId }) => {
+        if (evtProjectId !== this.projectId) return;
+        const task = this.tasks.get(taskId);
+        // Idempotent: GUI-initiated archives already updated the store
+        // optimistically (archivedAt set) before this event arrives. Only
+        // headless archives (automations, inbound MCP) take this path.
+        if (!task || !isRegistered(task) || task.data.archivedAt) return;
+        // Apply the whole archive mutation in one action so reactions never
+        // observe an intermediate state (archivedAt set but the store not yet
+        // transitioned). The GUI path is split into two actions only because
+        // it must await the RPC between them; this headless path is fully
+        // synchronous, so it can collapse them.
+        runInAction(() => {
+          task.data.archivedAt = new Date().toISOString();
+          this._releaseTaskRegistries(taskId);
+          task.transitionToDryUnprovisioned({ ...task.data }, 'idle');
+        });
+      }
+    );
 
     this._unsubStatusUpdated = events.on(
       taskStatusUpdatedChannel,
@@ -656,6 +680,8 @@ export class TaskManagerStore {
   dispose(): void {
     this._unsubTaskCreated?.();
     this._unsubTaskCreated = null;
+    this._unsubTaskArchived?.();
+    this._unsubTaskArchived = null;
     this._unsubPrUpdated?.();
     this._unsubPrUpdated = null;
     this._unsubPrSyncProgress?.();
