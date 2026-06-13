@@ -80,6 +80,7 @@ export function useAppSettingsKey<K extends AppSettingsKey>(key: K) {
     isFieldOverridden: (field: keyof AppSettings[K]) =>
       !!(data?.overrides && field in data.overrides),
     update: updateMutation.mutate,
+    updateAsync: updateMutation.mutateAsync,
     reset: resetMutation.mutate,
     resetField: (field: keyof AppSettings[K]) => resetFieldMutation.mutate(field),
   };

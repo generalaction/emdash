@@ -1,7 +1,9 @@
 import { Ellipsis, Plus } from 'lucide-react';
 import { useState } from 'react';
+import { browserControlsRegistry } from '@renderer/features/browser/browser-controls-registry';
 import { browserSessionStore } from '@renderer/features/browser/browser-session-store';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -32,7 +34,13 @@ import {
 import { SettingRow } from './SettingRow';
 
 export function BrowserSettingsCard() {
-  const { value: browserSettings, update, isLoading, isSaving } = useAppSettingsKey('browser');
+  const {
+    value: browserSettings,
+    update,
+    updateAsync,
+    isLoading,
+    isSaving,
+  } = useAppSettingsKey('browser');
   const showConfirm = useShowModal('confirmActionModal');
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -71,7 +79,7 @@ export function BrowserSettingsCard() {
       confirmLabel: 'Clear Storage',
       variant: 'destructive',
       onSuccess: () => {
-        void rpc.browser.clearProfileStorage(profile.id);
+        void clearProfileStorageAndReload(profile.id);
       },
     });
   };
@@ -90,12 +98,12 @@ export function BrowserSettingsCard() {
           selectedDefault === profile.id
             ? (nextProfiles[0]?.id ?? DEFAULT_BROWSER_PROFILE_ID)
             : selectedDefault;
-        browserSessionStore.migrateProfileSessions(profile.id, replacementProfileId);
-        update({
-          profiles: nextProfiles,
-          defaultProfileId: replacementProfileId,
+        void deleteProfileAfterStorageClear({
+          deletedProfileId: profile.id,
+          replacementProfileId,
+          nextProfiles,
+          updateAsync,
         });
-        void rpc.browser.clearProfileStorage(profile.id);
       },
     });
   };
@@ -229,6 +237,79 @@ export function BrowserSettingsCard() {
       </div>
     </div>
   );
+}
+
+async function clearProfileStorageAndReload(profileId: string): Promise<void> {
+  try {
+    const result = await rpc.browser.clearProfileStorage(profileId);
+    if (!result.success) {
+      toast({
+        title: 'Could not clear browser storage',
+        description: 'The browser profile no longer exists or could not be cleared.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    reloadBrowserSessionsForProfile(profileId);
+  } catch (error) {
+    toast({
+      title: 'Could not clear browser storage',
+      description: errorMessage(error),
+      variant: 'destructive',
+    });
+  }
+}
+
+async function deleteProfileAfterStorageClear({
+  deletedProfileId,
+  replacementProfileId,
+  nextProfiles,
+  updateAsync,
+}: {
+  deletedProfileId: string;
+  replacementProfileId: string;
+  nextProfiles: BrowserProfile[];
+  updateAsync: (partial: { profiles: BrowserProfile[]; defaultProfileId: string }) => Promise<void>;
+}): Promise<void> {
+  let storageCleared = false;
+  try {
+    const clearResult = await rpc.browser.clearProfileStorage(deletedProfileId);
+    if (!clearResult.success) {
+      toast({
+        title: 'Could not delete browser profile',
+        description: 'The profile storage could not be cleared, so the profile was kept.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    storageCleared = true;
+    await updateAsync({
+      profiles: nextProfiles,
+      defaultProfileId: replacementProfileId,
+    });
+    browserSessionStore.migrateProfileSessions(deletedProfileId, replacementProfileId);
+  } catch (error) {
+    if (storageCleared) reloadBrowserSessionsForProfile(deletedProfileId);
+    toast({
+      title: 'Could not delete browser profile',
+      description: storageCleared
+        ? `Storage was cleared, but the profile is still listed. ${errorMessage(error)}`
+        : errorMessage(error),
+      variant: 'destructive',
+    });
+  }
+}
+
+function reloadBrowserSessionsForProfile(profileId: string): void {
+  for (const session of browserSessionStore.activeSessions) {
+    if (session.profileId !== profileId) continue;
+    browserControlsRegistry.get(session.browserId)?.adapter?.reload();
+  }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function makeProfileId(name: string, profiles: readonly BrowserProfile[]): string {

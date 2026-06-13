@@ -169,7 +169,10 @@ export function normalizeBrowserProfileSelection(
   if (profileId && isNamedBrowserProfileId(profileId)) {
     if (!profiles || profiles.some((profile) => profile.id === profileId)) return profileId;
   }
-  return DEFAULT_BROWSER_PROFILE_ID;
+  return (
+    profiles?.find((profile) => isNamedBrowserProfileId(profile.id))?.id ??
+    DEFAULT_BROWSER_PROFILE_ID
+  );
 }
 
 export function browserProfileLabel(

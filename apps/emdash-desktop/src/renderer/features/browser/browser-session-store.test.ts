@@ -111,7 +111,7 @@ describe('BrowserSessionStore', () => {
     });
   });
 
-  it('falls back to the default profile when restoring deleted profile ids', () => {
+  it('falls back to the first available profile when restoring deleted profile ids', () => {
     const store = new BrowserSessionStore();
 
     store.restoreSession(
@@ -130,12 +130,12 @@ describe('BrowserSessionStore', () => {
         createdAt: 100,
         updatedAt: 100,
       },
-      [{ id: 'default', name: 'Default' }]
+      [{ id: 'personal', name: 'Personal' }]
     );
 
     expect(store.getSession('browser-1')).toMatchObject({
-      profileId: 'default',
-      partition: 'persist:emdash-browser-profile',
+      profileId: 'personal',
+      partition: 'persist:emdash-browser-profile-personal',
     });
   });
 

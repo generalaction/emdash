@@ -5,6 +5,7 @@ import {
   createBrowserSessionSnapshot,
   makeIsolatedBrowserPartition,
   makeBrowserSessionIdentity,
+  normalizeBrowserProfileSelection,
   normalizeBrowserUrl,
 } from './browser';
 
@@ -85,6 +86,17 @@ describe('normalizeBrowserUrl', () => {
       url: 'file:///tmp/index.html',
       protocol: 'file:',
     });
+  });
+});
+
+describe('browser profile selection', () => {
+  it('falls back to the first available profile when default was deleted', () => {
+    expect(
+      normalizeBrowserProfileSelection('missing', [
+        { id: 'personal', name: 'Personal' },
+        { id: 'work', name: 'Work' },
+      ])
+    ).toBe('personal');
   });
 });
 
