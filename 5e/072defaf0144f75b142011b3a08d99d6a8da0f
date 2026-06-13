@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/main/core/workspaces/workspace-bootstrap-service.ts
+  s_ae28492ed84e78::t_2eab90fc333b90 2,307-308,310-311,313
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "5e072defaf0144f75b142011b3a08d99d6a8da0f",
+  "prompts": {},
+  "sessions": {
+    "s_ae28492ed84e78": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ec27b-9e12-708d-88e2-8500fb84bc0d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
