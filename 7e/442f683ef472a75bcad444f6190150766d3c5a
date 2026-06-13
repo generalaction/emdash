@@ -1,0 +1,37 @@
+apps/emdash-desktop/src/main/core/agent-hooks/claude-trust-service.ts
+  s_bcc88e53565b80::t_5e9acd461c5365 2,6-10,16,41-47,67-73,79,86,110-125
+apps/emdash-desktop/src/main/core/agent-hooks/pi-trust-service.ts
+  s_bcc88e53565b80::t_c0afebf1f8fe69 4,8-12,41-46,65-71,88-101,129,132-135
+  s_86c9f2b43b3eaf::t_2efb6f96f32954 130,138-142,144-146
+apps/emdash-desktop/src/main/core/agent-hooks/json-workspace-trust-config.ts
+  s_bcc88e53565b80::t_b63d0cbfa06ec3 1-130,133-240
+  s_bcc88e53565b80::t_aa41549cb057be 131-132
+apps/emdash-desktop/src/main/core/agent-hooks/pi-trust-service.test.ts
+  s_bcc88e53565b80::t_3b2d3973da0b87 270,275
+  s_bcc88e53565b80::t_b7e34085993205 15,26,78
+  s_bcc88e53565b80::t_50e06d38706c12 132-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "7e442f683ef472a75bcad444f6190150766d3c5a",
+  "prompts": {},
+  "sessions": {
+    "s_86c9f2b43b3eaf": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ec231-33f7-71ce-a01a-3c919952b27e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_bcc88e53565b80": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ec22e-d375-7969-9fca-60de3e44415f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
