@@ -1,0 +1,45 @@
+apps/emdash-desktop/src/main/core/conversations/impl/conversation-provider-respawn.test.ts
+  s_e9c5a8075c6313::t_96974d6b7a6c16 188-192
+apps/emdash-desktop/src/main/core/agent-hooks/workspace-trust-service.ts
+  s_e9c5a8075c6313::t_7bfd1d2de23686 6,47
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_e9c5a8075c6313::t_dbdbffceb014ea 13,110,143
+apps/emdash-desktop/src/main/core/agent-hooks/pi-trust-service.test.ts
+  s_f04f0966c9fd1d::t_f43b52875586be 15,25,76,136-164
+  s_e9c5a8075c6313::t_f44ad9d527295a 1-14,16-24,26-75,77-135,165-270
+apps/emdash-desktop/src/main/core/conversations/impl/provider-env.ts
+  s_e9c5a8075c6313::t_dbdbffceb014ea 10-14,22
+apps/emdash-desktop/src/main/core/conversations/impl/provider-env.test.ts
+  s_e9c5a8075c6313::t_dbdbffceb014ea 44,46-58
+apps/emdash-desktop/src/main/core/conversations/impl/local-conversation.ts
+  s_e9c5a8075c6313::t_dbdbffceb014ea 119,151
+apps/emdash-desktop/src/renderer/features/settings/components/TaskSettingsRows.tsx
+  s_e9c5a8075c6313::t_7bfd1d2de23686 67
+apps/emdash-desktop/src/main/core/agent-hooks/pi-trust-service.ts
+  s_e9c5a8075c6313::t_7bfd1d2de23686 1-41,43-227
+  s_f04f0966c9fd1d::t_ab42d953d7732d 42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "099d4fba5ad8cfc028adf270b464e590c1d1f474",
+  "prompts": {},
+  "sessions": {
+    "s_e9c5a8075c6313": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ebfb0-c69d-70b3-92ef-8707570c4b0b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_f04f0966c9fd1d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ec1a5-40fa-7190-a930-63ce44d039b4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
