@@ -22,11 +22,7 @@ import {
   setTabActiveIndex as tabUtilsSetTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
-import {
-  BROWSER_ISOLATED_PROFILE_ID,
-  DEFAULT_BROWSER_PROFILE_ID,
-  type BrowserSessionSnapshot,
-} from '@shared/browser';
+import { normalizeBrowserProfileSelection, type BrowserSessionSnapshot } from '@shared/browser';
 import { refsEqual, type GitChangeStatus, type GitObjectRef } from '@shared/core/git/git';
 import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
@@ -580,12 +576,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
 
   openBrowser(initialUrl?: string): void {
     const browserSettings = getAppSettingValueSnapshot('browser');
-    const defaultProfileId = browserSettings?.defaultProfileId ?? DEFAULT_BROWSER_PROFILE_ID;
-    const profileId =
-      defaultProfileId === BROWSER_ISOLATED_PROFILE_ID ||
-      browserSettings?.profiles.some((profile) => profile.id === defaultProfileId)
-        ? defaultProfileId
-        : DEFAULT_BROWSER_PROFILE_ID;
+    const profileId = normalizeBrowserProfileSelection(
+      browserSettings?.defaultProfileId,
+      browserSettings?.profiles
+    );
     const session = browserSessionStore.createSession({
       projectId: this._projectId,
       workspaceId: this._workspaceId,

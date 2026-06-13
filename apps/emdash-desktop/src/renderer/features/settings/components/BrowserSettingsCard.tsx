@@ -26,6 +26,7 @@ import {
   DEFAULT_BROWSER_PROFILES,
   browserProfileLabel,
   isNamedBrowserProfileId,
+  normalizeBrowserProfileSelection,
   type BrowserProfile,
 } from '@shared/browser';
 import { SettingRow } from './SettingRow';
@@ -37,10 +38,10 @@ export function BrowserSettingsCard() {
   const [isAdding, setIsAdding] = useState(false);
 
   const profiles = browserSettings?.profiles ?? DEFAULT_BROWSER_PROFILES;
-  const defaultProfileId = browserSettings?.defaultProfileId ?? DEFAULT_BROWSER_PROFILE_ID;
-  const selectedDefault = isAvailableProfile(defaultProfileId, profiles)
-    ? defaultProfileId
-    : DEFAULT_BROWSER_PROFILE_ID;
+  const selectedDefault = normalizeBrowserProfileSelection(
+    browserSettings?.defaultProfileId,
+    profiles
+  );
   const disabled = isLoading || isSaving;
 
   const addProfile = (name: string) => {
@@ -227,13 +228,6 @@ export function BrowserSettingsCard() {
         </div>
       </div>
     </div>
-  );
-}
-
-function isAvailableProfile(profileId: string, profiles: readonly BrowserProfile[]): boolean {
-  return (
-    profileId === BROWSER_ISOLATED_PROFILE_ID ||
-    profiles.some((profile) => profile.id === profileId)
   );
 }
 

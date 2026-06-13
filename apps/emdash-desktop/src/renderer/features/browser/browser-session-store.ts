@@ -62,7 +62,7 @@ export class BrowserSessionStore {
   }
 
   restoreSession(
-    snapshot: BrowserSessionSnapshot & { profileId?: BrowserProfileSelection },
+    snapshot: BrowserSessionSnapshot,
     profiles?: readonly BrowserProfile[]
   ): BrowserSessionSnapshot {
     const normalized = normalizeBrowserUrl(snapshot.currentUrl);
@@ -105,9 +105,9 @@ export class BrowserSessionStore {
     fromProfileId: BrowserProfileSelection,
     toProfileId: BrowserProfileSelection
   ): void {
+    const profileId = normalizeBrowserProfileSelection(toProfileId);
     for (const [browserId, session] of this.sessions) {
       if (session.profileId !== fromProfileId) continue;
-      const profileId = normalizeBrowserProfileSelection(toProfileId);
       this.sessions.set(browserId, {
         ...session,
         profileId,

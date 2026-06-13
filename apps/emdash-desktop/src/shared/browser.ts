@@ -155,12 +155,8 @@ export function browserPartitionForProfile(
   return browserProfilePartition(profileId);
 }
 
-export function isBrowserProfileId(value: string): boolean {
-  return /^[a-z0-9][a-z0-9-]{0,63}$/.test(value);
-}
-
 export function isNamedBrowserProfileId(value: string): boolean {
-  return value !== BROWSER_ISOLATED_PROFILE_ID && isBrowserProfileId(value);
+  return value !== BROWSER_ISOLATED_PROFILE_ID && /^[a-z0-9][a-z0-9-]{0,63}$/.test(value);
 }
 
 export function normalizeBrowserProfileSelection(
