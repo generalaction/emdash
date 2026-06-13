@@ -1,0 +1,61 @@
+apps/emdash-desktop/src/shared/projects.ts
+  s_479d546524996b::t_e076dd43b51022 82
+apps/emdash-desktop/src/shared/core/projects/setup-suggestion.ts
+  s_2a97c16cf5aab7::t_2b303b98e0697b 1-13
+apps/emdash-desktop/src/renderer/features/projects/components/setup-suggestion/setup-suggestion-toast.tsx
+  s_2a97c16cf5aab7::t_1360f324d4dcd4 146-159,161-170
+  s_2a97c16cf5aab7::t_1e4641b45d0f76 74
+  s_2a97c16cf5aab7::t_17fb57ae262cf4 8
+  s_2a97c16cf5aab7::t_a14976fa6d747d 111-120
+  s_2a97c16cf5aab7::t_2a2daedf72dde7 36-38,104-107
+  s_2a97c16cf5aab7::t_53beb1ede4cecd 3,5-7,9-11,15-34,39-69,71-73,75,93-103,109-110,175-179
+  s_2a97c16cf5aab7::t_13ab760ed59754 76-79,84-92
+  s_2a97c16cf5aab7::t_a3f9a1d5d2ac7b 70,123-124,128,174
+  s_2a97c16cf5aab7::t_e6bdc97a86aeee 4,12-14
+  s_2a97c16cf5aab7::t_5305e934d1eb38 1
+  s_2a97c16cf5aab7::t_78c74f1cf43ffd 2
+  s_2a97c16cf5aab7::t_aefb24bbd60805 108,121-122,125-127,129-145,171-173
+  s_479d546524996b::t_345672b104ca62 80-83
+  s_2a97c16cf5aab7::t_75e464571fdabf 160
+  s_2a97c16cf5aab7::t_6ac167376c1c1a 35
+apps/emdash-desktop/src/main/core/projects/setup-suggestion/suggest-setup-script.ts
+  s_2a97c16cf5aab7::t_78c74f1cf43ffd 11
+  s_2a97c16cf5aab7::t_6fa1c07fdd1387 1-10,12-32
+apps/emdash-desktop/src/renderer/features/projects/components/main-panel/active-project.tsx
+  s_2a97c16cf5aab7::t_e5cac9a99f54a7 4
+  s_2a97c16cf5aab7::t_b11e072a62394d 78
+apps/emdash-desktop/src/main/core/projects/settings/project-settings-service.ts
+  s_2a97c16cf5aab7::t_c216d372a2a40f 77-89,94-104
+  s_479d546524996b::t_0ffd217538732f 90-93
+apps/emdash-desktop/src/main/core/projects/setup-suggestion/detect-setup-suggestion.ts
+  s_2a97c16cf5aab7::t_52fa58012b216a 1-84
+apps/emdash-desktop/src/main/core/projects/controller.ts
+  s_2a97c16cf5aab7::t_3f6bfc8706ea96 9,16
+  s_2a97c16cf5aab7::t_70ed0a7cdcfdb2 17-18
+apps/emdash-desktop/src/main/core/projects/setup-suggestion/detect-setup-suggestion.test.ts
+  s_2a97c16cf5aab7::t_a3acccdf221ab0 1-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "8fc783305c398721aa403a7cec9378496abbde80",
+  "prompts": {},
+  "sessions": {
+    "s_2a97c16cf5aab7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6a2ef07f-7734-4930-bfb6-00cf7d9a5019",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_479d546524996b": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ec1c8-ca3d-76d9-abd9-99124cf41af0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
