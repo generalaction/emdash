@@ -198,7 +198,7 @@ async function writeRemoteConfigAtomic(
 async function acquireLocalFileLock(configPath: string): Promise<() => Promise<void>> {
   const lockPath = `${configPath}.lock`;
   await fs.mkdir(path.dirname(configPath), { recursive: true });
-  await retryLock(() => fs.mkdir(lockPath));
+  await retryLock(() => fs.mkdir(lockPath), isNodeAlreadyExists);
   return async () => {
     await fs.rmdir(lockPath).catch(() => undefined);
   };
@@ -210,25 +210,40 @@ async function acquireRemoteFileLock(
 ): Promise<() => Promise<void>> {
   const lockPath = `${configPath}.lock`;
   await ctx.exec('mkdir', ['-p', path.posix.dirname(configPath)]);
-  await retryLock(() => ctx.exec('mkdir', [lockPath]).then(() => undefined));
+  await retryLock(
+    () => ctx.exec('mkdir', [lockPath]).then(() => undefined),
+    isRemoteDirectoryAlreadyExists
+  );
   return async () => {
     await ctx.exec('rmdir', [lockPath]).catch(() => undefined);
   };
 }
 
-async function retryLock(acquire: () => Promise<void>): Promise<void> {
+async function retryLock(
+  acquire: () => Promise<void>,
+  shouldRetry: (error: unknown) => boolean
+): Promise<void> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= LOCK_RETRY_ATTEMPTS; attempt += 1) {
     try {
       await acquire();
       return;
     } catch (error: unknown) {
+      if (!shouldRetry(error)) throw error;
       lastError = error;
       if (attempt === LOCK_RETRY_ATTEMPTS) break;
       await new Promise((resolve) => setTimeout(resolve, LOCK_RETRY_DELAY_MS));
     }
   }
   throw lastError;
+}
+
+function isNodeAlreadyExists(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException)?.code === 'EEXIST';
+}
+
+function isRemoteDirectoryAlreadyExists(error: unknown): boolean {
+  return error instanceof Error && /file exists/i.test(error.message);
 }
 
 function isNodeNotFound(error: unknown): boolean {
