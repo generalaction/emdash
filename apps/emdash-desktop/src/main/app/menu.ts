@@ -1,41 +1,7 @@
-import { app, clipboard, Menu, shell } from 'electron';
+import { app, Menu } from 'electron';
+import { performCompactMenuAction } from '@main/app/menu-action-context';
 import { events } from '@main/lib/events';
-import { telemetryService } from '@main/lib/telemetry';
-import {
-  menuCheckForUpdatesChannel,
-  menuCloseTabChannel,
-  menuGiveFeedbackChannel,
-  menuOpenSettingsChannel,
-  menuQuitRequestedChannel,
-  menuRedoChannel,
-  menuUndoChannel,
-} from '@shared/events/appEvents';
-import { EMDASH_DOCS_URL, EMDASH_ISSUES_NEW_URL, EMDASH_RELEASES_URL } from '@shared/urls';
-import { getMainWindow } from './window';
-
-function copyInstallationId(): void {
-  const instanceId = telemetryService.getInstanceId() ?? 'unavailable';
-  const lines = [
-    `Emdash ${app.getVersion()}`,
-    `Installation ID: ${instanceId}`,
-    `Platform: ${process.platform} ${process.arch}`,
-    `Electron: ${process.versions.electron}`,
-  ];
-  clipboard.writeText(lines.join('\n'));
-}
-
-function requestQuit(): void {
-  const win = getMainWindow();
-  if (!win || win.webContents.isLoading()) {
-    app.quit();
-    return;
-  }
-
-  if (win.isMinimized()) win.restore();
-  win.show();
-  win.focus();
-  events.emit(menuQuitRequestedChannel, undefined);
-}
+import { menuCloseTabChannel } from '@shared/events/appEvents';
 
 export function setupApplicationMenu(): void {
   const isMac = process.platform === 'darwin';
@@ -55,11 +21,11 @@ export function setupApplicationMenu(): void {
               {
                 label: 'Settings\u2026',
                 accelerator: 'CmdOrCtrl+,',
-                click: () => events.emit(menuOpenSettingsChannel, undefined),
+                click: () => void performCompactMenuAction('settings'),
               },
               {
                 label: 'Check for Updates\u2026',
-                click: () => events.emit(menuCheckForUpdatesChannel, undefined),
+                click: () => void performCompactMenuAction('check-for-updates'),
               },
               { type: 'separator' as const },
               { role: 'services' as const },
@@ -71,7 +37,7 @@ export function setupApplicationMenu(): void {
               {
                 label: `Quit ${app.name}`,
                 accelerator: 'CmdOrCtrl+Q',
-                click: requestQuit,
+                click: () => void performCompactMenuAction('quit'),
               },
             ],
           } as Electron.MenuItemConstructorOptions,
@@ -87,7 +53,7 @@ export function setupApplicationMenu(): void {
               {
                 label: 'Settings\u2026',
                 accelerator: 'CmdOrCtrl+,',
-                click: () => events.emit(menuOpenSettingsChannel, undefined),
+                click: () => void performCompactMenuAction('settings'),
               },
               { type: 'separator' as const },
             ]
@@ -101,7 +67,7 @@ export function setupApplicationMenu(): void {
           : {
               label: 'Quit',
               accelerator: 'CmdOrCtrl+Q',
-              click: requestQuit,
+              click: () => void performCompactMenuAction('quit'),
             },
       ],
     },
@@ -112,12 +78,12 @@ export function setupApplicationMenu(): void {
         {
           label: 'Undo',
           accelerator: 'CmdOrCtrl+Z',
-          click: () => events.emit(menuUndoChannel, undefined),
+          click: () => void performCompactMenuAction('undo'),
         },
         {
           label: 'Redo',
           accelerator: isMac ? 'Shift+CmdOrCtrl+Z' : 'CmdOrCtrl+Y',
-          click: () => events.emit(menuRedoChannel, undefined),
+          click: () => void performCompactMenuAction('redo'),
         },
         { type: 'separator' as const },
         { role: 'cut' as const },
@@ -154,22 +120,18 @@ export function setupApplicationMenu(): void {
           ? [
               {
                 label: 'Check for Updates\u2026',
-                click: () => events.emit(menuCheckForUpdatesChannel, undefined),
+                click: () => void performCompactMenuAction('check-for-updates'),
               },
               { type: 'separator' as const },
             ]
           : []),
         {
           label: 'Docs',
-          click: () => {
-            void shell.openExternal(EMDASH_DOCS_URL);
-          },
+          click: () => void performCompactMenuAction('docs'),
         },
         {
           label: 'Changelog',
-          click: () => {
-            void shell.openExternal(EMDASH_RELEASES_URL);
-          },
+          click: () => void performCompactMenuAction('changelog'),
         },
         { type: 'separator' as const },
         {
@@ -177,19 +139,17 @@ export function setupApplicationMenu(): void {
           submenu: [
             {
               label: 'Report Issue\u2026',
-              click: () => {
-                void shell.openExternal(EMDASH_ISSUES_NEW_URL);
-              },
+              click: () => void performCompactMenuAction('report-issue'),
             },
             {
               label: 'Copy Installation ID',
-              click: copyInstallationId,
+              click: () => void performCompactMenuAction('copy-installation-id'),
             },
           ],
         },
         {
           label: 'Give Feedback',
-          click: () => events.emit(menuGiveFeedbackChannel, undefined),
+          click: () => void performCompactMenuAction('give-feedback'),
         },
       ],
     },

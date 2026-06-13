@@ -9,6 +9,9 @@ import {
 } from '@renderer/lib/layout/navigation-provider';
 import { WorkspaceContentLayout, WorkspaceLayout } from '@renderer/lib/layout/workspace-layout';
 import { Toaster } from '@renderer/lib/ui/toaster';
+import { CompactMenuBar } from './compact-menu-bar';
+
+const isMac = navigator.platform.toUpperCase().includes('MAC');
 
 export function Workspace() {
   useTheme();
@@ -16,20 +19,23 @@ export function Workspace() {
   const { wrapParams } = useWorkspaceWrapParams();
 
   return (
-    <>
+    <div className="flex h-screen flex-col">
       <AppKeyboardShortcuts />
       <CommandShortcutBinder />
       <MonacoKeyboardBridge />
-      <WorkspaceLayout
-        leftSidebar={<LeftSidebar />}
-        mainContent={
-          <WrapView {...wrapParams}>
-            <WorkspaceViewContent />
-          </WrapView>
-        }
-      />
+      {!isMac && <CompactMenuBar />}
+      <div className={`flex-1 overflow-hidden ${!isMac ? 'pt-10' : ''}`}>
+        <WorkspaceLayout
+          leftSidebar={<LeftSidebar />}
+          mainContent={
+            <WrapView {...wrapParams}>
+              <WorkspaceViewContent />
+            </WrapView>
+          }
+        />
+      </div>
       <Toaster />
-    </>
+    </div>
   );
 }
 

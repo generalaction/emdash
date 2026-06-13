@@ -12,6 +12,7 @@ import { telemetryService } from '@main/lib/telemetry';
 import { registerExternalLinkHandlers } from '@main/utils/externalLinks';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { APP_ORIGIN } from './protocol';
+import { getWindowChromeOptions } from './window-chrome';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -22,6 +23,7 @@ export function createMainWindow(): BrowserWindow {
     minWidth: 700,
     minHeight: 500,
     title: PRODUCT_NAME,
+    ...getWindowChromeOptions(process.platform),
     // In production, electron-builder injects the icon from the app bundle.
     ...(import.meta.env.DEV && { icon: appIcon }),
     webPreferences: {
@@ -35,15 +37,12 @@ export function createMainWindow(): BrowserWindow {
       // __dirname resolves to out/main/ at runtime; preload is at out/preload/index.mjs
       preload: join(__dirname, '../preload/index.mjs'),
     },
-    ...(process.platform === 'darwin'
-      ? {
-          titleBarStyle: 'hiddenInset',
-          trafficLightPosition: { x: 10, y: 10 },
-          acceptFirstMouse: true,
-        }
-      : {}),
     show: false,
   });
+
+  if (process.platform !== 'darwin') {
+    mainWindow.setMenuBarVisibility(false);
+  }
 
   if (import.meta.env.DEV) {
     void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL!);
