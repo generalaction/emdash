@@ -1,0 +1,29 @@
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-manager.ts
+  s_498eb4b088e0ef::t_bc0ae93e095a0e 90-93,458
+apps/emdash-desktop/src/renderer/features/tasks/main-panel.tsx
+  s_498eb4b088e0ef::t_d5a47f9487c17e 1,14,16,25,60-64,72-82
+apps/emdash-desktop/src/shared/core/tasks/tasks.ts
+  s_498eb4b088e0ef::t_534c59e442f0f1 134-140
+apps/emdash-desktop/src/main/core/workspaces/workspace-bootstrap-service.ts
+  s_498eb4b088e0ef::t_4bee6e3029d758 2,236,243-253
+  s_498eb4b088e0ef::t_76203887255ff3 295-313
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-store.ts
+  s_498eb4b088e0ef::t_c5475ccf35a45d 124,139,152
+  s_498eb4b088e0ef::t_f02fb106c02903 8,45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "f998fc451b8fb799182f537a2368a7b01cf69c5f",
+  "prompts": {},
+  "sessions": {
+    "s_498eb4b088e0ef": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ebf63-23fd-7dc1-bed3-95b39a523b79",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
