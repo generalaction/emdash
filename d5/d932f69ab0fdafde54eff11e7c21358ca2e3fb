@@ -1,0 +1,30 @@
+apps/emdash-desktop/src/renderer/features/settings/components/BrowserSettingsCard.tsx
+  s_6c1f1bb3ad6060::t_7cc56d458de670 274,276-286,293,296-298
+  s_6c1f1bb3ad6060::t_7a5cdce325961f 3,6,82,102-105,242-262,264-273,275,287-292,294-295,299-312
+  s_6c1f1bb3ad6060::t_8c225d7e52c348 101,263
+  s_6c1f1bb3ad6060::t_ecbb584680e0c8 37-43
+apps/emdash-desktop/src/renderer/features/browser/browser-session-store.test.ts
+  s_6c1f1bb3ad6060::t_01a72542e3154e 114,133,137-138
+apps/emdash-desktop/src/shared/browser.test.ts
+  s_6c1f1bb3ad6060::t_4c35c912ae76f4 8,92-99
+apps/emdash-desktop/src/shared/browser.ts
+  s_6c1f1bb3ad6060::t_ecbb584680e0c8 172-175
+apps/emdash-desktop/src/renderer/features/settings/use-app-settings-key.tsx
+  s_6c1f1bb3ad6060::t_bde20fc6ad173c 83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "d5d932f69ab0fdafde54eff11e7c21358ca2e3fb",
+  "prompts": {},
+  "sessions": {
+    "s_6c1f1bb3ad6060": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ebfb0-9b74-7330-99f8-820bff535acf",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
