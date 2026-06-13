@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_36b0055209d346::t_38de15b83dd209 150-163,166-177
+  s_36b0055209d346::t_ca8a2b4a384a93 367-440
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_36b0055209d346::t_ca8a2b4a384a93 296-347
+pnpm-lock.yaml
+  s_36b0055209d346::t_ec0c90a5b115bb 13-15,300-315,2254-2300,6738-6767
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "309e434922295cd9e5d8842eba1f0d6eeee87ca1",
+  "prompts": {},
+  "sessions": {
+    "s_36b0055209d346": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ec226-3d6a-7a0c-a28c-91bd1f1f07f6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
