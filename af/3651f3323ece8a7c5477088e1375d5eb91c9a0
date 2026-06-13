@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/main/core/agent-hooks/pi-trust-service.test.ts
+  s_86c9f2b43b3eaf::t_0bda36833dac86 215-256
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "af3651f3323ece8a7c5477088e1375d5eb91c9a0",
+  "prompts": {},
+  "sessions": {
+    "s_86c9f2b43b3eaf": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ec231-33f7-71ce-a01a-3c919952b27e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
