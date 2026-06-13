@@ -281,6 +281,7 @@ describe('ClaudeTrustService', () => {
     const ctx: IExecutionContext = {
       root: undefined,
       supportsLocalSpawn: false,
+      isWindows: false,
       exec: vi.fn().mockImplementation(async (command: string, args: string[] = []) => {
         if (command === 'sh') {
           return { stdout: '/home/remote-user', stderr: '' };

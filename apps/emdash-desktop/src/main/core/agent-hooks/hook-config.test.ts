@@ -13,6 +13,7 @@ vi.mock('@main/core/dependencies/probe', () => ({
 function makeExecutionContext(): IExecutionContext {
   return {
     supportsLocalSpawn: false,
+    isWindows: false,
     exec: vi.fn(async () => ({ stdout: '', stderr: '' })),
     execStreaming: vi.fn(async () => {}),
     dispose: vi.fn(),

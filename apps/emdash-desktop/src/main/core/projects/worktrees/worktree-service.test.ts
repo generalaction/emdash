@@ -99,6 +99,7 @@ describe('WorktreeService', () => {
     const remoteCtx = {
       root: '/remote/repo',
       supportsLocalSpawn: false,
+      isWindows: false,
       exec: vi.fn().mockResolvedValue({ stdout: '', stderr: '' }),
       execStreaming: vi.fn().mockResolvedValue(undefined),
       dispose: vi.fn(),
@@ -149,6 +150,7 @@ describe('WorktreeService', () => {
       const ctx: IExecutionContext = {
         root: repoDir,
         supportsLocalSpawn: false,
+        isWindows: false,
         exec,
         execStreaming: async () => {},
         dispose: () => {},
@@ -228,6 +230,7 @@ describe('WorktreeService', () => {
       const ctx: IExecutionContext = {
         root: repoDir,
         supportsLocalSpawn: false,
+        isWindows: false,
         exec,
         execStreaming: async () => {},
         dispose: () => {},
@@ -306,6 +309,7 @@ describe('WorktreeService', () => {
       const ctx: IExecutionContext = {
         root: repoDir,
         supportsLocalSpawn: false,
+        isWindows: false,
         exec,
         execStreaming: async () => {},
         dispose: () => {},
@@ -431,6 +435,7 @@ describe('WorktreeService', () => {
       const ctx: IExecutionContext = {
         root: repoDir,
         supportsLocalSpawn: false,
+        isWindows: false,
         exec,
         execStreaming: async () => {},
         dispose: () => {},

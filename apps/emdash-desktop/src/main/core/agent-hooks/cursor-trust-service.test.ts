@@ -67,6 +67,7 @@ function makeCtx(): IExecutionContext {
   return {
     root: undefined,
     supportsLocalSpawn: false,
+    isWindows: false,
     exec: vi.fn().mockImplementation(async (command: string) => {
       if (command === 'sh') return { stdout: '/home/remote-user', stderr: '' };
       return { stdout: '', stderr: '' };

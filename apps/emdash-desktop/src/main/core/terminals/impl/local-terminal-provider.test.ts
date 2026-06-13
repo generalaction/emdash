@@ -43,6 +43,7 @@ const terminal: Terminal = {
 
 const ctx = {
   supportsLocalSpawn: true,
+  isWindows: false,
   exec: vi.fn(),
   execStreaming: vi.fn(),
   dispose: vi.fn(),

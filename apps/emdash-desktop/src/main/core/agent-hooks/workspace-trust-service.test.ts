@@ -19,6 +19,7 @@ function makeCtx(): IExecutionContext {
   return {
     root: undefined,
     supportsLocalSpawn: false,
+    isWindows: false,
     exec: vi.fn(),
     execStreaming: vi.fn(),
     dispose: vi.fn(),

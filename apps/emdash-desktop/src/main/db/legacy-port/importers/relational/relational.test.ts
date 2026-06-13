@@ -677,6 +677,7 @@ describe('legacy-port table passes', () => {
     const tmuxExec = {
       root: undefined,
       supportsLocalSpawn: false,
+      isWindows: false,
       exec: async (command: string, args: string[] = []) => {
         calls.push({ command, args });
         if (

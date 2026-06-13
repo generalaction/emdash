@@ -49,6 +49,7 @@ function makeContext(exec: MockExec, root = '/repo'): IExecutionContext {
   return {
     root,
     supportsLocalSpawn: false,
+    isWindows: false,
     exec: (_cmd, args = [], _opts) => exec(_cmd, args),
     execStreaming: async (_cmd, _args, onChunk) => {
       onChunk('');
