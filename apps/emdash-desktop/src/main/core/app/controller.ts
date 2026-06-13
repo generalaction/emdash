@@ -1,5 +1,7 @@
+import { performCompactMenuAction } from '@main/app/menu-action-context';
 import { getDiagnosticLogAttachment } from '@main/lib/file-logger';
 import { telemetryService } from '@main/lib/telemetry';
+import type { CompactMenuActionId } from '@shared/app-menu';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import type { OpenInAppId } from '@shared/openInApps';
 import { appService } from './service';
@@ -44,6 +46,14 @@ export const appController = createRPCController({
   quit: () => {
     try {
       appService.quit();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
+  performCompactMenuAction: async (actionId: CompactMenuActionId) => {
+    try {
+      await performCompactMenuAction(actionId);
       return { success: true };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
