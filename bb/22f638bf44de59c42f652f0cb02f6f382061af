@@ -1,0 +1,72 @@
+apps/emdash-desktop/src/renderer/features/settings/use-agent-model-settings.ts
+  s_20fbff4c814499::t_4af90ecf912c7a 1-32
+apps/emdash-desktop/src/main/core/settings/schema.ts
+  s_20fbff4c814499::t_0c78b7b7096b97 163
+  s_20fbff4c814499::t_d6456263ec51cf 145
+apps/emdash-desktop/src/renderer/features/settings/components/SettingsPage.tsx
+  s_20fbff4c814499::t_36c7bd21bf813d 13
+  s_20fbff4c814499::t_38d42e5fff6216 68
+  s_20fbff4c814499::t_4726dac1cbdb29 36
+  s_20fbff4c814499::t_6027438ae2dab0 133-138
+apps/emdash-desktop/src/shared/core/app-settings.ts
+  s_20fbff4c814499::t_47aaee63152f25 5-6,23-24
+apps/emdash-desktop/src/renderer/features/settings/components/ModelsSettingsCard.tsx
+  s_20fbff4c814499::t_cf5642a39727cb 27-30,34,36,98-99
+  s_20fbff4c814499::t_6aa018dbf947a5 1
+  s_20fbff4c814499::t_d9ad2b4059faf7 73
+  s_20fbff4c814499::t_9cc9468133c00b 2-5,11-20,22-23,100-136,139,143,146-147,149,153,156-188
+  s_20fbff4c814499::t_db1cba9271a4b6 87-92
+  s_20fbff4c814499::t_e71d99c8409316 137
+  s_20fbff4c814499::t_024dfe1f048ba6 24-26,32-33,35
+  s_20fbff4c814499::t_3735f7380a7ade 72,74-80
+apps/emdash-desktop/src/shared/core/agents/agent-models.test.ts
+  s_20fbff4c814499::t_759927b2eb106b 95
+  s_794b397a003b0c::t_e69ccb9a5751e5 52-61
+  s_20fbff4c814499::t_1ddd808b070bd7 1-7,9-12,19,21-25,27-51,62-77,85-94,96-104
+  s_20fbff4c814499::t_d741b9729a2407 78-84
+  s_20fbff4c814499::t_76919c8fafabf7 15-16,18
+  s_20fbff4c814499::t_2c586034d37ff7 8
+apps/emdash-desktop/src/main/core/conversations/impl/agent-command.ts
+  s_20fbff4c814499::t_d686a05ec9437b 251
+  s_20fbff4c814499::t_d1f593895ea579 2
+  s_20fbff4c814499::t_e0db124419f20e 204-211
+  s_20fbff4c814499::t_7e9e841f294c98 150,160
+apps/emdash-desktop/src/main/core/conversations/impl/agent-command.test.ts
+  s_20fbff4c814499::t_d45dfcc10154ec 576-653
+  s_20fbff4c814499::t_9825399543ff82 702-720
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_20fbff4c814499::t_c9abe30b175a75 119-120,140
+  s_20fbff4c814499::t_eaae30ab64f623 13
+apps/emdash-desktop/src/main/core/conversations/impl/local-conversation.ts
+  s_20fbff4c814499::t_bbc81a4f715617 129-130,148
+apps/emdash-desktop/src/main/core/settings/settings-registry.ts
+  s_20fbff4c814499::t_e4b2849eabd00b 34
+apps/emdash-desktop/src/shared/core/agents/agent-models.ts
+  s_794b397a003b0c::t_268b614eac206a 137,142-146
+  s_20fbff4c814499::t_e5fa1ae37f1db6 1-90,102-122,126-136,138-141,147-151
+  s_20fbff4c814499::t_5d6dec284e9964 91-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "bb22f638bf44de59c42f652f0cb02f6f382061af",
+  "prompts": {},
+  "sessions": {
+    "s_20fbff4c814499": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "52d360c4-1e60-42f1-a07a-7e447d4aa5fd",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_794b397a003b0c": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ebfac-6f83-7e1b-a5d5-4596b5455c3d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
