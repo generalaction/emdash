@@ -1,0 +1,34 @@
+apps/emdash-desktop/src/renderer/features/settings/components/BrowserSettingsCard.tsx
+  s_9272a7221cee63::t_bf1a0044296802 48-49
+  s_9272a7221cee63::t_ab6bab19e062f3 164-175,177-198,200-203,205-223,231-233,235-242,244-248
+  s_9272a7221cee63::t_3f811fb09af483 176,199
+  s_9272a7221cee63::t_5b94b4a1dab45e 276,297
+  s_9272a7221cee63::t_7c5f8e8fdd793d 229
+  s_9272a7221cee63::t_96ec5acc4150ce 230,234,243
+  s_9272a7221cee63::t_3c1f6fe8c8eea5 60
+  s_9272a7221cee63::t_b5844c2091c404 151-159,161-163,204,249-264,266,271-272,301-316,319-324
+  s_9272a7221cee63::t_1cf9ac405afb30 160
+  s_9272a7221cee63::t_2c0be2d04897d0 3
+  s_9272a7221cee63::t_edd9a475197cf0 265,268,275,279-286,288-296,298-300
+  s_9272a7221cee63::t_2f7342317ce02f 68
+  s_9272a7221cee63::t_bc9b73f2b1d2bc 317
+  s_9272a7221cee63::t_aa211a6bf77726 2
+  s_9272a7221cee63::t_c8354aeb48393e 224-228
+  s_9272a7221cee63::t_9ca03fa92919c3 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "759e9a0811a4493fea3a540516cf11b73277a28f",
+  "prompts": {},
+  "sessions": {
+    "s_9272a7221cee63": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d342a042-5e04-4aaa-b133-12b86bcec642",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
