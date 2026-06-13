@@ -3,6 +3,7 @@ import {
   AGENT_MODEL_SUPPORT,
   buildAgentModelArgs,
   getAgentModelSupport,
+  getReasoningOptions,
   MODEL_SELECTABLE_PROVIDER_IDS,
   providerSupportsModelSelection,
   type AgentModelSupport,
@@ -21,11 +22,39 @@ describe('agent-models registry', () => {
     expect(providerSupportsModelSelection('gemini')).toBe(false);
   });
 
-  it('only attaches reasoning options when the provider supports an effort flag', () => {
-    expect(getAgentModelSupport('cursor')?.reasoning).toBeUndefined();
-    expect(getAgentModelSupport('amp')?.reasoning).toBeUndefined();
+  it('exposes provider-level reasoning only where reasoning is model-independent', () => {
+    // Codex/Claude/Amp share a single effort flag across models.
     expect(getAgentModelSupport('codex')?.reasoning?.length).toBeGreaterThan(0);
     expect(getAgentModelSupport('claude')?.reasoning?.length).toBeGreaterThan(0);
+    expect(getAgentModelSupport('amp')?.reasoning?.length).toBeGreaterThan(0);
+    // Cursor bakes reasoning into the model id, so there is no provider-level list.
+    expect(getAgentModelSupport('cursor')?.reasoning).toBeUndefined();
+  });
+});
+
+describe('getReasoningOptions', () => {
+  it('returns provider-level reasoning for Codex regardless of model', () => {
+    expect(getReasoningOptions('codex', undefined).length).toBeGreaterThan(0);
+    expect(getReasoningOptions('codex', 'gpt-5.5').length).toBeGreaterThan(0);
+  });
+
+  it('returns per-model reasoning for Cursor and nothing for Default/Auto', () => {
+    expect(getReasoningOptions('cursor', undefined)).toEqual([]);
+    expect(getReasoningOptions('cursor', 'auto')).toEqual([]);
+    expect(getReasoningOptions('cursor', 'composer-2.5')).toEqual([]);
+    expect(getReasoningOptions('cursor', 'gpt-5.5').map((o) => o.id)).toEqual([
+      'low',
+      'medium',
+      'high',
+      'xhigh',
+    ]);
+  });
+
+  it('omits reasoning for Amp rush but offers it for smart/deep/default', () => {
+    expect(getReasoningOptions('amp', 'rush')).toEqual([]);
+    expect(getReasoningOptions('amp', 'smart').length).toBeGreaterThan(0);
+    expect(getReasoningOptions('amp', 'deep').length).toBeGreaterThan(0);
+    expect(getReasoningOptions('amp', undefined).length).toBeGreaterThan(0);
   });
 });
 
@@ -75,29 +104,61 @@ describe('buildAgentModelArgs', () => {
     ]);
   });
 
-  it('builds amp mode args via --mode and ignores any reasoning effort', () => {
+  it('builds amp mode args and includes --effort for smart/deep', () => {
+    expect(buildAgentModelArgs('amp', { model: 'smart', reasoningEffort: 'high' })).toEqual([
+      '--mode',
+      'smart',
+      '--effort',
+      'high',
+    ]);
+  });
+
+  it('ignores reasoning effort for amp rush', () => {
     expect(buildAgentModelArgs('amp', { model: 'rush', reasoningEffort: 'high' })).toEqual([
       '--mode',
       'rush',
     ]);
   });
 
-  it('builds cursor model args and ignores any reasoning effort', () => {
+  it('composes the cursor model id from the base model and reasoning level', () => {
+    expect(buildAgentModelArgs('cursor', { model: 'gpt-5.5', reasoningEffort: 'high' })).toEqual([
+      '--model',
+      'gpt-5.5-high',
+    ]);
+    // Reasoning suffix differs per family (extra-high vs xhigh).
+    expect(buildAgentModelArgs('cursor', { model: 'gpt-5.5', reasoningEffort: 'xhigh' })).toEqual([
+      '--model',
+      'gpt-5.5-extra-high',
+    ]);
     expect(
-      buildAgentModelArgs('cursor', {
-        model: 'claude-4.5-sonnet-thinking',
-        reasoningEffort: 'high',
-      })
+      buildAgentModelArgs('cursor', { model: 'claude-4.5-sonnet', reasoningEffort: 'thinking' })
     ).toEqual(['--model', 'claude-4.5-sonnet-thinking']);
+  });
+
+  it('uses the cursor default model id when no reasoning level is chosen', () => {
+    expect(buildAgentModelArgs('cursor', { model: 'gpt-5.5' })).toEqual([
+      '--model',
+      'gpt-5.5-medium',
+    ]);
+    expect(buildAgentModelArgs('cursor', { model: 'auto', reasoningEffort: 'high' })).toEqual([
+      '--model',
+      'auto',
+    ]);
   });
 
   it('keeps registry model/reasoning ids unique per provider', () => {
     for (const support of Object.values(AGENT_MODEL_SUPPORT) as AgentModelSupport[]) {
-      const modelIds = support.models.map((m) => m.id);
+      const modelIds = support.models.map((model) => model.id);
       expect(new Set(modelIds).size).toBe(modelIds.length);
       if (support.reasoning) {
-        const effortIds = support.reasoning.map((r) => r.id);
+        const effortIds = support.reasoning.map((option) => option.id);
         expect(new Set(effortIds).size).toBe(effortIds.length);
+      }
+      for (const model of support.models) {
+        if (model.reasoning) {
+          const ids = model.reasoning.map((option) => option.id);
+          expect(new Set(ids).size).toBe(ids.length);
+        }
       }
     }
   });

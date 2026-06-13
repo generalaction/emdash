@@ -24,6 +24,7 @@ export function useAgentModelSettings() {
     saving: isSaving,
     getSelection: (providerId: AgentProviderId): AgentModelSelection =>
       selections[providerId] ?? {},
+    setSelection,
     setModel: (providerId: AgentProviderId, model: string | undefined): void =>
       setSelection(providerId, { model }),
     setReasoningEffort: (providerId: AgentProviderId, reasoningEffort: string | undefined): void =>

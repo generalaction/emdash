@@ -621,16 +621,16 @@ describe('buildAgentCommand', () => {
     ]);
   });
 
-  it('passes the selected Cursor model and ignores reasoning effort', () => {
+  it('composes the Cursor model id from the base model and reasoning level', () => {
     const command = buildAgentCommand({
       providerId: 'cursor',
       providerConfig: providerConfigDefaults.cursor,
       initialPrompt: 'Fix the bug',
       sessionId: 'conv-1',
-      modelSelection: { model: 'claude-4.5-sonnet-thinking', reasoningEffort: 'high' },
+      modelSelection: { model: 'gpt-5.5', reasoningEffort: 'high' },
     });
 
-    expect(command.args).toEqual(['--model', 'claude-4.5-sonnet-thinking', 'Fix the bug']);
+    expect(command.args).toEqual(['--model', 'gpt-5.5-high', 'Fix the bug']);
   });
 
   it('does not apply the model selection when resuming', () => {
@@ -714,6 +714,25 @@ describe('buildAgentSessionCommand', () => {
       args: [
         '-c',
         "printf '%s\\n' 'Fix the bug' | 'amp' '--dangerously-allow-all' '--mode' 'rush'",
+      ],
+    });
+  });
+
+  it('includes the selected Amp mode and reasoning effort in the piped command', () => {
+    const result = buildAgentSessionCommand({
+      providerId: 'amp',
+      providerConfig: providerConfigDefaults.amp,
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      modelSelection: { model: 'smart', reasoningEffort: 'high' },
+    });
+
+    expect(result).toEqual({
+      command: 'bash',
+      args: [
+        '-c',
+        "printf '%s\\n' 'Fix the bug' | 'amp' '--dangerously-allow-all' '--mode' 'smart' '--effort' 'high'",
       ],
     });
   });

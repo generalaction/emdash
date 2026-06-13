@@ -12,7 +12,9 @@ import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
 import {
   getAgentModelSupport,
+  getReasoningOptions,
   MODEL_SELECTABLE_PROVIDER_IDS,
+  type AgentModelSelection,
 } from '@shared/core/agents/agent-models';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { useAgentModelSettings } from '../use-agent-model-settings';
@@ -102,8 +104,7 @@ interface ProviderModelRowProps {
   disabled: boolean;
   model: string | undefined;
   reasoningEffort: string | undefined;
-  onModelChange: (model: string | undefined) => void;
-  onReasoningChange: (effort: string | undefined) => void;
+  onSelectionChange: (patch: AgentModelSelection) => void;
 }
 
 function ProviderModelRow({
@@ -111,12 +112,26 @@ function ProviderModelRow({
   disabled,
   model,
   reasoningEffort,
-  onModelChange,
-  onReasoningChange,
+  onSelectionChange,
 }: ProviderModelRowProps) {
   const support = getAgentModelSupport(providerId);
   const config = agentConfig[providerId];
   if (!support) return null;
+
+  // Reasoning availability depends on the selected model (Cursor per family,
+  // Amp rush vs smart/deep), so the dropdown is only shown when applicable.
+  const reasoningOptions = getReasoningOptions(providerId, model);
+
+  const handleModelChange = (nextModel: string | undefined): void => {
+    const nextReasoning = getReasoningOptions(providerId, nextModel);
+    const keepEffort =
+      reasoningEffort !== undefined &&
+      nextReasoning.some((option) => option.id === reasoningEffort);
+    onSelectionChange({
+      model: nextModel,
+      reasoningEffort: keepEffort ? reasoningEffort : undefined,
+    });
+  };
 
   return (
     <SettingRow
@@ -142,17 +157,17 @@ function ProviderModelRow({
             triggerClassName="w-[170px]"
             disabled={disabled}
             ariaLabel={`${config.name} model`}
-            onChange={onModelChange}
+            onChange={handleModelChange}
           />
-          {support.reasoning && (
+          {reasoningOptions.length > 0 && (
             <OptionDropdown
               value={reasoningEffort}
-              options={support.reasoning}
+              options={reasoningOptions}
               defaultLabel={EFFORT_DEFAULT_LABEL}
               triggerClassName="w-[150px]"
               disabled={disabled}
               ariaLabel={`${config.name} reasoning effort`}
-              onChange={onReasoningChange}
+              onChange={(effort) => onSelectionChange({ reasoningEffort: effort })}
             />
           )}
         </div>
@@ -162,7 +177,7 @@ function ProviderModelRow({
 }
 
 const ModelsSettingsCard: React.FC = () => {
-  const { getSelection, setModel, setReasoningEffort, loading, saving } = useAgentModelSettings();
+  const { getSelection, setSelection, loading, saving } = useAgentModelSettings();
   const disabled = loading || saving;
 
   return (
@@ -176,8 +191,7 @@ const ModelsSettingsCard: React.FC = () => {
             disabled={disabled}
             model={selection.model}
             reasoningEffort={selection.reasoningEffort}
-            onModelChange={(model) => setModel(providerId, model)}
-            onReasoningChange={(effort) => setReasoningEffort(providerId, effort)}
+            onSelectionChange={(patch) => setSelection(providerId, patch)}
           />
         );
       })}
