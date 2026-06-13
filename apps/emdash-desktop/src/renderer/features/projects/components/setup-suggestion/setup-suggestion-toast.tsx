@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CLISpinner } from '@renderer/features/tasks/components/cliSpinner';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
@@ -27,8 +27,10 @@ const MIN_APPLYING_MS = 450;
 export function SetupSuggestionToast({ projectId }: { projectId: string }) {
   const [suggestion, setSuggestion] = useState<SetupScriptSuggestion | null>(null);
   const [phase, setPhase] = useState<Phase>('hidden');
+  const applyTokenRef = useRef(0);
 
   useEffect(() => {
+    applyTokenRef.current += 1;
     setSuggestion(null);
     setPhase('hidden');
     if (!shouldShowSetupSuggestion(projectId)) return;
@@ -56,18 +58,22 @@ export function SetupSuggestionToast({ projectId }: { projectId: string }) {
   }, [projectId]);
 
   const handleDismiss = useCallback(() => {
+    applyTokenRef.current += 1;
     dismissSetupSuggestion(projectId);
     setPhase('hidden');
   }, [projectId]);
 
   const handleApply = useCallback(async () => {
     if (!suggestion) return;
+    const applyToken = (applyTokenRef.current += 1);
+    const isCurrentApply = () => applyTokenRef.current === applyToken;
     setPhase('applying');
     const minVisible = new Promise<void>((resolve) => window.setTimeout(resolve, MIN_APPLYING_MS));
 
     try {
       const result = await rpc.projects.applySetupScript(projectId, suggestion.command);
       await minVisible;
+      if (!isCurrentApply()) return;
       if (!result.success) {
         if (result.error.type === 'setup-script-already-configured') {
           setPhase('hidden');
@@ -79,9 +85,12 @@ export function SetupSuggestionToast({ projectId }: { projectId: string }) {
       }
       dismissSetupSuggestion(projectId);
       setPhase('applied');
-      window.setTimeout(() => setPhase('hidden'), 1800);
+      window.setTimeout(() => {
+        if (isCurrentApply()) setPhase('hidden');
+      }, 1800);
     } catch {
       await minVisible;
+      if (!isCurrentApply()) return;
       toast({ title: 'Could not add setup script', variant: 'destructive' });
       setPhase('visible');
     }

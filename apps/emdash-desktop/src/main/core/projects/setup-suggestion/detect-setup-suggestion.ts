@@ -29,7 +29,7 @@ const SETUP_SUGGESTION_RULES: readonly SetupSuggestionRule[] = [
     command: 'pip install -r requirements.txt',
     anyOf: ['requirements.txt'],
   },
-  { tool: 'python', displayName: 'Python', command: 'pip install -e .', anyOf: ['pyproject.toml'] },
+  { tool: 'python', displayName: 'Python', command: 'pip install .', anyOf: ['pyproject.toml'] },
   { tool: 'bundler', displayName: 'Bundler', command: 'bundle install', anyOf: ['Gemfile'] },
   {
     tool: 'composer',
