@@ -9,12 +9,18 @@ import type { AgentModels } from '@shared/core/app-settings';
  * entry so changing the model preserves the reasoning effort and vice versa.
  */
 export function useAgentModelSettings() {
-  const { value, isLoading, isSaving, update } = useAppSettingsKey('agentModels');
+  const { value, isLoading, isSaving, update, resetField } = useAppSettingsKey('agentModels');
   const selections: AgentModels = value ?? {};
 
   const setSelection = (providerId: AgentProviderId, patch: AgentModelSelection): void => {
     const current = selections[providerId] ?? {};
     const next: AgentModelSelection = { ...current, ...patch };
+
+    if (!next.model && !next.reasoningEffort) {
+      resetField(providerId);
+      return;
+    }
+
     update({ [providerId]: next } as Partial<AgentModels>);
   };
 
