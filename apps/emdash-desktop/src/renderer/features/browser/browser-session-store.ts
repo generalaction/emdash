@@ -6,9 +6,11 @@ import {
   makeBrowserSessionIdentity,
   normalizeBrowserProfileSelection,
   normalizeBrowserUrl,
+  normalizeBrowserZoomFactor,
   type BrowserLoadError,
   type BrowserProfile,
   type BrowserProfileSelection,
+  type BrowserSessionRestoreInput,
   type BrowserSessionSnapshot,
 } from '@shared/browser';
 
@@ -22,7 +24,7 @@ export type BrowserSessionCreateInput = {
 };
 
 export type BrowserSessionUpdate = Partial<
-  Pick<BrowserSessionSnapshot, 'canGoBack' | 'canGoForward' | 'isLoading' | 'title'>
+  Pick<BrowserSessionSnapshot, 'canGoBack' | 'canGoForward' | 'isLoading' | 'title' | 'zoomFactor'>
 > & {
   currentUrl?: string;
   faviconUrl?: string | null;
@@ -62,7 +64,7 @@ export class BrowserSessionStore {
   }
 
   restoreSession(
-    snapshot: BrowserSessionSnapshot,
+    snapshot: BrowserSessionRestoreInput,
     profiles?: readonly BrowserProfile[]
   ): BrowserSessionSnapshot {
     const normalized = normalizeBrowserUrl(snapshot.currentUrl);
@@ -72,6 +74,7 @@ export class BrowserSessionStore {
       profileId,
       partition: browserPartitionForProfile(snapshot, profileId),
       currentUrl: normalized.ok ? normalized.url : BROWSER_DEFAULT_URL,
+      zoomFactor: normalizeBrowserZoomFactor(snapshot.zoomFactor),
       isLoading: false,
       loadError: undefined,
       updatedAt: Date.now(),
@@ -134,6 +137,10 @@ export class BrowserSessionStore {
           : normalized.ok
             ? normalized.url
             : existing.currentUrl,
+      zoomFactor:
+        update.zoomFactor === undefined
+          ? existing.zoomFactor
+          : normalizeBrowserZoomFactor(update.zoomFactor),
       faviconUrl:
         update.faviconUrl === null ? undefined : (update.faviconUrl ?? existing.faviconUrl),
       loadError: update.loadError === null ? undefined : (update.loadError ?? existing.loadError),

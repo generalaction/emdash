@@ -2,6 +2,7 @@ import { webContents } from 'electron';
 import { configureBrowserProfileSession } from '@main/core/browser/browser-profile-session';
 import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
 import { isBrowserPartition } from '@main/core/browser/webview-security';
+import { isBrowserDataClearKind, type BrowserDataClearKind } from '@shared/browser';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 
 export const browserController = createRPCController({
@@ -38,9 +39,16 @@ export const browserController = createRPCController({
     success: import.meta.env.DEV && browserWebContentsRegistry.openDevTools(browserId),
   }),
 
-  clearStorage: async (browserId: string) => ({
-    success: await browserWebContentsRegistry.clearStorage(browserId),
+  captureScreenshot: async (browserId: string) => ({
+    success: await browserWebContentsRegistry.captureScreenshotToClipboard(browserId),
   }),
+
+  clearData: async (browserId: string, kind: BrowserDataClearKind) => {
+    if (!isBrowserDataClearKind(kind)) {
+      return { success: false as const, error: 'Invalid browser data clear kind' };
+    }
+    return { success: await browserWebContentsRegistry.clearData(browserId, kind) };
+  },
 
   clearProfileStorage: async (profileId: string) => ({
     success: await browserWebContentsRegistry.clearProfileStorage(profileId),

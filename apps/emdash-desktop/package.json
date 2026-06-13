@@ -1,6 +1,6 @@
 {
   "name": "@emdash/emdash-desktop",
-  "version": "1.1.32",
+  "version": "1.1.33",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "keywords": [
     "claude",
@@ -51,6 +51,7 @@
     "docs:build": "cd docs && pnpm run build"
   },
   "dependencies": {
+    "@emdash/shared": "workspace:*",
     "@gitbeaker/rest": "^43.8.0",
     "@linear/sdk": "^77.0.0",
     "@llamaduck/forgejo-ts": "^14.0.3",

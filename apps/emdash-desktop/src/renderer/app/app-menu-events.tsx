@@ -1,6 +1,7 @@
 import { when } from 'mobx';
 import { useEffect } from 'react';
 import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { events, rpc } from '@renderer/lib/ipc';
 import { useNavigate, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
@@ -11,6 +12,7 @@ import {
   menuQuitRequestedChannel,
   notificationFocusTaskChannel,
 } from '@shared/events/appEvents';
+import { browserLinkCopiedChannel } from '@shared/events/browserEvents';
 
 export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boolean | void }) {
   const { navigate } = useNavigate();
@@ -47,6 +49,18 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
       showFeedbackModal({});
     });
   }, [showFeedbackModal]);
+
+  useEffect(() => {
+    return events.on(browserLinkCopiedChannel, ({ kind }) => {
+      const title =
+        kind === 'url'
+          ? 'Browser URL copied'
+          : kind === 'image'
+            ? 'Image URL copied'
+            : 'Link copied';
+      toast({ title });
+    });
+  }, []);
 
   useEffect(() => {
     const disposers = new Set<() => void>();

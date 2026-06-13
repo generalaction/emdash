@@ -42,7 +42,7 @@ The main process is organized into domain modules under `src/main/core/`. Each d
 - All domain controllers are assembled into a typed RPC router in `src/main/rpc.ts`.
 - RPC primitives live in `src/shared/ipc/rpc.ts` (`createRPCRouter`, `createRPCController`, `createRPCClient`).
 - Event primitives live in `src/shared/ipc/events.ts`.
-- A small number of manual IPC handlers remain in `electron-api.d.ts` for methods requiring `event.sender` (PTY start/input/resize/kill, fsList, openIn).
+- The preload bridge (`src/preload/index.ts`) exposes only `invoke`, `eventSend`, `eventOn`, and `getPathForFile`; there are no other manual IPC handlers.
 
 ## When Editing Here
 

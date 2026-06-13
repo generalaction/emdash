@@ -15,6 +15,7 @@ import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { automationsService } from './core/automations/automations-service';
 import { cleanupLegacyBrowserPartitions } from './core/browser/browser-partition-cleanup';
+import { browserWebContentsRegistry } from './core/browser/browser-webcontents-registry';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
@@ -134,6 +135,7 @@ void app.whenReady().then(async () => {
   automationsService.start();
   appService.initialize();
   await appSettingsService.initialize();
+  browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
   await promptLibraryService.initialize();
 
   agentHookService.initialize().catch((e) => {

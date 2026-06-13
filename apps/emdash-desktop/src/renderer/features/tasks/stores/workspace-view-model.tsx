@@ -418,6 +418,13 @@ export class WorkspaceViewModel implements ILifecycle {
     this.isSidebarCollapsed = collapsed;
   }
 
+  // Single source of truth for whether the changes panel is actually visible. TaskSidebar
+  // hides it via ShowHide (display: none) based on this, and usePanelLayout must defer
+  // imperative panel resizes to exactly the same condition (ENG-1559).
+  get isChangesPanelVisible(): boolean {
+    return !this.isSidebarCollapsed && this.sidebarTab === 'changes';
+  }
+
   setFocusedRegion(region: 'main' | 'bottom'): void {
     if (this.focusedRegion !== region) {
       focusTracker.transition({ focusedRegion: region }, 'region_switch');
