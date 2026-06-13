@@ -1,4 +1,5 @@
 export { INSTALL_METHOD_LOCATION_HINTS, inferMethod } from './location-hints';
+export { createInstallMethodDetector, type InstallMethodDetector } from './method-detection';
 export { resolveInstallOptions, pickInstallOption, toPlatform } from './install-options';
 export {
   deriveHostDependencyStatus,

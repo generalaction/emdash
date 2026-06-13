@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '../../exec/execution-context';
 import { err, ok } from '../../lib/result';
 import { HostDependencyManager } from './host-dependency-manager';
+import type { InstallMethodDetector } from './method-detection';
 import type { DependencyDescriptor } from './types';
 
 const TEST_DEPENDENCIES: DependencyDescriptor[] = [
@@ -76,6 +77,14 @@ function makeCtx(
 const missingCtx = makeCtx(async () => {
   throw new Error('missing');
 });
+
+/**
+ * A detector stub that always returns null (simulates an unrecognised path).
+ * Used in tests to avoid live brew/npm queries and keep assertions deterministic.
+ */
+const nullDetector: InstallMethodDetector = {
+  detect: async () => null,
+};
 
 const availableCtx = makeCtx(async (command, args = []) => {
   if (command === 'which' && args[0] === 'codex') {
@@ -601,6 +610,7 @@ describe('HostDependencyManager unknown install source', () => {
     const manager = new HostDependencyManager(unknownCtx, {
       dependencies: TEST_DEPENDENCIES,
       connectionId: 'local',
+      installMethodDetector: nullDetector,
     });
     const events: unknown[] = [];
     manager.onStatusUpdated.subscribe((e) => events.push(e));
@@ -637,6 +647,7 @@ describe('HostDependencyManager unknown install source', () => {
     const manager = new HostDependencyManager(unknownCtx, {
       dependencies: TEST_DEPENDENCIES,
       runInstallCommand,
+      installMethodDetector: nullDetector,
     });
 
     await manager.probe('codex');

@@ -1,9 +1,10 @@
 import { observer } from 'mobx-react-lite';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAgentInstallationStatus } from '@renderer/lib/stores/use-agent-installation-statuses';
 import type {
   AgentPayload,
   Installation,
+  InstallMethod,
   InstallOption,
   SelectedSource,
 } from '@shared/core/agents/agent-payload';
@@ -36,9 +37,29 @@ function isOverrideRef(
 }
 
 /**
+ * Derives the initial selectedSource for an agent:
+ *   1. A non-auto persisted override (user previously chose explicitly) — use it.
+ *   2. Agent is uninstalled + a recommended install option exists — pre-select it.
+ *   3. Otherwise fall back to auto.
+ */
+function seedSource(
+  used: SelectedSource | undefined,
+  status: string,
+  installOptions: InstallOption[]
+): SelectedSource {
+  const liveRef = refFromUsed(used);
+  if (liveRef.kind !== 'auto') return liveRef;
+  if (status !== 'available') {
+    const recommended = installOptions.find((o) => o.recommended);
+    if (recommended) return { kind: 'method', method: recommended.method as InstallMethod };
+  }
+  return { kind: 'auto' };
+}
+
+/**
  * Status-driven composer that owns the renderer-local `selectedSource` (UI intent).
- * After an install/update the selection converges with vm.used automatically since
- * the controller now persists the chosen method on install.
+ * Selection is always persisted immediately — `used` and `selectedSource` are kept in sync.
+ * Uninstalled agents with no prior override default to the recommended install method.
  */
 export const InstallSection = observer(function InstallSection({
   agentId,
@@ -50,24 +71,26 @@ export const InstallSection = observer(function InstallSection({
 }: InstallSectionProps) {
   const vm = useAgentInstallationStatus(agentId, connectionId, agentPayload);
 
-  const [selectedSource, setSelectedSource] = useState<SelectedSource>(() => refFromUsed(vm.used));
+  const [selectedSource, setSelectedSource] = useState<SelectedSource>(() =>
+    seedSource(vm.used, vm.status, installOptions)
+  );
   const [isChecking, setIsChecking] = useState(false);
 
-  // Tracks whether the user has manually staged a source. We only follow
-  // background vm.used changes into selectedSource when they have not.
-  const userStagedRef = useRef(false);
-
+  // Follow vm.used changes from background probes / post-install updates.
+  // When vm.used is auto and the agent is not installed, keep the recommended
+  // default instead of resetting — the user hasn't persisted a choice yet.
   useEffect(() => {
-    if (!userStagedRef.current && vm.used) {
-      const liveRef = refFromUsed(vm.used);
+    if (vm.isInstalling || vm.isUpdating || !vm.used) return;
+    const liveRef = refFromUsed(vm.used);
+    if (liveRef.kind !== 'auto') {
+      // Explicit persisted selection — always follow it
       setSelectedSource((prev) => (sourceKey(prev) !== sourceKey(liveRef) ? liveRef : prev));
+    } else if (vm.status === 'available') {
+      // Installed via auto (no explicit method) — reset to auto
+      setSelectedSource((prev) => (prev.kind !== 'auto' ? { kind: 'auto' } : prev));
     }
-    // Sync after install/update: clear the staged flag and follow vm.used
-    if (userStagedRef.current && vm.used && !vm.isInstalling && !vm.isUpdating) {
-      userStagedRef.current = false;
-      setSelectedSource(refFromUsed(vm.used));
-    }
-  }, [vm.used, vm.isInstalling, vm.isUpdating]);
+    // Uninstalled + auto → keep the recommended pre-selection
+  }, [vm.used, vm.status, vm.isInstalling, vm.isUpdating]);
 
   // Persisted override values used as initial inputs for the override card.
   const initialPath = useMemo(() => {
@@ -95,12 +118,12 @@ export const InstallSection = observer(function InstallSection({
   })();
 
   const onSelectSource = (ref: SelectedSource) => {
-    userStagedRef.current = true;
-    const match = findInstallation(vm.installations, ref);
-    if (match?.status === 'available') {
-      void vm.setUsed(toSelection(ref, { path: initialPath, cli: initialCli }));
-      userStagedRef.current = false;
-    }
+    // Persist every selection immediately so `used` always tracks `selected`,
+    // including path/cli overrides. Empty overrides persist harmlessly —
+    // resolveAgentExecutable falls back to auto-resolution when a path/cli
+    // selection does not resolve, and onOverrideResolved re-persists the
+    // concrete value once the user validates it.
+    void vm.setUsed(toSelection(ref, { path: initialPath, cli: initialCli }));
     setSelectedSource(ref);
   };
 

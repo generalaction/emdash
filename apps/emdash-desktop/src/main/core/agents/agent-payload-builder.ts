@@ -68,8 +68,10 @@ async function buildOne(
   const hostDep =
     rawHostDep && enrichHostDep ? enrichHostDep(id as DependencyId, rawHostDep) : rawHostDep;
 
-  // Derive top-level update fields from the used installation so the row badge
-  // always matches the detail card (both read the gated per-installation value).
+  // Derive top-level fields from the used installation so the row badge always
+  // matches the detail card (both read the used per-installation value). Without
+  // this the row would report the raw PATH probe status and never react to the
+  // selected source.
   const used = hostDep?.used ?? { kind: 'auto' as const };
   const usedKey = sourceKey(used);
   const usedInst = hostDep?.installations.find((i) => i.id === usedKey);
@@ -78,11 +80,11 @@ async function buildOne(
 
   return {
     ...buildMetadata(provider),
-    status: state?.status ?? 'missing',
-    version: state?.version ?? null,
+    status: hostDep ? deriveHostDependencyStatus(hostDep) : (state?.status ?? 'missing'),
+    version: usedInst?.version ?? state?.version ?? null,
     latestVersion,
     updateAvailable,
-    command: state?.path ?? null,
+    command: usedInst?.path ?? state?.path ?? null,
     settings: settingsMeta ?? {
       value: defaultConfig,
       defaults: defaultConfig,

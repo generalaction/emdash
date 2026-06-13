@@ -129,19 +129,16 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
                   {sourceRows.map((row) => {
                     const rowKey = sourceKey(row.ref);
                     const isCurrentSource = rowKey === sourceKey(selectedSource);
-                    const isCurrentUsed = !!used && rowKey === sourceKey(used);
                     return (
                       <DropdownMenuItem key={rowKey} onClick={() => onSelectSource(row.ref)}>
                         <span className="flex items-center gap-1.5 truncate">
                           <span className="truncate">{row.label}</span>
                           {row.recommended && <RecommendedBadge />}
-                          {row.status === 'available' && !isCurrentUsed && <InstalledBadge />}
-                          {isCurrentUsed && <UsedBadge />}
-                          {isCurrentSource && !isCurrentUsed && (
-                            <span className="ml-auto text-xs text-foreground-passive">
-                              selected
-                            </span>
-                          )}
+                          {row.status === 'available' && !isCurrentSource && <InstalledBadge />}
+                          {isCurrentSource &&
+                            (row.status === 'available' || selectedSource.kind !== 'auto') && (
+                              <UsedBadge />
+                            )}
                         </span>
                       </DropdownMenuItem>
                     );

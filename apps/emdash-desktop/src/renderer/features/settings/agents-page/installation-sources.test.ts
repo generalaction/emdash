@@ -189,3 +189,69 @@ describe('refFromUsed', () => {
     expect(refFromUsed(cliSrc)).toEqual(cliSrc);
   });
 });
+
+// ---------------------------------------------------------------------------
+// seedSource logic — tests use the same primitives to replicate the helper
+// behaviour without importing it directly from the React module.
+// ---------------------------------------------------------------------------
+
+/** Replicates InstallSection.seedSource logic for unit-testing purposes. */
+function seedSource(
+  used: SelectedSource | undefined,
+  status: string,
+  opts: InstallOption[]
+): SelectedSource {
+  const liveRef = refFromUsed(used);
+  if (liveRef.kind !== 'auto') return liveRef;
+  if (status !== 'available') {
+    const rec = opts.find((o) => o.recommended);
+    if (rec) return { kind: 'method', method: rec.method } as SelectedSource;
+  }
+  return { kind: 'auto' };
+}
+
+describe('seedSource (initial selectedSource seeding)', () => {
+  const optsWithRecommended: InstallOption[] = [
+    { method: 'homebrew', command: 'brew install mytool', recommended: true },
+    { method: 'npm', command: 'npm install -g mytool' },
+  ];
+  const optsNoRecommended: InstallOption[] = [{ method: 'npm', command: 'npm install -g mytool' }];
+
+  it('returns the persisted selection when used is an explicit method', () => {
+    const used: SelectedSource = { kind: 'method', method: 'npm' };
+    expect(seedSource(used, 'missing', optsWithRecommended)).toEqual(used);
+  });
+
+  it('returns the persisted path override regardless of status', () => {
+    const used: SelectedSource = { kind: 'path', path: '/custom/tool' };
+    expect(seedSource(used, 'available', optsWithRecommended)).toEqual(used);
+  });
+
+  it('returns recommended method for uninstalled agents with no prior selection', () => {
+    expect(seedSource(undefined, 'missing', optsWithRecommended)).toEqual({
+      kind: 'method',
+      method: 'homebrew',
+    });
+  });
+
+  it('returns recommended method when used is auto and agent is not installed', () => {
+    expect(seedSource({ kind: 'auto' }, 'missing', optsWithRecommended)).toEqual({
+      kind: 'method',
+      method: 'homebrew',
+    });
+  });
+
+  it('returns auto for an installed agent even when a recommended option exists', () => {
+    expect(seedSource({ kind: 'auto' }, 'available', optsWithRecommended)).toEqual({
+      kind: 'auto',
+    });
+  });
+
+  it('returns auto when no options have recommended flag', () => {
+    expect(seedSource(undefined, 'missing', optsNoRecommended)).toEqual({ kind: 'auto' });
+  });
+
+  it('returns auto when installOptions is empty', () => {
+    expect(seedSource(undefined, 'missing', [])).toEqual({ kind: 'auto' });
+  });
+});

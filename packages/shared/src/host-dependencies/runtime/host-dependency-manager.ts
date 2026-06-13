@@ -4,7 +4,7 @@ import { consoleLogger, type Logger } from '../../lib/logger';
 import { err, ok, type Result } from '../../lib/result';
 import type { InstallMethod, Platform } from '../capability';
 import { resolveInstallOptions, pickInstallOption, toPlatform } from './install-options';
-import { inferMethod } from './location-hints';
+import { createInstallMethodDetector, type InstallMethodDetector } from './method-detection';
 import { resolveCommandPath, resolveRealpath, runVersionProbe } from './probe';
 import type {
   DependencyCategory,
@@ -106,6 +106,11 @@ export type HostDependencyManagerOptions = {
   dependencies?: DependencyDescriptor[];
   /** Lookup function for a single descriptor by id. Defaults to searching `dependencies`. */
   getDependencyDescriptor?: (id: string) => DependencyDescriptor | undefined;
+  /**
+   * Override the install-method detector. Defaults to createInstallMethodDetector(ctx, platform).
+   * Inject a stub in tests to avoid live brew/npm queries.
+   */
+  installMethodDetector?: InstallMethodDetector;
 };
 
 /**
@@ -127,6 +132,7 @@ export class HostDependencyManager {
   private readonly logger: Logger;
   private readonly _dependencies: DependencyDescriptor[];
   private readonly _getDependencyDescriptor: (id: string) => DependencyDescriptor | undefined;
+  private readonly detector: InstallMethodDetector;
   /** Platform of the target machine. Defaults to process.platform; SSH callers pass the remote platform. */
   readonly platform: Platform;
 
@@ -148,6 +154,8 @@ export class HostDependencyManager {
     this._dependencies = options.dependencies ?? [];
     this._getDependencyDescriptor =
       options.getDependencyDescriptor ?? ((id) => this._dependencies.find((d) => d.id === id));
+    this.detector =
+      options.installMethodDetector ?? createInstallMethodDetector(this.ctx, this.platform);
     this.runInstallCommand =
       options.runInstallCommand ??
       (() =>
@@ -264,7 +272,7 @@ export class HostDependencyManager {
     // Auto installation: reflects what is found on PATH (with inferredMethod hint)
     if (resolvedPath) {
       const realPath = await resolveRealpath(resolvedPath, this.ctx, this.platform);
-      const inferred = inferMethod(realPath, this.platform);
+      const inferred = await this.detector.detect(realPath);
       installations.push({
         id: 'auto',
         source: { kind: 'auto' },
@@ -300,16 +308,24 @@ export class HostDependencyManager {
 
     // Method selection: record the selected method as an additional installation entry
     // so the status card can display its status distinctly from auto.
+    //
+    // The user explicitly chose this method (e.g. they installed via it), so trust
+    // that choice: when the binary is present on PATH (auto is available), the
+    // selected method is available too — inheriting auto's path/version. We do NOT
+    // gate this on inferredMethod matching the selection, because path-based method
+    // inference is only a best-effort routing hint for auto-updates and frequently
+    // disagrees with the real install method (e.g. Homebrew node CLIs resolve under
+    // node_modules). Gating on it wrongly reported explicit installs as missing.
     if (selection?.kind === 'method') {
       const autoInst = installations.find((i) => i.id === 'auto');
-      const methodMatches = autoInst?.inferredMethod === selection.method;
+      const present = autoInst?.status === 'available';
       installations.push({
         id: sourceKey(used),
         source: used as InstallOverride,
         inferredMethod: autoInst?.inferredMethod ?? null,
-        status: methodMatches ? (autoInst?.status ?? 'missing') : 'missing',
-        path: methodMatches ? (autoInst?.path ?? null) : null,
-        version: methodMatches ? (autoInst?.version ?? null) : null,
+        status: present ? 'available' : 'missing',
+        path: present ? (autoInst?.path ?? null) : null,
+        version: present ? (autoInst?.version ?? null) : null,
         latestVersion: null,
         updateAvailable: false,
       });
