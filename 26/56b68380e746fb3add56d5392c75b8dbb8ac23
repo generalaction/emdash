@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/main/core/projects/setup-suggestion/detect-setup-suggestion.ts
+  s_80b3adfa33f029::t_4f31e6f6577464 32
+apps/emdash-desktop/src/renderer/features/projects/components/setup-suggestion/setup-suggestion-toast.tsx
+  s_80b3adfa33f029::t_74a2637f265ef3 3,30,33,61,68-69,76,88-90,93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "2656b68380e746fb3add56d5392c75b8dbb8ac23",
+  "prompts": {},
+  "sessions": {
+    "s_80b3adfa33f029": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ec1e6-4929-7913-becd-0ae624d752b3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
