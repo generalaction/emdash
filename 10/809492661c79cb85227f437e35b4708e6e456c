@@ -1,0 +1,28 @@
+apps/emdash-desktop/src/shared/browser.ts
+  s_687c033f89c647::t_bdbafc49a985ce 159
+apps/emdash-desktop/src/renderer/features/browser/browser-session-store.ts
+  s_687c033f89c647::t_005d832a011c04 108
+  s_687c033f89c647::t_b629c16606e7d8 65
+apps/emdash-desktop/src/renderer/features/tasks/tabs/tab-manager-store.ts
+  s_687c033f89c647::t_636cecc3309842 25
+  s_687c033f89c647::t_c466af3e671b3c 579-582
+apps/emdash-desktop/src/renderer/features/settings/components/BrowserSettingsCard.tsx
+  s_687c033f89c647::t_0a2597c3ad1d32 29
+  s_687c033f89c647::t_00515556360c86 41-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "10809492661c79cb85227f437e35b4708e6e456c",
+  "prompts": {},
+  "sessions": {
+    "s_687c033f89c647": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a0f3e5da-ed5f-4700-a508-e033f5b9dd38",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
