@@ -1,0 +1,29 @@
+apps/emdash-desktop/src/shared/core/agents/agent-models.test.ts
+  s_20fbff4c814499::t_8a5d4d4271e776 6,25-26,29-57,107-116,123-132,134,138,143-148,151,154,157-161
+  s_20fbff4c814499::t_3266814bf2d30c 139-142
+apps/emdash-desktop/src/renderer/features/settings/components/ModelsSettingsCard.tsx
+  s_20fbff4c814499::t_88988c054e4278 15,17
+  s_20fbff4c814499::t_e1bdff6e0f8919 107,115,121-131,133-135,160,162,165,170
+  s_20fbff4c814499::t_9f2c4fe7b10e8e 180,194
+apps/emdash-desktop/src/shared/core/agents/agent-models.ts
+  s_20fbff4c814499::t_5a574e0a9cb972 3,6-18,24-25,28,30-33,35-39,48-178,182,195-201,211-217,220-223,226-227,230,233-239,258-286,291-294,303-305,307-310,312
+apps/emdash-desktop/src/main/core/conversations/impl/agent-command.test.ts
+  s_20fbff4c814499::t_4048f26ccc9acd 721-739
+  s_20fbff4c814499::t_3466ad64dbd6ba 624,630,633
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "951e96811078bf63ae290f2d3b0cce5a72f2bbba",
+  "prompts": {},
+  "sessions": {
+    "s_20fbff4c814499": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "52d360c4-1e60-42f1-a07a-7e447d4aa5fd",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
