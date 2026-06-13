@@ -1,17 +1,17 @@
 import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
+import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import {
   getProjectManagerStore,
   getProjectSshConnectionId,
 } from '@renderer/features/projects/stores/project-selectors';
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
-import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
-import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors';
+import { getTaskGitWorktreeStore } from '@renderer/features/tasks/stores/task-selectors';
 import { events, rpc } from '@renderer/lib/ipc';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Conversation } from '@shared/core/conversations/conversations';
-import { gitWorkspaceChangedChannel } from '@shared/core/git/gitEvents';
+import { gitWorktreeUpdateChannel } from '@shared/core/git/gitEvents';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
 import {
   lifecycleScriptStatusChannel,
@@ -101,7 +101,7 @@ function formatCreateTaskWarning(warning: CreateTaskWarning): string {
 
 export class TaskManagerStore {
   private readonly projectId: string;
-  private readonly _repository: RepositoryStore;
+  private readonly _repository: GitRepositoryStore;
   private readonly _settingsStore: ProjectSettingsStore;
   private readonly _baseRef: string;
   private _loadPromise: Promise<void> | null = null;
@@ -122,7 +122,7 @@ export class TaskManagerStore {
 
   constructor(
     projectId: string,
-    repository: RepositoryStore,
+    repository: GitRepositoryStore,
     settingsStore: ProjectSettingsStore,
     baseRef: string
   ) {
@@ -205,7 +205,7 @@ export class TaskManagerStore {
         for (const [, store] of this.tasks) {
           if (!isRegistered(store)) continue;
           const task = store.data as Task;
-          const branchName = getTaskGitStore(task.projectId, task.id)?.branchName;
+          const branchName = getTaskGitWorktreeStore(task.projectId, task.id)?.branchName;
           if (branchName !== pr.headRefName) continue;
           runInAction(() => {
             const idx = task.prs.findIndex((p) => p.url === pr.url);
@@ -230,8 +230,8 @@ export class TaskManagerStore {
       }
     });
 
-    this._unsubGitWorkspaceChanged = events.on(gitWorkspaceChangedChannel, (payload) => {
-      if (payload.projectId !== this.projectId || payload.kind !== 'head') return;
+    this._unsubGitWorkspaceChanged = events.on(gitWorktreeUpdateChannel, (payload) => {
+      if (payload.projectId !== this.projectId || payload.update.kind !== 'head') return;
       for (const [, store] of this.tasks) {
         if (isRegistered(store) && store.workspaceId === payload.workspaceId) {
           void this._reloadPrsForTask(store);

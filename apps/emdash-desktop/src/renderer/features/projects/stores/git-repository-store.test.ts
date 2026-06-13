@@ -1,12 +1,12 @@
+import type { GitRefsModel, GitRemotesModel } from '@emdash/shared/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LocalBranchesPayload, RemoteBranchesPayload } from '@shared/core/git/git';
-import { gitRefChangedChannel, type GitRefChange } from '@shared/core/git/gitEvents';
+import { gitRepoUpdateChannel, type GitRepoUpdateEvent } from '@shared/core/git/gitEvents';
 import { err, ok } from '@shared/lib/result';
+import { GitRepositoryStore } from './git-repository-store';
 import type { ProjectSettingsStore } from './project-settings-store';
-import { RepositoryStore } from './repository-store';
 
 const mocks = vi.hoisted(() => ({
-  getLocalBranches: vi.fn(),
+  getRepoSnapshot: vi.fn(),
   getRemoteBranches: vi.fn(),
   resolveProviderRepository: vi.fn(),
   eventOn: vi.fn(),
@@ -14,8 +14,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/lib/ipc', () => ({
   rpc: {
-    repository: {
-      getLocalBranches: mocks.getLocalBranches,
+    gitRepository: {
+      getRepoSnapshot: mocks.getRepoSnapshot,
       getRemoteBranches: mocks.getRemoteBranches,
       resolveProviderRepository: mocks.resolveProviderRepository,
     },
@@ -25,26 +25,15 @@ vi.mock('@renderer/lib/ipc', () => ({
   },
 }));
 
-function localPayload(ahead: number): LocalBranchesPayload {
+function refs(ahead: number): GitRefsModel {
   return {
-    currentBranch: 'feature/push-button',
-    isUnborn: false,
-    localBranches: [
+    branches: [
       {
         type: 'local',
         branch: 'feature/push-button',
         remote: { name: 'origin', url: 'git@github.com:owner/repo.git' },
         divergence: { ahead, behind: 0 },
       },
-    ],
-  };
-}
-
-function remotePayload(): RemoteBranchesPayload {
-  return {
-    remotes: [{ name: 'origin', url: 'git@github.com:owner/repo.git' }],
-    gitDefaultBranch: 'main',
-    remoteBranches: [
       {
         type: 'remote',
         remote: { name: 'origin', url: 'git@github.com:owner/repo.git' },
@@ -54,116 +43,100 @@ function remotePayload(): RemoteBranchesPayload {
   };
 }
 
+const remotes: GitRemotesModel = {
+  remotes: [{ name: 'origin', url: 'git@github.com:owner/repo.git' }],
+};
+
+function snapshot(refsModel: GitRefsModel, seq = 1) {
+  return {
+    success: true as const,
+    data: {
+      refs: { value: refsModel, seq },
+      remotes: { value: remotes, seq },
+    },
+  };
+}
+
 async function flushAsyncWork(): Promise<void> {
   await Promise.resolve();
   await Promise.resolve();
   await Promise.resolve();
 }
 
-function createWorkspaceStore(): RepositoryStore {
-  return new RepositoryStore(
+function createWorkspaceStore(): GitRepositoryStore {
+  return new GitRepositoryStore(
     'project-1',
     { settings: undefined } as unknown as ProjectSettingsStore,
-    'main',
-    'workspace-1'
+    'main'
   );
 }
 
-describe('RepositoryStore', () => {
-  let gitRefHandlers: Array<(event: GitRefChange) => void>;
+describe('GitRepositoryStore', () => {
+  let repoHandlers: Array<(event: GitRepoUpdateEvent) => void>;
 
   beforeEach(() => {
-    vi.useFakeTimers();
-    gitRefHandlers = [];
-    mocks.getLocalBranches.mockReset();
+    repoHandlers = [];
+    mocks.getRepoSnapshot.mockReset();
     mocks.getRemoteBranches.mockReset();
     mocks.resolveProviderRepository.mockReset();
     mocks.eventOn.mockReset();
     mocks.eventOn.mockImplementation((channel, handler) => {
-      if (channel === gitRefChangedChannel) gitRefHandlers.push(handler);
+      if (channel === gitRepoUpdateChannel) repoHandlers.push(handler);
       return vi.fn();
     });
-    mocks.getRemoteBranches.mockResolvedValue(remotePayload());
+    mocks.getRepoSnapshot.mockResolvedValue(snapshot(refs(0)));
+    mocks.getRemoteBranches.mockResolvedValue({
+      remotes: remotes.remotes,
+      gitDefaultBranch: 'main',
+      remoteBranches: refs(0).branches.filter((branch) => branch.type === 'remote'),
+    });
     mocks.resolveProviderRepository.mockResolvedValue(err({ type: 'no_remote' }));
   });
 
   afterEach(() => {
-    vi.clearAllTimers();
-    vi.useRealTimers();
+    vi.clearAllMocks();
   });
 
-  function emitGitRefChange(event: GitRefChange): void {
-    for (const handler of gitRefHandlers) {
-      handler(event);
+  it('hydrates branch divergence from the repo snapshot and applies pushed refs', async () => {
+    const store = createWorkspaceStore();
+    await flushAsyncWork();
+
+    expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(0);
+
+    for (const handler of repoHandlers) {
+      handler({ projectId: 'project-1', update: { kind: 'refs', model: refs(2), seq: 2 } });
     }
-  }
 
-  it('refreshes task branch divergence when the project branch ref changes', async () => {
-    mocks.getLocalBranches
-      .mockResolvedValueOnce(localPayload(0))
-      .mockResolvedValue(localPayload(1));
-
-    const store = createWorkspaceStore();
-    await flushAsyncWork();
-
-    expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(0);
-
-    emitGitRefChange({ projectId: 'project-1', kind: 'local-refs' });
-    vi.advanceTimersByTime(250);
-    await flushAsyncWork();
-
-    expect(mocks.getLocalBranches).toHaveBeenCalledTimes(2);
-    expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(1);
-
-    store.dispose();
-  });
-
-  it('refreshes task branch divergence when its workspace branch ref changes', async () => {
-    mocks.getLocalBranches
-      .mockResolvedValueOnce(localPayload(0))
-      .mockResolvedValue(localPayload(2));
-
-    const store = createWorkspaceStore();
-    await flushAsyncWork();
-
-    expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(0);
-
-    emitGitRefChange({
-      projectId: 'project-1',
-      workspaceId: 'workspace-1',
-      kind: 'local-refs',
-    });
-    vi.advanceTimersByTime(250);
-    await flushAsyncWork();
-
-    expect(mocks.getLocalBranches).toHaveBeenCalledTimes(2);
     expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(2);
-
     store.dispose();
   });
 
-  it('ignores branch ref changes from other workspaces', async () => {
-    mocks.getLocalBranches.mockResolvedValue(localPayload(0));
-
+  it('ignores repo updates for other projects', async () => {
     const store = createWorkspaceStore();
     await flushAsyncWork();
 
-    emitGitRefChange({
-      projectId: 'project-1',
-      workspaceId: 'workspace-2',
-      kind: 'local-refs',
-    });
-    vi.advanceTimersByTime(250);
+    for (const handler of repoHandlers) {
+      handler({ projectId: 'project-2', update: { kind: 'refs', model: refs(2), seq: 2 } });
+    }
+
+    expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(0);
+    store.dispose();
+  });
+
+  it('ignores stale refs by seq', async () => {
+    mocks.getRepoSnapshot.mockResolvedValue(snapshot(refs(3), 3));
+    const store = createWorkspaceStore();
     await flushAsyncWork();
 
-    expect(mocks.getLocalBranches).toHaveBeenCalledTimes(1);
-    expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(0);
+    for (const handler of repoHandlers) {
+      handler({ projectId: 'project-1', update: { kind: 'refs', model: refs(1), seq: 2 } });
+    }
 
+    expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(3);
     store.dispose();
   });
 
   it('exposes PR and issue repository URLs from provider capabilities', async () => {
-    mocks.getLocalBranches.mockResolvedValue(localPayload(0));
     mocks.resolveProviderRepository.mockResolvedValue(
       ok({
         provider: 'github',
@@ -188,7 +161,6 @@ describe('RepositoryStore', () => {
   });
 
   it('clears PR and issue repository URLs when provider resolution fails', async () => {
-    mocks.getLocalBranches.mockResolvedValue(localPayload(0));
     mocks.resolveProviderRepository.mockResolvedValue(err({ type: 'no_remote' }));
 
     const store = createWorkspaceStore();

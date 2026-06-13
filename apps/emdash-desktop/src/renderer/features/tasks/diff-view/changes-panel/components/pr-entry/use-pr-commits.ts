@@ -16,7 +16,7 @@ export function usePrCommits(projectId: string, workspaceId: string, pr: PullReq
   return useInfiniteQuery({
     queryKey: prCommitsQueryKey(projectId, workspaceId, pr?.baseRefOid ?? '', pr?.headRefOid ?? ''),
     queryFn: async ({ pageParam }: { pageParam: number }) => {
-      const result = await rpc.workspace.git.getLog(
+      const result = await rpc.workspace.gitWorktree.getLog(
         projectId,
         workspaceId,
         PAGE_SIZE,

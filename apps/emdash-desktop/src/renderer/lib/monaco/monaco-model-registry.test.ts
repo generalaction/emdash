@@ -10,13 +10,7 @@ const rpcState = vi.hoisted(() => ({
 vi.mock('@renderer/lib/ipc', () => ({
   rpc: {
     workspace: {
-      fs: {
-        readFile: vi.fn(async () => ({
-          success: true,
-          data: { content: 'base', truncated: false, totalSize: 4 },
-        })),
-      },
-      git: {
+      gitWorktree: {
         getFileAtIndex: vi.fn(async () => ({
           success: true,
           data: { content: rpcState.indexContent },
@@ -24,6 +18,12 @@ vi.mock('@renderer/lib/ipc', () => ({
         getFileAtRef: vi.fn(async () => ({
           success: true,
           data: { content: rpcState.refContent },
+        })),
+      },
+      fs: {
+        readFile: vi.fn(async () => ({
+          success: true,
+          data: { content: 'base', truncated: false, totalSize: 4 },
         })),
       },
       editor: {

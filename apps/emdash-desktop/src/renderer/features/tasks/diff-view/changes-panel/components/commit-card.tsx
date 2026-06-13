@@ -1,7 +1,7 @@
 import { CheckCircle, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors';
+import { getTaskGitWorktreeStore } from '@renderer/features/tasks/stores/task-selectors';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -31,7 +31,7 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
   const workspaceId = useWorkspaceId();
   const taskView = useWorkspaceViewModel();
   const workspace = useWorkspace();
-  const git = workspace.git;
+  const git = workspace.gitWorktree;
   const diffView = taskView.diffView;
   const changesView = diffView?.changesView ?? null;
   const hasPRs = changesView?.expandedSections.pullRequests ?? false;
@@ -42,11 +42,11 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
   const isInFlight = phase !== 'idle';
 
   const showCreatePrModal = useShowModal('createPrModal');
-  const repositoryUrl = workspace.repository.pullRequestRepositoryUrl;
+  const repositoryUrl = workspace.gitRepository.pullRequestRepositoryUrl;
 
   if (!diffView || !changesView) return null;
 
-  const branchName = getTaskGitStore(projectId, taskId)?.branchName;
+  const branchName = getTaskGitWorktreeStore(projectId, taskId)?.branchName;
   const hasOpenPr = taskView.prStore?.pullRequests.some((p) => p.status === 'open') ?? false;
   const canCreatePr = Boolean(repositoryUrl) && Boolean(branchName) && !hasOpenPr;
 

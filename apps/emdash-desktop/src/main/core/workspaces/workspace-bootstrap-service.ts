@@ -1,7 +1,7 @@
-import path from 'node:path';
 import { eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectProvider, TaskProvider } from '@main/core/projects/project-provider';
+import { runtimeManager } from '@main/core/runtime/runtime-manager';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import {
   formatProvisionTaskError,
@@ -11,7 +11,6 @@ import { buildTaskFromWorkspace, emitTaskProvisionProgress } from '@main/core/ta
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db as appDb, type AppDb } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
-import { log } from '@main/lib/logger';
 import type { Branch } from '@shared/core/git/git';
 import type { Task, ProvisionWorkspaceError } from '@shared/core/tasks/tasks';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
@@ -171,7 +170,7 @@ export class WorkspaceBootstrapService {
       return err({ type: 'no-intent' });
     }
 
-    const { baseRemote, pushRemote } = await project.repository.getConfiguredRemotes();
+    const { baseRemote, pushRemote } = await project.gitRepository.getConfiguredRemotes();
     const spec = compileSetupSpec(intent.git, intent.workspace, { baseRemote, pushRemote });
 
     const intentBranchName = deriveBranchName(intent.git) ?? undefined;
@@ -344,10 +343,14 @@ export class WorkspaceBootstrapService {
           workDir,
           projectId: project.projectId,
           projectPath: project.repoPath,
+          workspaceRuntime: {
+            machine: project.defaultWorkspaceMachine,
+            manager: runtimeManager,
+          },
           settings: project.settings,
           logPrefix: 'WorkspaceBootstrapService',
-          repository: project.repository,
-          fetchService: project.gitFetchService,
+          gitRepository: project.gitRepository,
+          gitRepositoryFetchService: project.gitRepositoryFetchService,
         })
       );
     } catch (e) {
@@ -357,20 +360,6 @@ export class WorkspaceBootstrapService {
         stepErrorType: 'error',
         message: String(e),
       });
-    }
-
-    // Compute worktreeGitDir for local workspaces (used by git watcher registry).
-    let worktreeGitDir: string | undefined;
-    if (type.kind === 'local') {
-      try {
-        const mainDotGitAbs = path.resolve(project.repoPath, '.git');
-        worktreeGitDir = await workspace.git.getWorktreeGitDir(mainDotGitAbs);
-      } catch (e) {
-        log.warn('WorkspaceBootstrapService: failed to resolve worktreeGitDir', {
-          workspaceId,
-          error: String(e),
-        });
-      }
     }
 
     emitTaskProvisionProgress({
@@ -397,7 +386,7 @@ export class WorkspaceBootstrapService {
         path: workDir,
         workspaceId,
         sshConnectionId: type.kind === 'ssh' ? type.connectionId : undefined,
-        worktreeGitDir,
+        worktreeGitDir: undefined,
         taskProvider: buildResult.taskProvider,
       });
     } catch (e) {

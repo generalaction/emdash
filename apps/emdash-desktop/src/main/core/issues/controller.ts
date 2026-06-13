@@ -75,7 +75,7 @@ async function withResolvedRemote<T extends IssueQueryOpts>(opts: T): Promise<T>
   const project = projectManager.getProject(opts.projectId);
   if (!project) return opts;
 
-  const remote = await project.repository.getBaseRemote().catch(() => undefined);
+  const remote = await project.gitRepository.getBaseRemote().catch(() => undefined);
   return { ...opts, remote };
 }
 

@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { type PrStore } from '@renderer/features/tasks/stores/pr-store';
 import { type GitChange } from '@shared/core/git/git';
 import { ChangesViewStore } from './changes-view-store';
-import { type GitStore } from './git-store';
+import { type GitWorktreeStore } from './git-worktree-store';
 
-class FakeGitStore {
+class FakeGitWorktreeStore {
   unstagedFileChanges: GitChange[] = [];
   stagedFileChanges: GitChange[] = [];
   isLoading = true;
@@ -48,9 +48,9 @@ const change = (path: string): GitChange => ({
 });
 
 function createStore() {
-  const git = new FakeGitStore();
+  const git = new FakeGitWorktreeStore();
   const pr = new FakePrStore();
-  const store = new ChangesViewStore(git as unknown as GitStore, pr as unknown as PrStore);
+  const store = new ChangesViewStore(git as unknown as GitWorktreeStore, pr as unknown as PrStore);
 
   return { git, pr, store };
 }

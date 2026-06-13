@@ -1,0 +1,148 @@
+import type { GitHeadModel, GitStatusData, GitStatusModel } from '@emdash/shared/git';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { gitWorktreeUpdateChannel, type GitWorktreeUpdateEvent } from '@shared/core/git/gitEvents';
+import { GitWorktreeStore } from './git-worktree-store';
+
+const mocks = vi.hoisted(() => ({
+  getWorktreeSnapshot: vi.fn(),
+  eventOn: vi.fn(),
+}));
+
+vi.mock('@renderer/lib/ipc', () => ({
+  rpc: {
+    workspace: {
+      gitWorktree: {
+        getWorktreeSnapshot: mocks.getWorktreeSnapshot,
+      },
+    },
+    gitRepository: {
+      fetch: vi.fn(),
+    },
+  },
+  events: {
+    on: mocks.eventOn,
+  },
+}));
+
+function status(stagedPaths: string[] = []): GitStatusData {
+  const staged = stagedPaths.map((path) => ({
+    path,
+    status: 'modified' as const,
+    additions: 1,
+    deletions: 0,
+  }));
+  return {
+    kind: 'ok',
+    staged,
+    unstaged: [],
+    stagedAdded: staged.length,
+    stagedDeleted: 0,
+  };
+}
+
+const head: GitHeadModel = { kind: 'branch', name: 'feature/stale-staged' };
+
+function snapshot(statusModel: GitStatusModel, seq = 1) {
+  return {
+    success: true as const,
+    data: {
+      status: { value: statusModel, seq },
+      head: { value: head, seq },
+    },
+  };
+}
+
+async function flushAsyncWork(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+const repositoryStore = {
+  getBranchDivergence: vi.fn(),
+  isBranchOnRemote: vi.fn(),
+  pushRemote: { name: 'origin' },
+};
+
+describe('GitWorktreeStore', () => {
+  let worktreeHandlers: Array<(event: GitWorktreeUpdateEvent) => void>;
+
+  beforeEach(() => {
+    worktreeHandlers = [];
+    mocks.getWorktreeSnapshot.mockReset();
+    mocks.eventOn.mockReset();
+    repositoryStore.getBranchDivergence.mockReset();
+    repositoryStore.isBranchOnRemote.mockReset();
+    mocks.eventOn.mockImplementation((channel, handler) => {
+      if (channel === gitWorktreeUpdateChannel) worktreeHandlers.push(handler);
+      return vi.fn();
+    });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function createStore(): GitWorktreeStore {
+    return new GitWorktreeStore('project-1', 'workspace-1', repositoryStore as never);
+  }
+
+  it('hydrates from the worktree snapshot and applies pushed status updates', async () => {
+    mocks.getWorktreeSnapshot.mockResolvedValue(snapshot(status(['src/a.ts'])));
+
+    const store = createStore();
+    store.startWatching();
+    await flushAsyncWork();
+
+    expect(store.stagedFileChanges.map((change) => change.path)).toEqual(['src/a.ts']);
+
+    for (const handler of worktreeHandlers) {
+      handler({
+        projectId: 'project-1',
+        workspaceId: 'workspace-1',
+        update: { kind: 'status', model: status(), seq: 2 },
+      });
+    }
+
+    expect(store.stagedFileChanges).toEqual([]);
+    store.dispose();
+  });
+
+  it('ignores pushed updates for another workspace', async () => {
+    mocks.getWorktreeSnapshot.mockResolvedValue(snapshot(status(['src/a.ts'])));
+
+    const store = createStore();
+    store.startWatching();
+    await flushAsyncWork();
+
+    for (const handler of worktreeHandlers) {
+      handler({
+        projectId: 'project-1',
+        workspaceId: 'workspace-other',
+        update: { kind: 'status', model: status(), seq: 2 },
+      });
+    }
+
+    expect(store.stagedFileChanges.map((change) => change.path)).toEqual(['src/a.ts']);
+    store.dispose();
+  });
+
+  it('ignores stale status updates by seq', async () => {
+    mocks.getWorktreeSnapshot.mockResolvedValue(snapshot(status(['src/a.ts']), 3));
+
+    const store = createStore();
+    store.startWatching();
+    await flushAsyncWork();
+
+    for (const handler of worktreeHandlers) {
+      handler({
+        projectId: 'project-1',
+        workspaceId: 'workspace-1',
+        update: { kind: 'status', model: status(), seq: 2 },
+      });
+    }
+
+    expect(store.stagedFileChanges.map((change) => change.path)).toEqual(['src/a.ts']);
+    store.dispose();
+  });
+});

@@ -346,10 +346,14 @@ export class MonacoModelRegistry {
     const [content, m] = await Promise.all([
       this.dedupFetch(fetchKey, async () => {
         if (ref.kind === 'staged') {
-          const res = await rpc.workspace.git.getFileAtIndex(projectId, workspaceId, filePath);
+          const res = await rpc.workspace.gitWorktree.getFileAtIndex(
+            projectId,
+            workspaceId,
+            filePath
+          );
           return res.success ? res.data.content : null;
         }
-        const res = await rpc.workspace.git.getFileAtRef(
+        const res = await rpc.workspace.gitWorktree.getFileAtRef(
           projectId,
           workspaceId,
           filePath,
@@ -762,12 +766,12 @@ export class MonacoModelRegistry {
     } else if (entry.type === 'git') {
       const res =
         entry.ref.kind === 'staged'
-          ? await rpc.workspace.git.getFileAtIndex(
+          ? await rpc.workspace.gitWorktree.getFileAtIndex(
               entry.projectId,
               entry.workspaceId,
               entry.filePath
             )
-          : await rpc.workspace.git.getFileAtRef(
+          : await rpc.workspace.gitWorktree.getFileAtRef(
               entry.projectId,
               entry.workspaceId,
               entry.filePath,

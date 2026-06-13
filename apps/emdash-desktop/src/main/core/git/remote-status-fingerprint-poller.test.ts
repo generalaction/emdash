@@ -50,12 +50,14 @@ describe('RemoteStatusFingerprintPoller', () => {
 
   beforeEach(() => {
     cachedBranchName = undefined;
-    vi.mocked(refreshWorkspaceCurrentBranchCache).mockImplementation(async (_workspaceId, git) => {
-      const branchName = await git.getCurrentBranch();
-      const changed = cachedBranchName !== branchName;
-      cachedBranchName = branchName;
-      return { branchName, changed };
-    });
+    vi.mocked(refreshWorkspaceCurrentBranchCache).mockImplementation(
+      async (_workspaceId, readCurrentBranch) => {
+        const branchName = await readCurrentBranch();
+        const changed = cachedBranchName !== branchName;
+        cachedBranchName = branchName;
+        return { branchName, changed };
+      }
+    );
   });
 
   it('can restart while a stale poll is still in flight', async () => {

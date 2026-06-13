@@ -169,7 +169,10 @@ class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, I
     const workspace = workspaceRegistry.get(workspaceId);
     if (!workspace) return;
 
-    const result = await refreshWorkspaceCurrentBranchCache(workspaceId, workspace.git);
+    const result = await refreshWorkspaceCurrentBranchCache(workspaceId, async () => {
+      const head = await workspace.gitWorktree.getHead();
+      return head.kind === 'detached' ? null : head.name;
+    });
     if (!result?.changed) return;
 
     events.emit(gitWorkspaceChangedChannel, {

@@ -13,7 +13,7 @@ import {
 } from '@shared/core/git/git';
 import { getPrNumber } from '@shared/core/pull-requests/pull-requests';
 import { MAX_STACKED_FILES, type DiffViewStore } from './diff-view-store';
-import type { GitStore } from './git-store';
+import type { GitWorktreeStore } from './git-worktree-store';
 
 type DiffType = 'disk' | 'staged' | 'git' | 'pr';
 
@@ -118,7 +118,7 @@ export class StackedDiffPanelStore {
     projectId: string,
     workspaceId: string,
     private readonly diffView: DiffViewStore,
-    private readonly git: GitStore,
+    private readonly gitWorktree: GitWorktreeStore,
     private readonly pr: PrStore
   ) {
     this._slots = Array.from(
@@ -202,7 +202,7 @@ export class StackedDiffPanelStore {
 
     const isStaged = activeFile.group === 'staged';
     return {
-      files: isStaged ? this.git.stagedFileChanges : this.git.unstagedFileChanges,
+      files: isStaged ? this.gitWorktree.stagedFileChanges : this.gitWorktree.unstagedFileChanges,
       diffType: isStaged ? 'staged' : 'disk',
       originalRef: commitRef('HEAD'),
     };

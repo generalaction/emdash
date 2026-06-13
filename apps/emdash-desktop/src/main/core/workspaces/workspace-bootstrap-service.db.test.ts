@@ -128,10 +128,10 @@ describe('WorkspaceBootstrapService', () => {
         settings: {
           get: vi.fn(),
         },
-        repository: {
+        gitRepository: {
           getConfiguredRemotes: vi.fn(),
         },
-        gitFetchService: {},
+        gitRepositoryFetchService: {},
         worktreeHost: {
           existsAbsolute,
         },

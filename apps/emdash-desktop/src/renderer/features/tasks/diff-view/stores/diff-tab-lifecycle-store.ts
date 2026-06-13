@@ -6,7 +6,7 @@ import { getPrNumber } from '@shared/core/pull-requests/pull-requests';
 import type { ActiveFile } from '@shared/view-state';
 import type { PrStore } from '../../stores/pr-store';
 import type { DiffViewStore } from './diff-view-store';
-import type { GitStore } from './git-store';
+import type { GitWorktreeStore } from './git-worktree-store';
 
 /**
  * Owns lifecycle reactions for diff tabs:
@@ -22,7 +22,7 @@ export class DiffTabLifecycleStore {
 
   constructor(
     private readonly tabManager: TabManagerStore,
-    private readonly git: GitStore,
+    private readonly gitWorktree: GitWorktreeStore,
     private readonly pr: PrStore,
     private readonly diffView: DiffViewStore
   ) {
@@ -59,8 +59,8 @@ export class DiffTabLifecycleStore {
       reaction(
         () => {
           const valid = new Set<string>();
-          for (const c of this.git.unstagedFileChanges) valid.add(`disk:${c.path}`);
-          for (const c of this.git.stagedFileChanges) valid.add(`staged:${c.path}`);
+          for (const c of this.gitWorktree.unstagedFileChanges) valid.add(`disk:${c.path}`);
+          for (const c of this.gitWorktree.stagedFileChanges) valid.add(`staged:${c.path}`);
           for (const id of this.tabManager.tabOrder) {
             const t = this.tabManager.entries.get(id);
             if (!t || t.kind !== 'diff' || t.diffGroup !== 'pr' || t.prNumber == null) continue;
@@ -89,8 +89,8 @@ export class DiffTabLifecycleStore {
             if (counterpartGroup && validKeys.has(`${counterpartGroup}:${tab.path}`)) {
               const changes =
                 counterpartGroup === 'staged'
-                  ? this.git.stagedFileChanges
-                  : this.git.unstagedFileChanges;
+                  ? this.gitWorktree.stagedFileChanges
+                  : this.gitWorktree.unstagedFileChanges;
               const match = changes.find((c) => c.path === tab.path);
               this.tabManager.transitionDiffTab(
                 tab.tabId,

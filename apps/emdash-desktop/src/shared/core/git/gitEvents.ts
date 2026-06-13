@@ -1,3 +1,4 @@
+import type { GitRepoUpdate, GitWorktreeUpdate } from '@emdash/shared/git';
 import type { GitRef } from '@shared/core/git/git';
 import { defineEvent } from '@shared/lib/ipc/events';
 
@@ -23,3 +24,18 @@ export type GitWorkspaceChange = {
 };
 
 export const gitWorkspaceChangedChannel = defineEvent<GitWorkspaceChange>('git:workspace-changed');
+
+export type GitRepoUpdateEvent = {
+  projectId: string;
+  update: GitRepoUpdate;
+};
+
+export const gitRepoUpdateChannel = defineEvent<GitRepoUpdateEvent>('git:repo-update');
+
+export type GitWorktreeUpdateEvent = {
+  projectId: string;
+  workspaceId: string;
+  update: GitWorktreeUpdate;
+};
+
+export const gitWorktreeUpdateChannel = defineEvent<GitWorktreeUpdateEvent>('git:worktree-update');

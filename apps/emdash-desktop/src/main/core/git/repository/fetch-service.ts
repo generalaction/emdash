@@ -1,17 +1,19 @@
 import { log } from '@main/lib/logger';
-import type { FetchError } from '@shared/core/git/git';
-import { err, type Result } from '@shared/lib/result';
-import type { GitService } from './impl/git-service';
+import { err } from '@shared/lib/result';
+import type { GitRepositoryService } from './service';
 
 const DEFAULT_INTERVAL_MS = 2 * 60 * 1000;
 
-export class GitFetchService {
+type GitRepositoryFetchTarget = Pick<GitRepositoryService, 'fetch' | 'getRemotes'>;
+type AppFetchResult = Awaited<ReturnType<GitRepositoryFetchTarget['fetch']>>;
+
+export class GitRepositoryFetchService {
   private _timer: ReturnType<typeof setInterval> | undefined;
-  private _inflight: Promise<Result<void, FetchError>> | undefined;
+  private _inflight: Promise<AppFetchResult> | undefined;
   private readonly intervalMs = DEFAULT_INTERVAL_MS;
 
   constructor(
-    private readonly git: GitService,
+    private readonly gitRepository: GitRepositoryFetchTarget,
     private readonly getRemote: () => Promise<string | undefined>
   ) {}
 
@@ -28,7 +30,7 @@ export class GitFetchService {
    * background tick is `intervalMs` from now. Concurrent callers share the
    * same in-flight promise (deduplicated).
    */
-  async fetch(): Promise<Result<void, FetchError>> {
+  async fetch(): Promise<AppFetchResult> {
     this._resetTimer();
     return this._doFetch();
   }
@@ -38,12 +40,14 @@ export class GitFetchService {
     this._timer = undefined;
   }
 
-  private _doFetch(): Promise<Result<void, FetchError>> {
+  private _doFetch(): Promise<AppFetchResult> {
     if (this._inflight) return this._inflight;
     this._inflight = this.getRemote()
-      .then((remote) => this.git.fetch(remote))
-      .catch((e): Result<void, FetchError> => {
-        log.warn('GitFetchService: fetch threw unexpectedly', { error: String(e) });
+      .then(async (remote) => {
+        return this.gitRepository.fetch(remote);
+      })
+      .catch((e): AppFetchResult => {
+        log.warn('GitRepositoryFetchService: fetch threw unexpectedly', { error: String(e) });
         return err({ type: 'error', message: String(e) });
       })
       .finally(() => {
@@ -67,7 +71,7 @@ export class GitFetchService {
 
   private async _canBackgroundFetchWithoutPrompt(): Promise<boolean> {
     try {
-      await this.git.getRemotes();
+      await this.gitRepository.getRemotes();
     } catch {
       return false;
     }

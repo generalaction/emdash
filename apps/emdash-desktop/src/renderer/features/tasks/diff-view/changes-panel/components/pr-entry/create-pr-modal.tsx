@@ -1,7 +1,7 @@
 import { ChevronDown, CircleAlert, GitBranch, GitPullRequest } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
-import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
+import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { BranchDisplay } from '@renderer/lib/components/branch-display';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import { RemoteSelectContent } from '@renderer/lib/components/remote-select-content';
@@ -55,7 +55,7 @@ export const CreatePrModal = observer(function CreatePrModal({
   const [selectedTargetRemoteName, setSelectedTargetRemoteName] = useState<string | undefined>();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const repo = getRepositoryStore(projectId);
+  const repo = getGitRepositoryStore(projectId);
   const defaultBranch = repo?.defaultBranch;
   const isOnRemote = repo?.isBranchOnRemote(branchName) ?? false;
   const aheadCount = repo?.getBranchDivergence(branchName)?.ahead ?? 0;
@@ -104,7 +104,7 @@ export const CreatePrModal = observer(function CreatePrModal({
     setIsCreating(true);
     try {
       if (push) {
-        const pushResult = await rpc.workspace.git.push(
+        const pushResult = await rpc.workspace.gitWorktree.push(
           projectId,
           workspaceId,
           repo?.pushRemote.name ?? 'origin'

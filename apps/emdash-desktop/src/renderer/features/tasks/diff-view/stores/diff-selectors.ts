@@ -1,5 +1,5 @@
 import type { ChangesViewStore, SelectionState } from './changes-view-store';
-import type { GitStore } from './git-store';
+import type { GitWorktreeStore } from './git-worktree-store';
 
 export function selectUnstagedSelectionState(store: ChangesViewStore): SelectionState {
   return store.unstagedSelectionState;
@@ -9,6 +9,6 @@ export function selectStagedSelectionState(store: ChangesViewStore): SelectionSt
   return store.stagedSelectionState;
 }
 
-export function selectAheadCount(git: GitStore): number {
+export function selectAheadCount(git: GitWorktreeStore): number {
   return git.aheadCount;
 }

@@ -3,10 +3,10 @@ import { TaskManagerStore } from '@renderer/features/tasks/stores/task-manager';
 import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import type { LocalProject, SshProject } from '@shared/projects';
 import type { ProjectViewSnapshot } from '@shared/view-state';
+import { GitRepositoryStore } from './git-repository-store';
 import { PrSyncStore } from './pr-sync-store';
 import { ProjectSettingsStore } from './project-settings-store';
 import { ProjectViewStore } from './project-view';
-import { RepositoryStore } from './repository-store';
 
 export type UnregisteredProjectPhase =
   | 'creating-repo' // gh api — new mode only
@@ -26,7 +26,7 @@ export class MountedProject {
   readonly taskManager: TaskManagerStore;
   readonly view: ProjectViewStore;
   readonly settings: ProjectSettingsStore;
-  readonly repository: RepositoryStore;
+  readonly gitRepository: GitRepositoryStore;
   readonly prSync: PrSyncStore;
   readonly data: LocalProject | SshProject;
 
@@ -43,9 +43,14 @@ export class MountedProject {
     this.data = data;
     this.view = new ProjectViewStore();
     this.settings = new ProjectSettingsStore(data.id);
-    this.repository = new RepositoryStore(data.id, this.settings, data.baseRef);
+    this.gitRepository = new GitRepositoryStore(data.id, this.settings, data.baseRef);
     this.prSync = new PrSyncStore(data.id);
-    this.taskManager = new TaskManagerStore(data.id, this.repository, this.settings, data.baseRef);
+    this.taskManager = new TaskManagerStore(
+      data.id,
+      this.gitRepository,
+      this.settings,
+      data.baseRef
+    );
 
     if (savedSnapshot) this.view.restoreSnapshot(savedSnapshot);
 
@@ -53,7 +58,7 @@ export class MountedProject {
       taskManager: false,
       view: false,
       settings: false,
-      repository: false,
+      gitRepository: false,
       prSync: false,
     });
 
@@ -61,7 +66,7 @@ export class MountedProject {
   }
 
   dispose(): void {
-    this.repository.dispose();
+    this.gitRepository.dispose();
     this.prSync.dispose();
     this.settings.dispose();
     this._snapshotDisposer?.();

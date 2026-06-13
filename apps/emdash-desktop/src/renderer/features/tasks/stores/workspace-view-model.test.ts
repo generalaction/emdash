@@ -23,7 +23,7 @@ vi.mock('@renderer/lib/ipc', () => ({
     viewState: {
       save: vi.fn(),
     },
-    repository: {
+    gitRepository: {
       getLocalBranches: vi.fn().mockResolvedValue({
         isUnborn: false,
         currentBranch: 'main',
@@ -36,12 +36,7 @@ vi.mock('@renderer/lib/ipc', () => ({
       resolveProviderRepository: vi.fn().mockResolvedValue({ success: false }),
     },
     workspace: {
-      fs: {
-        listFiles: vi.fn().mockResolvedValue({ success: true, data: [] }),
-        watchSetPaths: vi.fn().mockResolvedValue(undefined),
-        watchStop: vi.fn().mockResolvedValue(undefined),
-      },
-      git: {
+      gitWorktree: {
         getFullStatus: vi.fn().mockResolvedValue({
           success: true,
           data: {
@@ -57,6 +52,11 @@ vi.mock('@renderer/lib/ipc', () => ({
             behind: 0,
           },
         }),
+      },
+      fs: {
+        listFiles: vi.fn().mockResolvedValue({ success: true, data: [] }),
+        watchSetPaths: vi.fn().mockResolvedValue(undefined),
+        watchStop: vi.fn().mockResolvedValue(undefined),
       },
     },
   },

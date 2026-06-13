@@ -1,8 +1,8 @@
 import { useMutation } from '@tanstack/react-query';
-import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors';
+import { getTaskGitWorktreeStore } from '@renderer/features/tasks/stores/task-selectors';
 
 export function useGitActions(projectId: string, taskId: string) {
-  const git = getTaskGitStore(projectId, taskId)!;
+  const git = getTaskGitWorktreeStore(projectId, taskId)!;
 
   const hasUpstream = git?.isBranchPublished;
 

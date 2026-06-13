@@ -1,7 +1,7 @@
 import { browserControlsRegistry } from '@renderer/features/browser/browser-controls-registry';
 import {
   getRegisteredTaskData,
-  getTaskGitStore,
+  getTaskGitWorktreeStore,
   getTaskStore,
   getTaskView,
 } from '@renderer/features/tasks/stores/task-selectors';
@@ -41,7 +41,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       const taskIds = sidebarStore.visibleTaskIdsForProject(projectId);
       const currentIdx = taskIds.indexOf(taskId);
 
-      const git = getTaskGitStore(projectId, taskId);
+      const git = getTaskGitWorktreeStore(projectId, taskId);
       const taskData = getRegisteredTaskData(projectId, taskId);
       const activeBrowserTab = tabManager?.resolvedTabs.find(
         (tab) => tab.isActive && tab.kind === 'browser'

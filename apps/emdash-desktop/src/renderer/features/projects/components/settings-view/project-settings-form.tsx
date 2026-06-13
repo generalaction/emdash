@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
+import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { FieldGroup } from '@renderer/lib/ui/field';
 import type { Remote } from '@shared/core/git/git';
@@ -54,7 +54,7 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   writeConfigToRepo,
   migrateProjectConfig,
 }: ProjectSettingsFormProps) {
-  const repo = getRepositoryStore(projectId);
+  const repo = getGitRepositoryStore(projectId);
   const remotes = repo?.remotes ?? EMPTY_REMOTES;
   const baseRemote = repo?.baseRemote.name ?? 'origin';
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');

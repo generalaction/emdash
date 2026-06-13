@@ -100,7 +100,9 @@ export class RemoteStatusFingerprintPoller {
   }
 
   private async updateBranch(generation: number): Promise<boolean> {
-    const result = await refreshWorkspaceCurrentBranchCache(this.workspaceId, this.git);
+    const result = await refreshWorkspaceCurrentBranchCache(this.workspaceId, () =>
+      this.git.getCurrentBranch()
+    );
     if (!result || !this.isCurrent(generation)) return false;
 
     if (!this.branchBaselineLoaded) {

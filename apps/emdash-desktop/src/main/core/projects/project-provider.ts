@@ -1,7 +1,9 @@
+import type { GitHeadModel, GitSeqs, IGitRuntime } from '@emdash/shared/git';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
-import type { GitFetchService } from '@main/core/git/git-fetch-service';
-import type { GitRepositoryService } from '@main/core/git/repository-service';
+import type { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
+import type { GitRepositoryService } from '@main/core/git/repository/service';
+import type { MachineRef } from '@main/core/runtime/types';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import type { IDisposable } from '@main/lib/lifecycle';
 import type { Branch, FetchError } from '@shared/core/git/git';
@@ -43,7 +45,9 @@ export interface TaskProvider {
  */
 export type ProjectProviderTransport = {
   readonly kind: string;
+  readonly projectMachine: MachineRef;
   readonly defaultWorkspaceType: WorkspaceType;
+  readonly defaultWorkspaceMachine: MachineRef;
   readonly ctx: IExecutionContext;
   readonly fs: FileSystemProvider;
   readonly settings: ProjectSettingsProvider;
@@ -54,13 +58,15 @@ export class ProjectProvider implements IDisposable {
   readonly type: string;
   readonly projectId: string;
   readonly repoPath: string;
+  readonly projectMachine: MachineRef;
   readonly settings: ProjectSettingsProvider;
-  readonly repository: GitRepositoryService;
+  readonly gitRepository: GitRepositoryService;
   readonly fs: FileSystemProvider;
   readonly worktreeService: WorktreeService;
-  readonly gitFetchService: GitFetchService;
+  readonly gitRepositoryFetchService: GitRepositoryFetchService;
   /** Workspace type for standard worktree tasks. BYOI tasks use their own remote workspace type. */
   readonly defaultWorkspaceType: WorkspaceType;
+  readonly defaultWorkspaceMachine: MachineRef;
   readonly worktreeHost: WorktreeHost;
 
   private readonly _ctx: IExecutionContext;
@@ -69,21 +75,24 @@ export class ProjectProvider implements IDisposable {
     projectId: string,
     repoPath: string,
     transport: ProjectProviderTransport,
-    repository: GitRepositoryService,
+    gitRepository: GitRepositoryService,
     worktreeService: WorktreeService,
-    gitFetchService: GitFetchService,
+    gitRepositoryFetchService: GitRepositoryFetchService,
+    private readonly _gitRuntime: IGitRuntime,
     private readonly _dispose: () => void
   ) {
     this.type = transport.kind;
     this.projectId = projectId;
     this.repoPath = repoPath;
+    this.projectMachine = transport.projectMachine;
     this._ctx = transport.ctx;
     this.settings = transport.settings;
     this.fs = transport.fs;
-    this.repository = repository;
+    this.gitRepository = gitRepository;
     this.worktreeService = worktreeService;
-    this.gitFetchService = gitFetchService;
+    this.gitRepositoryFetchService = gitRepositoryFetchService;
     this.defaultWorkspaceType = transport.defaultWorkspaceType;
+    this.defaultWorkspaceMachine = transport.defaultWorkspaceMachine;
     this.worktreeHost = transport.worktreeHost;
   }
 
@@ -92,7 +101,7 @@ export class ProjectProvider implements IDisposable {
   }
 
   getRemoteState(): Promise<ProjectRemoteState> {
-    return this.repository.getRemoteState();
+    return this.gitRepository.getRemoteState();
   }
 
   getWorktreeForBranch(branchName: string): Promise<string | undefined> {
@@ -106,13 +115,22 @@ export class ProjectProvider implements IDisposable {
     }
   }
 
-  fetch(): Promise<Result<void, FetchError>> {
-    return this.gitFetchService.fetch();
+  fetch(): Promise<Result<{ seqs: GitSeqs }, FetchError>> {
+    return this.gitRepositoryFetchService.fetch();
+  }
+
+  async getProjectRootHead(): Promise<GitHeadModel> {
+    const lease = await this._gitRuntime.openWorktree(this.repoPath);
+    try {
+      return await lease.value.getHead();
+    } finally {
+      lease.release();
+    }
   }
 
   async dispose(): Promise<void> {
     this._dispose();
-    this.gitFetchService.stop();
+    this.gitRepositoryFetchService.stop();
     const projectSettings = await this.settings.get();
     const mode = projectSettings.tmux ? 'detach' : 'terminate';
     await taskSessionManager.teardownAllForProject(this.projectId, mode);

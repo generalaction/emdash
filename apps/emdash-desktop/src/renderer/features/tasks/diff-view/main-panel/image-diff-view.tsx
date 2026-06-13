@@ -75,7 +75,7 @@ function loadFromRef(
   ref: GitRef
 ): Promise<SideState> {
   return loadGitImage(() =>
-    rpc.workspace.git.getImageAtRef(projectId, workspaceId, filePath, gitRefToString(ref))
+    rpc.workspace.gitWorktree.getImageAtRef(projectId, workspaceId, filePath, gitRefToString(ref))
   );
 }
 
@@ -120,7 +120,7 @@ function loadModified(
       return loadFromDisk(projectId, workspaceId, activeFile.path);
     case 'staged':
       return loadGitImage(() =>
-        rpc.workspace.git.getImageAtIndex(projectId, workspaceId, activeFile.path)
+        rpc.workspace.gitWorktree.getImageAtIndex(projectId, workspaceId, activeFile.path)
       );
     case 'git':
     case 'pr':
@@ -231,13 +231,13 @@ export const ImageDiffView = observer(function ImageDiffView({
   activeFile,
 }: ImageDiffViewProps) {
   const workspace = useWorkspace();
-  const git = workspace.git;
+  const git = workspace.gitWorktree;
 
   const fileKey = `${activeFile.path}|${activeFile.group}|${gitRefToString(activeFile.originalRef)}|${activeFile.modifiedRef ? gitRefToString(activeFile.modifiedRef) : ''}`;
 
   // For disk/staged groups the bytes can change without fileKey changing
   // (in-place overwrite, re-stage). Pinning to lastUpdatedAt reruns the
-  // load whenever GitStore observes an fs-watch or index event.
+  // load whenever GitWorktreeStore observes an fs-watch or index event.
   const reactiveRevision =
     activeFile.group === 'disk' || activeFile.group === 'staged' ? git.fullStatus.lastUpdatedAt : 0;
 

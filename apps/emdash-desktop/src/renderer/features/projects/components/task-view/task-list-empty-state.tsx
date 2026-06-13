@@ -1,7 +1,7 @@
 import { CircleDot, GitBranch, GitPullRequest, type LucideIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useConnectedIssueProviders } from '@renderer/features/integrations/use-connected-issue-providers';
-import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
+import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
@@ -25,7 +25,7 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
   const showTaskModal = useShowModal('taskModal');
   const { navigate } = useNavigate();
   const { hasAnyIssueIntegration } = useConnectedIssueProviders();
-  const repositoryStore = getRepositoryStore(projectId);
+  const repositoryStore = getGitRepositoryStore(projectId);
   const supportsPullRequests = Boolean(repositoryStore?.pullRequestRepositoryUrl);
   const supportsGhesIssues = Boolean(
     repositoryStore?.issueRepositoryUrl &&

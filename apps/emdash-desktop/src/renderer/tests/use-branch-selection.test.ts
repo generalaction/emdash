@@ -8,7 +8,7 @@ vi.mock('@renderer/features/settings/use-app-settings-key', () => ({
 /**
  * The old resolveDefaultSelectedBranch helper has been removed.
  * Its logic — preferring a local branch over a remote branch when resolving
- * the default — now lives in RepositoryStore.defaultBranch (a computed getter)
+ * the default — now lives in GitRepositoryStore.defaultBranch (a computed getter)
  * and is exercised through integration.
  *
  * useBranchSelection now accepts a pre-resolved Branch | undefined directly,

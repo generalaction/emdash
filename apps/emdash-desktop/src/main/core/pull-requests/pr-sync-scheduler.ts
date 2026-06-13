@@ -217,7 +217,7 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
     if (!project) return [];
 
     try {
-      const remotes = await project.repository.getRemotes();
+      const remotes = await project.gitRepository.getRemotes();
       await syncProjectRemotes(projectId, remotes);
       const resolved = await Promise.all(
         remotes.map((r) => githubRepositoryResolver.resolve(r.url))

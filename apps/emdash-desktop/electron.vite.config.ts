@@ -7,6 +7,11 @@ export default defineConfig({
   main: {
     root: 'src/main',
     envDir: resolve('.'),
+    build: {
+      externalizeDeps: {
+        exclude: ['@emdash/shared'],
+      },
+    },
     resolve: {
       alias: {
         '@': resolve('src'),

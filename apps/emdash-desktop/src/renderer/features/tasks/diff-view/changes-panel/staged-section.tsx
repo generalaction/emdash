@@ -22,7 +22,7 @@ export const StagedSection = observer(function StagedSection() {
   const workspaceId = useWorkspaceId();
   const taskView = useWorkspaceViewModel();
   const workspace = useWorkspace();
-  const git = workspace.git;
+  const git = workspace.gitWorktree;
   const diffView = taskView.diffView;
   const changesView = diffView?.changesView;
 
