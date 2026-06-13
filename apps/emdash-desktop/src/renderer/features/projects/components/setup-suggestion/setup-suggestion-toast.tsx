@@ -7,35 +7,22 @@ import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { cn } from '@renderer/utils/utils';
 import type { SetupScriptSuggestion } from '@shared/core/projects/setup-suggestion';
+import {
+  clearSetupSuggestionEligibility,
+  dismissSetupSuggestion,
+  shouldShowSetupSuggestion,
+} from './setup-suggestion-state';
 
 type Phase = 'hidden' | 'visible' | 'applying' | 'applied';
 
 /** Keep the spinner visible long enough to read as deliberate feedback, not a flicker. */
 const MIN_APPLYING_MS = 450;
 
-const dismissKey = (projectId: string) => `emdash:setup-suggestion-dismissed:${projectId}`;
-
-function isDismissed(projectId: string): boolean {
-  try {
-    return localStorage.getItem(dismissKey(projectId)) === 'true';
-  } catch {
-    return false;
-  }
-}
-
-function persistDismiss(projectId: string): void {
-  try {
-    localStorage.setItem(dismissKey(projectId), 'true');
-  } catch {
-    // ignore — dismissal persistence is best-effort
-  }
-}
-
 /**
  * A minimal, dismissible suggestion anchored bottom-right of the project view.
- * When a user enters a project that has no `scripts.setup` configured, we detect
- * its tooling (Bun, pnpm, Cargo, …) and offer the matching install command as a
- * one-click lifecycle setup script.
+ * After a project is added for the first time, we detect its tooling (Bun, pnpm,
+ * Cargo, …) and offer the matching install command as a one-click lifecycle setup
+ * script if no `scripts.setup` is configured yet.
  */
 export function SetupSuggestionToast({ projectId }: { projectId: string }) {
   const [suggestion, setSuggestion] = useState<SetupScriptSuggestion | null>(null);
@@ -44,18 +31,23 @@ export function SetupSuggestionToast({ projectId }: { projectId: string }) {
   useEffect(() => {
     setSuggestion(null);
     setPhase('hidden');
-    if (isDismissed(projectId)) return;
+    if (!shouldShowSetupSuggestion(projectId)) return;
 
     let cancelled = false;
     void rpc.projects
       .suggestSetupScript(projectId)
       .then((result) => {
-        if (cancelled || !result) return;
+        if (cancelled) return;
+        if (!result) {
+          clearSetupSuggestionEligibility(projectId);
+          return;
+        }
         setSuggestion(result);
         setPhase('visible');
       })
       .catch(() => {
         // Detection is best-effort; stay silent on failure.
+        clearSetupSuggestionEligibility(projectId);
       });
 
     return () => {
@@ -64,7 +56,7 @@ export function SetupSuggestionToast({ projectId }: { projectId: string }) {
   }, [projectId]);
 
   const handleDismiss = useCallback(() => {
-    persistDismiss(projectId);
+    dismissSetupSuggestion(projectId);
     setPhase('hidden');
   }, [projectId]);
 
@@ -85,7 +77,7 @@ export function SetupSuggestionToast({ projectId }: { projectId: string }) {
         setPhase('visible');
         return;
       }
-      persistDismiss(projectId);
+      dismissSetupSuggestion(projectId);
       setPhase('applied');
       window.setTimeout(() => setPhase('hidden'), 1800);
     } catch {
@@ -156,7 +148,7 @@ export function SetupSuggestionToast({ projectId }: { projectId: string }) {
                         phase === 'applying' ? 'opacity-100' : 'opacity-0'
                       )}
                     >
-                      {phase === 'applying' && <CLISpinner className="text-current" />}
+                      {phase === 'applying' && <CLISpinner />}
                       Adding
                     </span>
                     <span

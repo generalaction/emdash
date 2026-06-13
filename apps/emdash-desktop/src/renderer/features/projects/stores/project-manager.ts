@@ -1,4 +1,5 @@
 import { makeObservable, observable, runInAction } from 'mobx';
+import { markSetupSuggestionEligible } from '@renderer/features/projects/components/setup-suggestion/setup-suggestion-state';
 import { events, rpc } from '@renderer/lib/ipc';
 import { appState } from '@renderer/lib/stores/app-state';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
@@ -394,6 +395,7 @@ export class ProjectManagerStore {
   }
 
   private _setAndOpenProject(id: string, project: LocalProject | SshProject): void {
+    markSetupSuggestionEligible(id);
     runInAction(() => {
       const current = this.projects.get(id);
       if (current) {
