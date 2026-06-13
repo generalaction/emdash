@@ -216,7 +216,10 @@ describe('BrowserSessionStore', () => {
       profileId: 'work',
     });
 
-    store.migrateProfileSessions('work', 'personal');
+    store.migrateProfileSessions('work', 'personal', [
+      { id: 'default', name: 'Default' },
+      { id: 'personal', name: 'Personal' },
+    ]);
 
     expect(store.getSession('browser-1')).toMatchObject({
       profileId: 'personal',

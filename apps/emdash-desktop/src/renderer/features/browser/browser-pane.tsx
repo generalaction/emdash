@@ -69,9 +69,14 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
     return () => {
       disposed = true;
       setIsRegistered(false);
-      void rpc.browser.setActiveBrowser(null);
     };
   }, [sessionBrowserId, sessionPartition]);
+
+  useEffect(() => {
+    return () => {
+      void rpc.browser.setActiveBrowser(null);
+    };
+  }, []);
 
   useEffect(() => {
     if (!sessionBrowserId || adapter === null) return;

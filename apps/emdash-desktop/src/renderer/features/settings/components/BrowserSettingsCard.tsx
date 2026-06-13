@@ -377,7 +377,11 @@ async function deleteProfileAfterStorageClear({
       profiles: nextProfiles,
       defaultProfileId: replacementProfileId,
     });
-    browserSessionStore.migrateProfileSessions(deletedProfileId, replacementProfileId);
+    browserSessionStore.migrateProfileSessions(
+      deletedProfileId,
+      replacementProfileId,
+      nextProfiles
+    );
   } catch (error) {
     if (storageCleared) reloadBrowserSessionsForProfile(deletedProfileId);
     toast({

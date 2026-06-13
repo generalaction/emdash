@@ -106,9 +106,10 @@ export class BrowserSessionStore {
 
   migrateProfileSessions(
     fromProfileId: BrowserProfileSelection,
-    toProfileId: BrowserProfileSelection
+    toProfileId: BrowserProfileSelection,
+    profiles: readonly BrowserProfile[]
   ): void {
-    const profileId = normalizeBrowserProfileSelection(toProfileId);
+    const profileId = normalizeBrowserProfileSelection(toProfileId, profiles);
     for (const [browserId, session] of this.sessions) {
       if (session.profileId !== fromProfileId) continue;
       this.sessions.set(browserId, {
