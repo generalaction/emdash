@@ -212,6 +212,48 @@ describe('PiTrustService', () => {
     expect(mockRename).not.toHaveBeenCalled();
   });
 
+  it('does not override an explicitly denied Pi trust decision', async () => {
+    const service = makeService();
+    mockReadFile.mockResolvedValue(JSON.stringify({ '/tmp/worktree': false }));
+
+    await service.maybeAutoTrustLocal({
+      providerId: 'pi',
+      cwd: '/tmp/worktree',
+      homedir: '/home/local-user',
+    });
+
+    expect(mockWriteFile).not.toHaveBeenCalled();
+    expect(mockRename).not.toHaveBeenCalled();
+  });
+
+  it('does not bypass an explicitly denied Pi parent folder', async () => {
+    const service = makeService();
+    mockReadFile.mockResolvedValue(JSON.stringify({ '/tmp': false }));
+
+    await service.maybeAutoTrustLocal({
+      providerId: 'pi',
+      cwd: '/tmp/worktree',
+      homedir: '/home/local-user',
+    });
+
+    expect(mockWriteFile).not.toHaveBeenCalled();
+    expect(mockRename).not.toHaveBeenCalled();
+  });
+
+  it('does not rewrite Pi trust config when a parent folder is already trusted', async () => {
+    const service = makeService();
+    mockReadFile.mockResolvedValue(JSON.stringify({ '/tmp': true }));
+
+    await service.maybeAutoTrustLocal({
+      providerId: 'pi',
+      cwd: '/tmp/worktree',
+      homedir: '/home/local-user',
+    });
+
+    expect(mockWriteFile).not.toHaveBeenCalled();
+    expect(mockRename).not.toHaveBeenCalled();
+  });
+
   it('refuses to overwrite invalid Pi trust values', async () => {
     const service = makeService();
     mockReadFile.mockResolvedValue(JSON.stringify({ '/tmp/worktree': 'yes' }));
