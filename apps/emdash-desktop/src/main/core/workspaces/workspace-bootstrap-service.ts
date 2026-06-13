@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull, ne, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectProvider, TaskProvider } from '@main/core/projects/project-provider';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
@@ -304,11 +304,13 @@ export class WorkspaceBootstrapService {
         and(
           eq(tasks.workspaceId, workspaceId),
           eq(tasks.projectId, projectId),
-          isNull(tasks.archivedAt)
+          isNull(tasks.archivedAt),
+          ne(tasks.id, ignoredTaskId)
         )
-      );
+      )
+      .limit(1);
 
-    return rows.find((row) => row.id !== ignoredTaskId) ?? null;
+    return rows[0] ?? null;
   }
 
   /**
