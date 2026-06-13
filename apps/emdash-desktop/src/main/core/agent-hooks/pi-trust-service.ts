@@ -1,16 +1,15 @@
-import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import {
-  FileSystemError,
-  FileSystemErrorCodes,
-  type FileSystemProvider,
-} from '@main/core/fs/types';
+import type { FileSystemProvider } from '@main/core/fs/types';
 import { appSettingsService } from '@main/core/settings/settings-service';
-import { resolveRemoteHome } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import { log } from '@main/lib/logger';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import {
+  ensureLocalJsonWorkspaceTrust,
+  ensureSshJsonWorkspaceTrust,
+  type JsonTrustConfig,
+} from './json-workspace-trust-config';
 
 const PI_PROVIDER_ID: AgentProviderId = 'pi';
 const PI_TRUST_CONFIG_NAME = '.pi/agent/trust.json';
@@ -39,14 +38,12 @@ export class PiTrustService {
     if (!cwd) return;
     if (!(await this.shouldAutoTrust(providerId, force))) return;
 
-    const normalizedPath = await fs.realpath(cwd).catch(() => path.resolve(cwd));
-    const configPath = path.join(homedir, PI_TRUST_CONFIG_NAME);
-    await this.withLock(configPath, () =>
-      this.ensureTrusted(normalizedPath, {
-        readConfig: () => readLocalConfig(configPath),
-        writeConfig: (content) => writeLocalConfigAtomic(configPath, content),
-      })
-    );
+    await ensureLocalJsonWorkspaceTrust({
+      cwd,
+      homedir,
+      trustConfig: piTrustConfig,
+      locks: this.configLocks,
+    });
   }
 
   async maybeAutoTrustSsh({
@@ -65,16 +62,13 @@ export class PiTrustService {
     if (!cwd) return;
     if (!(await this.shouldAutoTrust(providerId, force))) return;
 
-    const normalizedPath = await remoteFs.realPath(cwd).catch(() => path.posix.resolve('/', cwd));
-    const homeDir = await resolveRemoteHome(ctx);
-    const configPath = path.posix.join(homeDir, PI_TRUST_CONFIG_NAME);
-
-    await this.withLock(configPath, () =>
-      this.ensureTrusted(normalizedPath, {
-        readConfig: () => readRemoteConfig(remoteFs, configPath),
-        writeConfig: (content) => writeRemoteConfigAtomic(remoteFs, ctx, configPath, content),
-      })
-    );
+    await ensureSshJsonWorkspaceTrust({
+      cwd,
+      ctx,
+      remoteFs,
+      trustConfig: piTrustConfig,
+      locks: this.configLocks,
+    });
   }
 
   private async shouldAutoTrust(providerId: AgentProviderId, force: boolean): Promise<boolean> {
@@ -83,39 +77,6 @@ export class PiTrustService {
     const { autoTrustWorktrees } = await this.deps.getTaskSettings();
     return autoTrustWorktrees;
   }
-
-  private withLock(configPath: string, fn: () => Promise<void>): Promise<void> {
-    const prev = this.configLocks.get(configPath) ?? Promise.resolve();
-    const next = prev.then(fn, fn);
-    this.configLocks.set(configPath, next);
-    return next;
-  }
-
-  private async ensureTrusted(
-    normalizedPath: string,
-    io: {
-      readConfig: () => Promise<string | null>;
-      writeConfig: (content: string) => Promise<void>;
-    }
-  ): Promise<void> {
-    try {
-      const rawConfig = await io.readConfig();
-      const config = parseTrustConfig(rawConfig);
-      if (!config) return;
-      if (config[normalizedPath] === true) return;
-
-      const nextConfig = {
-        ...config,
-        [normalizedPath]: true,
-      };
-      await io.writeConfig(JSON.stringify(sortTrustConfig(nextConfig), null, 2) + '\n');
-    } catch (error: unknown) {
-      log.warn('PiTrustService: failed to auto-trust worktree', {
-        path: normalizedPath,
-        error: String(error),
-      });
-    }
-  }
 }
 
 export const piTrustService = new PiTrustService({
@@ -123,6 +84,20 @@ export const piTrustService = new PiTrustService({
 });
 
 type PiTrustConfig = Record<string, boolean | null>;
+
+const piTrustConfig: JsonTrustConfig<PiTrustConfig> = {
+  configName: PI_TRUST_CONFIG_NAME,
+  maxBytes: PI_TRUST_CONFIG_MAX_BYTES,
+  serviceName: 'PiTrustService',
+  parseConfig: parseTrustConfig,
+  withTrustedPath: withPiTrustedPath,
+  localPath: canonicalizeLocalPath,
+  useFileLock: true,
+};
+
+async function canonicalizeLocalPath(cwd: string): Promise<string> {
+  return fs.realpath(cwd).catch(() => path.resolve(cwd));
+}
 
 function parseTrustConfig(raw: string | null): PiTrustConfig | null {
   if (!raw || raw.trim() === '') return {};
@@ -151,75 +126,33 @@ function parseTrustConfig(raw: string | null): PiTrustConfig | null {
   }
 }
 
+function withPiTrustedPath(config: PiTrustConfig, worktreePath: string): PiTrustConfig | null {
+  if (nearestTrustDecision(config, worktreePath) !== null) return null;
+
+  return sortTrustConfig({
+    ...config,
+    [worktreePath]: true,
+  });
+}
+
+function nearestTrustDecision(config: PiTrustConfig, worktreePath: string): boolean | null {
+  let current = worktreePath;
+  while (true) {
+    const decision = config[current];
+    if (decision === true || decision === false) return decision;
+
+    const parent = path.dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+}
+
 function sortTrustConfig(config: PiTrustConfig): PiTrustConfig {
   const sorted: PiTrustConfig = {};
   for (const key of Object.keys(config).sort()) {
     sorted[key] = config[key] ?? null;
   }
   return sorted;
-}
-
-async function readLocalConfig(configPath: string): Promise<string | null> {
-  try {
-    return await fs.readFile(configPath, 'utf8');
-  } catch (error: unknown) {
-    if (isNodeNotFound(error)) return null;
-    throw error;
-  }
-}
-
-async function writeLocalConfigAtomic(configPath: string, content: string): Promise<void> {
-  const tmpPath = `${configPath}.${randomUUID()}.tmp`;
-  try {
-    await fs.mkdir(path.dirname(configPath), { recursive: true });
-    await fs.writeFile(tmpPath, content, 'utf8');
-    await fs.rename(tmpPath, configPath);
-  } catch (error: unknown) {
-    try {
-      await fs.rm(tmpPath, { force: true });
-    } catch {}
-    throw error;
-  }
-}
-
-async function readRemoteConfig(
-  remoteFs: Pick<FileSystemProvider, 'read'>,
-  configPath: string
-): Promise<string | null> {
-  try {
-    const result = await remoteFs.read(configPath, PI_TRUST_CONFIG_MAX_BYTES);
-    return result.content;
-  } catch (error: unknown) {
-    if (isFsNotFound(error)) return null;
-    throw error;
-  }
-}
-
-async function writeRemoteConfigAtomic(
-  remoteFs: Pick<FileSystemProvider, 'write'>,
-  ctx: IExecutionContext,
-  configPath: string,
-  content: string
-): Promise<void> {
-  const tmpPath = `${configPath}.${randomUUID()}.tmp`;
-  try {
-    await ctx.exec('mkdir', ['-p', path.posix.dirname(configPath)]);
-    await remoteFs.write(tmpPath, content);
-    await ctx.exec('mv', [tmpPath, configPath]);
-  } catch (error: unknown) {
-    try {
-      await ctx.exec('rm', ['-f', tmpPath]);
-    } catch {}
-    throw error;
-  }
-}
-
-function isNodeNotFound(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException)?.code === 'ENOENT';
-}
-
-function isFsNotFound(error: unknown): boolean {
-  return error instanceof FileSystemError && error.code === FileSystemErrorCodes.NOT_FOUND;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

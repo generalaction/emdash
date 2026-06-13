@@ -12,6 +12,7 @@ const mockWriteFile = vi.hoisted(() => vi.fn());
 const mockMkdir = vi.hoisted(() => vi.fn());
 const mockRename = vi.hoisted(() => vi.fn());
 const mockRm = vi.hoisted(() => vi.fn());
+const mockRmdir = vi.hoisted(() => vi.fn());
 const mockRealpath = vi.hoisted(() => vi.fn());
 const mockWarn = vi.hoisted(() => vi.fn());
 
@@ -22,6 +23,7 @@ vi.mock('node:fs', () => ({
     mkdir: mockMkdir,
     rename: mockRename,
     rm: mockRm,
+    rmdir: mockRmdir,
     realpath: mockRealpath,
   },
 }));
@@ -73,6 +75,7 @@ describe('PiTrustService', () => {
     mockMkdir.mockResolvedValue(undefined);
     mockRename.mockResolvedValue(undefined);
     mockRm.mockResolvedValue(undefined);
+    mockRmdir.mockResolvedValue(undefined);
     mockRealpath.mockImplementation(async (p: string) => p);
   });
 
@@ -126,6 +129,8 @@ describe('PiTrustService', () => {
     });
 
     expect(mockMkdir).toHaveBeenCalledWith('/home/local-user/.pi/agent', { recursive: true });
+    expect(mockMkdir).toHaveBeenCalledWith('/home/local-user/.pi/agent/trust.json.lock');
+    expect(mockRmdir).toHaveBeenCalledWith('/home/local-user/.pi/agent/trust.json.lock');
     const [tmpPath, content] = mockWriteFile.mock.calls[0];
     const [renameFrom, renameTo] = mockRename.mock.calls[0];
     expect(tmpPath).toContain('/home/local-user/.pi/agent/trust.json.');
@@ -262,9 +267,11 @@ describe('PiTrustService', () => {
     const [tmpPath, content] = vi.mocked(remoteFs.write).mock.calls[0];
     expect(tmpPath).toContain('/home/remote-user/.pi/agent/trust.json.');
     expect(JSON.parse(String(content))).toEqual({ '/remote/worktree': true });
+    expect(ctx.exec).toHaveBeenCalledWith('mkdir', ['/home/remote-user/.pi/agent/trust.json.lock']);
     expect(ctx.exec).toHaveBeenCalledWith('mv', [
       tmpPath,
       '/home/remote-user/.pi/agent/trust.json',
     ]);
+    expect(ctx.exec).toHaveBeenCalledWith('rmdir', ['/home/remote-user/.pi/agent/trust.json.lock']);
   });
 });
