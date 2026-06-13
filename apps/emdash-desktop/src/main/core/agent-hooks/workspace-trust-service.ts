@@ -3,6 +3,7 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { claudeTrustService } from './claude-trust-service';
 import { cursorTrustService } from './cursor-trust-service';
+import { piTrustService } from './pi-trust-service';
 
 type WorkspaceTrustLocalArgs = {
   providerId: AgentProviderId;
@@ -43,4 +44,5 @@ export class WorkspaceTrustService {
 export const workspaceTrustService = new WorkspaceTrustService([
   claudeTrustService,
   cursorTrustService,
+  piTrustService,
 ]);

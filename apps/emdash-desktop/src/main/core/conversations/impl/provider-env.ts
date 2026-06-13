@@ -7,7 +7,11 @@ const GEMINI_TRUST_WORKSPACE = 'true';
 
 export function resolveProviderEnv(
   providerConfig: ProviderCustomConfig | undefined,
-  options: { providerId?: AgentProviderId; autoApprove?: boolean } = {}
+  options: {
+    providerId?: AgentProviderId;
+    autoApprove?: boolean;
+    autoTrustWorktrees?: boolean;
+  } = {}
 ): Record<string, string> | undefined {
   const env: Record<string, string> = {};
 
@@ -15,7 +19,7 @@ export function resolveProviderEnv(
     env.OPENCODE_PERMISSION = OPENCODE_ALLOW_ALL_PERMISSIONS;
   }
 
-  if (options.providerId === 'gemini' && options.autoApprove) {
+  if (options.providerId === 'gemini' && (options.autoApprove || options.autoTrustWorktrees)) {
     env.GEMINI_CLI_TRUST_WORKSPACE = GEMINI_TRUST_WORKSPACE;
   }
 

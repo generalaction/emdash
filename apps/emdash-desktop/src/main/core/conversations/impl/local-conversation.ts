@@ -116,6 +116,7 @@ export class LocalConversationProvider implements ConversationProvider {
     if (!spawnToken) return;
 
     try {
+      const taskSettings = await appSettingsService.get('tasks');
       await workspaceTrustService.maybeAutoTrustLocal({
         providerId: conversation.providerId,
         cwd: this.taskPath,
@@ -147,6 +148,7 @@ export class LocalConversationProvider implements ConversationProvider {
       const providerEnv = resolveProviderEnv(providerConfig, {
         providerId: conversation.providerId,
         autoApprove: conversation.autoApprove,
+        autoTrustWorktrees: taskSettings.autoTrustWorktrees,
       });
       if (conversation.providerId === 'grok') {
         await syncGrokThemeWithAppTheme({ env: providerEnv });

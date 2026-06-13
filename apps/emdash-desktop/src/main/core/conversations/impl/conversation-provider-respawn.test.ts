@@ -185,6 +185,11 @@ function mockSettings(): void {
         writeAgentConfigToGitIgnore: true,
       } as never;
     }
+    if (key === 'tasks') {
+      return {
+        autoTrustWorktrees: true,
+      } as never;
+    }
     throw new Error(`Unexpected settings key: ${key}`);
   });
 }

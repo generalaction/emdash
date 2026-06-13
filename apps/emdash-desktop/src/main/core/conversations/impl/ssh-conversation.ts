@@ -10,6 +10,7 @@ import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
@@ -106,6 +107,7 @@ export class SshConversationProvider implements ConversationProvider {
     if (!spawnToken) return;
 
     try {
+      const taskSettings = await appSettingsService.get('tasks');
       await workspaceTrustService.maybeAutoTrustSsh({
         providerId: conversation.providerId,
         cwd: this.taskPath,
@@ -138,6 +140,7 @@ export class SshConversationProvider implements ConversationProvider {
       const providerEnv = resolveProviderEnv(providerConfig, {
         providerId: conversation.providerId,
         autoApprove: conversation.autoApprove,
+        autoTrustWorktrees: taskSettings.autoTrustWorktrees,
       });
 
       const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;

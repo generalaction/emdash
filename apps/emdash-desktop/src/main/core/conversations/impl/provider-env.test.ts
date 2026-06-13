@@ -41,9 +41,21 @@ describe('resolveProviderEnv', () => {
     });
   });
 
-  it('does not set Gemini workspace trust when auto-approve is disabled', () => {
+  it('sets Gemini workspace trust when auto-trust worktrees is enabled', () => {
     expect(
-      resolveProviderEnv(undefined, { providerId: 'gemini', autoApprove: false })
+      resolveProviderEnv(undefined, { providerId: 'gemini', autoTrustWorktrees: true })
+    ).toEqual({
+      GEMINI_CLI_TRUST_WORKSPACE: 'true',
+    });
+  });
+
+  it('does not set Gemini workspace trust when auto-approve and auto-trust are disabled', () => {
+    expect(
+      resolveProviderEnv(undefined, {
+        providerId: 'gemini',
+        autoApprove: false,
+        autoTrustWorktrees: false,
+      })
     ).toBeUndefined();
   });
 
