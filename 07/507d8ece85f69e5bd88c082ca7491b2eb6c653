@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/settings/components/TaskSettingsRows.tsx
+  s_c59b2a5e98cadc::t_65eb260196154e 67
+apps/emdash-desktop/src/main/core/agent-hooks/json-workspace-trust-config.ts
+  s_c59b2a5e98cadc::t_9b0e802688742f 201,213-216,222-225,232,241-246
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "07507d8ece85f69e5bd88c082ca7491b2eb6c653",
+  "prompts": {},
+  "sessions": {
+    "s_c59b2a5e98cadc": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ec25a-1f12-7e35-8f67-b7f5160aef04",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
