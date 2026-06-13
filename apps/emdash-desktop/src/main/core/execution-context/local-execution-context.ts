@@ -20,6 +20,7 @@ function buildNonInteractiveGitEnv(): NodeJS.ProcessEnv {
 export class LocalExecutionContext implements IExecutionContext {
   readonly root: string;
   readonly supportsLocalSpawn = true;
+  readonly isWindows = process.platform === 'win32';
 
   private readonly _lifetime = new AbortController();
 

@@ -37,6 +37,7 @@ export function buildSshCommand(
 export class SshExecutionContext implements IExecutionContext {
   readonly root?: string;
   readonly supportsLocalSpawn = false;
+  readonly isWindows = false;
 
   private readonly _lifetime = new AbortController();
 

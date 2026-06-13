@@ -24,6 +24,15 @@ export interface IExecutionContext {
    */
   readonly supportsLocalSpawn: boolean;
 
+  /**
+   * Whether the host this context executes on is Windows. Consumers must use
+   * this — not the local `process.platform` — when picking platform-specific
+   * commands (e.g. `where` vs `which`), so a Windows client connected to a
+   * POSIX remote over SSH still runs the right command on the remote host.
+   * SSH remotes are POSIX, so this is always false for them.
+   */
+  readonly isWindows: boolean;
+
   /** Run a command and buffer all output. Rejects on non-zero exit code. */
   exec(command: string, args?: string[], opts?: ExecOptions): Promise<ExecResult>;
 
