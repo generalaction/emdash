@@ -87,6 +87,10 @@ function formatProvisionWorkspaceError(error: ProvisionWorkspaceError): string {
       return 'Workspace has no intent and no resolved path — cannot provision.';
     case 'setup-failed':
       return `Setup step '${error.stepKind}' failed (${error.stepErrorType})${error.message ? `: ${error.message}` : ''}.`;
+    case 'workspace-already-checked-out':
+      return error.branchName
+        ? `Branch "${error.branchName}" is already checked out by task "${error.taskName}".`
+        : `This workspace is already checked out by task "${error.taskName}".`;
   }
 }
 
@@ -451,6 +455,7 @@ export class TaskManagerStore {
         if (current && isUnprovisioned(current)) {
           current.phase = 'provision-error';
           current.errorMessage = message;
+          current.provisionError = result.error;
         }
       });
       return;

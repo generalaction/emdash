@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectProvider, TaskProvider } from '@main/core/projects/project-provider';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
@@ -233,13 +233,24 @@ export class WorkspaceBootstrapService {
 
     const resolvedPath = setupResult.data.path;
     if (resolvedPath) {
-      await this.persistPath(
+      const persistedWorkspaceId = await this.persistPath(
         workspaceRow.id,
         resolvedPath,
         workspaceRow.type,
         connectionId,
         intentBranchName
       );
+      if (persistedWorkspaceId !== workspaceRow.id) {
+        const owningTask = await this.findOwningTask(persistedWorkspaceId, task.projectId, task.id);
+        if (owningTask) {
+          return err({
+            type: 'workspace-already-checked-out',
+            branchName: intentBranchName,
+            taskId: owningTask.id,
+            taskName: owningTask.name,
+          });
+        }
+      }
     }
 
     if (connectionId) {
@@ -279,6 +290,25 @@ export class WorkspaceBootstrapService {
 
     const task = mapTaskRowToTask(row);
     return this.ensureWorkspaceSetup(wsRow, row, task, project);
+  }
+
+  private async findOwningTask(
+    workspaceId: string,
+    projectId: string,
+    ignoredTaskId: string
+  ): Promise<{ id: string; name: string } | null> {
+    const rows = await this.db
+      .select({ id: tasks.id, name: tasks.name })
+      .from(tasks)
+      .where(
+        and(
+          eq(tasks.workspaceId, workspaceId),
+          eq(tasks.projectId, projectId),
+          isNull(tasks.archivedAt)
+        )
+      );
+
+    return rows.find((row) => row.id !== ignoredTaskId) ?? null;
   }
 
   /**

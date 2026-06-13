@@ -5,6 +5,7 @@ import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import type {
+  ProvisionWorkspaceError,
   RenameTaskError,
   RenameTaskSuccess,
   Task,
@@ -41,6 +42,7 @@ export class TaskStore {
   data: UnregisteredTaskData | Task;
   phase: UnregisteredTaskPhase | UnprovisionedTaskPhase | null;
   errorMessage: string | undefined = undefined;
+  provisionError: ProvisionWorkspaceError | undefined = undefined;
   provisionProgressMessage: string | null = null;
 
   /** The workspace ID for this task session — null when unprovisioned. */
@@ -119,6 +121,7 @@ export class TaskStore {
     this.state = 'provisioned';
     this.phase = null;
     this.errorMessage = undefined;
+    this.provisionError = undefined;
     this.provisionProgressMessage = null;
     this.viewModel?.initialize();
   }
@@ -133,6 +136,7 @@ export class TaskStore {
     this.state = 'unprovisioned';
     this.phase = phase;
     this.errorMessage = undefined;
+    this.provisionError = undefined;
     this.provisionProgressMessage = null;
 
     // Create stable stores on first registration (when transitioning from unregistered).
@@ -145,6 +149,7 @@ export class TaskStore {
     this.state = 'unprovisioned';
     this.phase = phase;
     this.errorMessage = undefined;
+    this.provisionError = undefined;
     this.provisionProgressMessage = null;
   }
 

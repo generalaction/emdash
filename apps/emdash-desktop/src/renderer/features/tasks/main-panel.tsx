@@ -1,4 +1,4 @@
-import { Loader2 } from 'lucide-react';
+import { ExternalLink, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect } from 'react';
 import { usePanelRef } from 'react-resizable-panels';
@@ -11,7 +11,9 @@ import {
   useTaskViewContext,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
+import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
+import { Button } from '@renderer/lib/ui/button';
 import { ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { DraggableResizeHandle, TaskMainColumn } from './view/task-main-column';
 import { TaskSidebar } from './view/task-sidebar';
@@ -20,6 +22,7 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   const { projectId, taskId } = useTaskViewContext();
   const taskStore = getTaskStore(projectId, taskId);
   const kind = taskViewKind(taskStore, projectId);
+  const { navigate } = useNavigate();
 
   if (kind === 'creating') {
     return (
@@ -54,6 +57,11 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   }
 
   if (kind === 'provision-error' || kind === 'project-error') {
+    const existingTask =
+      taskStore?.provisionError?.type === 'workspace-already-checked-out'
+        ? taskStore.provisionError
+        : null;
+
     return (
       <div className="flex h-full w-full flex-col items-center justify-center p-8">
         <div className="flex max-w-xs flex-col items-center gap-2 text-center">
@@ -61,6 +69,17 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
             Failed to set up workspace
           </p>
           <p className="font-mono text-xs text-foreground-muted">{taskErrorMessage(taskStore)}</p>
+          {existingTask && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2 gap-1.5"
+              onClick={() => navigate('task', { projectId, taskId: existingTask.taskId })}
+            >
+              <ExternalLink className="size-3.5" />
+              Open existing task
+            </Button>
+          )}
         </div>
       </div>
     );
