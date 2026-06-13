@@ -74,6 +74,34 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks>, I
     return ok(updatedSettings);
   }
 
+  /**
+   * Set the lifecycle setup script for a project. Reads the current settings
+   * server-side and writes back the merged result, so callers only need to pass
+   * the command — avoiding a full settings round-trip from the renderer.
+   */
+  async setSetupScript(
+    projectId: string,
+    command: string
+  ): Promise<Result<ProjectSettings, UpdateProjectSettingsError>> {
+    const project = this.requireProject(projectId);
+    if (!project.success) return project;
+
+    const current = await project.data.settings.get();
+    if (current.scripts?.setup?.trim()) {
+      return err({ type: 'setup-script-already-configured' });
+    }
+
+    const result = await project.data.settings.update({
+      ...current,
+      scripts: { ...current.scripts, setup: command },
+    });
+    if (!result.success) return result;
+
+    const updatedSettings = await project.data.settings.get();
+    this.emitSettingsChanged(projectId, updatedSettings);
+    return ok(updatedSettings);
+  }
+
   async patchProjectSettings(
     projectId: string,
     patch: ProjectSettingsPatch
