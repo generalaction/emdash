@@ -573,6 +573,84 @@ describe('buildAgentCommand', () => {
       })
     ).toThrow(/executable command prefixes/);
   });
+
+  it('passes the selected Codex model and reasoning effort before the prompt', () => {
+    const command = buildAgentCommand({
+      providerId: 'codex',
+      providerConfig: providerConfigDefaults.codex,
+      autoApprove: true,
+      initialPrompt: 'Fix the issue',
+      sessionId: 'conv-1',
+      modelSelection: { model: 'gpt-5.5', reasoningEffort: 'high' },
+    });
+
+    expect(command).toEqual({
+      command: 'codex',
+      args: [
+        '-c',
+        'approval_policy=never',
+        '-c',
+        'sandbox_mode=danger-full-access',
+        '--dangerously-bypass-hook-trust',
+        '--model',
+        'gpt-5.5',
+        '-c',
+        'model_reasoning_effort=high',
+        'Fix the issue',
+      ],
+    });
+  });
+
+  it('passes the selected Claude model and effort flags', () => {
+    const command = buildAgentCommand({
+      providerId: 'claude',
+      providerConfig: providerConfigDefaults.claude,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      modelSelection: { model: 'opus', reasoningEffort: 'high' },
+    });
+
+    expect(command.args).toEqual([
+      '--session-id',
+      'conv-1',
+      '--model',
+      'opus',
+      '--effort',
+      'high',
+      'Fix the bug',
+    ]);
+  });
+
+  it('passes the selected Cursor model and ignores reasoning effort', () => {
+    const command = buildAgentCommand({
+      providerId: 'cursor',
+      providerConfig: providerConfigDefaults.cursor,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      modelSelection: { model: 'claude-4.5-sonnet-thinking', reasoningEffort: 'high' },
+    });
+
+    expect(command.args).toEqual(['--model', 'claude-4.5-sonnet-thinking', 'Fix the bug']);
+  });
+
+  it('does not apply the model selection when resuming', () => {
+    const baseline = buildAgentCommand({
+      providerId: 'codex',
+      providerConfig: providerConfigDefaults.codex,
+      sessionId: 'conv-1',
+      isResuming: true,
+    });
+
+    const withSelection = buildAgentCommand({
+      providerId: 'codex',
+      providerConfig: providerConfigDefaults.codex,
+      sessionId: 'conv-1',
+      isResuming: true,
+      modelSelection: { model: 'gpt-5.5', reasoningEffort: 'high' },
+    });
+
+    expect(withSelection.args).toEqual(baseline.args);
+  });
 });
 
 describe('wrapAgentCommandWithStdinPipe', () => {
@@ -618,6 +696,25 @@ describe('buildAgentSessionCommand', () => {
     expect(result).toEqual({
       command: 'bash',
       args: ['-c', "printf '%s\\n' 'Fix the bug' | 'amp' '--dangerously-allow-all'"],
+    });
+  });
+
+  it('includes the selected Amp mode in the piped command', () => {
+    const result = buildAgentSessionCommand({
+      providerId: 'amp',
+      providerConfig: providerConfigDefaults.amp,
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      modelSelection: { model: 'rush' },
+    });
+
+    expect(result).toEqual({
+      command: 'bash',
+      args: [
+        '-c',
+        "printf '%s\\n' 'Fix the bug' | 'amp' '--dangerously-allow-all' '--mode' 'rush'",
+      ],
     });
   });
 

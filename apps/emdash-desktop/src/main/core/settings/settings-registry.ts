@@ -31,6 +31,7 @@ export const SETTINGS_DEFAULTS = {
     includeIssueContextByDefault: true,
   },
   agentAutoApproveDefaults: {},
+  agentModels: {},
   notifications: {
     enabled: true,
     sound: true,

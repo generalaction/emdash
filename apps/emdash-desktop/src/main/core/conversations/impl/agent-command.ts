@@ -1,4 +1,5 @@
 import { quoteShellArg } from '@main/utils/shellEscape';
+import { buildAgentModelArgs, type AgentModelSelection } from '@shared/core/agents/agent-models';
 import {
   getProvider,
   isValidProviderSessionId,
@@ -146,6 +147,7 @@ export function buildAgentCommand({
   sessionId,
   providerSessionId,
   isResuming,
+  modelSelection,
 }: {
   providerId: AgentProviderId;
   providerConfig: ProviderCustomConfig | undefined;
@@ -155,6 +157,7 @@ export function buildAgentCommand({
   sessionId: string;
   providerSessionId?: string;
   isResuming?: boolean;
+  modelSelection?: AgentModelSelection;
 }): AgentCommand {
   const providerDef = getProvider(providerId);
   const [command, ...args] = parseCliPrefix(providerConfig?.cli, providerId);
@@ -198,6 +201,14 @@ export function buildAgentCommand({
     args.push(...parseArgField(autoApproveFlag));
   }
 
+  // Apply the configured model/reasoning flags only on a fresh start. On resume,
+  // providers re-attach to an existing session (often via a subcommand such as
+  // `codex resume <id>`) that already carries its model, and appending model
+  // flags there can conflict with the resume argument shape.
+  if (!isResuming) {
+    args.push(...buildAgentModelArgs(providerId, modelSelection));
+  }
+
   if (!isResuming && extraInitialArgs?.length) {
     args.push(...extraInitialArgs);
   } else if (
@@ -237,6 +248,7 @@ export function buildAgentSessionCommand(args: {
   sessionId: string;
   providerSessionId?: string;
   isResuming?: boolean;
+  modelSelection?: AgentModelSelection;
 }): AgentCommand {
   const command = buildAgentCommand(args);
   const prompt = args.initialPrompt?.trim();

@@ -126,6 +126,8 @@ export class LocalConversationProvider implements ConversationProvider {
 
       const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
       const providerDef = getProvider(conversation.providerId);
+      const agentModels = await appSettingsService.get('agentModels');
+      const modelSelection = agentModels[conversation.providerId];
       const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming);
       const initialPromptDelivery = createInitialPromptDelivery({
         providerId: conversation.providerId,
@@ -143,6 +145,7 @@ export class LocalConversationProvider implements ConversationProvider {
         sessionId: agentSession.sessionId,
         providerSessionId: conversation.providerSessionId,
         isResuming: agentSession.isResuming,
+        modelSelection,
       });
       const providerEnv = resolveProviderEnv(providerConfig, {
         providerId: conversation.providerId,

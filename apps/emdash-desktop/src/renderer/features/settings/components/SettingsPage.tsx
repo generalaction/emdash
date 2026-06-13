@@ -10,6 +10,7 @@ import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
 import InterfaceSettingsCard from './InterfaceSettingsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
+import ModelsSettingsCard from './ModelsSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
@@ -32,6 +33,7 @@ export type SettingsPageTab =
   | 'general'
   | 'account'
   | 'clis-models'
+  | 'models'
   | 'integrations'
   | 'connections'
   | 'repository'
@@ -63,6 +65,7 @@ export function SettingsPage({
     { id: 'general', label: 'General' },
     { id: 'account', label: 'Account' },
     { id: 'clis-models', label: 'Agents' },
+    { id: 'models', label: 'Models' },
     { id: 'integrations', label: 'Integrations' },
     { id: 'connections', label: 'Connections' },
     { id: 'repository', label: 'Repository' },
@@ -126,6 +129,12 @@ export function SettingsPage({
           ),
         },
       ],
+    },
+    models: {
+      title: 'Models',
+      description:
+        'Choose the default model and reasoning effort used when starting new conversations with each agent.',
+      sections: [{ component: <ModelsSettingsCard /> }],
     },
     integrations: {
       title: 'Integrations',

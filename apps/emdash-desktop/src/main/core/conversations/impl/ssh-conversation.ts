@@ -10,6 +10,7 @@ import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
@@ -115,6 +116,8 @@ export class SshConversationProvider implements ConversationProvider {
       });
 
       const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
+      const agentModels = await appSettingsService.get('agentModels');
+      const modelSelection = agentModels[conversation.providerId];
       const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming, {
         requireProviderSessionId: false,
       });
@@ -134,6 +137,7 @@ export class SshConversationProvider implements ConversationProvider {
         sessionId: agentSession.sessionId,
         providerSessionId: conversation.providerSessionId,
         isResuming: agentSession.isResuming,
+        modelSelection,
       });
       const providerEnv = resolveProviderEnv(providerConfig, {
         providerId: conversation.providerId,

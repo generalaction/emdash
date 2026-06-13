@@ -43,6 +43,15 @@ export const agentAutoApproveDefaultsSchema = z
   .partialRecord(z.enum(AGENT_PROVIDER_IDS), z.boolean())
   .default({});
 
+export const agentModelSelectionSchema = z.object({
+  model: z.string().optional(),
+  reasoningEffort: z.string().optional(),
+});
+
+export const agentModelsSchema = z
+  .partialRecord(z.enum(AGENT_PROVIDER_IDS), agentModelSelectionSchema)
+  .default({});
+
 export const terminalSettingsSchema = z.object({
   fontFamily: z.string().optional(),
   fontSize: z.number().min(TERMINAL_FONT_SIZE_MIN).max(TERMINAL_FONT_SIZE_MAX).optional(),
@@ -133,6 +142,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   project: projectSettingsSchema,
   tasks: taskSettingsSchema,
   agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
+  agentModels: agentModelsSchema,
   defaultAgent: defaultAgentSchema,
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,
@@ -150,6 +160,7 @@ export const appSettingsSchema = z.object({
   project: projectSettingsSchema,
   tasks: taskSettingsSchema,
   agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
+  agentModels: agentModelsSchema,
   defaultAgent: defaultAgentSchema,
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,
