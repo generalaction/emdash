@@ -1,0 +1,28 @@
+apps/emdash-desktop/src/renderer/features/settings/components/BrowserSettingsCard.tsx
+  s_42c960834d4597::t_1a55800a54d7b0 380-384
+apps/emdash-desktop/src/renderer/features/tasks/commands.test.ts
+  s_42c960834d4597::t_216a6c7937f29f 89
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_42c960834d4597::t_b10e29dcc7ff74 75-79
+apps/emdash-desktop/src/renderer/features/browser/browser-session-store.test.ts
+  s_42c960834d4597::t_5f8df36b599736 219-222
+apps/emdash-desktop/src/renderer/features/browser/browser-session-store.ts
+  s_42c960834d4597::t_dc345d2d704a1c 109,112
+  s_42c960834d4597::t_6c11068f6120f4 110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "01446a171905b07f0c8c904e329d2d1d4e23a25e",
+  "prompts": {},
+  "sessions": {
+    "s_42c960834d4597": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ec244-d5eb-7a12-b4df-e2789deb79fd",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
