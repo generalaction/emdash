@@ -252,13 +252,17 @@ export function useAgentInstallationStatus(
   const installations = useMemo<Installation[]>(() => {
     if (statusEntry) return statusEntry.installations;
     if (!agentPayload) return [];
+    // Synthetic installation before the first probe completes
+    const syntheticPath = agentPayload.command;
     return [
       {
-        id: 'auto',
-        source: { kind: 'auto' as const },
-        inferredMethod: null,
+        id: syntheticPath ?? 'auto',
+        realpath: syntheticPath ?? 'auto',
+        pathEntry: syntheticPath,
+        isActive: true,
+        manageable: false,
+        provenance: { kind: 'unknown', confidence: 'inferred' } as const,
         status: agentPayload.status,
-        path: agentPayload.command,
         version: agentPayload.version,
         latestVersion: agentPayload.latestVersion,
         updateAvailable: agentPayload.updateAvailable,

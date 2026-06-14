@@ -96,14 +96,16 @@ describe('AgentUpdateService', () => {
       hostDependency: {
         hostId: 'local',
         dependencyId: baseEvent.id,
-        used: { kind: 'method' as const, method: 'npm' as const },
+        used: { kind: 'auto' as const },
         installations: [
           {
-            id: 'method:npm',
-            source: { kind: 'method' as const, method: 'npm' as const },
-            inferredMethod: 'npm' as const,
+            id: '/usr/bin/codex',
+            realpath: '/usr/bin/codex',
+            pathEntry: '/usr/bin/codex',
+            isActive: true,
+            manageable: true,
+            provenance: { kind: 'npm' as const, confidence: 'confirmed' as const },
             status: 'available' as const,
-            path: '/usr/bin/codex',
             version: '1.0.0',
             latestVersion: null,
             updateAvailable: false,
@@ -172,14 +174,16 @@ describe('AgentUpdateService', () => {
       hostDependency: {
         hostId: 'local',
         dependencyId: 'codex' as DependencyId,
-        used: { kind: 'method' as const, method: 'npm' as const },
+        used: { kind: 'auto' as const },
         installations: [
           {
-            id: 'method:npm',
-            source: { kind: 'method' as const, method: 'npm' as const },
-            inferredMethod: 'npm' as const,
+            id: '/usr/bin/codex',
+            realpath: '/usr/bin/codex',
+            pathEntry: '/usr/bin/codex',
+            isActive: true,
+            manageable: true,
+            provenance: { kind: 'npm' as const, confidence: 'confirmed' as const },
             status: 'available' as const,
-            path: '/usr/bin/codex',
             version: '1.0.0',
             latestVersion: null,
             updateAvailable: false,
@@ -227,11 +231,13 @@ describe('AgentUpdateService', () => {
       used: { kind: 'auto' as const },
       installations: [
         {
-          id: 'auto',
-          source: { kind: 'auto' as const },
-          inferredMethod: null,
+          id: '/opt/shims/amp',
+          realpath: '/opt/shims/amp',
+          pathEntry: '/opt/shims/amp',
+          isActive: true,
+          manageable: false, // unknown provenance + package-manager → not manageable
+          provenance: { kind: 'unknown' as const, confidence: 'inferred' as const },
           status: 'available' as const,
-          path: '/opt/shims/amp',
           version: '1.0.0',
           latestVersion: null,
           updateAvailable: false,
@@ -241,7 +247,7 @@ describe('AgentUpdateService', () => {
 
     const enriched = service.enrichHostDependency('amp' as DependencyId, hostDep);
     expect(enriched.installations[0]?.latestVersion).toBe('2.0.0');
-    // auto + package-manager + no inferredMethod → updateAvailable=false
+    // auto + package-manager + manageable=false → updateAvailable=false
     expect(enriched.installations[0]?.updateAvailable).toBe(false);
   });
 
@@ -268,11 +274,13 @@ describe('AgentUpdateService', () => {
       used: { kind: 'auto' as const },
       installations: [
         {
-          id: 'auto',
-          source: { kind: 'auto' as const },
-          inferredMethod: null,
+          id: '/opt/shims/claude',
+          realpath: '/opt/shims/claude',
+          pathEntry: '/opt/shims/claude',
+          isActive: true,
+          manageable: true, // cli strategy → always manageable
+          provenance: { kind: 'unknown' as const, confidence: 'inferred' as const },
           status: 'available' as const,
-          path: '/opt/shims/claude',
           version: '1.0.0',
           latestVersion: null,
           updateAvailable: false,
@@ -282,7 +290,7 @@ describe('AgentUpdateService', () => {
 
     const enriched = service.enrichHostDependency('claude' as DependencyId, hostDep);
     expect(enriched.installations[0]?.latestVersion).toBe('2.0.0');
-    // auto + cli strategy → always updatable
+    // cli strategy + manageable=true → always updatable
     expect(enriched.installations[0]?.updateAvailable).toBe(true);
   });
 

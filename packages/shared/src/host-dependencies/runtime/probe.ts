@@ -12,6 +12,39 @@ function targetPlatform(platform?: Platform): Platform {
 }
 
 /**
+ * Resolves all absolute paths for a command binary in PATH order.
+ * Uses `where` on Windows (which already lists all matches) and `which -a` on
+ * macOS/Linux. Returns an empty array when the command is not found.
+ *
+ * The first entry is the PATH winner (same result as resolveCommandPath).
+ */
+export async function resolveAllCommandPaths(
+  command: string,
+  ctx: IExecutionContext,
+  platform?: Platform
+): Promise<string[]> {
+  const plat = targetPlatform(platform);
+  try {
+    if (plat === 'windows') {
+      const { stdout } = await ctx.exec('where', [command], { timeout: WHICH_TIMEOUT_MS });
+      return stdout
+        .trim()
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+    const { stdout } = await ctx.exec('which', ['-a', command], { timeout: WHICH_TIMEOUT_MS });
+    return stdout
+      .trim()
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Resolves the absolute path of a command binary.
  * Uses `where` on Windows and `which` on macOS/Linux.
  * Returns `null` if the command is not found or the resolution fails.

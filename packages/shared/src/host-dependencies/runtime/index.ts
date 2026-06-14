@@ -6,6 +6,7 @@ export {
   hostDependencySelectionSchema,
   installationCanUpdate,
   normalizeSelection,
+  resolveActiveInstallation,
   resolveSelectedSource,
   sourceKey,
   type DependencyCategory,
@@ -27,6 +28,7 @@ export {
   type InstallCommandError,
   type InstallOverride,
   type Installation,
+  type Provenance,
   type SelectedSource,
   type ProbeResult,
 } from './types';
@@ -35,4 +37,9 @@ export {
   type HostDependencyManagerOptions,
   type InstallCommandRunner,
 } from './host-dependency-manager';
-export { resolveCommandPath, resolveRealpath, runVersionProbe } from './probe';
+export {
+  resolveAllCommandPaths,
+  resolveCommandPath,
+  resolveRealpath,
+  runVersionProbe,
+} from './probe';

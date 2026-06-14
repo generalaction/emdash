@@ -22,10 +22,11 @@ function cacheKey(providerId: string, connectionId?: string): string {
  * Resolve the absolute path of the agent binary to use for conversation spawns.
  *
  * Resolution order:
- * 1. selection.kind === 'path': use selection.path if it exists on disk; otherwise fall through.
- * 2. selection.kind === 'cli': return selection.command as-is (PTY resolves on PATH).
- * 3. selection.kind === 'method' or 'auto' (no override): fall through to cachedStatePath.
- * 4. auto:
+ * 1. selection.kind === 'pinned': use selection.realpath if it exists on disk; otherwise fall through.
+ * 2. selection.kind === 'path': use selection.path if it exists on disk; otherwise fall through.
+ * 3. selection.kind === 'cli': return selection.command as-is (PTY resolves on PATH).
+ * 4. selection.kind === 'method' or 'auto' (no override): fall through to cachedStatePath.
+ * 5. auto:
  *    a. In-memory cached path from dependency probe (cachedStatePath).
  *    b. Probe via ctx (resolveCommandPath).
  *    c. Bare binaryName.
@@ -50,6 +51,14 @@ export async function resolveAgentExecutable({
 }): Promise<string> {
   const hostId = connectionId ?? 'local';
   const selection = await hostDependencyStore.getSelection(hostId, providerId as DependencyId);
+
+  if (selection?.kind === 'pinned') {
+    const exists = await resolveCommandPath(selection.realpath, ctx);
+    if (exists) return selection.realpath;
+    log.warn(
+      `[resolveAgentExecutable] Pinned realpath "${selection.realpath}" for ${providerId} not found — falling back to auto-resolution`
+    );
+  }
 
   if (selection?.kind === 'path') {
     const exists = await resolveCommandPath(selection.path, ctx);

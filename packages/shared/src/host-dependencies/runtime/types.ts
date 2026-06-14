@@ -60,11 +60,36 @@ export type DependencyUninstallError =
 export type DependencyUninstallResult = Result<DependencyState, DependencyUninstallError>;
 
 /**
+ * Provenance of an installed binary: how it was installed and how confident we are.
+ *
+ * kind: the installation method or a non-PM origin category:
+ *   - InstallMethod values (homebrew, npm, curl, …): a known package-manager or installer
+ *   - 'manual': installed by directly placing the binary, no PM involved
+ *   - 'version-manager': managed by a shim-based tool (mise, asdf, nvm, …)
+ *   - 'unknown': could not determine origin
+ *
+ * confidence:
+ *   - 'confirmed': queried the package manager and it confirmed ownership
+ *   - 'inferred': path-substring heuristic only; may be incorrect
+ *
+ * managerRef: for package-manager installs, the formula/package name for targeted
+ * upgrade/uninstall commands (e.g. 'claude-code' for `brew upgrade claude-code`).
+ */
+export type Provenance = {
+  kind: InstallMethod | 'manual' | 'version-manager' | 'unknown';
+  confidence: 'confirmed' | 'inferred';
+  managerRef?: string;
+};
+
+/**
  * Persisted discriminated union for a user-chosen install override.
- * Only the three concrete override kinds are stored — 'auto' is never persisted;
+ * Only concrete override kinds are stored — 'auto' is never persisted;
  * its absence implies auto. Replaces the legacy { usedId, path?, cli? } shape.
+ *
+ * pinned: user selected a specific binary by its absolute realpath.
  */
 export type InstallOverride =
+  | { kind: 'pinned'; realpath: string }
   | { kind: 'method'; method: InstallMethod }
   | { kind: 'path'; path: string }
   | { kind: 'cli'; command: string };
@@ -76,10 +101,11 @@ export type InstallOverride =
 export type SelectedSource = { kind: 'auto' } | InstallOverride;
 
 /**
- * Returns a stable string key for a SelectedSource — the former Installation.id values.
- * 'auto' | 'method:<m>' | 'path' | 'cli'
+ * Returns a stable string key for a SelectedSource.
+ * 'auto' | '<realpath>' (pinned) | 'method:<m>' | 'path' | 'cli'
  */
 export function sourceKey(s: SelectedSource): string {
+  if (s.kind === 'pinned') return s.realpath;
   if (s.kind === 'method') return `method:${s.method}`;
   return s.kind;
 }
@@ -95,31 +121,24 @@ export function resolveSelectedSource(override: InstallOverride | null): Selecte
 /**
  * Returns true when an installation can be updated via emdash's update action.
  *
- * - auto/none strategy: never updatable through emdash.
- * - cli strategy: always updatable regardless of selection — the binary self-updates.
- * - package-manager strategy:
- *   - method selection: always (we know which PM to call).
- *   - auto selection: yes when inferredMethod is known (preserves auto-update for
- *     pre-existing installs without a persisted override).
- *   - path/cli overrides: no PM command applies.
+ * Uses the installation's `manageable` flag (computed from provenance + descriptor
+ * strategy) plus the strategy kind:
+ *   - CLI strategy: always true when manageable (binary self-updates regardless of source)
+ *   - package-manager strategy: true when manageable (confirmed provenance)
+ *   - auto / none: never updatable through emdash
  */
 export function installationCanUpdate(
-  selection: SelectedSource,
-  inferredMethod: InstallMethod | null,
+  inst: Installation,
   strategyKind: UpdateStrategy['kind']
 ): boolean {
-  if (strategyKind === 'auto' || strategyKind === 'none') return false;
-  if (strategyKind === 'cli') return true;
-  // package-manager strategy
-  if (selection.kind === 'method') return true;
-  if (selection.kind === 'auto') return inferredMethod !== null;
-  return false;
+  if (!inst.manageable) return false;
+  return strategyKind !== 'auto' && strategyKind !== 'none';
 }
 
 /**
  * Migrates a raw/legacy persisted value to the canonical InstallOverride | null shape.
  *
- * New format (discriminated union): round-trips as-is.
+ * New format (discriminated union): round-trips as-is (including 'pinned').
  * Legacy format ({ usedId?, path?, cli? }):
  *   - usedId === 'path' and path present → { kind:'path', path }
  *   - usedId === 'cli' and cli present    → { kind:'cli', command: cli }
@@ -133,6 +152,9 @@ export function normalizeSelection(raw: unknown): InstallOverride | null {
   if (typeof raw === 'object' && !Array.isArray(raw)) {
     const obj = raw as Record<string, unknown>;
     const kind = obj['kind'];
+    if (kind === 'pinned' && typeof obj['realpath'] === 'string') {
+      return { kind: 'pinned', realpath: obj['realpath'] };
+    }
     if (kind === 'method' && typeof obj['method'] === 'string') {
       return { kind: 'method', method: obj['method'] as InstallMethod };
     }
@@ -162,19 +184,31 @@ export function normalizeSelection(raw: unknown): InstallOverride | null {
 /**
  * A single resolved installation of an agent binary on a specific host.
  *
- * id is stable and backward-compatible: sourceKey(source).
- * source reflects the authoritative SelectedSource (user override or auto).
- * inferredMethod is the result of path-heuristic inference — used only as a
- * routing hint for auto updates, never as identity.
+ * Identity: `realpath` (the absolute canonical path after following symlinks).
+ * `id` equals `realpath` for enumerated installations; for path/cli overrides
+ * it is the literal string 'path' or 'cli' (preserved for backward-compat lookups).
+ *
+ * Provenance captures how the binary was installed and the confidence level.
+ * `manageable` indicates whether emdash can update/uninstall this installation.
  */
 export type Installation = {
-  /** Stable string key: sourceKey(source). Kept for backward compat with existing find() calls. */
+  /**
+   * Stable lookup key.
+   * Enumerated installs: absolute realpath (same as `realpath`).
+   * Path override: 'path'. CLI override: 'cli'.
+   */
   id: string;
-  source: SelectedSource;
-  /** Inferred install method from binary realpath (location-hints). Null when unresolvable. */
-  inferredMethod: InstallMethod | null;
+  /** Absolute canonical realpath of the binary (follows symlinks). */
+  realpath: string;
+  /** PATH-visible path entry (symlink/shim) used to discover this binary. Null for off-PATH. */
+  pathEntry: string | null;
+  /** True when this is the current PATH winner (first `which` result). */
+  isActive: boolean;
+  /** Whether emdash can manage (update/uninstall) this installation via its UI. */
+  manageable: boolean;
+  /** How this binary was installed and how confidently we know it. */
+  provenance: Provenance;
   status: DependencyStatus;
-  path: string | null;
   version: string | null;
   latestVersion: string | null;
   updateAvailable: boolean;
@@ -201,6 +235,7 @@ export type HostDependencySelection = InstallOverride | null;
 
 export const hostDependencySelectionSchema: z.ZodType<HostDependencySelection> = z.nullable(
   z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('pinned'), realpath: z.string() }),
     z.object({ kind: z.literal('method'), method: z.string() }),
     z.object({ kind: z.literal('path'), path: z.string() }),
     z.object({ kind: z.literal('cli'), command: z.string() }),
@@ -208,12 +243,38 @@ export const hostDependencySelectionSchema: z.ZodType<HostDependencySelection> =
 ) as z.ZodType<HostDependencySelection>;
 
 /**
+ * Resolves the active Installation from a HostDependency based on the used source.
+ *
+ * Resolution rules:
+ *   - auto:    the installation with isActive === true (PATH winner)
+ *   - pinned:  the installation whose realpath matches selection.realpath
+ *   - method:  first manageable installation whose provenance.kind matches
+ *   - path:    the path-override installation (id === 'path')
+ *   - cli:     the cli-override installation (id === 'cli')
+ *
+ * Returns undefined when no matching installation is found (dep is missing or
+ * the selected installation no longer exists on disk).
+ */
+export function resolveActiveInstallation(
+  installations: Installation[],
+  used: SelectedSource
+): Installation | undefined {
+  if (used.kind === 'auto') return installations.find((i) => i.isActive);
+  if (used.kind === 'pinned') return installations.find((i) => i.realpath === used.realpath);
+  if (used.kind === 'method') {
+    return installations.find((i) => i.provenance.kind === used.method && i.manageable);
+  }
+  if (used.kind === 'path') return installations.find((i) => i.id === 'path');
+  if (used.kind === 'cli') return installations.find((i) => i.id === 'cli');
+  return undefined;
+}
+
+/**
  * Derives the overall dependency status from the currently-used installation.
  * Returns 'missing' when no matching installation is found.
  */
 export function deriveHostDependencyStatus(dep: HostDependency): DependencyStatus {
-  const key = sourceKey(dep.used);
-  return dep.installations.find((i) => i.id === key)?.status ?? 'missing';
+  return resolveActiveInstallation(dep.installations, dep.used)?.status ?? 'missing';
 }
 
 export type DependencyStatusUpdatedEvent = {

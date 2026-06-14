@@ -19,9 +19,9 @@ import type {
   InstallOption,
   SelectedSource,
 } from '@shared/core/agents/agent-payload';
-import { sourceKey } from '@shared/core/agents/agent-payload';
+import { resolveActiveInstallation, sourceKey } from '@shared/core/agents/agent-payload';
 import { InstalledBadge, RecommendedBadge, UsedBadge } from './agent-status-badge';
-import { buildSourceRows } from './installation-sources';
+import { buildSourceRows, provenanceLabel } from './installation-sources';
 
 export type InstallationState = 'found' | 'not-found' | 'uninstalled' | 'checking';
 
@@ -47,28 +47,35 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
   state,
   onSelectSource,
 }: DependencyInstallationStatusCardProps) {
-  const { used, installations, refresh, fetchLatestVersion, uninstall, isUninstalling } = vm;
+  const { installations, refresh, fetchLatestVersion, uninstall, isUninstalling } = vm;
 
-  const selectedInstall = installations.find((i) => i.id === sourceKey(selectedSource));
+  const selectedInstall = resolveActiveInstallation(installations, selectedSource);
   const versionText =
     state === 'found' && selectedInstall?.version ? `v${selectedInstall.version}` : null;
 
-  // Show the "no automatic updates" hint when auto is selected but method cannot be inferred.
+  // Show the "no automatic updates" hint when the used installation is not manageable
+  // for a package-manager strategy (i.e., we can't determine which PM to call).
   const updates = agentPayload?.capabilities.hostDependency.updates;
   const strategyKind = updates?.kind === 'supported' ? updates.update.kind : 'none';
   const showNoAutoUpdateHint =
-    state === 'found' &&
-    selectedSource.kind === 'auto' &&
-    selectedInstall?.inferredMethod === null &&
-    strategyKind === 'package-manager';
+    state === 'found' && !selectedInstall?.manageable && strategyKind === 'package-manager';
 
   const uninstallDescriptor = agentPayload?.capabilities.hostDependency.uninstall;
   const canUninstall =
     !!uninstallDescriptor && uninstallDescriptor.kind !== 'none' && state === 'found';
 
   const sourceRows = buildSourceRows(installOptions, installations);
-  const selectedRow = sourceRows.find((r) => sourceKey(r.ref) === sourceKey(selectedSource));
-  const selectedLabel = selectedRow?.label ?? selectedSource.kind;
+  const selectedKey = sourceKey(selectedSource);
+  const selectedRow = sourceRows.find((r) => sourceKey(r.ref) === selectedKey);
+
+  // Build a human-readable label for the currently-selected source
+  const selectedLabel = (() => {
+    if (selectedInstall && selectedSource.kind !== 'auto') {
+      const provLabel = provenanceLabel(selectedInstall.provenance);
+      return selectedRow?.label ?? provLabel;
+    }
+    return selectedRow?.label ?? selectedSource.kind;
+  })();
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -128,11 +135,18 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
                   <DropdownMenuSeparator />
                   {sourceRows.map((row) => {
                     const rowKey = sourceKey(row.ref);
-                    const isCurrentSource = rowKey === sourceKey(selectedSource);
+                    const isCurrentSource = rowKey === selectedKey;
                     return (
                       <DropdownMenuItem key={rowKey} onClick={() => onSelectSource(row.ref)}>
                         <span className="flex items-center gap-1.5 truncate">
-                          <span className="truncate">{row.label}</span>
+                          <span className="flex flex-col truncate">
+                            <span className="truncate">{row.label}</span>
+                            {row.displayPath && (
+                              <span className="truncate font-mono text-xs text-foreground-muted">
+                                {row.displayPath}
+                              </span>
+                            )}
+                          </span>
                           {row.recommended && <RecommendedBadge />}
                           {row.status === 'available' && !isCurrentSource && <InstalledBadge />}
                           {isCurrentSource &&
@@ -177,14 +191,11 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
                   disabled={isUninstalling}
                   onClick={() => {
                     const name = agentPayload?.name ?? 'Agent';
-                    void toast.promise(
-                      uninstall(used?.kind === 'method' ? used.method : undefined),
-                      {
-                        loading: `Uninstalling ${name}...`,
-                        success: `${name} successfully uninstalled`,
-                        error: `Failed to uninstall ${name}`,
-                      }
-                    );
+                    void toast.promise(uninstall(), {
+                      loading: `Uninstalling ${name}...`,
+                      success: `${name} successfully uninstalled`,
+                      error: `Failed to uninstall ${name}`,
+                    });
                   }}
                 >
                   Uninstall

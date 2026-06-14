@@ -95,12 +95,12 @@ export const InstallSection = observer(function InstallSection({
   // Persisted override values used as initial inputs for the override card.
   const initialPath = useMemo(() => {
     const inst = vm.installations.find((i) => i.id === 'path');
-    return inst?.source.kind === 'path' ? inst.source.path : '';
+    return inst?.pathEntry ?? '';
   }, [vm.installations]);
 
   const initialCli = useMemo(() => {
     const inst = vm.installations.find((i) => i.id === 'cli');
-    return inst?.source.kind === 'cli' ? inst.source.command : '';
+    return inst?.pathEntry ?? '';
   }, [vm.installations]);
 
   const selectedInstall = findInstallation(vm.installations, selectedSource);
@@ -131,8 +131,8 @@ export const InstallSection = observer(function InstallSection({
     if (installation?.status === 'available') {
       void vm.setUsed(
         toSelection(selectedSource, {
-          path: installation.source.kind === 'path' ? installation.source.path : undefined,
-          cli: installation.source.kind === 'cli' ? installation.source.command : undefined,
+          path: installation.id === 'path' ? (installation.pathEntry ?? '') : undefined,
+          cli: installation.id === 'cli' ? (installation.pathEntry ?? '') : undefined,
         })
       );
     }

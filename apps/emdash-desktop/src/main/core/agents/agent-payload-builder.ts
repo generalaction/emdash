@@ -2,12 +2,12 @@ import type { CLIAgentPluginProvider } from '@emdash/shared/agents/plugins';
 import type { Platform } from '@emdash/shared/deps';
 import {
   deriveHostDependencyStatus,
+  resolveActiveInstallation,
   resolveInstallOptions,
   sourceKey,
   toPlatform,
 } from '@emdash/shared/deps/runtime';
-import type { DependencyId, DependencyState, HostDependency } from '@emdash/shared/deps/runtime';
-import type { HostDependencyManager } from '@emdash/shared/deps/runtime';
+import type { DependencyId, DependencyState, HostDependency, HostDependencyManager } from '@emdash/shared/deps/runtime';
 import type {
   AgentInstallationStatus,
   AgentMetadata,
@@ -68,13 +68,10 @@ async function buildOne(
   const hostDep =
     rawHostDep && enrichHostDep ? enrichHostDep(id as DependencyId, rawHostDep) : rawHostDep;
 
-  // Derive top-level fields from the used installation so the row badge always
-  // matches the detail card (both read the used per-installation value). Without
-  // this the row would report the raw PATH probe status and never react to the
-  // selected source.
+  // Derive top-level fields from resolveActiveInstallation so the row badge always
+  // matches the detail card (both read the used per-installation value).
   const used = hostDep?.used ?? { kind: 'auto' as const };
-  const usedKey = sourceKey(used);
-  const usedInst = hostDep?.installations.find((i) => i.id === usedKey);
+  const usedInst = hostDep ? resolveActiveInstallation(hostDep.installations, used) : undefined;
   const latestVersion = usedInst?.latestVersion ?? null;
   const updateAvailable = usedInst?.updateAvailable ?? false;
 
@@ -84,7 +81,7 @@ async function buildOne(
     version: usedInst?.version ?? state?.version ?? null,
     latestVersion,
     updateAvailable,
-    command: usedInst?.path ?? state?.path ?? null,
+    command: usedInst?.pathEntry ?? state?.path ?? null,
     settings: settingsMeta ?? {
       value: defaultConfig,
       defaults: defaultConfig,
@@ -93,7 +90,7 @@ async function buildOne(
     installOptions: descriptor ? resolveInstallOptions(descriptor, platform) : [],
     installations: hostDep?.installations ?? [],
     used,
-    usedId: usedKey,
+    usedId: sourceKey(used),
   };
 }
 
@@ -134,8 +131,7 @@ export function toAgentInstallationStatus(
   installOptions: InstallOption[] = []
 ): AgentInstallationStatus {
   const used = hostDep?.used ?? { kind: 'auto' as const };
-  const usedKey = sourceKey(used);
-  const usedInst = hostDep?.installations.find((i) => i.id === usedKey);
+  const usedInst = hostDep ? resolveActiveInstallation(hostDep.installations, used) : undefined;
   return {
     id,
     connectionId,
@@ -143,10 +139,10 @@ export function toAgentInstallationStatus(
     version: state.version,
     latestVersion: usedInst?.latestVersion ?? state.latestVersion ?? null,
     updateAvailable: usedInst?.updateAvailable ?? state.updateAvailable ?? false,
-    command: state.path,
+    command: usedInst?.pathEntry ?? state.path,
     installations: hostDep?.installations ?? [],
     used,
-    usedId: usedKey,
+    usedId: sourceKey(used),
     installOptions,
   };
 }

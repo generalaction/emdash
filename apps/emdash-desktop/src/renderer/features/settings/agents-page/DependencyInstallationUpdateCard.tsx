@@ -2,7 +2,7 @@ import { ArrowRight, Loader2, RefreshCw } from 'lucide-react';
 import { useMemo } from 'react';
 import { useAgentInstallationStatus } from '@renderer/lib/stores/use-agent-installation-statuses';
 import type { AgentPayload, InstallMethod } from '@shared/core/agents/agent-payload';
-import { sourceKey } from '@shared/core/agents/agent-payload';
+import { resolveActiveInstallation } from '@shared/core/agents/agent-payload';
 import { CommandActionButton, CommandRow } from './install-command-row';
 
 export type DependencyInstallationUpdateCardProps = {
@@ -40,7 +40,7 @@ export function DependencyInstallationUpdateCard({
   // Resolve the Installation for the currently used source
   const usedInstallation = useMemo(() => {
     if (!used) return undefined;
-    return installations.find((i) => i.id === sourceKey(used));
+    return resolveActiveInstallation(installations, used);
   }, [used, installations]);
 
   // Build a map of method -> updateCommand for package-manager strategy
@@ -67,13 +67,15 @@ export function DependencyInstallationUpdateCard({
     ) : null;
 
   if (strategyKind === 'package-manager') {
-    // Determine the effective method: explicit override or inferred from auto
+    // Determine the effective method from the installation's confirmed provenance.
+    // If not manageable, updateAvailable would already be false, so this is a guard.
+    if (!usedInstallation.manageable) return null;
+
+    const provKind = usedInstallation.provenance.kind;
     const usedMethod =
-      used?.kind === 'method'
-        ? used.method
-        : used?.kind === 'auto'
-          ? (usedInstallation.inferredMethod ?? null)
-          : null;
+      provKind !== 'manual' && provKind !== 'version-manager' && provKind !== 'unknown'
+        ? (provKind as InstallMethod)
+        : null;
     if (!usedMethod) return null;
 
     // Prefer explicit updateCommand; fall back to the install command for that method
@@ -104,7 +106,7 @@ export function DependencyInstallationUpdateCard({
   // cli strategy — binary self-updates regardless of install source
   if (strategyKind === 'cli' && updates?.kind === 'supported' && updates.update.kind === 'cli') {
     const cliUpdate = updates.update;
-    const binary = usedInstallation.path ?? agentPayload?.id ?? agentId;
+    const binary = usedInstallation.pathEntry ?? agentPayload?.id ?? agentId;
     const command = [binary, ...cliUpdate.args].join(' ');
     const isUpdatingThis = isUpdating && updatingMethod === undefined;
 

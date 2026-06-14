@@ -34,10 +34,21 @@ export type InstallOption = {
 export type DependencyStatus = 'available' | 'missing' | 'error';
 
 /**
+ * Installation provenance — mirrors Provenance in @emdash/shared/deps/runtime types.ts.
+ */
+export type Provenance = {
+  kind: InstallMethod | 'manual' | 'version-manager' | 'unknown';
+  confidence: 'confirmed' | 'inferred';
+  managerRef?: string;
+};
+
+/**
  * Persisted discriminated union for a user-chosen install override.
  * null = auto. Never store { kind: 'auto' }.
+ * pinned: a specific binary selected by absolute realpath.
  */
 export type InstallOverride =
+  | { kind: 'pinned'; realpath: string }
   | { kind: 'method'; method: InstallMethod }
   | { kind: 'path'; path: string }
   | { kind: 'cli'; command: string };
@@ -49,25 +60,53 @@ export type SelectedSource = { kind: 'auto' } | InstallOverride;
 
 /**
  * Returns a stable string key for a SelectedSource.
- * 'auto' | 'method:<m>' | 'path' | 'cli'
+ * 'auto' | '<realpath>' (pinned) | 'method:<m>' | 'path' | 'cli'
  */
 export function sourceKey(s: SelectedSource): string {
+  if (s.kind === 'pinned') return s.realpath;
   if (s.kind === 'method') return `method:${s.method}`;
   return s.kind;
 }
 
 export type Installation = {
-  /** Stable string key: sourceKey(source). */
+  /**
+   * Stable lookup key.
+   * Enumerated installs: absolute realpath. Path override: 'path'. CLI override: 'cli'.
+   */
   id: string;
-  source: SelectedSource;
-  /** Inferred install method from binary realpath. Null when unresolvable. */
-  inferredMethod: InstallMethod | null;
+  /** Absolute canonical realpath of the binary. */
+  realpath: string;
+  /** PATH-visible path entry (symlink/shim). Null for off-PATH installs. */
+  pathEntry: string | null;
+  /** True when this is the current PATH winner (first `which` result). */
+  isActive: boolean;
+  /** Whether emdash can manage (update/uninstall) this installation. */
+  manageable: boolean;
+  /** How this binary was installed and how confidently we know it. */
+  provenance: Provenance;
   status: DependencyStatus;
-  path: string | null;
   version: string | null;
   latestVersion: string | null;
   updateAvailable: boolean;
 };
+
+/**
+ * Resolves the active Installation from a list given a SelectedSource.
+ * Mirrors resolveActiveInstallation from @emdash/shared/deps/runtime.
+ */
+export function resolveActiveInstallation(
+  installations: Installation[],
+  used: SelectedSource
+): Installation | undefined {
+  if (used.kind === 'auto') return installations.find((i) => i.isActive);
+  if (used.kind === 'pinned') return installations.find((i) => i.realpath === used.realpath);
+  if (used.kind === 'method') {
+    return installations.find((i) => i.provenance.kind === used.method && i.manageable);
+  }
+  if (used.kind === 'path') return installations.find((i) => i.id === 'path');
+  if (used.kind === 'cli') return installations.find((i) => i.id === 'cli');
+  return undefined;
+}
 
 /** Persisted user preference for which installation to use on a specific host. */
 export type HostDependencySelection = InstallOverride | null;

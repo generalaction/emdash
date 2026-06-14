@@ -3,7 +3,7 @@ import type { IExecutionContext } from '../../exec/execution-context';
 import { err, ok } from '../../lib/result';
 import { HostDependencyManager } from './host-dependency-manager';
 import type { InstallMethodDetector } from './method-detection';
-import type { DependencyDescriptor } from './types';
+import type { DependencyDescriptor, Provenance } from './types';
 
 const TEST_DEPENDENCIES: DependencyDescriptor[] = [
   {
@@ -79,16 +79,36 @@ const missingCtx = makeCtx(async () => {
 });
 
 /**
- * A detector stub that always returns null (simulates an unrecognised path).
+ * A detector stub that always returns unknown/inferred provenance.
  * Used in tests to avoid live brew/npm queries and keep assertions deterministic.
  */
-const nullDetector: InstallMethodDetector = {
-  detect: async () => null,
+const unknownDetector: InstallMethodDetector = {
+  detect: async (): Promise<Provenance> => ({ kind: 'unknown', confidence: 'inferred' }),
+  invalidate: () => {},
+};
+
+/**
+ * A detector stub that returns npm confirmed provenance.
+ * Used for tests verifying npm-confirmed manageable installs.
+ */
+const npmDetector: InstallMethodDetector = {
+  detect: async (): Promise<Provenance> => ({
+    kind: 'npm',
+    confidence: 'confirmed',
+    managerRef: '@openai/codex',
+  }),
+  invalidate: () => {},
 };
 
 const availableCtx = makeCtx(async (command, args = []) => {
+  if (command === 'which' && args[0] === '-a' && args[1] === 'codex') {
+    return { stdout: '/bin/codex\n', stderr: '' };
+  }
   if (command === 'which' && args[0] === 'codex') {
     return { stdout: '/bin/codex\n', stderr: '' };
+  }
+  if (command === 'realpath') {
+    return { stdout: `${args[0]}\n`, stderr: '' };
   }
   if (command === '/bin/codex' && args[0] === '--version') {
     return { stdout: 'codex-cli 1.2.3\n', stderr: '' };
@@ -147,6 +167,7 @@ describe('HostDependencyManager install', () => {
     const manager = new HostDependencyManager(availableCtx, {
       dependencies: TEST_DEPENDENCIES,
       runInstallCommand,
+      installMethodDetector: unknownDetector,
     });
 
     const result = await manager.install('codex');
@@ -192,6 +213,7 @@ describe('HostDependencyManager install', () => {
     const manager = new HostDependencyManager(availableCtx, {
       dependencies: TEST_DEPENDENCIES,
       runInstallCommand: async () => ok<void>(),
+      installMethodDetector: unknownDetector,
     });
 
     const result = await manager.install('codex');
@@ -204,8 +226,14 @@ describe('HostDependencyManager install', () => {
     let shellEnvRefreshed = false;
     const ctx = makeCtx(
       async (command, args = []) => {
+        if (command === 'which' && args[0] === '-a' && args[1] === 'codex' && shellEnvRefreshed) {
+          return { stdout: '/home/user/.local/bin/codex\n', stderr: '' };
+        }
         if (command === 'which' && args[0] === 'codex' && shellEnvRefreshed) {
           return { stdout: '/home/user/.local/bin/codex\n', stderr: '' };
+        }
+        if (command === 'realpath') {
+          return { stdout: `${args[0]}\n`, stderr: '' };
         }
         if (command === '/home/user/.local/bin/codex' && args[0] === '--version') {
           return { stdout: 'codex-cli 1.2.3\n', stderr: '' };
@@ -221,6 +249,7 @@ describe('HostDependencyManager install', () => {
     const manager = new HostDependencyManager(ctx, {
       dependencies: TEST_DEPENDENCIES,
       runInstallCommand: async () => ok<void>(),
+      installMethodDetector: unknownDetector,
     });
 
     const result = await manager.install('codex');
@@ -232,8 +261,14 @@ describe('HostDependencyManager install', () => {
   it('refreshes shell env once before a user-triggered category probe', async () => {
     const ctx = makeCtx(
       async (command, args = []) => {
+        if (command === 'which' && args[0] === '-a' && args[1] === 'codex') {
+          return { stdout: '/bin/codex\n', stderr: '' };
+        }
         if (command === 'which' && args[0] === 'codex') {
           return { stdout: '/bin/codex\n', stderr: '' };
+        }
+        if (command === 'realpath') {
+          return { stdout: `${args[0]}\n`, stderr: '' };
         }
         if (command === '/bin/codex' && args[0] === '--version') {
           return { stdout: 'codex-cli 1.2.3\n', stderr: '' };
@@ -244,7 +279,10 @@ describe('HostDependencyManager install', () => {
         refreshShellEnv: async () => {},
       }
     );
-    const manager = new HostDependencyManager(ctx, { dependencies: TEST_DEPENDENCIES });
+    const manager = new HostDependencyManager(ctx, {
+      dependencies: TEST_DEPENDENCIES,
+      installMethodDetector: unknownDetector,
+    });
 
     await manager.probeCategory('agent', { refreshShellEnv: true });
 
@@ -288,12 +326,20 @@ describe('HostDependencyManager install', () => {
       if (command === 'which' && args[0] === 'letta') {
         return { stdout: '/bin/letta\n', stderr: '' };
       }
+      if (command === 'which' && args[0] === '-a' && args[1] === 'letta') {
+        return { stdout: '/bin/letta\n', stderr: '' };
+      }
       if (command === '/bin/letta') {
         throw new Error('letta should not be executed during dependency probing');
       }
-      throw new Error('missing');
+      // Allow realpath and brew/npm queries that arise from async enumeration;
+      // they are handled gracefully (caught) and are not the focus of this test.
+      return { stdout: '', stderr: '' };
     });
-    const manager = new HostDependencyManager(ctx, { dependencies: TEST_DEPENDENCIES });
+    const manager = new HostDependencyManager(ctx, {
+      dependencies: TEST_DEPENDENCIES,
+      installMethodDetector: unknownDetector,
+    });
 
     const result = await manager.probe('letta');
 
@@ -305,14 +351,17 @@ describe('HostDependencyManager install', () => {
         version: null,
       })
     );
-    expect(ctx.exec).toHaveBeenCalledTimes(1);
+    // Primary path-resolution which must happen synchronously.
     expect(ctx.exec).toHaveBeenCalledWith('which', ['letta'], { timeout: 5000 });
+    // The binary itself must never be executed during dependency probing.
+    expect(ctx.exec).not.toHaveBeenCalledWith('/bin/letta', expect.anything(), expect.anything());
   });
 
   it('fires onStatusUpdated with the SSH connection id', async () => {
     const manager = new HostDependencyManager(availableCtx, {
       dependencies: TEST_DEPENDENCIES,
       connectionId: 'ssh-1',
+      installMethodDetector: unknownDetector,
     });
     const listener = vi.fn();
     manager.onStatusUpdated.subscribe(listener);
@@ -350,11 +399,12 @@ describe('HostDependencyManager update', () => {
     const manager = new HostDependencyManager(availableCtx, {
       dependencies: TEST_DEPENDENCIES,
       runInstallCommand,
+      installMethodDetector: npmDetector,
     });
 
     const result = await manager.update('codex');
 
-    // codex uses package-manager strategy
+    // codex uses package-manager strategy; npm provenance → npm install command
     expect(runInstallCommand).toHaveBeenCalledWith('npm install -g @openai/codex');
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.status).toBe('available');
@@ -383,8 +433,14 @@ describe('HostDependencyManager update', () => {
   it('uses claude update args for cli strategy', async () => {
     const runInstallCommand = vi.fn(async () => ok<void>());
     const claudeCtx = makeCtx(async (command, args = []) => {
+      if (command === 'which' && args[0] === '-a' && args[1] === 'claude') {
+        return { stdout: '/usr/local/bin/claude\n', stderr: '' };
+      }
       if (command === 'which' && args[0] === 'claude') {
         return { stdout: '/usr/local/bin/claude\n', stderr: '' };
+      }
+      if (command === 'realpath') {
+        return { stdout: `${args[0]}\n`, stderr: '' };
       }
       if (command === '/usr/local/bin/claude' && args[0] === '--version') {
         return { stdout: 'claude 1.0.0\n', stderr: '' };
@@ -394,6 +450,7 @@ describe('HostDependencyManager update', () => {
     const manager = new HostDependencyManager(claudeCtx, {
       dependencies: TEST_DEPENDENCIES,
       runInstallCommand,
+      installMethodDetector: unknownDetector,
     });
 
     await manager.update('claude');
@@ -522,6 +579,7 @@ describe('HostDependencyManager uninstall', () => {
     const manager = new HostDependencyManager(missingCtx, {
       dependencies: UNINSTALL_DEPENDENCIES,
       runInstallCommand,
+      installMethodDetector: npmDetector,
     });
 
     const result = await manager.uninstall('codex-pm');
@@ -558,11 +616,18 @@ describe('HostDependencyManager uninstall', () => {
       if (command === 'which' && args[0] === 'claude') {
         return { stdout: '/usr/local/bin/claude\n', stderr: '' };
       }
+      if (command === 'which' && args[0] === '-a' && args[1] === 'claude') {
+        return { stdout: '/usr/local/bin/claude\n', stderr: '' };
+      }
+      if (command === 'realpath') {
+        return { stdout: `${args[0]}\n`, stderr: '' };
+      }
       throw new Error('missing');
     });
     const manager = new HostDependencyManager(claudeCtx, {
       dependencies: UNINSTALL_DEPENDENCIES,
       runInstallCommand,
+      installMethodDetector: unknownDetector,
     });
 
     await manager.uninstall('claude-cli-uninstall');
@@ -576,11 +641,18 @@ describe('HostDependencyManager uninstall', () => {
       if (command === 'which' && args[0] === 'claude') {
         return { stdout: '/usr/local/bin/claude\n', stderr: '' };
       }
+      if (command === 'which' && args[0] === '-a' && args[1] === 'claude') {
+        return { stdout: '/usr/local/bin/claude\n', stderr: '' };
+      }
+      if (command === 'realpath') {
+        return { stdout: `${args[0]}\n`, stderr: '' };
+      }
       throw new Error('missing');
     });
     const manager = new HostDependencyManager(claudeCtx, {
       dependencies: UNINSTALL_DEPENDENCIES,
       runInstallCommand,
+      installMethodDetector: unknownDetector,
     });
 
     await manager.uninstall('claude-hook-uninstall');
@@ -590,10 +662,13 @@ describe('HostDependencyManager uninstall', () => {
 });
 
 describe('HostDependencyManager unknown install source', () => {
-  // A path that won't match any location hint so inferMethod() returns null
+  // A path that won't match any location hint so detector returns unknown provenance
   const UNKNOWN_PATH = '/opt/custom-shims/codex';
 
   const unknownCtx = makeCtx(async (command, args = []) => {
+    if (command === 'which' && args[0] === '-a' && args[1] === 'codex') {
+      return { stdout: `${UNKNOWN_PATH}\n`, stderr: '' };
+    }
     if (command === 'which' && args[0] === 'codex') {
       return { stdout: `${UNKNOWN_PATH}\n`, stderr: '' };
     }
@@ -606,11 +681,11 @@ describe('HostDependencyManager unknown install source', () => {
     throw new Error('missing');
   });
 
-  it('emits source { kind: "auto" } and inferredMethod: null when method inference fails', async () => {
+  it('emits installation with unknown provenance when method inference fails', async () => {
     const manager = new HostDependencyManager(unknownCtx, {
       dependencies: TEST_DEPENDENCIES,
       connectionId: 'local',
-      installMethodDetector: nullDetector,
+      installMethodDetector: unknownDetector,
     });
     const events: unknown[] = [];
     manager.onStatusUpdated.subscribe((e) => events.push(e));
@@ -628,26 +703,30 @@ describe('HostDependencyManager unknown install source', () => {
       hostDepEvent as {
         hostDependency: {
           installations: Array<{
-            id: string;
-            source: { kind: string };
-            inferredMethod: string | null;
+            realpath: string;
+            isActive: boolean;
+            manageable: boolean;
+            provenance: Provenance;
           }>;
         };
       }
     ).hostDependency;
-    const autoInst = hostDep.installations.find((i) => i.id === 'auto');
-    expect(autoInst).toBeDefined();
-    // New model: 'auto' source with null inferredMethod instead of 'unknown' source
-    expect(autoInst?.source.kind).toBe('auto');
-    expect(autoInst?.inferredMethod).toBeNull();
+
+    const activeInst = hostDep.installations.find((i) => i.isActive);
+    expect(activeInst).toBeDefined();
+    expect(activeInst?.realpath).toBe(UNKNOWN_PATH);
+    expect(activeInst?.provenance.kind).toBe('unknown');
+    expect(activeInst?.provenance.confidence).toBe('inferred');
+    // unknown provenance + package-manager strategy → not manageable
+    expect(activeInst?.manageable).toBe(false);
   });
 
-  it('refuses package-manager update when inferredMethod is null (probed, source unrecognized)', async () => {
+  it('refuses package-manager update when provenance is unknown (not manageable)', async () => {
     const runInstallCommand = vi.fn(async () => ok<void>());
     const manager = new HostDependencyManager(unknownCtx, {
       dependencies: TEST_DEPENDENCIES,
       runInstallCommand,
-      installMethodDetector: nullDetector,
+      installMethodDetector: unknownDetector,
     });
 
     await manager.probe('codex');
@@ -662,6 +741,23 @@ describe('HostDependencyManager unknown install source', () => {
     });
     expect(runInstallCommand).not.toHaveBeenCalled();
   });
+
+  it('allows update when provenance is npm confirmed (manageable)', async () => {
+    const runInstallCommand = vi.fn(async () => ok<void>());
+    const manager = new HostDependencyManager(unknownCtx, {
+      dependencies: TEST_DEPENDENCIES,
+      runInstallCommand,
+      installMethodDetector: npmDetector,
+    });
+
+    await manager.probe('codex');
+    await new Promise((r) => setTimeout(r, 50));
+
+    const result = await manager.update('codex');
+
+    expect(runInstallCommand).toHaveBeenCalledWith('npm install -g @openai/codex');
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('HostDependencyManager probeOverride', () => {
@@ -669,6 +765,9 @@ describe('HostDependencyManager probeOverride', () => {
   const pathCtx = makeCtx(async (command, args = []) => {
     if (command === 'which' && args[0] === '/custom/codex') {
       return { stdout: '/custom/codex\n', stderr: '' };
+    }
+    if (command === 'realpath') {
+      return { stdout: `${args[0]}\n`, stderr: '' };
     }
     if (command === '/custom/codex' && args[0] === '--version') {
       return { stdout: 'codex-cli 2.0.0\n', stderr: '' };
@@ -689,7 +788,8 @@ describe('HostDependencyManager probeOverride', () => {
     expect(result?.id).toBe('path');
     expect(result?.status).toBe('available');
     expect(result?.version).toBe('2.0.0');
-    expect(result?.source).toEqual({ kind: 'path', path: '/custom/codex' });
+    // pathEntry is the override path value
+    expect(result?.pathEntry).toBe('/custom/codex');
     // Must not emit any status updated events
     expect(emitted).toHaveLength(0);
     // Must not populate hostState
@@ -706,12 +806,14 @@ describe('HostDependencyManager probeOverride', () => {
     expect(result).not.toBeNull();
     expect(result?.id).toBe('path');
     expect(result?.status).toBe('missing');
-    expect(result?.path).toBeNull();
+    // For a missing path override, pathEntry retains the specified value so the UI can show it.
+    expect(result?.pathEntry).toBe('/nonexistent/codex');
   });
 
   it('returns an available Installation for a valid cli override', async () => {
     const manager = new HostDependencyManager(availableCtx, {
       dependencies: TEST_DEPENDENCIES,
+      installMethodDetector: unknownDetector,
     });
     const emitted: unknown[] = [];
     manager.onStatusUpdated.subscribe((e) => emitted.push(e));
@@ -721,7 +823,8 @@ describe('HostDependencyManager probeOverride', () => {
     expect(result).not.toBeNull();
     expect(result?.id).toBe('cli');
     expect(result?.status).toBe('available');
-    expect(result?.source).toEqual({ kind: 'cli', command: 'codex' });
+    // pathEntry is the CLI command name
+    expect(result?.pathEntry).toBe('codex');
     expect(emitted).toHaveLength(0);
   });
 
@@ -742,5 +845,82 @@ describe('HostDependencyManager probeOverride', () => {
     await expect(manager.probeOverride('nonexistent', { cli: 'foo' })).rejects.toThrow(
       'Unknown dependency id: nonexistent'
     );
+  });
+});
+
+describe('HostDependencyManager enumeration', () => {
+  it('enumerates multiple installations from which -a and dedupes by realpath', async () => {
+    const BREW_PATH = '/opt/homebrew/bin/codex';
+    const BREW_REAL = '/opt/homebrew/Cellar/codex/1.0.0/bin/codex';
+    const NPM_PATH = '/usr/local/bin/codex';
+    const NPM_REAL = '/usr/local/lib/node_modules/.bin/codex';
+
+    const multiCtx = makeCtx(async (command, args = []) => {
+      if (command === 'which' && args[0] === '-a' && args[1] === 'codex') {
+        return { stdout: `${BREW_PATH}\n${NPM_PATH}\n`, stderr: '' };
+      }
+      if (command === 'which' && args[0] === 'codex') {
+        return { stdout: `${BREW_PATH}\n`, stderr: '' };
+      }
+      if (command === 'realpath' && args[0] === BREW_PATH) {
+        return { stdout: `${BREW_REAL}\n`, stderr: '' };
+      }
+      if (command === 'realpath' && args[0] === NPM_PATH) {
+        return { stdout: `${NPM_REAL}\n`, stderr: '' };
+      }
+      if (command === 'codex' && args[0] === '--version') {
+        return { stdout: 'codex-cli 1.2.3\n', stderr: '' };
+      }
+      if (command === BREW_PATH && args[0] === '--version') {
+        return { stdout: 'codex-cli 1.2.3\n', stderr: '' };
+      }
+      if (command === NPM_PATH && args[0] === '--version') {
+        return { stdout: 'codex-cli 1.1.0\n', stderr: '' };
+      }
+      throw new Error(`Unexpected: ${command} ${args.join(' ')}`);
+    });
+
+    let _brewCallCount = 0;
+    const multiDetector: InstallMethodDetector = {
+      detect: async (realPath): Promise<Provenance> => {
+        if (realPath === BREW_REAL) {
+          _brewCallCount++;
+          return { kind: 'homebrew', confidence: 'confirmed', managerRef: 'codex' };
+        }
+        return { kind: 'npm', confidence: 'confirmed' };
+      },
+      invalidate: () => {},
+    };
+
+    const manager = new HostDependencyManager(multiCtx, {
+      dependencies: TEST_DEPENDENCIES,
+      installMethodDetector: multiDetector,
+    });
+    const events: unknown[] = [];
+    manager.onStatusUpdated.subscribe((e) => events.push(e));
+
+    await manager.probe('codex');
+    await new Promise((r) => setTimeout(r, 100));
+
+    const hostDepEvent = (events as Array<{ hostDependency?: { installations: unknown[] } }>).find(
+      (e) => e.hostDependency !== undefined
+    );
+    expect(hostDepEvent).toBeDefined();
+    const installations = hostDepEvent?.hostDependency?.installations ?? [];
+
+    // Should find 2 distinct installations (deduped by realpath)
+    expect(installations).toHaveLength(2);
+
+    const brewInst = (installations as Array<{ realpath: string; isActive: boolean }>).find(
+      (i) => i.realpath === BREW_REAL
+    );
+    const npmInst = (installations as Array<{ realpath: string; isActive: boolean }>).find(
+      (i) => i.realpath === NPM_REAL
+    );
+
+    expect(brewInst).toBeDefined();
+    expect(brewInst?.isActive).toBe(true);
+    expect(npmInst).toBeDefined();
+    expect(npmInst?.isActive).toBe(false);
   });
 });

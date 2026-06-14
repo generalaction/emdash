@@ -34,7 +34,7 @@ const v1Schema = v0Schema.extend({
 // v2 schema — InstallOverride | null per agent (override-only; null = auto)
 // ---------------------------------------------------------------------------
 
-const installOverrideSchema = z.nullable(
+const installOverrideV2Schema = z.nullable(
   z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('method'), method: z.string() }),
     z.object({ kind: z.literal('path'), path: z.string() }),
@@ -49,7 +49,29 @@ const v2Schema = v0Schema.extend({
    *
    * v2 format: InstallOverride | null (discriminated union or null).
    */
-  dependencySelections: z.record(z.string(), installOverrideSchema).optional(),
+  dependencySelections: z.record(z.string(), installOverrideV2Schema).optional(),
+});
+
+// ---------------------------------------------------------------------------
+// v3 schema — adds 'pinned' kind to installOverrideSchema (pass-through migration)
+// ---------------------------------------------------------------------------
+
+const installOverrideV3Schema = z.nullable(
+  z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('pinned'), realpath: z.string() }),
+    z.object({ kind: z.literal('method'), method: z.string() }),
+    z.object({ kind: z.literal('path'), path: z.string() }),
+    z.object({ kind: z.literal('cli'), command: z.string() }),
+  ])
+);
+
+const v3Schema = v0Schema.extend({
+  /**
+   * Per-agent installation override selections for this SSH host.
+   * v3 adds { kind: 'pinned', realpath } to the override union.
+   * Existing method/path/cli overrides remain valid unchanged.
+   */
+  dependencySelections: z.record(z.string(), installOverrideV3Schema).optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -65,6 +87,7 @@ const v2Schema = v0Schema.extend({
  * v0 (unversioned): sshConfigAlias, forwardAgent, proxyJump
  * v1: adds dependencySelections ({usedId?,path?,cli?} legacy format)
  * v2: migrates dependencySelections to InstallOverride | null (override-only)
+ * v3: adds { kind: 'pinned', realpath } to installOverrideSchema (pass-through)
  */
 export const sshConnectionMetadata = defineVersionedSchema()
   .unversioned(v0Schema)
@@ -76,9 +99,12 @@ export const sshConnectionMetadata = defineVersionedSchema()
       const { dependencySelections: _omit, ...rest } = prev;
       return { ...rest, version: '2' };
     }
-    const migratedSelections: Record<string, z.infer<typeof installOverrideSchema>> = {};
+    const migratedSelections: Record<string, z.infer<typeof installOverrideV2Schema>> = {};
     for (const [depId, raw] of entries) {
-      migratedSelections[depId] = normalizeSelection(raw);
+      // Legacy selections never contain 'pinned'; safe to cast to v2 type.
+      migratedSelections[depId] = normalizeSelection(raw) as z.infer<
+        typeof installOverrideV2Schema
+      >;
     }
     return {
       ...prev,
@@ -86,6 +112,12 @@ export const sshConnectionMetadata = defineVersionedSchema()
       dependencySelections: migratedSelections,
     };
   })
+  .version('3', v3Schema, (prev) => ({
+    // Pass-through: existing method/path/cli overrides are valid in v3.
+    // New 'pinned' overrides can only be created going forward.
+    ...prev,
+    version: '3',
+  }))
   .build();
 
 // ---------------------------------------------------------------------------
