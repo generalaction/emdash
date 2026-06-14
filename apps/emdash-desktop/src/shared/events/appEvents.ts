@@ -15,6 +15,10 @@ export const menuCloseTabChannel = defineEvent<void>('menu:close-tab');
 export const menuQuitRequestedChannel = defineEvent<void>('menu:quit-requested');
 export const menuGiveFeedbackChannel = defineEvent<void>('menu:give-feedback');
 
+export const externalLinkOpenRequestedChannel = defineEvent<{ url: string }>(
+  'external-link:open-requested'
+);
+
 export const notificationFocusTaskChannel = defineEvent<{
   projectId: string;
   taskId: string;
