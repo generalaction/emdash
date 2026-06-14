@@ -102,6 +102,7 @@ export class BrowserAnnotationState {
   }
 
   clearAll(): void {
+    this.picking = false;
     this.annotations = [];
     this.draft = null;
     this.liveRects.clear();

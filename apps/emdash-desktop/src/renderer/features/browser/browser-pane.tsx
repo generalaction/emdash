@@ -297,7 +297,9 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
   );
 
   const clearAnnotations = useCallback(() => {
+    const wasPicking = annotationState.picking;
     annotationState.clearAll();
+    if (wasPicking) runPickerCommand({ kind: 'stop' });
     runPickerCommand({ kind: 'clear-tracked' });
   }, [annotationState, runPickerCommand]);
 

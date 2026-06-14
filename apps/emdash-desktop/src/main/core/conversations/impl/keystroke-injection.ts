@@ -100,14 +100,12 @@ export function scheduleInitialPromptInjection(args: {
         sawAnyOutput,
         sawReadyOutput,
       });
-      if (!sawReadyOutput) {
-        events.emit(conversationInitialPromptInjectionFailedChannel, {
-          conversationId: args.conversation.id,
-          taskId: args.conversation.taskId,
-          projectId: args.conversation.projectId,
-          providerId: args.conversation.providerId,
-        });
-      }
+      events.emit(conversationInitialPromptInjectionFailedChannel, {
+        conversationId: args.conversation.id,
+        taskId: args.conversation.taskId,
+        projectId: args.conversation.projectId,
+        providerId: args.conversation.providerId,
+      });
     }
   });
 }

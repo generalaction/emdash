@@ -142,6 +142,7 @@ describe('BrowserAnnotationState', () => {
 
   it('removes and clears annotations', () => {
     const state = new BrowserAnnotationState();
+    state.setPicking(true);
     state.startDraft(1, makeElement(), 'http://localhost:5173/');
     state.commitDraft('First');
     state.startDraft(2, makeElement(), 'http://localhost:5173/');
@@ -152,6 +153,7 @@ describe('BrowserAnnotationState', () => {
     expect(state.markers[0]?.ordinal).toBe(1);
 
     state.clearAll();
+    expect(state.picking).toBe(false);
     expect(state.annotations).toHaveLength(0);
     expect(state.markers).toEqual([]);
   });

@@ -225,4 +225,27 @@ describe('scheduleInitialPromptInjection', () => {
       providerId: 'hermes',
     });
   });
+
+  it('emits a user-visible failure event when the PTY exits after ready output but before injection', () => {
+    const { pty, write, emitData, emitExit } = makePty();
+    scheduleInitialPromptInjection({
+      pty,
+      conversation: makeConversation('hermes'),
+      initialPrompt: 'Fix the bug',
+      isResuming: false,
+    });
+
+    emitData('Hermes ready');
+    vi.advanceTimersByTime(200);
+    emitExit();
+    vi.advanceTimersByTime(20_000);
+
+    expect(write).not.toHaveBeenCalled();
+    expect(events.emit).toHaveBeenCalledWith(conversationInitialPromptInjectionFailedChannel, {
+      conversationId: 'conv-1',
+      taskId: 'task-1',
+      projectId: 'proj-1',
+      providerId: 'hermes',
+    });
+  });
 });
