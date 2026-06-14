@@ -1,0 +1,52 @@
+apps/emdash-desktop/src/renderer/tests/browser/models-settings-card.test.tsx
+  s_20fbff4c814499::t_d5613aa46ad72b 57-62
+  s_20fbff4c814499::t_4e7babbac8b1c6 1-2
+  s_20fbff4c814499::t_68cc3b9f05ea15 80,86,88-89
+  s_20fbff4c814499::t_388d064f35c605 92
+  s_20fbff4c814499::t_0080f5ad741f84 109-125
+  s_20fbff4c814499::t_08eb0f1f9a778c 72,76-77,83,85,87,97-98,101,106-107
+  s_20fbff4c814499::t_96684ac34added 3-8,10,13-16,18-56,63-71,73-75,78-79,81-82,84,90-91,94-96,99-100,102-105,108,126
+  s_20fbff4c814499::t_541a4e25ec14bf 9,11-12
+  s_20fbff4c814499::t_77b9e81ac0b380 93
+  s_20fbff4c814499::t_a90e1cea9b5d2d 17
+apps/emdash-desktop/src/shared/core/agents/agent-models.ts
+  s_20fbff4c814499::t_5fb3590b1ef002 119-121
+  s_20fbff4c814499::t_fbb9039adcf7f2 18-23
+apps/emdash-desktop/src/renderer/features/settings/components/ModelsSettingsCard.tsx
+  s_20fbff4c814499::t_5ebbdf24f78afc 30
+  s_20fbff4c814499::t_f3b2a8b488e9d7 49-50,61,84-87,101-104,115-119,121-160
+  s_20fbff4c814499::t_8ffa39380ed27b 120
+  s_20fbff4c814499::t_98471669a57a9a 95-99
+  s_20fbff4c814499::t_fcedbb007ea4e0 230-237
+  s_20fbff4c814499::t_0940865d8a6714 226-228
+  s_20fbff4c814499::t_7c9444450c5d24 184-186,188
+apps/emdash-desktop/src/shared/core/agents/agent-model-support.ts
+  s_20fbff4c814499::t_71eb3315fea0c8 139-141,143-145
+  s_20fbff4c814499::t_f37d6a16bba463 127-128
+  s_20fbff4c814499::t_e9e251c0be19f2 94
+  s_20fbff4c814499::t_3744a5f39b9545 146
+  s_20fbff4c814499::t_fbc11408831b83 72-74,76-77
+apps/emdash-desktop/src/shared/core/agents/agent-models.test.ts
+  s_20fbff4c814499::t_ec802517840245 99-101
+  s_20fbff4c814499::t_39f73a66e89b89 104-110
+  s_20fbff4c814499::t_0a44d0e2ec349a 144-145
+  s_20fbff4c814499::t_46021f6e9d0c37 134,139-142
+apps/emdash-desktop/src/main/core/conversations/impl/agent-command.test.ts
+  s_20fbff4c814499::t_c1083c0ec9471f 610,617
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "0a935ac01b7e01ca7e78345cc1591d2c1bea5320",
+  "prompts": {},
+  "sessions": {
+    "s_20fbff4c814499": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "52d360c4-1e60-42f1-a07a-7e447d4aa5fd",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
