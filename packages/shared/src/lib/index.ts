@@ -1,3 +1,4 @@
+export { isDeepEqual } from './deep-equal';
 export { Emitter } from './emitter';
 export { KeyedMutex } from './keyed-mutex';
 export type { IDisposable, Lease, Unsubscribe } from './lifecycle';

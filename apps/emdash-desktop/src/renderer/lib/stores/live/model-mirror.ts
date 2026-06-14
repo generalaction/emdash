@@ -2,7 +2,7 @@ import type { LiveValue } from '@emdash/shared/lib';
 import { makeObservable, observable, runInAction } from 'mobx';
 
 type Waiter = {
-  seq: number;
+  sequence: number;
   resolve: () => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout> | undefined;
@@ -22,8 +22,12 @@ export class ModelMirror<T> {
     return this.current?.value ?? null;
   }
 
-  get seq(): number {
-    return this.current?.seq ?? -1;
+  get sequence(): number {
+    return this.current?.sequence ?? -1;
+  }
+
+  get generation(): number {
+    return this.current?.generation ?? -1;
   }
 
   setSnapshot(value: LiveValue<T>): void {
@@ -34,18 +38,18 @@ export class ModelMirror<T> {
     this.apply(value);
   }
 
-  waitForSeq(target: number, timeoutMs = 15_000): Promise<void> {
-    if (this.seq >= target) return Promise.resolve();
+  waitForSequence(target: number, timeoutMs = 15_000): Promise<void> {
+    if (this.sequence >= target) return Promise.resolve();
     return new Promise((resolve, reject) => {
       const waiter: Waiter = {
-        seq: target,
+        sequence: target,
         resolve,
         reject,
         timer:
           timeoutMs > 0
             ? setTimeout(() => {
                 this.waiters = this.waiters.filter((candidate) => candidate !== waiter);
-                reject(new Error(`Timed out waiting for live model seq ${target}`));
+                reject(new Error(`Timed out waiting for live model sequence ${target}`));
               }, timeoutMs)
             : undefined,
       };
@@ -62,17 +66,36 @@ export class ModelMirror<T> {
   }
 
   private apply(value: LiveValue<T>): void {
-    if (value.seq <= this.seq) return;
+    if (this.current) {
+      if (value.generation < this.current.generation) return;
+      if (value.generation === this.current.generation && value.sequence <= this.current.sequence) {
+        return;
+      }
+    }
+    const generationChanged = this.current !== null && value.generation > this.current.generation;
     runInAction(() => {
       this.current = value;
     });
-    this.flushWaiters();
+    if (generationChanged) {
+      this.flushAllWaiters();
+    } else {
+      this.flushCaughtUpWaiters();
+    }
   }
 
-  private flushWaiters(): void {
-    const ready = this.waiters.filter((waiter) => this.seq >= waiter.seq);
+  private flushCaughtUpWaiters(): void {
+    const ready = this.waiters.filter((waiter) => this.sequence >= waiter.sequence);
     if (ready.length === 0) return;
-    this.waiters = this.waiters.filter((waiter) => this.seq < waiter.seq);
+    this.waiters = this.waiters.filter((waiter) => this.sequence < waiter.sequence);
+    for (const waiter of ready) {
+      if (waiter.timer) clearTimeout(waiter.timer);
+      waiter.resolve();
+    }
+  }
+
+  private flushAllWaiters(): void {
+    const ready = this.waiters;
+    this.waiters = [];
     for (const waiter of ready) {
       if (waiter.timer) clearTimeout(waiter.timer);
       waiter.resolve();

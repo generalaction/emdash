@@ -33,7 +33,7 @@ export type {
   GitRepoModelKind,
   GitRepoSnapshot,
   GitRepoUpdate,
-  GitSeqs,
+  GitSequences,
   GitWorktreeModelKind,
   GitWorktreeSnapshot,
   GitWorktreeUpdate,

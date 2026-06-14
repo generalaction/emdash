@@ -37,7 +37,8 @@ export type GitModelByKind = {
 export type GitModelUpdate<K extends GitModelKind = GitModelKind> = {
   [Kind in K]: {
     kind: Kind;
-    seq: number;
+    generation: number;
+    sequence: number;
     model: GitModelByKind[Kind];
   };
 }[K];
@@ -46,10 +47,10 @@ export type GitWorktreeUpdate = GitModelUpdate<GitWorktreeModelKind>;
 export type GitRepoUpdate = GitModelUpdate<GitRepoModelKind>;
 
 /**
- * Seqs of the models a mutation refreshed (read-your-writes): a client applying pushed
- * updates knows its cache caught up with this mutation once it has seen these seqs.
+ * Sequences of the models a mutation refreshed (read-your-writes): a client applying pushed
+ * updates knows its cache caught up with this mutation once it has seen these sequence values.
  */
-export type GitSeqs = Partial<Record<GitModelKind, number>>;
+export type GitSequences = Partial<Record<GitModelKind, number>>;
 
 export type GitWorktreeSnapshot = {
   status: LiveValue<GitStatusModel>;
@@ -114,20 +115,25 @@ export interface IGitRepository extends IDisposable {
 
   /** Repository git operations. */
   getDefaultBranch(remote?: string): Promise<string>;
-  fetch(remote?: string): Promise<Result<{ seqs: GitSeqs }, FetchError>>;
-  addRemote(name: string, url: string): Promise<Result<{ seqs: GitSeqs }, GitCommandError>>;
-  createBranch(options: CreateBranchOptions): Promise<Result<{ seqs: GitSeqs }, CreateBranchError>>;
+  fetch(remote?: string): Promise<Result<{ sequences: GitSequences }, FetchError>>;
+  addRemote(
+    name: string,
+    url: string
+  ): Promise<Result<{ sequences: GitSequences }, GitCommandError>>;
+  createBranch(
+    options: CreateBranchOptions
+  ): Promise<Result<{ sequences: GitSequences }, CreateBranchError>>;
   deleteBranch(
     branch: string,
     force?: boolean
-  ): Promise<Result<{ seqs: GitSeqs }, DeleteBranchError>>;
+  ): Promise<Result<{ sequences: GitSequences }, DeleteBranchError>>;
   fetchPrForReview(
     options: FetchPrForReviewOptions
-  ): Promise<Result<{ seqs: GitSeqs }, FetchPrForReviewError>>;
+  ): Promise<Result<{ sequences: GitSequences }, FetchPrForReviewError>>;
   publishBranch(
     branchName: string,
     remote?: string
-  ): Promise<Result<{ output: string; seqs: GitSeqs }, PushError>>;
+  ): Promise<Result<{ output: string; sequences: GitSequences }, PushError>>;
   readBlobAtRef(ref: string, filePath: string): Promise<string | null>;
 }
 
@@ -157,15 +163,15 @@ export interface IGitWorktree extends IDisposable {
   getImageAtIndex(filePath: string): Promise<ImageReadResult>;
   getLog(options?: GitLogOptions): Promise<GitLogResult>;
   getCommitFiles(hash: string): Promise<CommitFile[]>;
-  stage(paths: string[]): Promise<GitSeqs>;
-  stageAll(): Promise<GitSeqs>;
-  unstage(paths: string[]): Promise<GitSeqs>;
-  unstageAll(): Promise<GitSeqs>;
-  revert(paths: string[]): Promise<GitSeqs>;
-  revertAll(): Promise<GitSeqs>;
-  commit(message: string): Promise<Result<{ hash: string; seqs: GitSeqs }, CommitError>>;
-  push(remote?: string): Promise<Result<{ output: string; seqs: GitSeqs }, PushError>>;
-  pull(): Promise<Result<{ output: string; seqs: GitSeqs }, PullError>>;
+  stage(paths: string[]): Promise<GitSequences>;
+  stageAll(): Promise<GitSequences>;
+  unstage(paths: string[]): Promise<GitSequences>;
+  unstageAll(): Promise<GitSequences>;
+  revert(paths: string[]): Promise<GitSequences>;
+  revertAll(): Promise<GitSequences>;
+  commit(message: string): Promise<Result<{ hash: string; sequences: GitSequences }, CommitError>>;
+  push(remote?: string): Promise<Result<{ output: string; sequences: GitSequences }, PushError>>;
+  pull(): Promise<Result<{ output: string; sequences: GitSequences }, PullError>>;
 }
 
 export interface IGitRuntime extends IDisposable {

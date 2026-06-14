@@ -7,7 +7,8 @@ type AnyResult<R> = Result<R, unknown>;
 type Overlay<M> = {
   id: number;
   apply: (model: M) => M;
-  dropAtSeq?: number;
+  dropGeneration?: number;
+  dropAtSequence?: number;
   timer?: ReturnType<typeof setTimeout>;
 };
 
@@ -22,7 +23,7 @@ export class OverlayStack<M> {
       value: computed,
     });
     this.disposeReaction = reaction(
-      () => this.mirror.seq,
+      () => [this.mirror.sequence, this.mirror.generation],
       () => this.dropCaughtUp()
     );
   }
@@ -40,7 +41,7 @@ export class OverlayStack<M> {
   async run<R>(
     optimistic: ((model: M) => M) | null,
     call: () => Promise<AnyResult<R>>,
-    seqOf: (result: R) => number | undefined
+    sequenceOf: (result: R) => number | undefined
   ): Promise<AnyResult<R>> {
     const overlay = optimistic ? this.add(optimistic) : null;
     const result = await call();
@@ -50,13 +51,14 @@ export class OverlayStack<M> {
     }
 
     if (!overlay) return result;
-    const seq = seqOf(result.data);
-    if (seq === undefined) {
+    const sequence = sequenceOf(result.data);
+    if (sequence === undefined) {
       this.remove(overlay.id);
       return result;
     }
     runInAction(() => {
-      overlay.dropAtSeq = seq;
+      overlay.dropAtSequence = sequence;
+      overlay.dropGeneration = this.mirror.generation;
       overlay.timer = setTimeout(() => this.remove(overlay.id), 15_000);
     });
     this.dropCaughtUp();
@@ -89,7 +91,11 @@ export class OverlayStack<M> {
 
   private dropCaughtUp(): void {
     for (const overlay of this.overlays) {
-      if (overlay.dropAtSeq !== undefined && this.mirror.seq >= overlay.dropAtSeq) {
+      if (overlay.dropAtSequence === undefined) continue;
+      const caughtUp = this.mirror.sequence >= overlay.dropAtSequence;
+      const generationChanged =
+        overlay.dropGeneration !== undefined && this.mirror.generation !== overlay.dropGeneration;
+      if (caughtUp || generationChanged) {
         this.remove(overlay.id);
       }
     }

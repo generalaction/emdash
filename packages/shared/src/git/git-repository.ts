@@ -24,7 +24,7 @@ import type {
   FetchPrForReviewOptions,
   GitRepoSnapshot,
   GitRepoUpdate,
-  GitSeqs,
+  GitSequences,
   IGitRepository,
   SubscribedSnapshot,
 } from './types';
@@ -171,11 +171,11 @@ export class GitRepository implements IGitRepository {
   }
 
   subscribe(cb: (update: GitRepoUpdate) => void): Unsubscribe {
-    const unsubscribeRefs = this.refsModel.subscribe(({ value, seq }) =>
-      cb({ kind: 'refs', model: value, seq })
+    const unsubscribeRefs = this.refsModel.subscribe(({ value, sequence, generation }) =>
+      cb({ kind: 'refs', model: value, sequence, generation })
     );
-    const unsubscribeRemotes = this.remotesModel.subscribe(({ value, seq }) =>
-      cb({ kind: 'remotes', model: value, seq })
+    const unsubscribeRemotes = this.remotesModel.subscribe(({ value, sequence, generation }) =>
+      cb({ kind: 'remotes', model: value, sequence, generation })
     );
     return () => {
       unsubscribeRefs();
@@ -211,26 +211,29 @@ export class GitRepository implements IGitRepository {
   }
 
   async refreshRefs(): Promise<number> {
-    return (await this.refsModel.refresh()).seq;
+    return (await this.refsModel.refresh()).sequence;
   }
 
-  async fetch(remote?: string): Promise<Result<{ seqs: GitSeqs }, FetchError>> {
+  async fetch(remote?: string): Promise<Result<{ sequences: GitSequences }, FetchError>> {
     try {
       const key = realpathOrResolve(this.objectStoreDir);
       await this.objectStoreMutex.runExclusive(key, async () => {
         await this.exec.exec(['fetch', ...(remote ? [remote] : [])]);
       });
-      return ok({ seqs: { refs: await this.refreshRefs() } });
+      return ok({ sequences: { refs: await this.refreshRefs() } });
     } catch (error) {
       return err(classifyFetchError(error, remote));
     }
   }
 
-  async addRemote(name: string, url: string): Promise<Result<{ seqs: GitSeqs }, GitCommandError>> {
+  async addRemote(
+    name: string,
+    url: string
+  ): Promise<Result<{ sequences: GitSequences }, GitCommandError>> {
     try {
       await this.exec.exec(['remote', 'add', name, url]);
       const remotes = await this.remotesModel.refresh();
-      return ok({ seqs: { remotes: remotes.seq } });
+      return ok({ sequences: { remotes: remotes.sequence } });
     } catch (error) {
       return err(toGitCommandError(error));
     }
@@ -238,7 +241,7 @@ export class GitRepository implements IGitRepository {
 
   async createBranch(
     options: CreateBranchOptions
-  ): Promise<Result<{ seqs: GitSeqs }, CreateBranchError>> {
+  ): Promise<Result<{ sequences: GitSequences }, CreateBranchError>> {
     const name = options.name;
     const from = options.from ?? 'HEAD';
 
@@ -254,7 +257,7 @@ export class GitRepository implements IGitRepository {
     try {
       await this.exec.exec(['branch', '--no-track', '--', name, base]);
       await this.setBranchBaseConfig(name, base);
-      return ok({ seqs: { refs: await this.refreshRefs() } });
+      return ok({ sequences: { refs: await this.refreshRefs() } });
     } catch (error) {
       return err(classifyCreateBranchError(error, name, from));
     }
@@ -263,10 +266,10 @@ export class GitRepository implements IGitRepository {
   async deleteBranch(
     branch: string,
     force = false
-  ): Promise<Result<{ seqs: GitSeqs }, DeleteBranchError>> {
+  ): Promise<Result<{ sequences: GitSequences }, DeleteBranchError>> {
     try {
       await this.exec.exec(['branch', force ? '-D' : '-d', '--', branch]);
-      return ok({ seqs: { refs: await this.refreshRefs() } });
+      return ok({ sequences: { refs: await this.refreshRefs() } });
     } catch (error) {
       return err(classifyDeleteBranchError(error, branch));
     }
@@ -274,7 +277,7 @@ export class GitRepository implements IGitRepository {
 
   async fetchPrForReview(
     options: FetchPrForReviewOptions
-  ): Promise<Result<{ seqs: GitSeqs }, FetchPrForReviewError>> {
+  ): Promise<Result<{ sequences: GitSequences }, FetchPrForReviewError>> {
     try {
       if (options.isFork) {
         const forkRemote = remoteNameForRepositoryUrl(options.headRepositoryUrl);
@@ -307,7 +310,7 @@ export class GitRepository implements IGitRepository {
           this.refsModel.refresh(),
           this.remotesModel.refresh(),
         ]);
-        return ok({ seqs: { refs: refs.seq, remotes: remotes2.seq } });
+        return ok({ sequences: { refs: refs.sequence, remotes: remotes2.sequence } });
       }
 
       const remote = options.configuredRemote ?? 'origin';
@@ -326,7 +329,7 @@ export class GitRepository implements IGitRepository {
           options.localBranch,
         ])
         .catch(() => ({ stdout: '', stderr: '' }));
-      return ok({ seqs: { refs: await this.refreshRefs() } });
+      return ok({ sequences: { refs: await this.refreshRefs() } });
     } catch (error) {
       return err(classifyFetchPrForReviewError(error, options.prNumber));
     }
@@ -335,7 +338,7 @@ export class GitRepository implements IGitRepository {
   async publishBranch(
     branchName: string,
     remote = 'origin'
-  ): Promise<Result<{ output: string; seqs: GitSeqs }, PushError>> {
+  ): Promise<Result<{ output: string; sequences: GitSequences }, PushError>> {
     try {
       const { stdout, stderr } = await this.exec.exec([
         'push',
@@ -346,7 +349,7 @@ export class GitRepository implements IGitRepository {
       ]);
       return ok({
         output: (stdout || stderr).trim(),
-        seqs: { refs: await this.refreshRefs() },
+        sequences: { refs: await this.refreshRefs() },
       });
     } catch (error) {
       return err(classifyPushError(error));

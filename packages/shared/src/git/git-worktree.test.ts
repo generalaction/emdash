@@ -74,8 +74,8 @@ describe('GitWorktree', () => {
 
       await expect(worktree.getHead()).resolves.toEqual({ kind: 'branch', name: 'main' });
       await expect(worktree.getSnapshot()).resolves.toMatchObject({
-        status: { seq: expect.any(Number), value: expect.objectContaining({ kind: 'ok' }) },
-        head: { seq: expect.any(Number), value: { kind: 'branch', name: 'main' } },
+        status: { sequence: expect.any(Number), value: expect.objectContaining({ kind: 'ok' }) },
+        head: { sequence: expect.any(Number), value: { kind: 'branch', name: 'main' } },
       });
       await expect(worktree.getStatusFingerprint('normal')).resolves.toMatchObject({
         byteLength: expect.any(Number),
@@ -111,10 +111,10 @@ describe('GitWorktree', () => {
         expect.objectContaining({ path: 'tracked.txt', status: 'modified' }),
       ]);
 
-      const stageSeqs = await worktree.stage(['tracked.txt']);
-      expect(stageSeqs.status).toBeGreaterThanOrEqual(1);
+      const stageSequences = await worktree.stage(['tracked.txt']);
+      expect(stageSequences.status).toBeGreaterThanOrEqual(1);
       const snapshotAfterStage = await worktree.getSnapshot();
-      expect(snapshotAfterStage.status.seq).toBeGreaterThanOrEqual(stageSeqs.status!);
+      expect(snapshotAfterStage.status.sequence).toBeGreaterThanOrEqual(stageSequences.status!);
       expect(await worktree.getStatus()).toMatchObject({
         kind: 'ok',
         staged: [expect.objectContaining({ path: 'tracked.txt', status: 'modified' })],
@@ -133,7 +133,7 @@ describe('GitWorktree', () => {
       expect(commit.success).toBe(true);
       if (!commit.success) throw new Error(commit.error.message);
       expect(commit.data.hash).toMatch(/^[0-9a-f]{40}$/);
-      expect(commit.data.seqs).toMatchObject({
+      expect(commit.data.sequences).toMatchObject({
         status: expect.any(Number),
         head: expect.any(Number),
         refs: expect.any(Number),
@@ -353,8 +353,8 @@ describe('GitWorktree', () => {
       await execFileAsync('git', ['commit', '-m', 'add to-delete'], { cwd: repo });
       await rm(path.join(repo, 'to-delete.txt'));
 
-      const stageAllSeqs = await worktree.stageAll();
-      expect(stageAllSeqs.status).toBeGreaterThanOrEqual(1);
+      const stageAllSequences = await worktree.stageAll();
+      expect(stageAllSequences.status).toBeGreaterThanOrEqual(1);
       expect(await worktree.getStatus()).toMatchObject({
         kind: 'ok',
         staged: expect.arrayContaining([
@@ -365,8 +365,8 @@ describe('GitWorktree', () => {
         unstaged: [],
       });
 
-      const unstageAllSeqs = await worktree.unstageAll();
-      expect(unstageAllSeqs.status).toBeGreaterThanOrEqual(1);
+      const unstageAllSequences = await worktree.unstageAll();
+      expect(unstageAllSequences.status).toBeGreaterThanOrEqual(1);
       expect(await worktree.getStatus()).toMatchObject({
         kind: 'ok',
         staged: [],
@@ -377,8 +377,8 @@ describe('GitWorktree', () => {
         ]),
       });
 
-      const revertAllSeqs = await worktree.revertAll();
-      expect(revertAllSeqs.status).toBeGreaterThanOrEqual(1);
+      const revertAllSequences = await worktree.revertAll();
+      expect(revertAllSequences.status).toBeGreaterThanOrEqual(1);
       expect(await worktree.getStatus()).toMatchObject({
         kind: 'ok',
         staged: [],
@@ -407,11 +407,11 @@ describe('GitWorktree', () => {
       const lease = await runtime.openWorktree(repo);
       await writeFile(path.join(repo, 'extra.txt'), 'bar\n', 'utf8');
 
-      const unstageSeqs = await lease.value.unstageAll();
-      expect(unstageSeqs.status).toBeGreaterThanOrEqual(1);
+      const unstageSequences = await lease.value.unstageAll();
+      expect(unstageSequences.status).toBeGreaterThanOrEqual(1);
 
-      const revertSeqs = await lease.value.revertAll();
-      expect(revertSeqs.status).toBeGreaterThanOrEqual(1);
+      const revertSequences = await lease.value.revertAll();
+      expect(revertSequences.status).toBeGreaterThanOrEqual(1);
       await expect(readFile(path.join(repo, 'untracked.txt'), 'utf8')).rejects.toThrow();
       await expect(readFile(path.join(repo, 'extra.txt'), 'utf8')).rejects.toThrow();
 

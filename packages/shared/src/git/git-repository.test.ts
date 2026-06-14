@@ -77,10 +77,13 @@ describe('GitRepository', () => {
       });
       await expect(repository.getSnapshot()).resolves.toMatchObject({
         refs: {
-          seq: expect.any(Number),
+          sequence: expect.any(Number),
           value: expect.objectContaining({ branches: expect.any(Array) }),
         },
-        remotes: { seq: expect.any(Number), value: { remotes: [{ name: 'origin', url: remote }] } },
+        remotes: {
+          sequence: expect.any(Number),
+          value: { remotes: [{ name: 'origin', url: remote }] },
+        },
       });
       const subscribed = await repository.subscribeWithSnapshot((update) => updates.push(update));
       expect(subscribed.snapshot).toMatchObject({
@@ -103,10 +106,10 @@ describe('GitRepository', () => {
       const created = await repository.createBranch({ name: 'feature', from: 'main' });
       expect(created).toMatchObject({
         success: true,
-        data: { seqs: { refs: expect.any(Number) } },
+        data: { sequences: { refs: expect.any(Number) } },
       });
       const snapshotAfterBranch = await repository.getSnapshot();
-      expect(snapshotAfterBranch.refs.seq).toBeGreaterThanOrEqual(1);
+      expect(snapshotAfterBranch.refs.sequence).toBeGreaterThanOrEqual(1);
       expect((await repository.getRefs()).branches).toEqual(
         expect.arrayContaining([expect.objectContaining({ type: 'local', branch: 'feature' })])
       );
