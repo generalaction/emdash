@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/renderer/features/settings/use-agent-model-settings.ts
+  s_09861c39f9891f::t_c04c858dc0cb56 35
+  s_09861c39f9891f::t_0f51dca2106aa3 2-5,20
+apps/emdash-desktop/src/shared/core/agents/agent-models.ts
+  s_09861c39f9891f::t_d6aff55d2ee71b 110,113,115,118-124,131-146
+apps/emdash-desktop/src/shared/core/agents/agent-models.test.ts
+  s_09861c39f9891f::t_f01b41ed7a911c 9,62-75,126-128,138-142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "df2dbd69046750d4f5e107e5bd7c1786c962b727",
+  "prompts": {},
+  "sessions": {
+    "s_09861c39f9891f": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ec576-7058-70a3-82c2-d83b04c7e801",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
