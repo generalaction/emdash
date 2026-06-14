@@ -205,6 +205,10 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
     // without a scroll — ask the picker for fresh rects so stale markers hide.
     const onInPageNavigate = () => {
       const draft = annotationState.cancelDraft();
+      const hasCurrentPageAnnotations = annotationState.annotations.some(
+        (annotation) => annotation.epoch === annotationState.navigationEpoch
+      );
+      if (!draft && !annotationState.picking && !hasCurrentPageAnnotations) return;
       try {
         if (draft) {
           webviewElement
@@ -216,14 +220,16 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
             )
             .catch(() => {});
         }
-        webviewElement
-          .executeJavaScript(
-            buildAnnotationPickerScript(
-              { kind: 'request-rects' },
-              { channelId: annotationChannelIdRef.current }
+        if (hasCurrentPageAnnotations) {
+          webviewElement
+            .executeJavaScript(
+              buildAnnotationPickerScript(
+                { kind: 'request-rects' },
+                { channelId: annotationChannelIdRef.current }
+              )
             )
-          )
-          .catch(() => {});
+            .catch(() => {});
+        }
       } catch {
         // WebViews can detach during tab transitions; rect refresh is best-effort.
       }
@@ -255,13 +261,16 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
 
   const canAnnotate =
     adapter !== null &&
+    !session?.isLoading &&
+    !session?.loadError &&
     !showStartPage &&
     (annotationState.picking || annotationState.draft === null);
 
   const toggleAnnotate = useCallback(() => {
+    if (!canAnnotate) return;
     if (annotationState.draft && !annotationState.picking) return;
     runPickerCommand({ kind: annotationState.picking ? 'stop' : 'start' });
-  }, [annotationState, runPickerCommand]);
+  }, [annotationState, canAnnotate, runPickerCommand]);
 
   const commitDraft = useCallback(
     (comment: string) => {

@@ -10,7 +10,7 @@ export function bindBrowserWebviewEvents(
   options: { onDomReady?: () => void } = {}
 ): () => void {
   let isDomReady = false;
-  const historySyncTimers = new Set<ReturnType<typeof setTimeout>>();
+  const pendingTimers = new Set<ReturnType<typeof setTimeout>>();
 
   const syncHistoryState = () => {
     if (!isDomReady) return;
@@ -24,24 +24,24 @@ export function bindBrowserWebviewEvents(
   };
 
   const scheduleHistoryStateSync = () => {
-    for (const timer of historySyncTimers) clearTimeout(timer);
-    historySyncTimers.clear();
+    for (const timer of pendingTimers) clearTimeout(timer);
+    pendingTimers.clear();
 
     for (const delay of [0, 50, 200]) {
       const timer = setTimeout(() => {
-        historySyncTimers.delete(timer);
+        pendingTimers.delete(timer);
         syncHistoryState();
       }, delay);
-      historySyncTimers.add(timer);
+      pendingTimers.add(timer);
     }
   };
 
   const scheduleHistoryStateSyncOnce = () => {
     const timer = setTimeout(() => {
-      historySyncTimers.delete(timer);
+      pendingTimers.delete(timer);
       syncHistoryState();
     }, 0);
-    historySyncTimers.add(timer);
+    pendingTimers.add(timer);
   };
 
   const applySessionZoom = () => {
@@ -96,7 +96,18 @@ export function bindBrowserWebviewEvents(
     errorDescription: string;
     validatedURL: string;
   }) => {
-    if (event.errorCode === -3) return;
+    if (event.errorCode === -3) {
+      const timer = setTimeout(() => {
+        pendingTimers.delete(timer);
+        if (webview.isLoading()) return;
+        browserSessionStore.updateSession(browserId, {
+          isLoading: false,
+          currentUrl: isDomReady ? webview.getURL() || BROWSER_DEFAULT_URL : event.validatedURL,
+        });
+      }, 250);
+      pendingTimers.add(timer);
+      return;
+    }
     browserSessionStore.updateSession(browserId, {
       isLoading: false,
       loadError: {
@@ -150,8 +161,8 @@ export function bindBrowserWebviewEvents(
   webview.addEventListener('page-favicon-updated', onFavicon);
 
   return () => {
-    for (const timer of historySyncTimers) clearTimeout(timer);
-    historySyncTimers.clear();
+    for (const timer of pendingTimers) clearTimeout(timer);
+    pendingTimers.clear();
     webview.removeEventListener('dom-ready', onDomReady);
     webview.removeEventListener('did-start-loading', onStartLoading);
     webview.removeEventListener('did-stop-loading', onStopLoading);

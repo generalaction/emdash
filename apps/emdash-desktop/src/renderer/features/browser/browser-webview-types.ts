@@ -20,6 +20,7 @@ export type BrowserWebviewElement = HTMLElement & {
   reload(): void;
   reloadIgnoringCache(): void;
   stop(): void;
+  isLoading(): boolean;
   loadURL(url: string): Promise<void> | void;
   setZoomFactor(factor: number): void;
   executeJavaScript(code: string, userGesture?: boolean): Promise<unknown>;

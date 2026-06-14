@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { createContext, Script } from 'node:vm';
+import { describe, expect, it, vi } from 'vitest';
 import {
   ANNOTATION_CONSOLE_MARKER,
   buildAnnotationPickerScript,
@@ -20,6 +21,40 @@ function signPayload(body: string): string {
 function messagePayload(payload: Record<string, unknown>): string {
   const body = JSON.stringify(payload);
   return `${ANNOTATION_CONSOLE_MARKER}${JSON.stringify({ payload, signature: signPayload(body) })}`;
+}
+
+function runPickerScript(script: string) {
+  const messages: string[] = [];
+  const documentElement = {
+    appendChild: vi.fn((child: { parentNode?: unknown }) => {
+      child.parentNode = documentElement;
+    }),
+  };
+  const document = {
+    documentElement,
+    createElement: vi.fn(() => ({
+      style: {},
+      textContent: '',
+      parentNode: null,
+    })),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  };
+  const window = {
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  };
+  const consoleLike = {
+    log: (message: string) => messages.push(message),
+  };
+  const context = createContext({
+    window,
+    document,
+    console: consoleLike,
+    requestAnimationFrame: (callback: () => void) => callback(),
+  });
+  const result = new Script(script).runInContext(context);
+  return { messages, result };
 }
 
 const elementPayload = {
@@ -148,5 +183,17 @@ describe('buildAnnotationPickerScript', () => {
     const script = buildAnnotationPickerScript({ kind: 'start' }, options);
     expect(script).not.toContain('__COMMAND__');
     expect(script).not.toContain('__CHANNEL_ID__');
+  });
+
+  it('starts the picker without throwing in a page context', () => {
+    const script = buildAnnotationPickerScript({ kind: 'start' }, options);
+    const { messages, result } = runPickerScript(script);
+
+    expect(result).toBe(true);
+    expect(parseAnnotationMessage(messages[0] ?? '', options)).toEqual({
+      type: 'mode',
+      active: true,
+      cancelled: undefined,
+    });
   });
 });

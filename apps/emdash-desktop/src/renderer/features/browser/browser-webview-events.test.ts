@@ -9,6 +9,7 @@ class FakeBrowserWebview {
   titleText = '';
   back = false;
   forward = false;
+  loading = false;
   readonly zoomFactors: number[] = [];
   readonly listeners = new Map<string, Set<(event: unknown) => void>>();
 
@@ -30,6 +31,10 @@ class FakeBrowserWebview {
 
   setZoomFactor(factor: number): void {
     this.zoomFactors.push(factor);
+  }
+
+  isLoading(): boolean {
+    return this.loading;
   }
 
   addEventListener<K extends keyof BrowserWebviewEventMap>(
@@ -98,6 +103,7 @@ describe('bindBrowserWebviewEvents', () => {
       canGoForward: false,
     });
 
+    webview.loading = true;
     webview.emit('did-start-loading');
     expect(browserSessionStore.getSession(session.browserId)?.isLoading).toBe(true);
 
@@ -121,9 +127,11 @@ describe('bindBrowserWebviewEvents', () => {
       faviconUrl: 'https://example.com/favicon.ico',
     });
 
+    webview.loading = true;
     webview.emit('did-start-loading');
     expect(browserSessionStore.getSession(session.browserId)?.faviconUrl).toBeUndefined();
 
+    webview.loading = false;
     webview.emit('did-fail-load', {
       errorCode: -105,
       errorDescription: 'Name not resolved',
@@ -169,6 +177,64 @@ describe('bindBrowserWebviewEvents', () => {
     webview.emit('did-stop-loading');
 
     expect(webview.zoomFactors).toEqual([1.5, 1.5, 1.5]);
+  });
+
+  it('clears loading after an aborted navigation when no replacement load follows', async () => {
+    vi.useFakeTimers();
+    const session = browserSessionStore.createSession({
+      browserId: 'browser-abort',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+    });
+    const webview = new FakeBrowserWebview();
+    webview.url = 'https://example.com/';
+
+    bindBrowserWebviewEvents(session.browserId, asWebview(webview));
+    webview.emit('dom-ready');
+    webview.loading = true;
+    webview.emit('did-start-loading');
+    webview.loading = false;
+    webview.emit('did-fail-load', {
+      errorCode: -3,
+      errorDescription: 'ERR_ABORTED',
+      validatedURL: 'https://example.com/',
+    });
+
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect(browserSessionStore.getSession(session.browserId)).toMatchObject({
+      isLoading: false,
+      currentUrl: 'https://example.com/',
+      loadError: undefined,
+    });
+    expect(browserDiagnosticsStore.entriesForBrowser(session.browserId)).toEqual([]);
+  });
+
+  it('keeps loading after an aborted navigation when another load is still active', async () => {
+    vi.useFakeTimers();
+    const session = browserSessionStore.createSession({
+      browserId: 'browser-abort-active',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+    });
+    const webview = new FakeBrowserWebview();
+
+    bindBrowserWebviewEvents(session.browserId, asWebview(webview));
+    webview.emit('dom-ready');
+    webview.loading = true;
+    webview.emit('did-start-loading');
+    webview.emit('did-fail-load', {
+      errorCode: -3,
+      errorDescription: 'ERR_ABORTED',
+      validatedURL: 'https://example.com/',
+    });
+
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect(browserSessionStore.getSession(session.browserId)?.isLoading).toBe(true);
+    expect(browserDiagnosticsStore.entriesForBrowser(session.browserId)).toEqual([]);
   });
 
   it('removes listeners when disposed', () => {

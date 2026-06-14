@@ -33,7 +33,7 @@ const PICKER_BOOTSTRAP = `(() => {
     const emit = console.log.bind(console);
     const sign = (body) => {
       let hash = 2166136261;
-      const input = CHANNEL_ID + '\n' + body;
+      const input = CHANNEL_ID + '\\n' + body;
       for (let i = 0; i < input.length; i++) {
         hash ^= input.charCodeAt(i);
         hash = Math.imul(hash, 16777619);
