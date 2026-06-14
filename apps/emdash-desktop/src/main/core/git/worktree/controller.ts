@@ -144,14 +144,14 @@ export const gitWorktreeController = createRPCController({
       if (!workspace) return err({ type: 'not_found' as const });
       const status = await workspace.gitWorktree.getStatus();
       const count = status.kind === 'ok' ? status.unstaged.length : 0;
-      const seqs = await workspace.gitWorktree.stageAll();
+      const sequences = await workspace.gitWorktree.stageAll();
       telemetryService.capture('vcs_files_staged', {
         count,
         scope: 'all',
         project_id: projectId,
         task_id: workspaceId,
       });
-      return ok({ seqs });
+      return ok({ sequences });
     } catch (error) {
       log.error('gitCtrl.stageAllFiles failed', { projectId, workspaceId, error });
       return err({ type: 'git_error' as const, message: String(error) });
@@ -177,14 +177,14 @@ export const gitWorktreeController = createRPCController({
       if (!workspace) return err({ type: 'not_found' as const });
       const status = await workspace.gitWorktree.getStatus();
       const count = status.kind === 'ok' ? status.staged.length : 0;
-      const seqs = await workspace.gitWorktree.unstageAll();
+      const sequences = await workspace.gitWorktree.unstageAll();
       telemetryService.capture('vcs_files_unstaged', {
         count,
         scope: 'all',
         project_id: projectId,
         task_id: workspaceId,
       });
-      return ok({ seqs });
+      return ok({ sequences });
     } catch (error) {
       log.error('gitCtrl.unstageAllFiles failed', { projectId, workspaceId, error });
       return err({ type: 'git_error' as const, message: String(error) });
@@ -213,14 +213,14 @@ export const gitWorktreeController = createRPCController({
         status.kind === 'ok'
           ? new Set([...status.staged, ...status.unstaged].map((change) => change.path)).size
           : 0;
-      const seqs = await workspace.gitWorktree.revertAll();
+      const sequences = await workspace.gitWorktree.revertAll();
       telemetryService.capture('vcs_files_discarded', {
         count,
         scope: 'all',
         project_id: projectId,
         task_id: workspaceId,
       });
-      return ok({ seqs });
+      return ok({ sequences });
     } catch (error) {
       log.error('gitCtrl.revertAllFiles failed', { projectId, workspaceId, error });
       return err({ type: 'git_error' as const, message: String(error) });
@@ -320,14 +320,14 @@ async function stage(
   try {
     const workspace = resolveWorkspace(projectId, workspaceId);
     if (!workspace) return err({ type: 'not_found' as const });
-    const seqs = await workspace.gitWorktree.stage(paths);
+    const sequences = await workspace.gitWorktree.stage(paths);
     telemetryService.capture('vcs_files_staged', {
       count: paths.length,
       scope,
       project_id: projectId,
       task_id: workspaceId,
     });
-    return ok({ seqs });
+    return ok({ sequences });
   } catch (error) {
     log.error('gitCtrl.stage failed', { projectId, workspaceId, paths, error });
     return err({ type: 'git_error' as const, message: String(error) });
@@ -343,14 +343,14 @@ async function unstage(
   try {
     const workspace = resolveWorkspace(projectId, workspaceId);
     if (!workspace) return err({ type: 'not_found' as const });
-    const seqs = await workspace.gitWorktree.unstage(paths);
+    const sequences = await workspace.gitWorktree.unstage(paths);
     telemetryService.capture('vcs_files_unstaged', {
       count: paths.length,
       scope,
       project_id: projectId,
       task_id: workspaceId,
     });
-    return ok({ seqs });
+    return ok({ sequences });
   } catch (error) {
     log.error('gitCtrl.unstage failed', { projectId, workspaceId, paths, error });
     return err({ type: 'git_error' as const, message: String(error) });
@@ -366,14 +366,14 @@ async function revert(
   try {
     const workspace = resolveWorkspace(projectId, workspaceId);
     if (!workspace) return err({ type: 'not_found' as const });
-    const seqs = await workspace.gitWorktree.revert(paths);
+    const sequences = await workspace.gitWorktree.revert(paths);
     telemetryService.capture('vcs_files_discarded', {
       count: paths.length,
       scope,
       project_id: projectId,
       task_id: workspaceId,
     });
-    return ok({ seqs });
+    return ok({ sequences });
   } catch (error) {
     log.error('gitCtrl.revert failed', { projectId, workspaceId, paths, error });
     return err({ type: 'git_error' as const, message: String(error) });

@@ -1,4 +1,4 @@
-import type { GitSeqs, IGitRepository } from '@emdash/shared/git';
+import type { GitSequences, IGitRepository } from '@emdash/shared/git';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type {
   Branch,
@@ -124,10 +124,10 @@ export class GitRepositoryService {
     return ok();
   }
 
-  async fetch(remote?: string): Promise<Result<{ seqs: GitSeqs }, FetchError>> {
+  async fetch(remote?: string): Promise<Result<{ sequences: GitSequences }, FetchError>> {
     const result = await this.gitRepository.fetch(remote);
     if (!result.success) return err(mapFetchError(result.error));
-    return ok({ seqs: result.data.seqs });
+    return ok({ sequences: result.data.sequences });
   }
 
   async publishBranch(

@@ -1,4 +1,4 @@
-import type { GitHeadModel, GitSeqs, IGitRuntime } from '@emdash/shared/git';
+import type { GitHeadModel, GitSequences, IGitRuntime } from '@emdash/shared/git';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
@@ -115,7 +115,7 @@ export class ProjectProvider implements IDisposable {
     }
   }
 
-  fetch(): Promise<Result<{ seqs: GitSeqs }, FetchError>> {
+  fetch(): Promise<Result<{ sequences: GitSequences }, FetchError>> {
     return this.gitRepositoryFetchService.fetch();
   }
 

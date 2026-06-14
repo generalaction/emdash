@@ -10,7 +10,7 @@ function makeGitRepository(
 
 describe('GitRepositoryFetchService', () => {
   it('attempts background fetches for SSH remotes using system git credentials', async () => {
-    const fetch = vi.fn().mockResolvedValue({ success: true, data: { seqs: { refs: 1 } } });
+    const fetch = vi.fn().mockResolvedValue({ success: true, data: { sequences: { refs: 1 } } });
     const getRemotes = vi
       .fn()
       .mockResolvedValue([{ name: 'origin', url: 'git@github.com:owner/repo.git' }]);
