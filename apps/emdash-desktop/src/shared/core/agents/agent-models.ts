@@ -15,6 +15,12 @@ export type AgentModelOption = {
    * the provider-level reasoning applies.
    */
   reasoning?: AgentReasoningOption[];
+  /**
+   * When true, the model is listed but cannot be selected (e.g. not yet
+   * enabled). It is also ignored when building CLI args, so a stale stored
+   * selection never reaches the agent.
+   */
+  disabled?: boolean;
 };
 
 /**
@@ -110,7 +116,9 @@ export function buildAgentModelArgs(
 
   const rawModel = selection.model?.trim();
   const model =
-    rawModel && support.models.some((option) => option.id === rawModel) ? rawModel : undefined;
+    rawModel && support.models.some((option) => option.id === rawModel && !option.disabled)
+      ? rawModel
+      : undefined;
 
   const rawEffort = selection.reasoningEffort?.trim();
   const reasoning = reasoningOptionsForModel(support, model);

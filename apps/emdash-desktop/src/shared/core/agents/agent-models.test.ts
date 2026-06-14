@@ -96,12 +96,18 @@ describe('buildAgentModelArgs', () => {
   });
 
   it('builds claude model + effort args', () => {
-    expect(buildAgentModelArgs('claude', { model: 'opus', reasoningEffort: 'max' })).toEqual([
-      '--model',
-      'opus',
-      '--effort',
-      'max',
-    ]);
+    expect(
+      buildAgentModelArgs('claude', { model: 'claude-opus-4-8', reasoningEffort: 'max' })
+    ).toEqual(['--model', 'claude-opus-4-8', '--effort', 'max']);
+  });
+
+  it('lists the disabled claude fable model but never passes it to the CLI', () => {
+    const fable = getAgentModelSupport('claude')?.models.find(
+      (option) => option.id === 'claude-fable-5'
+    );
+    expect(fable?.disabled).toBe(true);
+    // A stale stored selection of a disabled model must not reach the agent.
+    expect(buildAgentModelArgs('claude', { model: 'claude-fable-5' })).toEqual([]);
   });
 
   it('builds amp mode args and includes --effort for smart/deep', () => {
@@ -125,14 +131,18 @@ describe('buildAgentModelArgs', () => {
       '--model',
       'gpt-5.5-high',
     ]);
-    // Reasoning suffix differs per family (extra-high vs xhigh).
+    // Reasoning suffix differs per family (gpt-5.5 uses extra-high, gpt-5.4 uses xhigh).
     expect(buildAgentModelArgs('cursor', { model: 'gpt-5.5', reasoningEffort: 'xhigh' })).toEqual([
       '--model',
       'gpt-5.5-extra-high',
     ]);
+    expect(buildAgentModelArgs('cursor', { model: 'gpt-5.4', reasoningEffort: 'xhigh' })).toEqual([
+      '--model',
+      'gpt-5.4-xhigh',
+    ]);
     expect(
-      buildAgentModelArgs('cursor', { model: 'claude-4.5-sonnet', reasoningEffort: 'thinking' })
-    ).toEqual(['--model', 'claude-4.5-sonnet-thinking']);
+      buildAgentModelArgs('cursor', { model: 'claude-4.6-sonnet', reasoningEffort: 'thinking' })
+    ).toEqual(['--model', 'claude-4.6-sonnet-medium-thinking']);
   });
 
   it('uses the cursor default model id when no reasoning level is chosen', () => {

@@ -607,14 +607,14 @@ describe('buildAgentCommand', () => {
       providerConfig: providerConfigDefaults.claude,
       initialPrompt: 'Fix the bug',
       sessionId: 'conv-1',
-      modelSelection: { model: 'opus', reasoningEffort: 'high' },
+      modelSelection: { model: 'claude-opus-4-8', reasoningEffort: 'high' },
     });
 
     expect(command.args).toEqual([
       '--session-id',
       'conv-1',
       '--model',
-      'opus',
+      'claude-opus-4-8',
       '--effort',
       'high',
       'Fix the bug',

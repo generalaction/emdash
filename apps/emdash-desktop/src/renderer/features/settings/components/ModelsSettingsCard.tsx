@@ -27,7 +27,7 @@ const DEFAULT_OPTION_VALUE = '__default__';
 const MODEL_DEFAULT_LABEL = 'Model Default';
 const EFFORT_DEFAULT_LABEL = 'Effort Default';
 
-type Option = { id: string; label: string };
+type Option = { id: string; label: string; disabled?: boolean };
 
 function labelForOption(
   options: ReadonlyArray<Option>,
@@ -46,6 +46,8 @@ interface OptionDropdownProps {
   disabled: boolean;
   ariaLabel: string;
   onChange: (value: string | undefined) => void;
+  /** Optional leading icon for an option id (skipped for the default option). */
+  getOptionIcon?: (optionId: string) => React.ReactNode;
 }
 
 function OptionDropdown({
@@ -56,6 +58,7 @@ function OptionDropdown({
   disabled,
   ariaLabel,
   onChange,
+  getOptionIcon,
 }: OptionDropdownProps) {
   const allOptions: ReadonlyArray<Option> = [
     { id: DEFAULT_OPTION_VALUE, label: defaultLabel },
@@ -78,7 +81,10 @@ function OptionDropdown({
           />
         }
       >
-        <span className="truncate">{labelForOption(options, value, defaultLabel)}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          {getOptionIcon?.(selectedId)}
+          <span className="truncate">{labelForOption(options, value, defaultLabel)}</span>
+        </span>
         <ChevronsUpDown className="size-4 shrink-0 text-foreground-muted" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-max">
@@ -86,9 +92,16 @@ function OptionDropdown({
           <DropdownMenuItem
             key={option.id}
             className="justify-between gap-4"
-            onClick={() => onChange(option.id === DEFAULT_OPTION_VALUE ? undefined : option.id)}
+            disabled={option.disabled}
+            onClick={() => {
+              if (option.disabled) return;
+              onChange(option.id === DEFAULT_OPTION_VALUE ? undefined : option.id);
+            }}
           >
-            <span className="truncate">{option.label}</span>
+            <span className="flex min-w-0 items-center gap-2">
+              {getOptionIcon?.(option.id)}
+              <span className="truncate">{option.label}</span>
+            </span>
             {option.id === selectedId && (
               <Check className="size-4 shrink-0 text-foreground-muted" />
             )}
@@ -96,6 +109,55 @@ function OptionDropdown({
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * Resolve the brand whose logo represents a model option. Single-brand
+ * providers (Codex/Claude/Amp) use their own logo; Cursor mixes vendors, so the
+ * brand is derived from the model id prefix.
+ */
+function modelBrandKey(providerId: AgentProviderId, modelId: string): AgentProviderId | undefined {
+  if (modelId === DEFAULT_OPTION_VALUE) return undefined;
+  switch (providerId) {
+    case 'codex':
+      return 'codex';
+    case 'claude':
+      return 'claude';
+    case 'amp':
+      return 'amp';
+    case 'cursor':
+      if (modelId.startsWith('gpt')) return 'codex';
+      if (modelId.startsWith('claude')) return 'claude';
+      if (modelId.startsWith('gemini')) return 'gemini';
+      if (modelId.startsWith('grok')) return 'grok';
+      if (modelId.startsWith('kimi')) return 'kimi';
+      if (modelId.startsWith('composer') || modelId === 'auto') return 'cursor';
+      return undefined;
+    default:
+      return undefined;
+  }
+}
+
+function ModelBrandIcon({
+  providerId,
+  modelId,
+}: {
+  providerId: AgentProviderId;
+  modelId: string;
+}): React.ReactNode {
+  const key = modelBrandKey(providerId, modelId);
+  if (!key) return null;
+  const brand = agentConfig[key];
+  return (
+    <AgentLogo
+      logo={brand.logo}
+      logoDark={brand.logoDark}
+      alt={brand.alt}
+      isSvg={brand.isSvg}
+      invertInDark={brand.invertInDark}
+      className="h-4 w-4 shrink-0 rounded-sm"
+    />
   );
 }
 
@@ -119,8 +181,11 @@ function ProviderModelRow({
   if (!support) return null;
 
   // Reasoning availability depends on the selected model (Cursor per family,
-  // Amp rush vs smart/deep), so the dropdown is only shown when applicable.
+  // Amp rush vs smart/deep). The dropdown stays in place so the model and
+  // reasoning columns line up across rows; it is disabled when the selected
+  // model exposes no reasoning (e.g. Cursor on "Model Default").
   const reasoningOptions = getReasoningOptions(providerId, model);
+  const reasoningDisabled = disabled || reasoningOptions.length === 0;
 
   const handleModelChange = (nextModel: string | undefined): void => {
     const nextReasoning = getReasoningOptions(providerId, nextModel);
@@ -158,18 +223,19 @@ function ProviderModelRow({
             disabled={disabled}
             ariaLabel={`${config.name} model`}
             onChange={handleModelChange}
+            getOptionIcon={(optionId) => (
+              <ModelBrandIcon providerId={providerId} modelId={optionId} />
+            )}
           />
-          {reasoningOptions.length > 0 && (
-            <OptionDropdown
-              value={reasoningEffort}
-              options={reasoningOptions}
-              defaultLabel={EFFORT_DEFAULT_LABEL}
-              triggerClassName="w-[150px]"
-              disabled={disabled}
-              ariaLabel={`${config.name} reasoning effort`}
-              onChange={(effort) => onSelectionChange({ reasoningEffort: effort })}
-            />
-          )}
+          <OptionDropdown
+            value={reasoningEffort}
+            options={reasoningOptions}
+            defaultLabel={EFFORT_DEFAULT_LABEL}
+            triggerClassName="w-[150px]"
+            disabled={reasoningDisabled}
+            ariaLabel={`${config.name} reasoning effort`}
+            onChange={(effort) => onSelectionChange({ reasoningEffort: effort })}
+          />
         </div>
       }
     />

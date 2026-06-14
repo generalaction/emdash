@@ -69,33 +69,12 @@ const CURSOR_MODELS: CursorModelDef[] = [
     ],
   },
   {
-    id: 'gpt-5.2',
-    label: 'GPT-5.2',
-    defaultModelId: 'gpt-5.2',
+    id: 'claude-4.6-sonnet',
+    label: 'Sonnet 4.6',
+    defaultModelId: 'claude-4.6-sonnet-medium',
     variants: [
-      { id: 'low', label: 'Low', modelId: 'gpt-5.2-low' },
-      { id: 'medium', label: 'Medium', modelId: 'gpt-5.2' },
-      { id: 'high', label: 'High', modelId: 'gpt-5.2-high' },
-      { id: 'xhigh', label: 'Extra High', modelId: 'gpt-5.2-xhigh' },
-    ],
-  },
-  {
-    id: 'gpt-5.1',
-    label: 'GPT-5.1',
-    defaultModelId: 'gpt-5.1',
-    variants: [
-      { id: 'low', label: 'Low', modelId: 'gpt-5.1-low' },
-      { id: 'medium', label: 'Medium', modelId: 'gpt-5.1' },
-      { id: 'high', label: 'High', modelId: 'gpt-5.1-high' },
-    ],
-  },
-  {
-    id: 'claude-4.5-sonnet',
-    label: 'Sonnet 4.5',
-    defaultModelId: 'claude-4.5-sonnet',
-    variants: [
-      { id: 'standard', label: 'Standard', modelId: 'claude-4.5-sonnet' },
-      { id: 'thinking', label: 'Thinking', modelId: 'claude-4.5-sonnet-thinking' },
+      { id: 'standard', label: 'Standard', modelId: 'claude-4.6-sonnet-medium' },
+      { id: 'thinking', label: 'Thinking', modelId: 'claude-4.6-sonnet-medium-thinking' },
     ],
   },
   {
@@ -112,6 +91,7 @@ const CURSOR_MODELS: CursorModelDef[] = [
     ],
   },
   { id: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro', defaultModelId: 'gemini-3.1-pro' },
+  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', defaultModelId: 'gemini-3.5-flash' },
   { id: 'grok-4.3', label: 'Grok 4.3', defaultModelId: 'grok-4.3' },
   { id: 'kimi-k2.5', label: 'Kimi K2.5', defaultModelId: 'kimi-k2.5' },
 ];
@@ -144,9 +124,8 @@ export const AGENT_MODEL_SUPPORT = {
     models: [
       { id: 'gpt-5.5', label: 'GPT-5.5' },
       { id: 'gpt-5.4', label: 'GPT-5.4' },
-      { id: 'gpt-5.3-codex', label: 'GPT-5.3 Codex' },
-      { id: 'gpt-5.1-codex-max', label: 'GPT-5.1 Codex Max' },
-      { id: 'gpt-5.1-codex-mini', label: 'GPT-5.1 Codex Mini' },
+      { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini' },
+      { id: 'gpt-5.3-codex-spark', label: 'GPT-5.3 Codex Spark' },
     ],
     reasoning: CODEX_REASONING,
     buildArgs: (model, effort): string[] => {
@@ -157,10 +136,14 @@ export const AGENT_MODEL_SUPPORT = {
     },
   },
   claude: {
+    // Pinned full model names (Claude Code accepts `--model claude-opus-4-8`).
+    // IDs are the canonical Claude API ids verified against Anthropic's model
+    // overview; `claude-haiku-4-5` is the dateless alias for the 4.5 snapshot.
     models: [
-      { id: 'opus', label: 'Opus' },
-      { id: 'sonnet', label: 'Sonnet' },
-      { id: 'haiku', label: 'Haiku' },
+      { id: 'claude-opus-4-8', label: 'Opus 4.8' },
+      { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
+      { id: 'claude-haiku-4-5', label: 'Haiku 4.5' },
+      { id: 'claude-fable-5', label: 'Fable 5', disabled: true },
     ],
     reasoning: CLAUDE_REASONING,
     buildArgs: (model, effort): string[] => {
