@@ -6,6 +6,7 @@ import {
   getReasoningOptions,
   MODEL_SELECTABLE_PROVIDER_IDS,
   providerSupportsModelSelection,
+  sanitizeAgentModelSelection,
   type AgentModelSupport,
 } from './agent-models';
 
@@ -55,6 +56,20 @@ describe('getReasoningOptions', () => {
     expect(getReasoningOptions('amp', 'smart').length).toBeGreaterThan(0);
     expect(getReasoningOptions('amp', 'deep').length).toBeGreaterThan(0);
     expect(getReasoningOptions('amp', undefined).length).toBeGreaterThan(0);
+  });
+});
+
+describe('sanitizeAgentModelSelection', () => {
+  it('clears stale reasoning when the selected model does not support it', () => {
+    expect(
+      sanitizeAgentModelSelection('cursor', { model: 'auto', reasoningEffort: 'high' })
+    ).toEqual({ model: 'auto' });
+  });
+
+  it('clears reasoning-only patches when no reasoning is available for the model', () => {
+    expect(
+      sanitizeAgentModelSelection('cursor', { model: 'composer-2.5', reasoningEffort: 'high' })
+    ).toEqual({ model: 'composer-2.5' });
   });
 });
 
@@ -108,6 +123,9 @@ describe('buildAgentModelArgs', () => {
     expect(fable?.disabled).toBe(true);
     // A stale stored selection of a disabled model must not reach the agent.
     expect(buildAgentModelArgs('claude', { model: 'claude-fable-5' })).toEqual([]);
+    expect(
+      buildAgentModelArgs('claude', { model: 'claude-fable-5', reasoningEffort: 'high' })
+    ).toEqual([]);
   });
 
   it('builds amp mode args and includes --effort for smart/deep', () => {
@@ -116,6 +134,12 @@ describe('buildAgentModelArgs', () => {
       'smart',
       '--effort',
       'high',
+    ]);
+    expect(buildAgentModelArgs('amp', { model: 'smart', reasoningEffort: 'none' })).toEqual([
+      '--mode',
+      'smart',
+      '--effort',
+      'none',
     ]);
   });
 

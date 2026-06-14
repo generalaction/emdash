@@ -18,7 +18,8 @@ const CLAUDE_REASONING: AgentReasoningOption[] = [
 ];
 
 // Amp exposes `--effort` for the `smart` and `deep` modes; `rush` has no
-// reasoning. Valid values come from Amp's SDK docs.
+// reasoning. Valid values come from Amp's SDK docs, where `none` is a concrete
+// reasoningEffort value (`'none'` to `'max'`) rather than the default sentinel.
 const AMP_REASONING: AgentReasoningOption[] = [
   { id: 'none', label: 'None' },
   { id: 'low', label: 'Low' },

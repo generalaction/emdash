@@ -1,5 +1,8 @@
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import type { AgentModelSelection } from '@shared/core/agents/agent-models';
+import {
+  sanitizeAgentModelSelection,
+  type AgentModelSelection,
+} from '@shared/core/agents/agent-models';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { AgentModels } from '@shared/core/app-settings';
 
@@ -14,7 +17,7 @@ export function useAgentModelSettings() {
 
   const setSelection = (providerId: AgentProviderId, patch: AgentModelSelection): void => {
     const current = selections[providerId] ?? {};
-    const next: AgentModelSelection = { ...current, ...patch };
+    const next = sanitizeAgentModelSelection(providerId, { ...current, ...patch });
 
     if (!next.model && !next.reasoningEffort) {
       resetField(providerId);
@@ -29,7 +32,7 @@ export function useAgentModelSettings() {
     loading: isLoading,
     saving: isSaving,
     getSelection: (providerId: AgentProviderId): AgentModelSelection =>
-      selections[providerId] ?? {},
+      sanitizeAgentModelSelection(providerId, selections[providerId]),
     setSelection,
     setModel: (providerId: AgentProviderId, model: string | undefined): void =>
       setSelection(providerId, { model }),

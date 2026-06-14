@@ -107,23 +107,41 @@ export function getReasoningOptions(
  * being passed as discrete argv tokens (never through a shell), so stale
  * settings are ignored instead of breaking new sessions.
  */
-export function buildAgentModelArgs(
+export function sanitizeAgentModelSelection(
   providerId: AgentProviderId,
   selection: AgentModelSelection | undefined
-): string[] {
+): AgentModelSelection {
   const support = getAgentModelSupport(providerId);
-  if (!support || !selection) return [];
+  if (!support || !selection) return {};
 
   const rawModel = selection.model?.trim();
-  const model =
-    rawModel && support.models.some((option) => option.id === rawModel && !option.disabled)
-      ? rawModel
-      : undefined;
+  const model = rawModel
+    ? support.models.find((option) => option.id === rawModel && !option.disabled)?.id
+    : undefined;
+
+  // If a persisted model id is now invalid/disabled, drop the paired effort too.
+  // Otherwise a provider-level effort could be applied without its intended model.
+  if (rawModel && !model) return {};
 
   const rawEffort = selection.reasoningEffort?.trim();
   const reasoning = reasoningOptionsForModel(support, model);
   const effort =
     rawEffort && reasoning.some((option) => option.id === rawEffort) ? rawEffort : undefined;
 
-  return support.buildArgs(model, effort);
+  return {
+    ...(model ? { model } : {}),
+    ...(effort ? { reasoningEffort: effort } : {}),
+  };
+}
+
+export function buildAgentModelArgs(
+  providerId: AgentProviderId,
+  selection: AgentModelSelection | undefined
+): string[] {
+  const support = getAgentModelSupport(providerId);
+  if (!support) return [];
+
+  const { model, reasoningEffort } = sanitizeAgentModelSelection(providerId, selection);
+
+  return support.buildArgs(model, reasoningEffort);
 }
