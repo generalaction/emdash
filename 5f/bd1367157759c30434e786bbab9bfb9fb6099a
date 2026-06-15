@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/tasks/components/pr-selector/pr-selector.tsx
+  s_5a04d771f26426::t_1c16570441f591 2,8-9,81,110-113,204-210,214-230
+  s_5a04d771f26426::t_082b62967c690c 120
+  s_5a04d771f26426::t_00ee83ad6be0d7 114-119,203,211-213
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "5fbd1367157759c30434e786bbab9bfb9fb6099a",
+  "prompts": {},
+  "sessions": {
+    "s_5a04d771f26426": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ecc86-d574-7c57-8ba7-66794985de84",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
