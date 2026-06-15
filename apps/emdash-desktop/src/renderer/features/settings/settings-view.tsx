@@ -63,6 +63,5 @@ export function SettingsMainPanel() {
 
 export const settingsView = {
   WrapView: SettingsViewWrapper,
-  TitlebarSlot: SettingsTitlebar,
   MainPanel: SettingsMainPanel,
 };

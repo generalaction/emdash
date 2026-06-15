@@ -63,16 +63,6 @@ export const skillsController = createRPCController({
     }
   },
 
-  getDetectedAgents: async () => {
-    try {
-      const agents = await skillsService.getDetectedAgents();
-      return { success: true, data: agents };
-    } catch (error) {
-      log.error('Failed to detect agents:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
-    }
-  },
-
   create: async (args: { name: string; description: string; content?: string }) => {
     try {
       const skill = await skillsService.createSkill(args.name, args.description, args.content);
