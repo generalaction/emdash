@@ -96,7 +96,7 @@ describe('PrSyncScheduler', () => {
       const project = {
         settings: {},
         ctx: {},
-        repository: {
+        gitRepository: {
           getRemotes: vi
             .fn()
             .mockResolvedValue([{ name: 'origin', url: 'https://github.com/acme/repo.git' }]),
@@ -133,7 +133,7 @@ describe('PrSyncScheduler', () => {
     const project = {
       settings: {},
       ctx: {},
-      repository: {
+      gitRepository: {
         getRemotes: vi
           .fn()
           .mockResolvedValue([{ name: 'origin', url: 'https://github.com/acme/repo.git' }]),
@@ -169,7 +169,7 @@ describe('PrSyncScheduler', () => {
     const project = {
       settings: {},
       ctx: {},
-      repository: {
+      gitRepository: {
         getRemotes: vi
           .fn()
           .mockResolvedValue([{ name: 'origin', url: 'https://github.com/acme/repo.git' }]),
@@ -210,7 +210,7 @@ describe('PrSyncScheduler', () => {
     const project = {
       settings: {},
       ctx: {},
-      repository: {
+      gitRepository: {
         getRemotes: vi
           .fn()
           .mockResolvedValue([{ name: 'origin', url: 'https://github.com/acme/repo.git' }]),
@@ -246,7 +246,7 @@ describe('PrSyncScheduler', () => {
     const project = {
       settings: {},
       ctx: {},
-      repository: {
+      gitRepository: {
         getRemotes: vi
           .fn()
           .mockResolvedValue([{ name: 'origin', url: 'https://ghe.example.com/acme/repo.git' }]),
@@ -282,7 +282,7 @@ describe('PrSyncScheduler', () => {
       const project = {
         settings: {},
         ctx: {},
-        repository: {
+        gitRepository: {
           getRemotes: vi
             .fn()
             .mockResolvedValue([{ name: 'origin', url: 'https://github.com/acme/repo.git' }]),
@@ -328,7 +328,7 @@ describe('PrSyncScheduler', () => {
       const project = {
         settings: {},
         ctx: {},
-        repository: {
+        gitRepository: {
           getRemotes: vi
             .fn()
             .mockResolvedValue([{ name: 'origin', url: 'https://github.com/acme/repo.git' }]),
