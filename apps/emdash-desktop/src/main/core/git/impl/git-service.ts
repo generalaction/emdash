@@ -61,11 +61,11 @@ import {
   type IFileStatus,
 } from './status-parser';
 
-  /**
-   * @deprecated Use `@emdash/shared/git` (`IGitRuntime`/`GitRuntime`) for new Git code.
-   * This service is retained only for the legacy SSH adapter until SSH projects are
-   * migrated onto the shared Git runtime.
-   */
+/**
+ * @deprecated Use `@emdash/shared/git` (`IGitRuntime`/`GitRuntime`) for new Git code.
+ * This service is retained only for the legacy SSH adapter until SSH projects are
+ * migrated onto the shared Git runtime.
+ */
 
 const MAX_IMAGE_BLOB_BYTES = 10 * 1024 * 1024;
 const STATUS_FINGERPRINT_TIMEOUT_MS: Record<GitStatusUntrackedMode, number> = {
