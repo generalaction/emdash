@@ -125,6 +125,10 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
     [loadUrl]
   );
 
+  const focusUrlBar = useCallback(() => {
+    focusUrlRef.current();
+  }, []);
+
   const goBack = useCallback(() => {
     if (!adapter?.canGoBack()) return;
     adapter.goBack();
@@ -230,7 +234,11 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
       />
       <div className="emlight min-h-0 flex-1 bg-background">
         {showStartPage ? (
-          <BrowserStartPage devServerUrls={devServers.urls} onOpenUrl={navigateTo} />
+          <BrowserStartPage
+            devServerUrls={devServers.urls}
+            onFocusUrlBar={focusUrlBar}
+            onOpenUrl={navigateTo}
+          />
         ) : webviewProps && isRegistered ? (
           <webview
             key={`${webviewMount?.browserId ?? 'browser'}:${webviewMount?.revision ?? 0}`}

@@ -1,14 +1,21 @@
 import { Globe, Server } from 'lucide-react';
+import { useEffect } from 'react';
 import { EmdashLogo } from '@renderer/lib/emdash-logo';
 
 export function BrowserStartPage({
   devServerUrls,
+  onFocusUrlBar,
   onOpenUrl,
 }: {
   devServerUrls: string[];
+  onFocusUrlBar: () => void;
   onOpenUrl: (url: string) => void;
 }) {
   const localUrls = devServerUrls.filter(isLocalUrl);
+
+  useEffect(() => {
+    onFocusUrlBar();
+  }, [onFocusUrlBar]);
 
   return (
     <div className="flex h-full min-h-0 flex-col items-center justify-center gap-10 bg-background p-6">
