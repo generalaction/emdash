@@ -26,36 +26,14 @@ export const gitRepositoryController = createRPCController({
     }
   },
 
-  getBranches: async (projectId: string) => {
+  getDefaultBranch: async (projectId: string) => {
     const project = projectManager.getProject(projectId);
-    if (!project) {
-      throw new Error('Project not found');
+    if (!project) return err({ type: 'not_found' as const });
+    try {
+      return ok({ defaultBranch: await project.gitRepository.getDefaultBranch() });
+    } catch (e) {
+      return err({ type: 'git_error' as const, message: String(e) });
     }
-    return project.gitRepository.getBranchesPayload();
-  },
-
-  getLocalBranches: async (projectId: string, _workspaceId?: string) => {
-    const project = projectManager.getProject(projectId);
-    if (!project) {
-      throw new Error('Project not found');
-    }
-    return project.gitRepository.getLocalBranchesPayload();
-  },
-
-  getRemoteBranches: async (projectId: string, _workspaceId?: string) => {
-    const project = projectManager.getProject(projectId);
-    if (!project) {
-      throw new Error('Project not found');
-    }
-    return project.gitRepository.getRemoteBranchesPayload();
-  },
-
-  getRemotes: async (projectId: string) => {
-    const project = projectManager.getProject(projectId);
-    if (!project) {
-      throw new Error('Project not found');
-    }
-    return project.gitRepository.getRemotes();
   },
 
   resolveProviderRepository: async (projectId: string) => {

@@ -11,6 +11,7 @@ import {
   type ConfiguredRemotes,
 } from '@shared/core/git/git-utils';
 import { gitRepoUpdateChannel } from '@shared/core/git/gitEvents';
+import type { GitDefaultBranchResult } from '@shared/core/git/rpc';
 import type { ProviderRepository, ProviderRepositoryResult } from '@shared/provider-repository';
 import { parseRepositoryRef } from '@shared/repository-ref';
 import type { ProjectSettingsStore } from './project-settings-store';
@@ -20,7 +21,7 @@ export class GitRepositoryStore {
   private readonly remotesModel = new ModelMirror<GitRemotesModel>();
   private readonly bindings: MirrorBinding[];
   readonly providerRepositoryInfo: Resource<ProviderRepositoryResult>;
-  readonly gitDefaultBranchInfo: Resource<string>;
+  readonly gitDefaultBranchInfo: Resource<GitDefaultBranchResult>;
 
   private settingsDisposer: (() => void) | null = null;
   private started = false;
@@ -70,8 +71,8 @@ export class GitRepositoryStore {
       () => rpc.gitRepository.resolveProviderRepository(projectId),
       [{ kind: 'demand' }]
     );
-    this.gitDefaultBranchInfo = new Resource<string>(
-      async () => (await rpc.gitRepository.getRemoteBranches(projectId)).gitDefaultBranch,
+    this.gitDefaultBranchInfo = new Resource<GitDefaultBranchResult>(
+      () => rpc.gitRepository.getDefaultBranch(projectId),
       [{ kind: 'demand' }]
     );
 
@@ -87,22 +88,26 @@ export class GitRepositoryStore {
       }
     );
 
-    makeObservable<this, 'configuredRemotes' | 'defaultBranchPreference'>(this, {
-      branches: computed,
-      localBranches: computed,
-      remoteBranches: computed,
-      configuredRemotes: computed,
-      baseRemote: computed,
-      pushRemote: computed,
-      defaultBranchPreference: computed,
-      defaultBranch: computed,
-      remotes: computed,
-      loading: computed,
-      canonicalRepositoryUrl: computed,
-      providerRepository: computed,
-      pullRequestRepositoryUrl: computed,
-      issueRepositoryUrl: computed,
-    });
+    makeObservable<this, 'configuredRemotes' | 'defaultBranchPreference' | 'gitDefaultBranch'>(
+      this,
+      {
+        branches: computed,
+        localBranches: computed,
+        remoteBranches: computed,
+        configuredRemotes: computed,
+        baseRemote: computed,
+        pushRemote: computed,
+        defaultBranchPreference: computed,
+        defaultBranch: computed,
+        remotes: computed,
+        loading: computed,
+        canonicalRepositoryUrl: computed,
+        providerRepository: computed,
+        pullRequestRepositoryUrl: computed,
+        issueRepositoryUrl: computed,
+        gitDefaultBranch: computed,
+      }
+    );
   }
 
   start(): void {
@@ -161,7 +166,7 @@ export class GitRepositoryStore {
       data: {
         remoteBranches: this.remoteBranches,
         remotes: this.remotes,
-        gitDefaultBranch: this.gitDefaultBranchInfo.data ?? 'main',
+        gitDefaultBranch: this.gitDefaultBranch ?? 'main',
       },
       load: () => this.resync(),
     };
@@ -216,7 +221,7 @@ export class GitRepositoryStore {
       preference: this.defaultBranchPreference,
       branches: this.branches,
       configuredRemoteName: this.baseRemote.name,
-      gitDefaultBranch: this.gitDefaultBranchInfo.data ?? undefined,
+      gitDefaultBranch: this.gitDefaultBranch,
       baseRef: this.baseRef,
     });
   }
@@ -255,5 +260,10 @@ export class GitRepositoryStore {
       this.baseRemote,
       this.remotes
     );
+  }
+
+  private get gitDefaultBranch(): string | undefined {
+    const result = this.gitDefaultBranchInfo.data;
+    return result?.success ? result.data.defaultBranch : undefined;
   }
 }

@@ -7,7 +7,7 @@ import type { ProjectSettingsStore } from './project-settings-store';
 
 const mocks = vi.hoisted(() => ({
   getRepoSnapshot: vi.fn(),
-  getRemoteBranches: vi.fn(),
+  getDefaultBranch: vi.fn(),
   resolveProviderRepository: vi.fn(),
   eventOn: vi.fn(),
 }));
@@ -16,7 +16,7 @@ vi.mock('@renderer/lib/ipc', () => ({
   rpc: {
     gitRepository: {
       getRepoSnapshot: mocks.getRepoSnapshot,
-      getRemoteBranches: mocks.getRemoteBranches,
+      getDefaultBranch: mocks.getDefaultBranch,
       resolveProviderRepository: mocks.resolveProviderRepository,
     },
   },
@@ -75,7 +75,7 @@ describe('GitRepositoryStore', () => {
   beforeEach(() => {
     repoHandlers = [];
     mocks.getRepoSnapshot.mockReset();
-    mocks.getRemoteBranches.mockReset();
+    mocks.getDefaultBranch.mockReset();
     mocks.resolveProviderRepository.mockReset();
     mocks.eventOn.mockReset();
     mocks.eventOn.mockImplementation((channel, handler) => {
@@ -83,11 +83,7 @@ describe('GitRepositoryStore', () => {
       return vi.fn();
     });
     mocks.getRepoSnapshot.mockResolvedValue(snapshot(refs(0)));
-    mocks.getRemoteBranches.mockResolvedValue({
-      remotes: remotes.remotes,
-      gitDefaultBranch: 'main',
-      remoteBranches: refs(0).branches.filter((branch) => branch.type === 'remote'),
-    });
+    mocks.getDefaultBranch.mockResolvedValue(ok({ defaultBranch: 'main' }));
     mocks.resolveProviderRepository.mockResolvedValue(err({ type: 'no_remote' }));
   });
 
@@ -177,6 +173,18 @@ describe('GitRepositoryStore', () => {
     expect(store.providerRepository).toBeNull();
     expect(store.pullRequestRepositoryUrl).toBeNull();
     expect(store.issueRepositoryUrl).toBeNull();
+
+    store.dispose();
+  });
+
+  it('falls back when default branch resolution returns an expected error', async () => {
+    mocks.getDefaultBranch.mockResolvedValue(err({ type: 'not_found' }));
+
+    const store = createWorkspaceStore();
+    await store.gitDefaultBranchInfo.load();
+
+    expect(store.gitDefaultBranchInfo.error).toBeUndefined();
+    expect(store.remoteData.data.gitDefaultBranch).toBe('main');
 
     store.dispose();
   });

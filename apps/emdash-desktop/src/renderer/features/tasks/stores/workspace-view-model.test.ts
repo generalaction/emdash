@@ -24,35 +24,13 @@ vi.mock('@renderer/lib/ipc', () => ({
       save: vi.fn(),
     },
     gitRepository: {
-      getLocalBranches: vi.fn().mockResolvedValue({
-        isUnborn: false,
-        currentBranch: 'main',
-        localBranches: [],
-      }),
-      getRemoteBranches: vi.fn().mockResolvedValue({
-        remoteBranches: [],
-        remotes: [],
-      }),
+      getDefaultBranch: vi
+        .fn()
+        .mockResolvedValue({ success: true, data: { defaultBranch: 'main' } }),
       resolveProviderRepository: vi.fn().mockResolvedValue({ success: false }),
     },
     workspace: {
-      gitWorktree: {
-        getFullStatus: vi.fn().mockResolvedValue({
-          success: true,
-          data: {
-            currentBranch: 'main',
-            headKind: 'branch',
-            unstaged: [],
-            staged: [],
-            untracked: [],
-            conflicts: [],
-            totalAdded: 0,
-            totalDeleted: 0,
-            ahead: 0,
-            behind: 0,
-          },
-        }),
-      },
+      gitWorktree: {},
       fs: {
         listFiles: vi.fn().mockResolvedValue({ success: true, data: [] }),
         watchSetPaths: vi.fn().mockResolvedValue(undefined),

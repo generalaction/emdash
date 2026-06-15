@@ -19,53 +19,6 @@ export const gitWorktreeController = createRPCController({
     }
   },
 
-  getFullStatus: async (projectId: string, workspaceId: string) => {
-    try {
-      const workspace = resolveWorkspace(projectId, workspaceId);
-      if (!workspace) return err({ type: 'not_found' });
-      const [status, head] = await Promise.all([
-        workspace.gitWorktree.getStatus(),
-        workspace.gitWorktree.getHead(),
-      ]);
-      if (status.kind === 'too-many-files') return err({ type: 'too_many_files' as const });
-      if (status.kind === 'error')
-        return err({ type: 'git_error' as const, message: status.message });
-      return ok({
-        staged: status.staged,
-        unstaged: status.unstaged,
-        currentBranch: head.kind === 'detached' ? null : head.name,
-        headKind: head.kind,
-        shortHash: head.kind === 'detached' ? head.shortHash : null,
-        totalAdded: status.stagedAdded,
-        totalDeleted: status.stagedDeleted,
-      });
-    } catch (error) {
-      log.error('gitCtrl.getFullStatus failed', { projectId, workspaceId, error });
-      return err({ type: 'git_error', message: String(error) });
-    }
-  },
-
-  getStatus: async (projectId: string, workspaceId: string) => {
-    try {
-      const workspace = resolveWorkspace(projectId, workspaceId);
-      if (!workspace) return err({ type: 'not_found' });
-      const [status, head] = await Promise.all([
-        workspace.gitWorktree.getStatus(),
-        workspace.gitWorktree.getHead(),
-      ]);
-      if (status.kind === 'too-many-files') return err({ type: 'too_many_files' as const });
-      if (status.kind === 'error')
-        return err({ type: 'git_error' as const, message: status.message });
-      return ok({
-        changes: mergeChanges(status.staged, status.unstaged),
-        currentBranch: head.kind === 'detached' ? null : head.name,
-      });
-    } catch (error) {
-      log.error('gitCtrl.getStatus failed', { projectId, workspaceId, error });
-      return err({ type: 'git_error', message: String(error) });
-    }
-  },
-
   getChangedFiles: async (projectId: string, workspaceId: string, base: DiffTarget) => {
     try {
       const workspace = resolveWorkspace(projectId, workspaceId);
@@ -354,28 +307,3 @@ export const gitWorktreeController = createRPCController({
     }
   },
 });
-
-function mergeChanges(
-  staged: Array<{ path: string; additions: number; deletions: number; status: string }>,
-  unstaged: Array<{ path: string; additions: number; deletions: number; status: string }>
-) {
-  const byPath = new Map<
-    string,
-    { path: string; additions: number; deletions: number; status: string }
-  >();
-  for (const change of staged) byPath.set(change.path, change);
-  for (const change of unstaged) {
-    const previous = byPath.get(change.path);
-    if (previous) {
-      byPath.set(change.path, {
-        path: change.path,
-        status: change.status,
-        additions: previous.additions + change.additions,
-        deletions: previous.deletions + change.deletions,
-      });
-    } else {
-      byPath.set(change.path, change);
-    }
-  }
-  return [...byPath.values()];
-}

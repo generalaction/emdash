@@ -71,7 +71,7 @@ export interface GitInfo {
   rootPath: string;
 }
 
-/** @internal Use BranchesPayload.isUnborn / BranchesPayload.currentBranch in the renderer */
+/** @internal Legacy GitService head state; new worktree state uses GitHeadModel. */
 export type GitHeadState = {
   headName?: string;
   isUnborn: boolean;
@@ -235,27 +235,6 @@ export type CommitFile = {
   status: GitChangeStatus;
   additions: number;
   deletions: number;
-};
-
-export type LocalBranchesPayload = {
-  localBranches: LocalBranch[];
-  currentBranch: string | null;
-  isUnborn: boolean;
-};
-
-export type RemoteBranchesPayload = {
-  remoteBranches: RemoteBranch[];
-  remotes: { name: string; url: string }[];
-  gitDefaultBranch: string;
-};
-
-/** @deprecated Use LocalBranchesPayload and RemoteBranchesPayload */
-export type BranchesPayload = {
-  branches: (LocalBranch | RemoteBranch)[];
-  currentBranch: string | null;
-  isUnborn: boolean;
-  gitDefaultBranch: string;
-  remotes: { name: string; url: string }[];
 };
 
 export type BranchStatus = {

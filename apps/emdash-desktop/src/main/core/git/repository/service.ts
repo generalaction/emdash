@@ -1,16 +1,11 @@
 import type { GitSequences, IGitRepository } from '@emdash/shared/git';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type {
-  BranchesPayload,
   CreateBranchError,
   DeleteBranchError,
   FetchError,
   FetchPrForReviewError,
-  LocalBranch,
-  LocalBranchesPayload,
   PushError,
-  RemoteBranch,
-  RemoteBranchesPayload,
   RenameBranchError,
 } from '@shared/core/git/git';
 import { resolveConfiguredRemotes } from '@shared/core/git/git-utils';
@@ -54,20 +49,8 @@ export class GitRepositoryService {
     return (await this.getConfiguredRemotes()).pushRemote;
   }
 
-  async getBranchesPayload(): Promise<BranchesPayload> {
-    const [refs, remotesModel, remote] = await Promise.all([
-      this.gitRepository.getRefs(),
-      this.gitRepository.getRemotes(),
-      this.getBaseRemote(),
-    ]);
-    const gitDefaultBranch = await this.gitRepository.getDefaultBranch(remote);
-    return {
-      branches: refs.branches,
-      currentBranch: null,
-      isUnborn: false,
-      gitDefaultBranch,
-      remotes: remotesModel.remotes,
-    };
+  async getDefaultBranch(): Promise<string> {
+    return this.gitRepository.getDefaultBranch(await this.getBaseRemote());
   }
 
   async getRemotes(): Promise<{ name: string; url: string }[]> {
@@ -136,32 +119,6 @@ export class GitRepositoryService {
     const result = await this.gitRepository.publishBranch(branchName, remote);
     if (!result.success) return err(mapPushError(result.error));
     return ok({ output: result.data.output });
-  }
-
-  async getBranches(): Promise<(LocalBranch | RemoteBranch)[]> {
-    await this.fetch(await this.getBaseRemote());
-    return (await this.gitRepository.getRefs()).branches;
-  }
-
-  async getLocalBranchesPayload(): Promise<LocalBranchesPayload> {
-    const refs = await this.gitRepository.getRefs();
-    const localBranches = refs.branches.filter((b): b is LocalBranch => b.type === 'local');
-    return {
-      localBranches,
-      currentBranch: null,
-      isUnborn: false,
-    };
-  }
-
-  async getRemoteBranchesPayload(): Promise<RemoteBranchesPayload> {
-    const [refs, remotesModel, remote] = await Promise.all([
-      this.gitRepository.getRefs(),
-      this.gitRepository.getRemotes(),
-      this.getBaseRemote(),
-    ]);
-    const remoteBranches = refs.branches.filter((b): b is RemoteBranch => b.type === 'remote');
-    const gitDefaultBranch = await this.gitRepository.getDefaultBranch(remote);
-    return { remoteBranches, remotes: remotesModel.remotes, gitDefaultBranch };
   }
 
   async getRemoteState(): Promise<ProjectRemoteState> {
