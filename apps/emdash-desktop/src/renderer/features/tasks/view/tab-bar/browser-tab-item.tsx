@@ -1,5 +1,7 @@
 import { Globe, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { BrowserFavicon } from '@renderer/features/browser/browser-favicon';
+import type { BrowserSessionSnapshot } from '@shared/browser';
 import type { ResolvedBrowserTab } from '../../tabs/tab-manager-store';
 import { TabCloseButton } from './tab-close-button';
 import { TabDragPreviewShell, TabItemShell } from './tab-item-shell';
@@ -14,6 +16,32 @@ function browserTabLabel(tab: ResolvedBrowserTab): string {
     return 'Browser';
   }
 }
+
+const BrowserTabFavicon = observer(function BrowserTabFavicon({
+  session,
+}: {
+  session: BrowserSessionSnapshot;
+}) {
+  if (session.isLoading) {
+    return (
+      <span className="shrink-0 text-foreground-muted [&>svg]:h-3 [&>svg]:w-3">
+        <Loader2 className="animate-spin" />
+      </span>
+    );
+  }
+
+  return (
+    <BrowserFavicon
+      faviconUrl={session.faviconUrl}
+      className="size-3 shrink-0 rounded-sm"
+      fallback={
+        <span className="shrink-0 text-foreground-muted [&>svg]:h-3 [&>svg]:w-3">
+          <Globe />
+        </span>
+      }
+    />
+  );
+});
 
 export const BrowserTabItem = observer(function BrowserTabItem({
   tab,
@@ -38,9 +66,7 @@ export const BrowserTabItem = observer(function BrowserTabItem({
       onPin={onPin}
       onClose={onClose}
     >
-      <span className="shrink-0 text-foreground-muted [&>svg]:h-3 [&>svg]:w-3">
-        {tab.session.isLoading ? <Loader2 className="animate-spin" /> : <Globe />}
-      </span>
+      <BrowserTabFavicon session={tab.session} />
       <TabTitle
         isActive={tab.isActive}
         isPreview={tab.isPreview}

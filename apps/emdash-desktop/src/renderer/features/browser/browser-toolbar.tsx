@@ -36,6 +36,7 @@ import {
   previousBrowserZoomFactor,
   type BrowserSessionSnapshot,
 } from '@shared/browser';
+import { BrowserFavicon } from './browser-favicon';
 import {
   canOpenBrowserUrlExternally,
   captureBrowserScreenshot,
@@ -71,19 +72,12 @@ export function BrowserToolbar({
 }) {
   const [urlText, setUrlText] = useState(browserUrlInputText(session.currentUrl));
   const [urlError, setUrlError] = useState<string | null>(null);
-  const [failedFaviconUrl, setFailedFaviconUrl] = useState<string | null>(null);
   const [screenshotSpin, triggerScreenshotSpin] = useTransientFlag(300);
   const urlInputRef = useRef<HTMLInputElement | null>(null);
-  const faviconUrl =
-    session.faviconUrl && session.faviconUrl !== failedFaviconUrl ? session.faviconUrl : null;
 
   useEffect(() => {
     setUrlText(browserUrlInputText(session.currentUrl));
   }, [session.currentUrl]);
-
-  useEffect(() => {
-    setFailedFaviconUrl(null);
-  }, [session.faviconUrl]);
 
   useEffect(() => {
     onFocusUrl?.(() => {
@@ -163,17 +157,13 @@ export function BrowserToolbar({
         }}
       >
         <div className="relative">
-          {faviconUrl ? (
-            <img
-              src={faviconUrl}
-              alt=""
-              className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 rounded-sm"
-              draggable={false}
-              onError={() => setFailedFaviconUrl(faviconUrl)}
-            />
-          ) : (
-            <Globe className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-foreground-muted" />
-          )}
+          <BrowserFavicon
+            faviconUrl={session.faviconUrl}
+            className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 rounded-sm"
+            fallback={
+              <Globe className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-foreground-muted" />
+            }
+          />
           <Input
             ref={urlInputRef}
             value={urlText}
