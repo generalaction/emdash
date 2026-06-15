@@ -1,0 +1,36 @@
+apps/emdash-desktop/src/renderer/features/integrations/connection-registry.ts
+  s_9092daee04e2e7::t_fe00805ebb23d1 7-8,71-72,76-77,81-82,86-87,91-92,96-97,101-102,106-107,111-112,116-117
+  s_9092daee04e2e7::t_9dd2211524dd14 1-6,9-70,73-75,78-80,83-85,88-90,93-95,98-100,103-105,108-110,113-115,118-120
+apps/emdash-desktop/src/renderer/features/integrations/integration-setup-modal.tsx
+  s_9092daee04e2e7::t_e87e5f0e875d6a 4,15
+apps/emdash-desktop/src/renderer/features/integrations/integrations-provider.tsx
+  s_9092daee04e2e7::t_3a1bcf06bc2213 9,65,69,73,77,81,85,89,93,97,101
+apps/emdash-desktop/src/shared/issue-providers.ts
+  s_9092daee04e2e7::t_0b341221e18880 4-13
+  s_9092daee04e2e7::t_78157f089c55c8 2
+apps/emdash-desktop/src/shared/issue-provider-registry.ts
+  s_9092daee04e2e7::t_50ecdc57414c80 1-225
+apps/emdash-desktop/src/renderer/features/integrations/issue-provider-meta.ts
+  s_9092daee04e2e7::t_7c5a445ad37d0c 38-49
+  s_9092daee04e2e7::t_3a9d2039a4c65f 1-6,9,11,17-27,32,35,37,50,56
+apps/emdash-desktop/src/renderer/features/settings/components/IntegrationsCard.tsx
+  s_9092daee04e2e7::t_5b8e63092241cd 12,20
+apps/emdash-desktop/src/renderer/features/integrations/setup-form-registry.ts
+  s_9092daee04e2e7::t_15a11437175a49 1-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "d96a21e119849f1dd98de01bf5840d31ac609830",
+  "prompts": {},
+  "sessions": {
+    "s_9092daee04e2e7": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ecc49-d158-78f7-9813-dfbe4a76483f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
