@@ -47,28 +47,24 @@ const remotes: GitRemotesModel = {
   remotes: [{ name: 'origin', url: 'git@github.com:owner/repo.git' }],
 };
 
-function snapshot(refsModel: GitRefsModel, seq = 1) {
+function snapshot(refsModel: GitRefsModel, sequence = 1, generation = 1) {
   return {
     success: true as const,
     data: {
-      refs: { value: refsModel, seq },
-      remotes: { value: remotes, seq },
+      refs: { value: refsModel, sequence, generation },
+      remotes: { value: remotes, sequence, generation },
     },
   };
 }
 
-async function flushAsyncWork(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
-}
-
 function createWorkspaceStore(): GitRepositoryStore {
-  return new GitRepositoryStore(
+  const store = new GitRepositoryStore(
     'project-1',
     { settings: undefined } as unknown as ProjectSettingsStore,
     'main'
   );
+  store.start();
+  return store;
 }
 
 describe('GitRepositoryStore', () => {
@@ -99,12 +95,14 @@ describe('GitRepositoryStore', () => {
 
   it('hydrates branch divergence from the repo snapshot and applies pushed refs', async () => {
     const store = createWorkspaceStore();
-    await flushAsyncWork();
 
-    expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(0);
+    await vi.waitFor(() => expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(0));
 
     for (const handler of repoHandlers) {
-      handler({ projectId: 'project-1', update: { kind: 'refs', model: refs(2), seq: 2 } });
+      handler({
+        projectId: 'project-1',
+        update: { kind: 'refs', model: refs(2), sequence: 2, generation: 1 },
+      });
     }
 
     expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(2);
@@ -113,23 +111,31 @@ describe('GitRepositoryStore', () => {
 
   it('ignores repo updates for other projects', async () => {
     const store = createWorkspaceStore();
-    await flushAsyncWork();
+
+    await vi.waitFor(() => expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(0));
 
     for (const handler of repoHandlers) {
-      handler({ projectId: 'project-2', update: { kind: 'refs', model: refs(2), seq: 2 } });
+      handler({
+        projectId: 'project-2',
+        update: { kind: 'refs', model: refs(2), sequence: 2, generation: 1 },
+      });
     }
 
     expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(0);
     store.dispose();
   });
 
-  it('ignores stale refs by seq', async () => {
+  it('ignores stale refs by sequence', async () => {
     mocks.getRepoSnapshot.mockResolvedValue(snapshot(refs(3), 3));
     const store = createWorkspaceStore();
-    await flushAsyncWork();
+
+    await vi.waitFor(() => expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(3));
 
     for (const handler of repoHandlers) {
-      handler({ projectId: 'project-1', update: { kind: 'refs', model: refs(1), seq: 2 } });
+      handler({
+        projectId: 'project-1',
+        update: { kind: 'refs', model: refs(1), sequence: 2, generation: 1 },
+      });
     }
 
     expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(3);

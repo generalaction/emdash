@@ -103,7 +103,6 @@ export class TaskManagerStore {
   private readonly projectId: string;
   private readonly _repository: GitRepositoryStore;
   private readonly _settingsStore: ProjectSettingsStore;
-  private readonly _baseRef: string;
   private _loadPromise: Promise<void> | null = null;
   private _teardownPromises = new Map<string, Promise<void>>();
   private _provisionPromises = new Map<string, Promise<void>>();
@@ -123,13 +122,11 @@ export class TaskManagerStore {
   constructor(
     projectId: string,
     repository: GitRepositoryStore,
-    settingsStore: ProjectSettingsStore,
-    baseRef: string
+    settingsStore: ProjectSettingsStore
   ) {
     this.projectId = projectId;
     this._repository = repository;
     this._settingsStore = settingsStore;
-    this._baseRef = baseRef;
     makeObservable(this, { tasks: observable });
 
     this._unsubTaskCreated = events.on(taskCreatedChannel, ({ task }) => {
@@ -475,8 +472,7 @@ export class TaskManagerStore {
           { ...current.data, lastInteractedAt: new Date().toISOString() },
           result.data.path,
           result.data.workspaceId,
-          this._settingsStore,
-          this._baseRef,
+          this._repository,
           result.data.sshConnectionId ?? undefined
         );
         current.activate();
@@ -506,8 +502,7 @@ export class TaskManagerStore {
           { ...current.data, lastInteractedAt: new Date().toISOString() },
           path,
           workspaceId,
-          this._settingsStore,
-          this._baseRef,
+          this._repository,
           sshConnectionId
         );
         current.activate();

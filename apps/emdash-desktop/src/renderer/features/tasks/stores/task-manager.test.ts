@@ -147,8 +147,7 @@ function makeTaskManager(): TaskManagerStore {
   return new TaskManagerStore(
     'project-1',
     { pullRequestRepositoryUrl: null } as never,
-    { pageData: { invalidate: vi.fn() } } as never,
-    'main'
+    { pageData: { invalidate: vi.fn() } } as never
   );
 }
 
@@ -177,7 +176,7 @@ describe('TaskManagerStore archive lifecycle', () => {
     const manager = makeTaskManager();
     const task = makeTask();
     const store = createUnprovisionedTask(task);
-    store.transitionToProvisioned(task, '/tmp/workspace-1', 'workspace-1', {} as never, 'main');
+    store.transitionToProvisioned(task, '/tmp/workspace-1', 'workspace-1', {} as never);
     const viewModel = mocks.viewModels[0];
     const draftComments = mocks.draftComments[0];
     manager.tasks.set(task.id, store);

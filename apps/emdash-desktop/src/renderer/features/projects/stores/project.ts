@@ -44,13 +44,9 @@ export class MountedProject {
     this.view = new ProjectViewStore();
     this.settings = new ProjectSettingsStore(data.id);
     this.gitRepository = new GitRepositoryStore(data.id, this.settings, data.baseRef);
+    this.gitRepository.start();
     this.prSync = new PrSyncStore(data.id);
-    this.taskManager = new TaskManagerStore(
-      data.id,
-      this.gitRepository,
-      this.settings,
-      data.baseRef
-    );
+    this.taskManager = new TaskManagerStore(data.id, this.gitRepository, this.settings);
 
     if (savedSnapshot) this.view.restoreSnapshot(savedSnapshot);
 

@@ -1,7 +1,13 @@
 import type { GitRefsModel, GitRemotesModel } from '@emdash/shared/git';
-import { computed, makeObservable, reaction } from 'mobx';
+import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
-import { bindMirror, ModelMirror, type MirrorBinding } from '@renderer/lib/stores/live';
+import {
+  bindMirror,
+  coalesce,
+  ModelMirror,
+  type MirrorBinding,
+  type MirrorBindingStatus,
+} from '@renderer/lib/stores/live';
 import { Resource } from '@renderer/lib/stores/resource';
 import type { Branch, LocalBranch, Remote, RemoteBranch } from '@shared/core/git/git';
 import {
@@ -23,40 +29,54 @@ export class GitRepositoryStore {
   readonly gitDefaultBranchInfo: Resource<string>;
 
   private settingsDisposer: (() => void) | null = null;
+  private started = false;
+  private syncError: string | null = null;
 
   constructor(
     private readonly projectId: string,
     private readonly settingsStore: ProjectSettingsStore,
     private readonly baseRef: string
   ) {
+    const snapshot = coalesce(async () => {
+      const result = await rpc.gitRepository.getRepoSnapshot(this.projectId);
+      if (!result.success) throw new Error(result.error.type);
+      return result.data;
+    });
+    const onError = (error: unknown) => {
+      runInAction(() => {
+        this.syncError = error instanceof Error ? error.message : String(error);
+      });
+    };
     this.bindings = [
       bindMirror({
         mirror: this.refs,
         subscribe: (push) =>
           events.on(gitRepoUpdateChannel, (payload) => {
             if (payload.projectId === this.projectId && payload.update.kind === 'refs') {
-              push({ value: payload.update.model, seq: payload.update.seq });
+              push({
+                value: payload.update.model,
+                sequence: payload.update.sequence,
+                generation: payload.update.generation,
+              });
             }
           }),
-        snapshot: async () => {
-          const result = await rpc.gitRepository.getRepoSnapshot(this.projectId);
-          if (!result.success) throw new Error(result.error.type);
-          return result.data.refs;
-        },
+        snapshot: async () => (await snapshot()).refs,
+        onError,
       }),
       bindMirror({
         mirror: this.remotesModel,
         subscribe: (push) =>
           events.on(gitRepoUpdateChannel, (payload) => {
             if (payload.projectId === this.projectId && payload.update.kind === 'remotes') {
-              push({ value: payload.update.model, seq: payload.update.seq });
+              push({
+                value: payload.update.model,
+                sequence: payload.update.sequence,
+                generation: payload.update.generation,
+              });
             }
           }),
-        snapshot: async () => {
-          const result = await rpc.gitRepository.getRepoSnapshot(this.projectId);
-          if (!result.success) throw new Error(result.error.type);
-          return result.data.remotes;
-        },
+        snapshot: async () => (await snapshot()).remotes,
+        onError,
       }),
     ];
 
@@ -68,10 +88,6 @@ export class GitRepositoryStore {
       async () => (await rpc.gitRepository.getRemoteBranches(projectId)).gitDefaultBranch,
       [{ kind: 'demand' }]
     );
-
-    for (const binding of this.bindings) binding.start();
-    this.providerRepositoryInfo.start();
-    this.gitDefaultBranchInfo.start();
 
     this.settingsDisposer = reaction(
       () => [
@@ -85,7 +101,10 @@ export class GitRepositoryStore {
       }
     );
 
-    makeObservable<this, 'configuredRemotes' | 'defaultBranchPreference'>(this, {
+    makeObservable<this, 'configuredRemotes' | 'defaultBranchPreference' | 'syncError'>(this, {
+      syncError: observable,
+      syncStatus: computed,
+      syncErrorMessage: computed,
       branches: computed,
       localBranches: computed,
       remoteBranches: computed,
@@ -102,6 +121,54 @@ export class GitRepositoryStore {
       issueRepositoryUrl: computed,
       pushRepositoryUrl: computed,
     });
+  }
+
+  start(): void {
+    if (this.started) return;
+    this.started = true;
+    for (const binding of this.bindings) binding.start();
+    this.providerRepositoryInfo.start();
+    this.gitDefaultBranchInfo.start();
+  }
+
+  async resync(): Promise<void> {
+    await Promise.all(this.bindings.map((binding) => binding.resync()));
+  }
+
+  refreshLocal(): void {
+    void this.resync();
+  }
+
+  refreshRemote(): void {
+    void this.resync();
+    this.providerRepositoryInfo.invalidate();
+    this.gitDefaultBranchInfo.invalidate();
+  }
+
+  refresh(): void {
+    this.refreshRemote();
+  }
+
+  dispose(): void {
+    for (const binding of this.bindings) binding.dispose();
+    this.refs.dispose();
+    this.remotesModel.dispose();
+    this.providerRepositoryInfo.dispose();
+    this.gitDefaultBranchInfo.dispose();
+    this.settingsDisposer?.();
+    this.settingsDisposer = null;
+  }
+
+  get syncStatus(): MirrorBindingStatus {
+    const statuses = this.bindings.map((binding) => binding.status);
+    for (const status of ['error', 'syncing', 'idle'] as const) {
+      if (statuses.includes(status)) return status;
+    }
+    return 'live';
+  }
+
+  get syncErrorMessage(): string | null {
+    return !this.loading || this.syncStatus !== 'error' ? null : this.syncError;
   }
 
   get loading(): boolean {
@@ -142,10 +209,6 @@ export class GitRepositoryStore {
     return this.branches.filter((branch): branch is RemoteBranch => branch.type === 'remote');
   }
 
-  private get configuredRemotes(): ConfiguredRemotes {
-    return resolveConfiguredRemotes(this.settingsStore.settings ?? undefined, this.remotes);
-  }
-
   get baseRemote(): Remote {
     return this.configuredRemotes.baseRemote;
   }
@@ -183,14 +246,6 @@ export class GitRepositoryStore {
     return parseRepositoryRef(url)?.repositoryUrl ?? null;
   }
 
-  private get defaultBranchPreference(): Branch | undefined {
-    return projectDefaultBranchToBranch(
-      this.settingsStore.settings?.defaultBranch,
-      this.baseRemote,
-      this.remotes
-    );
-  }
-
   get defaultBranch(): LocalBranch | RemoteBranch | undefined {
     return resolveDefaultBranch({
       preference: this.defaultBranchPreference,
@@ -224,31 +279,28 @@ export class GitRepositoryStore {
     return this.localBranches.find((branch) => branch.branch === branchName)?.divergence ?? null;
   }
 
-  refreshLocal(): void {
-    void this.resync();
+  fetchRemote() {
+    return rpc.gitRepository.fetch(this.projectId);
   }
 
-  refreshRemote(): void {
-    void this.resync();
-    this.providerRepositoryInfo.invalidate();
-    this.gitDefaultBranchInfo.invalidate();
+  publishBranch(branchName: string, workspaceId?: string) {
+    return rpc.gitRepository.publishBranch(
+      this.projectId,
+      branchName,
+      this.pushRemote.name,
+      workspaceId
+    );
   }
 
-  refresh(): void {
-    this.refreshRemote();
+  private get configuredRemotes(): ConfiguredRemotes {
+    return resolveConfiguredRemotes(this.settingsStore.settings ?? undefined, this.remotes);
   }
 
-  async resync(): Promise<void> {
-    await Promise.all(this.bindings.map((binding) => binding.resync()));
-  }
-
-  dispose(): void {
-    for (const binding of this.bindings) binding.dispose();
-    this.refs.dispose();
-    this.remotesModel.dispose();
-    this.providerRepositoryInfo.dispose();
-    this.gitDefaultBranchInfo.dispose();
-    this.settingsDisposer?.();
-    this.settingsDisposer = null;
+  private get defaultBranchPreference(): Branch | undefined {
+    return projectDefaultBranchToBranch(
+      this.settingsStore.settings?.defaultBranch,
+      this.baseRemote,
+      this.remotes
+    );
   }
 }

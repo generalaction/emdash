@@ -227,13 +227,9 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
   it('does not auto-create a terminal when stale restored tabs are empty but terminal records load', async () => {
     const terminals = makeTerminalManager({ terminalIds: ['terminal-1'], isLoaded: false });
     terminalRegistryEntries().set('task-1', terminals);
-    workspaceRegistry.acquire(
-      'project-1',
-      'workspace-1',
-      '/tmp/emdash-test-workspace',
-      { settings: {} } as never,
-      'main'
-    );
+    workspaceRegistry.acquire('project-1', 'workspace-1', '/tmp/emdash-test-workspace', {
+      settings: {},
+    } as never);
 
     const viewModel = makeProvisionedViewModel();
     viewModel.restoreSnapshot({
@@ -336,13 +332,9 @@ describe('WorkspaceViewModel default conversation tab', () => {
   });
 
   it('does not reopen a closed initial conversation if provision finishes during the next create flow', async () => {
-    workspaceRegistry.acquire(
-      'project-1',
-      'workspace-1',
-      '/tmp/emdash-test-workspace',
-      { settings: {} } as never,
-      'main'
-    );
+    workspaceRegistry.acquire('project-1', 'workspace-1', '/tmp/emdash-test-workspace', {
+      settings: {},
+    } as never);
     const conversations = conversationRegistry.acquire('task-1', 'project-1', []);
     vi.spyOn(conversations, 'hydrateConversation').mockResolvedValue();
     vi.spyOn(conversations, 'dehydrateConversation').mockResolvedValue();

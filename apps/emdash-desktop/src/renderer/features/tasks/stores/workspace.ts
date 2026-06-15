@@ -1,11 +1,10 @@
 import { computed, makeObservable } from 'mobx';
-import { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
-import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
+import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { ILifecycle } from '@renderer/lib/stores/lifecycle';
 import type { ConnectionState } from '@shared/core/ssh/ssh';
-import { GitWorktreeStore } from '../diff-view/stores/git-worktree-store';
 import { FilesStore } from '../editor/stores/files-store';
+import { GitWorktreeStore } from './git-worktree-store';
 import { LifecycleScriptsStore } from './lifecycle-scripts';
 
 export class WorkspaceStore implements ILifecycle {
@@ -20,14 +19,13 @@ export class WorkspaceStore implements ILifecycle {
     projectId: string,
     workspaceId: string,
     path: string,
-    settingsStore: ProjectSettingsStore,
-    baseRef: string,
+    gitRepository: GitRepositoryStore,
     sshConnectionId?: string
   ) {
     makeObservable(this, { connectionState: computed });
     this.path = path;
     this.sshConnectionId = sshConnectionId;
-    this.gitRepository = new GitRepositoryStore(projectId, settingsStore, baseRef);
+    this.gitRepository = gitRepository;
     this.gitWorktree = new GitWorktreeStore(projectId, workspaceId, this.gitRepository);
     this.files = new FilesStore(projectId, workspaceId);
     this.lifecycleScripts = new LifecycleScriptsStore(projectId, workspaceId);
@@ -45,7 +43,7 @@ export class WorkspaceStore implements ILifecycle {
   }
 
   activate(): void {
-    this.gitWorktree.startWatching();
+    this.gitWorktree.start();
     this.files.startWatching();
   }
 
@@ -54,7 +52,6 @@ export class WorkspaceStore implements ILifecycle {
   }
 
   dispose(): void {
-    this.gitRepository.dispose();
     this.gitWorktree.dispose();
     this.files.dispose();
     this.lifecycleScripts.dispose();
