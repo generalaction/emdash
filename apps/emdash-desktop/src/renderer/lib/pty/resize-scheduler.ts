@@ -27,26 +27,31 @@ export function createResizeScheduler<T>(
 ): ResizeScheduler<T> {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let pending: { value: T } | null = null;
+  let lastFlushAt = Number.NEGATIVE_INFINITY;
 
   const fireTrailing = () => {
     timer = null;
     if (!pending) return;
     const v = pending.value;
     pending = null;
+    lastFlushAt = Date.now();
     flush(v);
   };
 
   return {
     schedule(value: T) {
+      const now = Date.now();
       // Leading edge: no burst in flight → flush now so the PTY stays in
       // lockstep with the synchronous xterm resize.  Otherwise coalesce; the
       // trailing flush delivers the burst's final value.
-      if (timer === null) {
+      if (timer === null && now - lastFlushAt >= trailingMs) {
+        lastFlushAt = now;
         flush(value);
-      } else {
-        pending = { value };
-        clearTimeout(timer);
+        return;
       }
+
+      pending = { value };
+      if (timer) clearTimeout(timer);
       timer = setTimeout(fireTrailing, trailingMs);
     },
     cancel() {

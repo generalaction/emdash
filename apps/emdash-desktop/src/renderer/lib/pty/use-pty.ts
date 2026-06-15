@@ -200,7 +200,6 @@ export function usePty(
       }, PTY_RESIZE_DEBOUNCE_MS),
     [sessionId]
   );
-  useEffect(() => () => ptyResizeScheduler.cancel(), [ptyResizeScheduler]);
 
   const queuePtyResize = useCallback(
     (newCols: number, newRows: number) => {

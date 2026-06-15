@@ -23,6 +23,7 @@ describe('createResizeScheduler', () => {
     const flush = vi.fn();
     const s = createResizeScheduler<number>(flush, 60);
     s.schedule(1);
+    expect(vi.getTimerCount()).toBe(0);
     vi.advanceTimersByTime(60);
     // Leading flush consumed the value; the lone resize flushes exactly once.
     expect(flush).toHaveBeenCalledTimes(1);
