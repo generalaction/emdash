@@ -7,7 +7,12 @@ import {
   sourceKey,
   toPlatform,
 } from '@emdash/shared/deps/runtime';
-import type { DependencyId, DependencyState, HostDependency, HostDependencyManager } from '@emdash/shared/deps/runtime';
+import type {
+  DependencyId,
+  DependencyState,
+  HostDependency,
+  HostDependencyManager,
+} from '@emdash/shared/deps/runtime';
 import type {
   AgentInstallationStatus,
   AgentMetadata,
