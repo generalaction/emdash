@@ -160,9 +160,9 @@ export function SettingsPage({
     { id: 'clis-models', label: 'Agents' },
     { id: 'integrations', label: 'Integrations' },
     { id: 'connections', label: 'Connections' },
-    { id: 'browser', label: 'Browser' },
     { id: 'repository', label: 'Repository' },
     { id: 'interface', label: 'Interface' },
+    { id: 'browser', label: 'Browser' },
     { id: 'docs', label: 'Docs', isExternal: true },
   ];
 

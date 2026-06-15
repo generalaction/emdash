@@ -1,5 +1,4 @@
 import { Check, Ellipsis, Eraser, Pencil, Plus, Trash2, X } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
 import { useRef, useState } from 'react';
 import { browserControlsRegistry } from '@renderer/features/browser/browser-controls-registry';
 import { browserSessionStore } from '@renderer/features/browser/browser-session-store';
@@ -149,179 +148,148 @@ export function BrowserSettingsCard() {
         </div>
 
         <div className="mt-2 flex flex-col divide-y divide-border/40">
-          <AnimatePresence initial={false}>
-            {profiles.map((profile) => (
-              <motion.div
-                key={profile.id}
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="overflow-clip [overflow-clip-margin:4px]"
-              >
-                <div className="flex h-9 items-center gap-2">
-                  {editingProfileId === profile.id ? (
-                    <>
-                      <Input
-                        ref={renameInputRef}
-                        autoFocus
-                        defaultValue={profile.name}
-                        disabled={disabled}
-                        aria-label={`Rename ${profile.name} browser profile`}
-                        className="h-7 min-w-0 flex-1"
-                        onFocus={(event) => event.currentTarget.select()}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter')
-                            renameProfile(profile.id, event.currentTarget.value);
-                          if (event.key === 'Escape') setEditingProfileId(null);
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-7 shrink-0 text-foreground-muted"
-                        disabled={disabled}
-                        aria-label={`Save ${profile.name} browser profile name`}
-                        onClick={() =>
-                          renameProfile(profile.id, renameInputRef.current?.value ?? '')
-                        }
+          {profiles.map((profile) => (
+            <div key={profile.id} className="flex h-9 items-center gap-2">
+              {editingProfileId === profile.id ? (
+                <>
+                  <Input
+                    ref={renameInputRef}
+                    autoFocus
+                    defaultValue={profile.name}
+                    disabled={disabled}
+                    aria-label={`Rename ${profile.name} browser profile`}
+                    className="h-7 min-w-0 flex-1"
+                    onFocus={(event) => event.currentTarget.select()}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter')
+                        renameProfile(profile.id, event.currentTarget.value);
+                      if (event.key === 'Escape') setEditingProfileId(null);
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 shrink-0 text-foreground-muted"
+                    disabled={disabled}
+                    aria-label={`Save ${profile.name} browser profile name`}
+                    onClick={() => renameProfile(profile.id, renameInputRef.current?.value ?? '')}
+                  >
+                    <Check className="size-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 shrink-0 text-foreground-muted"
+                    disabled={disabled}
+                    aria-label={`Cancel renaming ${profile.name} browser profile`}
+                    onClick={() => setEditingProfileId(null)}
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                    {profile.name}
+                  </span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-7 shrink-0 text-foreground-muted"
+                          disabled={disabled}
+                          aria-label={`${profile.name} browser profile actions`}
+                        />
+                      }
+                    >
+                      <Ellipsis className="size-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className="min-w-40"
+                      finalFocus={renameInputRef}
+                    >
+                      <DropdownMenuItem onClick={() => setEditingProfileId(profile.id)}>
+                        <Pencil className="size-4" />
+                        Rename
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => clearProfileStorage(profile)}>
+                        <Eraser className="size-4" />
+                        Clear storage
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        variant="destructive"
+                        disabled={profiles.length <= 1}
+                        onClick={() => deleteProfile(profile)}
                       >
-                        <Check className="size-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-7 shrink-0 text-foreground-muted"
-                        disabled={disabled}
-                        aria-label={`Cancel renaming ${profile.name} browser profile`}
-                        onClick={() => setEditingProfileId(null)}
-                      >
-                        <X className="size-4" />
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                        {profile.name}
-                      </span>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="size-7 shrink-0 text-foreground-muted"
-                              disabled={disabled}
-                              aria-label={`${profile.name} browser profile actions`}
-                            />
-                          }
-                        >
-                          <Ellipsis className="size-4" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          align="end"
-                          className="min-w-40"
-                          finalFocus={renameInputRef}
-                        >
-                          <DropdownMenuItem onClick={() => setEditingProfileId(profile.id)}>
-                            <Pencil className="size-4" />
-                            Rename
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => clearProfileStorage(profile)}>
-                            <Eraser className="size-4" />
-                            Clear storage
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            variant="destructive"
-                            disabled={profiles.length <= 1}
-                            onClick={() => deleteProfile(profile)}
-                          >
-                            <Trash2 className="size-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </>
-                  )}
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
+                        <Trash2 className="size-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              )}
+            </div>
+          ))}
         </div>
 
-        <div className="relative mt-2 h-7">
-          <AnimatePresence initial={false}>
-            {isAdding ? (
-              <motion.div
-                key="add-input"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15, ease: 'easeOut' }}
-                className="absolute inset-0 flex items-center gap-2"
+        <div className="mt-2 flex h-7 items-center">
+          {isAdding ? (
+            <div className="flex w-full items-center gap-2">
+              <Input
+                ref={addInputRef}
+                autoFocus
+                disabled={disabled}
+                placeholder="Profile name"
+                aria-label="New browser profile name"
+                className="h-7 min-w-0 flex-1"
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') addProfile(event.currentTarget.value);
+                  if (event.key === 'Escape') setIsAdding(false);
+                }}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-7 shrink-0 text-foreground-muted"
+                disabled={disabled}
+                aria-label="Save new browser profile"
+                onClick={() => addProfile(addInputRef.current?.value ?? '')}
               >
-                <Input
-                  ref={addInputRef}
-                  autoFocus
-                  disabled={disabled}
-                  placeholder="Profile name"
-                  aria-label="New browser profile name"
-                  className="h-7 min-w-0 flex-1"
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') addProfile(event.currentTarget.value);
-                    if (event.key === 'Escape') setIsAdding(false);
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-7 shrink-0 text-foreground-muted"
-                  disabled={disabled}
-                  aria-label="Save new browser profile"
-                  onClick={() => addProfile(addInputRef.current?.value ?? '')}
-                >
-                  <Check className="size-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-7 shrink-0 text-foreground-muted"
-                  disabled={disabled}
-                  aria-label="Cancel adding profile"
-                  onClick={() => setIsAdding(false)}
-                >
-                  <X className="size-4" />
-                </Button>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="add-button"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15, ease: 'easeOut' }}
-                className="absolute inset-0 flex items-center"
+                <Check className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-7 shrink-0 text-foreground-muted"
+                disabled={disabled}
+                aria-label="Cancel adding profile"
+                onClick={() => setIsAdding(false)}
               >
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-foreground-muted"
-                  disabled={disabled}
-                  onClick={() => setIsAdding(true)}
-                >
-                  <Plus className="size-4" />
-                  Add profile
-                </Button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                <X className="size-4" />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-foreground-muted"
+              disabled={disabled}
+              onClick={() => setIsAdding(true)}
+            >
+              <Plus className="size-4" />
+              Add profile
+            </Button>
+          )}
         </div>
       </div>
     </div>
