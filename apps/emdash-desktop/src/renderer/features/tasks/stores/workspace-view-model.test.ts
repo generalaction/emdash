@@ -1,5 +1,6 @@
 import { makeObservable, observable, runInAction } from 'mobx';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { PtySession } from '@renderer/lib/pty/pty-session';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import type { Task } from '@shared/core/tasks/tasks';
 import type { Terminal } from '@shared/core/terminals/terminals';
@@ -259,6 +260,31 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
 });
 
 describe('WorkspaceViewModel default conversation tab', () => {
+  it('refocuses the active conversation terminal when returning to the conversations sidebar', () => {
+    const conversations = conversationRegistry.acquire('task-1', 'project-1', []);
+    const viewModel = makeViewModel();
+    const focus = vi.fn();
+
+    runInAction(() => {
+      addConversation(conversations, { id: 'conversation-1' });
+      viewModel.tabManager.openConversation('conversation-1');
+      conversations.sessions.set('conversation-1', {
+        pty: { terminal: { focus } },
+        destroy: vi.fn(),
+      } as unknown as PtySession);
+    });
+
+    viewModel.setFocusedRegion('main');
+    viewModel.setSidebarTab('files');
+    expect(focus).not.toHaveBeenCalled();
+
+    viewModel.setSidebarTab('conversations');
+
+    expect(focus).toHaveBeenCalledTimes(1);
+
+    viewModel.dispose();
+  });
+
   it('opens the initial conversation for a new task without restored tab state', async () => {
     const conversations = conversationRegistry.acquire('task-1', 'project-1', []);
     const viewModel = makeViewModel();

@@ -412,6 +412,9 @@ export class WorkspaceViewModel implements ILifecycle {
 
   setSidebarTab(v: SidebarTab): void {
     this.sidebarTab = v;
+    if (v === 'conversations' && this.focusedRegion === 'main') {
+      this.focusActiveConversationTerminal();
+    }
   }
 
   setSidebarCollapsed(collapsed: boolean): void {
@@ -439,6 +442,12 @@ export class WorkspaceViewModel implements ILifecycle {
 
   setTerminalDrawerActiveItem(item: TerminalDrawerActiveItem): void {
     this.terminalDrawerActiveItem = item;
+  }
+
+  focusActiveConversationTerminal(): void {
+    const conversationId = this.tabManager.activeConversationId;
+    if (!conversationId) return;
+    conversationRegistry.get(this.taskId)?.sessions.get(conversationId)?.pty?.terminal.focus();
   }
 
   /** Opens the terminal drawer and always creates a new terminal session. */
