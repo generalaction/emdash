@@ -26,6 +26,7 @@ import { log } from '@renderer/utils/logger';
 import type { Branch } from '@shared/core/git/git';
 import { pullRequestErrorMessage } from '@shared/core/pull-requests/pull-requests';
 import { parseRepositoryRef } from '@shared/repository-ref';
+import { formatPushErrorDetail } from '../../../../utils';
 import { resolveInitialBaseBranch } from './base-branch';
 import { getTargetRemotes, resolveCreatePrTargetRemote } from './target-remote';
 
@@ -111,9 +112,7 @@ export const CreatePrModal = observer(function CreatePrModal({
         );
         if (!pushResult.success) {
           log.error('Failed to push branch:', pushResult.error);
-          setError(
-            ('message' in pushResult.error && pushResult.error.message) || 'Failed to push branch'
-          );
+          setError(formatPushErrorDetail(pushResult.error));
           return;
         }
       }
