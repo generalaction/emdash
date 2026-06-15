@@ -5,11 +5,11 @@ import type { GitRepositoryService } from './service';
 const DEFAULT_INTERVAL_MS = 2 * 60 * 1000;
 
 type GitRepositoryFetchTarget = Pick<GitRepositoryService, 'fetch' | 'getRemotes'>;
-type AppFetchResult = Awaited<ReturnType<GitRepositoryFetchTarget['fetch']>>;
+type GitRepositoryFetchResult = Awaited<ReturnType<GitRepositoryFetchTarget['fetch']>>;
 
 export class GitRepositoryFetchService {
   private _timer: ReturnType<typeof setInterval> | undefined;
-  private _inflight: Promise<AppFetchResult> | undefined;
+  private _inflight: Promise<GitRepositoryFetchResult> | undefined;
   private readonly intervalMs = DEFAULT_INTERVAL_MS;
 
   constructor(
@@ -30,7 +30,7 @@ export class GitRepositoryFetchService {
    * background tick is `intervalMs` from now. Concurrent callers share the
    * same in-flight promise (deduplicated).
    */
-  async fetch(): Promise<AppFetchResult> {
+  async fetch(): Promise<GitRepositoryFetchResult> {
     this._resetTimer();
     return this._doFetch();
   }
@@ -40,13 +40,13 @@ export class GitRepositoryFetchService {
     this._timer = undefined;
   }
 
-  private _doFetch(): Promise<AppFetchResult> {
+  private _doFetch(): Promise<GitRepositoryFetchResult> {
     if (this._inflight) return this._inflight;
     this._inflight = this.getRemote()
       .then(async (remote) => {
         return this.gitRepository.fetch(remote);
       })
-      .catch((e): AppFetchResult => {
+      .catch((e): GitRepositoryFetchResult => {
         log.warn('GitRepositoryFetchService: fetch threw unexpectedly', { error: String(e) });
         return err({ type: 'error', message: String(e) });
       })
