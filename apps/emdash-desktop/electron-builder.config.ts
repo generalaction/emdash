@@ -64,7 +64,7 @@ const config: Configuration = {
     ],
   },
   win: {
-    icon: 'src/assets/images/emdash/app-icon.png',
+    icon: 'src/assets/images/emdash/emdash.png',
     target: [
       { target: 'nsis', arch: ['x64'] },
       { target: 'msi', arch: ['x64'] },
