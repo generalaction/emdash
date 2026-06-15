@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/renderer/lib/pty/resize-scheduler.test.ts
+  s_03b6abb5bc5a32::t_33a58a991790f9 26
+apps/emdash-desktop/src/renderer/lib/pty/resize-scheduler.ts
+  s_03b6abb5bc5a32::t_33a58a991790f9 30,43,47-48
+  s_03b6abb5bc5a32::t_61763dc957ef1c 37,50
+  s_03b6abb5bc5a32::t_6173ffa0b02d0c 52-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "fb6f6a5b8c7c3b2ace37eb32e1b73f00e996da27",
+  "prompts": {},
+  "sessions": {
+    "s_03b6abb5bc5a32": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_136371da6ffej1lNPNy4jtaMaD",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
