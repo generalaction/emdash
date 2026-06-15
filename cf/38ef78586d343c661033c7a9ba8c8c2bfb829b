@@ -1,0 +1,33 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_76f046ad04aa63::t_ad28a3049e62a8 39,160-166
+apps/emdash-desktop/src/renderer/features/tasks/view/tab-bar/browser-tab-item.tsx
+  s_6066b5e7ddfeff::t_257c91a7b90820 4,20-33,43-44
+  s_76f046ad04aa63::t_ec0c291e7b9b3a 3,34-42
+  s_6066b5e7ddfeff::t_761c77fd128165 69
+apps/emdash-desktop/src/renderer/features/browser/browser-favicon.tsx
+  s_76f046ad04aa63::t_1d09a698d84d58 1-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "cf38ef78586d343c661033c7a9ba8c8c2bfb829b",
+  "prompts": {},
+  "sessions": {
+    "s_6066b5e7ddfeff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "87cc68cf-8112-488a-b49f-79efb7f3db69",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_76f046ad04aa63": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ecca5-a438-7112-8bae-fbc1df5ce038",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
