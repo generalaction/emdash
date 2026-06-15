@@ -84,6 +84,7 @@ export function InitialConversationField({
     () => buildTaskContextActions(linkedIssue, [], promptLibrary),
     [linkedIssue, promptLibrary]
   );
+  const isSshProject = Boolean(state.projectId && getProjectSshConnectionId(state.projectId));
 
   // Auto-inject issue context whenever the linked issue changes.
   useEffect(() => {
@@ -100,7 +101,10 @@ export function InitialConversationField({
     void refreshLinkedIssueContext(linkedIssue, state.projectId)
       .then(({ issue, attachments }) => {
         if (cancelled) return;
-        const text = buildIssueContextText(issue, state.connectionId ? undefined : attachments);
+        const hasSshConnection = Boolean(
+          state.projectId && getProjectSshConnectionId(state.projectId)
+        );
+        const text = buildIssueContextText(issue, hasSshConnection ? undefined : attachments);
         // If the user removed the context pill while the refresh was in flight, keep it removed.
         state.setIssueContext((current) => (current === null ? null : text));
       })
@@ -127,7 +131,7 @@ export function InitialConversationField({
 
   const { isDragOver, dropHandlers } = usePromptFileDrop({
     // Local paths would not exist on the remote host of an SSH project.
-    disableLocalFiles: Boolean(state.connectionId),
+    disableLocalFiles: isSshProject,
     workspaceId: state.projectId,
     onDropText: (text) =>
       state.setPrompt((current) => appendInitialConversationText(current, text)),

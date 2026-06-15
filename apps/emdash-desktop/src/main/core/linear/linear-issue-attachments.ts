@@ -12,7 +12,9 @@ const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 const DOWNLOAD_TIMEOUT_MS = 15_000;
 
 /** auth fingerprint + url -> persisted local path, so repeated context fetches reuse downloads. */
+const MAX_ATTACHMENT_CACHE_ENTRIES = 100;
 const downloadedAttachmentPaths = new Map<string, string>();
+const inFlightAttachmentDownloads = new Map<string, Promise<string | null>>();
 
 export function extractLinearUploadUrls(texts: Array<string | undefined>): string[] {
   const urls = new Set<string>();
@@ -31,6 +33,7 @@ function attachmentFileName(url: string, identifier: string): string {
     const pathname = new URL(url).pathname;
     segment = decodeURIComponent(pathname.split('/').filter(Boolean).at(-1) ?? '');
   } catch {
+    // URL is malformed or last segment has invalid percent-encoding; fall back to identifier only.
     segment = '';
   }
   return segment ? `${identifier}-${segment}` : identifier;
@@ -122,6 +125,30 @@ function attachmentCacheKey(url: string, token: string): string {
   return `${createHash('sha256').update(token).digest('hex')}:${url}`;
 }
 
+function getCachedAttachmentPath(cacheKey: string): string | null {
+  const cached = downloadedAttachmentPaths.get(cacheKey);
+  if (!cached) return null;
+
+  if (!existsSync(cached)) {
+    downloadedAttachmentPaths.delete(cacheKey);
+    return null;
+  }
+
+  downloadedAttachmentPaths.delete(cacheKey);
+  downloadedAttachmentPaths.set(cacheKey, cached);
+  return cached;
+}
+
+function cacheAttachmentPath(cacheKey: string, localPath: string) {
+  downloadedAttachmentPaths.set(cacheKey, localPath);
+
+  while (downloadedAttachmentPaths.size > MAX_ATTACHMENT_CACHE_ENTRIES) {
+    const oldestKey = downloadedAttachmentPaths.keys().next().value;
+    if (!oldestKey) break;
+    downloadedAttachmentPaths.delete(oldestKey);
+  }
+}
+
 /**
  * Download images referenced via uploads.linear.app in the given texts to
  * local temp files so CLI agents can actually view them. Non-image uploads
@@ -145,13 +172,21 @@ export async function downloadLinearIssueAttachments(args: {
   const attachments = await Promise.all(
     urls.slice(0, MAX_ATTACHMENT_DOWNLOADS).map(async (url): Promise<IssueAttachment | null> => {
       const cacheKey = attachmentCacheKey(url, args.token);
-      const cached = downloadedAttachmentPaths.get(cacheKey);
-      if (cached && existsSync(cached)) return { url, localPath: cached };
+      const cached = getCachedAttachmentPath(cacheKey);
+      if (cached) return { url, localPath: cached };
 
       try {
-        const localPath = await downloadAttachment(url, args.token, args.identifier);
+        const existingDownload = inFlightAttachmentDownloads.get(cacheKey);
+        const download =
+          existingDownload ??
+          downloadAttachment(url, args.token, args.identifier).finally(() => {
+            inFlightAttachmentDownloads.delete(cacheKey);
+          });
+        if (!existingDownload) inFlightAttachmentDownloads.set(cacheKey, download);
+
+        const localPath = await download;
         if (!localPath) return null;
-        downloadedAttachmentPaths.set(cacheKey, localPath);
+        cacheAttachmentPath(cacheKey, localPath);
         return { url, localPath };
       } catch (error) {
         log.warn('[Linear] failed to download issue attachment:', { url, error });
