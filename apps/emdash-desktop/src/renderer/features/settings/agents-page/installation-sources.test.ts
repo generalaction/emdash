@@ -220,6 +220,23 @@ describe('buildSourceRows', () => {
     expect(autoRow?.status).toBe('available');
   });
 
+  it('auto row exposes the resolved active path as displayPath', () => {
+    const activeInst = makeInstall({
+      realpath: '/opt/homebrew/Cellar/tool/1.0.0/bin/tool',
+      pathEntry: '/opt/homebrew/bin/tool',
+      isActive: true,
+    });
+    const rows = buildSourceRows(installOptions, [activeInst]);
+    const autoRow = rows.find((r) => r.ref.kind === 'auto');
+    expect(autoRow?.displayPath).toBe('/opt/homebrew/bin/tool');
+  });
+
+  it('auto row has no displayPath when nothing is active', () => {
+    const rows = buildSourceRows(installOptions, []);
+    const autoRow = rows.find((r) => r.ref.kind === 'auto');
+    expect(autoRow?.displayPath).toBeUndefined();
+  });
+
   it('marks npm install option as recommended', () => {
     const rows = buildSourceRows(installOptions, []);
     const npmRow = rows.find((r) => r.ref.kind === 'method' && r.ref.method === 'npm');

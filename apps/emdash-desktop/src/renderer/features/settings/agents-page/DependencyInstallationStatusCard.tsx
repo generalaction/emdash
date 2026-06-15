@@ -148,7 +148,12 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
                             )}
                           </span>
                           {row.recommended && <RecommendedBadge />}
-                          {row.status === 'available' && !isCurrentSource && <InstalledBadge />}
+                          {/* "Installed" applies to concrete discovered binaries, never to the
+                              'auto' policy row. Show it on every found installation, including
+                              the currently-used one (which also gets the "Used" badge). */}
+                          {row.status === 'available' && row.ref.kind !== 'auto' && (
+                            <InstalledBadge />
+                          )}
                           {isCurrentSource &&
                             (row.status === 'available' || selectedSource.kind !== 'auto') && (
                               <UsedBadge />

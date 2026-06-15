@@ -132,12 +132,15 @@ export function buildSourceRows(
 ): SourceRow[] {
   const rows: SourceRow[] = [];
 
-  // 1. Auto row
+  // 1. Auto row — a policy ("follow the PATH winner"), not a concrete install.
+  // It never carries an "Installed" badge; instead the sublabel shows what it
+  // currently resolves to so the user can see where auto points.
   const activeInst = installations.find((i) => i.isActive);
   rows.push({
     ref: { kind: 'auto' },
     label: 'Auto',
     status: activeInst?.status ?? 'missing',
+    displayPath: activeInst ? shortPath(activeInst.pathEntry ?? activeInst.realpath) : undefined,
   });
 
   // 2. Detected installations
