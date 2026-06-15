@@ -110,7 +110,7 @@ export class TaskManagerStore {
   private _unsubTaskCreated: (() => void) | null = null;
   private _unsubPrUpdated: (() => void) | null = null;
   private _unsubPrSyncProgress: (() => void) | null = null;
-  private _unsubGitWorkspaceChanged: (() => void) | null = null;
+  private _unsubGitWorktreeUpdate: (() => void) | null = null;
   private _unsubProvisionProgress: (() => void) | null = null;
   private _unsubStatusUpdated: (() => void) | null = null;
   private _unsubLifecycleScriptStatus: (() => void) | null = null;
@@ -227,7 +227,7 @@ export class TaskManagerStore {
       }
     });
 
-    this._unsubGitWorkspaceChanged = events.on(gitWorktreeUpdateChannel, (payload) => {
+    this._unsubGitWorktreeUpdate = events.on(gitWorktreeUpdateChannel, (payload) => {
       if (payload.projectId !== this.projectId || payload.update.kind !== 'head') return;
       for (const [, store] of this.tasks) {
         if (isRegistered(store) && store.workspaceId === payload.workspaceId) {
@@ -655,8 +655,8 @@ export class TaskManagerStore {
     this._unsubPrUpdated = null;
     this._unsubPrSyncProgress?.();
     this._unsubPrSyncProgress = null;
-    this._unsubGitWorkspaceChanged?.();
-    this._unsubGitWorkspaceChanged = null;
+    this._unsubGitWorktreeUpdate?.();
+    this._unsubGitWorktreeUpdate = null;
     this._unsubProvisionProgress?.();
     this._unsubProvisionProgress = null;
     this._unsubStatusUpdated?.();

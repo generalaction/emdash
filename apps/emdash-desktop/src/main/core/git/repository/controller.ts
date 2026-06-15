@@ -51,14 +51,6 @@ export const gitRepositoryController = createRPCController({
     }
   },
 
-  renameBranch: async (projectId: string, oldBranch: string, newBranch: string) => {
-    const project = projectManager.getProject(projectId);
-    if (!project) return err({ type: 'not_found' as const });
-    const result = await project.gitRepository.renameBranch(oldBranch, newBranch);
-    if (!result.success) return err(result.error);
-    return ok();
-  },
-
   fetch: async (projectId: string, workspaceId?: string) => {
     const project = projectManager.getProject(projectId);
     if (!project) return err({ type: 'not_found' as const });

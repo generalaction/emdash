@@ -30,17 +30,6 @@ export const gitWorktreeController = createRPCController({
     }
   },
 
-  getFileAtHead: async (projectId: string, workspaceId: string, filePath: string) => {
-    try {
-      const workspace = resolveWorkspace(projectId, workspaceId);
-      if (!workspace) return err({ type: 'not_found' as const });
-      return ok({ content: await workspace.gitWorktree.getFileAtRef(filePath, 'HEAD') });
-    } catch (error) {
-      log.error('gitCtrl.getFileAtHead failed', { projectId, workspaceId, filePath, error });
-      return err({ type: 'git_error' as const, message: String(error) });
-    }
-  },
-
   getFileAtRef: async (projectId: string, workspaceId: string, filePath: string, ref: string) => {
     try {
       const workspace = resolveWorkspace(projectId, workspaceId);
@@ -85,14 +74,6 @@ export const gitWorktreeController = createRPCController({
     }
   },
 
-  stageFile: (
-    projectId: string,
-    workspaceId: string,
-    filePath: string
-  ): Promise<GitWorktreeMutationResult> => {
-    return stageWorktreeFiles(projectId, workspaceId, [filePath], 'single');
-  },
-
   stageFiles: (
     projectId: string,
     workspaceId: string,
@@ -129,14 +110,6 @@ export const gitWorktreeController = createRPCController({
     }
   },
 
-  unstageFile: (
-    projectId: string,
-    workspaceId: string,
-    filePath: string
-  ): Promise<GitWorktreeMutationResult> => {
-    return unstageWorktreeFiles(projectId, workspaceId, [filePath], 'single');
-  },
-
   unstageFiles: (
     projectId: string,
     workspaceId: string,
@@ -171,14 +144,6 @@ export const gitWorktreeController = createRPCController({
       log.error('gitCtrl.unstageAllFiles failed', { projectId, workspaceId, error });
       return err({ type: 'git_error' as const, message: String(error) });
     }
-  },
-
-  revertFile: (
-    projectId: string,
-    workspaceId: string,
-    filePath: string
-  ): Promise<GitWorktreeMutationResult> => {
-    return revertWorktreeFiles(projectId, workspaceId, [filePath], 'single');
   },
 
   revertFiles: (
@@ -280,18 +245,6 @@ export const gitWorktreeController = createRPCController({
       return ok({ commits: result.commits, aheadCount: result.aheadCount });
     } catch (error) {
       log.error('gitCtrl.getLog failed', { projectId, workspaceId, error });
-      return err({ type: 'git_error' as const, message: String(error) });
-    }
-  },
-
-  getLatestCommit: async (projectId: string, workspaceId: string) => {
-    try {
-      const workspace = resolveWorkspace(projectId, workspaceId);
-      if (!workspace) return err({ type: 'not_found' as const });
-      const result = await workspace.gitWorktree.getLog({ maxCount: 1 });
-      return ok({ commit: result.commits[0] ?? null });
-    } catch (error) {
-      log.error('gitCtrl.getLatestCommit failed', { projectId, workspaceId, error });
       return err({ type: 'git_error' as const, message: String(error) });
     }
   },

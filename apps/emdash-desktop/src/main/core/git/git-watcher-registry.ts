@@ -1,22 +1,27 @@
 import path from 'node:path';
 import parcelWatcher from '@parcel/watcher';
-import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
-import { branchRef, remoteRef, toRefString, type GitObjectRef } from '@shared/core/git/git';
 import {
-  gitRefChangedChannel,
-  gitWorkspaceChangedChannel,
-  type GitRefChange,
-} from '@shared/core/git/gitEvents';
+  branchRef,
+  remoteRef,
+  toRefString,
+  type GitObjectRef,
+  type GitRef,
+} from '@shared/core/git/git';
 import { projectManager } from '../projects/project-manager';
-import { taskSessionManager } from '../tasks/task-session-manager';
-import { refreshWorkspaceCurrentBranchCache } from '../workspaces/workspace-current-branch-cache';
-import { workspaceRegistry } from '../workspaces/workspace-registry';
 
 // Legacy Git watcher retained for SSH compatibility while SSH projects still use
 // the main-process Git adapter. New Git watching should use `@emdash/shared/git`.
+
+export type GitRefChange = {
+  projectId: string;
+  kind: 'local-refs' | 'remote-refs' | 'config';
+  /** Specific structured refs that changed, when derivable from the FS path.
+   *  Absent for packed-refs (ambiguous) and bare HEAD pointer changes. */
+  changedRefs?: GitRef[];
+};
 
 export type GitWatcherHooks = {
   'ref:changed': (change: GitRefChange) => void | Promise<void>;
@@ -32,20 +37,12 @@ class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, I
     log.error(`GitWatcherRegistry: ${String(name)} hook error`, e)
   );
   private readonly _subscriptions = new Map<string, parcelWatcher.AsyncSubscription>();
-  /**
-   * Per-project worktree registry.
-   * projectId → (workspaceId → relativeGitDir)
-   */
-  private readonly _worktrees = new Map<string, Map<string, string>>();
 
   on<K extends keyof GitWatcherHooks>(name: K, handler: GitWatcherHooks[K]) {
     return this._hooks.on(name, handler);
   }
 
   initialize(): void {
-    // IPC bridge: forward all ref changes to the renderer.
-    this._hooks.on('ref:changed', (change) => events.emit(gitRefChangedChannel, change));
-
     projectManager.on('projectOpened', (projectId, provider) => {
       if (provider.type !== 'local') return;
       void this._startWatching(projectId, provider.repoPath);
@@ -53,18 +50,6 @@ class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, I
 
     projectManager.on('projectClosed', (projectId) => {
       void this._stopWatching(projectId);
-    });
-
-    taskSessionManager.hooks.on(
-      'task:provisioned',
-      ({ projectId, workspaceId, worktreeGitDir }) => {
-        if (worktreeGitDir === undefined) return;
-        this._worktrees.get(projectId)?.set(workspaceId, worktreeGitDir);
-      }
-    );
-
-    taskSessionManager.hooks.on('task:torn-down', ({ projectId, workspaceId }) => {
-      this._worktrees.get(projectId)?.delete(workspaceId);
     });
   }
 
@@ -77,17 +62,8 @@ class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, I
     }
   }
 
-  /**
-   * Register a workspace for index/HEAD change detection.
-   * Called when the repository workspace is created or discovered.
-   */
-  registerWorkspace(projectId: string, workspaceId: string, relGitDir: string): void {
-    this._worktrees.get(projectId)?.set(workspaceId, relGitDir);
-  }
-
   private async _startWatching(projectId: string, repoPath: string): Promise<void> {
     const gitDir = path.join(repoPath, '.git');
-    this._worktrees.set(projectId, new Map());
     try {
       const sub = await parcelWatcher.subscribe(gitDir, (_err, rawEvents) => {
         if (_err) return;
@@ -96,8 +72,6 @@ class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, I
         let emitConfig = false;
         const changedLocalByKey = new Map<string, GitObjectRef>();
         const changedRemoteByKey = new Map<string, GitObjectRef>();
-
-        const worktrees = this._worktrees.get(projectId) ?? new Map<string, string>();
 
         for (const e of rawEvents) {
           const rel = path.relative(gitDir, e.path).replace(/\\/g, '/');
@@ -125,21 +99,6 @@ class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, I
             emitRemote = true;
           }
           if (rel === 'config') emitConfig = true;
-
-          // Workspace-level index/HEAD changes.
-          for (const [workspaceId, relGitDir] of worktrees) {
-            const prefix = relGitDir ? `${relGitDir}/` : '';
-            if (rel === `${prefix}index`) {
-              events.emit(gitWorkspaceChangedChannel, {
-                projectId,
-                workspaceId,
-                kind: 'index',
-              });
-            }
-            if (rel === `${prefix}HEAD`) {
-              void this._emitWorkspaceHeadChanged(projectId, workspaceId);
-            }
-          }
         }
 
         if (emitLocal) {
@@ -173,27 +132,9 @@ class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, I
     }
   }
 
-  private async _emitWorkspaceHeadChanged(projectId: string, workspaceId: string): Promise<void> {
-    const workspace = workspaceRegistry.get(workspaceId);
-    if (!workspace) return;
-
-    const result = await refreshWorkspaceCurrentBranchCache(workspaceId, async () => {
-      const head = await workspace.gitWorktree.getHead();
-      return head.kind === 'detached' ? null : head.name;
-    });
-    if (!result?.changed) return;
-
-    events.emit(gitWorkspaceChangedChannel, {
-      projectId,
-      workspaceId,
-      kind: 'head',
-    });
-  }
-
   private async _stopWatching(projectId: string): Promise<void> {
     await this._subscriptions.get(projectId)?.unsubscribe();
     this._subscriptions.delete(projectId);
-    this._worktrees.delete(projectId);
   }
 }
 

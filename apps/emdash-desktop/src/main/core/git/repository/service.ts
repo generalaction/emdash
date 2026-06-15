@@ -6,7 +6,6 @@ import type {
   FetchError,
   FetchPrForReviewError,
   PushError,
-  RenameBranchError,
 } from '@shared/core/git/git';
 import { resolveConfiguredRemotes } from '@shared/core/git/git-utils';
 import { err, ok, type Result } from '@shared/lib/result';
@@ -71,13 +70,6 @@ export class GitRepositoryService {
     const result = await this.gitRepository.createBranch({ name, from, syncWithRemote, remote });
     if (!result.success) return err(mapCreateBranchError(result.error));
     return ok();
-  }
-
-  async renameBranch(
-    _oldBranch: string,
-    newBranch: string
-  ): Promise<Result<void, RenameBranchError>> {
-    return err({ type: 'error', message: `Branch rename is not implemented for ${newBranch}` });
   }
 
   async deleteBranch(branch: string, force?: boolean): Promise<Result<void, DeleteBranchError>> {

@@ -45,7 +45,6 @@ export interface WorkspaceGitProvider extends Hookable<WorkspaceGitHooks> {
   getChangedFiles(base: DiffMode | GitObjectRef | MergeBaseRange): Promise<GitChange[]>;
 
   getFileDiff(filePath: string, base?: DiffMode | GitObjectRef): Promise<DiffResult>;
-  getFileAtHead(filePath: string): Promise<string | null>;
   getFileAtRef(filePath: string, ref: string): Promise<string | null>;
   getFileAtIndex(filePath: string): Promise<string | null>;
   /** Reads a binary image blob with smudge filters (e.g. LFS) applied. */
@@ -68,7 +67,6 @@ export interface WorkspaceGitProvider extends Hookable<WorkspaceGitHooks> {
     base?: GitObjectRef;
     head?: GitObjectRef;
   }): Promise<{ commits: Commit[]; aheadCount: number }>;
-  getLatestCommit(): Promise<Commit | null>;
   getCommitFiles(commitHash: string): Promise<CommitFile[]>;
 
   commit(message: string): Promise<Result<{ hash: string }, CommitError>>;
