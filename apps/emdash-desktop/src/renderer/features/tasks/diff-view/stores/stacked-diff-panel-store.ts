@@ -12,8 +12,8 @@ import {
   type GitObjectRef,
 } from '@shared/core/git/git';
 import { getPrNumber } from '@shared/core/pull-requests/pull-requests';
+import type { GitWorktreeStore } from '../../stores/git-worktree-store';
 import { MAX_STACKED_FILES, type DiffViewStore } from './diff-view-store';
-import type { GitWorktreeStore } from './git-worktree-store';
 
 type DiffType = 'disk' | 'staged' | 'git' | 'pr';
 

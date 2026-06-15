@@ -4,7 +4,7 @@ import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
 import { type Snapshottable } from '@renderer/lib/stores/snapshottable';
 import { commitRef, type GitObjectRef } from '@shared/core/git/git';
 import type { ActiveFile, DiffViewSnapshot } from '@shared/view-state';
-import { type GitWorktreeStore } from './git-worktree-store';
+import { type GitWorktreeStore } from '../../stores/git-worktree-store';
 
 export const MAX_STACKED_FILES = 8;
 

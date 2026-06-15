@@ -42,20 +42,14 @@ function status(stagedPaths: string[] = []): GitStatusData {
 
 const head: GitHeadModel = { kind: 'branch', name: 'feature/stale-staged' };
 
-function snapshot(statusModel: GitStatusModel, seq = 1) {
+function snapshot(statusModel: GitStatusModel, sequence = 1, generation = 1) {
   return {
     success: true as const,
     data: {
-      status: { value: statusModel, seq },
-      head: { value: head, seq },
+      status: { value: statusModel, sequence, generation },
+      head: { value: head, sequence, generation },
     },
   };
-}
-
-async function flushAsyncWork(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
 }
 
 const repositoryStore = {
@@ -91,16 +85,17 @@ describe('GitWorktreeStore', () => {
     mocks.getWorktreeSnapshot.mockResolvedValue(snapshot(status(['src/a.ts'])));
 
     const store = createStore();
-    store.startWatching();
-    await flushAsyncWork();
+    store.start();
 
-    expect(store.stagedFileChanges.map((change) => change.path)).toEqual(['src/a.ts']);
+    await vi.waitFor(() =>
+      expect(store.stagedFileChanges.map((change) => change.path)).toEqual(['src/a.ts'])
+    );
 
     for (const handler of worktreeHandlers) {
       handler({
         projectId: 'project-1',
         workspaceId: 'workspace-1',
-        update: { kind: 'status', model: status(), seq: 2 },
+        update: { kind: 'status', model: status(), sequence: 2, generation: 1 },
       });
     }
 
@@ -112,14 +107,17 @@ describe('GitWorktreeStore', () => {
     mocks.getWorktreeSnapshot.mockResolvedValue(snapshot(status(['src/a.ts'])));
 
     const store = createStore();
-    store.startWatching();
-    await flushAsyncWork();
+    store.start();
+
+    await vi.waitFor(() =>
+      expect(store.stagedFileChanges.map((change) => change.path)).toEqual(['src/a.ts'])
+    );
 
     for (const handler of worktreeHandlers) {
       handler({
         projectId: 'project-1',
         workspaceId: 'workspace-other',
-        update: { kind: 'status', model: status(), seq: 2 },
+        update: { kind: 'status', model: status(), sequence: 2, generation: 1 },
       });
     }
 
@@ -127,22 +125,57 @@ describe('GitWorktreeStore', () => {
     store.dispose();
   });
 
-  it('ignores stale status updates by seq', async () => {
+  it('ignores stale status updates by sequence', async () => {
     mocks.getWorktreeSnapshot.mockResolvedValue(snapshot(status(['src/a.ts']), 3));
 
     const store = createStore();
-    store.startWatching();
-    await flushAsyncWork();
+    store.start();
+
+    await vi.waitFor(() =>
+      expect(store.stagedFileChanges.map((change) => change.path)).toEqual(['src/a.ts'])
+    );
 
     for (const handler of worktreeHandlers) {
       handler({
         projectId: 'project-1',
         workspaceId: 'workspace-1',
-        update: { kind: 'status', model: status(), seq: 2 },
+        update: { kind: 'status', model: status(), sequence: 2, generation: 1 },
       });
     }
 
     expect(store.stagedFileChanges.map((change) => change.path)).toEqual(['src/a.ts']);
+    store.dispose();
+  });
+
+  it('accepts a lower sequence from a newer generation and drops stale-generation updates', async () => {
+    mocks.getWorktreeSnapshot.mockResolvedValue(snapshot(status(['src/a.ts']), 10, 1));
+
+    const store = createStore();
+    store.start();
+
+    await vi.waitFor(() =>
+      expect(store.stagedFileChanges.map((change) => change.path)).toEqual(['src/a.ts'])
+    );
+
+    // The producing instance restarted: sequence resets, generation advances.
+    for (const handler of worktreeHandlers) {
+      handler({
+        projectId: 'project-1',
+        workspaceId: 'workspace-1',
+        update: { kind: 'status', model: status(['src/b.ts']), sequence: 1, generation: 2 },
+      });
+    }
+    expect(store.stagedFileChanges.map((change) => change.path)).toEqual(['src/b.ts']);
+
+    // A stale message from the dead instance must not regress the state.
+    for (const handler of worktreeHandlers) {
+      handler({
+        projectId: 'project-1',
+        workspaceId: 'workspace-1',
+        update: { kind: 'status', model: status(['src/old.ts']), sequence: 11, generation: 1 },
+      });
+    }
+    expect(store.stagedFileChanges.map((change) => change.path)).toEqual(['src/b.ts']);
     store.dispose();
   });
 });

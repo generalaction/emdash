@@ -236,10 +236,10 @@ export const ImageDiffView = observer(function ImageDiffView({
   const fileKey = `${activeFile.path}|${activeFile.group}|${gitRefToString(activeFile.originalRef)}|${activeFile.modifiedRef ? gitRefToString(activeFile.modifiedRef) : ''}`;
 
   // For disk/staged groups the bytes can change without fileKey changing
-  // (in-place overwrite, re-stage). Pinning to lastUpdatedAt reruns the
+  // (in-place overwrite, re-stage). Pinning to statusRevision reruns the
   // load whenever GitWorktreeStore observes an fs-watch or index event.
   const reactiveRevision =
-    activeFile.group === 'disk' || activeFile.group === 'staged' ? git.fullStatus.lastUpdatedAt : 0;
+    activeFile.group === 'disk' || activeFile.group === 'staged' ? git.statusRevision : 0;
 
   const placeholder: SideState = { status: 'loading' };
 

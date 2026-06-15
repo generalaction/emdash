@@ -1,5 +1,5 @@
+import type { GitWorktreeStore } from '../../stores/git-worktree-store';
 import type { ChangesViewStore, SelectionState } from './changes-view-store';
-import type { GitWorktreeStore } from './git-worktree-store';
 
 export function selectUnstagedSelectionState(store: ChangesViewStore): SelectionState {
   return store.unstagedSelectionState;

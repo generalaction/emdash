@@ -4,9 +4,9 @@ import type { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-
 import { commitRef } from '@shared/core/git/git';
 import { getPrNumber } from '@shared/core/pull-requests/pull-requests';
 import type { ActiveFile } from '@shared/view-state';
+import type { GitWorktreeStore } from '../../stores/git-worktree-store';
 import type { PrStore } from '../../stores/pr-store';
 import type { DiffViewStore } from './diff-view-store';
-import type { GitWorktreeStore } from './git-worktree-store';
 
 /**
  * Owns lifecycle reactions for diff tabs:
