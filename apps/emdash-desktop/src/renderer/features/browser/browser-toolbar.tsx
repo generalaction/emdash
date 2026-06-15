@@ -49,7 +49,6 @@ import type { BrowserWebviewAdapter } from './browser-webview-types';
 export function BrowserToolbar({
   session,
   adapter,
-  autoFocusUrl,
   onNavigate,
   onGoBack,
   onGoForward,
@@ -60,7 +59,6 @@ export function BrowserToolbar({
 }: {
   session: BrowserSessionSnapshot;
   adapter: BrowserWebviewAdapter | null;
-  autoFocusUrl?: boolean;
   onNavigate?: (url: string) => boolean;
   onGoBack?: () => void;
   onGoForward?: () => void;
@@ -91,15 +89,6 @@ export function BrowserToolbar({
       urlInputRef.current?.select();
     });
   }, [onFocusUrl]);
-
-  useEffect(() => {
-    if (!autoFocusUrl) return;
-    const timer = window.setTimeout(() => {
-      urlInputRef.current?.focus();
-      urlInputRef.current?.select();
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [autoFocusUrl]);
 
   const navigate = () => {
     navigateTo(urlText);
