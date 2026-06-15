@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_5dc1b7bfbe0feb::t_976838b0757897 128-131,237-241
+apps/emdash-desktop/src/renderer/features/browser/browser-start-page.tsx
+  s_5dc1b7bfbe0feb::t_9005ede6bb4b9d 2,7,11,16-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "e9b505aca34f8212e7e7b45b908885112930ec6b",
+  "prompts": {},
+  "sessions": {
+    "s_5dc1b7bfbe0feb": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eccb1-24f1-7c29-a7d4-9df48b46e677",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
