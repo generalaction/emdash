@@ -1,13 +1,7 @@
 import type { GitRefsModel, GitRemotesModel } from '@emdash/shared/git';
-import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { computed, makeObservable, reaction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
-import {
-  bindMirror,
-  coalesce,
-  ModelMirror,
-  type MirrorBinding,
-  type MirrorBindingStatus,
-} from '@renderer/lib/stores/live';
+import { bindMirror, coalesce, ModelMirror, type MirrorBinding } from '@renderer/lib/stores/live';
 import { Resource } from '@renderer/lib/stores/resource';
 import type { Branch, LocalBranch, Remote, RemoteBranch } from '@shared/core/git/git';
 import {
@@ -30,7 +24,6 @@ export class GitRepositoryStore {
 
   private settingsDisposer: (() => void) | null = null;
   private started = false;
-  private syncError: string | null = null;
 
   constructor(
     private readonly projectId: string,
@@ -42,11 +35,6 @@ export class GitRepositoryStore {
       if (!result.success) throw new Error(result.error.type);
       return result.data;
     });
-    const onError = (error: unknown) => {
-      runInAction(() => {
-        this.syncError = error instanceof Error ? error.message : String(error);
-      });
-    };
     this.bindings = [
       bindMirror({
         mirror: this.refs,
@@ -61,7 +49,6 @@ export class GitRepositoryStore {
             }
           }),
         snapshot: async () => (await snapshot()).refs,
-        onError,
       }),
       bindMirror({
         mirror: this.remotesModel,
@@ -76,7 +63,6 @@ export class GitRepositoryStore {
             }
           }),
         snapshot: async () => (await snapshot()).remotes,
-        onError,
       }),
     ];
 
@@ -101,10 +87,7 @@ export class GitRepositoryStore {
       }
     );
 
-    makeObservable<this, 'configuredRemotes' | 'defaultBranchPreference' | 'syncError'>(this, {
-      syncError: observable,
-      syncStatus: computed,
-      syncErrorMessage: computed,
+    makeObservable<this, 'configuredRemotes' | 'defaultBranchPreference'>(this, {
       branches: computed,
       localBranches: computed,
       remoteBranches: computed,
@@ -119,7 +102,6 @@ export class GitRepositoryStore {
       providerRepository: computed,
       pullRequestRepositoryUrl: computed,
       issueRepositoryUrl: computed,
-      pushRepositoryUrl: computed,
     });
   }
 
@@ -157,18 +139,6 @@ export class GitRepositoryStore {
     this.gitDefaultBranchInfo.dispose();
     this.settingsDisposer?.();
     this.settingsDisposer = null;
-  }
-
-  get syncStatus(): MirrorBindingStatus {
-    const statuses = this.bindings.map((binding) => binding.status);
-    for (const status of ['error', 'syncing', 'idle'] as const) {
-      if (statuses.includes(status)) return status;
-    }
-    return 'live';
-  }
-
-  get syncErrorMessage(): string | null {
-    return !this.loading || this.syncStatus !== 'error' ? null : this.syncError;
   }
 
   get loading(): boolean {
@@ -241,11 +211,6 @@ export class GitRepositoryStore {
     return repository?.capabilities.issues ? repository.repositoryUrl : null;
   }
 
-  get pushRepositoryUrl(): string | null {
-    const url = this.pushRemote.url;
-    return parseRepositoryRef(url)?.repositoryUrl ?? null;
-  }
-
   get defaultBranch(): LocalBranch | RemoteBranch | undefined {
     return resolveDefaultBranch({
       preference: this.defaultBranchPreference,
@@ -254,18 +219,6 @@ export class GitRepositoryStore {
       gitDefaultBranch: this.gitDefaultBranchInfo.data ?? undefined,
       baseRef: this.baseRef,
     });
-  }
-
-  isDefault(branch: LocalBranch | RemoteBranch): boolean {
-    const defaultBranch = this.defaultBranch;
-    if (!defaultBranch) return false;
-    if (branch.type !== defaultBranch.type) return false;
-    if (branch.type === 'remote' && defaultBranch.type === 'remote') {
-      return (
-        branch.branch === defaultBranch.branch && branch.remote.name === defaultBranch.remote.name
-      );
-    }
-    return branch.branch === defaultBranch.branch;
   }
 
   isBranchOnRemote(branchName: string): boolean {

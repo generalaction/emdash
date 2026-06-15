@@ -7,11 +7,22 @@ import {
   type IFileWatchService,
   type IFsService,
 } from '../fs';
-import { KeyedMutex, ResourceMap, type Lease } from '../lib';
+import { err, KeyedMutex, ok, ResourceMap, type Lease } from '../lib';
+import type { Result } from '../lib';
+import { gitErrorMessage } from './errors';
 import { createGitExec } from './git-env';
 import { GitRepository, type GitOnError } from './git-repository';
 import { GitWorktree } from './git-worktree';
-import type { IGitRuntime, RepoLease, WorktreeLease } from './types';
+import type {
+  EnsureRepositoryError,
+  EnsureRepositoryOptions,
+  GitPathInspection,
+  GitRepositoryInfo,
+  IGitRuntime,
+  RepoLease,
+  WorktreeLease,
+} from './types';
+import { computeBaseRef } from './utils';
 
 type WorktreeResource = {
   worktree: GitWorktree;
@@ -81,6 +92,38 @@ export class GitRuntime implements IGitRuntime {
       onEmpty: () => {
         void this.disposeIfIdle();
       },
+    });
+  }
+
+  async inspectPath(pathToInspect: string): Promise<GitPathInspection> {
+    this.assertOpen();
+    return this.inspectResolvedPath(path.resolve(pathToInspect));
+  }
+
+  async ensureRepository(
+    pathToInspect: string,
+    options: EnsureRepositoryOptions = {}
+  ): Promise<Result<GitRepositoryInfo, EnsureRepositoryError>> {
+    this.assertOpen();
+    const resolvedPath = path.resolve(pathToInspect);
+    const inspected = await this.inspectResolvedPath(resolvedPath);
+    if (inspected.kind === 'repository') return ok(inspected);
+    if (!options.initIfMissing) {
+      return err({ type: 'not-repository', path: inspected.path });
+    }
+
+    try {
+      await this.exec.withCwd(resolvedPath).exec(['init']);
+    } catch (error) {
+      return err({ type: 'init-failed', path: resolvedPath, message: gitErrorMessage(error) });
+    }
+
+    const initialized = await this.inspectResolvedPath(resolvedPath);
+    if (initialized.kind === 'repository') return ok(initialized);
+    return err({
+      type: 'init-failed',
+      path: resolvedPath,
+      message: 'Failed to initialize git repository',
     });
   }
 
@@ -168,6 +211,50 @@ export class GitRuntime implements IGitRuntime {
       gitDir: realpathOrResolve(gitDir),
       gitCommonDir: realpathOrResolve(gitCommonDir),
       objectStoreDir: realpathOrResolve(objectStoreDir),
+    };
+  }
+
+  private async inspectResolvedPath(resolvedPath: string): Promise<GitPathInspection> {
+    const exec = this.exec.withCwd(resolvedPath);
+    try {
+      const { stdout } = await exec.exec(['rev-parse', '--is-inside-work-tree']);
+      if (stdout.trim() !== 'true') return { kind: 'not-repository', path: resolvedPath };
+    } catch {
+      return { kind: 'not-repository', path: resolvedPath };
+    }
+
+    let remoteName: string | undefined;
+    try {
+      const { stdout } = await exec.exec(['remote']);
+      const remotes = stdout.trim().split('\n').filter(Boolean);
+      remoteName = remotes.includes('origin') ? 'origin' : remotes[0];
+    } catch {}
+
+    let branch: string | undefined;
+    try {
+      const { stdout } = await exec.exec(['branch', '--show-current']);
+      branch = stdout.trim() || undefined;
+    } catch {}
+
+    if (!branch && remoteName) {
+      try {
+        const { stdout } = await exec.exec(['remote', 'show', remoteName]);
+        const match = /HEAD branch:\s*(\S+)/.exec(stdout);
+        branch = match?.[1] ?? undefined;
+      } catch {}
+    }
+
+    let rootPath = resolvedPath;
+    try {
+      const { stdout } = await exec.exec(['rev-parse', '--show-toplevel']);
+      const trimmed = stdout.trim();
+      if (trimmed) rootPath = realpathOrResolve(trimmed);
+    } catch {}
+
+    return {
+      kind: 'repository',
+      rootPath,
+      baseRef: computeBaseRef(undefined, remoteName, branch),
     };
   }
 

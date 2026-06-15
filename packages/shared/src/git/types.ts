@@ -97,6 +97,22 @@ export type RepoLease = Lease<IGitRepository>;
 
 export type WorktreeLease = Lease<IGitWorktree>;
 
+export type GitRepositoryInfo = {
+  kind: 'repository';
+  rootPath: string;
+  baseRef: string;
+};
+
+export type GitPathInspection = GitRepositoryInfo | { kind: 'not-repository'; path: string };
+
+export type EnsureRepositoryOptions = {
+  initIfMissing?: boolean;
+};
+
+export type EnsureRepositoryError =
+  | { type: 'not-repository'; path: string }
+  | { type: 'init-failed'; path: string; message: string };
+
 export interface IGitRepository extends IDisposable {
   readonly gitCommonDir: string;
   readonly objectStoreDir: string;
@@ -175,6 +191,11 @@ export interface IGitWorktree extends IDisposable {
 }
 
 export interface IGitRuntime extends IDisposable {
+  inspectPath(path: string): Promise<GitPathInspection>;
+  ensureRepository(
+    path: string,
+    options?: EnsureRepositoryOptions
+  ): Promise<Result<GitRepositoryInfo, EnsureRepositoryError>>;
   openRepository(pathInsideRepo: string): Promise<RepoLease>;
   openWorktree(worktreePath: string): Promise<WorktreeLease>;
 }

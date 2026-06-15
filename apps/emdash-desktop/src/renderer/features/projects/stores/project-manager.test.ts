@@ -72,11 +72,15 @@ function localProject(overrides: Partial<LocalProject> = {}): LocalProject {
   };
 }
 
+function okProject(project: LocalProject) {
+  return { success: true as const, data: project };
+}
+
 describe('ProjectManagerStore project creation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.inspectProjectPath.mockResolvedValue({ isDirectory: true, isGitRepo: true });
-    mocks.createProject.mockResolvedValue(localProject());
+    mocks.createProject.mockResolvedValue(okProject(localProject()));
     mocks.openProject.mockReturnValue(new Promise(() => {}));
     mocks.cloneRepository.mockReturnValue(new Promise(() => {}));
     mocks.createGithubRepository.mockResolvedValue({
@@ -121,8 +125,8 @@ describe('ProjectManagerStore project creation', () => {
   it('creates unregistered project state before returning creating', async () => {
     let resolveCreateProject: (project: LocalProject) => void = () => {};
     mocks.createProject.mockReturnValueOnce(
-      new Promise<LocalProject>((resolve) => {
-        resolveCreateProject = resolve;
+      new Promise<ReturnType<typeof okProject>>((resolve) => {
+        resolveCreateProject = (project) => resolve(okProject(project));
       })
     );
     const store = new ProjectManagerStore();
@@ -161,7 +165,7 @@ describe('ProjectManagerStore project creation', () => {
       { id: 'optimistic-project' }
     );
 
-    if (result.kind === 'creating') void result.completion.catch(() => {});
+    if (result.kind === 'creating') void result.completion;
     expect(mocks.inspectProjectPath).toHaveBeenCalledWith({
       type: 'local',
       path: '/parent/child-project',
@@ -184,7 +188,7 @@ describe('ProjectManagerStore project creation', () => {
       { id: 'optimistic-project' }
     );
 
-    if (result.kind === 'creating') void result.completion.catch(() => {});
+    if (result.kind === 'creating') void result.completion;
     expect(mocks.inspectProjectPath).toHaveBeenCalledWith({
       type: 'local',
       path: '/parent/child-project',
@@ -211,7 +215,7 @@ describe('ProjectManagerStore project creation', () => {
       { id: 'optimistic-project' }
     );
 
-    if (result.kind === 'creating') void result.completion.catch(() => {});
+    if (result.kind === 'creating') void result.completion;
     expect(result.kind).toBe('creating');
     expect(store.projects.has('optimistic-project')).toBe(true);
   });
@@ -238,14 +242,16 @@ describe('ProjectManagerStore project creation', () => {
       { id: 'optimistic-project' }
     );
 
-    if (result.kind === 'creating') void result.completion.catch(() => {});
+    if (result.kind === 'creating') void result.completion;
     expect(result.kind).toBe('creating');
     expect(store.projects.has('optimistic-project')).toBe(true);
   });
 
   it('persists the selected GitHub account after registering a new project', async () => {
     mocks.cloneRepository.mockResolvedValueOnce({ success: true });
-    mocks.createProject.mockResolvedValueOnce(localProject({ id: 'optimistic-project' }));
+    mocks.createProject.mockResolvedValueOnce(
+      okProject(localProject({ id: 'optimistic-project' }))
+    );
     const store = new ProjectManagerStore();
 
     const result = await store.startProjectCreation(
@@ -271,7 +277,9 @@ describe('ProjectManagerStore project creation', () => {
   });
 
   it('does not write GitHub account settings when creation did not specify one', async () => {
-    mocks.createProject.mockResolvedValueOnce(localProject({ id: 'optimistic-project' }));
+    mocks.createProject.mockResolvedValueOnce(
+      okProject(localProject({ id: 'optimistic-project' }))
+    );
     const store = new ProjectManagerStore();
 
     const result = await store.startProjectCreation(
@@ -286,8 +294,44 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.updateProjectSettings).not.toHaveBeenCalled();
   });
 
+  it('marks project creation as failed when the project RPC returns a typed error', async () => {
+    mocks.createProject.mockResolvedValueOnce({
+      success: false,
+      error: {
+        type: 'not-repository',
+        path: '/project',
+      },
+    });
+    const store = new ProjectManagerStore();
+
+    const result = await store.startProjectCreation(
+      { type: 'local' },
+      { mode: 'pick', name: 'Project', path: '/project' },
+      { id: 'optimistic-project' }
+    );
+
+    expect(result.kind).toBe('creating');
+    if (result.kind === 'creating') {
+      await expect(result.completion).resolves.toEqual({
+        success: false,
+        error: { type: 'not-repository', path: '/project' },
+      });
+    }
+
+    const project = store.projects.get('optimistic-project');
+    expect(project && isUnregisteredProject(project)).toBe(true);
+    if (project && isUnregisteredProject(project)) {
+      expect(project.phase).toBe('error');
+      expect(project.error).toBe(
+        'Directory is not a git repository. Enable "Initialize git repository" to continue.'
+      );
+    }
+  });
+
   it('persists the default GitHub account after initializing a picked folder', async () => {
-    mocks.createProject.mockResolvedValueOnce(localProject({ id: 'optimistic-project' }));
+    mocks.createProject.mockResolvedValueOnce(
+      okProject(localProject({ id: 'optimistic-project' }))
+    );
     const store = new ProjectManagerStore();
 
     const result = await store.startProjectCreation(
@@ -311,7 +355,9 @@ describe('ProjectManagerStore project creation', () => {
   });
 
   it('does not persist a GitHub account for picked repositories that were already git repos', async () => {
-    mocks.createProject.mockResolvedValueOnce(localProject({ id: 'optimistic-project' }));
+    mocks.createProject.mockResolvedValueOnce(
+      okProject(localProject({ id: 'optimistic-project' }))
+    );
     const store = new ProjectManagerStore();
 
     const result = await store.startProjectCreation(
@@ -348,7 +394,7 @@ describe('ProjectManagerStore project creation', () => {
       { id: 'optimistic-project' }
     );
 
-    if (result.kind === 'creating') void result.completion.catch(() => {});
+    if (result.kind === 'creating') void result.completion;
 
     expect(mocks.createGithubRepository).toHaveBeenCalledWith(
       expect.objectContaining({ accountId: 'github.com:42' })
@@ -363,7 +409,9 @@ describe('ProjectManagerStore project creation', () => {
       nameWithOwner: 'acme/project',
     });
     mocks.cloneRepository.mockResolvedValueOnce({ success: true });
-    mocks.createProject.mockResolvedValueOnce(localProject({ id: 'optimistic-project' }));
+    mocks.createProject.mockResolvedValueOnce(
+      okProject(localProject({ id: 'optimistic-project' }))
+    );
     const store = new ProjectManagerStore();
 
     const result = await store.startProjectCreation(
@@ -409,7 +457,10 @@ describe('ProjectManagerStore project creation', () => {
 
     expect(result.kind).toBe('creating');
     if (result.kind === 'creating') {
-      await expect(result.completion).rejects.toThrow('Clone failed');
+      await expect(result.completion).resolves.toEqual({
+        success: false,
+        error: { type: 'clone-failed', message: 'Clone failed' },
+      });
     }
 
     expect(mocks.deleteGithubRepository).toHaveBeenCalledWith({
@@ -443,7 +494,10 @@ describe('ProjectManagerStore project creation', () => {
 
     expect(result.kind).toBe('creating');
     if (result.kind === 'creating') {
-      await expect(result.completion).rejects.toThrow('Repository creation failed');
+      await expect(result.completion).resolves.toEqual({
+        success: false,
+        error: { type: 'repository-create-failed', message: 'Repository creation failed' },
+      });
     }
 
     expect(mocks.deleteGithubRepository).not.toHaveBeenCalled();

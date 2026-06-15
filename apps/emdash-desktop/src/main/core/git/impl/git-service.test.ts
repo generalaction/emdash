@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
+import { computeBaseRef } from '@emdash/shared/git';
 import { describe, expect, it } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitService } from './git-service';
-import { computeBaseRef } from './git-utils';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -342,6 +342,22 @@ describe('GitService.getDefaultBranch', () => {
       throw Object.assign(new Error('nothing works'), { code: 128 });
     };
     expect(await makeService(failingExec).getDefaultBranch()).toBe('main');
+  });
+});
+
+describe('GitService.detectInfo', () => {
+  it('does not classify bare repositories as project worktrees', async () => {
+    const service = makeService(
+      makeExec({
+        'rev-parse --is-inside-work-tree': 'false\n',
+      })
+    );
+
+    await expect(service.detectInfo()).resolves.toEqual({
+      isGitRepo: false,
+      baseRef: 'main',
+      rootPath: '/repo',
+    });
   });
 });
 

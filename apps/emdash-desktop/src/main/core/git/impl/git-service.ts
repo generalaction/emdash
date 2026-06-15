@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
+import { computeBaseRef } from '@emdash/shared/git';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GIT_EXECUTABLE } from '@main/core/utils/exec';
@@ -46,7 +47,6 @@ import type { WorkspaceGitHooks } from '../workspace-git-provider';
 import { CatFileBatch } from './cat-file-batch';
 import { remoteNameForRepositoryUrl } from './git-repo-utils';
 import {
-  computeBaseRef,
   mapStatus,
   MAX_DIFF_CONTENT_BYTES,
   MAX_DIFF_OUTPUT_BYTES,
@@ -60,6 +60,12 @@ import {
   TooManyFilesChangedError,
   type IFileStatus,
 } from './status-parser';
+
+  /**
+   * @deprecated Use `@emdash/shared/git` (`IGitRuntime`/`GitRuntime`) for new Git code.
+   * This service is retained only for the legacy SSH adapter until SSH projects are
+   * migrated onto the shared Git runtime.
+   */
 
 const MAX_IMAGE_BLOB_BYTES = 10 * 1024 * 1024;
 const STATUS_FINGERPRINT_TIMEOUT_MS: Record<GitStatusUntrackedMode, number> = {
@@ -1645,7 +1651,10 @@ export class GitService implements GitProvider, IDisposable {
 
   async detectInfo(): Promise<GitInfo> {
     try {
-      await this.ctx.exec('git', ['rev-parse', '--is-inside-work-tree']);
+      const { stdout } = await this.ctx.exec('git', ['rev-parse', '--is-inside-work-tree']);
+      if (stdout.trim() !== 'true') {
+        return { isGitRepo: false, baseRef: 'main', rootPath: this.ctx.root ?? '' };
+      }
     } catch {
       return { isGitRepo: false, baseRef: 'main', rootPath: this.ctx.root ?? '' };
     }

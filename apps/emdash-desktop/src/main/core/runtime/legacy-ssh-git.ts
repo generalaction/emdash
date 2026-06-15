@@ -1,3 +1,4 @@
+import { gitErrorMessage } from '@emdash/shared/git';
 import type {
   CommitError,
   CreateBranchError,
@@ -10,8 +11,12 @@ import type {
 } from '@emdash/shared/git';
 import type {
   CreateBranchOptions,
+  EnsureRepositoryError,
+  EnsureRepositoryOptions,
   FetchPrForReviewOptions,
   GitLogOptions,
+  GitPathInspection,
+  GitRepositoryInfo,
   GitRepoSnapshot,
   GitRepoUpdate,
   GitSequences,
@@ -100,6 +105,54 @@ export class LegacySshGitRuntime implements IGitRuntime {
       value: lease.value.repository,
       release: lease.release,
     };
+  }
+
+  async inspectPath(pathInsideRepo: string): Promise<GitPathInspection> {
+    const git = this.createGit(pathInsideRepo);
+    try {
+      const info = await git.detectInfo();
+      return info.isGitRepo
+        ? { kind: 'repository', rootPath: info.rootPath, baseRef: info.baseRef }
+        : { kind: 'not-repository', path: pathInsideRepo };
+    } finally {
+      git.dispose();
+    }
+  }
+
+  async ensureRepository(
+    pathInsideRepo: string,
+    options: EnsureRepositoryOptions = {}
+  ): Promise<Result<GitRepositoryInfo, EnsureRepositoryError>> {
+    const git = this.createGit(pathInsideRepo);
+    try {
+      let info = await git.detectInfo();
+      if (info.isGitRepo) {
+        return ok({ kind: 'repository', rootPath: info.rootPath, baseRef: info.baseRef });
+      }
+      if (!options.initIfMissing) return err({ type: 'not-repository', path: pathInsideRepo });
+
+      try {
+        await git.initRepository();
+      } catch (error) {
+        return err({
+          type: 'init-failed',
+          path: pathInsideRepo,
+          message: gitErrorMessage(error),
+        });
+      }
+
+      info = await git.detectInfo();
+      if (info.isGitRepo) {
+        return ok({ kind: 'repository', rootPath: info.rootPath, baseRef: info.baseRef });
+      }
+      return err({
+        type: 'init-failed',
+        path: pathInsideRepo,
+        message: 'Failed to initialize git repository',
+      });
+    } finally {
+      git.dispose();
+    }
   }
 
   async openWorktree(worktreePath: string): Promise<Lease<IGitWorktree>> {
@@ -553,7 +606,7 @@ class LegacySshGitWorktree implements IGitWorktree {
 }
 
 function toGitCommandError(error: unknown): GitCommandError {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = gitErrorMessage(error);
   return { type: 'git-error', message };
 }
 
