@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Github } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { rpc } from '@renderer/lib/ipc';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { Button } from '@renderer/lib/ui/button';
 import {
   Combobox,
   ComboboxContent,
@@ -76,6 +78,7 @@ export function PrSelector({
   renderSelectedValue,
   renderPlaceholder,
 }: PrSelectorProps) {
+  const showGithubConnectModal = useShowModal('githubConnectModal');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query.trim(), 200);
@@ -104,13 +107,17 @@ export function PrSelector({
   });
 
   const prs = listResult?.success ? listResult.data.prs : [];
-  const syncError =
-    syncQuery.data && !syncQuery.data.success
-      ? pullRequestErrorMessage(syncQuery.data.error)
-      : null;
-  const listError =
-    listResult && !listResult.success ? pullRequestErrorMessage(listResult.error) : null;
-  const errorMessage = syncError ?? listError;
+  const syncError = syncQuery.data && !syncQuery.data.success ? syncQuery.data.error : null;
+  const listError = listResult && !listResult.success ? listResult.error : null;
+  const error = syncError ?? listError;
+  const errorMessage = error ? pullRequestErrorMessage(error) : null;
+  const isGitHubAuthError =
+    error?.type === 'github_auth_required' ||
+    error?.type === 'ghes_auth_required' ||
+    error?.type === 'github_account_not_found' ||
+    error?.type === 'github_token_missing' ||
+    error?.type === 'github_no_account_selected' ||
+    error?.type === 'github_account_disabled';
 
   const selectedContent = renderSelectedValue ? (
     renderSelectedValue(value!)
@@ -193,10 +200,34 @@ export function PrSelector({
             disabled={disabled}
           />
           <ComboboxEmpty>
-            <span className={cn(errorMessage && 'text-foreground-error')}>
-              {errorMessage ??
-                (statusFilter === 'open' ? 'No open pull requests' : 'No closed pull requests')}
-            </span>
+            {isGitHubAuthError ? (
+              <div className="flex flex-col items-center gap-3 px-4 py-6 text-center">
+                <span className="flex size-8 items-center justify-center rounded-full bg-background-2">
+                  <Github className="size-4 text-foreground-muted" />
+                </span>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">Connect GitHub to load PRs</p>
+                  <p className="max-w-64 text-xs text-foreground-muted">
+                    {error?.type === 'github_account_not_found'
+                      ? 'The selected GitHub account is no longer connected. Reconnect GitHub to show pull requests for this repository.'
+                      : 'Emdash needs a connected GitHub account before it can show pull requests for this repository.'}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={() => showGithubConnectModal({})}
+                >
+                  Connect GitHub
+                </Button>
+              </div>
+            ) : (
+              <span className={cn(errorMessage && 'text-foreground-error')}>
+                {errorMessage ??
+                  (statusFilter === 'open' ? 'No open pull requests' : 'No closed pull requests')}
+              </span>
+            )}
           </ComboboxEmpty>
           <ComboboxList>
             {(pr: PullRequest) => (
