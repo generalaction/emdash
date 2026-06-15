@@ -1,5 +1,5 @@
 import { type Terminal } from '@xterm/xterm';
-import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { events, rpc } from '@renderer/lib/ipc';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { log } from '@renderer/utils/logger';
@@ -20,6 +20,7 @@ import {
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
 } from './pty-keybindings';
+import { createResizeScheduler } from './resize-scheduler';
 import { buildTerminalFontFamily } from './terminal-font';
 
 // xterm's proposed API and internal fields are not in the public TypeScript
@@ -165,8 +166,10 @@ export function usePty(
   // Core xterm.js reference, kept alive across renders.
   const termRef = useRef<Terminal | null>(null);
 
-  // Resize debounce state.
-  const pendingResizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Resize debounce state.  lastRequestedResizeRef tracks the latest measured
+  // dimensions (including pending trailing values), while lastSentResizeRef
+  // tracks dimensions actually sent to rpc.pty.resize.
+  const lastRequestedResizeRef = useRef<{ cols: number; rows: number } | null>(null);
   const lastSentResizeRef = useRef<{ cols: number; rows: number } | null>(null);
 
   // First-message capture state.
@@ -185,20 +188,34 @@ export function usePty(
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
+  // Leading + trailing debounce so the PTY resize fires in lockstep with the
+  // synchronous xterm grid resize instead of trailing it by the full debounce
+  // window — which let the child TUI draw against stale dimensions and overlap
+  // its output with the input line (ENG-1577).  Recreated per session so flush
+  // targets the current sessionId.
+  const ptyResizeScheduler = useMemo(
+    () =>
+      createResizeScheduler<{ cols: number; rows: number }>((dims) => {
+        const lastSent = lastSentResizeRef.current;
+        if (lastSent?.cols === dims.cols && lastSent?.rows === dims.rows) return;
+        lastSentResizeRef.current = dims;
+        void rpc.pty.resize(sessionId, dims.cols, dims.rows);
+      }, PTY_RESIZE_DEBOUNCE_MS),
+    [sessionId]
+  );
+  useEffect(() => () => ptyResizeScheduler.cancel(), [ptyResizeScheduler]);
+
   const queuePtyResize = useCallback(
     (newCols: number, newRows: number) => {
       const c = Math.max(MIN_TERMINAL_COLS, Math.floor(newCols));
       const r = Math.max(MIN_TERMINAL_ROWS, Math.floor(newRows));
-      const last = lastSentResizeRef.current;
-      if (last?.cols === c && last?.rows === r) return;
-      if (pendingResizeTimerRef.current) clearTimeout(pendingResizeTimerRef.current);
-      pendingResizeTimerRef.current = setTimeout(() => {
-        pendingResizeTimerRef.current = null;
-        lastSentResizeRef.current = { cols: c, rows: r };
-        void rpc.pty.resize(sessionId, c, r);
-      }, PTY_RESIZE_DEBOUNCE_MS);
+      const lastRequested = lastRequestedResizeRef.current;
+      if (lastRequested?.cols === c && lastRequested?.rows === r) return;
+      const dims = { cols: c, rows: r };
+      lastRequestedResizeRef.current = dims;
+      ptyResizeScheduler.schedule(dims);
     },
-    [sessionId]
+    [ptyResizeScheduler]
   );
 
   // Stable ref so measureAndResize can always call the latest queuePtyResize
@@ -661,11 +678,9 @@ export function usePty(
 
     // ── Cleanup ───────────────────────────────────────────────────────────────
     return () => {
-      if (pendingResizeTimerRef.current) {
-        clearTimeout(pendingResizeTimerRef.current);
-        pendingResizeTimerRef.current = null;
-      }
+      ptyResizeScheduler.cancel();
       // Reset dedup so the next session always gets a resize on mount.
+      lastRequestedResizeRef.current = null;
       lastSentResizeRef.current = null;
       // ResizeObserver.disconnect() and other cleanups run BEFORE unmount —
       // preserving the invariant that the ResizeObserver is torn down before
