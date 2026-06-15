@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/renderer/features/tasks/conversations/initial-conversation-section.tsx
+  s_c04940279849fd::t_7e720bd0ca8e28 104-106
+  s_c04940279849fd::t_b324b11c614906 87,107,134
+apps/emdash-desktop/src/main/core/linear/linear-issue-attachments.ts
+  s_c04940279849fd::t_7e720bd0ca8e28 181-182
+  s_c04940279849fd::t_77c860f16a6f2e 15,17,36,128-151,175-176,179-180,183-187,189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "87efcc8b7d58cd063f7238ab80df1abd6d1ba891",
+  "prompts": {},
+  "sessions": {
+    "s_c04940279849fd": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ecc8e-1345-7fd7-a4ed-16bf0daff0f9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
