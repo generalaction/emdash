@@ -188,11 +188,8 @@ export function usePty(
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
-  // Leading + trailing debounce so the PTY resize fires in lockstep with the
-  // synchronous xterm grid resize instead of trailing it by the full debounce
-  // window — which let the child TUI draw against stale dimensions and overlap
-  // its output with the input line (ENG-1577).  Recreated per session so flush
-  // targets the current sessionId.
+  // Recreated per session so the trailing flush targets the current sessionId.
+  // See createResizeScheduler for the leading-edge rationale (ENG-1577).
   const ptyResizeScheduler = useMemo(
     () =>
       createResizeScheduler<{ cols: number; rows: number }>((dims) => {

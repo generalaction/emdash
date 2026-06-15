@@ -38,15 +38,15 @@ export function createResizeScheduler<T>(
 
   return {
     schedule(value: T) {
-      pending = { value };
-      // Leading edge: when no burst is in flight, flush now so the PTY stays in
-      // lockstep with the synchronous xterm resize.  Consuming `pending` here
-      // means a lone resize flushes exactly once.
+      // Leading edge: no burst in flight → flush now so the PTY stays in
+      // lockstep with the synchronous xterm resize.  Otherwise coalesce; the
+      // trailing flush delivers the burst's final value.
       if (timer === null) {
-        pending = null;
         flush(value);
+      } else {
+        pending = { value };
+        clearTimeout(timer);
       }
-      if (timer) clearTimeout(timer);
       timer = setTimeout(fireTrailing, trailingMs);
     },
     cancel() {
