@@ -2,25 +2,27 @@ import type { DiffTarget, GitObjectRef } from '@emdash/shared/git';
 import { resolveWorkspace } from '@main/core/projects/utils';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import type { GitWorktreeCommitResult, GitWorktreeMutationResult } from '@shared/core/git/rpc';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { err, ok } from '@shared/lib/result';
+import { revertWorktreeFiles, stageWorktreeFiles, unstageWorktreeFiles } from './mutations';
 
 export const gitWorktreeController = createRPCController({
   getWorktreeSnapshot: async (projectId: string, workspaceId: string) => {
     try {
       const workspace = resolveWorkspace(projectId, workspaceId);
-      if (!workspace) return err({ type: 'not_found' as const });
+      if (!workspace) return err({ type: 'not_found' });
       return ok(await workspace.gitWorktree.getSnapshot());
     } catch (error) {
       log.error('gitCtrl.getWorktreeSnapshot failed', { projectId, workspaceId, error });
-      return err({ type: 'git_error' as const, message: String(error) });
+      return err({ type: 'git_error', message: String(error) });
     }
   },
 
   getFullStatus: async (projectId: string, workspaceId: string) => {
     try {
       const workspace = resolveWorkspace(projectId, workspaceId);
-      if (!workspace) return err({ type: 'not_found' as const });
+      if (!workspace) return err({ type: 'not_found' });
       const [status, head] = await Promise.all([
         workspace.gitWorktree.getStatus(),
         workspace.gitWorktree.getHead(),
@@ -39,14 +41,14 @@ export const gitWorktreeController = createRPCController({
       });
     } catch (error) {
       log.error('gitCtrl.getFullStatus failed', { projectId, workspaceId, error });
-      return err({ type: 'git_error' as const, message: String(error) });
+      return err({ type: 'git_error', message: String(error) });
     }
   },
 
   getStatus: async (projectId: string, workspaceId: string) => {
     try {
       const workspace = resolveWorkspace(projectId, workspaceId);
-      if (!workspace) return err({ type: 'not_found' as const });
+      if (!workspace) return err({ type: 'not_found' });
       const [status, head] = await Promise.all([
         workspace.gitWorktree.getStatus(),
         workspace.gitWorktree.getHead(),
@@ -60,7 +62,7 @@ export const gitWorktreeController = createRPCController({
       });
     } catch (error) {
       log.error('gitCtrl.getStatus failed', { projectId, workspaceId, error });
-      return err({ type: 'git_error' as const, message: String(error) });
+      return err({ type: 'git_error', message: String(error) });
     }
   },
 
@@ -130,15 +132,31 @@ export const gitWorktreeController = createRPCController({
     }
   },
 
-  stageFile: async (projectId: string, workspaceId: string, filePath: string) => {
-    return stage(projectId, workspaceId, [filePath], 'single');
+  stageFile: (
+    projectId: string,
+    workspaceId: string,
+    filePath: string
+  ): Promise<GitWorktreeMutationResult> => {
+    return stageWorktreeFiles(projectId, workspaceId, [filePath], 'single');
   },
 
-  stageFiles: async (projectId: string, workspaceId: string, filePaths: string[]) => {
-    return stage(projectId, workspaceId, filePaths, filePaths.length === 1 ? 'single' : 'multiple');
+  stageFiles: (
+    projectId: string,
+    workspaceId: string,
+    filePaths: string[]
+  ): Promise<GitWorktreeMutationResult> => {
+    return stageWorktreeFiles(
+      projectId,
+      workspaceId,
+      filePaths,
+      filePaths.length === 1 ? 'single' : 'multiple'
+    );
   },
 
-  stageAllFiles: async (projectId: string, workspaceId: string) => {
+  stageAllFiles: async (
+    projectId: string,
+    workspaceId: string
+  ): Promise<GitWorktreeMutationResult> => {
     try {
       const workspace = resolveWorkspace(projectId, workspaceId);
       if (!workspace) return err({ type: 'not_found' as const });
@@ -158,12 +176,20 @@ export const gitWorktreeController = createRPCController({
     }
   },
 
-  unstageFile: async (projectId: string, workspaceId: string, filePath: string) => {
-    return unstage(projectId, workspaceId, [filePath], 'single');
+  unstageFile: (
+    projectId: string,
+    workspaceId: string,
+    filePath: string
+  ): Promise<GitWorktreeMutationResult> => {
+    return unstageWorktreeFiles(projectId, workspaceId, [filePath], 'single');
   },
 
-  unstageFiles: async (projectId: string, workspaceId: string, filePaths: string[]) => {
-    return unstage(
+  unstageFiles: (
+    projectId: string,
+    workspaceId: string,
+    filePaths: string[]
+  ): Promise<GitWorktreeMutationResult> => {
+    return unstageWorktreeFiles(
       projectId,
       workspaceId,
       filePaths,
@@ -171,7 +197,10 @@ export const gitWorktreeController = createRPCController({
     );
   },
 
-  unstageAllFiles: async (projectId: string, workspaceId: string) => {
+  unstageAllFiles: async (
+    projectId: string,
+    workspaceId: string
+  ): Promise<GitWorktreeMutationResult> => {
     try {
       const workspace = resolveWorkspace(projectId, workspaceId);
       if (!workspace) return err({ type: 'not_found' as const });
@@ -191,12 +220,20 @@ export const gitWorktreeController = createRPCController({
     }
   },
 
-  revertFile: async (projectId: string, workspaceId: string, filePath: string) => {
-    return revert(projectId, workspaceId, [filePath], 'single');
+  revertFile: (
+    projectId: string,
+    workspaceId: string,
+    filePath: string
+  ): Promise<GitWorktreeMutationResult> => {
+    return revertWorktreeFiles(projectId, workspaceId, [filePath], 'single');
   },
 
-  revertFiles: async (projectId: string, workspaceId: string, filePaths: string[]) => {
-    return revert(
+  revertFiles: (
+    projectId: string,
+    workspaceId: string,
+    filePaths: string[]
+  ): Promise<GitWorktreeMutationResult> => {
+    return revertWorktreeFiles(
       projectId,
       workspaceId,
       filePaths,
@@ -204,7 +241,10 @@ export const gitWorktreeController = createRPCController({
     );
   },
 
-  revertAllFiles: async (projectId: string, workspaceId: string) => {
+  revertAllFiles: async (
+    projectId: string,
+    workspaceId: string
+  ): Promise<GitWorktreeMutationResult> => {
     try {
       const workspace = resolveWorkspace(projectId, workspaceId);
       if (!workspace) return err({ type: 'not_found' as const });
@@ -227,15 +267,19 @@ export const gitWorktreeController = createRPCController({
     }
   },
 
-  commit: async (projectId: string, workspaceId: string, message: string) => {
+  commit: async (
+    projectId: string,
+    workspaceId: string,
+    message: string
+  ): Promise<GitWorktreeCommitResult> => {
     const workspace = resolveWorkspace(projectId, workspaceId);
-    if (!workspace) return err({ type: 'not_found' as const });
+    if (!workspace) return err({ type: 'not_found' });
     return workspace.gitWorktree.commit(message);
   },
 
   push: async (projectId: string, workspaceId: string, remote: string) => {
     const workspace = resolveWorkspace(projectId, workspaceId);
-    if (!workspace) return err({ type: 'not_found' as const });
+    if (!workspace) return err({ type: 'not_found' });
     const result = await workspace.gitWorktree.push(remote);
     telemetryService.capture('vcs_push', {
       success: result.success,
@@ -310,75 +354,6 @@ export const gitWorktreeController = createRPCController({
     }
   },
 });
-
-async function stage(
-  projectId: string,
-  workspaceId: string,
-  paths: string[],
-  scope: 'single' | 'multiple'
-) {
-  try {
-    const workspace = resolveWorkspace(projectId, workspaceId);
-    if (!workspace) return err({ type: 'not_found' as const });
-    const sequences = await workspace.gitWorktree.stage(paths);
-    telemetryService.capture('vcs_files_staged', {
-      count: paths.length,
-      scope,
-      project_id: projectId,
-      task_id: workspaceId,
-    });
-    return ok({ sequences });
-  } catch (error) {
-    log.error('gitCtrl.stage failed', { projectId, workspaceId, paths, error });
-    return err({ type: 'git_error' as const, message: String(error) });
-  }
-}
-
-async function unstage(
-  projectId: string,
-  workspaceId: string,
-  paths: string[],
-  scope: 'single' | 'multiple'
-) {
-  try {
-    const workspace = resolveWorkspace(projectId, workspaceId);
-    if (!workspace) return err({ type: 'not_found' as const });
-    const sequences = await workspace.gitWorktree.unstage(paths);
-    telemetryService.capture('vcs_files_unstaged', {
-      count: paths.length,
-      scope,
-      project_id: projectId,
-      task_id: workspaceId,
-    });
-    return ok({ sequences });
-  } catch (error) {
-    log.error('gitCtrl.unstage failed', { projectId, workspaceId, paths, error });
-    return err({ type: 'git_error' as const, message: String(error) });
-  }
-}
-
-async function revert(
-  projectId: string,
-  workspaceId: string,
-  paths: string[],
-  scope: 'single' | 'multiple'
-) {
-  try {
-    const workspace = resolveWorkspace(projectId, workspaceId);
-    if (!workspace) return err({ type: 'not_found' as const });
-    const sequences = await workspace.gitWorktree.revert(paths);
-    telemetryService.capture('vcs_files_discarded', {
-      count: paths.length,
-      scope,
-      project_id: projectId,
-      task_id: workspaceId,
-    });
-    return ok({ sequences });
-  } catch (error) {
-    log.error('gitCtrl.revert failed', { projectId, workspaceId, paths, error });
-    return err({ type: 'git_error' as const, message: String(error) });
-  }
-}
 
 function mergeChanges(
   staged: Array<{ path: string; additions: number; deletions: number; status: string }>,
