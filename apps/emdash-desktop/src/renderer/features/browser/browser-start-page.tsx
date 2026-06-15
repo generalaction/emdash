@@ -1,7 +1,5 @@
-import { Globe, Search, Server } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { Globe, Server } from 'lucide-react';
 import { EmdashLogo } from '@renderer/lib/emdash-logo';
-import { Input } from '@renderer/lib/ui/input';
 
 export function BrowserStartPage({
   devServerUrls,
@@ -10,51 +8,11 @@ export function BrowserStartPage({
   devServerUrls: string[];
   onOpenUrl: (url: string) => void;
 }) {
-  const [query, setQuery] = useState('');
-  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const localUrls = devServerUrls.filter(isLocalUrl);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      searchInputRef.current?.focus();
-      searchInputRef.current?.select();
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  const submitSearch = () => {
-    const trimmed = query.trim();
-    if (trimmed.length === 0) return;
-    onOpenUrl(trimmed);
-  };
 
   return (
     <div className="flex h-full min-h-0 flex-col items-center justify-center gap-10 bg-background p-6">
-      <div className="flex w-full max-w-xl flex-col items-center gap-7">
-        <EmdashLogo height={32} className="text-foreground" />
-        <form
-          className="w-full"
-          onSubmit={(event) => {
-            event.preventDefault();
-            submitSearch();
-          }}
-        >
-          <div className="relative">
-            <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-foreground-muted" />
-            <Input
-              ref={searchInputRef}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              onFocus={(event) => event.currentTarget.select()}
-              className="h-11 rounded-lg pr-4 pl-11 text-sm shadow-sm"
-              placeholder="Search or enter URL"
-              aria-label="Search or enter URL"
-              spellCheck={false}
-              autoCapitalize="none"
-            />
-          </div>
-        </form>
-      </div>
+      <EmdashLogo height={32} className="text-foreground" />
 
       {localUrls.length > 0 && (
         <div className="flex w-full max-w-xl flex-col gap-3">
