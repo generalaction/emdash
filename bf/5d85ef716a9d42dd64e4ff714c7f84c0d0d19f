@@ -1,0 +1,20 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-start-page.tsx
+  s_90e49c86287de5::t_25b7028b92d052 1-4,13-14,17-30,32-48,50-78,80-81,83-89
+  s_90e49c86287de5::t_20f63c33deb8b3 49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "bf5d85ef716a9d42dd64e4ff714c7f84c0d0d19f",
+  "prompts": {},
+  "sessions": {
+    "s_90e49c86287de5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "76f3c10b-ca85-4013-85a9-8b5986824c22",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
