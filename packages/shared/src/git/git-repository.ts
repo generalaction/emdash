@@ -294,9 +294,9 @@ export class GitRepository implements IGitRepository {
         await this.exec.exec([
           'fetch',
           forkRemote,
+          '--force',
           '--',
           `${options.headRefName}:refs/heads/${options.localBranch}`,
-          '--force',
         ]);
         await this.exec
           .exec([
@@ -317,9 +317,9 @@ export class GitRepository implements IGitRepository {
       await this.exec.exec([
         'fetch',
         remote,
+        '--force',
         '--',
         `refs/pull/${options.prNumber}/head:refs/heads/${options.localBranch}`,
-        '--force',
       ]);
       await this.exec
         .exec([
