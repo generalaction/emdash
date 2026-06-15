@@ -69,9 +69,14 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
     return () => {
       disposed = true;
       setIsRegistered(false);
-      void rpc.browser.setActiveBrowser(null);
     };
   }, [sessionBrowserId, sessionPartition]);
+
+  useEffect(() => {
+    return () => {
+      void rpc.browser.setActiveBrowser(null);
+    };
+  }, []);
 
   useEffect(() => {
     if (!sessionBrowserId || adapter === null) return;
@@ -182,9 +187,14 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
     if (!sessionBrowserId || !webviewElement) return;
     return bindBrowserWebviewEvents(sessionBrowserId, webviewElement, {
       onDomReady: () => {
-        if (webviewRef.current === webviewElement) {
-          setAdapter(createBrowserWebviewAdapter(webviewElement));
-        }
+        if (webviewRef.current !== webviewElement) return;
+        // Browsers can share profile partitions, so the main process cannot infer
+        // which browser a webview belongs to; bind it explicitly.
+        void rpc.browser.bindWebContents({
+          browserId: sessionBrowserId,
+          webContentsId: webviewElement.getWebContentsId(),
+        });
+        setAdapter(createBrowserWebviewAdapter(webviewElement));
       },
     });
   }, [sessionBrowserId, webviewElement]);
@@ -233,7 +243,7 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
           <BrowserStartPage devServerUrls={devServers.urls} onOpenUrl={navigateTo} />
         ) : webviewProps && isRegistered ? (
           <webview
-            key={`${webviewMount?.browserId ?? 'browser'}:${webviewMount?.revision ?? 0}`}
+            key={`${webviewMount?.browserId ?? 'browser'}:${webviewMount?.partition ?? 'partition'}:${webviewMount?.revision ?? 0}`}
             ref={attachWebview}
             {...webviewProps}
             className="h-full w-full bg-background"

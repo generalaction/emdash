@@ -47,6 +47,7 @@ async function bootstrap() {
     rpc.viewState.getAll(),
     appState.projects.load(),
     prefetchAppSettingsKey('interface'),
+    prefetchAppSettingsKey('browser'),
   ]);
 
   viewStateCache.populate(allViewState as Record<string, unknown>);

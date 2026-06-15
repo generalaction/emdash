@@ -1,5 +1,6 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { DEFAULT_BROWSER_PROFILE_ID, DEFAULT_BROWSER_PROFILES } from '@shared/browser';
 import type { AppSettings, AppSettingsKey } from '@shared/core/app-settings';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/core/terminals/terminal-settings';
 import type { OpenInAppId } from '@shared/openInApps';
@@ -62,6 +63,10 @@ export const SETTINGS_DEFAULTS = {
   },
   browserPreview: {
     enabled: true,
+  },
+  browser: {
+    defaultProfileId: DEFAULT_BROWSER_PROFILE_ID,
+    profiles: DEFAULT_BROWSER_PROFILES,
   },
   resourceMonitor: {
     enabled: false,
