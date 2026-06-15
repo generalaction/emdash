@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm --filter @emdash/emdash-desktop run dev",
-    "build": "pnpm --filter @emdash/emdash-desktop run build",
-    "test": "pnpm --filter @emdash/emdash-desktop run test",
+    "dev": "pnpm -r run dev",
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
     "lint": "pnpm -r run lint",
     "format": "pnpm -r run format",
     "format:check": "pnpm -r run format:check",

@@ -1,65 +1,10 @@
-import { listDetectableProviders } from '@shared/core/agents/agent-provider-registry';
-import type { DependencyStatus } from '@shared/core/dependencies';
-import type { DependencyDescriptor, ProbeResult } from './types';
-
-const CORE_DEPENDENCIES: DependencyDescriptor[] = [
-  {
-    id: 'git',
-    name: 'Git',
-    category: 'core',
-    commands: ['git'],
-    versionArgs: ['--version'],
-    docUrl: 'https://git-scm.com',
-    installHint: 'Install Git from https://git-scm.com/downloads',
-  },
-  {
-    id: 'gh',
-    name: 'GitHub CLI',
-    category: 'core',
-    commands: ['gh'],
-    versionArgs: ['--version'],
-    docUrl: 'https://cli.github.com',
-    installHint: 'Run: brew install gh  (or see https://cli.github.com)',
-    installCommand: (() => {
-      switch (process.platform) {
-        case 'darwin':
-          return 'brew install gh';
-        case 'linux':
-          return 'sudo apt update && sudo apt install -y gh';
-        case 'win32':
-          return 'winget install GitHub.cli';
-        default:
-          return undefined;
-      }
-    })(),
-  },
-  {
-    id: 'tmux',
-    name: 'tmux',
-    category: 'core',
-    commands: ['tmux'],
-    versionArgs: ['-V'],
-    docUrl: 'https://github.com/tmux/tmux',
-    installHint: 'Run: brew install tmux',
-  },
-  {
-    id: 'ssh',
-    name: 'SSH',
-    category: 'core',
-    commands: ['ssh'],
-    versionArgs: ['-V'],
-    docUrl: 'https://www.openssh.com',
-  },
-  {
-    id: 'node',
-    name: 'Node.js',
-    category: 'core',
-    commands: ['node'],
-    versionArgs: ['--version'],
-    docUrl: 'https://nodejs.org',
-    installHint: 'Install Node.js from https://nodejs.org or via nvm',
-  },
-];
+import { pluginRegistry } from '@emdash/plugins/agents';
+import type { CLIAgentPluginProvider } from '@emdash/shared/agents/plugins';
+import type {
+  DependencyDescriptor,
+  DependencyStatus,
+  ProbeResult,
+} from '@emdash/shared/deps/runtime';
 
 /**
  * Agents that output their version on stderr, time out during probing, or return
@@ -73,25 +18,56 @@ function agentResolveStatus(result: ProbeResult): DependencyStatus {
   return result.exitCode === null ? 'missing' : 'error';
 }
 
-function buildAgentDependencies(): DependencyDescriptor[] {
-  return listDetectableProviders().map((provider) => ({
-    id: provider.id,
-    name: provider.name,
-    category: 'agent' as const,
-    commands: provider.commands ?? [provider.cli ?? provider.id],
-    versionArgs: provider.versionArgs ?? ['--version'],
-    skipVersionProbe: provider.skipVersionProbe,
-    docUrl: provider.docUrl,
-    installHint: provider.installCommand ? `Run: ${provider.installCommand}` : undefined,
-    installCommand: provider.installCommand,
-    resolveStatus: agentResolveStatus,
-  }));
+/**
+ * Maps a single plugin provider to the runtime DependencyDescriptor consumed by
+ * HostDependencyManager. The explicit return type ensures all capability fields
+ * that need mapping are visible in one place — omitting a field here is a
+ * reviewable gap rather than a silent runtime bug.
+ */
+export function buildDescriptorFromProvider(
+  provider: CLIAgentPluginProvider
+): DependencyDescriptor {
+  const { metadata, capabilities, behavior } = provider;
+  const hostDep = capabilities.hostDependency;
+  const binaryNames = hostDep.binaryNames;
+
+  const commandHooks = behavior.hostDependency
+    ? {
+        resolveLatestVersion: behavior.hostDependency.resolveLatestVersion?.bind(
+          behavior.hostDependency
+        ),
+        buildUpdateCommand: behavior.hostDependency.buildUpdateCommand?.bind(
+          behavior.hostDependency
+        ),
+        buildUninstallCommand: behavior.hostDependency.buildUninstallCommand?.bind(
+          behavior.hostDependency
+        ),
+      }
+    : undefined;
+
+  return {
+    id: metadata.id,
+    name: metadata.name,
+    category: 'agent',
+    commands: binaryNames.length > 0 ? binaryNames : [metadata.id],
+    skipVersionProbe: hostDep.skipVersionProbe,
+    versionArgs: hostDep.versionArgs,
+    docUrl: metadata.websiteUrl,
+    resolveStatus: behavior.hostDependency?.resolveStatus
+      ? behavior.hostDependency.resolveStatus.bind(behavior.hostDependency)
+      : agentResolveStatus,
+    updates: hostDep.updates,
+    installCommands: hostDep.installCommands,
+    uninstall: hostDep.uninstall,
+    commandHooks,
+  };
 }
 
-export const DEPENDENCIES: DependencyDescriptor[] = [
-  ...CORE_DEPENDENCIES,
-  ...buildAgentDependencies(),
-];
+function buildAgentDependencies(): DependencyDescriptor[] {
+  return pluginRegistry.getAll().map(buildDescriptorFromProvider);
+}
+
+export const DEPENDENCIES: DependencyDescriptor[] = buildAgentDependencies();
 
 export function getDependencyDescriptor(id: string): DependencyDescriptor | undefined {
   return DEPENDENCIES.find((d) => d.id === id);

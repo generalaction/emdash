@@ -1,10 +1,21 @@
+import os from 'node:os';
+import { pluginRegistry } from '@emdash/plugins/agents';
+import type { McpServerRegistration } from '@emdash/shared/agents/plugins';
+import { createPluginFs } from '@main/core/agents/plugin-fs';
 import { log } from '@main/lib/logger';
-import type { McpLoadAllResponse, McpServer, ServerMap } from '@shared/core/mcp/types';
-import { adaptForward, adaptReverse } from '../utils/adapters';
+import type { McpLoadAllResponse, McpServer } from '@shared/core/mcp/types';
 import { loadCatalog } from '../utils/catalog';
-import { readServers, writeServers } from '../utils/config-io';
-import { getAgentMcpMeta, getAllMcpAgentIds } from '../utils/config-paths';
-import { mcpServerToRaw, rawEntryToMcpFields, rawToMcpServer } from '../utils/conversion';
+import {
+  mcpServerFieldCount,
+  mcpServerToRegistration,
+  registrationToMcpServer,
+} from '../utils/registration';
+
+function getMcpProviders() {
+  return pluginRegistry
+    .getAll()
+    .filter((p) => p.capabilities.mcp.kind === 'supported' && p.behavior.mcp != null);
+}
 
 export class McpService {
   private _writeLock = Promise.resolve();
@@ -25,40 +36,30 @@ export class McpService {
 
   async loadAll(): Promise<McpLoadAllResponse> {
     return this.withWriteLock(async () => {
-      const agentIds = getAllMcpAgentIds();
+      const fs = createPluginFs(os.homedir());
+      const providers = getMcpProviders();
       const serversByName = new Map<string, { server: McpServer; providers: Set<string> }>();
 
-      for (const agentId of agentIds) {
-        const meta = getAgentMcpMeta(agentId);
-        if (!meta) continue;
-
-        let rawServers: ServerMap;
+      for (const provider of providers) {
+        const agentId = provider.metadata.id;
+        let regs;
         try {
-          rawServers = await readServers(meta);
+          regs = await provider.behavior.mcp!.readServers(fs);
         } catch (err) {
           log.warn(`Failed to read MCP config for ${agentId}:`, err);
           continue;
         }
 
-        const canonical = adaptReverse(meta.adapter, rawServers);
-
-        for (const [name, raw] of Object.entries(canonical)) {
-          const existing = serversByName.get(name);
+        for (const reg of regs) {
+          const server = registrationToMcpServer(reg, [agentId]);
+          const existing = serversByName.get(reg.name);
           if (existing) {
             existing.providers.add(agentId);
-
-            const newServer = rawToMcpServer(name, raw, existing.providers);
-            const existingKeyCount = Object.keys(rawEntryToMcpFields(existing.server)).length;
-            const newKeyCount = Object.keys(rawEntryToMcpFields(newServer)).length;
-            if (newKeyCount > existingKeyCount) {
-              existing.server = newServer;
+            if (mcpServerFieldCount(server) > mcpServerFieldCount(existing.server)) {
+              existing.server = server;
             }
           } else {
-            const providers = new Set([agentId]);
-            serversByName.set(name, {
-              server: rawToMcpServer(name, raw, providers),
-              providers,
-            });
+            serversByName.set(reg.name, { server, providers: new Set([agentId]) });
           }
         }
       }
@@ -69,9 +70,7 @@ export class McpService {
         installed.push(server);
       }
 
-      const catalog = loadCatalog();
-
-      return { installed, catalog };
+      return { installed, catalog: loadCatalog() };
     });
   }
 
@@ -80,37 +79,36 @@ export class McpService {
       throw new Error(`Invalid server name: "${server.name}"`);
     }
     return this.withWriteLock(async () => {
-      const allAgentIds = getAllMcpAgentIds();
+      const fs = createPluginFs(os.homedir());
+      const providers = getMcpProviders();
       const selectedProviders = new Set(server.providers);
-      const raw = mcpServerToRaw(server);
-
       const failures: string[] = [];
 
-      for (const agentId of allAgentIds) {
-        const meta = getAgentMcpMeta(agentId);
-        if (!meta) continue;
-
-        let existing: ServerMap;
+      for (const provider of providers) {
+        const agentId = provider.metadata.id;
+        let regs: McpServerRegistration[];
         try {
-          existing = await readServers(meta);
+          regs = await provider.behavior.mcp!.readServers(fs);
         } catch {
-          existing = {};
+          regs = [];
         }
 
+        const idx = regs.findIndex((r) => r.name === server.name);
         if (selectedProviders.has(agentId)) {
-          const adapted = adaptForward(meta.adapter, { [server.name]: raw });
-          const adaptedEntry = adapted[server.name];
-          if (adaptedEntry) {
-            existing[server.name] = adaptedEntry;
+          const toWrite = mcpServerToRegistration(server);
+          if (idx >= 0) {
+            regs[idx] = toWrite;
+          } else {
+            regs.push(toWrite);
           }
-        } else if (server.name in existing) {
-          delete existing[server.name];
+        } else if (idx >= 0) {
+          regs.splice(idx, 1);
         } else {
           continue;
         }
 
         try {
-          await writeServers(meta, existing);
+          await provider.behavior.mcp!.writeServers(fs, regs);
         } catch (err) {
           log.error(`Failed to write MCP config for ${agentId}:`, err);
           failures.push(agentId);
@@ -125,36 +123,39 @@ export class McpService {
 
   async removeServer(serverName: string): Promise<void> {
     return this.withWriteLock(async () => {
-      const allAgentIds = getAllMcpAgentIds();
+      const fs = createPluginFs(os.homedir());
+      const providers = getMcpProviders();
       const failures: string[] = [];
 
-      for (const agentId of allAgentIds) {
-        const meta = getAgentMcpMeta(agentId);
-        if (!meta) continue;
-
-        let existing: ServerMap;
+      for (const provider of providers) {
+        const agentId = provider.metadata.id;
         try {
-          existing = await readServers(meta);
-        } catch {
-          continue;
-        }
-
-        if (!(serverName in existing)) continue;
-
-        delete existing[serverName];
-
-        try {
-          await writeServers(meta, existing);
+          await provider.behavior.mcp!.removeServer(fs, serverName);
         } catch (err) {
-          log.error(`Failed to write MCP config for ${agentId}:`, err);
+          log.error(`Failed to remove MCP server from ${agentId}:`, err);
           failures.push(agentId);
         }
       }
 
       if (failures.length) {
-        throw new Error(`Failed to write config for: ${failures.join(', ')}`);
+        throw new Error(`Failed to remove config for: ${failures.join(', ')}`);
       }
     });
+  }
+
+  async listForAgent(agentId: string): Promise<McpServer[]> {
+    const fs = createPluginFs(os.homedir());
+    const provider = pluginRegistry.get(agentId);
+    if (!provider || provider.capabilities.mcp.kind !== 'supported' || !provider.behavior.mcp) {
+      return [];
+    }
+    try {
+      const regs = await provider.behavior.mcp.readServers(fs);
+      return regs.map((r) => registrationToMcpServer(r, [agentId]));
+    } catch (err) {
+      log.warn(`Failed to read MCP config for ${agentId}:`, err);
+      return [];
+    }
   }
 }
 

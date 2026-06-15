@@ -1,4 +1,4 @@
-name: CI Check
+name: Code Consistency Check
 
 on:
   pull_request:
@@ -40,11 +40,14 @@ jobs:
             sleep 10
           done
 
+      - name: Build shared packages
+        run: pnpm --filter @emdash/shared run build && pnpm --filter @emdash/plugins run build
+
       - name: Check formatting
-        run: pnpm --filter @emdash/emdash-desktop run format:check
+        run: pnpm run format:check
 
       - name: Type check
-        run: pnpm --filter @emdash/emdash-desktop run typecheck
+        run: pnpm run typecheck
 
       - name: Check linting
-        run: pnpm --filter @emdash/emdash-desktop run lint
+        run: pnpm run lint
