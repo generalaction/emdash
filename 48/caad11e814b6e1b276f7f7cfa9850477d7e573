@@ -1,0 +1,507 @@
+apps/emdash-desktop/src/main/core/settings/provider-settings-service.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-34,37-38,41,44-49,53-88,91-116
+packages/plugins/src/agents/impl/codebuff/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+packages/shared/src/agents/plugins/helpers/host-dependency.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-83
+packages/shared/src/agents/plugins/capabilities/sessions.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-14
+packages/plugins/src/agents/impl/codebuff/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-51
+apps/emdash-desktop/src/main/core/terminals/impl/ssh-terminal-provider.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 47-50
+apps/emdash-desktop/scripts/release/upload-r2.ts
+  s_2062ae52c7e912::t_280ea8744104a9 6,24-30,33
+apps/emdash-desktop/src/main/core/dependencies/latest-version-service.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 2-8,11-17,19-21,25,28-35,37,39-43,46-51,54-58,61-62,64,66,69-72,74,77-93
+packages/plugins/src/agents/impl/codex/hooks.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-2,4-13,15,31-42,44-46,48-52,55,57-59,61-65,67-77,80,83-86,88-89,93-94,96-123,125-133,135-146
+apps/emdash-desktop/src/main/core/mcp/controller.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-3,9-23,59,69,75-81
+packages/plugins/src/agents/impl/cursor/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-82
+packages/plugins/src/agents/impl/qwen/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+apps/emdash-desktop/src/renderer/lib/ui/alert.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 6,11-12
+apps/emdash-desktop/.oxlintrc.json
+  s_2062ae52c7e912::t_280ea8744104a9 77-91
+packages/plugins/src/agents/impl/opencode/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-8,10-12,14,18-20,23-53,55-56,58-77
+packages/shared/src/agents/plugins/helpers/hierarchical.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-50
+apps/emdash-desktop/src/renderer/features/settings/agents-page/useAgentMcps.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-15
+packages/shared/src/host-dependencies/runtime/method-detection.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-186
+packages/plugins/src/agents/impl/autohand/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-38
+apps/emdash-desktop/src/renderer/lib/stores/use-agents.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-3,5,7-16,19-26,28,30-37
+apps/emdash-desktop/src/renderer/lib/components/agent-selector/agent-hover-card.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 1-4,7-183,188-192,196-212,214,216-217,221-225,227
+packages/plugins/src/agents/impl/droid/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-15
+apps/emdash-desktop/src/shared/core/ssh/ssh-connection-metadata.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1,15-76,85-90,92-121
+packages/plugins/tsconfig.json
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+apps/emdash-desktop/src/main/core/agents/controller.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-9,11-21,23-32,34,36-37,39,41-44,46-54,56-57,59-65,67-70,72-97,99-110,112-134,137,139-140,142-146
+packages/plugins/src/agents/impl/grok/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-84
+apps/emdash-desktop/src/main/core/dependencies/dependency-managers.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-3,11-13,29-35,37-58,60,65-67,70-74,76
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1,84-89,91-94,104-110,112-114
+apps/emdash-desktop/src/main/core/agents/agent-payload-builder.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-190
+packages/plugins/src/agents/impl/commandcode/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-59
+apps/emdash-desktop/scripts/release/lib/config.ts
+  s_2062ae52c7e912::t_280ea8744104a9 12-13
+packages/plugins/src/agents/impl/copilot/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-66
+packages/shared/src/agents/plugins/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-72
+apps/emdash-desktop/src/main/core/skills/SkillsService.ts
+  s_2062ae52c7e912::t_280ea8744104a9 7,186
+apps/emdash-desktop/src/main/core/mcp/utils/registration.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-2,4-7,9-12,14,16-18,20-21,24-25,27,31-43,46-57
+packages/plugins/src/agents/impl/goose/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+packages/plugins/src/agents/impl/kilocode/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-57
+packages/plugins/src/agents/impl/auggie/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-16
+packages/plugins/src/agents/impl/kilocode/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+packages/shared/src/agents/plugins/capabilities/plugins.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-33
+apps/emdash-desktop/src/renderer/features/command-palette/palette-conversation-item.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 6,22
+packages/plugins/src/agents/impl/droid/hooks.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-14
+packages/shared/src/agents/plugins/helpers/hook-config.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-3,5,7-11,13-15,17,19-27,29-31,34-36,39-42,44,46-48,50-52,54-55,58-204
+packages/shared/src/lib/plugins/asset.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1,3-18,20-35
+packages/plugins/src/agents/impl/cline/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-52
+apps/emdash-desktop/src/main/core/settings/schema.ts
+  s_2062ae52c7e912::t_280ea8744104a9 3,74-78,84
+apps/emdash-desktop/src/main/core/terminals/impl/local-terminal-provider.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 36-39
+apps/emdash-desktop/src/main/core/pty/terminal-color-scheme.ts
+  s_2062ae52c7e912::t_280ea8744104a9 13-27,29-31,33,36
+apps/emdash-desktop/src/renderer/lib/external-link-requests.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-9
+package.json
+  s_2062ae52c7e912::t_280ea8744104a9 6-8
+packages/plugins/src/agents/impl/jules/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-15
+apps/emdash-desktop/src/main/core/agents/plugin-fs.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-62
+packages/plugins/src/agents/impl/jules/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-54
+packages/shared/src/agents/plugins/helpers/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-11
+packages/shared/src/agents/plugins/capabilities/auto-approve.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-15
+pnpm-lock.yaml
+  s_2062ae52c7e912::t_280ea8744104a9 13-15,303-327,333-341,346-348,352-354,395-398,425-428,433-436,450-454,489-492,634-642,1173-1178,1251-1253,1633-1635,1807-1901,1905-1907,2231-2233,2381-2383,2422-2424,2521-2523,2527-2537,2549-2551,2555-2557,2561-2563,2567-2569,2573-2575,2622-2625,2654-2657,2712-2714,2769-2772,2795-2798,2828-2831,3153-3156,3173-3175,3323-3331,3388-3391,3422-3424,3626-3629,3741-3743,3795-3798,3896-3898,4058-4060,4489-4492,4616-4618,4778-4801,4864-4868,4968-4970,4998-5000,5065-5067,5076-5079,5084-5087,5092-5095,5139-5172,5194-5196,5311-5315,5370-5397,5621-5629,5660-5661,5664-5665,5677-5680,5721-5725,5904-5919,6258-6264,6348-6349,6566-6569,6712-6760,6763-6764,6998-7002,7194-7195,7238-7239,7352-7359,7369-7376,7385-7388,7393-7398,7404-7409,7417-7420,7423-7428,7477-7478,7549-7554,7604-7605,7680-7681,7708-7715,7737-7738,8077-8078,8097-8098,8169-8170,8275-8276,8298-8299,8556-8559,8760-8761,8816-8817,8889-8890,9025-9026,9703-9704,9829-9830,10046-10083,10159-10160,10263-10264,10294-10297,10373-10374,10382-10383,10386-10387,10390-10391,10426-10450,10466-10470,10591-10611,10627-10641,10651-10692
+packages/shared/src/agents/plugins/helpers/hooks.ts
+  s_2062ae52c7e912::t_280ea8744104a9 3,7-21,23-24,32,37-41,45,55-56,59-67,70,72-77,80-84,86,88-92
+apps/emdash-desktop/src/main/core/conversations/impl/conversation-provider-respawn.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 14-29,38-39,45-82,120-133,251-256,348-350,373,432,459,575-579,605-609,782-787
+packages/plugins/src/agents/impl/grok/hooks.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-117
+packages/shared/src/lib/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 3
+apps/emdash-desktop/src/main/core/agents/plugin-registry.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-27
+packages/plugins/src/agents/impl/charm/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-54
+packages/plugins/src/agents/impl/codex/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-13
+packages/plugins/src/agents/impl/cline/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+apps/emdash-desktop/src/main/core/conversations/impl/resolve-agent-executable.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-4,7-11,13-14,17-18,21-60,63-68,71-72,75-78,80-84,86-90,92-96
+packages/shared/src/agents/plugins/capabilities/hooks-types.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-40
+apps/emdash-desktop/src/main/core/settings/provider-settings-service.ts
+  s_2062ae52c7e912::t_280ea8744104a9 3-6,15-26
+packages/plugins/src/agents/impl/qwen/hooks.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-36
+apps/emdash-desktop/src/main/utils/externalLinks.ts
+  s_2062ae52c7e912::t_280ea8744104a9 2-5,12-24,36,46
+packages/shared/src/host-dependencies/runtime/probe.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-3,8,10-45,54-55,57,59,67-88
+packages/plugins/src/agents/registry.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-71
+packages/shared/tsconfig.json
+  s_2062ae52c7e912::t_280ea8744104a9 13,17
+apps/emdash-desktop/scripts/release/build.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-2,5,8-9,11,120-146,150-203
+apps/emdash-desktop/src/renderer/lib/components/page-header.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 7,12,14,26-29
+apps/emdash-desktop/src/renderer/lib/ui/sheet.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 5,40,64-69,73,75-83
+packages/plugins/src/agents/impl/goose/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-81
+packages/shared/src/agents/plugins/helpers/standard-command.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1,3-8,10-15,17-64,66-77,79-107,109-114,116,118-122,124-127,129-137,142,144,146-149,151-152,154-155,158-162,166-167
+packages/plugins/src/agents/impl/devin/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+apps/emdash-desktop/src/main/core/settings/provider-config-migrations.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-2,4,9-31,33-45,48-50,53
+apps/emdash-desktop/src/renderer/features/settings/agents-page/InstallSection.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 2-30,33-37,39-57,59-75,77-147,150-157,159-185
+packages/plugins/package.json
+  s_2062ae52c7e912::t_280ea8744104a9 1-41
+packages/shared/src/exec/execution-context.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-62
+packages/shared/src/agents/plugins/capabilities/mcp.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-3,5,7-11,13-23,25-37
+apps/emdash-desktop/src/main/core/agent-hooks/event-enricher.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-2,4,11-17,19-22,24-26,28,34,38-65,67-72,75-93
+packages/plugins/src/agents/impl/claude/hooks.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-24,26,28-30,34-35,37-45
+packages/plugins/src/agents/impl/grok/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-24
+apps/emdash-desktop/src/main/core/terminals/impl/ssh-terminal-provider.ts
+  s_2062ae52c7e912::t_280ea8744104a9 7,171-180
+packages/plugins/src/agents/impl/kimi/hooks.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-125
+packages/plugins/src/agents/impl/antigravity/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-80
+packages/plugins/src/agents/impl/droid/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-86
+apps/emdash-desktop/src/renderer/features/settings/agents-page/AgentRow.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 1-42
+apps/emdash-desktop/src/renderer/features/settings/agents-page/InstalledAgentContent.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 1-4,7-8,13,18-35,37-49,51-58,60-67,69,71,73-85,89,91-105,107-113,116-143,145-149,151,155-158,162-169,171,175,181-196,202-209,217-220,231-233,239-241,243-245,248-250,252
+apps/emdash-desktop/src/renderer/lib/components/agent-icon.test.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 4,10-13,16-20,22-25,28-31,33-35
+apps/emdash-desktop/src/renderer/lib/components/agent-selector/use-agent-availability.ts
+  s_2062ae52c7e912::t_280ea8744104a9 2-3,14-30,49-55,57-60,68
+packages/plugins/src/agents/impl/claude/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-108
+apps/emdash-desktop/src/renderer/features/settings/agents-page/AgentMcpSection.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 1-70
+apps/emdash-desktop/src/renderer/features/settings/agents-page/AgentSheetHeaderSection.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 1-46
+apps/emdash-desktop/src/main/rpc.ts
+  s_2062ae52c7e912::t_280ea8744104a9 3,45
+packages/plugins/src/agents/impl/autohand/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-52
+packages/plugins/src/agents/impl/freebuff/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-51
+packages/plugins/src/agents/impl/kiro/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+apps/emdash-desktop/src/renderer/features/command-palette/resource-monitor-utils.ts
+  s_2062ae52c7e912::t_280ea8744104a9 54,58
+packages/plugins/vitest.config.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-8
+packages/plugins/tsdown.config.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-14
+apps/emdash-desktop/src/main/core/dependencies/registry.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1,3,5-9,11-14,17-20,22-25,28-31,33-36,38,40-45
+apps/emdash-desktop/src/renderer/features/settings/agents-page/InstallationOverrideCard.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 1-70
+packages/shared/src/agents/plugins/helpers/command-builder.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-29
+apps/emdash-desktop/src/renderer/features/library/prompts/prompt-library-view.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 140-155,157-181
+packages/plugins/src/agents/impl/devin/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-83
+apps/emdash-desktop/src/renderer/lib/components/agent-selector/agent-selector-options.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-5,24-25,27,29-31,33-34,38,42,72
+packages/plugins/src/agents/impl/mistral/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+packages/shared/src/host-dependencies/runtime/types.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-10,14,26-27,44-335
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-24,26-59,62-69,72-79,83-84,86-92,94-96,100-102,104-106,109-111,113,115-120,122-125,129-132,134-147,149,151-155,159-172,175-177,179-182,185-205,208-209
+packages/shared/package.json
+  s_2062ae52c7e912::t_280ea8744104a9 11,14,16-23,25-26,29-30,33-34,37-46,51-52,60-63,67,69
+apps/emdash-desktop/src/shared/events/appEvents.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1,18-21,64-66
+packages/plugins/src/agents/impl/gemini/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+packages/plugins/src/agents/impl/gemini/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-61
+apps/emdash-desktop/src/main/core/conversations/impl/keystroke-injection.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1,21-26
+apps/emdash-desktop/src/renderer/lib/stores/use-agent-settings.ts
+  s_2062ae52c7e912::t_280ea8744104a9 3,6-8,10-16,18,20-25,30,32,37-44,46,50,52,61
+packages/shared/src/agents/plugins/helpers/parse-hook-event.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1,3-16,30-50,53-61,64-75,78
+apps/emdash-desktop/src/main/core/mcp/services/McpService.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-4,6,8-18,39-40,43-45,47,53-55,58-59,62,73,82-83,87-89,91,93,96,98-102,104-105,111,126-127,130-131,133,135,141,145-158
+packages/shared/src/agents/plugins/helpers/config.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-50
+packages/plugins/src/agents/impl/mistral/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-79
+packages/shared/src/host-dependencies/runtime/host-dependency-manager.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-837
+packages/shared/src/host-dependencies/runtime/location-hints.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-89
+apps/emdash-desktop/src/renderer/features/integrations/integrations-provider.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 218-220
+packages/plugins/src/agents/impl/kiro/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-87
+apps/emdash-desktop/src/renderer/tests/agent-icon-variant.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-3,5-6,8-12,14-17,20-22,25-27
+apps/emdash-desktop/src/renderer/lib/ui/popover.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 21,24-27,35,41
+apps/emdash-desktop/src/renderer/features/skills/components/SkillsView.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 58,65-93,97-140
+apps/emdash-desktop/src/main/core/settings/override-settings.ts
+  s_2062ae52c7e912::t_280ea8744104a9 117-136
+apps/emdash-desktop/src/main/core/pty/terminal-color-scheme.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1,4,9,13-15,17-19,21-24,27-28,30-32,36,38-40,43-46,49-52,55-59,62-66,69-77
+apps/emdash-desktop/src/renderer/main.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 10,30
+apps/emdash-desktop/src/renderer/features/tasks/conversations/sidebar-conversations-list.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 11,112
+packages/shared/src/agents/plugins/capabilities/effort.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-28
+apps/emdash-desktop/src/renderer/lib/components/agent-selector/agent-selector.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 1,5,19,51-53,61-72,75,86,102,104-105,112-115,125-142,144-145,148-150,158
+packages/shared/src/agents/plugins/helpers/mcp.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-3,5,7-14,17-28,34,37,42,46,48-57,59-62,65-82,86-101,105-138,141,143-157,160-180,183-202,205-239,242-247,250-278,280-307,310-337,339-347,350-358
+apps/emdash-desktop/src/renderer/features/settings/agents-page/CliAgentsList.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 1-142
+apps/emdash-desktop/src/main/core/mcp/services/McpService.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1,3-82,85-88,99,102,104,106-108,113-120,129-134,142-161,163-174,182-184,186,192-198,200-201,205-210,213,217-234,236-240,243-246,250,252,257,260,262,270-277,281-285,289-318
+apps/emdash-desktop/src/renderer/features/settings/agents-page/InstallDependencyCard.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 1-54
+apps/emdash-desktop/src/main/core/terminals/impl/local-terminal-provider.ts
+  s_2062ae52c7e912::t_280ea8744104a9 13,171-175
+packages/plugins/src/agents/impl/letta/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-17
+packages/plugins/src/agents/impl/codex/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-86
+packages/plugins/src/agents/impl/pi/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+packages/plugins/src/agents/impl/continue/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-86
+apps/emdash-desktop/src/main/core/agent-hooks/hook-config-service.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-4,7-51,53-54,56-59,61,63-85,87-89,92
+packages/plugins/src/agents/impl/amp/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+packages/plugins/src/agents/impl/antigravity/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+packages/plugins/src/agents/impl/charm/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+packages/shared/src/agents/plugins/capabilities/prompt.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-53
+packages/shared/src/lib/logger.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-22
+packages/shared/src/agents/plugins/helpers/merge.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-69
+packages/plugins/src/agents/impl/commandcode/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-23
+apps/emdash-desktop/src/renderer/features/settings/components/UpdateCard.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 35
+packages/shared/src/agents/plugins/helpers/mcp.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-196
+packages/plugins/src/agents/impl/pi/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-67
+.github/workflows/code-consistency-check.yml
+  s_2062ae52c7e912::t_280ea8744104a9 1,43-45,47,50,53
+apps/emdash-desktop/src/main/core/dependencies/host-dependency-store.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-159
+packages/shared/src/agents/plugins/helpers/host-dependency.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 2-23,27-39,41-43,46-52,54-57,60-63,65-67,70-73,75-77,80-86,88-90,93-96,98-105,108-121,123-132
+apps/emdash-desktop/src/renderer/features/settings/components/SettingRow.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 2,8,11,13
+tsconfig.base.json
+  s_2062ae52c7e912::t_280ea8744104a9 1-13
+packages/shared/tsdown.config.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-21
+apps/emdash-desktop/src/main/core/conversations/impl/local-conversation.ts
+  s_2062ae52c7e912::t_280ea8744104a9 3,5,9-10,17,29,35-39,121-124,128-133,135-138,140-145,147,149,151-153,163,178,187,190
+packages/plugins/src/agents/impl/freebuff/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+apps/emdash-desktop/src/renderer/features/mcp/components/McpView.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 65,72-99,101-102,104-116,118-128,130-136
+packages/shared/src/agents/plugins/assets/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-2,4-27,29-45
+packages/shared/src/exec/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 2
+apps/emdash-desktop/src/renderer/features/settings/agents-page/install-command-row.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 1-87
+apps/emdash-desktop/src/renderer/lib/components/agent-selector/agent-install.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-2,11,30,36,45-96
+apps/emdash-desktop/src/main/core/dependencies/registry.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-7,21-65,67,70
+apps/emdash-desktop/src/main/core/conversations/impl/resolve-agent-executable.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1,3,5-7,9-10,13-14,17-18,20,22-27,29-33,36-74,78-87,91-172
+packages/shared/src/host-dependencies/runtime/method-detection.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-266
+apps/emdash-desktop/src/renderer/features/settings/agents-page/installation-sources.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-177
+apps/emdash-desktop/src/renderer/features/settings/agents-page/installation-sources.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 2-8,10-33,35-47,51-71,73-75,77-83,85-91,94,96-97,100-103,106-111,114-115,118-119,121,123-125,127-131,135-138,142-145,149-152,156-157,159,161-207,210-213,216-220,223-227,229-231,234-237,240-243,246-251,253-257,259-264,266,268-270,272-274,277-278,281-283,286-289,293-295,298-300,304-322,324-329,331-333,336-339,341-343,346-349,351,353-356,360-362,364-368,370-371
+apps/emdash-desktop/scripts/release/lib/artifacts.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-164
+apps/emdash-desktop/src/shared/core/mcp/types.ts
+  s_2062ae52c7e912::t_280ea8744104a9 22-24
+apps/emdash-desktop/src/main/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 19
+packages/plugins/src/agents/impl/cursor/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1,3-15
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-8,11-19,21-31,33-34,38-60,62,64-67,70-71,73-75,77,79,82-126,128,131-132,134-135,138-139,141-144,146-148,150-151,153-155,157,160-205,207,210-251,254-255,257-294,297-298,300-305,307,309-311,313-314,316-317,319,321-325
+apps/emdash-desktop/package.json
+  s_2062ae52c7e912::t_280ea8744104a9 3,33,54
+packages/shared/src/host-dependencies/runtime/install-options.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-53
+packages/shared/src/lib/plugins/framework.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-42,44,47,49-51,53
+apps/emdash-desktop/src/renderer/features/tasks/view/tab-bar/conversation-tab-item.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 4,76,130-131
+apps/emdash-desktop/src/renderer/features/settings/agents-page/agent-status-badge.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 1-55
+packages/plugins/src/agents/impl/auggie/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-53
+packages/plugins/src/agents/impl/claude/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+apps/emdash-desktop/src/renderer/lib/stores/use-agent-installation-statuses.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-353
+packages/shared/src/host-dependencies/capability.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-80,82,84-104,106-107,109,114,116-120
+packages/plugins/src/agents/impl/hermes/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-77
+packages/shared/src/agents/runtime/fs.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-7
+apps/emdash-desktop/src/renderer/features/mcp/components/ProviderSelect.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 2,55-60
+agents/risky-areas/updater.md
+  s_2062ae52c7e912::t_280ea8744104a9 28,30-41,52-61
+apps/emdash-desktop/src/renderer/features/settings/agents-page/AgentDetailSheet.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 1-69
+packages/plugins/src/agents/impl/junie/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+packages/plugins/src/agents/impl/devin/hooks.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-15
+apps/emdash-desktop/src/renderer/features/settings/agents-page/DependencyInstallationUpdateCard.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 1-155
+packages/plugins/src/agents/impl/kimi/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-13
+apps/emdash-desktop/src/renderer/lib/components/page-layout.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 1-75
+apps/emdash-desktop/src/main/core/dependencies/latest-version-service.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-77
+packages/plugins/src/agents/impl/continue/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_2062ae52c7e912::t_280ea8744104a9 2,6,13,25,31-35,127-131,133-136,138-143,145,147,149-151,159-160,168-171,175
+apps/emdash-desktop/tsconfig.json
+  s_2062ae52c7e912::t_280ea8744104a9 2
+packages/shared/src/agents/plugins/capabilities/hooks.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-49
+packages/plugins/src/agents/impl/amp/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-71
+packages/plugins/src/agents/impl/copilot/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-18
+packages/shared/src/host-dependencies/runtime/location-hints.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 2,4-8,10-11,14-15,18-19,22-25,28-31,34-35,38-39,42-45,48-49,52-53,56-57,61-63,66-67,70-75,78-87,91-112,116-122,125-126
+apps/emdash-desktop/src/main/core/agents/agent-payload-builder.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-21,23-25,27-32,34-74,76-81,83-93,95-153
+apps/emdash-desktop/src/renderer/lib/components/agent-icon.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 1,3-4,6-10,15,17-18,20,22-35,37-39,44-48,51
+apps/emdash-desktop/src/renderer/features/tasks/conversations/context-bar.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 91
+apps/emdash-desktop/src/renderer/features/automations/use-automations.ts
+  s_2062ae52c7e912::t_280ea8744104a9 145
+apps/emdash-desktop/electron.vite.config.ts
+  s_2062ae52c7e912::t_280ea8744104a9 37-40
+packages/plugins/src/agents/impl/index.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-128
+apps/emdash-desktop/vitest.config.ts
+  s_2062ae52c7e912::t_280ea8744104a9 79-86
+packages/plugins/src/agents/impl/opencode/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-13
+packages/plugins/src/agents/impl/rovo/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+packages/plugins/src/agents/impl/rovo/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-72
+packages/shared/src/host-dependencies/runtime/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-45
+packages/plugins/src/agents/impl/kimi/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-104
+packages/plugins/src/agents/impl/junie/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-78
+packages/plugins/src/agents/impl/hermes/icon.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-12
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.ts
+  s_2062ae52c7e912::t_280ea8744104a9 2,4-5,14,16,25,54-75,92-100,104-112,116,125-146,187-221
+apps/emdash-desktop/src/main/core/execution-context/types.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-3
+apps/emdash-desktop/src/renderer/features/settings/agents-page/DependencyInstallationStatusCard.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 1-220
+apps/emdash-desktop/src/renderer/lib/stores/app-state.ts
+  s_2062ae52c7e912::t_280ea8744104a9 28-31
+apps/emdash-desktop/src/shared/core/agents/agent-payload.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-238
+packages/plugins/src/agents/impl/letta/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-55
+packages/shared/src/agents/plugins/capabilities/models.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-31
+apps/emdash-desktop/src/renderer/features/command-palette/resource-monitor-view.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 5,172-174
+apps/emdash-desktop/src/renderer/features/settings/agents-page/AgentsSettingsPage.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 1-63
+apps/emdash-desktop/src/renderer/lib/components/stacked-agent-logos.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 1-2,11,14-15,19,24,26
+packages/shared/src/agents/plugins/helpers/file-drop.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-29
+apps/emdash-desktop/src/renderer/features/mcp/components/McpCard.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 3,5,15,32-36,39,71-72,104
+apps/emdash-desktop/src/renderer/lib/components/agent-selector/agent-info-card.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 1-6,12,16-17,20,26-27,29,32-36,38-48,55-63
+packages/plugins/src/agents/impl/qwen/index.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-64
+packages/shared/src/host-dependencies/runtime/host-dependency-manager.test.ts
+  s_2062ae52c7e912::t_280ea8744104a9 2-15,17-33,35-42,44-57,81-102,104-106,110-112,119,122-123,137,139,148,167-168,170,200-201,213-214,216,229-231,235-237,249-250,252,264-266,270-272,282-285,301,317,329-331,335-341,354,356-357,360-362,364,366-367,371,380-926
+apps/emdash-desktop/src/main/core/ssh/config/connection-metadata.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1,15,38,47-58
+packages/shared/src/lib/plugins/registry.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-11
+apps/emdash-desktop/src/renderer/features/tasks/conversations/use-effective-provider.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1,3,29-35
+apps/emdash-desktop/src/renderer/lib/components/agent-icon-variant.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-9
+packages/plugins/src/agents/impl/copilot/hooks.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-73
+packages/shared/src/lib/plugins/capability.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1,3-19,22-27,30,32-33,35-36,38-39,41-42,44-56
+apps/emdash-desktop/src/main/core/dependencies/install-runner.ts
+  s_2062ae52c7e912::t_280ea8744104a9 2
+packages/plugins/src/agents/impl/kiro/hooks.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-23
+apps/emdash-desktop/scripts/release/lib/artifacts.ts
+  s_2062ae52c7e912::t_280ea8744104a9 1-2,5,7,9,15-16,31-75
+apps/emdash-desktop/src/renderer/features/library/library-view.tsx
+  s_2062ae52c7e912::t_280ea8744104a9 4,55-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "48caad11e814b6e1b276f7f7cfa9850477d7e573",
+  "prompts": {},
+  "sessions": {
+    "s_2062ae52c7e912": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ecc69-2d3c-7e2b-8a9f-93b003928505",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
