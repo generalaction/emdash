@@ -1,23 +1,26 @@
-import { localDependencyManager } from '@main/core/dependencies/dependency-manager';
+import { pluginRegistry } from '@emdash/plugins/agents';
+import type { DependencyId } from '@emdash/shared/deps/runtime';
+import { localDependencyManager } from '@main/core/dependencies/dependency-managers';
 import { log } from '@main/lib/logger';
-import { AGENT_PROVIDERS } from '@shared/core/agents/agent-provider-registry';
-import type { DependencyId } from '@shared/core/dependencies';
 import type { McpProvidersResponse, McpServer } from '@shared/core/mcp/types';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { mcpService } from './services/McpService';
-import { agentSupportsHttp, getAllMcpAgentIds } from './utils/config-paths';
 
-function mapProviders(agentIds: string[]): McpProvidersResponse[] {
-  return agentIds.map((id) => {
-    const provider = AGENT_PROVIDERS.find((p) => p.id === id);
-    const dep = localDependencyManager.get(id as DependencyId);
-    return {
-      id,
-      name: provider?.name ?? id,
-      installed: dep?.status === 'available',
-      supportsHttp: agentSupportsHttp(id),
-    };
-  });
+function mapProviders(): McpProvidersResponse[] {
+  return pluginRegistry
+    .getAll()
+    .filter((p) => p.capabilities.mcp.kind === 'supported')
+    .map((p) => {
+      const dep = localDependencyManager.get(p.metadata.id as DependencyId);
+      const mcp = p.capabilities.mcp;
+      const supportsHttp = mcp.kind === 'supported' && mcp.supportedTransports.includes('http');
+      return {
+        id: p.metadata.id,
+        name: p.metadata.name,
+        installed: dep?.status === 'available',
+        supportsHttp,
+      };
+    });
 }
 
 export const mcpController = createRPCController({
@@ -53,7 +56,7 @@ export const mcpController = createRPCController({
 
   getProviders: async () => {
     try {
-      return { success: true, data: mapProviders(getAllMcpAgentIds()) };
+      return { success: true, data: mapProviders() };
     } catch (error) {
       log.error('Failed to get MCP providers:', error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };
@@ -63,9 +66,19 @@ export const mcpController = createRPCController({
   refreshProviders: async () => {
     try {
       await localDependencyManager.probeCategory('agent');
-      return { success: true, data: mapProviders(getAllMcpAgentIds()) };
+      return { success: true, data: mapProviders() };
     } catch (error) {
       log.error('Failed to refresh MCP providers:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
+
+  listForAgent: async (agentId: string) => {
+    try {
+      const data = await mcpService.listForAgent(agentId);
+      return { success: true, data };
+    } catch (error) {
+      log.error('Failed to list MCP servers for agent:', error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },

@@ -1,8 +1,7 @@
 import React from 'react';
-import AgentLogo from '@renderer/lib/components/agent-logo';
+import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { Button } from '@renderer/lib/ui/button';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
-import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
 import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { McpProvidersResponse } from '@shared/core/mcp/types';
@@ -31,7 +30,6 @@ export const ProviderSelect: React.FC<ProviderSelectProps> = ({
           .map((p) => {
             const unsupported = transport === 'http' && !p.supportsHttp;
             const selected = selectedProviderIds.has(p.id);
-            const logo = agentConfig[p.id as AgentProviderId];
             return (
               <Button
                 key={p.id}
@@ -54,17 +52,12 @@ export const ProviderSelect: React.FC<ProviderSelectProps> = ({
                     'border-border/85 bg-background text-muted-foreground hover:border-primary/45 hover:bg-background-1/70 hover:text-foreground'
                 )}
               >
-                {logo && (
-                  <AgentLogo
-                    logo={logo.logo}
-                    logoDark={logo.logoDark}
-                    alt={logo.alt}
-                    isSvg={logo.isSvg}
-                    invertInDark={logo.invertInDark}
-                    className="h-4 w-4 rounded-sm"
-                    grayscale={unsupported}
-                  />
-                )}
+                <AgentIcon
+                  id={p.id as AgentProviderId}
+                  size={16}
+                  className="rounded-sm"
+                  grayscale={unsupported}
+                />
                 {p.name}
               </Button>
             );

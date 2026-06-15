@@ -10,9 +10,10 @@
     "declaration": true,
     "noEmit": true,
     "forceConsistentCasingInFileNames": true,
+    "jsx": "react",
     "lib": ["ES2022"],
     "types": ["node"]
   },
-  "include": ["**/*.ts"],
+  "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules", "dist"]
 }

@@ -76,6 +76,15 @@ export default defineConfig({
         },
       },
       {
+        // Release script unit tests (artifacts, version helpers).
+        extends: true,
+        test: {
+          name: 'scripts',
+          environment: 'node',
+          include: ['scripts/**/*.test.ts'],
+        },
+      },
+      {
         // Renderer terminal tests that need a real browser environment
         // (real CSS layout, ResizeObserver, requestAnimationFrame, WebGL).
         extends: true,
