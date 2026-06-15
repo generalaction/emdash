@@ -117,9 +117,19 @@ export function PrSelector({
     error?.type === 'github_account_not_found' ||
     error?.type === 'github_account_host_mismatch' ||
     error?.type === 'github_token_missing' ||
+    error?.type === 'github_sso_required' ||
     error?.type === 'github_no_account_selected' ||
     error?.type === 'github_account_disabled' ||
     error?.type === 'github_account_resolution_failed';
+  const githubAuthDescription =
+    error?.type === 'github_account_not_found'
+      ? 'The selected GitHub account is no longer connected. Reconnect GitHub to show pull requests for this repository.'
+      : 'Emdash needs a connected GitHub account before it can show pull requests for this repository.';
+  const connectGitHubButton = (
+    <Button type="button" variant="outline" size="xs" onClick={() => showGithubConnectModal({})}>
+      Connect GitHub
+    </Button>
+  );
 
   const selectedContent = renderSelectedValue ? (
     renderSelectedValue(value!)
@@ -209,20 +219,9 @@ export function PrSelector({
                 </span>
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-foreground">Connect GitHub to load PRs</p>
-                  <p className="max-w-64 text-xs text-foreground-muted">
-                    {error?.type === 'github_account_not_found'
-                      ? 'The selected GitHub account is no longer connected. Reconnect GitHub to show pull requests for this repository.'
-                      : 'Emdash needs a connected GitHub account before it can show pull requests for this repository.'}
-                  </p>
+                  <p className="max-w-64 text-xs text-foreground-muted">{githubAuthDescription}</p>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  onClick={() => showGithubConnectModal({})}
-                >
-                  Connect GitHub
-                </Button>
+                {connectGitHubButton}
               </div>
             ) : (
               <span className={cn(errorMessage && 'text-foreground-error')}>
@@ -252,6 +251,7 @@ export function PrSelector({
               >
                 {errorMessage}
               </span>
+              {isGitHubAuthError && connectGitHubButton}
             </ListPopoverCard>
           )}
         </ComboboxContent>
