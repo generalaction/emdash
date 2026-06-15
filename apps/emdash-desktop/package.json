@@ -30,7 +30,7 @@
     "db:reset": "pnpm run db:reset:3 && pnpm run db:reset:4",
     "db:reset:3": "rm -f \"$HOME/Library/Application Support/emdash-dev/emdash3.db\" \"$HOME/Library/Application Support/emdash-dev/emdash3.db-wal\" \"$HOME/Library/Application Support/emdash-dev/emdash3.db-shm\" \"$HOME/.config/emdash-dev/emdash3.db\" \"$HOME/.config/emdash-dev/emdash3.db-wal\" \"$HOME/.config/emdash-dev/emdash3.db-shm\"",
     "db:reset:4": "rm -f \"$HOME/Library/Application Support/emdash-dev/emdash4.db\" \"$HOME/Library/Application Support/emdash-dev/emdash4.db-wal\" \"$HOME/Library/Application Support/emdash-dev/emdash4.db-shm\" \"$HOME/.config/emdash-dev/emdash4.db\" \"$HOME/.config/emdash-dev/emdash4.db-wal\" \"$HOME/.config/emdash-dev/emdash4.db-shm\"",
-    "test": "vitest run --project node --project main-db --project migrations --project browser",
+    "test": "vitest run --project node --project main-db --project migrations --project browser --project scripts",
     "build": "electron-vite build",
     "build:main": "electron-vite build --filter main",
     "build:renderer": "electron-vite build --filter renderer",
