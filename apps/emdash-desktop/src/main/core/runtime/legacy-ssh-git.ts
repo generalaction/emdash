@@ -14,7 +14,7 @@ import type {
   GitLogOptions,
   GitRepoSnapshot,
   GitRepoUpdate,
-  GitSeqs,
+  GitSequences,
   GitWorktreeSnapshot,
   GitWorktreeUpdate,
   IGitRepository,
@@ -45,6 +45,7 @@ import {
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { GitService } from '@main/core/git/impl/git-service';
+import { TooManyFilesChangedError } from '@main/core/git/impl/status-parser';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { log } from '@main/lib/logger';
 import type {
@@ -94,9 +95,7 @@ export class LegacySshGitRuntime implements IGitRuntime {
   constructor(private readonly proxy: SshClientProxy) {}
 
   async openRepository(pathInsideRepo: string): Promise<Lease<IGitRepository>> {
-    const lease = await this.repositories.acquire(pathInsideRepo, async () => ({
-      repository: new LegacySshGitRepository(this.createGit(pathInsideRepo), pathInsideRepo),
-    }));
+    const lease = await this.acquireRepository(pathInsideRepo);
     return {
       value: lease.value.repository,
       release: lease.release,
@@ -105,15 +104,19 @@ export class LegacySshGitRuntime implements IGitRuntime {
 
   async openWorktree(worktreePath: string): Promise<Lease<IGitWorktree>> {
     const lease = await this.worktrees.acquire(worktreePath, async () => {
-      const repositoryLease = (await this.openRepository(
-        worktreePath
-      )) as Lease<LegacySshGitRepository>;
+      const repositoryLease = await this.acquireRepository(worktreePath);
       const worktree = new LegacySshGitWorktree(
         this.createGit(worktreePath),
         worktreePath,
-        repositoryLease.value
+        repositoryLease.value.repository
       );
-      return { worktree, repositoryLease };
+      return {
+        worktree,
+        repositoryLease: {
+          value: repositoryLease.value.repository,
+          release: repositoryLease.release,
+        },
+      };
     });
     return {
       value: lease.value.worktree,
@@ -124,6 +127,32 @@ export class LegacySshGitRuntime implements IGitRuntime {
   dispose(): void {
     this.worktrees.dispose();
     this.repositories.dispose();
+  }
+
+  /**
+   * Repositories are keyed by the resolved git common dir so all worktrees of one
+   * repo (and the project root) share a single instance — one refs/remotes poll per
+   * repo, and one sequence space the renderer can rely on.
+   */
+  private async acquireRepository(
+    pathInsideRepo: string
+  ): Promise<Lease<LegacyRepositoryResource>> {
+    const gitCommonDir = await this.resolveGitCommonDir(pathInsideRepo);
+    return this.repositories.acquire(gitCommonDir, async () => ({
+      repository: new LegacySshGitRepository(this.createGit(pathInsideRepo), gitCommonDir),
+    }));
+  }
+
+  private async resolveGitCommonDir(root: string): Promise<string> {
+    const ctx = new SshExecutionContext(this.proxy, { root });
+    const { stdout } = await ctx.exec('git', [
+      'rev-parse',
+      '--path-format=absolute',
+      '--git-common-dir',
+    ]);
+    const resolved = stdout.trim();
+    if (!resolved) throw new Error(`Could not resolve git common dir for ${root}`);
+    return resolved;
   }
 
   private createGit(root: string): GitService {
@@ -143,10 +172,10 @@ class LegacySshGitRepository implements IGitRepository {
 
   constructor(
     private readonly git: GitService,
-    repoPath: string
+    gitCommonDir: string
   ) {
-    this.gitCommonDir = `${repoPath}/.git`;
-    this.objectStoreDir = `${repoPath}/.git/objects`;
+    this.gitCommonDir = gitCommonDir;
+    this.objectStoreDir = `${gitCommonDir}/objects`;
     this.refsModel = new LiveModel<GitRefsModel>({
       compute: () => this.computeRefs(),
       onError: (error) => log.warn('LegacySshGitRepository: refs refresh failed', { error }),
@@ -183,11 +212,11 @@ class LegacySshGitRepository implements IGitRepository {
   }
 
   subscribe(cb: (update: GitRepoUpdate) => void): Unsubscribe {
-    const refs = this.refsModel.subscribe(({ value, seq }) =>
-      cb({ kind: 'refs', model: value, seq })
+    const refs = this.refsModel.subscribe(({ value, sequence, generation }) =>
+      cb({ kind: 'refs', model: value, sequence, generation })
     );
-    const remotes = this.remotesModel.subscribe(({ value, seq }) =>
-      cb({ kind: 'remotes', model: value, seq })
+    const remotes = this.remotesModel.subscribe(({ value, sequence, generation }) =>
+      cb({ kind: 'remotes', model: value, sequence, generation })
     );
     return () => {
       refs();
@@ -211,17 +240,20 @@ class LegacySshGitRepository implements IGitRepository {
     return this.git.getDefaultBranch(remote);
   }
 
-  async fetch(remote?: string): Promise<Result<{ seqs: GitSeqs }, FetchError>> {
+  async fetch(remote?: string): Promise<Result<{ sequences: GitSequences }, FetchError>> {
     const result = await this.git.fetch(remote);
     if (!result.success) return err(mapFetchError(result.error));
-    return ok({ seqs: { refs: await this.refreshRefs() } });
+    return ok({ sequences: { refs: await this.refreshRefs() } });
   }
 
-  async addRemote(name: string, url: string): Promise<Result<{ seqs: GitSeqs }, GitCommandError>> {
+  async addRemote(
+    name: string,
+    url: string
+  ): Promise<Result<{ sequences: GitSequences }, GitCommandError>> {
     try {
       await this.git.addRemote(name, url);
       const remotes = await this.remotesModel.refresh();
-      return ok({ seqs: { remotes: remotes.seq } });
+      return ok({ sequences: { remotes: remotes.sequence } });
     } catch (error) {
       return err(toGitCommandError(error));
     }
@@ -229,7 +261,7 @@ class LegacySshGitRepository implements IGitRepository {
 
   async createBranch(
     options: CreateBranchOptions
-  ): Promise<Result<{ seqs: GitSeqs }, CreateBranchError>> {
+  ): Promise<Result<{ sequences: GitSequences }, CreateBranchError>> {
     const result = await this.git.createBranch(
       options.name,
       options.from ?? 'HEAD',
@@ -237,21 +269,21 @@ class LegacySshGitRepository implements IGitRepository {
       options.remote
     );
     if (!result.success) return err(mapCreateBranchError(result.error));
-    return ok({ seqs: { refs: await this.refreshRefs() } });
+    return ok({ sequences: { refs: await this.refreshRefs() } });
   }
 
   async deleteBranch(
     branch: string,
     force?: boolean
-  ): Promise<Result<{ seqs: GitSeqs }, DeleteBranchError>> {
+  ): Promise<Result<{ sequences: GitSequences }, DeleteBranchError>> {
     const result = await this.git.deleteBranch(branch, force);
     if (!result.success) return err(mapDeleteBranchError(result.error));
-    return ok({ seqs: { refs: await this.refreshRefs() } });
+    return ok({ sequences: { refs: await this.refreshRefs() } });
   }
 
   async fetchPrForReview(
     options: FetchPrForReviewOptions
-  ): Promise<Result<{ seqs: GitSeqs }, FetchPrForReviewError>> {
+  ): Promise<Result<{ sequences: GitSequences }, FetchPrForReviewError>> {
     const result = await this.git.fetchPrForReview(
       options.prNumber,
       options.headRefName,
@@ -265,16 +297,16 @@ class LegacySshGitRepository implements IGitRepository {
       this.refsModel.refresh(),
       this.remotesModel.refresh(),
     ]);
-    return ok({ seqs: { refs: refs.seq, remotes: remotes.seq } });
+    return ok({ sequences: { refs: refs.sequence, remotes: remotes.sequence } });
   }
 
   async publishBranch(
     branchName: string,
     remote?: string
-  ): Promise<Result<{ output: string; seqs: GitSeqs }, PushError>> {
+  ): Promise<Result<{ output: string; sequences: GitSequences }, PushError>> {
     const result = await this.git.publishBranch(branchName, remote);
     if (!result.success) return err(mapPushError(result.error));
-    return ok({ output: result.data.output, seqs: { refs: await this.refreshRefs() } });
+    return ok({ output: result.data.output, sequences: { refs: await this.refreshRefs() } });
   }
 
   readBlobAtRef(ref: string, filePath: string): Promise<string | null> {
@@ -289,7 +321,7 @@ class LegacySshGitRepository implements IGitRepository {
   }
 
   async refreshRefs(): Promise<number> {
-    return (await this.refsModel.refresh()).seq;
+    return (await this.refsModel.refresh()).sequence;
   }
 
   private async computeRefs(): Promise<GitRefsModel> {
@@ -354,11 +386,11 @@ class LegacySshGitWorktree implements IGitWorktree {
   }
 
   subscribe(cb: (update: GitWorktreeUpdate) => void): Unsubscribe {
-    const status = this.statusModel.subscribe(({ value, seq }) =>
-      cb({ kind: 'status', model: value, seq })
+    const status = this.statusModel.subscribe(({ value, sequence, generation }) =>
+      cb({ kind: 'status', model: value, sequence, generation })
     );
-    const head = this.headModel.subscribe(({ value, seq }) =>
-      cb({ kind: 'head', model: value, seq })
+    const head = this.headModel.subscribe(({ value, sequence, generation }) =>
+      cb({ kind: 'head', model: value, sequence, generation })
     );
     return () => {
       status();
@@ -414,52 +446,56 @@ class LegacySshGitWorktree implements IGitWorktree {
     return this.git.getCommitFiles(hash) as Promise<CommitFile[]>;
   }
 
-  async stage(paths: string[]): Promise<GitSeqs> {
+  async stage(paths: string[]): Promise<GitSequences> {
     await this.git.stageFiles(paths);
     return this.refreshStatus();
   }
 
-  async stageAll(): Promise<GitSeqs> {
+  async stageAll(): Promise<GitSequences> {
     await this.git.stageAllFiles();
     return this.refreshStatus();
   }
 
-  async unstage(paths: string[]): Promise<GitSeqs> {
+  async unstage(paths: string[]): Promise<GitSequences> {
     await this.git.unstageFiles(paths);
     return this.refreshStatus();
   }
 
-  async unstageAll(): Promise<GitSeqs> {
+  async unstageAll(): Promise<GitSequences> {
     await this.git.unstageAllFiles();
     return this.refreshStatus();
   }
 
-  async revert(paths: string[]): Promise<GitSeqs> {
+  async revert(paths: string[]): Promise<GitSequences> {
     await this.git.revertFiles(paths);
     return this.refreshStatus();
   }
 
-  async revertAll(): Promise<GitSeqs> {
+  async revertAll(): Promise<GitSequences> {
     await this.git.revertAllFiles();
     return this.refreshStatus();
   }
 
-  async commit(message: string): Promise<Result<{ hash: string; seqs: GitSeqs }, CommitError>> {
+  async commit(
+    message: string
+  ): Promise<Result<{ hash: string; sequences: GitSequences }, CommitError>> {
     const result = await this.git.commit(message);
     if (!result.success) return err(mapCommitError(result.error));
-    return ok({ hash: result.data.hash, seqs: await this.refreshAfterHistoryChange() });
+    return ok({ hash: result.data.hash, sequences: await this.refreshAfterHistoryChange() });
   }
 
-  async push(remote?: string): Promise<Result<{ output: string; seqs: GitSeqs }, PushError>> {
+  async push(
+    remote?: string
+  ): Promise<Result<{ output: string; sequences: GitSequences }, PushError>> {
     const result = await this.git.push(remote);
     if (!result.success) return err(mapPushError(result.error));
-    return ok({ output: result.data.output, seqs: await this.refreshAfterHistoryChange() });
+    return ok({ output: result.data.output, sequences: await this.refreshAfterHistoryChange() });
   }
 
-  async pull(): Promise<Result<{ output: string; seqs: GitSeqs }, PullError>> {
+  async pull(): Promise<Result<{ output: string; sequences: GitSequences }, PullError>> {
     const result = await this.git.pull();
     if (!result.success) return err(mapPullError(result.error));
-    return ok({ output: result.data.output, seqs: await this.refreshAfterHistoryChange() });
+    return ok({ output: result.data.output, sequences: await this.refreshAfterHistoryChange() });
   }
 
   dispose(): void {
@@ -479,35 +515,30 @@ class LegacySshGitWorktree implements IGitWorktree {
         stagedAdded: status.totalAdded,
         stagedDeleted: status.totalDeleted,
       };
-    } catch {
-      return { kind: 'too-many-files' };
+    } catch (error) {
+      if (error instanceof TooManyFilesChangedError) return { kind: 'too-many-files' };
+      // Transient failures (e.g. dropped SSH connection) must not masquerade as a
+      // status; rethrowing keeps the last-good value and leaves the model dirty.
+      throw error;
     }
   }
 
   private async computeHead(): Promise<GitHeadModel> {
-    const status = await this.git.getFullStatus();
-    switch (status.headKind) {
-      case 'detached':
-        return { kind: 'detached', shortHash: status.shortHash ?? '' };
-      case 'unborn':
-        return { kind: 'unborn', name: status.currentBranch ?? 'main' };
-      case 'branch':
-        return { kind: 'branch', name: status.currentBranch ?? 'HEAD' };
-    }
+    return this.git.getHeadInfo();
   }
 
-  private async refreshStatus(): Promise<GitSeqs> {
+  private async refreshStatus(): Promise<GitSequences> {
     const value = await this.statusModel.refresh();
-    return { status: value.seq };
+    return { status: value.sequence };
   }
 
-  private async refreshAfterHistoryChange(): Promise<GitSeqs> {
+  private async refreshAfterHistoryChange(): Promise<GitSequences> {
     const [status, head, refs] = await Promise.all([
       this.statusModel.refresh(),
       this.headModel.refresh(),
       this.repository.refreshRefs(),
     ]);
-    return { status: status.seq, head: head.seq, refs };
+    return { status: status.sequence, head: head.sequence, refs };
   }
 
   private async pollStatus(untracked: GitStatusUntrackedMode): Promise<void> {

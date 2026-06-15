@@ -127,7 +127,7 @@ function looksLikeLfsPointer(buffer: Buffer): boolean {
   return buffer.slice(0, LFS_POINTER_PREFIX.length).equals(LFS_POINTER_PREFIX);
 }
 
-type HeadInfo =
+export type HeadInfo =
   | { kind: 'branch'; name: string }
   | { kind: 'detached'; shortHash: string }
   | { kind: 'unborn'; name: string };
@@ -1301,6 +1301,11 @@ export class GitService implements GitProvider, IDisposable {
   async getCurrentBranch(): Promise<string | null> {
     const head = await this._getHeadInfo();
     return head.kind === 'detached' ? null : head.name;
+  }
+
+  /** Cheap HEAD read (one or two rev-parse calls), without computing a full status. */
+  async getHeadInfo(): Promise<HeadInfo> {
+    return this._getHeadInfo();
   }
 
   private async _getHeadInfo(): Promise<HeadInfo> {
