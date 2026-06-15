@@ -1,0 +1,39 @@
+apps/emdash-desktop/src/renderer/lib/pty/pane-sizing-context.tsx
+  s_9f878cb9831143::t_655f040218568e 151,153,156-159
+  s_9f878cb9831143::t_f052e156a3263e 37
+  s_9f878cb9831143::t_b7fe6ff7b40c58 112-125
+apps/emdash-desktop/src/renderer/lib/pty/resize-scheduler.ts
+  s_9f878cb9831143::t_7e6356c7abe438 1-60
+apps/emdash-desktop/src/renderer/lib/pty/use-pty.ts
+  s_9f878cb9831143::t_e5f01a0ecd67e1 191-198,201-207,218
+  s_e6523e15efad13::t_5e09a86ab236c8 169-172,199-200,212-216,683
+  s_9f878cb9831143::t_507f8114389f52 2
+  s_9f878cb9831143::t_95b6cfb7de2f80 23
+  s_9f878cb9831143::t_7b359250aa4470 681
+apps/emdash-desktop/src/renderer/lib/pty/resize-scheduler.test.ts
+  s_9f878cb9831143::t_48b8cccef844cb 1-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "4ad61749f0083040f0b16cf7b32fb3ff45058b31",
+  "prompts": {},
+  "sessions": {
+    "s_9f878cb9831143": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c5f3e161-547e-421e-bac9-058994d80e55",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_e6523e15efad13": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ec61a-e48e-758b-a441-d8694652360e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
