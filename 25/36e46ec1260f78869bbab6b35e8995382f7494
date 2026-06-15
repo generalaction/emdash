@@ -1,0 +1,47 @@
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.tsx
+  s_6c0a844747f27e::t_13de1ec20fa22b 415-417,447-450
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.test.ts
+  s_3e4dd7e11a812a::t_9ef0387e4615a2 263-272,274-287
+  s_d8e2735748cff1::t_20dd4bf24e9dc2 3
+  s_11c0298ee4e490::t_4434ebe4d1972c 273
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "2536e46ec1260f78869bbab6b35e8995382f7494",
+  "prompts": {},
+  "sessions": {
+    "s_11c0298ee4e490": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033Yl5lY1NuPbYzSspzqih",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_3e4dd7e11a812a": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033YkxAumaynSbjwwrLnbg",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_6c0a844747f27e": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033YkvoO9iP4oXQV0uu0hW",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_d8e2735748cff1": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033YkxbrCUsdHxabixxqJt",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
