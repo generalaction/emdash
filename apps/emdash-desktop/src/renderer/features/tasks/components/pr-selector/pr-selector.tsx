@@ -115,9 +115,11 @@ export function PrSelector({
     error?.type === 'github_auth_required' ||
     error?.type === 'ghes_auth_required' ||
     error?.type === 'github_account_not_found' ||
+    error?.type === 'github_account_host_mismatch' ||
     error?.type === 'github_token_missing' ||
     error?.type === 'github_no_account_selected' ||
-    error?.type === 'github_account_disabled';
+    error?.type === 'github_account_disabled' ||
+    error?.type === 'github_account_resolution_failed';
 
   const selectedContent = renderSelectedValue ? (
     renderSelectedValue(value!)
