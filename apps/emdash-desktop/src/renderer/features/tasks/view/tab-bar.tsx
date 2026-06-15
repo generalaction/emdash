@@ -13,12 +13,14 @@ import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
 import type { ConversationManagerStore } from '../conversations/conversation-manager';
 import type {
   ResolvedBrowserTab,
+  ResolvedChatTab,
   ResolvedConversationTab,
   ResolvedDiffTab,
   ResolvedFileTab,
   ResolvedTab,
 } from '../tabs/tab-manager-store';
 import { BrowserTabItem } from './tab-bar/browser-tab-item';
+import { ChatTabItem } from './tab-bar/chat-tab-item';
 import { ConversationTabItem } from './tab-bar/conversation-tab-item';
 import { DiffTabItem } from './tab-bar/diff-tab-item';
 import { PaneDropZone } from './tab-bar/draggable-tab';
@@ -30,6 +32,15 @@ function makeTabRenderers(
   conversations: ConversationManagerStore
 ) {
   return {
+    chat: (tab: ResolvedChatTab): ReactNode => (
+      <ChatTabItem
+        key={tab.tabId}
+        tab={tab}
+        onSelect={() => tabManager.setActiveTab(tab.tabId)}
+        onPin={() => tabManager.openChat(tab.conversationId)}
+        onClose={() => closeTabWithConfirm(tabManager, tab.tabId)}
+      />
+    ),
     conversation: (tab: ResolvedConversationTab): ReactNode => (
       <ConversationTabItem
         key={tab.tabId}

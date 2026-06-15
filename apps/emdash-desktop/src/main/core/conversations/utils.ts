@@ -1,7 +1,7 @@
 import { type ConversationRow } from '@main/db/schema';
 import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { type AgentStatus } from '@shared/core/agents/agentEvents';
-import { type Conversation } from '@shared/core/conversations/conversations';
+import { type Conversation, type ConversationType } from '@shared/core/conversations/conversations';
 
 export function mapConversationRowToConversation(
   row: ConversationRow,
@@ -21,5 +21,6 @@ export function mapConversationRowToConversation(
     isInitialConversation: row.isInitialConversation,
     agentStatus: (row.agentStatus as AgentStatus | null) ?? null,
     agentStatusSeen: row.agentStatusSeen === 1,
+    type: (row.type as ConversationType) ?? 'pty',
   };
 }

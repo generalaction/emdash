@@ -10,6 +10,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/charmbracelet/crush',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

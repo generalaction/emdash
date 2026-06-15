@@ -13,6 +13,7 @@ function makeConversation(providerId: Conversation['providerId']): Conversation 
     autoApprove: false,
     lastInteractedAt: null,
     isInitialConversation: false,
+    type: 'pty',
   };
 }
 

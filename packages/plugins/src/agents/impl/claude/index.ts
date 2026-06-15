@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
 import {
   buildStandardCommand,
@@ -6,6 +7,13 @@ import {
 } from '@emdash/shared/agents/plugins/helpers';
 import { buildClaudeHookConfig } from './hooks';
 import { icon } from './icon';
+
+const require = createRequire(import.meta.url);
+
+function resolveClaudeAcpEntry(): string {
+  // Resolves to the installed @agentclientprotocol/claude-agent-acp CLI entry point.
+  return require.resolve('@agentclientprotocol/claude-agent-acp/dist/index.js');
+}
 
 export const plugin = definePlugin(
   {
@@ -16,6 +24,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://code.claude.com/docs/en/quickstart',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'supported',
     },
@@ -94,6 +105,13 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: {
+    buildSpawn: (ctx) => ({
+      command: process.execPath,
+      args: [resolveClaudeAcpEntry()],
+      env: ctx.env,
+    }),
+  },
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {

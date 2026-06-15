@@ -489,7 +489,9 @@ export class WorkspaceViewModel implements ILifecycle {
     for (const { tabManager } of this.tabGroupManager.groups) {
       for (const tabId of tabManager.tabOrder) {
         const entry = tabManager.entries.get(tabId);
-        if (entry?.kind === 'conversation') ids.add(entry.conversationId);
+        if (entry?.kind === 'conversation' || entry?.kind === 'chat') {
+          ids.add(entry.conversationId);
+        }
       }
     }
     return [...ids].sort();

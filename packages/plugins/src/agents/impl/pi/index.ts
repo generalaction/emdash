@@ -18,6 +18,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/earendil-works/pi/tree/main/packages/coding-agent',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'none',
     },

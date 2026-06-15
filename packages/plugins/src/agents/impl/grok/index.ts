@@ -12,6 +12,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://x.ai/cli',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

@@ -11,6 +11,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.letta.com/letta-code/cli',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

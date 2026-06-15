@@ -11,6 +11,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.factory.ai/cli/getting-started/quickstart',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'none',
     },

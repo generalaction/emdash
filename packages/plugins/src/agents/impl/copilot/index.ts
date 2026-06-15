@@ -16,6 +16,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

@@ -12,6 +12,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.devin.ai/cli',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

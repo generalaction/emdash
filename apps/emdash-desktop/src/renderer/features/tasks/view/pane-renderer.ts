@@ -5,6 +5,7 @@ import type { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-
 /** The top-level rendering mode for a single pane. */
 export type PaneRenderer =
   | { kind: 'pty-agent' }
+  | { kind: 'chat'; conversationId: string }
   | { kind: 'browser'; browserId: string }
   | { kind: 'file'; tab: FileTabStore }
   | { kind: 'file-diff'; tab: DiffTabStore };
@@ -35,6 +36,9 @@ export function resolvePaneRenderer(tabManager: TabManagerStore): PaneRenderer |
   }
   if (activeTab.kind === 'browser') {
     return { kind: 'browser', browserId: activeTab.browserId };
+  }
+  if (activeTab.kind === 'chat') {
+    return { kind: 'chat', conversationId: activeTab.conversationId };
   }
   return { kind: 'pty-agent' };
 }

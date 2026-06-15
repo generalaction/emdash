@@ -19,6 +19,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://ampcode.com/manual#install',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

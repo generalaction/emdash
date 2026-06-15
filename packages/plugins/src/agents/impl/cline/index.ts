@@ -11,6 +11,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.cline.bot/cline-cli/overview',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

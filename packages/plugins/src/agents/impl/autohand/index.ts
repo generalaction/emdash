@@ -11,6 +11,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://autohand.ai/code/',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

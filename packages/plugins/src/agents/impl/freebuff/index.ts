@@ -11,6 +11,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://freebuff.com',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'none',
     },

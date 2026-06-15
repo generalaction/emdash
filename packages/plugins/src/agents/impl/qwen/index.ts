@@ -16,6 +16,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/QwenLM/qwen-code',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

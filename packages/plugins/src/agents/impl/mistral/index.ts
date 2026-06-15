@@ -11,6 +11,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/mistralai/mistral-vibe',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

@@ -186,8 +186,12 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
     showCreateConversationModal({
       projectId,
       taskId,
-      onSuccess: ({ conversationId }) => {
-        tabGroupManager.openConversation(conversationId);
+      onSuccess: ({ conversationId, type }) => {
+        if (type === 'acp') {
+          tabGroupManager.openChat(conversationId);
+        } else {
+          tabGroupManager.openConversation(conversationId);
+        }
       },
     });
   };

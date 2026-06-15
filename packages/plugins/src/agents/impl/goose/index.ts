@@ -10,6 +10,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://goose-docs.ai/docs/quickstart/',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'none',
     },

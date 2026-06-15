@@ -11,6 +11,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://cursor.com/docs/cli/overview',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

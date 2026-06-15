@@ -388,6 +388,7 @@ export const conversations = sqliteTable(
     sessionId: text('session_id'),
     agentStatus: text('agent_status'),
     agentStatusSeen: integer('agent_status_seen').default(1),
+    type: text('type'),
   },
   (table) => ({
     taskIdIdx: index('idx_conversations_task_id').on(table.taskId),

@@ -12,6 +12,9 @@ export const plugin = definePlugin(
       'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

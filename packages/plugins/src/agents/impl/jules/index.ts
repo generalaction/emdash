@@ -11,6 +11,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://jules.google/docs/cli/reference/',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'none',
     },

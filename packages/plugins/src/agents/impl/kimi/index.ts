@@ -35,6 +35,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://moonshotai.github.io/kimi-cli/en/guides/getting-started.html',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

@@ -11,6 +11,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://hermes-agent.nousresearch.com/docs/',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

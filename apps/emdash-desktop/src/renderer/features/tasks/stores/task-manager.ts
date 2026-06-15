@@ -343,6 +343,7 @@ export class TaskManagerStore {
           lastInteractedAt: null,
           autoApprove: ic.autoApprove ?? false,
           isInitialConversation: true,
+          type: 'pty',
         };
         const conversationManager = conversationRegistry.acquire(params.id, this.projectId, [
           optimistic,

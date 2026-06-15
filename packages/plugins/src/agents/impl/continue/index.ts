@@ -11,6 +11,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.continue.dev/guides/cli',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

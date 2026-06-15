@@ -12,6 +12,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://kiro.dev/docs/cli/',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

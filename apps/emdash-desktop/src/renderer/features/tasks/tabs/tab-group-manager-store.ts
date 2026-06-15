@@ -67,6 +67,7 @@ export class TabGroupManagerStore {
       restoreSnapshot: action,
       openConversation: action,
       openConversationPreview: action,
+      openChat: action,
       openBrowser: action,
     });
   }
@@ -246,6 +247,10 @@ export class TabGroupManagerStore {
       }
     }
     this.focusedGroup.openConversationPreview(conversationId);
+  }
+
+  openChat(conversationId: string): void {
+    this.focusedGroup.openChat(conversationId);
   }
 
   openBrowser(initialUrl?: string): void {

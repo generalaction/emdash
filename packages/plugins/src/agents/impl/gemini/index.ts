@@ -15,6 +15,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/google-gemini/gemini-cli',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

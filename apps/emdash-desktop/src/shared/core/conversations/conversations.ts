@@ -3,6 +3,11 @@ import type { AgentStatus } from '@shared/core/agents/agentEvents';
 
 export const MAX_CONVERSATION_TITLE_LENGTH = 100;
 
+/** Provider IDs that support the ACP (Agent Client Protocol) chat transport. */
+export const ACP_CAPABLE_PROVIDER_IDS: ReadonlySet<AgentProviderId> = new Set(['claude']);
+
+export type ConversationType = 'pty' | 'acp';
+
 export type Conversation = {
   id: string;
   projectId: string;
@@ -17,6 +22,7 @@ export type Conversation = {
   isInitialConversation: boolean | null;
   agentStatus?: AgentStatus | null;
   agentStatusSeen?: boolean;
+  type: ConversationType;
 };
 
 export type RenameConversationParams = {
@@ -34,4 +40,5 @@ export type CreateConversationParams = {
   isInitialConversation?: boolean;
   initialSize?: { cols: number; rows: number };
   initialPrompt?: string;
+  type?: ConversationType;
 };

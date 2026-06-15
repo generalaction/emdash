@@ -20,6 +20,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://opencode.ai/docs/cli/',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

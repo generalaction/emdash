@@ -17,6 +17,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/openai/codex',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

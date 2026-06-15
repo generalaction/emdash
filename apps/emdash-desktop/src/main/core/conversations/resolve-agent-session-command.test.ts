@@ -12,6 +12,7 @@ function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
     title: 'Test',
     lastInteractedAt: null,
     isInitialConversation: false,
+    type: 'pty',
     ...overrides,
   };
 }

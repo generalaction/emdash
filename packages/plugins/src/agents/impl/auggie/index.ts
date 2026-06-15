@@ -11,6 +11,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.augmentcode.com/cli/overview',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'none',
     },

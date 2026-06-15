@@ -11,6 +11,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://commandcode.ai/docs/reference/cli',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'supported',
     },

@@ -11,6 +11,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://www.codebuff.com/docs/help/quick-start',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'none',
     },

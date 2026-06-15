@@ -51,6 +51,8 @@
     "docs:build": "cd docs && pnpm run build"
   },
   "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "^0.45.0",
+    "@agentclientprotocol/sdk": "^0.25.1",
     "@emdash/plugins": "workspace:*",
     "@emdash/shared": "workspace:*",
     "@gitbeaker/rest": "^43.8.0",

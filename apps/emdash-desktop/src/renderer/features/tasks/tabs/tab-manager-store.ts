@@ -73,7 +73,34 @@ export class BrowserTabEntry {
   }
 }
 
-export type TabEntry = FileTabStore | DiffTabStore | ConversationTabEntry | BrowserTabEntry;
+export class ChatTabEntry {
+  readonly kind = 'chat' as const;
+  readonly tabId: string;
+  conversationId: string;
+  isPreview: boolean;
+
+  constructor(conversationId: string, isPreview: boolean, tabId?: string) {
+    this.tabId = tabId ?? crypto.randomUUID();
+    this.conversationId = conversationId;
+    this.isPreview = isPreview;
+    makeObservable(this, {
+      conversationId: observable,
+      isPreview: observable,
+      pin: action,
+    });
+  }
+
+  pin(): void {
+    this.isPreview = false;
+  }
+}
+
+export type TabEntry =
+  | FileTabStore
+  | DiffTabStore
+  | ConversationTabEntry
+  | BrowserTabEntry
+  | ChatTabEntry;
 
 function optionalRefsEqual(left: GitObjectRef | undefined, right: GitObjectRef | undefined) {
   if (left === undefined || right === undefined) return left === right;
@@ -130,8 +157,18 @@ export type ResolvedDiffTab = {
   isActive: boolean;
 };
 
+export type ResolvedChatTab = {
+  kind: 'chat';
+  tabId: string;
+  conversationId: string;
+  store: ConversationStore;
+  isPreview: boolean;
+  isActive: boolean;
+};
+
 export type ResolvedTab =
   | ResolvedConversationTab
+  | ResolvedChatTab
   | ResolvedFileTab
   | ResolvedBrowserTab
   | ResolvedDiffTab;
@@ -197,6 +234,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       snapshot: computed,
       openConversation: action,
       openConversationPreview: action,
+      openChat: action,
       openFile: action,
       openExternalFile: action,
       openFilePreview: action,
@@ -230,7 +268,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           const idSet = new Set(ids);
           const toRemove: string[] = [];
           for (const [tabId, entry] of this.entries) {
-            if (entry.kind === 'conversation' && !idSet.has(entry.conversationId)) {
+            if (
+              (entry.kind === 'conversation' || entry.kind === 'chat') &&
+              !idSet.has(entry.conversationId)
+            ) {
               toRemove.push(tabId);
             }
           }
@@ -358,7 +399,18 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       const entry = this.entries.get(id);
       if (!entry) continue;
 
-      if (entry.kind === 'conversation') {
+      if (entry.kind === 'chat') {
+        const store = this._getConversations()?.conversations.get(entry.conversationId);
+        if (!store) continue;
+        result.push({
+          kind: 'chat',
+          tabId: entry.tabId,
+          conversationId: entry.conversationId,
+          store,
+          isPreview: entry.isPreview,
+          isActive: effectiveActiveId === entry.tabId,
+        });
+      } else if (entry.kind === 'conversation') {
         const store = this._getConversations()?.conversations.get(entry.conversationId);
         if (!store) continue;
         result.push({
@@ -421,7 +473,14 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     for (const id of this.tabOrder) {
       const entry = this.entries.get(id);
       if (!entry) continue;
-      if (entry.kind === 'conversation') {
+      if (entry.kind === 'chat') {
+        tabs.push({
+          kind: 'chat',
+          tabId: entry.tabId,
+          conversationId: entry.conversationId,
+          isPreview: entry.isPreview,
+        });
+      } else if (entry.kind === 'conversation') {
         tabs.push({
           kind: 'conversation',
           tabId: entry.tabId,
@@ -479,6 +538,19 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       return;
     }
     const entry = new ConversationTabEntry(conversationId, false);
+    this.entries.set(entry.tabId, entry);
+    addTabId(this, entry.tabId);
+    this.activeTabId = entry.tabId;
+  }
+
+  openChat(conversationId: string): void {
+    const existing = this._findChatEntry(conversationId);
+    if (existing) {
+      existing.isPreview = false;
+      this.activeTabId = existing.tabId;
+      return;
+    }
+    const entry = new ChatTabEntry(conversationId, false);
     this.entries.set(entry.tabId, entry);
     addTabId(this, entry.tabId);
     this.activeTabId = entry.tabId;
@@ -776,7 +848,11 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       this.entries.clear();
       this.tabOrder = [];
       for (const t of snapshot.tabs) {
-        if (t.kind === 'conversation') {
+        if (t.kind === 'chat') {
+          const entry = new ChatTabEntry(t.conversationId, t.isPreview, t.tabId);
+          this.entries.set(entry.tabId, entry);
+          this.tabOrder.push(entry.tabId);
+        } else if (t.kind === 'conversation') {
           const entry = new ConversationTabEntry(t.conversationId, t.isPreview, t.tabId);
           this.entries.set(entry.tabId, entry);
           this.tabOrder.push(entry.tabId);
@@ -861,6 +937,16 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     for (const id of this.tabOrder) {
       const entry = this.entries.get(id);
       if (entry?.kind === 'conversation' && entry.conversationId === conversationId) {
+        return entry;
+      }
+    }
+    return undefined;
+  }
+
+  private _findChatEntry(conversationId: string): ChatTabEntry | undefined {
+    for (const id of this.tabOrder) {
+      const entry = this.entries.get(id);
+      if (entry?.kind === 'chat' && entry.conversationId === conversationId) {
         return entry;
       }
     }

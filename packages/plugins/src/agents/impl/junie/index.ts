@@ -11,6 +11,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://junie.jetbrains.com/docs/junie-cli.html',
   },
   {
+    acp: {
+      kind: 'none',
+    },
     autoApprove: {
       kind: 'none',
     },

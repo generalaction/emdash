@@ -2,6 +2,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { observer } from 'mobx-react-lite';
 import { BrowserPane } from '@renderer/features/browser/browser-pane';
 import { ShowHide } from '@renderer/lib/ui/show-hide';
+import { ChatPanel } from '../conversations/chat/chat-panel';
 import { ConversationsPanel } from '../conversations/conversations-panel';
 import { DiffView } from '../diff-view/main-panel/diff-view';
 import { useTabGroupContext } from '../tabs/tab-group-context';
@@ -33,6 +34,7 @@ export const PaneContent = observer(function PaneContent() {
         <ShowHide visible={paneRenderer.kind === 'pty-agent'}>
           <ConversationsPanel />
         </ShowHide>
+        {paneRenderer.kind === 'chat' && <ChatPanel conversationId={paneRenderer.conversationId} />}
         {paneRenderer.kind === 'browser' && <BrowserPane browserId={paneRenderer.browserId} />}
         {paneRenderer.kind === 'file' && <FileRenderer tab={paneRenderer.tab} />}
         {paneRenderer.kind === 'file-diff' && <DiffView tab={paneRenderer.tab} />}

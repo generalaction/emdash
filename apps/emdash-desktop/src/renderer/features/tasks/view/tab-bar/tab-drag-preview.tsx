@@ -1,7 +1,9 @@
+import { MessageSquare } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type { ReactNode } from 'react';
 import type {
   ResolvedBrowserTab,
+  ResolvedChatTab,
   ResolvedConversationTab,
   ResolvedDiffTab,
   ResolvedFileTab,
@@ -12,8 +14,19 @@ import { BrowserTabDragPreview } from './browser-tab-item';
 import { ConversationTabDragPreview } from './conversation-tab-item';
 import { DiffTabDragPreview } from './diff-tab-item';
 import { FileTabDragPreview } from './file-tab-item';
+import { TabDragPreviewShell } from './tab-item-shell';
+
+function ChatTabDragPreview({ tab }: { tab: ResolvedChatTab }) {
+  return (
+    <TabDragPreviewShell>
+      <MessageSquare className="size-4 shrink-0" />
+      <span className="max-w-[200px] truncate">{tab.store.data.title}</span>
+    </TabDragPreviewShell>
+  );
+}
 
 const dragPreviewRenderers = {
+  chat: (tab: ResolvedChatTab): ReactNode => <ChatTabDragPreview tab={tab} />,
   browser: (tab: ResolvedBrowserTab): ReactNode => <BrowserTabDragPreview tab={tab} />,
   conversation: (tab: ResolvedConversationTab): ReactNode => (
     <ConversationTabDragPreview tab={tab} />
