@@ -1,7 +1,6 @@
 import type { GitSequences, IGitRepository } from '@emdash/shared/git';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type {
-  Branch,
   BranchesPayload,
   CreateBranchError,
   DeleteBranchError,
@@ -63,7 +62,7 @@ export class GitRepositoryService {
     ]);
     const gitDefaultBranch = await this.gitRepository.getDefaultBranch(remote);
     return {
-      branches: refs.branches as Branch[],
+      branches: refs.branches,
       currentBranch: null,
       isUnborn: false,
       gitDefaultBranch,
@@ -139,9 +138,9 @@ export class GitRepositoryService {
     return ok({ output: result.data.output });
   }
 
-  async getBranches(): Promise<Branch[]> {
+  async getBranches(): Promise<(LocalBranch | RemoteBranch)[]> {
     await this.fetch(await this.getBaseRemote());
-    return (await this.gitRepository.getRefs()).branches as Branch[];
+    return (await this.gitRepository.getRefs()).branches;
   }
 
   async getLocalBranchesPayload(): Promise<LocalBranchesPayload> {

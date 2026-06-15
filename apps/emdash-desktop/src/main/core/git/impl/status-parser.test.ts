@@ -2,78 +2,110 @@ import { describe, expect, it } from 'vitest';
 import { MAX_STATUS_FILES, StatusParser } from './status-parser';
 
 describe('StatusParser', () => {
-  it('parses a single modified unstaged file', () => {
-    const p = new StatusParser();
-    p.update(' M\0src/foo.ts\0');
-    expect(p.status).toEqual([{ x: ' ', y: 'M', path: 'src/foo.ts' }]);
-    expect(p.tooManyFiles).toBe(false);
+  const headOid = '1111111111111111111111111111111111111111';
+  const indexOid = '2222222222222222222222222222222222222222';
+
+  it('parses porcelain v2 ordinary, untracked, and conflicted entries', () => {
+    const parser = new StatusParser();
+
+    parser.update(
+      [
+        `1 .M N... 100644 100644 100644 ${headOid} ${indexOid} src/foo with spaces.ts\0`,
+        '? untracked.ts\0',
+        `u UU N... 100644 100644 100644 100644 ${headOid} ${indexOid} 3333333333333333333333333333333333333333 conflict.ts\0`,
+      ].join('')
+    );
+
+    expect(parser.status).toEqual([
+      {
+        x: ' ',
+        y: 'M',
+        path: 'src/foo with spaces.ts',
+        headOid,
+        indexOid,
+      },
+      { x: '?', y: '?', path: 'untracked.ts' },
+      { x: 'U', y: 'U', path: 'conflict.ts' },
+    ]);
   });
 
-  it('parses staged + unstaged on same file', () => {
-    const p = new StatusParser();
-    p.update('MM\0src/bar.ts\0');
-    expect(p.status).toEqual([{ x: 'M', y: 'M', path: 'src/bar.ts' }]);
+  it('parses porcelain v2 rename entries with NUL-separated new and original paths', () => {
+    const parser = new StatusParser();
+
+    parser.update(`2 R. N... 100644 100644 100644 ${headOid} ${indexOid} R100 new.ts\0old.ts\0`);
+
+    expect(parser.status).toEqual([
+      {
+        x: 'R',
+        y: ' ',
+        rename: 'new.ts',
+        path: 'old.ts',
+        headOid,
+        indexOid,
+      },
+    ]);
   });
 
-  it('parses a rename with old and new paths', () => {
-    const p = new StatusParser();
-    p.update('R \0new.ts\0old.ts\0');
-    expect(p.status).toEqual([{ x: 'R', y: ' ', rename: 'new.ts', path: 'old.ts' }]);
+  it('buffers rename entries split between the new and original path fields', () => {
+    const parser = new StatusParser();
+    const entry = `2 R. N... 100644 100644 100644 ${headOid} ${indexOid} R100 new.ts\0old.ts\0`;
+    const split = entry.indexOf('\0') + 1;
+
+    parser.update(entry.slice(0, split));
+    expect(parser.status).toEqual([]);
+
+    parser.update(entry.slice(split));
+    expect(parser.status).toEqual([
+      {
+        x: 'R',
+        y: ' ',
+        rename: 'new.ts',
+        path: 'old.ts',
+        headOid,
+        indexOid,
+      },
+    ]);
   });
 
-  it('parses untracked', () => {
-    const p = new StatusParser();
-    p.update('??\0untracked.ts\0');
-    expect(p.status).toEqual([{ x: '?', y: '?', path: 'untracked.ts' }]);
+  it('buffers split entries and skips nested git repository directory markers', () => {
+    const parser = new StatusParser();
+
+    const entry = `1 .M N... 100644 100644 100644 ${headOid} ${indexOid} src/foo.ts\0`;
+    parser.update(entry.slice(0, 35));
+    parser.update(entry.slice(35));
+    parser.update('? vendor/sub/\0');
+
+    expect(parser.status).toEqual([{ x: ' ', y: 'M', path: 'src/foo.ts', headOid, indexOid }]);
   });
 
-  it('parses conflict', () => {
-    const p = new StatusParser();
-    p.update('UU\0conflict.ts\0');
-    expect(p.status).toEqual([{ x: 'U', y: 'U', path: 'conflict.ts' }]);
+  it('skips ignored entries', () => {
+    const parser = new StatusParser();
+
+    parser.update('! ignored.log\0');
+
+    expect(parser.status).toEqual([]);
   });
 
-  it('handles split chunks across NUL boundaries', () => {
-    const p = new StatusParser();
-    p.update(' M\0src/');
-    p.update('foo.ts\0');
-    expect(p.status).toEqual([{ x: ' ', y: 'M', path: 'src/foo.ts' }]);
+  it('resets parser state', () => {
+    const parser = new StatusParser();
+
+    parser.update(`1 .M N... 100644 100644 100644 ${headOid} ${indexOid} a.ts\0`);
+    parser.reset();
+
+    expect(parser.status).toEqual([]);
+    expect(parser.tooManyFiles).toBe(false);
   });
 
-  it('handles empty status', () => {
-    const p = new StatusParser();
-    p.update('');
-    expect(p.status).toEqual([]);
-  });
-
-  it('sets tooManyFiles when limit exceeded', () => {
-    const p = new StatusParser();
+  it('marks the stream as too large once the status file limit is exceeded', () => {
+    const parser = new StatusParser();
     let chunk = '';
     for (let i = 0; i < MAX_STATUS_FILES + 2; i++) {
-      chunk += ` M\0f${i}.ts\0`;
+      chunk += `1 .M N... 100644 100644 100644 ${headOid} ${indexOid} f${i}.ts\0`;
     }
-    p.update(chunk);
-    expect(p.tooManyFiles).toBe(true);
-    expect(p.status.length).toBeGreaterThanOrEqual(MAX_STATUS_FILES);
-  });
 
-  it('parses path with spaces', () => {
-    const p = new StatusParser();
-    p.update(' M\0path with spaces/foo.ts\0');
-    expect(p.status).toEqual([{ x: ' ', y: 'M', path: 'path with spaces/foo.ts' }]);
-  });
+    parser.update(chunk);
 
-  it('reset clears state', () => {
-    const p = new StatusParser();
-    p.update(' M\0a.ts\0');
-    p.reset();
-    expect(p.status).toEqual([]);
-    expect(p.tooManyFiles).toBe(false);
-  });
-
-  it('skips nested git repo directory entries (trailing slash)', () => {
-    const p = new StatusParser();
-    p.update('??\0vendor/sub/\0');
-    expect(p.status).toEqual([]);
+    expect(parser.tooManyFiles).toBe(true);
+    expect(parser.status.length).toBeGreaterThanOrEqual(MAX_STATUS_FILES);
   });
 });

@@ -15,10 +15,18 @@ import { taskSessionManager } from '../tasks/task-session-manager';
 import { refreshWorkspaceCurrentBranchCache } from '../workspaces/workspace-current-branch-cache';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
 
+// Legacy Git watcher retained for SSH compatibility while SSH projects still use
+// the main-process Git adapter. New Git watching should use `@emdash/shared/git`.
+
 export type GitWatcherHooks = {
   'ref:changed': (change: GitRefChange) => void | Promise<void>;
 };
 
+/**
+ * @deprecated Use `@emdash/shared/git` (`IGitRuntime`/`GitRuntime`) for new Git watching code.
+ * This registry is retained only so legacy SSH projects keep receiving Git change events
+ * until SSH projects are migrated onto the shared Git runtime.
+ */
 class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, IDisposable {
   private readonly _hooks = new HookCore<GitWatcherHooks>((name, e) =>
     log.error(`GitWatcherRegistry: ${String(name)} hook error`, e)
@@ -189,4 +197,7 @@ class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, I
   }
 }
 
+/**
+ * @deprecated Use `@emdash/shared/git` (`IGitRuntime`/`GitRuntime`) for new Git watching code.
+ */
 export const gitWatcherRegistry = new GitWatcherRegistry();

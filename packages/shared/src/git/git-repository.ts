@@ -382,13 +382,13 @@ export class GitRepository implements IGitRepository {
     const { stdout } = await this.exec.exec([
       'branch',
       '-a',
-      '--format=%(refname)|%(refname:short)|%(upstream:short)|%(upstream:track)',
+      '--format=%(refname)|%(refname:short)|%(upstream:short)|%(upstream:track)|%(objectname)',
     ]);
     const branches: GitBranch[] = [];
 
     for (const line of stdout.trim().split('\n').filter(Boolean)) {
-      const [fullRef, shortRef, upstreamRef, upstreamTrack] = line.split('|');
-      if (!fullRef || !shortRef) continue;
+      const [fullRef, shortRef, upstreamRef, upstreamTrack, oid] = line.split('|');
+      if (!fullRef || !shortRef || !oid) continue;
       if (fullRef.startsWith('refs/remotes/')) {
         const remoteBranch = fullRef.slice('refs/remotes/'.length);
         if (remoteBranch.endsWith('/HEAD')) continue;
@@ -400,12 +400,13 @@ export class GitRepository implements IGitRepository {
           type: 'remote',
           branch,
           remote: remoteByName.get(remoteName) ?? { name: remoteName, url: '' },
+          oid,
         });
         continue;
       }
 
       if (!fullRef.startsWith('refs/heads/')) continue;
-      const branch: GitBranch = { type: 'local', branch: shortRef };
+      const branch: GitBranch = { type: 'local', branch: shortRef, oid };
       if (upstreamRef) {
         const slash = upstreamRef.indexOf('/');
         const remoteName = slash === -1 ? upstreamRef : upstreamRef.slice(0, slash);

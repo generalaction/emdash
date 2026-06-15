@@ -30,7 +30,7 @@ import type {
 import type { ImageReadResult } from '@emdash/shared/git';
 import type { DiffTarget } from '@emdash/shared/git';
 import type { CommitFile, GitLogResult } from '@emdash/shared/git';
-import type { GitBranch, GitRefsModel, GitRemote, GitRemotesModel } from '@emdash/shared/git';
+import type { GitRefsModel, GitRemote, GitRemotesModel } from '@emdash/shared/git';
 import type { GitHeadModel } from '@emdash/shared/git';
 import type {
   GitChange,
@@ -79,6 +79,10 @@ type LegacyWorktreeResource = {
   repositoryLease: Lease<LegacySshGitRepository>;
 };
 
+/**
+ * Legacy SSH compatibility layer. SSH projects still execute Git through the main
+ * process until the shared Git runtime can run on the remote machine.
+ */
 export class LegacySshGitRuntime implements IGitRuntime {
   private readonly repositories = new ResourceMap<LegacyRepositoryResource>({
     teardown: (_key, resource) => resource.repository.dispose(),
@@ -378,7 +382,7 @@ class LegacySshGitRepository implements IGitRepository {
   }
 
   private async computeRefs(): Promise<GitRefsModel> {
-    return { branches: (await this.git.getBranches()) as GitBranch[] };
+    return { branches: await this.git.getBranches() };
   }
 
   private async computeRemotes(): Promise<GitRemotesModel> {
@@ -563,8 +567,8 @@ class LegacySshGitWorktree implements IGitWorktree {
       const status = await this.git.getFullStatus();
       return {
         kind: 'ok',
-        staged: status.staged as GitChange[],
-        unstaged: status.unstaged as GitChange[],
+        staged: status.staged,
+        unstaged: status.unstaged,
         stagedAdded: status.totalAdded,
         stagedDeleted: status.totalDeleted,
       };

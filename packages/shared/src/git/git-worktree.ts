@@ -161,7 +161,7 @@ export class GitWorktree implements IGitWorktree {
         [
           '--no-optional-locks',
           'status',
-          '--porcelain=v1',
+          '--porcelain=v2',
           '-z',
           untracked === 'normal' ? '--untracked-files=normal' : '-uno',
         ],
@@ -454,14 +454,17 @@ export class GitWorktree implements IGitWorktree {
       const { stdout } = await this.exec.exec(['symbolic-ref', '--short', 'HEAD']);
       const name = stdout.trim();
       try {
-        await this.exec.exec(['rev-parse', '--verify', 'HEAD']);
-        return { kind: 'branch', name };
+        const { stdout: oid } = await this.exec.exec(['rev-parse', '--verify', 'HEAD']);
+        return { kind: 'branch', name, oid: oid.trim() };
       } catch {
         return { kind: 'unborn', name };
       }
     } catch {
-      const { stdout } = await this.exec.exec(['rev-parse', '--short', 'HEAD']);
-      return { kind: 'detached', shortHash: stdout.trim() };
+      const [short, oid] = await Promise.all([
+        this.exec.exec(['rev-parse', '--short', 'HEAD']),
+        this.exec.exec(['rev-parse', '--verify', 'HEAD']),
+      ]);
+      return { kind: 'detached', shortHash: short.stdout.trim(), oid: oid.stdout.trim() };
     }
   }
 
@@ -480,10 +483,13 @@ export class GitWorktree implements IGitWorktree {
   }
 
   private async runStatusZ(parser: StatusParser): Promise<void> {
-    await this.exec.execStreaming(['--no-optional-locks', 'status', '-z', '-uall'], (chunk) => {
-      parser.update(chunk);
-      return !parser.tooManyFiles;
-    });
+    await this.exec.execStreaming(
+      ['--no-optional-locks', 'status', '--porcelain=v2', '-z', '-uall'],
+      (chunk) => {
+        parser.update(chunk);
+        return !parser.tooManyFiles;
+      }
+    );
     if (parser.tooManyFiles) throw new TooManyFilesChangedError();
   }
 
@@ -507,6 +513,7 @@ export class GitWorktree implements IGitWorktree {
           status,
           additions: stat?.additions ?? 0,
           deletions: stat?.deletions ?? 0,
+          indexOid: entry.indexOid,
         });
       }
 

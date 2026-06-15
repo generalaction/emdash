@@ -72,10 +72,21 @@ describe('GitWorktree', () => {
       worktree.subscribe((update) => updates.push(update));
       worktree.repository.subscribe((update) => repoUpdates.push(update));
 
-      await expect(worktree.getHead()).resolves.toEqual({ kind: 'branch', name: 'main' });
+      await expect(worktree.getHead()).resolves.toMatchObject({
+        kind: 'branch',
+        name: 'main',
+        oid: expect.stringMatching(/^[0-9a-f]{40}$/),
+      });
       await expect(worktree.getSnapshot()).resolves.toMatchObject({
         status: { sequence: expect.any(Number), value: expect.objectContaining({ kind: 'ok' }) },
-        head: { sequence: expect.any(Number), value: { kind: 'branch', name: 'main' } },
+        head: {
+          sequence: expect.any(Number),
+          value: expect.objectContaining({
+            kind: 'branch',
+            name: 'main',
+            oid: expect.stringMatching(/^[0-9a-f]{40}$/),
+          }),
+        },
       });
       await expect(worktree.getStatusFingerprint('normal')).resolves.toMatchObject({
         byteLength: expect.any(Number),
@@ -137,6 +148,13 @@ describe('GitWorktree', () => {
         status: expect.any(Number),
         head: expect.any(Number),
         refs: expect.any(Number),
+      });
+      const snapshotAfterCommit = await worktree.getSnapshot();
+      expect(snapshotAfterCommit.head.sequence).toBeGreaterThan(snapshotAfterStage.head.sequence);
+      expect(snapshotAfterCommit.head.value).toEqual({
+        kind: 'branch',
+        name: 'main',
+        oid: commit.data.hash,
       });
       await execFileAsync('git', ['tag', 'v-change', commit.data.hash], { cwd: repo });
       expect(await worktree.getStatus()).toMatchObject({
@@ -392,6 +410,50 @@ describe('GitWorktree', () => {
     } finally {
       await runtime.dispose();
       await watcher.dispose();
+    }
+  });
+
+  it('refreshes staged status when the index blob changes but summary fields stay equal', async () => {
+    const repo = await makeRepo();
+    const runtime = new GitRuntime();
+
+    try {
+      const lease = await runtime.openWorktree(repo);
+      const worktree = lease.value;
+
+      await writeFile(path.join(repo, 'tracked.txt'), 'two\n', 'utf8');
+      const firstSequences = await worktree.stage(['tracked.txt']);
+      const firstStatus = await worktree.getStatus();
+      if (firstStatus.kind !== 'ok') throw new Error('Expected ok status');
+      const firstChange = firstStatus.staged[0];
+      expect(firstChange).toMatchObject({
+        path: 'tracked.txt',
+        status: 'modified',
+        additions: 1,
+        deletions: 1,
+        indexOid: expect.stringMatching(/^[0-9a-f]{40}$/),
+      });
+
+      await writeFile(path.join(repo, 'tracked.txt'), 'too\n', 'utf8');
+      const secondSequences = await worktree.stage(['tracked.txt']);
+      const secondStatus = await worktree.getStatus();
+      if (secondStatus.kind !== 'ok') throw new Error('Expected ok status');
+      const secondChange = secondStatus.staged[0];
+
+      expect(secondSequences.status).toBeGreaterThan(firstSequences.status!);
+      expect(secondChange).toMatchObject({
+        path: 'tracked.txt',
+        status: 'modified',
+        additions: 1,
+        deletions: 1,
+        indexOid: expect.stringMatching(/^[0-9a-f]{40}$/),
+      });
+      expect(secondChange?.indexOid).not.toBe(firstChange?.indexOid);
+      await expect(worktree.getFileAtIndex('tracked.txt')).resolves.toBe('too\n');
+
+      lease.release();
+    } finally {
+      await runtime.dispose();
     }
   });
 

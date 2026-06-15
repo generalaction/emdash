@@ -33,11 +33,13 @@ function refs(ahead: number): GitRefsModel {
         branch: 'feature/push-button',
         remote: { name: 'origin', url: 'git@github.com:owner/repo.git' },
         divergence: { ahead, behind: 0 },
+        oid: '1111111111111111111111111111111111111111',
       },
       {
         type: 'remote',
         remote: { name: 'origin', url: 'git@github.com:owner/repo.git' },
         branch: 'feature/push-button',
+        oid: '2222222222222222222222222222222222222222',
       },
     ],
   };

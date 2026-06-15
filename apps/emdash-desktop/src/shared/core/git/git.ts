@@ -27,6 +27,7 @@ export type GitChange = {
   status: GitChangeStatus;
   additions: number;
   deletions: number;
+  indexOid?: string;
 };
 
 /** Result of a single coalesced workspace status refresh (staged + unstaged + branch). */
@@ -95,8 +96,12 @@ export type BranchMetadata = {
   divergence?: { ahead: number; behind: number };
 };
 
-export type LocalBranch = Extract<Branch, { type: 'local' }> & BranchMetadata;
-export type RemoteBranch = Extract<Branch, { type: 'remote' }>;
+export type BranchIdentity = {
+  oid: string;
+};
+
+export type LocalBranch = Extract<Branch, { type: 'local' }> & BranchMetadata & BranchIdentity;
+export type RemoteBranch = Extract<Branch, { type: 'remote' }> & BranchIdentity;
 
 /**
  * Workspace-relative diff intent — NOT real git object addresses.

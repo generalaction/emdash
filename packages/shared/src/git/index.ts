@@ -15,7 +15,13 @@ export type { ImageBlob, ImageReadResult, ImageUnavailableReason } from './model
 export type { GitHeadModel } from './models/head';
 export type { Commit, CommitFile, GitLogResult } from './models/log';
 export type { DiffMode, DiffTarget, GitObjectRef, MergeBaseRange } from './models/diff-target';
-export type { GitBranch, GitRefsModel, GitRemote, GitRemotesModel } from './models/refs';
+export type {
+  GitBranch,
+  GitBranchAddress,
+  GitRefsModel,
+  GitRemote,
+  GitRemotesModel,
+} from './models/refs';
 export type {
   GitChange,
   GitChangeStatus,
@@ -50,3 +56,9 @@ export type {
   SubscribedSnapshot,
   WorktreeLease,
 } from './types';
+export {
+  MAX_STATUS_FILES,
+  StatusParser,
+  TooManyFilesChangedError,
+  type FileStatus,
+} from './parsers/status-parser';

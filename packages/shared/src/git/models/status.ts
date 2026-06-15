@@ -5,6 +5,7 @@ export type GitChange = {
   status: GitChangeStatus;
   additions: number;
   deletions: number;
+  indexOid?: string;
 };
 
 export type GitStatusData = {

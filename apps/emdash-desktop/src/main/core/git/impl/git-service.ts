@@ -12,7 +12,6 @@ import {
   HEAD_MODE,
   toRangeString,
   toRefString,
-  type Branch,
   type Commit,
   type CommitError,
   type CommitFile,
@@ -61,11 +60,8 @@ import {
   type IFileStatus,
 } from './status-parser';
 
-/**
- * @deprecated Use `@emdash/shared/git` (`IGitRuntime`/`GitRuntime`) for new Git code.
- * This service is retained only for the legacy SSH adapter until SSH projects are
- * migrated onto the shared Git runtime.
- */
+// Legacy Git service retained for the SSH adapter while SSH projects still execute
+// Git through the main process. New Git code should use `@emdash/shared/git`.
 
 const MAX_IMAGE_BLOB_BYTES = 10 * 1024 * 1024;
 const STATUS_FINGERPRINT_TIMEOUT_MS: Record<GitStatusUntrackedMode, number> = {
@@ -134,10 +130,15 @@ function looksLikeLfsPointer(buffer: Buffer): boolean {
 }
 
 export type HeadInfo =
-  | { kind: 'branch'; name: string }
-  | { kind: 'detached'; shortHash: string }
+  | { kind: 'branch'; name: string; oid: string }
+  | { kind: 'detached'; shortHash: string; oid: string }
   | { kind: 'unborn'; name: string };
 
+/**
+ * @deprecated Use `@emdash/shared/git` (`IGitRuntime`/`GitRuntime`) for new Git code.
+ * This service is retained only for the legacy SSH adapter until SSH projects are
+ * migrated onto the shared Git runtime.
+ */
 export class GitService implements GitProvider, IDisposable {
   private _statusInFlight: Promise<FullGitStatus> | null = null;
   private _catFile: CatFileBatch | null = null;
@@ -205,7 +206,7 @@ export class GitService implements GitProvider, IDisposable {
         [
           '--no-optional-locks',
           'status',
-          '--porcelain=v1',
+          '--porcelain=v2',
           '-z',
           untracked === 'normal' ? '--untracked-files=normal' : '-uno',
         ],
@@ -268,7 +269,7 @@ export class GitService implements GitProvider, IDisposable {
   private async _runStatusZ(parser: StatusParser): Promise<void> {
     await this.ctx.execStreaming(
       'git',
-      ['--no-optional-locks', 'status', '-z', '-uall'],
+      ['--no-optional-locks', 'status', '--porcelain=v2', '-z', '-uall'],
       (chunk) => {
         parser.update(chunk);
         return !parser.tooManyFiles;
@@ -288,7 +289,7 @@ export class GitService implements GitProvider, IDisposable {
 
     for (const e of entries) {
       const code = `${e.x}${e.y}`;
-      const filePath = e.path;
+      const filePath = e.rename ?? e.path;
       const status = mapStatus(code);
 
       if (e.x !== ' ' && e.x !== '?') {
@@ -298,6 +299,7 @@ export class GitService implements GitProvider, IDisposable {
           status,
           additions: ns?.additions ?? 0,
           deletions: ns?.deletions ?? 0,
+          indexOid: e.indexOid,
         });
       }
 
@@ -1315,30 +1317,48 @@ export class GitService implements GitProvider, IDisposable {
   }
 
   private async _getHeadInfo(): Promise<HeadInfo> {
+    let ref: string;
     try {
       const { stdout } = await this.ctx.exec('git', ['rev-parse', '--symbolic-full-name', 'HEAD']);
-      const ref = stdout.trim();
-      if (ref === 'HEAD' || !ref) {
-        // Detached HEAD — also capture the short commit hash for display
-        try {
-          const { stdout: hashOut } = await this.ctx.exec('git', ['rev-parse', '--short', 'HEAD']);
-          return { kind: 'detached', shortHash: hashOut.trim() };
-        } catch {
-          return { kind: 'detached', shortHash: '' };
-        }
-      }
-      if (ref.startsWith('refs/heads/'))
-        return { kind: 'branch', name: ref.slice('refs/heads/'.length) };
-      if (ref.startsWith('heads/')) return { kind: 'branch', name: ref.slice('heads/'.length) };
-      return { kind: 'branch', name: ref };
+      ref = stdout.trim();
     } catch {
-      // Unborn branch — rev-parse fails but symbolic-ref still resolves
-      try {
-        const { stdout: symOut } = await this.ctx.exec('git', ['symbolic-ref', '--short', 'HEAD']);
-        return { kind: 'unborn', name: symOut.trim() };
-      } catch {
-        return { kind: 'unborn', name: 'main' };
+      return this._getUnbornHeadInfo();
+    }
+
+    if (ref === 'HEAD' || !ref) {
+      // Detached HEAD must have a resolvable commit. If it does not, surface the
+      // git failure instead of quietly reclassifying corrupt state as unborn.
+      const [hashOut, oidOut] = await Promise.all([
+        this.ctx.exec('git', ['rev-parse', '--short', 'HEAD']),
+        this.ctx.exec('git', ['rev-parse', '--verify', 'HEAD']),
+      ]);
+      return {
+        kind: 'detached',
+        shortHash: hashOut.stdout.trim(),
+        oid: oidOut.stdout.trim(),
+      };
+    }
+
+    try {
+      const { stdout: oidOut } = await this.ctx.exec('git', ['rev-parse', '--verify', 'HEAD']);
+      const oid = oidOut.trim();
+      if (ref.startsWith('refs/heads/')) {
+        return { kind: 'branch', name: ref.slice('refs/heads/'.length), oid };
       }
+      if (ref.startsWith('heads/'))
+        return { kind: 'branch', name: ref.slice('heads/'.length), oid };
+      return { kind: 'branch', name: ref, oid };
+    } catch {
+      return this._getUnbornHeadInfo();
+    }
+  }
+
+  private async _getUnbornHeadInfo(): Promise<Extract<HeadInfo, { kind: 'unborn' }>> {
+    try {
+      const { stdout: symOut } = await this.ctx.exec('git', ['symbolic-ref', '--short', 'HEAD']);
+      return { kind: 'unborn', name: symOut.trim() };
+    } catch {
+      return { kind: 'unborn', name: 'main' };
     }
   }
 
@@ -1355,22 +1375,27 @@ export class GitService implements GitProvider, IDisposable {
     }
   }
 
-  async getBranches(): Promise<Branch[]> {
+  async getBranches(): Promise<(LocalBranch | RemoteBranch)[]> {
     const remotes = await this.getRemotes();
     const remoteByName = new Map(remotes.map((remote) => [remote.name, remote]));
     const { stdout } = await this.ctx.exec(
       'git',
-      ['branch', '-a', '--format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(refname)'],
+      [
+        'branch',
+        '-a',
+        '--format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(refname)|%(objectname)',
+      ],
       { maxBuffer: MAX_REF_LIST_BYTES }
     );
 
-    const branches: Branch[] = [];
+    const branches: (LocalBranch | RemoteBranch)[] = [];
 
     for (const line of stdout.split('\n')) {
       const trimmed = line.trim();
       if (!trimmed) continue;
 
-      const [refname, upstreamRef, track, fullRef] = trimmed.split('|');
+      const [refname, upstreamRef, track, fullRef, oid] = trimmed.split('|');
+      if (!oid) continue;
 
       if (fullRef?.startsWith('refs/remotes/')) {
         const withoutPrefix = fullRef.slice('refs/remotes/'.length);
@@ -1382,13 +1407,14 @@ export class GitService implements GitProvider, IDisposable {
           type: 'remote',
           branch: branchName,
           remote: remoteByName.get(remoteName) ?? { name: remoteName, url: '' },
+          oid,
         };
         branches.push(entry);
       } else {
         const localBranchName = fullRef?.startsWith('refs/heads/')
           ? fullRef.slice('refs/heads/'.length)
           : refname;
-        const entry: LocalBranch = { type: 'local', branch: localBranchName };
+        const entry: LocalBranch = { type: 'local', branch: localBranchName, oid };
         if (upstreamRef) {
           const slashIdx = upstreamRef.indexOf('/');
           const remoteName = slashIdx === -1 ? upstreamRef : upstreamRef.slice(0, slashIdx);

@@ -1,18 +1,19 @@
 import type {
-  Branch,
   CreateBranchError,
   DeleteBranchError,
   FetchError,
   FetchPrForReviewError,
   GitHeadState,
+  LocalBranch,
   PushError,
+  RemoteBranch,
   RenameBranchError,
 } from '@shared/core/git/git';
 import type { Result } from '@shared/lib/result';
 
 export interface RepositoryGitProvider {
   isFileCleanlyTracked(filePath: string): Promise<boolean>;
-  getBranches(): Promise<Branch[]>;
+  getBranches(): Promise<(LocalBranch | RemoteBranch)[]>;
   getCurrentBranch(): Promise<string | null>;
   getHeadState(): Promise<GitHeadState>;
   getDefaultBranch(remote?: string): Promise<string>;

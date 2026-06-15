@@ -41,7 +41,9 @@ function makePermissiveExec(map: Record<string, string>): MockExec {
 }
 
 const BRANCH_FORMAT =
-  'branch -a --format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(refname)';
+  'branch -a --format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(refname)|%(objectname)';
+const OID = '1111111111111111111111111111111111111111';
+const OID2 = '2222222222222222222222222222222222222222';
 
 const stubFs = {} as FileSystemProvider;
 
@@ -75,22 +77,22 @@ describe('GitService.getBranches', () => {
   it('categorises a plain local branch correctly', async () => {
     const svc = makeService(
       makeExec({
-        [BRANCH_FORMAT]: 'main|||refs/heads/main\n',
+        [BRANCH_FORMAT]: `main|||refs/heads/main|${OID}\n`,
       })
     );
     const branches = await svc.getBranches();
     expect(branches).toHaveLength(1);
-    expect(branches[0]).toMatchObject({ type: 'local', branch: 'main' });
+    expect(branches[0]).toMatchObject({ type: 'local', branch: 'main', oid: OID });
   });
 
   it('normalizes disambiguated local short names like "heads/main" to "main"', async () => {
     const svc = makeService(
       makeExec({
-        [BRANCH_FORMAT]: 'heads/main|||refs/heads/main\n',
+        [BRANCH_FORMAT]: `heads/main|||refs/heads/main|${OID}\n`,
       })
     );
     const [branch] = await svc.getBranches();
-    expect(branch).toMatchObject({ type: 'local', branch: 'main' });
+    expect(branch).toMatchObject({ type: 'local', branch: 'main', oid: OID });
   });
 
   it('categorises a remote tracking branch as type=remote (regression: remotes/ prefix bug)', async () => {
@@ -99,7 +101,7 @@ describe('GitService.getBranches', () => {
     // remote branches were misclassified as local.
     const svc = makeService(
       makeExec({
-        [BRANCH_FORMAT]: 'origin/main|||refs/remotes/origin/main\n',
+        [BRANCH_FORMAT]: `origin/main|||refs/remotes/origin/main|${OID}\n`,
       })
     );
     const branches = await svc.getBranches();
@@ -108,13 +110,14 @@ describe('GitService.getBranches', () => {
       type: 'remote',
       branch: 'main',
       remote: { name: 'origin' },
+      oid: OID,
     });
   });
 
   it('skips remotes/origin/HEAD entries', async () => {
     const svc = makeService(
       makeExec({
-        [BRANCH_FORMAT]: 'origin/HEAD|||refs/remotes/origin/HEAD\n',
+        [BRANCH_FORMAT]: `origin/HEAD|||refs/remotes/origin/HEAD|${OID}\n`,
       })
     );
     expect(await svc.getBranches()).toHaveLength(0);
@@ -125,7 +128,7 @@ describe('GitService.getBranches', () => {
     // The ,nobrackets modifier was only added in git 2.40 and caused a fatal error.
     const svc = makeService(
       makeExec({
-        [BRANCH_FORMAT]: 'feature|origin/feature|[ahead 1, behind 2]|refs/heads/feature\n',
+        [BRANCH_FORMAT]: `feature|origin/feature|[ahead 1, behind 2]|refs/heads/feature|${OID}\n`,
       })
     );
     const branches = await svc.getBranches();
@@ -135,13 +138,14 @@ describe('GitService.getBranches', () => {
       branch: 'feature',
       remote: { name: 'origin' },
       divergence: { ahead: 1, behind: 2 },
+      oid: OID,
     });
   });
 
   it('parses unbracketed tracking info (newer git format: ahead 1, behind 2)', async () => {
     const svc = makeService(
       makeExec({
-        [BRANCH_FORMAT]: 'feature|origin/feature|ahead 1, behind 2|refs/heads/feature\n',
+        [BRANCH_FORMAT]: `feature|origin/feature|ahead 1, behind 2|refs/heads/feature|${OID}\n`,
       })
     );
     const branches = await svc.getBranches();
@@ -153,7 +157,7 @@ describe('GitService.getBranches', () => {
   it('handles a local branch that is only ahead (no behind)', async () => {
     const svc = makeService(
       makeExec({
-        [BRANCH_FORMAT]: 'feat|origin/feat|[ahead 3]|refs/heads/feat\n',
+        [BRANCH_FORMAT]: `feat|origin/feat|[ahead 3]|refs/heads/feat|${OID}\n`,
       })
     );
     const [branch] = await svc.getBranches();
@@ -163,7 +167,7 @@ describe('GitService.getBranches', () => {
   it('handles a local branch that is only behind (no ahead)', async () => {
     const svc = makeService(
       makeExec({
-        [BRANCH_FORMAT]: 'feat|origin/feat|[behind 5]|refs/heads/feat\n',
+        [BRANCH_FORMAT]: `feat|origin/feat|[behind 5]|refs/heads/feat|${OID}\n`,
       })
     );
     const [branch] = await svc.getBranches();
@@ -173,7 +177,7 @@ describe('GitService.getBranches', () => {
   it('returns no divergence when track field is empty', async () => {
     const svc = makeService(
       makeExec({
-        [BRANCH_FORMAT]: 'main|origin/main||refs/heads/main\n',
+        [BRANCH_FORMAT]: `main|origin/main||refs/heads/main|${OID}\n`,
       })
     );
     const [branch] = await svc.getBranches();
@@ -184,7 +188,7 @@ describe('GitService.getBranches', () => {
   it('returns a local branch with no upstream and no divergence', async () => {
     const svc = makeService(
       makeExec({
-        [BRANCH_FORMAT]: 'orphan|||refs/heads/orphan\n',
+        [BRANCH_FORMAT]: `orphan|||refs/heads/orphan|${OID}\n`,
       })
     );
     const [branch] = await svc.getBranches();
@@ -194,11 +198,11 @@ describe('GitService.getBranches', () => {
 
   it('correctly splits a mixed list into local and remote counts', async () => {
     const lines = [
-      'main|||refs/heads/main',
-      'feature|origin/feature|[ahead 1]|refs/heads/feature',
-      'origin/main|||refs/remotes/origin/main',
-      'origin/develop|||refs/remotes/origin/develop',
-      'origin/HEAD|||refs/remotes/origin/HEAD', // should be skipped
+      `main|||refs/heads/main|${OID}`,
+      `feature|origin/feature|[ahead 1]|refs/heads/feature|${OID2}`,
+      `origin/main|||refs/remotes/origin/main|${OID}`,
+      `origin/develop|||refs/remotes/origin/develop|${OID2}`,
+      `origin/HEAD|||refs/remotes/origin/HEAD|${OID}`, // should be skipped
     ].join('\n');
 
     const svc = makeService(makeExec({ [BRANCH_FORMAT]: lines }));
@@ -220,6 +224,7 @@ describe('GitService.getCurrentBranch', () => {
     const svc = makeService(
       makeExec({
         'rev-parse --symbolic-full-name HEAD': 'refs/heads/main',
+        'rev-parse --verify HEAD': `${OID}\n`,
       })
     );
     expect(await svc.getCurrentBranch()).toBe('main');
@@ -229,18 +234,45 @@ describe('GitService.getCurrentBranch', () => {
     const svc = makeService(
       makeExec({
         'rev-parse --symbolic-full-name HEAD': 'HEAD',
+        'rev-parse --short HEAD': '1111111\n',
+        'rev-parse --verify HEAD': `${OID}\n`,
       })
     );
     expect(await svc.getCurrentBranch()).toBeNull();
+  });
+
+  it('returns head info with the current commit oid', async () => {
+    const svc = makeService(
+      makeExec({
+        'rev-parse --symbolic-full-name HEAD': 'refs/heads/main',
+        'rev-parse --verify HEAD': `${OID}\n`,
+      })
+    );
+
+    await expect(svc.getHeadInfo()).resolves.toEqual({
+      kind: 'branch',
+      name: 'main',
+      oid: OID,
+    });
+  });
+
+  it('does not reclassify an unresolvable detached HEAD as unborn', async () => {
+    const svc = makeService(
+      makeExec({
+        'rev-parse --symbolic-full-name HEAD': 'HEAD',
+      })
+    );
+
+    await expect(svc.getHeadInfo()).rejects.toThrow('Unexpected git command');
   });
 });
 
 describe('GitService.getStatusFingerprint', () => {
   it('hashes tracked-only porcelain status output', async () => {
-    const stdout = ' M src/app.ts\0';
+    const stdout = `1 .M N... 100644 100644 100644 ${OID} ${OID2} src/app.ts\0`;
     const svc = makeService(
       makeExec({
-        '--no-optional-locks status --porcelain=v1 -z -uno': stdout,
+        '--no-optional-locks status --porcelain=v2 -z -uno': stdout,
       })
     );
 
@@ -254,7 +286,7 @@ describe('GitService.getStatusFingerprint', () => {
     const stdout = '?? nested/new-file.ts\0';
     const svc = makeService(
       makeExec({
-        '--no-optional-locks status --porcelain=v1 -z --untracked-files=normal': stdout,
+        '--no-optional-locks status --porcelain=v2 -z --untracked-files=normal': stdout,
       })
     );
 

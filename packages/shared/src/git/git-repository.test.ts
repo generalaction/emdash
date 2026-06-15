@@ -5,7 +5,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { FileWatchService } from '../fs';
-import { GitRuntime, type GitRepoUpdate } from './index';
+import { GitRuntime, type GitRefsModel, type GitRepoUpdate } from './index';
 
 const execFileAsync = promisify(execFile);
 
@@ -172,6 +172,32 @@ describe('GitRepository', () => {
     }
   });
 
+  it('refreshes refs when a branch moves but branch names stay equal', async () => {
+    const { repo } = await makeRepoWithRemote();
+    const runtime = new GitRuntime();
+
+    try {
+      const lease = await runtime.openRepository(repo);
+      const repository = lease.value;
+      const before = await repository.getSnapshot();
+      const beforeOid = localBranchOid(before.refs.value, 'main');
+
+      await writeFile(path.join(repo, 'a.txt'), 'moved\n', 'utf8');
+      await execFileAsync('git', ['add', 'a.txt'], { cwd: repo });
+      await execFileAsync('git', ['commit', '-m', 'move main'], { cwd: repo });
+
+      const after = await repository.refresh();
+      const afterOid = localBranchOid(after.refs.value, 'main');
+
+      expect(after.refs.sequence).toBeGreaterThan(before.refs.sequence);
+      expect(afterOid).toMatch(/^[0-9a-f]{40}$/);
+      expect(afterOid).not.toBe(beforeOid);
+      lease.release();
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it('resolves the default branch and creates branches from refreshed remote refs', async () => {
     const { repo, remote } = await makeRepoWithRemote();
     await pushRemoteBranch(remote);
@@ -258,3 +284,9 @@ describe('GitRepository', () => {
     }
   });
 });
+
+function localBranchOid(refs: GitRefsModel, name: string): string {
+  const branch = refs.branches.find((item) => item.type === 'local' && item.branch === name);
+  if (!branch) throw new Error(`Missing local branch ${name}`);
+  return branch.oid;
+}

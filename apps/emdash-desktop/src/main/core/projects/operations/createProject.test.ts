@@ -243,6 +243,7 @@ describe('createLocalProject', () => {
           type: 'remote',
           branch: 'main',
           remote: { name: 'origin', url: 'git@github.com:example/repo.git' },
+          oid: '1111111111111111111111111111111111111111',
         },
       ],
     });
@@ -285,6 +286,7 @@ describe('createLocalProject', () => {
           type: 'remote',
           branch: 'develop',
           remote: { name: 'origin', url: 'git@github.com:example/repo.git' },
+          oid: '1111111111111111111111111111111111111111',
         },
       ],
     });
@@ -419,6 +421,7 @@ describe('createSshProject', () => {
           type: 'remote',
           branch: 'main',
           remote: { name: 'origin', url: 'git@github.com:example/repo.git' },
+          oid: '1111111111111111111111111111111111111111',
         },
       ],
     });

@@ -40,7 +40,11 @@ function status(stagedPaths: string[] = []): GitStatusData {
   };
 }
 
-const head: GitHeadModel = { kind: 'branch', name: 'feature/stale-staged' };
+const head: GitHeadModel = {
+  kind: 'branch',
+  name: 'feature/stale-staged',
+  oid: '1111111111111111111111111111111111111111',
+};
 
 function snapshot(statusModel: GitStatusModel, sequence = 1, generation = 1) {
   return {
