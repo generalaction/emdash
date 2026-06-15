@@ -282,6 +282,11 @@ describe('WorkspaceViewModel default conversation tab', () => {
 
     expect(focus).toHaveBeenCalledTimes(1);
 
+    viewModel.setFocusedRegion('bottom');
+    viewModel.setSidebarTab('files');
+    viewModel.setSidebarTab('conversations');
+    expect(focus).toHaveBeenCalledTimes(1);
+
     viewModel.dispose();
   });
 

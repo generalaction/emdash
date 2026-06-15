@@ -444,7 +444,7 @@ export class WorkspaceViewModel implements ILifecycle {
     this.terminalDrawerActiveItem = item;
   }
 
-  focusActiveConversationTerminal(): void {
+  private focusActiveConversationTerminal(): void {
     const conversationId = this.tabManager.activeConversationId;
     if (!conversationId) return;
     conversationRegistry.get(this.taskId)?.sessions.get(conversationId)?.pty?.terminal.focus();
