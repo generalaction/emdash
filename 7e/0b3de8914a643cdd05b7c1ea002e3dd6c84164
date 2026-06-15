@@ -1,0 +1,90 @@
+apps/emdash-desktop/src/main/core/linear/linear-connection-service.ts
+  s_a0d9fbeb9afc9c::t_72f581f5bbe2a5 57
+  s_a0d9fbeb9afc9c::t_e3aa0e2b2bacca 9-17,22-24,27-34,36,39-40,44-46,61-62
+apps/emdash-desktop/src/main/core/trello/trello-connection-service.ts
+  s_a0d9fbeb9afc9c::t_ce9756c64423a3 81-89,114-121,123,126-127,131,151-160
+apps/emdash-desktop/src/main/core/plain/plain-issue-provider.ts
+  s_a0d9fbeb9afc9c::t_d070e6c9e1859a 10-14,60,92,171
+apps/emdash-desktop/src/main/core/plane/plane-connection-service.test.ts
+  s_98201ffe1c38a1::t_ae48692796c17f 16-23
+apps/emdash-desktop/src/main/core/plane/plane-connection-service.ts
+  s_98201ffe1c38a1::t_a40b39c2048414 139-143
+  s_a0d9fbeb9afc9c::t_72f581f5bbe2a5 146
+  s_a0d9fbeb9afc9c::t_058f43c3bf047d 74,150-151
+apps/emdash-desktop/src/main/core/forgejo/forgejo-connection-service.ts
+  s_a0d9fbeb9afc9c::t_dd7ea771c44ddd 77,165
+  s_a0d9fbeb9afc9c::t_72f581f5bbe2a5 161
+  s_98201ffe1c38a1::t_63a1e0e14ccd1f 154-158
+  s_a0d9fbeb9afc9c::t_0705193611b162 166-169
+apps/emdash-desktop/src/main/core/featurebase/featurebase-connection-service.ts
+  s_a0d9fbeb9afc9c::t_65bcf853c746e1 3-11,14
+  s_a0d9fbeb9afc9c::t_279236a03d0ec9 35-37,39-43,51-55,59,62-64,80-81
+  s_a0d9fbeb9afc9c::t_72f581f5bbe2a5 76
+apps/emdash-desktop/src/main/core/issues/connection/provider-http-error.ts
+  s_98201ffe1c38a1::t_ae48692796c17f 1-39
+apps/emdash-desktop/src/main/core/asana/asana-connection-service.ts
+  s_a0d9fbeb9afc9c::t_9bd9062f831522 47-49,51,53-59,69-70,72,74-75,79,83-84,111-112
+  s_a0d9fbeb9afc9c::t_72f581f5bbe2a5 107
+  s_a0d9fbeb9afc9c::t_7d25909d3ae074 3-11,14
+apps/emdash-desktop/src/main/core/issues/connection/secret-stores.ts
+  s_a114710da0be83::t_69e08331d4ddab 22-23
+apps/emdash-desktop/src/main/core/plain/plain-connection-service.ts
+  s_a0d9fbeb9afc9c::t_72f581f5bbe2a5 78
+  s_a0d9fbeb9afc9c::t_b67ad8ab33b486 37-39,41-45,53-57,61,64-66,82-84,87-88,106
+  s_a0d9fbeb9afc9c::t_dde62a5b9b2e9a 10-14,35
+apps/emdash-desktop/src/main/core/issues/connection/base-connection-service.test.ts
+  s_a0d9fbeb9afc9c::t_42954cc85d62bc 24-33,113,152-153,168-170
+  s_98201ffe1c38a1::t_ad36726c008d49 161-163
+  s_98201ffe1c38a1::t_09f45a9354906f 54-57,154-160,164-167
+  s_a114710da0be83::t_721d51b2ba2c78 111-112,114-120,203-209
+apps/emdash-desktop/src/main/core/issues/connection/base-connection-service.ts
+  s_a0d9fbeb9afc9c::t_08815ac6d362a6 31-32
+  s_a0d9fbeb9afc9c::t_d0d0f52299a55d 34-38
+  s_a0d9fbeb9afc9c::t_0644afe9bc9026 22-23,25-28,47-59,81-89,100-126
+  s_a114710da0be83::t_0607658b86c14d 62-65
+  s_98201ffe1c38a1::t_52030d60fe4400 91-93
+  s_98201ffe1c38a1::t_a562e150ea57a3 90,94-99
+  s_a0d9fbeb9afc9c::t_78c1e37daea568 18-21,24
+apps/emdash-desktop/src/main/core/jira/jira-connection-service.ts
+  s_a0d9fbeb9afc9c::t_91e3846fa76918 44
+apps/emdash-desktop/src/main/core/issues/connection/client-cache.ts
+  s_98201ffe1c38a1::t_ae48692796c17f 1-27
+apps/emdash-desktop/src/main/core/monday/monday-connection-service.ts
+  s_a0d9fbeb9afc9c::t_65a41a71af608c 69-77,95-100,102,105-106,110,136-145
+apps/emdash-desktop/src/main/core/gitlab/gitlab-connection-service.ts
+  s_a0d9fbeb9afc9c::t_72f581f5bbe2a5 177
+  s_98201ffe1c38a1::t_f5217ccadf8c3b 170-174
+  s_a0d9fbeb9afc9c::t_a3d104ec95ebca 90,181-182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "7e0b3de8914a643cdd05b7c1ea002e3dd6c84164",
+  "prompts": {},
+  "sessions": {
+    "s_98201ffe1c38a1": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eca97-ad99-755a-9d1c-7c284f33ec58",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    },
+    "s_a0d9fbeb9afc9c": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ec9d9-c86a-7fe6-acad-727fd92ee973",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_a114710da0be83": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ebcbe-4ab3-79e3-8830-242bce59f0c8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
