@@ -77,7 +77,7 @@ function ThinkingHeader(props: { item: ChatThinking; expanded: boolean }) {
       aria-atomic={props.item.status === 'thinking' ? 'false' : undefined}
       data-collapse-id={props.item.id}
     >
-      <span>{label()}</span>
+      <span classList={{ 'text-shimmer': props.item.status === 'thinking' }}>{label()}</span>
       <span
         class="inline-block text-[10px] transition-transform duration-150 ease-out"
         classList={{ 'rotate-90': props.expanded }}
@@ -103,7 +103,7 @@ function ActivePreview(props: { item: ChatThinking }) {
   return (
     <div class={`${styles['pthinking__window']} relative overflow-hidden`}>
       <div
-        class={`${styles['pthinking__window-fade']} pointer-events-none absolute inset-x-0 top-0 z-10 bg-linear-to-b from-background to-transparent`}
+        class="fade-overlay-top pointer-events-none absolute inset-x-0 top-0 z-10 h-[var(--chat-think-fade-h)]"
         aria-hidden="true"
       />
       <div

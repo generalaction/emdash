@@ -26,6 +26,7 @@
     "./theme/base.css": "./src/theme/theme.base.css",
     "./theme/semantic.css": "./src/theme/semantic.css",
     "./theme/surfaces.css": "./src/theme/surfaces.css",
+    "./theme/effects.css": "./src/theme/effects.css",
     "./theme/overflow-fade.css": "./src/theme/overflow-fade.css",
     "./theme/typography.css": "./src/theme/typography.css",
     "./recipes/button": {

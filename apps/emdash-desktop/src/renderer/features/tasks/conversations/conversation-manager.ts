@@ -217,6 +217,14 @@ export class ConversationManagerStore implements IDisposable {
   }
 
   async hydrateConversation(conversationId: string): Promise<void> {
+    // Ensure the ACP transcript subscriber exists before main starts loadSession.
+    // ChatStore subscribes synchronously to acpSessionUpdateChannel/acpSessionReplayChannel,
+    // so it must be created before the RPC call or the loadSession replay events stream in
+    // before anything is listening and the history is silently dropped.
+    const convStore = this.conversations.get(conversationId);
+    if (convStore?.data.type === 'acp') {
+      this.getOrCreateChatStore(conversationId);
+    }
     await rpc.conversations.hydrateConversation(this.projectId, this.taskId, conversationId);
   }
 

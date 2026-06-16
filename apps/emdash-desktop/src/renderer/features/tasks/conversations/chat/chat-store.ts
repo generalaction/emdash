@@ -2,6 +2,7 @@ import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import type { ChatItem as UiChatItem, TranscriptApi } from '@emdash/chat-ui';
 import { action, makeObservable, observable } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
+import { log } from '@renderer/utils/logger';
 import {
   acpSessionClosedChannel,
   acpSessionReplayChannel,
@@ -250,6 +251,12 @@ export class ChatStore {
 
   private _applyUpdate(update: SessionUpdate): void {
     const kind = update.sessionUpdate;
+    log.debug('ChatStore: _applyUpdate [TEMP]', {
+      conversationId: this._conversationId,
+      kind,
+      itemsBeforeUpdate: this.items.length,
+      transcriptBound: this._transcript !== null,
+    });
 
     if (kind === 'agent_message_chunk') {
       this._appendChunk('assistant', update);

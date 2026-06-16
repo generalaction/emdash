@@ -15,6 +15,9 @@
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css' layer(utilities);
 
+/* Shared visual-effect utilities from @emdash/ui (text-shimmer, fade-overlay-top) */
+@import '@emdash/ui/theme/effects.css';
+
 /* Scan all component source files for Tailwind class names */
 @source './**/*.{ts,tsx}';
 /* Also scan the shared button recipe so its utility classes are generated */

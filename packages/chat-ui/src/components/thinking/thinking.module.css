@@ -39,11 +39,6 @@
   max-height: var(--chat-think-window-h);
 }
 
-/* height feeds THINKING_FADE_H — controls how tall the top gradient is */
-.pthinking__window-fade {
-  height: var(--chat-think-fade-h);
-}
-
 /* ── Expanded body geometry ───────────────────────────────────────────────── */
 
 /*

@@ -467,6 +467,7 @@ class AcpSessionManager {
       sessionUpdate: async (params: SessionNotification): Promise<void> => {
         const update = params.update;
         let conversationId = pool.sessionToConversation.get(params.sessionId);
+        const usedDynamicRouting = !conversationId && pool.loadingConversations.size > 0;
         if (!conversationId && pool.loadingConversations.size > 0) {
           // The agent used a different session ID during loadSession replay than the
           // one provided in the request. Route to the pending conversation and register
@@ -479,6 +480,12 @@ class AcpSessionManager {
             if (conv) conv.acpSessionId = params.sessionId;
           }
         }
+        log.debug('AcpSessionManager: sessionUpdate routing [TEMP]', {
+          sessionId: params.sessionId,
+          conversationId,
+          kind: update.sessionUpdate,
+          usedDynamicRouting,
+        });
         if (!conversationId) {
           log.warn('AcpSessionManager: sessionUpdate for unknown sessionId', {
             sessionId: params.sessionId,
