@@ -32,7 +32,7 @@
 }
 
 /* Dark mode background override. */
-:global(.dark) .pcode-block {
+:global(.emdark) .pcode-block {
   background: var(--shiki-dark-bg, var(--chat-code-bg, #1e1e2e));
 }
 
@@ -52,6 +52,6 @@
   color: var(--shiki-light);
 }
 
-:global(.dark) .pcode-line span {
+:global(.emdark) .pcode-line span {
   color: var(--shiki-dark);
 }

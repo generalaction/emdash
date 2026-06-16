@@ -1,8 +1,31 @@
-/* Color @theme mapping — connects Tailwind color utilities to the semantic CSS custom
- * properties emitted by theme.css (Terrazzo). Hand-authored for exact parity with the
- * inline block in apps/emdash-desktop/src/renderer/index.css. */
+/* @theme mapping — connects Tailwind utilities to the semantic CSS custom properties
+ * emitted by theme.css (Terrazzo). Hand-authored for exact parity with the inline block
+ * in apps/emdash-desktop/src/renderer/index.css. */
 
 @theme inline {
+  /* Typography — font families and text scales */
+  --font-sans: var(--typography-font-family-sans);
+  --font-mono: var(--typography-font-family-mono);
+
+  --text-body: var(--typography-body-size);
+  --text-body--line-height: var(--typography-body-line-height);
+  --text-h1: var(--typography-h1-size);
+  --text-h1--line-height: var(--typography-h1-line-height);
+  --text-h2: var(--typography-h2-size);
+  --text-h2--line-height: var(--typography-h2-line-height);
+  --text-h3: var(--typography-h3-size);
+  --text-h3--line-height: var(--typography-h3-line-height);
+  --text-code: var(--typography-code-size);
+  --text-code--line-height: var(--typography-code-line-height);
+
+  /* Radius — token values replace calc() approximations */
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-base);
+  --radius-xl: var(--radius-lg);
+  --radius-full: var(--radius-full);
+
+  /* Colors */
   --color-background: var(--background);
   --color-background-1: var(--background-1);
   --color-background-2: var(--background-2);

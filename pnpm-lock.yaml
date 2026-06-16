@@ -332,6 +332,9 @@ importers:
       '@chenglou/pretext':
         specifier: ^0.0.8
         version: 0.0.8
+      '@emdash/ui':
+        specifier: workspace:*
+        version: link:../ui
       '@fontsource-variable/inter':
         specifier: ^5.2.8
         version: 5.2.8
@@ -502,6 +505,9 @@ importers:
         specifier: ^0.6.0
         version: 0.6.3
       '@terrazzo/plugin-css':
+        specifier: ^0.6.0
+        version: 0.6.0(@terrazzo/cli@0.6.3)
+      '@terrazzo/plugin-js':
         specifier: ^0.6.0
         version: 0.6.0(@terrazzo/cli@0.6.3)
       '@types/node':
@@ -2965,6 +2971,11 @@ packages:
 
   '@terrazzo/plugin-css@0.6.0':
     resolution: {integrity: sha512-6v+K9pzmM1QA8cJjnQtZJTYgAfYAse34apg0DVOzNrRrqrLJufgfhTnFPsNuECfeoBLSqg6smLomxGk8TLzIOg==}
+    peerDependencies:
+      '@terrazzo/cli': 0.x
+
+  '@terrazzo/plugin-js@0.6.0':
+    resolution: {integrity: sha512-IKFHUE8mmqGnyM6jZ1MI8iLG28IlUKF9Xg3WNHlJ1AfWIlfQBNDTZF6FfGZE1gOXrLidgbTWnilOwngKln6PHw==}
     peerDependencies:
       '@terrazzo/cli': 0.x
 
@@ -9273,6 +9284,11 @@ snapshots:
       yaml: 2.9.0
 
   '@terrazzo/plugin-css@0.6.0(@terrazzo/cli@0.6.3)':
+    dependencies:
+      '@terrazzo/cli': 0.6.3
+      '@terrazzo/token-tools': 0.6.3
+
+  '@terrazzo/plugin-js@0.6.0(@terrazzo/cli@0.6.3)':
     dependencies:
       '@terrazzo/cli': 0.6.3
       '@terrazzo/token-tools': 0.6.3

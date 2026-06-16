@@ -1,18 +1,32 @@
 /**
  * Core metrics — typography, row-level layout, and CSS variable map.
  *
- * Typography constants are the measure/render parity anchor: both pretext
- * measurement and CSS styling read from this single source of truth.
+ * Typography constants are derived from @emdash/ui design tokens (tokens.js) so
+ * that pretext measurement and CSS styling share a single source of truth.
+ * The metricsToCssVars() output wraps each value in a var(--typography-*) reference
+ * with the token value as a fallback, so the design system resolves when the theme
+ * is loaded while standalone Storybook keeps working without any extra CSS imports.
  *
  * Component-private constants (bubble padding, block gap, thinking heights,
  * code block padding) live in each component's metrics.ts.  They are
  * re-imported here only for metricsToCssVars() so CSS variables are complete.
  */
 
+import { tokens } from '@emdash/ui/theme/tokens.js';
+
+// ── Token helpers ─────────────────────────────────────────────────────────────
+
+type DimToken = { value: number; unit: string };
+
+const dim = (id: keyof typeof tokens): number => (tokens[id]['.'] as unknown as DimToken).value;
+const num = (id: keyof typeof tokens): number => tokens[id]['.'] as unknown as number;
+const family = (id: keyof typeof tokens): string =>
+  (tokens[id]['.'] as unknown as string[]).join(', ');
+
 // ── Font families ────────────────────────────────────────────────────────────
 
-export const SANS_FAMILY = '"Inter Variable", sans-serif';
-export const MONO_FAMILY = '"Cascadia Code", ui-monospace, monospace';
+export const SANS_FAMILY = family('typography.font-family.sans');
+export const MONO_FAMILY = family('typography.font-family.mono');
 
 // ── Per-variant typography ───────────────────────────────────────────────────
 
@@ -23,30 +37,70 @@ export type VariantTypography = {
   lineHeight: number;
 };
 
-export const BODY: VariantTypography = { fontSize: 14, fontWeight: 400, lineHeight: 22 };
-export const BODY_BOLD: VariantTypography = { fontSize: 14, fontWeight: 700, lineHeight: 22 };
+export const BODY: VariantTypography = {
+  fontSize: dim('typography.body.size'),
+  fontWeight: num('typography.body.weight'),
+  lineHeight: dim('typography.body.line-height'),
+};
+export const BODY_BOLD: VariantTypography = {
+  fontSize: dim('typography.body.size'),
+  fontWeight: num('typography.body.bold-weight'),
+  lineHeight: dim('typography.body.line-height'),
+};
 export const BODY_ITALIC: VariantTypography = {
-  fontSize: 14,
-  fontWeight: 400,
+  fontSize: dim('typography.body.size'),
+  fontWeight: num('typography.body.weight'),
   fontStyle: 'italic',
-  lineHeight: 22,
+  lineHeight: dim('typography.body.line-height'),
 };
 export const BODY_BOLD_ITALIC: VariantTypography = {
-  fontSize: 14,
-  fontWeight: 700,
+  fontSize: dim('typography.body.size'),
+  fontWeight: num('typography.body.bold-weight'),
   fontStyle: 'italic',
-  lineHeight: 22,
+  lineHeight: dim('typography.body.line-height'),
 };
-export const BODY_LINK: VariantTypography = { fontSize: 14, fontWeight: 500, lineHeight: 22 };
+export const BODY_LINK: VariantTypography = {
+  fontSize: dim('typography.body.size'),
+  fontWeight: num('typography.body.link-weight'),
+  lineHeight: dim('typography.body.line-height'),
+};
 
-export const H1: VariantTypography = { fontSize: 20, fontWeight: 700, lineHeight: 28 };
-export const H2: VariantTypography = { fontSize: 17, fontWeight: 700, lineHeight: 25 };
-export const H3: VariantTypography = { fontSize: 14, fontWeight: 600, lineHeight: 22 };
+export const H1: VariantTypography = {
+  fontSize: dim('typography.h1.size'),
+  fontWeight: num('typography.h1.weight'),
+  lineHeight: dim('typography.h1.line-height'),
+};
+export const H2: VariantTypography = {
+  fontSize: dim('typography.h2.size'),
+  fontWeight: num('typography.h2.weight'),
+  lineHeight: dim('typography.h2.line-height'),
+};
+export const H3: VariantTypography = {
+  fontSize: dim('typography.h3.size'),
+  fontWeight: num('typography.h3.weight'),
+  lineHeight: dim('typography.h3.line-height'),
+};
 
-export const INLINE_CODE: VariantTypography = { fontSize: 12, fontWeight: 600, lineHeight: 22 };
-export const MENTION: VariantTypography = { fontSize: 12, fontWeight: 700, lineHeight: 22 };
-export const CODE_BLOCK: VariantTypography = { fontSize: 12, fontWeight: 400, lineHeight: 18 };
-export const CODE_LANG: VariantTypography = { fontSize: 11, fontWeight: 500, lineHeight: 18 };
+export const INLINE_CODE: VariantTypography = {
+  fontSize: dim('typography.inline-code.size'),
+  fontWeight: num('typography.inline-code.weight'),
+  lineHeight: dim('typography.inline-code.line-height'),
+};
+export const MENTION: VariantTypography = {
+  fontSize: dim('typography.mention.size'),
+  fontWeight: num('typography.mention.weight'),
+  lineHeight: dim('typography.mention.line-height'),
+};
+export const CODE_BLOCK: VariantTypography = {
+  fontSize: dim('typography.code.size'),
+  fontWeight: num('typography.code.weight'),
+  lineHeight: dim('typography.code.line-height'),
+};
+export const CODE_LANG: VariantTypography = {
+  fontSize: dim('typography.code-lang.size'),
+  fontWeight: num('typography.code-lang.weight'),
+  lineHeight: dim('typography.code-lang.line-height'),
+};
 
 // ── Inline chrome ────────────────────────────────────────────────────────────
 
@@ -75,9 +129,9 @@ export const ROW_INSET_X = 16;
 
 // ── CSS font shorthands ───────────────────────────────────────────────────────
 
-function fontShorthand(v: VariantTypography, family: string): string {
+function fontShorthand(v: VariantTypography, fam: string): string {
   const style = v.fontStyle ? `${v.fontStyle} ` : '';
-  return `${style}${v.fontWeight} ${v.fontSize}px ${family}`;
+  return `${style}${v.fontWeight} ${v.fontSize}px ${fam}`;
 }
 
 export const BODY_FONT = fontShorthand(BODY, SANS_FAMILY);
@@ -98,6 +152,10 @@ export const CODE_BLOCK_FONT = fontShorthand(CODE_BLOCK, MONO_FAMILY);
  * Produce a flat Record<string, string> of --chat-* CSS custom properties.
  * Set these on the .pchat-transcript root so every var(--chat-*) resolves
  * to the same number used in measurement.
+ *
+ * Each typography value is emitted as var(--typography-*, <fallback>) so the
+ * design system token resolves when theme.css is loaded, while standalone
+ * Storybook (without the theme import) still works via the fallback.
  *
  * Component metrics are imported here and included so the CSS vars are complete.
  */
@@ -127,44 +185,44 @@ export function metricsToCssVars(componentVars?: {
   } = componentVars ?? {};
 
   return {
-    '--chat-sans': SANS_FAMILY,
-    '--chat-mono': MONO_FAMILY,
+    '--chat-sans': `var(--typography-font-family-sans, ${SANS_FAMILY})`,
+    '--chat-mono': `var(--typography-font-family-mono, ${MONO_FAMILY})`,
 
-    '--chat-body-size': `${BODY.fontSize}px`,
-    '--chat-body-weight': `${BODY.fontWeight}`,
-    '--chat-body-lh': `${BODY.lineHeight}px`,
-    '--chat-body-bold-weight': `${BODY_BOLD.fontWeight}`,
-    '--chat-body-link-weight': `${BODY_LINK.fontWeight}`,
+    '--chat-body-size': `var(--typography-body-size, ${BODY.fontSize}px)`,
+    '--chat-body-weight': `var(--typography-body-weight, ${BODY.fontWeight})`,
+    '--chat-body-lh': `var(--typography-body-line-height, ${BODY.lineHeight}px)`,
+    '--chat-body-bold-weight': `var(--typography-body-bold-weight, ${BODY_BOLD.fontWeight})`,
+    '--chat-body-link-weight': `var(--typography-body-link-weight, ${BODY_LINK.fontWeight})`,
 
-    '--chat-h1-size': `${H1.fontSize}px`,
-    '--chat-h1-weight': `${H1.fontWeight}`,
-    '--chat-h1-lh': `${H1.lineHeight}px`,
-    '--chat-h2-size': `${H2.fontSize}px`,
-    '--chat-h2-weight': `${H2.fontWeight}`,
-    '--chat-h2-lh': `${H2.lineHeight}px`,
-    '--chat-h3-size': `${H3.fontSize}px`,
-    '--chat-h3-weight': `${H3.fontWeight}`,
-    '--chat-h3-lh': `${H3.lineHeight}px`,
+    '--chat-h1-size': `var(--typography-h1-size, ${H1.fontSize}px)`,
+    '--chat-h1-weight': `var(--typography-h1-weight, ${H1.fontWeight})`,
+    '--chat-h1-lh': `var(--typography-h1-line-height, ${H1.lineHeight}px)`,
+    '--chat-h2-size': `var(--typography-h2-size, ${H2.fontSize}px)`,
+    '--chat-h2-weight': `var(--typography-h2-weight, ${H2.fontWeight})`,
+    '--chat-h2-lh': `var(--typography-h2-line-height, ${H2.lineHeight}px)`,
+    '--chat-h3-size': `var(--typography-h3-size, ${H3.fontSize}px)`,
+    '--chat-h3-weight': `var(--typography-h3-weight, ${H3.fontWeight})`,
+    '--chat-h3-lh': `var(--typography-h3-line-height, ${H3.lineHeight}px)`,
 
-    '--chat-ic-size': `${INLINE_CODE.fontSize}px`,
-    '--chat-ic-weight': `${INLINE_CODE.fontWeight}`,
+    '--chat-ic-size': `var(--typography-inline-code-size, ${INLINE_CODE.fontSize}px)`,
+    '--chat-ic-weight': `var(--typography-inline-code-weight, ${INLINE_CODE.fontWeight})`,
     '--chat-ic-pad-x': `6px`,
     '--chat-ic-pad-y': `2px`,
 
-    '--chat-mention-size': `${MENTION.fontSize}px`,
-    '--chat-mention-weight': `${MENTION.fontWeight}`,
+    '--chat-mention-size': `var(--typography-mention-size, ${MENTION.fontSize}px)`,
+    '--chat-mention-weight': `var(--typography-mention-weight, ${MENTION.fontWeight})`,
     '--chat-mention-pad-x': `7px`,
 
-    '--chat-code-size': `${CODE_BLOCK.fontSize}px`,
-    '--chat-code-weight': `${CODE_BLOCK.fontWeight}`,
-    '--chat-code-lh': `${CODE_BLOCK.lineHeight}px`,
+    '--chat-code-size': `var(--typography-code-size, ${CODE_BLOCK.fontSize}px)`,
+    '--chat-code-weight': `var(--typography-code-weight, ${CODE_BLOCK.fontWeight})`,
+    '--chat-code-lh': `var(--typography-code-line-height, ${CODE_BLOCK.lineHeight}px)`,
     '--chat-code-pad-y': `${codeBlockPadY}px`,
     '--chat-code-pad-x': `${codeBlockPadX}px`,
     '--chat-code-border': `${codeBlockBorder}px`,
 
-    '--chat-lang-size': `${CODE_LANG.fontSize}px`,
-    '--chat-lang-weight': `${CODE_LANG.fontWeight}`,
-    '--chat-lang-lh': `${CODE_LANG.lineHeight}px`,
+    '--chat-lang-size': `var(--typography-code-lang-size, ${CODE_LANG.fontSize}px)`,
+    '--chat-lang-weight': `var(--typography-code-lang-weight, ${CODE_LANG.fontWeight})`,
+    '--chat-lang-lh': `var(--typography-code-lang-line-height, ${CODE_LANG.lineHeight}px)`,
 
     '--chat-block-gap': `${blockGap}px`,
     '--chat-bubble-pad-y': `${bubblePadY}px`,

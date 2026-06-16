@@ -1,0 +1,34 @@
+/*
+ * chat-theme.css — maps @emdash/ui semantic tokens to --chat-* color vars.
+ *
+ * Import this alongside @emdash/ui/theme/theme.css and semantic.css so the
+ * chat renderer's color system adapts to the active .emlight / .emdark class.
+ * Fallback values keep components legible when the theme CSS is not loaded
+ * (e.g. standalone embedding without the full design system).
+ */
+
+/* Shared mappings — semantic vars already resolve correctly per mode. */
+.emlight,
+.emdark {
+  --chat-fg: var(--foreground);
+  --chat-muted: var(--foreground-muted);
+  --chat-border: var(--border);
+  --chat-link: var(--blue-11);
+  --chat-bubble-user: var(--blue-9);
+  --chat-bubble-user-fg: var(--foreground-inverse);
+  --chat-mention-bg: var(--blue-3);
+  --chat-mention-fg: var(--blue-11);
+  /* --neutral-1 is lightest gray in light mode and near-black in dark mode —
+   * an ideal code-block background in both themes. */
+  --chat-code-bg: var(--neutral-1);
+  --chat-table-header-bg: var(--background-1);
+}
+
+/* Inline code chip: semi-transparent tint that reads well on both surfaces. */
+.emlight {
+  --chat-code-inline-bg: rgba(0, 0, 0, 0.06);
+}
+
+.emdark {
+  --chat-code-inline-bg: rgba(255, 255, 255, 0.08);
+}

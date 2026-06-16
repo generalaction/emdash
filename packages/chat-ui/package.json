@@ -12,7 +12,8 @@
   "sideEffects": false,
   "exports": {
     ".": "./src/index.tsx",
-    "./react": "./src/react/index.ts"
+    "./react": "./src/react/index.ts",
+    "./chat-theme.css": "./src/chat-theme.css"
   },
   "scripts": {
     "storybook": "storybook dev -p 6007",
@@ -25,6 +26,7 @@
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.8",
+    "@emdash/ui": "workspace:*",
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource/cascadia-code": "^5.2.3",
     "@shikijs/langs": "^4.2.0",

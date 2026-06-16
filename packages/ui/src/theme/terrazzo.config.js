@@ -1,5 +1,6 @@
 import { defineConfig } from '@terrazzo/cli';
 import css from '@terrazzo/plugin-css';
+import js from '@terrazzo/plugin-js';
 
 export default defineConfig({
   tokens: ['./tokens.generated.json'],
@@ -16,6 +17,9 @@ export default defineConfig({
         { mode: 'light', selectors: ['.emlight'] },
         { mode: 'dark', selectors: ['.emdark'] },
       ],
+    }),
+    js({
+      js: 'tokens.js',
     }),
   ],
 });
