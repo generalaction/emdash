@@ -1,5 +1,5 @@
+import type { GitBranchRef } from '@emdash/shared/git';
 import { describe, expect, it, vi } from 'vitest';
-import type { Branch } from '@shared/core/git/git';
 
 vi.mock('@renderer/features/settings/use-app-settings-key', () => ({
   useAppSettingsKey: () => ({ value: { pushOnCreate: true } }),
@@ -16,13 +16,13 @@ vi.mock('@renderer/features/settings/use-app-settings-key', () => ({
  */
 describe('useBranchSelection contract', () => {
   it('accepts a local Branch as defaultBranch', () => {
-    const branch: Branch = { type: 'local', branch: 'main' };
+    const branch: GitBranchRef = { type: 'local', branch: 'main' };
     expect(branch.type).toBe('local');
     expect(branch.branch).toBe('main');
   });
 
   it('accepts a remote Branch as defaultBranch', () => {
-    const branch: Branch = {
+    const branch: GitBranchRef = {
       type: 'remote',
       branch: 'main',
       remote: { name: 'origin', url: 'git@github.com:owner/repo.git' },

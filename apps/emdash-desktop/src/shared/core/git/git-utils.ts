@@ -1,12 +1,12 @@
+import type { GitBranchRef, GitRemote } from '@emdash/shared/git';
 import type { ProjectSettings } from '../project-settings/project-settings';
-import type { Branch, Remote } from './git';
 
 export const DEFAULT_REMOTE_NAME = 'origin';
 
 export function selectPreferredRemote(
   configuredRemote: string | undefined,
-  remotes: ReadonlyArray<Remote>
-): Remote {
+  remotes: ReadonlyArray<GitRemote>
+): GitRemote {
   const preferred = configuredRemote?.trim();
   const found = preferred ? remotes.find((r) => r.name === preferred) : undefined;
   return (
@@ -17,13 +17,13 @@ export function selectPreferredRemote(
 }
 
 export type ConfiguredRemotes = {
-  baseRemote: Remote;
-  pushRemote: Remote;
+  baseRemote: GitRemote;
+  pushRemote: GitRemote;
 };
 
 export function resolveConfiguredRemotes(
   settings: { baseRemote?: string; pushRemote?: string } | undefined,
-  remotes: ReadonlyArray<Remote>
+  remotes: ReadonlyArray<GitRemote>
 ): ConfiguredRemotes {
   const baseRemote = selectPreferredRemote(settings?.baseRemote, remotes);
   const pushRemoteName = settings?.pushRemote?.trim();
@@ -46,8 +46,8 @@ export function bareRefName(ref: string): string {
   return slash !== -1 ? ref.slice(slash + 1) : ref;
 }
 
-type DefaultBranchResolutionArgs<TBranch extends Branch = Branch> = {
-  preference?: Branch;
+type DefaultBranchResolutionArgs<TBranch extends GitBranchRef = GitBranchRef> = {
+  preference?: GitBranchRef;
   branches: ReadonlyArray<TBranch>;
   configuredRemoteName: string;
   gitDefaultBranch?: string;
@@ -57,17 +57,17 @@ type DefaultBranchResolutionArgs<TBranch extends Branch = Branch> = {
 type BaseRefResolutionArgs = {
   detectedBaseRef: string;
   gitDefaultBranch?: string;
-  branches: ReadonlyArray<Branch>;
+  branches: ReadonlyArray<GitBranchRef>;
 };
 
-function findLocalBranch<TBranch extends Branch>(
+function findLocalBranch<TBranch extends GitBranchRef>(
   branches: ReadonlyArray<TBranch>,
   branchName: string
 ): TBranch | undefined {
   return branches.find((b) => b.type === 'local' && b.branch === branchName);
 }
 
-function findRemoteBranch<TBranch extends Branch>(
+function findRemoteBranch<TBranch extends GitBranchRef>(
   branches: ReadonlyArray<TBranch>,
   branchName: string,
   remoteName: string
@@ -77,7 +77,7 @@ function findRemoteBranch<TBranch extends Branch>(
   );
 }
 
-function findAnyBranch<TBranch extends Branch>(
+function findAnyBranch<TBranch extends GitBranchRef>(
   branches: ReadonlyArray<TBranch>,
   branchName: string,
   remoteName: string
@@ -87,8 +87,8 @@ function findAnyBranch<TBranch extends Branch>(
   );
 }
 
-function resolvePreference<TBranch extends Branch>(
-  preference: Branch | undefined,
+function resolvePreference<TBranch extends GitBranchRef>(
+  preference: GitBranchRef | undefined,
   branches: ReadonlyArray<TBranch>,
   configuredRemoteName: string
 ): TBranch | undefined {
@@ -108,9 +108,9 @@ export function remoteNameFromQualifiedRef(ref: string): string | undefined {
 
 export function projectDefaultBranchToBranch(
   setting: ProjectSettings['defaultBranch'],
-  configuredRemote: Remote,
-  remotes: ReadonlyArray<Remote>
-): Branch | undefined {
+  configuredRemote: GitRemote,
+  remotes: ReadonlyArray<GitRemote>
+): GitBranchRef | undefined {
   if (!setting) return undefined;
   if (typeof setting !== 'string') {
     return { type: 'remote', branch: setting.name, remote: configuredRemote };
@@ -133,7 +133,7 @@ export function projectDefaultBranchToBranch(
   return { type: 'local', branch: setting };
 }
 
-export function resolveDefaultBranch<TBranch extends Branch = Branch>(
+export function resolveDefaultBranch<TBranch extends GitBranchRef = GitBranchRef>(
   args: DefaultBranchResolutionArgs<TBranch>
 ): TBranch | undefined {
   const { preference, branches, configuredRemoteName, gitDefaultBranch, baseRef } = args;

@@ -1,9 +1,9 @@
-import type { Branch } from '@shared/core/git/git';
+import type { GitBranchRef } from '@emdash/shared/git';
 
 export type BranchLabelRemoteMode = 'full' | 'short';
 
 export function getBranchLabel(
-  branch: Branch,
+  branch: GitBranchRef,
   options: { remote?: BranchLabelRemoteMode } = {}
 ): string {
   if (branch.type !== 'remote') return branch.branch;
@@ -11,10 +11,10 @@ export function getBranchLabel(
 }
 
 export function filterBranchesForPicker(
-  branches: ReadonlyArray<Branch>,
+  branches: ReadonlyArray<GitBranchRef>,
   tab: 'local' | 'remote',
   remoteName?: string
-): Branch[] {
+): GitBranchRef[] {
   return branches.filter(
     (branch) =>
       branch.type === tab &&
@@ -23,10 +23,10 @@ export function filterBranchesForPicker(
 }
 
 export function prioritizeExactBranchMatches(
-  branches: ReadonlyArray<Branch>,
+  branches: ReadonlyArray<GitBranchRef>,
   query: string,
   branchLabelRemote: BranchLabelRemoteMode = 'full'
-): Branch[] {
+): GitBranchRef[] {
   const normalizedQuery = query.trim().toLocaleLowerCase();
   if (!normalizedQuery) return [...branches];
 
@@ -41,7 +41,7 @@ export function prioritizeExactBranchMatches(
 }
 
 function getExactMatchRank(
-  branch: Branch,
+  branch: GitBranchRef,
   normalizedQuery: string,
   branchLabelRemote: BranchLabelRemoteMode
 ): number {

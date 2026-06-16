@@ -1,4 +1,5 @@
 import type { GitHeadModel } from '@emdash/shared/git';
+import type { GitBranchRef } from '@emdash/shared/git';
 import { useQuery } from '@tanstack/react-query';
 import {
   asMounted,
@@ -6,10 +7,9 @@ import {
   getProjectStore,
 } from '@renderer/features/projects/stores/project-selectors';
 import { rpc } from '@renderer/lib/ipc';
-import type { Branch } from '@shared/core/git/git';
 
 export type ProjectGitContext = {
-  defaultBranch: Branch | undefined;
+  defaultBranch: GitBranchRef | undefined;
   currentBranch: string | null;
   isUnborn: boolean;
   repositoryWorkspaceId: string | null;

@@ -17,10 +17,14 @@ export type { Commit, CommitFile, GitLogResult } from './models/log';
 export type { DiffMode, DiffTarget, GitObjectRef, MergeBaseRange } from './models/diff-target';
 export type {
   GitBranch,
-  GitBranchAddress,
+  GitBranchRef,
+  GitLocalBranchRef,
   GitRefsModel,
   GitRemote,
+  GitRemoteBranchRef,
   GitRemotesModel,
+  LocalBranch,
+  RemoteBranch,
 } from './models/refs';
 export type {
   GitChange,

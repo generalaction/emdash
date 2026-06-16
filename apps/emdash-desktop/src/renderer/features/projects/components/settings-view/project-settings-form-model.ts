@@ -1,4 +1,4 @@
-import type { Branch } from '@shared/core/git/git';
+import type { GitBranchRef } from '@emdash/shared/git';
 import { projectDefaultBranchToBranch } from '@shared/core/git/git-utils';
 import type {
   ProjectSettings,
@@ -20,7 +20,7 @@ export type FormState = {
   scriptRun: string;
   scriptTeardown: string;
   worktreeDirectory: string;
-  defaultBranch: Branch | null;
+  defaultBranch: GitBranchRef | null;
   baseRemote: string;
   pushRemote: string;
   githubAccountId: string | null | undefined;

@@ -1,9 +1,9 @@
-import type { GitBranchAddress } from './refs';
+import type { GitBranchRef } from './refs';
 
 export type DiffMode = { kind: 'head' } | { kind: 'staged' };
 
 export type GitObjectRef =
-  | { kind: 'branch'; branch: GitBranchAddress }
+  | { kind: 'branch'; branch: GitBranchRef }
   | { kind: 'commit'; sha: string }
   | { kind: 'tag'; name: string };
 

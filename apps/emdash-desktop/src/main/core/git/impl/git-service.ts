@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { computeBaseRef } from '@emdash/shared/git';
+import { computeBaseRef, type LocalBranch, type RemoteBranch } from '@emdash/shared/git';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GIT_EXECUTABLE } from '@main/core/utils/exec';
@@ -26,11 +26,9 @@ import {
   type GitStatusFingerprint,
   type GitStatusUntrackedMode,
   type ImageReadResult,
-  type LocalBranch,
   type MergeBaseRange,
   type PullError,
   type PushError,
-  type RemoteBranch,
 } from '@shared/core/git/git';
 import { DEFAULT_REMOTE_NAME } from '@shared/core/git/git-utils';
 import { err, ok, type Result } from '@shared/lib/result';

@@ -3,18 +3,20 @@ export type GitRemote = {
   url: string;
 };
 
-export type GitLocalBranchAddress = { type: 'local'; branch: string; remote?: GitRemote };
+export type GitLocalBranchRef = { type: 'local'; branch: string; remote?: GitRemote };
 
-export type GitRemoteBranchAddress = { type: 'remote'; branch: string; remote: GitRemote };
+export type GitRemoteBranchRef = { type: 'remote'; branch: string; remote: GitRemote };
 
-export type GitBranchAddress = GitLocalBranchAddress | GitRemoteBranchAddress;
+export type GitBranchRef = GitLocalBranchRef | GitRemoteBranchRef;
 
-export type GitBranch =
-  | (GitLocalBranchAddress & {
-      oid: string;
-      divergence?: { ahead: number; behind: number };
-    })
-  | (GitRemoteBranchAddress & { oid: string });
+export type LocalBranch = GitLocalBranchRef & {
+  oid: string;
+  divergence?: { ahead: number; behind: number };
+};
+
+export type RemoteBranch = GitRemoteBranchRef & { oid: string };
+
+export type GitBranch = LocalBranch | RemoteBranch;
 
 export type GitRefsModel = {
   branches: GitBranch[];

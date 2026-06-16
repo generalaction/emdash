@@ -1,7 +1,7 @@
+import type { GitRemote } from '@emdash/shared/git';
 import { useCallback, useMemo, useState } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useModalContext } from '@renderer/lib/modal/modal-provider';
-import type { Remote } from '@shared/core/git/git';
 import {
   emptyProjectSettingsOverrideState,
   type MigrateProjectConfigRequest,
@@ -36,7 +36,7 @@ import {
 type UseProjectSettingsFormArgs = {
   initial: ProjectSettings;
   baseRemote: string;
-  remotes: Remote[];
+  remotes: GitRemote[];
   writeTargets: ProjectSettingsWriteTargetOption[];
   overrideState: ProjectSettingsOverrideState;
   configMigrations: ProjectConfigMigration[];

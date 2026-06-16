@@ -1,9 +1,15 @@
-import type { GitRefsModel, GitRemotesModel } from '@emdash/shared/git';
+import type {
+  GitBranchRef,
+  GitRefsModel,
+  GitRemote,
+  GitRemotesModel,
+  LocalBranch,
+  RemoteBranch,
+} from '@emdash/shared/git';
 import { computed, makeObservable, reaction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
 import { bindMirror, coalesce, ModelMirror, type MirrorBinding } from '@renderer/lib/stores/live';
 import { Resource } from '@renderer/lib/stores/resource';
-import type { Branch, LocalBranch, Remote, RemoteBranch } from '@shared/core/git/git';
 import {
   projectDefaultBranchToBranch,
   resolveConfiguredRemotes,
@@ -184,15 +190,15 @@ export class GitRepositoryStore {
     return this.branches.filter((branch): branch is RemoteBranch => branch.type === 'remote');
   }
 
-  get baseRemote(): Remote {
+  get baseRemote(): GitRemote {
     return this.configuredRemotes.baseRemote;
   }
 
-  get pushRemote(): Remote {
+  get pushRemote(): GitRemote {
     return this.configuredRemotes.pushRemote;
   }
 
-  get remotes(): Remote[] {
+  get remotes(): GitRemote[] {
     return this.remotesModel.value?.remotes ?? [];
   }
 
@@ -254,7 +260,7 @@ export class GitRepositoryStore {
     return resolveConfiguredRemotes(this.settingsStore.settings ?? undefined, this.remotes);
   }
 
-  private get defaultBranchPreference(): Branch | undefined {
+  private get defaultBranchPreference(): GitBranchRef | undefined {
     return projectDefaultBranchToBranch(
       this.settingsStore.settings?.defaultBranch,
       this.baseRemote,

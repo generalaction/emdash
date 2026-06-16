@@ -1,3 +1,4 @@
+import type { GitBranchRef } from '@emdash/shared/git';
 import { eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectProvider, TaskProvider } from '@main/core/projects/project-provider';
@@ -11,7 +12,6 @@ import { buildTaskFromWorkspace, emitTaskProvisionProgress } from '@main/core/ta
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db as appDb, type AppDb } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
-import type { Branch } from '@shared/core/git/git';
 import type { Task, ProvisionWorkspaceError } from '@shared/core/tasks/tasks';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import type { WorkspaceProviderData } from '@shared/core/workspaces/workspace-provider-data';
@@ -80,7 +80,7 @@ export class WorkspaceBootstrapService {
     const wsConfig = workspaceRow.config;
     const workspaceBranchName = getProvisionedWorkspaceBranch(workspaceRow) ?? undefined;
     const isWorktreeWorkspace = wsKind === 'worktree' || (!wsKind && !!workspaceBranchName);
-    const workspaceSourceBranch: Branch | undefined =
+    const workspaceSourceBranch: GitBranchRef | undefined =
       wsConfig?.git.kind === 'create-branch' ? wsConfig.git.fromBranch : undefined;
     const connectionId =
       project.defaultWorkspaceType.kind === 'ssh'
@@ -174,7 +174,7 @@ export class WorkspaceBootstrapService {
     const spec = compileSetupSpec(intent.git, intent.workspace, { baseRemote, pushRemote });
 
     const intentBranchName = deriveBranchName(intent.git) ?? undefined;
-    const intentSourceBranch: Branch | undefined =
+    const intentSourceBranch: GitBranchRef | undefined =
       intent.git.kind === 'create-branch' ? intent.git.fromBranch : undefined;
 
     if (spec.length === 0) {
@@ -322,7 +322,7 @@ export class WorkspaceBootstrapService {
     project: ProjectProvider,
     workDir: string,
     workspaceBranchName?: string,
-    workspaceSourceBranch?: Branch
+    workspaceSourceBranch?: GitBranchRef
   ): Promise<Result<WorkspaceBootstrapResult, ProvisionWorkspaceError>> {
     const type = project.defaultWorkspaceType;
 

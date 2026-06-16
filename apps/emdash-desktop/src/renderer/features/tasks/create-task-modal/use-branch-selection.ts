@@ -1,18 +1,18 @@
+import type { GitBranchRef } from '@emdash/shared/git';
 import { useCallback, useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import type { Branch } from '@shared/core/git/git';
 
 export type BranchSelectionState = ReturnType<typeof useBranchSelection>;
 
 export type BranchSelectionInitial = {
   createBranchAndWorktree?: boolean;
   pushBranch?: boolean;
-  branchOverride?: Branch;
+  branchOverride?: GitBranchRef;
 };
 
 export function useBranchSelection(
   selectedProjectId: string | undefined,
-  defaultBranch: Branch | undefined,
+  defaultBranch: GitBranchRef | undefined,
   isUnborn: boolean,
   currentBranchName?: string | null,
   initial?: BranchSelectionInitial,
@@ -36,14 +36,14 @@ export function useBranchSelection(
   // When the project changes the override is for a different project and is
   // ignored, so defaultBranch takes effect automatically — no effect needed.
   const [branchOverride, setBranchOverride] = useState<
-    { projectId: string; branch: Branch } | undefined
+    { projectId: string; branch: GitBranchRef } | undefined
   >(
     initial?.branchOverride && selectedProjectId
       ? { projectId: selectedProjectId, branch: initial.branchOverride }
       : undefined
   );
 
-  const selectedBranch: Branch | undefined =
+  const selectedBranch: GitBranchRef | undefined =
     !createBranchAndWorktree && currentBranchName
       ? { type: 'local', branch: currentBranchName }
       : branchOverride !== undefined && branchOverride.projectId === selectedProjectId
@@ -51,7 +51,7 @@ export function useBranchSelection(
         : defaultBranch;
 
   const setSelectedBranch = useCallback(
-    (branch: Branch | undefined) => {
+    (branch: GitBranchRef | undefined) => {
       if (!selectedProjectId || !branch) {
         setBranchOverride(undefined);
         return;

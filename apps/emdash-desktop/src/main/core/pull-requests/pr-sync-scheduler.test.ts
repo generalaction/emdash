@@ -1,7 +1,7 @@
 import type { GitRemotesModel } from '@emdash/shared/git';
+import type { GitRemote } from '@emdash/shared/git';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveProjectGitHubAuthContext } from '@main/core/github/services/project-github-auth-context';
-import type { Remote } from '@shared/core/git/git';
 import { prSyncProgressChannel } from '@shared/core/pull-requests/prEvents';
 import { err, ok } from '@shared/lib/result';
 import { prSyncEngine } from './pr-sync-engine';
@@ -82,7 +82,7 @@ type SchedulerInternals = {
 };
 
 function createProject(
-  remotes: Remote[] = [{ name: 'origin', url: 'https://github.com/acme/repo.git' }]
+  remotes: GitRemote[] = [{ name: 'origin', url: 'https://github.com/acme/repo.git' }]
 ) {
   const remoteSubscribers: Array<(model: GitRemotesModel) => void> = [];
   const unsubscribe = vi.fn();

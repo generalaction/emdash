@@ -1,8 +1,8 @@
+import type { GitRemote } from '@emdash/shared/git';
 import { observer } from 'mobx-react-lite';
 import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { FieldGroup } from '@renderer/lib/ui/field';
-import type { Remote } from '@shared/core/git/git';
 import type {
   MigrateProjectConfigRequest,
   MigrateProjectConfigResult,
@@ -39,7 +39,7 @@ export interface ProjectSettingsFormProps {
   ) => Promise<Result<MigrateProjectConfigResult, UpdateProjectSettingsError>>;
 }
 
-const EMPTY_REMOTES: Remote[] = [];
+const EMPTY_REMOTES: GitRemote[] = [];
 
 export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   projectId,

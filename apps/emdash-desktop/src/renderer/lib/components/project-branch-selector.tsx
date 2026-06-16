@@ -1,13 +1,13 @@
+import type { GitBranchRef } from '@emdash/shared/git';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
-import type { Branch } from '@shared/core/git/git';
 import { BranchSelector, type BranchLabelRemoteMode } from './branch-selector';
 
 export interface ProjectBranchSelectorProps {
   projectId: string;
-  value?: Branch;
-  onValueChange: (value: Branch) => void;
+  value?: GitBranchRef;
+  onValueChange: (value: GitBranchRef) => void;
   remoteOnly?: boolean;
   remoteName?: string;
   branchLabelRemote?: BranchLabelRemoteMode;
@@ -32,7 +32,7 @@ export const ProjectBranchSelector = observer(function ProjectBranchSelector({
     repo?.baseRemote.name ??
     'origin';
 
-  const branches: Branch[] = repo ? [...repo.localBranches, ...repo.remoteBranches] : [];
+  const branches: GitBranchRef[] = repo ? [...repo.localBranches, ...repo.remoteBranches] : [];
   const canSelectRemote = showRemoteSelectorFooter && remoteName === undefined;
 
   return (

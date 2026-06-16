@@ -1,3 +1,4 @@
+import type { GitBranchRef } from '@emdash/shared/git';
 import { ChevronDown, CircleAlert, GitBranch, GitPullRequest } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
@@ -23,7 +24,6 @@ import { Separator } from '@renderer/lib/ui/separator';
 import { SplitButton } from '@renderer/lib/ui/split-button';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { log } from '@renderer/utils/logger';
-import type { Branch } from '@shared/core/git/git';
 import { pullRequestErrorMessage } from '@shared/core/pull-requests/pull-requests';
 import { parseRepositoryRef } from '@shared/repository-ref';
 import { formatPushErrorDetail } from '../../../../utils';
@@ -52,7 +52,7 @@ export const CreatePrModal = observer(function CreatePrModal({
 }: Props) {
   const [title, setTitle] = useState(branchName);
   const [description, setDescription] = useState('');
-  const [selectedBaseOverride, setSelectedBaseOverride] = useState<Branch | undefined>();
+  const [selectedBaseOverride, setSelectedBaseOverride] = useState<GitBranchRef | undefined>();
   const [selectedTargetRemoteName, setSelectedTargetRemoteName] = useState<string | undefined>();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);

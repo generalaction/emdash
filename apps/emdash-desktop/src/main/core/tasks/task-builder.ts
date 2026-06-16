@@ -1,8 +1,8 @@
+import type { GitBranchRef } from '@emdash/shared/git';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { events } from '@main/lib/events';
-import type { Branch } from '@shared/core/git/git';
 import { taskProvisionProgressChannel, type ProvisionStep } from '@shared/core/tasks/taskEvents';
 import type { Task } from '@shared/core/tasks/tasks';
 import type { TaskProvider } from '../projects/project-provider';
@@ -49,7 +49,7 @@ export async function buildTaskFromWorkspace(
   projectPath: string,
   settings: ProjectSettingsProvider,
   workspaceBranchName?: string,
-  workspaceSourceBranch?: Branch
+  workspaceSourceBranch?: GitBranchRef
 ): Promise<BuildTaskResult> {
   const { taskEnvVars, tmuxEnabled, shellSetup } = await resolveTaskEnv(
     task,

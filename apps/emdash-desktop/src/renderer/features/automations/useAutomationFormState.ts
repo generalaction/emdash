@@ -1,10 +1,10 @@
+import type { GitBranchRef } from '@emdash/shared/git';
 import { useMemo, useState } from 'react';
 import { DEFAULT_CRON_STATE, toCron } from '@renderer/lib/CronPicker/cron-utils';
 import { isValidProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Automation } from '@shared/core/automations/automation';
 import type { StoredAutomationTaskConfig, TriggerConfig } from '@shared/core/automations/config';
 import { getLocalTimeZone } from '@shared/core/automations/timezone';
-import type { Branch } from '@shared/core/git/git';
 import {
   asMounted,
   firstMountedProjectId,
@@ -26,7 +26,7 @@ const DEFAULT_CRON = toCron(DEFAULT_CRON_STATE);
  */
 function workspaceInitialFromConfig(
   config: StoredAutomationTaskConfig | null | undefined
-): WorkspaceConfigInitial & { fromBranch?: Branch; pushBranch?: boolean } {
+): WorkspaceConfigInitial & { fromBranch?: GitBranchRef; pushBranch?: boolean } {
   if (!config) return { mode: 'new-worktree', presetId: 'new-worktree' };
   const { git, workspace } = config.workspaceConfig;
 

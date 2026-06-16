@@ -1,5 +1,5 @@
+import type { GitBranchRef } from '@emdash/shared/git';
 import { describe, expect, it } from 'vitest';
-import type { Branch } from './git';
 import {
   projectDefaultBranchToBranch,
   resolveBaseRefFromRemoteDefault,
@@ -9,7 +9,7 @@ import {
 const origin = { name: 'origin', url: 'git@github.com:example/repo.git' };
 const fork = { name: 'fork', url: 'git@github.com:user/repo.git' };
 
-const branches: Branch[] = [
+const branches: GitBranchRef[] = [
   { type: 'local', branch: 'feature/current' },
   { type: 'local', branch: 'develop' },
   { type: 'remote', branch: 'main', remote: origin },
@@ -19,7 +19,7 @@ const branches: Branch[] = [
 
 describe('resolveDefaultBranch', () => {
   it('prefers a valid explicit project default over the remote default', () => {
-    const preference: Branch = { type: 'local', branch: 'develop' };
+    const preference: GitBranchRef = { type: 'local', branch: 'develop' };
 
     expect(
       resolveDefaultBranch({
@@ -76,7 +76,7 @@ describe('resolveDefaultBranch', () => {
   });
 
   it('uses the explicit remote preference even when another remote is configured', () => {
-    const preference: Branch = {
+    const preference: GitBranchRef = {
       type: 'remote',
       branch: 'main',
       remote: fork,

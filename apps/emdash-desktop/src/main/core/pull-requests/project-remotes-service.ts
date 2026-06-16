@@ -1,7 +1,7 @@
+import type { GitRemote } from '@emdash/shared/git';
 import { and, eq, notInArray } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { projectRemotes } from '@main/db/schema';
-import type { Remote } from '@shared/core/git/git';
 import { parseRepositoryRef } from '@shared/repository-ref';
 
 /**
@@ -10,7 +10,7 @@ import { parseRepositoryRef } from '@shared/repository-ref';
  *
  * Called on every task provision and whenever the repository remotes model changes.
  */
-export async function syncProjectRemotes(projectId: string, remotes: Remote[]): Promise<void> {
+export async function syncProjectRemotes(projectId: string, remotes: GitRemote[]): Promise<void> {
   for (const r of remotes) {
     const remoteUrl = parseRepositoryRef(r.url)?.repositoryUrl ?? r.url;
     await db
