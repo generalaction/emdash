@@ -2,7 +2,7 @@ import { computed, makeAutoObservable, observable, reaction, runInAction } from 
 import { DiffTabLifecycleStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
-import { DevServerStore } from '@renderer/features/tasks/stores/dev-server-store';
+import { PreviewServerStore } from '@renderer/features/tasks/stores/preview-server-store';
 import { TabGroupManagerStore } from '@renderer/features/tasks/tabs/tab-group-manager-store';
 import type { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
@@ -56,7 +56,7 @@ export class WorkspaceViewModel implements ILifecycle {
    */
   diffView: DiffViewStore | null = null;
   prStore: PrStore | null = null;
-  devServers: DevServerStore | null = null;
+  previewServers: PreviewServerStore | null = null;
 
   private _diffTabLifecycle: DiffTabLifecycleStore | null = null;
 
@@ -291,7 +291,12 @@ export class WorkspaceViewModel implements ILifecycle {
 
     const taskData = this._taskStore.data as Task;
     const workspaceId = this._taskStore.workspaceId!;
-    this.devServers = new DevServerStore(this.taskId, workspaceId);
+    this.previewServers = new PreviewServerStore({
+      projectId: taskData.projectId,
+      workspaceId,
+      connectionId: workspace.sshConnectionId,
+    });
+    this.previewServers.start();
     this.prStore = new PrStore(
       taskData.projectId,
       workspaceId,
@@ -373,8 +378,8 @@ export class WorkspaceViewModel implements ILifecycle {
     this._diffTabLifecycle = null;
     this.prStore?.dispose();
     this.prStore = null;
-    this.devServers?.dispose();
-    this.devServers = null;
+    this.previewServers?.dispose();
+    this.previewServers = null;
 
     this._conversationHydration.dispose();
 
