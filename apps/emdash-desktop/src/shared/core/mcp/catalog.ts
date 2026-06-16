@@ -114,7 +114,8 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Cloudflare Developer Platform',
     description: 'Build applications with compute, storage, and AI',
-    docsUrl: 'https://developers.cloudflare.com/agents/model-context-protocol/cloudflare/servers-for-cloudflare/',
+    docsUrl:
+      'https://developers.cloudflare.com/agents/model-context-protocol/cloudflare/servers-for-cloudflare/',
     credentialKeys: [],
   },
   netlify: {
