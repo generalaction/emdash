@@ -51,7 +51,7 @@ export const plugin = definePlugin(
     mcp: {
       kind: 'supported',
       scope: 'global',
-      supportedTransports: ['stdio'],
+      supportedTransports: ['stdio', 'http'],
     },
     models: {
       kind: 'none',

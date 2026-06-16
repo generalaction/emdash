@@ -1,12 +1,15 @@
 import { action, computed, makeObservable, observable } from 'mobx';
 import {
   BROWSER_DEFAULT_URL,
+  browserPartitionForProfile,
   createBrowserSessionSnapshot,
-  deriveBrowserPartition,
   makeBrowserSessionIdentity,
-  normalizeBrowserZoomFactor,
+  normalizeBrowserProfileSelection,
   normalizeBrowserUrl,
+  normalizeBrowserZoomFactor,
   type BrowserLoadError,
+  type BrowserProfile,
+  type BrowserProfileSelection,
   type BrowserSessionRestoreInput,
   type BrowserSessionSnapshot,
 } from '@shared/browser';
@@ -16,6 +19,7 @@ export type BrowserSessionCreateInput = {
   workspaceId: string;
   taskId: string;
   browserId?: string;
+  profileId?: BrowserProfileSelection;
   initialUrl?: string;
 };
 
@@ -36,6 +40,8 @@ export class BrowserSessionStore {
       activeSessions: computed,
       createSession: action,
       restoreSession: action,
+      setSessionProfile: action,
+      migrateProfileSessions: action,
       updateSession: action,
       removeSession: action,
       clear: action,
@@ -50,17 +56,23 @@ export class BrowserSessionStore {
     const identity = makeBrowserSessionIdentity(input);
     const snapshot = createBrowserSessionSnapshot({
       identity,
+      profileId: input.profileId,
       currentUrl: input.initialUrl,
     });
     this.sessions.set(snapshot.browserId, snapshot);
     return snapshot;
   }
 
-  restoreSession(snapshot: BrowserSessionRestoreInput): BrowserSessionSnapshot {
+  restoreSession(
+    snapshot: BrowserSessionRestoreInput,
+    profiles?: readonly BrowserProfile[]
+  ): BrowserSessionSnapshot {
     const normalized = normalizeBrowserUrl(snapshot.currentUrl);
+    const profileId = normalizeBrowserProfileSelection(snapshot.profileId, profiles);
     const restored: BrowserSessionSnapshot = {
       ...snapshot,
-      partition: deriveBrowserPartition(snapshot),
+      profileId,
+      partition: browserPartitionForProfile(snapshot, profileId),
       currentUrl: normalized.ok ? normalized.url : BROWSER_DEFAULT_URL,
       zoomFactor: normalizeBrowserZoomFactor(snapshot.zoomFactor),
       isLoading: false,
@@ -69,6 +81,46 @@ export class BrowserSessionStore {
     };
     this.sessions.set(restored.browserId, restored);
     return restored;
+  }
+
+  setSessionProfile(
+    browserId: string,
+    profileId: BrowserProfileSelection,
+    profiles?: readonly BrowserProfile[]
+  ): BrowserSessionSnapshot | null {
+    const existing = this.sessions.get(browserId);
+    if (!existing) return null;
+    const normalized = normalizeBrowserProfileSelection(profileId, profiles);
+    if (normalized === existing.profileId) return existing;
+    const next: BrowserSessionSnapshot = {
+      ...existing,
+      profileId: normalized,
+      partition: browserPartitionForProfile(existing, normalized),
+      isLoading: false,
+      loadError: undefined,
+      updatedAt: Date.now(),
+    };
+    this.sessions.set(browserId, next);
+    return next;
+  }
+
+  migrateProfileSessions(
+    fromProfileId: BrowserProfileSelection,
+    toProfileId: BrowserProfileSelection,
+    profiles: readonly BrowserProfile[]
+  ): void {
+    const profileId = normalizeBrowserProfileSelection(toProfileId, profiles);
+    for (const [browserId, session] of this.sessions) {
+      if (session.profileId !== fromProfileId) continue;
+      this.sessions.set(browserId, {
+        ...session,
+        profileId,
+        partition: browserPartitionForProfile(session, profileId),
+        isLoading: false,
+        loadError: undefined,
+        updatedAt: Date.now(),
+      });
+    }
   }
 
   updateSession(browserId: string, update: BrowserSessionUpdate): BrowserSessionSnapshot | null {

@@ -2,6 +2,7 @@ import type z from 'zod';
 import {
   appSettingsSchema,
   type agentAutoApproveDefaultsSchema,
+  type browserSettingsSchema,
   type changesViewModeSchema,
   type interfaceSettingsSchema,
   type localProjectSettingsSchema,
@@ -25,6 +26,7 @@ export type InterfaceSettings = z.infer<typeof interfaceSettingsSchema>;
 export type ProviderCustomConfig = z.infer<typeof providerCustomConfigEntrySchema>;
 export type ProviderCustomConfigs = Record<string, ProviderCustomConfig>;
 export type ChangesViewMode = z.infer<typeof changesViewModeSchema>;
+export type BrowserSettings = z.infer<typeof browserSettingsSchema>;
 export type ChangesSection = keyof ChangesViewMode;
 export type ChangesListViewMode = ChangesViewMode[ChangesSection];
 export type AppSettings = z.infer<typeof appSettingsSchema>;

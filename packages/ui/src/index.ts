@@ -1,2 +1,1 @@
-export { cn } from './lib/cn';
-export * from './chat/index';
+export * from './components/index';

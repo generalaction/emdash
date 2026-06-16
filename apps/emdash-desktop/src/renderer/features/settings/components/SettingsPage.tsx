@@ -4,6 +4,7 @@ import { PageContent, PageLayout, PageSidebarMenu } from '@renderer/lib/componen
 import { rpc } from '@renderer/lib/ipc';
 import { AgentsSettingsPage } from '../agents-page/AgentsSettingsPage';
 import { AccountTab } from './AccountTab';
+import { BrowserSettingsCard } from './BrowserSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
 import InterfaceSettingsCard from './InterfaceSettingsCard';
@@ -32,6 +33,7 @@ export type SettingsPageTab =
   | 'clis-models'
   | 'integrations'
   | 'connections'
+  | 'browser'
   | 'repository'
   | 'interface'
   | 'docs';
@@ -160,6 +162,7 @@ export function SettingsPage({
     { id: 'connections', label: 'Connections' },
     { id: 'repository', label: 'Repository' },
     { id: 'interface', label: 'Interface' },
+    { id: 'browser', label: 'Browser' },
     { id: 'docs', label: 'Docs', isExternal: true },
   ];
 
@@ -169,6 +172,16 @@ export function SettingsPage({
     'clis-models': <AgentsSettingsPage />,
     integrations: <IntegrationsSettingsPage />,
     connections: <ConnectionsSettingsPage />,
+    browser: (
+      <div className="space-y-8">
+        <PageHeader
+          sticky
+          title="Browser"
+          description="Manage browser profiles and their stored logins."
+        />
+        <BrowserSettingsCard />
+      </div>
+    ),
     repository: <RepositorySettingsPage />,
     interface: <InterfaceSettingsPage />,
   };

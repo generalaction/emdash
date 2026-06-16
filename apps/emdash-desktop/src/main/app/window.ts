@@ -102,11 +102,8 @@ function registerBrowserWebviewHandlers(win: BrowserWindow): void {
   });
 
   win.webContents.on('did-attach-webview', (_event, webContents) => {
-    const browserId = browserWebContentsRegistry.getBrowserIdForWebContents(webContents);
-    if (!browserId) {
-      webContents.close();
-      return;
+    if (!browserWebContentsRegistry.handleWebviewAttached(webContents)) {
+      log.warn('Closed webview without a registered browser session');
     }
-    browserWebContentsRegistry.attachWebContents(browserId, webContents, win);
   });
 }

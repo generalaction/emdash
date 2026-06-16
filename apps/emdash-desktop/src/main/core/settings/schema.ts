@@ -1,4 +1,5 @@
 import z from 'zod';
+import { BROWSER_ISOLATED_PROFILE_ID } from '@shared/browser';
 import { AGENT_PROVIDER_IDS } from '@shared/core/agents/agent-provider-registry';
 import {
   TERMINAL_FONT_SIZE_MAX,
@@ -100,6 +101,33 @@ export const changesViewModeSchema = z.object({
 
 export const browserPreviewSettingsSchema = z.object({ enabled: z.boolean() });
 
+export const browserProfileIdSchema = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9-]{0,63}$/)
+  .refine((value) => value !== BROWSER_ISOLATED_PROFILE_ID);
+
+export const browserSettingsSchema = z
+  .object({
+    defaultProfileId: z.union([browserProfileIdSchema, z.literal(BROWSER_ISOLATED_PROFILE_ID)]),
+    profiles: z
+      .array(
+        z.object({
+          id: browserProfileIdSchema,
+          name: z.string().trim().min(1).max(40),
+        })
+      )
+      .min(1),
+  })
+  .refine(
+    (settings) =>
+      new Set(settings.profiles.map((profile) => profile.id)).size === settings.profiles.length
+  )
+  .refine(
+    (settings) =>
+      settings.defaultProfileId === BROWSER_ISOLATED_PROFILE_ID ||
+      settings.profiles.some((profile) => profile.id === settings.defaultProfileId)
+  );
+
 export const resourceMonitorSettingsSchema = z.object({ enabled: z.boolean() });
 
 export const openInSettingsSchema = z.object({
@@ -120,6 +148,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
+  browser: browserSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,
 } as const;
@@ -137,6 +166,7 @@ export const appSettingsSchema = z.object({
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
+  browser: browserSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,
 });

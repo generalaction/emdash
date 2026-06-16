@@ -1,6 +1,7 @@
 import { action, autorun, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { browserDiagnosticsStore } from '@renderer/features/browser/browser-diagnostics-store';
 import { browserSessionStore } from '@renderer/features/browser/browser-session-store';
+import { getAppSettingValueSnapshot } from '@renderer/features/settings/app-settings-client';
 import type {
   ConversationManagerStore,
   ConversationStore,
@@ -21,8 +22,8 @@ import {
   setTabActiveIndex as tabUtilsSetTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
-import type { BrowserSessionSnapshot } from '@shared/browser';
 import type { ConversationType } from '@shared/core/conversations/conversations';
+import { normalizeBrowserProfileSelection, type BrowserSessionSnapshot } from '@shared/browser';
 import { refsEqual, type GitChangeStatus, type GitObjectRef } from '@shared/core/git/git';
 import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
@@ -680,10 +681,16 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   // ---------------------------------------------------------------------------
 
   openBrowser(initialUrl?: string): void {
+    const browserSettings = getAppSettingValueSnapshot('browser');
+    const profileId = normalizeBrowserProfileSelection(
+      browserSettings?.defaultProfileId,
+      browserSettings?.profiles
+    );
     const session = browserSessionStore.createSession({
       projectId: this._projectId,
       workspaceId: this._workspaceId,
       taskId: this._taskId,
+      profileId,
       initialUrl,
     });
     const entry = new BrowserTabEntry(session.browserId, false);
@@ -895,7 +902,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           this.entries.set(entry.tabId, entry);
           this.tabOrder.push(entry.tabId);
         } else if (t.kind === 'browser') {
-          browserSessionStore.restoreSession(t.session);
+          browserSessionStore.restoreSession(
+            t.session,
+            getAppSettingValueSnapshot('browser')?.profiles
+          );
           const entry = new BrowserTabEntry(t.browserId, t.isPreview, t.tabId);
           this.entries.set(entry.tabId, entry);
           this.tabOrder.push(entry.tabId);
