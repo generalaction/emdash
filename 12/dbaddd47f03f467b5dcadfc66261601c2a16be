@@ -1,0 +1,25 @@
+packages/shared/src/agents/plugins/helpers/hook-config.ts
+  s_f4dea7e4fc0665::t_9f8f4b343f5742 85,123
+packages/plugins/src/agents/impl/mistral/hooks.test.ts
+  s_f4dea7e4fc0665::t_a46a66cdb84ca9 1-33,35-47,51-53
+  s_f4dea7e4fc0665::t_499fb317915e7f 48-50
+  s_f4dea7e4fc0665::t_e40bb19f94aa87 34
+packages/plugins/src/agents/impl/mistral/hooks.ts
+  s_f4dea7e4fc0665::t_cdaa7ba0a511e0 42-47,51,55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "12dbaddd47f03f467b5dcadfc66261601c2a16be",
+  "prompts": {},
+  "sessions": {
+    "s_f4dea7e4fc0665": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed010-2002-7544-bb6c-746a0ca0908b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
