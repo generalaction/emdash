@@ -54,7 +54,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Vercel',
     description: 'Analyze, debug, and manage projects and deployments',
-    docsUrl: 'https://vercel.com/docs/mcp/vercel-mcp',
+    docsUrl: 'https://vercel.com/docs/agent-resources/vercel-mcp',
     credentialKeys: [],
   },
   sentry: {
