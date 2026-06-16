@@ -1,4 +1,5 @@
-import type { GitSequences, IGitRepository } from '@emdash/shared/git';
+import type { GitRemotesModel, GitRepoUpdate, GitSequences, IGitRepository } from '@emdash/shared/git';
+import type { Unsubscribe } from '@emdash/shared/lib';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type {
   CreateBranchError,
@@ -26,6 +27,14 @@ export class GitRepositoryService {
 
   getSnapshot() {
     return this.gitRepository.getSnapshot();
+  }
+
+  subscribeRemotes(cb: (update: GitRemotesModel) => void): Unsubscribe {
+    return this.gitRepository.subscribe((update) => {
+      if (update.kind === 'remotes') {
+        cb(update.model);
+      }
+    });
   }
 
   async getConfiguredRemotes(): Promise<{ baseRemote: string; pushRemote: string }> {

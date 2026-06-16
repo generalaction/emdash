@@ -1,5 +1,4 @@
 import { eq } from 'drizzle-orm';
-import { gitWatcherRegistry } from '@main/core/git/git-watcher-registry';
 import { githubRepositoryResolver } from '@main/core/github/services/github-repository-resolver';
 import {
   resolveProjectGitHubAuthContext,
@@ -22,13 +21,14 @@ const INCREMENTAL_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
  * Wires sync coordinator to application lifecycle events.
- * Called from project providers at mount, unmount, provision, and config change.
+ * Called from project providers at mount, unmount, provision, and repository remote changes.
  */
 export class PrSyncScheduler implements IInitializable, IDisposable {
   /** Per-project set of interval handles for light sync polling. */
   private readonly _intervals = new Map<string, ReturnType<typeof setInterval>[]>();
   /** Per-project set of known GitHub remote URLs (for cleanup on unmount). */
   private readonly _projectRemoteUrls = new Map<string, string[]>();
+  private readonly _repositoryUnsubscribes = new Map<string, () => void>();
   private _unsubscribes: Array<() => void> = [];
 
   initialize(): void {
@@ -37,9 +37,6 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
       projectManager.on('projectClosed', (id) => this.onProjectUnmounted(id)),
       taskSessionManager.hooks.on('task:provisioned', ({ projectId, branchName }) => {
         void this.onTaskProvisioned(projectId, branchName);
-      }),
-      gitWatcherRegistry.on('ref:changed', (p) => {
-        if (p.kind === 'config') void this.onRemoteChanged(p.projectId);
       }),
       projectSettingsService.on('project-settings:changed', ({ projectId }) => {
         void this.onProjectSettingsChanged(projectId);
@@ -50,11 +47,19 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
   dispose(): void {
     for (const unsub of this._unsubscribes) unsub();
     this._unsubscribes = [];
+    const projectIds = new Set([
+      ...this._intervals.keys(),
+      ...this._projectRemoteUrls.keys(),
+      ...this._repositoryUnsubscribes.keys(),
+    ]);
+    for (const projectId of projectIds) this.onProjectUnmounted(projectId);
   }
 
   async onProjectMounted(projectId: string): Promise<void> {
     log.info('PrSyncScheduler: onProjectMounted', { projectId });
     const remoteUrls = await this._syncAndGetGitHubRemotes(projectId);
+    this._subscribeToRepository(projectId);
+
     if (remoteUrls.length === 0) {
       log.info('PrSyncScheduler: no GitHub remotes found, skipping sync', { projectId });
       return;
@@ -73,6 +78,9 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
     });
     for (const h of handles) clearInterval(h);
     this._intervals.delete(projectId);
+
+    this._repositoryUnsubscribes.get(projectId)?.();
+    this._repositoryUnsubscribes.delete(projectId);
 
     // Cancel in-flight syncs for all remotes of this project
     const remoteUrls = this._projectRemoteUrls.get(projectId) ?? [];
@@ -96,7 +104,7 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
     }
   }
 
-  // ── Remote config change ───────────────────────────────────────────────────
+  // ── Remote model changes ───────────────────────────────────────────────────
 
   async onRemoteChanged(projectId: string): Promise<void> {
     const oldUrls = new Set(this._projectRemoteUrls.get(projectId) ?? []);
@@ -159,6 +167,23 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
     const handles = this._intervals.get(projectId) ?? [];
     for (const h of handles) clearInterval(h);
     this._intervals.delete(projectId);
+  }
+
+  private _subscribeToRepository(projectId: string): void {
+    if (this._repositoryUnsubscribes.has(projectId)) return;
+
+    const project = projectManager.getProject(projectId);
+    if (!project) return;
+
+    const unsubscribe = project.gitRepository.subscribeRemotes(() => {
+      void this.onRemoteChanged(projectId).catch((error) => {
+        log.warn('PrSyncScheduler: failed to handle remote model update', {
+          projectId,
+          error: String(error),
+        });
+      });
+    });
+    this._repositoryUnsubscribes.set(projectId, unsubscribe);
   }
 
   private async _resolveAuthContext(

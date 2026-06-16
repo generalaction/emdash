@@ -8,7 +8,7 @@ import { parseRepositoryRef } from '@shared/repository-ref';
  * Upsert all git remotes for a project into the `project_remotes` table and
  * delete any rows that are no longer present in the live remote list.
  *
- * Called on every task provision and whenever `.git/config` changes.
+ * Called on every task provision and whenever the repository remotes model changes.
  */
 export async function syncProjectRemotes(projectId: string, remotes: Remote[]): Promise<void> {
   for (const r of remotes) {
