@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/renderer/features/mcp/components/McpCard.tsx
+  s_bbef47dcf265b7::t_4dc1cea0b28a4a 65
+  s_bbef47dcf265b7::t_4ea50a935f9508 74-75,78-82
+  s_bbef47dcf265b7::t_6fcffeaed475d4 19-20
+  s_bbef47dcf265b7::t_acb80368ee518e 87
+  s_bbef47dcf265b7::t_94954452554591 39-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "1ff3d2071404fd1f2cf184ccbe6ac38b6d8e770c",
+  "prompts": {},
+  "sessions": {
+    "s_bbef47dcf265b7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "043ca32d-2a65-45d8-907d-630af3533a3d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
