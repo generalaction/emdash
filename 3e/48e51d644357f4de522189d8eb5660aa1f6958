@@ -1,0 +1,31 @@
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_55dc863812ebb2::t_072894e3341b64 57-76
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.ts
+  s_55dc863812ebb2::t_8068bf91223075 3-5,11
+packages/plugins/src/agents/impl/commandcode/hooks.ts
+  s_55dc863812ebb2::t_2d67276409afc4 1-12
+packages/plugins/src/agents/impl/commandcode/index.test.ts
+  s_55dc863812ebb2::t_311a457e8afca0 17-18,22
+  s_55dc863812ebb2::t_635c2f002278cd 61
+  s_55dc863812ebb2::t_75730dbc1cd976 1,3,40-60
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_55dc863812ebb2::t_3279948a06262b 315
+packages/plugins/src/agents/impl/commandcode/index.ts
+  s_55dc863812ebb2::t_7c6ac398af0496 3,22-24,64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "3e48e51d644357f4de522189d8eb5660aa1f6958",
+  "prompts": {},
+  "sessions": {
+    "s_55dc863812ebb2": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ecf02-78b4-7fe8-87a7-0bb0dc3b6839",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
