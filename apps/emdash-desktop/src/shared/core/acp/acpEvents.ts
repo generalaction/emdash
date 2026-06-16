@@ -22,3 +22,13 @@ export const acpSessionReplayChannel = defineEvent<{
   conversationId: string;
   phase: 'start' | 'end';
 }>('acp:session-replay');
+
+/**
+ * Emitted by the main process to report ACP session lifecycle readiness.
+ * `starting` fires when the session setup begins; `ready` fires once the
+ * agent has a live session and can accept prompts.
+ */
+export const acpSessionStatusChannel = defineEvent<{
+  conversationId: string;
+  status: 'starting' | 'ready';
+}>('acp:session-status');

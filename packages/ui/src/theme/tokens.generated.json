@@ -2830,5 +2830,15 @@
     "full": {
       "$value": "9999px"
     }
+  },
+  "fade": {
+    "size": {
+      "$type": "dimension",
+      "$value": "24px"
+    },
+    "softness": {
+      "$type": "number",
+      "$value": 0.4
+    }
   }
 }

@@ -1,0 +1,156 @@
+/*
+ * overflow-fade.css — scroll-aware edge-fade primitive.
+ *
+ * Usage: wrap a scrollable container in .scroll-fade and add .scroll-fade__viewport
+ * to the overflow element. The fades appear only on edges that have hidden content,
+ * driven by CSS scroll-driven animations — no JavaScript required in Chromium targets.
+ *
+ * Color: --fade-color inherits from the surface cascade (var(--surface)) automatically.
+ * Override --fade-color on the wrapper for non-surface backgrounds:
+ *   <div class="scroll-fade" style="--fade-color: var(--chat-code-bg)">…</div>
+ *
+ * Size: --fade-size defaults to the fade.size token (24px). Override per-instance:
+ *   <div class="scroll-fade" style="--fade-size: 40px">…</div>
+ */
+
+.scroll-fade {
+  position: relative;
+  /* Color: fall back through surface cascade, then plain background.
+     Callers override with: style="--fade-color: var(--chat-code-bg)" */
+  --fade-color: var(--surface, var(--background));
+  /* Allow sibling overlays to reference scroll timelines declared inside the viewport */
+  timeline-scope: --sf-y, --sf-x;
+}
+
+/* ── Viewport ────────────────────────────────────────────────────────────────── */
+
+.scroll-fade__viewport {
+  overflow: auto;
+  /* Declare named scroll timelines for both axes */
+  scroll-timeline:
+    --sf-y block,
+    --sf-x inline;
+}
+
+/* ── Edge overlays (shared base) ────────────────────────────────────────────── */
+
+.scroll-fade__top,
+.scroll-fade__bottom,
+.scroll-fade__left,
+.scroll-fade__right {
+  position: absolute;
+  pointer-events: none;
+  /* Hidden by default; scroll animations reveal them */
+  opacity: 0;
+  z-index: 1;
+}
+
+/* ── Vertical edges ──────────────────────────────────────────────────────────── */
+
+.scroll-fade__top,
+.scroll-fade__bottom {
+  left: 0;
+  right: 0;
+  /* --fade-size is the token var; callers override it inline on the .scroll-fade wrapper */
+  height: var(--fade-size, 24px);
+}
+
+/*
+ * Top fade — appears as soon as the user scrolls down (content hidden above).
+ * animation-range 0 → --fade-size: opacity ramps from 0→1 over the first px of scroll.
+ */
+.scroll-fade__top {
+  top: 0;
+  background: linear-gradient(
+    to bottom,
+    var(--fade-color),
+    color-mix(in oklab, var(--fade-color), transparent 100%)
+  );
+  animation: sf-reveal linear both;
+  animation-timeline: --sf-y;
+  animation-range: 0px var(--fade-size, 24px);
+}
+
+/*
+ * Bottom fade — disappears once the user has scrolled to the end.
+ * animation-range 100%-fade-size → 100%: opacity ramps from 1→0 over the last px.
+ */
+.scroll-fade__bottom {
+  bottom: 0;
+  background: linear-gradient(
+    to top,
+    var(--fade-color),
+    color-mix(in oklab, var(--fade-color), transparent 100%)
+  );
+  animation: sf-hide linear both;
+  animation-timeline: --sf-y;
+  animation-range: calc(100% - var(--fade-size, 24px)) 100%;
+}
+
+/* ── Horizontal edges ────────────────────────────────────────────────────────── */
+
+.scroll-fade__left,
+.scroll-fade__right {
+  top: 0;
+  bottom: 0;
+  width: var(--fade-size, 24px);
+}
+
+.scroll-fade__left {
+  left: 0;
+  background: linear-gradient(
+    to right,
+    var(--fade-color),
+    color-mix(in oklab, var(--fade-color), transparent 100%)
+  );
+  animation: sf-reveal linear both;
+  animation-timeline: --sf-x;
+  animation-range: 0px var(--fade-size, 24px);
+}
+
+.scroll-fade__right {
+  right: 0;
+  background: linear-gradient(
+    to left,
+    var(--fade-color),
+    color-mix(in oklab, var(--fade-color), transparent 100%)
+  );
+  animation: sf-hide linear both;
+  animation-timeline: --sf-x;
+  animation-range: calc(100% - var(--fade-size, 24px)) 100%;
+}
+
+/* ── Keyframes ───────────────────────────────────────────────────────────────── */
+
+@keyframes sf-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sf-hide {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* ── Static fallback ────────────────────────────────────────────────────────── */
+
+/*
+ * If scroll-driven animations are not supported (non-Chromium, older engines),
+ * show both edges permanently so the user at least knows there's more content.
+ */
+@supports not (animation-timeline: scroll()) {
+  .scroll-fade__top,
+  .scroll-fade__bottom,
+  .scroll-fade__left,
+  .scroll-fade__right {
+    opacity: 1;
+  }
+}

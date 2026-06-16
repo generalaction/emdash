@@ -39,6 +39,8 @@
   --cyan-10: color(display-p3 0.264 0.583 0.71);
   --cyan-11: color(srgb -5.020428517354958e-15 0.4877459454110225 0.6385769369666514);
   --cyan-12: color(display-p3 0.108 0.232 0.277);
+  --fade-size: 24px;
+  --fade-softness: 0.4;
   --green-1: color(display-p3 0.986 0.996 0.985);
   --green-2: color(display-p3 0.966 0.983 0.964);
   --green-3: color(display-p3 0.923 0.965 0.917);

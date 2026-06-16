@@ -13,4 +13,10 @@ async function setModel(conversationId: string, model: string): Promise<void> {
   await acpSessionManager.setModel(conversationId, model);
 }
 
-export const acpController = createRPCController({ prompt, cancel, setModel });
+function getSessionStatus(
+  conversationId: string
+): Promise<'ready' | 'starting' | 'none'> {
+  return Promise.resolve(acpSessionManager.getSessionStatus(conversationId));
+}
+
+export const acpController = createRPCController({ prompt, cancel, setModel, getSessionStatus });

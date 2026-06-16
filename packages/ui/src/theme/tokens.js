@@ -2684,6 +2684,15 @@ export const tokens = {
       unit: 'px',
     },
   },
+  'fade.size': {
+    '.': {
+      value: 24,
+      unit: 'px',
+    },
+  },
+  'fade.softness': {
+    '.': 0.4,
+  },
 };
 
 /** Get individual token */

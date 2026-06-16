@@ -1,5 +1,9 @@
 /**
- * Thinking row stories — active, transition, collapsed, expanded.
+ * Thinking row stories — all four states plus the active→done transition.
+ *
+ * Collapse semantics are inverted for thinking rows:
+ *   default (no click) → not expanded: active shows preview, done shows header only
+ *   after one click    → expanded:     both states show full prose body
  */
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
@@ -15,6 +19,7 @@ export default meta;
 
 type Story = StoryObj;
 
+// Default view: preview window visible, no user interaction needed.
 export const ThinkingActive: Story = {
   render: () => (
     <ChatHost
@@ -32,6 +37,38 @@ export const ThinkingActive: Story = {
   ),
 };
 
+// Active state expanded: click to reveal full prose body while still streaming.
+export const ThinkingActiveExpanded: Story = {
+  render: () => {
+    const script: ScriptStep[] = [
+      {
+        kind: 'call',
+        fn: (api: TranscriptApi) => {
+          api.seed([
+            {
+              kind: 'thinking',
+              id: 'th1',
+              status: 'thinking',
+              text: 'Let me analyze the codebase structure first to understand the authentication flow...\n\nLooking at the middleware chain, I can see that session tokens are validated in three different places which creates redundancy.\n\nI will suggest consolidating validation into a single auth middleware.',
+              startedAt: Date.now() - 8000,
+            },
+          ]);
+        },
+      },
+      { kind: 'wait', ms: 100 },
+      {
+        kind: 'call',
+        fn: () => {
+          const btn = document.querySelector('[data-collapse-id="th1"]') as HTMLElement;
+          btn?.click();
+        },
+      },
+    ];
+    return <ScriptedChat script={script} height={280} />;
+  },
+};
+
+// Default view for done: header only, no content rendered.
 export const ThinkingDoneCollapsed: Story = {
   render: () => (
     <ChatHost
@@ -50,6 +87,7 @@ export const ThinkingDoneCollapsed: Story = {
   ),
 };
 
+// Done expanded: click to reveal full prose body.
 export const ThinkingDoneExpanded: Story = {
   render: () => {
     const script: ScriptStep[] = [
@@ -68,12 +106,10 @@ export const ThinkingDoneExpanded: Story = {
           ]);
         },
       },
-      // Simulate user clicking to expand (toggle collapse off)
       { kind: 'wait', ms: 100 },
       {
         kind: 'call',
         fn: () => {
-          // The collapse is managed by click delegation; we trigger it via DOM
           const btn = document.querySelector('[data-collapse-id="th1"]') as HTMLElement;
           btn?.click();
         },
@@ -93,7 +129,12 @@ export const TransitionToDone: Story = {
         kind: 'call',
         fn: (api: TranscriptApi) => {
           // Start thinking with a past startedAt so the live timer shows ~5s elapsed.
-          api.dispatch({ type: 'thinking_chunk', id: 'th1', text: '', startedAt: Date.now() - 5000 });
+          api.dispatch({
+            type: 'thinking_chunk',
+            id: 'th1',
+            text: '',
+            startedAt: Date.now() - 5000,
+          });
         },
       },
       { kind: 'wait', ms: 200 },

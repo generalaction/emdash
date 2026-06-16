@@ -1,4 +1,5 @@
 export { Button, buttonVariants } from './button';
+export { ScrollFade, type ScrollFadeAxis, type ScrollFadeProps } from './scroll-fade';
 export { Input } from './input';
 export { Textarea, type TextareaProps } from './textarea';
 export {

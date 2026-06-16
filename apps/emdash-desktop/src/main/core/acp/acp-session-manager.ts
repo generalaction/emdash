@@ -29,6 +29,7 @@ import { log } from '@main/lib/logger';
 import {
   acpSessionClosedChannel,
   acpSessionReplayChannel,
+  acpSessionStatusChannel,
   acpSessionUpdateChannel,
 } from '@shared/core/acp/acpEvents';
 import type { AgentEvent } from '@shared/core/agents/agentEvents';
@@ -99,6 +100,8 @@ class AcpSessionManager {
 
     if (this.conversationIndex.has(conversationId)) {
       log.debug('AcpSessionManager: conversation already running', { conversationId });
+      // Session already exists — report ready so any late subscriber gets the current state.
+      events.emit(acpSessionStatusChannel, { conversationId, status: 'ready' });
       return;
     }
 
@@ -127,6 +130,8 @@ class AcpSessionManager {
 
     pool.conversations.set(conversationId, conv);
     this.conversationIndex.set(conversationId, { poolKey, acpSessionId: conv.acpSessionId });
+
+    events.emit(acpSessionStatusChannel, { conversationId, status: 'starting' });
 
     try {
       let acpSessionId: string;
@@ -169,6 +174,9 @@ class AcpSessionManager {
       if (conv.pendingModel) {
         await this.applyModelInternal(pool.connection, acpSessionId, conv.pendingModel, conv);
       }
+
+      // Session is ready — the agent can now accept prompts.
+      events.emit(acpSessionStatusChannel, { conversationId, status: 'ready' });
 
       // Do not emit 'start' here — session setup alone is not agent activity.
       // start/stop are emitted in sendPromptInternal so status reflects actual
@@ -245,6 +253,17 @@ class AcpSessionManager {
     if (pool.conversations.size === 0) {
       this.destroyPool(pool);
     }
+  }
+
+  /**
+   * Returns the current readiness state of a conversation's ACP session.
+   * Used by the renderer to bootstrap `ChatStore.isReady` when the status
+   * event may have fired before the store was created.
+   */
+  getSessionStatus(conversationId: string): 'ready' | 'starting' | 'none' {
+    const entry = this.conversationIndex.get(conversationId);
+    if (!entry) return 'none';
+    return entry.acpSessionId ? 'ready' : 'starting';
   }
 
   async setModel(conversationId: string, model: string): Promise<void> {

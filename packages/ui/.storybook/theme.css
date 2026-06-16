@@ -11,6 +11,8 @@
 @import '../src/theme/theme.base.css';
 /* surface scope classes */
 @import '../src/theme/surfaces.css';
+/* scroll-aware overflow fade utility */
+@import '../src/theme/overflow-fade.css';
 
 /* Enable Tailwind to scan and generate utilities for all component source */
 @source '../src/components';

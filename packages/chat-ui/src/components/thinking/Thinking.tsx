@@ -1,125 +1,192 @@
 /**
- * Thinking — Solid component for ChatThinking rows.
+ * Thinking — SolidJS component for ChatThinking rows.
  *
- * Two states:
- *   active (status === 'thinking'): spinner + "Thinking Xs" + streaming window
- *   done (status === 'done'):       "Thought for Xs >" header + collapsible body
+ * Both states are always collapsible/expandable via ThinkingHeader.
  *
- * Visual styles use Tailwind utilities. Geometry-coupled rules (header/window
- * heights, body padding-block, spinner size, mask-image, keyframes) remain in
- * thinking.module.css because the layout engine's arithmetic depends on them.
+ * Collapse semantics are inverted for thinking rows:
+ *   stored false (default) → not expanded
+ *     active: shows fixed-height preview window (ActivePreview)
+ *     done:   shows header only
+ *   stored true → expanded
+ *     both: shows full pre-wrap prose body (ExpandedBody)
+ *
+ * The existing click-delegation in ChatRoot (data-collapse-id → toggleCollapsed)
+ * drives the toggle without any ChatRoot or view-state changes.
+ *
+ * Geometry-coupled rules (heights, insets, padding-block) live in
+ * thinking.module.css. All visual styling uses Tailwind utilities.
  */
 
-import { Show, createSignal, onCleanup, onMount } from 'solid-js';
+import { Show, createEffect, createSignal, onCleanup, onMount } from 'solid-js';
 import type { ChatThinking } from '../../model';
 import { THINKING_HEADER_H, THINKING_PAD_Y, THINKING_WINDOW_H } from './metrics';
 import styles from './thinking.module.css';
 
 export type ThinkingProps = {
   item: ChatThinking;
+  /** Stores "expanded" state — inverted from the conventional "collapsed" name. */
   collapsed?: boolean;
   onBodyMeasured?: (id: string, height: number) => void;
+  bodyMeasuredHeight?: number;
 };
 
 function formatDurationS(ms: number): string {
   return String(Math.floor(ms / 1000));
 }
 
-// ── Active state ──────────────────────────────────────────────────────────────
+// ── ThinkingHeader ─────────────────────────────────────────────────────────────
 
-function ThinkingActive(props: { item: ChatThinking }) {
+function ThinkingHeader(props: { item: ChatThinking; expanded: boolean }) {
   const startElapsed = Math.floor((Date.now() - props.item.startedAt) / 1000);
   const [elapsed, setElapsed] = createSignal(startElapsed);
 
-  const timer = setInterval(() => {
-    setElapsed(Math.floor((Date.now() - props.item.startedAt) / 1000));
-  }, 1000);
+  let timer: ReturnType<typeof setInterval> | undefined;
+
+  createEffect(() => {
+    if (props.item.status === 'thinking') {
+      timer = setInterval(() => {
+        setElapsed(Math.floor((Date.now() - props.item.startedAt) / 1000));
+      }, 1000);
+    } else {
+      clearInterval(timer);
+      timer = undefined;
+    }
+  });
   onCleanup(() => clearInterval(timer));
+
+  const label = () => {
+    if (props.item.status === 'thinking') return `Thinking ${elapsed()}s`;
+    const durationS =
+      props.item.durationMs !== undefined ? formatDurationS(props.item.durationMs) : '?';
+    return `Thought for ${durationS}s`;
+  };
 
   return (
     <div
-      class={styles.pthinking}
-      style={{ position: 'relative', height: `${THINKING_HEADER_H + THINKING_WINDOW_H}px` }}
+      class={`${styles['pthinking__header']} flex cursor-pointer items-center gap-1.5 text-xs text-foreground-muted select-none hover:text-foreground`}
+      role="button"
+      aria-expanded={props.expanded ? 'true' : 'false'}
+      aria-live={props.item.status === 'thinking' ? 'polite' : undefined}
+      aria-atomic={props.item.status === 'thinking' ? 'false' : undefined}
+      data-collapse-id={props.item.id}
     >
-      <div
-        class={`${styles['pthinking__header']} flex items-center gap-1.5 text-xs text-foreground-muted`}
-        aria-live="polite"
-        aria-atomic="false"
+      <span>{label()}</span>
+      <span
+        class="inline-block text-[10px] transition-transform duration-150 ease-out"
+        classList={{ 'rotate-90': props.expanded }}
+        aria-hidden="true"
       >
-        <span class={styles['pthinking__spinner']} />
-        <span>Thinking {elapsed()}s</span>
-      </div>
-      <div class={styles['pthinking__window']}>
-        <div class={`${styles['pthinking__window-text']} text-foreground-muted`}>
-          {props.item.text}
-        </div>
+        ›
+      </span>
+    </div>
+  );
+}
+
+// ── ActivePreview ──────────────────────────────────────────────────────────────
+
+function ActivePreview(props: { item: ChatThinking }) {
+  let scrollEl: HTMLDivElement | undefined;
+
+  createEffect(() => {
+    // Reading props.item.text registers this effect as a reactive subscriber
+    // so it re-runs on every streaming update to pin the scroll to bottom.
+    if (props.item.text != null && scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
+  });
+
+  return (
+    <div class={`${styles['pthinking__window']} relative overflow-hidden`}>
+      <div
+        class={`${styles['pthinking__window-fade']} pointer-events-none absolute inset-x-0 top-0 z-10 bg-linear-to-b from-background to-transparent`}
+        aria-hidden="true"
+      />
+      <div
+        ref={(el) => {
+          scrollEl = el;
+        }}
+        class={`${styles['pthinking__window-scroll']} overflow-y-auto text-xs wrap-break-word whitespace-pre-wrap text-foreground-muted`}
+      >
+        {props.item.text}
       </div>
     </div>
   );
 }
 
-// ── Done state ────────────────────────────────────────────────────────────────
+// ── ExpandedBody ───────────────────────────────────────────────────────────────
 
-function ThinkingDone(props: ThinkingProps & { bodyMeasuredHeight?: number }) {
-  const durationS =
-    props.item.durationMs !== undefined ? formatDurationS(props.item.durationMs) : '?';
-  const expanded = () => !props.collapsed;
-
+function ExpandedBody(props: {
+  item: ChatThinking;
+  onBodyMeasured?: (id: string, h: number) => void;
+}) {
   let bodyEl: HTMLDivElement | undefined;
 
   onMount(() => {
-    if (!expanded() || !props.onBodyMeasured) return;
-    requestAnimationFrame(() => {
+    if (!props.onBodyMeasured || !bodyEl) return;
+    const report = () => {
       const h = bodyEl?.getBoundingClientRect().height ?? 0;
       if (h > 0) props.onBodyMeasured!(props.item.id, h);
-    });
+    };
+    const ro = new ResizeObserver(report);
+    ro.observe(bodyEl);
+    onCleanup(() => ro.disconnect());
+    report();
   });
 
+  return (
+    <div
+      ref={(el) => {
+        bodyEl = el;
+      }}
+      class={`${styles['pthinking__body']} overflow-auto text-xs wrap-break-word whitespace-pre-wrap text-foreground-muted`}
+    >
+      {props.item.text}
+    </div>
+  );
+}
+
+// ── ThinkingContent ────────────────────────────────────────────────────────────
+
+function ThinkingContent(props: {
+  item: ChatThinking;
+  expanded: boolean;
+  onBodyMeasured?: (id: string, h: number) => void;
+}) {
+  return (
+    <Show
+      when={props.expanded}
+      fallback={
+        <Show when={props.item.status === 'thinking'}>
+          <ActivePreview item={props.item} />
+        </Show>
+      }
+    >
+      <ExpandedBody item={props.item} onBodyMeasured={props.onBodyMeasured} />
+    </Show>
+  );
+}
+
+// ── Thinking ───────────────────────────────────────────────────────────────────
+
+export function Thinking(props: ThinkingProps) {
+  // Inverted semantics: stored "collapsed" flag is treated as "expanded".
+  // Default absent/false → not expanded → preview (active) or header-only (done).
+  const expanded = () => !!props.collapsed;
+
   const totalH = () => {
-    if (props.collapsed) return THINKING_HEADER_H;
+    if (!expanded()) {
+      if (props.item.status === 'thinking') return THINKING_HEADER_H + THINKING_WINDOW_H;
+      return THINKING_HEADER_H;
+    }
     return THINKING_HEADER_H + 2 * THINKING_PAD_Y + (props.bodyMeasuredHeight ?? THINKING_WINDOW_H);
   };
 
   return (
     <div class={styles.pthinking} style={{ position: 'relative', height: `${totalH()}px` }}>
-      <div
-        class={`${styles['pthinking__header']} flex items-center gap-1.5 cursor-pointer select-none text-xs text-foreground-muted hover:text-foreground`}
-        role="button"
-        aria-expanded={expanded() ? 'true' : 'false'}
-        data-collapse-id={props.item.id}
-      >
-        Thought for {durationS}s
-        <span
-          class={`${styles['pthinking__chevron']}${expanded() ? ` ${styles['pthinking__chevron--expanded']}` : ''} text-foreground-muted`}
-          aria-hidden="true"
-        >
-          ›
-        </span>
-      </div>
-      <Show when={expanded()}>
-        <div
-          ref={(el) => {
-            bodyEl = el;
-          }}
-          class={`${styles['pthinking__body']} border-t border-border text-foreground-muted`}
-          style={{ top: `${THINKING_HEADER_H}px` }}
-        >
-          {props.item.text}
-        </div>
-      </Show>
-    </div>
-  );
-}
-
-export function Thinking(props: ThinkingProps & { bodyMeasuredHeight?: number }) {
-  return (
-    <Show when={props.item.status === 'done'} fallback={<ThinkingActive item={props.item} />}>
-      <ThinkingDone
+      <ThinkingHeader item={props.item} expanded={expanded()} />
+      <ThinkingContent
         item={props.item}
-        collapsed={props.collapsed}
+        expanded={expanded()}
         onBodyMeasured={props.onBodyMeasured}
-        bodyMeasuredHeight={props.bodyMeasuredHeight}
       />
-    </Show>
+    </div>
   );
 }

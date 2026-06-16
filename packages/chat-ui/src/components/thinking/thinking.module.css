@@ -1,114 +1,56 @@
 /*
- * render-thinking retained styles — geometry-coupled and animation rules only.
+ * Thinking row — geometry and positioning rules only.
  *
- * Visual rules (flex/gap/items, colors, border-top color, chevron color) have
- * been moved to Tailwind classes in Thinking.tsx. Only rules that the layout
- * engine accounts for or that require CSS-only features (mask-image, keyframes)
- * remain here.
+ * All values here feed the layout engine's arithmetic (THINKING_HEADER_H,
+ * THINKING_WINDOW_H, THINKING_FADE_H, THINKING_PAD_Y) via the --chat-think-*
+ * CSS vars declared in thinkingCssVars() and tested in spec.test.ts.
+ *
+ * Visual rules (colors, flex layout, chevron animation, fonts, overflow,
+ * gradient paint) live in Tailwind classes in Thinking.tsx.
  */
 
-/* ── Thinking row padding ─────────────────────────────────────────────────── */
+/* ── Row inset ────────────────────────────────────────────────────────────── */
 
-/* px feeds the layout inset; height is set inline by the layout engine */
+/* padding-inline feeds the layout inset; height is set inline by the engine */
 .pthinking {
   padding-inline: var(--chat-msg-pad-x);
 }
 
-/* ── Header geometry ─────────────────────────────────────────────────────── */
+/* ── Header geometry ──────────────────────────────────────────────────────── */
 
 /* height feeds THINKING_HEADER_H in the layout engine */
 .pthinking__header {
   height: var(--chat-think-header-h);
 }
 
-/* ── Streaming window geometry ────────────────────────────────────────────── */
+/* ── Active preview window geometry ──────────────────────────────────────── */
 
-/*
- * height feeds THINKING_WINDOW_H in the layout engine.
- * mask-image cannot be expressed as a Tailwind utility.
- */
+/* height feeds THINKING_WINDOW_H in the layout engine */
 .pthinking__window {
-  position: relative;
   height: var(--chat-think-window-h);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    rgba(0, 0, 0, 0.5) calc(var(--chat-think-fade-h) * 0.4),
-    #000 var(--chat-think-fade-h)
-  );
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    rgba(0, 0, 0, 0.5) calc(var(--chat-think-fade-h) * 0.4),
-    #000 var(--chat-think-fade-h)
-  );
 }
 
-/* window-text: font metrics and line-height feed streaming layout */
-.pthinking__window-text {
-  font-size: 12px;
-  font-family: var(--chat-mono);
-  line-height: var(--chat-body-lh, 22px);
-  white-space: pre-wrap;
-  word-break: break-word;
-  /* color moved to Tailwind */
+/* max-height mirrors THINKING_WINDOW_H so the scroller is bounded */
+.pthinking__window-scroll {
+  max-height: var(--chat-think-window-h);
+}
+
+/* height feeds THINKING_FADE_H — controls how tall the top gradient is */
+.pthinking__window-fade {
+  height: var(--chat-think-fade-h);
 }
 
 /* ── Expanded body geometry ───────────────────────────────────────────────── */
 
-/* padding-block feeds body height measurement; position feeds layout engine */
+/*
+ * position + top mirror THINKING_HEADER_H so the body starts just below the
+ * header. padding-block contributes the 2 * THINKING_PAD_Y term in
+ * measureThinking's expanded branch; the layout engine depends on this.
+ */
 .pthinking__body {
   position: absolute;
+  top: var(--chat-think-header-h);
   left: var(--chat-msg-pad-x);
   right: var(--chat-msg-pad-x);
-  overflow: auto;
-  font-size: 12px;
-  font-family: var(--chat-mono);
-  line-height: var(--chat-body-lh, 22px);
-  white-space: pre-wrap;
-  word-break: break-word;
   padding-block: var(--chat-think-pad-y);
-  /* color and border-top color moved to Tailwind */
-}
-
-/* ── Spinner animation ────────────────────────────────────────────────────── */
-
-/* Size and animation cannot be expressed as Tailwind utilities (custom keyframes) */
-.pthinking__spinner {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  flex-shrink: 0;
-  animation: pthink-pulse 1.2s ease-in-out infinite;
-}
-
-@keyframes pthink-pulse {
-  0%,
-  100% {
-    opacity: 0.3;
-    transform: scale(0.85);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.1);
-  }
-}
-
-/* ── Chevron animation ────────────────────────────────────────────────────── */
-
-.pthinking__chevron {
-  margin-left: auto;
-  font-size: 10px;
-  transition: transform 0.18s ease;
-  display: inline-block;
-  /* color moved to Tailwind */
-}
-
-.pthinking__chevron--expanded {
-  transform: rotate(90deg);
 }

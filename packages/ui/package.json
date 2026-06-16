@@ -26,6 +26,7 @@
     "./theme/base.css": "./src/theme/theme.base.css",
     "./theme/semantic.css": "./src/theme/semantic.css",
     "./theme/surfaces.css": "./src/theme/surfaces.css",
+    "./theme/overflow-fade.css": "./src/theme/overflow-fade.css",
     "./theme/tokens.js": "./src/theme/tokens.js",
     "./theme/tokens.d.ts": "./src/theme/tokens.d.ts",
     "./package.json": "./package.json"

@@ -29,6 +29,8 @@ import type { ModelOption } from '@shared/core/agents/agent-payload';
 export interface ChatComposerProps {
   disabled?: boolean;
   isWorking?: boolean;
+  /** False while the ACP session is still starting up. Blocks Send/Enter but keeps the editor typeable. */
+  canSubmit?: boolean;
   modelOptions?: Record<string, ModelOption> | null;
   selectedModel?: string;
   onModelChange?: (modelId: string) => void;
@@ -44,6 +46,7 @@ export interface ChatComposerProps {
 export function ChatComposer({
   disabled = false,
   isWorking = false,
+  canSubmit = true,
   modelOptions,
   selectedModel,
   onModelChange,
@@ -58,7 +61,7 @@ export function ChatComposer({
   const editorRef = useRef<PromptEditorRef | null>(null);
 
   const handleSubmit = (text: string) => {
-    if (!text.trim() || disabled) return;
+    if (!text.trim() || disabled || !canSubmit) return;
     onSubmit(text);
     // Editor clears itself after submit (clearContent is called inside PromptEditor).
   };
@@ -74,7 +77,7 @@ export function ChatComposer({
       <div className="max-h-[200px] overflow-y-auto px-3 pt-3 pb-1">
         <PromptEditor
           ref={editorRef}
-          placeholder={disabled ? 'Session closed' : 'Message…'}
+          placeholder={disabled ? 'Session closed' : !canSubmit ? 'Waiting for agent…' : 'Message…'}
           disabled={disabled}
           onSubmit={handleSubmit}
           queryMentions={queryMentions}
@@ -140,7 +143,7 @@ export function ChatComposer({
                 const text = editorRef.current?.getText() ?? '';
                 handleSubmit(text);
               }}
-              disabled={disabled}
+              disabled={disabled || !canSubmit}
               aria-label="Send message"
               className="flex h-7 items-center justify-center gap-1 rounded-lg bg-primary-button-background px-2.5 text-xs font-medium text-primary-button-foreground hover:bg-primary-button-background-hover disabled:cursor-not-allowed disabled:opacity-40"
             >

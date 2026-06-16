@@ -5,6 +5,7 @@ import { useCallback } from 'react';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import type { ModelOption } from '@shared/core/agents/agent-payload';
 import { useConversations } from '../../task-view-context';
+import { ChatEmptyState } from './chat-empty-state';
 import { ChatComposer } from './chat-composer';
 
 export const ChatPanel = observer(function ChatPanel({
@@ -47,12 +48,11 @@ export const ChatPanel = observer(function ChatPanel({
       <div className="relative flex-1 min-h-0">
         <ChatTranscript className="h-full" stickToBottom={true} onReady={handleReady} />
 
-        {/* Empty state — shown when there are no messages yet */}
-        {!store.hasItems && !store.isWorking && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-foreground-secondary">
-            Start a conversation
-          </div>
-        )}
+        {!store.isReady && !store.isClosed ? (
+          <ChatEmptyState variant="loading" />
+        ) : !store.hasItems && !store.isWorking ? (
+          <ChatEmptyState variant="empty" />
+        ) : null}
       </div>
 
       {/* Input area */}
@@ -60,6 +60,7 @@ export const ChatPanel = observer(function ChatPanel({
         <ChatComposer
           disabled={store.isClosed}
           isWorking={store.isWorking}
+          canSubmit={store.isReady}
           modelOptions={modelOptions}
           selectedModel={store.selectedModel}
           onModelChange={(id) => store.setModel(id)}

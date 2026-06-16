@@ -5,6 +5,7 @@ import { events, rpc } from '@renderer/lib/ipc';
 import {
   acpSessionClosedChannel,
   acpSessionReplayChannel,
+  acpSessionStatusChannel,
   acpSessionUpdateChannel,
 } from '@shared/core/acp/acpEvents';
 
@@ -79,6 +80,8 @@ export class ChatStore {
   items: ChatItem[] = [];
   isWorking = false;
   isClosed = false;
+  /** True once the ACP session is ready to accept prompts. */
+  isReady = false;
   input = '';
   selectedModel = 'default';
 
@@ -106,6 +109,7 @@ export class ChatStore {
       items: observable,
       isWorking: observable,
       isClosed: observable,
+      isReady: observable,
       input: observable,
       selectedModel: observable,
       setInput: action,
@@ -153,6 +157,28 @@ export class ChatStore {
           }
         })
       )
+    );
+
+    // Track ACP session readiness so the composer can gate Send and the panel
+    // can show a loading state while the agent cold-starts or replays history.
+    this._unsubs.push(
+      events.on(
+        acpSessionStatusChannel,
+        action((payload) => {
+          if (payload.conversationId !== this._conversationId) return;
+          if (payload.status === 'ready') this.isReady = true;
+          else if (payload.status === 'starting') this.isReady = false;
+        })
+      )
+    );
+
+    // Bootstrap in case the status event fired before this store was created
+    // (e.g. keepAlive pool: tab was already hydrated when ChatStore is lazily
+    // constructed). Only upgrade: never clobber a 'ready' that arrived first.
+    void rpc.acp.getSessionStatus(this._conversationId).then(
+      action((status) => {
+        if (status === 'ready' && !this.isReady) this.isReady = true;
+      })
     );
   }
 
