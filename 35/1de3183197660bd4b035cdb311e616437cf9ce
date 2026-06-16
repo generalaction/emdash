@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/lib/components/card-grid.tsx
+  s_bbef47dcf265b7::t_5f5b8aca805ba5 7-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "351de3183197660bd4b035cdb311e616437cf9ce",
+  "prompts": {},
+  "sessions": {
+    "s_bbef47dcf265b7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "043ca32d-2a65-45d8-907d-630af3533a3d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
