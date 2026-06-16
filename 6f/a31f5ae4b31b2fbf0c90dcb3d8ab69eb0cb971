@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/file-model-lifecycle-store.ts
+  s_4ff4fb96894a42::t_2e3b0ad06f8f57 317,322,325
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "6fa31f5ae4b31b2fbf0c90dcb3d8ab69eb0cb971",
+  "prompts": {},
+  "sessions": {
+    "s_4ff4fb96894a42": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed194-d4c3-7d46-bba9-7a7a96ae1176",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
