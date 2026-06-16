@@ -51,6 +51,15 @@ function workingTreeDiff(path = 'src/example.ts') {
   };
 }
 
+function stagedDiff(path = 'src/example.ts') {
+  return {
+    path,
+    type: 'git' as const,
+    group: 'staged' as const,
+    originalRef: ORIGINAL_REF,
+  };
+}
+
 describe('TabManagerStore browser tabs', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -236,6 +245,24 @@ describe('TabManagerStore diff tabs', () => {
       path: second.path,
       isPreview: true,
       isDirty: false,
+    });
+  });
+
+  it('does not expose buffer URIs for non-editable diff tabs', () => {
+    const manager = createTabManager();
+    const activeFile = stagedDiff();
+    const bufferUri = buildMonacoModelPath('workspace:workspace-1', activeFile.path);
+
+    manager.openDiff(activeFile);
+    modelRegistry.dirtyUris.add(bufferUri);
+
+    expect(manager.activeEditablePath).toBeNull();
+    expect(manager.openEditablePaths).toEqual([]);
+    expect(manager.resolvedTabs[0]).toMatchObject({
+      kind: 'diff',
+      path: activeFile.path,
+      isDirty: false,
+      bufferUri: '',
     });
   });
 });

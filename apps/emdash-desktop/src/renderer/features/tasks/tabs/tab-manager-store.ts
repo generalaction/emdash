@@ -407,12 +407,15 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           isActive: effectiveActiveId === entry.tabId,
         });
       } else if (entry.kind === 'diff') {
-        const bufferUri = buildMonacoModelPath(this.modelRootPath, entry.path);
+        const editablePath = getEditableBufferPath(entry);
+        const bufferUri = editablePath
+          ? buildMonacoModelPath(this.modelRootPath, editablePath)
+          : '';
         result.push({
           kind: 'diff',
           tabId: entry.tabId,
           path: entry.path,
-          isDirty: getEditableBufferPath(entry) !== null && modelRegistry.isDirty(bufferUri),
+          isDirty: editablePath !== null && modelRegistry.isDirty(bufferUri),
           bufferUri,
           diffGroup: entry.diffGroup,
           originalRef: entry.originalRef,

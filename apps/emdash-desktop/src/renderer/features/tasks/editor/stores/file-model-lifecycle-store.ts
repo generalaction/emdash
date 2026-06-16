@@ -313,6 +313,20 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
     modelRegistry.unregisterModel(uri);
     modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
     modelRegistry.unregisterModel(modelRegistry.toGitUri(uri, HEAD_REF));
-    void rpc.workspace.editor.clearBuffer(this.projectId, this.workspaceId, filePath);
+
+    if (!this._hasOpenTabForPath(filePath)) {
+      void rpc.workspace.editor.clearBuffer(this.projectId, this.workspaceId, filePath);
+    }
+  }
+
+  private _hasOpenTabForPath(filePath: string): boolean {
+    for (const { tabManager } of this.tabGroupManager.groups) {
+      for (const entry of tabManager.entries.values()) {
+        if ((entry.kind === 'file' || entry.kind === 'diff') && entry.path === filePath) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 }
