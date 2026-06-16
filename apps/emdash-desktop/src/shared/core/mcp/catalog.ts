@@ -44,7 +44,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Supabase',
     description: 'Manage databases, authentication, and storage',
-    docsUrl: 'https://supabase.com/docs/guides/getting-started/mcp',
+    docsUrl: 'https://supabase.com/docs/guides/ai-tools/mcp',
     credentialKeys: [],
   },
   vercel: {
