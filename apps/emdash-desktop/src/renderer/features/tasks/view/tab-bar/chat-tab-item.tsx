@@ -1,5 +1,6 @@
 import { MessageSquare } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { AgentStatusIndicator } from '../../components/agent-status-indicator';
 import { formatConversationTitleForDisplay } from '../../conversations/conversation-title-utils';
 import type { ResolvedChatTab } from '../../tabs/tab-manager-store';
 import { TabCloseButton } from './tab-close-button';
@@ -33,7 +34,15 @@ export const ChatTabItem = observer(function ChatTabItem({
       <TabTitle isActive={tab.isActive} isPreview={tab.isPreview} maxWidth="max-w-24">
         {title}
       </TabTitle>
-      <TabCloseButton onClose={onClose} ariaLabel={`Close ${title}`} />
+      <TabCloseButton
+        onClose={onClose}
+        ariaLabel={`Close ${title}`}
+        statusIndicator={
+          <span className="transition-opacity group-hover:opacity-0">
+            <AgentStatusIndicator status={tab.store.indicatorStatus} disableTooltip />
+          </span>
+        }
+      />
     </TabItemShell>
   );
 });

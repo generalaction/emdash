@@ -6,21 +6,39 @@
  * TranscriptApi calls and re-runs on every story re-mount.
  */
 
-import { For, createEffect, createMemo, createSignal, onMount } from 'solid-js';
+import { createEffect, onMount, type JSX } from 'solid-js';
 import { ChatRoot } from '../ChatRoot';
 import { DEFAULT_FONT_CONFIG } from '../core/measure/fonts';
 import type { ChatItem } from '../model';
 import { createTranscript } from '../state/transcript';
 import type { TranscriptApi } from '../state/transcript';
 import { createViewState } from '../state/view-state';
-import styles from '../chat.module.css';
+
+/**
+ * Viewport box for stories. Only sizes the scroll viewport — the centered
+ * content column (max-width) is owned by ChatRoot. The viewport is wider than
+ * the content cap so the centering and full-width scrollbar are visible.
+ */
+function StoryViewport(props: { height?: number; width?: number; children: JSX.Element }) {
+  return (
+    <div
+      class="overflow-hidden rounded-lg border border-border bg-background"
+      style={{
+        width: props.width ? `${props.width}px` : '880px',
+        height: `${props.height ?? 600}px`,
+      }}
+    >
+      {props.children}
+    </div>
+  );
+}
 
 /** Props shared by story hosts. */
 export type ChatHostProps = {
   items?: ChatItem[];
-  /** Override width in px (default: auto). */
+  /** Override viewport width in px (default: 880). */
   width?: number;
-  /** Height in px (default: 600). */
+  /** Viewport height in px (default: 600). */
   height?: number;
 };
 
@@ -36,23 +54,10 @@ export function ChatHost(props: ChatHostProps) {
     transcript.seed(props.items ?? []);
   });
 
-  const containerStyle = () => ({
-    width: props.width ? `${props.width}px` : '640px',
-    height: `${props.height ?? 600}px`,
-    background: 'var(--surface-raised)',
-    'border-radius': '8px',
-    overflow: 'hidden',
-  });
-
   return (
-    <div style={containerStyle()}>
-      <ChatRoot
-        transcript={transcript}
-        viewState={viewState}
-        fonts={DEFAULT_FONT_CONFIG}
-        stickToBottom
-      />
-    </div>
+    <StoryViewport height={props.height} width={props.width}>
+      <ChatRoot transcript={transcript} viewState={viewState} fonts={DEFAULT_FONT_CONFIG} stickToBottom />
+    </StoryViewport>
   );
 }
 
@@ -90,21 +95,8 @@ export function ScriptedChat(props: { script: ScriptStep[]; height?: number; wid
   });
 
   return (
-    <div
-      style={{
-        width: props.width ? `${props.width}px` : '640px',
-        height: `${props.height ?? 600}px`,
-        border: '1px solid var(--chat-border, #e2e8f0)',
-        'border-radius': '8px',
-        overflow: 'hidden',
-      }}
-    >
-      <ChatRoot
-        transcript={transcript}
-        viewState={viewState}
-        fonts={DEFAULT_FONT_CONFIG}
-        stickToBottom
-      />
-    </div>
+    <StoryViewport height={props.height} width={props.width}>
+      <ChatRoot transcript={transcript} viewState={viewState} fonts={DEFAULT_FONT_CONFIG} stickToBottom />
+    </StoryViewport>
   );
 }

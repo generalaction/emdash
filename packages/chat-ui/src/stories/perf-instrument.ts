@@ -67,7 +67,7 @@ export function sweepScroll(
       for (const m of mutations) n += m.addedNodes.length + m.removedNodes.length;
       if (n > 0) churnSamples.push(n);
     });
-    const canvas = scrollEl.querySelector('[class*="pchat-canvas"]') ?? scrollEl;
+    const canvas = scrollEl.querySelector('[data-chat-canvas]') ?? scrollEl;
     obs.observe(canvas, { childList: true, subtree: true });
 
     const frameTimes: number[] = [];

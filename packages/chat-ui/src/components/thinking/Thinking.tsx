@@ -111,8 +111,6 @@ function ThinkingDone(props: ThinkingProps & { bodyMeasuredHeight?: number }) {
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
-
 export function Thinking(props: ThinkingProps & { bodyMeasuredHeight?: number }) {
   return (
     <Show when={props.item.status === 'done'} fallback={<ThinkingActive item={props.item} />}>

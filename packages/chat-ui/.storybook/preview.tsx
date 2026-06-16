@@ -8,11 +8,16 @@ const preview: Preview = {
   },
   decorators: [
     (Story, context) => {
-      const theme = (context.globals as Record<string, string>)['theme'] ?? 'emlight';
-      const debugOn = (context.globals as Record<string, string>)['debug'] === 'on';
+      // storybook-solidjs makes `context.globals` a reactive Solid store and does
+      // NOT remount the story when a toolbar global changes — it reconciles the
+      // store in place. So globals must be read lazily inside the reactive tree
+      // (accessors / JSX), never snapshotted here, or theme/debug won't update.
+      const globals = context.globals as Record<string, string>;
+      const theme = () => globals['theme'] ?? 'emlight';
+      const debugOn = () => globals['debug'] === 'on';
       return (
-        <DebugContext.Provider value={() => debugOn}>
-          <div class={`${theme} min-h-screen bg-background p-8 text-foreground`}>
+        <DebugContext.Provider value={debugOn}>
+          <div class={`${theme()} min-h-screen bg-background p-8 text-foreground`}>
             <Story />
           </div>
         </DebugContext.Provider>

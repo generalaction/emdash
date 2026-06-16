@@ -22,6 +22,7 @@ import {
   onCleanup,
   onMount,
   untrack,
+  useContext,
 } from 'solid-js';
 import { clearMessageLayoutCache } from './components/message/measure';
 import { DebugContext } from './components/debug-context';
@@ -36,7 +37,12 @@ import { Virtualizer } from './core/virtualizer';
 import { getItem, itemCount } from './state/transcript';
 import type { TranscriptApi } from './state/transcript';
 import type { ViewState } from './state/view-state';
-import styles from './chat.module.css';
+import './chat.module.css';
+
+// Centered content column. The scroll container stays full width (so the
+// scrollbar sits at the viewport edge) while rows are measured and laid out
+// against this capped, centered canvas — matching the desktop composer width.
+const DEFAULT_CONTENT_CLASS = 'mx-auto w-full max-w-2xl';
 
 // Symmetric overscan used when idle or velocity unknown
 const OVERSCAN_BASE = 4;
@@ -49,15 +55,32 @@ export type ChatRootProps = {
   viewState: ViewState;
   fonts?: FontConfig;
   stickToBottom?: boolean;
+  /** Extra classes for the full-width scroll container. */
   class?: string;
-  /** Enable the layout-boundary debug overlay on every block and row. */
+  /**
+   * Classes for the centered content column. Defaults to a max-width column.
+   * Rows are measured against this element's width, not the scroll container.
+   */
+  contentClass?: string;
+  /**
+   * Enable the layout-boundary debug overlay on every block and row. When
+   * omitted, an ambient DebugContext (e.g. the Storybook toolbar) is inherited.
+   */
   debug?: boolean;
 };
 
 export function ChatRoot(props: ChatRootProps) {
   const fonts = () => props.fonts ?? DEFAULT_FONT_CONFIG;
+  const contentClass = () => props.contentClass ?? DEFAULT_CONTENT_CLASS;
+
+  // Inherit an ambient debug flag (Storybook toolbar / parent provider) unless
+  // an explicit `debug` prop is given. Without this, the provider below would
+  // shadow the ambient one and force debug off for the whole subtree.
+  const inheritedDebug = useContext(DebugContext);
+  const debugValue = () => props.debug ?? inheritedDebug();
 
   let scrollEl: HTMLDivElement | undefined;
+  let canvasEl: HTMLDivElement | undefined;
   const virt = new Virtualizer();
   let sticky: StickToBottom | null = null;
 
@@ -230,17 +253,24 @@ export function ChatRoot(props: ChatRootProps) {
       }
     });
 
-    // ResizeObserver
-    const ro = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) return;
-      const w = entry.contentRect.width;
-      const h = entry.contentRect.height;
-      if (w > 0) setContainerWidth(w);
-      if (h > 0) setViewHeight(h);
+    // Viewport height comes from the full-width scroll container.
+    const roHeight = new ResizeObserver((entries) => {
+      const h = entries[0]?.contentRect.height;
+      if (h && h > 0) setViewHeight(h);
     });
-    ro.observe(el);
-    onCleanup(() => ro.disconnect());
+    roHeight.observe(el);
+    onCleanup(() => roHeight.disconnect());
+
+    // Row width comes from the centered content column, which may be narrower
+    // than the scroll container when the max-width cap is in effect.
+    if (canvasEl) {
+      const roWidth = new ResizeObserver((entries) => {
+        const w = entries[0]?.contentRect.width;
+        if (w && w > 0) setContainerWidth(w);
+      });
+      roWidth.observe(canvasEl);
+      onCleanup(() => roWidth.disconnect());
+    }
 
     // Click delegation for collapse toggles
     const onClick = (e: Event) => {
@@ -272,47 +302,61 @@ export function ChatRoot(props: ChatRootProps) {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <DebugContext.Provider value={() => props.debug ?? false}>
-    <div
-      ref={(el) => { scrollEl = el; }}
-      class={`${styles['pchat-transcript']}${props.class ? ` ${props.class}` : ''}`}
-    >
-      <div class={styles['pchat-canvas']} style={{ height: `${totalHeight()}px` }}>
-        <For each={visibleIndexes()}>
-          {(rowIndex) => {
-            // rowIndex is a stable row index for this DOM node's lifetime (<For>
-            // is keyed by value), so the node persists while the row stays
-            // visible and is disposed only when it scrolls out.
-            const rowTop = createMemo(() => {
-              totalHeight(); // re-read when heights change
-              return virt.top(rowIndex);
-            });
-
-            const item = createMemo(() => getItem(props.transcript.state, rowIndex));
-
-            return (
-              <Show when={item()}>
-                <div
-                  class={styles['pchat-row']}
-                  style={{ transform: `translateY(${rowTop()}px)` }}
-                  data-index={String(rowIndex)}
-                >
-                  <Row
-                    item={item()!}
-                    index={rowIndex}
-                    rowWidth={containerWidth()}
-                    fonts={fonts()}
-                    viewState={props.viewState}
-                    virt={virt}
-                    onHeightChanged={onHeightChanged}
-                  />
-                </div>
-              </Show>
-            );
+    <DebugContext.Provider value={debugValue}>
+      <div
+        ref={(el) => {
+          scrollEl = el;
+        }}
+        data-chat-scroll
+        class={`relative h-full w-full overflow-x-hidden overflow-y-auto${props.class ? ` ${props.class}` : ''}`}
+      >
+        <div
+          ref={(el) => {
+            canvasEl = el;
           }}
-        </For>
+          data-chat-canvas
+          class={`relative ${contentClass()}`}
+          style={{ height: `${totalHeight()}px` }}
+        >
+          <For each={visibleIndexes()}>
+            {(rowIndex) => {
+              // rowIndex is a stable row index for this DOM node's lifetime (<For>
+              // is keyed by value), so the node persists while the row stays
+              // visible and is disposed only when it scrolls out.
+              const rowTop = createMemo(() => {
+                totalHeight(); // re-read when heights change
+                return virt.top(rowIndex);
+              });
+
+              const item = createMemo(() => getItem(props.transcript.state, rowIndex));
+
+              return (
+                <Show when={item()}>
+                  {/* `contain: layout paint style` isolates per-row recalc but
+                      deliberately omits `size` so offsetHeight stays correct.
+                      `content-visibility:auto` is intentionally avoided — it
+                      blanks tall rows whose top sits above the viewport. */}
+                  <div
+                    class="absolute left-0 top-0 w-full will-change-transform [contain:layout_paint_style]"
+                    style={{ transform: `translateY(${rowTop()}px)` }}
+                    data-index={String(rowIndex)}
+                  >
+                    <Row
+                      item={item()!}
+                      index={rowIndex}
+                      rowWidth={containerWidth()}
+                      fonts={fonts()}
+                      viewState={props.viewState}
+                      virt={virt}
+                      onHeightChanged={onHeightChanged}
+                    />
+                  </div>
+                </Show>
+              );
+            }}
+          </For>
+        </div>
       </div>
-    </div>
     </DebugContext.Provider>
   );
 }

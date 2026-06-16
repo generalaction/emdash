@@ -16,6 +16,7 @@ import { appService } from './core/app/service';
 import { automationsService } from './core/automations/automations-service';
 import { cleanupLegacyBrowserPartitions } from './core/browser/browser-partition-cleanup';
 import { browserWebContentsRegistry } from './core/browser/browser-webcontents-registry';
+import { resetStuckWorkingStatuses } from './core/conversations/resetStuckWorkingStatuses';
 import { localDependencyManager } from './core/dependencies/dependency-managers';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
@@ -97,6 +98,14 @@ void app.whenReady().then(async () => {
 
   try {
     await initializeDatabase();
+    try {
+      const reset = await resetStuckWorkingStatuses();
+      if (reset > 0) {
+        log.info(`Reset ${reset} stale 'working' conversation status(es) on startup`);
+      }
+    } catch (e: unknown) {
+      log.warn("conversations: failed to reset stale 'working' statuses", { error: e });
+    }
     searchService.initialize();
     workspaceFileIndexService.initialize();
     void editorBufferService.pruneStale();

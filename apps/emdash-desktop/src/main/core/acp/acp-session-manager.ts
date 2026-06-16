@@ -170,8 +170,9 @@ class AcpSessionManager {
         await this.applyModelInternal(pool.connection, acpSessionId, conv.pendingModel, conv);
       }
 
-      this.emitAgentEvent(conv, 'start');
-
+      // Do not emit 'start' here — session setup alone is not agent activity.
+      // start/stop are emitted in sendPromptInternal so status reflects actual
+      // prompt execution, trusting the hook events as the source of truth.
       if (initialPrompt?.trim()) {
         await this.sendPromptInternal(pool, conv, initialPrompt);
       }
@@ -231,6 +232,15 @@ class AcpSessionManager {
 
     pool.conversations.delete(conversationId);
     this.conversationIndex.delete(conversationId);
+
+    // Tearing down this conversation's session is a session exit; mirror the PTY
+    // path so a stuck 'working' status (e.g. tab closed mid-turn) is reset to idle.
+    if (conv) {
+      events.emit(agentSessionExitedChannel, {
+        conversationId: conv.conversationId,
+        taskId: conv.taskId,
+      });
+    }
 
     if (pool.conversations.size === 0) {
       this.destroyPool(pool);

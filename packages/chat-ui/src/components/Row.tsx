@@ -86,7 +86,7 @@ function RowDebugOverlay(props: { reservedHeight: number; rowEl: () => HTMLEleme
 // ── Row ───────────────────────────────────────────────────────────────────────
 
 export function Row(props: RowProps) {
-  const debug = useDebug();
+  const debug = useDebug(); // () => boolean — reactive accessor
   const fonts = () => props.fonts ?? DEFAULT_FONT_CONFIG;
 
   // DOM-measured heights for islands and thinking bodies.
@@ -136,7 +136,7 @@ export function Row(props: RowProps) {
         layout={layout()}
         ctx={renderCtx}
       />
-      <Show when={debug}>
+      <Show when={debug()}>
         <RowDebugOverlay reservedHeight={layout().height} rowEl={() => rowEl} />
       </Show>
     </div>

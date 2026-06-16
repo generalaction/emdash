@@ -44,7 +44,7 @@ function PerfHost(props: { count: number; label: string; height?: number }) {
     requestAnimationFrame(() => {
       requestAnimationFrame(async () => {
         if (!scrollEl) return;
-        const sc = scrollEl.querySelector('[class*="pchat-transcript"]') as HTMLElement | null;
+        const sc = scrollEl.querySelector('[data-chat-scroll]') as HTMLElement | null;
         if (!sc) {
           setResult('Could not find scroll container');
           return;
@@ -75,7 +75,9 @@ function PerfHost(props: { count: number; label: string; height?: number }) {
   return (
     <div>
       <div
-        ref={scrollEl}
+        ref={(el) => {
+          scrollEl = el;
+        }}
         style={{
           width: '640px',
           height: `${props.height ?? 700}px`,

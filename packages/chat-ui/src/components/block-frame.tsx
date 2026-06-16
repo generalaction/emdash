@@ -82,7 +82,7 @@ export type BlockFrameProps = {
  * Pass an additional `class` for block-kind-specific visual styling.
  */
 export function BlockFrame(props: BlockFrameProps) {
-  const debug = useDebug();
+  const debug = useDebug(); // () => boolean — reactive accessor
   let el: HTMLElement | undefined;
 
   return (
@@ -100,7 +100,7 @@ export function BlockFrame(props: BlockFrameProps) {
       }}
     >
       {props.children}
-      <Show when={debug}>
+      <Show when={debug()}>
         <DebugOverlay
           id={(props.layout as { id?: string }).id}
           reservedHeight={props.layout.height}
@@ -131,7 +131,7 @@ export type MeasuredBlockFrameProps = {
  * re-measure.  The observer is disconnected on cleanup.
  */
 export function MeasuredBlockFrame(props: MeasuredBlockFrameProps) {
-  const debug = useDebug();
+  const debug = useDebug(); // () => boolean — reactive accessor
   let el!: HTMLElement;
 
   onMount(() => {
@@ -162,7 +162,7 @@ export function MeasuredBlockFrame(props: MeasuredBlockFrameProps) {
       }}
     >
       {props.children}
-      <Show when={debug}>
+      <Show when={debug()}>
         <DebugOverlay
           id={props.id}
           reservedHeight={props.layout.height}

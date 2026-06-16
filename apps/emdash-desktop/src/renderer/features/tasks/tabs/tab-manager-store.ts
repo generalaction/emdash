@@ -288,9 +288,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     );
 
     // Mark conversation as seen when it becomes the active tab in the focused pane.
+    // Uses activeConversationStore so both pty-agent and chat tabs clear their indicator.
     this.disposers.push(
       autorun(() => {
-        const conv = this.activeConversation;
+        const conv = this.activeConversationStore;
         if (this.isFocused && conv && !conv.seen) {
           conv.markSeen();
         }
@@ -350,6 +351,17 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   get activeConversationId(): string | undefined {
     const desc = this.activeDescriptor;
     return desc?.kind === 'conversation' ? desc.conversationId : undefined;
+  }
+
+  /**
+   * The ConversationStore for the active tab, regardless of whether it is a
+   * pty-agent `'conversation'` tab or a `'chat'` tab. Used for notification
+   * mark-seen so both tab kinds clear their indicator on activation.
+   */
+  get activeConversationStore(): ConversationStore | undefined {
+    const desc = this.activeDescriptor;
+    if (!desc || (desc.kind !== 'conversation' && desc.kind !== 'chat')) return undefined;
+    return this._getConversations()?.conversations.get(desc.conversationId);
   }
 
   get activeFileEntry(): FileTabStore | undefined {
@@ -1090,7 +1102,8 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
 
   private _getConversationIdForTab(id: string): string | undefined {
     const entry = this.entries.get(id);
-    return entry?.kind === 'conversation' ? entry.conversationId : undefined;
+    if (entry?.kind === 'conversation' || entry?.kind === 'chat') return entry.conversationId;
+    return undefined;
   }
 
   private _markConversationSeen(conversationId: string): void {

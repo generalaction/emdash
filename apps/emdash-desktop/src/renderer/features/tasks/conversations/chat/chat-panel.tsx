@@ -56,7 +56,7 @@ export const ChatPanel = observer(function ChatPanel({
       </div>
 
       {/* Input area */}
-      <div className="shrink-0 border-t border-border bg-background p-3">
+      <div className="shrink-0 bg-background max-w-2xl mx-auto w-full px-4 pb-3">
         <ChatComposer
           disabled={store.isClosed}
           isWorking={store.isWorking}

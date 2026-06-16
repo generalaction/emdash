@@ -27,8 +27,10 @@ export type MountChatOptions = {
   transcript?: TranscriptApi;
   /** Pre-existing view state; if omitted a new one is created. */
   viewState?: ViewState;
-  /** Extra CSS class for the root container. */
+  /** Extra CSS class for the full-width scroll container. */
   class?: string;
+  /** Classes for the centered content column (defaults to a max-width column). */
+  contentClass?: string;
 };
 
 export type ChatHandle = {
@@ -53,6 +55,7 @@ export function mountChat(container: HTMLElement, opts: MountChatOptions = {}): 
         fonts={fonts}
         stickToBottom={opts.stickToBottom}
         class={opts.class}
+        contentClass={opts.contentClass}
       />
     ),
     container
