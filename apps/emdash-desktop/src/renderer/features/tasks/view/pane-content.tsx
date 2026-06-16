@@ -7,6 +7,7 @@ import { ShowHide } from '@renderer/lib/ui/show-hide';
 import { ConversationsPanel } from '../conversations/conversations-panel';
 import { DiffView } from '../diff-view/main-panel/diff-view';
 import { useTabGroupContext } from '../tabs/tab-group-context';
+import type { ResolvedBrowserTab } from '../tabs/tab-manager-store';
 import { PaneEmptyState } from './pane-empty-state';
 import { resolvePaneRenderer } from './pane-renderer';
 import { FileRenderer } from './renderers/file-renderer';
@@ -20,7 +21,9 @@ export const PaneContent = observer(function PaneContent() {
   });
 
   const paneRenderer = resolvePaneRenderer(paneTabManager);
-  const browserTabs = paneTabManager.resolvedTabs.filter((tab) => tab.kind === 'browser');
+  const browserTabs = paneTabManager.resolvedTabs.filter(
+    (tab): tab is ResolvedBrowserTab => tab.kind === 'browser'
+  );
   const activeBrowserId = paneRenderer?.kind === 'browser' ? paneRenderer.browserId : null;
 
   useEffect(() => {
