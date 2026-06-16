@@ -1,0 +1,19 @@
+.amp/plugins/emdash-hook.ts
+  s_c34a3cc4c14194::t_26b4ab681c5fc3 1-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "9628d4142e77558a6fd1110876a448ea9cfbbb6f",
+  "prompts": {},
+  "sessions": {
+    "s_c34a3cc4c14194": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed185-98ed-73ac-a7ac-d12a9118b5b9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
