@@ -82,6 +82,7 @@ type HookSpec = { hookKey: string; command: string };
 type FlatTomlHookConfigOptions = {
   beforeWrite?: (fs: PluginFs) => Promise<void>;
   afterWrite?: (fs: PluginFs) => Promise<string[]>;
+  afterDelete?: (fs: PluginFs) => Promise<void>;
   stringifyEntry?: (entry: Record<string, unknown>) => string;
 };
 
@@ -119,6 +120,7 @@ export function buildFlatTomlHookConfig(
         ...config,
         hooks: filterUserHooks(getHookEntries(config), stringifyEntry),
       });
+      await options.afterDelete?.(fs);
     },
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
       const config = await readTomlConfig(fs, configPath);

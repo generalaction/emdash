@@ -39,11 +39,19 @@ async function enableExperimentalHooks(fs: PluginFs): Promise<string[]> {
   return [MISTRAL_CONFIG_PATH];
 }
 
+async function disableExperimentalHooks(fs: PluginFs): Promise<void> {
+  const config = await readTomlConfig(fs, MISTRAL_CONFIG_PATH);
+  const { enable_experimental_hooks: _removed, ...configWithoutExperimentalHooks } = config;
+  await writeTomlConfig(fs, MISTRAL_CONFIG_PATH, configWithoutExperimentalHooks);
+}
+
 export function buildMistralHookConfig() {
   return buildFlatTomlHookConfig(MISTRAL_HOOKS_PATH, MISTRAL_HOOK_ENTRIES, {
     beforeWrite: async (fs) => {
+      // Parse config.toml before touching hooks.toml so invalid TOML aborts without a partial write.
       await readTomlConfig(fs, MISTRAL_CONFIG_PATH);
     },
     afterWrite: enableExperimentalHooks,
+    afterDelete: disableExperimentalHooks,
   });
 }
