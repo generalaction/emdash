@@ -61,14 +61,11 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     config: {
       type: 'http',
       url: 'https://mcp.sentry.dev/mcp',
-      headers: {
-        SENTRY_ACCESS_TOKEN: 'YOUR_ACCESS_TOKEN',
-      },
     },
     name: 'Sentry',
     description: 'Search, query, and debug errors intelligently',
     docsUrl: 'https://docs.sentry.io/product/sentry-mcp/',
-    credentialKeys: [{ key: 'SENTRY_ACCESS_TOKEN', required: true }],
+    credentialKeys: [],
   },
   stripe: {
     config: {
