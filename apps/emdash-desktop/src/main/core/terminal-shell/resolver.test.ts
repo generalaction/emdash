@@ -109,6 +109,74 @@ describe('terminal shell resolver', () => {
     expect(profile.commandArgs).toEqual(['-NoProfile', '-Command']);
   });
 
+  it('resolves Windows bash to Git Bash instead of the WSL bash launcher', async () => {
+    const profile = await resolveTerminalShell({
+      intent: 'bash',
+      target: {
+        kind: 'local',
+        platform: 'win32',
+        env: {
+          ProgramFiles: 'C:\\Program Files',
+          Path: 'C:\\Windows\\System32;C:\\Program Files\\Git\\bin',
+          PATHEXT: '.EXE;.CMD',
+        },
+      },
+      fileExists: (candidate) =>
+        candidate.toLowerCase() === 'c:\\windows\\system32\\bash.exe' ||
+        candidate.toLowerCase() === 'c:\\program files\\git\\bin\\bash.exe',
+    });
+
+    expect(profile).toMatchObject({
+      id: 'bash',
+      resolvedShellId: 'bash',
+      executable: 'C:\\Program Files\\Git\\bin\\bash.exe',
+      family: 'posix',
+    });
+  });
+
+  it('resolves explicit WSL on Windows without POSIX shell args', async () => {
+    const profile = await resolveTerminalShell({
+      intent: 'wsl',
+      target: {
+        kind: 'local',
+        platform: 'win32',
+        env: {
+          SystemRoot: 'C:\\Windows',
+          Path: 'C:\\Windows\\System32',
+          PATHEXT: '.EXE;.CMD',
+        },
+      },
+      fileExists: (candidate) => candidate.toLowerCase() === 'c:\\windows\\system32\\wsl.exe',
+    });
+
+    expect(profile).toMatchObject({
+      id: 'wsl',
+      resolvedShellId: 'wsl',
+      executable: 'C:\\Windows\\System32\\wsl.exe',
+      family: 'wsl',
+      interactiveArgs: [],
+      commandArgs: ['--exec', 'sh', '-lc'],
+    });
+  });
+
+  it('does not resolve explicit WSL from an arbitrary PATH entry on Windows', async () => {
+    await expect(
+      resolveTerminalShell({
+        intent: 'wsl',
+        target: {
+          kind: 'local',
+          platform: 'win32',
+          env: {
+            SystemRoot: 'C:\\Windows',
+            Path: 'C:\\Tools',
+            PATHEXT: '.EXE;.CMD',
+          },
+        },
+        fileExists: (candidate) => candidate.toLowerCase() === 'c:\\tools\\wsl.exe',
+      })
+    ).rejects.toBeInstanceOf(ShellUnavailableError);
+  });
+
   it('falls Windows automation shell back to Windows PowerShell before cmd', async () => {
     const profile = await resolveLocalAutomationShellWithSystemFallback({
       intent: 'system',
@@ -195,10 +263,46 @@ describe('terminal shell resolver', () => {
       isSystemDefault: true,
     });
     expect(availability.find((entry) => entry.id === 'cmd')).toBeUndefined();
-    expect(availability.find((entry) => entry.id === 'powershell')?.available).toBe(true);
-    expect(availability.find((entry) => entry.id === 'pwsh')?.available).toBe(false);
+    expect(availability.find((entry) => entry.id === 'powershell')).toMatchObject({
+      label: 'PowerShell',
+      available: true,
+    });
+    expect(availability.find((entry) => entry.id === 'pwsh')).toBeUndefined();
     expect(availability.find((entry) => entry.id === 'zsh')).toBeUndefined();
-    expect(availability.map((entry) => entry.id)).toEqual(['system', 'powershell', 'pwsh', 'bash']);
+    expect(availability.map((entry) => entry.id)).toEqual(['system', 'powershell', 'wsl', 'bash']);
+  });
+
+  it('offers WSL separately from Git Bash and keeps one plainly labeled PowerShell option', async () => {
+    const availability = await getLocalTerminalShellAvailability({
+      platform: 'win32',
+      env: {
+        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
+        ProgramFiles: 'C:\\Program Files',
+        SystemRoot: 'C:\\Windows',
+        Path: 'C:\\Windows\\System32;C:\\Program Files\\Git\\bin',
+        PATHEXT: '.EXE;.CMD',
+      },
+      readDirNames: (candidate) => (candidate === 'C:\\Program Files\\PowerShell' ? ['7.5.1'] : []),
+      fileExists: (candidate) =>
+        candidate.toLowerCase() === 'c:\\windows\\system32\\powershell.exe' ||
+        candidate.toLowerCase() === 'c:\\program files\\powershell\\7.5.1\\pwsh.exe' ||
+        candidate.toLowerCase() === 'c:\\windows\\system32\\wsl.exe' ||
+        candidate.toLowerCase() === 'c:\\program files\\git\\bin\\bash.exe',
+    });
+
+    expect(availability.find((entry) => entry.id === 'bash')).toMatchObject({
+      label: 'Git Bash',
+      available: true,
+    });
+    expect(availability.find((entry) => entry.id === 'wsl')).toMatchObject({
+      label: 'WSL',
+      available: true,
+    });
+    expect(availability.find((entry) => entry.id === 'powershell')).toMatchObject({
+      label: 'PowerShell',
+      available: true,
+    });
+    expect(availability.find((entry) => entry.id === 'pwsh')).toBeUndefined();
   });
 
   it('marks Windows PowerShell unavailable when it is not found on PATH', async () => {
@@ -228,6 +332,7 @@ describe('terminal shell resolver', () => {
     expect(availability.find((entry) => entry.id === 'cmd')).toBeUndefined();
     expect(availability.find((entry) => entry.id === 'powershell')).toBeUndefined();
     expect(availability.find((entry) => entry.id === 'pwsh')).toBeUndefined();
+    expect(availability.find((entry) => entry.id === 'wsl')).toBeUndefined();
     expect(availability.find((entry) => entry.id === 'system')).toMatchObject({
       label: 'zsh',
       isSystemDefault: true,
