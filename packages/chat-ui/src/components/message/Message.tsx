@@ -130,19 +130,28 @@ export function Message(props: MessageProps) {
     return <Island block={laidBlock as IslandLaidOut} onMeasured={props.onIslandMeasured} />;
   };
 
+  // Bubble visual class — user bubble gets a colored bg + radius; thought is muted+italic
+  const bubbleVisualClass = () => {
+    if (rc() === 'user') return 'bg-[var(--chat-bubble-user,#2563eb)] text-[var(--chat-bubble-user-fg,#fff)] rounded-[16px]';
+    if (rc() === 'thought') return 'text-foreground-muted italic';
+    return '';
+  };
+
   return (
-    <div class={`${styles.pmsg} ${styles[`pmsg--${rc()}`]}`}>
+    <div
+      class={`flex px-[var(--chat-msg-pad-x)] ${rc() === 'user' ? 'justify-end' : 'justify-start'}`}
+    >
       {/* a11y visually-hidden mirror */}
-      <div class={styles['psr-only']} aria-label={props.item.text}>
+      <div class="sr-only" aria-label={props.item.text}>
         {plainText()}
       </div>
       {/* Visible bubble */}
       <div
-        class={`${styles['pmsg-bubble']} ${styles[`pmsg-bubble--${rc()}`]}`}
+        class={`${styles['pmsg-bubble']} ${bubbleVisualClass()}`}
         aria-hidden="true"
         style={{
           height: `${bubbleHeight()}px`,
-          ...(isUser() ? { width: `${bubbleWidth()}px` } : {}),
+          ...(isUser() ? { width: `${bubbleWidth()}px` } : { width: '100%' }),
           position: 'relative',
         }}
       >

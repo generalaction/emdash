@@ -1,26 +1,29 @@
 /*
- * render-prose styles — prose block, lines, fragments, bullet, quote rail.
+ * render-prose retained styles — geometry-coupled rules only.
  *
- * Fragment fonts are driven by CSS variables set by chatCssVars() on the
- * .pchat-transcript root. Geometry (top/left/height) comes from the layout engine.
+ * Visual decoration (link color/underline, chip bg/color, bullet/rail color) has
+ * been moved to Tailwind classes in Prose.tsx. Only rules that the layout engine
+ * accounts for in its arithmetic remain here: fragment geometry (white-space,
+ * line-height, absolute centering), font metrics (size, family, weight), and
+ * chip padding — all of which feed pretext width/height measurement.
  */
 
 /* ── Lines ────────────────────────────────────────────────────────────────── */
 
-/* A pre-laid-out line row. */
+/* A pre-laid-out line row. height is explicitly set from line-height constant. */
 .pline {
   position: absolute;
   display: flex;
   align-items: baseline;
-  /* Height is explicitly set from line-height constant in the renderer. */
 }
 
 /* ── Fragments ────────────────────────────────────────────────────────────── */
 
 /*
- * A single text fragment (one per inline run or sub-run after line-breaking).
- * white-space: pre is critical — prevents the browser from re-wrapping.
- * line-height: 1 keeps vertical alignment controlled entirely by geometry.
+ * white-space: pre — critical, prevents browser re-wrapping.
+ * line-height: 1   — keeps vertical alignment controlled entirely by geometry.
+ * absolute centering — top:50% + translateY(-50%) centers within the line band.
+ * These three rules feed pretext and must NOT be converted to Tailwind utilities.
  */
 .pf {
   display: inline-block;
@@ -31,7 +34,8 @@
   transform: translateY(-50%);
 }
 
-/* Variant-specific fonts — driven by CSS variables from chatCssVars() */
+/* Variant-specific fonts — driven by CSS variables from chatCssVars(). */
+/* font-size, font-family, font-weight all affect pretext measurement — keep var-driven. */
 .pf--body {
   font-size: var(--chat-body-size);
   font-weight: var(--chat-body-weight);
@@ -62,11 +66,7 @@
   font-size: var(--chat-body-size);
   font-weight: var(--chat-body-link-weight);
   font-family: var(--chat-sans);
-  color: var(--chat-link, #60a5fa);
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.14em;
-  cursor: pointer;
+  /* color, text-decoration, cursor — moved to Tailwind in Prose.tsx */
 }
 
 .pf--h1 {
@@ -90,35 +90,32 @@
   font-family: var(--chat-sans);
 }
 
-/* Inline code chip */
+/* Inline code chip — font metrics and padding feed pretext measurement. */
+/* bg and border-radius moved to Tailwind in Prose.tsx. */
 .pf--inline-code {
   font-size: var(--chat-ic-size);
   font-weight: var(--chat-ic-weight);
   font-family: var(--chat-mono);
   padding: var(--chat-ic-pad-y) var(--chat-ic-pad-x);
-  border-radius: 4px;
-  background: var(--chat-code-inline-bg, rgba(0, 0, 0, 0.06));
 }
 
-/* Mention chip */
+/* Mention chip — font metrics and padding feed pretext measurement. */
+/* bg, color, border-radius moved to Tailwind in Prose.tsx. */
 .pf--mention {
   font-size: var(--chat-mention-size);
   font-weight: var(--chat-mention-weight);
   font-family: var(--chat-sans);
   padding: 0 var(--chat-mention-pad-x);
-  border-radius: 999px;
-  background: var(--chat-mention-bg, #dbeafe);
-  color: var(--chat-mention-fg, #1d4ed8);
 }
 
 /* ── Decorations ──────────────────────────────────────────────────────────── */
 
 .pbullet {
   position: absolute;
-  color: var(--chat-muted, #6b7280);
   font-size: var(--chat-body-size);
   font-family: var(--chat-sans);
   line-height: 1;
+  /* color moved to Tailwind in Prose.tsx */
 }
 
 .pquote-rail {
@@ -126,6 +123,5 @@
   top: 0;
   bottom: 0;
   width: 3px;
-  border-radius: 999px;
-  background: var(--chat-border, rgba(0, 0, 0, 0.12));
+  /* background/border-radius moved to Tailwind in Prose.tsx */
 }

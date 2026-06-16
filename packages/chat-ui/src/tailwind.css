@@ -1,0 +1,138 @@
+/**
+ * chat-ui Tailwind entry — shipped as part of style.css in the lib build.
+ *
+ * Preflight is intentionally excluded: the host app (@emdash/emdash-desktop)
+ * imports its own Tailwind build that already includes preflight, so a second
+ * copy would double-reset global styles.
+ *
+ * The @theme inline block below bridges @emdash/ui design-token CSS variables
+ * (set by theme.css + semantic.css) into Tailwind utility classes so that
+ * utilities like `text-foreground` or `bg-background-1` resolve correctly.
+ */
+
+/* Theme + utilities only — NO preflight / base layer */
+@layer theme, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+/* Scan all component source files for Tailwind class names */
+@source './**/*.{ts,tsx}';
+
+/* Theme class variants for light/dark mode toggling */
+@custom-variant dark (&:is(.dark *));
+@custom-variant dark-black (&:is(.dark-black *));
+@custom-variant emlight (&:is(.emlight *));
+@custom-variant emdark (&:is(.emdark *));
+
+@theme inline {
+  /* Typography — bridge design token vars to Tailwind utilities */
+  --font-sans: var(--typography-font-family-sans);
+  --font-mono: var(--typography-font-family-mono);
+
+  --text-body: var(--typography-body-size);
+  --text-body--line-height: var(--typography-body-line-height);
+  --text-h1: var(--typography-h1-size);
+  --text-h1--line-height: var(--typography-h1-line-height);
+  --text-h2: var(--typography-h2-size);
+  --text-h2--line-height: var(--typography-h2-line-height);
+  --text-h3: var(--typography-h3-size);
+  --text-h3--line-height: var(--typography-h3-line-height);
+  --text-code: var(--typography-code-size);
+  --text-code--line-height: var(--typography-code-line-height);
+  --text-tiny: 11px;
+  --text-tiny--line-height: 1.3;
+  --text-micro: 10px;
+  --text-micro--line-height: 1.2;
+
+  /* Radius — bridge token vars */
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-base);
+  --radius-xl: var(--radius-lg);
+  --radius-full: var(--radius-full);
+
+  /* Colors — connect Tailwind utilities to semantic CSS vars */
+  --color-background: var(--background);
+  --color-background-1: var(--background-1);
+  --color-background-2: var(--background-2);
+  --color-background-3: var(--background-3);
+
+  --color-foreground: var(--foreground);
+  --color-foreground-inverse: var(--foreground-inverse);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-foreground-passive: var(--foreground-passive);
+
+  --color-background-secondary: var(--background-secondary);
+  --color-background-secondary-1: var(--background-secondary-1);
+  --color-background-secondary-2: var(--background-secondary-2);
+  --color-background-secondary-3: var(--background-secondary-3);
+
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-secondary-muted: var(--foreground-secondary-muted);
+  --color-foreground-secondary-passive: var(--foreground-secondary-passive);
+
+  --color-background-tertiary: var(--background-tertiary);
+  --color-background-tertiary-1: var(--background-tertiary-1);
+  --color-background-tertiary-2: var(--background-tertiary-2);
+  --color-background-tertiary-3: var(--background-tertiary-3);
+
+  --color-foreground-tertiary: var(--foreground-tertiary);
+  --color-foreground-tertiary-muted: var(--foreground-tertiary-muted);
+  --color-foreground-tertiary-passive: var(--foreground-tertiary-passive);
+
+  --color-background-destructive: var(--background-destructive);
+  --color-foreground-destructive: var(--foreground-destructive);
+
+  --color-background-quaternary: var(--background-quaternary);
+  --color-background-quaternary-1: var(--background-quaternary-1);
+  --color-background-quaternary-2: var(--background-quaternary-2);
+
+  --color-background-neutral: var(--background-neutral);
+  --color-foreground-neutral: var(--foreground-neutral);
+
+  --color-primary-button-background: var(--primary-button-background);
+  --color-primary-button-background-hover: var(--primary-button-background-hover);
+  --color-primary-button-foreground: var(--primary-button-foreground);
+  --color-primary-button-border: var(--primary-button-border);
+
+  --color-foreground-diff-added: var(--foreground-diff-added);
+  --color-foreground-diff-modified: var(--foreground-diff-modified);
+  --color-foreground-diff-deleted: var(--foreground-diff-deleted);
+
+  --color-selection-foreground: var(--selection-foreground);
+  --color-selection-background: var(--selection-background);
+
+  --color-border: var(--border);
+  --color-border-1: var(--border-1);
+  --color-border-2: var(--border-2);
+  --color-border-destructive: var(--border-destructive);
+  --color-border-primary: var(--border-primary);
+
+  --color-status-in-progress: var(--status-in-progress);
+  --color-status-in-review: var(--status-in-review);
+  --color-status-done: var(--status-done);
+  --color-status-todo: var(--status-todo);
+  --color-status-cancelled: var(--status-cancelled);
+
+  --color-foreground-success: var(--foreground-success);
+  --color-background-success: var(--background-success);
+  --color-background-success-hover: var(--background-success-hover);
+  --color-border-success: var(--border-success);
+
+  --color-foreground-error: var(--foreground-error);
+  --color-background-error: var(--background-error);
+  --color-background-error-hover: var(--background-error-hover);
+
+  --color-foreground-warning: var(--foreground-warning);
+  --color-background-warning: var(--background-warning);
+  --color-background-warning-hover: var(--background-warning-hover);
+  --color-border-warning: var(--border-warning);
+
+  --color-foreground-info: var(--foreground-info);
+  --color-background-info: var(--background-info);
+  --color-background-info-hover: var(--background-info-hover);
+  --color-border-info: var(--border-info);
+
+  --color-foreground-conflict: var(--foreground-conflict);
+  --color-foreground-merged: var(--foreground-merged);
+}

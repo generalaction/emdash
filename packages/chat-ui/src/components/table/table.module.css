@@ -1,47 +1,40 @@
 /*
- * table styles — formula-measured table block with single-line truncated cells.
+ * table retained styles — geometry-coupled rules only.
  *
- * Row height must match TABLE_ROW_H = 32 (line-height:20 + padding:6+6).
- * A parity test in spec.test.ts enforces this invariant.
+ * Visual rules (overflow, border-color, header background, truncation
+ * decorations) have been moved to Tailwind classes in Table.tsx.
  *
- * table-layout:fixed + <colgroup> widths (set by Table.tsx) allow the browser
- * to honor exact column widths and make text-overflow:ellipsis work on td/th.
+ * CRITICAL: the cell padding (6px 10px) + font-size (13px) + line-height (20px)
+ * sum to TABLE_ROW_H = 32 (line-height:20 + padding:6+6). A parity test in
+ * spec.test.ts enforces this invariant. Do NOT move these to Tailwind utilities
+ * (even arbitrary ones) because a typo would silently break the layout engine.
+ *
+ * table-layout:fixed is set inline by Table.tsx (driven by computed tableWidth).
  */
-
-/* ── Scroll wrapper ───────────────────────────────────────────────────────── */
-
-/* Allows wide tables (tableWidth > contentWidth) to scroll horizontally. */
-.ptable-scroll {
-  overflow-x: auto;
-}
 
 /* ── Table ────────────────────────────────────────────────────────────────── */
 
 .pchat-table {
   border-collapse: collapse;
+  /* font-size and line-height define TABLE_ROW_H — must stay here */
   font-size: 13px;
   line-height: 20px;
-  /* Width and table-layout:fixed are set inline by Table.tsx so the colgroup
-     widths are honored exactly. */
 }
 
-/* ── Cells ────────────────────────────────────────────────────────────────── */
+/* ── Cells — geometry-coupled ─────────────────────────────────────────────── */
 
 .pchat-table th,
 .pchat-table td {
+  /* padding defines TABLE_ROW_H = 32; must stay here */
   padding: 6px 10px;
-  border: 1px solid var(--chat-border, #e2e8f0);
   text-align: left;
-  /* Single-line truncation — requires table-layout:fixed and max-width:0. */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  /* max-width:0 is the standard trick to activate text-overflow inside table cells.
-     The actual width comes from the <col> element. */
+  /* max-width:0 activates text-overflow:ellipsis inside fixed-layout tables */
   max-width: 0;
+  /* overflow/text-overflow/white-space moved to Tailwind */
 }
 
 .pchat-table th {
+  /* font-weight is visual only but kept here for co-location with geometry rules */
   font-weight: 600;
-  background: var(--chat-table-header-bg, #f1f5f9);
+  /* background moved to Tailwind */
 }

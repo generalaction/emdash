@@ -6,11 +6,15 @@
  *
  * Column widths are enforced via <colgroup> + table-layout:fixed so that
  * text-overflow:ellipsis truncation works on every cell. Wide tables (where
- * tableWidth > contentWidth) scroll horizontally inside the .ptable-scroll
- * wrapper.
+ * tableWidth > contentWidth) scroll horizontally inside the scroll wrapper.
  *
  * Each cell receives a native `title` attribute so the full content is
  * accessible on hover via the browser tooltip.
+ *
+ * Visual styles (overflow, border-color, header bg, truncation) use Tailwind.
+ * Geometry-coupled rules (cell padding, font-size, line-height) remain in
+ * table.module.css because they define TABLE_ROW_H = 32, which the layout
+ * engine and a parity test both enforce.
  */
 
 import { For } from 'solid-js';
@@ -24,7 +28,7 @@ export type TableProps = {
 
 export function Table(props: TableProps) {
   return (
-    <BlockFrame layout={props.block} class={styles['ptable-scroll']}>
+    <BlockFrame layout={props.block} class="overflow-x-auto">
       <table
         class={styles['pchat-table']}
         style={{ width: `${props.block.tableWidth}px`, 'table-layout': 'fixed' }}
@@ -34,14 +38,32 @@ export function Table(props: TableProps) {
         </colgroup>
         <thead>
           <tr>
-            <For each={props.block.header}>{(cell) => <th title={cell}>{cell}</th>}</For>
+            <For each={props.block.header}>
+              {(cell) => (
+                <th
+                  class="overflow-hidden text-ellipsis whitespace-nowrap border border-border bg-background-1"
+                  title={cell}
+                >
+                  {cell}
+                </th>
+              )}
+            </For>
           </tr>
         </thead>
         <tbody>
           <For each={props.block.rows}>
             {(row) => (
               <tr>
-                <For each={row}>{(cell) => <td title={cell}>{cell}</td>}</For>
+                <For each={row}>
+                  {(cell) => (
+                    <td
+                      class="overflow-hidden text-ellipsis whitespace-nowrap border border-border"
+                      title={cell}
+                    >
+                      {cell}
+                    </td>
+                  )}
+                </For>
               </tr>
             )}
           </For>

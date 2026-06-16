@@ -1,23 +1,14 @@
 /*
- * render-island styles — island block, fixed-height fallback, table fallback.
+ * render-island retained styles — geometry-coupled rules only.
  *
- * Islands are measured once by the DOM; their height is written back to
- * LayoutStore and virtualizer. Top offset is set via inline styles.
+ * Visual rules (border-radius, overflow, border-color) have been moved to
+ * Tailwind classes in Island.tsx. Only the max-height var reference (geometry
+ * from the layout engine) is retained here.
  */
-
-/* ── Island block ─────────────────────────────────────────────────────────── */
-
-/* MeasuredBlockFrame provides position:absolute + left/right.
-   overflow-x:auto allows wide tables to scroll horizontally. */
-.pisland {
-  overflow-x: auto;
-}
 
 .pisland--fixed {
   max-height: var(--chat-island-max-h);
-  overflow: auto;
-  border: 1px solid var(--chat-border, #e2e8f0);
-  border-radius: 8px;
+  /* overflow, border, border-radius — moved to Tailwind */
 }
 
 /* Table styles have been moved to components/table/table.module.css. */

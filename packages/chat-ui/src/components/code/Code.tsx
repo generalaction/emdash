@@ -106,7 +106,7 @@ export function Code(props: CodeProps) {
   return (
     <BlockFrame
       layout={props.block}
-      class={styles['pcode-block']}
+      class={`${styles['pcode-block']} rounded-lg overflow-x-auto overflow-y-hidden`}
       ref={(el) => {
         wrapperEl = el;
       }}
@@ -118,7 +118,7 @@ export function Code(props: CodeProps) {
               lineElsMap.set(i(), el);
               onCleanup(() => lineElsMap.delete(i()));
             }}
-            class={styles['pcode-line']}
+            class={`${styles['pcode-line']} text-foreground`}
             style={{ top: `${line.top}px` }}
           >
             {line.text}

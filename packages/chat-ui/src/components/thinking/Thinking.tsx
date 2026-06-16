@@ -5,8 +5,9 @@
  *   active (status === 'thinking'): spinner + "Thinking Xs" + streaming window
  *   done (status === 'done'):       "Thought for Xs >" header + collapsible body
  *
- * The duration ticker uses setInterval scoped to the component's lifetime via
- * onCleanup. The body height is measured once via onMount write-back.
+ * Visual styles use Tailwind utilities. Geometry-coupled rules (header/window
+ * heights, body padding-block, spinner size, mask-image, keyframes) remain in
+ * thinking.module.css because the layout engine's arithmetic depends on them.
  */
 
 import { Show, createSignal, onCleanup, onMount } from 'solid-js';
@@ -40,12 +41,18 @@ function ThinkingActive(props: { item: ChatThinking }) {
       class={styles.pthinking}
       style={{ position: 'relative', height: `${THINKING_HEADER_H + THINKING_WINDOW_H}px` }}
     >
-      <div class={styles['pthinking__header']} aria-live="polite" aria-atomic="false">
+      <div
+        class={`${styles['pthinking__header']} flex items-center gap-1.5 text-xs text-foreground-muted`}
+        aria-live="polite"
+        aria-atomic="false"
+      >
         <span class={styles['pthinking__spinner']} />
         <span>Thinking {elapsed()}s</span>
       </div>
       <div class={styles['pthinking__window']}>
-        <div class={styles['pthinking__window-text']}>{props.item.text}</div>
+        <div class={`${styles['pthinking__window-text']} text-foreground-muted`}>
+          {props.item.text}
+        </div>
       </div>
     </div>
   );
@@ -76,14 +83,14 @@ function ThinkingDone(props: ThinkingProps & { bodyMeasuredHeight?: number }) {
   return (
     <div class={styles.pthinking} style={{ position: 'relative', height: `${totalH()}px` }}>
       <div
-        class={`${styles['pthinking__header']} ${styles['pthinking__header--done']}`}
+        class={`${styles['pthinking__header']} flex items-center gap-1.5 cursor-pointer select-none text-xs text-foreground-muted hover:text-foreground`}
         role="button"
         aria-expanded={expanded() ? 'true' : 'false'}
         data-collapse-id={props.item.id}
       >
         Thought for {durationS}s
         <span
-          class={`${styles['pthinking__chevron']}${expanded() ? ` ${styles['pthinking__chevron--expanded']}` : ''}`}
+          class={`${styles['pthinking__chevron']}${expanded() ? ` ${styles['pthinking__chevron--expanded']}` : ''} text-foreground-muted`}
           aria-hidden="true"
         >
           ›
@@ -94,7 +101,7 @@ function ThinkingDone(props: ThinkingProps & { bodyMeasuredHeight?: number }) {
           ref={(el) => {
             bodyEl = el;
           }}
-          class={styles['pthinking__body']}
+          class={`${styles['pthinking__body']} border-t border-border text-foreground-muted`}
           style={{ top: `${THINKING_HEADER_H}px` }}
         >
           {props.item.text}

@@ -1,43 +1,83 @@
 /*
- * render-thinking styles — active thinking row and done/expandable row.
+ * render-thinking retained styles — geometry-coupled and animation rules only.
  *
- * Row height is set via inline styles by the layout engine.
- * These rules handle the visual presentation: header, spinner, streaming
- * window, chevron, and expanded body.
+ * Visual rules (flex/gap/items, colors, border-top color, chevron color) have
+ * been moved to Tailwind classes in Thinking.tsx. Only rules that the layout
+ * engine accounts for or that require CSS-only features (mask-image, keyframes)
+ * remain here.
  */
 
-/* ── Thinking row ─────────────────────────────────────────────────────────── */
+/* ── Thinking row padding ─────────────────────────────────────────────────── */
 
+/* px feeds the layout inset; height is set inline by the layout engine */
 .pthinking {
   padding-inline: var(--chat-msg-pad-x);
 }
 
-/* ── Header ───────────────────────────────────────────────────────────────── */
+/* ── Header geometry ─────────────────────────────────────────────────────── */
 
-/* Header line: "Thinking {duration}s" (active) or "Thought for {duration}s ›" (done). */
+/* height feeds THINKING_HEADER_H in the layout engine */
 .pthinking__header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   height: var(--chat-think-header-h);
+}
+
+/* ── Streaming window geometry ────────────────────────────────────────────── */
+
+/*
+ * height feeds THINKING_WINDOW_H in the layout engine.
+ * mask-image cannot be expressed as a Tailwind utility.
+ */
+.pthinking__window {
+  position: relative;
+  height: var(--chat-think-window-h);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgba(0, 0, 0, 0.5) calc(var(--chat-think-fade-h) * 0.4),
+    #000 var(--chat-think-fade-h)
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgba(0, 0, 0, 0.5) calc(var(--chat-think-fade-h) * 0.4),
+    #000 var(--chat-think-fade-h)
+  );
+}
+
+/* window-text: font metrics and line-height feed streaming layout */
+.pthinking__window-text {
   font-size: 12px;
-  color: var(--chat-muted, #6b7280);
-  cursor: default;
-  user-select: none;
+  font-family: var(--chat-mono);
+  line-height: var(--chat-body-lh, 22px);
+  white-space: pre-wrap;
+  word-break: break-word;
+  /* color moved to Tailwind */
 }
 
-/* Done header becomes clickable to toggle the body. */
-.pthinking__header--done {
-  cursor: pointer;
+/* ── Expanded body geometry ───────────────────────────────────────────────── */
+
+/* padding-block feeds body height measurement; position feeds layout engine */
+.pthinking__body {
+  position: absolute;
+  left: var(--chat-msg-pad-x);
+  right: var(--chat-msg-pad-x);
+  overflow: auto;
+  font-size: 12px;
+  font-family: var(--chat-mono);
+  line-height: var(--chat-body-lh, 22px);
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding-block: var(--chat-think-pad-y);
+  /* color and border-top color moved to Tailwind */
 }
 
-.pthinking__header--done:hover {
-  color: var(--chat-fg, inherit);
-}
+/* ── Spinner animation ────────────────────────────────────────────────────── */
 
-/* ── Spinner ──────────────────────────────────────────────────────────────── */
-
-/* Spinner dot animation for the active header. */
+/* Size and animation cannot be expressed as Tailwind utilities (custom keyframes) */
 .pthinking__spinner {
   width: 6px;
   height: 6px;
@@ -59,72 +99,16 @@
   }
 }
 
-/* ── Chevron ──────────────────────────────────────────────────────────────── */
+/* ── Chevron animation ────────────────────────────────────────────────────── */
 
-/* Chevron in done header — rotates when expanded. */
 .pthinking__chevron {
   margin-left: auto;
   font-size: 10px;
   transition: transform 0.18s ease;
   display: inline-block;
+  /* color moved to Tailwind */
 }
 
 .pthinking__chevron--expanded {
   transform: rotate(90deg);
-}
-
-/* ── Streaming window (active state) ─────────────────────────────────────── */
-
-/*
- * Fixed-height streaming window (active state).
- * Content is bottom-aligned so the latest text stays visible.
- * The top-fade gradient makes older lines dissolve upward.
- */
-.pthinking__window {
-  position: relative;
-  height: var(--chat-think-window-h);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  /* Fade top edge so overflowing text dissolves rather than hard-clipping. */
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    rgba(0, 0, 0, 0.5) calc(var(--chat-think-fade-h) * 0.4),
-    #000 var(--chat-think-fade-h)
-  );
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    rgba(0, 0, 0, 0.5) calc(var(--chat-think-fade-h) * 0.4),
-    #000 var(--chat-think-fade-h)
-  );
-}
-
-.pthinking__window-text {
-  font-size: 12px;
-  font-family: var(--chat-mono);
-  color: var(--chat-muted, #6b7280);
-  line-height: var(--chat-body-lh, 22px);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-/* ── Expanded body (done + expanded) ─────────────────────────────────────── */
-
-/* Absolute so layout uses measured height. */
-.pthinking__body {
-  position: absolute;
-  left: var(--chat-msg-pad-x);
-  right: var(--chat-msg-pad-x);
-  overflow: auto;
-  font-size: 12px;
-  font-family: var(--chat-mono);
-  color: var(--chat-muted, #6b7280);
-  line-height: var(--chat-body-lh, 22px);
-  white-space: pre-wrap;
-  word-break: break-word;
-  padding-block: var(--chat-think-pad-y);
-  border-top: 1px solid var(--chat-border, rgba(0, 0, 0, 0.08));
 }

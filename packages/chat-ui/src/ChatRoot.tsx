@@ -24,6 +24,7 @@ import {
   untrack,
 } from 'solid-js';
 import { clearMessageLayoutCache } from './components/message/measure';
+import { DebugContext } from './components/debug-context';
 import { Row } from './components/Row';
 import { ROW_REGISTRY } from './components/row-registry';
 import { chatCssVars } from './css-vars';
@@ -49,12 +50,14 @@ export type ChatRootProps = {
   fonts?: FontConfig;
   stickToBottom?: boolean;
   class?: string;
+  /** Enable the layout-boundary debug overlay on every block and row. */
+  debug?: boolean;
 };
 
 export function ChatRoot(props: ChatRootProps) {
   const fonts = () => props.fonts ?? DEFAULT_FONT_CONFIG;
 
-  let scrollEl!: HTMLDivElement;
+  let scrollEl: HTMLDivElement | undefined;
   const virt = new Virtualizer();
   let sticky: StickToBottom | null = null;
 
@@ -168,10 +171,10 @@ export function ChatRoot(props: ChatRootProps) {
     // correction that shift surfaces as a scroll jump (typically right as
     // scrolling stops and the last measurement lands). Matches the reference
     // imperative engine, which corrects on `rowTop < scrollTop`.
-    if (virt.top(index) < scrollEl.scrollTop) {
-      const next = scrollEl.scrollTop + delta;
+    if (virt.top(index) < scrollEl!.scrollTop) {
+      const next = scrollEl!.scrollTop + delta;
       programmaticScroll = true;
-      scrollEl.scrollTop = next;
+      scrollEl!.scrollTop = next;
       setScrollTop(next);
     }
   };
@@ -179,11 +182,14 @@ export function ChatRoot(props: ChatRootProps) {
   // ── DOM setup ─────────────────────────────────────────────────────────────
 
   onMount(() => {
-    sticky = new StickToBottom(scrollEl);
+    // scrollEl is guaranteed to be set by the time onMount runs (after first render).
+    const el = scrollEl!;
+
+    sticky = new StickToBottom(el);
 
     // Set CSS vars on the root element — single source from per-component specs
     for (const [k, v] of Object.entries(chatCssVars())) {
-      scrollEl.style.setProperty(k, v);
+      el.style.setProperty(k, v);
     }
 
     // rAF-throttled scroll listener — coalesces multiple scroll events per frame
@@ -194,7 +200,7 @@ export function ChatRoot(props: ChatRootProps) {
 
     const flushScroll = () => {
       rafId = null;
-      const st = scrollEl.scrollTop;
+      const st = el.scrollTop;
       setScrollVelocity(st - lastScrollTop);
       lastScrollTop = st;
       setScrollTop(st);
@@ -204,7 +210,7 @@ export function ChatRoot(props: ChatRootProps) {
       // Ignore events fired while the element is detached (display:none resets
       // scrollTop to 0 without firing a real user scroll; let the saved signal
       // remain authoritative so the virtualizer position is preserved).
-      if (scrollEl.offsetParent === null) return;
+      if (el.offsetParent === null) return;
       // Ignore the event we triggered ourselves during anchor correction;
       // the scrollTop signal was already updated synchronously there.
       if (programmaticScroll) {
@@ -215,9 +221,9 @@ export function ChatRoot(props: ChatRootProps) {
         rafId = requestAnimationFrame(flushScroll);
       }
     };
-    scrollEl.addEventListener('scroll', onScroll, { passive: true });
+    el.addEventListener('scroll', onScroll, { passive: true });
     onCleanup(() => {
-      scrollEl.removeEventListener('scroll', onScroll);
+      el.removeEventListener('scroll', onScroll);
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
         rafId = null;
@@ -233,7 +239,7 @@ export function ChatRoot(props: ChatRootProps) {
       if (w > 0) setContainerWidth(w);
       if (h > 0) setViewHeight(h);
     });
-    ro.observe(scrollEl);
+    ro.observe(el);
     onCleanup(() => ro.disconnect());
 
     // Click delegation for collapse toggles
@@ -243,8 +249,8 @@ export function ChatRoot(props: ChatRootProps) {
         props.viewState.toggleCollapsed(target.dataset.collapseId);
       }
     };
-    scrollEl.addEventListener('click', onClick);
-    onCleanup(() => scrollEl.removeEventListener('click', onClick));
+    el.addEventListener('click', onClick);
+    onCleanup(() => el.removeEventListener('click', onClick));
 
     // Fonts ready — re-measure after webfonts load
     registerFontsReadyClear(() => {
@@ -254,7 +260,7 @@ export function ChatRoot(props: ChatRootProps) {
     });
 
     if (props.stickToBottom !== false) {
-      sticky.scrollToBottom();
+      sticky?.scrollToBottom();
     }
 
     onCleanup(() => {
@@ -266,8 +272,9 @@ export function ChatRoot(props: ChatRootProps) {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
+    <DebugContext.Provider value={() => props.debug ?? false}>
     <div
-      ref={scrollEl}
+      ref={(el) => { scrollEl = el; }}
       class={`${styles['pchat-transcript']}${props.class ? ` ${props.class}` : ''}`}
     >
       <div class={styles['pchat-canvas']} style={{ height: `${totalHeight()}px` }}>
@@ -306,5 +313,6 @@ export function ChatRoot(props: ChatRootProps) {
         </For>
       </div>
     </div>
+    </DebugContext.Provider>
   );
 }

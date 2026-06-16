@@ -5,6 +5,7 @@
  * Returns a ChatHandle with the store API and a dispose() function.
  */
 
+import './tailwind.css';
 import { render } from 'solid-js/web';
 import { ChatRoot } from './ChatRoot';
 import { DEFAULT_FONT_CONFIG } from './core/measure/fonts';

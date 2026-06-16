@@ -9,7 +9,7 @@
     "email": "support@emdash.sh"
   },
   "type": "module",
-  "sideEffects": ["./dist/style.css", "./src/chat-theme.css"],
+  "sideEffects": ["./dist/style.css", "./src/chat-theme.css", "./src/tailwind.css"],
   "exports": {
     ".": {
       "import": "./dist/index.js",

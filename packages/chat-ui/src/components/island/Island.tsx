@@ -24,18 +24,14 @@ function IslandContent(props: { block: IslandLaidOut }) {
     case 'rule':
       return (
         <hr
-          style={{
-            border: 'none',
-            'border-top': '1px solid var(--chat-border, #e2e8f0)',
-            margin: '0',
-          }}
+          class="m-0 border-0 border-t border-border"
         />
       );
     case 'image':
-      return <img src={props.block.raw} alt="" style={{ 'max-width': '100%' }} />;
+      return <img src={props.block.raw} alt="" class="max-w-full" />;
     default:
       return (
-        <div class={styles['pisland--fixed']}>
+        <div class={`${styles['pisland--fixed']} overflow-auto rounded-lg border border-border`}>
           <pre style={{ margin: '0', padding: '8px' }}>{props.block.raw}</pre>
         </div>
       );
@@ -52,7 +48,7 @@ export function Island(props: IslandProps) {
       <MeasuredBlockFrame
         layout={props.block}
         id={props.block.id}
-        class={styles.pisland}
+        class="overflow-x-auto"
         onMeasured={() => {}}
       >
         <IslandContent block={props.block} />
@@ -64,7 +60,7 @@ export function Island(props: IslandProps) {
     <MeasuredBlockFrame
       layout={props.block}
       id={props.block.id}
-      class={styles.pisland}
+      class="overflow-x-auto"
       onMeasured={handleMeasured}
     >
       <IslandContent block={props.block} />
