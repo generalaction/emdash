@@ -1,0 +1,33 @@
+packages/plugins/src/agents/impl/mistral/index.ts
+  s_329e93328d72d0::t_9e6f87f4c3376d 3,22-24,75
+packages/plugins/src/agents/impl/mistral/hooks.ts
+  s_c227ad8634ebe0::t_b8eb4b000a9626 3,6-7,13-33,39,43-45
+  s_329e93328d72d0::t_f18de3b5f48157 1-2,5,8-12,34-38,40-42,46
+  s_329e93328d72d0::t_585d1482ed1b0a 4
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_329e93328d72d0::t_8fa02176df19a0 580
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "9ff8b4c3822e76ca8021ab6ae9effb47dab42984",
+  "prompts": {},
+  "sessions": {
+    "s_329e93328d72d0": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ecf02-52a3-7d08-b2a6-03d06e545b98",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_c227ad8634ebe0": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ecfe7-449b-77cb-bd56-2caddb00e712",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
