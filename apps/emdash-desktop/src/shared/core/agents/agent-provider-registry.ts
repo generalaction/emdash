@@ -577,6 +577,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'mistral.svg',
     alt: 'Mistral Vibe CLI',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'jules',

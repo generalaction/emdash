@@ -1,5 +1,6 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
 import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { buildMistralHookConfig } from './hooks';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -18,7 +19,9 @@ export const plugin = definePlugin(
       kind: 'none',
     },
     hooks: {
-      kind: 'none',
+      kind: 'config',
+      scope: 'workspace',
+      supportedEvents: ['notification', 'stop'],
     },
     hostDependency: {
       id: 'mistral',
@@ -69,6 +72,7 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  hooks: buildMistralHookConfig(),
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
