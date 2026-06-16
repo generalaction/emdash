@@ -1,0 +1,27 @@
+apps/emdash-desktop/src/main/core/conversations/impl/keystroke-injection.test.ts
+  s_0a204863e23a16::t_5fe8c5923d3696 115-128
+packages/plugins/src/agents/impl/grok/index.ts
+  s_0a204863e23a16::t_28f6f2b39ca2d5 63-64,78
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_0a204863e23a16::t_912883f274059c 156
+packages/plugins/src/agents/impl/index.test.ts
+  s_0a204863e23a16::t_a667c15c28a2ab 128-144
+agents/integrations/providers.md
+  s_0a204863e23a16::t_b34419fe553cc0 34-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "a39643b91bc60fff6d335771d80ef0f5644d8011",
+  "prompts": {},
+  "sessions": {
+    "s_0a204863e23a16": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed1ec-a4cd-7a2c-8f54-d84f2f73645f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
