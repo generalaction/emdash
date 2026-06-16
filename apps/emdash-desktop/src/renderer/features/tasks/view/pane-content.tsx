@@ -1,6 +1,8 @@
 import { useDroppable } from '@dnd-kit/core';
 import { observer } from 'mobx-react-lite';
+import { useEffect } from 'react';
 import { BrowserPane } from '@renderer/features/browser/browser-pane';
+import { rpc } from '@renderer/lib/ipc';
 import { ShowHide } from '@renderer/lib/ui/show-hide';
 import { ConversationsPanel } from '../conversations/conversations-panel';
 import { DiffView } from '../diff-view/main-panel/diff-view';
@@ -21,6 +23,11 @@ export const PaneContent = observer(function PaneContent() {
   const browserTabs = paneTabManager.resolvedTabs.filter((tab) => tab.kind === 'browser');
   const activeBrowserId = paneRenderer?.kind === 'browser' ? paneRenderer.browserId : null;
 
+  useEffect(() => {
+    if (activeBrowserId !== null) return;
+    void rpc.browser.setActiveBrowser(null);
+  }, [activeBrowserId]);
+
   if (!paneRenderer) {
     return <PaneEmptyState />;
   }
@@ -35,11 +42,14 @@ export const PaneContent = observer(function PaneContent() {
         <ShowHide visible={paneRenderer.kind === 'pty-agent'}>
           <ConversationsPanel />
         </ShowHide>
-        {browserTabs.map((tab) => (
-          <ShowHide key={tab.browserId} visible={activeBrowserId === tab.browserId}>
-            <BrowserPane browserId={tab.browserId} />
-          </ShowHide>
-        ))}
+        {browserTabs.map((tab) => {
+          const visible = activeBrowserId === tab.browserId;
+          return (
+            <ShowHide key={tab.browserId} visible={visible}>
+              <BrowserPane browserId={tab.browserId} visible={visible} />
+            </ShowHide>
+          );
+        })}
         {paneRenderer.kind === 'file' && <FileRenderer tab={paneRenderer.tab} />}
         {paneRenderer.kind === 'file-diff' && <DiffView tab={paneRenderer.tab} />}
       </div>
