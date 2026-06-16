@@ -33,24 +33,20 @@ export const McpServerIcon: React.FC<{ name: string; iconKey?: string }> = ({ na
   const renderIcon = () => {
     if (icon?.type === 'svg') {
       const processed = prepareInlineSvgMarkup(icon.data);
-      return <div dangerouslySetInnerHTML={{ __html: processed }} />;
+      return <div className="size-5" dangerouslySetInnerHTML={{ __html: processed }} />;
     }
 
     if (icon?.type === 'png') {
       return (
-        <img
-          src={icon.url}
-          alt={name}
-          className="h-full w-full object-contain brightness-0 dark:invert"
-        />
+        <img src={icon.url} alt={name} className="size-5 object-contain brightness-0 dark:invert" />
       );
     }
 
-    return <Server className="text-muted-foreground h-5 w-5" />;
+    return <Server className="size-5 text-foreground-muted" />;
   };
 
   return (
-    <div className="size-10 rounded-lg bg-background-2 p-3 transition-colors group-hover:bg-background-3">
+    <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-background-2 transition-colors group-hover:bg-background-3">
       {renderIcon()}
     </div>
   );
