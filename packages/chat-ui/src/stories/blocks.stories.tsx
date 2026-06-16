@@ -3,7 +3,8 @@
  */
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
-import { ChatHost } from './chat-host';
+import { ChatHost, ScriptedChat } from './chat-host';
+import { scenario, seedStep, streamMessage } from './streaming/scenario';
 
 const meta: Meta = {
   title: 'ChatUI/Blocks',
@@ -174,6 +175,60 @@ export const TableTall: Story = {
       />
     );
   },
+};
+
+const CODE_STREAMING_BODY = [
+  'Here is the implementation:\n\n',
+  '```typescript\n',
+  'function greet(name: string): string {\n',
+  '  return `Hello, ${name}!`;\n',
+  '}\n',
+  '\n',
+  'console.log(greet("World"));\n',
+  '```\n\n',
+  'Call `greet` with any name string.',
+].join('');
+
+export const CodeBlockStreaming: Story = {
+  render: () => (
+    <ScriptedChat
+      height={260}
+      script={scenario(
+        [seedStep([{ kind: 'message', id: 'u1', role: 'user', text: 'Show me a greet function' }])],
+        streamMessage({ id: 'a1', text: CODE_STREAMING_BODY, chunkMs: 55 })
+      )}
+    />
+  ),
+};
+
+const TABLE_STREAMING_BODY = [
+  'Comparison of authentication strategies:\n\n',
+  '| Strategy | Stateless | Revocable | Complexity |\n',
+  '|----------|-----------|-----------|------------|\n',
+  '| JWT | Yes | No | Low |\n',
+  '| Session | No | Yes | Low |\n',
+  '| OAuth | Yes | Yes | High |\n',
+].join('');
+
+export const TableStreaming: Story = {
+  render: () => (
+    <ScriptedChat
+      height={280}
+      script={scenario(
+        [
+          seedStep([
+            {
+              kind: 'message',
+              id: 'u1',
+              role: 'user',
+              text: 'Compare authentication strategies',
+            },
+          ]),
+        ],
+        streamMessage({ id: 'a1', text: TABLE_STREAMING_BODY, chunkMs: 55 })
+      )}
+    />
+  ),
 };
 
 export const HorizontalRule: Story = {

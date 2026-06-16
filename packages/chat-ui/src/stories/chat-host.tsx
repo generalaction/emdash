@@ -6,7 +6,7 @@
  * TranscriptApi calls and re-runs on every story re-mount.
  */
 
-import { createEffect, onMount, type JSX } from 'solid-js';
+import { createEffect, getOwner, onCleanup, onMount, runWithOwner, type JSX } from 'solid-js';
 import { ChatRoot } from '../ChatRoot';
 import { DEFAULT_FONT_CONFIG } from '../core/measure/fonts';
 import type { ChatItem } from '../model';
@@ -80,8 +80,10 @@ export function ScriptedChat(props: { script: ScriptStep[]; height?: number; wid
   const viewState = createViewState();
 
   onMount(() => {
-    let idx = 0;
+    const owner = getOwner();
     const api = transcript;
+    let idx = 0;
+    let pendingTimer: ReturnType<typeof setTimeout> | undefined;
 
     function runNext() {
       if (idx >= props.script.length) return;
@@ -90,12 +92,28 @@ export function ScriptedChat(props: { script: ScriptStep[]; height?: number; wid
         api.seed(step.items);
         runNext();
       } else if (step.kind === 'call') {
-        step.fn(api);
+        // Run inside the component's reactive owner so Solid tracks any store
+        // reads and the reactive graph stays connected across setTimeout calls.
+        runWithOwner(owner, () => step.fn(api));
         runNext();
       } else {
-        setTimeout(runNext, step.ms);
+        pendingTimer = setTimeout(() => {
+          pendingTimer = undefined;
+          runWithOwner(owner, runNext);
+        }, step.ms);
       }
     }
+
+    // Cancel any in-flight timer when the component is disposed (HMR /
+    // story re-mount / theme-debug toggle). Without this, the old timer chain
+    // would keep firing and mutate the dead store instance.
+    onCleanup(() => {
+      if (pendingTimer !== undefined) {
+        clearTimeout(pendingTimer);
+        pendingTimer = undefined;
+      }
+    });
+
     runNext();
   });
 

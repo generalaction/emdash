@@ -3,7 +3,8 @@
  */
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
-import { ChatHost } from './chat-host';
+import { ChatHost, ScriptedChat } from './chat-host';
+import { scenario, seedStep, streamMessage } from './streaming/scenario';
 
 const meta: Meta = {
   title: 'ChatUI/Rows',
@@ -135,6 +136,58 @@ export const ToolError: Story = {
         },
       ]}
       height={120}
+    />
+  ),
+};
+
+const PROSE_BODY = [
+  'Here is how JWT authentication works:\n\n',
+  '## Token structure\n\n',
+  'A JWT has three parts: **header**, **payload**, and **signature**, ',
+  'separated by dots.\n\n',
+  '## Validation\n\n',
+  'The server validates the signature using a secret key. ',
+  'No database lookup is needed for stateless validation.\n\n',
+  '## Security considerations\n\n',
+  'Always use HTTPS to prevent token interception. ',
+  'Short expiry times (15–60 min) reduce the attack window.',
+].join('');
+
+export const AssistantProseStreaming: Story = {
+  render: () => (
+    <ScriptedChat
+      height={400}
+      script={scenario(
+        [seedStep([{ kind: 'message', id: 'u1', role: 'user', text: 'How does JWT work?' }])],
+        streamMessage({ id: 'a1', text: PROSE_BODY, chunkMs: 60 })
+      )}
+    />
+  ),
+};
+
+const CODE_BODY = [
+  'Here is an example:\n\n',
+  '```typescript\n',
+  'import jwt from "jsonwebtoken";\n',
+  '\nfunction createToken(userId: string): string {\n',
+  '  return jwt.sign(\n',
+  '    { sub: userId, iat: Date.now() },\n',
+  '    process.env.JWT_SECRET!,\n',
+  '    { expiresIn: "1h" }\n',
+  '  );\n',
+  '}\n',
+  '```\n\n',
+  'Store the secret in your `.env` file.',
+].join('');
+
+export const AssistantWithCodeStreaming: Story = {
+  render: () => (
+    <ScriptedChat
+      height={400}
+      script={scenario(
+        [seedStep([{ kind: 'message', id: 'u1', role: 'user', text: 'Show me a JWT example' }])],
+        streamMessage({ id: 'a1', text: CODE_BODY, chunkMs: 60 })
+      )}
     />
   ),
 };

@@ -10,6 +10,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import type { TranscriptApi } from '../state/transcript';
 import type { ScriptStep } from './chat-host';
 import { ChatHost, ScriptedChat } from './chat-host';
+import { scenario, seedStep, streamMessage, streamThinking } from './streaming/scenario';
 
 const meta: Meta = {
   title: 'ChatUI/Thinking',
@@ -119,41 +120,30 @@ export const ThinkingDoneExpanded: Story = {
   },
 };
 
-export const TransitionToDone: Story = {
-  render: () => {
-    const THINKING_TEXT =
-      'Analyzing the codebase...\n\nChecking imports and exports...\n\nFound 3 circular dependencies.\n\nThe fix involves reordering module initialization.';
+const TRANSITION_THINKING_TEXT =
+  'Analyzing the codebase...\n\nChecking imports and exports...\n\nFound 3 circular dependencies.\n\nThe fix involves reordering module initialization.';
 
-    const script: ScriptStep[] = [
-      {
-        kind: 'call',
-        fn: (api: TranscriptApi) => {
-          // Start thinking with a past startedAt so the live timer shows ~5s elapsed.
-          api.dispatch({
-            type: 'thinking_chunk',
-            id: 'th1',
-            text: '',
-            startedAt: Date.now() - 5000,
-          });
-        },
-      },
-      { kind: 'wait', ms: 200 },
-      {
-        kind: 'call',
-        fn: (api: TranscriptApi) => {
-          api.dispatch({ type: 'thinking_chunk', id: 'th1', text: THINKING_TEXT });
-        },
-      },
-      { kind: 'wait', ms: 1500 },
-      {
-        kind: 'call',
-        fn: (api: TranscriptApi) => {
-          api.dispatch({ type: 'thinking_done', id: 'th1', durationMs: 6500 });
-        },
-      },
-    ];
-    return <ScriptedChat script={script} height={200} />;
-  },
+export const TransitionToDone: Story = {
+  render: () => (
+    <ScriptedChat
+      height={200}
+      script={streamThinking({ id: 'th1', text: TRANSITION_THINKING_TEXT, chunkMs: 80 })}
+    />
+  ),
+};
+
+/** Full turn: user prompt → thinking → streamed reply. */
+export const ThinkingThenProse: Story = {
+  render: () => (
+    <ScriptedChat
+      height={320}
+      script={scenario(
+        [seedStep([{ kind: 'message', id: 'u1', role: 'user', text: 'Optimize this function' }])],
+        streamThinking({ id: 'th1', text: 'Looking at the function...\nIt has O(n²) complexity due to nested loops.\nUsing a Map will reduce it to O(n).', chunkMs: 80 }),
+        streamMessage({ id: 'a1', text: 'The bottleneck is the nested loop. Use a `Map` to reduce to **O(n)**.', chunkMs: 80 })
+      )}
+    />
+  ),
 };
 
 /**
