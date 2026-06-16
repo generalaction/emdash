@@ -71,14 +71,11 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     config: {
       type: 'http',
       url: 'https://mcp.stripe.com',
-      headers: {
-        STRIPE_SECRET_KEY: 'YOUR_SECRET_KEY',
-      },
     },
     name: 'Stripe',
     description: 'Payment processing and financial infrastructure tools',
     docsUrl: 'https://docs.stripe.com/mcp',
-    credentialKeys: [{ key: 'STRIPE_SECRET_KEY', required: true }],
+    credentialKeys: [],
   },
   figma: {
     config: {
