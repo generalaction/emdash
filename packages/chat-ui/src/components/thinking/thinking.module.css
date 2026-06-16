@@ -7,6 +7,10 @@
  *
  * Visual rules (colors, flex layout, chevron animation, fonts, overflow,
  * gradient paint) live in Tailwind classes in Thinking.tsx.
+ *
+ * NOTE: .pthinking__body has no padding-block — vertical padding is baked into
+ * the body BlocksLayout height via layoutBlocks(padY: THINKING_PAD_Y).
+ * The inline `height` style on the body element mirrors body.height exactly.
  */
 
 /* ── Row inset ────────────────────────────────────────────────────────────── */
@@ -44,13 +48,12 @@
 
 /*
  * position + top mirror THINKING_HEADER_H so the body starts just below the
- * header. padding-block contributes the 2 * THINKING_PAD_Y term in
- * measureThinking's expanded branch; the layout engine depends on this.
+ * header. left/right give the same inset as the header. No padding-block —
+ * vertical spacing lives inside the BlocksLayout height (padY: THINKING_PAD_Y).
  */
 .pthinking__body {
   position: absolute;
   top: var(--chat-think-header-h);
   left: var(--chat-msg-pad-x);
   right: var(--chat-msg-pad-x);
-  padding-block: var(--chat-think-pad-y);
 }

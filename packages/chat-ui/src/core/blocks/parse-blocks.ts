@@ -331,3 +331,38 @@ export function clearBlockCache(): void {
 export function evictBlockCache(messageId: string): void {
   blockCache.delete(messageId);
 }
+
+// ── Block normalization helpers ───────────────────────────────────────────────
+
+/**
+ * Map any heading variant (h1–h6) to 'body' so the text measures and renders
+ * at body size/weight. Inline runs (bold, code, links, mentions) are preserved.
+ * Use when large headings are not appropriate (e.g. reasoning / thinking rows).
+ */
+export function flattenHeadings(blocks: Block[]): Block[] {
+  return blocks.map((b) =>
+    b.tier === 'prose' && b.variant !== 'body' && b.variant !== 'list-item' && b.variant !== 'quote'
+      ? { ...b, variant: 'body' as const }
+      : b
+  );
+}
+
+/**
+ * Convert island blocks (math, mermaid, image, rule) to plain prose text using
+ * their `raw` value. Keeps measurement 100% DOM-free so rows that cannot use
+ * island DOM write-back (e.g. thinking) can safely call layoutBlocks.
+ */
+export function downgradeIslandsToText(blocks: Block[]): Block[] {
+  return blocks.map(
+    (b): Block =>
+      b.tier === 'island'
+        ? {
+            kind: 'prose',
+            tier: 'prose',
+            id: b.id,
+            variant: 'body',
+            runs: [{ kind: 'text', text: b.raw }],
+          }
+        : b
+  );
+}

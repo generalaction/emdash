@@ -7,23 +7,12 @@
  * onIslandMeasured.
  */
 
-import { For, Show } from 'solid-js';
-import type { ProseBlock } from '../../core/blocks/block-types';
+import { Show } from 'solid-js';
 import { parseBlocksCached } from '../../core/blocks/parse-blocks';
-import type {
-  BlockLaidOut,
-  CodeLaidOut,
-  IslandLaidOut,
-  MessageLayout,
-  ProseLaidOut,
-  TableLaidOut,
-} from '../../core/layout/layout-types';
+import type { MessageLayout, ProseLaidOut } from '../../core/layout/layout-types';
 import { ROW_GAP } from '../../core/metrics';
 import type { ChatMessage, ChatRole } from '../../model';
-import { Code } from '../code/Code';
-import { Island } from '../island/Island';
-import { Prose } from '../prose/Prose';
-import { Table } from '../table/Table';
+import { BlockStack } from '../rich-text/BlockStack';
 import { BUBBLE_PAD_X } from './metrics';
 import styles from './message.module.css';
 
@@ -107,29 +96,6 @@ export function Message(props: MessageProps) {
       .map((b) => blockPlainText(b as unknown as Parameters<typeof blockPlainText>[0]))
       .join('\n\n');
 
-  const renderBlock = (laidBlock: BlockLaidOut) => {
-    if (laidBlock.height === 0) return null;
-    const rawBlock = blocks().find((b) => b.id === laidBlock.id);
-    if (!rawBlock) return null;
-
-    if (laidBlock.kind === 'prose') {
-      const pb = rawBlock as ProseBlock;
-      return <Prose block={laidBlock as ProseLaidOut} runs={pb.runs} variant={pb.variant} />;
-    }
-    if (laidBlock.kind === 'code') {
-      return (
-        <Code
-          block={laidBlock as CodeLaidOut}
-          rawBlock={rawBlock as import('../../core/blocks/block-types').CodeBlock}
-        />
-      );
-    }
-    if (laidBlock.kind === 'table') {
-      return <Table block={laidBlock as TableLaidOut} />;
-    }
-    return <Island block={laidBlock as IslandLaidOut} onMeasured={props.onIslandMeasured} />;
-  };
-
   // Bubble visual class — user bubble gets a colored bg + radius; thought is muted+italic
   const bubbleVisualClass = () => {
     if (rc() === 'user')
@@ -165,7 +131,11 @@ export function Message(props: MessageProps) {
             right: `${contentInsetX()}px`,
           }}
         >
-          <For each={props.layout.blocks}>{(laidBlock) => renderBlock(laidBlock)}</For>
+          <BlockStack
+            blocks={blocks()}
+            laid={props.layout.blocks}
+            onIslandMeasured={props.onIslandMeasured}
+          />
           <Show when={props.item.streaming}>
             <StreamingCursor layout={props.layout} />
           </Show>

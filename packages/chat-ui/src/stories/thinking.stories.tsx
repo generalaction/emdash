@@ -156,6 +156,57 @@ export const TransitionToDone: Story = {
   },
 };
 
+/**
+ * Expanded thinking with rich markdown: a heading (flattened to body text),
+ * bold, inline code, and a fenced code block. Exercises the flattenHeadings +
+ * downgradeIslandsToText path and verifies BlockStack renders inside the body.
+ */
+export const ThinkingExpandedProse: Story = {
+  render: () => {
+    const script: ScriptStep[] = [
+      {
+        kind: 'call',
+        fn: (api: TranscriptApi) => {
+          api.seed([
+            {
+              kind: 'thinking',
+              id: 'th-prose',
+              status: 'done',
+              text: [
+                '## Analysis',
+                '',
+                'The root issue is that `validateToken()` is called in **three** separate places.',
+                'The fix is to consolidate into a single middleware.',
+                '',
+                '```ts',
+                'export function authMiddleware(req, res, next) {',
+                '  const token = req.headers.authorization?.split(" ")[1];',
+                '  if (!validateToken(token)) return res.status(401).end();',
+                '  next();',
+                '}',
+                '```',
+                '',
+                'This approach is both **simpler** and easier to audit.',
+              ].join('\n'),
+              startedAt: Date.now() - 12000,
+              durationMs: 11000,
+            },
+          ]);
+        },
+      },
+      { kind: 'wait', ms: 100 },
+      {
+        kind: 'call',
+        fn: () => {
+          const btn = document.querySelector('[data-collapse-id="th-prose"]') as HTMLElement;
+          btn?.click();
+        },
+      },
+    ];
+    return <ScriptedChat script={script} height={380} />;
+  },
+};
+
 export const InMixedTranscript: Story = {
   render: () => (
     <ChatHost

@@ -8,26 +8,33 @@
  *     active: shows fixed-height preview window (ActivePreview)
  *     done:   shows header only
  *   stored true → expanded
- *     both: shows full pre-wrap prose body (ExpandedBody)
+ *     both: shows full prose body (ExpandedBody) laid out via pretext
  *
  * The existing click-delegation in ChatRoot (data-collapse-id → toggleCollapsed)
  * drives the toggle without any ChatRoot or view-state changes.
  *
- * Geometry-coupled rules (heights, insets, padding-block) live in
- * thinking.module.css. All visual styling uses Tailwind utilities.
+ * Geometry-coupled rules (heights, insets) live in thinking.module.css.
+ * All visual styling uses Tailwind utilities.
  */
 
-import { Show, createEffect, createSignal, onCleanup, onMount } from 'solid-js';
+import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
+import {
+  downgradeIslandsToText,
+  flattenHeadings,
+  parseBlocksCached,
+} from '../../core/blocks/parse-blocks';
 import type { ChatThinking } from '../../model';
-import { THINKING_HEADER_H, THINKING_PAD_Y, THINKING_WINDOW_H } from './metrics';
+import { BlockStack } from '../rich-text/BlockStack';
+import type { BlocksLayout } from '../rich-text/layout';
+import { THINKING_HEADER_H, THINKING_WINDOW_H } from './metrics';
 import styles from './thinking.module.css';
 
 export type ThinkingProps = {
   item: ChatThinking;
   /** Stores "expanded" state — inverted from the conventional "collapsed" name. */
   collapsed?: boolean;
-  onBodyMeasured?: (id: string, height: number) => void;
-  bodyMeasuredHeight?: number;
+  /** Pre-computed pretext body layout (present only when expanded). */
+  body?: BlocksLayout;
 };
 
 function formatDurationS(ms: number): string {
@@ -113,53 +120,31 @@ function ActivePreview(props: { item: ChatThinking }) {
 
 // ── ExpandedBody ───────────────────────────────────────────────────────────────
 
-function ExpandedBody(props: {
-  item: ChatThinking;
-  onBodyMeasured?: (id: string, h: number) => void;
-}) {
-  let bodyEl: HTMLDivElement | undefined;
-
-  onMount(() => {
-    if (!props.onBodyMeasured || !bodyEl) return;
-    const report = () => {
-      const h = bodyEl?.getBoundingClientRect().height ?? 0;
-      if (h > 0) props.onBodyMeasured!(props.item.id, h);
-    };
-    const ro = new ResizeObserver(report);
-    ro.observe(bodyEl);
-    onCleanup(() => ro.disconnect());
-    report();
-  });
-
+function ExpandedBody(props: { item: ChatThinking; body: BlocksLayout }) {
+  const blocks = () =>
+    downgradeIslandsToText(
+      flattenHeadings(parseBlocksCached(props.item.id, props.item.text ?? ''))
+    );
   return (
-    <div
-      ref={(el) => {
-        bodyEl = el;
-      }}
-      class={`${styles['pthinking__body']} overflow-auto text-xs wrap-break-word whitespace-pre-wrap text-foreground-muted`}
-    >
-      {props.item.text}
+    <div class={styles['pthinking__body']} style={{ height: `${props.body.height}px` }}>
+      <BlockStack blocks={blocks()} laid={props.body.blocks} />
     </div>
   );
 }
 
 // ── ThinkingContent ────────────────────────────────────────────────────────────
 
-function ThinkingContent(props: {
-  item: ChatThinking;
-  expanded: boolean;
-  onBodyMeasured?: (id: string, h: number) => void;
-}) {
+function ThinkingContent(props: { item: ChatThinking; expanded: boolean; body?: BlocksLayout }) {
   return (
     <Show
-      when={props.expanded}
+      when={props.expanded && props.body}
       fallback={
         <Show when={props.item.status === 'thinking'}>
           <ActivePreview item={props.item} />
         </Show>
       }
     >
-      <ExpandedBody item={props.item} onBodyMeasured={props.onBodyMeasured} />
+      {(body) => <ExpandedBody item={props.item} body={body()} />}
     </Show>
   );
 }
@@ -172,21 +157,15 @@ export function Thinking(props: ThinkingProps) {
   const expanded = () => !!props.collapsed;
 
   const totalH = () => {
-    if (!expanded()) {
-      if (props.item.status === 'thinking') return THINKING_HEADER_H + THINKING_WINDOW_H;
-      return THINKING_HEADER_H;
-    }
-    return THINKING_HEADER_H + 2 * THINKING_PAD_Y + (props.bodyMeasuredHeight ?? THINKING_WINDOW_H);
+    if (props.body) return THINKING_HEADER_H + props.body.height;
+    if (props.item.status === 'thinking') return THINKING_HEADER_H + THINKING_WINDOW_H;
+    return THINKING_HEADER_H;
   };
 
   return (
     <div class={styles.pthinking} style={{ position: 'relative', height: `${totalH()}px` }}>
       <ThinkingHeader item={props.item} expanded={expanded()} />
-      <ThinkingContent
-        item={props.item}
-        expanded={expanded()}
-        onBodyMeasured={props.onBodyMeasured}
-      />
+      <ThinkingContent item={props.item} expanded={expanded()} body={props.body} />
     </div>
   );
 }
