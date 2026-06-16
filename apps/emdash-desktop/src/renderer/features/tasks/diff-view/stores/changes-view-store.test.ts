@@ -1,7 +1,7 @@
+import type { GitChange } from '@emdash/shared/git';
 import { makeAutoObservable, runInAction } from 'mobx';
 import { describe, expect, it } from 'vitest';
 import { type PrStore } from '@renderer/features/tasks/stores/pr-store';
-import { type GitChange } from '@shared/core/git/git';
 import { type GitWorktreeStore } from '../../stores/git-worktree-store';
 import { ChangesViewStore } from './changes-view-store';
 

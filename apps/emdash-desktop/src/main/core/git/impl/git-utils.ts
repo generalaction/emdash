@@ -1,4 +1,4 @@
-import type { GitChangeStatus } from '@shared/core/git/git';
+import type { GitChangeStatus } from '@emdash/shared/git';
 
 /** Maximum bytes for fetching file content in diffs. */
 export const MAX_DIFF_CONTENT_BYTES = 512 * 1024;

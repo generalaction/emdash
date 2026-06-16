@@ -1,7 +1,20 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { computeBaseRef, type LocalBranch, type RemoteBranch } from '@emdash/shared/git';
+import {
+  computeBaseRef,
+  type Commit,
+  type CommitFile,
+  type DiffMode,
+  type GitChange,
+  type GitChangeStatus,
+  type GitObjectRef,
+  type GitStatusFingerprint,
+  type GitStatusUntrackedMode,
+  type LocalBranch,
+  type MergeBaseRange,
+  type RemoteBranch,
+} from '@emdash/shared/git';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GIT_EXECUTABLE } from '@main/core/utils/exec';
@@ -10,23 +23,14 @@ import { log } from '@main/lib/logger';
 import {
   toRangeString,
   toRefString,
-  type Commit,
   type CommitError,
-  type CommitFile,
   type CreateBranchError,
   type DeleteBranchError,
-  type DiffMode,
   type FetchError,
   type FetchPrForReviewError,
   type FullGitStatus,
-  type GitChange,
-  type GitChangeStatus,
   type GitInfo,
-  type GitObjectRef,
-  type GitStatusFingerprint,
-  type GitStatusUntrackedMode,
   type ImageReadResult,
-  type MergeBaseRange,
   type PullError,
   type PushError,
 } from '@shared/core/git/git';

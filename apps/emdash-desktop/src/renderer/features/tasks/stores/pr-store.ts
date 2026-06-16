@@ -1,9 +1,10 @@
+import type { GitChange } from '@emdash/shared/git';
 import { makeAutoObservable } from 'mobx';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import { commitRef, mergeBaseRange, type GitChange } from '@shared/core/git/git';
+import { commitRef, mergeBaseRange } from '@shared/core/git/git';
 import { gitRepoUpdateChannel, gitWorktreeUpdateChannel } from '@shared/core/git/gitEvents';
 import {
   isForkPr,

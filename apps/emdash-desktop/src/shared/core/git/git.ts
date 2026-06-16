@@ -1,4 +1,10 @@
-import type { GitBranchRef, GitRemote } from '@emdash/shared/git';
+import type {
+  DiffMode,
+  GitChange,
+  GitObjectRef,
+  GitRemote,
+  MergeBaseRange,
+} from '@emdash/shared/git';
 
 export interface ImageBlob {
   dataUrl: string;
@@ -19,16 +25,6 @@ export type ImageReadResult =
   | { kind: 'image'; image: ImageBlob }
   | { kind: 'missing' }
   | { kind: 'unavailable'; reason: ImageUnavailableReason };
-
-export type GitChangeStatus = 'added' | 'modified' | 'deleted' | 'renamed' | 'conflicted';
-
-export type GitChange = {
-  path: string;
-  status: GitChangeStatus;
-  additions: number;
-  deletions: number;
-  indexOid?: string;
-};
 
 /** Result of a single coalesced workspace status refresh (staged + unstaged + branch). */
 export interface FullGitStatus {
@@ -51,13 +47,6 @@ export interface FullGitStatus {
   totalDeleted: number;
 }
 
-export type GitStatusUntrackedMode = 'no' | 'normal';
-
-export interface GitStatusFingerprint {
-  hash: string;
-  byteLength: number;
-}
-
 export interface GitInfo {
   isGitRepo: boolean;
   baseRef: string;
@@ -70,8 +59,6 @@ export interface GitInfo {
  *   head   → `git diff HEAD`
  *   staged → `git diff --cached`
  */
-export type DiffMode = { kind: 'head' } | { kind: 'staged' };
-
 export const HEAD_MODE: DiffMode = { kind: 'head' };
 
 /** Backward-compat aliases — prefer explicit DiffMode values in new code. */
@@ -84,11 +71,6 @@ export const STAGED_REF: DiffMode = { kind: 'staged' };
  *   commit → a specific SHA
  *   tag    → a tag name
  */
-export type GitObjectRef =
-  | { kind: 'branch'; branch: GitBranchRef }
-  | { kind: 'commit'; sha: string }
-  | { kind: 'tag'; name: string };
-
 /** Full operand type accepted by diff/log APIs — either a mode or an object ref. */
 export type GitRef = DiffMode | GitObjectRef;
 
@@ -96,8 +78,6 @@ export type GitRef = DiffMode | GitObjectRef;
  * A three-dot merge-base range: `base...head`.
  * Both sides must be real git object addresses (DiffMode is not valid here).
  */
-export type MergeBaseRange = { base: GitObjectRef; head: GitObjectRef };
-
 /** Produce the `base...head` range string for use in git commands. */
 export function toRangeString(range: MergeBaseRange): string {
   return `${toRefString(range.base)}...${toRefString(range.head)}`;
@@ -169,24 +149,6 @@ export function localRef(branch: string): GitObjectRef {
 export function commitRef(sha: string): GitObjectRef {
   return { kind: 'commit', sha };
 }
-
-export type Commit = {
-  hash: string;
-  parents: string[];
-  subject: string;
-  body: string;
-  author: string;
-  date: string;
-  isPushed: boolean;
-  tags: string[];
-};
-
-export type CommitFile = {
-  path: string;
-  status: GitChangeStatus;
-  additions: number;
-  deletions: number;
-};
 
 export type FetchError =
   | { type: 'no_remote' }

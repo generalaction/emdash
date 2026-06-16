@@ -1,3 +1,4 @@
+import type { GitChange } from '@emdash/shared/git';
 import { Plus, Undo2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { toast } from 'sonner';
@@ -10,7 +11,7 @@ import {
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { commitRef, type GitChange, HEAD_REF } from '@shared/core/git/git';
+import { commitRef, HEAD_REF } from '@shared/core/git/git';
 import { formatErrorType } from '../../utils';
 import { ActionCard } from './components/action-card';
 import { ChangesListOrTree } from './components/changes-list-or-tree';

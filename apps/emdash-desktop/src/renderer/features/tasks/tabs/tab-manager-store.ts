@@ -1,3 +1,4 @@
+import type { GitChangeStatus, GitObjectRef } from '@emdash/shared/git';
 import { action, autorun, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { browserDiagnosticsStore } from '@renderer/features/browser/browser-diagnostics-store';
 import { browserSessionStore } from '@renderer/features/browser/browser-session-store';
@@ -23,7 +24,7 @@ import {
 } from '@renderer/lib/stores/tab-utils';
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
 import { normalizeBrowserProfileSelection, type BrowserSessionSnapshot } from '@shared/browser';
-import { refsEqual, type GitChangeStatus, type GitObjectRef } from '@shared/core/git/git';
+import { refsEqual } from '@shared/core/git/git';
 import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
 

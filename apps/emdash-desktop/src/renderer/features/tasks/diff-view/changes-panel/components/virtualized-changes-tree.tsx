@@ -1,3 +1,4 @@
+import type { GitChange } from '@emdash/shared/git';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
@@ -8,7 +9,6 @@ import {
 } from '@renderer/features/tasks/editor/stores/files-store-utils';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { cn } from '@renderer/utils/utils';
-import { type GitChange } from '@shared/core/git/git';
 import { ChangeStatusAffordance } from './changes-list-item';
 import { buildChangesTree } from './changes-tree-utils';
 
