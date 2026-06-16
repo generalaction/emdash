@@ -130,7 +130,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
   chrome_devtools: {
     config: {
       command: 'npx',
-      args: ['chrome-devtools-mcp@latest'],
+      args: ['-y', 'chrome-devtools-mcp@latest'],
     },
     name: 'Chrome DevTools',
     description: 'Browser automation, debugging and performance analysis with Chrome DevTools',
