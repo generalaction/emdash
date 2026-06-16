@@ -145,7 +145,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     name: 'Atlassian',
     description: 'Access Jira & Confluence from Claude',
     docsUrl:
-      'https://community.atlassian.com/forums/Atlassian-Platform-articles/Using-the-Atlassian-Remote-MCP-Server-beta/ba-p/3005104',
+      'https://support.atlassian.com/atlassian-rovo-mcp-server/docs/getting-started-with-the-atlassian-remote-mcp-server/',
     credentialKeys: [],
   },
   notion: {
