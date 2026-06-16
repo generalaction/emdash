@@ -372,7 +372,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
   cloudinary: {
     config: {
       type: 'http',
-      url: 'https://asset-management.mcp.cloudinary.com/sse',
+      url: 'https://asset-management.mcp.cloudinary.com/mcp',
     },
     name: 'Cloudinary',
     description: 'Manage, transform and deliver your images & videos',
