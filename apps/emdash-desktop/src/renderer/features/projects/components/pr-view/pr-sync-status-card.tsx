@@ -1,0 +1,168 @@
+import { AlertCircle, CheckCircle2, Loader2, RotateCcw, X } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
+import { useEffect, useState, type ReactNode } from 'react';
+import { getPrSyncStore } from '@renderer/features/projects/stores/project-selectors';
+import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
+import { Button } from '@renderer/lib/ui/button';
+
+const KIND_LABELS: Record<string, string> = {
+  full: 'Full sync',
+  incremental: 'Incremental sync',
+  single: 'Single PR',
+};
+
+interface SyncStatusCardProps {
+  icon: ReactNode;
+  label?: ReactNode;
+  content: ReactNode;
+  actions?: ReactNode;
+  className?: string;
+}
+
+function SyncStatusCard({ icon, label, content, actions, className }: SyncStatusCardProps) {
+  return (
+    <ListPopoverCard className={className}>
+      {icon}
+      {label && <span className="shrink-0 text-foreground-muted">{label}</span>}
+
+      <span className="min-w-0 grow text-foreground-passive">{content}</span>
+      {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
+    </ListPopoverCard>
+  );
+}
+
+function SyncErrorStatusCard({
+  error,
+  actions,
+}: {
+  error: string | null | undefined;
+  actions?: ReactNode;
+}) {
+  return (
+    <SyncStatusCard
+      className={'border-border-destructive bg-background-destructive text-foreground-destructive'}
+      icon={<AlertCircle className="size-3.5 shrink-0 text-foreground-destructive" />}
+      label={<span className="font-medium text-foreground-destructive">Sync failed</span>}
+      content={
+        <span className="block truncate text-foreground-destructive/80" title={error ?? undefined}>
+          {error ?? 'Unknown error'}
+        </span>
+      }
+      actions={actions}
+    />
+  );
+}
+
+interface Props {
+  projectId: string;
+  repositoryUrl: string;
+  manualError?: string | null;
+}
+
+export const PrSyncStatusCard = observer(function PrSyncStatusCard({
+  projectId,
+  repositoryUrl,
+  manualError,
+}: Props) {
+  const prSync = getPrSyncStore(projectId);
+  const state = prSync?.getState(repositoryUrl);
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  useEffect(() => {
+    if (state?.status === 'done') {
+      setShowSuccess(true);
+      const timer = setTimeout(() => {
+        setShowSuccess(false);
+        prSync?.clear(repositoryUrl);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [state?.status, prSync, repositoryUrl]);
+
+  if (manualError && (!state || state.status === 'done')) {
+    return <SyncErrorStatusCard error={manualError} />;
+  }
+
+  if (showSuccess) {
+    return (
+      <SyncStatusCard
+        icon={<CheckCircle2 className="size-3.5 shrink-0 text-green-500" />}
+        content="Sync complete"
+      />
+    );
+  }
+
+  if (!state || state.status === 'done') return null;
+
+  const kindLabel = KIND_LABELS[state.kind] ?? state.kind;
+
+  if (state.status === 'running' && state.kind !== 'single') {
+    const hasProgress = state.total != null && state.total > 0;
+    return (
+      <SyncStatusCard
+        icon={<Loader2 className="text-muted-foreground size-3.5 shrink-0 animate-spin" />}
+        label={kindLabel}
+        content={
+          hasProgress ? `Syncing PRs: ${state.synced ?? 0} / ${state.total}` : 'Syncing PRs…'
+        }
+        actions={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 shrink-0 px-2 text-xs"
+            onClick={() => prSync?.cancel(repositoryUrl)}
+          >
+            Cancel
+          </Button>
+        }
+      />
+    );
+  }
+
+  if (state.status === 'cancelled' && state.kind !== 'single') {
+    return (
+      <SyncStatusCard
+        icon={<RotateCcw className="text-muted-foreground size-3.5 shrink-0" />}
+        label={kindLabel}
+        content="Sync cancelled"
+        actions={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs"
+            onClick={() => prSync?.retry()}
+          >
+            Resume
+          </Button>
+        }
+      />
+    );
+  }
+
+  // error state
+  return (
+    <SyncErrorStatusCard
+      error={state.error}
+      actions={
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs"
+            onClick={() => prSync?.retry()}
+          >
+            Retry
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => prSync?.clear(repositoryUrl)}
+            aria-label="Dismiss"
+          >
+            <X className="size-3.5" />
+          </Button>
+        </>
+      }
+    />
+  );
+});

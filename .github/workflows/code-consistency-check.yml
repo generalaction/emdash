@@ -1,4 +1,4 @@
-name: CI Check
+name: Code Consistency Check
 
 on:
   pull_request:
@@ -39,6 +39,9 @@ jobs:
             echo "Install failed (attempt $attempt). Retrying in 10s..."
             sleep 10
           done
+
+      - name: Build shared packages
+        run: pnpm --filter @emdash/shared run build && pnpm --filter @emdash/plugins run build
 
       - name: Check formatting
         run: pnpm run format:check

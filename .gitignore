@@ -4,6 +4,14 @@ dist/
 out/
 /release/
 
+# App-specific outputs
+apps/*/out/
+apps/*/release/
+apps/*/dist/
+
+# Temporary electron-builder deploy directories (created by scripts/release/build.ts)
+.emdash-deploy-*/
+
 # Logs
 *.log
 npm-debug.log*
@@ -70,14 +78,18 @@ Thumbs.db
 .cursor
 .codex/config.toml
 
-src/main/appConfig.json
+apps/*/src/main/appConfig.json
 
 # Per-developer dev database (use pnpm run db:dev)
-tooling/db/dev.db
-tooling/db/dev.db-wal
-tooling/db/dev.db-shm
+apps/*/tooling/db/dev.db
+apps/*/tooling/db/dev.db-wal
+apps/*/tooling/db/dev.db-shm
 
 # Isolated better-sqlite3 for system Node (installed by pnpm run db:setup / postinstall)
-tooling/node-deps/node_modules/
+apps/*/tooling/node-deps/node_modules/
 .pi/extensions/emdash-hook.ts
 .opencode/plugins/emdash-notifications.js
+
+# Vitest / Browser testing
+.vitest-attachments/
+**/__screenshots__/

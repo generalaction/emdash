@@ -1,0 +1,29 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2020",
+    "allowJs": false,
+    "noEmit": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["react", "react-dom", "electron-vite/node", "node"],
+    "paths": {
+      "@renderer/*": ["./src/renderer/*"],
+      "@main/*": ["./src/main/*"],
+      "@shared/*": ["./src/shared/*"],
+      "@root/*": ["./*"],
+      "@/*": ["./src/*"],
+      "@tooling/*": ["./tooling/*"]
+    }
+  },
+  "include": [
+    "src/main/**/*",
+    "src/renderer/**/*",
+    "src/preload/**/*",
+    "src/shared/**/*",
+    "src/types/**/*",
+    "src/test/**/*",
+    "tooling/**/*"
+  ],
+  "exclude": ["node_modules", "dist", "out", "**/_*/**"]
+}

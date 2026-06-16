@@ -1,0 +1,182 @@
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { events, rpc } from '@renderer/lib/ipc';
+import type {
+  CreateAutomationParams,
+  UpdateAutomationSettingsPatch,
+} from '@shared/core/automations/automation';
+import {
+  automationChangedChannel,
+  automationRunChangedChannel,
+} from '@shared/core/automations/automationEvents';
+
+export function useAutomations(projectId?: string) {
+  const queryClient = useQueryClient();
+
+  function invalidateAutomations() {
+    void queryClient.invalidateQueries({ queryKey: ['automations', projectId] });
+  }
+
+  function invalidateRuns(automationId?: string) {
+    void queryClient.invalidateQueries({
+      queryKey: automationId ? ['automations', 'runs', automationId] : ['automations', 'runs'],
+    });
+  }
+
+  const automations = useQuery({
+    queryKey: ['automations', projectId],
+    queryFn: () => rpc.automations.listAutomations(projectId),
+    placeholderData: keepPreviousData,
+  });
+
+  const create = useMutation({
+    mutationFn: (params: CreateAutomationParams) => rpc.automations.createAutomation(params),
+    onSuccess: invalidateAutomations,
+  });
+
+  const updateSettings = useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: UpdateAutomationSettingsPatch }) =>
+      rpc.automations.updateAutomationSettings(id, patch),
+    onSuccess: invalidateAutomations,
+  });
+
+  const rename = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      rpc.automations.renameAutomation(id, name),
+    onSuccess: invalidateAutomations,
+  });
+
+  const setEnabled = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      rpc.automations.setAutomationEnabled(id, enabled),
+    onSuccess: invalidateAutomations,
+  });
+
+  const toggleEnabled = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      rpc.automations.toggleAutomationEnabled(id, enabled),
+    onSuccess: invalidateAutomations,
+  });
+
+  const runNow = useMutation({
+    mutationFn: (id: string) => rpc.automations.runAutomation(id),
+    onSuccess: (_run, id) => invalidateRuns(id),
+  });
+
+  const stop = useMutation({
+    mutationFn: (runId: string) => rpc.automations.stopRun(runId),
+    onSuccess: () => invalidateRuns(),
+  });
+
+  const destroy = useMutation({
+    mutationFn: (id: string) => rpc.automations.deleteAutomation(id),
+    onSuccess: invalidateAutomations,
+  });
+
+  return {
+    automations,
+    create,
+    updateSettings,
+    rename,
+    setEnabled,
+    toggleEnabled,
+    runNow,
+    stop,
+    destroy,
+  };
+}
+
+export function useAutomationRuns(automationId: string, limit = 20) {
+  return useQuery({
+    queryKey: ['automations', 'runs', automationId, limit],
+    queryFn: () => rpc.automations.listAutomationRuns(automationId, limit, 0),
+    enabled: !!automationId,
+  });
+}
+
+const PAGINATED_PAGE_SIZE = 25;
+
+export function useScheduledAutomationRun(automationId: string) {
+  return useQuery({
+    queryKey: ['automations', 'runs', automationId, 'scheduled'],
+    queryFn: () => rpc.automations.getNextScheduledRun(automationId),
+    enabled: !!automationId,
+  });
+}
+
+type RunStatusFilter = 'done' | 'failed' | 'skipped' | undefined;
+
+export function useAutomationRunsPaginated(
+  automationId: string,
+  page: number,
+  statusFilter?: RunStatusFilter
+) {
+  return useQuery({
+    queryKey: ['automations', 'runs', automationId, 'page', page, statusFilter],
+    queryFn: () =>
+      rpc.automations.listAutomationRuns(
+        automationId,
+        PAGINATED_PAGE_SIZE + 1,
+        page * PAGINATED_PAGE_SIZE,
+        statusFilter
+      ),
+    placeholderData: keepPreviousData,
+    enabled: !!automationId,
+  });
+}
+
+export function useAutomationRunCounts(automationId: string) {
+  return useQuery({
+    queryKey: ['automations', 'runs', automationId, 'counts'],
+    queryFn: () => rpc.automations.countAutomationRunsByStatus(automationId),
+    enabled: !!automationId,
+  });
+}
+
+export function useLatestAutomationRun(automationId: string) {
+  const queryClient = useQueryClient();
+  const key = ['automations', 'runs', automationId, 'latest'];
+
+  useEffect(() => {
+    return events.on(automationRunChangedChannel, ({ automationId: id, run }) => {
+      if (id !== automationId) return;
+      queryClient.setQueryData(key, run);
+    });
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [automationId, queryClient]);
+
+  return useQuery({
+    queryKey: key,
+    queryFn: () => rpc.automations.getLatestRun(automationId),
+    enabled: !!automationId,
+  });
+}
+
+export function useAutomationRun(automationId: string, runId: string) {
+  const runs = useAutomationRuns(automationId);
+  return runs.data?.find((r) => r.id === runId);
+}
+
+export function useAutomation(automationId: string, projectId?: string) {
+  const { automations } = useAutomations(projectId);
+  return automations.data?.find((a) => a.id === automationId);
+}
+
+export function useAutomationEventBridge(automationId: string) {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    const unsubChanged = events.on(automationChangedChannel, ({ automationId: id }) => {
+      if (id !== automationId) return;
+      void queryClient.invalidateQueries({ queryKey: ['automations'] });
+      void queryClient.invalidateQueries({ queryKey: ['automations', 'runs', id, 'scheduled'] });
+    });
+    const unsubRun = events.on(automationRunChangedChannel, ({ automationId: id }) => {
+      if (id !== automationId) return;
+      void queryClient.invalidateQueries({ queryKey: ['automations', 'runs', id] });
+    });
+    return () => {
+      unsubChanged();
+      unsubRun();
+    };
+  }, [automationId, queryClient]);
+}

@@ -1,0 +1,98 @@
+import { randomUUID } from 'node:crypto';
+import { sql } from 'drizzle-orm';
+import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
+import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
+import { GitService } from '@main/core/git/impl/git-service';
+import { projectEvents } from '@main/core/projects/project-events';
+import { projectManager } from '@main/core/projects/project-manager';
+import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
+import { db } from '@main/db/client';
+import { projects } from '@main/db/schema';
+import { log } from '@main/lib/logger';
+import type { ProjectPathStatus, SshProject } from '@shared/projects';
+import { ensureGitRepository, resolveProjectBaseRef } from './create-project-utils';
+import { ensureRepositoryWorkspace } from './ensure-repository-workspace';
+
+export type CreateSshProjectParams = {
+  id?: string;
+  name: string;
+  path: string;
+  connectionId: string;
+  initGitRepository?: boolean;
+};
+
+export async function createSshProject(params: CreateSshProjectParams): Promise<SshProject> {
+  const sshProxy = await sshConnectionManager.connect(params.connectionId);
+
+  const sshFs = new SshFileSystem(sshProxy, params.path);
+  const pathEntry = await sshFs.stat('');
+  if (!pathEntry || pathEntry.type !== 'dir') {
+    throw new Error('Invalid directory');
+  }
+  const baseSshCtx = new SshExecutionContext(sshProxy, { root: params.path });
+  const git = new GitService(baseSshCtx, sshFs);
+
+  const gitInfo = await ensureGitRepository(git, params.initGitRepository);
+  const baseRef = await resolveProjectBaseRef(git, gitInfo.baseRef);
+
+  const [row] = await db
+    .insert(projects)
+    .values({
+      id: params.id ?? randomUUID(),
+      name: params.name,
+      path: gitInfo.rootPath,
+      workspaceProvider: 'ssh',
+      sshConnectionId: params.connectionId,
+      baseRef,
+      updatedAt: sql`CURRENT_TIMESTAMP`,
+    })
+    .returning();
+
+  const project = {
+    type: 'ssh' as const,
+    id: row.id,
+    name: row.name,
+    path: row.path,
+    connectionId: params.connectionId,
+    baseRef: row.baseRef ?? baseRef,
+    repositoryWorkspaceId: null as string | null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+
+  await projectManager.openProject(project);
+
+  try {
+    project.repositoryWorkspaceId = ensureRepositoryWorkspace(project);
+  } catch (error) {
+    log.warn('createSshProject: ensureRepositoryWorkspace failed (non-fatal)', {
+      projectId: project.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  projectEvents._emit('project:created', project);
+
+  return project;
+}
+
+export async function getSshProjectPathStatus(
+  path: string,
+  connectionId: string
+): Promise<ProjectPathStatus> {
+  try {
+    const sshProxy = await sshConnectionManager.connect(connectionId);
+    const sshFs = new SshFileSystem(sshProxy, path);
+    const pathEntry = await sshFs.stat('');
+    if (!pathEntry || pathEntry.type !== 'dir') {
+      return { isDirectory: false, isGitRepo: false };
+    }
+
+    const baseSshCtx = new SshExecutionContext(sshProxy, { root: path });
+    const git = new GitService(baseSshCtx, sshFs);
+    const gitInfo = await git.detectInfo();
+    return { isDirectory: true, isGitRepo: gitInfo.isGitRepo };
+  } catch {
+    return { isDirectory: false, isGitRepo: false };
+  }
+}

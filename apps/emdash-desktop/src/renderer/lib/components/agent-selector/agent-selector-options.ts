@@ -1,0 +1,77 @@
+import {
+  AGENT_PROVIDERS,
+  getProvider,
+  type AgentProviderId,
+} from '@shared/core/agents/agent-provider-registry';
+import { getAgentInstallActionState } from './agent-install';
+
+export interface AgentOption {
+  value: string;
+  label: string;
+  agentId: AgentProviderId;
+  disabled: boolean;
+}
+
+export interface AgentGroup {
+  value: string;
+  label: string;
+  items: AgentOption[];
+}
+
+export function buildAgentGroups(
+  installedAgents: string[],
+  assumedInstalledAgents: string[] = [],
+  installingAgents: ReadonlySet<AgentProviderId> = new Set(),
+  getName?: (id: AgentProviderId) => string
+): AgentGroup[] {
+  const allAgentIds = AGENT_PROVIDERS.map((p) => p.id);
+  const installedSet = new Set(
+    [...installedAgents, ...assumedInstalledAgents].filter((id) =>
+      allAgentIds.includes(id as AgentProviderId)
+    )
+  );
+
+  const resolveName = getName ?? ((id: AgentProviderId) => getProvider(id)?.name ?? id);
+
+  const installedOptions: AgentOption[] = allAgentIds
+    .filter((id) => installedSet.has(id) && !installingAgents.has(id))
+    .map((id) => ({ value: id, label: resolveName(id), agentId: id, disabled: false }));
+
+  const notInstalledOptions: AgentOption[] = allAgentIds
+    .filter((id) => !installedSet.has(id) || installingAgents.has(id))
+    .map((id) => ({ value: id, label: resolveName(id), agentId: id, disabled: true }));
+
+  return [
+    { value: 'installed', label: 'Installed', items: installedOptions },
+    { value: 'not-installed', label: 'Not installed', items: notInstalledOptions },
+  ].filter((group) => group.items.length > 0);
+}
+
+export function canInstallAgentOption(item: AgentOption, allowInstall: boolean): boolean {
+  return allowInstall && item.disabled;
+}
+
+export function getAssumedInstalledAgents(
+  value: AgentProviderId | null,
+  dependencyData: Record<string, unknown> | null
+): AgentProviderId[] {
+  return value && dependencyData?.[value] === undefined ? [value] : [];
+}
+
+export function isComboboxOptionDisabled(item: AgentOption): boolean {
+  return item.disabled;
+}
+
+export function getInstallButtonState(
+  item: AgentOption,
+  allowInstall: boolean,
+  installingAgents: ReadonlySet<AgentProviderId>
+): { render: boolean; disabled: boolean; installing: boolean; label: string } {
+  return getAgentInstallActionState({
+    agentId: item.agentId,
+    agentName: item.label,
+    canInstall: allowInstall,
+    isInstalled: !item.disabled,
+    isInstalling: installingAgents.has(item.agentId),
+  });
+}
