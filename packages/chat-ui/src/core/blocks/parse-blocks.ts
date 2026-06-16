@@ -26,6 +26,7 @@ import type {
   IslandBlock,
   ProseBlock,
   ProseVariant,
+  TableBlock,
 } from './block-types';
 
 // ── Shared parser instance ──────────────────────────────────────────────────
@@ -222,27 +223,23 @@ function blockToBlocks(
     }
 
     case 'table': {
-      // Serialise the table back to a compact markdown-like raw form for the slot.
       const tableNode = node as Parent;
-      const raw = tableNode.children
-        .map((row) =>
-          (row as TableRow).children
-            .map((cell) => {
-              const cellNode = cell as TableCell & Parent;
-              return phrasingsToRuns(cellNode.children as PhrasingContent[])
-                .map((r) => ('text' in r ? r.text : 'label' in r ? r.label : ''))
-                .join('');
-            })
-            .join(' | ')
-        )
-        .join('\n');
+      const allRows = tableNode.children.map((row) =>
+        (row as TableRow).children.map((cell) => {
+          const cellNode = cell as TableCell & Parent;
+          return phrasingsToRuns(cellNode.children as PhrasingContent[])
+            .map((r) => ('text' in r ? r.text : 'label' in r ? r.label : ''))
+            .join('');
+        })
+      );
+      const [header = [], ...rows] = allRows;
       blocks.push({
-        kind: 'island',
-        tier: 'island',
+        kind: 'table',
+        tier: 'table',
         id: nextId(),
-        islandType: 'table',
-        raw,
-      } satisfies IslandBlock);
+        header,
+        rows,
+      } satisfies TableBlock);
       break;
     }
 

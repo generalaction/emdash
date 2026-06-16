@@ -125,6 +125,56 @@ export const Table: Story = {
   ),
 };
 
+// 8 columns — exercises horizontal scroll when container is narrower than tableWidth.
+export const TableWide: Story = {
+  name: 'Table – wide (8 columns)',
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'message',
+          id: 'm1',
+          role: 'assistant',
+          text: [
+            '| Alpha | Beta | Gamma | Delta | Epsilon | Zeta | Eta | Theta |',
+            '|-------|------|-------|-------|---------|------|-----|-------|',
+            '| aaa-1 | bbb-1 | ccc-1 | ddd-1 | eee-1 | fff-1 | ggg-1 | hhh-1 |',
+            '| aaa-2 | bbb-2 | ccc-2 | ddd-2 | eee-2 | fff-2 | ggg-2 | hhh-2 |',
+            '| This cell has a very long value that should be truncated with an ellipsis | short | short | short | short | short | short | short |',
+          ].join('\n'),
+        },
+      ]}
+      height={200}
+    />
+  ),
+};
+
+// 20 rows — verifies formula height calculation for tall tables.
+export const TableTall: Story = {
+  name: 'Table – tall (20 rows)',
+  render: () => {
+    const header = '| # | Item | Status | Notes |';
+    const sep = '|---|------|--------|-------|';
+    const rows = Array.from(
+      { length: 20 },
+      (_, i) => `| ${i + 1} | Item ${i + 1} | ${i % 3 === 0 ? 'Done' : i % 3 === 1 ? 'In progress' : 'Pending'} | Some note for row ${i + 1} |`
+    );
+    return (
+      <ChatHost
+        items={[
+          {
+            kind: 'message',
+            id: 'm1',
+            role: 'assistant',
+            text: [header, sep, ...rows].join('\n'),
+          },
+        ]}
+        height={800}
+      />
+    );
+  },
+};
+
 export const HorizontalRule: Story = {
   render: () => (
     <ChatHost

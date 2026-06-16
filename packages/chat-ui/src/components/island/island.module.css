@@ -20,23 +20,4 @@
   border-radius: 8px;
 }
 
-/* ── Plain fallback table ─────────────────────────────────────────────────── */
-
-.pchat-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  line-height: 20px;
-}
-
-.pchat-table th,
-.pchat-table td {
-  padding: 6px 10px;
-  border: 1px solid var(--chat-border, #e2e8f0);
-  text-align: left;
-}
-
-.pchat-table th {
-  font-weight: 600;
-  background: var(--chat-table-header-bg, #f1f5f9);
-}
+/* Table styles have been moved to components/table/table.module.css. */

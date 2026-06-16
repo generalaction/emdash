@@ -1,61 +1,11 @@
-import { Brain, Loader2, Wrench } from 'lucide-react';
+import type { ChatHandle } from '@emdash/chat-ui';
+import { ChatTranscript } from '@emdash/chat-ui/react';
 import { observer } from 'mobx-react-lite';
-import { useEffect, useRef } from 'react';
+import { useCallback } from 'react';
 import { useAgents } from '@renderer/lib/stores/use-agents';
-import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
-import { cn } from '@renderer/utils/utils';
 import type { ModelOption } from '@shared/core/agents/agent-payload';
 import { useConversations } from '../../task-view-context';
 import { ChatComposer } from './chat-composer';
-import type { ChatMessageItem, ChatToolItem } from './chat-store';
-
-function MessageBubble({ message }: { message: ChatMessageItem }) {
-  const isUser = message.role === 'user';
-  const isThought = message.role === 'thought';
-
-  if (isThought) {
-    return (
-      <div className="flex items-start gap-2 px-4 py-1 opacity-60">
-        <Brain className="mt-0.5 size-3.5 shrink-0 text-foreground-secondary" />
-        <span className="text-xs text-foreground-secondary italic">{message.text}</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
-      <div
-        className={cn(
-          'max-w-[85%] rounded-2xl px-4 py-2.5 text-sm',
-          isUser
-            ? 'bg-primary-button-background text-primary-button-foreground'
-            : 'bg-background-secondary text-foreground'
-        )}
-      >
-        {isUser ? (
-          <span className="whitespace-pre-wrap">{message.text}</span>
-        ) : (
-          <MarkdownRenderer content={message.text} variant="compact" />
-        )}
-        {message.streaming && (
-          <span className="ml-0.5 inline-block h-3.5 w-0.5 animate-pulse bg-current opacity-75" />
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ToolStatusLine({ tool }: { tool: ChatToolItem }) {
-  return (
-    <div className="flex items-center gap-2 px-4 py-0.5 text-xs text-foreground-secondary">
-      <Wrench className="size-3 shrink-0" />
-      <span className="truncate font-mono">{tool.toolName}</span>
-      {tool.inputSummary && <span className="truncate opacity-60">({tool.inputSummary})</span>}
-      {tool.status === 'running' && <Loader2 className="ml-auto size-3 shrink-0 animate-spin" />}
-      {tool.status === 'error' && <span className="ml-auto text-red-400">failed</span>}
-    </div>
-  );
-}
 
 export const ChatPanel = observer(function ChatPanel({
   conversationId,
@@ -79,17 +29,12 @@ export const ChatPanel = observer(function ChatPanel({
         ).modelOptions
       : null;
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  const lastItem = store.items.at(-1);
-  const lastItemText = lastItem?.kind === 'message' ? lastItem.text : lastItem?.status;
-
-  // Scroll to bottom when the transcript changes
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, [store.items.length, lastItemText]);
+  const handleReady = useCallback(
+    ({ transcript }: ChatHandle) => {
+      store.bindTranscript(transcript);
+    },
+    [store]
+  );
 
   const handleSubmit = (text: string) => {
     store.setInput(text);
@@ -98,21 +43,14 @@ export const ChatPanel = observer(function ChatPanel({
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-      {/* Message transcript */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        {store.items.length === 0 && !store.isWorking ? (
-          <div className="flex h-full items-center justify-center text-sm text-foreground-secondary">
+      {/* Transcript — chat-ui handles virtualization and stick-to-bottom */}
+      <div className="relative flex-1 min-h-0">
+        <ChatTranscript className="h-full" stickToBottom={true} onReady={handleReady} />
+
+        {/* Empty state — shown when there are no messages yet */}
+        {!store.hasItems && !store.isWorking && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-foreground-secondary">
             Start a conversation
-          </div>
-        ) : (
-          <div className="space-y-3 px-4 py-4">
-            {store.items.map((item) =>
-              item.kind === 'message' ? (
-                <MessageBubble key={item.id} message={item} />
-              ) : (
-                <ToolStatusLine key={item.id} tool={item} />
-              )
-            )}
           </div>
         )}
       </div>

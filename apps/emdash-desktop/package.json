@@ -19,7 +19,8 @@
   "main": "./out/main/index.js",
   "scripts": {
     "d": "pnpm install && pnpm run dev",
-    "dev": "electron-vite dev",
+    "dev": "pnpm --filter @emdash/chat-ui build && electron-vite dev",
+    "dev:chat-ui": "pnpm --filter @emdash/chat-ui dev",
     "dev:debug": "VITE_LOG_LEVEL=debug electron-vite dev",
     "dev:main": "electron-vite dev --watch main",
     "dev:renderer": "electron-vite dev --watch renderer",
@@ -53,6 +54,7 @@
   "dependencies": {
     "@agentclientprotocol/claude-agent-acp": "^0.45.0",
     "@agentclientprotocol/sdk": "^0.25.1",
+    "@emdash/chat-ui": "workspace:*",
     "@emdash/plugins": "workspace:*",
     "@emdash/shared": "workspace:*",
     "@emdash/ui": "workspace:*",
@@ -76,6 +78,7 @@
     "node-pty": "1.1.0",
     "pidusage": "^4.0.1",
     "smol-toml": "^1.6.0",
+    "solid-js": "^1.9.13",
     "ssh2": "^1.17.0",
     "zod": "^4.3.6"
   },

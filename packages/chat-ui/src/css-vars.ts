@@ -28,6 +28,7 @@ import {
 import { codeSpec } from './components/code/spec';
 import { proseSpec } from './components/prose/spec';
 import { islandSpec } from './components/island/spec';
+import { tableSpec } from './components/table/spec';
 import { messageCssVars } from './components/message/css-vars';
 import { toolCssVars } from './components/tool/spec';
 import { thinkingCssVars } from './components/thinking/spec';
@@ -73,6 +74,7 @@ export function chatCssVars(): Record<string, string> {
     ...proseSpec.cssVars(),
     ...codeSpec.cssVars(),
     ...islandSpec.cssVars(),
+    ...tableSpec.cssVars(),
     ...messageCssVars(),
     ...toolCssVars(),
     ...thinkingCssVars(),

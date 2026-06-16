@@ -1,13 +1,15 @@
 /**
  * Island — Solid component rendering an IslandLaidOut block.
  *
- * Renders a fallback (table/rule/image/pre) and fires onMeasured after mount
+ * Renders a fallback (rule/image/pre) and fires onMeasured after mount
  * so the virtualizer can correct the initial height estimate.
+ *
+ * Tables are no longer handled here; they are first-class TableBlock / TableLaidOut
+ * rendered by components/table/Table.tsx with formula-based height measurement.
  *
  * Positioning and DOM measurement are handled by MeasuredBlockFrame.
  */
 
-import { For } from 'solid-js';
 import type { IslandLaidOut } from '../../core/layout/layout-types';
 import { MeasuredBlockFrame } from '../block-frame';
 import styles from './island.module.css';
@@ -17,45 +19,8 @@ export type IslandProps = {
   onMeasured?: (blockId: string, height: number) => void;
 };
 
-function TableFallback(props: { raw: string }) {
-  const rows = props.raw
-    .split('\n')
-    .filter((r) => r.trim() && !/^[-| ]+$/.test(r))
-    .map((r) =>
-      r
-        .split('|')
-        .map((c) => c.trim())
-        .filter((c) => c !== '')
-    );
-  const [header, ...body] = rows;
-  return (
-    <table class={styles['pchat-table']}>
-      {header && header.length > 0 && (
-        <thead>
-          <tr>
-            <For each={header}>{(cell) => <th>{cell}</th>}</For>
-          </tr>
-        </thead>
-      )}
-      {body.length > 0 && (
-        <tbody>
-          <For each={body}>
-            {(row) => (
-              <tr>
-                <For each={row}>{(cell) => <td>{cell}</td>}</For>
-              </tr>
-            )}
-          </For>
-        </tbody>
-      )}
-    </table>
-  );
-}
-
 function IslandContent(props: { block: IslandLaidOut }) {
   switch (props.block.islandType) {
-    case 'table':
-      return <TableFallback raw={props.block.raw} />;
     case 'rule':
       return (
         <hr

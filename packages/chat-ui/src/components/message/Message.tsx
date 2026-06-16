@@ -16,12 +16,14 @@ import type {
   IslandLaidOut,
   MessageLayout,
   ProseLaidOut,
+  TableLaidOut,
 } from '../../core/layout/layout-types';
 import { ROW_GAP } from '../../core/metrics';
 import type { ChatMessage, ChatRole } from '../../model';
 import { Code } from '../code/Code';
 import { Island } from '../island/Island';
 import { Prose } from '../prose/Prose';
+import { Table } from '../table/Table';
 import { BUBBLE_PAD_X } from './metrics';
 import styles from './message.module.css';
 
@@ -38,11 +40,17 @@ function blockPlainText(block: {
   runs?: Array<{ text?: string; label?: string }>;
   code?: string;
   raw?: string;
+  header?: string[];
+  rows?: string[][];
 }): string {
   if (block.tier === 'prose') {
     return (block.runs ?? []).map((r) => r.text ?? r.label ?? '').join('');
   }
   if (block.tier === 'code') return block.code ?? '';
+  if (block.tier === 'table') {
+    const allRows = [block.header ?? [], ...(block.rows ?? [])];
+    return allRows.map((row) => row.join(' | ')).join('\n');
+  }
   return block.raw ?? '';
 }
 
@@ -115,6 +123,9 @@ export function Message(props: MessageProps) {
           rawBlock={rawBlock as import('../../core/blocks/block-types').CodeBlock}
         />
       );
+    }
+    if (laidBlock.kind === 'table') {
+      return <Table block={laidBlock as TableLaidOut} />;
     }
     return <Island block={laidBlock as IslandLaidOut} onMeasured={props.onIslandMeasured} />;
   };

@@ -39,7 +39,7 @@ export function ChatHost(props: ChatHostProps) {
   const containerStyle = () => ({
     width: props.width ? `${props.width}px` : '640px',
     height: `${props.height ?? 600}px`,
-    border: '1px solid var(--chat-border, #e2e8f0)',
+    background: 'var(--surface-raised)',
     'border-radius': '8px',
     overflow: 'hidden',
   });

@@ -1,4 +1,5 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
+import type { ChatItem as UiChatItem, TranscriptApi } from '@emdash/chat-ui';
 import { action, makeObservable, observable } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
 import {
@@ -33,8 +34,48 @@ export type ChatToolItem = {
 /** A single ordered entry in the chat transcript. */
 export type ChatItem = ChatMessageItem | ChatToolItem;
 
+/** Convert desktop ChatItem[] to chat-ui ChatItem[] for TranscriptApi.seed(). */
+function toChatUiItems(items: ChatItem[]): UiChatItem[] {
+  return items.flatMap((item): UiChatItem[] => {
+    if (item.kind === 'tool') {
+      return [
+        {
+          kind: 'tool',
+          id: item.toolCallId,
+          name: item.toolName,
+          status: item.status,
+          inputSummary: item.inputSummary,
+        },
+      ];
+    }
+    if (item.role === 'thought') {
+      return [
+        {
+          kind: 'thinking',
+          id: item.id,
+          status: 'done',
+          text: item.text,
+          startedAt: 0,
+        },
+      ];
+    }
+    return [
+      {
+        kind: 'message',
+        id: item.id,
+        role: item.role,
+        text: item.text,
+        streaming: item.streaming,
+      },
+    ];
+  });
+}
+
 export class ChatStore {
-  /** Ordered transcript: messages and tool calls interleaved by arrival time. */
+  /**
+   * Ordered transcript kept as source-of-truth for hydrating the chat-ui
+   * TranscriptApi when it binds after mount (via bindTranscript).
+   */
   items: ChatItem[] = [];
   isWorking = false;
   isClosed = false;
@@ -51,6 +92,19 @@ export class ChatStore {
    * for the same role+message merge while different roles stay separate bubbles.
    */
   private _streamKeyMap = new Map<string, ChatMessageItem>();
+
+  /** Bound chat-ui transcript — set when the ChatTranscript component mounts. */
+  private _transcript: TranscriptApi | null = null;
+
+  /**
+   * Accumulated thinking text keyed by thinking-id.
+   * upsertThinking() takes full text (not deltas), so we accumulate here then pass
+   * the growing string on each chunk.
+   */
+  private _thinkingTextMap = new Map<string, string>();
+
+  /** Epoch ms when the first thought chunk of the current turn arrived. */
+  private _thinkingStartedAt: number | null = null;
 
   constructor(conversationId: string, projectId: string, taskId: string, initialModel?: string) {
     this._conversationId = conversationId;
@@ -102,13 +156,31 @@ export class ChatStore {
           if (payload.phase === 'start') {
             this.items = [];
             this._streamKeyMap.clear();
+            this._thinkingTextMap.clear();
+            this._thinkingStartedAt = null;
             this.isClosed = false;
+            this._transcript?.reset();
           } else {
             this._finalizeStreaming();
           }
         })
       )
     );
+  }
+
+  get hasItems(): boolean {
+    return this.items.length > 0;
+  }
+
+  /**
+   * Called by ChatPanel via onReady once the chat-ui ChatTranscript mounts.
+   * Seeds the transcript with any items already accumulated before mount.
+   */
+  bindTranscript(api: TranscriptApi): void {
+    this._transcript = api;
+    if (this.items.length > 0) {
+      api.seed(toChatUiItems(this.items));
+    }
   }
 
   setInput(value: string): void {
@@ -122,13 +194,16 @@ export class ChatStore {
     this.isWorking = true;
 
     // Optimistically add user message
+    const userId = `user-${Date.now()}`;
     this.items.push({
       kind: 'message',
-      id: `user-${Date.now()}`,
+      id: userId,
       role: 'user',
       text,
       streaming: false,
     });
+    this._transcript?.appendMessageChunk('user', userId, text);
+    this._transcript?.finalizeTurn();
 
     void rpc.acp
       .prompt(this._conversationId, text)
@@ -165,7 +240,7 @@ export class ChatStore {
     if (kind === 'agent_message_chunk') {
       this._appendChunk('assistant', update);
     } else if (kind === 'agent_thought_chunk') {
-      this._appendChunk('thought', update);
+      this._appendThinkingChunk(update);
     } else if (kind === 'user_message_chunk') {
       this._appendChunk('user', update);
     } else if (kind === 'tool_call') {
@@ -185,7 +260,7 @@ export class ChatStore {
   }
 
   private _appendChunk(
-    role: ChatMessageRole,
+    role: 'user' | 'assistant',
     chunk: { messageId?: string | null; content: { type: string; text?: string } }
   ): void {
     const text =
@@ -199,30 +274,70 @@ export class ChatStore {
       const existing = this._streamKeyMap.get(streamKey);
       if (existing) {
         existing.text += text;
+        this._transcript?.appendMessageChunk(role, messageId, text);
         return;
       }
       const created = this._pushMessage(role, text);
       this._streamKeyMap.set(streamKey, created);
+      this._transcript?.appendMessageChunk(role, messageId, text);
       return;
     }
 
     // No messageId: append to the trailing bubble if it's the same role and still
-    // streaming (i.e. nothing else interrupted it); otherwise start a new bubble.
+    // streaming; otherwise start a new bubble.
     const last = this.items.at(-1);
+    const syntheticId = `${role}-${Date.now()}-${Math.random()}`;
     if (last && last.kind === 'message' && last.role === role && last.streaming) {
       last.text += text;
+      this._transcript?.appendMessageChunk(role, last.id, text);
       return;
     }
     this._pushMessage(role, text);
+    this._transcript?.appendMessageChunk(role, syntheticId, text);
   }
 
-  private _pushMessage(role: ChatMessageRole, text: string): ChatMessageItem {
+  private _appendThinkingChunk(
+    chunk: { messageId?: string | null; content: { type: string; text?: string } }
+  ): void {
+    const text =
+      chunk.content.type === 'text' ? ((chunk.content as { text?: string }).text ?? '') : '';
+    const thinkingId = chunk.messageId ?? `thought-${Date.now()}`;
+
+    // Mirror into items[] as a legacy thought message for hydration fallback.
+    const streamKey = `thought:${thinkingId}`;
+    const existing = this._streamKeyMap.get(streamKey);
+    if (existing) {
+      existing.text += text;
+    } else {
+      const created = this._pushMessage('thought', text);
+      this._streamKeyMap.set(streamKey, created);
+    }
+
+    // Drive TranscriptApi with full accumulated text (upsertThinking is not delta).
+    const accumulated = (this._thinkingTextMap.get(thinkingId) ?? '') + text;
+    this._thinkingTextMap.set(thinkingId, accumulated);
+    if (this._thinkingStartedAt === null) {
+      this._thinkingStartedAt = Date.now();
+    }
+    this._transcript?.upsertThinking({
+      id: thinkingId,
+      text: accumulated,
+      status: 'thinking',
+      startedAt: this._thinkingStartedAt,
+    });
+  }
+
+  private _pushMessage(
+    role: ChatMessageRole,
+    text: string,
+    streaming = true
+  ): ChatMessageItem {
     const item: ChatMessageItem = {
       kind: 'message',
       id: `${role}-${Date.now()}-${Math.random()}`,
       role,
       text,
-      streaming: true,
+      streaming,
     };
     this.items.push(item);
     // Return the array-resident element: MobX wraps pushed plain objects in an
@@ -243,24 +358,33 @@ export class ChatStore {
       if (patch.toolName !== undefined) existing.toolName = patch.toolName;
       if (patch.status !== undefined) existing.status = patch.status;
       if (patch.inputSummary !== undefined) existing.inputSummary = patch.inputSummary;
-      return;
+    } else {
+      this.items.push({
+        kind: 'tool',
+        id: patch.toolCallId,
+        toolCallId: patch.toolCallId,
+        toolName: patch.toolName ?? '(tool)',
+        status: patch.status ?? 'running',
+        inputSummary: patch.inputSummary,
+      });
     }
-    this.items.push({
-      kind: 'tool',
+    this._transcript?.upsertTool({
       id: patch.toolCallId,
-      toolCallId: patch.toolCallId,
-      toolName: patch.toolName ?? '(tool)',
+      name: patch.toolName ?? '(tool)',
       status: patch.status ?? 'running',
       inputSummary: patch.inputSummary,
     });
   }
 
-  /** Marks all streaming message bubbles as settled and resets the stream map. */
+  /** Marks all streaming message bubbles as settled and commits the active turn. */
   private _finalizeStreaming(): void {
     for (const item of this.items) {
       if (item.kind === 'message') item.streaming = false;
     }
     this._streamKeyMap.clear();
+    this._thinkingTextMap.clear();
+    this._thinkingStartedAt = null;
+    this._transcript?.finalizeTurn();
   }
 
   private _summarizeInput(input: unknown): string | undefined {

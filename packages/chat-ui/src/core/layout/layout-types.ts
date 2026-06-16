@@ -84,7 +84,22 @@ export type IslandLaidOut = {
   raw: string;
 };
 
-export type BlockLaidOut = ProseLaidOut | CodeLaidOut | IslandLaidOut;
+/** Table block: formula-measured, single-line truncated cells. */
+export type TableLaidOut = {
+  kind: 'table';
+  id: string;
+  top: number;
+  height: number;
+  contentWidth: number;
+  /** Width of each column in px (equal distribution, floored at TABLE_MIN_COL_W). */
+  colWidths: number[];
+  /** Total table width = colWidths.length * colW; may exceed contentWidth (triggers scroll). */
+  tableWidth: number;
+  header: string[];
+  rows: string[][];
+};
+
+export type BlockLaidOut = ProseLaidOut | CodeLaidOut | IslandLaidOut | TableLaidOut;
 
 /** Full layout for a single ChatMessage virtualizer row. */
 export type MessageLayout = {

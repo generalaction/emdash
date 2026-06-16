@@ -22,6 +22,7 @@ import type { BlockLaidOut, MessageLayout } from '../../core/layout/layout-types
 import { layoutCode } from '../code/layout';
 import { layoutProse, measureProseNaturalWidth } from '../prose/layout';
 import { layoutIsland } from '../island/layout';
+import { layoutTable } from '../table/layout';
 import { BUBBLE_PAD_X, BUBBLE_PAD_Y, BLOCK_GAP } from './metrics';
 
 export function layoutMessage(
@@ -74,6 +75,18 @@ export function layoutMessage(
           contentWidth: 0,
           lines: [],
         };
+      } else if (block.tier === 'table') {
+        laidBlock = {
+          kind: 'table',
+          id: block.id,
+          top: cursor,
+          height: 0,
+          contentWidth: 0,
+          colWidths: [],
+          tableWidth: 0,
+          header: block.header,
+          rows: block.rows,
+        };
       } else {
         laidBlock = {
           kind: 'island',
@@ -100,6 +113,9 @@ export function layoutMessage(
         break;
       case 'island':
         laidBlock = layoutIsland(block, cursor, effectiveWidth, getMeasured(block.id));
+        break;
+      case 'table':
+        laidBlock = layoutTable(block, cursor, effectiveWidth);
         break;
     }
 

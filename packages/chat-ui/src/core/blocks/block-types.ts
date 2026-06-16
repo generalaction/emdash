@@ -8,13 +8,13 @@
  */
 
 /** Coarse rendering tier – controls measurement strategy. */
-export type BlockTier = 'prose' | 'code' | 'island';
+export type BlockTier = 'prose' | 'code' | 'island' | 'table';
 
 /** Fine-grained variant within the prose tier. */
 export type ProseVariant = 'body' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'list-item' | 'quote';
 
 /** Types of rich "island" blocks rendered via slots. */
-export type IslandType = 'table' | 'math' | 'mermaid' | 'image' | 'rule';
+export type IslandType = 'math' | 'mermaid' | 'image' | 'rule';
 
 // ── Inline run types ──────────────────────────────────────────────────────────
 
@@ -90,4 +90,18 @@ export type IslandBlock = {
   raw: string;
 };
 
-export type Block = ProseBlock | CodeBlock | IslandBlock;
+/**
+ * A markdown table — formula-measured (static row height), no DOM write-back.
+ * Height = (1 + rows.length) * TABLE_ROW_H + TABLE_BORDER.
+ */
+export type TableBlock = {
+  kind: 'table';
+  tier: 'table';
+  id: BlockId;
+  /** Column header labels. */
+  header: string[];
+  /** Data rows — each row is an array of cell strings, same length as header. */
+  rows: string[][];
+};
+
+export type Block = ProseBlock | CodeBlock | IslandBlock | TableBlock;
