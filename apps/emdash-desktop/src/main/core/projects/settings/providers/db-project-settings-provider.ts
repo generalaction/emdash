@@ -128,7 +128,7 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     };
   }
 
-  private async migrateLegacyConfigIfNeeded(): Promise<void> {
+  private async migrateLegacyConfigIfNeeded(git = this.options.git): Promise<void> {
     if (this.legacyMigrationPromise) {
       await this.legacyMigrationPromise;
       return;
@@ -142,7 +142,7 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
         configReader: this.configReader,
         defaultBranchFallback: this.defaultBranchFallback,
         storage: this.storage,
-        git: this.options.git,
+        git,
         normalizeStoredWorktreeDirectory: (worktreeDirectory) =>
           this.normalizeStoredWorktreeDirectory(worktreeDirectory),
       });
@@ -156,9 +156,9 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     }
   }
 
-  async ensure(): Promise<void> {
+  async ensure(options: DbProjectSettingsProviderOptions = {}): Promise<void> {
     await this.ensureRow();
-    await this.migrateLegacyConfigIfNeeded();
+    await this.migrateLegacyConfigIfNeeded(options.git);
   }
 
   async get(): Promise<ProjectSettings> {
