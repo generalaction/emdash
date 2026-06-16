@@ -1,15 +1,13 @@
 /**
- * Core metrics — typography, row-level layout, and CSS variable map.
+ * Core metrics — typography, row-level layout, and font shorthand builders.
  *
  * Typography constants are derived from @emdash/ui design tokens (tokens.js) so
  * that pretext measurement and CSS styling share a single source of truth.
- * The metricsToCssVars() output wraps each value in a var(--typography-*) reference
- * with the token value as a fallback, so the design system resolves when the theme
- * is loaded while standalone Storybook keeps working without any extra CSS imports.
  *
  * Component-private constants (bubble padding, block gap, thinking heights,
- * code block padding) live in each component's metrics.ts.  They are
- * re-imported here only for metricsToCssVars() so CSS variables are complete.
+ * code block padding) live in each component's metrics.ts.
+ *
+ * The full CSS variable map is assembled by chatCssVars() in css-vars.ts.
  */
 
 import { tokens } from '@emdash/ui/theme/tokens.js';
@@ -147,97 +145,3 @@ export const MENTION_FONT = fontShorthand(MENTION, SANS_FAMILY);
 export const CODE_BLOCK_FONT = fontShorthand(CODE_BLOCK, MONO_FAMILY);
 
 // ── CSS variable map ─────────────────────────────────────────────────────────
-
-/**
- * Produce a flat Record<string, string> of --chat-* CSS custom properties.
- * Set these on the .pchat-transcript root so every var(--chat-*) resolves
- * to the same number used in measurement.
- *
- * Each typography value is emitted as var(--typography-*, <fallback>) so the
- * design system token resolves when theme.css is loaded, while standalone
- * Storybook (without the theme import) still works via the fallback.
- *
- * Component metrics are imported here and included so the CSS vars are complete.
- */
-export function metricsToCssVars(componentVars?: {
-  bubblePadX?: number;
-  bubblePadY?: number;
-  blockGap?: number;
-  codeBlockPadY?: number;
-  codeBlockPadX?: number;
-  codeBlockBorder?: number;
-  thinkingHeaderH?: number;
-  thinkingWindowH?: number;
-  thinkingFadeH?: number;
-  thinkingPadY?: number;
-}): Record<string, string> {
-  const {
-    bubblePadX = 14,
-    bubblePadY = 10,
-    blockGap = 10,
-    codeBlockPadY = 10,
-    codeBlockPadX = 14,
-    codeBlockBorder = 1,
-    thinkingHeaderH = 28,
-    thinkingWindowH = 72,
-    thinkingFadeH = 28,
-    thinkingPadY = 8,
-  } = componentVars ?? {};
-
-  return {
-    '--chat-sans': `var(--typography-font-family-sans, ${SANS_FAMILY})`,
-    '--chat-mono': `var(--typography-font-family-mono, ${MONO_FAMILY})`,
-
-    '--chat-body-size': `var(--typography-body-size, ${BODY.fontSize}px)`,
-    '--chat-body-weight': `var(--typography-body-weight, ${BODY.fontWeight})`,
-    '--chat-body-lh': `var(--typography-body-line-height, ${BODY.lineHeight}px)`,
-    '--chat-body-bold-weight': `var(--typography-body-bold-weight, ${BODY_BOLD.fontWeight})`,
-    '--chat-body-link-weight': `var(--typography-body-link-weight, ${BODY_LINK.fontWeight})`,
-
-    '--chat-h1-size': `var(--typography-h1-size, ${H1.fontSize}px)`,
-    '--chat-h1-weight': `var(--typography-h1-weight, ${H1.fontWeight})`,
-    '--chat-h1-lh': `var(--typography-h1-line-height, ${H1.lineHeight}px)`,
-    '--chat-h2-size': `var(--typography-h2-size, ${H2.fontSize}px)`,
-    '--chat-h2-weight': `var(--typography-h2-weight, ${H2.fontWeight})`,
-    '--chat-h2-lh': `var(--typography-h2-line-height, ${H2.lineHeight}px)`,
-    '--chat-h3-size': `var(--typography-h3-size, ${H3.fontSize}px)`,
-    '--chat-h3-weight': `var(--typography-h3-weight, ${H3.fontWeight})`,
-    '--chat-h3-lh': `var(--typography-h3-line-height, ${H3.lineHeight}px)`,
-
-    '--chat-ic-size': `var(--typography-inline-code-size, ${INLINE_CODE.fontSize}px)`,
-    '--chat-ic-weight': `var(--typography-inline-code-weight, ${INLINE_CODE.fontWeight})`,
-    '--chat-ic-pad-x': `6px`,
-    '--chat-ic-pad-y': `2px`,
-
-    '--chat-mention-size': `var(--typography-mention-size, ${MENTION.fontSize}px)`,
-    '--chat-mention-weight': `var(--typography-mention-weight, ${MENTION.fontWeight})`,
-    '--chat-mention-pad-x': `7px`,
-
-    '--chat-code-size': `var(--typography-code-size, ${CODE_BLOCK.fontSize}px)`,
-    '--chat-code-weight': `var(--typography-code-weight, ${CODE_BLOCK.fontWeight})`,
-    '--chat-code-lh': `var(--typography-code-line-height, ${CODE_BLOCK.lineHeight}px)`,
-    '--chat-code-pad-y': `${codeBlockPadY}px`,
-    '--chat-code-pad-x': `${codeBlockPadX}px`,
-    '--chat-code-border': `${codeBlockBorder}px`,
-
-    '--chat-lang-size': `var(--typography-code-lang-size, ${CODE_LANG.fontSize}px)`,
-    '--chat-lang-weight': `var(--typography-code-lang-weight, ${CODE_LANG.fontWeight})`,
-    '--chat-lang-lh': `var(--typography-code-lang-line-height, ${CODE_LANG.lineHeight}px)`,
-
-    '--chat-block-gap': `${blockGap}px`,
-    '--chat-bubble-pad-y': `${bubblePadY}px`,
-    '--chat-bubble-pad-x': `${bubblePadX}px`,
-    '--chat-row-gap': `${ROW_GAP}px`,
-    '--chat-msg-pad-x': `${ROW_INSET_X}px`,
-    '--chat-list-indent': `${LIST_INDENT}px`,
-    '--chat-quote-indent': `${BLOCKQUOTE_INDENT}px`,
-    '--chat-island-max-h': `${ISLAND_FIXED_HEIGHT}px`,
-
-    '--chat-user-max-w': `${USER_BUBBLE_MAX_WIDTH_PCT}%`,
-
-    '--chat-think-header-h': `${thinkingHeaderH}px`,
-    '--chat-think-window-h': `${thinkingWindowH}px`,
-    '--chat-think-fade-h': `${thinkingFadeH}px`,
-    '--chat-think-pad-y': `${thinkingPadY}px`,
-  };
-}

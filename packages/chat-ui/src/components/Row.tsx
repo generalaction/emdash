@@ -25,6 +25,7 @@ import { DEFAULT_FONT_CONFIG } from '../core/measure/fonts';
 import type { FontConfig } from '../core/measure/fonts';
 import type { MeasureCtx, RenderCtx } from '../core/layout/spec-types';
 import type { Virtualizer } from '../core/virtualizer';
+import { ROW_GAP } from '../core/metrics';
 import type { ChatItem } from '../model';
 import type { ViewState } from '../state/view-state';
 import { useDebug } from './debug-context';
@@ -42,7 +43,23 @@ export type RowProps = {
 
 // ── Row-level debug overlay ────────────────────────────────────────────────────
 
-function RowDebugOverlay(props: { reservedHeight: number; rowEl: () => HTMLElement | undefined }) {
+/**
+ * contentHeight  = layout().height - ROW_GAP
+ *   — the height actually occupied by the row's DOM box (what offsetHeight
+ *     should equal).  The ROW_GAP is realized as space between virtualizer
+ *     rows via translateY offsets, never as in-DOM pixels.
+ *
+ * totalReserved  = layout().height
+ *   — the height the virtualizer slot reserves (content + gap).
+ *
+ * The overlay is sized to contentHeight and flags a mismatch in red when the
+ * element's offsetHeight differs by more than 0.5px.
+ */
+function RowDebugOverlay(props: {
+  contentHeight: number;
+  totalReserved: number;
+  rowEl: () => HTMLElement | undefined;
+}) {
   const [mismatch, setMismatch] = createSignal(false);
   const [actualH, setActualH] = createSignal(0);
 
@@ -53,7 +70,7 @@ function RowDebugOverlay(props: { reservedHeight: number; rowEl: () => HTMLEleme
     const check = () => {
       const h = el.offsetHeight;
       setActualH(h);
-      setMismatch(Math.abs(h - props.reservedHeight) > 0.5);
+      setMismatch(Math.abs(h - props.contentHeight) > 0.5);
     };
     const ro = new ResizeObserver(check);
     ro.observe(el);
@@ -64,18 +81,18 @@ function RowDebugOverlay(props: { reservedHeight: number; rowEl: () => HTMLEleme
   return (
     <div
       class="pointer-events-none absolute inset-x-0 top-0 outline outline-1 outline-dashed"
-      style={{ height: `${props.reservedHeight}px` }}
+      style={{ height: `${props.contentHeight}px` }}
       classList={{
         'outline-red-500/80': mismatch(),
         'outline-emerald-400/50': !mismatch(),
       }}
     >
       <span class="absolute left-0 top-0 bg-black/70 px-1 text-[9px] leading-tight text-white">
-        row · h={props.reservedHeight}
+        row · content={props.contentHeight} reserved={props.totalReserved}
         <Show when={mismatch()}>
           {' '}
           <span class="text-red-400">
-            ⚠ actual={actualH()} (+{actualH() - props.reservedHeight})
+            ⚠ actual={actualH()} (+{actualH() - props.contentHeight})
           </span>
         </Show>
       </span>
@@ -137,7 +154,11 @@ export function Row(props: RowProps) {
         ctx={renderCtx}
       />
       <Show when={debug()}>
-        <RowDebugOverlay reservedHeight={layout().height} rowEl={() => rowEl} />
+        <RowDebugOverlay
+          contentHeight={layout().height - ROW_GAP}
+          totalReserved={layout().height}
+          rowEl={() => rowEl}
+        />
       </Show>
     </div>
   );

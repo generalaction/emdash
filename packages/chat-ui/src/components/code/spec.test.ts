@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { CODE_BLOCK } from '../../core/metrics';
 import { CODE_BLOCK_BORDER, CODE_BLOCK_PAD_X, CODE_BLOCK_PAD_Y } from './metrics';
 import { codeSpec } from './spec';
 
@@ -34,5 +35,15 @@ describe('codeSpec.metrics parity', () => {
 
   it('metrics.border matches CODE_BLOCK_BORDER', () => {
     expect(codeSpec.metrics.border).toBe(CODE_BLOCK_BORDER);
+  });
+});
+
+describe('codeSpec.cssVars() line-height parity', () => {
+  it('--chat-code-lh is emitted as a direct px value (not a var()-wrapped token)', () => {
+    // The CSS must use the exact same numeric value the layout engine uses.
+    // If it were a var(--typography-*) indirection the browser could resolve
+    // a different px than CODE_BLOCK.lineHeight and every code block line
+    // would accumulate rounding drift.
+    expect(codeSpec.cssVars()['--chat-code-lh']).toBe(`${CODE_BLOCK.lineHeight}px`);
   });
 });

@@ -11,8 +11,13 @@
  *                      DOM write-back after mount (ResizeObserver).
  *
  * Debug overlay: when the DebugContext is enabled, a dashed blue boundary is
- * drawn over the engine-reserved box. If the real DOM height diverges from the
- * reserved height by more than 0.5px the outline turns red and shows both values.
+ * drawn over the engine-reserved box. If the real DOM offsetHeight diverges from
+ * the reserved height by more than 0.5px the outline turns red and shows both
+ * values.  Uses offsetHeight (border-box) — not scrollHeight — to match the
+ * border-box height formula used by reserveHeight() in the layout engine.
+ *
+ * data-block-id is set on each frame div so the measurement contract tests
+ * can query specific blocks without relying on fragile positional selectors.
  */
 
 import { Show, createSignal, onMount, type JSX, onCleanup } from 'solid-js';
@@ -35,7 +40,11 @@ function DebugOverlay(props: DebugOverlayProps) {
     const el = props.elRef();
     if (!el) return;
     const check = () => {
-      const h = el.scrollHeight;
+      // offsetHeight is the correct probe here: it reads the border-box height
+      // of the positioned frame, matching the reserveHeight() arithmetic that
+      // produced props.reservedHeight.  scrollHeight is unreliable for frames
+      // whose children are absolutely positioned (it excludes some padding).
+      const h = el.offsetHeight;
       setActualH(h);
       setMismatch(Math.abs(h - props.reservedHeight) > 0.5);
     };
@@ -78,12 +87,14 @@ export type BlockFrameProps = {
 /**
  * Pure positioning wrapper.  Renders a `position: absolute` div sized and
  * placed by the pre-computed layout geometry.  The `.pblock` base class (from
- * the block-frame module) provides `position: absolute; left: 0; width: 100%`.
+ * the block-frame module) provides `position: absolute; left: 0; width: 100%;
+ * box-sizing: border-box`.
  * Pass an additional `class` for block-kind-specific visual styling.
  */
 export function BlockFrame(props: BlockFrameProps) {
   const debug = useDebug(); // () => boolean — reactive accessor
   let el: HTMLElement | undefined;
+  const blockId = (props.layout as { id?: string }).id;
 
   return (
     <div
@@ -91,6 +102,7 @@ export function BlockFrame(props: BlockFrameProps) {
         el = e;
         props.ref?.(e);
       }}
+      data-block-id={blockId}
       class={`${styles.pblock}${props.class ? ` ${props.class}` : ''}`}
       style={{
         top: `${props.layout.top}px`,
@@ -101,11 +113,7 @@ export function BlockFrame(props: BlockFrameProps) {
     >
       {props.children}
       <Show when={debug()}>
-        <DebugOverlay
-          id={(props.layout as { id?: string }).id}
-          reservedHeight={props.layout.height}
-          elRef={() => el}
-        />
+        <DebugOverlay id={blockId} reservedHeight={props.layout.height} elRef={() => el} />
       </Show>
     </div>
   );
@@ -136,7 +144,8 @@ export function MeasuredBlockFrame(props: MeasuredBlockFrameProps) {
 
   onMount(() => {
     const report = () => {
-      const h = el?.scrollHeight ?? 0;
+      // offsetHeight matches the border-box height reserved by the engine.
+      const h = el?.offsetHeight ?? 0;
       if (h > 0) props.onMeasured(props.id, h);
     };
 
@@ -144,8 +153,6 @@ export function MeasuredBlockFrame(props: MeasuredBlockFrameProps) {
     ro.observe(el);
     onCleanup(() => ro.disconnect());
 
-    // Also fire once immediately via rAF so the initial height is reported
-    // even before a resize event.
     requestAnimationFrame(report);
   });
 
@@ -154,6 +161,7 @@ export function MeasuredBlockFrame(props: MeasuredBlockFrameProps) {
       ref={(e) => {
         el = e;
       }}
+      data-block-id={props.id}
       class={`${styles.pblock}${props.class ? ` ${props.class}` : ''}`}
       style={{
         top: `${props.layout.top}px`,
@@ -163,11 +171,7 @@ export function MeasuredBlockFrame(props: MeasuredBlockFrameProps) {
     >
       {props.children}
       <Show when={debug()}>
-        <DebugOverlay
-          id={props.id}
-          reservedHeight={props.layout.height}
-          elRef={() => el}
-        />
+        <DebugOverlay id={props.id} reservedHeight={props.layout.height} elRef={() => el} />
       </Show>
     </div>
   );

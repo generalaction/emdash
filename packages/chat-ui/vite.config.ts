@@ -1,8 +1,10 @@
-import { defineConfig } from 'vite';
+import { playwright } from '@vitest/browser-playwright';
+import { defineConfig } from 'vitest/config';
+import tailwindcss from '@tailwindcss/vite';
 import solid from 'vite-plugin-solid';
 
 export default defineConfig({
-  plugins: [solid()],
+  plugins: [tailwindcss(), solid()],
   css: {
     modules: {
       // Keep the original kebab class names (e.g. 'pchat-transcript') as keys in
@@ -13,10 +15,33 @@ export default defineConfig({
     },
   },
   test: {
-    // Run parity tests in node environment (no DOM needed — pure arithmetic).
-    environment: 'node',
-    include: ['src/**/*.test.ts'],
-    // CSS modules aren't available in node; stub them.
-    css: false,
+    projects: [
+      {
+        // Parity / arithmetic tests — pure Node, no DOM needed.
+        extends: true,
+        test: {
+          name: 'node',
+          environment: 'node',
+          include: ['src/**/*.test.ts'],
+          css: false,
+        },
+      },
+      {
+        // Measurement contract tests — need real browser layout for offsetHeight.
+        // Mirrors the desktop app's browser Vitest project setup.
+        extends: true,
+        test: {
+          name: 'browser',
+          browser: {
+            enabled: true,
+            provider: playwright(),
+            headless: true,
+            instances: [{ browser: 'chromium' }],
+          },
+          include: ['src/**/*.contract.test.tsx'],
+          setupFiles: ['src/tests/contract-setup.ts'],
+        },
+      },
+    ],
   },
 });

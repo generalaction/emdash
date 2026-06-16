@@ -11,6 +11,7 @@
 import type { CodeBlock } from '../../core/blocks/block-types';
 import type { FontConfig } from '../../core/measure/fonts';
 import type { CodeLaidOut } from '../../core/layout/layout-types';
+import { reserveHeight } from '../../core/layout/reserve-height';
 import { CODE_BLOCK_PAD_Y, CODE_BLOCK_BORDER } from './metrics';
 
 export function layoutCode(
@@ -20,7 +21,6 @@ export function layoutCode(
   effectiveWidth: number
 ): CodeLaidOut {
   const codeLineHeight = fonts.code.lineHeight;
-  const chrome = 2 * CODE_BLOCK_PAD_Y + 2 * CODE_BLOCK_BORDER;
   const rawLines = block.code.split('\n');
 
   const lines = rawLines.map((text, i) => ({
@@ -28,7 +28,11 @@ export function layoutCode(
     text,
   }));
 
-  const height = rawLines.length * codeLineHeight + chrome;
+  const height = reserveHeight({
+    content: rawLines.length * codeLineHeight,
+    padY: CODE_BLOCK_PAD_Y,
+    border: CODE_BLOCK_BORDER,
+  });
 
   return {
     kind: 'code',

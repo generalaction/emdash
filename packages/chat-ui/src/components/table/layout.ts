@@ -11,6 +11,7 @@
 
 import type { TableBlock } from '../../core/blocks/block-types';
 import type { TableLaidOut } from '../../core/layout/layout-types';
+import { reserveHeight } from '../../core/layout/reserve-height';
 import { TABLE_BORDER, TABLE_MIN_COL_W, TABLE_ROW_H } from './metrics';
 
 export function layoutTable(
@@ -23,9 +24,13 @@ export function layoutTable(
   const colW = Math.max(TABLE_MIN_COL_W, target);
   const colWidths = Array<number>(colCount).fill(colW);
   const tableWidth = colW * colCount;
-  // +1 for the header row
+  // +1 for the header row; border-collapse draws rowCount+1 horizontal grid lines
   const rowCount = block.rows.length + 1;
-  const height = rowCount * TABLE_ROW_H + TABLE_BORDER;
+  const height = reserveHeight({
+    content: rowCount * TABLE_ROW_H,
+    border: TABLE_BORDER,
+    borderLines: rowCount + 1,
+  });
 
   return {
     kind: 'table',

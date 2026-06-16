@@ -109,7 +109,7 @@ export const StreamingWithThinking: Story = {
           api.dispatch({
             type: 'thinking_chunk',
             id: 'th1',
-            text: 'Looking at the function...\nIt has O(n²) complexity due to nested loops.',
+            text: 'Looking at the function...\nIt has O(n²) complexity due to nested loops. \nAnother row of text to test the streaming functionality \nAnother row of text to test the streaming functionality \nAnother row of text to test the streaming functionality',
           });
         },
       },

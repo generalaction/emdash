@@ -11,4 +11,6 @@
   left: 0;
   width: 100%;
   overflow: visible;
+  /* Ensure border-box sizing regardless of host preflight (lib ships utilities-only). */
+  box-sizing: border-box;
 }

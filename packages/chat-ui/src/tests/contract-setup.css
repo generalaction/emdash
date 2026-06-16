@@ -1,0 +1,15 @@
+/*
+ * contract-setup.css — global CSS for the browser Vitest project.
+ *
+ * Mirrors .storybook/preview.css so the browser contract tests run with the
+ * same token values and theme classes as Storybook.
+ */
+
+@import '@emdash/ui/theme/theme.css';
+@import '@emdash/ui/theme/semantic.css';
+@import '../chat-theme.css';
+
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@import '../tailwind.css';

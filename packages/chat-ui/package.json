@@ -9,7 +9,11 @@
     "email": "support@emdash.sh"
   },
   "type": "module",
-  "sideEffects": ["./dist/style.css", "./src/chat-theme.css", "./src/tailwind.css"],
+  "sideEffects": [
+    "./dist/style.css",
+    "./src/chat-theme.css",
+    "./src/tailwind.css"
+  ],
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -54,6 +58,8 @@
     "@types/mdast": "^4.0.4",
     "@types/node": "^20.10.0",
     "@types/react": "^19.0.0",
+    "@vitest/browser": "^4.1.8",
+    "@vitest/browser-playwright": "^4.1.8",
     "oxfmt": "^0.51.0",
     "oxlint": "^1.69.0",
     "react": "^19.2.0",
@@ -66,7 +72,7 @@
     "vite": "7.1.11",
     "vite-plugin-dts": "5.0.2",
     "vite-plugin-solid": "2.11.12",
-    "vitest": "^3.2.6"
+    "vitest": "^4.1.8"
   },
   "peerDependencies": {
     "react": "^19.0.0",
