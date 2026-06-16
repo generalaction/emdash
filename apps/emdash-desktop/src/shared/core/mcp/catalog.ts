@@ -141,7 +141,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
   atlassian: {
     config: {
       type: 'http',
-      url: 'https://mcp.atlassian.com/v1/mcp',
+      url: 'https://mcp.atlassian.com/v1/mcp/authv2',
     },
     name: 'Atlassian',
     description: 'Access Jira & Confluence from Claude',
@@ -230,11 +230,14 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     config: {
       type: 'http',
       url: 'https://mcp.exa.ai/mcp',
+      headers: {
+        'x-api-key': 'YOUR_EXA_API_KEY',
+      },
     },
     name: 'Exa',
     description: 'Web search and code context retrieval powered by Exa AI',
     docsUrl: 'https://exa.ai/docs/reference/exa-mcp',
-    credentialKeys: [],
+    credentialKeys: [{ key: 'x-api-key', required: false }],
   },
   parallel: {
     config: {
