@@ -14,8 +14,9 @@ import { emdashAccountService } from './core/account/services/emdash-account-ser
 import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { automationsService } from './core/automations/automations-service';
+import { cleanupLegacyBrowserPartitions } from './core/browser/browser-partition-cleanup';
 import { browserWebContentsRegistry } from './core/browser/browser-webcontents-registry';
-import { localDependencyManager } from './core/dependencies/dependency-manager';
+import { localDependencyManager } from './core/dependencies/dependency-managers';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubAccountReconciliationService } from './core/github/accounts/github-account-reconciliation-instance';
@@ -99,6 +100,7 @@ void app.whenReady().then(async () => {
     searchService.initialize();
     workspaceFileIndexService.initialize();
     void editorBufferService.pruneStale();
+    void cleanupLegacyBrowserPartitions();
     try {
       viewStateService.pruneOrphans();
     } catch (e: unknown) {

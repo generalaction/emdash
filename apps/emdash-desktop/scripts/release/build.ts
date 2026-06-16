@@ -1,11 +1,14 @@
-import { cpSync, mkdtempSync, rmSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { cpSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { basename, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
+import { Octokit } from '@octokit/rest';
 import { Arch, Platform, build as electronBuild } from 'electron-builder';
 import type { Configuration } from 'electron-builder';
+import { duplicateChannelManifests, resolvePublishChannels } from './lib/artifacts.ts';
+import { GITHUB_OWNER, GITHUB_REPO } from './lib/config.ts';
 import { exec } from './lib/exec.ts';
-import { fail, info, step } from './lib/log.ts';
+import { fail, info, step, warn } from './lib/log.ts';
 import { resolveReleaseVersion } from './lib/version.ts';
 import type { ReleaseChannel } from './lib/version.ts';
 
@@ -114,6 +117,95 @@ try {
 
   step('Copying release artifacts to app directory');
   cpSync(join(deployDir, 'release'), 'release', { recursive: true });
+
+  step('Duplicating manifests for R2 stable channel');
+  const publishArray = Array.isArray(baseConfig.publish)
+    ? baseConfig.publish
+    : baseConfig.publish
+      ? [baseConfig.publish]
+      : [];
+  const { githubChannel, r2Channel } = resolvePublishChannels(
+    publishArray as Array<Record<string, unknown>>
+  );
+
+  if (r2Channel && githubChannel !== r2Channel) {
+    const duplicated = duplicateChannelManifests(githubChannel, r2Channel);
+    if (duplicated.length > 0) {
+      info(`Duplicated ${duplicated.length} manifest(s): "${githubChannel}" → "${r2Channel}"`);
+      const ghToken = process.env.GH_TOKEN;
+      if (ghToken) {
+        await uploadManifestsToGithubDraft(duplicated, tag, ghToken);
+      } else {
+        info(
+          'GH_TOKEN not set; skipping GitHub manifest upload (R2 upload will still include them)'
+        );
+      }
+    } else {
+      warn(`No "${githubChannel}" manifests found to duplicate for R2 channel "${r2Channel}"`);
+    }
+  }
 } finally {
   rmSync(deployDir, { recursive: true, force: true });
+}
+
+/**
+ * Uploads the given manifest files to the GitHub draft release for `tag`, clobbering
+ * any asset of the same name that already exists (safe for re-runs).
+ */
+async function uploadManifestsToGithubDraft(
+  files: string[],
+  tag: string,
+  token: string
+): Promise<void> {
+  const octokit = new Octokit({ auth: token });
+
+  const { data: releases } = await octokit.rest.repos.listReleases({
+    owner: GITHUB_OWNER,
+    repo: GITHUB_REPO,
+    per_page: 100,
+  });
+  const drafts = releases.filter((r) => r.tag_name === tag && r.draft);
+  if (drafts.length === 0) {
+    warn(`No draft release found for tag ${tag}; skipping GitHub manifest upload`);
+    return;
+  }
+  if (drafts.length > 1) {
+    const ids = drafts.map((r) => String(r.id)).join(', ');
+    fail(
+      `Multiple draft releases found for tag ${tag} (ids: ${ids}); cannot safely upload manifests. Run prepare-release.ts to fix.`
+    );
+  }
+  const draft = drafts[0];
+
+  const { data: assets } = await octokit.rest.repos.listReleaseAssets({
+    owner: GITHUB_OWNER,
+    repo: GITHUB_REPO,
+    release_id: draft.id,
+    per_page: 100,
+  });
+
+  step(`Uploading ${files.length} R2 channel manifest(s) to GitHub draft release ${tag}`);
+  for (const file of files) {
+    const name = basename(file);
+    const existing = assets.find((a) => a.name === name);
+    if (existing) {
+      await octokit.rest.repos.deleteReleaseAsset({
+        owner: GITHUB_OWNER,
+        repo: GITHUB_REPO,
+        asset_id: existing.id,
+      });
+    }
+    await octokit.rest.repos.uploadReleaseAsset({
+      owner: GITHUB_OWNER,
+      repo: GITHUB_REPO,
+      release_id: draft.id,
+      name,
+      data: readFileSync(file, 'utf-8'),
+      headers: {
+        'content-type': 'application/yaml',
+        'content-length': statSync(file).size,
+      },
+    });
+    info(`Uploaded ${name} to draft release ${tag}`);
+  }
 }

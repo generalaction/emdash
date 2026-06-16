@@ -215,7 +215,9 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     invalidate: invalidateStatuses,
   });
 
-  const connectionStatus = statusData ?? DEFAULT_CONNECTION_STATUS;
+  const connectionStatus = statusData
+    ? { ...DEFAULT_CONNECTION_STATUS, ...statusData }
+    : DEFAULT_CONNECTION_STATUS;
   const providers: ProviderConnectionMap = {
     linear: linearConnection,
     jira: jiraConnection,

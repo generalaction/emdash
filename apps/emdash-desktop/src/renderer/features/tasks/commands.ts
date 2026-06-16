@@ -161,7 +161,16 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           shortcutKey: toggleTerminalDrawerDef.shortcutKey,
           group: toggleTerminalDrawerDef.group,
           execute() {
-            taskView?.setTerminalDrawerOpen(!taskView.isTerminalDrawerOpen);
+            if (!taskView) return;
+            if (taskView.isTerminalDrawerOpen) {
+              taskView.setTerminalDrawerOpen(false);
+              return;
+            }
+            if (taskView.terminalTabs.tabs.length === 0) {
+              void taskView.openNewTerminal();
+              return;
+            }
+            taskView.setTerminalDrawerOpen(true);
           },
         },
         {

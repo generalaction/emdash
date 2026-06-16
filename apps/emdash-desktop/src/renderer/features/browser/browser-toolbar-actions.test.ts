@@ -43,7 +43,8 @@ function session() {
     projectId: 'project-1',
     workspaceId: 'workspace-1',
     taskId: 'task-1',
-    partition: 'persist:emdash-browser-project-1-workspace-1-task-1-browser-1',
+    profileId: 'default',
+    partition: 'persist:emdash-browser-profile',
     currentUrl: 'https://example.com/',
     title: 'Example',
     isLoading: false,
@@ -97,7 +98,7 @@ describe('browser toolbar actions', () => {
   });
 
   it('clears storage only after explicit modal confirmation and reloads on success', async () => {
-    confirmClearBrowserStorage(session(), mocks.reload);
+    confirmClearBrowserStorage(session(), { reload: mocks.reload } as never);
 
     expect(mocks.showModal).toHaveBeenCalledWith(
       'confirmActionModal',

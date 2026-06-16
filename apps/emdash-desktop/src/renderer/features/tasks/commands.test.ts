@@ -85,7 +85,8 @@ function activeBrowserTab() {
       projectId: 'project-1',
       workspaceId: 'workspace-1',
       taskId: 'task-1',
-      partition: 'persist:emdash-browser-project-1-workspace-1-task-1-browser-1',
+      profileId: 'default',
+      partition: 'persist:emdash-browser-profile',
       currentUrl: 'example.com',
       title: 'Example',
       isLoading: false,
@@ -116,6 +117,9 @@ describe('createTaskCommandProvider', () => {
         openBrowser: vi.fn(),
         openConversation: vi.fn(),
         openConversationInRightSplit: vi.fn(),
+      },
+      terminalTabs: {
+        tabs: [],
       },
       tabManager: {
         resolvedTabs: [{ id: 'tab-1' }],
@@ -262,5 +266,20 @@ describe('createTaskCommandProvider', () => {
     expect(commands.find((candidate) => candidate.id === 'task.browserGoForward')?.enabled).toBe(
       false
     );
+  });
+
+  it('creates the default terminal when the terminal drawer shortcut opens an empty drawer', () => {
+    const provider = createTaskCommandProvider('project-1', 'task-1');
+
+    const command = provider
+      .getCommands()
+      .find((candidate) => candidate.id === 'task.toggleTerminalDrawer');
+    const taskView = mocks.getTaskView.mock.results.at(-1)?.value ?? mocks.getTaskView();
+
+    command?.execute();
+
+    expect(taskView.openNewTerminal).toHaveBeenCalledTimes(1);
+    expect(taskView.openNewTerminal).toHaveBeenCalledWith();
+    expect(taskView.setTerminalDrawerOpen).not.toHaveBeenCalled();
   });
 });

@@ -1,11 +1,11 @@
 import { createRPCNamespace, createRPCRouter } from '../shared/lib/ipc/rpc';
 import { accountController } from './core/account/controller';
+import { agentsController } from './core/agents/controller';
 import { appController } from './core/app/controller';
 import { asanaController } from './core/asana/controller';
 import { automationsController } from './core/automations/controller';
 import { browserController } from './core/browser/controller';
 import { conversationController } from './core/conversations/controller';
-import { dependenciesController } from './core/dependencies/controller';
 import { editorBufferController } from './core/editor/controller';
 import { featurebaseController } from './core/featurebase/controller';
 import { forgejoController } from './core/forgejo/controller';
@@ -42,6 +42,7 @@ import { legacyPortController } from './db/legacy-port/controller';
 
 export const rpcRouter = createRPCRouter({
   account: accountController,
+  agents: agentsController,
   legacyPort: legacyPortController,
   app: appController,
   automations: automationsController,
@@ -71,7 +72,6 @@ export const rpcRouter = createRPCRouter({
   tasks: taskController,
   conversations: conversationController,
   terminals: terminalsController,
-  dependencies: dependenciesController,
   mcp: mcpController,
   telemetry: telemetryController,
   pullRequests: pullRequestController,

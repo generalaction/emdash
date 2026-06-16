@@ -2,7 +2,6 @@ import {
   getConversationsForTask,
   getTerminalsForTask,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { agentMeta } from '@renderer/lib/providers/meta';
 import { appState } from '@renderer/lib/stores/app-state';
 import { formatBytes } from '@renderer/utils/formatBytes';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
@@ -52,12 +51,11 @@ export function isLifecycleScriptEntry(entry: Pick<Entry, 'leafId'>): boolean {
 }
 
 /** Single source of truth for an entry's display label. */
-export function entryLabel(entry: Entry): string {
-  const meta = entry.providerId ? agentMeta[entry.providerId] : undefined;
+export function entryLabel(entry: Entry, agentNames?: Map<string, string>): string {
   return (
     LIFECYCLE_SCRIPT_LABELS[entry.leafId] ||
     entry.displayTitle ||
-    meta?.label ||
+    (entry.providerId ? agentNames?.get(entry.providerId) : undefined) ||
     entry.providerId ||
     entry.leafId.slice(0, 8)
   );

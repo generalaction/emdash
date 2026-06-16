@@ -1,5 +1,6 @@
 import z from 'zod';
-import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/core/agents/agent-provider-registry';
+import { BROWSER_ISOLATED_PROFILE_ID } from '@shared/browser';
+import { AGENT_PROVIDER_IDS } from '@shared/core/agents/agent-provider-registry';
 import {
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
@@ -70,38 +71,17 @@ export const keyboardSettingsSchema = z
   )
   .default({});
 
+/**
+ * Per-provider execution settings stored as host-agnostic overrides.
+ * Installation source/path/cli overrides are now stored host-specifically
+ * in the HostDependencyStore (KV for local, SSH connection metadata for remote).
+ */
 export const providerCustomConfigEntrySchema = z.object({
-  cli: z.string().optional(),
-  resumeFlag: z.string().optional(),
-  defaultArgs: z.array(z.string()).optional(),
-  autoApproveFlag: z.string().optional(),
-  initialPromptFlag: z.string().optional(),
-  sessionIdFlag: z.string().optional(),
-  sessionIdOnResumeOnly: z.boolean().optional(),
-  resumeWithoutSessionFlag: z.string().optional(),
   extraArgs: z.string().optional(),
   env: z.record(z.string(), z.string()).optional(),
 });
 
-export const providerConfigDefaults = Object.fromEntries(
-  AGENT_PROVIDERS.filter(
-    (p) => p.cli || p.resumeFlag || p.autoApproveFlag || p.initialPromptFlag || p.defaultArgs
-  ).map((p) => [
-    p.id,
-    {
-      ...(p.cli ? { cli: p.cli } : {}),
-      ...(p.resumeFlag ? { resumeFlag: p.resumeFlag } : {}),
-      ...(p.autoApproveFlag ? { autoApproveFlag: p.autoApproveFlag } : {}),
-      ...(p.initialPromptFlag !== undefined ? { initialPromptFlag: p.initialPromptFlag } : {}),
-      ...(p.defaultArgs ? { defaultArgs: p.defaultArgs } : {}),
-      ...(p.sessionIdFlag ? { sessionIdFlag: p.sessionIdFlag } : {}),
-      ...(p.sessionIdOnResumeOnly ? { sessionIdOnResumeOnly: p.sessionIdOnResumeOnly } : {}),
-      ...(p.resumeWithoutSessionFlag
-        ? { resumeWithoutSessionFlag: p.resumeWithoutSessionFlag }
-        : {}),
-    },
-  ])
-);
+export const providerConfigDefaults: Record<string, unknown> = {};
 
 export const interfaceSettingsSchema = z.object({
   taskHoverAction: z.enum(['delete', 'archive']),
@@ -120,6 +100,33 @@ export const changesViewModeSchema = z.object({
 });
 
 export const browserPreviewSettingsSchema = z.object({ enabled: z.boolean() });
+
+export const browserProfileIdSchema = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9-]{0,63}$/)
+  .refine((value) => value !== BROWSER_ISOLATED_PROFILE_ID);
+
+export const browserSettingsSchema = z
+  .object({
+    defaultProfileId: z.union([browserProfileIdSchema, z.literal(BROWSER_ISOLATED_PROFILE_ID)]),
+    profiles: z
+      .array(
+        z.object({
+          id: browserProfileIdSchema,
+          name: z.string().trim().min(1).max(40),
+        })
+      )
+      .min(1),
+  })
+  .refine(
+    (settings) =>
+      new Set(settings.profiles.map((profile) => profile.id)).size === settings.profiles.length
+  )
+  .refine(
+    (settings) =>
+      settings.defaultProfileId === BROWSER_ISOLATED_PROFILE_ID ||
+      settings.profiles.some((profile) => profile.id === settings.defaultProfileId)
+  );
 
 export const resourceMonitorSettingsSchema = z.object({ enabled: z.boolean() });
 
@@ -141,6 +148,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
+  browser: browserSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,
 } as const;
@@ -158,6 +166,7 @@ export const appSettingsSchema = z.object({
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
+  browser: browserSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,
 });

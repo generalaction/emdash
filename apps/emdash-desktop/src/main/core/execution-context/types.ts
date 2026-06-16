@@ -1,3 +1,6 @@
+// Desktop-local execution context contract.
+// Intentionally duplicated in packages/shared/src/exec/execution-context.ts
+// for the shared deps runtime. The two shapes must stay structurally compatible.
 export interface ExecResult {
   stdout: string;
   stderr: string;

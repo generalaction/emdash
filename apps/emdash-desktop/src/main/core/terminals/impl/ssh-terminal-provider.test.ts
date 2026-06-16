@@ -44,6 +44,10 @@ vi.mock('../dev-server-watcher', () => ({
   wireTerminalDevServerWatcher: vi.fn(),
 }));
 
+vi.mock('@main/core/pty/terminal-color-scheme', () => ({
+  getTerminalColorEnv: vi.fn().mockResolvedValue({}),
+}));
+
 const terminal: Terminal = {
   id: 'terminal-1',
   projectId: 'project-1',
