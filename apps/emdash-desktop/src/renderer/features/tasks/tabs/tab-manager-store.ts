@@ -498,8 +498,12 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           isPreview: entry.isPreview,
         });
       } else if (entry.kind === 'conversation') {
+        // Migrate stale PTY entries that are actually ACP conversations so the
+        // next restore picks them up as chat tabs without the user having to
+        // manually close and reopen each tab.
+        const conversationType = this._conversationType(entry.conversationId);
         tabs.push({
-          kind: 'conversation',
+          kind: conversationType === 'acp' ? 'chat' : 'conversation',
           tabId: entry.tabId,
           conversationId: entry.conversationId,
           isPreview: entry.isPreview,
@@ -910,9 +914,20 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           this.entries.set(entry.tabId, entry);
           this.tabOrder.push(entry.tabId);
         } else if (t.kind === 'conversation') {
-          const entry = new ConversationTabEntry(t.conversationId, t.isPreview, t.tabId);
-          this.entries.set(entry.tabId, entry);
-          this.tabOrder.push(entry.tabId);
+          // Migration: old snapshots saved ACP conversations as 'conversation'.
+          // Preloaded conversation data is available at restore time, so upgrade
+          // any ACP entries to ChatTabEntry so ChatPanel mounts instead of the
+          // PTY ConversationsPanel.
+          const conversationType = this._conversationType(t.conversationId);
+          if (conversationType === 'acp') {
+            const entry = new ChatTabEntry(t.conversationId, t.isPreview, t.tabId);
+            this.entries.set(entry.tabId, entry);
+            this.tabOrder.push(entry.tabId);
+          } else {
+            const entry = new ConversationTabEntry(t.conversationId, t.isPreview, t.tabId);
+            this.entries.set(entry.tabId, entry);
+            this.tabOrder.push(entry.tabId);
+          }
         } else if (t.kind === 'browser') {
           browserSessionStore.restoreSession(
             t.session,

@@ -28,6 +28,7 @@ function ThinkingRender(props: { item: ChatThinking; layout: ThinkingRowLayout; 
       item={props.item}
       collapsed={props.ctx.viewState.isCollapsed(props.item.id)}
       body={props.layout.body}
+      preview={props.layout.preview}
     />
   );
 }

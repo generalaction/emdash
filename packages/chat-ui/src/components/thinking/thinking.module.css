@@ -35,8 +35,12 @@
 }
 
 /* max-height mirrors THINKING_WINDOW_H so the scroller is bounded */
+/* scrollbar-gutter: stable reserves space for the scrollbar so the prose layout
+   width (measured without a scrollbar) never causes a horizontal overflow when
+   the scrollbar appears during streaming. */
 .pthinking__window-scroll {
   max-height: var(--chat-think-window-h);
+  scrollbar-gutter: stable;
 }
 
 /* ── Expanded body geometry ───────────────────────────────────────────────── */

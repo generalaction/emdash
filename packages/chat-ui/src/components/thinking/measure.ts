@@ -8,8 +8,15 @@
  * estimateThinking — O(1) fast path used by the virtualizer estimate() call.
  * measureThinking  — full pretext layout for the expanded body; also O(1) for
  *                    the collapsed paths so spec.tsx can call it in measure() too.
+ *
+ * Shared helpers:
+ *   buildThinkingBlocks  — parse + normalise markdown into a Block[].
+ *   layoutThinkingBody   — run layoutBlocks with thinking-specific opts.
+ * Both are used by measureThinking for the preview and the expanded body so the
+ * two paths cannot drift from each other.
  */
 
+import type { Block } from '../../core/blocks/block-types';
 import {
   downgradeIslandsToText,
   flattenHeadings,
@@ -23,7 +30,35 @@ import type { BlocksLayout } from '../rich-text/layout';
 import { layoutBlocks } from '../rich-text/layout';
 import { THINKING_HEADER_H, THINKING_PAD_Y, THINKING_WINDOW_H } from './metrics';
 
-export type ThinkingMeasureResult = { height: number; body?: BlocksLayout };
+export type ThinkingMeasureResult = {
+  height: number;
+  /** Pre-computed layout for the expanded body (present only when expanded). */
+  body?: BlocksLayout;
+  /** Pre-computed layout for the active preview scroll window (present only when thinking + not expanded). */
+  preview?: BlocksLayout;
+};
+
+// ── Shared helpers ────────────────────────────────────────────────────────────
+
+export function buildThinkingBlocks(item: ChatThinking): Block[] {
+  return downgradeIslandsToText(flattenHeadings(parseBlocksCached(item.id, item.text ?? '')));
+}
+
+export function layoutThinkingBody(
+  blocks: Block[],
+  fonts: FontConfig,
+  rowWidth: number
+): BlocksLayout {
+  const bodyWidth = rowWidth - 2 * ROW_INSET_X;
+  return layoutBlocks(blocks, bodyWidth, fonts, {
+    padY: THINKING_PAD_Y,
+    blockGap: BLOCK_GAP,
+    proseGap: PROSE_GAP,
+    getMeasured: () => undefined,
+  });
+}
+
+// ── Exported functions ────────────────────────────────────────────────────────
 
 export function estimateThinking(
   item: ChatThinking,
@@ -49,21 +84,19 @@ export function measureThinking(
   rowWidth: number
 ): ThinkingMeasureResult {
   if (!isExpanded(item.id)) {
-    return { height: estimateThinking(item, isExpanded, fonts) };
+    const height = estimateThinking(item, isExpanded, fonts);
+    if (item.status === 'thinking') {
+      // Compute the prose layout for the preview scroll window.
+      // The row height is NOT derived from this layout (window clips/scrolls).
+      const blocks = buildThinkingBlocks(item);
+      const preview = layoutThinkingBody(blocks, fonts, rowWidth);
+      return { height, preview };
+    }
+    return { height };
   }
 
-  // Lay out the expanded body via pretext (DOM-free arithmetic).
-  // Body spans the full row minus the padding on both sides.
-  const bodyWidth = rowWidth - 2 * ROW_INSET_X;
-  const blocks = downgradeIslandsToText(
-    flattenHeadings(parseBlocksCached(item.id, item.text ?? ''))
-  );
-  const body = layoutBlocks(blocks, bodyWidth, fonts, {
-    padY: THINKING_PAD_Y,
-    blockGap: BLOCK_GAP,
-    proseGap: PROSE_GAP,
-    getMeasured: () => undefined,
-  });
-
+  // Expanded: lay out the full body via pretext (DOM-free arithmetic).
+  const blocks = buildThinkingBlocks(item);
+  const body = layoutThinkingBody(blocks, fonts, rowWidth);
   return { height: THINKING_HEADER_H + body.height + ROW_GAP, body };
 }

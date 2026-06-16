@@ -13,8 +13,7 @@
  */
 
 import { For } from 'solid-js';
-import type { ProseBlock, CodeBlock } from '../../core/blocks/block-types';
-import type { Block } from '../../core/blocks/block-types';
+import type { ProseBlock, CodeBlock, Block } from '../../core/blocks/block-types';
 import type {
   BlockLaidOut,
   CodeLaidOut,

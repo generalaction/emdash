@@ -38,6 +38,34 @@ export const ThinkingActive: Story = {
   ),
 };
 
+/**
+ * Active preview renders real prose: bold, inline code, soft breaks, and
+ * paragraph gaps. Visually verifies the preview uses the same BlockStack
+ * pipeline as the expanded body (no raw-text fallback).
+ */
+export const ThinkingActiveProsePreview: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'thinking',
+          id: 'th-preview',
+          status: 'thinking',
+          text: [
+            'Checking the **authentication** flow.',
+            'Session tokens are validated in `middleware/session.ts`.',
+            '',
+            'Found a redundancy: the same `validateToken()` call appears in three places.',
+            'Consolidating into a single middleware will fix this.',
+          ].join('\n'),
+          startedAt: Date.now() - 5000,
+        },
+      ]}
+      height={200}
+    />
+  ),
+};
+
 // Active state expanded: click to reveal full prose body while still streaming.
 export const ThinkingActiveExpanded: Story = {
   render: () => {

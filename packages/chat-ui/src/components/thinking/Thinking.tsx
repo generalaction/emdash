@@ -5,10 +5,13 @@
  *
  * Collapse semantics are inverted for thinking rows:
  *   stored false (default) → not expanded
- *     active: shows fixed-height preview window (ActivePreview)
+ *     active: shows fixed-height preview window (ActivePreview) as real prose
  *     done:   shows header only
  *   stored true → expanded
  *     both: shows full prose body (ExpandedBody) laid out via pretext
+ *
+ * Both the preview and the expanded body render through the shared ThinkingProse
+ * component, which uses the same BlockStack pipeline and foreground-passive color.
  *
  * The existing click-delegation in ChatRoot (data-collapse-id → toggleCollapsed)
  * drives the toggle without any ChatRoot or view-state changes.
@@ -35,6 +38,8 @@ export type ThinkingProps = {
   collapsed?: boolean;
   /** Pre-computed pretext body layout (present only when expanded). */
   body?: BlocksLayout;
+  /** Pre-computed pretext preview layout (present only when thinking + not expanded). */
+  preview?: BlocksLayout;
 };
 
 function formatDurationS(ms: number): string {
@@ -89,9 +94,23 @@ function ThinkingHeader(props: { item: ChatThinking; expanded: boolean }) {
   );
 }
 
+// ── ThinkingProse ──────────────────────────────────────────────────────────────
+
+/**
+ * Shared prose renderer used by both ActivePreview and ExpandedBody.
+ * Renders the thinking text through the standard BlockStack pipeline.
+ */
+function ThinkingProse(props: { item: ChatThinking; layout: BlocksLayout }) {
+  const blocks = () =>
+    downgradeIslandsToText(
+      flattenHeadings(parseBlocksCached(props.item.id, props.item.text ?? ''))
+    );
+  return <BlockStack blocks={blocks()} laid={props.layout.blocks} />;
+}
+
 // ── ActivePreview ──────────────────────────────────────────────────────────────
 
-function ActivePreview(props: { item: ChatThinking }) {
+function ActivePreview(props: { item: ChatThinking; preview: BlocksLayout }) {
   let scrollEl: HTMLDivElement | undefined;
 
   createEffect(() => {
@@ -110,9 +129,11 @@ function ActivePreview(props: { item: ChatThinking }) {
         ref={(el) => {
           scrollEl = el;
         }}
-        class={`${styles['pthinking__window-scroll']} overflow-y-auto text-xs wrap-break-word whitespace-pre-wrap text-foreground-muted`}
+        class={`${styles['pthinking__window-scroll']} overflow-y-auto text-foreground-passive`}
       >
-        {props.item.text}
+        <div style={{ position: 'relative', height: `${props.preview.height}px` }}>
+          <ThinkingProse item={props.item} layout={props.preview} />
+        </div>
       </div>
     </div>
   );
@@ -121,26 +142,30 @@ function ActivePreview(props: { item: ChatThinking }) {
 // ── ExpandedBody ───────────────────────────────────────────────────────────────
 
 function ExpandedBody(props: { item: ChatThinking; body: BlocksLayout }) {
-  const blocks = () =>
-    downgradeIslandsToText(
-      flattenHeadings(parseBlocksCached(props.item.id, props.item.text ?? ''))
-    );
   return (
-    <div class={styles['pthinking__body']} style={{ height: `${props.body.height}px` }}>
-      <BlockStack blocks={blocks()} laid={props.body.blocks} />
+    <div
+      class={`${styles['pthinking__body']} text-foreground-passive`}
+      style={{ height: `${props.body.height}px` }}
+    >
+      <ThinkingProse item={props.item} layout={props.body} />
     </div>
   );
 }
 
 // ── ThinkingContent ────────────────────────────────────────────────────────────
 
-function ThinkingContent(props: { item: ChatThinking; expanded: boolean; body?: BlocksLayout }) {
+function ThinkingContent(props: {
+  item: ChatThinking;
+  expanded: boolean;
+  body?: BlocksLayout;
+  preview?: BlocksLayout;
+}) {
   return (
     <Show
       when={props.expanded && props.body}
       fallback={
-        <Show when={props.item.status === 'thinking'}>
-          <ActivePreview item={props.item} />
+        <Show when={props.item.status === 'thinking' && props.preview}>
+          {(preview) => <ActivePreview item={props.item} preview={preview()} />}
         </Show>
       }
     >
@@ -165,7 +190,12 @@ export function Thinking(props: ThinkingProps) {
   return (
     <div class={styles.pthinking} style={{ position: 'relative', height: `${totalH()}px` }}>
       <ThinkingHeader item={props.item} expanded={expanded()} />
-      <ThinkingContent item={props.item} expanded={expanded()} body={props.body} />
+      <ThinkingContent
+        item={props.item}
+        expanded={expanded()}
+        body={props.body}
+        preview={props.preview}
+      />
     </div>
   );
 }
