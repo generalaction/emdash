@@ -14,10 +14,6 @@
 - provider-specific config formats are handled through adapters in `src/main/core/mcp/utils/`
 - the renderer MCP UI manages installed servers and catalog entries
 
-## Important Constraint
-
-- Codex currently supports stdio MCP servers only
-
 ## Rules
 
 - do not assume all providers support the same MCP transport types
