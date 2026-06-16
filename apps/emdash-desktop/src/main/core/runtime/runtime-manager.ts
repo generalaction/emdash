@@ -3,7 +3,7 @@ import { ResourceMap, type Lease } from '@emdash/shared/lib';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { log } from '@main/lib/logger';
 import { ConstantHealthSource } from './health';
-import { LegacySshGitRuntime } from './legacy-ssh-git';
+import { LegacySshGitRuntime } from './legacy/ssh-git';
 import { machineKey, type MachineRef, type MachineRuntime, type RuntimeManager } from './types';
 
 class LocalMachineRuntime implements MachineRuntime {

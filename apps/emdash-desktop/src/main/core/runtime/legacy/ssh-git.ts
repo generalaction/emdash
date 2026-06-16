@@ -1,5 +1,9 @@
 import path from 'node:path';
-import { classifyCloneRepositoryError, gitErrorMessage } from '@emdash/shared/git';
+import {
+  classifyCloneRepositoryError,
+  gitErrorMessage,
+  TooManyFilesChangedError,
+} from '@emdash/shared/git';
 import type {
   CloneRepositoryError,
   CommitError,
@@ -51,8 +55,7 @@ import {
 } from '@emdash/shared/lib';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
-import { GitService } from '@main/core/git/impl/git-service';
-import { TooManyFilesChangedError } from '@main/core/git/impl/status-parser';
+import { GitService } from '@main/core/git/legacy/git-service';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { log } from '@main/lib/logger';
 import type {
@@ -64,7 +67,7 @@ import type {
   ImageReadResult as LegacyImageReadResult,
   PullError as LegacyPullError,
   PushError as LegacyPushError,
-} from '@shared/core/git/git';
+} from '@shared/core/git/types';
 
 const STATUS_POLL_MS = 10_000;
 const UNTRACKED_STATUS_POLL_MS = 30_000;

@@ -3,6 +3,9 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import {
   computeBaseRef,
+  MAX_STATUS_FILES,
+  StatusParser,
+  TooManyFilesChangedError,
   type Commit,
   type CommitFile,
   type DiffMode,
@@ -11,6 +14,7 @@ import {
   type GitObjectRef,
   type GitStatusFingerprint,
   type GitStatusUntrackedMode,
+  type FileStatus,
   type LocalBranch,
   type MergeBaseRange,
   type RemoteBranch,
@@ -21,8 +25,7 @@ import { GIT_EXECUTABLE } from '@main/core/utils/exec';
 import type { IDisposable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import {
-  toRangeString,
-  toRefString,
+  DEFAULT_REMOTE_NAME,
   type CommitError,
   type CreateBranchError,
   type DeleteBranchError,
@@ -33,23 +36,16 @@ import {
   type ImageReadResult,
   type PullError,
   type PushError,
-} from '@shared/core/git/git';
-import { DEFAULT_REMOTE_NAME } from '@shared/core/git/git-utils';
+} from '@shared/core/git/types';
+import { toRangeString, toRefString } from '@shared/core/git/utils';
 import { err, ok, type Result } from '@shared/lib/result';
-import { CatFileBatch } from './cat-file-batch';
-import { remoteNameForRepositoryUrl } from './git-repo-utils';
+import { parseRepositoryRef } from '@shared/repository-ref';
 import {
   mapStatus,
   MAX_DIFF_CONTENT_BYTES,
   MAX_REF_LIST_BYTES,
   stripTrailingNewline,
-} from './git-utils';
-import {
-  MAX_STATUS_FILES,
-  StatusParser,
-  TooManyFilesChangedError,
-  type IFileStatus,
-} from './status-parser';
+} from './git-service-utils';
 
 // Legacy Git service retained for the SSH adapter while SSH projects still execute
 // Git through the main process. New Git code should use `@emdash/shared/git`.
@@ -132,7 +128,6 @@ export type HeadInfo =
  */
 export class GitService implements IDisposable {
   private _statusInFlight: Promise<FullGitStatus> | null = null;
-  private _catFile: CatFileBatch | null = null;
 
   constructor(
     private readonly ctx: IExecutionContext,
@@ -140,14 +135,7 @@ export class GitService implements IDisposable {
   ) {}
 
   dispose(): void {
-    this._catFile?.dispose();
-    this._catFile = null;
-  }
-
-  private _getCatFile(): CatFileBatch | null {
-    if (!this.ctx.supportsLocalSpawn) return null;
-    this._catFile ??= new CatFileBatch(this.ctx.root ?? '');
-    return this._catFile;
+    // Retained for the legacy runtime lifecycle contract.
   }
 
   private parseNumstat(stdout: string): Map<string, { additions: number; deletions: number }> {
@@ -258,7 +246,7 @@ export class GitService implements IDisposable {
   }
 
   private async _buildFullGitStatus(
-    entries: IFileStatus[],
+    entries: FileStatus[],
     stagedNumstat: Map<string, { additions: number; deletions: number }>,
     unstagedNumstat: Map<string, { additions: number; deletions: number }>,
     head: HeadInfo
@@ -401,14 +389,6 @@ export class GitService implements IDisposable {
   }
 
   async getFileAtRef(filePath: string, ref: string): Promise<string | null> {
-    const cf = this._getCatFile();
-    if (cf) {
-      try {
-        return await cf.read(`${ref}:${filePath}`);
-      } catch {
-        // Batch channel failed — fall back to one-shot git show.
-      }
-    }
     try {
       const { stdout } = await this.ctx.exec('git', ['show', `${ref}:${filePath}`], {
         maxBuffer: MAX_DIFF_CONTENT_BYTES,
@@ -420,14 +400,6 @@ export class GitService implements IDisposable {
   }
 
   async getFileAtIndex(filePath: string): Promise<string | null> {
-    const cf = this._getCatFile();
-    if (cf) {
-      try {
-        return await cf.read(`:0:${filePath}`);
-      } catch {
-        // Fall back
-      }
-    }
     try {
       const { stdout } = await this.ctx.exec('git', ['show', `:0:${filePath}`], {
         maxBuffer: MAX_DIFF_CONTENT_BYTES,
@@ -1266,7 +1238,8 @@ export class GitService implements IDisposable {
   ): Promise<Result<void, FetchPrForReviewError>> {
     try {
       if (isFork) {
-        const forkRemote = remoteNameForRepositoryUrl(headRepositoryUrl);
+        const owner = parseRepositoryRef(headRepositoryUrl)?.owner;
+        const forkRemote = owner?.split('/').filter(Boolean).join('-') || 'fork';
         // Idempotently ensure remote exists with the correct URL
         const remotes = await this.ctx.exec('git', ['remote']).catch(() => ({ stdout: '' }));
         const names = remotes.stdout
