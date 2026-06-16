@@ -1,0 +1,19 @@
+packages/plugins/src/agents/impl/amp/plugin-file.ts
+  s_83818bfae14c44::t_b3e0e9d2faee9d 5,30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "c02b93a002f093d2ea093039d98760ef7f317d15",
+  "prompts": {},
+  "sessions": {
+    "s_83818bfae14c44": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ecee2-d777-7a10-8969-aa0cc215d7cf",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
