@@ -87,17 +87,26 @@
   --color-foreground-conflict: var(--foreground-conflict);
   --color-foreground-merged: var(--foreground-merged);
 
-  /* Surface system — connects Tailwind utilities to the generated surface tokens */
-  --color-surface: var(--surface-app);
-  --color-surface-hover: var(--surface-app-hover);
-  --color-surface-selected: var(--surface-app-selected);
-  --color-surface-secondary: var(--surface-secondary);
-  --color-surface-secondary-hover: var(--surface-secondary-hover);
-  --color-surface-secondary-selected: var(--surface-secondary-selected);
-  --color-surface-tertiary: var(--surface-tertiary);
-  --color-surface-tertiary-hover: var(--surface-tertiary-hover);
-  --color-surface-tertiary-selected: var(--surface-tertiary-selected);
-  --color-surface-quaternary: var(--surface-quaternary);
-  --color-surface-quaternary-hover: var(--surface-quaternary-hover);
-  --color-surface-quaternary-selected: var(--surface-quaternary-selected);
+  /* Surface system — bg-surface / bg-surface-hover / bg-surface-selected adapt to the
+   * nearest .surface-* ancestor. Direct elevation utilities (bg-surface-raised etc.)
+   * target a specific level regardless of context. */
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-selected: var(--surface-selected);
+  /* Direct elevation access */
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-sunken-hover: var(--surface-sunken-hover);
+  --color-surface-sunken-selected: var(--surface-sunken-selected);
+  --color-surface-base: var(--surface-base);
+  --color-surface-base-hover: var(--surface-base-hover);
+  --color-surface-base-selected: var(--surface-base-selected);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-raised-hover: var(--surface-raised-hover);
+  --color-surface-raised-selected: var(--surface-raised-selected);
+  --color-surface-overlay: var(--surface-overlay);
+  --color-surface-overlay-hover: var(--surface-overlay-hover);
+  --color-surface-overlay-selected: var(--surface-overlay-selected);
+  --color-surface-floating: var(--surface-floating);
+  --color-surface-floating-hover: var(--surface-floating-hover);
+  --color-surface-floating-selected: var(--surface-floating-selected);
 }
