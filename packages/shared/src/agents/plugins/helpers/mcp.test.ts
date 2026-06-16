@@ -1,6 +1,7 @@
+import { parse as parseTOML } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
 import type { PluginFs } from '../../runtime/fs';
-import { createMcpAdapter, passthroughMcpAdapter } from './mcp';
+import { codexMcpAdapter, createMcpAdapter, passthroughMcpAdapter } from './mcp';
 
 // ── In-memory PluginFs ───────────────────────────────────────────────────────
 
@@ -192,5 +193,62 @@ describe('createMcpAdapter with multiple legacyReadPaths', () => {
       const parsed = JSON.parse(content) as Record<string, unknown>;
       expect((parsed.mcpServers as Record<string, unknown>).gone).toBeUndefined();
     }
+  });
+});
+
+// ── Codex TOML adapter ──────────────────────────────────────────────────────
+
+describe('codexMcpAdapter', () => {
+  const adapter = codexMcpAdapter('.codex/config.toml');
+
+  it('maps HTTP headers to Codex http_headers on write', async () => {
+    const fs = createMemoryFs({
+      '.codex/config.toml': 'model = "gpt-5"\n',
+    });
+
+    await adapter.writeServers(fs, [
+      {
+        name: 'docs',
+        transport: 'http',
+        type: 'http',
+        url: 'https://example.com/mcp',
+        headers: { Authorization: 'Bearer token' },
+      },
+    ]);
+
+    const raw = await fs.read('.codex/config.toml');
+    const parsed = parseTOML(raw!) as Record<string, unknown>;
+    const servers = parsed.mcp_servers as Record<string, Record<string, unknown>>;
+
+    expect(parsed.model).toBe('gpt-5');
+    expect(servers.docs.url).toBe('https://example.com/mcp');
+    expect(servers.docs.type).toBeUndefined();
+    expect(servers.docs.transport).toBeUndefined();
+    expect(servers.docs.headers).toBeUndefined();
+    expect(servers.docs.http_headers).toEqual({ Authorization: 'Bearer token' });
+  });
+
+  it('reads Codex HTTP headers into the canonical headers field', async () => {
+    const fs = createMemoryFs({
+      '.codex/config.toml': [
+        '[mcp_servers.docs]',
+        'url = "https://example.com/mcp"',
+        '',
+        '[mcp_servers.docs.http_headers]',
+        'Authorization = "Bearer token"',
+      ].join('\n'),
+    });
+
+    const result = await adapter.readServers(fs);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      name: 'docs',
+      transport: 'http',
+      type: 'http',
+      url: 'https://example.com/mcp',
+      headers: { Authorization: 'Bearer token' },
+    });
+    expect(result[0].http_headers).toBeUndefined();
   });
 });

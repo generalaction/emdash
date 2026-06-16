@@ -181,7 +181,7 @@ export function cursorMcpAdapter(configPath = '.cursor/mcp.json') {
 }
 
 /**
- * Codex adapter — TOML file, stdio-only (HTTP servers are dropped).
+ * Codex adapter — TOML file with stdio and streamable HTTP servers.
  * Config: ~/.codex/config.toml, key: mcp_servers.
  */
 export function codexMcpAdapter(configPath = '.codex/config.toml') {
@@ -191,13 +191,36 @@ export function codexMcpAdapter(configPath = '.codex/config.toml') {
     serversKey: 'mcp_servers',
     toNative(s) {
       const entry = deepClone(s) as Record<string, unknown>;
-      // Codex only supports stdio; type field is omitted
+      const isHttp =
+        entry.transport === 'http' ||
+        entry.type === 'http' ||
+        (typeof entry.url === 'string' && typeof entry.command !== 'string');
+
       delete entry.name;
+      delete entry.transport;
       delete entry.type;
+
+      if (isHttp && entry.headers && !entry.http_headers) {
+        entry.http_headers = entry.headers;
+        delete entry.headers;
+      }
+
       return entry;
     },
     fromNative(name, raw) {
-      return { name, ...deepClone(raw) } as McpServerRegistration;
+      const entry = deepClone(raw) as Record<string, unknown>;
+      const isHttp = typeof entry.url === 'string' && typeof entry.command !== 'string';
+
+      if (isHttp) {
+        if (entry.http_headers && !entry.headers) {
+          entry.headers = entry.http_headers;
+        }
+        delete entry.http_headers;
+        entry.transport = 'http';
+        entry.type = 'http';
+      }
+
+      return { name, ...entry } as McpServerRegistration;
     },
   });
 }
