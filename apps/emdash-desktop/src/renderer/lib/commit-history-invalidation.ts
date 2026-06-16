@@ -1,6 +1,6 @@
 import { events } from '@renderer/lib/ipc';
 import { queryClient } from '@renderer/lib/query-client';
-import { gitRepoUpdateChannel } from '@shared/core/git/gitEvents';
+import { gitRepoUpdateChannel } from '@shared/core/git/events';
 
 export function wireCommitHistoryInvalidation(): void {
   events.on(gitRepoUpdateChannel, (p) => {

@@ -11,7 +11,7 @@ import { events, rpc } from '@renderer/lib/ipc';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Conversation } from '@shared/core/conversations/conversations';
-import { gitWorktreeUpdateChannel } from '@shared/core/git/gitEvents';
+import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
 import {
   lifecycleScriptStatusChannel,

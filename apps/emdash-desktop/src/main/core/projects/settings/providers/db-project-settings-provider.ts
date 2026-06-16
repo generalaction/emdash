@@ -1,7 +1,7 @@
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
-import { remoteNameFromQualifiedRef } from '@shared/core/git/git-utils';
+import { remoteNameFromQualifiedRef } from '@shared/core/git/utils';
 import {
   baseProjectSettingsSchema,
   DEFAULT_PRESERVE_PATTERNS,

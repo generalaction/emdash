@@ -10,7 +10,8 @@ import {
 } from '@renderer/features/tasks/task-view-context';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { commitRef, HEAD_REF } from '@shared/core/git/git';
+import { HEAD_REF } from '@shared/core/git/types';
+import { commitRef } from '@shared/core/git/utils';
 import { formatErrorType } from '../../utils';
 import { ActionCard } from './components/action-card';
 import { ChangesListOrTree } from './components/changes-list-or-tree';

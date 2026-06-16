@@ -21,7 +21,7 @@ import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { ShowHide } from '@renderer/lib/ui/show-hide';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
-import { HEAD_REF, STAGED_REF } from '@shared/core/git/git';
+import { HEAD_REF, STAGED_REF } from '@shared/core/git/types';
 
 const LARGE_DIFF_LINE_THRESHOLD = 1500;
 

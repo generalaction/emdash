@@ -1,7 +1,7 @@
 import { reaction } from 'mobx';
 import type { DiffTabStore } from '@renderer/features/tasks/tabs/diff-tab-store';
 import type { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
-import { commitRef } from '@shared/core/git/git';
+import { commitRef } from '@shared/core/git/utils';
 import { getPrNumber } from '@shared/core/pull-requests/pull-requests';
 import type { ActiveFile } from '@shared/view-state';
 import type { GitWorktreeStore } from '../../stores/git-worktree-store';

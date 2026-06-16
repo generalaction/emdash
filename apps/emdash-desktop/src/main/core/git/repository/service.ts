@@ -7,8 +7,8 @@ import type {
   FetchError,
   FetchPrForReviewError,
   PushError,
-} from '@shared/core/git/git';
-import { resolveConfiguredRemotes } from '@shared/core/git/git-utils';
+} from '@shared/core/git/types';
+import { resolveConfiguredRemotes } from '@shared/core/git/utils';
 import { err, ok, type Result } from '@shared/lib/result';
 import type { ProjectRemoteState } from '@shared/projects';
 import {

@@ -1,6 +1,6 @@
 import type { GitHeadModel, GitStatusData, GitStatusModel } from '@emdash/shared/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { gitWorktreeUpdateChannel, type GitWorktreeUpdateEvent } from '@shared/core/git/gitEvents';
+import { gitWorktreeUpdateChannel, type GitWorktreeUpdateEvent } from '@shared/core/git/events';
 import { err } from '@shared/lib/result';
 import { GitWorktreeStore } from './git-worktree-store';
 

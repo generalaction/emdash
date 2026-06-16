@@ -4,8 +4,8 @@ import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import { commitRef, mergeBaseRange } from '@shared/core/git/git';
-import { gitRepoUpdateChannel, gitWorktreeUpdateChannel } from '@shared/core/git/gitEvents';
+import { gitRepoUpdateChannel, gitWorktreeUpdateChannel } from '@shared/core/git/events';
+import { commitRef, mergeBaseRange } from '@shared/core/git/utils';
 import {
   isForkPr,
   pullRequestErrorMessage,

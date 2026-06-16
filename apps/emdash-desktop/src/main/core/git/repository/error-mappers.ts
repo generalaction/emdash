@@ -11,7 +11,7 @@ import type {
   FetchError,
   FetchPrForReviewError,
   PushError,
-} from '@shared/core/git/git';
+} from '@shared/core/git/types';
 
 export function mapFetchError(error: SharedFetchError): FetchError {
   switch (error.type) {

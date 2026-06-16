@@ -3,7 +3,7 @@ import type { GitBranchRef } from '@emdash/shared/git';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
-import { DEFAULT_REMOTE_NAME } from '@shared/core/git/git-utils';
+import { DEFAULT_REMOTE_NAME } from '@shared/core/git/types';
 import { err, ok, type Result } from '@shared/lib/result';
 import { getEffectiveTaskSettings } from '../settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../settings/provider';

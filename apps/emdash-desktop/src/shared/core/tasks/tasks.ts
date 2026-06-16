@@ -1,7 +1,7 @@
 import type { GitBranchRef } from '@emdash/shared/git';
 import z from 'zod';
 import type { Conversation } from '@shared/core/conversations/conversations';
-import type { CreateBranchError, FetchPrForReviewError, PushError } from '@shared/core/git/git';
+import type { CreateBranchError, FetchPrForReviewError, PushError } from '@shared/core/git/types';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 import type { TaskConfig } from '@shared/core/tasks/task-config';

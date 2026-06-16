@@ -5,12 +5,12 @@ import { useWorkspace } from '@renderer/features/tasks/task-view-context';
 import { rpc } from '@renderer/lib/ipc';
 import { formatBytes } from '@renderer/utils/formatBytes';
 import {
-  gitRefToString,
   HEAD_REF,
   type GitRef,
   type ImageReadResult,
   type ImageUnavailableReason,
-} from '@shared/core/git/git';
+} from '@shared/core/git/types';
+import { gitRefToString } from '@shared/core/git/utils';
 import type { Result } from '@shared/lib/result';
 import type { ActiveFile } from '@shared/view-state';
 

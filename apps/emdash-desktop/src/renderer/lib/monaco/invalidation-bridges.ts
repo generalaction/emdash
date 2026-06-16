@@ -1,8 +1,8 @@
 import { events } from '@renderer/lib/ipc';
 import type { FileWatchEvent } from '@shared/core/fs/fs';
 import { fsWatchEventChannel } from '@shared/core/fs/fsEvents';
-import { HEAD_REF, STAGED_REF } from '@shared/core/git/git';
-import { gitRepoUpdateChannel, gitWorktreeUpdateChannel } from '@shared/core/git/gitEvents';
+import { gitRepoUpdateChannel, gitWorktreeUpdateChannel } from '@shared/core/git/events';
+import { HEAD_REF, STAGED_REF } from '@shared/core/git/types';
 import type { MonacoModelRegistry } from './monaco-model-registry';
 
 /** Disk models for paths affected by a watch event (atomic saves often use create/delete, not modify). */

@@ -16,7 +16,7 @@ import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-co
 import type { SshConnectionManagerEvent } from '@main/core/ssh/lifecycle/ssh-connection-manager';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { gitRepoUpdateChannel } from '@shared/core/git/gitEvents';
+import { gitRepoUpdateChannel } from '@shared/core/git/events';
 import { safePathSegment } from '@shared/path-name';
 import type { LocalProject, SshProject } from '@shared/projects';
 import { ProjectProvider, type ProjectProviderTransport } from './project-provider';

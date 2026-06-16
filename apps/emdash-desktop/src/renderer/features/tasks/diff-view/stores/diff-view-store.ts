@@ -3,7 +3,7 @@ import { action, computed, makeObservable, observable, reaction } from 'mobx';
 import { ChangesViewStore } from '@renderer/features/tasks/diff-view/stores/changes-view-store';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
 import { type Snapshottable } from '@renderer/lib/stores/snapshottable';
-import { commitRef } from '@shared/core/git/git';
+import { commitRef } from '@shared/core/git/utils';
 import type { ActiveFile, DiffViewSnapshot } from '@shared/view-state';
 import { type GitWorktreeStore } from '../../stores/git-worktree-store';
 

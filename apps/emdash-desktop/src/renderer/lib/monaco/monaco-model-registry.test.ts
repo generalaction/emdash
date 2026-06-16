@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { HEAD_REF, STAGED_REF } from '@shared/core/git/git';
+import { HEAD_REF, STAGED_REF } from '@shared/core/git/types';
 import { MonacoModelRegistry } from './monaco-model-registry';
 
 const rpcState = vi.hoisted(() => ({

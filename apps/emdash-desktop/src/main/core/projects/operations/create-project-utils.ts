@@ -4,7 +4,7 @@ import { log } from '@main/lib/logger';
 import {
   remoteNameFromQualifiedRef,
   resolveBaseRefFromRemoteDefault,
-} from '@shared/core/git/git-utils';
+} from '@shared/core/git/utils';
 import { err, ok, type Result } from '@shared/lib/result';
 import type { CreateProjectError } from '@shared/projects';
 

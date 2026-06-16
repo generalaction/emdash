@@ -26,7 +26,7 @@ import { db } from '@main/db/client';
 import { workspaces as workspacesTable } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { gitWorktreeUpdateChannel } from '@shared/core/git/gitEvents';
+import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
 import type { Task } from '@shared/core/tasks/tasks';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';

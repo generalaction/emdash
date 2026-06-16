@@ -15,7 +15,7 @@ import {
   type MirrorBinding,
   type MirrorBindingStatus,
 } from '@renderer/lib/stores/live';
-import { gitWorktreeUpdateChannel } from '@shared/core/git/gitEvents';
+import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
 import type { GitWorktreeMutationResult, GitWorktreeSnapshotError } from '@shared/core/git/rpc';
 import { err, ok, type Result } from '@shared/lib/result';
 import {

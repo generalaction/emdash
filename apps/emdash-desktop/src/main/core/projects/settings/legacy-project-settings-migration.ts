@@ -1,6 +1,6 @@
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
-import { remoteNameFromQualifiedRef } from '@shared/core/git/git-utils';
+import { remoteNameFromQualifiedRef } from '@shared/core/git/utils';
 import {
   baseProjectSettingsSchema,
   legacyBaseProjectSettingsSchema,

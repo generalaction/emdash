@@ -11,14 +11,14 @@ import { computed, makeObservable, reaction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
 import { bindMirror, coalesce, ModelMirror, type MirrorBinding } from '@renderer/lib/stores/live';
 import { Resource } from '@renderer/lib/stores/resource';
+import { gitRepoUpdateChannel } from '@shared/core/git/events';
+import type { GitDefaultBranchResult, GitRepositorySnapshotError } from '@shared/core/git/rpc';
+import type { ConfiguredRemotes } from '@shared/core/git/types';
 import {
   projectDefaultBranchToBranch,
   resolveConfiguredRemotes,
   resolveDefaultBranch,
-  type ConfiguredRemotes,
-} from '@shared/core/git/git-utils';
-import { gitRepoUpdateChannel } from '@shared/core/git/gitEvents';
-import type { GitDefaultBranchResult, GitRepositorySnapshotError } from '@shared/core/git/rpc';
+} from '@shared/core/git/utils';
 import { err, ok, type Result } from '@shared/lib/result';
 import type { ProviderRepository, ProviderRepositoryResult } from '@shared/provider-repository';
 import { parseRepositoryRef } from '@shared/repository-ref';

@@ -1,5 +1,5 @@
 import type { GitBranchRef } from '@emdash/shared/git';
-import { projectDefaultBranchToBranch } from '@shared/core/git/git-utils';
+import { projectDefaultBranchToBranch } from '@shared/core/git/utils';
 import type {
   ProjectSettings,
   ShareableProjectSettingsWriteField,

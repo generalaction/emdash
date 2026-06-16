@@ -6,7 +6,7 @@ import type { GitRepositoryService } from '@main/core/git/repository/service';
 import type { MachineRef } from '@main/core/runtime/types';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import type { IDisposable } from '@main/lib/lifecycle';
-import type { FetchError } from '@shared/core/git/git';
+import type { FetchError } from '@shared/core/git/types';
 import type { WorkspaceProviderData } from '@shared/core/workspaces/workspace-provider-data';
 import type { Result } from '@shared/lib/result';
 import type { ProjectRemoteState } from '@shared/projects';
