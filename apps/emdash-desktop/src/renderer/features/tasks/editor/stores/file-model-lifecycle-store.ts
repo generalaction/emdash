@@ -1,5 +1,6 @@
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import type { TabGroupManagerStore } from '@renderer/features/tasks/tabs/tab-group-manager-store';
+import { getEditableBufferPath } from '@renderer/features/tasks/tabs/tab-manager-store';
 import { getFileKind } from '@renderer/lib/editor/fileKind';
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
@@ -52,11 +53,13 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
       snapshot: computed,
     });
 
-    // Reactive model lifecycle: register/unregister Monaco models as file tabs open/close
-    // across ALL panes. A model stays registered as long as any pane has the file open.
+    // Reactive model lifecycle: register/unregister Monaco models as editable tabs open/close
+    // across ALL panes. This includes file tabs and working-tree diff tabs so unsaved diff
+    // edits survive renderer unmounts when users switch tabs. A model stays registered as
+    // long as any pane has the editable path open.
     this.disposers.push(
       reaction(
-        () => this.tabGroupManager.allOpenFilePaths,
+        () => this.tabGroupManager.allOpenEditablePaths,
         (current, previous = []) => {
           const prev = new Set(previous);
           const curr = new Set(current);
@@ -82,10 +85,11 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
       for (const { tabManager } of tabGroupManager.groups) {
         const entry = tabManager.entries.get(tabId);
         if (entry !== undefined) {
-          if (entry.kind === 'file') {
-            const uri = buildMonacoModelPath(this.modelRootPath, entry.path);
+          const editablePath = getEditableBufferPath(entry);
+          if (editablePath) {
+            const uri = buildMonacoModelPath(this.modelRootPath, editablePath);
             if (modelRegistry.isDirty(uri)) {
-              const result = await this._confirmClose(entry.path);
+              const result = await this._confirmClose(editablePath);
               if (result === 'cancel') return;
             }
           }
@@ -154,7 +158,7 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
   }
 
   async saveAllFiles(): Promise<void> {
-    const dirtyPaths = this.openFilePaths.filter((path) =>
+    const dirtyPaths = this.tabGroupManager.allOpenEditablePaths.filter((path) =>
       modelRegistry.isDirty(buildMonacoModelPath(this.modelRootPath, path))
     );
     for (const path of dirtyPaths) {

@@ -104,7 +104,7 @@ export const EditorProvider = observer(function EditorProvider({
 
     addMonacoKeyboardShortcuts(editor, m, {
       onSave: () => {
-        const path = paneTabManager.activeFilePath;
+        const path = paneTabManager.activeEditablePath;
         if (path) void editorView.saveFile(path);
       },
       onSaveAll: () => {
@@ -159,7 +159,7 @@ export const EditorProvider = observer(function EditorProvider({
         return;
       }
 
-      const path = paneTabManager.activeFilePath;
+      const path = paneTabManager.activeEditablePath;
       if (!path) return;
 
       event.preventDefault();

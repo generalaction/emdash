@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { browserDiagnosticsStore } from '@renderer/features/browser/browser-diagnostics-store';
 import { browserSessionStore } from '@renderer/features/browser/browser-session-store';
 import { events } from '@renderer/lib/ipc';
+import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
+import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
+import type { GitObjectRef } from '@shared/core/git/git';
 import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 import { TabManagerStore } from './tab-manager-store';
 
@@ -37,9 +40,24 @@ function createTabManager(): TabManagerStore {
   return new TabManagerStore(() => null, 'workspace-1', 'project-1', 'task-1');
 }
 
+const ORIGINAL_REF: GitObjectRef = { kind: 'commit', sha: 'abc123' };
+
+function workingTreeDiff(path = 'src/example.ts') {
+  return {
+    path,
+    type: 'disk' as const,
+    group: 'disk' as const,
+    originalRef: ORIGINAL_REF,
+  };
+}
+
 describe('TabManagerStore browser tabs', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    modelRegistry.dirtyUris.clear();
+    vi.mocked(modelRegistry.isDirty).mockImplementation((uri: string) =>
+      modelRegistry.dirtyUris.has(uri)
+    );
     browserDiagnosticsStore.clear();
     browserSessionStore.clear();
   });
@@ -167,5 +185,57 @@ describe('TabManagerStore browser tabs', () => {
     expect(
       manager.resolvedTabs[1]?.kind === 'browser' ? manager.resolvedTabs[1].session.currentUrl : ''
     ).toBe('https://target.example/path');
+  });
+});
+
+describe('TabManagerStore diff tabs', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    modelRegistry.dirtyUris.clear();
+    vi.mocked(modelRegistry.isDirty).mockImplementation((uri: string) =>
+      modelRegistry.dirtyUris.has(uri)
+    );
+  });
+
+  it('exposes working-tree diff tabs as editable buffers', () => {
+    const manager = createTabManager();
+    const activeFile = workingTreeDiff();
+
+    manager.openDiff(activeFile);
+    const bufferUri = buildMonacoModelPath('workspace:workspace-1', activeFile.path);
+    modelRegistry.dirtyUris.add(bufferUri);
+
+    expect(manager.activeEditablePath).toBe(activeFile.path);
+    expect(manager.openEditablePaths).toEqual([activeFile.path]);
+    expect(manager.resolvedTabs[0]).toMatchObject({
+      kind: 'diff',
+      path: activeFile.path,
+      isDirty: true,
+      bufferUri,
+    });
+  });
+
+  it('keeps a dirty working-tree diff preview instead of replacing it', () => {
+    const manager = createTabManager();
+    const first = workingTreeDiff('src/first.ts');
+    const second = workingTreeDiff('src/second.ts');
+
+    manager.openDiffPreview(first);
+    modelRegistry.dirtyUris.add(buildMonacoModelPath('workspace:workspace-1', first.path));
+    manager.openDiffPreview(second);
+
+    expect(manager.resolvedTabs).toHaveLength(2);
+    expect(manager.resolvedTabs[0]).toMatchObject({
+      kind: 'diff',
+      path: first.path,
+      isPreview: false,
+      isDirty: true,
+    });
+    expect(manager.resolvedTabs[1]).toMatchObject({
+      kind: 'diff',
+      path: second.path,
+      isPreview: true,
+      isDirty: false,
+    });
   });
 });

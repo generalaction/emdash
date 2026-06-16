@@ -56,6 +56,7 @@ export class TabGroupManagerStore {
       paneSizes: observable,
       focusedGroup: computed,
       allOpenFilePaths: computed,
+      allOpenEditablePaths: computed,
       registerCloseHandler: action,
       splitRight: action,
       openConversationInRightSplit: action,
@@ -82,6 +83,16 @@ export class TabGroupManagerStore {
     const seen = new Set<string>();
     for (const { tabManager } of this.groups) {
       for (const path of tabManager.openFilePaths) {
+        seen.add(path);
+      }
+    }
+    return [...seen];
+  }
+
+  get allOpenEditablePaths(): string[] {
+    const seen = new Set<string>();
+    for (const { tabManager } of this.groups) {
+      for (const path of tabManager.openEditablePaths) {
         seen.add(path);
       }
     }

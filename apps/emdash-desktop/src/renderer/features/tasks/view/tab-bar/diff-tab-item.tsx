@@ -32,6 +32,7 @@ export const DiffTabItem = observer(function DiffTabItem({
 }) {
   const fileName = tab.path.split('/').pop() ?? 'Untitled';
   const suffix = diffGroupSuffix(tab.diffGroup);
+  const hasUnsavedChanges = tab.isDirty;
 
   return (
     <TabItemShell
@@ -57,7 +58,12 @@ export const DiffTabItem = observer(function DiffTabItem({
         onClose={onClose}
         ariaLabel={`Close ${fileName} ${suffix}`}
         statusIndicator={
-          tab.status ? (
+          hasUnsavedChanges ? (
+            <div
+              className="size-2 rounded-full bg-foreground group-hover:opacity-0"
+              title="Unsaved changes"
+            />
+          ) : tab.status ? (
             <span className="transition-opacity group-hover:opacity-0">
               <GitChangeStatusIcon status={tab.status} className="size-4" />
             </span>

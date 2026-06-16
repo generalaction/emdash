@@ -75,6 +75,12 @@ export class BrowserTabEntry {
 
 export type TabEntry = FileTabStore | DiffTabStore | ConversationTabEntry | BrowserTabEntry;
 
+export function getEditableBufferPath(entry: TabEntry): string | null {
+  if (entry.kind === 'file') return entry.isExternal ? null : entry.path;
+  if (entry.kind === 'diff') return entry.diffGroup === 'disk' ? entry.path : null;
+  return null;
+}
+
 function optionalRefsEqual(left: GitObjectRef | undefined, right: GitObjectRef | undefined) {
   if (left === undefined || right === undefined) return left === right;
   return refsEqual(left, right);
@@ -117,6 +123,8 @@ export type ResolvedDiffTab = {
   kind: 'diff';
   tabId: string;
   path: string;
+  isDirty: boolean;
+  bufferUri: string;
   diffGroup: 'disk' | 'staged' | 'git' | 'pr';
   originalRef: GitObjectRef;
   modifiedRef?: GitObjectRef;
@@ -189,10 +197,12 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       activeConversationId: computed,
       activeFileEntry: computed,
       activeFilePath: computed,
+      activeEditablePath: computed,
       activeDiffEntry: computed,
       previewFileEntry: computed,
       previewDiffEntry: computed,
       openFilePaths: computed,
+      openEditablePaths: computed,
       resolvedTabs: computed,
       snapshot: computed,
       openConversation: action,
@@ -315,6 +325,11 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     return this.activeFileEntry?.path ?? null;
   }
 
+  get activeEditablePath(): string | null {
+    const entry = this.activeDescriptor;
+    return entry ? getEditableBufferPath(entry) : null;
+  }
+
   get activeDiffEntry(): DiffTabStore | undefined {
     const desc = this.activeDescriptor;
     return desc?.kind === 'diff' ? desc : undefined;
@@ -351,6 +366,17 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     return paths;
   }
 
+  get openEditablePaths(): string[] {
+    const paths: string[] = [];
+    for (const id of this.tabOrder) {
+      const entry = this.entries.get(id);
+      if (!entry) continue;
+      const path = getEditableBufferPath(entry);
+      if (path) paths.push(path);
+    }
+    return paths;
+  }
+
   get resolvedTabs(): ResolvedTab[] {
     const result: ResolvedTab[] = [];
     const effectiveActiveId = this.resolvedActiveTabId;
@@ -381,10 +407,13 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           isActive: effectiveActiveId === entry.tabId,
         });
       } else if (entry.kind === 'diff') {
+        const bufferUri = buildMonacoModelPath(this.modelRootPath, entry.path);
         result.push({
           kind: 'diff',
           tabId: entry.tabId,
           path: entry.path,
+          isDirty: getEditableBufferPath(entry) !== null && modelRegistry.isDirty(bufferUri),
+          bufferUri,
           diffGroup: entry.diffGroup,
           originalRef: entry.originalRef,
           modifiedRef: entry.modifiedRef,
@@ -406,7 +435,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           tabId: entry.tabId,
           path: entry.path,
           isPreview: entry.isPreview,
-          isDirty: entry.isExternal ? false : modelRegistry.dirtyUris.has(bufferUri),
+          isDirty: getEditableBufferPath(entry) !== null && modelRegistry.isDirty(bufferUri),
           bufferUri,
           isActive: effectiveActiveId === entry.tabId,
           isExternal: entry.isExternal,
@@ -612,7 +641,11 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     }
 
     const previewEntry = this.previewDiffEntry;
-    if (previewEntry) {
+    const previewPath = previewEntry ? getEditableBufferPath(previewEntry) : null;
+    const previewUri = previewPath ? buildMonacoModelPath(this.modelRootPath, previewPath) : null;
+    const canReplace = previewEntry && (!previewUri || !modelRegistry.isDirty(previewUri));
+
+    if (canReplace && previewEntry) {
       // Replace preview in-place: remove old, insert new at same position.
       const idx = this.tabOrder.indexOf(previewEntry.tabId);
       this.entries.delete(previewEntry.tabId);
@@ -622,6 +655,8 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       this.activeTabId = tab.tabId;
       return;
     }
+
+    if (previewEntry) previewEntry.isPreview = false;
 
     const tab = new DiffTabStore(activeFile, true, undefined, status);
     this.entries.set(tab.tabId, tab);
