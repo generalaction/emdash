@@ -4,21 +4,33 @@ import type { PreviewServerEvent } from '@shared/core/preview-servers/types';
 import { previewServerUrl } from '@shared/core/preview-servers/types';
 import type { ConnectionState } from '@shared/core/ssh/ssh';
 import { PortForwardService } from '../port-forwards/port-forward-service';
+import type { PortForwardTunnel } from '../port-forwards/port-forward-tunnel';
 import { PreviewServerService } from './preview-server-service';
 
-function createService(options: { connectionState?: ConnectionState } = {}) {
+function createService(
+  options: {
+    connectionState?: ConnectionState;
+    openTunnel?: (request: {
+      proxy: Pick<SshClientProxy, 'client' | 'isConnected'>;
+      remotePort: number;
+      preferredLocalPort?: number;
+    }) => Promise<PortForwardTunnel>;
+  } = {}
+) {
   const events: PreviewServerEvent[] = [];
   const closedTunnelIds: string[] = [];
   let openedTunnels = 0;
   let connectionState = options.connectionState ?? 'connected';
   const portForwards = new PortForwardService({
-    openTunnel: async () => {
-      openedTunnels++;
-      return {
-        localPort: 6000 + openedTunnels,
-        close: async () => {},
-      };
-    },
+    openTunnel:
+      options.openTunnel ??
+      (async () => {
+        openedTunnels++;
+        return {
+          localPort: 6000 + openedTunnels,
+          close: async () => {},
+        };
+      }),
     onTunnelClosed: (id) => closedTunnelIds.push(id),
   });
 
@@ -50,6 +62,16 @@ function fakeProxy() {
       return {} as SshClientProxy['client'];
     },
   } satisfies Pick<SshClientProxy, 'client' | 'isConnected'>;
+}
+
+function deferred<T>() {
+  let resolve: (value: T | PromiseLike<T>) => void = () => {};
+  let reject: (reason?: unknown) => void = () => {};
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 describe('PreviewServerService', () => {
@@ -117,6 +139,122 @@ describe('PreviewServerService', () => {
     expect(
       context.service.listForWorkspace({ projectId: 'project-1', workspaceId: 'workspace-1' })
     ).toEqual([first]);
+    expect(
+      context.events
+        .filter((event) => event.type === 'upsert' && event.server.id === first.id)
+        .map((event) => (event.type === 'upsert' ? event.server.status : null))
+    ).toEqual([{ kind: 'starting' }, { kind: 'ready' }]);
+  });
+
+  it('deduplicates SSH detections while the tunnel is still opening', async () => {
+    const tunnel = deferred<PortForwardTunnel>();
+    let openCount = 0;
+    const context = createService({
+      openTunnel: async () => {
+        openCount++;
+        return await tunnel.promise;
+      },
+    });
+
+    const firstPromise = context.service.registerDetectedTarget({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      connectionId: 'connection-1',
+      transport: 'ssh',
+      proxy: fakeProxy(),
+      source: { kind: 'terminal-output', terminalId: 'terminal-1' },
+      protocol: 'http:',
+      port: 5173,
+      urlPath: '/',
+    });
+    const duplicate = await context.service.registerDetectedTarget({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      connectionId: 'connection-1',
+      transport: 'ssh',
+      proxy: fakeProxy(),
+      source: { kind: 'terminal-output', terminalId: 'terminal-2' },
+      protocol: 'http:',
+      port: 5173,
+      urlPath: '/ignored',
+    });
+
+    expect(duplicate.status).toEqual({ kind: 'starting' });
+    expect(openCount).toBe(1);
+
+    tunnel.resolve({ localPort: 6100, close: async () => {} });
+    const first = await firstPromise;
+
+    expect(previewServerUrl(first)).toBe('http://127.0.0.1:6100/');
+    expect(openCount).toBe(1);
+  });
+
+  it('keeps a failed SSH preview row when automatic tunnel opening fails', async () => {
+    const context = createService({
+      openTunnel: async () => {
+        throw new Error('bind failed');
+      },
+    });
+
+    const server = await context.service.registerDetectedTarget({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      connectionId: 'connection-1',
+      transport: 'ssh',
+      proxy: fakeProxy(),
+      source: { kind: 'terminal-output', terminalId: 'terminal-1' },
+      protocol: 'http:',
+      port: 5173,
+      urlPath: '/',
+    });
+
+    expect(server.kind).toBe('forwarded');
+    expect(previewServerUrl(server)).toBeNull();
+    expect(server.status).toEqual({
+      kind: 'failed',
+      message: 'Failed to open SSH port forward: bind failed',
+    });
+    expect(
+      context.service.listForWorkspace({ projectId: 'project-1', workspaceId: 'workspace-1' })
+    ).toEqual([server]);
+    expect(
+      context.events
+        .filter((event) => event.type === 'upsert' && event.server.id === server.id)
+        .map((event) => (event.type === 'upsert' ? event.server.status : null))
+    ).toEqual([
+      { kind: 'starting' },
+      { kind: 'failed', message: 'Failed to open SSH port forward: bind failed' },
+    ]);
+  });
+
+  it('restarts a failed SSH preview using the remote port as the preferred local port', async () => {
+    const preferredLocalPorts: Array<number | undefined> = [];
+    let attempt = 0;
+    const context = createService({
+      openTunnel: async (request) => {
+        attempt++;
+        preferredLocalPorts.push(request.preferredLocalPort);
+        if (attempt === 1) throw new Error('bind failed');
+        return { localPort: 6200, close: async () => {} };
+      },
+    });
+    const failed = await context.service.registerDetectedTarget({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      connectionId: 'connection-1',
+      transport: 'ssh',
+      proxy: fakeProxy(),
+      source: { kind: 'terminal-output', terminalId: 'terminal-1' },
+      protocol: 'http:',
+      port: 5173,
+      urlPath: '/',
+    });
+
+    const restarted = await context.service.restart(failed.id);
+
+    expect(preferredLocalPorts).toEqual([5173, 5173]);
+    expect(restarted?.status).toEqual({ kind: 'ready' });
+    expect(previewServerUrl(restarted!)).toBe('http://127.0.0.1:6200/');
   });
 
   it('keeps SSH terminal previews through transport-loss PTY exits', async () => {
@@ -224,6 +362,7 @@ describe('PreviewServerService', () => {
       .map((event) => (event.type === 'upsert' ? event.server.status : null));
 
     expect(statusEvents).toEqual([
+      { kind: 'starting' },
       { kind: 'ready' },
       { kind: 'reconnecting' },
       { kind: 'ready' },

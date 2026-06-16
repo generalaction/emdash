@@ -70,6 +70,7 @@ describe('LocalTerminalProvider', () => {
     ptyMock.exitHandlers.length = 0;
     terminalUrlDetectorMock.wireTerminalUrlDetector.mockClear();
     previewServerServiceMock.registerDetectedTarget.mockClear();
+    previewServerServiceMock.registerDetectedTarget.mockResolvedValue(undefined);
     previewServerServiceMock.handleTerminalSourceClosed.mockClear();
     vi.mocked(ptySessionRegistry.register).mockClear();
   });

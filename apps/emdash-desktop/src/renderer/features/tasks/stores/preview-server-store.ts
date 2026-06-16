@@ -76,8 +76,8 @@ export class PreviewServerStore implements IDisposable {
 
   get urls(): string[] {
     return this.servers
-      .filter((server) => server.status.kind === 'ready')
-      .map((server) => previewServerUrl(server));
+      .map((server) => previewServerUrl(server))
+      .filter((url): url is string => url !== null);
   }
 
   async forwardManual(input: ManualForwardInput): Promise<PreviewServer> {

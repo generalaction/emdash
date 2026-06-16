@@ -187,16 +187,23 @@ export class LocalTerminalProvider implements TerminalProvider {
         pty,
         probeLocalPorts: true,
         onDetected: (server) => {
-          void previewServerService.registerDetectedTarget({
-            projectId: this.projectId,
-            workspaceId: this.workspaceId,
-            transport: 'local',
-            source: { kind: 'terminal-output', terminalId: terminal.id },
-            protocol: server.protocol,
-            host: server.host,
-            port: server.port,
-            urlPath: server.urlPath,
-          });
+          void previewServerService
+            .registerDetectedTarget({
+              projectId: this.projectId,
+              workspaceId: this.workspaceId,
+              transport: 'local',
+              source: { kind: 'terminal-output', terminalId: terminal.id },
+              protocol: server.protocol,
+              host: server.host,
+              port: server.port,
+              urlPath: server.urlPath,
+            })
+            .catch((error) => {
+              log.warn('LocalTerminalProvider: preview target registration failed', {
+                terminalId: terminal.id,
+                error: String(error),
+              });
+            });
         },
         onSourceClosed: (event) =>
           previewServerService.handleTerminalSourceClosed({

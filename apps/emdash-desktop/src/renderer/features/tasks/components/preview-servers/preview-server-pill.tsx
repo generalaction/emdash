@@ -38,7 +38,11 @@ export const PreviewServerPill = observer(function PreviewServerPill({
   const previews = usePreviewServers();
   const taskView = useWorkspaceViewModel();
   const url = previewServerUrl(server);
-  const canOpen = server.status.kind === 'ready';
+  const hasUrl = url !== null;
+  const canOpen = server.status.kind === 'ready' && hasUrl;
+  const title = hasUrl
+    ? `${previewServerStatusLabel(server)} at ${url}`
+    : `${previewServerStatusLabel(server)} for ${formatPreviewServerLabel(server)}`;
 
   return (
     <DropdownMenu>
@@ -51,7 +55,7 @@ export const PreviewServerPill = observer(function PreviewServerPill({
               previewServerStatusClasses(server)
             )}
             aria-label={`Open preview ${formatPreviewServerLabel(server)}`}
-            title={`${previewServerStatusLabel(server)} at ${url}`}
+            title={title}
           />
         }
       >
@@ -66,12 +70,14 @@ export const PreviewServerPill = observer(function PreviewServerPill({
       <DropdownMenuContent align="end" className="min-w-56">
         <div className="px-2 py-1.5">
           <MicroLabel className="mb-1 flex items-center">Preview</MicroLabel>
-          <div className="truncate text-xs text-foreground-muted" title={url}>
-            {url}
+          <div className="truncate text-xs text-foreground-muted" title={url ?? undefined}>
+            {url ?? 'No local URL'}
           </div>
           {server.kind === 'forwarded' ? (
             <div className="mt-1 text-xs text-foreground-passive">
-              Remote {server.remotePort} to local {server.localPort}
+              {server.localPort === undefined
+                ? `Remote ${server.remotePort}`
+                : `Remote ${server.remotePort} to local ${server.localPort}`}
             </div>
           ) : null}
           {server.status.kind === 'failed' ? (
@@ -82,7 +88,7 @@ export const PreviewServerPill = observer(function PreviewServerPill({
         <DropdownMenuItem
           disabled={!canOpen}
           onClick={() => {
-            if (canOpen) taskView.tabGroupManager.openBrowser(url);
+            if (canOpen && url) taskView.tabGroupManager.openBrowser(url);
             taskView.setFocusedRegion('main');
           }}
         >
@@ -91,12 +97,15 @@ export const PreviewServerPill = observer(function PreviewServerPill({
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={!canOpen}
-          onClick={() => canOpen && void rpc.app.openExternal(url)}
+          onClick={() => canOpen && url && void rpc.app.openExternal(url)}
         >
           <ExternalLink className="size-3.5" />
           Open in System Browser
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => void rpc.app.clipboardWriteText(url)}>
+        <DropdownMenuItem
+          disabled={!hasUrl}
+          onClick={() => url && void rpc.app.clipboardWriteText(url)}
+        >
           <Clipboard className="size-3.5" />
           Copy URL
         </DropdownMenuItem>

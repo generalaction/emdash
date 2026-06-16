@@ -1,5 +1,4 @@
 import type { PreviewServer } from '@shared/core/preview-servers/types';
-import { previewServerUrl } from '@shared/core/preview-servers/types';
 
 export function formatPreviewUrl(url: string): string {
   try {
@@ -12,9 +11,11 @@ export function formatPreviewUrl(url: string): string {
 
 export function formatPreviewServerLabel(server: PreviewServer): string {
   if (server.kind === 'forwarded') {
-    return `${server.remotePort} -> ${server.localPort}`;
+    return server.localPort === undefined
+      ? `remote ${server.remotePort}`
+      : `${server.remotePort} -> ${server.localPort}`;
   }
-  return formatPreviewUrl(previewServerUrl(server));
+  return formatPreviewUrl(`${server.protocol}//${server.host}:${server.port}${server.urlPath}`);
 }
 
 export function previewServerStatusLabel(server: PreviewServer): string {

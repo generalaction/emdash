@@ -34,16 +34,17 @@ export type ForwardedPreviewServer = PreviewServerBase & {
   kind: 'forwarded';
   connectionId: string;
   remotePort: number;
-  localPort: number;
+  localPort?: number;
 };
 
 export type PreviewServer = DirectPreviewServer | ForwardedPreviewServer;
 
-export function previewServerUrl(server: PreviewServer): string {
+export function previewServerUrl(server: PreviewServer): string | null {
   if (server.kind === 'direct') {
     return `${server.protocol}//${server.host}:${server.port}${server.urlPath}`;
   }
 
+  if (server.localPort === undefined) return null;
   return `${server.protocol}//127.0.0.1:${server.localPort}${server.urlPath}`;
 }
 

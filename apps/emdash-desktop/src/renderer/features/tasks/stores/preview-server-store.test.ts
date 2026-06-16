@@ -71,14 +71,21 @@ describe('PreviewServerStore', () => {
     rpcMocks.stop.mockReset();
   });
 
-  it('loads preview servers for a workspace and exposes ready URLs', async () => {
+  it('loads preview servers for a workspace and exposes addressable URLs', async () => {
     const ready = forwardedServer({ id: 'ready' });
     const reconnecting = forwardedServer({
       id: 'reconnecting',
+      remotePort: 3001,
       localPort: 6101,
       status: { kind: 'reconnecting' },
     });
-    rpcMocks.listForWorkspace.mockResolvedValueOnce([ready, reconnecting]);
+    const failed = forwardedServer({
+      id: 'failed',
+      remotePort: 3002,
+      localPort: undefined,
+      status: { kind: 'failed', message: 'failed' },
+    });
+    rpcMocks.listForWorkspace.mockResolvedValueOnce([ready, reconnecting, failed]);
 
     const store = new PreviewServerStore({
       projectId: 'project-1',
@@ -90,8 +97,8 @@ describe('PreviewServerStore', () => {
       projectId: 'project-1',
       workspaceId: 'workspace-1',
     });
-    expect(store.servers.map((server) => server.id)).toEqual(['ready', 'reconnecting']);
-    expect(store.urls).toEqual([previewServerUrl(ready)]);
+    expect(store.servers.map((server) => server.id)).toEqual(['ready', 'reconnecting', 'failed']);
+    expect(store.urls).toEqual([previewServerUrl(ready), previewServerUrl(reconnecting)]);
 
     store.dispose();
   });

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { log } from '@main/lib/logger';
 import type {
   DirectPreviewServer,
   DirectPreviewServerHost,
@@ -89,20 +90,17 @@ export class PreviewServerService {
       return this.registerLocalTarget(target);
     }
 
+    return await this.registerSshTarget(target);
+  }
+
+  private async registerSshTarget(
+    target: Extract<RegisterDetectedPreviewTarget, { transport: 'ssh' }>
+  ): Promise<PreviewServer> {
     const identity = sshAutoIdentity(target);
     const existing = this.serverForIdentity(identity);
     if (existing) return existing;
 
     const tunnelId = `preview:${identity}`;
-    const forward = await this.portForwards.open({
-      id: tunnelId,
-      projectId: target.projectId,
-      workspaceId: target.workspaceId,
-      connectionId: target.connectionId,
-      proxy: target.proxy,
-      remotePort: target.port,
-      preferredLocalPort: target.port,
-    });
     const server: PreviewServer = {
       id: identity,
       kind: 'forwarded',
@@ -111,13 +109,53 @@ export class PreviewServerService {
       source: target.source,
       protocol: target.protocol,
       urlPath: target.urlPath,
-      status: { kind: 'ready' },
+      status: { kind: 'starting' },
       connectionId: target.connectionId,
       remotePort: target.port,
-      localPort: forward.localPort,
     };
     this.addServer(identity, server, { identity, tunnelId });
-    return server;
+
+    try {
+      const forward = await this.portForwards.open({
+        id: tunnelId,
+        projectId: target.projectId,
+        workspaceId: target.workspaceId,
+        connectionId: target.connectionId,
+        proxy: target.proxy,
+        remotePort: target.port,
+        preferredLocalPort: target.port,
+      });
+      const current = this.servers.get(server.id);
+      if (!current || current.kind !== 'forwarded') {
+        await this.portForwards.stop(tunnelId);
+        return server;
+      }
+      const next: PreviewServer = {
+        ...current,
+        localPort: forward.localPort,
+        status: { kind: 'ready' },
+      };
+      this.servers.set(next.id, next);
+      this.emit({ type: 'upsert', server: next });
+      return next;
+    } catch (error) {
+      log.warn('PreviewServerService: failed to open SSH preview tunnel', {
+        projectId: target.projectId,
+        workspaceId: target.workspaceId,
+        connectionId: target.connectionId,
+        remotePort: target.port,
+        error: String(error),
+      });
+      const current = this.servers.get(server.id);
+      if (!current || current.kind !== 'forwarded') return server;
+      const next: PreviewServer = {
+        ...current,
+        status: { kind: 'failed', message: previewForwardErrorMessage(error) },
+      };
+      this.servers.set(next.id, next);
+      this.emit({ type: 'upsert', server: next });
+      return next;
+    }
   }
 
   listForWorkspace({
@@ -188,6 +226,8 @@ export class PreviewServerService {
 
     for (const server of this.servers.values()) {
       if (server.kind !== 'forwarded' || server.connectionId !== event.connectionId) continue;
+      if (server.localPort === undefined && server.status.kind === 'failed') continue;
+      if (event.type === 'reconnected' && server.localPort === undefined) continue;
 
       const next =
         event.type === 'disconnected' || event.type === 'reconnecting'
@@ -223,25 +263,56 @@ export class PreviewServerService {
     const metadata = this.metadata.get(id);
     if (!server || server.kind !== 'forwarded' || !metadata?.tunnelId) return server;
 
-    await this.portForwards.stop(metadata.tunnelId);
-    const proxy = await this.getSshProxy(server.connectionId);
-    const forward = await this.portForwards.open({
-      id: metadata.tunnelId,
-      projectId: server.projectId,
-      workspaceId: server.workspaceId,
-      connectionId: server.connectionId,
-      proxy,
-      remotePort: server.remotePort,
-      preferredLocalPort: server.localPort,
-    });
-    const next: PreviewServer = {
+    const starting: PreviewServer = {
       ...server,
-      localPort: forward.localPort,
-      status: { kind: 'ready' },
+      status: { kind: 'starting' },
     };
-    this.servers.set(id, next);
-    this.emit({ type: 'upsert', server: next });
-    return next;
+    this.servers.set(id, starting);
+    this.emit({ type: 'upsert', server: starting });
+
+    try {
+      await this.portForwards.stop(metadata.tunnelId);
+      const proxy = await this.getSshProxy(server.connectionId);
+      const forward = await this.portForwards.open({
+        id: metadata.tunnelId,
+        projectId: server.projectId,
+        workspaceId: server.workspaceId,
+        connectionId: server.connectionId,
+        proxy,
+        remotePort: server.remotePort,
+        preferredLocalPort: server.localPort ?? server.remotePort,
+      });
+      const current = this.servers.get(id);
+      if (!current || current.kind !== 'forwarded') {
+        await this.portForwards.stop(metadata.tunnelId);
+        return starting;
+      }
+      const next: PreviewServer = {
+        ...current,
+        localPort: forward.localPort,
+        status: { kind: 'ready' },
+      };
+      this.servers.set(id, next);
+      this.emit({ type: 'upsert', server: next });
+      return next;
+    } catch (error) {
+      log.warn('PreviewServerService: failed to restart SSH preview tunnel', {
+        projectId: server.projectId,
+        workspaceId: server.workspaceId,
+        connectionId: server.connectionId,
+        remotePort: server.remotePort,
+        error: String(error),
+      });
+      const current = this.servers.get(id);
+      if (!current || current.kind !== 'forwarded') return starting;
+      const next: PreviewServer = {
+        ...current,
+        status: { kind: 'failed', message: previewForwardErrorMessage(error) },
+      };
+      this.servers.set(id, next);
+      this.emit({ type: 'upsert', server: next });
+      return next;
+    }
   }
 
   async stopForWorkspace(projectId: string, workspaceId: string): Promise<void> {
@@ -341,4 +412,11 @@ function matchesDetectedServer(
     return server.host === detected.host && server.port === detected.port;
   }
   return server.remotePort === detected.port;
+}
+
+function previewForwardErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message
+    ? `Failed to open SSH port forward: ${message}`
+    : 'Failed to open SSH port forward';
 }

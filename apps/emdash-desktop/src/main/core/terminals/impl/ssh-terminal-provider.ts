@@ -205,17 +205,25 @@ export class SshTerminalProvider implements TerminalProvider {
         pty,
         probeLocalPorts: false,
         onDetected: (server) => {
-          void previewServerService.registerDetectedTarget({
-            projectId: this.projectId,
-            workspaceId: this.workspaceId,
-            connectionId: this.connectionId,
-            transport: 'ssh',
-            proxy: this.proxy,
-            source: { kind: 'terminal-output', terminalId: terminal.id },
-            protocol: server.protocol,
-            port: server.port,
-            urlPath: server.urlPath,
-          });
+          void previewServerService
+            .registerDetectedTarget({
+              projectId: this.projectId,
+              workspaceId: this.workspaceId,
+              connectionId: this.connectionId,
+              transport: 'ssh',
+              proxy: this.proxy,
+              source: { kind: 'terminal-output', terminalId: terminal.id },
+              protocol: server.protocol,
+              port: server.port,
+              urlPath: server.urlPath,
+            })
+            .catch((error) => {
+              log.warn('SshTerminalProvider: preview target registration failed', {
+                terminalId: terminal.id,
+                connectionId: this.connectionId,
+                error: String(error),
+              });
+            });
         },
         onSourceClosed: (event) =>
           previewServerService.handleTerminalSourceClosed({
