@@ -1,9 +1,6 @@
 // Verbatim source of the Pi emdash extension, embedded as a string constant.
 export const PI_EXTENSION_CONTENT = `\
-type ExtensionAPI = {
-  on(event: 'agent_end', handler: () => unknown): void;
-  on(event: 'session_shutdown', handler: (event: { reason: string }) => unknown): void;
-};
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 
 async function notifyEmdash(
   eventType: 'stop' | 'error' | 'notification',
