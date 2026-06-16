@@ -1,0 +1,132 @@
+/**
+ * Code — Solid component rendering a CodeLaidOut block.
+ *
+ * Renders plain text first (synchronous), then applies Shiki highlighting
+ * asynchronously on an idle callback.
+ */
+
+import { For, createEffect, onCleanup } from 'solid-js';
+import type { CodeBlock } from '../../core/blocks/block-types';
+import { highlightCode, peekHighlight } from '../../core/highlight/highlighter';
+import type { CodeLaidOut } from '../../core/layout/layout-types';
+import { cancelIdle, scheduleIdle } from '../dom-utils';
+import styles from './code.module.css';
+
+export type CodeProps = {
+  block: CodeLaidOut;
+  rawBlock: CodeBlock;
+};
+
+function applyHighlight(
+  lineEls: HTMLElement[],
+  hl: {
+    rootStyle: string;
+    lines: Array<Array<{ content: string; htmlStyle?: Record<string, string> }>>;
+  }
+): void {
+  for (let i = 0; i < lineEls.length; i++) {
+    const lineEl = lineEls[i];
+    const tokens = hl.lines[i];
+    if (!lineEl || !tokens) continue;
+    while (lineEl.firstChild) lineEl.removeChild(lineEl.firstChild);
+    for (const tok of tokens) {
+      if (!tok.content) continue;
+      if (!tok.htmlStyle) {
+        lineEl.appendChild(document.createTextNode(tok.content));
+      } else {
+        const span = document.createElement('span');
+        span.textContent = tok.content;
+        for (const [prop, val] of Object.entries(tok.htmlStyle)) {
+          span.style.setProperty(prop, val);
+        }
+        lineEl.appendChild(span);
+      }
+    }
+  }
+}
+
+export function Code(props: CodeProps) {
+  const lineElsMap: Map<number, HTMLElement> = new Map();
+  let wrapperEl: HTMLElement | undefined;
+
+  createEffect(() => {
+    if (!wrapperEl) return;
+    const lang = props.block.lang;
+    if (!lang) return;
+
+    const code = props.rawBlock.code;
+
+    // Synchronous fast-path on cache hit
+    const cached = peekHighlight(code, lang);
+    if (cached) {
+      const lineEls = Array.from(lineElsMap.values());
+      if (cached.rootStyle) {
+        for (const decl of cached.rootStyle.split(';')) {
+          const colon = decl.indexOf(':');
+          if (colon === -1) continue;
+          const prop = decl.slice(0, colon).trim();
+          const val = decl.slice(colon + 1).trim();
+          if (prop) wrapperEl!.style.setProperty(prop, val);
+        }
+      }
+      applyHighlight(lineEls, cached);
+      return;
+    }
+
+    // Deferred path
+    let cancelled = false;
+    const handle = scheduleIdle(() => {
+      if (cancelled) return;
+      const hl = highlightCode(code, lang);
+      if (!hl || cancelled) return;
+      const el = wrapperEl;
+      if (!el) return;
+      if (hl.rootStyle) {
+        for (const decl of hl.rootStyle.split(';')) {
+          const colon = decl.indexOf(':');
+          if (colon === -1) continue;
+          const prop = decl.slice(0, colon).trim();
+          const val = decl.slice(colon + 1).trim();
+          if (prop) el.style.setProperty(prop, val);
+        }
+      }
+      const lineEls = Array.from(lineElsMap.values());
+      applyHighlight(lineEls, hl);
+    });
+
+    onCleanup(() => {
+      cancelled = true;
+      cancelIdle(handle);
+    });
+  });
+
+  return (
+    <div
+      ref={(el) => {
+        wrapperEl = el;
+      }}
+      class={`${styles.pblock} ${styles['pcode-block']}`}
+      style={{
+        top: `${props.block.top}px`,
+        height: `${props.block.height}px`,
+        left: '0',
+        right: '0',
+      }}
+    >
+      <For each={props.block.lines}>
+        {(line, i) => (
+          <div
+            ref={(el) => {
+              lineElsMap.set(i(), el);
+              onCleanup(() => lineElsMap.delete(i()));
+            }}
+            class={styles['pcode-line']}
+            style={{ top: `${line.top}px` }}
+          >
+            {line.text}
+          </div>
+        )}
+      </For>
+    </div>
+  );
+}

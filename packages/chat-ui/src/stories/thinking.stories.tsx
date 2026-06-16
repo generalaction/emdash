@@ -1,0 +1,140 @@
+/**
+ * Thinking row stories — active, transition, collapsed, expanded.
+ */
+
+import type { Meta, StoryObj } from 'storybook-solidjs-vite';
+import type { TranscriptApi } from '../state/transcript';
+import type { ScriptStep } from './chat-host';
+import { ChatHost, ScriptedChat } from './chat-host';
+
+const meta: Meta = {
+  title: 'ChatUI/Thinking',
+  parameters: { layout: 'centered' },
+};
+export default meta;
+
+type Story = StoryObj;
+
+export const ThinkingActive: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'thinking',
+          id: 'th1',
+          status: 'thinking',
+          text: 'Let me analyze the codebase structure first to understand the authentication flow...\n\nLooking at the middleware chain, I can see that session tokens are validated in three different places which creates redundancy.',
+          startedAt: Date.now() - 12000,
+        },
+      ]}
+      height={160}
+    />
+  ),
+};
+
+export const ThinkingDoneCollapsed: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'thinking',
+          id: 'th1',
+          status: 'done',
+          text: 'I have analyzed the issue. The root cause is X.',
+          startedAt: Date.now() - 30000,
+          durationMs: 28000,
+        },
+      ]}
+      height={80}
+    />
+  ),
+};
+
+export const ThinkingDoneExpanded: Story = {
+  render: () => {
+    const script: ScriptStep[] = [
+      {
+        kind: 'call',
+        fn: (api: TranscriptApi) => {
+          api.seed([
+            {
+              kind: 'thinking',
+              id: 'th1',
+              status: 'done',
+              text: 'First I looked at the authentication flow.\n\nThe session store is created in middleware/session.ts and uses Redis as a backend. The JWT approach would eliminate the need for this entirely.\n\nI considered three approaches:\n1. Pure JWT stateless\n2. JWT + Redis blacklist for revocation\n3. Opaque tokens with introspection\n\nOption 2 gives us the best balance of scalability and revocability.',
+              startedAt: Date.now() - 30000,
+              durationMs: 28000,
+            },
+          ]);
+        },
+      },
+      // Simulate user clicking to expand (toggle collapse off)
+      { kind: 'wait', ms: 100 },
+      {
+        kind: 'call',
+        fn: () => {
+          // The collapse is managed by click delegation; we trigger it via DOM
+          const btn = document.querySelector('[data-collapse-id="th1"]') as HTMLElement;
+          btn?.click();
+        },
+      },
+    ];
+    return <ScriptedChat script={script} height={280} />;
+  },
+};
+
+export const TransitionToDone: Story = {
+  render: () => {
+    const THINKING_TEXT =
+      'Analyzing the codebase...\n\nChecking imports and exports...\n\nFound 3 circular dependencies.\n\nThe fix involves reordering module initialization.';
+
+    const script: ScriptStep[] = [
+      {
+        kind: 'call',
+        fn: (api: TranscriptApi) => {
+          api.upsertThinking({ id: 'th1', status: 'thinking', startedAt: Date.now() - 5000 });
+        },
+      },
+      { kind: 'wait', ms: 200 },
+      {
+        kind: 'call',
+        fn: (api: TranscriptApi) => {
+          api.upsertThinking({ id: 'th1', text: THINKING_TEXT });
+        },
+      },
+      { kind: 'wait', ms: 1500 },
+      {
+        kind: 'call',
+        fn: (api: TranscriptApi) => {
+          api.upsertThinking({ id: 'th1', status: 'done', durationMs: 6500 });
+        },
+      },
+    ];
+    return <ScriptedChat script={script} height={200} />;
+  },
+};
+
+export const InMixedTranscript: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        { kind: 'message', id: 'u1', role: 'user', text: 'Explain the deployment pipeline' },
+        {
+          kind: 'thinking',
+          id: 'th1',
+          status: 'done',
+          text: 'The user wants to understand how we deploy. Let me think through the stages: build → test → staging → production.',
+          startedAt: Date.now() - 60000,
+          durationMs: 4200,
+        },
+        {
+          kind: 'message',
+          id: 'a1',
+          role: 'assistant',
+          text: 'The deployment pipeline has four stages:\n\n1. **Build**: TypeScript compilation + bundling\n2. **Test**: Unit + integration tests in CI\n3. **Staging**: Auto-deploy to staging environment\n4. **Production**: Manual approval gate before release',
+        },
+      ]}
+      height={500}
+    />
+  ),
+};

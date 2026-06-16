@@ -1,0 +1,38 @@
+/*
+ * Chat engine base styles.
+ *
+ * Font imports must be here so they are requested before any measurement runs.
+ */
+
+@import '@fontsource-variable/inter/index.css';
+@import '@fontsource/cascadia-code/index.css';
+
+/* ── Scroll container ─────────────────────────────────────────────────────── */
+
+.pchat-transcript {
+  position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 100%;
+  width: 100%;
+}
+
+.pchat-canvas {
+  position: relative;
+  width: 100%;
+}
+
+.pchat-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  will-change: transform;
+  content-visibility: auto;
+  /* Placeholder size for rows skipped by content-visibility, so the browser
+     doesn't have to lay them out to discover their height. */
+  contain-intrinsic-size: auto 60px;
+  /* Isolate paint/layout/style recalc within each row. NOT `contain: size`
+     so offsetHeight measurements remain correct. */
+  contain: layout paint style;
+}
