@@ -42,7 +42,7 @@ export type CompactMenuActionContext = {
   emit: (event: VoidEvent, data: undefined) => void;
   openExternal: (url: string) => Promise<void> | void;
   copyInstallationId: () => void;
-  quitImmediately?: () => void;
+  quitImmediately: () => void;
 };
 
 export async function executeCompactMenuAction(
@@ -133,7 +133,7 @@ function requestQuit(
   win: CompactMenuWindow | null | undefined
 ): void {
   if (!win || win.webContents.isLoading?.()) {
-    context.quitImmediately?.();
+    context.quitImmediately();
     return;
   }
 

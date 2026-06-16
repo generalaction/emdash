@@ -25,6 +25,7 @@ function makeContext(): CompactMenuActionContext {
     emit: vi.fn(),
     openExternal: vi.fn(),
     copyInstallationId: vi.fn(),
+    quitImmediately: vi.fn(),
   };
 }
 
@@ -51,5 +52,26 @@ describe('executeCompactMenuAction', () => {
     await executeCompactMenuAction('toggle-fullscreen', context);
 
     expect(context.getWindow()?.setFullScreen).toHaveBeenCalledWith(true);
+  });
+
+  it('calls quitImmediately when window is loading', async () => {
+    const context = makeContext();
+    const window = context.getWindow();
+    if (window) {
+      window.webContents.isLoading = vi.fn(() => true);
+    }
+
+    await executeCompactMenuAction('quit', context);
+
+    expect(context.quitImmediately).toHaveBeenCalled();
+  });
+
+  it('calls quitImmediately when window is null', async () => {
+    const context = makeContext();
+    context.getWindow = vi.fn(() => null);
+
+    await executeCompactMenuAction('quit', context);
+
+    expect(context.quitImmediately).toHaveBeenCalled();
   });
 });

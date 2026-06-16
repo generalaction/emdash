@@ -1,9 +1,10 @@
-import { type CSSProperties, type MouseEvent, useState } from 'react';
+import { type CSSProperties, type MouseEvent, useEffect, useRef, useState } from 'react';
+import { COMPACT_TITLEBAR_HEIGHT } from '@main/app/window-chrome';
 import { rpc } from '@renderer/lib/ipc';
 import { COMPACT_APP_MENU, type CompactMenuActionId, type CompactMenuItem } from '@shared/app-menu';
 
 const noDragStyle = { WebkitAppRegion: 'no-drag' } as CSSProperties;
-const MENU_TOP = 40;
+const MENU_TOP = COMPACT_TITLEBAR_HEIGHT;
 
 type OpenMenuState = {
   label: string;
@@ -16,9 +17,25 @@ function menuWidthClass(label: string): string {
 
 export function CompactMenuBar() {
   const [openMenu, setOpenMenu] = useState<OpenMenuState | null>(null);
+  const menuContainerRef = useRef<HTMLDivElement>(null);
   const openGroup = openMenu
     ? COMPACT_APP_MENU.find((group) => group.label === openMenu.label)
     : undefined;
+
+  useEffect(() => {
+    if (!openMenu) return;
+
+    const handleClickOutside = (event: PointerEvent) => {
+      if (menuContainerRef.current && !menuContainerRef.current.contains(event.target as Node)) {
+        setOpenMenu(null);
+      }
+    };
+
+    document.addEventListener('pointerdown', handleClickOutside);
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutside);
+    };
+  }, [openMenu]);
 
   const handleMenuClick = (label: string, event: MouseEvent<HTMLButtonElement>) => {
     const left = event.currentTarget.getBoundingClientRect().left;
@@ -31,7 +48,7 @@ export function CompactMenuBar() {
   };
 
   return (
-    <>
+    <div ref={menuContainerRef}>
       <div className="bg-muted/30 fixed top-0 right-0 left-0 z-[100] flex h-10 items-center border-b border-border/50 select-none [-webkit-app-region:drag]">
         <div className="flex items-center" style={noDragStyle}>
           {COMPACT_APP_MENU.map((group) => (
@@ -57,7 +74,7 @@ export function CompactMenuBar() {
           <MenuItems items={openGroup.items} onAction={handleActionClick} />
         </div>
       )}
-    </>
+    </div>
   );
 }
 
