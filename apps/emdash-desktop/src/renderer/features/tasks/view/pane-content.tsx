@@ -18,6 +18,8 @@ export const PaneContent = observer(function PaneContent() {
   });
 
   const paneRenderer = resolvePaneRenderer(paneTabManager);
+  const browserTabs = paneTabManager.resolvedTabs.filter((tab) => tab.kind === 'browser');
+  const activeBrowserId = paneRenderer?.kind === 'browser' ? paneRenderer.browserId : null;
 
   if (!paneRenderer) {
     return <PaneEmptyState />;
@@ -33,7 +35,11 @@ export const PaneContent = observer(function PaneContent() {
         <ShowHide visible={paneRenderer.kind === 'pty-agent'}>
           <ConversationsPanel />
         </ShowHide>
-        {paneRenderer.kind === 'browser' && <BrowserPane browserId={paneRenderer.browserId} />}
+        {browserTabs.map((tab) => (
+          <ShowHide key={tab.browserId} visible={activeBrowserId === tab.browserId}>
+            <BrowserPane browserId={tab.browserId} />
+          </ShowHide>
+        ))}
         {paneRenderer.kind === 'file' && <FileRenderer tab={paneRenderer.tab} />}
         {paneRenderer.kind === 'file-diff' && <DiffView tab={paneRenderer.tab} />}
       </div>
