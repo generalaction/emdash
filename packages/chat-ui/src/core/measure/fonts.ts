@@ -1,5 +1,13 @@
 /**
- * FontConfig — pretext measurement configuration, derived from core/metrics.ts.
+ * FontConfig — pretext measurement configuration.
+ *
+ * Contains only typography variants (font shorthand + line-height pairs) and
+ * the shared indent/sizing constants needed by pretext shaping.
+ *
+ * Component-private geometry constants (bubble padding, block gap, code block
+ * padding, thinking heights, etc.) have been moved to each component's
+ * metrics.ts file and are no longer part of FontConfig.  That makes FontConfig
+ * a stable, small interface that changes only when typography changes.
  */
 
 import {
@@ -12,7 +20,6 @@ import {
   BODY,
   CODE_BLOCK_FONT,
   CODE_BLOCK,
-  CODE_LANG,
   H1_FONT,
   H1,
   H2_FONT,
@@ -22,7 +29,6 @@ import {
   INLINE_CODE_EXTRA_WIDTH,
   INLINE_CODE_FONT,
   INLINE_CODE,
-  ISLAND_FIXED_HEIGHT,
   LIST_INDENT,
   MENTION_EXTRA_WIDTH,
   MENTION_FONT,
@@ -46,19 +52,11 @@ export type FontConfig = {
   inlineCode: VariantMetrics;
   mention: VariantMetrics;
   code: VariantMetrics;
-  codeLang: VariantMetrics;
-  /** Component-private constants, settable from component metrics. */
-  blockGap: number;
-  bubblePadX: number;
-  bubblePadY: number;
-  codeBlockPadX: number;
-  codeBlockPadY: number;
-  codeBlockBorder: number;
+  /** Shared indent/sizing used by pretext shaping (not by component renderers). */
   inlineCodeExtraWidth: number;
   mentionExtraWidth: number;
   listIndent: number;
   blockquoteIndent: number;
-  islandFixedHeight: number;
 };
 
 export const DEFAULT_FONT_CONFIG: FontConfig = {
@@ -73,16 +71,8 @@ export const DEFAULT_FONT_CONFIG: FontConfig = {
   inlineCode: { font: INLINE_CODE_FONT, lineHeight: INLINE_CODE.lineHeight },
   mention: { font: MENTION_FONT, lineHeight: MENTION.lineHeight },
   code: { font: CODE_BLOCK_FONT, lineHeight: CODE_BLOCK.lineHeight },
-  codeLang: { font: CODE_BLOCK_FONT, lineHeight: CODE_LANG.lineHeight },
-  blockGap: 10,
-  bubblePadX: 14,
-  bubblePadY: 10,
-  codeBlockPadX: 14,
-  codeBlockPadY: 10,
-  codeBlockBorder: 1,
   inlineCodeExtraWidth: INLINE_CODE_EXTRA_WIDTH,
   mentionExtraWidth: MENTION_EXTRA_WIDTH,
   listIndent: LIST_INDENT,
   blockquoteIndent: BLOCKQUOTE_INDENT,
-  islandFixedHeight: ISLAND_FIXED_HEIGHT,
 };

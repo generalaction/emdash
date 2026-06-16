@@ -3,10 +3,13 @@
  *
  * Renders a fallback (table/rule/image/pre) and fires onMeasured after mount
  * so the virtualizer can correct the initial height estimate.
+ *
+ * Positioning and DOM measurement are handled by MeasuredBlockFrame.
  */
 
-import { onMount } from 'solid-js';
+import { For } from 'solid-js';
 import type { IslandLaidOut } from '../../core/layout/layout-types';
+import { MeasuredBlockFrame } from '../block-frame';
 import styles from './island.module.css';
 
 export type IslandProps = {
@@ -30,74 +33,76 @@ function TableFallback(props: { raw: string }) {
       {header && header.length > 0 && (
         <thead>
           <tr>
-            {header.map((cell) => (
-              <th>{cell}</th>
-            ))}
+            <For each={header}>{(cell) => <th>{cell}</th>}</For>
           </tr>
         </thead>
       )}
       {body.length > 0 && (
         <tbody>
-          {body.map((row) => (
-            <tr>
-              {row.map((cell) => (
-                <td>{cell}</td>
-              ))}
-            </tr>
-          ))}
+          <For each={body}>
+            {(row) => (
+              <tr>
+                <For each={row}>{(cell) => <td>{cell}</td>}</For>
+              </tr>
+            )}
+          </For>
         </tbody>
       )}
     </table>
   );
 }
 
+function IslandContent(props: { block: IslandLaidOut }) {
+  switch (props.block.islandType) {
+    case 'table':
+      return <TableFallback raw={props.block.raw} />;
+    case 'rule':
+      return (
+        <hr
+          style={{
+            border: 'none',
+            'border-top': '1px solid var(--chat-border, #e2e8f0)',
+            margin: '0',
+          }}
+        />
+      );
+    case 'image':
+      return <img src={props.block.raw} alt="" style={{ 'max-width': '100%' }} />;
+    default:
+      return (
+        <div class={styles['pisland--fixed']}>
+          <pre style={{ margin: '0', padding: '8px' }}>{props.block.raw}</pre>
+        </div>
+      );
+  }
+}
+
 export function Island(props: IslandProps) {
-  let wrapperEl!: HTMLDivElement;
+  const handleMeasured = props.onMeasured
+    ? (id: string, h: number) => props.onMeasured!(id, h)
+    : undefined;
 
-  onMount(() => {
-    if (!props.onMeasured) return;
-    requestAnimationFrame(() => {
-      const h = wrapperEl?.getBoundingClientRect().height ?? 0;
-      if (h > 0) props.onMeasured!(props.block.id, h);
-    });
-  });
-
-  const inner = () => {
-    switch (props.block.islandType) {
-      case 'table':
-        return <TableFallback raw={props.block.raw} />;
-      case 'rule':
-        return (
-          <hr
-            style={{
-              border: 'none',
-              'border-top': '1px solid var(--chat-border, #e2e8f0)',
-              margin: '0',
-            }}
-          />
-        );
-      case 'image':
-        return <img src={props.block.raw} alt="" style={{ 'max-width': '100%' }} />;
-      default:
-        return (
-          <div class={styles['pisland--fixed']}>
-            <pre style={{ margin: '0', padding: '8px' }}>{props.block.raw}</pre>
-          </div>
-        );
-    }
-  };
+  if (!handleMeasured) {
+    return (
+      <MeasuredBlockFrame
+        layout={props.block}
+        id={props.block.id}
+        class={styles.pisland}
+        onMeasured={() => {}}
+      >
+        <IslandContent block={props.block} />
+      </MeasuredBlockFrame>
+    );
+  }
 
   return (
-    <div
-      ref={wrapperEl}
-      class={`${styles.pblock} ${styles.pisland}`}
-      style={{
-        top: `${props.block.top}px`,
-        left: '0',
-        right: '0',
-      }}
+    <MeasuredBlockFrame
+      layout={props.block}
+      id={props.block.id}
+      class={styles.pisland}
+      onMeasured={handleMeasured}
     >
-      {inner()}
-    </div>
+      <IslandContent block={props.block} />
+    </MeasuredBlockFrame>
   );
 }

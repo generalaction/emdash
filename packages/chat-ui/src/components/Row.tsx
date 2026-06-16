@@ -1,30 +1,28 @@
 /**
- * Row — dispatches by item.kind and owns the virtualizer height bridge.
+ * Row — generic row dispatcher driven by ROW_REGISTRY.
  *
- * For each visible slot:
- *   1. createMemo computes the layout/height (depends on item content + width + collapse state)
- *   2. createEffect writes the height into the Fenwick virtualizer
- *   3. The appropriate component renders the content
+ * Owns the virtualizer height bridge: computes exact layout via the row spec's
+ * `measure()`, writes the height into the Fenwick tree via `virt.setSize`, and
+ * delegates rendering to the spec's `Render` component via <Dynamic>.
+ *
+ * Per-row state:
+ *   measured  — DOM-measured heights for islands and thinking bodies, written
+ *               back by the Render component through ctx.setMeasured.
  *
  * Rendered via <For> keyed by row index, so each Row instance owns a fixed row
- * index for its lifetime — no slot recycling, no cross-row measured-height
- * contamination.
+ * index for its lifetime — no slot recycling, no cross-row state contamination.
  */
 
-import { Match, Switch, createEffect, createMemo } from 'solid-js';
+import { Dynamic } from 'solid-js/web';
+import { createEffect, createMemo } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { DEFAULT_FONT_CONFIG } from '../core/measure/fonts';
 import type { FontConfig } from '../core/measure/fonts';
-import { ROW_GAP } from '../core/metrics';
+import type { MeasureCtx, RenderCtx } from '../core/layout/spec-types';
 import type { Virtualizer } from '../core/virtualizer';
-import type { ChatItem, ChatMessage, ChatThinking, ChatToolCall } from '../model';
+import type { ChatItem } from '../model';
 import type { ViewState } from '../state/view-state';
-import { measureMessage } from './message/measure';
-import { Message } from './message/Message';
-import { measureThinking } from './thinking/measure';
-import { Thinking } from './thinking/Thinking';
-import { measureTool } from './tool/measure';
-import { Tool } from './tool/Tool';
+import { ROW_REGISTRY } from './row-registry';
 
 export type RowProps = {
   item: ChatItem;
@@ -39,101 +37,44 @@ export type RowProps = {
 export function Row(props: RowProps) {
   const fonts = () => props.fonts ?? DEFAULT_FONT_CONFIG;
 
-  // DOM-measured heights for islands and thinking bodies, written back by the
-  // child components. Scoped to this Row, which owns a single row index.
+  // DOM-measured heights for islands and thinking bodies.
   const [measured, setMeasured] = createStore<Record<string, number>>({});
 
-  // ── Layout memo ─────────────────────────────────────────────────────────────
+  // ── Contexts ─────────────────────────────────────────────────────────────────
 
-  const rowHeight = createMemo(() => {
-    const item = props.item;
-    const isCollapsed = (id: string) => props.viewState.isCollapsed(id);
-    const getMeasured = (id: string) => measured[id];
-
-    if (item.kind === 'message') {
-      const layout = measureMessage(
-        item as ChatMessage,
-        props.rowWidth,
-        fonts(),
-        isCollapsed,
-        getMeasured
-      );
-      return layout.height;
-    }
-    if (item.kind === 'tool') {
-      return measureTool(item as ChatToolCall, isCollapsed);
-    }
-    if (item.kind === 'thinking') {
-      return measureThinking(
-        item as ChatThinking,
-        isCollapsed,
-        measured[(item as ChatThinking).id]
-      );
-    }
-    return 60 + ROW_GAP;
+  const measureCtx = (): MeasureCtx => ({
+    fonts: fonts(),
+    rowWidth: props.rowWidth,
+    isCollapsed: (id) => props.viewState.isCollapsed(id),
+    measured: (id) => measured[id],
   });
 
-  // ── Message layout (kept separate for passing to Message component) ─────────
+  const renderCtx: RenderCtx = {
+    viewState: { isCollapsed: (id) => props.viewState.isCollapsed(id) },
+    setMeasured: (id, h) => setMeasured(id, h),
+  };
 
-  const messageLayout = createMemo(() => {
-    const item = props.item;
-    if (item.kind !== 'message') return null;
-    const isCollapsed = (id: string) => props.viewState.isCollapsed(id);
-    const getMeasured = (id: string) => measured[id];
-    return measureMessage(item as ChatMessage, props.rowWidth, fonts(), isCollapsed, getMeasured);
-  });
+  // ── Spec lookup ───────────────────────────────────────────────────────────────
 
-  // ── Height bridge effect ────────────────────────────────────────────────────
+  const spec = createMemo(() => ROW_REGISTRY[props.item.kind]);
+
+  // ── Layout + height bridge ────────────────────────────────────────────────────
+
+  const layout = createMemo(() => spec().measure(props.item, measureCtx()));
 
   createEffect(() => {
-    const h = rowHeight();
-    const delta = props.virt.setSize(props.index, h);
+    const delta = props.virt.setSize(props.index, layout().height);
     if (delta !== 0) props.onHeightChanged(props.index, delta);
   });
 
-  // ── Callbacks ───────────────────────────────────────────────────────────────
-
-  const onIslandMeasured = (blockId: string, h: number) => {
-    setMeasured(blockId, h);
-  };
-
-  const onBodyMeasured = (id: string, h: number) => {
-    setMeasured(id, h);
-  };
-
-  // ── Render ──────────────────────────────────────────────────────────────────
-  //
-  // Dispatch by kind with <Switch>/<Match>. Unlike `{cond && <Comp/>}`, Switch
-  // keeps the active branch mounted while the matched kind is unchanged — so a
-  // slot recycling message→message just feeds new props to the existing Message
-  // (no DOM recreation, no flicker). It only swaps the subtree when the row's
-  // kind actually changes.
-
-  const kind = createMemo(() => props.item.kind);
+  // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <Switch>
-      <Match when={kind() === 'message'}>
-        <Message
-          item={props.item as ChatMessage}
-          layout={messageLayout()!}
-          onIslandMeasured={onIslandMeasured}
-        />
-      </Match>
-      <Match when={kind() === 'tool'}>
-        <Tool
-          item={props.item as ChatToolCall}
-          collapsed={props.viewState.isCollapsed((props.item as ChatToolCall).id)}
-        />
-      </Match>
-      <Match when={kind() === 'thinking'}>
-        <Thinking
-          item={props.item as ChatThinking}
-          collapsed={props.viewState.isCollapsed((props.item as ChatThinking).id)}
-          onBodyMeasured={onBodyMeasured}
-          bodyMeasuredHeight={measured[(props.item as ChatThinking).id]}
-        />
-      </Match>
-    </Switch>
+    <Dynamic
+      component={spec().Render}
+      item={props.item}
+      layout={layout()}
+      ctx={renderCtx}
+    />
   );
 }

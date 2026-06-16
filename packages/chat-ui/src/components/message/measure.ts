@@ -15,7 +15,7 @@
  */
 
 import { parseBlocksCached } from '../../core/blocks/parse-blocks';
-import { layoutMessage } from '../../core/layout/layout-message';
+import { layoutMessage } from './layout';
 import type { MessageLayout } from '../../core/layout/layout-types';
 import { DEFAULT_FONT_CONFIG } from '../../core/measure/fonts';
 import type { FontConfig } from '../../core/measure/fonts';

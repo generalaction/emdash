@@ -1,0 +1,14 @@
+/*
+ * block-frame.module.css — base positioning for all block-level content.
+ *
+ * BlockFrame and MeasuredBlockFrame render a div with this class.
+ * Block-kind-specific visual styles (background, border, radius, etc.) are
+ * applied via a second class passed through the `class` prop.
+ */
+
+.pblock {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  overflow: visible;
+}

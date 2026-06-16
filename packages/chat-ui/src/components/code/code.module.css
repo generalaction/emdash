@@ -17,16 +17,6 @@
  * legible for unknown languages that produce no highlight result.
  */
 
-/* ── Block base ───────────────────────────────────────────────────────────── */
-
-/* Absolutely positioned inside the bubble's content layer. */
-.pblock {
-  position: absolute;
-  left: 0;
-  width: 100%;
-  overflow: visible;
-}
-
 /* ── Code block ───────────────────────────────────────────────────────────── */
 
 .pcode-block {

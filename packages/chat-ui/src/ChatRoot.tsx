@@ -25,13 +25,13 @@ import {
 } from 'solid-js';
 import { clearMessageLayoutCache } from './components/message/measure';
 import { Row } from './components/Row';
+import { ROW_REGISTRY } from './components/row-registry';
+import { chatCssVars } from './css-vars';
 import { DEFAULT_FONT_CONFIG } from './core/measure/fonts';
 import type { FontConfig } from './core/measure/fonts';
 import { clearPretextCache, registerFontsReadyClear } from './core/measure/pretext-cache';
-import { metricsToCssVars } from './core/metrics';
 import { StickToBottom } from './core/stick-to-bottom';
 import { Virtualizer } from './core/virtualizer';
-import type { ChatItem } from './model';
 import { getItem, itemCount } from './state/transcript';
 import type { TranscriptApi } from './state/transcript';
 import type { ViewState } from './state/view-state';
@@ -50,18 +50,6 @@ export type ChatRootProps = {
   stickToBottom?: boolean;
   class?: string;
 };
-
-function estimateHeight(item: ChatItem, fonts: FontConfig): number {
-  if (item.kind === 'message') {
-    // Quick estimate based on text length
-    const lines = Math.ceil(item.text.length / 60);
-    const lineH = fonts.body.lineHeight;
-    return lineH * Math.max(1, lines) + 2 * fonts.bubblePadY + 8;
-  }
-  if (item.kind === 'tool') return 36;
-  if (item.kind === 'thinking') return 28 + 72 + 8;
-  return 60;
-}
 
 export function ChatRoot(props: ChatRootProps) {
   const fonts = () => props.fonts ?? DEFAULT_FONT_CONFIG;
@@ -90,7 +78,9 @@ export function ChatRoot(props: ChatRootProps) {
     untrack(() => {
       virt.setCount(n, (i) => {
         const item = getItem(props.transcript.state, i);
-        return item ? estimateHeight(item, f) : 60;
+        if (!item) return 60;
+        const spec = ROW_REGISTRY[item.kind];
+        return spec.estimate(item, { fonts: f, rowWidth: 0, isCollapsed: () => false, measured: () => undefined });
       });
       refreshTotal();
       if (props.stickToBottom !== false) sticky?.schedule();
@@ -191,9 +181,8 @@ export function ChatRoot(props: ChatRootProps) {
   onMount(() => {
     sticky = new StickToBottom(scrollEl);
 
-    // Set CSS vars on the root element
-    const cssVars = metricsToCssVars();
-    for (const [k, v] of Object.entries(cssVars)) {
+    // Set CSS vars on the root element — single source from per-component specs
+    for (const [k, v] of Object.entries(chatCssVars())) {
       scrollEl.style.setProperty(k, v);
     }
 

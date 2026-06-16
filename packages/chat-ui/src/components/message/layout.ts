@@ -1,25 +1,28 @@
 /**
  * layoutMessage — stack block layouts into a full MessageLayout.
  *
- * Key change from @emdash/ui: the viewState dependency is replaced by a plain
- * `isCollapsed(id): boolean` function so the core layout stays framework-agnostic.
- * Similarly, measured heights come in as a plain `getMeasured(id): number | undefined`.
+ * Moved here from core/layout/layout-message.ts so that the message orchestrator
+ * lives alongside its sibling block layouts (components/ -> components/).
  *
- * ROW_GAP is added to the total height by this function so the virtualizer height
- * includes the inter-row gap.  The message bubble height is height - ROW_GAP.
+ * Imports block layout functions directly from their component folders.
+ * Dependency direction: components/ -> core/ (not the reverse).
  *
- * For user bubbles, prose is laid out at min(naturalWidth, maxAllowed), giving
- * true shrink-wrapping without CSS fit-content (children are absolutely positioned).
+ * ROW_GAP is added to the total height so the virtualizer height includes the
+ * inter-row gap.  The message bubble height is `height - ROW_GAP`.
+ *
+ * The `isCollapsed` / `getMeasured` injected functions keep this module
+ * framework-agnostic (no Solid imports, no ViewState import).
  */
 
 import type { ChatRole } from '../../model';
-import type { Block } from '../blocks/block-types';
-import type { FontConfig } from '../measure/fonts';
-import { ROW_GAP, ROW_INSET_X, USER_BUBBLE_MAX_WIDTH_PCT } from '../metrics';
-import { layoutCode } from './layout-code';
-import { layoutIsland } from './layout-island';
-import { layoutProse, measureProseNaturalWidth } from './layout-prose';
-import type { BlockLaidOut, MessageLayout } from './layout-types';
+import type { Block } from '../../core/blocks/block-types';
+import type { FontConfig } from '../../core/measure/fonts';
+import { ROW_GAP, ROW_INSET_X, USER_BUBBLE_MAX_WIDTH_PCT } from '../../core/metrics';
+import type { BlockLaidOut, MessageLayout } from '../../core/layout/layout-types';
+import { layoutCode } from '../code/layout';
+import { layoutProse, measureProseNaturalWidth } from '../prose/layout';
+import { layoutIsland } from '../island/layout';
+import { BUBBLE_PAD_X, BUBBLE_PAD_Y, BLOCK_GAP } from './metrics';
 
 export function layoutMessage(
   blocks: Block[],
@@ -29,11 +32,9 @@ export function layoutMessage(
   getMeasured: (id: string) => number | undefined,
   role: ChatRole = 'assistant'
 ): MessageLayout {
-  const { bubblePadY, blockGap } = fonts;
-
   if (blocks.length === 0) {
     return {
-      height: fonts.body.lineHeight + 2 * bubblePadY + ROW_GAP,
+      height: fonts.body.lineHeight + 2 * BUBBLE_PAD_Y + ROW_GAP,
       width: 0,
       blocks: [],
     };
@@ -43,7 +44,7 @@ export function layoutMessage(
   const effectiveWidth =
     role === 'user' ? userEffectiveWidth(blocks, contentWidth, fonts, isCollapsed) : contentWidth;
 
-  let cursor = bubblePadY;
+  let cursor = BUBBLE_PAD_Y;
   let visibleCount = 0;
   let maxContentWidth = 0;
   const laid: BlockLaidOut[] = [];
@@ -88,7 +89,7 @@ export function layoutMessage(
       continue;
     }
 
-    if (visibleCount > 0) cursor += blockGap;
+    if (visibleCount > 0) cursor += BLOCK_GAP;
 
     switch (block.tier) {
       case 'prose':
@@ -98,7 +99,7 @@ export function layoutMessage(
         laidBlock = layoutCode(block, fonts, cursor, effectiveWidth);
         break;
       case 'island':
-        laidBlock = layoutIsland(block, fonts, cursor, effectiveWidth, getMeasured(block.id));
+        laidBlock = layoutIsland(block, cursor, effectiveWidth, getMeasured(block.id));
         break;
     }
 
@@ -108,7 +109,7 @@ export function layoutMessage(
     laid.push(laidBlock);
   }
 
-  cursor += bubblePadY;
+  cursor += BUBBLE_PAD_Y;
   const height = cursor + ROW_GAP;
 
   return { height, width: maxContentWidth, blocks: laid };
@@ -120,9 +121,8 @@ function userEffectiveWidth(
   fonts: FontConfig,
   isCollapsed: (id: string) => boolean
 ): number {
-  const { bubblePadX } = fonts;
   const maxAllowed =
-    Math.floor((contentWidth * USER_BUBBLE_MAX_WIDTH_PCT) / 100) - 2 * (bubblePadX ?? 14);
+    Math.floor((contentWidth * USER_BUBBLE_MAX_WIDTH_PCT) / 100) - 2 * BUBBLE_PAD_X;
 
   let maxNatural = 0;
   for (const block of blocks) {

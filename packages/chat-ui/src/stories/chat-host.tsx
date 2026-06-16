@@ -9,7 +9,6 @@
 import { For, createEffect, createMemo, createSignal, onMount } from 'solid-js';
 import { ChatRoot } from '../ChatRoot';
 import { DEFAULT_FONT_CONFIG } from '../core/measure/fonts';
-import { metricsToCssVars } from '../core/metrics';
 import type { ChatItem } from '../model';
 import { createTranscript } from '../state/transcript';
 import type { TranscriptApi } from '../state/transcript';

@@ -12,4 +12,11 @@ export default defineConfig({
       localsConvention: 'camelCase',
     },
   },
+  test: {
+    // Run parity tests in node environment (no DOM needed — pure arithmetic).
+    environment: 'node',
+    include: ['src/**/*.test.ts'],
+    // CSS modules aren't available in node; stub them.
+    css: false,
+  },
 });

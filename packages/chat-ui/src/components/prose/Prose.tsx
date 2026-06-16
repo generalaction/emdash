@@ -14,6 +14,7 @@ import type {
   LineLayout,
   ProseLaidOut,
 } from '../../core/layout/layout-types';
+import { BlockFrame } from '../block-frame';
 import styles from './prose.module.css';
 
 // ── Fragment ──────────────────────────────────────────────────────────────────
@@ -111,14 +112,7 @@ export type ProseProps = {
 
 export function Prose(props: ProseProps) {
   return (
-    <div
-      class={styles.pblock}
-      style={{
-        top: `${props.block.top}px`,
-        height: `${props.block.height}px`,
-        width: '100%',
-      }}
-    >
+    <BlockFrame layout={props.block}>
       <Show when={props.block.quoteRail}>
         <ProseQuoteRail left={(props.block.lines[0]?.left ?? 18) - 10} />
       </Show>
@@ -133,6 +127,6 @@ export function Prose(props: ProseProps) {
           />
         )}
       </For>
-    </div>
+    </BlockFrame>
   );
 }

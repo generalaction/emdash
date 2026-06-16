@@ -1,19 +1,9 @@
 /*
  * render-prose styles — prose block, lines, fragments, bullet, quote rail.
  *
- * Fragment fonts are driven by CSS variables set by metricsToCssVars() on the
+ * Fragment fonts are driven by CSS variables set by chatCssVars() on the
  * .pchat-transcript root. Geometry (top/left/height) comes from the layout engine.
  */
-
-/* ── Block base ───────────────────────────────────────────────────────────── */
-
-/* Absolutely positioned inside the bubble's content layer. */
-.pblock {
-  position: absolute;
-  left: 0;
-  width: 100%;
-  overflow: visible;
-}
 
 /* ── Lines ────────────────────────────────────────────────────────────────── */
 
@@ -41,7 +31,7 @@
   transform: translateY(-50%);
 }
 
-/* Variant-specific fonts — driven by CSS variables from metricsToCssVars() */
+/* Variant-specific fonts — driven by CSS variables from chatCssVars() */
 .pf--body {
   font-size: var(--chat-body-size);
   font-weight: var(--chat-body-weight);

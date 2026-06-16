@@ -1,5 +1,8 @@
 /**
- * layoutProse — compute exact line/fragment geometry for a ProseBlock.
+ * layoutProse / measureProseNaturalWidth — pure geometry for a ProseBlock.
+ *
+ * Moved here from core/layout/layout-prose.ts so that layout logic lives
+ * alongside the Prose renderer.  No DOM access; uses pretext for text shaping.
  */
 
 import {
@@ -7,12 +10,17 @@ import {
   measureRichInlineStats,
   walkRichInlineLineRanges,
 } from '@chenglou/pretext/rich-inline';
-import type { ProseBlock } from '../blocks/block-types';
-import type { FontConfig } from '../measure/fonts';
-import { getPreparedRichInline } from '../measure/pretext-cache';
-import { BLOCKQUOTE_INDENT, LIST_INDENT } from '../metrics';
-import type { BulletLayout, FragmentLayout, LineLayout, ProseLaidOut } from './layout-types';
-import { runsToRichItems } from './runs-to-rich-items';
+import type { ProseBlock } from '../../core/blocks/block-types';
+import type { FontConfig } from '../../core/measure/fonts';
+import { getPreparedRichInline } from '../../core/measure/pretext-cache';
+import { BLOCKQUOTE_INDENT, LIST_INDENT } from '../../core/metrics';
+import type {
+  BulletLayout,
+  FragmentLayout,
+  LineLayout,
+  ProseLaidOut,
+} from '../../core/layout/layout-types';
+import { runsToRichItems } from '../../core/layout/runs-to-rich-items';
 
 const UNBOUNDED_WIDTH = 1e7;
 

@@ -5,21 +5,11 @@
  * LayoutStore and virtualizer. Top offset is set via inline styles.
  */
 
-/* ── Block base ───────────────────────────────────────────────────────────── */
-
-/* Absolutely positioned inside the bubble's content layer. */
-.pblock {
-  position: absolute;
-  left: 0;
-  width: 100%;
-  overflow: visible;
-}
-
 /* ── Island block ─────────────────────────────────────────────────────────── */
 
+/* MeasuredBlockFrame provides position:absolute + left/right.
+   overflow-x:auto allows wide tables to scroll horizontally. */
 .pisland {
-  position: absolute;
-  left: 0;
   overflow-x: auto;
 }
 
