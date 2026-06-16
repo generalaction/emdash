@@ -57,6 +57,7 @@ const config: Configuration = {
   },
   linux: {
     category: 'Development',
+    icon: 'src/assets/images/emdash/emdash.png',
     target: [
       { target: 'AppImage', arch: ['x64'] },
       { target: 'deb', arch: ['x64'] },

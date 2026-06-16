@@ -64,6 +64,7 @@ const config: Configuration = {
   linux: {
     category: 'Development',
     executableName: APP_NAME_LOWER,
+    icon: 'src/assets/images/emdash/emdash-canary.png',
     target: [
       { target: 'AppImage', arch: ['x64'] },
       { target: 'deb', arch: ['x64'] },
