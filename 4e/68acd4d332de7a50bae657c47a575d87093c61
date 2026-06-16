@@ -1,0 +1,26 @@
+apps/emdash-desktop/src/renderer/features/tasks/hooks/useTaskSettings.ts
+  s_cd65effdf05b0c::t_1c8209d39a60b7 52
+apps/emdash-desktop/src/renderer/features/tasks/delete-task-modal.tsx
+  s_cd65effdf05b0c::t_fb4bae516a5885 89-92
+  s_cd65effdf05b0c::t_6bed0b3f091c53 101
+apps/emdash-desktop/src/main/core/settings/settings-registry.ts
+  s_cd65effdf05b0c::t_aadd1a9a2ba9d4 33
+apps/emdash-desktop/src/renderer/features/settings/components/TaskSettingsRows.tsx
+  s_cd65effdf05b0c::t_277c8bb8e4779f 188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "4e68acd4d332de7a50bae657c47a575d87093c61",
+  "prompts": {},
+  "sessions": {
+    "s_cd65effdf05b0c": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed057-4b29-7704-857a-8687aefa5de0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
