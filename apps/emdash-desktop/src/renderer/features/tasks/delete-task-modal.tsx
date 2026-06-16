@@ -86,6 +86,10 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
     return `${dirtyTasks.length} ${dirtyTasks.length === 1 ? 'task has' : 'tasks have'} uncommitted changes that will be lost: ${names}`;
   })();
 
+  const deleteScopeNotice = isBulk
+    ? 'Worktrees and branches for these tasks will also be deleted.'
+    : 'The worktree and branch for this task will also be deleted.';
+
   return (
     <>
       <DialogHeader showCloseButton={false}>
@@ -93,6 +97,8 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
       </DialogHeader>
       <DialogContentArea className="flex flex-col gap-4 pt-0">
         <p className="text-sm text-foreground-muted">{description}</p>
+
+        {!askWhatToDelete && <p className="text-xs text-foreground-muted">{deleteScopeNotice}</p>}
 
         {dirtyWarning && !askWhatToDelete && (
           <div className="flex items-start gap-1.5 rounded-md bg-background-warning px-3 py-2 text-xs text-foreground-warning">

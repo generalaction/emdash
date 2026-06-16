@@ -185,7 +185,7 @@ export const TaskDeleteBehaviorRow: React.FC = () => {
         <>
           <ResetToDefaultButton
             visible={taskSettings.isFieldOverridden('deleteBehavior')}
-            defaultLabel="delete both"
+            defaultLabel="ask"
             onReset={taskSettings.resetDeleteBehavior}
             disabled={taskSettings.loading || taskSettings.saving}
           />

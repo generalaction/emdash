@@ -49,7 +49,7 @@ export function useTaskSettings(): TaskSettingsModel {
     createBranchAndWorktree: tasks?.createBranchAndWorktree ?? true,
     preserveNameCapitalization: tasks?.preserveNameCapitalization ?? false,
     includeIssueContextByDefault: tasks?.includeIssueContextByDefault ?? true,
-    deleteBehavior: tasks?.deleteBehavior ?? 'delete-worktree-and-branch',
+    deleteBehavior: tasks?.deleteBehavior ?? 'ask',
     loading,
     saving,
     isFieldOverridden,
