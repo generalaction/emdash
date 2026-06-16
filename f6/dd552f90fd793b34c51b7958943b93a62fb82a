@@ -1,0 +1,19 @@
+packages/plugins/src/agents/impl/pi/plugin-file.ts
+  s_072e7dc025074f::t_9562a5b6ecff20 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "f6dd552f90fd793b34c51b7958943b93a62fb82a",
+  "prompts": {},
+  "sessions": {
+    "s_072e7dc025074f": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eceea-35b7-7911-8c80-24a18a2434f9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
