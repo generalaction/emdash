@@ -278,7 +278,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   void taskStore.updateLinkedIssue(issue ?? undefined);
                 }}
                 projectId={projectId}
-                repositoryUrl={workspace.gitRepository.issueRepositoryUrl ?? ''}
+                repositoryUrl={workspace.gitRepository.canonicalRepositoryUrl ?? ''}
                 projectPath={workspace.path}
                 excludeTaskId={taskId}
               />

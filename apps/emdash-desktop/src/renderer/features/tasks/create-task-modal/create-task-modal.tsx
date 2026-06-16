@@ -69,14 +69,14 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const { defaultBranch, isUnborn, currentBranch, repositoryWorkspaceId } =
     useProjectGitContext(selectedProjectId);
 
-  const repositoryUrl = selectedProjectId
-    ? (getGitRepositoryStore(selectedProjectId)?.pullRequestRepositoryUrl ?? undefined)
-    : undefined;
+  const repositoryStore = selectedProjectId ? getGitRepositoryStore(selectedProjectId) : undefined;
+  const pullRequestRepositoryUrl = repositoryStore?.pullRequestRepositoryUrl ?? undefined;
+  const repositoryUrl = repositoryStore?.canonicalRepositoryUrl ?? pullRequestRepositoryUrl;
 
   const projectPath = projectData?.path;
 
   const { hasAnyIssueIntegration } = useConnectedIssueProviders({ repositoryUrl, projectPath });
-  const hasPrSupport = !!repositoryUrl;
+  const hasPrSupport = !!pullRequestRepositoryUrl;
 
   const defaultLinkedType = useMemo((): LinkedType => {
     if (initialStrategy === 'from-pull-request') return 'pr';
