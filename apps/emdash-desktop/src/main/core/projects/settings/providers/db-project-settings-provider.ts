@@ -1,5 +1,4 @@
 import type { FileSystemProvider } from '@main/core/fs/types';
-import type { RepositoryGitProvider } from '@main/core/git/repository-git-provider';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
 import { remoteNameFromQualifiedRef } from '@shared/core/git/git-utils';
@@ -16,7 +15,10 @@ import {
 import { SHAREABLE_FIELD_ACCESSORS } from '@shared/core/project-settings/project-settings-fields';
 import { err, ok, type Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
-import { migrateLegacyProjectSettingsIfNeeded } from '../legacy-project-settings-migration';
+import {
+  migrateLegacyProjectSettingsIfNeeded,
+  type ProjectSettingsGitInspector,
+} from '../legacy-project-settings-migration';
 import { serializeShareableProjectSettings } from '../legacy-shareable-migration-marker';
 import { compactUndefined, parseJsonObject, readJson } from '../project-settings-json';
 import { ProjectSettingsRepository } from '../project-settings-storage';
@@ -24,7 +26,7 @@ import type { ProjectSettingsPatch, ProjectSettingsProvider } from '../provider'
 import { CONFIG_FILE } from '../sharing/workspace-config-file';
 
 export type DbProjectSettingsProviderOptions = {
-  git?: Pick<RepositoryGitProvider, 'isFileCleanlyTracked'>;
+  git?: ProjectSettingsGitInspector;
 };
 
 export abstract class DbProjectSettingsProvider implements ProjectSettingsProvider {

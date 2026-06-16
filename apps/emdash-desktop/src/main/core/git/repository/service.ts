@@ -1,4 +1,4 @@
-import type { GitRemotesModel, GitRepoUpdate, GitSequences, IGitRepository } from '@emdash/shared/git';
+import type { GitRemotesModel, GitSequences, IGitRepository } from '@emdash/shared/git';
 import type { Unsubscribe } from '@emdash/shared/lib';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type {

@@ -5,11 +5,9 @@ import { computeBaseRef } from '@emdash/shared/git';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GIT_EXECUTABLE } from '@main/core/utils/exec';
-import { HookCore } from '@main/lib/hookable';
 import type { IDisposable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import {
-  HEAD_MODE,
   toRangeString,
   toRefString,
   type Commit,
@@ -17,15 +15,12 @@ import {
   type CommitFile,
   type CreateBranchError,
   type DeleteBranchError,
-  type DiffLine,
   type DiffMode,
-  type DiffResult,
   type FetchError,
   type FetchPrForReviewError,
   type FullGitStatus,
   type GitChange,
   type GitChangeStatus,
-  type GitHeadState,
   type GitInfo,
   type GitObjectRef,
   type GitStatusFingerprint,
@@ -36,21 +31,15 @@ import {
   type PullError,
   type PushError,
   type RemoteBranch,
-  type RenameBranchError,
-  type SoftResetError,
 } from '@shared/core/git/git';
 import { DEFAULT_REMOTE_NAME } from '@shared/core/git/git-utils';
 import { err, ok, type Result } from '@shared/lib/result';
-import { type GitProvider } from '../types';
-import type { WorkspaceGitHooks } from '../workspace-git-provider';
 import { CatFileBatch } from './cat-file-batch';
 import { remoteNameForRepositoryUrl } from './git-repo-utils';
 import {
   mapStatus,
   MAX_DIFF_CONTENT_BYTES,
-  MAX_DIFF_OUTPUT_BYTES,
   MAX_REF_LIST_BYTES,
-  parseDiffLines,
   stripTrailingNewline,
 } from './git-utils';
 import {
@@ -139,21 +128,14 @@ export type HeadInfo =
  * This service is retained only for the legacy SSH adapter until SSH projects are
  * migrated onto the shared Git runtime.
  */
-export class GitService implements GitProvider, IDisposable {
+export class GitService implements IDisposable {
   private _statusInFlight: Promise<FullGitStatus> | null = null;
   private _catFile: CatFileBatch | null = null;
-  private readonly _hooks = new HookCore<WorkspaceGitHooks>((name, e) =>
-    log.error(`GitService: ${String(name)} hook error`, e)
-  );
 
   constructor(
     private readonly ctx: IExecutionContext,
     private readonly fs: FileSystemProvider
   ) {}
-
-  on<K extends keyof WorkspaceGitHooks>(name: K, handler: WorkspaceGitHooks[K]) {
-    return this._hooks.on(name, handler);
-  }
 
   dispose(): void {
     this._catFile?.dispose();
@@ -185,14 +167,9 @@ export class GitService implements GitProvider, IDisposable {
 
   async getFullStatus(): Promise<FullGitStatus> {
     if (this._statusInFlight) return this._statusInFlight;
-    this._statusInFlight = this._loadFullStatus()
-      .then((status) => {
-        this._hooks.callHookBackground('status:updated', status);
-        return status;
-      })
-      .finally(() => {
-        this._statusInFlight = null;
-      });
+    this._statusInFlight = this._loadFullStatus().finally(() => {
+      this._statusInFlight = null;
+    });
     return this._statusInFlight;
   }
 
@@ -343,65 +320,6 @@ export class GitService implements GitProvider, IDisposable {
     };
   }
 
-  async getStatus(): Promise<{ changes: GitChange[]; currentBranch: string | null }> {
-    try {
-      const full = await this.getFullStatus();
-      const byPath = new Map<string, GitChange>();
-      for (const c of full.staged) {
-        byPath.set(c.path, { ...c });
-      }
-      for (const c of full.unstaged) {
-        const prev = byPath.get(c.path);
-        if (prev) {
-          byPath.set(c.path, {
-            path: c.path,
-            status: c.status,
-            additions: prev.additions + c.additions,
-            deletions: prev.deletions + c.deletions,
-          });
-        } else {
-          byPath.set(c.path, c);
-        }
-      }
-      return { changes: [...byPath.values()], currentBranch: full.currentBranch };
-    } catch (e) {
-      if (e instanceof TooManyFilesChangedError) throw e;
-      return { changes: [], currentBranch: null };
-    }
-  }
-
-  async getStagedChanges(): Promise<{
-    changes: GitChange[];
-    totalAdded: number;
-    totalDeleted: number;
-  }> {
-    try {
-      const full = await this.getFullStatus();
-      return {
-        changes: full.staged,
-        totalAdded: full.totalAdded,
-        totalDeleted: full.totalDeleted,
-      };
-    } catch (e) {
-      if (e instanceof TooManyFilesChangedError) {
-        return { changes: [], totalAdded: 0, totalDeleted: 0 };
-      }
-      throw e;
-    }
-  }
-
-  async getUnstagedChanges(): Promise<{ changes: GitChange[] }> {
-    try {
-      const full = await this.getFullStatus();
-      return { changes: full.unstaged };
-    } catch (e) {
-      if (e instanceof TooManyFilesChangedError) {
-        return { changes: [] };
-      }
-      throw e;
-    }
-  }
-
   async stageFiles(filePaths: string[]): Promise<void> {
     if (filePaths.length === 0) return;
     await this.ctx.exec('git', ['add', '--', ...filePaths]);
@@ -478,14 +396,6 @@ export class GitService implements GitProvider, IDisposable {
       // Repo may have no commits yet; ignore.
     }
     await this.ctx.exec('git', ['clean', '-fd']);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Diffs
-  // ---------------------------------------------------------------------------
-
-  async getFileAtHead(filePath: string): Promise<string | null> {
-    return this.getFileAtRef(filePath, 'HEAD');
   }
 
   async getFileAtRef(filePath: string, ref: string): Promise<string | null> {
@@ -588,189 +498,6 @@ export class GitService implements GitProvider, IDisposable {
         });
       });
     });
-  }
-
-  async getFileDiff(
-    filePath: string,
-    base: DiffMode | GitObjectRef = HEAD_MODE
-  ): Promise<DiffResult> {
-    const diffArgs = (() => {
-      switch (base.kind) {
-        case 'staged':
-          return ['diff', '--no-color', '--unified=2000', '--cached', '--', filePath];
-        case 'head':
-          return ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath];
-        default:
-          return [
-            'diff',
-            '--no-color',
-            '--unified=2000',
-            `${toRefString(base)}...HEAD`,
-            '--',
-            filePath,
-          ];
-      }
-    })();
-
-    const isObjectRef = base.kind !== 'head' && base.kind !== 'staged';
-
-    let diffStdout: string | undefined;
-    try {
-      const { stdout } = await this.ctx.exec('git', diffArgs, {
-        maxBuffer: MAX_DIFF_OUTPUT_BYTES,
-      });
-      diffStdout = stdout;
-    } catch {}
-
-    const originalRef = isObjectRef ? toRefString(base as GitObjectRef) : 'HEAD';
-
-    const getOriginalContent = async (): Promise<string | undefined> => {
-      try {
-        const { stdout } = await this.ctx.exec('git', ['show', `${originalRef}:${filePath}`], {
-          maxBuffer: MAX_DIFF_CONTENT_BYTES,
-        });
-        return stripTrailingNewline(stdout);
-      } catch {
-        return undefined;
-      }
-    };
-
-    const getModifiedContent = async (): Promise<string | undefined> => {
-      if (isObjectRef) {
-        try {
-          const { stdout } = await this.ctx.exec('git', ['show', `HEAD:${filePath}`], {
-            maxBuffer: MAX_DIFF_CONTENT_BYTES,
-          });
-          return stripTrailingNewline(stdout);
-        } catch {
-          return undefined;
-        }
-      }
-      try {
-        const result = await this.fs.read(filePath, MAX_DIFF_CONTENT_BYTES);
-        if (result.truncated) return undefined;
-        return stripTrailingNewline(result.content);
-      } catch {
-        return undefined;
-      }
-    };
-
-    if (diffStdout !== undefined) {
-      const { lines, isBinary } = parseDiffLines(diffStdout);
-      if (isBinary) return { lines: [], isBinary: true };
-
-      const [originalContent, modifiedContent] = await Promise.all([
-        getOriginalContent(),
-        getModifiedContent(),
-      ]);
-
-      if (lines.length === 0) {
-        if (modifiedContent !== undefined) {
-          return {
-            lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
-            modifiedContent,
-          };
-        }
-        if (originalContent !== undefined) {
-          return {
-            lines: originalContent.split('\n').map((l) => ({ left: l, type: 'del' as const })),
-            originalContent,
-          };
-        }
-        return { lines: [] };
-      }
-      return { lines, originalContent, modifiedContent };
-    }
-
-    const [originalContent, modifiedContent] = await Promise.all([
-      getOriginalContent(),
-      getModifiedContent(),
-    ]);
-
-    if (modifiedContent !== undefined) {
-      return {
-        lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
-        originalContent,
-        modifiedContent,
-      };
-    }
-    if (originalContent !== undefined) {
-      return {
-        lines: originalContent.split('\n').map((l) => ({ left: l, type: 'del' as const })),
-        originalContent,
-      };
-    }
-    return { lines: [] };
-  }
-
-  async getCommitFileDiff(commitHash: string, filePath: string): Promise<DiffResult> {
-    const getContentAt = async (ref: string): Promise<string | undefined> => {
-      try {
-        const { stdout } = await this.ctx.exec('git', ['show', `${ref}:${filePath}`], {
-          maxBuffer: MAX_DIFF_CONTENT_BYTES,
-        });
-        return stripTrailingNewline(stdout);
-      } catch {
-        return undefined;
-      }
-    };
-
-    let hasParent = true;
-    try {
-      await this.ctx.exec('git', ['rev-parse', '--verify', `${commitHash}~1`]);
-    } catch {
-      hasParent = false;
-    }
-
-    if (!hasParent) {
-      const modifiedContent = await getContentAt(commitHash);
-      if (modifiedContent === undefined) return { lines: [] };
-      if (modifiedContent === '') return { lines: [], modifiedContent };
-      return {
-        lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
-        modifiedContent,
-      };
-    }
-
-    let diffStdout: string | undefined;
-    try {
-      const { stdout } = await this.ctx.exec(
-        'git',
-        ['diff', '--no-color', '--unified=2000', `${commitHash}~1`, commitHash, '--', filePath],
-        { maxBuffer: MAX_DIFF_OUTPUT_BYTES }
-      );
-      diffStdout = stdout;
-    } catch {}
-
-    let diffLines: DiffLine[] = [];
-    if (diffStdout !== undefined) {
-      const { lines, isBinary } = parseDiffLines(diffStdout);
-      if (isBinary) return { lines: [], isBinary: true };
-      diffLines = lines;
-    }
-
-    const [originalContent, modifiedContent] = await Promise.all([
-      getContentAt(`${commitHash}~1`),
-      getContentAt(commitHash),
-    ]);
-
-    if (diffLines.length > 0) return { lines: diffLines, originalContent, modifiedContent };
-
-    if (modifiedContent !== undefined && modifiedContent !== '') {
-      return {
-        lines: modifiedContent.split('\n').map((l) => ({ right: l, type: 'add' as const })),
-        originalContent,
-        modifiedContent,
-      };
-    }
-    if (originalContent !== undefined) {
-      return {
-        lines: originalContent.split('\n').map((l) => ({ left: l, type: 'del' as const })),
-        originalContent,
-        modifiedContent,
-      };
-    }
-    return { lines: [], originalContent, modifiedContent };
   }
 
   // ---------------------------------------------------------------------------
@@ -899,11 +626,6 @@ export class GitService implements GitProvider, IDisposable {
       });
 
     return { commits, aheadCount };
-  }
-
-  async getLatestCommit(): Promise<Commit | null> {
-    const { commits } = await this.getLog({ maxCount: 1 });
-    return commits[0] || null;
   }
 
   async getChangedFiles(base: DiffMode | GitObjectRef | MergeBaseRange): Promise<GitChange[]> {
@@ -1282,30 +1004,6 @@ export class GitService implements GitProvider, IDisposable {
     }
   }
 
-  async softReset(): Promise<Result<{ subject: string; body: string }, SoftResetError>> {
-    try {
-      await this.ctx.exec('git', ['rev-parse', '--verify', 'HEAD~1']);
-    } catch {
-      return err({ type: 'initial_commit' });
-    }
-
-    const { commits: log } = await this.getLog({ maxCount: 1 });
-    if (log[0]?.isPushed) {
-      return err({ type: 'already_pushed' });
-    }
-
-    try {
-      const { stdout: subject } = await this.ctx.exec('git', ['log', '-1', '--pretty=format:%s']);
-      const { stdout: body } = await this.ctx.exec('git', ['log', '-1', '--pretty=format:%b']);
-
-      await this.ctx.exec('git', ['reset', '--soft', 'HEAD~1']);
-
-      return ok({ subject: subject.trim(), body: body.trim() });
-    } catch (error: unknown) {
-      return err({ type: 'error', message: String(error) });
-    }
-  }
-
   async getCurrentBranch(): Promise<string | null> {
     const head = await this._getHeadInfo();
     return head.kind === 'detached' ? null : head.name;
@@ -1491,21 +1189,6 @@ export class GitService implements GitProvider, IDisposable {
     }
   }
 
-  async getHeadState(): Promise<GitHeadState> {
-    let headName: string | undefined;
-    try {
-      const { stdout } = await this.ctx.exec('git', ['symbolic-ref', '--quiet', '--short', 'HEAD']);
-      headName = stdout.trim() || undefined;
-    } catch {}
-
-    try {
-      await this.ctx.exec('git', ['rev-parse', '--verify', 'HEAD']);
-      return { headName, isUnborn: false };
-    } catch {
-      return { headName, isUnborn: true };
-    }
-  }
-
   async addRemote(name: string, url: string): Promise<void> {
     await this.ctx.exec('git', ['remote', 'add', name, url]);
   }
@@ -1630,22 +1313,6 @@ export class GitService implements GitProvider, IDisposable {
         stderr.includes('unknown revision')
       ) {
         return err({ type: 'not_found', prNumber });
-      }
-      return err({ type: 'error', message: stderr });
-    }
-  }
-
-  async renameBranch(
-    oldBranch: string,
-    newBranch: string
-  ): Promise<Result<void, RenameBranchError>> {
-    try {
-      await this.ctx.exec('git', ['branch', '-m', oldBranch, newBranch]);
-      return ok();
-    } catch (error: unknown) {
-      const stderr = (error as { stderr?: string })?.stderr || String(error);
-      if (stderr.includes('already exists')) {
-        return err({ type: 'already_exists', name: newBranch });
       }
       return err({ type: 'error', message: stderr });
     }
