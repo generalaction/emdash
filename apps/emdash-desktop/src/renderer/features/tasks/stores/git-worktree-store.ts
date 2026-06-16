@@ -1,4 +1,9 @@
-import type { GitChange, GitHeadModel, GitStatusModel } from '@emdash/shared/git';
+import {
+  type GitChange,
+  type GitHeadModel,
+  type GitStatusModel,
+  type GitWorktreeSnapshot,
+} from '@emdash/shared/git';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
@@ -11,8 +16,8 @@ import {
   type MirrorBindingStatus,
 } from '@renderer/lib/stores/live';
 import { gitWorktreeUpdateChannel } from '@shared/core/git/gitEvents';
-import type { GitWorktreeMutationResult } from '@shared/core/git/rpc';
-import { err, ok } from '@shared/lib/result';
+import type { GitWorktreeMutationResult, GitWorktreeSnapshotError } from '@shared/core/git/rpc';
+import { err, ok, type Result } from '@shared/lib/result';
 import {
   commitOptimistically,
   discardAllOptimistically,
@@ -38,21 +43,26 @@ export class GitWorktreeStore {
     private readonly workspaceId: string,
     private readonly gitRepositoryStore: GitRepositoryStore
   ) {
-    const snapshot = coalesce(async () => {
-      const result = await rpc.workspace.gitWorktree.getWorktreeSnapshot(
-        this.projectId,
-        this.workspaceId
-      );
-      if (!result.success) throw new Error(errorMessage(result.error));
-      return result.data;
-    });
-    const onError = (error: unknown) => {
+    const snapshot = coalesce(
+      async (): Promise<Result<GitWorktreeSnapshot, GitWorktreeSnapshotError>> => {
+        const result = await rpc.workspace.gitWorktree.getWorktreeSnapshot(
+          this.projectId,
+          this.workspaceId
+        );
+        if (!result.success) return err(result.error);
+        runInAction(() => {
+          this.syncError = null;
+        });
+        return ok(result.data);
+      }
+    );
+    const onError = (error: GitWorktreeSnapshotError) => {
       runInAction(() => {
-        this.syncError = error instanceof Error ? error.message : String(error);
+        this.syncError = error.type === 'git_error' ? error.message : error.type;
       });
     };
     this.bindings = [
-      bindMirror({
+      bindMirror<GitStatusModel, GitWorktreeSnapshotError>({
         mirror: this.status,
         subscribe: (push) =>
           events.on(gitWorktreeUpdateChannel, (payload) => {
@@ -64,10 +74,13 @@ export class GitWorktreeStore {
               });
             }
           }),
-        snapshot: async () => (await snapshot()).status,
+        snapshot: async () => {
+          const result = await snapshot();
+          return result.success ? ok(result.data.status) : err(result.error);
+        },
         onError,
       }),
-      bindMirror({
+      bindMirror<GitHeadModel, GitWorktreeSnapshotError>({
         mirror: this.head,
         subscribe: (push) =>
           events.on(gitWorktreeUpdateChannel, (payload) => {
@@ -79,7 +92,10 @@ export class GitWorktreeStore {
               });
             }
           }),
-        snapshot: async () => (await snapshot()).head,
+        snapshot: async () => {
+          const result = await snapshot();
+          return result.success ? ok(result.data.head) : err(result.error);
+        },
         onError,
       }),
     ];
@@ -315,12 +331,4 @@ export class GitWorktreeStore {
   private get effectiveStatus(): GitStatusModel | null {
     return this.optimisticStatus.value;
   }
-}
-
-function errorMessage(error: unknown): string {
-  if (error && typeof error === 'object') {
-    if ('message' in error && error.message) return String((error as { message: unknown }).message);
-    if ('type' in error) return String((error as { type: unknown }).type);
-  }
-  return String(error);
 }

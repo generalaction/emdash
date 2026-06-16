@@ -1,6 +1,7 @@
 import type { GitHeadModel, GitStatusData, GitStatusModel } from '@emdash/shared/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { gitWorktreeUpdateChannel, type GitWorktreeUpdateEvent } from '@shared/core/git/gitEvents';
+import { err } from '@shared/lib/result';
 import { GitWorktreeStore } from './git-worktree-store';
 
 const mocks = vi.hoisted(() => ({
@@ -54,6 +55,12 @@ function snapshot(statusModel: GitStatusModel, sequence = 1, generation = 1) {
       head: { value: head, sequence, generation },
     },
   };
+}
+
+async function flush(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
 }
 
 const repositoryStore = {
@@ -149,6 +156,31 @@ describe('GitWorktreeStore', () => {
 
     expect(store.stagedFileChanges.map((change) => change.path)).toEqual(['src/a.ts']);
     store.dispose();
+  });
+
+  it('handles expected snapshot errors through the store error state', async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.getWorktreeSnapshot.mockResolvedValue(
+        err({ type: 'git_error' as const, message: 'snapshot failed' })
+      );
+
+      const store = createStore();
+      store.start();
+
+      await flush();
+      expect(mocks.getWorktreeSnapshot).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(store.error).toBeUndefined();
+
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(store.error).toBe('snapshot failed');
+
+      store.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('accepts a lower sequence from a newer generation and drops stale-generation updates', async () => {

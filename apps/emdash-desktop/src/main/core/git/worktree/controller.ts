@@ -2,13 +2,20 @@ import type { DiffTarget, GitObjectRef } from '@emdash/shared/git';
 import { resolveWorkspace } from '@main/core/projects/utils';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import type { GitWorktreeCommitResult, GitWorktreeMutationResult } from '@shared/core/git/rpc';
+import type {
+  GitWorktreeCommitResult,
+  GitWorktreeMutationResult,
+  GitWorktreeSnapshotResult,
+} from '@shared/core/git/rpc';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { err, ok } from '@shared/lib/result';
 import { revertWorktreeFiles, stageWorktreeFiles, unstageWorktreeFiles } from './mutations';
 
 export const gitWorktreeController = createRPCController({
-  getWorktreeSnapshot: async (projectId: string, workspaceId: string) => {
+  getWorktreeSnapshot: async (
+    projectId: string,
+    workspaceId: string
+  ): Promise<GitWorktreeSnapshotResult> => {
     try {
       const workspace = resolveWorkspace(projectId, workspaceId);
       if (!workspace) return err({ type: 'not_found' });

@@ -1,5 +1,6 @@
 import type {
   GitBranchRef,
+  GitRepoSnapshot,
   GitRefsModel,
   GitRemote,
   GitRemotesModel,
@@ -17,7 +18,8 @@ import {
   type ConfiguredRemotes,
 } from '@shared/core/git/git-utils';
 import { gitRepoUpdateChannel } from '@shared/core/git/gitEvents';
-import type { GitDefaultBranchResult } from '@shared/core/git/rpc';
+import type { GitDefaultBranchResult, GitRepositorySnapshotError } from '@shared/core/git/rpc';
+import { err, ok, type Result } from '@shared/lib/result';
 import type { ProviderRepository, ProviderRepositoryResult } from '@shared/provider-repository';
 import { parseRepositoryRef } from '@shared/repository-ref';
 import type { ProjectSettingsStore } from './project-settings-store';
@@ -37,13 +39,15 @@ export class GitRepositoryStore {
     private readonly settingsStore: ProjectSettingsStore,
     private readonly baseRef: string
   ) {
-    const snapshot = coalesce(async () => {
-      const result = await rpc.gitRepository.getRepoSnapshot(this.projectId);
-      if (!result.success) throw new Error(result.error.type);
-      return result.data;
-    });
+    const snapshot = coalesce(
+      async (): Promise<Result<GitRepoSnapshot, GitRepositorySnapshotError>> => {
+        const result = await rpc.gitRepository.getRepoSnapshot(this.projectId);
+        if (!result.success) return err(result.error);
+        return ok(result.data);
+      }
+    );
     this.bindings = [
-      bindMirror({
+      bindMirror<GitRefsModel, GitRepositorySnapshotError>({
         mirror: this.refs,
         subscribe: (push) =>
           events.on(gitRepoUpdateChannel, (payload) => {
@@ -55,9 +59,12 @@ export class GitRepositoryStore {
               });
             }
           }),
-        snapshot: async () => (await snapshot()).refs,
+        snapshot: async () => {
+          const result = await snapshot();
+          return result.success ? ok(result.data.refs) : err(result.error);
+        },
       }),
-      bindMirror({
+      bindMirror<GitRemotesModel, GitRepositorySnapshotError>({
         mirror: this.remotesModel,
         subscribe: (push) =>
           events.on(gitRepoUpdateChannel, (payload) => {
@@ -69,7 +76,10 @@ export class GitRepositoryStore {
               });
             }
           }),
-        snapshot: async () => (await snapshot()).remotes,
+        snapshot: async () => {
+          const result = await snapshot();
+          return result.success ? ok(result.data.remotes) : err(result.error);
+        },
       }),
     ];
 

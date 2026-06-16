@@ -1,8 +1,15 @@
-import type { CommitError, GitSequences } from '@emdash/shared/git';
+import type {
+  CommitError,
+  GitRepoSnapshot,
+  GitSequences,
+  GitWorktreeSnapshot,
+} from '@emdash/shared/git';
 import type { Result } from '@shared/lib/result';
 
 export type GitRepositoryNotFoundError = { type: 'not_found' };
 export type GitRepositoryGitError = { type: 'git_error'; message: string };
+export type GitRepositorySnapshotError = GitRepositoryNotFoundError | GitRepositoryGitError;
+export type GitRepositorySnapshotResult = Result<GitRepoSnapshot, GitRepositorySnapshotError>;
 
 export type GitDefaultBranchResult = Result<
   { defaultBranch: string },
@@ -11,7 +18,9 @@ export type GitDefaultBranchResult = Result<
 
 export type GitWorktreeNotFoundError = { type: 'not_found' };
 export type GitWorktreeGitError = { type: 'git_error'; message: string };
+export type GitWorktreeSnapshotError = GitWorktreeNotFoundError | GitWorktreeGitError;
 export type GitWorktreeMutationError = GitWorktreeNotFoundError | GitWorktreeGitError;
+export type GitWorktreeSnapshotResult = Result<GitWorktreeSnapshot, GitWorktreeSnapshotError>;
 
 export type GitWorktreeMutationData = {
   sequences: GitSequences;

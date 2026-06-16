@@ -1,5 +1,6 @@
 import type { LiveValue, Unsubscribe } from '@emdash/shared/lib';
 import { makeObservable, observable, runInAction } from 'mobx';
+import type { Result } from '@shared/lib/result';
 import type { ModelMirror } from './model-mirror';
 
 export type MirrorBindingStatus =
@@ -22,14 +23,15 @@ export type MirrorBinding = {
 const RETRY_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
 const ERROR_AFTER_FAILURES = 3;
 
-export type BindMirrorOptions<T> = {
+export type BindMirrorOptions<T, E = unknown> = {
   mirror: ModelMirror<T>;
   subscribe: (push: (value: LiveValue<T>) => void) => Unsubscribe;
-  snapshot: () => Promise<LiveValue<T>>;
-  onError?: (error: unknown) => void;
+  snapshot: () => Promise<Result<LiveValue<T>, E>>;
+  onError?: (error: E) => void;
+  onUnexpectedError?: (error: unknown) => void;
 };
 
-class MirrorBindingImpl<T> implements MirrorBinding {
+class MirrorBindingImpl<T, E> implements MirrorBinding {
   status: MirrorBindingStatus = 'idle';
 
   private started = false;
@@ -39,7 +41,7 @@ class MirrorBindingImpl<T> implements MirrorBinding {
   private inFlight: Promise<void> | null = null;
   private runId = 0;
 
-  constructor(private readonly opts: BindMirrorOptions<T>) {
+  constructor(private readonly opts: BindMirrorOptions<T, E>) {
     makeObservable(this, { status: observable });
   }
 
@@ -78,19 +80,34 @@ class MirrorBindingImpl<T> implements MirrorBinding {
 
   private async loadSnapshot(runId: number): Promise<void> {
     try {
-      const value = await this.opts.snapshot();
+      const result = await this.opts.snapshot();
       if (runId !== this.runId || !this.started) return;
-      this.opts.mirror.setSnapshot(value);
+      if (!result.success) {
+        this.recordSnapshotFailure(result.error);
+        return;
+      }
+      this.opts.mirror.setSnapshot(result.data);
       this.markLive();
     } catch (error) {
       if (runId !== this.runId || !this.started) return;
-      this.failures += 1;
-      if (this.failures >= ERROR_AFTER_FAILURES) this.setStatus('error');
-      this.opts.onError?.(error);
-      this.scheduleRetry();
+      this.recordUnexpectedSnapshotFailure(error);
     } finally {
       if (runId === this.runId) this.inFlight = null;
     }
+  }
+
+  private recordSnapshotFailure(error: E): void {
+    this.failures += 1;
+    if (this.failures >= ERROR_AFTER_FAILURES) this.setStatus('error');
+    this.opts.onError?.(error);
+    this.scheduleRetry();
+  }
+
+  private recordUnexpectedSnapshotFailure(error: unknown): void {
+    this.failures += 1;
+    if (this.failures >= ERROR_AFTER_FAILURES) this.setStatus('error');
+    this.opts.onUnexpectedError?.(error);
+    this.scheduleRetry();
   }
 
   private markLive(): void {
@@ -123,6 +140,6 @@ class MirrorBindingImpl<T> implements MirrorBinding {
   }
 }
 
-export function bindMirror<T>(opts: BindMirrorOptions<T>): MirrorBinding {
+export function bindMirror<T, E = unknown>(opts: BindMirrorOptions<T, E>): MirrorBinding {
   return new MirrorBindingImpl(opts);
 }

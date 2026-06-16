@@ -1,4 +1,5 @@
 import { telemetryService } from '@main/lib/telemetry';
+import type { GitRepositorySnapshotResult } from '@shared/core/git/rpc';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { err, ok } from '@shared/lib/result';
 import { projectManager } from '../../projects/project-manager';
@@ -6,7 +7,7 @@ import { providerRepositoryService } from '../../repository/provider-repository-
 import { workspaceRegistry } from '../../workspaces/workspace-registry';
 
 export const gitRepositoryController = createRPCController({
-  getRepoSnapshot: async (projectId: string) => {
+  getRepoSnapshot: async (projectId: string): Promise<GitRepositorySnapshotResult> => {
     const project = projectManager.getProject(projectId);
     if (!project) return err({ type: 'not_found' as const });
     try {

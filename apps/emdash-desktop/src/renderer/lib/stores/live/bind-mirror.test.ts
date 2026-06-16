@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { err, ok, type Result } from '@shared/lib/result';
 import { bindMirror } from './bind-mirror';
 import { ModelMirror } from './model-mirror';
 
 function value(v: number, sequence: number, generation = 1) {
   return { value: v, sequence, generation };
 }
+
+type NumberSnapshotResult = Result<ReturnType<typeof value>, never>;
 
 async function flush(): Promise<void> {
   await Promise.resolve();
@@ -33,7 +36,7 @@ describe('bindMirror', () => {
     const binding = bindMirror({
       mirror,
       subscribe: () => () => {},
-      snapshot: async () => value(10, 1),
+      snapshot: async () => ok(value(10, 1)),
     });
     expect(binding.status).toBe('idle');
 
@@ -56,7 +59,7 @@ describe('bindMirror', () => {
       snapshot: async () => {
         attempts += 1;
         if (attempts < 4) throw new Error('nope');
-        return value(7, 1);
+        return ok(value(7, 1));
       },
     });
 
@@ -101,25 +104,51 @@ describe('bindMirror', () => {
     binding.dispose();
   });
 
-  it('forwards snapshot errors to onError', async () => {
-    const onError = vi.fn();
+  it('forwards thrown snapshot errors to onUnexpectedError', async () => {
+    const onUnexpectedError = vi.fn();
     const binding = bindMirror({
       mirror: new ModelMirror<number>(),
       subscribe: () => () => {},
       snapshot: async () => {
         throw new Error('kaboom');
       },
-      onError,
+      onUnexpectedError,
     });
     binding.start();
     await flush();
-    expect(onError).toHaveBeenCalledOnce();
+    expect(onUnexpectedError).toHaveBeenCalledOnce();
+    binding.dispose();
+  });
+
+  it('retries result snapshot errors and reports them through onError', async () => {
+    const onError = vi.fn();
+    let attempts = 0;
+    const binding = bindMirror({
+      mirror: new ModelMirror<number>(),
+      subscribe: () => () => {},
+      snapshot: async () => {
+        attempts += 1;
+        return err('not ready');
+      },
+      onError,
+    });
+
+    binding.start();
+    await flush();
+    expect(attempts).toBe(1);
+    expect(onError).toHaveBeenLastCalledWith('not ready');
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(attempts).toBe(2);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(attempts).toBe(3);
+    expect(binding.status).toBe('error');
     binding.dispose();
   });
 
   it('does not resync while idle', async () => {
     const mirror = new ModelMirror<number>();
-    const snapshot = vi.fn(async () => value(10, 1));
+    const snapshot = vi.fn(async () => ok(value(10, 1)));
     const binding = bindMirror({
       mirror,
       subscribe: () => () => {},
@@ -135,10 +164,10 @@ describe('bindMirror', () => {
 
   it('starts a fresh snapshot after dispose and restart while the previous snapshot is pending', async () => {
     const mirror = new ModelMirror<number>();
-    const first = deferred<ReturnType<typeof value>>();
-    const second = deferred<ReturnType<typeof value>>();
+    const first = deferred<NumberSnapshotResult>();
+    const second = deferred<NumberSnapshotResult>();
     const snapshot = vi
-      .fn<() => Promise<ReturnType<typeof value>>>()
+      .fn<() => Promise<NumberSnapshotResult>>()
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise);
     const binding = bindMirror({
@@ -154,12 +183,12 @@ describe('bindMirror', () => {
     binding.start();
     expect(snapshot).toHaveBeenCalledTimes(2);
 
-    first.resolve(value(100, 1));
+    first.resolve(ok(value(100, 1)));
     await flush();
     expect(mirror.value).toBeNull();
     expect(binding.status).toBe('syncing');
 
-    second.resolve(value(200, 1));
+    second.resolve(ok(value(200, 1)));
     await flush();
     expect(mirror.value).toBe(200);
     expect(binding.status).toBe('live');
