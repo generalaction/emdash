@@ -474,10 +474,14 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     config: {
       type: 'http',
       url: 'https://api.devrev.ai/mcp/v1',
+      headers: {
+        Authorization: 'Bearer YOUR_PAT',
+      },
     },
     name: 'DevRev',
     description: "Search and update your company's knowledge graph",
-    docsUrl: 'https://support.devrev.ai/en-US/devrev/article/ART-21859-remote-mcp-server',
-    credentialKeys: [],
+    docsUrl:
+      'https://support.devrev.ai/en-US/devrev/article/ZNqaZTsx-devrev-mcp-server-connect-your-ai-coding-assistant',
+    credentialKeys: [{ key: 'Authorization', required: false }],
   },
 };
