@@ -2,7 +2,7 @@ import './app/configure-app-identity';
 import { join } from 'node:path';
 import { config as dotenvConfig } from 'dotenv';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
-import dockIcon from '@/assets/images/emdash/icon-dock.png?asset';
+import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { githubAccountsChangedChannel } from '@shared/events/githubEvents';
 import { registerRPCRouter } from '@shared/lib/ipc/rpc';
@@ -72,7 +72,7 @@ if (!import.meta.env.DEV && !app.requestSingleInstanceLock()) {
 
 if (import.meta.env.DEV) {
   try {
-    app.dock?.setIcon(dockIcon);
+    app.dock?.setIcon(devIcon);
   } catch (err) {
     log.warn('Failed to set dock icon:', err);
   }
