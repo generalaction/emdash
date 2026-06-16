@@ -1,5 +1,6 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
 import { buildStandardCommand, npmDependency } from '@emdash/shared/agents/plugins/helpers';
+import { buildCommandCodeHookConfig } from './hooks';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -18,7 +19,9 @@ export const plugin = definePlugin(
       kind: 'none',
     },
     hooks: {
-      kind: 'none',
+      kind: 'config',
+      scope: 'workspace',
+      supportedEvents: ['session'],
     },
     hostDependency: npmDependency({
       id: 'commandcode',
@@ -56,7 +59,7 @@ export const provider = registerPluginBehavior(plugin, {
         resumeFlag: '--resume',
         sessionIdFlag: '--resume',
         sessionIdOnResumeOnly: true,
-        resumeWithoutSessionFlag: '-c',
       }),
   },
+  hooks: buildCommandCodeHookConfig(),
 });

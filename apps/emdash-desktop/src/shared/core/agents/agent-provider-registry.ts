@@ -308,11 +308,11 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '--resume',
     sessionIdFlag: '--resume',
     sessionIdOnResumeOnly: true,
-    resumeWithoutSessionFlag: '-c',
     planActivateCommand: '/plan',
     icon: 'commandcode.svg',
     alt: 'Command Code CLI',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'opencode',
