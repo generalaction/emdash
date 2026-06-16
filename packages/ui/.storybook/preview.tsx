@@ -5,7 +5,7 @@ import './theme.css';
 const COLOR_MODES = ['emlight', 'emdark'] as const;
 type ColorMode = (typeof COLOR_MODES)[number];
 
-const SURFACE_FAMILIES = ['none', 'app', 'secondary', 'tertiary', 'quaternary'] as const;
+const SURFACE_FAMILIES = ['none', 'sunken', 'base', 'raised', 'overlay', 'floating'] as const;
 type SurfaceFamily = (typeof SURFACE_FAMILIES)[number];
 
 const withTheme: Decorator = (Story, context) => {
