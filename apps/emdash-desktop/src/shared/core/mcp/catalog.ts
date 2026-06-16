@@ -366,7 +366,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Webflow',
     description: 'Manage Webflow CMS, pages, assets and sites',
-    docsUrl: 'https://developers.webflow.com/mcp/v1.0.0/reference/overview',
+    docsUrl: 'https://developers.webflow.com/mcp/reference/overview',
     credentialKeys: [],
   },
   cloudinary: {
