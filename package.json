@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm -r run dev",
+    "dev": "pnpm --filter @emdash/emdash-desktop dev",
+    "dev:all": "pnpm -r run dev",
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
     "lint": "pnpm -r run lint",
