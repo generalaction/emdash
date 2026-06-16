@@ -96,16 +96,6 @@ export class ChatStore {
   /** Bound chat-ui transcript — set when the ChatTranscript component mounts. */
   private _transcript: TranscriptApi | null = null;
 
-  /**
-   * Accumulated thinking text keyed by thinking-id.
-   * upsertThinking() takes full text (not deltas), so we accumulate here then pass
-   * the growing string on each chunk.
-   */
-  private _thinkingTextMap = new Map<string, string>();
-
-  /** Epoch ms when the first thought chunk of the current turn arrived. */
-  private _thinkingStartedAt: number | null = null;
-
   constructor(conversationId: string, projectId: string, taskId: string, initialModel?: string) {
     this._conversationId = conversationId;
     this._projectId = projectId;
@@ -156,8 +146,6 @@ export class ChatStore {
           if (payload.phase === 'start') {
             this.items = [];
             this._streamKeyMap.clear();
-            this._thinkingTextMap.clear();
-            this._thinkingStartedAt = null;
             this.isClosed = false;
             this._transcript?.reset();
           } else {
@@ -202,8 +190,8 @@ export class ChatStore {
       text,
       streaming: false,
     });
-    this._transcript?.appendMessageChunk('user', userId, text);
-    this._transcript?.finalizeTurn();
+    this._transcript?.dispatch({ type: 'message_chunk', role: 'user', id: userId, text });
+    this._transcript?.dispatch({ type: 'turn_done' });
 
     void rpc.acp
       .prompt(this._conversationId, text)
@@ -274,26 +262,24 @@ export class ChatStore {
       const existing = this._streamKeyMap.get(streamKey);
       if (existing) {
         existing.text += text;
-        this._transcript?.appendMessageChunk(role, messageId, text);
-        return;
+      } else {
+        const created = this._pushMessage(role, text);
+        this._streamKeyMap.set(streamKey, created);
       }
-      const created = this._pushMessage(role, text);
-      this._streamKeyMap.set(streamKey, created);
-      this._transcript?.appendMessageChunk(role, messageId, text);
+      this._transcript?.dispatch({ type: 'message_chunk', role, id: messageId, text });
       return;
     }
 
     // No messageId: append to the trailing bubble if it's the same role and still
     // streaming; otherwise start a new bubble.
     const last = this.items.at(-1);
-    const syntheticId = `${role}-${Date.now()}-${Math.random()}`;
     if (last && last.kind === 'message' && last.role === role && last.streaming) {
       last.text += text;
-      this._transcript?.appendMessageChunk(role, last.id, text);
+      this._transcript?.dispatch({ type: 'message_chunk', role, id: last.id, text });
       return;
     }
-    this._pushMessage(role, text);
-    this._transcript?.appendMessageChunk(role, syntheticId, text);
+    const created = this._pushMessage(role, text);
+    this._transcript?.dispatch({ type: 'message_chunk', role, id: created.id, text });
   }
 
   private _appendThinkingChunk(
@@ -303,7 +289,7 @@ export class ChatStore {
       chunk.content.type === 'text' ? ((chunk.content as { text?: string }).text ?? '') : '';
     const thinkingId = chunk.messageId ?? `thought-${Date.now()}`;
 
-    // Mirror into items[] as a legacy thought message for hydration fallback.
+    // Mirror into items[] as a legacy thought message for seed() hydration.
     const streamKey = `thought:${thinkingId}`;
     const existing = this._streamKeyMap.get(streamKey);
     if (existing) {
@@ -313,18 +299,8 @@ export class ChatStore {
       this._streamKeyMap.set(streamKey, created);
     }
 
-    // Drive TranscriptApi with full accumulated text (upsertThinking is not delta).
-    const accumulated = (this._thinkingTextMap.get(thinkingId) ?? '') + text;
-    this._thinkingTextMap.set(thinkingId, accumulated);
-    if (this._thinkingStartedAt === null) {
-      this._thinkingStartedAt = Date.now();
-    }
-    this._transcript?.upsertThinking({
-      id: thinkingId,
-      text: accumulated,
-      status: 'thinking',
-      startedAt: this._thinkingStartedAt,
-    });
+    // The transcript reducer owns startedAt and text accumulation — just dispatch the delta.
+    this._transcript?.dispatch({ type: 'thinking_chunk', id: thinkingId, text });
   }
 
   private _pushMessage(
@@ -358,6 +334,13 @@ export class ChatStore {
       if (patch.toolName !== undefined) existing.toolName = patch.toolName;
       if (patch.status !== undefined) existing.status = patch.status;
       if (patch.inputSummary !== undefined) existing.inputSummary = patch.inputSummary;
+      this._transcript?.dispatch({
+        type: 'tool_update',
+        id: patch.toolCallId,
+        status: patch.status,
+        name: patch.toolName,
+        inputSummary: patch.inputSummary,
+      });
     } else {
       this.items.push({
         kind: 'tool',
@@ -367,13 +350,13 @@ export class ChatStore {
         status: patch.status ?? 'running',
         inputSummary: patch.inputSummary,
       });
+      this._transcript?.dispatch({
+        type: 'tool_start',
+        id: patch.toolCallId,
+        name: patch.toolName ?? '(tool)',
+        inputSummary: patch.inputSummary,
+      });
     }
-    this._transcript?.upsertTool({
-      id: patch.toolCallId,
-      name: patch.toolName ?? '(tool)',
-      status: patch.status ?? 'running',
-      inputSummary: patch.inputSummary,
-    });
   }
 
   /** Marks all streaming message bubbles as settled and commits the active turn. */
@@ -382,9 +365,7 @@ export class ChatStore {
       if (item.kind === 'message') item.streaming = false;
     }
     this._streamKeyMap.clear();
-    this._thinkingTextMap.clear();
-    this._thinkingStartedAt = null;
-    this._transcript?.finalizeTurn();
+    this._transcript?.dispatch({ type: 'turn_done' });
   }
 
   private _summarizeInput(input: unknown): string | undefined {

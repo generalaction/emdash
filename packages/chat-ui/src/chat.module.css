@@ -28,11 +28,14 @@
   left: 0;
   width: 100%;
   will-change: transform;
-  content-visibility: auto;
-  /* Placeholder size for rows skipped by content-visibility, so the browser
-     doesn't have to lay them out to discover their height. */
-  contain-intrinsic-size: auto 60px;
   /* Isolate paint/layout/style recalc within each row. NOT `contain: size`
-     so offsetHeight measurements remain correct. */
+     so offsetHeight measurements remain correct.
+
+     NB: `content-visibility: auto` is intentionally NOT used here. The JS
+     virtualizer already keeps only visible + overscan rows in the DOM, so
+     browser-level culling is redundant — and it actively broke tall rows: a
+     message taller than the `contain-intrinsic-size` placeholder whose top sat
+     above the viewport was judged off-screen and left blank until its top edge
+     scrolled into view. */
   contain: layout paint style;
 }

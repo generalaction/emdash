@@ -35,12 +35,15 @@ function streamChunks(chunks: string[], delayMs = 120): ScriptStep[] {
     steps.push({
       kind: 'call',
       fn: (api: TranscriptApi) => {
-        api.appendMessageChunk('assistant', 'stream-1', chunk);
+        api.dispatch({ type: 'message_chunk', role: 'assistant', id: 'stream-1', text: chunk });
       },
     });
   }
   steps.push({ kind: 'wait', ms: 500 });
-  steps.push({ kind: 'call', fn: (api: TranscriptApi) => api.finalizeTurn() });
+  steps.push({
+    kind: 'call',
+    fn: (api: TranscriptApi) => api.dispatch({ type: 'turn_done' }),
+  });
   return steps;
 }
 
@@ -96,14 +99,15 @@ export const StreamingWithThinking: Story = {
         kind: 'call',
         fn: (api: TranscriptApi) => {
           api.seed([{ kind: 'message', id: 'u1', role: 'user', text: 'Optimize this function' }]);
-          api.upsertThinking({ id: 'th1', status: 'thinking', startedAt: Date.now() });
+          api.dispatch({ type: 'thinking_chunk', id: 'th1', text: '' });
         },
       },
       { kind: 'wait', ms: 500 },
       {
         kind: 'call',
         fn: (api: TranscriptApi) => {
-          api.upsertThinking({
+          api.dispatch({
+            type: 'thinking_chunk',
             id: 'th1',
             text: 'Looking at the function...\nIt has O(n²) complexity due to nested loops.',
           });
@@ -113,7 +117,7 @@ export const StreamingWithThinking: Story = {
       {
         kind: 'call',
         fn: (api: TranscriptApi) => {
-          api.upsertThinking({ id: 'th1', status: 'done', durationMs: 1700 });
+          api.dispatch({ type: 'thinking_done', id: 'th1', durationMs: 1700 });
         },
       },
       { kind: 'wait', ms: 200 },

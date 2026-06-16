@@ -201,6 +201,10 @@ export function ChatRoot(props: ChatRootProps) {
     };
 
     const onScroll = () => {
+      // Ignore events fired while the element is detached (display:none resets
+      // scrollTop to 0 without firing a real user scroll; let the saved signal
+      // remain authoritative so the virtualizer position is preserved).
+      if (scrollEl.offsetParent === null) return;
       // Ignore the event we triggered ourselves during anchor correction;
       // the scrollTop signal was already updated synchronously there.
       if (programmaticScroll) {

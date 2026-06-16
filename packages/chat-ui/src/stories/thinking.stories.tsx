@@ -92,21 +92,22 @@ export const TransitionToDone: Story = {
       {
         kind: 'call',
         fn: (api: TranscriptApi) => {
-          api.upsertThinking({ id: 'th1', status: 'thinking', startedAt: Date.now() - 5000 });
+          // Start thinking with a past startedAt so the live timer shows ~5s elapsed.
+          api.dispatch({ type: 'thinking_chunk', id: 'th1', text: '', startedAt: Date.now() - 5000 });
         },
       },
       { kind: 'wait', ms: 200 },
       {
         kind: 'call',
         fn: (api: TranscriptApi) => {
-          api.upsertThinking({ id: 'th1', text: THINKING_TEXT });
+          api.dispatch({ type: 'thinking_chunk', id: 'th1', text: THINKING_TEXT });
         },
       },
       { kind: 'wait', ms: 1500 },
       {
         kind: 'call',
         fn: (api: TranscriptApi) => {
-          api.upsertThinking({ id: 'th1', status: 'done', durationMs: 6500 });
+          api.dispatch({ type: 'thinking_done', id: 'th1', durationMs: 6500 });
         },
       },
     ];
