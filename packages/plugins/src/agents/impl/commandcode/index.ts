@@ -23,7 +23,7 @@ export const plugin = definePlugin(
     hostDependency: npmDependency({
       id: 'commandcode',
       package: 'command-code',
-      binaryNames: ['command-code'],
+      binaryNames: ['cmd', 'command-code'],
       versionSuffix: '@latest',
     }),
     mcp: {
@@ -53,7 +53,10 @@ export const provider = registerPluginBehavior(plugin, {
         defaultArgs: ['--trust', '--skip-onboarding'],
         autoApproveFlag: '--yolo',
         initialPromptFlag: '',
-        resumeFlag: '--continue',
+        resumeFlag: '--resume',
+        sessionIdFlag: '--resume',
+        sessionIdOnResumeOnly: true,
+        resumeWithoutSessionFlag: '-c',
       }),
   },
 });
