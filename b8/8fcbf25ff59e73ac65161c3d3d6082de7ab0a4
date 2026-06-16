@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/tasks/view/pane-content.tsx
+  s_90f73dc3514a23::t_74bec05ed0dce4 3,5,26-30,45-52
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_90f73dc3514a23::t_ef58de13450b38 20-26,88,90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "b88fcbf25ff59e73ac65161c3d3d6082de7ab0a4",
+  "prompts": {},
+  "sessions": {
+    "s_90f73dc3514a23": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed166-4220-7318-835d-6d010594e755",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
