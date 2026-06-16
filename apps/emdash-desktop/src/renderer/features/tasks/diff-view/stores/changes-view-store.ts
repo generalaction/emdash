@@ -160,8 +160,10 @@ export class ChangesViewStore {
     }
   }
 
-  clearUnstagedSelection(): void {
-    this.unstagedSelection.clear();
+  removeUnstagedSelection(paths: readonly string[]): void {
+    for (const path of paths) {
+      this.unstagedSelection.delete(path);
+    }
   }
 
   toggleStagedItem(path: string): void {
@@ -182,8 +184,10 @@ export class ChangesViewStore {
     }
   }
 
-  clearStagedSelection(): void {
-    this.stagedSelection.clear();
+  removeStagedSelection(paths: readonly string[]): void {
+    for (const path of paths) {
+      this.stagedSelection.delete(path);
+    }
   }
 
   toggleExpanded(section: keyof ExpandedSections): void {

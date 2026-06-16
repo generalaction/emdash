@@ -88,8 +88,9 @@ function movePaths(
 ): GitStatusData {
   const pathSet = new Set(paths);
   const moving = status[from].filter((change) => pathSet.has(change.path));
+  const movingPaths = new Set(moving.map((change) => change.path));
   const nextFrom = status[from].filter((change) => !pathSet.has(change.path));
-  const existingTarget = status[to].filter((change) => !pathSet.has(change.path));
+  const existingTarget = status[to].filter((change) => !movingPaths.has(change.path));
   const next = {
     ...status,
     [from]: nextFrom,

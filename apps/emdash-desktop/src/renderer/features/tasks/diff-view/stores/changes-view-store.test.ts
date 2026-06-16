@@ -112,4 +112,44 @@ describe('ChangesViewStore expanded sections', () => {
       pullRequests: false,
     });
   });
+
+  it('removes only completed unstaged paths so newer selections survive', () => {
+    const { git, store } = createStore();
+
+    runInAction(() =>
+      git.setStatus({
+        unstaged: [change('src/a.ts'), change('src/b.ts'), change('src/c.ts')],
+        staged: [],
+      })
+    );
+
+    store.toggleUnstagedItem('src/a.ts');
+    store.toggleUnstagedItem('src/b.ts');
+
+    // The user selects another file while staging a.ts is still in flight.
+    store.toggleUnstagedItem('src/c.ts');
+    store.removeUnstagedSelection(['src/a.ts']);
+
+    expect([...store.unstagedSelection]).toEqual(['src/b.ts', 'src/c.ts']);
+  });
+
+  it('removes only completed staged paths so newer selections survive', () => {
+    const { git, store } = createStore();
+
+    runInAction(() =>
+      git.setStatus({
+        unstaged: [],
+        staged: [change('src/a.ts'), change('src/b.ts'), change('src/c.ts')],
+      })
+    );
+
+    store.toggleStagedItem('src/a.ts');
+    store.toggleStagedItem('src/b.ts');
+
+    // The user selects another file while unstaging a.ts is still in flight.
+    store.toggleStagedItem('src/c.ts');
+    store.removeStagedSelection(['src/a.ts']);
+
+    expect([...store.stagedSelection]).toEqual(['src/b.ts', 'src/c.ts']);
+  });
 });

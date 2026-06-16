@@ -87,7 +87,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
             toast.error(`Failed to discard changes: ${formatErrorType(result.error)} `);
             return;
           }
-          changesView.clearUnstagedSelection();
+          changesView.removeUnstagedSelection(paths);
         })();
       },
     });
@@ -114,7 +114,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
         toast.error(`Failed to stage changes: ${formatErrorType(result.error)} `);
         return;
       }
-      changesView.clearUnstagedSelection();
+      changesView.removeUnstagedSelection(paths);
     });
   };
 

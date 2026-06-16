@@ -1,5 +1,7 @@
 import type { GitChange, GitStatusData, GitStatusModel } from '@emdash/shared/git';
 import { describe, expect, it } from 'vitest';
+import { ModelMirror, OptimisticModel } from '@renderer/lib/stores/live';
+import { ok, type Result } from '@shared/lib/result';
 import {
   commitOptimistically,
   discardAllOptimistically,
@@ -33,6 +35,10 @@ function status({
     stagedAdded: staged.reduce((sum, change) => sum + change.additions, 0),
     stagedDeleted: staged.reduce((sum, change) => sum + change.deletions, 0),
   };
+}
+
+function liveStatus(model: GitStatusModel, sequence: number, generation = 1) {
+  return { value: model, sequence, generation };
 }
 
 describe('git status optimistic updates', () => {
@@ -146,5 +152,51 @@ describe('git status optimistic updates', () => {
     expect(discardFilesOptimistically(model, ['src/a.ts'])).toBe(model);
     expect(discardAllOptimistically(model)).toBe(model);
     expect(commitOptimistically(model)).toBe(model);
+  });
+
+  it('keeps staged paths visible when live status catches up before the mutation result', async () => {
+    const mirror = new ModelMirror<GitStatusModel>();
+    mirror.setSnapshot(
+      liveStatus(status({ unstaged: [change('src/a.ts'), change('src/b.ts')] }), 1)
+    );
+    const optimistic = new OptimisticModel<GitStatusModel>(mirror);
+
+    let resolveMutation!: (result: Result<{ sequence: number }, never>) => void;
+    const run = optimistic.run(
+      (model) => stageFilesOptimistically(model, ['src/a.ts']),
+      () =>
+        new Promise<Result<{ sequence: number }, never>>((resolve) => {
+          resolveMutation = resolve;
+        }),
+      (data) => data.sequence
+    );
+
+    expect(optimistic.value).toEqual(
+      status({
+        staged: [change('src/a.ts')],
+        unstaged: [change('src/b.ts')],
+      })
+    );
+
+    mirror.applyUpdate(
+      liveStatus(status({ staged: [change('src/a.ts')], unstaged: [change('src/b.ts')] }), 2)
+    );
+
+    expect(optimistic.value).toEqual(
+      status({
+        staged: [change('src/a.ts')],
+        unstaged: [change('src/b.ts')],
+      })
+    );
+
+    resolveMutation(ok({ sequence: 2 }));
+    await run;
+
+    expect(optimistic.value).toEqual(
+      status({
+        staged: [change('src/a.ts')],
+        unstaged: [change('src/b.ts')],
+      })
+    );
   });
 });

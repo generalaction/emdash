@@ -76,7 +76,7 @@ export const StagedSection = observer(function StagedSection() {
         toast.error(`Failed to unstage changes: ${formatErrorType(result.error)} `);
         return;
       }
-      changesView.clearStagedSelection();
+      changesView.removeStagedSelection(paths);
     });
   };
 
