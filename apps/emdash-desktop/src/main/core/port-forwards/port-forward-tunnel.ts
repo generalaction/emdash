@@ -14,6 +14,7 @@ export type OpenPortForwardTunnelOptions = {
   proxy: Pick<SshClientProxy, 'client' | 'isConnected'>;
   remotePort: number;
   preferredLocalPort?: number;
+  onConnectionError?: (error: Error) => void;
 };
 
 export async function openPortForwardTunnel(
@@ -37,6 +38,7 @@ function bindTunnel(
   const server = net.createServer((socket) => {
     sockets.add(socket);
     socket.on('close', () => sockets.delete(socket));
+    socket.on('error', () => {});
     forwardSocket(socket, options);
   });
 
@@ -90,12 +92,16 @@ function forwardSocket(socket: net.Socket, options: OpenPortForwardTunnelOptions
     options.remotePort,
     (error: Error | undefined, channel: ClientChannel) => {
       if (error) {
-        socket.destroy(error);
+        options.onConnectionError?.(error);
+        socket.destroy();
         return;
       }
 
       socket.on('error', () => channel.destroy());
-      channel.on('error', () => socket.destroy());
+      channel.on('error', (error: Error) => {
+        options.onConnectionError?.(error);
+        socket.destroy();
+      });
       socket.pipe(channel).pipe(socket);
     }
   );

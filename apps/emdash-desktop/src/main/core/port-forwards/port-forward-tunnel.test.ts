@@ -48,6 +48,29 @@ function makeProxy() {
   };
 }
 
+function makeRejectingProxy(error: Error) {
+  return {
+    proxy: {
+      get isConnected() {
+        return true;
+      },
+      get client() {
+        return {
+          forwardOut(
+            _sourceHost: string,
+            _sourcePort: number,
+            _remoteHost: string,
+            _remotePort: number,
+            callback: (error: Error | undefined, channel: ClientChannel) => void
+          ) {
+            callback(error, undefined as unknown as ClientChannel);
+          },
+        } as SshClientProxy['client'];
+      },
+    } satisfies Pick<SshClientProxy, 'client' | 'isConnected'>,
+  };
+}
+
 function listen(server: net.Server): Promise<number> {
   return new Promise((resolve, reject) => {
     server.once('error', reject);
@@ -80,6 +103,20 @@ function roundTrip(port: number, payload: string): Promise<string> {
     });
     socket.on('end', () => resolve(data));
     socket.on('error', reject);
+    socket.on('timeout', () => {
+      socket.destroy();
+      reject(new Error('socket timed out'));
+    });
+  });
+}
+
+function connectUntilClosed(port: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const socket = net.createConnection({ host: '127.0.0.1', port });
+    socket.setTimeout(1000);
+    socket.on('connect', () => socket.write('ping'));
+    socket.on('close', () => resolve());
+    socket.on('error', () => resolve());
     socket.on('timeout', () => {
       socket.destroy();
       reject(new Error('socket timed out'));
@@ -133,6 +170,34 @@ describe('openPortForwardTunnel', () => {
       expect(tunnel.localPort).not.toBe(busyPort);
       await expect(roundTrip(tunnel.localPort, 'ok')).resolves.toBe('remote:ok');
     } finally {
+      await tunnel.close();
+    }
+  });
+
+  it('closes local sockets without an uncaught exception when the remote port refuses connections', async () => {
+    const error = new Error('(SSH) Channel open failure: Connection refused');
+    const { proxy } = makeRejectingProxy(error);
+    const connectionErrors: string[] = [];
+    const uncaughtErrors: string[] = [];
+    const onUncaught = (uncaught: Error) => {
+      uncaughtErrors.push(uncaught.message);
+    };
+    process.once('uncaughtException', onUncaught);
+
+    const tunnel = await openPortForwardTunnel({
+      proxy,
+      remotePort: 5173,
+      onConnectionError: (error) => connectionErrors.push(error.message),
+    });
+
+    try {
+      await connectUntilClosed(tunnel.localPort);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(connectionErrors).toEqual(['(SSH) Channel open failure: Connection refused']);
+      expect(uncaughtErrors).toEqual([]);
+    } finally {
+      process.removeListener('uncaughtException', onUncaught);
       await tunnel.close();
     }
   });

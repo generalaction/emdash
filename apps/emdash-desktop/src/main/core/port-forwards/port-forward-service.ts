@@ -1,5 +1,9 @@
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
-import { openPortForwardTunnel, type PortForwardTunnel } from './port-forward-tunnel';
+import {
+  openPortForwardTunnel,
+  type OpenPortForwardTunnelOptions,
+  type PortForwardTunnel,
+} from './port-forward-tunnel';
 
 export type OpenPortForwardRequest = {
   id: string;
@@ -24,27 +28,33 @@ type PortForwardEntry = PortForwardRecord & {
   tunnel: PortForwardTunnel;
 };
 
+export type PortForwardConnectionErrorHandler = (id: string, error: Error) => void;
+
 export class PortForwardService {
   private readonly tunnels = new Map<string, PortForwardEntry>();
-  private readonly openTunnel: (request: {
-    proxy: Pick<SshClientProxy, 'client' | 'isConnected'>;
-    remotePort: number;
-    preferredLocalPort?: number;
-  }) => Promise<PortForwardTunnel>;
+  private readonly openTunnel: (
+    request: OpenPortForwardTunnelOptions
+  ) => Promise<PortForwardTunnel>;
   private readonly onTunnelClosed?: (id: string) => void;
+  private readonly connectionErrorHandlers = new Set<PortForwardConnectionErrorHandler>();
 
   constructor(
     options: {
-      openTunnel?: (request: {
-        proxy: Pick<SshClientProxy, 'client' | 'isConnected'>;
-        remotePort: number;
-        preferredLocalPort?: number;
-      }) => Promise<PortForwardTunnel>;
+      openTunnel?: (request: OpenPortForwardTunnelOptions) => Promise<PortForwardTunnel>;
       onTunnelClosed?: (id: string) => void;
+      onConnectionError?: PortForwardConnectionErrorHandler;
     } = {}
   ) {
     this.openTunnel = options.openTunnel ?? openPortForwardTunnel;
     this.onTunnelClosed = options.onTunnelClosed;
+    if (options.onConnectionError) {
+      this.connectionErrorHandlers.add(options.onConnectionError);
+    }
+  }
+
+  onConnectionError(handler: PortForwardConnectionErrorHandler): () => void {
+    this.connectionErrorHandlers.add(handler);
+    return () => this.connectionErrorHandlers.delete(handler);
   }
 
   async open(request: OpenPortForwardRequest): Promise<PortForwardRecord> {
@@ -55,6 +65,7 @@ export class PortForwardService {
       proxy: request.proxy,
       remotePort: request.remotePort,
       preferredLocalPort: request.preferredLocalPort,
+      onConnectionError: (error) => this.emitConnectionError(request.id, error),
     });
     const entry: PortForwardEntry = {
       id: request.id,
@@ -89,6 +100,12 @@ export class PortForwardService {
       .filter((entry) => entry.projectId === projectId)
       .map((entry) => entry.id);
     await Promise.all(ids.map((id) => this.stop(id)));
+  }
+
+  private emitConnectionError(id: string, error: Error): void {
+    for (const handler of this.connectionErrorHandlers) {
+      handler(id, error);
+    }
   }
 }
 

@@ -14,6 +14,7 @@ function createService(
       proxy: Pick<SshClientProxy, 'client' | 'isConnected'>;
       remotePort: number;
       preferredLocalPort?: number;
+      onConnectionError?: (error: Error) => void;
     }) => Promise<PortForwardTunnel>;
   } = {}
 ) {
@@ -212,7 +213,7 @@ describe('PreviewServerService', () => {
     expect(previewServerUrl(server)).toBeNull();
     expect(server.status).toEqual({
       kind: 'failed',
-      message: 'Failed to open SSH port forward: bind failed',
+      message: 'Failed to open SSH port forward',
     });
     expect(
       context.service.listForWorkspace({ projectId: 'project-1', workspaceId: 'workspace-1' })
@@ -223,7 +224,7 @@ describe('PreviewServerService', () => {
         .map((event) => (event.type === 'upsert' ? event.server.status : null))
     ).toEqual([
       { kind: 'starting' },
-      { kind: 'failed', message: 'Failed to open SSH port forward: bind failed' },
+      { kind: 'failed', message: 'Failed to open SSH port forward' },
     ]);
   });
 
@@ -255,6 +256,48 @@ describe('PreviewServerService', () => {
     expect(preferredLocalPorts).toEqual([5173, 5173]);
     expect(restarted?.status).toEqual({ kind: 'ready' });
     expect(previewServerUrl(restarted!)).toBe('http://127.0.0.1:6200/');
+  });
+
+  it('marks a forwarded SSH preview failed when later browser traffic cannot reach the remote port', async () => {
+    let onConnectionError: ((error: Error) => void) | undefined;
+    const context = createService({
+      openTunnel: async (request) => {
+        onConnectionError = request.onConnectionError;
+        return { localPort: 6100, close: async () => {} };
+      },
+    });
+    const server = await context.service.registerDetectedTarget({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      connectionId: 'connection-1',
+      transport: 'ssh',
+      proxy: fakeProxy(),
+      source: { kind: 'terminal-output', terminalId: 'terminal-1' },
+      protocol: 'http:',
+      port: 5173,
+      urlPath: '/',
+    });
+
+    onConnectionError?.(new Error('(SSH) Channel open failure: Connection refused'));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const [failed] = context.service.listForWorkspace({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+    });
+    expect(failed).toMatchObject({
+      id: server.id,
+      kind: 'forwarded',
+      status: {
+        kind: 'failed',
+        message: 'Remote preview port is no longer accepting connections',
+      },
+    });
+    expect(previewServerUrl(failed!)).toBeNull();
+    expect(context.closedTunnelIds).toEqual([
+      'preview:ssh:auto:project-1:workspace-1:connection-1:5173',
+    ]);
+    expect(context.events.at(-1)).toEqual({ type: 'upsert', server: failed });
   });
 
   it('keeps SSH terminal previews through transport-loss PTY exits', async () => {

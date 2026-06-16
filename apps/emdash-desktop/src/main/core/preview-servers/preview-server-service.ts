@@ -83,6 +83,14 @@ export class PreviewServerService {
     this.getConnectionState = getConnectionState;
     this.getSshProxy = getSshProxy;
     this.closeDelayMs = closeDelayMs;
+    this.portForwards.onConnectionError((tunnelId, error) => {
+      void this.handlePortForwardConnectionError(tunnelId, error).catch((handlerError) => {
+        log.warn('PreviewServerService: failed to handle SSH preview tunnel connection error', {
+          tunnelId,
+          error: String(handlerError),
+        });
+      });
+    });
   }
 
   async registerDetectedTarget(target: RegisterDetectedPreviewTarget): Promise<PreviewServer> {
@@ -150,7 +158,7 @@ export class PreviewServerService {
       if (!current || current.kind !== 'forwarded') return server;
       const next: PreviewServer = {
         ...current,
-        status: { kind: 'failed', message: previewForwardErrorMessage(error) },
+        status: { kind: 'failed', message: 'Failed to open SSH port forward' },
       };
       this.servers.set(next.id, next);
       this.emit({ type: 'upsert', server: next });
@@ -307,7 +315,7 @@ export class PreviewServerService {
       if (!current || current.kind !== 'forwarded') return starting;
       const next: PreviewServer = {
         ...current,
-        status: { kind: 'failed', message: previewForwardErrorMessage(error) },
+        status: { kind: 'failed', message: 'Failed to open SSH port forward' },
       };
       this.servers.set(id, next);
       this.emit({ type: 'upsert', server: next });
@@ -352,6 +360,32 @@ export class PreviewServerService {
     return server;
   }
 
+  private async handlePortForwardConnectionError(tunnelId: string, error: Error): Promise<void> {
+    const server = this.serverForTunnel(tunnelId);
+    if (!server || server.kind !== 'forwarded') return;
+    if (server.status.kind === 'failed' && server.localPort === undefined) return;
+
+    log.warn('PreviewServerService: SSH preview tunnel connection failed', {
+      projectId: server.projectId,
+      workspaceId: server.workspaceId,
+      connectionId: server.connectionId,
+      remotePort: server.remotePort,
+      error: String(error),
+    });
+
+    await this.portForwards.stop(tunnelId);
+    const current = this.servers.get(server.id);
+    if (!current || current.kind !== 'forwarded') return;
+
+    const next: PreviewServer = {
+      ...current,
+      localPort: undefined,
+      status: { kind: 'failed', message: 'Remote preview port is no longer accepting connections' },
+    };
+    this.servers.set(next.id, next);
+    this.emit({ type: 'upsert', server: next });
+  }
+
   private async stopForTerminal(input: {
     projectId: string;
     workspaceId: string;
@@ -381,6 +415,13 @@ export class PreviewServerService {
   private serverForIdentity(identity: string): PreviewServer | undefined {
     const id = this.identities.get(identity);
     return id ? this.servers.get(id) : undefined;
+  }
+
+  private serverForTunnel(tunnelId: string): PreviewServer | undefined {
+    for (const [serverId, metadata] of this.metadata.entries()) {
+      if (metadata.tunnelId === tunnelId) return this.servers.get(serverId);
+    }
+    return undefined;
   }
 }
 
@@ -412,11 +453,4 @@ function matchesDetectedServer(
     return server.host === detected.host && server.port === detected.port;
   }
   return server.remotePort === detected.port;
-}
-
-function previewForwardErrorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  return message
-    ? `Failed to open SSH port forward: ${message}`
-    : 'Failed to open SSH port forward';
 }
