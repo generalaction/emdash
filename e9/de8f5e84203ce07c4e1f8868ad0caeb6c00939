@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_b16ae63ff26e2a::t_bfb3d4245624fd 66
+packages/plugins/src/agents/impl/pi/plugin-file.ts
+  s_b16ae63ff26e2a::t_227084cecc7914 16
+packages/plugins/src/agents/impl/pi/index.ts
+  s_b16ae63ff26e2a::t_94254d4cff8930 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "e9de8f5e84203ce07c4e1f8868ad0caeb6c00939",
+  "prompts": {},
+  "sessions": {
+    "s_b16ae63ff26e2a": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed096-7e9e-75e4-b3ce-35d8b9650a30",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
