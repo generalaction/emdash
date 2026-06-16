@@ -60,7 +60,9 @@ export const provider = registerPluginBehavior(plugin, {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
         initialPromptFlag: '',
-        resumeFlag: '-c',
+        resumeFlag: '--session',
+        sessionIdFlag: '--session',
+        sessionIdOnResumeOnly: true,
       }),
   },
   plugins: createFileDropPlugin({ relativePath: PI_EXTENSION_PATH, content: PI_EXTENSION_CONTENT }),

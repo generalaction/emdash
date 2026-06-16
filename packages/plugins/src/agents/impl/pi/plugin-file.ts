@@ -1,6 +1,13 @@
 // Verbatim source of the Pi emdash extension, embedded as a string constant.
 export const PI_EXTENSION_CONTENT = `\
+type ExtensionContext = {
+  sessionManager: {
+    getSessionId(): string;
+  };
+};
+
 type ExtensionAPI = {
+  on(event: 'session_start', handler: (event: { reason: string }, ctx: ExtensionContext) => unknown): void;
   on(event: 'agent_end', handler: () => unknown): void;
   on(event: 'session_shutdown', handler: (event: { reason: string }) => unknown): void;
 };
@@ -39,6 +46,10 @@ function errorMessage(error: unknown): string {
 }
 
 export default function (pi: ExtensionAPI) {
+  pi.on('session_start', async (_event, ctx) => {
+    await notifyEmdash('session', { session_id: ctx.sessionManager.getSessionId() });
+  });
+
   pi.on('agent_end', async () => {
     await notifyEmdash('stop', { message: 'Task completed' });
   });
