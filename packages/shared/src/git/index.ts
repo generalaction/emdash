@@ -1,7 +1,8 @@
 export { GitRuntime, type GitRuntimeOptions } from './git-runtime';
-export { gitErrorMessage } from './errors';
+export { classifyCloneRepositoryError, gitErrorMessage } from './errors';
 export { computeBaseRef } from './utils';
 export type {
+  CloneRepositoryError,
   CommitError,
   CreateBranchError,
   DeleteBranchError,

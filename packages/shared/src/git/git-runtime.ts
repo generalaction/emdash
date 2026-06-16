@@ -9,7 +9,8 @@ import {
 } from '../fs';
 import { err, KeyedMutex, ok, ResourceMap, type Lease } from '../lib';
 import type { Result } from '../lib';
-import { gitErrorMessage } from './errors';
+import { classifyCloneRepositoryError, gitErrorMessage } from './errors';
+import type { CloneRepositoryError } from './errors';
 import { createGitExec } from './git-env';
 import { GitRepository, type GitOnError } from './git-repository';
 import { GitWorktree } from './git-worktree';
@@ -124,6 +125,28 @@ export class GitRuntime implements IGitRuntime {
       type: 'init-failed',
       path: resolvedPath,
       message: 'Failed to initialize git repository',
+    });
+  }
+
+  async cloneRepository(
+    repositoryUrl: string,
+    targetPath: string
+  ): Promise<Result<GitRepositoryInfo, CloneRepositoryError>> {
+    this.assertOpen();
+    const resolvedTargetPath = path.resolve(targetPath);
+    try {
+      await this.exec
+        .withCwd(path.dirname(resolvedTargetPath))
+        .exec(['clone', repositoryUrl, resolvedTargetPath]);
+    } catch (error) {
+      return err(classifyCloneRepositoryError(error, resolvedTargetPath));
+    }
+
+    const inspected = await this.inspectResolvedPath(resolvedTargetPath);
+    if (inspected.kind === 'repository') return ok(inspected);
+    return err({
+      type: 'git-error',
+      message: `Cloned path is not a git repository: ${resolvedTargetPath}`,
     });
   }
 

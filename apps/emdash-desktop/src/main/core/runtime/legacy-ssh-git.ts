@@ -1,5 +1,7 @@
-import { gitErrorMessage } from '@emdash/shared/git';
+import path from 'node:path';
+import { classifyCloneRepositoryError, gitErrorMessage } from '@emdash/shared/git';
 import type {
+  CloneRepositoryError,
   CommitError,
   CreateBranchError,
   DeleteBranchError,
@@ -157,6 +159,25 @@ export class LegacySshGitRuntime implements IGitRuntime {
     } finally {
       git.dispose();
     }
+  }
+
+  async cloneRepository(
+    repositoryUrl: string,
+    targetPath: string
+  ): Promise<Result<GitRepositoryInfo, CloneRepositoryError>> {
+    const ctx = new SshExecutionContext(this.proxy, { root: path.posix.dirname(targetPath) });
+    try {
+      await ctx.exec('git', ['clone', repositoryUrl, targetPath]);
+    } catch (error) {
+      return err(classifyCloneRepositoryError(error, targetPath));
+    }
+
+    const inspected = await this.inspectPath(targetPath);
+    if (inspected.kind === 'repository') return ok(inspected);
+    return err({
+      type: 'git-error',
+      message: `Cloned path is not a git repository: ${targetPath}`,
+    });
   }
 
   async openWorktree(worktreePath: string): Promise<Lease<IGitWorktree>> {

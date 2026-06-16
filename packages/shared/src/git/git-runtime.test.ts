@@ -106,6 +106,32 @@ describe('GitRuntime', () => {
     }
   });
 
+  it('can clone a repository and return its inspected identity', async () => {
+    const source = await makeRepo();
+    await writeFile(path.join(source, 'README.md'), '# Test\n', 'utf8');
+    await execFileAsync('git', ['add', 'README.md'], { cwd: source });
+    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: source });
+
+    const parent = await mkdtemp(path.join(tmpdir(), 'emdash-shared-runtime-clone-'));
+    const target = path.join(parent, 'repo');
+    const runtime = new GitRuntime();
+
+    try {
+      const result = await runtime.cloneRepository(source, target);
+
+      expect(result).toMatchObject({
+        success: true,
+        data: {
+          kind: 'repository',
+          rootPath: await realpath(target),
+          baseRef: 'origin/main',
+        },
+      });
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it('deduplicates repositories by common git dir and releases them by lease', async () => {
     const repo = await makeRepo();
     const linked = await mkdtemp(path.join(tmpdir(), 'emdash-shared-runtime-linked-'));

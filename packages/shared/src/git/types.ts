@@ -1,6 +1,7 @@
 import type { IDisposable, Lease, LiveValue, Unsubscribe } from '../lib';
 import type { Result } from '../lib/result';
 import type {
+  CloneRepositoryError,
   CommitError,
   CreateBranchError,
   DeleteBranchError,
@@ -196,6 +197,10 @@ export interface IGitRuntime extends IDisposable {
     path: string,
     options?: EnsureRepositoryOptions
   ): Promise<Result<GitRepositoryInfo, EnsureRepositoryError>>;
+  cloneRepository(
+    repositoryUrl: string,
+    targetPath: string
+  ): Promise<Result<GitRepositoryInfo, CloneRepositoryError>>;
   openRepository(pathInsideRepo: string): Promise<RepoLease>;
   openWorktree(worktreePath: string): Promise<WorktreeLease>;
 }
