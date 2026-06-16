@@ -14,14 +14,14 @@
  * framework-agnostic (no Solid imports, no ViewState import).
  */
 
-import type { ChatRole } from '../../model';
 import type { Block } from '../../core/blocks/block-types';
+import type { BlockLaidOut, MessageLayout } from '../../core/layout/layout-types';
 import type { FontConfig } from '../../core/measure/fonts';
 import { ROW_GAP, ROW_INSET_X, USER_BUBBLE_MAX_WIDTH_PCT } from '../../core/metrics';
-import type { BlockLaidOut, MessageLayout } from '../../core/layout/layout-types';
+import type { ChatRole } from '../../model';
 import { layoutCode } from '../code/layout';
-import { layoutProse, measureProseNaturalWidth } from '../prose/layout';
 import { layoutIsland } from '../island/layout';
+import { layoutProse, measureProseNaturalWidth } from '../prose/layout';
 import { layoutTable } from '../table/layout';
 import { BUBBLE_PAD_X, BUBBLE_PAD_Y, BLOCK_GAP } from './metrics';
 

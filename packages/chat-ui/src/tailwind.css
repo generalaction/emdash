@@ -17,6 +17,8 @@
 
 /* Scan all component source files for Tailwind class names */
 @source './**/*.{ts,tsx}';
+/* Also scan the shared button recipe so its utility classes are generated */
+@source '../../ui/src/components/button.variants.ts';
 
 /* Theme class variants for light/dark mode toggling */
 @custom-variant dark (&:is(.dark *));

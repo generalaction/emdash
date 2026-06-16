@@ -13,6 +13,8 @@
 @import '../src/theme/surfaces.css';
 /* scroll-aware overflow fade utility */
 @import '../src/theme/overflow-fade.css';
+/* semantic typography role classes */
+@import '../src/theme/typography.css';
 
 /* Enable Tailwind to scan and generate utilities for all component source */
 @source '../src/components';

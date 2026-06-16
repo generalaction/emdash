@@ -1,5 +1,8 @@
 export { Button, buttonVariants } from './button';
 export { ScrollFade, type ScrollFadeAxis, type ScrollFadeProps } from './scroll-fade';
+export { Text, type TextProps } from './typography/Text';
+export { Heading, type HeadingProps } from './typography/Heading';
+export { textVariants, type TextVariantProps } from './typography/typography.variants';
 export { Input } from './input';
 export { Textarea, type TextareaProps } from './textarea';
 export {

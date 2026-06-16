@@ -24,16 +24,16 @@ import {
   untrack,
   useContext,
 } from 'solid-js';
-import { clearMessageLayoutCache } from './components/message/measure';
 import { DebugContext } from './components/debug-context';
+import { clearMessageLayoutCache } from './components/message/measure';
 import { Row } from './components/Row';
 import { ROW_REGISTRY } from './components/row-registry';
-import { chatCssVars } from './css-vars';
 import { DEFAULT_FONT_CONFIG } from './core/measure/fonts';
 import type { FontConfig } from './core/measure/fonts';
 import { clearPretextCache, registerFontsReadyClear } from './core/measure/pretext-cache';
 import { StickToBottom } from './core/stick-to-bottom';
 import { Virtualizer } from './core/virtualizer';
+import { chatCssVars } from './css-vars';
 import { getItem, itemCount } from './state/transcript';
 import type { TranscriptApi } from './state/transcript';
 import type { ViewState } from './state/view-state';
@@ -106,7 +106,12 @@ export function ChatRoot(props: ChatRootProps) {
         const item = getItem(props.transcript.state, i);
         if (!item) return 60;
         const spec = ROW_REGISTRY[item.kind];
-        return spec.estimate(item, { fonts: f, rowWidth: 0, isCollapsed: () => false, measured: () => undefined });
+        return spec.estimate(item, {
+          fonts: f,
+          rowWidth: 0,
+          isCollapsed: () => false,
+          measured: () => undefined,
+        });
       });
       refreshTotal();
       if (props.stickToBottom !== false) sticky?.schedule();
@@ -337,7 +342,7 @@ export function ChatRoot(props: ChatRootProps) {
                       `content-visibility:auto` is intentionally avoided — it
                       blanks tall rows whose top sits above the viewport. */}
                   <div
-                    class="absolute left-0 top-0 w-full will-change-transform [contain:layout_paint_style]"
+                    class="absolute top-0 left-0 w-full will-change-transform [contain:layout_paint_style]"
                     style={{ transform: `translateY(${rowTop()}px)` }}
                     data-index={String(rowIndex)}
                   >

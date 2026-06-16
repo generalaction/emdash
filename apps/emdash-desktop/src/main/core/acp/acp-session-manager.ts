@@ -67,6 +67,8 @@ interface AcpPool {
   conversations: Map<string, AcpConversation>;
   /** Maps ACP sessionId → conversationId for routing incoming events. */
   sessionToConversation: Map<string, string>;
+  /** Conversations currently awaiting loadSession so unknown-sessionId notifications can be routed. */
+  loadingConversations: Set<string>;
   /** Promise that resolves once the pool's `initialize` call completes. */
   initialized: Promise<void> | null;
   stopped: boolean;
@@ -137,25 +139,39 @@ class AcpSessionManager {
       let acpSessionId: string;
 
       if (conv.acpSessionId) {
-        // Pre-register the session→conversation mapping so that session/update
-        // notifications emitted during loadSession replay are routed correctly.
-        // (The agent replays history during the loadSession await, before it resolves.)
-        pool.sessionToConversation.set(conv.acpSessionId, conversationId);
+        // Pre-register the stored session ID so notifications that use it are routed
+        // immediately. Agents may also assign a new session ID during replay — the
+        // buildClientHandler fallback will register that mapping dynamically via
+        // loadingConversations.
+        const originalSessionId = conv.acpSessionId;
+        pool.sessionToConversation.set(originalSessionId, conversationId);
+        pool.loadingConversations.add(conversationId);
         try {
           events.emit(acpSessionReplayChannel, { conversationId, phase: 'start' });
-          await pool.connection.loadSession(this.buildLoadSessionRequest(path, conv.acpSessionId));
+          await pool.connection.loadSession(this.buildLoadSessionRequest(path, originalSessionId));
           events.emit(acpSessionReplayChannel, { conversationId, phase: 'end' });
+          // conv.acpSessionId may have been updated to a new ID by the dynamic routing
+          // fallback in buildClientHandler. Use that updated value.
           acpSessionId = conv.acpSessionId;
+          // Remove the old mapping when the agent adopted a different session ID.
+          if (acpSessionId !== originalSessionId) {
+            pool.sessionToConversation.delete(originalSessionId);
+          }
         } catch {
           log.warn('AcpSessionManager: loadSession failed, starting new session', {
             conversationId,
           });
-          // Close the replay window so the renderer's ChatStore finalizes correctly,
-          // then undo the pre-registration before obtaining a fresh session.
+          // Close the replay window so the renderer's ChatStore finalizes correctly.
           events.emit(acpSessionReplayChannel, { conversationId, phase: 'end' });
-          pool.sessionToConversation.delete(conv.acpSessionId);
+          // Clean up both the original pre-registration and any dynamically registered ID.
+          pool.sessionToConversation.delete(originalSessionId);
+          if (conv.acpSessionId !== originalSessionId) {
+            pool.sessionToConversation.delete(conv.acpSessionId);
+          }
           const newResp = await pool.connection.newSession(this.buildNewSessionRequest(path));
           acpSessionId = newResp.sessionId;
+        } finally {
+          pool.loadingConversations.delete(conversationId);
         }
       } else {
         const newResp = await pool.connection.newSession(this.buildNewSessionRequest(path));
@@ -189,10 +205,14 @@ class AcpSessionManager {
         conversationId,
         error: err instanceof Error ? err.message : String(err),
       });
-      // Clean up the half-initialized conversation entry.
+      // Clean up the half-initialized conversation entry. Use a reverse lookup to
+      // remove all session ID mappings for this conversation (covers both the original
+      // pre-registered ID and any dynamically registered ID from loadSession replay).
       pool.conversations.delete(conversationId);
       this.conversationIndex.delete(conversationId);
-      if (conv.acpSessionId) pool.sessionToConversation.delete(conv.acpSessionId);
+      for (const [sid, cid] of pool.sessionToConversation) {
+        if (cid === conversationId) pool.sessionToConversation.delete(sid);
+      }
       if (pool.conversations.size === 0) {
         this.destroyPool(pool);
       }
@@ -349,6 +369,7 @@ class AcpSessionManager {
       path,
       conversations: new Map(),
       sessionToConversation: new Map(),
+      loadingConversations: new Set(),
       initialized: null,
       stopped: false,
     };
@@ -445,7 +466,19 @@ class AcpSessionManager {
     return {
       sessionUpdate: async (params: SessionNotification): Promise<void> => {
         const update = params.update;
-        const conversationId = pool.sessionToConversation.get(params.sessionId);
+        let conversationId = pool.sessionToConversation.get(params.sessionId);
+        if (!conversationId && pool.loadingConversations.size > 0) {
+          // The agent used a different session ID during loadSession replay than the
+          // one provided in the request. Route to the pending conversation and register
+          // the new mapping so subsequent notifications are routed without this fallback.
+          const pendingId = pool.loadingConversations.values().next().value;
+          if (pendingId) {
+            conversationId = pendingId;
+            pool.sessionToConversation.set(params.sessionId, pendingId);
+            const conv = pool.conversations.get(pendingId);
+            if (conv) conv.acpSessionId = params.sessionId;
+          }
+        }
         if (!conversationId) {
           log.warn('AcpSessionManager: sessionUpdate for unknown sessionId', {
             sessionId: params.sessionId,

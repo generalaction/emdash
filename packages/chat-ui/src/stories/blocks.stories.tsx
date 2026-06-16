@@ -157,7 +157,8 @@ export const TableTall: Story = {
     const sep = '|---|------|--------|-------|';
     const rows = Array.from(
       { length: 20 },
-      (_, i) => `| ${i + 1} | Item ${i + 1} | ${i % 3 === 0 ? 'Done' : i % 3 === 1 ? 'In progress' : 'Pending'} | Some note for row ${i + 1} |`
+      (_, i) =>
+        `| ${i + 1} | Item ${i + 1} | ${i % 3 === 0 ? 'Done' : i % 3 === 1 ? 'In progress' : 'Pending'} | Some note for row ${i + 1} |`
     );
     return (
       <ChatHost

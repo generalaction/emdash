@@ -326,6 +326,60 @@ describe('AcpSessionManager – routing', () => {
     expect(replayCalls[1][1]).toMatchObject({ phase: 'end' });
   });
 
+  it('loadSession replay: agent-assigned session ID is dynamically registered and routed', async () => {
+    const { events } = await import('@main/lib/events');
+    const { acpSessionUpdateChannel } = await import('@shared/core/acp/acpEvents');
+    const { setProviderSessionId } = await import(
+      '@main/core/conversations/set-provider-session-id'
+    );
+
+    (events.emit as Mock).mockReset();
+    (setProviderSessionId as Mock).mockClear();
+
+    const manager = new AcpSessionManager();
+
+    // Make loadSession simulate the agent sending a sessionUpdate with a NEW session
+    // ID (different from the one provided in the request) before the call resolves.
+    // This mirrors agents that generate a fresh UUID during replay rather than reusing
+    // the ID from the loadSession request.
+    mockConnection.loadSession = vi.fn().mockImplementation(async () => {
+      expect(capturedHandlerFactory).not.toBeNull();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = capturedHandlerFactory!(null) as any;
+      await handler.sessionUpdate({
+        sessionId: 'agent-assigned-session-99',
+        update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'hi' } },
+      });
+      return {};
+    });
+    mockConnection.newSession = vi.fn();
+
+    const conv = {
+      ...makeConversation({ conversationId: 'conv-dynamic' }),
+      providerSessionId: 'stored-session-id',
+    };
+
+    await manager.start(conv, 'ws-1', '/tmp/workspace');
+
+    // The replay notification should have been routed to conv-dynamic.
+    const updateEmits = (events.emit as Mock).mock.calls.filter(
+      (args: unknown[]) => args[0] === acpSessionUpdateChannel
+    );
+    expect(updateEmits).toHaveLength(1);
+    expect(updateEmits[0][1]).toMatchObject({
+      conversationId: 'conv-dynamic',
+      update: expect.objectContaining({ sessionUpdate: 'agent_message_chunk' }),
+    });
+
+    // loadSession succeeded — newSession should not have been called.
+    expect(mockConnection.newSession).not.toHaveBeenCalled();
+
+    // The new session ID should have been persisted so future starts use it.
+    expect(setProviderSessionId).toHaveBeenCalledWith('conv-dynamic', 'agent-assigned-session-99');
+
+    expect(manager.isRunning('conv-dynamic')).toBe(true);
+  });
+
   it('sessionUpdate for unknown sessionId does not emit an event', async () => {
     const { events } = await import('@main/lib/events');
 

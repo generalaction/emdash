@@ -61,13 +61,7 @@ export interface BlockSpec<TBlock, TLaid extends BlockLaidOut> {
   /**
    * Pure, DOM-free geometry. Called only for visible rows; may use pretext.
    */
-  layout(
-    block: TBlock,
-    fonts: FontConfig,
-    top: number,
-    width: number,
-    measured?: number
-  ): TLaid;
+  layout(block: TBlock, fonts: FontConfig, top: number, width: number, measured?: number): TLaid;
 }
 
 // ── Row tier ──────────────────────────────────────────────────────────────────

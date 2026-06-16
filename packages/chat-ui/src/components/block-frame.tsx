@@ -62,7 +62,7 @@ function DebugOverlay(props: DebugOverlayProps) {
         'outline-sky-400/60': !mismatch(),
       }}
     >
-      <span class="absolute right-0 top-0 bg-black/70 px-1 text-[10px] leading-tight text-white">
+      <span class="absolute top-0 right-0 bg-black/70 px-1 text-[10px] leading-tight text-white">
         {props.id ? `${props.id} · ` : ''}h={props.reservedHeight}
         <Show when={mismatch()}>
           {' '}

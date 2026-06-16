@@ -11,9 +11,6 @@ import {
   walkRichInlineLineRanges,
 } from '@chenglou/pretext/rich-inline';
 import type { ProseBlock } from '../../core/blocks/block-types';
-import type { FontConfig } from '../../core/measure/fonts';
-import { getPreparedRichInline } from '../../core/measure/pretext-cache';
-import { BLOCKQUOTE_INDENT, LIST_INDENT } from '../../core/metrics';
 import type {
   BulletLayout,
   FragmentLayout,
@@ -21,6 +18,9 @@ import type {
   ProseLaidOut,
 } from '../../core/layout/layout-types';
 import { runsToRichItems } from '../../core/layout/runs-to-rich-items';
+import type { FontConfig } from '../../core/measure/fonts';
+import { getPreparedRichInline } from '../../core/measure/pretext-cache';
+import { BLOCKQUOTE_INDENT, LIST_INDENT } from '../../core/metrics';
 
 const UNBOUNDED_WIDTH = 1e7;
 

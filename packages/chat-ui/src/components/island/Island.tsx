@@ -22,11 +22,7 @@ export type IslandProps = {
 function IslandContent(props: { block: IslandLaidOut }) {
   switch (props.block.islandType) {
     case 'rule':
-      return (
-        <hr
-          class="m-0 border-0 border-t border-border"
-        />
-      );
+      return <hr class="m-0 border-0 border-t border-border" />;
     case 'image':
       return <img src={props.block.raw} alt="" class="max-w-full" />;
     default:

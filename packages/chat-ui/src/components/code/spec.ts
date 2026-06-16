@@ -7,10 +7,10 @@
  */
 
 import type { CodeBlock } from '../../core/blocks/block-types';
+import type { CodeLaidOut } from '../../core/layout/layout-types';
+import type { BlockSpec } from '../../core/layout/spec-types';
 import type { FontConfig } from '../../core/measure/fonts';
 import { CODE_BLOCK, CODE_LANG } from '../../core/metrics';
-import type { BlockSpec } from '../../core/layout/spec-types';
-import type { CodeLaidOut } from '../../core/layout/layout-types';
 import { layoutCode } from './layout';
 import { CODE_BLOCK_PAD_X, CODE_BLOCK_PAD_Y, CODE_BLOCK_BORDER } from './metrics';
 

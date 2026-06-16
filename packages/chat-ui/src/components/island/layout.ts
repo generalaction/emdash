@@ -9,8 +9,8 @@
  */
 
 import type { IslandBlock } from '../../core/blocks/block-types';
-import { ISLAND_FIXED_HEIGHT } from '../../core/metrics';
 import type { IslandLaidOut } from '../../core/layout/layout-types';
+import { ISLAND_FIXED_HEIGHT } from '../../core/metrics';
 
 export function layoutIsland(
   block: IslandBlock,

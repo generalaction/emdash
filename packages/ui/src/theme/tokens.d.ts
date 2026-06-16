@@ -6,7 +6,9 @@ import type {
   ColorTokenNormalized,
   DimensionTokenNormalized,
   FontFamilyTokenNormalized,
+  FontWeightTokenNormalized,
   NumberTokenNormalized,
+  TypographyTokenNormalized,
 } from '@terrazzo/parser';
 
 export declare const tokens: {
@@ -161,31 +163,42 @@ export declare const tokens: {
   'typography.font-family.sans': Record<'.', FontFamilyTokenNormalized['$value']>;
   'typography.font-family.mono': Record<'.', FontFamilyTokenNormalized['$value']>;
   'typography.body.size': Record<'.', DimensionTokenNormalized['$value']>;
-  'typography.body.weight': Record<'.', NumberTokenNormalized['$value']>;
+  'typography.body.weight': Record<'.', FontWeightTokenNormalized['$value']>;
   'typography.body.line-height': Record<'.', DimensionTokenNormalized['$value']>;
-  'typography.body.bold-weight': Record<'.', NumberTokenNormalized['$value']>;
-  'typography.body.link-weight': Record<'.', NumberTokenNormalized['$value']>;
+  'typography.body.bold-weight': Record<'.', FontWeightTokenNormalized['$value']>;
+  'typography.body.link-weight': Record<'.', FontWeightTokenNormalized['$value']>;
   'typography.h1.size': Record<'.', DimensionTokenNormalized['$value']>;
-  'typography.h1.weight': Record<'.', NumberTokenNormalized['$value']>;
+  'typography.h1.weight': Record<'.', FontWeightTokenNormalized['$value']>;
   'typography.h1.line-height': Record<'.', DimensionTokenNormalized['$value']>;
   'typography.h2.size': Record<'.', DimensionTokenNormalized['$value']>;
-  'typography.h2.weight': Record<'.', NumberTokenNormalized['$value']>;
+  'typography.h2.weight': Record<'.', FontWeightTokenNormalized['$value']>;
   'typography.h2.line-height': Record<'.', DimensionTokenNormalized['$value']>;
   'typography.h3.size': Record<'.', DimensionTokenNormalized['$value']>;
-  'typography.h3.weight': Record<'.', NumberTokenNormalized['$value']>;
+  'typography.h3.weight': Record<'.', FontWeightTokenNormalized['$value']>;
   'typography.h3.line-height': Record<'.', DimensionTokenNormalized['$value']>;
   'typography.code.size': Record<'.', DimensionTokenNormalized['$value']>;
-  'typography.code.weight': Record<'.', NumberTokenNormalized['$value']>;
+  'typography.code.weight': Record<'.', FontWeightTokenNormalized['$value']>;
   'typography.code.line-height': Record<'.', DimensionTokenNormalized['$value']>;
   'typography.code-lang.size': Record<'.', DimensionTokenNormalized['$value']>;
-  'typography.code-lang.weight': Record<'.', NumberTokenNormalized['$value']>;
+  'typography.code-lang.weight': Record<'.', FontWeightTokenNormalized['$value']>;
   'typography.code-lang.line-height': Record<'.', DimensionTokenNormalized['$value']>;
   'typography.inline-code.size': Record<'.', DimensionTokenNormalized['$value']>;
-  'typography.inline-code.weight': Record<'.', NumberTokenNormalized['$value']>;
+  'typography.inline-code.weight': Record<'.', FontWeightTokenNormalized['$value']>;
   'typography.inline-code.line-height': Record<'.', DimensionTokenNormalized['$value']>;
   'typography.mention.size': Record<'.', DimensionTokenNormalized['$value']>;
-  'typography.mention.weight': Record<'.', NumberTokenNormalized['$value']>;
+  'typography.mention.weight': Record<'.', FontWeightTokenNormalized['$value']>;
   'typography.mention.line-height': Record<'.', DimensionTokenNormalized['$value']>;
+  'type.body': Record<'.', TypographyTokenNormalized['$value']>;
+  'type.body-bold': Record<'.', TypographyTokenNormalized['$value']>;
+  'type.body-italic': Record<'.', TypographyTokenNormalized['$value']>;
+  'type.body-link': Record<'.', TypographyTokenNormalized['$value']>;
+  'type.h1': Record<'.', TypographyTokenNormalized['$value']>;
+  'type.h2': Record<'.', TypographyTokenNormalized['$value']>;
+  'type.h3': Record<'.', TypographyTokenNormalized['$value']>;
+  'type.inline-code': Record<'.', TypographyTokenNormalized['$value']>;
+  'type.mention': Record<'.', TypographyTokenNormalized['$value']>;
+  'type.code': Record<'.', TypographyTokenNormalized['$value']>;
+  'type.code-lang': Record<'.', TypographyTokenNormalized['$value']>;
   'radius.sm': Record<'.', DimensionTokenNormalized['$value']>;
   'radius.md': Record<'.', DimensionTokenNormalized['$value']>;
   'radius.base': Record<'.', DimensionTokenNormalized['$value']>;

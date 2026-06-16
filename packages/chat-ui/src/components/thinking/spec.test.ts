@@ -3,12 +3,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import {
-  THINKING_FADE_H,
-  THINKING_HEADER_H,
-  THINKING_PAD_Y,
-  THINKING_WINDOW_H,
-} from './metrics';
+import { THINKING_FADE_H, THINKING_HEADER_H, THINKING_PAD_Y, THINKING_WINDOW_H } from './metrics';
 import { thinkingCssVars } from './spec';
 
 describe('thinkingCssVars() parity', () => {

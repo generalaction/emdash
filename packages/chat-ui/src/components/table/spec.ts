@@ -6,9 +6,9 @@
  */
 
 import type { TableBlock } from '../../core/blocks/block-types';
-import type { FontConfig } from '../../core/measure/fonts';
-import type { BlockSpec } from '../../core/layout/spec-types';
 import type { TableLaidOut } from '../../core/layout/layout-types';
+import type { BlockSpec } from '../../core/layout/spec-types';
+import type { FontConfig } from '../../core/measure/fonts';
 import { layoutTable } from './layout';
 import { TABLE_BORDER, TABLE_MIN_COL_W, TABLE_ROW_H } from './metrics';
 

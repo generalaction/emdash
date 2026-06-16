@@ -7,10 +7,10 @@
  */
 
 import type { IslandBlock } from '../../core/blocks/block-types';
+import type { IslandLaidOut } from '../../core/layout/layout-types';
+import type { BlockSpec } from '../../core/layout/spec-types';
 import type { FontConfig } from '../../core/measure/fonts';
 import { ISLAND_FIXED_HEIGHT } from '../../core/metrics';
-import type { BlockSpec } from '../../core/layout/spec-types';
-import type { IslandLaidOut } from '../../core/layout/layout-types';
 import { layoutIsland } from './layout';
 
 export const islandSpec: BlockSpec<IslandBlock, IslandLaidOut> = {

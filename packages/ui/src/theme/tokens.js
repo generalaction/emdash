@@ -2654,6 +2654,161 @@ export const tokens = {
       unit: 'px',
     },
   },
+  'type.body': {
+    '.': {
+      fontFamily: ['Inter Variable', 'sans-serif'],
+      fontSize: {
+        value: 14,
+        unit: 'px',
+      },
+      fontWeight: 400,
+      lineHeight: {
+        value: 22,
+        unit: 'px',
+      },
+    },
+  },
+  'type.body-bold': {
+    '.': {
+      fontFamily: ['Inter Variable', 'sans-serif'],
+      fontSize: {
+        value: 14,
+        unit: 'px',
+      },
+      fontWeight: 700,
+      lineHeight: {
+        value: 22,
+        unit: 'px',
+      },
+    },
+  },
+  'type.body-italic': {
+    '.': {
+      fontFamily: ['Inter Variable', 'sans-serif'],
+      fontSize: {
+        value: 14,
+        unit: 'px',
+      },
+      fontWeight: 400,
+      lineHeight: {
+        value: 22,
+        unit: 'px',
+      },
+      fontStyle: 'italic',
+    },
+  },
+  'type.body-link': {
+    '.': {
+      fontFamily: ['Inter Variable', 'sans-serif'],
+      fontSize: {
+        value: 14,
+        unit: 'px',
+      },
+      fontWeight: 500,
+      lineHeight: {
+        value: 22,
+        unit: 'px',
+      },
+    },
+  },
+  'type.h1': {
+    '.': {
+      fontFamily: ['Inter Variable', 'sans-serif'],
+      fontSize: {
+        value: 20,
+        unit: 'px',
+      },
+      fontWeight: 700,
+      lineHeight: {
+        value: 28,
+        unit: 'px',
+      },
+    },
+  },
+  'type.h2': {
+    '.': {
+      fontFamily: ['Inter Variable', 'sans-serif'],
+      fontSize: {
+        value: 17,
+        unit: 'px',
+      },
+      fontWeight: 700,
+      lineHeight: {
+        value: 25,
+        unit: 'px',
+      },
+    },
+  },
+  'type.h3': {
+    '.': {
+      fontFamily: ['Inter Variable', 'sans-serif'],
+      fontSize: {
+        value: 14,
+        unit: 'px',
+      },
+      fontWeight: 600,
+      lineHeight: {
+        value: 22,
+        unit: 'px',
+      },
+    },
+  },
+  'type.inline-code': {
+    '.': {
+      fontFamily: ['Cascadia Code', 'ui-monospace', 'monospace'],
+      fontSize: {
+        value: 12,
+        unit: 'px',
+      },
+      fontWeight: 600,
+      lineHeight: {
+        value: 22,
+        unit: 'px',
+      },
+    },
+  },
+  'type.mention': {
+    '.': {
+      fontFamily: ['Inter Variable', 'sans-serif'],
+      fontSize: {
+        value: 12,
+        unit: 'px',
+      },
+      fontWeight: 700,
+      lineHeight: {
+        value: 22,
+        unit: 'px',
+      },
+    },
+  },
+  'type.code': {
+    '.': {
+      fontFamily: ['Cascadia Code', 'ui-monospace', 'monospace'],
+      fontSize: {
+        value: 12,
+        unit: 'px',
+      },
+      fontWeight: 400,
+      lineHeight: {
+        value: 18,
+        unit: 'px',
+      },
+    },
+  },
+  'type.code-lang': {
+    '.': {
+      fontFamily: ['Inter Variable', 'sans-serif'],
+      fontSize: {
+        value: 11,
+        unit: 'px',
+      },
+      fontWeight: 500,
+      lineHeight: {
+        value: 18,
+        unit: 'px',
+      },
+    },
+  },
   'radius.sm': {
     '.': {
       value: 4,

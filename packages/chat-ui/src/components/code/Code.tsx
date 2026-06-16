@@ -11,8 +11,8 @@ import { For, createEffect, onCleanup } from 'solid-js';
 import type { CodeBlock } from '../../core/blocks/block-types';
 import { highlightCode, peekHighlight } from '../../core/highlight/highlighter';
 import type { CodeLaidOut } from '../../core/layout/layout-types';
-import { cancelIdle, scheduleIdle } from '../dom-utils';
 import { BlockFrame } from '../block-frame';
+import { cancelIdle, scheduleIdle } from '../dom-utils';
 import styles from './code.module.css';
 
 export type CodeProps = {
@@ -106,7 +106,7 @@ export function Code(props: CodeProps) {
   return (
     <BlockFrame
       layout={props.block}
-      class={`${styles['pcode-block']} rounded-lg overflow-x-auto overflow-y-hidden`}
+      class={`${styles['pcode-block']} overflow-x-auto overflow-y-hidden rounded-lg`}
       ref={(el) => {
         wrapperEl = el;
       }}

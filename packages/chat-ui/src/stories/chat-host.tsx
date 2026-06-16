@@ -56,7 +56,12 @@ export function ChatHost(props: ChatHostProps) {
 
   return (
     <StoryViewport height={props.height} width={props.width}>
-      <ChatRoot transcript={transcript} viewState={viewState} fonts={DEFAULT_FONT_CONFIG} stickToBottom />
+      <ChatRoot
+        transcript={transcript}
+        viewState={viewState}
+        fonts={DEFAULT_FONT_CONFIG}
+        stickToBottom
+      />
     </StoryViewport>
   );
 }
@@ -96,7 +101,12 @@ export function ScriptedChat(props: { script: ScriptStep[]; height?: number; wid
 
   return (
     <StoryViewport height={props.height} width={props.width}>
-      <ChatRoot transcript={transcript} viewState={viewState} fonts={DEFAULT_FONT_CONFIG} stickToBottom />
+      <ChatRoot
+        transcript={transcript}
+        viewState={viewState}
+        fonts={DEFAULT_FONT_CONFIG}
+        stickToBottom
+      />
     </StoryViewport>
   );
 }

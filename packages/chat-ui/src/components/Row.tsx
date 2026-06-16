@@ -18,14 +18,14 @@
  * CSS is adding unexpected geometry.
  */
 
-import { Dynamic } from 'solid-js/web';
 import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
 import { createStore } from 'solid-js/store';
+import { Dynamic } from 'solid-js/web';
+import type { MeasureCtx, RenderCtx } from '../core/layout/spec-types';
 import { DEFAULT_FONT_CONFIG } from '../core/measure/fonts';
 import type { FontConfig } from '../core/measure/fonts';
-import type { MeasureCtx, RenderCtx } from '../core/layout/spec-types';
-import type { Virtualizer } from '../core/virtualizer';
 import { ROW_GAP } from '../core/metrics';
+import type { Virtualizer } from '../core/virtualizer';
 import type { ChatItem } from '../model';
 import type { ViewState } from '../state/view-state';
 import { useDebug } from './debug-context';
@@ -87,7 +87,7 @@ function RowDebugOverlay(props: {
         'outline-emerald-400/50': !mismatch(),
       }}
     >
-      <span class="absolute left-0 top-0 bg-black/70 px-1 text-[9px] leading-tight text-white">
+      <span class="absolute top-0 left-0 bg-black/70 px-1 text-[9px] leading-tight text-white">
         row · content={props.contentHeight} reserved={props.totalReserved}
         <Show when={mismatch()}>
           {' '}
@@ -147,12 +147,7 @@ export function Row(props: RowProps) {
       }}
       style={{ position: 'relative' }}
     >
-      <Dynamic
-        component={spec().Render}
-        item={props.item}
-        layout={layout()}
-        ctx={renderCtx}
-      />
+      <Dynamic component={spec().Render} item={props.item} layout={layout()} ctx={renderCtx} />
       <Show when={debug()}>
         <RowDebugOverlay
           contentHeight={layout().height - ROW_GAP}

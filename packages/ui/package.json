@@ -27,6 +27,11 @@
     "./theme/semantic.css": "./src/theme/semantic.css",
     "./theme/surfaces.css": "./src/theme/surfaces.css",
     "./theme/overflow-fade.css": "./src/theme/overflow-fade.css",
+    "./theme/typography.css": "./src/theme/typography.css",
+    "./recipes/button": {
+      "types": "./dist/recipes/button.d.mts",
+      "default": "./dist/recipes/button.mjs"
+    },
     "./theme/tokens.js": "./src/theme/tokens.js",
     "./theme/tokens.d.ts": "./src/theme/tokens.d.ts",
     "./package.json": "./package.json"

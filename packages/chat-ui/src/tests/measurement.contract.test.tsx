@@ -16,11 +16,11 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
-import { reserveHeight } from '../core/layout/reserve-height';
-import { ROW_GAP, CODE_BLOCK } from '../core/metrics';
 import { CODE_BLOCK_PAD_Y, CODE_BLOCK_BORDER } from '../components/code/metrics';
 import { TABLE_ROW_H, TABLE_BORDER } from '../components/table/metrics';
 import { THINKING_HEADER_H } from '../components/thinking/metrics';
+import { reserveHeight } from '../core/layout/reserve-height';
+import { ROW_GAP, CODE_BLOCK } from '../core/metrics';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -199,7 +199,8 @@ describe('TABLE_ROW_H CSS parity', () => {
   it('table cell with 13px font / 20px line-height / 6px vertical padding is 32px', () => {
     const table = document.createElement('table');
     // Mirrors table.module.css properties
-    table.style.cssText = 'border-collapse: collapse; table-layout: fixed; width: 200px; font-size: 13px; line-height: 20px;';
+    table.style.cssText =
+      'border-collapse: collapse; table-layout: fixed; width: 200px; font-size: 13px; line-height: 20px;';
     const tr = document.createElement('tr');
     const td = document.createElement('td');
     // Mirrors table.module.css cell padding (no border so border doesn't add to row height)

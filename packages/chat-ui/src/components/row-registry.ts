@@ -6,11 +6,11 @@
  * TypeScript enforces that all three members (estimate, measure, Render) exist.
  */
 
-import type { ChatItem } from '../model';
 import type { RowComponent } from '../core/layout/spec-types';
+import type { ChatItem } from '../model';
 import { messageRow } from './message/spec';
-import { toolRow } from './tool/spec';
 import { thinkingRow } from './thinking/spec';
+import { toolRow } from './tool/spec';
 
 // oxlint-disable-next-line typescript/no-explicit-any -- registry boundary; row kinds are type-safe at their own spec files
 export const ROW_REGISTRY: Record<ChatItem['kind'], RowComponent<any, any>> = {

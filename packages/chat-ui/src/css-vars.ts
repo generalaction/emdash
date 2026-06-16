@@ -10,6 +10,13 @@
  * (geometry) automatically.
  */
 
+import { codeSpec } from './components/code/spec';
+import { islandSpec } from './components/island/spec';
+import { messageCssVars } from './components/message/css-vars';
+import { proseSpec } from './components/prose/spec';
+import { tableSpec } from './components/table/spec';
+import { thinkingCssVars } from './components/thinking/spec';
+import { toolCssVars } from './components/tool/spec';
 import {
   BODY,
   BODY_BOLD,
@@ -25,13 +32,6 @@ import {
   SANS_FAMILY,
   MONO_FAMILY,
 } from './core/metrics';
-import { codeSpec } from './components/code/spec';
-import { proseSpec } from './components/prose/spec';
-import { islandSpec } from './components/island/spec';
-import { tableSpec } from './components/table/spec';
-import { messageCssVars } from './components/message/css-vars';
-import { toolCssVars } from './components/tool/spec';
-import { thinkingCssVars } from './components/thinking/spec';
 
 function typographyCssVars(): Record<string, string> {
   return {

@@ -8,12 +8,12 @@
  */
 
 import type { Component } from 'solid-js';
+import type { MessageLayout } from '../../core/layout/layout-types';
+import type { MeasureCtx, RenderCtx, RowComponent } from '../../core/layout/spec-types';
+import { ROW_GAP } from '../../core/metrics';
+import type { ChatMessage } from '../../model';
 import { measureMessage } from './measure';
 import { Message } from './Message';
-import type { MeasureCtx, RenderCtx, RowComponent } from '../../core/layout/spec-types';
-import type { MessageLayout } from '../../core/layout/layout-types';
-import type { ChatMessage } from '../../model';
-import { ROW_GAP } from '../../core/metrics';
 import { BUBBLE_PAD_Y } from './metrics';
 export { BUBBLE_PAD_X, BUBBLE_PAD_Y, BLOCK_GAP, messageCssVars } from './css-vars';
 
@@ -34,15 +34,12 @@ export const messageRow: RowComponent<ChatMessage, MessageRowLayout> = {
   },
 
   measure(item: ChatMessage, ctx: MeasureCtx): MessageRowLayout {
-    return measureMessage(
-      item,
-      ctx.rowWidth,
-      ctx.fonts,
-      ctx.isCollapsed,
-      ctx.measured
-    );
+    return measureMessage(item, ctx.rowWidth, ctx.fonts, ctx.isCollapsed, ctx.measured);
   },
 
-  Render: MessageRender as Component<{ item: ChatMessage; layout: MessageRowLayout; ctx: RenderCtx }>,
+  Render: MessageRender as Component<{
+    item: ChatMessage;
+    layout: MessageRowLayout;
+    ctx: RenderCtx;
+  }>,
 };
-

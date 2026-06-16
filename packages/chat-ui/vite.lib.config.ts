@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
-import { defineConfig } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
+import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
 import solid from 'vite-plugin-solid';
 

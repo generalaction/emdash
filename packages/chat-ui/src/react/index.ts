@@ -24,7 +24,7 @@ export function ChatTranscript(props: ChatTranscriptProps): React.ReactElement {
 
   useEffect(() => {
     if (!ref.current) return;
-    const { onReady, style, className, ...mountOpts } = propsRef.current;
+    const { onReady, style: _style, className: _className, ...mountOpts } = propsRef.current;
     const handle = mountChat(ref.current, mountOpts);
     onReady?.(handle);
     return () => handle.dispose();

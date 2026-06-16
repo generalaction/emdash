@@ -40,7 +40,8 @@ function fragKey(run: InlineRun, variant: string): string {
 function fragVisualClass(run: InlineRun, variant: string): string {
   if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(variant)) return '';
   if (run.kind === 'code') return 'rounded bg-[var(--chat-code-inline-bg,rgba(0,0,0,0.06))]';
-  if (run.kind === 'mention') return 'rounded-full bg-[var(--chat-mention-bg,#dbeafe)] text-[var(--chat-mention-fg,#1d4ed8)]';
+  if (run.kind === 'mention')
+    return 'rounded-full bg-[var(--chat-mention-bg,#dbeafe)] text-[var(--chat-mention-fg,#1d4ed8)]';
   if (run.kind === 'text' && run.href) {
     return 'text-[var(--chat-link,#60a5fa)] underline decoration-[1px] underline-offset-[0.14em] cursor-pointer';
   }

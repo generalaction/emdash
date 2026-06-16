@@ -1,8 +1,10 @@
 /**
  * Core metrics — typography, row-level layout, and font shorthand builders.
  *
- * Typography constants are derived from @emdash/ui design tokens (tokens.js) so
- * that pretext measurement and CSS styling share a single source of truth.
+ * Typography constants are derived from @emdash/ui composite type.* design tokens
+ * (tokens.js) so that pretext measurement and CSS styling share a single source of
+ * truth. Each role is read from the composite token object; the flat typography.*
+ * primitive tokens remain in tokens.js as aliases but are no longer read directly here.
  *
  * Component-private constants (bubble padding, block gap, thinking heights,
  * code block padding) live in each component's metrics.ts.
@@ -12,19 +14,27 @@
 
 import { tokens } from '@emdash/ui/theme/tokens.js';
 
-// ── Token helpers ─────────────────────────────────────────────────────────────
+// ── Composite role reader ─────────────────────────────────────────────────────
 
-type DimToken = { value: number; unit: string };
+type CompositeRole = {
+  fontFamily: string[];
+  fontSize: { value: number; unit: string };
+  fontWeight: number;
+  lineHeight: { value: number; unit: string };
+  fontStyle?: string;
+};
 
-const dim = (id: keyof typeof tokens): number => (tokens[id]['.'] as unknown as DimToken).value;
-const num = (id: keyof typeof tokens): number => tokens[id]['.'] as unknown as number;
-const family = (id: keyof typeof tokens): string =>
-  (tokens[id]['.'] as unknown as string[]).join(', ');
+function role(id: keyof typeof tokens): CompositeRole {
+  return tokens[id]['.'] as unknown as CompositeRole;
+}
 
 // ── Font families ────────────────────────────────────────────────────────────
 
-export const SANS_FAMILY = family('typography.font-family.sans');
-export const MONO_FAMILY = family('typography.font-family.mono');
+const _bodySans = role('type.body');
+const _codeMono = role('type.code');
+
+export const SANS_FAMILY = _bodySans.fontFamily.join(', ');
+export const MONO_FAMILY = _codeMono.fontFamily.join(', ');
 
 // ── Per-variant typography ───────────────────────────────────────────────────
 
@@ -35,70 +45,32 @@ export type VariantTypography = {
   lineHeight: number;
 };
 
-export const BODY: VariantTypography = {
-  fontSize: dim('typography.body.size'),
-  fontWeight: num('typography.body.weight'),
-  lineHeight: dim('typography.body.line-height'),
-};
-export const BODY_BOLD: VariantTypography = {
-  fontSize: dim('typography.body.size'),
-  fontWeight: num('typography.body.bold-weight'),
-  lineHeight: dim('typography.body.line-height'),
-};
-export const BODY_ITALIC: VariantTypography = {
-  fontSize: dim('typography.body.size'),
-  fontWeight: num('typography.body.weight'),
-  fontStyle: 'italic',
-  lineHeight: dim('typography.body.line-height'),
-};
+function toVariant(r: CompositeRole): VariantTypography {
+  return {
+    fontSize: r.fontSize.value,
+    fontWeight: r.fontWeight,
+    lineHeight: r.lineHeight.value,
+    ...(r.fontStyle === 'italic' ? { fontStyle: 'italic' as const } : {}),
+  };
+}
+
+export const BODY: VariantTypography = toVariant(role('type.body'));
+export const BODY_BOLD: VariantTypography = toVariant(role('type.body-bold'));
+export const BODY_ITALIC: VariantTypography = toVariant(role('type.body-italic'));
 export const BODY_BOLD_ITALIC: VariantTypography = {
-  fontSize: dim('typography.body.size'),
-  fontWeight: num('typography.body.bold-weight'),
+  ...toVariant(role('type.body-bold')),
   fontStyle: 'italic',
-  lineHeight: dim('typography.body.line-height'),
 };
-export const BODY_LINK: VariantTypography = {
-  fontSize: dim('typography.body.size'),
-  fontWeight: num('typography.body.link-weight'),
-  lineHeight: dim('typography.body.line-height'),
-};
+export const BODY_LINK: VariantTypography = toVariant(role('type.body-link'));
 
-export const H1: VariantTypography = {
-  fontSize: dim('typography.h1.size'),
-  fontWeight: num('typography.h1.weight'),
-  lineHeight: dim('typography.h1.line-height'),
-};
-export const H2: VariantTypography = {
-  fontSize: dim('typography.h2.size'),
-  fontWeight: num('typography.h2.weight'),
-  lineHeight: dim('typography.h2.line-height'),
-};
-export const H3: VariantTypography = {
-  fontSize: dim('typography.h3.size'),
-  fontWeight: num('typography.h3.weight'),
-  lineHeight: dim('typography.h3.line-height'),
-};
+export const H1: VariantTypography = toVariant(role('type.h1'));
+export const H2: VariantTypography = toVariant(role('type.h2'));
+export const H3: VariantTypography = toVariant(role('type.h3'));
 
-export const INLINE_CODE: VariantTypography = {
-  fontSize: dim('typography.inline-code.size'),
-  fontWeight: num('typography.inline-code.weight'),
-  lineHeight: dim('typography.inline-code.line-height'),
-};
-export const MENTION: VariantTypography = {
-  fontSize: dim('typography.mention.size'),
-  fontWeight: num('typography.mention.weight'),
-  lineHeight: dim('typography.mention.line-height'),
-};
-export const CODE_BLOCK: VariantTypography = {
-  fontSize: dim('typography.code.size'),
-  fontWeight: num('typography.code.weight'),
-  lineHeight: dim('typography.code.line-height'),
-};
-export const CODE_LANG: VariantTypography = {
-  fontSize: dim('typography.code-lang.size'),
-  fontWeight: num('typography.code-lang.weight'),
-  lineHeight: dim('typography.code-lang.line-height'),
-};
+export const INLINE_CODE: VariantTypography = toVariant(role('type.inline-code'));
+export const MENTION: VariantTypography = toVariant(role('type.mention'));
+export const CODE_BLOCK: VariantTypography = toVariant(role('type.code'));
+export const CODE_LANG: VariantTypography = toVariant(role('type.code-lang'));
 
 // ── Inline chrome ────────────────────────────────────────────────────────────
 

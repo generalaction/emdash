@@ -41,7 +41,7 @@ export function Table(props: TableProps) {
             <For each={props.block.header}>
               {(cell) => (
                 <th
-                  class="overflow-hidden text-ellipsis whitespace-nowrap border border-border bg-background-1"
+                  class="overflow-hidden border border-border bg-background-1 text-ellipsis whitespace-nowrap"
                   title={cell}
                 >
                   {cell}
@@ -57,7 +57,7 @@ export function Table(props: TableProps) {
                 <For each={row}>
                   {(cell) => (
                     <td
-                      class="overflow-hidden text-ellipsis whitespace-nowrap border border-border"
+                      class="overflow-hidden border border-border text-ellipsis whitespace-nowrap"
                       title={cell}
                     >
                       {cell}

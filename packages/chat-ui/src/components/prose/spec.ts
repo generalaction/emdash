@@ -8,18 +8,10 @@
  */
 
 import type { ProseBlock } from '../../core/blocks/block-types';
-import type { FontConfig } from '../../core/measure/fonts';
-import {
-  BODY,
-  BLOCKQUOTE_INDENT,
-  H1,
-  H2,
-  H3,
-  INLINE_CODE,
-  LIST_INDENT,
-} from '../../core/metrics';
-import type { BlockSpec } from '../../core/layout/spec-types';
 import type { ProseLaidOut } from '../../core/layout/layout-types';
+import type { BlockSpec } from '../../core/layout/spec-types';
+import type { FontConfig } from '../../core/measure/fonts';
+import { BODY, BLOCKQUOTE_INDENT, H1, H2, H3, INLINE_CODE, LIST_INDENT } from '../../core/metrics';
 import { layoutProse } from './layout';
 
 export const proseSpec: BlockSpec<ProseBlock, ProseLaidOut> = {

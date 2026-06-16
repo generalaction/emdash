@@ -7,21 +7,16 @@
  */
 
 import type { Component } from 'solid-js';
-import { measureTool } from './measure';
-import { Tool } from './Tool';
 import type { MeasureCtx, RenderCtx, RowComponent } from '../../core/layout/spec-types';
 import type { ChatToolCall } from '../../model';
+import { measureTool } from './measure';
 import { TOOL_ROW_H } from './metrics';
+import { Tool } from './Tool';
 
 export type ToolRowLayout = { height: number };
 
 function ToolRender(props: { item: ChatToolCall; layout: ToolRowLayout; ctx: RenderCtx }) {
-  return (
-    <Tool
-      item={props.item}
-      collapsed={props.ctx.viewState.isCollapsed(props.item.id)}
-    />
-  );
+  return <Tool item={props.item} collapsed={props.ctx.viewState.isCollapsed(props.item.id)} />;
 }
 
 export const toolRow: RowComponent<ChatToolCall, ToolRowLayout> = {

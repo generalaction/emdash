@@ -20,7 +20,8 @@ const STATUS_ICON: Record<ToolStatus, string> = {
 const STATUS_COLOR: Record<ToolStatus, string> = {
   running: 'text-foreground-muted border-foreground-muted',
   done: 'text-[#16a34a] border-[#16a34a]',
-  error: 'text-[var(--foreground-destructive,#dc2626)] border-[var(--foreground-destructive,#dc2626)]',
+  error:
+    'text-[var(--foreground-destructive,#dc2626)] border-[var(--foreground-destructive,#dc2626)]',
 };
 
 export type ToolProps = {

@@ -33,7 +33,11 @@ function makeBlock(colCount: number, rowCount: number) {
 
 /** Canonical expected height for a table with the given total row count. */
 function expectedHeight(rowCount: number): number {
-  return reserveHeight({ content: rowCount * TABLE_ROW_H, border: TABLE_BORDER, borderLines: rowCount + 1 });
+  return reserveHeight({
+    content: rowCount * TABLE_ROW_H,
+    border: TABLE_BORDER,
+    borderLines: rowCount + 1,
+  });
 }
 
 describe('TABLE_ROW_H parity', () => {
