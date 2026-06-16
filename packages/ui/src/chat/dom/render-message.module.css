@@ -1,0 +1,90 @@
+/*
+ * render-message styles — message row, bubble, content layout, streaming cursor, a11y mirror.
+ *
+ * Geometry (height, width, insets) is always set via inline styles by the layout engine.
+ * These rules handle visual chrome: colours, border-radius, flex alignment.
+ */
+
+/* ── Message row ──────────────────────────────────────────────────────────── */
+
+.pmsg {
+  display: flex;
+  padding-inline: var(--chat-msg-pad-x);
+}
+
+.pmsg--user {
+  justify-content: flex-end;
+}
+
+.pmsg--assistant,
+.pmsg--thought {
+  justify-content: flex-start;
+}
+
+/* ── Bubble ───────────────────────────────────────────────────────────────── */
+
+/*
+ * Padding is baked into the layout geometry (block `top` offsets + the inner
+ * content inset in render-message), NOT CSS — the content is absolutely
+ * positioned, so CSS padding would be ignored by children and only risks
+ * double-counting against the explicit bubble width/height. See render-message.
+ */
+.pmsg-bubble {
+  position: relative;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+}
+
+.pmsg-bubble--assistant,
+.pmsg-bubble--thought {
+  width: 100%;
+}
+
+.pmsg-bubble--user {
+  background: var(--chat-bubble-user, #2563eb);
+  color: var(--chat-bubble-user-fg, #fff);
+  border-radius: 16px;
+}
+
+.pmsg-bubble--thought {
+  color: var(--chat-muted, #9ca3af);
+  font-style: italic;
+}
+
+/* ── Streaming cursor ─────────────────────────────────────────────────────── */
+
+.pchat-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: currentColor;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  animation: pchat-blink 1s step-end infinite;
+}
+
+@keyframes pchat-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ── Accessibility: visually hidden full-text mirror ───────────────────────── */
+
+.psr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  pointer-events: none;
+  user-select: text; /* allow Cmd-F / copy to find this text */
+}

@@ -1,4 +1,4 @@
-import { Brain, Loader2, Square, Wrench } from 'lucide-react';
+import { Brain, Loader2, Wrench } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef } from 'react';
 import { useAgents } from '@renderer/lib/stores/use-agents';
@@ -6,6 +6,7 @@ import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
 import { cn } from '@renderer/utils/utils';
 import type { ModelOption } from '@shared/core/agents/agent-payload';
 import { useConversations } from '../../task-view-context';
+import { ChatComposer } from './chat-composer';
 import type { ChatMessageItem, ChatToolItem } from './chat-store';
 
 function MessageBubble({ message }: { message: ChatMessageItem }) {
@@ -68,7 +69,7 @@ export const ChatPanel = observer(function ChatPanel({
 
   const { data: agents } = useAgents();
   const agentPayload = agents?.find((a) => a.id === providerId);
-  const modelOptions: Record<string, ModelOption> | null =
+  const modelOptions =
     agentPayload?.capabilities?.models?.kind === 'selectable'
       ? (
           agentPayload.capabilities.models as {
@@ -90,11 +91,9 @@ export const ChatPanel = observer(function ChatPanel({
     el.scrollTop = el.scrollHeight;
   }, [store.items.length, lastItemText]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      store.sendPrompt();
-    }
+  const handleSubmit = (text: string) => {
+    store.setInput(text);
+    store.sendPrompt();
   };
 
   return (
@@ -120,57 +119,15 @@ export const ChatPanel = observer(function ChatPanel({
 
       {/* Input area */}
       <div className="shrink-0 border-t border-border bg-background p-3">
-        {/* Model selector row */}
-        {modelOptions && (
-          <div className="mb-2 flex items-center gap-1">
-            <span className="text-xs text-foreground-secondary">Model:</span>
-            <select
-              className="rounded border border-border bg-background-secondary px-2 py-0.5 text-xs text-foreground focus:outline-none"
-              value={store.selectedModel}
-              onChange={(e) => store.setModel(e.target.value)}
-              disabled={store.isClosed}
-            >
-              {Object.entries(modelOptions).map(([id, opt]) => (
-                <option key={id} value={id} title={opt.description}>
-                  {opt.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        <div className="flex items-end gap-2 rounded-xl border border-border bg-background-secondary p-2">
-          <textarea
-            className="min-h-[36px] flex-1 resize-none bg-transparent text-sm text-foreground outline-none placeholder:text-foreground-passive"
-            placeholder={store.isClosed ? 'Session closed' : 'Message...'}
-            disabled={store.isClosed}
-            rows={1}
-            value={store.input}
-            onChange={(e) => store.setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            style={{ maxHeight: '120px', overflowY: 'auto' }}
-          />
-          {store.isWorking ? (
-            <button
-              type="button"
-              onClick={() => store.cancel()}
-              className="flex h-8 shrink-0 items-center justify-center rounded-lg bg-red-500 px-3 text-sm font-medium text-white hover:bg-red-600"
-              aria-label="Stop"
-            >
-              <Square className="mr-1 size-3 fill-current" />
-              Stop
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => store.sendPrompt()}
-              disabled={!store.input.trim() || store.isClosed}
-              className="flex h-8 shrink-0 items-center justify-center rounded-lg bg-primary-button-background px-3 text-sm font-medium text-primary-button-foreground hover:bg-primary-button-background-hover disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Send
-            </button>
-          )}
-        </div>
+        <ChatComposer
+          disabled={store.isClosed}
+          isWorking={store.isWorking}
+          modelOptions={modelOptions}
+          selectedModel={store.selectedModel}
+          onModelChange={(id) => store.setModel(id)}
+          onSubmit={handleSubmit}
+          onStop={() => store.cancel()}
+        />
       </div>
     </div>
   );

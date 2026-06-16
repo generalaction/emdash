@@ -30,33 +30,33 @@ export {
 } from './blocks/parse-blocks';
 
 // ── Measurement ───────────────────────────────────────────────────────────────
-export { HeightModel } from './measure/height-model';
 export { DEFAULT_FONT_CONFIG } from './measure/fonts';
 export type { FontConfig, VariantMetrics } from './measure/fonts';
 export { clearPretextCache, registerFontsReadyClear } from './measure/pretext-cache';
-export { runParityCheck, logParityCheck } from './measure/parity-check';
-export type { ParityResult } from './measure/parity-check';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 export { TranscriptStore } from './state/transcript-store';
-export { ViewStateStore, useCollapsed } from './state/view-state-store';
+export { ViewStateStore } from './state/view-state-store';
 
 // ── View ──────────────────────────────────────────────────────────────────────
 export { ChatTranscript } from './view/chat-transcript';
-export type { ChatSlots, ChatTranscriptProps } from './view/chat-transcript';
+export type { ChatTranscriptProps } from './view/chat-transcript';
 
-// ── Projected layout engine (imperative renderer) ─────────────────────────────
-export { ProjectedTranscript, LayoutStore, ImperativeChat } from './projected/index';
+// ── Slots ─────────────────────────────────────────────────────────────────────
+export type { ChatSlots, MountResult } from './slots';
+
+// ── Layout engine ─────────────────────────────────────────────────────────────
+export { LayoutStore } from './layout/layout-store';
+export { ImperativeChat } from './engine/imperative-chat';
+export type { ImperativeChatOptions } from './engine/imperative-chat';
+
 export type {
-  ProjectedTranscriptProps,
-  ImperativeSlots,
-  MountResult,
-  MessageLayout,
   BlockLaidOut,
-  ProseLaidOut,
+  BulletLayout,
   CodeLaidOut,
+  FragmentLayout,
   IslandLaidOut,
   LineLayout,
-  FragmentLayout,
-  BulletLayout,
-} from './projected/index';
+  MessageLayout,
+  ProseLaidOut,
+} from './layout/layout-types';

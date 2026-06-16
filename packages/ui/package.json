@@ -22,12 +22,15 @@
     "@chenglou/pretext": "^0.0.8",
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
-    "@tanstack/react-virtual": "^3.14.2",
+    "@fontsource/cascadia-code": "^5.2.3",
+    "@shikijs/langs": "^4.2.0",
+    "@shikijs/themes": "^4.2.0",
     "mobx": "^6.16.1",
     "mobx-react-lite": "^4.1.1",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
     "remark-parse": "^11.0.0",
+    "shiki": "^4.2.0",
     "unified": "^11.0.5"
   },
   "devDependencies": {

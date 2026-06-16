@@ -12,7 +12,7 @@
 // ── Font families ────────────────────────────────────────────────────────────
 
 export const SANS_FAMILY = '"Inter Variable", sans-serif';
-export const MONO_FAMILY = '"JetBrains Mono Variable", ui-monospace, monospace';
+export const MONO_FAMILY = '"Cascadia Code", ui-monospace, monospace';
 
 // ── Per-variant typography ───────────────────────────────────────────────────
 
@@ -50,10 +50,10 @@ export const INLINE_CODE: VariantTypography = { fontSize: 12, fontWeight: 600, l
 export const MENTION: VariantTypography = { fontSize: 12, fontWeight: 700, lineHeight: 22 };
 
 // Code block
-export const CODE_BLOCK: VariantTypography = { fontSize: 12, fontWeight: 500, lineHeight: 18 };
+export const CODE_BLOCK: VariantTypography = { fontSize: 12, fontWeight: 400, lineHeight: 18 };
 
 // Code lang label (above the pre block) — same family as code, slightly smaller
-export const CODE_LANG: VariantTypography = { fontSize: 11, fontWeight: 600, lineHeight: 18 };
+export const CODE_LANG: VariantTypography = { fontSize: 11, fontWeight: 500, lineHeight: 18 };
 
 // ── Layout constants ─────────────────────────────────────────────────────────
 
