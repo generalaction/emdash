@@ -40,13 +40,12 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-8 w-8"
                 onClick={() => update.check()}
                 disabled={update.state.status === 'checking'}
                 aria-label="Check for updates"
               >
                 <RefreshCw
-                  className={`h-3 w-3 ${update.state.status === 'checking' ? 'animate-spin' : ''}`}
+                  className={`size-4 ${update.state.status === 'checking' ? 'animate-spin' : ''}`}
                 />
               </Button>
             )}
@@ -143,42 +142,32 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
     switch (update.state.status) {
       case 'available':
         return (
-          <Button
-            size="sm"
-            variant="default"
-            onClick={() => update.download()}
-            className="h-7 text-xs"
-          >
-            <Download className="mr-1.5 h-3 w-3" />
+          <Button variant="default" onClick={() => update.download()}>
+            <Download className="size-4" />
             Download
           </Button>
         );
 
       case 'downloading':
         return (
-          <Button size="sm" variant="outline" disabled className="h-7 text-xs">
-            <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+          <Button variant="outline" disabled>
+            <Loader2 className="size-4 animate-spin" />
             Downloading
           </Button>
         );
 
       case 'downloaded':
         return (
-          <Button
-            size="sm"
-            variant="default"
-            onClick={() => update.install()}
-            className="h-7 text-xs"
-          >
-            <RefreshCw className="mr-1.5 h-3 w-3" />
+          <Button variant="default" onClick={() => update.install()}>
+            <RefreshCw className="size-4" />
             Restart
           </Button>
         );
 
       case 'installing':
         return (
-          <Button size="sm" variant="outline" disabled className="h-7 text-xs">
-            <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+          <Button variant="outline" disabled>
+            <Loader2 className="size-4 animate-spin" />
             Installing
           </Button>
         );
