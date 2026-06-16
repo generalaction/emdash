@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/renderer/features/tasks/tabs/tab-manager-store.test.ts
+  s_4ff4fb96894a42::t_d0ec813c1cc824 54-62,250-265
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/file-model-lifecycle-store.ts
+  s_4ff4fb96894a42::t_46b555ed05d8a5 316-330
+apps/emdash-desktop/src/renderer/features/tasks/tabs/tab-manager-store.ts
+  s_4ff4fb96894a42::t_12d4aa23d18230 410-413,418
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "a5cd3bcb05e87bad48744b5da94c90d9f1222da9",
+  "prompts": {},
+  "sessions": {
+    "s_4ff4fb96894a42": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed194-d4c3-7d46-bba9-7a7a96ae1176",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
