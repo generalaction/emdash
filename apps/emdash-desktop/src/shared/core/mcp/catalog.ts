@@ -295,7 +295,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Dev Manager',
     description:
-      'Launch and manage multiple dev servers in parallel with automatic port allocation',
+      'Launch and manage dev servers; requires the dev-manager daemon to be running separately',
     docsUrl: 'https://github.com/BloopAI/dev-manager-mcp',
     credentialKeys: [],
   },
