@@ -316,7 +316,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Amplitude',
     description: 'Search, access, and get insights on your Amplitude data',
-    docsUrl: 'https://amplitude.com/docs/analytics/amplitude-mcp',
+    docsUrl: 'https://amplitude.com/docs/amplitude-ai/amplitude-mcp',
     credentialKeys: [],
   },
   asana: {
