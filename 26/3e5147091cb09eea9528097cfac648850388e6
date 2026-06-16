@@ -1,0 +1,19 @@
+package.json
+  s_b6e4ffd39f4633::t_e012716d63611c 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "263e5147091cb09eea9528097cfac648850388e6",
+  "prompts": {},
+  "sessions": {
+    "s_b6e4ffd39f4633": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ecfc4-b8b6-73c6-b355-5b817f6859c2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
