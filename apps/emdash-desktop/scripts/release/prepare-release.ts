@@ -34,13 +34,17 @@ const { data: releases } = await octokit.rest.repos.listReleases({
 
 const sameTag = releases.filter((r) => r.tag_name === tag);
 if (sameTag.some((r) => !r.draft)) {
-  fail(`A published release already exists for ${tag}; aborting to avoid overwriting a shipped release`);
+  fail(
+    `A published release already exists for ${tag}; aborting to avoid overwriting a shipped release`
+  );
 }
 
 const drafts = sameTag.filter((r) => r.draft);
 if (drafts.length > 1) {
   const ids = drafts.map((r) => r.id).join(', ');
-  fail(`Multiple draft releases already exist for ${tag} (ids: ${ids}); clean them up before re-running`);
+  fail(
+    `Multiple draft releases already exist for ${tag} (ids: ${ids}); clean them up before re-running`
+  );
 }
 
 let releaseId: number;
