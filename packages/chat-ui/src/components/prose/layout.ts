@@ -3,6 +3,13 @@
  *
  * Moved here from core/layout/layout-prose.ts so that layout logic lives
  * alongside the Prose renderer.  No DOM access; uses pretext for text shaping.
+ *
+ * Break semantics:
+ *   InlineRun[] may contain `{ kind: 'break' }` entries. These are treated as
+ *   explicit line boundaries: the run array is split into segments at each
+ *   break, each segment is shaped independently by pretext, and the produced
+ *   lines are stacked in global line-index order. An empty segment (adjacent
+ *   breaks) advances the global line counter by one (blank line).
  */
 
 import {
@@ -10,11 +17,11 @@ import {
   measureRichInlineStats,
   walkRichInlineLineRanges,
 } from '@chenglou/pretext/rich-inline';
-import type { ProseBlock } from '../../core/blocks/block-types';
+import type { InlineRun, ProseBlock } from '../../core/blocks/block-types';
 import type {
-  BulletLayout,
   FragmentLayout,
   LineLayout,
+  BulletLayout,
   ProseLaidOut,
 } from '../../core/layout/layout-types';
 import { runsToRichItems } from '../../core/layout/runs-to-rich-items';
@@ -50,13 +57,45 @@ function proseIndent(block: ProseBlock): { indent: number; textLeft: number } {
   return { indent, textLeft };
 }
 
+/**
+ * Split a run array into segments, breaking at every InlineBreak run.
+ * Returns an array of sub-arrays; each sub-array holds the original run
+ * indices alongside non-break runs so runIndex in FragmentLayout maps back
+ * correctly into the full `block.runs` array.
+ */
+function segmentRuns(runs: InlineRun[]): Array<{ segRuns: InlineRun[]; baseIndex: number }[]> {
+  const segments: Array<{ segRuns: InlineRun[]; baseIndex: number }[]> = [];
+  let current: { segRuns: InlineRun[]; baseIndex: number }[] = [];
+
+  for (let i = 0; i < runs.length; i++) {
+    const run = runs[i];
+    if (run.kind === 'break') {
+      segments.push(current);
+      current = [];
+    } else {
+      current.push({ segRuns: [run], baseIndex: i });
+    }
+  }
+  segments.push(current);
+  return segments;
+}
+
 export function measureProseNaturalWidth(block: ProseBlock, fonts: FontConfig): number {
   if (block.runs.length === 0) return 0;
   const { textLeft } = proseIndent(block);
-  const items = runsToRichItems(block.runs, fonts);
-  const prepared = getPreparedRichInline(items);
-  const stats = measureRichInlineStats(prepared, UNBOUNDED_WIDTH);
-  return textLeft + stats.maxLineWidth;
+  const segments = segmentRuns(block.runs);
+  let maxWidth = 0;
+  for (const seg of segments) {
+    if (seg.length === 0) continue;
+    const items = runsToRichItems(
+      seg.map((s) => s.segRuns[0]),
+      fonts
+    );
+    const prepared = getPreparedRichInline(items);
+    const stats = measureRichInlineStats(prepared, UNBOUNDED_WIDTH);
+    maxWidth = Math.max(maxWidth, textLeft + stats.maxLineWidth);
+  }
+  return maxWidth;
 }
 
 export function layoutProse(
@@ -84,30 +123,45 @@ export function layoutProse(
   const { indent, textLeft } = proseIndent(block);
   const effectiveWidth = Math.max(1, width - textLeft);
 
-  const items = runsToRichItems(block.runs, fonts);
-  const prepared = getPreparedRichInline(items);
+  const segments = segmentRuns(block.runs);
 
   const lines: LineLayout[] = [];
-  let lineIndex = 0;
+  let globalLine = 0;
   let maxRight = 0;
 
-  walkRichInlineLineRanges(prepared, effectiveWidth, (range) => {
-    const line = materializeRichInlineLineRange(prepared, range);
-    let x = 0;
-    const frags: FragmentLayout[] = [];
-
-    for (const f of line.fragments) {
-      x += f.gapBefore;
-      frags.push({ text: f.text, x, runIndex: f.itemIndex });
-      x += f.occupiedWidth;
+  for (const seg of segments) {
+    if (seg.length === 0) {
+      // Blank line (consecutive breaks or leading/trailing break).
+      globalLine++;
+      continue;
     }
 
-    maxRight = Math.max(maxRight, textLeft + x);
-    lines.push({ top: lineIndex * lineHeight, left: textLeft, fragments: frags, endX: x });
-    lineIndex++;
-  });
+    // Build the index-remapping table: pretext item index → original run index.
+    const segRunList = seg.map((s) => s.segRuns[0]);
+    const indexMap = seg.map((s) => s.baseIndex);
 
-  const height = lineIndex * lineHeight;
+    const items = runsToRichItems(segRunList, fonts);
+    const prepared = getPreparedRichInline(items);
+
+    walkRichInlineLineRanges(prepared, effectiveWidth, (range) => {
+      const line = materializeRichInlineLineRange(prepared, range);
+      let x = 0;
+      const frags: FragmentLayout[] = [];
+
+      for (const f of line.fragments) {
+        x += f.gapBefore;
+        // Map from per-segment item index back to original block.runs index.
+        frags.push({ text: f.text, x, runIndex: indexMap[f.itemIndex] ?? f.itemIndex });
+        x += f.occupiedWidth;
+      }
+
+      maxRight = Math.max(maxRight, textLeft + x);
+      lines.push({ top: globalLine * lineHeight, left: textLeft, fragments: frags });
+      globalLine++;
+    });
+  }
+
+  const height = globalLine * lineHeight;
 
   let bullet: BulletLayout | undefined;
   if (isListItem) {

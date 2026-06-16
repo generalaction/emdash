@@ -139,8 +139,16 @@ export const ThinkingThenProse: Story = {
       height={320}
       script={scenario(
         [seedStep([{ kind: 'message', id: 'u1', role: 'user', text: 'Optimize this function' }])],
-        streamThinking({ id: 'th1', text: 'Looking at the function...\nIt has O(n²) complexity due to nested loops.\nUsing a Map will reduce it to O(n).', chunkMs: 80 }),
-        streamMessage({ id: 'a1', text: 'The bottleneck is the nested loop. Use a `Map` to reduce to **O(n)**.', chunkMs: 80 })
+        streamThinking({
+          id: 'th1',
+          text: 'Looking at the function...\nIt has O(n²) complexity due to nested loops.\nUsing a Map will reduce it to O(n).',
+          chunkMs: 80,
+        }),
+        streamMessage({
+          id: 'a1',
+          text: 'The bottleneck is the nested loop. Use a `Map` to reduce to **O(n)**.',
+          chunkMs: 80,
+        })
       )}
     />
   ),

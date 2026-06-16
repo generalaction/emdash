@@ -7,22 +7,28 @@ import type { InlineCode, InlineMention, InlineRun, InlineText } from '../blocks
 import type { FontConfig } from '../measure/fonts';
 
 export function runsToRichItems(runs: InlineRun[], fonts: FontConfig): RichInlineItem[] {
-  return runs.map((run): RichInlineItem => {
+  return runs.flatMap((run): RichInlineItem[] => {
+    // Break markers are segment boundaries in layoutProse; they have no glyph.
+    if (run.kind === 'break') return [];
     if (run.kind === 'code') {
-      return {
-        text: (run as InlineCode).text,
-        font: fonts.inlineCode.font,
-        break: 'never',
-        extraWidth: fonts.inlineCodeExtraWidth,
-      };
+      return [
+        {
+          text: (run as InlineCode).text,
+          font: fonts.inlineCode.font,
+          break: 'never',
+          extraWidth: fonts.inlineCodeExtraWidth,
+        },
+      ];
     }
     if (run.kind === 'mention') {
-      return {
-        text: (run as InlineMention).label,
-        font: fonts.mention.font,
-        break: 'never',
-        extraWidth: fonts.mentionExtraWidth,
-      };
+      return [
+        {
+          text: (run as InlineMention).label,
+          font: fonts.mention.font,
+          break: 'never',
+          extraWidth: fonts.mentionExtraWidth,
+        },
+      ];
     }
     const t = run as InlineText;
     let font = fonts.body.font;
@@ -30,6 +36,6 @@ export function runsToRichItems(runs: InlineRun[], fonts: FontConfig): RichInlin
     else if (t.bold) font = fonts.bold.font;
     else if (t.italic) font = fonts.italic.font;
     else if (t.href) font = fonts.link.font;
-    return { text: t.text, font };
+    return [{ text: t.text, font }];
   });
 }

@@ -38,7 +38,7 @@
   /* font metrics drive layout height — keep var-driven, not Tailwind */
   font-size: var(--chat-code-size);
   font-weight: var(--chat-code-weight);
-  font-family: var(--chat-mono);
+  font-family: var(--type-code-font-family);
   line-height: var(--chat-code-lh);
   /* text color — moved to Tailwind in Code.tsx */
 }

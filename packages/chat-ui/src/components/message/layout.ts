@@ -22,7 +22,7 @@ import { ROW_GAP, ROW_INSET_X, USER_BUBBLE_MAX_WIDTH_PCT } from '../../core/metr
 import type { ChatRole } from '../../model';
 import { measureProseNaturalWidth } from '../prose/layout';
 import { layoutBlocks } from '../rich-text/layout';
-import { BUBBLE_PAD_X, BUBBLE_PAD_Y, BLOCK_GAP } from './metrics';
+import { BUBBLE_PAD_X, BUBBLE_PAD_Y, BLOCK_GAP, PROSE_GAP } from './metrics';
 
 export function layoutMessage(
   blocks: Block[],
@@ -47,6 +47,7 @@ export function layoutMessage(
   const inner = layoutBlocks(blocks, effectiveWidth, fonts, {
     padY: BUBBLE_PAD_Y,
     blockGap: BLOCK_GAP,
+    proseGap: PROSE_GAP,
     isCollapsed,
     getMeasured,
   });

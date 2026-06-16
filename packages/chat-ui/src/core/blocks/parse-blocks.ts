@@ -19,6 +19,7 @@ import { unified } from 'unified';
 import type {
   Block,
   BlockId,
+  InlineBreak,
   InlineCode as ICode,
   InlineMention,
   InlineRun,
@@ -44,14 +45,23 @@ function phrasingsToRuns(
   for (const node of nodes) {
     switch (node.type) {
       case 'text': {
-        runs.push({
-          kind: 'text',
-          text: node.value,
-          bold: opts.bold,
-          italic: opts.italic,
-          strike: opts.strike,
-          href: opts.href,
-        } satisfies InlineText);
+        // Split on literal newlines (soft breaks inside a paragraph) and emit
+        // an InlineBreak between each segment so layoutProse can force a new line.
+        const segments = node.value.split('\n');
+        for (let i = 0; i < segments.length; i++) {
+          if (i > 0) runs.push({ kind: 'break' } satisfies InlineBreak);
+          const seg = segments[i];
+          if (seg.length > 0) {
+            runs.push({
+              kind: 'text',
+              text: seg,
+              bold: opts.bold,
+              italic: opts.italic,
+              strike: opts.strike,
+              href: opts.href,
+            } satisfies InlineText);
+          }
+        }
         break;
       }
 
@@ -87,6 +97,12 @@ function phrasingsToRuns(
             strike: true,
           })
         );
+        break;
+      }
+
+      // Hard break (two trailing spaces or backslash before newline in markdown).
+      case 'break': {
+        runs.push({ kind: 'break' } satisfies InlineBreak);
         break;
       }
 

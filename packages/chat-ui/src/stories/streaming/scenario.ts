@@ -22,10 +22,7 @@ export type ChunkMode = 'word' | 'char' | 'line';
  * - `char`: one Unicode code point per atom; `size` groups that many chars.
  * - `line`: one line (including its trailing `\n`) per atom.
  */
-export function chunkText(
-  text: string,
-  opts: { mode?: ChunkMode; size?: number } = {}
-): string[] {
+export function chunkText(text: string, opts: { mode?: ChunkMode; size?: number } = {}): string[] {
   const { mode = 'word', size = 1 } = opts;
 
   let atoms: string[];

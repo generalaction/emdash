@@ -29,7 +29,10 @@ export type BlocksLayout = { height: number; width: number; blocks: BlockLaidOut
 
 export type LayoutBlocksOpts = {
   padY: number;
+  /** Gap applied between two visible blocks of different tiers (code/table/island), or when proseGap is not set. */
   blockGap: number;
+  /** Optional tighter gap applied when *both* the previous and current visible block are prose. Defaults to blockGap. */
+  proseGap?: number;
   isCollapsed?: (id: string) => boolean;
   getMeasured?: (id: string) => number | undefined;
 };
@@ -46,6 +49,7 @@ export function layoutBlocks(
   let cursor = opts.padY;
   let visibleCount = 0;
   let maxContentWidth = 0;
+  let prevTier: Block['tier'] | null = null;
   const laid: BlockLaidOut[] = [];
 
   for (const block of blocks) {
@@ -101,7 +105,13 @@ export function layoutBlocks(
       continue;
     }
 
-    if (visibleCount > 0) cursor += opts.blockGap;
+    if (visibleCount > 0) {
+      const gap =
+        opts.proseGap !== undefined && prevTier === 'prose' && block.tier === 'prose'
+          ? opts.proseGap
+          : opts.blockGap;
+      cursor += gap;
+    }
 
     switch (block.tier) {
       case 'prose':
@@ -120,6 +130,7 @@ export function layoutBlocks(
 
     maxContentWidth = Math.max(maxContentWidth, laidBlock.contentWidth);
     cursor += laidBlock.height;
+    prevTier = block.tier;
     visibleCount++;
     laid.push(laidBlock);
   }

@@ -247,6 +247,43 @@ export const HorizontalRule: Story = {
   ),
 };
 
+/**
+ * Demonstrates that a single `\n` within a paragraph produces a tight line
+ * break (not a new paragraph), while `\n\n` (double newline) produces a
+ * paragraph with a smaller PROSE_GAP between them, and non-prose blocks
+ * (code fence) keep the larger BLOCK_GAP on both sides.
+ */
+export const LineBreaksAndParagraphGap: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'message',
+          id: 'm1',
+          role: 'assistant',
+          text: [
+            'First line of a paragraph.',
+            'Second line — same paragraph, soft break (single \\n).',
+            'Third line — still the same paragraph.',
+            '',
+            'This is a new paragraph after a blank line (`\\n\\n`).',
+            'It should have a small gap above, not a big block gap.',
+            '',
+            'Another paragraph here.',
+            '',
+            '```ts',
+            'const x = 1; // code block follows with a larger gap',
+            '```',
+            '',
+            'Back to prose after the code fence — larger gap above.',
+          ].join('\n'),
+        },
+      ]}
+      height={460}
+    />
+  ),
+};
+
 export const MixedBlocks: Story = {
   render: () => (
     <ChatHost

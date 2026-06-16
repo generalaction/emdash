@@ -3,8 +3,7 @@
  *
  * Visual styles (flex justify, colors, radii, typography) have been moved to
  * Tailwind classes in Message.tsx. Only rules that cannot be expressed cleanly
- * as utilities — primarily structural bubble layout and the streaming cursor
- * animation keyframes — remain here.
+ * as utilities — structural bubble layout — remain here.
  */
 
 /* ── Bubble structural positioning ────────────────────────────────────────── */
@@ -19,26 +18,4 @@
   position: relative;
   flex: 0 0 auto;
   box-sizing: border-box;
-}
-
-/* ── Streaming cursor ─────────────────────────────────────────────────────── */
-
-.pchat-cursor {
-  display: inline-block;
-  width: 2px;
-  height: 1em;
-  background: currentColor;
-  margin-left: 1px;
-  vertical-align: text-bottom;
-  animation: pchat-blink 1s step-end infinite;
-}
-
-@keyframes pchat-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
-  }
 }

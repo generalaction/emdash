@@ -7,9 +7,8 @@
  * onIslandMeasured.
  */
 
-import { Show } from 'solid-js';
 import { parseBlocksCached } from '../../core/blocks/parse-blocks';
-import type { MessageLayout, ProseLaidOut } from '../../core/layout/layout-types';
+import type { MessageLayout } from '../../core/layout/layout-types';
 import { ROW_GAP } from '../../core/metrics';
 import type { ChatMessage, ChatRole } from '../../model';
 import { BlockStack } from '../rich-text/BlockStack';
@@ -41,35 +40,6 @@ function blockPlainText(block: {
     return allRows.map((row) => row.join(' | ')).join('\n');
   }
   return block.raw ?? '';
-}
-
-// ── Streaming cursor ──────────────────────────────────────────────────────────
-
-function lastTextPosition(layout: MessageLayout): { top: number; left: number } | null {
-  for (let i = layout.blocks.length - 1; i >= 0; i--) {
-    const block = layout.blocks[i];
-    if (block.kind === 'prose' && (block as ProseLaidOut).lines.length > 0) {
-      const b = block as ProseLaidOut;
-      const lastLine = b.lines[b.lines.length - 1];
-      return { top: block.top + lastLine.top, left: lastLine.left + lastLine.endX };
-    }
-  }
-  return null;
-}
-
-function StreamingCursor(props: { layout: MessageLayout }) {
-  const pos = lastTextPosition(props.layout);
-  return (
-    <span
-      class={styles['pchat-cursor']}
-      aria-hidden="true"
-      style={
-        pos
-          ? { position: 'absolute', top: `${pos.top}px`, left: `${pos.left}px` }
-          : { position: 'absolute', bottom: '10px', left: '0' }
-      }
-    />
-  );
 }
 
 // ── Role helpers ──────────────────────────────────────────────────────────────
@@ -136,9 +106,6 @@ export function Message(props: MessageProps) {
             laid={props.layout.blocks}
             onIslandMeasured={props.onIslandMeasured}
           />
-          <Show when={props.item.streaming}>
-            <StreamingCursor layout={props.layout} />
-          </Show>
         </div>
       </div>
     </div>

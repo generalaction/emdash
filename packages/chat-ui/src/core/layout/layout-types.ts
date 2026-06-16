@@ -23,12 +23,6 @@ export type LineLayout = {
   /** Left indent in px (for list items, blockquotes). */
   left: number;
   fragments: FragmentLayout[];
-  /**
-   * X offset of the right edge of the last fragment, in px from the block's
-   * left edge. Equal to `left + endX` gives the absolute cursor insertion point
-   * for streaming indicators.
-   */
-  endX: number;
 };
 
 /** Optional absolute bullet marker (list items). */

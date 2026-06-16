@@ -42,7 +42,14 @@ export type InlineMention = {
   tone?: string;
 };
 
-export type InlineRun = InlineText | InlineCode | InlineMention;
+/**
+ * Explicit line break — produced from a hard break node (two trailing spaces /
+ * backslash line ending) or a literal `\n` inside a text node. `layoutProse`
+ * uses these as segment boundaries; `runsToRichItems` never sees them.
+ */
+export type InlineBreak = { kind: 'break' };
+
+export type InlineRun = InlineText | InlineCode | InlineMention | InlineBreak;
 
 // ── Block types ───────────────────────────────────────────────────────────────
 

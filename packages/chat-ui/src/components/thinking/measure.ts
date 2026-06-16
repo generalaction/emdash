@@ -18,7 +18,7 @@ import {
 import type { FontConfig } from '../../core/measure/fonts';
 import { ROW_GAP, ROW_INSET_X } from '../../core/metrics';
 import type { ChatThinking } from '../../model';
-import { BLOCK_GAP } from '../message/metrics';
+import { BLOCK_GAP, PROSE_GAP } from '../message/metrics';
 import type { BlocksLayout } from '../rich-text/layout';
 import { layoutBlocks } from '../rich-text/layout';
 import { THINKING_HEADER_H, THINKING_PAD_Y, THINKING_WINDOW_H } from './metrics';
@@ -61,6 +61,7 @@ export function measureThinking(
   const body = layoutBlocks(blocks, bodyWidth, fonts, {
     padY: THINKING_PAD_Y,
     blockGap: BLOCK_GAP,
+    proseGap: PROSE_GAP,
     getMeasured: () => undefined,
   });
 

@@ -6,6 +6,11 @@
  * accounts for in its arithmetic remain here: fragment geometry (white-space,
  * line-height, absolute centering), font metrics (size, family, weight), and
  * chip padding — all of which feed pretext width/height measurement.
+ *
+ * Font properties now read directly from @emdash/ui --type-* composite role
+ * tokens (loaded via theme.css) instead of the --chat-* aliases. The measurement
+ * source (core/metrics.ts) derives from the same tokens.js at build time, so
+ * geometry parity is preserved.
  */
 
 /* ── Lines ────────────────────────────────────────────────────────────────── */
@@ -34,77 +39,77 @@
   transform: translateY(-50%);
 }
 
-/* Variant-specific fonts — driven by CSS variables from chatCssVars(). */
+/* Variant-specific fonts — driven by @emdash/ui --type-* role tokens. */
 /* font-size, font-family, font-weight all affect pretext measurement — keep var-driven. */
 .pf--body {
-  font-size: var(--chat-body-size);
-  font-weight: var(--chat-body-weight);
-  font-family: var(--chat-sans);
+  font-size: var(--type-body-font-size);
+  font-weight: var(--type-body-font-weight);
+  font-family: var(--type-body-font-family);
 }
 
 .pf--bold {
-  font-size: var(--chat-body-size);
-  font-weight: var(--chat-body-bold-weight);
-  font-family: var(--chat-sans);
+  font-size: var(--type-body-font-size);
+  font-weight: var(--type-body-bold-font-weight);
+  font-family: var(--type-body-font-family);
 }
 
 .pf--italic {
-  font-size: var(--chat-body-size);
-  font-weight: var(--chat-body-weight);
+  font-size: var(--type-body-font-size);
+  font-weight: var(--type-body-font-weight);
   font-style: italic;
-  font-family: var(--chat-sans);
+  font-family: var(--type-body-font-family);
 }
 
 .pf--bold-italic {
-  font-size: var(--chat-body-size);
-  font-weight: var(--chat-body-bold-weight);
+  font-size: var(--type-body-font-size);
+  font-weight: var(--type-body-bold-font-weight);
   font-style: italic;
-  font-family: var(--chat-sans);
+  font-family: var(--type-body-font-family);
 }
 
 .pf--link {
-  font-size: var(--chat-body-size);
-  font-weight: var(--chat-body-link-weight);
-  font-family: var(--chat-sans);
+  font-size: var(--type-body-font-size);
+  font-weight: var(--type-body-link-font-weight);
+  font-family: var(--type-body-font-family);
   /* color, text-decoration, cursor — moved to Tailwind in Prose.tsx */
 }
 
 .pf--h1 {
-  font-size: var(--chat-h1-size);
-  font-weight: var(--chat-h1-weight);
-  font-family: var(--chat-sans);
+  font-size: var(--type-h1-font-size);
+  font-weight: var(--type-h1-font-weight);
+  font-family: var(--type-h1-font-family);
 }
 
 .pf--h2 {
-  font-size: var(--chat-h2-size);
-  font-weight: var(--chat-h2-weight);
-  font-family: var(--chat-sans);
+  font-size: var(--type-h2-font-size);
+  font-weight: var(--type-h2-font-weight);
+  font-family: var(--type-h2-font-family);
 }
 
 .pf--h3,
 .pf--h4,
 .pf--h5,
 .pf--h6 {
-  font-size: var(--chat-h3-size);
-  font-weight: var(--chat-h3-weight);
-  font-family: var(--chat-sans);
+  font-size: var(--type-h3-font-size);
+  font-weight: var(--type-h3-font-weight);
+  font-family: var(--type-h3-font-family);
 }
 
 /* Inline code chip — font metrics and padding feed pretext measurement. */
 /* bg and border-radius moved to Tailwind in Prose.tsx. */
 .pf--inline-code {
-  font-size: var(--chat-ic-size);
-  font-weight: var(--chat-ic-weight);
-  font-family: var(--chat-mono);
+  font-size: var(--type-inline-code-font-size);
+  font-weight: var(--type-inline-code-font-weight);
+  font-family: var(--type-inline-code-font-family);
   padding: var(--chat-ic-pad-y) var(--chat-ic-pad-x);
 }
 
 /* Mention chip — font metrics and padding feed pretext measurement. */
 /* bg, color, border-radius moved to Tailwind in Prose.tsx. */
 .pf--mention {
-  font-size: var(--chat-mention-size);
-  font-weight: var(--chat-mention-weight);
-  font-family: var(--chat-sans);
+  font-size: var(--type-mention-font-size);
+  font-weight: var(--type-mention-font-weight);
+  font-family: var(--type-mention-font-family);
   padding: 0 var(--chat-mention-pad-x);
 }
 
@@ -112,8 +117,8 @@
 
 .pbullet {
   position: absolute;
-  font-size: var(--chat-body-size);
-  font-family: var(--chat-sans);
+  font-size: var(--type-body-font-size);
+  font-family: var(--type-body-font-family);
   line-height: 1;
   /* color moved to Tailwind in Prose.tsx */
 }
