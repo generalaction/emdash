@@ -32,12 +32,15 @@ export const notificationSettingsSchema = z.object({
   soundFocusMode: z.enum(['always', 'unfocused']),
 });
 
+export const taskDeleteBehaviorSchema = z.enum(['delete-worktree-and-branch', 'ask']);
+
 export const taskSettingsSchema = z.object({
   autoGenerateName: z.boolean(),
   autoTrustWorktrees: z.boolean(),
   createBranchAndWorktree: z.boolean(),
   preserveNameCapitalization: z.boolean(),
   includeIssueContextByDefault: z.boolean(),
+  deleteBehavior: taskDeleteBehaviorSchema,
 });
 
 export const agentAutoApproveDefaultsSchema = z

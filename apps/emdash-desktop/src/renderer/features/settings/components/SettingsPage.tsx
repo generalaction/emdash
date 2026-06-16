@@ -21,6 +21,7 @@ import {
   EnableTmuxRow,
   IncludeIssueContextByDefaultRow,
   PreserveTaskNameCapitalizationRow,
+  TaskDeleteBehaviorRow,
 } from './TaskSettingsRows';
 import TelemetryCard from './TelemetryCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
@@ -57,6 +58,7 @@ function GeneralSettingsPage() {
       <CreateBranchAndWorktreeRow />
       <PreserveTaskNameCapitalizationRow />
       <IncludeIssueContextByDefaultRow />
+      <TaskDeleteBehaviorRow />
       <EnableTmuxRow />
       <NotificationSettingsCard />
     </div>

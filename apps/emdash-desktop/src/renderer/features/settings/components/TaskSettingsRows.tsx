@@ -2,8 +2,16 @@ import { Info } from 'lucide-react';
 import React from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@renderer/lib/ui/select';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import type { TaskDeleteBehavior } from '@shared/core/app-settings';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 
@@ -160,6 +168,43 @@ export const IncludeIssueContextByDefaultRow: React.FC = () => {
             disabled={taskSettings.loading || taskSettings.saving}
             onCheckedChange={taskSettings.updateIncludeIssueContextByDefault}
           />
+        </>
+      }
+    />
+  );
+};
+
+export const TaskDeleteBehaviorRow: React.FC = () => {
+  const taskSettings = useTaskSettings();
+
+  return (
+    <SettingRow
+      title="Task delete behavior"
+      description="Choose whether deleting a task also deletes its worktree and branch automatically."
+      control={
+        <>
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('deleteBehavior')}
+            defaultLabel="delete both"
+            onReset={taskSettings.resetDeleteBehavior}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+          <Select
+            value={taskSettings.deleteBehavior}
+            onValueChange={(next) => taskSettings.updateDeleteBehavior(next as TaskDeleteBehavior)}
+          >
+            <SelectTrigger className="w-auto shrink-0 gap-2 [&>span]:line-clamp-none">
+              <SelectValue>
+                {taskSettings.deleteBehavior === 'ask'
+                  ? 'Ask every time'
+                  : 'Delete worktree and branch'}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent align="end" className="min-w-max">
+              <SelectItem value="delete-worktree-and-branch">Delete worktree and branch</SelectItem>
+              <SelectItem value="ask">Ask every time</SelectItem>
+            </SelectContent>
+          </Select>
         </>
       }
     />

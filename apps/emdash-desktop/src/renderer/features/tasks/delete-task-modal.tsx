@@ -1,5 +1,6 @@
 import { TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { rpc } from '@renderer/lib/ipc';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -27,8 +28,9 @@ type Props = BaseModalProps<DeleteTaskModalResult> & DeleteTaskModalArgs;
 
 export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props) {
   const [preflight, setPreflight] = useState<TaskDeletePreflightItem[] | null>(null);
+  const taskSettings = useTaskSettings();
   const [deleteWorktree, setDeleteWorktree] = useState(true);
-  const [deleteBranch, setDeleteBranch] = useState(false);
+  const [deleteBranch, setDeleteBranch] = useState(true);
 
   const count = tasks.length;
   const isBulk = count > 1;
@@ -44,14 +46,15 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
     );
   }, [projectId, taskIds]);
 
-  const isLoading = preflight === null;
+  const askWhatToDelete = taskSettings.deleteBehavior === 'ask';
+  const isLoading = preflight === null || taskSettings.loading;
 
   const worktreeTasks = preflight?.filter((t) => t.hasWorktree) ?? [];
   const dirtyTasks = preflight?.filter((t) => t.hasUncommittedChanges) ?? [];
   const branchTasks = preflight?.filter((t) => t.hasDeletableBranch) ?? [];
 
-  const showWorktreeCheckbox = !isLoading && worktreeTasks.length > 0;
-  const showBranchCheckbox = !isLoading && branchTasks.length > 0;
+  const showWorktreeCheckbox = askWhatToDelete && !isLoading && worktreeTasks.length > 0;
+  const showBranchCheckbox = askWhatToDelete && !isLoading && branchTasks.length > 0;
 
   const handleWorktreeChange = (checked: boolean) => {
     setDeleteWorktree(checked);
@@ -90,6 +93,13 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
       </DialogHeader>
       <DialogContentArea className="flex flex-col gap-4 pt-0">
         <p className="text-sm text-foreground-muted">{description}</p>
+
+        {dirtyWarning && !askWhatToDelete && (
+          <div className="flex items-start gap-1.5 rounded-md bg-background-warning px-3 py-2 text-xs text-foreground-warning">
+            <TriangleAlert className="mt-px size-3.5 shrink-0" />
+            <span>{dirtyWarning}</span>
+          </div>
+        )}
 
         {(showWorktreeCheckbox || showBranchCheckbox) && (
           <div className="flex flex-col gap-3">
@@ -134,7 +144,13 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
         <ConfirmButton
           variant="destructive"
           disabled={isLoading}
-          onClick={() => onSuccess({ deleteWorktree, deleteBranch })}
+          onClick={() =>
+            onSuccess(
+              askWhatToDelete
+                ? { deleteWorktree, deleteBranch }
+                : { deleteWorktree: true, deleteBranch: true }
+            )
+          }
         >
           {isLoading ? 'Loading...' : isBulk ? `Delete ${count} tasks` : 'Delete'}
         </ConfirmButton>

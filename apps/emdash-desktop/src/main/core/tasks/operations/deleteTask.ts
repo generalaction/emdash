@@ -16,7 +16,7 @@ export async function deleteTask(
   taskId: string,
   options: DeleteTaskOptions = {}
 ): Promise<void> {
-  const { deleteWorktree = true, deleteBranch = false } = options;
+  const { deleteWorktree = true, deleteBranch = true } = options;
 
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
   if (!task) return;

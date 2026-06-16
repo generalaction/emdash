@@ -1,4 +1,5 @@
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import type { TaskDeleteBehavior } from '@shared/core/app-settings';
 
 export interface TaskSettingsModel {
   autoGenerateName: boolean;
@@ -6,6 +7,7 @@ export interface TaskSettingsModel {
   createBranchAndWorktree: boolean;
   preserveNameCapitalization: boolean;
   includeIssueContextByDefault: boolean;
+  deleteBehavior: TaskDeleteBehavior;
   loading: boolean;
   saving: boolean;
   isFieldOverridden: (
@@ -15,17 +17,20 @@ export interface TaskSettingsModel {
       | 'createBranchAndWorktree'
       | 'preserveNameCapitalization'
       | 'includeIssueContextByDefault'
+      | 'deleteBehavior'
   ) => boolean;
   updateAutoGenerateName: (next: boolean) => void;
   updateAutoTrustWorktrees: (next: boolean) => void;
   updateCreateBranchAndWorktree: (next: boolean) => void;
   updatePreserveNameCapitalization: (next: boolean) => void;
   updateIncludeIssueContextByDefault: (next: boolean) => void;
+  updateDeleteBehavior: (next: TaskDeleteBehavior) => void;
   resetAutoGenerateName: () => void;
   resetAutoTrustWorktrees: () => void;
   resetCreateBranchAndWorktree: () => void;
   resetPreserveNameCapitalization: () => void;
   resetIncludeIssueContextByDefault: () => void;
+  resetDeleteBehavior: () => void;
 }
 
 export function useTaskSettings(): TaskSettingsModel {
@@ -44,6 +49,7 @@ export function useTaskSettings(): TaskSettingsModel {
     createBranchAndWorktree: tasks?.createBranchAndWorktree ?? true,
     preserveNameCapitalization: tasks?.preserveNameCapitalization ?? false,
     includeIssueContextByDefault: tasks?.includeIssueContextByDefault ?? true,
+    deleteBehavior: tasks?.deleteBehavior ?? 'delete-worktree-and-branch',
     loading,
     saving,
     isFieldOverridden,
@@ -52,10 +58,12 @@ export function useTaskSettings(): TaskSettingsModel {
     updateCreateBranchAndWorktree: (next) => update({ createBranchAndWorktree: next }),
     updatePreserveNameCapitalization: (next) => update({ preserveNameCapitalization: next }),
     updateIncludeIssueContextByDefault: (next) => update({ includeIssueContextByDefault: next }),
+    updateDeleteBehavior: (next) => update({ deleteBehavior: next }),
     resetAutoGenerateName: () => resetField('autoGenerateName'),
     resetAutoTrustWorktrees: () => resetField('autoTrustWorktrees'),
     resetCreateBranchAndWorktree: () => resetField('createBranchAndWorktree'),
     resetPreserveNameCapitalization: () => resetField('preserveNameCapitalization'),
     resetIncludeIssueContextByDefault: () => resetField('includeIssueContextByDefault'),
+    resetDeleteBehavior: () => resetField('deleteBehavior'),
   };
 }
