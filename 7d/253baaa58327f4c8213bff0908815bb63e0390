@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/main/core/skills/bundled-catalog.json
+  s_c9b38c36fa5eb5::t_4dcd8ab0dd1183 351-356,359,634,640
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "7d253baaa58327f4c8213bff0908815bb63e0390",
+  "prompts": {},
+  "sessions": {
+    "s_c9b38c36fa5eb5": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed1d3-8ca3-7660-8cb2-6982cc7ceaf2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
