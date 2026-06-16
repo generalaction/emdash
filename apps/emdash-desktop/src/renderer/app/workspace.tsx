@@ -9,6 +9,7 @@ import {
 } from '@renderer/lib/layout/navigation-provider';
 import { WorkspaceContentLayout, WorkspaceLayout } from '@renderer/lib/layout/workspace-layout';
 import { Toaster } from '@renderer/lib/ui/toaster';
+import { COMPACT_TITLEBAR_HEIGHT } from '@shared/app-menu';
 import { CompactMenuBar } from './compact-menu-bar';
 
 const isWindows = navigator.platform.toUpperCase().includes('WIN');
@@ -24,7 +25,10 @@ export function Workspace() {
       <CommandShortcutBinder />
       <MonacoKeyboardBridge />
       {isWindows && <CompactMenuBar />}
-      <div className={`flex-1 overflow-hidden ${isWindows ? 'pt-10' : ''}`}>
+      <div
+        className="flex-1 overflow-hidden"
+        style={isWindows ? { paddingTop: COMPACT_TITLEBAR_HEIGHT } : undefined}
+      >
         <WorkspaceLayout
           leftSidebar={<LeftSidebar />}
           mainContent={

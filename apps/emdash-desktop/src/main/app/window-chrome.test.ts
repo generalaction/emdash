@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { COMPACT_TITLEBAR_HEIGHT, getWindowChromeOptions } from './window-chrome';
+import { COMPACT_TITLEBAR_HEIGHT } from '@shared/app-menu';
+import { getWindowChromeOptions } from './window-chrome';
 
 describe('getWindowChromeOptions', () => {
   it('keeps the existing inset traffic light titlebar on macOS', () => {

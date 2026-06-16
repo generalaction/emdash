@@ -1,7 +1,11 @@
 import { type CSSProperties, type MouseEvent, useEffect, useRef, useState } from 'react';
-import { COMPACT_TITLEBAR_HEIGHT } from '@main/app/window-chrome';
 import { rpc } from '@renderer/lib/ipc';
-import { COMPACT_APP_MENU, type CompactMenuActionId, type CompactMenuItem } from '@shared/app-menu';
+import {
+  COMPACT_APP_MENU,
+  COMPACT_TITLEBAR_HEIGHT,
+  type CompactMenuActionId,
+  type CompactMenuItem,
+} from '@shared/app-menu';
 
 const noDragStyle = { WebkitAppRegion: 'no-drag' } as CSSProperties;
 const MENU_TOP = COMPACT_TITLEBAR_HEIGHT;
@@ -31,9 +35,25 @@ export function CompactMenuBar() {
       }
     };
 
+    let windowWidth = window.innerWidth;
+    let windowHeight = window.innerHeight;
+
+    const handleWindowResize = () => {
+      const newWidth = window.innerWidth;
+      const newHeight = window.innerHeight;
+
+      if (newWidth !== windowWidth || newHeight !== windowHeight) {
+        setOpenMenu(null);
+        windowWidth = newWidth;
+        windowHeight = newHeight;
+      }
+    };
+
     document.addEventListener('pointerdown', handleClickOutside);
+    window.addEventListener('resize', handleWindowResize);
     return () => {
       document.removeEventListener('pointerdown', handleClickOutside);
+      window.removeEventListener('resize', handleWindowResize);
     };
   }, [openMenu]);
 
@@ -49,13 +69,13 @@ export function CompactMenuBar() {
 
   return (
     <div ref={menuContainerRef}>
-      <div className="bg-muted/30 fixed top-0 right-0 left-0 z-[100] flex h-10 items-center border-b border-border/50 select-none [-webkit-app-region:drag]">
+      <div className="bg-muted/30 fixed top-0 right-0 left-0 z-[100] flex h-8 items-center border-b border-border/50 select-none [-webkit-app-region:drag]">
         <div className="flex items-center" style={noDragStyle}>
           {COMPACT_APP_MENU.map((group) => (
             <div key={group.label} className="relative" style={noDragStyle}>
               <button
                 type="button"
-                className="rounded-sm px-3 py-1 text-xs transition-colors hover:bg-white/10"
+                className="rounded-sm px-2 py-0.5 text-xs transition-colors hover:bg-white/10 focus:outline-none"
                 onClick={(event) => handleMenuClick(group.label, event)}
                 style={noDragStyle}
               >
@@ -98,29 +118,28 @@ function MenuItems({ items, onAction }: MenuItemsProps) {
         if (item.type === 'submenu') {
           const isOpen = openSubmenu === item.label;
           return (
-            <div
-              key={item.label}
-              className="relative"
-              onMouseEnter={() => setOpenSubmenu(item.label)}
-              onMouseLeave={() => setOpenSubmenu(null)}
-              style={noDragStyle}
-            >
-              <button
-                type="button"
-                className="flex w-full cursor-pointer items-center justify-between gap-4 px-3 py-1.5 text-left text-xs whitespace-nowrap transition-colors hover:bg-white/10"
-                style={noDragStyle}
+            <div key={item.label} className="relative" style={noDragStyle}>
+              <div
+                onMouseEnter={() => setOpenSubmenu(item.label)}
+                onMouseLeave={() => setOpenSubmenu(null)}
               >
-                <span>{item.label}</span>
-                <span className="text-[10px]">&gt;</span>
-              </button>
-              {isOpen && (
-                <div
-                  className="bg-popover/95 absolute top-0 left-full ml-1 min-w-[180px] rounded-md border border-border shadow-lg backdrop-blur-sm"
+                <button
+                  type="button"
+                  className="flex w-full cursor-pointer items-center justify-between gap-4 px-2 py-1 text-left text-xs whitespace-nowrap transition-colors hover:bg-white/10 focus:outline-none"
                   style={noDragStyle}
                 >
-                  <MenuItems items={item.items} onAction={onAction} />
-                </div>
-              )}
+                  <span>{item.label}</span>
+                  <span className="text-[10px]">&gt;</span>
+                </button>
+                {isOpen && (
+                  <div
+                    className="bg-popover absolute top-0 left-full min-w-[180px] rounded-md border border-border shadow-lg backdrop-blur-md"
+                    style={noDragStyle}
+                  >
+                    <MenuItems items={item.items} onAction={onAction} />
+                  </div>
+                )}
+              </div>
             </div>
           );
         }
@@ -130,7 +149,7 @@ function MenuItems({ items, onAction }: MenuItemsProps) {
           <button
             key={item.id}
             type="button"
-            className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-3 py-1.5 text-left text-xs whitespace-nowrap transition-colors hover:bg-white/10"
+            className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-2 py-1 text-left text-xs whitespace-nowrap transition-colors hover:bg-white/10 focus:outline-none"
             onClick={() => onAction(item.id)}
             style={noDragStyle}
           >

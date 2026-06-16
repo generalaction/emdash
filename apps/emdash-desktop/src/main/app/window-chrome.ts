@@ -1,6 +1,5 @@
 import type { BrowserWindowConstructorOptions } from 'electron';
-
-export const COMPACT_TITLEBAR_HEIGHT = 40;
+import { COMPACT_TITLEBAR_HEIGHT } from '@shared/app-menu';
 
 type WindowChromeOptions = Pick<
   BrowserWindowConstructorOptions,

@@ -1,3 +1,9 @@
+/**
+ * Height of the compact titlebar in pixels.
+ * Used by both main process (window configuration) and renderer (UI layout).
+ */
+export const COMPACT_TITLEBAR_HEIGHT = 32;
+
 export const COMPACT_MENU_ACTION_IDS = [
   'settings',
   'check-for-updates',
@@ -92,7 +98,7 @@ export const COMPACT_APP_MENU: readonly CompactMenuGroup[] = [
       },
       separator,
       { type: 'action', id: 'reset-zoom', label: 'Actual Size', shortcut: 'Ctrl+0' },
-      { type: 'action', id: 'zoom-in', label: 'Zoom In', shortcut: 'Ctrl+=' },
+      { type: 'action', id: 'zoom-in', label: 'Zoom In', shortcut: 'Ctrl^+' },
       { type: 'action', id: 'zoom-out', label: 'Zoom Out', shortcut: 'Ctrl+-' },
       separator,
       { type: 'action', id: 'toggle-fullscreen', label: 'Toggle Full Screen', shortcut: 'F11' },
