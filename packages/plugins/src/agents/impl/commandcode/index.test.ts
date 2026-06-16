@@ -55,8 +55,9 @@ describe('commandcode provider', () => {
     await provider.behavior.hooks!.writeHooks(fs, []);
 
     const settings = JSON.parse(files.get(COMMANDCODE_SETTINGS_PATH)!);
-    expect(settings.hooks.Stop).toHaveLength(1);
+    expect(settings.hooks.Stop).toHaveLength(2);
     expect(JSON.stringify(settings.hooks.Stop)).toContain('EMDASH_HOOK_PORT');
     expect(JSON.stringify(settings.hooks.Stop)).toContain('X-Emdash-Event-Type: session');
+    expect(JSON.stringify(settings.hooks.Stop)).toContain('X-Emdash-Event-Type: stop');
   });
 });
