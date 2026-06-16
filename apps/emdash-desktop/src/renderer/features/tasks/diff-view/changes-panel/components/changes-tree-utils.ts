@@ -1,6 +1,6 @@
+import type { GitChange } from '@emdash/shared/git';
 import { makeNode, sortFileNodes } from '@renderer/features/tasks/editor/stores/files-store-utils';
 import { type FileNode } from '@shared/core/fs/fs';
-import { type GitChange } from '@shared/core/git/git';
 
 export interface ChangesTree {
   rootNodes: FileNode[];

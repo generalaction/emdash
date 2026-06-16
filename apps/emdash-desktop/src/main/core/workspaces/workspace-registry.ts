@@ -83,7 +83,8 @@ export class WorkspaceRegistry {
     if (mode === 'terminate') {
       await entry.onDestroy?.(entry.workspace);
     }
-    entry.workspace.git.dispose();
+    await entry.workspace.dispose?.();
+    if (!entry.workspace.dispose) await entry.workspace.gitWorktree.dispose();
     await entry.workspace.lifecycleService.dispose();
     if (mode === 'detach') {
       await entry.onDetach?.(entry.workspace);
@@ -119,7 +120,8 @@ export class WorkspaceRegistry {
         if (mode === 'terminate') {
           await entry.onDestroy?.(entry.workspace);
         }
-        entry.workspace.git.dispose();
+        await entry.workspace.dispose?.();
+        if (!entry.workspace.dispose) await entry.workspace.gitWorktree.dispose();
         await entry.workspace.lifecycleService.dispose();
         if (mode === 'detach') {
           await entry.onDetach?.(entry.workspace);

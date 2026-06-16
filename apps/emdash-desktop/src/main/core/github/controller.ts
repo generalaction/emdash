@@ -1,14 +1,10 @@
-import * as path from 'node:path';
-import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
-import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
-import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
-import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
-import type { FileSystemProvider } from '@main/core/fs/types';
-import { cloneRepository, initializeNewProject } from '@main/core/git/impl/git-repo-utils';
 import { githubAccountService } from '@main/core/github/accounts/github-account-service-instance';
 import { githubDeviceFlowService } from '@main/core/github/services/github-device-flow-service-instance';
 import { repoService } from '@main/core/github/services/repo-service';
-import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
+import {
+  cloneProjectRepository,
+  initializeProjectRepository,
+} from '@main/core/projects/operations/git-repository-setup';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
@@ -206,20 +202,11 @@ export const githubController = createRPCController({
 
   cloneRepository: async (repoUrl: string, targetPath: string, connectionId?: string) => {
     try {
-      let ctx;
-      let parentFs: FileSystemProvider;
-
-      if (connectionId) {
-        const proxy = await sshConnectionManager.connect(connectionId);
-        ctx = new SshExecutionContext(proxy, { root: path.posix.dirname(targetPath) });
-        parentFs = new SshFileSystem(proxy, path.posix.dirname(targetPath));
-      } else {
-        ctx = new LocalExecutionContext({ root: path.dirname(targetPath) });
-        parentFs = new LocalFileSystem(path.dirname(targetPath));
-      }
-
-      await parentFs.mkdir('.', { recursive: true });
-      return await cloneRepository(repoUrl, targetPath, ctx);
+      return await cloneProjectRepository({
+        repositoryUrl: repoUrl,
+        targetPath,
+        connectionId,
+      });
     } catch (error) {
       log.error('Failed to clone repository:', error);
       return {
@@ -236,30 +223,7 @@ export const githubController = createRPCController({
     connectionId?: string;
   }) => {
     try {
-      let ctx;
-      let projectFs: FileSystemProvider;
-
-      if (params.connectionId) {
-        const proxy = await sshConnectionManager.connect(params.connectionId);
-        ctx = new SshExecutionContext(proxy, { root: params.targetPath });
-        projectFs = new SshFileSystem(proxy, params.targetPath);
-      } else {
-        ctx = new LocalExecutionContext({ root: params.targetPath });
-        projectFs = new LocalFileSystem(params.targetPath);
-      }
-
-      await initializeNewProject(
-        {
-          repoUrl: '',
-          localPath: params.targetPath,
-          name: params.name,
-          description: params.description,
-        },
-        ctx,
-        projectFs
-      );
-
-      return { success: true };
+      return await initializeProjectRepository(params);
     } catch (error) {
       log.error('Failed to initialize project:', error);
       return {

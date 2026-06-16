@@ -8,7 +8,7 @@ import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
 import { getMonacoLanguageId } from '@renderer/utils/diffUtils';
 import { log } from '@renderer/utils/logger';
-import { HEAD_REF } from '@shared/core/git/git';
+import { HEAD_REF } from '@shared/core/git/types';
 import type { EditorViewSnapshot } from '@shared/view-state';
 
 /**

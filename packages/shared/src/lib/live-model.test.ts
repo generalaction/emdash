@@ -11,6 +11,10 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+function lv<T>(value: T, sequence: number) {
+  return { value, sequence, generation: expect.any(Number) };
+}
+
 describe('LiveModel', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -24,10 +28,10 @@ describe('LiveModel', () => {
     let computes = 0;
     const model = new LiveModel({ compute: async () => ++computes });
 
-    await expect(model.get()).resolves.toEqual({ value: 1, seq: 1 });
-    await expect(model.get()).resolves.toEqual({ value: 1, seq: 1 });
+    await expect(model.get()).resolves.toEqual(lv(1, 1));
+    await expect(model.get()).resolves.toEqual(lv(1, 1));
     expect(computes).toBe(1);
-    expect(model.getCached()).toEqual({ value: 1, seq: 1 });
+    expect(model.getCached()).toEqual(lv(1, 1));
   });
 
   it('only marks dirty on invalidate without subscribers, recomputes on next get', async () => {
@@ -39,7 +43,7 @@ describe('LiveModel', () => {
     await vi.runAllTimersAsync();
     expect(computes).toBe(1); // no subscriber: no background recompute
 
-    await expect(model.get()).resolves.toEqual({ value: 2, seq: 2 });
+    await expect(model.get()).resolves.toEqual(lv(2, 2));
   });
 
   it('recomputes and pushes on invalidate while subscribed, with debounce coalescing', async () => {
@@ -49,7 +53,7 @@ describe('LiveModel', () => {
 
     model.subscribe((update) => pushed.push(update));
     await vi.runAllTimersAsync();
-    expect(pushed).toEqual([{ value: 1, seq: 1 }]); // initial compute on first subscribe
+    expect(pushed).toEqual([lv(1, 1)]); // initial compute on first subscribe
 
     model.invalidate();
     model.invalidate();
@@ -57,10 +61,7 @@ describe('LiveModel', () => {
     await vi.runAllTimersAsync();
 
     expect(computes).toBe(2); // three invalidations coalesced
-    expect(pushed).toEqual([
-      { value: 1, seq: 1 },
-      { value: 2, seq: 2 },
-    ]);
+    expect(pushed).toEqual([lv(1, 1), lv(2, 2)]);
   });
 
   it('queues exactly one trailing run when refreshed during an in-flight compute', async () => {
@@ -84,9 +85,9 @@ describe('LiveModel', () => {
     expect(gates).toHaveLength(2);
 
     gates[1]!.resolve(20);
-    await expect(second).resolves.toEqual({ value: 20, seq: 2 });
-    await expect(third).resolves.toEqual({ value: 20, seq: 2 });
-    await expect(first).resolves.toEqual({ value: 10, seq: 1 });
+    await expect(second).resolves.toEqual(lv(20, 2));
+    await expect(third).resolves.toEqual(lv(20, 2));
+    await expect(first).resolves.toEqual(lv(10, 1));
   });
 
   it('runs again after a compute that was invalidated mid-flight (subscribed)', async () => {
@@ -133,13 +134,13 @@ describe('LiveModel', () => {
     await vi.runAllTimersAsync();
 
     expect(errors).toHaveLength(1);
-    expect(model.getCached()).toEqual({ value: 1, seq: 1 });
+    expect(model.getCached()).toEqual(lv(1, 1));
     expect(pushed).toEqual([1]);
 
     await expect(model.refresh()).rejects.toThrow('boom');
 
     fail = false;
-    await expect(model.get()).resolves.toEqual({ value: 4, seq: 2 }); // dirty: recomputes
+    await expect(model.get()).resolves.toEqual(lv(4, 2)); // dirty: recomputes
   });
 
   it('revalidates on the configured interval while subscribed', async () => {
@@ -175,6 +176,64 @@ describe('LiveModel', () => {
     expect(computes).toBe(2); // timer was reset by refresh
     await vi.advanceTimersByTimeAsync(100);
     expect(computes).toBe(3);
+  });
+
+  it('suppresses updates when a recompute yields an equal value', async () => {
+    let computes = 0;
+    const model = new LiveModel({
+      compute: async () => {
+        computes += 1;
+        return { stable: true, items: [1, 2, 3] };
+      },
+    });
+    const pushed: unknown[] = [];
+    model.subscribe((update) => pushed.push(update));
+    await vi.runAllTimersAsync();
+    expect(pushed).toHaveLength(1);
+    const first = model.getCached()!;
+
+    model.invalidate();
+    await vi.runAllTimersAsync();
+    expect(computes).toBe(2);
+    expect(pushed).toHaveLength(1); // equal value: no push
+    expect(model.getCached()).toBe(first); // same sequence, same object
+
+    // refresh resolves with the cached value (read-your-writes still holds: the
+    // current sequence already represents the unchanged content)
+    await expect(model.refresh()).resolves.toBe(first);
+    expect(computes).toBe(3);
+
+    // suppression clears dirty: the next get serves the cache without recomputing
+    await model.get();
+    expect(computes).toBe(3);
+  });
+
+  it('uses a custom isEqual when provided', async () => {
+    let computes = 0;
+    const model = new LiveModel({
+      compute: async () => ({ id: 1, noise: ++computes }),
+      isEqual: (a, b) => a.id === b.id,
+    });
+    const pushed: unknown[] = [];
+    model.subscribe((update) => pushed.push(update));
+    await vi.runAllTimersAsync();
+
+    model.invalidate();
+    await vi.runAllTimersAsync();
+    expect(computes).toBe(2);
+    expect(pushed).toHaveLength(1); // ids equal: suppressed despite differing noise
+  });
+
+  it('stamps values with a per-instance monotonic generation', async () => {
+    const first = new LiveModel({ compute: async () => 1 });
+    const second = new LiveModel({ compute: async () => 1 });
+
+    const a = await first.get();
+    const b = await first.refresh();
+    const c = await second.get();
+
+    expect(a.generation).toBe(b.generation); // stable within an instance
+    expect(c.generation).toBeGreaterThan(a.generation); // later instance: later generation
   });
 
   it('rejects get/refresh/subscribe after dispose and stops timers', async () => {

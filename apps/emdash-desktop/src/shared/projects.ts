@@ -1,3 +1,5 @@
+import type { Result } from './lib/result';
+
 export type ProjectPathStatus = {
   isDirectory: boolean;
   isGitRepo: boolean;
@@ -48,6 +50,14 @@ export type CreateSshProjectParams = {
 };
 
 export type CreateProjectParams = CreateLocalProjectParams | CreateSshProjectParams;
+
+export type CreateProjectError =
+  | { type: 'invalid-directory'; path: string; message: string }
+  | { type: 'not-repository'; path: string }
+  | { type: 'init-failed'; path: string; message: string }
+  | { type: 'open-repository-failed'; path: string; message: string };
+
+export type CreateProjectResult = Result<Project, CreateProjectError>;
 
 export type InspectLocalProjectPathParams = {
   type: 'local';

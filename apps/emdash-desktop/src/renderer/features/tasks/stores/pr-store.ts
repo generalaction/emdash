@@ -1,16 +1,11 @@
+import type { GitChange } from '@emdash/shared/git';
 import { makeAutoObservable } from 'mobx';
-import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
+import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import {
-  commitRef,
-  mergeBaseRange,
-  refsEqual,
-  remoteRef,
-  type GitChange,
-} from '@shared/core/git/git';
-import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/core/git/gitEvents';
+import { gitRepoUpdateChannel, gitWorktreeUpdateChannel } from '@shared/core/git/events';
+import { commitRef, mergeBaseRange } from '@shared/core/git/utils';
 import {
   isForkPr,
   pullRequestErrorMessage,
@@ -19,7 +14,6 @@ import {
   type PullRequestMergeOptions,
 } from '@shared/core/pull-requests/pull-requests';
 import type { Task } from '@shared/core/tasks/tasks';
-import { parseRepositoryRef } from '@shared/repository-ref';
 import { isRegistered, type TaskStore } from './task-store';
 
 export type MergeResult = { success: true } | { success: false; error: string };
@@ -40,7 +34,7 @@ export class PrStore {
   constructor(
     private readonly projectId: string,
     private readonly workspaceId: string,
-    private readonly repositoryStore: RepositoryStore,
+    private readonly gitRepositoryStore: GitRepositoryStore,
     private readonly taskStore: TaskStore
   ) {
     makeAutoObservable(this);
@@ -73,33 +67,15 @@ export class PrStore {
           {
             kind: 'event',
             subscribe: (handler) => {
-              const unsubHead = events.on(gitWorkspaceChangedChannel, (p) => {
-                if (p.workspaceId === this.workspaceId && p.kind === 'head') handler();
+              const unsubHead = events.on(gitWorktreeUpdateChannel, (p) => {
+                if (p.workspaceId === this.workspaceId && p.update.kind === 'head') handler();
               });
-              const unsubBaseRef = events.on(gitRefChangedChannel, (p) => {
-                if (p.projectId !== this.projectId || p.kind !== 'remote-refs') return;
-                const baseRef = remoteRef(this.repositoryStore.baseRemote, pr.baseRefName);
-                const relevant = !p.changedRefs || p.changedRefs.some((r) => refsEqual(r, baseRef));
-                if (relevant) handler();
-              });
-              const unsubPrHead = events.on(gitRefChangedChannel, (p) => {
-                if (p.projectId !== this.projectId || p.kind !== 'remote-refs') return;
-                const sameRepoRef = remoteRef(this.repositoryStore.baseRemote, pr.headRefName);
-                const forkOwner = isForkPr(pr)
-                  ? (parseRepositoryRef(pr.headRepositoryUrl)?.owner ?? null)
-                  : null;
-                const forkRef = forkOwner ? remoteRef(forkOwner, pr.headRefName) : null;
-                const relevant =
-                  !p.changedRefs ||
-                  p.changedRefs.some(
-                    (r) => refsEqual(r, sameRepoRef) || (forkRef != null && refsEqual(r, forkRef))
-                  );
-                if (relevant) handler();
+              const unsubRefs = events.on(gitRepoUpdateChannel, (p) => {
+                if (p.projectId === this.projectId && p.update.kind === 'refs') handler();
               });
               return () => {
                 unsubHead();
-                unsubBaseRef();
-                unsubPrHead();
+                unsubRefs();
               };
             },
             onEvent: 'reload',
@@ -198,7 +174,7 @@ export class PrStore {
     const range = mergeBaseRange(baseRef, headRef);
 
     const tryRange = async (): Promise<GitChange[] | null> => {
-      const result = await rpc.workspace.git.getChangedFiles(
+      const result = await rpc.workspace.gitWorktree.getChangedFiles(
         this.projectId,
         this.workspaceId,
         range
@@ -220,10 +196,10 @@ export class PrStore {
     const first = await tryRange();
     if (first) return first;
 
-    await rpc.repository.fetch(this.projectId, this.workspaceId);
+    await rpc.gitRepository.fetch(this.projectId, this.workspaceId);
     const prNumber = prNumberFromIdentifier(pr.identifier);
     if (prNumber) {
-      await rpc.repository.fetchPrForReview(
+      await rpc.gitRepository.fetchPrForReview(
         this.projectId,
         prNumber,
         pr.headRefName,

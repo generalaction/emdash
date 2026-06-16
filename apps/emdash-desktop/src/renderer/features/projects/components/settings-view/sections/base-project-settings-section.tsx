@@ -1,3 +1,4 @@
+import type { GitBranchRef, GitRemote } from '@emdash/shared/git';
 import { Folder, Github } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
@@ -18,7 +19,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/
 import { Separator } from '@renderer/lib/ui/separator';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
-import type { Branch, Remote } from '@shared/core/git/git';
 import type { Project } from '@shared/projects';
 import type { FormState, FormUpdate } from '../project-settings-form-model';
 import {
@@ -33,7 +33,7 @@ type BaseProjectSettingsSectionProps = {
   form: FormState;
   defaultWorktreeDirectory: string;
   projectType: Project['type'];
-  remotes: Remote[];
+  remotes: GitRemote[];
   worktreeDirectoryError: string | null;
   update: FormUpdate;
 };
@@ -168,7 +168,7 @@ export function BaseProjectSettingsSection({
         <ProjectBranchSelector
           projectId={projectId}
           value={form.defaultBranch ?? undefined}
-          onValueChange={(branch: Branch) => update('defaultBranch', branch)}
+          onValueChange={(branch: GitBranchRef) => update('defaultBranch', branch)}
         />
       </Field>
 

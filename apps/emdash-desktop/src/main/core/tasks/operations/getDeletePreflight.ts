@@ -1,5 +1,6 @@
 import { and, eq, ne } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
+import { runtimeManager } from '@main/core/runtime/runtime-manager';
 import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
@@ -49,13 +50,27 @@ async function getTaskPreflight(
       try {
         const worktreePath = await project.worktreeService.getWorktree(provisionedBranch);
         if (worktreePath) {
-          const { stdout } = await project.ctx.exec('git', [
-            '-C',
-            worktreePath,
-            'status',
-            '--porcelain',
-          ]);
-          hasUncommittedChanges = stdout.trim().length > 0;
+          const runtimeLease = await runtimeManager.acquire(project.defaultWorkspaceMachine);
+          try {
+            const worktreeLease = await runtimeLease.value.git.openWorktree(worktreePath);
+            try {
+              const status = await worktreeLease.value.getStatus();
+              if (status.kind === 'error') {
+                log.warn('getDeletePreflight: git status check failed', {
+                  taskId,
+                  error: status.message,
+                });
+              }
+              if (status.kind === 'ok') {
+                hasUncommittedChanges = status.staged.length > 0 || status.unstaged.length > 0;
+              }
+              hasUncommittedChanges = status.kind === 'too-many-files';
+            } finally {
+              worktreeLease.release();
+            }
+          } finally {
+            runtimeLease.release();
+          }
         }
       } catch (e) {
         log.warn('getDeletePreflight: git status check failed', { taskId, error: String(e) });

@@ -6,6 +6,12 @@ export type GitCommandError = {
   stderr?: string;
 };
 
+export type CloneRepositoryError =
+  | { type: 'target-exists'; path: string; message: string }
+  | { type: 'auth-failed'; message: string }
+  | { type: 'remote-not-found'; message: string }
+  | GitCommandError;
+
 export type FetchError =
   | { type: 'remote-not-found'; remote?: string; message: string }
   | { type: 'auth-failed'; message: string }
@@ -43,10 +49,19 @@ export type DeleteBranchError =
   | { type: 'not-merged'; branch: string; message: string }
   | GitCommandError;
 
+function errorStringProperty(error: unknown, property: 'stdout' | 'stderr' | 'message'): string {
+  if (!error || typeof error !== 'object' || !(property in error)) return '';
+  return String((error as Record<typeof property, unknown>)[property] ?? '').trim();
+}
+
 export function gitErrorMessage(error: unknown): string {
   if (error instanceof ExecError) {
     return error.stderr.trim() || error.stdout.trim() || error.message;
   }
+  const stderr = errorStringProperty(error, 'stderr');
+  const stdout = errorStringProperty(error, 'stdout');
+  const message = errorStringProperty(error, 'message');
+  if (stderr || stdout || message) return stderr || stdout || message;
   return error instanceof Error ? error.message : String(error);
 }
 
@@ -54,8 +69,34 @@ export function toGitCommandError(error: unknown): GitCommandError {
   return {
     type: 'git-error',
     message: gitErrorMessage(error),
-    stderr: error instanceof ExecError ? error.stderr : undefined,
+    stderr:
+      error instanceof ExecError ? error.stderr : errorStringProperty(error, 'stderr') || undefined,
   };
+}
+
+export function classifyCloneRepositoryError(
+  error: unknown,
+  targetPath: string
+): CloneRepositoryError {
+  const commandError = toGitCommandError(error);
+  const message = commandError.message.toLowerCase();
+  if (
+    message.includes('already exists and is not an empty directory') ||
+    (message.includes('destination path') && message.includes('already exists'))
+  ) {
+    return { type: 'target-exists', path: targetPath, message: commandError.message };
+  }
+  if (message.includes('authentication') || message.includes('permission denied')) {
+    return { type: 'auth-failed', message: commandError.message };
+  }
+  if (
+    message.includes('repository not found') ||
+    message.includes('does not appear to be a git repository') ||
+    message.includes('not found')
+  ) {
+    return { type: 'remote-not-found', message: commandError.message };
+  }
+  return commandError;
 }
 
 export function classifyFetchError(error: unknown, remote: string | undefined): FetchError {

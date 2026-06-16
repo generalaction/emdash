@@ -33,6 +33,7 @@
     "build": "tsdown",
     "test": "vitest run",
     "theme:build": "node src/theme/build-state-layers.mjs && cd src/theme && terrazzo build --config terrazzo.config.js && cd ../.. && oxfmt src/theme/tokens.generated.json src/theme/theme.css",
+    "theme:watch": "node src/theme/watch.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/ui/src\"'",

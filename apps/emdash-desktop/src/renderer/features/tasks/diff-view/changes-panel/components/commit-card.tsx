@@ -1,7 +1,8 @@
 import { CheckCircle, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors';
+import { toast } from 'sonner';
+import { getTaskGitWorktreeStore } from '@renderer/features/tasks/stores/task-selectors';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -12,6 +13,7 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Input } from '@renderer/lib/ui/input';
 import { SplitButton, type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { Textarea } from '@renderer/lib/ui/textarea';
+import { formatErrorType, formatPushErrorDetail } from '../../../utils';
 
 type CommitPhase =
   | 'idle'
@@ -31,7 +33,7 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
   const workspaceId = useWorkspaceId();
   const taskView = useWorkspaceViewModel();
   const workspace = useWorkspace();
-  const git = workspace.git;
+  const git = workspace.gitWorktree;
   const diffView = taskView.diffView;
   const changesView = diffView?.changesView ?? null;
   const hasPRs = changesView?.expandedSections.pullRequests ?? false;
@@ -42,22 +44,32 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
   const isInFlight = phase !== 'idle';
 
   const showCreatePrModal = useShowModal('createPrModal');
-  const repositoryUrl = workspace.repository.pullRequestRepositoryUrl;
+  const repositoryUrl = workspace.gitRepository.pullRequestRepositoryUrl;
 
   if (!diffView || !changesView) return null;
 
-  const branchName = getTaskGitStore(projectId, taskId)?.branchName;
+  const branchName = getTaskGitWorktreeStore(projectId, taskId)?.branchName;
   const hasOpenPr = taskView.prStore?.pullRequests.some((p) => p.status === 'open') ?? false;
   const canCreatePr = Boolean(repositoryUrl) && Boolean(branchName) && !hasOpenPr;
 
+  const stageAllIfNeeded = async (): Promise<boolean> => {
+    if (!autoStage) return true;
+    changesView.suppressNextAutoExpand('staged');
+    const result = await git.stageAllFiles();
+    if (!result.success) {
+      toast.error(`Failed to stage changes: ${formatErrorType(result.error)} `);
+      setPhase('idle');
+      return false;
+    }
+    return true;
+  };
+
   const doCommit = async () => {
     setPhase('committing');
-    if (autoStage) {
-      changesView.suppressNextAutoExpand('staged');
-      await git.stageAllFiles();
-    }
+    if (!(await stageAllIfNeeded())) return;
     const result = await git.commit(fullMessage);
     if (!result.success) {
+      toast.error(`Failed to commit changes: ${formatErrorType(result.error)} `);
       setPhase('idle');
       return;
     }
@@ -72,12 +84,10 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
 
   const doCommitAndPush = async () => {
     setPhase('committing');
-    if (autoStage) {
-      changesView.suppressNextAutoExpand('staged');
-      await git.stageAllFiles();
-    }
+    if (!(await stageAllIfNeeded())) return;
     const commitResult = await git.commit(fullMessage);
     if (!commitResult.success) {
+      toast.error(`Failed to commit changes: ${formatErrorType(commitResult.error)} `);
       setPhase('idle');
       return;
     }
@@ -91,6 +101,7 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
     setPhase('pushing');
     const pushResult = await git.push();
     if (!pushResult.success) {
+      toast.error(`Failed to push: ${formatPushErrorDetail(pushResult.error)}`);
       setPhase('idle');
       return;
     }
@@ -100,12 +111,10 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
 
   const doCommitAndCreatePr = async () => {
     setPhase('committing');
-    if (autoStage) {
-      changesView.suppressNextAutoExpand('staged');
-      await git.stageAllFiles();
-    }
+    if (!(await stageAllIfNeeded())) return;
     const commitResult = await git.commit(fullMessage);
     if (!commitResult.success) {
+      toast.error(`Failed to commit changes: ${formatErrorType(commitResult.error)} `);
       setPhase('idle');
       return;
     }

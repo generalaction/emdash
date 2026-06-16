@@ -1,5 +1,8 @@
 export { GitRuntime, type GitRuntimeOptions } from './git-runtime';
+export { classifyCloneRepositoryError, gitErrorMessage } from './errors';
+export { computeBaseRef } from './utils';
 export type {
+  CloneRepositoryError,
   CommitError,
   CreateBranchError,
   DeleteBranchError,
@@ -13,7 +16,17 @@ export type { ImageBlob, ImageReadResult, ImageUnavailableReason } from './model
 export type { GitHeadModel } from './models/head';
 export type { Commit, CommitFile, GitLogResult } from './models/log';
 export type { DiffMode, DiffTarget, GitObjectRef, MergeBaseRange } from './models/diff-target';
-export type { GitBranch, GitRefsModel, GitRemote, GitRemotesModel } from './models/refs';
+export type {
+  GitBranch,
+  GitBranchRef,
+  GitLocalBranchRef,
+  GitRefsModel,
+  GitRemote,
+  GitRemoteBranchRef,
+  GitRemotesModel,
+  LocalBranch,
+  RemoteBranch,
+} from './models/refs';
 export type {
   GitChange,
   GitChangeStatus,
@@ -26,14 +39,18 @@ export type {
 export type {
   CreateBranchOptions,
   FetchPrForReviewOptions,
+  EnsureRepositoryError,
+  EnsureRepositoryOptions,
   GitLogOptions,
   GitModelByKind,
   GitModelKind,
+  GitPathInspection,
   GitModelUpdate,
+  GitRepositoryInfo,
   GitRepoModelKind,
   GitRepoSnapshot,
   GitRepoUpdate,
-  GitSeqs,
+  GitSequences,
   GitWorktreeModelKind,
   GitWorktreeSnapshot,
   GitWorktreeUpdate,
@@ -44,3 +61,9 @@ export type {
   SubscribedSnapshot,
   WorktreeLease,
 } from './types';
+export {
+  MAX_STATUS_FILES,
+  StatusParser,
+  TooManyFilesChangedError,
+  type FileStatus,
+} from './parsers/status-parser';
