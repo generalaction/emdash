@@ -1,0 +1,23 @@
+packages/plugins/src/agents/impl/commandcode/index.test.ts
+  s_55dc863812ebb2::t_0fe17cbd458c41 58,61
+packages/plugins/src/agents/impl/commandcode/index.ts
+  s_55dc863812ebb2::t_bdcfe0f3af583a 24
+packages/plugins/src/agents/impl/commandcode/hooks.ts
+  s_55dc863812ebb2::t_0f83ae6be26fdc 1-2,4-6,8-9,14-15,17-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "4914acda0c921ff5dbace6ee7debdf269be72d92",
+  "prompts": {},
+  "sessions": {
+    "s_55dc863812ebb2": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ecf02-78b4-7fe8-87a7-0bb0dc3b6839",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
