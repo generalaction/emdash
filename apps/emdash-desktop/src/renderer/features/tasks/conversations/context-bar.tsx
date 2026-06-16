@@ -25,9 +25,13 @@ import { buildTaskContextActions, type ContextAction } from './context-actions';
 
 interface ContextBarProps {
   conversationId: string | undefined;
+  hideTrigger?: boolean;
 }
 
-export const ContextBar = observer(function ContextBar({ conversationId }: ContextBarProps) {
+export const ContextBar = observer(function ContextBar({
+  conversationId,
+  hideTrigger = false,
+}: ContextBarProps) {
   const { projectId, taskId } = useTaskViewContext();
   const { groupId } = useTabGroupContext();
   const taskView = useWorkspaceViewModel();
@@ -85,17 +89,26 @@ export const ContextBar = observer(function ContextBar({ conversationId }: Conte
     setMenuOpen(false);
   };
 
+  const contextPopover = (
+    <AddContextPopover
+      actions={actions}
+      disabled={!canApplyContext || isSavingPromptLibrary}
+      hideTrigger={hideTrigger}
+      isActivePane={isActivePane}
+      onApplyAction={handleApplyAction}
+      side="top"
+    />
+  );
+
+  if (hideTrigger) {
+    return <div className="relative h-0 w-full overflow-visible">{contextPopover}</div>;
+  }
+
   return (
     <ContextMenu open={menuOpen} onOpenChange={setMenuOpen}>
       <ContextMenuTrigger>
         <div className="flex w-full items-center justify-center bg-background-secondary-1 px-4 pb-2">
-          <AddContextPopover
-            actions={actions}
-            disabled={!canApplyContext || isSavingPromptLibrary}
-            isActivePane={isActivePane}
-            onApplyAction={handleApplyAction}
-            side="top"
-          />
+          {contextPopover}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent finalFocus={false}>

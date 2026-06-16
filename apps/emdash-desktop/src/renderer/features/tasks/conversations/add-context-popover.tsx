@@ -14,6 +14,7 @@ import {
 } from '@renderer/lib/ui/combobox';
 import { Kbd } from '@renderer/lib/ui/kbd';
 import { Shortcut } from '@renderer/lib/ui/shortcut';
+import { cn } from '@renderer/utils/utils';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
 import { buildContextActionText, type ContextAction } from './context-actions';
 
@@ -76,6 +77,7 @@ export function ActionItemRow({ action }: { action: ContextAction }) {
 export interface AddContextPopoverProps {
   actions: ContextAction[];
   disabled: boolean;
+  hideTrigger?: boolean;
   isActivePane?: boolean;
   onApplyAction: (
     text: string,
@@ -90,6 +92,7 @@ export interface AddContextPopoverProps {
 export function AddContextPopover({
   actions,
   disabled,
+  hideTrigger = false,
   isActivePane = true,
   onApplyAction,
   renderTrigger,
@@ -175,13 +178,17 @@ export function AddContextPopover({
           if (event.button !== 0) blockComboboxOpenForContextMenu();
           blockSyntheticClickAfterContextMenu(event);
         }}
-        className={
-          renderTrigger
-            ? undefined
-            : 'flex h-6 min-w-[160px] items-center justify-between gap-1.5 rounded-lg border-border bg-background-secondary-2 px-2 text-xs font-normal text-foreground-muted transition-colors hover:bg-background-secondary-3 hover:text-foreground disabled:pointer-events-none'
-        }
+        aria-hidden={hideTrigger || undefined}
+        tabIndex={hideTrigger ? -1 : undefined}
+        className={cn(
+          hideTrigger
+            ? 'pointer-events-none absolute bottom-0 left-1/2 size-px -translate-x-1/2 overflow-hidden border-0 p-0 opacity-0'
+            : renderTrigger
+              ? undefined
+              : 'flex h-6 min-w-[160px] items-center justify-between gap-1.5 rounded-lg border-border bg-background-secondary-2 px-2 text-xs font-normal text-foreground-muted transition-colors hover:bg-background-secondary-3 hover:text-foreground disabled:pointer-events-none'
+        )}
       >
-        {renderTrigger ? (
+        {hideTrigger ? null : renderTrigger ? (
           renderTrigger({ open, disabled })
         ) : (
           <>
