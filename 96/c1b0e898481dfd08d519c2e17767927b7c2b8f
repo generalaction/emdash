@@ -1,0 +1,20 @@
+apps/emdash-desktop/src/renderer/utils/mcpIcons.tsx
+  s_bbef47dcf265b7::t_e450ec2566c3d5 41
+  s_bbef47dcf265b7::t_49d3fc16b66941 36,45,49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "96c1b0e898481dfd08d519c2e17767927b7c2b8f",
+  "prompts": {},
+  "sessions": {
+    "s_bbef47dcf265b7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "043ca32d-2a65-45d8-907d-630af3533a3d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
