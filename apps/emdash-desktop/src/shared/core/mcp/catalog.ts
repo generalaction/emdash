@@ -275,7 +275,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Honeycomb',
     description: 'Query and explore observability data and SLOs',
-    docsUrl: 'https://docs.honeycomb.io/troubleshoot/product-lifecycle/beta/mcp/',
+    docsUrl: 'https://docs.honeycomb.io/integrations/mcp/configuration-guide',
     credentialKeys: [],
   },
   graphos: {
