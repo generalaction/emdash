@@ -244,6 +244,29 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     docsUrl: 'https://docs.exa.ai/reference/exa-mcp',
     credentialKeys: [{ key: 'EXA_API_KEY', required: true }],
   },
+  parallel: {
+    config: {
+      type: 'http',
+      url: 'https://search.parallel.ai/mcp',
+    },
+    name: 'Parallel',
+    description: 'Free real-time web search and clean markdown extraction from any URL',
+    docsUrl: 'https://docs.parallel.ai/integrations/mcp/search-mcp',
+    credentialKeys: [],
+  },
+  resend: {
+    config: {
+      command: 'npx',
+      args: ['-y', 'resend-mcp'],
+      env: {
+        RESEND_API_KEY: 'YOUR_API_KEY',
+      },
+    },
+    name: 'Resend',
+    description: 'Send emails and manage contacts, broadcasts, and domains',
+    docsUrl: 'https://resend.com/docs/mcp-server',
+    credentialKeys: [{ key: 'RESEND_API_KEY', required: true }],
+  },
   posthog: {
     config: {
       type: 'http',

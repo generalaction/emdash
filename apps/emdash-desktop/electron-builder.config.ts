@@ -5,14 +5,21 @@ import {
   PRODUCT_NAME,
   R2_BASE_URL,
   UPDATE_CHANNEL,
-} from './src/shared/app-identity';
+} from './src/shared/app-identity.ts';
 
 const config: Configuration = {
   appId: APP_ID,
   productName: PRODUCT_NAME,
+  executableName: PRODUCT_NAME,
   directories: { output: 'release' },
   artifactName: `${ARTIFACT_PREFIX}-\${arch}.\${ext}`,
   publish: [
+    {
+      provider: 'github',
+      owner: 'generalaction',
+      repo: 'emdash',
+      releaseType: 'draft',
+    },
     {
       provider: 'generic',
       url: R2_BASE_URL,
@@ -41,6 +48,12 @@ const config: Configuration = {
   },
   dmg: {
     icon: 'src/assets/images/emdash/emdash-beta.icns',
+    background: 'build/dmg-background.tiff',
+    window: { width: 530, height: 319 },
+    contents: [
+      { x: 132, y: 150, type: 'file' },
+      { x: 398, y: 150, type: 'link', path: '/Applications' },
+    ],
   },
   linux: {
     category: 'Development',
@@ -74,6 +87,12 @@ const config: Configuration = {
     perMachine: false,
   },
   npmRebuild: false,
+  // Encrypt Chromium's on-disk cookie store (in-app browser logins) with OS-level
+  // keys, like Chrome does. One-way: never disable once shipped or existing
+  // cookie stores become unreadable.
+  electronFuses: {
+    enableCookieEncryption: true,
+  },
 };
 
 export default config;

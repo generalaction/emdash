@@ -328,22 +328,33 @@ export class WorkspaceViewModel implements ILifecycle {
     );
     this._sessionDisposers.push(conversationHydrationDisposer);
 
-    // Auto-create a terminal when the drawer is open and no terminals exist.
-    const terminalsDisposer = reaction(
+    const closeEmptyTerminalDrawerDisposer = reaction(
       () => {
         const terminals = terminalRegistry.get(this.taskId);
-        return (
-          this.isTerminalDrawerOpen &&
-          !this._isCreatingTerminal &&
-          (terminals?.isLoaded ?? false) &&
-          (terminals?.terminals.size ?? 0) === 0
-        );
+        return {
+          isDrawerOpen: this.isTerminalDrawerOpen,
+          isCreatingTerminal: this._isCreatingTerminal,
+          isLoaded: terminals?.isLoaded ?? false,
+          terminalCount: terminals?.terminals.size ?? 0,
+        };
       },
-      (shouldCreate) => {
-        if (shouldCreate) void this._createDefaultTerminal();
-      }
+      (state, previous) => {
+        if (
+          state.isDrawerOpen &&
+          !state.isCreatingTerminal &&
+          state.isLoaded &&
+          state.terminalCount === 0 &&
+          (previous === undefined || previous.terminalCount > 0 || !previous.isLoaded)
+        ) {
+          runInAction(() => {
+            this.setTerminalDrawerOpen(false);
+            this.terminalDrawerActiveItem = undefined;
+          });
+        }
+      },
+      { fireImmediately: true }
     );
-    this._sessionDisposers.push(terminalsDisposer);
+    this._sessionDisposers.push(closeEmptyTerminalDrawerDisposer);
   }
 
   /**
@@ -416,6 +427,13 @@ export class WorkspaceViewModel implements ILifecycle {
 
   setSidebarCollapsed(collapsed: boolean): void {
     this.isSidebarCollapsed = collapsed;
+  }
+
+  // Single source of truth for whether the changes panel is actually visible. TaskSidebar
+  // hides it via ShowHide (display: none) based on this, and usePanelLayout must defer
+  // imperative panel resizes to exactly the same condition (ENG-1559).
+  get isChangesPanelVisible(): boolean {
+    return !this.isSidebarCollapsed && this.sidebarTab === 'changes';
   }
 
   setFocusedRegion(region: 'main' | 'bottom'): void {

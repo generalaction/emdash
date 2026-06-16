@@ -1,6 +1,9 @@
 import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
-import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
+import {
+  getProjectManagerStore,
+  getProjectSshConnectionId,
+} from '@renderer/features/projects/stores/project-selectors';
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors';
@@ -8,7 +11,6 @@ import { events, rpc } from '@renderer/lib/ipc';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Conversation } from '@shared/core/conversations/conversations';
-import type { FetchError } from '@shared/core/git/git';
 import { gitWorkspaceChangedChannel } from '@shared/core/git/gitEvents';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
 import {
@@ -28,7 +30,7 @@ import type {
   TaskLifecycleStatus,
 } from '@shared/core/tasks/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
-import { formatPushErrorDetail } from '../utils';
+import { formatFetchErrorDetail, formatPushErrorDetail } from '../utils';
 import { conversationRegistry } from './conversation-registry';
 import {
   createUnprovisionedTask,
@@ -42,22 +44,7 @@ import {
 import { terminalRegistry } from './terminal-registry';
 import { workspaceRegistry } from './workspace-registry';
 
-function formatFetchErrorDetail(error: FetchError): string {
-  switch (error.type) {
-    case 'no_remote':
-      return 'No remote is configured for this repository.';
-    case 'auth_failed':
-      return 'Authentication failed. Authenticate Git on this machine, then try again.';
-    case 'network_error':
-      return 'Cannot reach the remote. Check your network connection, then try again.';
-    case 'remote_not_found':
-      return 'The remote repository was not found, or your local Git credentials do not have access.';
-    case 'error':
-      return 'An unexpected error occurred while fetching from the remote.';
-  }
-}
-
-function formatCreateTaskError(error: CreateTaskError): string {
+function formatCreateTaskError(error: CreateTaskError, opts?: { isSshProject?: boolean }): string {
   switch (error.type) {
     case 'project-not-found':
       return 'Project not found.';
@@ -68,7 +55,7 @@ function formatCreateTaskError(error: CreateTaskError): string {
         case 'already_exists':
           return `Branch "${error.error.name}" already exists. Try a different task name.`;
         case 'fetch_failed':
-          return `Could not update "${error.error.remote}/${error.error.branch}" before creating the task: ${formatFetchErrorDetail(error.error.error)}`;
+          return `Could not update "${error.error.remote}/${error.error.branch}" before creating the task: ${formatFetchErrorDetail(error.error.error, opts)}`;
         case 'invalid_base':
           return `Source branch "${error.error.from}" is not a valid base. Check that it exists locally or on the selected remote.`;
         case 'invalid_name':
@@ -276,6 +263,11 @@ export class TaskManagerStore {
     });
   }
 
+  private _releaseTaskRegistries(taskId: string): void {
+    conversationRegistry.release(taskId);
+    terminalRegistry.release(taskId);
+  }
+
   loadTasks(): Promise<void> {
     if (!this._loadPromise) {
       this._loadPromise = Promise.all([
@@ -315,6 +307,15 @@ export class TaskManagerStore {
   }
 
   async createTask(params: CreateTaskParams) {
+    const clearOptimisticInitialConversationWorking = () => {
+      const { initialConversation } = params.taskConfig;
+      if (!initialConversation?.initialPrompt?.trim()) return;
+      conversationRegistry
+        .acquire(params.id, this.projectId)
+        .conversations.get(initialConversation.id)
+        ?.clearWorking();
+    };
+
     runInAction(() => {
       const { taskConfig } = params;
       this.tasks.set(
@@ -343,7 +344,12 @@ export class TaskManagerStore {
           autoApprove: ic.autoApprove ?? false,
           isInitialConversation: true,
         };
-        conversationRegistry.acquire(params.id, this.projectId, [optimistic]);
+        const conversationManager = conversationRegistry.acquire(params.id, this.projectId, [
+          optimistic,
+        ]);
+        if (ic.initialPrompt?.trim()) {
+          void conversationManager.markConversationWorking(ic.id);
+        }
       } else {
         conversationRegistry.acquire(params.id, this.projectId, []);
       }
@@ -354,6 +360,7 @@ export class TaskManagerStore {
       .createTask(JSON.parse(JSON.stringify(toJS(params))) as typeof params)
       .catch((e: unknown) => {
         const message = e instanceof Error ? e.message : String(e);
+        clearOptimisticInitialConversationWorking();
         runInAction(() => {
           const current = this.tasks.get(params.id);
           if (current && isUnregistered(current)) {
@@ -365,7 +372,10 @@ export class TaskManagerStore {
       });
 
     if (!result.success) {
-      const message = formatCreateTaskError(result.error);
+      const message = formatCreateTaskError(result.error, {
+        isSshProject: getProjectSshConnectionId(this.projectId) !== undefined,
+      });
+      clearOptimisticInitialConversationWorking();
       runInAction(() => {
         const current = this.tasks.get(params.id);
         if (current && isUnregistered(current)) {
@@ -455,6 +465,9 @@ export class TaskManagerStore {
     runInAction(() => {
       const current = this.tasks.get(taskId);
       if (current && isUnprovisioned(current)) {
+        conversationRegistry.acquire(taskId, this.projectId);
+        terminalRegistry.acquire(taskId, this.projectId);
+        current.ensureRegisteredStores();
         if (savedSnapshot && current.viewModel) {
           current.viewModel.restoreSnapshot(savedSnapshot);
         }
@@ -483,6 +496,9 @@ export class TaskManagerStore {
     runInAction(() => {
       const current = this.tasks.get(taskId);
       if (current && isUnprovisioned(current)) {
+        conversationRegistry.acquire(taskId, this.projectId);
+        terminalRegistry.acquire(taskId, this.projectId);
+        current.ensureRegisteredStores();
         if (savedSnapshot && current.viewModel) {
           current.viewModel.restoreSnapshot(savedSnapshot);
         }
@@ -562,7 +578,6 @@ export class TaskManagerStore {
         }
       });
       await rpc.tasks.archiveTask(this.projectId, taskId);
-      void this.teardownTask(taskId).catch(() => {});
     } catch (e) {
       runInAction(() => {
         const task = this.tasks.get(taskId);
@@ -572,6 +587,14 @@ export class TaskManagerStore {
       });
       throw e;
     }
+
+    this._releaseTaskRegistries(taskId);
+    runInAction(() => {
+      const task = this.tasks.get(taskId);
+      if (task && isRegistered(task)) {
+        task.transitionToDryUnprovisioned({ ...task.data }, 'idle');
+      }
+    });
   }
 
   async restoreTask(taskId: string): Promise<void> {
@@ -618,8 +641,7 @@ export class TaskManagerStore {
     try {
       // Release conversation and terminal registries before disposing each task.
       removed.forEach((t, id) => {
-        conversationRegistry.release(id);
-        terminalRegistry.release(id);
+        this._releaseTaskRegistries(id);
         t.dispose();
       });
       await rpc.tasks.deleteTasks(this.projectId, taskIds, opts);

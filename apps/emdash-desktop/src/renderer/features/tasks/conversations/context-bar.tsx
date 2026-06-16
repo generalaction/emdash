@@ -88,7 +88,7 @@ export const ContextBar = observer(function ContextBar({ conversationId }: Conte
   return (
     <ContextMenu open={menuOpen} onOpenChange={setMenuOpen}>
       <ContextMenuTrigger>
-        <div className="flex w-full items-center justify-center bg-background-secondary-1 px-4 py-2">
+        <div className="flex w-full items-center justify-center bg-background-secondary-1 px-4 pb-2">
           <AddContextPopover
             actions={actions}
             disabled={!canApplyContext || isSavingPromptLibrary}

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import planeLogo from '@/assets/images/plane.png';
 import { cn } from '@renderer/utils/utils';
 import type { IssueProviderType } from '@shared/issue-providers';
 
@@ -164,6 +165,20 @@ function TrelloIcon(props: ProviderIconProps) {
   );
 }
 
+function PlaneIcon(props: ProviderIconProps) {
+  const size = props.size ?? 14;
+  return (
+    <img
+      src={planeLogo}
+      alt=""
+      aria-hidden="true"
+      width={size}
+      height={size}
+      className={cn('block shrink-0 rounded-[3px]', props.className)}
+    />
+  );
+}
+
 function PlainIcon(props: ProviderIconProps) {
   return (
     <ProviderSvg
@@ -188,6 +203,7 @@ export const PROVIDER_ICON_COMPONENTS = {
   github: GitHubIcon,
   jira: JiraIcon,
   gitlab: GitLabIcon,
+  plane: PlaneIcon,
   asana: AsanaIcon,
   monday: MondayIcon,
   trello: TrelloIcon,

@@ -1,3 +1,4 @@
+import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
 import { reconcileResourceSampler } from '@main/core/resource-monitor/resource-sampler';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { appSettingsService, type AppSettings, type AppSettingsKey } from './settings-service';
@@ -18,15 +19,23 @@ export const appSettingsController = createRPCController({
   update: async <T extends AppSettingsKey>(key: T, value: AppSettings[T]): Promise<void> => {
     await appSettingsService.update(key, value);
     if (key === 'resourceMonitor') await reconcileResourceSampler();
+    if (key === 'keyboard')
+      browserWebContentsRegistry.setKeyboardSettings(value as AppSettings['keyboard']);
   },
 
   reset: async <T extends AppSettingsKey>(key: T): Promise<void> => {
     await appSettingsService.reset(key);
     if (key === 'resourceMonitor') await reconcileResourceSampler();
+    if (key === 'keyboard') {
+      browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
+    }
   },
 
   resetField: async <T extends AppSettingsKey>(key: T, field: string): Promise<void> => {
     await appSettingsService.resetField(key, field as keyof AppSettings[T]);
     if (key === 'resourceMonitor') await reconcileResourceSampler();
+    if (key === 'keyboard') {
+      browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
+    }
   },
 });

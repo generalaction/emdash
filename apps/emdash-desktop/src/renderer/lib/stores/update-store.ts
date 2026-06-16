@@ -1,6 +1,8 @@
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { toast } from 'sonner';
+import { createUpdateToastActionLabel } from '@renderer/lib/components/update-toast-action-label';
 import { events, rpc } from '@renderer/lib/ipc';
+import { appState } from '@renderer/lib/stores/app-state';
 import { menuCheckForUpdatesChannel } from '@shared/events/appEvents';
 import {
   updateAvailableEvent,
@@ -220,10 +222,28 @@ export class UpdateStore {
 
   private _maybeToastAvailable(version: string): void {
     if (!this._shouldNotify(version)) return;
-    toast('Update Available', {
-      description: `Version ${version} is ready. Go to Settings to upgrade.`,
-    });
+    this._showAvailableToast(version);
     this._rememberNotified(version);
+  }
+
+  private _showAvailableToast(version: string): void {
+    toast('Update Available', {
+      description: `Version ${version} is available to download and install.`,
+      duration: 10_000,
+      classNames: {
+        actionButton:
+          'group/action cursor-pointer transition-all duration-150 hover:bg-primary/85 active:scale-[0.97]',
+      },
+      action: {
+        label: createUpdateToastActionLabel(),
+        onClick: () => {
+          appState.navigation.navigate('settings', { tab: 'general' });
+          if (this.state.status === 'available') {
+            void this.download();
+          }
+        },
+      },
+    });
   }
 
   private _shouldNotify(version: string): boolean {

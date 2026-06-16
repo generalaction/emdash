@@ -9,7 +9,7 @@ import {
 
 describe('browser webview security helpers', () => {
   it('recognizes only Emdash browser partitions', () => {
-    expect(isBrowserPartition('persist:emdash-browser-project-workspace-task-browser')).toBe(true);
+    expect(isBrowserPartition('persist:emdash-browser-profile')).toBe(true);
     expect(isBrowserPartition('persist:default')).toBe(false);
     expect(isBrowserPartition('temporary')).toBe(false);
   });
@@ -39,6 +39,15 @@ describe('browser webview security helpers', () => {
 
     expect(
       validateBrowserWebviewAttach({ partition, src: 'javascript:alert(1)' }, new Set([partition]))
+    ).toEqual({
+      ok: false,
+      reason: 'unsupported-url',
+    });
+    expect(
+      validateBrowserWebviewAttach(
+        { partition, src: 'mailto: user@example.com' },
+        new Set([partition])
+      )
     ).toEqual({
       ok: false,
       reason: 'unsupported-url',

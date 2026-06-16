@@ -8,8 +8,10 @@ import { projectManager } from '@main/core/projects/project-manager';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
+import { log } from '@main/lib/logger';
 import type { ProjectPathStatus, SshProject } from '@shared/projects';
 import { ensureGitRepository, resolveProjectBaseRef } from './create-project-utils';
+import { ensureRepositoryWorkspace } from './ensure-repository-workspace';
 
 export type CreateSshProjectParams = {
   id?: string;
@@ -59,6 +61,16 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
   };
 
   await projectManager.openProject(project);
+
+  try {
+    project.repositoryWorkspaceId = ensureRepositoryWorkspace(project);
+  } catch (error) {
+    log.warn('createSshProject: ensureRepositoryWorkspace failed (non-fatal)', {
+      projectId: project.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   projectEvents._emit('project:created', project);
 
   return project;

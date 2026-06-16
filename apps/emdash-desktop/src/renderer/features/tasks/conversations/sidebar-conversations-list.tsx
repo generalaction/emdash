@@ -8,7 +8,7 @@ import {
   useTaskViewContext,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
-import AgentLogo from '@renderer/lib/components/agent-logo';
+import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
 import { useMultiSelect } from '@renderer/lib/hooks/use-multi-select';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
@@ -23,7 +23,6 @@ import {
 } from '@renderer/lib/ui/context-menu';
 import { MicroLabel } from '@renderer/lib/ui/label';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
-import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
@@ -64,7 +63,6 @@ const ConversationRow = observer(function ConversationRow({
   if (!conversation) return null;
 
   const isActive = tabManager.activeConversationId === conversationId;
-  const config = agentConfig[conversation.data.providerId];
   const displayTitle = formatConversationTitleForDisplay(
     conversation.data.providerId,
     conversation.data.title
@@ -132,18 +130,7 @@ const ConversationRow = observer(function ConversationRow({
             isSelected && 'bg-background-2 text-foreground hover:bg-background-2'
           )}
         >
-          {config ? (
-            <span className="flex size-4 shrink-0 items-center justify-center">
-              <AgentLogo
-                logo={config.logo}
-                logoDark={config.logoDark}
-                alt={config.alt}
-                isSvg={config.isSvg}
-                invertInDark={config.invertInDark}
-                className="block size-4"
-              />
-            </span>
-          ) : null}
+          <AgentIcon id={conversation.data.providerId} size={16} className="size-4" />
           {isEditing ? (
             <input
               ref={handleRenameInputRef}

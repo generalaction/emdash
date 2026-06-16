@@ -7,9 +7,11 @@ import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
+import { log } from '@main/lib/logger';
 import type { LocalProject, ProjectPathStatus } from '@shared/projects';
 import { checkIsValidDirectory } from '../path-utils';
 import { ensureGitRepository, resolveProjectBaseRef } from './create-project-utils';
+import { ensureRepositoryWorkspace } from './ensure-repository-workspace';
 
 export type CreateLocalProjectParams = {
   id?: string;
@@ -54,6 +56,16 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
   };
 
   await projectManager.openProject(project);
+
+  try {
+    project.repositoryWorkspaceId = ensureRepositoryWorkspace(project);
+  } catch (error) {
+    log.warn('createLocalProject: ensureRepositoryWorkspace failed (non-fatal)', {
+      projectId: project.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   projectEvents._emit('project:created', project);
 
   return project;

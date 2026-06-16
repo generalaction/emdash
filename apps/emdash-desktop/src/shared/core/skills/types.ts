@@ -49,10 +49,3 @@ export interface CatalogIndex {
   lastUpdated: string;
   skills: CatalogSkill[];
 }
-
-export interface DetectedAgent {
-  id: string;
-  name: string;
-  configDir: string;
-  installed: boolean;
-}

@@ -7,7 +7,7 @@ The primary IPC mechanism is a typed RPC system:
 - **Controllers**: `src/main/core/*/controller.ts` — define handler functions using `createRPCController`.
 - **Router**: `src/main/rpc.ts` — assembles all controllers into a typed router using `createRPCRouter`.
 - **Registration**: `registerRPCRouter(router, ipcMain)` in `src/main/index.ts` — auto-registers `namespace.method` channels.
-- **Client**: `src/renderer/core/ipc.ts` — creates a proxy-based typed client using `createRPCClient<RpcRouter>`.
+- **Client**: `src/renderer/lib/ipc.ts` — creates a proxy-based typed client using `createRPCClient<RpcRouter>`.
 
 ```ts
 // Main — src/main/core/example/controller.ts
@@ -19,18 +19,16 @@ export const exampleController = createRPCController({
 });
 
 // Renderer — call via typed client
-import { rpc } from '@renderer/core/ipc';
+import { rpc } from '@renderer/lib/ipc';
 const result = await rpc.example.doSomething('123');
 ```
 
-## Manual IPC (electron-api.d.ts)
+## Preload Bridge
 
-A small set of IPC methods that depend on `event.sender` remain as manual handlers declared in `src/renderer/types/electron-api.d.ts` (~92 lines):
-
-- PTY operations: `ptyStart`, `ptyStartDirect`, `ptyInput`, `ptyResize`, `ptyKill`
-- Filesystem listing: `fsList`
-- Open in external app: `openIn`
-- Update events: `onUpdateEvent`
+The preload bridge in `src/preload/index.ts` is intentionally tiny. It exposes only
+`invoke` (for the RPC client), `eventSend`/`eventOn` (for the typed event emitter), and
+`getPathForFile` on `window.electronAPI`. Add direct `window.electronAPI` surface only
+when a browser/Electron primitive cannot fit the RPC/event path.
 
 ## Event System
 
@@ -39,7 +37,7 @@ Typed events use `createEventEmitter` from `src/shared/ipc/events.ts`. Event typ
 ## Rules
 
 - Prefer the RPC pattern for new IPC methods — add a handler to the appropriate controller.
-- Only use manual IPC when `event.sender` is required.
+- Keep the preload bridge small; do not add manual IPC channels casually.
 - Keep the RPC router type (`RpcRouter`) importable by the renderer for type inference.
 - Prefer existing service boundaries over adding logic directly inside controllers.
 - Update tests when controller shape or IPC wiring changes.

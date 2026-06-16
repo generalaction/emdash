@@ -9,17 +9,25 @@ const mocks = vi.hoisted(() => ({
   getTaskGitStore: vi.fn(),
   getTaskStore: vi.fn(),
   getTaskView: vi.fn(),
+  goBack: vi.fn(),
+  goForward: vi.fn(),
   navigate: vi.fn(),
   openExternal: vi.fn(),
   reload: vi.fn(),
   showModal: vi.fn(),
+  toast: vi.fn(),
   visibleTaskIdsForProject: vi.fn(),
+  writeText: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('@renderer/features/browser/browser-controls-registry', () => ({
   browserControlsRegistry: {
     get: vi.fn(() => ({
       adapter: {
+        canGoBack: () => true,
+        canGoForward: () => true,
+        goBack: mocks.goBack,
+        goForward: mocks.goForward,
         reload: mocks.reload,
       },
       focusUrl: mocks.focusUrl,
@@ -50,6 +58,10 @@ vi.mock('@renderer/lib/ipc', () => ({
   },
 }));
 
+vi.mock('@renderer/lib/hooks/use-toast', () => ({
+  toast: mocks.toast,
+}));
+
 vi.mock('@renderer/lib/stores/app-state', () => ({
   appState: {
     navigation: {
@@ -73,7 +85,8 @@ function activeBrowserTab() {
       projectId: 'project-1',
       workspaceId: 'workspace-1',
       taskId: 'task-1',
-      partition: 'persist:emdash-browser-project-1-workspace-1-task-1-browser-1',
+      profileId: 'default',
+      partition: 'persist:emdash-browser-profile',
       currentUrl: 'example.com',
       title: 'Example',
       isLoading: false,
@@ -105,6 +118,9 @@ describe('createTaskCommandProvider', () => {
         openConversation: vi.fn(),
         openConversationInRightSplit: vi.fn(),
       },
+      terminalTabs: {
+        tabs: [],
+      },
       tabManager: {
         resolvedTabs: [{ id: 'tab-1' }],
         setNextTabActive: vi.fn(),
@@ -117,6 +133,12 @@ describe('createTaskCommandProvider', () => {
     mocks.getRegisteredTaskData.mockReturnValue({
       id: 'task-1',
       isPinned: false,
+    });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: mocks.writeText,
+      },
     });
   });
 
@@ -196,9 +218,68 @@ describe('createTaskCommandProvider', () => {
       .getCommands()
       .find((candidate) => candidate.id === 'task.browserOpenExternal')
       ?.execute();
+    provider
+      .getCommands()
+      .find((candidate) => candidate.id === 'task.browserCopyUrl')
+      ?.execute();
 
     expect(mocks.reload).toHaveBeenCalledWith();
     expect(mocks.focusUrl).toHaveBeenCalledWith();
     expect(mocks.openExternal).toHaveBeenCalledWith('https://example.com/');
+    expect(mocks.writeText).toHaveBeenCalledWith('https://example.com/');
+  });
+
+  it('navigates browser history through the browser controls registry', () => {
+    const taskView = mocks.getTaskView();
+    const tab = activeBrowserTab();
+    tab.session.canGoBack = true;
+    tab.session.canGoForward = true;
+    taskView.tabManager.resolvedTabs = [tab];
+    mocks.getTaskView.mockReturnValue(taskView);
+    const provider = createTaskCommandProvider('project-1', 'task-1');
+
+    const commands = provider.getCommands();
+    const goBack = commands.find((candidate) => candidate.id === 'task.browserGoBack');
+    const goForward = commands.find((candidate) => candidate.id === 'task.browserGoForward');
+
+    expect(goBack?.enabled).toBe(true);
+    expect(goForward?.enabled).toBe(true);
+
+    goBack?.execute();
+    goForward?.execute();
+
+    expect(mocks.goBack).toHaveBeenCalledWith();
+    expect(mocks.goForward).toHaveBeenCalledWith();
+  });
+
+  it('disables browser history commands when the session has no history', () => {
+    const taskView = mocks.getTaskView();
+    taskView.tabManager.resolvedTabs = [activeBrowserTab()];
+    mocks.getTaskView.mockReturnValue(taskView);
+    const provider = createTaskCommandProvider('project-1', 'task-1');
+
+    const commands = provider.getCommands();
+
+    expect(commands.find((candidate) => candidate.id === 'task.browserGoBack')?.enabled).toBe(
+      false
+    );
+    expect(commands.find((candidate) => candidate.id === 'task.browserGoForward')?.enabled).toBe(
+      false
+    );
+  });
+
+  it('creates the default terminal when the terminal drawer shortcut opens an empty drawer', () => {
+    const provider = createTaskCommandProvider('project-1', 'task-1');
+
+    const command = provider
+      .getCommands()
+      .find((candidate) => candidate.id === 'task.toggleTerminalDrawer');
+    const taskView = mocks.getTaskView.mock.results.at(-1)?.value ?? mocks.getTaskView();
+
+    command?.execute();
+
+    expect(taskView.openNewTerminal).toHaveBeenCalledTimes(1);
+    expect(taskView.openNewTerminal).toHaveBeenCalledWith();
+    expect(taskView.setTerminalDrawerOpen).not.toHaveBeenCalled();
   });
 });

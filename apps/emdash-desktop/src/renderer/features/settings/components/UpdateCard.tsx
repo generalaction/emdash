@@ -32,6 +32,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
       <SettingRow
         title={versionTitle}
         description={renderStatusMessage()}
+        className="items-center rounded-lg border p-4"
         control={
           <div className="flex items-center gap-2">
             {update.state.status !== 'downloaded' && update.state.status !== 'installing' && (

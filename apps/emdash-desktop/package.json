@@ -1,6 +1,6 @@
 {
   "name": "@emdash/emdash-desktop",
-  "version": "1.1.30",
+  "version": "1.1.34",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "keywords": [
     "claude",
@@ -9,6 +9,7 @@
     "git",
     "openai"
   ],
+  "homepage": "https://emdash.sh",
   "license": "Apache-2.0",
   "author": {
     "name": "Emdash Contributors",
@@ -29,7 +30,7 @@
     "db:reset": "pnpm run db:reset:3 && pnpm run db:reset:4",
     "db:reset:3": "rm -f \"$HOME/Library/Application Support/emdash-dev/emdash3.db\" \"$HOME/Library/Application Support/emdash-dev/emdash3.db-wal\" \"$HOME/Library/Application Support/emdash-dev/emdash3.db-shm\" \"$HOME/.config/emdash-dev/emdash3.db\" \"$HOME/.config/emdash-dev/emdash3.db-wal\" \"$HOME/.config/emdash-dev/emdash3.db-shm\"",
     "db:reset:4": "rm -f \"$HOME/Library/Application Support/emdash-dev/emdash4.db\" \"$HOME/Library/Application Support/emdash-dev/emdash4.db-wal\" \"$HOME/Library/Application Support/emdash-dev/emdash4.db-shm\" \"$HOME/.config/emdash-dev/emdash4.db\" \"$HOME/.config/emdash-dev/emdash4.db-wal\" \"$HOME/.config/emdash-dev/emdash4.db-shm\"",
-    "test": "vitest run --project node --project main-db --project migrations --project browser",
+    "test": "vitest run --project node --project main-db --project migrations --project browser --project scripts",
     "build": "electron-vite build",
     "build:main": "electron-vite build --filter main",
     "build:renderer": "electron-vite build --filter renderer",
@@ -50,6 +51,9 @@
     "docs:build": "cd docs && pnpm run build"
   },
   "dependencies": {
+    "@emdash/plugins": "workspace:*",
+    "@emdash/shared": "workspace:*",
+    "@emdash/ui": "workspace:*",
     "@gitbeaker/rest": "^43.8.0",
     "@linear/sdk": "^77.0.0",
     "@llamaduck/forgejo-ts": "^14.0.3",
@@ -78,6 +82,7 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@electron/notarize": "^2.5.0",
     "@electron/rebuild": "^4.0.1",
     "@monaco-editor/react": "^4.7.0",
     "@tailwindcss/vite": "^4.2.1",
