@@ -13,7 +13,7 @@ type ExtensionAPI = {
 };
 
 async function notifyEmdash(
-  eventType: 'stop' | 'error' | 'notification',
+  eventType: 'stop' | 'error' | 'notification' | 'session',
   body: Record<string, unknown> = {}
 ) {
   const port = process.env.EMDASH_HOOK_PORT;

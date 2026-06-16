@@ -63,7 +63,7 @@ describe('resolveAgentSessionCommandArgs', () => {
     ).toEqual({ sessionId: 'pi-session-1', isResuming: true });
   });
 
-  it('starts fresh instead of resuming Pi --continue/-c without a stored session id', () => {
+  it('starts fresh instead of resuming Pi --session without a stored session id', () => {
     expect(resolveAgentSessionCommandArgs(makeConversation({ providerId: 'pi' }), true)).toEqual({
       sessionId: 'conv-1',
       isResuming: false,

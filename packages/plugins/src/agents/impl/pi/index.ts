@@ -27,7 +27,7 @@ export const plugin = definePlugin(
     hooks: {
       kind: 'plugin',
       scope: 'workspace',
-      supportedEvents: ['stop'],
+      supportedEvents: ['stop', 'session'],
     },
     hostDependency: npmDependency({
       id: 'pi',
