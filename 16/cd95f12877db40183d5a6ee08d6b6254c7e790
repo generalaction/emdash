@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tasks/view/pane-content.tsx
+  s_98c5a83bdedc2f::t_df0fee286d408d 21-22,38-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "16cd95f12877db40183d5a6ee08d6b6254c7e790",
+  "prompts": {},
+  "sessions": {
+    "s_98c5a83bdedc2f": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eceed-217c-7aa4-8430-1e1fdd5b0397",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
