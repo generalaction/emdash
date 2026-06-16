@@ -2,6 +2,7 @@ import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { GitFetchService } from '@main/core/git/git-fetch-service';
 import type { GitRepositoryService } from '@main/core/git/repository-service';
+import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import type { IDisposable } from '@main/lib/lifecycle';
 import type { Branch, FetchError } from '@shared/core/git/git';
@@ -117,5 +118,6 @@ export class ProjectProvider implements IDisposable {
     const mode = projectSettings.tmux ? 'detach' : 'terminate';
     await taskSessionManager.teardownAllForProject(this.projectId, mode);
     await workspaceRegistry.releaseAllForProject(this.projectId, mode);
+    await previewServerService.stopForProject(this.projectId);
   }
 }
