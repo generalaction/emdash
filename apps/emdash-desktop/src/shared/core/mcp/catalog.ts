@@ -227,16 +227,13 @@ export const catalogData: Record<string, CatalogEntryDef> = {
   },
   exa: {
     config: {
-      command: 'npx',
-      args: ['-y', 'exa-mcp-server', 'tools=web_search_exa,get_code_context_exa'],
-      env: {
-        EXA_API_KEY: 'YOUR_API_KEY',
-      },
+      type: 'http',
+      url: 'https://mcp.exa.ai/mcp',
     },
     name: 'Exa',
     description: 'Web search and code context retrieval powered by Exa AI',
-    docsUrl: 'https://docs.exa.ai/reference/exa-mcp',
-    credentialKeys: [{ key: 'EXA_API_KEY', required: true }],
+    docsUrl: 'https://exa.ai/docs/reference/exa-mcp',
+    credentialKeys: [],
   },
   parallel: {
     config: {
