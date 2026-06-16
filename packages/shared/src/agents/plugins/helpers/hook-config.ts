@@ -1,3 +1,4 @@
+import * as toml from 'smol-toml';
 import type { PluginFs } from '../../runtime/fs';
 import type { HookRegistration } from '../capabilities/hooks';
 import { EMDASH_MARKER, filterUserHooks } from './hooks';
@@ -22,6 +23,26 @@ export async function writeJsonConfig(
   config: Record<string, unknown>
 ): Promise<void> {
   await fs.write(path, JSON.stringify(config, null, 2) + '\n');
+}
+
+// ── TOML config helpers ────────────────────────────────────────────────────
+
+export async function readTomlConfig(fs: PluginFs, path: string): Promise<Record<string, unknown>> {
+  const content = await fs.read(path);
+  if (!content) return {};
+  try {
+    return (toml.parse(content) as Record<string, unknown>) ?? {};
+  } catch (error) {
+    throw new Error(`Failed to parse ${path}: ${String(error)}`);
+  }
+}
+
+export async function writeTomlConfig(
+  fs: PluginFs,
+  path: string,
+  config: Record<string, unknown>
+): Promise<void> {
+  await fs.write(path, toml.stringify(config));
 }
 
 // ── Entry builders ─────────────────────────────────────────────────────────
@@ -58,6 +79,53 @@ export function mergeMinimalEntries(existing: unknown[], command: string): unkno
 // ── Generic hook config builders ────────────────────────────────────────────
 
 type HookSpec = { hookKey: string; command: string };
+type FlatTomlHookConfigOptions = {
+  beforeWrite?: (fs: PluginFs) => Promise<void>;
+  afterWrite?: (fs: PluginFs) => Promise<string[]>;
+  stringifyEntry?: (entry: Record<string, unknown>) => string;
+};
+
+/**
+ * Build an `IHooksBehavior` for agents that store hooks as a flat TOML array:
+ *   `[[hooks]]` / `{ hooks = [{ ... }] }`
+ */
+export function buildFlatTomlHookConfig(
+  configPath: string,
+  entries: Record<string, unknown>[],
+  options: FlatTomlHookConfigOptions = {}
+) {
+  const stringifyEntry = options.stringifyEntry ?? JSON.stringify;
+  const getHookEntries = (config: Record<string, unknown>) =>
+    Array.isArray(config.hooks) ? (config.hooks as Record<string, unknown>[]) : [];
+  const hasEmdashHook = (config: Record<string, unknown>) =>
+    getHookEntries(config).some((entry) => stringifyEntry(entry).includes(EMDASH_MARKER));
+
+  return {
+    async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
+      const config = await readTomlConfig(fs, configPath);
+      return hasEmdashHook(config) ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
+    },
+    async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
+      const config = await readTomlConfig(fs, configPath);
+      await options.beforeWrite?.(fs);
+      const userHooks = filterUserHooks(getHookEntries(config), stringifyEntry);
+      await writeTomlConfig(fs, configPath, { ...config, hooks: [...userHooks, ...entries] });
+      const extraPaths = (await options.afterWrite?.(fs)) ?? [];
+      return [configPath, ...extraPaths];
+    },
+    async deleteHooks(fs: PluginFs): Promise<void> {
+      const config = await readTomlConfig(fs, configPath);
+      await writeTomlConfig(fs, configPath, {
+        ...config,
+        hooks: filterUserHooks(getHookEntries(config), stringifyEntry),
+      });
+    },
+    async getHooksInstalled(fs: PluginFs): Promise<boolean> {
+      const config = await readTomlConfig(fs, configPath);
+      return hasEmdashHook(config);
+    },
+  };
+}
 
 /**
  * Build an `IHooksBehavior` for agents that store hooks in a JSON file using

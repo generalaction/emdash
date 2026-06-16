@@ -41,6 +41,9 @@ async function enableExperimentalHooks(fs: PluginFs): Promise<string[]> {
 
 export function buildMistralHookConfig() {
   return buildFlatTomlHookConfig(MISTRAL_HOOKS_PATH, MISTRAL_HOOK_ENTRIES, {
+    beforeWrite: async (fs) => {
+      await readTomlConfig(fs, MISTRAL_CONFIG_PATH);
+    },
     afterWrite: enableExperimentalHooks,
   });
 }
