@@ -1,0 +1,35 @@
+apps/emdash-desktop/src/shared/core/app-settings.ts
+  s_fe330a5d70c13e::t_7813bf6919a382 12,22
+apps/emdash-desktop/src/renderer/features/tasks/hooks/useTaskSettings.ts
+  s_fe330a5d70c13e::t_73311f47855071 2,10,20,27,33,52,61,67
+apps/emdash-desktop/src/main/core/settings/settings-registry.ts
+  s_fe330a5d70c13e::t_bf1ab54c1ba049 33
+apps/emdash-desktop/src/renderer/features/tasks/delete-task-modal.tsx
+  s_fe330a5d70c13e::t_e82d69018366b8 3,31,33,49-50,56-57,97-103,147-153
+apps/emdash-desktop/src/renderer/features/settings/components/TaskSettingsRows.tsx
+  s_fe330a5d70c13e::t_c76030f31e7fb0 14,194
+  s_fe330a5d70c13e::t_ac431f0819033b 5-11,177-193,195-196,202-207
+  s_fe330a5d70c13e::t_b0eebac1f1d6c0 197-201
+apps/emdash-desktop/src/renderer/features/settings/components/SettingsPage.tsx
+  s_fe330a5d70c13e::t_89a6af103e8de8 24,61
+apps/emdash-desktop/src/main/core/tasks/operations/deleteTask.ts
+  s_fe330a5d70c13e::t_5db83d5fabc72d 19
+apps/emdash-desktop/src/main/core/settings/schema.ts
+  s_fe330a5d70c13e::t_dda8f21d033f64 35-36,43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "2591f40009d987f10862f4bdf9ab75725eb8a09e",
+  "prompts": {},
+  "sessions": {
+    "s_fe330a5d70c13e": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ecf01-4b2e-767c-8a47-d5d309c776fb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
