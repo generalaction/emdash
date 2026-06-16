@@ -127,36 +127,11 @@ const ConversationRow = observer(function ConversationRow({
             }
           }}
           className={cn(
-            'group flex w-full items-center gap-2 h-8 rounded-md px-2 text-left text-sm text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground',
+            'group relative flex w-full items-center gap-2 h-8 rounded-md px-2 text-left text-sm text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground',
             isActive && 'bg-background-2 text-foreground hover:bg-background-2',
             isSelected && 'bg-background-2 text-foreground hover:bg-background-2'
           )}
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className={cn(
-              'shrink-0 transition-opacity',
-              isSelected || hasSelection
-                ? 'opacity-100'
-                : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'
-            )}
-          >
-            <Checkbox
-              checked={isSelected}
-              onMouseDown={(e) => {
-                checkboxShiftKeyRef.current = e.shiftKey;
-              }}
-              onKeyDown={(e) => {
-                e.stopPropagation();
-                checkboxShiftKeyRef.current = e.shiftKey;
-              }}
-              onCheckedChange={() => {
-                onToggleSelect(checkboxShiftKeyRef.current);
-                checkboxShiftKeyRef.current = false;
-              }}
-              aria-label="Select conversation"
-            />
-          </div>
           {config ? (
             <span className="flex size-4 shrink-0 items-center justify-center">
               <AgentLogo
@@ -190,7 +165,12 @@ const ConversationRow = observer(function ConversationRow({
           ) : (
             <span className="min-w-0 flex-1 truncate">{displayTitle}</span>
           )}
-          <span className="shrink-0">
+          <span
+            className={cn(
+              'shrink-0 transition-opacity',
+              isSelected ? 'opacity-0' : 'group-hover:opacity-0'
+            )}
+          >
             {conversation.indicatorStatus ? (
               <AgentStatusIndicator status={conversation.indicatorStatus} disableTooltip />
             ) : (
@@ -201,6 +181,31 @@ const ConversationRow = observer(function ConversationRow({
               />
             )}
           </span>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className={cn(
+              'absolute top-1/2 right-2 -translate-y-1/2 transition-opacity',
+              isSelected
+                ? 'opacity-100'
+                : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'
+            )}
+          >
+            <Checkbox
+              checked={isSelected}
+              onMouseDown={(e) => {
+                checkboxShiftKeyRef.current = e.shiftKey;
+              }}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                checkboxShiftKeyRef.current = e.shiftKey;
+              }}
+              onCheckedChange={() => {
+                onToggleSelect(checkboxShiftKeyRef.current);
+                checkboxShiftKeyRef.current = false;
+              }}
+              aria-label="Select conversation"
+            />
+          </div>
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent finalFocus={false}>
