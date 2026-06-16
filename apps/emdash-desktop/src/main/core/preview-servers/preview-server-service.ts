@@ -74,17 +74,13 @@ export class PreviewServerService {
     portForwards?: PortForwardService;
     emit: (event: PreviewServerEvent) => void;
     getConnectionState: (connectionId: string) => ConnectionState;
-    getSshProxy?: (connectionId: string) => Promise<Pick<SshClientProxy, 'client' | 'isConnected'>>;
+    getSshProxy: (connectionId: string) => Promise<Pick<SshClientProxy, 'client' | 'isConnected'>>;
     closeDelayMs?: number;
   }) {
     this.portForwards = portForwards;
     this.emit = emit;
     this.getConnectionState = getConnectionState;
-    this.getSshProxy =
-      getSshProxy ??
-      (async () => {
-        throw new Error('SSH proxy resolver is not configured');
-      });
+    this.getSshProxy = getSshProxy;
     this.closeDelayMs = closeDelayMs;
   }
 
