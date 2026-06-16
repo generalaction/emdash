@@ -356,7 +356,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Jam',
     description: 'Record screen and collect automatic context for issues',
-    docsUrl: 'https://jam.dev/docs/debug-a-jam/mcp',
+    docsUrl: 'https://jam.dev/docs/jam-mcp',
     credentialKeys: [],
   },
   webflow: {
