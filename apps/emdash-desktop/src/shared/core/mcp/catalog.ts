@@ -110,11 +110,11 @@ export const catalogData: Record<string, CatalogEntryDef> = {
   cloudflare: {
     config: {
       type: 'http',
-      url: 'https://bindings.mcp.cloudflare.com/mcp',
+      url: 'https://mcp.cloudflare.com/mcp',
     },
     name: 'Cloudflare Developer Platform',
     description: 'Build applications with compute, storage, and AI',
-    docsUrl: 'https://www.support.cloudflare.com/',
+    docsUrl: 'https://developers.cloudflare.com/agents/model-context-protocol/cloudflare/servers-for-cloudflare/',
     credentialKeys: [],
   },
   netlify: {
