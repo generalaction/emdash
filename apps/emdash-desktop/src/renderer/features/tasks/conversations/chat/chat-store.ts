@@ -1,53 +1,73 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import { action, makeObservable, observable } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
-import { acpSessionClosedChannel, acpSessionUpdateChannel } from '@shared/core/acp/acpEvents';
+import {
+  acpSessionClosedChannel,
+  acpSessionReplayChannel,
+  acpSessionUpdateChannel,
+} from '@shared/core/acp/acpEvents';
 
 export type ChatMessageRole = 'user' | 'assistant' | 'thought';
 
-export type ToolStatus = {
-  toolName: string;
-  toolCallId: string;
-  status: 'running' | 'done' | 'error';
-  inputSummary?: string;
-};
+export type ToolStatusKind = 'running' | 'done' | 'error';
 
-export type ChatMessage = {
+/** A rendered message bubble (user / assistant / thought). */
+export type ChatMessageItem = {
+  kind: 'message';
   id: string;
   role: ChatMessageRole;
   text: string;
   streaming: boolean;
 };
 
+/** A tool call line, positioned chronologically within the transcript. */
+export type ChatToolItem = {
+  kind: 'tool';
+  id: string;
+  toolCallId: string;
+  toolName: string;
+  status: ToolStatusKind;
+  inputSummary?: string;
+};
+
+/** A single ordered entry in the chat transcript. */
+export type ChatItem = ChatMessageItem | ChatToolItem;
+
 export class ChatStore {
-  messages: ChatMessage[] = [];
-  toolStatuses: ToolStatus[] = [];
+  /** Ordered transcript: messages and tool calls interleaved by arrival time. */
+  items: ChatItem[] = [];
   isWorking = false;
   isClosed = false;
   input = '';
+  selectedModel = 'default';
 
   private readonly _conversationId: string;
   private readonly _projectId: string;
   private readonly _taskId: string;
   private readonly _unsubs: (() => void)[] = [];
 
-  /** Tracks which messageId maps to which messages[] index for streaming append. */
-  private _messageIdMap = new Map<string, number>();
+  /**
+   * Maps a streaming message key (`${role}:${messageId}`) to its item, so chunks
+   * for the same role+message merge while different roles stay separate bubbles.
+   */
+  private _streamKeyMap = new Map<string, ChatMessageItem>();
 
-  constructor(conversationId: string, projectId: string, taskId: string) {
+  constructor(conversationId: string, projectId: string, taskId: string, initialModel?: string) {
     this._conversationId = conversationId;
     this._projectId = projectId;
     this._taskId = taskId;
+    if (initialModel) this.selectedModel = initialModel;
 
     makeObservable(this, {
-      messages: observable,
-      toolStatuses: observable,
+      items: observable,
       isWorking: observable,
       isClosed: observable,
       input: observable,
+      selectedModel: observable,
       setInput: action,
       sendPrompt: action,
       cancel: action,
+      setModel: action,
     });
 
     this._unsubs.push(
@@ -67,6 +87,25 @@ export class ChatStore {
           if (payload.conversationId !== this._conversationId) return;
           this.isWorking = false;
           this.isClosed = true;
+          this._finalizeStreaming();
+        })
+      )
+    );
+
+    // Reset transcript before a loadSession replay and finalize streaming once
+    // all replayed chunks have arrived.
+    this._unsubs.push(
+      events.on(
+        acpSessionReplayChannel,
+        action((payload) => {
+          if (payload.conversationId !== this._conversationId) return;
+          if (payload.phase === 'start') {
+            this.items = [];
+            this._streamKeyMap.clear();
+            this.isClosed = false;
+          } else {
+            this._finalizeStreaming();
+          }
         })
       )
     );
@@ -83,7 +122,8 @@ export class ChatStore {
     this.isWorking = true;
 
     // Optimistically add user message
-    this.messages.push({
+    this.items.push({
+      kind: 'message',
       id: `user-${Date.now()}`,
       role: 'user',
       text,
@@ -95,17 +135,24 @@ export class ChatStore {
       .then(
         action(() => {
           this.isWorking = false;
+          this._finalizeStreaming();
         })
       )
       .catch(
         action(() => {
           this.isWorking = false;
+          this._finalizeStreaming();
         })
       );
   }
 
   cancel(): void {
     void rpc.acp.cancel(this._conversationId);
+  }
+
+  setModel(modelId: string): void {
+    this.selectedModel = modelId;
+    void rpc.acp.setModel(this._conversationId, modelId);
   }
 
   dispose(): void {
@@ -122,7 +169,7 @@ export class ChatStore {
     } else if (kind === 'user_message_chunk') {
       this._appendChunk('user', update);
     } else if (kind === 'tool_call') {
-      this._upsertToolStatus({
+      this._upsertTool({
         toolCallId: update.toolCallId,
         toolName: update.title,
         status: 'running',
@@ -130,9 +177,9 @@ export class ChatStore {
       });
     } else if (kind === 'tool_call_update') {
       if (update.status === 'completed') {
-        this._upsertToolStatus({ toolCallId: update.toolCallId, status: 'done' });
+        this._upsertTool({ toolCallId: update.toolCallId, status: 'done' });
       } else if (update.status === 'failed') {
-        this._upsertToolStatus({ toolCallId: update.toolCallId, status: 'error' });
+        this._upsertTool({ toolCallId: update.toolCallId, status: 'error' });
       }
     }
   }
@@ -145,34 +192,75 @@ export class ChatStore {
       chunk.content.type === 'text' ? ((chunk.content as { text?: string }).text ?? '') : '';
     const messageId = chunk.messageId ?? undefined;
 
-    if (messageId && this._messageIdMap.has(messageId)) {
-      const idx = this._messageIdMap.get(messageId)!;
-      const msg = this.messages[idx];
-      if (msg) {
-        msg.text += text;
+    // Merge by role + messageId so chunks of the same message coalesce while a
+    // thought and an assistant message sharing a messageId stay distinct bubbles.
+    if (messageId) {
+      const streamKey = `${role}:${messageId}`;
+      const existing = this._streamKeyMap.get(streamKey);
+      if (existing) {
+        existing.text += text;
         return;
       }
+      const created = this._pushMessage(role, text);
+      this._streamKeyMap.set(streamKey, created);
+      return;
     }
 
-    const id = messageId ?? `${role}-${Date.now()}-${Math.random()}`;
-    const newMsg: ChatMessage = { id, role, text, streaming: true };
-    const idx = this.messages.length;
-    this.messages.push(newMsg);
-    if (messageId) this._messageIdMap.set(messageId, idx);
+    // No messageId: append to the trailing bubble if it's the same role and still
+    // streaming (i.e. nothing else interrupted it); otherwise start a new bubble.
+    const last = this.items.at(-1);
+    if (last && last.kind === 'message' && last.role === role && last.streaming) {
+      last.text += text;
+      return;
+    }
+    this._pushMessage(role, text);
   }
 
-  private _upsertToolStatus(patch: Partial<ToolStatus> & { toolCallId: string }): void {
-    const existing = this.toolStatuses.find((t) => t.toolCallId === patch.toolCallId);
+  private _pushMessage(role: ChatMessageRole, text: string): ChatMessageItem {
+    const item: ChatMessageItem = {
+      kind: 'message',
+      id: `${role}-${Date.now()}-${Math.random()}`,
+      role,
+      text,
+      streaming: true,
+    };
+    this.items.push(item);
+    // Return the array-resident element: MobX wraps pushed plain objects in an
+    // observable proxy, so mutating the original `item` would not be reactive.
+    return this.items[this.items.length - 1] as ChatMessageItem;
+  }
+
+  private _upsertTool(patch: {
+    toolCallId: string;
+    toolName?: string;
+    status?: ToolStatusKind;
+    inputSummary?: string;
+  }): void {
+    const existing = this.items.find(
+      (it): it is ChatToolItem => it.kind === 'tool' && it.toolCallId === patch.toolCallId
+    );
     if (existing) {
-      Object.assign(existing, patch);
-    } else {
-      this.toolStatuses.push({
-        toolCallId: patch.toolCallId,
-        toolName: patch.toolName ?? '(tool)',
-        status: patch.status ?? 'running',
-        inputSummary: patch.inputSummary,
-      });
+      if (patch.toolName !== undefined) existing.toolName = patch.toolName;
+      if (patch.status !== undefined) existing.status = patch.status;
+      if (patch.inputSummary !== undefined) existing.inputSummary = patch.inputSummary;
+      return;
     }
+    this.items.push({
+      kind: 'tool',
+      id: patch.toolCallId,
+      toolCallId: patch.toolCallId,
+      toolName: patch.toolName ?? '(tool)',
+      status: patch.status ?? 'running',
+      inputSummary: patch.inputSummary,
+    });
+  }
+
+  /** Marks all streaming message bubbles as settled and resets the stream map. */
+  private _finalizeStreaming(): void {
+    for (const item of this.items) {
+      if (item.kind === 'message') item.streaming = false;
+    }
+    this._streamKeyMap.clear();
   }
 
   private _summarizeInput(input: unknown): string | undefined {

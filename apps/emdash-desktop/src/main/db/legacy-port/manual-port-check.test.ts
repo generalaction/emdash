@@ -53,7 +53,6 @@ describe('manual legacy port verification', () => {
       projects: count(legacyDb, 'projects'),
       tasks: count(legacyDb, 'tasks'),
       conversations: count(legacyDb, 'conversations'),
-      messages: count(legacyDb, 'messages'),
     };
 
     const stateStore = new OneShotStateStore();

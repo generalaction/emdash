@@ -8,10 +8,12 @@ import type {
   Client,
   InitializeRequest,
   InitializeResponse,
+  LoadSessionRequest,
   NewSessionRequest,
   RequestPermissionRequest,
   RequestPermissionResponse,
   SessionNotification,
+  SetSessionConfigOptionRequest,
   WriteTextFileRequest,
   WriteTextFileResponse,
   ReadTextFileRequest,
@@ -20,34 +22,83 @@ import type {
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { isAppFocused } from '@main/core/agent-hooks/notification';
 import { getPlugin } from '@main/core/agents/plugin-registry';
+import { setProviderSessionId } from '@main/core/conversations/set-provider-session-id';
+import { updateConversationModel } from '@main/core/conversations/updateConversationModel';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { acpSessionClosedChannel, acpSessionUpdateChannel } from '@shared/core/acp/acpEvents';
+import {
+  acpSessionClosedChannel,
+  acpSessionReplayChannel,
+  acpSessionUpdateChannel,
+} from '@shared/core/acp/acpEvents';
 import type { AgentEvent } from '@shared/core/agents/agentEvents';
 import { agentSessionExitedChannel } from '@shared/core/agents/agentEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { buildAgentEnv } from '../pty/pty-env';
 
-interface AcpSession {
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/** Per-conversation state held inside a pool. */
+interface AcpConversation {
+  conversationId: string;
+  projectId: string;
+  taskId: string;
+  providerId: string;
+  /** ACP-native session id assigned by newSession / loadSession. */
+  acpSessionId: string | null;
+  /** Model to apply after session is established (from persisted config). */
+  pendingModel: string | null;
+}
+
+/**
+ * One child process + connection shared by all conversations in a
+ * (provider, workspace) pair.  poolKey = `${providerId}:${workspaceId}`.
+ */
+interface AcpPool {
   child: ChildProcess;
   connection: ClientSideConnection;
-  conversationId: string;
-  taskId: string;
-  projectId: string;
   providerId: string;
-  /** ACP-native session id returned by newSession / loadSession. */
-  acpSessionId: string | null;
+  workspaceId: string;
+  path: string;
+  /** All conversations currently multiplexed on this connection. */
+  conversations: Map<string, AcpConversation>;
+  /** Maps ACP sessionId → conversationId for routing incoming events. */
+  sessionToConversation: Map<string, string>;
+  /** Promise that resolves once the pool's `initialize` call completes. */
+  initialized: Promise<void> | null;
   stopped: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// AcpSessionManager
+// ---------------------------------------------------------------------------
+
 class AcpSessionManager {
-  private sessions = new Map<string, AcpSession>();
+  /** Pools keyed by `${providerId}:${workspaceId}`. */
+  private pools = new Map<string, AcpPool>();
 
-  async start(conversation: Conversation, taskPath: string, initialPrompt?: string): Promise<void> {
-    const { id: conversationId, projectId, taskId, providerId } = conversation;
+  /**
+   * Secondary index: conversationId → { poolKey, acpSessionId } for fast
+   * lookup from the public controller API without scanning pools.
+   */
+  private conversationIndex = new Map<string, { poolKey: string; acpSessionId: string | null }>();
 
-    if (this.sessions.has(conversationId)) {
-      log.debug('AcpSessionManager: session already running', { conversationId });
+  // -------------------------------------------------------------------------
+  // Public API (keyed by conversationId — unchanged from callers' perspective)
+  // -------------------------------------------------------------------------
+
+  async start(
+    conversation: Conversation,
+    workspaceId: string,
+    path: string,
+    initialPrompt?: string
+  ): Promise<void> {
+    const { id: conversationId, providerId } = conversation;
+
+    if (this.conversationIndex.has(conversationId)) {
+      log.debug('AcpSessionManager: conversation already running', { conversationId });
       return;
     }
 
@@ -56,11 +107,189 @@ class AcpSessionManager {
       throw new Error(`AcpSessionManager: provider '${providerId}' does not support ACP transport`);
     }
 
+    const poolKey = `${providerId}:${workspaceId}`;
+    const pool = await this.getOrCreatePool(poolKey, providerId, workspaceId, path, plugin);
+
+    // Wait for the pool's initialize handshake to finish before adding sessions.
+    if (pool.initialized) {
+      await pool.initialized;
+    }
+
+    // Build the per-conversation record.
+    const conv: AcpConversation = {
+      conversationId,
+      projectId: conversation.projectId,
+      taskId: conversation.taskId,
+      providerId,
+      acpSessionId: conversation.providerSessionId ?? null,
+      pendingModel: conversation.model ?? null,
+    };
+
+    pool.conversations.set(conversationId, conv);
+    this.conversationIndex.set(conversationId, { poolKey, acpSessionId: conv.acpSessionId });
+
+    try {
+      let acpSessionId: string;
+
+      if (conv.acpSessionId) {
+        // Pre-register the session→conversation mapping so that session/update
+        // notifications emitted during loadSession replay are routed correctly.
+        // (The agent replays history during the loadSession await, before it resolves.)
+        pool.sessionToConversation.set(conv.acpSessionId, conversationId);
+        try {
+          events.emit(acpSessionReplayChannel, { conversationId, phase: 'start' });
+          await pool.connection.loadSession(this.buildLoadSessionRequest(path, conv.acpSessionId));
+          events.emit(acpSessionReplayChannel, { conversationId, phase: 'end' });
+          acpSessionId = conv.acpSessionId;
+        } catch {
+          log.warn('AcpSessionManager: loadSession failed, starting new session', {
+            conversationId,
+          });
+          // Close the replay window so the renderer's ChatStore finalizes correctly,
+          // then undo the pre-registration before obtaining a fresh session.
+          events.emit(acpSessionReplayChannel, { conversationId, phase: 'end' });
+          pool.sessionToConversation.delete(conv.acpSessionId);
+          const newResp = await pool.connection.newSession(this.buildNewSessionRequest(path));
+          acpSessionId = newResp.sessionId;
+        }
+      } else {
+        const newResp = await pool.connection.newSession(this.buildNewSessionRequest(path));
+        acpSessionId = newResp.sessionId;
+      }
+
+      conv.acpSessionId = acpSessionId;
+      pool.sessionToConversation.set(acpSessionId, conversationId);
+      this.conversationIndex.set(conversationId, { poolKey, acpSessionId });
+
+      // Persist the ACP session id so it survives pool teardown / app restart.
+      void setProviderSessionId(conversationId, acpSessionId).catch(() => {
+        // Non-fatal: worst case we lose resume on restart.
+      });
+
+      if (conv.pendingModel) {
+        await this.applyModelInternal(pool.connection, acpSessionId, conv.pendingModel, conv);
+      }
+
+      this.emitAgentEvent(conv, 'start');
+
+      if (initialPrompt?.trim()) {
+        await this.sendPromptInternal(pool, conv, initialPrompt);
+      }
+    } catch (err) {
+      log.error('AcpSessionManager: failed to initialize ACP conversation', {
+        conversationId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // Clean up the half-initialized conversation entry.
+      pool.conversations.delete(conversationId);
+      this.conversationIndex.delete(conversationId);
+      if (conv.acpSessionId) pool.sessionToConversation.delete(conv.acpSessionId);
+      if (pool.conversations.size === 0) {
+        this.destroyPool(pool);
+      }
+      throw err;
+    }
+  }
+
+  async prompt(conversationId: string, text: string): Promise<void> {
+    const { pool, conv } = this.resolveConversation(conversationId);
+    await this.sendPromptInternal(pool, conv, text);
+  }
+
+  async cancel(conversationId: string): Promise<void> {
+    const entry = this.conversationIndex.get(conversationId);
+    if (!entry?.acpSessionId) return;
+    const pool = this.pools.get(entry.poolKey);
+    if (!pool) return;
+    try {
+      await pool.connection.cancel({ sessionId: entry.acpSessionId });
+    } catch (err) {
+      log.warn('AcpSessionManager: cancel failed', {
+        conversationId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  stop(conversationId: string): void {
+    const entry = this.conversationIndex.get(conversationId);
+    if (!entry) return;
+    const pool = this.pools.get(entry.poolKey);
+    if (!pool) {
+      this.conversationIndex.delete(conversationId);
+      return;
+    }
+    const conv = pool.conversations.get(conversationId);
+
+    // Best-effort closeSession so the agent can clean up state.
+    if (conv?.acpSessionId) {
+      void pool.connection.closeSession({ sessionId: conv.acpSessionId }).catch(() => {
+        // agent-side closeSession is optional; ignore failures.
+      });
+      pool.sessionToConversation.delete(conv.acpSessionId);
+    }
+
+    pool.conversations.delete(conversationId);
+    this.conversationIndex.delete(conversationId);
+
+    if (pool.conversations.size === 0) {
+      this.destroyPool(pool);
+    }
+  }
+
+  async setModel(conversationId: string, model: string): Promise<void> {
+    const entry = this.conversationIndex.get(conversationId);
+    const pool = entry ? this.pools.get(entry.poolKey) : undefined;
+    const conv = pool ? pool.conversations.get(conversationId) : undefined;
+
+    if (pool && conv && entry?.acpSessionId) {
+      await this.applyModelInternal(pool.connection, entry.acpSessionId, model, conv);
+    }
+
+    void updateConversationModel(conversationId, model).catch((err) => {
+      log.warn('AcpSessionManager: failed to persist model selection', {
+        conversationId,
+        model,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }
+
+  isRunning(conversationId: string): boolean {
+    return this.conversationIndex.has(conversationId);
+  }
+
+  // -------------------------------------------------------------------------
+  // Pool management
+  // -------------------------------------------------------------------------
+
+  private async getOrCreatePool(
+    poolKey: string,
+    providerId: string,
+    workspaceId: string,
+    path: string,
+    plugin: ReturnType<typeof getPlugin> & object
+  ): Promise<AcpPool> {
+    const existing = this.pools.get(poolKey);
+    if (existing) return existing;
+
     const agentEnv = buildAgentEnv({ agentApiVars: true });
-    const { command, args, env } = plugin.behavior.acp.buildSpawn({ cwd: taskPath, env: agentEnv });
+    const { command, args, env } = (
+      plugin as {
+        behavior: {
+          acp: {
+            buildSpawn: (ctx: { cwd: string; env: NodeJS.ProcessEnv }) => {
+              command: string;
+              args: string[];
+              env?: NodeJS.ProcessEnv;
+            };
+          };
+        };
+      }
+    ).behavior.acp.buildSpawn({ cwd: path, env: agentEnv });
 
     const child = spawn(command, args, {
-      cwd: taskPath,
+      cwd: path,
       env: { ...agentEnv, ...env },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -72,7 +301,7 @@ class AcpSessionManager {
     if (child.stderr) {
       child.stderr.on('data', (data: Buffer) => {
         log.debug('AcpSessionManager: agent stderr', {
-          conversationId,
+          poolKey,
           text: data.toString().trim(),
         });
       });
@@ -83,184 +312,132 @@ class AcpSessionManager {
       nodeToWebReadable(child.stdout) as unknown as ReadableStream<Uint8Array>
     );
 
-    const session: AcpSession = {
+    const pool: AcpPool = {
       child,
       connection: null as unknown as ClientSideConnection,
-      conversationId,
-      taskId,
-      projectId,
       providerId,
-      acpSessionId: conversation.providerSessionId ?? null,
+      workspaceId,
+      path,
+      conversations: new Map(),
+      sessionToConversation: new Map(),
+      initialized: null,
       stopped: false,
     };
 
-    const clientHandler: Client = this.buildClientHandler(session);
+    const connection = new ClientSideConnection((_agent) => this.buildClientHandler(pool), stream);
+    pool.connection = connection;
 
-    const connection = new ClientSideConnection((_agent) => clientHandler, stream);
-    session.connection = connection;
-    this.sessions.set(conversationId, session);
+    // Register pool before awaiting initialize so concurrent start() calls see it.
+    this.pools.set(poolKey, pool);
 
-    // Closed = child exited or stream ended
     void connection.closed.then(() => {
-      this.handleSessionClosed(session);
+      this.handlePoolClosed(pool);
     });
 
     child.on('error', (err) => {
-      log.error('AcpSessionManager: child process error', { conversationId, error: err.message });
-      this.handleSessionClosed(session);
+      log.error('AcpSessionManager: child process error', { poolKey, error: err.message });
+      this.handlePoolClosed(pool);
     });
 
-    try {
-      // Initialize the connection
-      const initRequest: InitializeRequest = {
-        protocolVersion: 1,
-        clientInfo: { name: 'emdash', version: '1' },
-      };
-      const _initResp: InitializeResponse = await connection.initialize(initRequest);
+    const initReq: InitializeRequest = {
+      protocolVersion: 1,
+      clientInfo: { name: 'emdash', version: '1' },
+    };
 
-      let acpSessionId: string;
-
-      if (session.acpSessionId) {
-        // Resume existing session; ResumeSessionResponse doesn't return a new sessionId
-        try {
-          await connection.resumeSession({
-            sessionId: session.acpSessionId,
-            cwd: taskPath,
-          });
-          acpSessionId = session.acpSessionId;
-        } catch {
-          // Fall back to new session if resume fails
-          log.warn('AcpSessionManager: resume failed, starting new session', { conversationId });
-          const newResp = await connection.newSession(this.buildNewSessionRequest(taskPath));
-          acpSessionId = newResp.sessionId;
-        }
-      } else {
-        const newResp = await connection.newSession(this.buildNewSessionRequest(taskPath));
-        acpSessionId = newResp.sessionId;
-      }
-
-      session.acpSessionId = acpSessionId;
-
-      // Emit start event so status badges work
-      this.emitAgentEvent(session, 'start');
-
-      if (initialPrompt?.trim()) {
-        await this.sendPromptInternal(session, initialPrompt);
-      }
-    } catch (err) {
-      log.error('AcpSessionManager: failed to initialize ACP session', {
-        conversationId,
-        error: err instanceof Error ? err.message : String(err),
+    pool.initialized = connection
+      .initialize(initReq)
+      .then((_resp: InitializeResponse) => {
+        log.debug('AcpSessionManager: pool initialized', { poolKey });
+      })
+      .catch((err) => {
+        log.error('AcpSessionManager: pool initialize failed', {
+          poolKey,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        this.handlePoolClosed(pool);
+        throw err;
       });
-      this.killSession(conversationId);
-      throw err;
-    }
+
+    return pool;
   }
 
-  private buildNewSessionRequest(cwd: string): NewSessionRequest {
-    return { cwd, mcpServers: [] };
-  }
-
-  async prompt(conversationId: string, text: string): Promise<void> {
-    const session = this.sessions.get(conversationId);
-    if (!session || !session.acpSessionId) {
-      throw new Error(`AcpSessionManager: no active session for conversation ${conversationId}`);
-    }
-    await this.sendPromptInternal(session, text);
-  }
-
-  private async sendPromptInternal(session: AcpSession, text: string): Promise<void> {
-    if (!session.acpSessionId) return;
-    this.emitAgentEvent(session, 'start');
-
+  private destroyPool(pool: AcpPool): void {
+    if (pool.stopped) return;
+    pool.stopped = true;
+    this.pools.delete(`${pool.providerId}:${pool.workspaceId}`);
     try {
-      const resp = await session.connection.prompt({
-        sessionId: session.acpSessionId,
-        prompt: [{ type: 'text', text }],
-      });
-      // Emit idle/completed once the prompt turn resolves
-      if (resp.stopReason === 'cancelled') {
-        this.emitAgentEvent(session, 'stop');
-      } else {
-        this.emitAgentEvent(session, 'stop');
-      }
-    } catch (err) {
-      log.error('AcpSessionManager: prompt error', {
-        conversationId: session.conversationId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      this.emitAgentEvent(session, 'error');
-    }
-  }
-
-  async cancel(conversationId: string): Promise<void> {
-    const session = this.sessions.get(conversationId);
-    if (!session || !session.acpSessionId) return;
-    try {
-      await session.connection.cancel({ sessionId: session.acpSessionId });
-    } catch (err) {
-      log.warn('AcpSessionManager: cancel failed', {
-        conversationId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
-
-  stop(conversationId: string): void {
-    this.killSession(conversationId);
-  }
-
-  private killSession(conversationId: string): void {
-    const session = this.sessions.get(conversationId);
-    if (!session) return;
-    session.stopped = true;
-    this.sessions.delete(conversationId);
-    try {
-      session.child.kill('SIGTERM');
+      pool.child.kill('SIGTERM');
     } catch {
       // ignore
     }
   }
 
-  private handleSessionClosed(session: AcpSession): void {
-    if (!this.sessions.has(session.conversationId) && session.stopped) return;
-    this.sessions.delete(session.conversationId);
+  private handlePoolClosed(pool: AcpPool): void {
+    if (pool.stopped) {
+      // Already torn down by destroyPool — only clean up the index.
+      for (const conv of pool.conversations.values()) {
+        this.conversationIndex.delete(conv.conversationId);
+      }
+      return;
+    }
+    pool.stopped = true;
+    this.pools.delete(`${pool.providerId}:${pool.workspaceId}`);
 
-    const exitCode = session.child.exitCode;
-    events.emit(acpSessionClosedChannel, {
-      conversationId: session.conversationId,
+    const exitCode = pool.child.exitCode;
+
+    // Fan out close events to every conversation that was live in this pool.
+    for (const conv of pool.conversations.values()) {
+      this.conversationIndex.delete(conv.conversationId);
+      events.emit(acpSessionClosedChannel, {
+        conversationId: conv.conversationId,
+        exitCode,
+      });
+      events.emit(agentSessionExitedChannel, {
+        conversationId: conv.conversationId,
+        taskId: conv.taskId,
+      });
+    }
+
+    log.debug('AcpSessionManager: pool closed', {
+      poolKey: `${pool.providerId}:${pool.workspaceId}`,
       exitCode,
-    });
-    events.emit(agentSessionExitedChannel, {
-      conversationId: session.conversationId,
-      taskId: session.taskId,
+      conversationCount: pool.conversations.size,
     });
 
-    log.debug('AcpSessionManager: session closed', {
-      conversationId: session.conversationId,
-      exitCode,
-    });
+    pool.conversations.clear();
+    pool.sessionToConversation.clear();
   }
 
-  private buildClientHandler(session: AcpSession): Client {
+  // -------------------------------------------------------------------------
+  // Client handler (built once per pool, routes by sessionId)
+  // -------------------------------------------------------------------------
+
+  private buildClientHandler(pool: AcpPool): Client {
     return {
       sessionUpdate: async (params: SessionNotification): Promise<void> => {
-        events.emit(acpSessionUpdateChannel, {
-          conversationId: session.conversationId,
-          update: params.update,
-        });
+        const update = params.update;
+        const conversationId = pool.sessionToConversation.get(params.sessionId);
+        if (!conversationId) {
+          log.warn('AcpSessionManager: sessionUpdate for unknown sessionId', {
+            sessionId: params.sessionId,
+          });
+          return;
+        }
+        if (!pool.conversations.has(conversationId)) return;
+
+        events.emit(acpSessionUpdateChannel, { conversationId, update });
       },
 
       requestPermission: async (
         params: RequestPermissionRequest
       ): Promise<RequestPermissionResponse> => {
-        // MVP: auto-approve by picking the first allow_once or allow_always option
+        const conversationId = pool.sessionToConversation.get(params.sessionId);
         const allowOption =
           params.options.find((o) => o.kind === 'allow_once' || o.kind === 'allow_always') ??
           params.options[0];
 
         log.debug('AcpSessionManager: auto-approving permission request', {
-          conversationId: session.conversationId,
+          conversationId,
           toolCallId: params.toolCall?.toolCallId,
           chosen: allowOption?.name,
         });
@@ -295,23 +472,91 @@ class AcpSessionManager {
     };
   }
 
-  private emitAgentEvent(session: AcpSession, type: AgentEvent['type']): void {
+  // -------------------------------------------------------------------------
+  // Internal helpers
+  // -------------------------------------------------------------------------
+
+  private resolveConversation(conversationId: string): { pool: AcpPool; conv: AcpConversation } {
+    const entry = this.conversationIndex.get(conversationId);
+    if (!entry?.acpSessionId) {
+      throw new Error(`AcpSessionManager: no active session for conversation ${conversationId}`);
+    }
+    const pool = this.pools.get(entry.poolKey);
+    const conv = pool?.conversations.get(conversationId);
+    if (!pool || !conv) {
+      throw new Error(`AcpSessionManager: pool not found for conversation ${conversationId}`);
+    }
+    return { pool, conv };
+  }
+
+  private async sendPromptInternal(
+    pool: AcpPool,
+    conv: AcpConversation,
+    text: string
+  ): Promise<void> {
+    if (!conv.acpSessionId) return;
+    this.emitAgentEvent(conv, 'start');
+
+    try {
+      await pool.connection.prompt({
+        sessionId: conv.acpSessionId,
+        prompt: [{ type: 'text', text }],
+      });
+      this.emitAgentEvent(conv, 'stop');
+    } catch (err) {
+      log.error('AcpSessionManager: prompt error', {
+        conversationId: conv.conversationId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      this.emitAgentEvent(conv, 'error');
+    }
+  }
+
+  private async applyModelInternal(
+    connection: ClientSideConnection,
+    acpSessionId: string,
+    model: string,
+    conv: AcpConversation
+  ): Promise<void> {
+    try {
+      const req: SetSessionConfigOptionRequest = {
+        sessionId: acpSessionId,
+        configId: 'model',
+        value: model,
+      };
+      await connection.setSessionConfigOption(req);
+      conv.pendingModel = model;
+    } catch (err) {
+      log.warn('AcpSessionManager: failed to apply model selection', {
+        conversationId: conv.conversationId,
+        model,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  private buildNewSessionRequest(cwd: string): NewSessionRequest {
+    return { cwd, mcpServers: [] };
+  }
+
+  private buildLoadSessionRequest(cwd: string, sessionId: string): LoadSessionRequest {
+    return { sessionId, cwd, mcpServers: [] };
+  }
+
+  private emitAgentEvent(conv: AcpConversation, type: AgentEvent['type']): void {
     const event: AgentEvent = {
       type,
       source: 'hook',
-      providerId: session.providerId,
-      projectId: session.projectId,
-      taskId: session.taskId,
-      conversationId: session.conversationId,
+      providerId: conv.providerId,
+      projectId: conv.projectId,
+      taskId: conv.taskId,
+      conversationId: conv.conversationId,
       timestamp: Date.now(),
       payload: {},
     };
     agentHookService.emitAgentEvent(event, isAppFocused());
   }
-
-  isRunning(conversationId: string): boolean {
-    return this.sessions.has(conversationId);
-  }
 }
 
+export { AcpSessionManager };
 export const acpSessionManager = new AcpSessionManager();

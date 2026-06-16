@@ -31,9 +31,9 @@ export async function hydrateConversation(
     if (acpSessionManager.isRunning(conversationId)) return;
     const workspaceId = taskSessionManager.getWorkspaceId(taskId);
     const workspace = workspaceId ? workspaceRegistry.get(workspaceId) : undefined;
-    if (!workspace) throw new Error('Workspace not found for ACP conversation');
+    if (!workspace || !workspaceId) throw new Error('Workspace not found for ACP conversation');
     const config = row.config ?? {};
-    await acpSessionManager.start(conversation, workspace.path, config.initialPrompt);
+    await acpSessionManager.start(conversation, workspaceId, workspace.path, config.initialPrompt);
     return;
   }
 

@@ -88,7 +88,28 @@ export const plugin = definePlugin(
       supportedTransports: ['stdio', 'http'],
     },
     models: {
-      kind: 'none',
+      kind: 'selectable',
+      modelOptions: {
+        default: {
+          name: 'Default',
+          description: 'Use the model configured in your Claude settings',
+        },
+        sonnet: {
+          name: 'Claude Sonnet',
+          description: 'Balanced performance and speed',
+          modelFeatures: { intelligence: 4, speed: 4 },
+        },
+        opus: {
+          name: 'Claude Opus',
+          description: 'Most capable model for complex tasks',
+          modelFeatures: { intelligence: 5, speed: 2 },
+        },
+        haiku: {
+          name: 'Claude Haiku',
+          description: 'Fast and compact model for simpler tasks',
+          modelFeatures: { intelligence: 3, speed: 5 },
+        },
+      },
     },
     plugins: {
       kind: 'none',
@@ -109,7 +130,9 @@ export const provider = registerPluginBehavior(plugin, {
     buildSpawn: (ctx) => ({
       command: process.execPath,
       args: [resolveClaudeAcpEntry()],
-      env: ctx.env,
+      // process.execPath is the Electron binary; ELECTRON_RUN_AS_NODE makes it
+      // run the adapter as a plain Node script instead of booting a new app.
+      env: { ...ctx.env, ELECTRON_RUN_AS_NODE: '1' },
     }),
   },
   prompt: {

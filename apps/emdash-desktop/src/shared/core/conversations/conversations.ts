@@ -23,6 +23,8 @@ export type Conversation = {
   agentStatus?: AgentStatus | null;
   agentStatusSeen?: boolean;
   type: ConversationType;
+  /** Persisted model selection for ACP chat conversations. */
+  model?: string;
 };
 
 export type RenameConversationParams = {

@@ -9,10 +9,10 @@ export function isDroidProviderSessionId(value: string): boolean {
 
 const conversationConfigV0Schema = z.object({
   autoApprove: z.boolean().optional(),
-  /** Provider-native session id (e.g. Droid UUID) for resuming the correct chat. */
-  providerSessionId: z.string().optional(),
   /** Initial prompt to deliver on the first spawn; cleared from config after the session starts. */
   initialPrompt: z.string().optional(),
+  /** Selected model id for ACP-based chat conversations. */
+  model: z.string().optional(),
 });
 
 export const conversationConfig = defineVersionedSchema()

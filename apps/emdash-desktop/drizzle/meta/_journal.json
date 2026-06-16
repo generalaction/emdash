@@ -120,6 +120,13 @@
       "when": 1750008000000,
       "tag": "0016_acp_conversation_type",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1750028400000,
+      "tag": "0017_drop_messages_table",
+      "breakpoints": true
     }
   ]
 }

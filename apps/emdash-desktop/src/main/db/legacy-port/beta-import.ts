@@ -21,7 +21,6 @@ const COPY_TABLE_ORDER = [
   'tasks',
   'conversations',
   'terminals',
-  'messages',
   'editor_buffers',
 ] as const;
 

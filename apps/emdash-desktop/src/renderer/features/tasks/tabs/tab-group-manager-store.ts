@@ -68,6 +68,9 @@ export class TabGroupManagerStore {
       openConversation: action,
       openConversationPreview: action,
       openChat: action,
+      openChatPreview: action,
+      openConversationAuto: action,
+      openConversationAutoPreview: action,
       openBrowser: action,
     });
   }
@@ -250,7 +253,39 @@ export class TabGroupManagerStore {
   }
 
   openChat(conversationId: string): void {
+    for (const { groupId, tabManager } of this.groups) {
+      if (tabManager.hasChatTab(conversationId)) {
+        this.activeGroupId = groupId;
+        tabManager.openChat(conversationId);
+        return;
+      }
+    }
     this.focusedGroup.openChat(conversationId);
+  }
+
+  openChatPreview(conversationId: string): void {
+    for (const { groupId, tabManager } of this.groups) {
+      if (tabManager.hasChatTab(conversationId)) {
+        this.activeGroupId = groupId;
+        tabManager.openChatPreview(conversationId);
+        return;
+      }
+    }
+    this.focusedGroup.openChatPreview(conversationId);
+  }
+
+  /** Opens the correct tab kind (chat or PTY terminal) based on conversation type. */
+  openConversationAuto(conversationId: string): void {
+    const type = this._getConversations()?.conversations.get(conversationId)?.data.type;
+    if (type === 'acp') this.openChat(conversationId);
+    else this.openConversation(conversationId);
+  }
+
+  /** Opens a preview tab for the correct kind based on conversation type. */
+  openConversationAutoPreview(conversationId: string): void {
+    const type = this._getConversations()?.conversations.get(conversationId)?.data.type;
+    if (type === 'acp') this.openChatPreview(conversationId);
+    else this.openConversationPreview(conversationId);
   }
 
   openBrowser(initialUrl?: string): void {

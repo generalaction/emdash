@@ -1,0 +1,60 @@
+{
+  "name": "@emdash/ui",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Emdash shared React component library",
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Emdash Contributors",
+    "email": "support@emdash.sh"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "scripts": {
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/ui/src\"'",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@chenglou/pretext": "^0.0.8",
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
+    "@tanstack/react-virtual": "^3.14.2",
+    "mobx": "^6.16.1",
+    "mobx-react-lite": "^4.1.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "remark-parse": "^11.0.0",
+    "unified": "^11.0.5"
+  },
+  "devDependencies": {
+    "@storybook/addon-docs": "^10.4.5",
+    "@storybook/react-vite": "^10.4.5",
+    "@tailwindcss/vite": "^4.2.1",
+    "@types/mdast": "^4.0.4",
+    "@types/node": "^20.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "oxfmt": "^0.51.0",
+    "oxlint": "^1.69.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "storybook": "^10.4.5",
+    "tailwind-merge": "^2.6.0",
+    "tailwindcss": "^4.2.1",
+    "tw-animate-css": "^1.4.0",
+    "typescript": "^6.0.2",
+    "vite": "^6.4.1"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "packageManager": "pnpm@10.28.2"
+}

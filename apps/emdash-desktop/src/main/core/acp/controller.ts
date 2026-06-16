@@ -9,4 +9,8 @@ async function cancel(conversationId: string): Promise<void> {
   await acpSessionManager.cancel(conversationId);
 }
 
-export const acpController = createRPCController({ prompt, cancel });
+async function setModel(conversationId: string, model: string): Promise<void> {
+  await acpSessionManager.setModel(conversationId, model);
+}
+
+export const acpController = createRPCController({ prompt, cancel, setModel });

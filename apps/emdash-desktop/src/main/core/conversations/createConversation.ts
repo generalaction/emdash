@@ -61,7 +61,9 @@ export async function createConversation(
       title: params.title,
       provider: params.provider,
       config,
-      sessionId: id,
+      // PTY conversations use sessionId as an idempotency guard (set to conversationId).
+      // ACP conversations write the agent-assigned session ID here after the first newSession call.
+      sessionId: params.type === 'acp' ? null : id,
       isInitialConversation: params.isInitialConversation ?? false,
       createdAt: sql`CURRENT_TIMESTAMP`,
       updatedAt: sql`CURRENT_TIMESTAMP`,

@@ -49,10 +49,7 @@ export const TabBarActions = observer(function TabBarActions() {
               showCreateConversationModal({
                 projectId,
                 taskId,
-                onSuccess: ({ conversationId, type }) =>
-                  type === 'acp'
-                    ? tabManager.openChat(conversationId)
-                    : tabManager.openConversation(conversationId),
+                onSuccess: ({ conversationId }) => tabManager.openConversationAuto(conversationId),
               })
             }
           >

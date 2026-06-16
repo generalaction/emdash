@@ -22,6 +22,7 @@ import {
 } from '@renderer/lib/stores/tab-utils';
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
 import type { BrowserSessionSnapshot } from '@shared/browser';
+import type { ConversationType } from '@shared/core/conversations/conversations';
 import { refsEqual, type GitChangeStatus, type GitObjectRef } from '@shared/core/git/git';
 import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
@@ -235,6 +236,9 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       openConversation: action,
       openConversationPreview: action,
       openChat: action,
+      openChatPreview: action,
+      openConversationAuto: action,
+      openConversationAutoPreview: action,
       openFile: action,
       openExternalFile: action,
       openFilePreview: action,
@@ -556,6 +560,36 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     this.activeTabId = entry.tabId;
   }
 
+  openChatPreview(conversationId: string): void {
+    const existing = this._findChatEntry(conversationId);
+    if (existing) {
+      this.activeTabId = existing.tabId;
+      return;
+    }
+    const previewEntry = this._findChatPreviewEntry();
+    if (previewEntry) {
+      previewEntry.conversationId = conversationId;
+      this.activeTabId = previewEntry.tabId;
+      return;
+    }
+    const entry = new ChatTabEntry(conversationId, true);
+    this.entries.set(entry.tabId, entry);
+    addTabId(this, entry.tabId);
+    this.activeTabId = entry.tabId;
+  }
+
+  /** Opens the correct tab kind (chat or PTY terminal) based on conversation type. */
+  openConversationAuto(conversationId: string): void {
+    if (this._conversationType(conversationId) === 'acp') this.openChat(conversationId);
+    else this.openConversation(conversationId);
+  }
+
+  /** Opens a preview tab for the correct kind based on conversation type. */
+  openConversationAutoPreview(conversationId: string): void {
+    if (this._conversationType(conversationId) === 'acp') this.openChatPreview(conversationId);
+    else this.openConversationPreview(conversationId);
+  }
+
   openConversationPreview(conversationId: string): void {
     const existing = this._findConversationEntry(conversationId);
     if (existing) {
@@ -838,6 +872,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     return this._findConversationEntry(conversationId) !== undefined;
   }
 
+  hasChatTab(conversationId: string): boolean {
+    return this._findChatEntry(conversationId) !== undefined;
+  }
+
   // ---------------------------------------------------------------------------
   // Snapshot
   // ---------------------------------------------------------------------------
@@ -900,7 +938,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     if (!conversations) return;
     for (const [id, store] of conversations.conversations) {
       if (store.isInitialConversation) {
-        this.openConversation(id);
+        this.openConversationAuto(id);
         return;
       }
     }
@@ -959,6 +997,18 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       if (entry?.kind === 'conversation' && entry.isPreview) return entry;
     }
     return undefined;
+  }
+
+  private _findChatPreviewEntry(): ChatTabEntry | undefined {
+    for (const id of this.tabOrder) {
+      const entry = this.entries.get(id);
+      if (entry?.kind === 'chat' && entry.isPreview) return entry;
+    }
+    return undefined;
+  }
+
+  private _conversationType(conversationId: string): ConversationType | undefined {
+    return this._getConversations()?.conversations.get(conversationId)?.data.type;
   }
 
   private _findFileEntryByPath(path: string): FileTabStore | undefined {

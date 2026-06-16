@@ -21,6 +21,7 @@ import {
   type CreateConversationParams,
 } from '@shared/core/conversations/conversations';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
+import { ChatStore } from './chat/chat-store';
 
 export class ConversationManagerStore implements IDisposable {
   private offAgentStatusChanged: (() => void) | null = null;
@@ -35,6 +36,8 @@ export class ConversationManagerStore implements IDisposable {
   conversations = observable.map<string, ConversationStore>();
   /** Session layer keyed by conversation id — created alongside data, connected lazily. */
   sessions = observable.map<string, PtySession>();
+  /** Chat UI stores keyed by conversation id — created lazily for ACP conversations. */
+  chatStores = observable.map<string, ChatStore>();
 
   constructor(
     private readonly projectId: string,
@@ -44,6 +47,7 @@ export class ConversationManagerStore implements IDisposable {
     makeObservable(this, {
       conversations: observable,
       sessions: observable,
+      chatStores: observable,
       taskStatus: computed,
     });
 
@@ -172,6 +176,17 @@ export class ConversationManagerStore implements IDisposable {
     return null;
   }
 
+  /** Returns an existing ChatStore for the conversation or lazily creates one. */
+  getOrCreateChatStore(conversationId: string): ChatStore {
+    const existing = this.chatStores.get(conversationId);
+    if (existing) return existing;
+    const convStore = this.conversations.get(conversationId);
+    const initialModel = convStore?.data.model;
+    const store = new ChatStore(conversationId, this.projectId, this.taskId, initialModel);
+    this.chatStores.set(conversationId, store);
+    return store;
+  }
+
   async createConversation(params: CreateConversationParams): Promise<Conversation> {
     const conversation = await rpc.conversations.createConversation(params);
     runInAction(() => {
@@ -265,6 +280,9 @@ export class ConversationManagerStore implements IDisposable {
     this.offConversationChanges = null;
     for (const session of this.sessions.values()) {
       session.destroy();
+    }
+    for (const store of this.chatStores.values()) {
+      store.dispose();
     }
   }
 
