@@ -348,16 +348,15 @@
     },
     {
       "id": "pdf",
-      "displayName": "PDF Skill",
-      "description": "Create, edit, and review PDFs",
-      "source": "openai",
-      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/pdf",
-      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/pdf/assets/pdf.png",
-      "brandColor": "#10a37f",
-      "defaultPrompt": "Create, edit, or review this PDF and summarize the key output or changes.",
+      "displayName": "PDF",
+      "description": "Read, create, merge, split, and process PDF files",
+      "source": "anthropic",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/main/skills/pdf",
+      "brandColor": "#d4a574",
+      "defaultPrompt": "Help me work with this PDF file",
       "frontmatter": {
         "name": "pdf",
-        "description": "Create, edit, and review PDFs"
+        "description": "Read, create, merge, split, and process PDF files"
       }
     },
     {
@@ -632,13 +631,13 @@
     {
       "id": "claude-api",
       "displayName": "Claude Api",
-      "description": "|-",
+      "description": "Reference for the Claude API / Anthropic SDK — model ids, pricing, params, streaming, tool use, MCP, agents, caching, token counting, model migration. TRIGGER — read BEFORE opening the target file; don't skip because it \"looks like a one-liner\" — whenever: the prompt names Claude/Anthropic in any form (Claude, Anthropic, Fable, Opus, Sonnet, Haiku, `anthropic`, `@anthropic-ai`, `claude-*`, `us.anthropic.*`, `[1m]`); the user asks about an LLM (pricing/model choice/limits/caching) — never answer from memory; OR the task is LLM-shaped with provider unstated (agent/MCP/tool-definition/multi-agent/RAG/LLM-judge/computer-use; generate/summarize/extract/classify/rewrite/converse over NL; debugging refusals/cutoffs/streaming/tool-calls/tokens). SKIP only when another provider is being worked on (overrides all triggers): OpenAI/GPT/Gemini/Llama/Mistral/Cohere/Ollama named in the query; OR `grep -rE 'openai|langchain_openai|google.generativeai|genai|mistralai|cohere|ollama'` over the project hits (run this grep FIRST if no provider named — don't Read the file).",
       "source": "anthropic",
       "sourceUrl": "https://github.com/anthropics/skills/tree/main/skills/claude-api",
       "brandColor": "#d4a574",
       "frontmatter": {
         "name": "claude-api",
-        "description": "|-"
+        "description": "Reference for the Claude API / Anthropic SDK — model ids, pricing, params, streaming, tool use, MCP, agents, caching, token counting, model migration. TRIGGER — read BEFORE opening the target file; don't skip because it \"looks like a one-liner\" — whenever: the prompt names Claude/Anthropic in any form (Claude, Anthropic, Fable, Opus, Sonnet, Haiku, `anthropic`, `@anthropic-ai`, `claude-*`, `us.anthropic.*`, `[1m]`); the user asks about an LLM (pricing/model choice/limits/caching) — never answer from memory; OR the task is LLM-shaped with provider unstated (agent/MCP/tool-definition/multi-agent/RAG/LLM-judge/computer-use; generate/summarize/extract/classify/rewrite/converse over NL; debugging refusals/cutoffs/streaming/tool-calls/tokens). SKIP only when another provider is being worked on (overrides all triggers): OpenAI/GPT/Gemini/Llama/Mistral/Cohere/Ollama named in the query; OR `grep -rE 'openai|langchain_openai|google.generativeai|genai|mistralai|cohere|ollama'` over the project hits (run this grep FIRST if no provider named — don't Read the file)."
       }
     },
     {
