@@ -32,7 +32,7 @@ import {
 } from './parsers/status-parser';
 import type {
   GitLogOptions,
-  GitSeqs,
+  GitSequences,
   GitWorktreeSnapshot,
   GitWorktreeUpdate,
   IGitWorktree,
@@ -161,7 +161,7 @@ export class GitWorktree implements IGitWorktree {
         [
           '--no-optional-locks',
           'status',
-          '--porcelain=v1',
+          '--porcelain=v2',
           '-z',
           untracked === 'normal' ? '--untracked-files=normal' : '-uno',
         ],
@@ -312,11 +312,11 @@ export class GitWorktree implements IGitWorktree {
   }
 
   subscribe(cb: (update: GitWorktreeUpdate) => void): Unsubscribe {
-    const unsubscribeStatus = this.statusModel.subscribe(({ value, seq }) =>
-      cb({ kind: 'status', model: value, seq })
+    const unsubscribeStatus = this.statusModel.subscribe(({ value, sequence, generation }) =>
+      cb({ kind: 'status', model: value, sequence, generation })
     );
-    const unsubscribeHead = this.headModel.subscribe(({ value, seq }) =>
-      cb({ kind: 'head', model: value, seq })
+    const unsubscribeHead = this.headModel.subscribe(({ value, sequence, generation }) =>
+      cb({ kind: 'head', model: value, sequence, generation })
     );
     return () => {
       unsubscribeStatus();
@@ -344,37 +344,37 @@ export class GitWorktree implements IGitWorktree {
     return { status, head };
   }
 
-  async stage(paths: string[]): Promise<GitSeqs> {
+  async stage(paths: string[]): Promise<GitSequences> {
     if (paths.length === 0) return {};
     await this.exec.exec(['add', '--', ...paths]);
     return this.refreshStatus();
   }
 
-  async stageAll(): Promise<GitSeqs> {
+  async stageAll(): Promise<GitSequences> {
     await this.exec.exec(['add', '-A']);
     return this.refreshStatus();
   }
 
-  async unstage(paths: string[]): Promise<GitSeqs> {
+  async unstage(paths: string[]): Promise<GitSequences> {
     if (paths.length === 0) return {};
     await this.exec.exec(['reset', 'HEAD', '--', ...paths]);
     return this.refreshStatus();
   }
 
-  async unstageAll(): Promise<GitSeqs> {
+  async unstageAll(): Promise<GitSequences> {
     try {
       await this.exec.exec(['reset', 'HEAD']);
     } catch {}
     return this.refreshStatus();
   }
 
-  async revert(paths: string[]): Promise<GitSeqs> {
+  async revert(paths: string[]): Promise<GitSequences> {
     if (paths.length === 0) return {};
     await this.exec.exec(['checkout', 'HEAD', '--', ...paths]);
     return this.refreshStatus();
   }
 
-  async revertAll(): Promise<GitSeqs> {
+  async revertAll(): Promise<GitSequences> {
     try {
       await this.exec.exec(['reset', '--hard', 'HEAD']);
     } catch {}
@@ -382,29 +382,33 @@ export class GitWorktree implements IGitWorktree {
     return this.refreshStatus();
   }
 
-  async commit(message: string): Promise<Result<{ hash: string; seqs: GitSeqs }, CommitError>> {
+  async commit(
+    message: string
+  ): Promise<Result<{ hash: string; sequences: GitSequences }, CommitError>> {
     try {
       await this.exec.exec(['commit', '-m', message]);
       const { stdout } = await this.exec.exec(['rev-parse', 'HEAD']);
-      return ok({ hash: stdout.trim(), seqs: await this.refreshAfterHistoryChange() });
+      return ok({ hash: stdout.trim(), sequences: await this.refreshAfterHistoryChange() });
     } catch (error) {
       return err(classifyCommitError(error));
     }
   }
 
-  async push(remote?: string): Promise<Result<{ output: string; seqs: GitSeqs }, PushError>> {
+  async push(
+    remote?: string
+  ): Promise<Result<{ output: string; sequences: GitSequences }, PushError>> {
     try {
       const { stdout, stderr } = await this.exec.exec(['push', ...(remote ? [remote] : [])]);
-      return ok({ output: stdout || stderr, seqs: await this.refreshAfterHistoryChange() });
+      return ok({ output: stdout || stderr, sequences: await this.refreshAfterHistoryChange() });
     } catch (error) {
       return err(classifyPushError(error));
     }
   }
 
-  async pull(): Promise<Result<{ output: string; seqs: GitSeqs }, PullError>> {
+  async pull(): Promise<Result<{ output: string; sequences: GitSequences }, PullError>> {
     try {
       const { stdout, stderr } = await this.exec.exec(['pull']);
-      return ok({ output: stdout || stderr, seqs: await this.refreshAfterHistoryChange() });
+      return ok({ output: stdout || stderr, sequences: await this.refreshAfterHistoryChange() });
     } catch (error) {
       return err(classifyPullError(error));
     }
@@ -450,36 +454,42 @@ export class GitWorktree implements IGitWorktree {
       const { stdout } = await this.exec.exec(['symbolic-ref', '--short', 'HEAD']);
       const name = stdout.trim();
       try {
-        await this.exec.exec(['rev-parse', '--verify', 'HEAD']);
-        return { kind: 'branch', name };
+        const { stdout: oid } = await this.exec.exec(['rev-parse', '--verify', 'HEAD']);
+        return { kind: 'branch', name, oid: oid.trim() };
       } catch {
         return { kind: 'unborn', name };
       }
     } catch {
-      const { stdout } = await this.exec.exec(['rev-parse', '--short', 'HEAD']);
-      return { kind: 'detached', shortHash: stdout.trim() };
+      const [short, oid] = await Promise.all([
+        this.exec.exec(['rev-parse', '--short', 'HEAD']),
+        this.exec.exec(['rev-parse', '--verify', 'HEAD']),
+      ]);
+      return { kind: 'detached', shortHash: short.stdout.trim(), oid: oid.stdout.trim() };
     }
   }
 
-  private async refreshStatus(): Promise<GitSeqs> {
+  private async refreshStatus(): Promise<GitSequences> {
     const status = await this.statusModel.refresh();
-    return { status: status.seq };
+    return { status: status.sequence };
   }
 
-  private async refreshAfterHistoryChange(): Promise<GitSeqs> {
+  private async refreshAfterHistoryChange(): Promise<GitSequences> {
     const [status, head, refs] = await Promise.all([
       this.statusModel.refresh(),
       this.headModel.refresh(),
       this.repository.refreshRefs(),
     ]);
-    return { status: status.seq, head: head.seq, refs };
+    return { status: status.sequence, head: head.sequence, refs };
   }
 
   private async runStatusZ(parser: StatusParser): Promise<void> {
-    await this.exec.execStreaming(['--no-optional-locks', 'status', '-z', '-uall'], (chunk) => {
-      parser.update(chunk);
-      return !parser.tooManyFiles;
-    });
+    await this.exec.execStreaming(
+      ['--no-optional-locks', 'status', '--porcelain=v2', '-z', '-uall'],
+      (chunk) => {
+        parser.update(chunk);
+        return !parser.tooManyFiles;
+      }
+    );
     if (parser.tooManyFiles) throw new TooManyFilesChangedError();
   }
 
@@ -503,6 +513,7 @@ export class GitWorktree implements IGitWorktree {
           status,
           additions: stat?.additions ?? 0,
           deletions: stat?.deletions ?? 0,
+          indexOid: entry.indexOid,
         });
       }
 

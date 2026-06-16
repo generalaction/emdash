@@ -1,19 +1,15 @@
+import type { GitChange, GitObjectRef } from '@emdash/shared/git';
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
 import { isBinaryForDiff } from '@renderer/lib/editor/fileKind';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { getLanguageFromPath } from '@renderer/utils/languageUtils';
-import {
-  commitRef,
-  HEAD_REF,
-  STAGED_REF,
-  type GitChange,
-  type GitObjectRef,
-} from '@shared/core/git/git';
+import { HEAD_REF, STAGED_REF } from '@shared/core/git/types';
+import { commitRef } from '@shared/core/git/utils';
 import { getPrNumber } from '@shared/core/pull-requests/pull-requests';
+import type { GitWorktreeStore } from '../../stores/git-worktree-store';
 import { MAX_STACKED_FILES, type DiffViewStore } from './diff-view-store';
-import type { GitStore } from './git-store';
 
 type DiffType = 'disk' | 'staged' | 'git' | 'pr';
 
@@ -118,7 +114,7 @@ export class StackedDiffPanelStore {
     projectId: string,
     workspaceId: string,
     private readonly diffView: DiffViewStore,
-    private readonly git: GitStore,
+    private readonly gitWorktree: GitWorktreeStore,
     private readonly pr: PrStore
   ) {
     this._slots = Array.from(
@@ -202,7 +198,7 @@ export class StackedDiffPanelStore {
 
     const isStaged = activeFile.group === 'staged';
     return {
-      files: isStaged ? this.git.stagedFileChanges : this.git.unstagedFileChanges,
+      files: isStaged ? this.gitWorktree.stagedFileChanges : this.gitWorktree.unstagedFileChanges,
       diffType: isStaged ? 'staged' : 'disk',
       originalRef: commitRef('HEAD'),
     };

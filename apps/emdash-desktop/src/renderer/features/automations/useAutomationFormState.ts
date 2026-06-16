@@ -1,17 +1,17 @@
+import type { GitBranchRef } from '@emdash/shared/git';
 import { useMemo, useState } from 'react';
 import { DEFAULT_CRON_STATE, toCron } from '@renderer/lib/CronPicker/cron-utils';
 import { isValidProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Automation } from '@shared/core/automations/automation';
 import type { StoredAutomationTaskConfig, TriggerConfig } from '@shared/core/automations/config';
 import { getLocalTimeZone } from '@shared/core/automations/timezone';
-import type { Branch } from '@shared/core/git/git';
 import {
   asMounted,
   firstMountedProjectId,
   getProjectStore,
-  getRepositoryStore,
 } from '../projects/stores/project-selectors';
 import { useInitialConversationState } from '../tasks/conversations/initial-conversation-section';
+import { useProjectGitContext } from '../tasks/create-task-modal/use-project-git-context';
 import { useTaskName } from '../tasks/create-task-modal/use-task-name';
 import {
   useWorkspaceConfig,
@@ -26,7 +26,7 @@ const DEFAULT_CRON = toCron(DEFAULT_CRON_STATE);
  */
 function workspaceInitialFromConfig(
   config: StoredAutomationTaskConfig | null | undefined
-): WorkspaceConfigInitial & { fromBranch?: Branch; pushBranch?: boolean } {
+): WorkspaceConfigInitial & { fromBranch?: GitBranchRef; pushBranch?: boolean } {
   if (!config) return { mode: 'new-worktree', presetId: 'new-worktree' };
   const { git, workspace } = config.workspaceConfig;
 
@@ -94,13 +94,8 @@ export function useAutomationFormState(
     initialConversation.setPrompt(seedPrompt);
   }
 
-  const repo = effectiveProjectId ? getRepositoryStore(effectiveProjectId) : undefined;
-  const defaultBranch = repo?.defaultBranch;
-  const isUnborn = repo?.isUnborn ?? false;
-  const currentBranch = repo?.currentBranch ?? null;
-
-  const repositoryWorkspaceId =
-    asMounted(getProjectStore(effectiveProjectId ?? ''))?.data?.repositoryWorkspaceId ?? null;
+  const { defaultBranch, isUnborn, currentBranch, repositoryWorkspaceId } =
+    useProjectGitContext(effectiveProjectId);
 
   // Derive initial workspace config state from stored automation (for edit mode).
   const wsInitial = useMemo(() => workspaceInitialFromConfig(seedConfig), [seedConfig]);
@@ -162,7 +157,7 @@ export function useAutomationFormState(
       workspaceConfig: patchedConfig,
     };
 
-    // Strip MobX Proxy wrappers (e.g. fromBranch coming from getRepositoryStore)
+    // Strip MobX Proxy wrappers (e.g. fromBranch coming from getGitRepositoryStore)
     // before the value crosses the Electron contextBridge. The structured clone
     // algorithm rejects Proxy objects with a DataCloneError.
     return JSON.parse(JSON.stringify(result)) as StoredAutomationTaskConfig;

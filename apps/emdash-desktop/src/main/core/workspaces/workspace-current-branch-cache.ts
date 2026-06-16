@@ -1,5 +1,4 @@
 import { eq } from 'drizzle-orm';
-import type { WorkspaceGitProvider } from '@main/core/git/workspace-git-provider';
 import { db } from '@main/db/client';
 import { workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -13,10 +12,10 @@ export type WorkspaceCurrentBranchCacheRefresh =
 
 export async function refreshWorkspaceCurrentBranchCache(
   workspaceId: string,
-  git: WorkspaceGitProvider
+  readCurrentBranch: () => Promise<string | null>
 ): Promise<WorkspaceCurrentBranchCacheRefresh> {
   try {
-    const branchName = await git.getCurrentBranch();
+    const branchName = await readCurrentBranch();
     const [workspace] = await db
       .select({ branchName: workspaces.branchName })
       .from(workspaces)

@@ -1,16 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
-import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
-import { GitService } from '@main/core/git/impl/git-service';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
+import { runtimeManager } from '@main/core/runtime/runtime-manager';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import type { LocalProject, ProjectPathStatus } from '@shared/projects';
+import { err, ok } from '@shared/lib/result';
+import type { CreateProjectResult, ProjectPathStatus } from '@shared/projects';
 import { checkIsValidDirectory } from '../path-utils';
-import { ensureGitRepository, resolveProjectBaseRef } from './create-project-utils';
+import { ensureProjectRepository } from './create-project-utils';
 import { ensureRepositoryWorkspace } from './ensure-repository-workspace';
 
 export type CreateLocalProjectParams = {
@@ -20,17 +19,26 @@ export type CreateLocalProjectParams = {
   initGitRepository?: boolean;
 };
 
-export async function createLocalProject(params: CreateLocalProjectParams): Promise<LocalProject> {
+export async function createLocalProject(
+  params: CreateLocalProjectParams
+): Promise<CreateProjectResult> {
   const isValidDirectory = checkIsValidDirectory(params.path);
   if (!isValidDirectory) {
-    throw new Error('Invalid directory');
+    return err({
+      type: 'invalid-directory',
+      path: params.path,
+      message: 'Invalid directory',
+    });
   }
 
-  const fs = new LocalFileSystem(params.path);
-  const baseCtx = new LocalExecutionContext({ root: params.path });
-  const git = new GitService(baseCtx, fs);
-  const gitInfo = await ensureGitRepository(git, params.initGitRepository);
-  const baseRef = await resolveProjectBaseRef(git, gitInfo.baseRef);
+  const runtimeLease = await runtimeManager.acquire({ kind: 'local' });
+  const repositoryResult = await ensureProjectRepository(
+    runtimeLease.value.git,
+    params.path,
+    params.initGitRepository
+  ).finally(() => runtimeLease.release());
+  if (!repositoryResult.success) return repositoryResult;
+  const gitInfo = repositoryResult.data;
 
   const [row] = await db
     .insert(projects)
@@ -39,7 +47,7 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
       name: params.name,
       path: gitInfo.rootPath,
       workspaceProvider: 'local',
-      baseRef,
+      baseRef: gitInfo.baseRef,
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
     .returning();
@@ -49,7 +57,7 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
     id: row.id,
     name: row.name,
     path: row.path,
-    baseRef: row.baseRef ?? baseRef,
+    baseRef: row.baseRef ?? gitInfo.baseRef,
     repositoryWorkspaceId: null as string | null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -68,7 +76,7 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
 
   projectEvents._emit('project:created', project);
 
-  return project;
+  return ok(project);
 }
 
 export async function getLocalProjectPathStatus(path: string): Promise<ProjectPathStatus> {
@@ -77,9 +85,11 @@ export async function getLocalProjectPathStatus(path: string): Promise<ProjectPa
     return { isDirectory: false, isGitRepo: false };
   }
 
-  const fs = new LocalFileSystem(path);
-  const baseCtx = new LocalExecutionContext({ root: path });
-  const git = new GitService(baseCtx, fs);
-  const gitInfo = await git.detectInfo();
-  return { isDirectory: true, isGitRepo: gitInfo.isGitRepo };
+  const runtimeLease = await runtimeManager.acquire({ kind: 'local' });
+  try {
+    const inspection = await runtimeLease.value.git.inspectPath(path);
+    return { isDirectory: true, isGitRepo: inspection.kind === 'repository' };
+  } finally {
+    runtimeLease.release();
+  }
 }

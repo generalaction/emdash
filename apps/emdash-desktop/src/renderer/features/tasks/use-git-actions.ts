@@ -1,25 +1,32 @@
 import { useMutation } from '@tanstack/react-query';
-import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors';
+import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
+import {
+  getTaskGitWorktreeStore,
+  getTaskStore,
+} from '@renderer/features/tasks/stores/task-selectors';
+import { runGitFetch, runGitPublishBranch, runGitPull, runGitPush } from './git-action-handlers';
 
 export function useGitActions(projectId: string, taskId: string) {
-  const git = getTaskGitStore(projectId, taskId)!;
+  const git = getTaskGitWorktreeStore(projectId, taskId)!;
+  const repository = getGitRepositoryStore(projectId)!;
+  const workspaceId = getTaskStore(projectId, taskId)?.workspaceId ?? undefined;
 
   const hasUpstream = git?.isBranchPublished;
 
   const gitFetchMutation = useMutation({
-    mutationFn: () => git.fetchRemote(),
+    mutationFn: () => runGitFetch(repository),
   });
 
   const gitPullMutation = useMutation({
-    mutationFn: () => git.pull(),
+    mutationFn: () => runGitPull(git),
   });
 
   const gitPushMutation = useMutation({
-    mutationFn: () => git?.push(),
+    mutationFn: () => runGitPush(git),
   });
 
   const gitPublishMutation = useMutation({
-    mutationFn: () => git.publishBranch(),
+    mutationFn: () => runGitPublishBranch({ repository, branchName: git.branchName, workspaceId }),
   });
 
   return {

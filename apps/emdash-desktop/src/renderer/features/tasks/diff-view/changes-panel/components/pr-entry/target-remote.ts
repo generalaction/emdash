@@ -1,13 +1,13 @@
-import type { Remote } from '@shared/core/git/git';
+import type { GitRemote } from '@emdash/shared/git';
 import { parseRepositoryRef, type RepositoryRef } from '@shared/repository-ref';
 
 export type TargetRemote = {
-  remote: Remote;
+  remote: GitRemote;
   repository: RepositoryRef;
 };
 
 export function getTargetRemotes(
-  remotes: ReadonlyArray<Remote>,
+  remotes: ReadonlyArray<GitRemote>,
   options: { host?: string } = {}
 ): TargetRemote[] {
   return remotes

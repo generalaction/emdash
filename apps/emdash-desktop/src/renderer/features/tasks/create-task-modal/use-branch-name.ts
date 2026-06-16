@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
+import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { resolveTaskBranchName } from '@shared/resolveTaskBranchName';
@@ -67,7 +67,7 @@ export function useBranchName(opts: {
   }, []);
 
   // Pre-flight: check against the already-loaded local branch list in the repository store.
-  const repo = projectId ? getRepositoryStore(projectId) : undefined;
+  const repo = projectId ? getGitRepositoryStore(projectId) : undefined;
   const branchAlreadyExists =
     branchName.trim().length > 0 &&
     (repo?.localBranches.some((b) => b.branch === branchName) ?? false);

@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   closeActiveTabWithConfirm: vi.fn(),
   focusUrl: vi.fn(),
   getRegisteredTaskData: vi.fn(),
-  getTaskGitStore: vi.fn(),
+  getTaskGitWorktreeStore: vi.fn(),
   getTaskStore: vi.fn(),
   getTaskView: vi.fn(),
   goBack: vi.fn(),
@@ -37,7 +37,7 @@ vi.mock('@renderer/features/browser/browser-controls-registry', () => ({
 
 vi.mock('@renderer/features/tasks/stores/task-selectors', () => ({
   getRegisteredTaskData: mocks.getRegisteredTaskData,
-  getTaskGitStore: mocks.getTaskGitStore,
+  getTaskGitWorktreeStore: mocks.getTaskGitWorktreeStore,
   getTaskStore: mocks.getTaskStore,
   getTaskView: mocks.getTaskView,
 }));
@@ -129,7 +129,7 @@ describe('createTaskCommandProvider', () => {
       },
     });
     mocks.visibleTaskIdsForProject.mockReturnValue(['task-1', 'task-2']);
-    mocks.getTaskGitStore.mockReturnValue(undefined);
+    mocks.getTaskGitWorktreeStore.mockReturnValue(undefined);
     mocks.getRegisteredTaskData.mockReturnValue({
       id: 'task-1',
       isPinned: false,

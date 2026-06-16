@@ -1,3 +1,4 @@
+import type { GitStatusModel } from '@emdash/shared/git';
 import { eq } from 'drizzle-orm';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
@@ -6,10 +7,9 @@ import { LocalExecutionContext } from '@main/core/execution-context/local-execut
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
-import { GitFetchService } from '@main/core/git/git-fetch-service';
-import { GitService } from '@main/core/git/impl/git-service';
-import { RemoteStatusFingerprintPoller } from '@main/core/git/remote-status-fingerprint-poller';
-import { GitRepositoryService } from '@main/core/git/repository-service';
+import { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
+import { GitRepositoryService } from '@main/core/git/repository/service';
+import type { MachineRef, RuntimeManager } from '@main/core/runtime/types';
 import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
@@ -24,7 +24,9 @@ import { LifecycleScriptService } from '@main/core/workspaces/workspace-lifecycl
 import { type WorkspaceFactoryResult } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { workspaces as workspacesTable } from '@main/db/schema';
+import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
 import type { Task } from '@shared/core/tasks/tasks';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
@@ -40,14 +42,17 @@ type WorkspaceFactoryContext = {
   workDir: string;
   projectId: string;
   projectPath: string;
+  workspaceRuntime: {
+    machine: MachineRef;
+    manager: Pick<RuntimeManager, 'acquire'>;
+  };
   settings: ProjectSettingsProvider;
   logPrefix: string;
-  /** Inject an existing repository service (e.g. the project-level singleton).
-   *  When absent, the factory creates a fresh instance from the workspace's GitService. */
-  repository?: GitRepositoryService;
+  /** Inject an existing repository service (e.g. the project-level singleton). */
+  gitRepository?: GitRepositoryService;
   /** Inject an existing fetch service. When absent, the factory creates and manages one.
    *  Lifecycle (start/stop) is only managed by the factory when it creates the instance. */
-  fetchService?: GitFetchService;
+  gitRepositoryFetchService?: GitRepositoryFetchService;
   extraHooks?: {
     onCreate?: (ws: Workspace) => Promise<void>;
     onDestroy?: (ws: Workspace) => Promise<void>;
@@ -124,31 +129,36 @@ export function createWorkspaceFactory(
       terminals: workspaceTerminals,
     });
 
-    const baseGitCtx =
-      type.kind === 'ssh'
-        ? new SshExecutionContext(type.proxy, { root: workDir })
-        : new LocalExecutionContext({ root: workDir });
-    const gitService = new GitService(baseGitCtx, workspaceFs);
+    const runtimeLease = await context.workspaceRuntime.manager.acquire(
+      context.workspaceRuntime.machine
+    );
+    const worktreeLease = await runtimeLease.value.git.openWorktree(workDir);
+    const gitWorktree = worktreeLease.value;
 
-    const repository = context.repository ?? new GitRepositoryService(gitService, context.settings);
+    const gitRepository =
+      context.gitRepository ?? new GitRepositoryService(gitWorktree.repository, context.settings);
 
-    const ownsFetchService = !context.fetchService;
-    const fetchService =
-      context.fetchService ?? new GitFetchService(gitService, () => repository.getBaseRemote());
-    const statusPoller =
-      type.kind === 'ssh'
-        ? new RemoteStatusFingerprintPoller(context.projectId, workspaceId, gitService)
-        : null;
+    const ownsFetchService = !context.gitRepositoryFetchService;
+    const gitRepositoryFetchService =
+      context.gitRepositoryFetchService ??
+      new GitRepositoryFetchService(gitRepository, () => gitRepository.getBaseRemote());
+    let unsubscribeGitUpdates: (() => void) | undefined;
 
     const workspace: Workspace = {
       id: workspaceId,
       path: workDir,
       fs: workspaceFs,
-      git: gitService,
+      gitWorktree,
       settings: context.settings,
       lifecycleService,
-      repository,
-      fetchService,
+      gitRepository,
+      gitRepositoryFetchService,
+      dispose: () => {
+        unsubscribeGitUpdates?.();
+        unsubscribeGitUpdates = undefined;
+        worktreeLease.release();
+        runtimeLease.release();
+      },
     };
 
     const { logPrefix } = context;
@@ -157,30 +167,20 @@ export function createWorkspaceFactory(
       workspace,
 
       onCreateSideEffect: (ws) => {
-        ws.git.on('status:updated', async (status) => {
-          let unstagedAdded = 0;
-          let unstagedDeleted = 0;
-          for (const c of status.unstaged) {
-            unstagedAdded += c.additions;
-            unstagedDeleted += c.deletions;
-          }
-          try {
-            await db
-              .update(workspacesTable)
-              .set({
-                linesAdded: status.totalAdded + unstagedAdded,
-                linesDeleted: status.totalDeleted + unstagedDeleted,
-              })
-              .where(eq(workspacesTable.id, workspaceId));
-          } catch (e) {
-            log.warn('Failed to cache workspace git status', { workspaceId, error: String(e) });
+        unsubscribeGitUpdates = ws.gitWorktree.subscribe((update) => {
+          events.emit(gitWorktreeUpdateChannel, {
+            projectId: context.projectId,
+            workspaceId,
+            update,
+          });
+          if (update.kind === 'status' && update.model.kind === 'ok') {
+            void cacheWorkspaceLineStats(workspaceId, update.model);
           }
         });
 
         if (ownsFetchService) {
-          fetchService.start();
+          gitRepositoryFetchService.start();
         }
-        statusPoller?.start();
         void workspaceFileIndexService.onWorkspaceCreated(workspaceId, ws);
         void (async () => {
           if (scripts?.setup && (projectSettings.autoRunSetupScriptOnTaskCreation ?? true)) {
@@ -229,9 +229,8 @@ export function createWorkspaceFactory(
       onCreate: context.extraHooks?.onCreate,
 
       onDestroy: async (ws) => {
-        statusPoller?.stop();
         if (ownsFetchService) {
-          fetchService.stop();
+          gitRepositoryFetchService.stop();
         }
         workspaceFileIndexService.onWorkspaceDestroyed(workspaceId);
         const latestTaskSettings = await getEffectiveTaskSettings({
@@ -265,11 +264,33 @@ export function createWorkspaceFactory(
       },
 
       onDetach: async (ws) => {
-        statusPoller?.stop();
         await context.extraHooks?.onDetach?.(ws);
       },
     };
   };
+}
+
+async function cacheWorkspaceLineStats(
+  workspaceId: string,
+  status: Extract<GitStatusModel, { kind: 'ok' }>
+): Promise<void> {
+  let unstagedAdded = 0;
+  let unstagedDeleted = 0;
+  for (const c of status.unstaged) {
+    unstagedAdded += c.additions;
+    unstagedDeleted += c.deletions;
+  }
+  try {
+    await db
+      .update(workspacesTable)
+      .set({
+        linesAdded: status.stagedAdded + unstagedAdded,
+        linesDeleted: status.stagedDeleted + unstagedDeleted,
+      })
+      .where(eq(workspacesTable.id, workspaceId));
+  } catch (e) {
+    log.warn('Failed to cache workspace git status', { workspaceId, error: String(e) });
+  }
 }
 
 type TaskProviderOpts = {

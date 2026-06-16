@@ -1,3 +1,5 @@
+import type { GitRemotesModel } from '@emdash/shared/git';
+import type { GitRemote } from '@emdash/shared/git';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveProjectGitHubAuthContext } from '@main/core/github/services/project-github-auth-context';
 import { prSyncProgressChannel } from '@shared/core/pull-requests/prEvents';
@@ -29,12 +31,6 @@ vi.mock('@main/db/client', () => ({
 vi.mock('@main/core/github/services/github-repository-resolver', () => ({
   githubRepositoryResolver: {
     resolve: mocks.resolveRepository,
-  },
-}));
-
-vi.mock('@main/core/git/git-watcher-registry', () => ({
-  gitWatcherRegistry: {
-    on: vi.fn(),
   },
 }));
 
@@ -85,6 +81,34 @@ type SchedulerInternals = {
   _getGitHubRemoteUrls(projectId: string): Promise<string[]>;
 };
 
+function createProject(
+  remotes: GitRemote[] = [{ name: 'origin', url: 'https://github.com/acme/repo.git' }]
+) {
+  const remoteSubscribers: Array<(model: GitRemotesModel) => void> = [];
+  const unsubscribe = vi.fn();
+  const project = {
+    settings: {},
+    ctx: {},
+    gitRepository: {
+      getRemotes: vi.fn().mockResolvedValue(remotes),
+      subscribeRemotes: vi.fn((cb: (model: GitRemotesModel) => void) => {
+        remoteSubscribers.push(cb);
+        return unsubscribe;
+      }),
+    },
+  };
+
+  return {
+    project,
+    unsubscribe,
+    emitRemotesChanged: () => {
+      for (const cb of remoteSubscribers) {
+        cb({ remotes });
+      }
+    },
+  };
+}
+
 describe('PrSyncScheduler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -93,15 +117,7 @@ describe('PrSyncScheduler', () => {
   it('passes selected GitHub account context to mounted project syncs', async () => {
     vi.useFakeTimers();
     try {
-      const project = {
-        settings: {},
-        ctx: {},
-        repository: {
-          getRemotes: vi
-            .fn()
-            .mockResolvedValue([{ name: 'origin', url: 'https://github.com/acme/repo.git' }]),
-        },
-      };
+      const { project } = createProject();
       mocks.getProject.mockReturnValue(project);
       mocks.resolveRepository.mockResolvedValue(
         ok({
@@ -129,16 +145,74 @@ describe('PrSyncScheduler', () => {
     }
   });
 
+  it('resyncs when repository remotes change', async () => {
+    vi.useFakeTimers();
+    try {
+      const { project, emitRemotesChanged } = createProject();
+      mocks.getProject.mockReturnValue(project);
+      mocks.resolveRepository.mockResolvedValue(
+        ok({
+          host: 'github.com',
+          repositoryUrl: 'https://github.com/acme/repo',
+          nameWithOwner: 'acme/repo',
+          owner: 'acme',
+          repo: 'repo',
+        })
+      );
+      mocks.resolveProjectGitHubAuthContext.mockResolvedValue(ok({ accountId: 'github.com:42' }));
+
+      const scheduler = new PrSyncScheduler();
+
+      await scheduler.onProjectMounted('project-1');
+
+      expect(project.gitRepository.subscribeRemotes).toHaveBeenCalledTimes(1);
+      expect(prSyncEngine.sync).toHaveBeenCalledTimes(1);
+
+      emitRemotesChanged();
+      await vi.waitFor(() => expect(prSyncEngine.sync).toHaveBeenCalledTimes(2));
+      expect(prSyncEngine.cancel).toHaveBeenCalledWith('https://github.com/acme/repo');
+
+      scheduler.onProjectUnmounted('project-1');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('unsubscribes repository listeners on project unmount and scheduler dispose', async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.resolveRepository.mockResolvedValue(
+        ok({
+          host: 'github.com',
+          repositoryUrl: 'https://github.com/acme/repo',
+          nameWithOwner: 'acme/repo',
+          owner: 'acme',
+          repo: 'repo',
+        })
+      );
+      mocks.resolveProjectGitHubAuthContext.mockResolvedValue(ok({ accountId: 'github.com:42' }));
+
+      const mounted = createProject();
+      mocks.getProject.mockReturnValue(mounted.project);
+      const scheduler = new PrSyncScheduler();
+
+      await scheduler.onProjectMounted('project-1');
+      scheduler.onProjectUnmounted('project-1');
+      expect(mounted.unsubscribe).toHaveBeenCalledTimes(1);
+
+      const disposed = createProject();
+      mocks.getProject.mockReturnValue(disposed.project);
+
+      await scheduler.onProjectMounted('project-2');
+      scheduler.dispose();
+      expect(disposed.unsubscribe).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('does not sync mounted project remotes when account resolution fails', async () => {
-    const project = {
-      settings: {},
-      ctx: {},
-      repository: {
-        getRemotes: vi
-          .fn()
-          .mockResolvedValue([{ name: 'origin', url: 'https://github.com/acme/repo.git' }]),
-      },
-    };
+    const { project } = createProject();
     mocks.getProject.mockReturnValue(project);
     mocks.resolveRepository.mockResolvedValue(
       ok({
@@ -166,15 +240,7 @@ describe('PrSyncScheduler', () => {
   });
 
   it('emits a sync error for unconfigured project GitHub account selection', async () => {
-    const project = {
-      settings: {},
-      ctx: {},
-      repository: {
-        getRemotes: vi
-          .fn()
-          .mockResolvedValue([{ name: 'origin', url: 'https://github.com/acme/repo.git' }]),
-      },
-    };
+    const { project } = createProject();
     mocks.getProject.mockReturnValue(project);
     mocks.resolveRepository.mockResolvedValue(
       ok({
@@ -207,15 +273,7 @@ describe('PrSyncScheduler', () => {
   });
 
   it('stays silent when project GitHub API is explicitly disabled', async () => {
-    const project = {
-      settings: {},
-      ctx: {},
-      repository: {
-        getRemotes: vi
-          .fn()
-          .mockResolvedValue([{ name: 'origin', url: 'https://github.com/acme/repo.git' }]),
-      },
-    };
+    const { project } = createProject();
     mocks.getProject.mockReturnValue(project);
     mocks.resolveRepository.mockResolvedValue(
       ok({
@@ -243,15 +301,9 @@ describe('PrSyncScheduler', () => {
   });
 
   it('passes selected GitHub Enterprise account context to mounted project syncs', async () => {
-    const project = {
-      settings: {},
-      ctx: {},
-      repository: {
-        getRemotes: vi
-          .fn()
-          .mockResolvedValue([{ name: 'origin', url: 'https://ghe.example.com/acme/repo.git' }]),
-      },
-    };
+    const { project } = createProject([
+      { name: 'origin', url: 'https://ghe.example.com/acme/repo.git' },
+    ]);
     mocks.getProject.mockReturnValue(project);
     mocks.resolveRepository.mockResolvedValue(
       ok({
@@ -279,15 +331,7 @@ describe('PrSyncScheduler', () => {
   it('re-resolves project account context for each scheduled sync tick', async () => {
     vi.useFakeTimers();
     try {
-      const project = {
-        settings: {},
-        ctx: {},
-        repository: {
-          getRemotes: vi
-            .fn()
-            .mockResolvedValue([{ name: 'origin', url: 'https://github.com/acme/repo.git' }]),
-        },
-      };
+      const { project } = createProject();
       mocks.getProject.mockReturnValue(project);
       mocks.resolveRepository.mockResolvedValue(
         ok({
@@ -325,15 +369,7 @@ describe('PrSyncScheduler', () => {
     let clearIntervalSpy: ReturnType<typeof vi.spyOn> | undefined;
     try {
       clearIntervalSpy = vi.spyOn(global, 'clearInterval');
-      const project = {
-        settings: {},
-        ctx: {},
-        repository: {
-          getRemotes: vi
-            .fn()
-            .mockResolvedValue([{ name: 'origin', url: 'https://github.com/acme/repo.git' }]),
-        },
-      };
+      const { project } = createProject();
       mocks.getProject.mockReturnValue(project);
       mocks.resolveRepository.mockResolvedValue(
         ok({

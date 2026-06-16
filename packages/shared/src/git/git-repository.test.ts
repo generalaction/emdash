@@ -5,7 +5,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { FileWatchService } from '../fs';
-import { GitRuntime, type GitRepoUpdate } from './index';
+import { GitRuntime, type GitRefsModel, type GitRepoUpdate } from './index';
 
 const execFileAsync = promisify(execFile);
 
@@ -77,10 +77,13 @@ describe('GitRepository', () => {
       });
       await expect(repository.getSnapshot()).resolves.toMatchObject({
         refs: {
-          seq: expect.any(Number),
+          sequence: expect.any(Number),
           value: expect.objectContaining({ branches: expect.any(Array) }),
         },
-        remotes: { seq: expect.any(Number), value: { remotes: [{ name: 'origin', url: remote }] } },
+        remotes: {
+          sequence: expect.any(Number),
+          value: { remotes: [{ name: 'origin', url: remote }] },
+        },
       });
       const subscribed = await repository.subscribeWithSnapshot((update) => updates.push(update));
       expect(subscribed.snapshot).toMatchObject({
@@ -103,10 +106,10 @@ describe('GitRepository', () => {
       const created = await repository.createBranch({ name: 'feature', from: 'main' });
       expect(created).toMatchObject({
         success: true,
-        data: { seqs: { refs: expect.any(Number) } },
+        data: { sequences: { refs: expect.any(Number) } },
       });
       const snapshotAfterBranch = await repository.getSnapshot();
-      expect(snapshotAfterBranch.refs.seq).toBeGreaterThanOrEqual(1);
+      expect(snapshotAfterBranch.refs.sequence).toBeGreaterThanOrEqual(1);
       expect((await repository.getRefs()).branches).toEqual(
         expect.arrayContaining([expect.objectContaining({ type: 'local', branch: 'feature' })])
       );
@@ -166,6 +169,32 @@ describe('GitRepository', () => {
     } finally {
       await runtime.dispose();
       await watcher.dispose();
+    }
+  });
+
+  it('refreshes refs when a branch moves but branch names stay equal', async () => {
+    const { repo } = await makeRepoWithRemote();
+    const runtime = new GitRuntime();
+
+    try {
+      const lease = await runtime.openRepository(repo);
+      const repository = lease.value;
+      const before = await repository.getSnapshot();
+      const beforeOid = localBranchOid(before.refs.value, 'main');
+
+      await writeFile(path.join(repo, 'a.txt'), 'moved\n', 'utf8');
+      await execFileAsync('git', ['add', 'a.txt'], { cwd: repo });
+      await execFileAsync('git', ['commit', '-m', 'move main'], { cwd: repo });
+
+      const after = await repository.refresh();
+      const afterOid = localBranchOid(after.refs.value, 'main');
+
+      expect(after.refs.sequence).toBeGreaterThan(before.refs.sequence);
+      expect(afterOid).toMatch(/^[0-9a-f]{40}$/);
+      expect(afterOid).not.toBe(beforeOid);
+      lease.release();
+    } finally {
+      await runtime.dispose();
     }
   });
 
@@ -255,3 +284,9 @@ describe('GitRepository', () => {
     }
   });
 });
+
+function localBranchOid(refs: GitRefsModel, name: string): string {
+  const branch = refs.branches.find((item) => item.type === 'local' && item.branch === name);
+  if (!branch) throw new Error(`Missing local branch ${name}`);
+  return branch.oid;
+}

@@ -8,6 +8,11 @@ export function requireProjectPath(projectPath?: string): string | null {
   return trimmed ? trimmed : null;
 }
 
+export function requireRepositoryUrl(repositoryUrl?: string): string | null {
+  const trimmed = repositoryUrl?.trim();
+  return trimmed ? trimmed : null;
+}
+
 export function normalizeSearchTerm(searchTerm: string): string {
   return String(searchTerm || '').trim();
 }

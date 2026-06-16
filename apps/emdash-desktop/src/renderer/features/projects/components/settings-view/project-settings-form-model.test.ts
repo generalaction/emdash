@@ -1,5 +1,5 @@
+import type { GitRemote } from '@emdash/shared/git';
 import { describe, expect, it } from 'vitest';
-import type { Remote } from '@shared/core/git/git';
 import type { ProjectSettings } from '@shared/core/project-settings/project-settings';
 import {
   areFormStatesEqual,
@@ -11,8 +11,8 @@ import {
   type FormState,
 } from './project-settings-form-model';
 
-const origin: Remote = { name: 'origin', url: 'git@github.com:example/repo.git' };
-const upstream: Remote = { name: 'upstream', url: 'git@github.com:upstream/repo.git' };
+const origin: GitRemote = { name: 'origin', url: 'git@github.com:example/repo.git' };
+const upstream: GitRemote = { name: 'upstream', url: 'git@github.com:upstream/repo.git' };
 
 function makeForm(overrides: Partial<FormState> = {}): FormState {
   return {
