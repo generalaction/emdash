@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/shared/core/mcp/catalog.ts
+  s_62ff1bf67dc410::t_5df309641c6d2f 144,233-235,240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "0ee6e258e72c476dd9be2412f220911dd280064e",
+  "prompts": {},
+  "sessions": {
+    "s_62ff1bf67dc410": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed1d1-2cf6-7b58-8161-c255a11cc363",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
