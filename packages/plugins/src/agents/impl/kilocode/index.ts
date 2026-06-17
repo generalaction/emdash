@@ -1,6 +1,13 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand, npmDependency } from '@emdash/shared/agents/plugins/helpers';
+import {
+  buildStandardCommand,
+  createFileDropPlugin,
+  npmDependency,
+} from '@emdash/shared/agents/plugins/helpers';
 import { icon } from './icon';
+import { KILOCODE_PLUGIN_CONTENT } from './plugin-file';
+
+const KILOCODE_PLUGIN_PATH = '.kilo/plugins/emdash-notifications.js';
 
 export const plugin = definePlugin(
   {
@@ -18,7 +25,9 @@ export const plugin = definePlugin(
       kind: 'none',
     },
     hooks: {
-      kind: 'none',
+      kind: 'plugin',
+      scope: 'workspace',
+      supportedEvents: ['notification', 'stop', 'session'],
     },
     hostDependency: npmDependency({
       id: 'kilocode',
@@ -32,7 +41,8 @@ export const plugin = definePlugin(
       kind: 'none',
     },
     plugins: {
-      kind: 'none',
+      kind: 'file-drop',
+      scope: 'workspace',
     },
     prompt: {
       kind: 'argv',
@@ -54,4 +64,8 @@ export const provider = registerPluginBehavior(plugin, {
         resumeFlag: '--continue',
       }),
   },
+  plugins: createFileDropPlugin({
+    relativePath: KILOCODE_PLUGIN_PATH,
+    content: KILOCODE_PLUGIN_CONTENT,
+  }),
 });

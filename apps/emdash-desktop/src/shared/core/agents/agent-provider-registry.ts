@@ -461,6 +461,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'kilocode.png',
     alt: 'Kilocode CLI',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'kiro',
