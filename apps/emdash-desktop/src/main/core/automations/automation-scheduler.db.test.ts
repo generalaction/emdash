@@ -65,10 +65,23 @@ function seedAutomation(
 function getRunRow(
   fixture: Awaited<ReturnType<typeof openFixture>>,
   id: string
-): { status: string; error: string | null; task_id: string | null } | undefined {
+): { status: string; error: string | null } | undefined {
   return fixture.sqlite
-    .prepare('SELECT status, error, task_id FROM automation_runs WHERE id = ?')
-    .get(id) as { status: string; error: string | null; task_id: string | null } | undefined;
+    .prepare('SELECT status, error FROM automation_runs WHERE id = ?')
+    .get(id) as { status: string; error: string | null } | undefined;
+}
+
+function seedAutomationTask(
+  fixture: Awaited<ReturnType<typeof openFixture>>,
+  runId: string,
+  id = `task-${runId}`
+): void {
+  fixture.sqlite
+    .prepare(
+      `INSERT INTO tasks (id, project_id, name, status, type, automation_run_id)
+       VALUES (?, 'project-1', 'Automation Task', 'todo', 'automation-run', ?)`
+    )
+    .run(id, runId);
 }
 
 function countRunsByStatus(
@@ -192,6 +205,7 @@ describe('AutomationScheduler recovery', () => {
       triggerKind: 'cron',
       startedAt: Date.now(),
     });
+    seedAutomationTask(fixture, run.id);
 
     const scheduler = new AutomationScheduler(makeCallbacks(), doneExecutor);
     scheduler.start();
@@ -216,6 +230,7 @@ describe('AutomationScheduler recovery', () => {
       triggerKind: 'cron',
       startedAt: Date.now(),
     });
+    seedAutomationTask(fixture, run.id);
 
     const scheduler = new AutomationScheduler(makeCallbacks(), doneExecutor);
     scheduler.start();
@@ -600,6 +615,8 @@ describe('AutomationScheduler concurrency', () => {
     for (const runId of executorCalls.slice(1)) {
       releaseMap.get(runId)?.();
     }
+    await vi.waitFor(() => expect(executorCalls).toHaveLength(6));
+    releaseMap.get(executorCalls[5]!)?.();
     await vi.waitFor(() => expect(countRunsByStatus(fixture, 'done')).toBe(6));
   });
 });
@@ -634,13 +651,15 @@ describe('AutomationScheduler post-worker rescheduling', () => {
 
     await vi.waitFor(() => expect(getRunRow(fixture, run.id)?.status).toBe('done'));
 
-    // A subsequent scheduled run should now exist
-    const nextRows = fixture.sqlite
-      .prepare(
-        "SELECT status FROM automation_runs WHERE automation_id = ? AND id != ? AND status = 'scheduled'"
-      )
-      .all(automationId, run.id) as { status: string }[];
-    expect(nextRows.length).toBeGreaterThanOrEqual(1);
+    // A subsequent scheduled run is created after the worker settles.
+    await vi.waitFor(() => {
+      const nextRows = fixture.sqlite
+        .prepare(
+          "SELECT status FROM automation_runs WHERE automation_id = ? AND id != ? AND status = 'scheduled'"
+        )
+        .all(automationId, run.id) as { status: string }[];
+      expect(nextRows.length).toBeGreaterThanOrEqual(1);
+    });
   });
 });
 
