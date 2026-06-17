@@ -67,11 +67,34 @@ export type ChatRootProps = {
    * omitted, an ambient DebugContext (e.g. the Storybook toolbar) is inherited.
    */
   debug?: boolean;
+  /**
+   * Vertical padding reserved at the top of the canvas (px). Baked into the
+   * virtualizer coordinate space — not CSS padding — so scroll math stays exact.
+   * Accepts a static number or a reactive accessor so mountChat can pass a signal.
+   */
+  padTop?: number | (() => number);
+  /**
+   * Vertical padding reserved at the bottom of the canvas (px). The last row
+   * rests above this space, keeping content clear of a floating composer.
+   * Accepts a static number or a reactive accessor so mountChat can pass a signal.
+   */
+  padBottom?: number | (() => number);
 };
 
 export function ChatRoot(props: ChatRootProps) {
   const fonts = () => props.fonts ?? DEFAULT_FONT_CONFIG;
   const contentClass = () => props.contentClass ?? DEFAULT_CONTENT_CLASS;
+
+  // Normalize padTop/padBottom to reactive accessors regardless of whether the
+  // caller passed a static number (e.g. Storybook) or a signal getter (mountChat).
+  const padTop = () => {
+    const v = props.padTop;
+    return v === undefined ? 0 : typeof v === 'function' ? v() : v;
+  };
+  const padBottom = () => {
+    const v = props.padBottom;
+    return v === undefined ? 0 : typeof v === 'function' ? v() : v;
+  };
 
   // Inherit an ambient debug flag (Storybook toolbar / parent provider) unless
   // an explicit `debug` prop is given. Without this, the provider below would
@@ -136,6 +159,12 @@ export function ChatRoot(props: ChatRootProps) {
   // ── Visible range — direction-aware asymmetric overscan ───────────────────
 
   const visibleRange = createMemo(() => {
+    // Recompute the window whenever content size changes (rows added or
+    // re-measured). Without this dependency the imperative virt.range() result
+    // is cached against scroll/resize signals only, so an empty→first-item
+    // transition (which changes neither) keeps the stale empty range and
+    // nothing renders until a scroll or resize forces a recompute.
+    totalHeight();
     const v = scrollVelocity();
     let before: number;
     let after: number;
@@ -152,7 +181,9 @@ export function ChatRoot(props: ChatRootProps) {
       before = OVERSCAN_BASE;
       after = OVERSCAN_BASE;
     }
-    return virt.range(scrollTop(), viewHeight(), before, after);
+    // Subtract padTop so the viewport-relative scrollTop maps correctly to the
+    // virtualizer's zero-based coordinate space (rows start at y=0 inside virt).
+    return virt.range(Math.max(0, scrollTop() - padTop()), viewHeight(), before, after);
   });
 
   // ── Visible indexes ────────────────────────────────────────────────────────
@@ -199,7 +230,7 @@ export function ChatRoot(props: ChatRootProps) {
     // correction that shift surfaces as a scroll jump (typically right as
     // scrolling stops and the last measurement lands). Matches the reference
     // imperative engine, which corrects on `rowTop < scrollTop`.
-    if (virt.top(index) < scrollEl!.scrollTop) {
+    if (virt.top(index) + padTop() < scrollEl!.scrollTop) {
       const next = scrollEl!.scrollTop + delta;
       programmaticScroll = true;
       scrollEl!.scrollTop = next;
@@ -321,7 +352,7 @@ export function ChatRoot(props: ChatRootProps) {
           }}
           data-chat-canvas
           class={`relative ${contentClass()}`}
-          style={{ height: `${totalHeight()}px` }}
+          style={{ height: `${totalHeight() + padTop() + padBottom()}px` }}
         >
           <For each={visibleIndexes()}>
             {(rowIndex) => {
@@ -330,7 +361,7 @@ export function ChatRoot(props: ChatRootProps) {
               // visible and is disposed only when it scrolls out.
               const rowTop = createMemo(() => {
                 totalHeight(); // re-read when heights change
-                return virt.top(rowIndex);
+                return virt.top(rowIndex) + padTop();
               });
 
               const item = createMemo(() => getItem(props.transcript.state, rowIndex));

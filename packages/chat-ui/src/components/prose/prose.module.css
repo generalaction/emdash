@@ -117,6 +117,11 @@
 
 .pbullet {
   position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Center the glyph box on its (x, top) anchor — both axes. */
+  transform: translate(-50%, -50%);
   font-size: var(--type-body-font-size);
   font-family: var(--type-body-font-family);
   line-height: 1;

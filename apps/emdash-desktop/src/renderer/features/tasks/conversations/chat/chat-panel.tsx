@@ -1,12 +1,15 @@
 import type { ChatHandle } from '@emdash/chat-ui';
 import { ChatTranscript } from '@emdash/chat-ui/react';
 import { observer } from 'mobx-react-lite';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import type { ModelOption } from '@shared/core/agents/agent-payload';
 import { useConversations } from '../../task-view-context';
 import { ChatComposer } from './chat-composer';
 import { ChatEmptyState } from './chat-empty-state';
+
+const PAD_TOP = 16;
+const PAD_BOTTOM_MARGIN = 12;
 
 export const ChatPanel = observer(function ChatPanel({
   conversationId,
@@ -42,21 +45,44 @@ export const ChatPanel = observer(function ChatPanel({
     store.sendPrompt();
   };
 
+  // Measure the floating composer height so we can reserve matching canvas space.
+  const composerRef = useRef<HTMLDivElement>(null);
+  const [composerH, setComposerH] = useState(0);
+
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const h = entries[0]?.borderBoxSize[0]?.blockSize ?? entries[0]?.contentRect.height ?? 0;
+      setComposerH(Math.round(h));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-background">
-      {/* Transcript — chat-ui handles virtualization and stick-to-bottom */}
-      <div className="relative min-h-0 flex-1">
-        <ChatTranscript className="h-full" stickToBottom={true} onReady={handleReady} />
+    <div className="relative h-full overflow-hidden bg-background">
+      {/* Full-bleed transcript — reserves canvas space for the floating composer */}
+      <ChatTranscript
+        className="absolute inset-0"
+        stickToBottom={true}
+        padTop={PAD_TOP}
+        padBottom={composerH + PAD_BOTTOM_MARGIN}
+        onReady={handleReady}
+      />
 
-        {!store.isReady && !store.isClosed ? (
-          <ChatEmptyState variant="loading" />
-        ) : !store.hasItems && !store.isWorking ? (
-          <ChatEmptyState variant="empty" />
-        ) : null}
-      </div>
+      {/* Empty / loading states overlay the transcript */}
+      {!store.isReady && !store.isClosed ? (
+        <ChatEmptyState variant="loading" />
+      ) : !store.hasItems && !store.isWorking ? (
+        <ChatEmptyState variant="empty" />
+      ) : null}
 
-      {/* Input area */}
-      <div className="mx-auto w-full max-w-2xl shrink-0 bg-background px-4 pb-3">
+      {/* Floating composer — measured via ResizeObserver above */}
+      <div
+        ref={composerRef}
+        className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-2xl px-4 pb-3 bg-background/80 backdrop-blur-sm"
+      >
         <ChatComposer
           disabled={store.isClosed}
           isWorking={store.isWorking}

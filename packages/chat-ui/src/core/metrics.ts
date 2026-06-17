@@ -79,8 +79,11 @@ export const MENTION_EXTRA_WIDTH = 14;
 
 // ── List / blockquote ────────────────────────────────────────────────────────
 
-export const LIST_INDENT = 18;
+export const LIST_INDENT = 16;
 export const BLOCKQUOTE_INDENT = 18;
+
+/** Horizontal gap from the bullet's center anchor to the start of list text. */
+export const LIST_BULLET_GAP = 12;
 
 // ── Island ───────────────────────────────────────────────────────────────────
 

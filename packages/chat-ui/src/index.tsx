@@ -6,6 +6,7 @@
  */
 
 import './tailwind.css';
+import { batch, createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import { ChatRoot } from './ChatRoot';
 import { DEFAULT_FONT_CONFIG } from './core/measure/fonts';
@@ -41,6 +42,10 @@ export type MountChatOptions = {
   class?: string;
   /** Classes for the centered content column (defaults to a max-width column). */
   contentClass?: string;
+  /** Initial top padding (px) baked into the virtualizer coordinate space. */
+  padTop?: number;
+  /** Initial bottom padding (px) baked into the virtualizer coordinate space. */
+  padBottom?: number;
 };
 
 export type ChatHandle = {
@@ -48,6 +53,11 @@ export type ChatHandle = {
   transcript: TranscriptApi;
   /** View state API for collapse management. */
   viewState: ViewState;
+  /**
+   * Update the canvas padding reactively without remounting. Typically called
+   * when a floating composer changes height via a ResizeObserver.
+   */
+  setContentPadding: (p: { top?: number; bottom?: number }) => void;
   /** Tear down the Solid root and remove all DOM. */
   dispose: () => void;
 };
@@ -56,6 +66,10 @@ export function mountChat(container: HTMLElement, opts: MountChatOptions = {}): 
   const transcript = opts.transcript ?? createTranscript();
   const viewState = opts.viewState ?? createViewState();
   const fonts = opts.fonts ?? DEFAULT_FONT_CONFIG;
+
+  // Signals owned here so setContentPadding can update them after mount.
+  const [padTop, setPadTop] = createSignal(opts.padTop ?? 0);
+  const [padBottom, setPadBottom] = createSignal(opts.padBottom ?? 0);
 
   const dispose = render(
     () => (
@@ -66,10 +80,19 @@ export function mountChat(container: HTMLElement, opts: MountChatOptions = {}): 
         stickToBottom={opts.stickToBottom}
         class={opts.class}
         contentClass={opts.contentClass}
+        padTop={padTop}
+        padBottom={padBottom}
       />
     ),
     container
   );
 
-  return { transcript, viewState, dispose };
+  const setContentPadding = (p: { top?: number; bottom?: number }) => {
+    batch(() => {
+      if (p.top !== undefined) setPadTop(p.top);
+      if (p.bottom !== undefined) setPadBottom(p.bottom);
+    });
+  };
+
+  return { transcript, viewState, setContentPadding, dispose };
 }

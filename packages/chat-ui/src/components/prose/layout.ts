@@ -27,7 +27,7 @@ import type {
 import { runsToRichItems } from '../../core/layout/runs-to-rich-items';
 import type { FontConfig } from '../../core/measure/fonts';
 import { getPreparedRichInline } from '../../core/measure/pretext-cache';
-import { BLOCKQUOTE_INDENT, LIST_INDENT } from '../../core/metrics';
+import { BLOCKQUOTE_INDENT, LIST_BULLET_GAP, LIST_INDENT } from '../../core/metrics';
 
 const UNBOUNDED_WIDTH = 1e7;
 
@@ -53,7 +53,7 @@ function proseIndent(block: ProseBlock): { indent: number; textLeft: number } {
   const isQuote = block.variant === 'quote';
   const indentPerLevel = isListItem ? LIST_INDENT : isQuote ? BLOCKQUOTE_INDENT : 0;
   const indent = (depth + 1) * indentPerLevel;
-  const textLeft = isListItem ? indent + LIST_INDENT * 0.4 : indent;
+  const textLeft = isListItem ? indent + LIST_BULLET_GAP : indent;
   return { indent, textLeft };
 }
 
@@ -166,8 +166,10 @@ export function layoutProse(
   let bullet: BulletLayout | undefined;
   if (isListItem) {
     bullet = {
+      // Anchor at the indent line; the renderer centers the glyph on this point
+      // (translate(-50%, -50%)) for true horizontal + vertical centering.
       x: indent,
-      top: Math.floor(lineHeight / 2) - 6,
+      top: lineHeight / 2,
       char: '•',
     };
   }
