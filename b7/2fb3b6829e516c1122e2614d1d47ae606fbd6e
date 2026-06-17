@@ -1,0 +1,25 @@
+apps/emdash-desktop/src/shared/openInApps.ts
+  s_af122758d292aa::t_211824b64927d7 57
+  s_af122758d292aa::t_89940ca531209c 384-407
+apps/emdash-desktop/src/shared/openInApps.test.ts
+  s_af122758d292aa::t_e641ac2b510fad 48-52,54-69
+  s_af122758d292aa::t_211824b64927d7 53
+apps/emdash-desktop/src/assets/images/athas.svg
+  s_af122758d292aa::t_211824b64927d7 1-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "b72fb3b6829e516c1122e2614d1d47ae606fbd6e",
+  "prompts": {},
+  "sessions": {
+    "s_af122758d292aa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed40b-4ac7-7810-ba4c-6e4f1592758a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
