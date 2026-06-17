@@ -1,0 +1,25 @@
+packages/plugins/src/agents/impl/gemini/hooks.ts
+  s_674d10cbbee75f::t_5e60ba674db1ea 1-12
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_674d10cbbee75f::t_5e60ba674db1ea 217-218
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_674d10cbbee75f::t_5e60ba674db1ea 98,203-220
+packages/plugins/src/agents/impl/gemini/index.ts
+  s_674d10cbbee75f::t_5e60ba674db1ea 7,26-28,60-61,65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "be286bb3deea767c56176c3bae67486bc2364ca0",
+  "prompts": {},
+  "sessions": {
+    "s_674d10cbbee75f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed40e-dce0-7953-b5b1-2553dec1842c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
