@@ -1,0 +1,41 @@
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_b0244399ab1d75::t_fa3eaa14a42398 124-130
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_b0244399ab1d75::t_190655685a8c49 58-67
+packages/shared/src/agents/plugins/capabilities/prompt.ts
+  s_773ba0a23aadf6::t_5cb0d04b0be1af 9-11
+packages/shared/src/agents/plugins/helpers/standard-command.ts
+  s_773ba0a23aadf6::t_40eda0bae60f6b 81-84,86-88,90
+  s_773ba0a23aadf6::t_5b383fe855e336 102-103,105
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.ts
+  s_b0244399ab1d75::t_fec64ad2d8e870 12-13,22
+  s_773ba0a23aadf6::t_1ad3a578da861f 1-2,34-35
+  s_773ba0a23aadf6::t_213476a94a8d28 36-39
+  s_773ba0a23aadf6::t_83b8f3f70b307b 14,23
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.ts
+  s_773ba0a23aadf6::t_66c27340a6fc67 57-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "c9ecd0d5e82f10ad5050148a81cee9d8a0711ae8",
+  "prompts": {},
+  "sessions": {
+    "s_773ba0a23aadf6": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed4ca-e670-760e-8d44-324d87bcc1c0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_b0244399ab1d75": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed4ca-f742-761b-9913-edaa5574d6b3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
