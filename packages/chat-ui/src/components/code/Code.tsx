@@ -51,8 +51,8 @@ function applyHighlight(
 function IconCopy() {
   return (
     <svg
-      width="11"
-      height="11"
+      width="14"
+      height="14"
       viewBox="0 0 16 16"
       fill="none"
       stroke="currentColor"
@@ -70,8 +70,8 @@ function IconCopy() {
 function IconCheck() {
   return (
     <svg
-      width="11"
-      height="11"
+      width="14"
+      height="14"
       viewBox="0 0 16 16"
       fill="none"
       stroke="currentColor"
