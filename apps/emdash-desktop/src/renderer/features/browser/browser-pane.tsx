@@ -17,7 +17,13 @@ import {
 
 const WEBVIEW_ALLOW_POPUPS_ATTRIBUTE = 'true' as unknown as boolean;
 
-export const BrowserPane = observer(function BrowserPane({ browserId }: { browserId: string }) {
+export const BrowserPane = observer(function BrowserPane({
+  browserId,
+  visible,
+}: {
+  browserId: string;
+  visible: boolean;
+}) {
   const session = browserSessionStore.getSession(browserId);
   const devServers = useDevServers();
   const webviewRef = useRef<BrowserWebviewElement | null>(null);
@@ -79,9 +85,9 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
   }, []);
 
   useEffect(() => {
-    if (!sessionBrowserId || adapter === null) return;
+    if (!visible || !sessionBrowserId || adapter === null) return;
     void rpc.browser.setActiveBrowser(sessionBrowserId);
-  }, [adapter, sessionBrowserId]);
+  }, [adapter, sessionBrowserId, visible]);
 
   const webviewProps = useMemo(() => {
     if (!webviewMount) return null;

@@ -1,17 +1,14 @@
 import type {
   CreateProjectParams,
+  CreateProjectResult,
   InspectProjectPathParams,
-  LocalProject,
   ProjectPathInspection,
-  SshProject,
 } from '@shared/projects';
 import { createLocalProject, getLocalProjectPathStatus } from './create-local-project';
 import { createSshProject, getSshProjectPathStatus } from './create-ssh-project';
 import { getLocalProjectByPath, getSshProjectByPath } from './getProjects';
 
-export async function createProject(
-  params: CreateProjectParams
-): Promise<LocalProject | SshProject> {
+export async function createProject(params: CreateProjectParams): Promise<CreateProjectResult> {
   if (params.type === 'local') {
     const { type: _type, ...localParams } = params;
     return createLocalProject(localParams);

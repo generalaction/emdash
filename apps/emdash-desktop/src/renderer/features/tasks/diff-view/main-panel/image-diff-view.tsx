@@ -5,12 +5,12 @@ import { useWorkspace } from '@renderer/features/tasks/task-view-context';
 import { rpc } from '@renderer/lib/ipc';
 import { formatBytes } from '@renderer/utils/formatBytes';
 import {
-  gitRefToString,
   HEAD_REF,
   type GitRef,
   type ImageReadResult,
   type ImageUnavailableReason,
-} from '@shared/core/git/git';
+} from '@shared/core/git/types';
+import { gitRefToString } from '@shared/core/git/utils';
 import type { Result } from '@shared/lib/result';
 import type { ActiveFile } from '@shared/view-state';
 
@@ -75,7 +75,7 @@ function loadFromRef(
   ref: GitRef
 ): Promise<SideState> {
   return loadGitImage(() =>
-    rpc.workspace.git.getImageAtRef(projectId, workspaceId, filePath, gitRefToString(ref))
+    rpc.workspace.gitWorktree.getImageAtRef(projectId, workspaceId, filePath, gitRefToString(ref))
   );
 }
 
@@ -120,7 +120,7 @@ function loadModified(
       return loadFromDisk(projectId, workspaceId, activeFile.path);
     case 'staged':
       return loadGitImage(() =>
-        rpc.workspace.git.getImageAtIndex(projectId, workspaceId, activeFile.path)
+        rpc.workspace.gitWorktree.getImageAtIndex(projectId, workspaceId, activeFile.path)
       );
     case 'git':
     case 'pr':
@@ -231,15 +231,15 @@ export const ImageDiffView = observer(function ImageDiffView({
   activeFile,
 }: ImageDiffViewProps) {
   const workspace = useWorkspace();
-  const git = workspace.git;
+  const git = workspace.gitWorktree;
 
   const fileKey = `${activeFile.path}|${activeFile.group}|${gitRefToString(activeFile.originalRef)}|${activeFile.modifiedRef ? gitRefToString(activeFile.modifiedRef) : ''}`;
 
   // For disk/staged groups the bytes can change without fileKey changing
-  // (in-place overwrite, re-stage). Pinning to lastUpdatedAt reruns the
-  // load whenever GitStore observes an fs-watch or index event.
+  // (in-place overwrite, re-stage). Pinning to statusRevision reruns the
+  // load whenever GitWorktreeStore observes an fs-watch or index event.
   const reactiveRevision =
-    activeFile.group === 'disk' || activeFile.group === 'staged' ? git.fullStatus.lastUpdatedAt : 0;
+    activeFile.group === 'disk' || activeFile.group === 'staged' ? git.statusRevision : 0;
 
   const placeholder: SideState = { status: 'loading' };
 

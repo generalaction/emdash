@@ -18,7 +18,6 @@ import { cleanupLegacyBrowserPartitions } from './core/browser/browser-partition
 import { browserWebContentsRegistry } from './core/browser/browser-webcontents-registry';
 import { localDependencyManager } from './core/dependencies/dependency-managers';
 import { editorBufferService } from './core/editor/editor-buffer-service';
-import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubAccountReconciliationService } from './core/github/accounts/github-account-reconciliation-instance';
 import { githubAccountRegistry } from './core/github/accounts/github-account-registry-instance';
 import { GitHubAuthServerAdapter } from './core/github/accounts/github-auth-server-adapter';
@@ -129,7 +128,6 @@ void app.whenReady().then(async () => {
     telemetryService.clearIdentity();
   });
 
-  gitWatcherRegistry.initialize();
   projectSettingsService.initialize();
   prSyncScheduler.initialize();
   automationsService.start();
@@ -190,7 +188,6 @@ app.on('before-quit', (event) => {
     stopResourceSampler();
     updateService.dispose();
     prSyncScheduler.dispose();
-    void gitWatcherRegistry.dispose();
     void projectManager.dispose().catch((e) => {
       log.error('Failed to shutdown project manager:', e);
     });

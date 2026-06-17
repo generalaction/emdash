@@ -84,7 +84,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   }, [sessionStatus]);
 
   const onInterruptPress = activeConversation ? () => activeConversation.clearWorking() : undefined;
-  const showContextBar = !(interfaceSettings?.hideContextBar ?? false);
+  const hideContextBarTrigger = interfaceSettings?.hideContextBar ?? false;
 
   return (
     <div className="flex h-full flex-col">
@@ -132,7 +132,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
           </PaneSizingProvider>
         </div>
       </div>
-      {showContextBar && <ContextBar conversationId={tm.activeConversationId} />}
+      <ContextBar conversationId={tm.activeConversationId} hideTrigger={hideContextBarTrigger} />
     </div>
   );
 });

@@ -1,8 +1,8 @@
+import type { GitBranchRef } from '@emdash/shared/git';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { rpc } from '@renderer/lib/ipc';
-import type { Branch } from '@shared/core/git/git';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 import { getIssueTaskName } from './issue-task-name';
@@ -15,7 +15,7 @@ export type CreateTaskState = ReturnType<typeof useCreateTaskState>;
 
 export function useCreateTaskState(
   projectId: string | undefined,
-  defaultBranch: Branch | undefined,
+  defaultBranch: GitBranchRef | undefined,
   isUnborn: boolean,
   currentBranch: string | null,
   repositoryWorkspaceId: string | null | undefined,

@@ -1,9 +1,9 @@
+import type { GitBranchRef } from '@emdash/shared/git';
 import { toStoredBranch } from '@main/core/tasks/stored-branch';
 import type { AppDb } from '@main/db/client';
 import { conversations, projectRemotes, projects, projectSettings, tasks } from '@main/db/schema';
-import type { Branch } from '@shared/core/git/git';
 
-const mainBranch: Branch = { type: 'local', branch: 'main' };
+const mainBranch: GitBranchRef = { type: 'local', branch: 'main' };
 
 // Fixed UUIDs so fixture content is stable across regenerations.
 const PROJECT_A_ID = '11111111-1111-1111-1111-111111111111';

@@ -1,4 +1,4 @@
-import type { Branch } from '@shared/core/git/git';
+import type { GitBranchRef } from '@emdash/shared/git';
 
 /**
  * The persisted form of a Branch stored in SQLite. The column is plain text so
@@ -6,11 +6,13 @@ import type { Branch } from '@shared/core/git/git';
  */
 export type StoredBranch = string & { readonly __storedBranch: unique symbol };
 
-export function toStoredBranch(branch: Branch | null | undefined): StoredBranch | null {
+export function toStoredBranch(branch: GitBranchRef | null | undefined): StoredBranch | null {
   return branch ? (JSON.stringify(branch) as StoredBranch) : null;
 }
 
-export function fromStoredBranch(raw: string | Branch | null | undefined): Branch | undefined {
+export function fromStoredBranch(
+  raw: string | GitBranchRef | null | undefined
+): GitBranchRef | undefined {
   if (!raw) return undefined;
   if (typeof raw !== 'string') return decodeStoredBranchValue(raw);
 
@@ -28,7 +30,7 @@ export function fromStoredBranch(raw: string | Branch | null | undefined): Branc
   }
 }
 
-function decodeStoredBranchValue(value: unknown): Branch | undefined {
+function decodeStoredBranchValue(value: unknown): GitBranchRef | undefined {
   if (typeof value === 'string') {
     return value ? { type: 'local', branch: value } : undefined;
   }
@@ -52,7 +54,7 @@ function decodeStoredBranchValue(value: unknown): Branch | undefined {
   return undefined;
 }
 
-function decodeRemote(value: unknown): Branch['remote'] | undefined {
+function decodeRemote(value: unknown): GitBranchRef['remote'] | undefined {
   if (!isRecord(value)) return undefined;
   if (typeof value.name !== 'string' || typeof value.url !== 'string') return undefined;
   return { name: value.name, url: value.url };

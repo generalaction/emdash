@@ -1,7 +1,7 @@
 import {
   clampIssueLimit,
   normalizeSearchTerm,
-  requireProjectPath,
+  requireRepositoryUrl,
 } from '@main/core/issues/helpers/provider-inputs';
 import type { IssueProvider } from '@main/core/issues/issue-provider';
 import type { LinkedIssue } from '@shared/core/linked-issue';
@@ -62,18 +62,12 @@ function toIssue(raw: unknown, projectName: string | null): LinkedIssue | null {
   };
 }
 
-async function listIssues(
-  projectPath: string,
-  remoteName: string | undefined,
-  limit: number
-): Promise<IssueListResult> {
+async function listIssues(repositoryUrl: string, limit: number): Promise<IssueListResult> {
   const perPage = clampIssueLimit(limit, 50, 100);
 
   try {
-    const { client, projectId, projectName } = await gitLabConnectionService.resolveProject(
-      projectPath,
-      remoteName
-    );
+    const { client, projectId, projectName } =
+      await gitLabConnectionService.resolveProject(repositoryUrl);
 
     const issues = (await client.Issues.all({
       projectId,
@@ -99,8 +93,7 @@ async function listIssues(
 }
 
 async function searchIssues(
-  projectPath: string,
-  remoteName: string | undefined,
+  repositoryUrl: string,
   searchTerm: string,
   limit: number
 ): Promise<IssueListResult> {
@@ -112,10 +105,8 @@ async function searchIssues(
   const perPage = clampIssueLimit(limit, 20, 100);
 
   try {
-    const { client, projectId, projectName } = await gitLabConnectionService.resolveProject(
-      projectPath,
-      remoteName
-    );
+    const { client, projectId, projectName } =
+      await gitLabConnectionService.resolveProject(repositoryUrl);
 
     const issues = (await client.Issues.all({
       projectId,
@@ -151,20 +142,20 @@ export const gitlabIssueProvider: IssueProvider = {
   checkConnection: () => gitLabConnectionService.checkConnection(),
 
   listIssues: async (opts) => {
-    const projectPath = requireProjectPath(opts.projectPath);
-    if (!projectPath) {
-      return { success: false, error: 'Project path is required.' };
+    const repositoryUrl = requireRepositoryUrl(opts.repositoryUrl);
+    if (!repositoryUrl) {
+      return { success: false, error: 'Repository URL is required.' };
     }
 
-    return listIssues(projectPath, opts.remote, opts.limit ?? 50);
+    return listIssues(repositoryUrl, opts.limit ?? 50);
   },
 
   searchIssues: async (opts) => {
-    const projectPath = requireProjectPath(opts.projectPath);
-    if (!projectPath) {
-      return { success: false, error: 'Project path is required.' };
+    const repositoryUrl = requireRepositoryUrl(opts.repositoryUrl);
+    if (!repositoryUrl) {
+      return { success: false, error: 'Repository URL is required.' };
     }
 
-    return searchIssues(projectPath, opts.remote, opts.searchTerm, opts.limit ?? 20);
+    return searchIssues(repositoryUrl, opts.searchTerm, opts.limit ?? 20);
   },
 };

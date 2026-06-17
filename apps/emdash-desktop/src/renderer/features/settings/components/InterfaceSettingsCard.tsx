@@ -21,7 +21,7 @@ const InterfaceSettingsCard: React.FC = () => {
     <div className="flex flex-col gap-4">
       <SettingRow
         title="Context bar"
-        description="Hide the conversation context actions if they obstruct your viewport."
+        description="Hide the on-screen context trigger. The keyboard shortcut still works."
         control={
           <>
             <ResetToDefaultButton

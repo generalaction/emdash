@@ -72,10 +72,21 @@ describe('GitWorktree', () => {
       worktree.subscribe((update) => updates.push(update));
       worktree.repository.subscribe((update) => repoUpdates.push(update));
 
-      await expect(worktree.getHead()).resolves.toEqual({ kind: 'branch', name: 'main' });
+      await expect(worktree.getHead()).resolves.toMatchObject({
+        kind: 'branch',
+        name: 'main',
+        oid: expect.stringMatching(/^[0-9a-f]{40}$/),
+      });
       await expect(worktree.getSnapshot()).resolves.toMatchObject({
-        status: { seq: expect.any(Number), value: expect.objectContaining({ kind: 'ok' }) },
-        head: { seq: expect.any(Number), value: { kind: 'branch', name: 'main' } },
+        status: { sequence: expect.any(Number), value: expect.objectContaining({ kind: 'ok' }) },
+        head: {
+          sequence: expect.any(Number),
+          value: expect.objectContaining({
+            kind: 'branch',
+            name: 'main',
+            oid: expect.stringMatching(/^[0-9a-f]{40}$/),
+          }),
+        },
       });
       await expect(worktree.getStatusFingerprint('normal')).resolves.toMatchObject({
         byteLength: expect.any(Number),
@@ -111,10 +122,10 @@ describe('GitWorktree', () => {
         expect.objectContaining({ path: 'tracked.txt', status: 'modified' }),
       ]);
 
-      const stageSeqs = await worktree.stage(['tracked.txt']);
-      expect(stageSeqs.status).toBeGreaterThanOrEqual(1);
+      const stageSequences = await worktree.stage(['tracked.txt']);
+      expect(stageSequences.status).toBeGreaterThanOrEqual(1);
       const snapshotAfterStage = await worktree.getSnapshot();
-      expect(snapshotAfterStage.status.seq).toBeGreaterThanOrEqual(stageSeqs.status!);
+      expect(snapshotAfterStage.status.sequence).toBeGreaterThanOrEqual(stageSequences.status!);
       expect(await worktree.getStatus()).toMatchObject({
         kind: 'ok',
         staged: [expect.objectContaining({ path: 'tracked.txt', status: 'modified' })],
@@ -133,10 +144,17 @@ describe('GitWorktree', () => {
       expect(commit.success).toBe(true);
       if (!commit.success) throw new Error(commit.error.message);
       expect(commit.data.hash).toMatch(/^[0-9a-f]{40}$/);
-      expect(commit.data.seqs).toMatchObject({
+      expect(commit.data.sequences).toMatchObject({
         status: expect.any(Number),
         head: expect.any(Number),
         refs: expect.any(Number),
+      });
+      const snapshotAfterCommit = await worktree.getSnapshot();
+      expect(snapshotAfterCommit.head.sequence).toBeGreaterThan(snapshotAfterStage.head.sequence);
+      expect(snapshotAfterCommit.head.value).toEqual({
+        kind: 'branch',
+        name: 'main',
+        oid: commit.data.hash,
       });
       await execFileAsync('git', ['tag', 'v-change', commit.data.hash], { cwd: repo });
       expect(await worktree.getStatus()).toMatchObject({
@@ -161,6 +179,124 @@ describe('GitWorktree', () => {
 
       expect(updates.some((update) => update.kind === 'head')).toBe(true);
       expect(repoUpdates.some((update) => update.kind === 'refs')).toBe(true);
+      lease.release();
+    } finally {
+      await runtime.dispose();
+      await watcher.dispose();
+    }
+  });
+
+  it('refreshes staged status when an external commit advances the branch ref', async () => {
+    const repo = await makeRepo();
+    const watcher = new FileWatchService();
+    const runtime = new GitRuntime({ watcher });
+    const updates: GitWorktreeUpdate[] = [];
+
+    try {
+      const lease = await runtime.openWorktree(repo);
+      const worktree = lease.value;
+      worktree.subscribe((update) => updates.push(update));
+
+      await writeFile(path.join(repo, 'tracked.txt'), 'external\n', 'utf8');
+      await execFileAsync('git', ['add', 'tracked.txt'], { cwd: repo });
+
+      await eventually(() =>
+        updates.some(
+          (update) =>
+            update.kind === 'status' &&
+            update.model.kind === 'ok' &&
+            update.model.staged.some((change) => change.path === 'tracked.txt')
+        )
+          ? true
+          : undefined
+      );
+      updates.length = 0;
+
+      await execFileAsync('git', ['commit', '-m', 'external commit'], { cwd: repo });
+
+      await eventually(() =>
+        updates.some(
+          (update) =>
+            update.kind === 'status' &&
+            update.model.kind === 'ok' &&
+            update.model.staged.length === 0 &&
+            update.model.unstaged.length === 0
+        )
+          ? true
+          : undefined
+      );
+
+      await expect(worktree.getStatus()).resolves.toMatchObject({
+        kind: 'ok',
+        staged: [],
+        unstaged: [],
+      });
+
+      lease.release();
+    } finally {
+      await runtime.dispose();
+      await watcher.dispose();
+    }
+  });
+
+  it('refreshes staged status when an external merge continuation commits resolved files', async () => {
+    const repo = await makeRepo();
+    await execFileAsync('git', ['checkout', '-b', 'feature'], { cwd: repo });
+    await writeFile(path.join(repo, 'tracked.txt'), 'feature\n', 'utf8');
+    await execFileAsync('git', ['commit', '-am', 'feature edit'], { cwd: repo });
+    await execFileAsync('git', ['checkout', 'main'], { cwd: repo });
+    await writeFile(path.join(repo, 'tracked.txt'), 'main\n', 'utf8');
+    await execFileAsync('git', ['commit', '-am', 'main edit'], { cwd: repo });
+    await execFileAsync('git', ['checkout', 'feature'], { cwd: repo });
+
+    const watcher = new FileWatchService();
+    const runtime = new GitRuntime({ watcher });
+    const updates: GitWorktreeUpdate[] = [];
+
+    try {
+      const lease = await runtime.openWorktree(repo);
+      const worktree = lease.value;
+      worktree.subscribe((update) => updates.push(update));
+
+      await expect(execFileAsync('git', ['merge', 'main'], { cwd: repo })).rejects.toThrow();
+      await writeFile(path.join(repo, 'tracked.txt'), 'resolved\n', 'utf8');
+      await execFileAsync('git', ['add', 'tracked.txt'], { cwd: repo });
+
+      await eventually(() =>
+        updates.some(
+          (update) =>
+            update.kind === 'status' &&
+            update.model.kind === 'ok' &&
+            update.model.staged.some((change) => change.path === 'tracked.txt')
+        )
+          ? true
+          : undefined
+      );
+      updates.length = 0;
+
+      await execFileAsync('git', ['merge', '--continue'], {
+        cwd: repo,
+        env: { ...process.env, GIT_EDITOR: 'true' },
+      });
+
+      await eventually(() =>
+        updates.some(
+          (update) =>
+            update.kind === 'status' &&
+            update.model.kind === 'ok' &&
+            update.model.staged.length === 0 &&
+            update.model.unstaged.length === 0
+        )
+          ? true
+          : undefined
+      );
+
+      await expect(worktree.getStatus()).resolves.toMatchObject({
+        kind: 'ok',
+        staged: [],
+        unstaged: [],
+      });
+
       lease.release();
     } finally {
       await runtime.dispose();
@@ -353,8 +489,8 @@ describe('GitWorktree', () => {
       await execFileAsync('git', ['commit', '-m', 'add to-delete'], { cwd: repo });
       await rm(path.join(repo, 'to-delete.txt'));
 
-      const stageAllSeqs = await worktree.stageAll();
-      expect(stageAllSeqs.status).toBeGreaterThanOrEqual(1);
+      const stageAllSequences = await worktree.stageAll();
+      expect(stageAllSequences.status).toBeGreaterThanOrEqual(1);
       expect(await worktree.getStatus()).toMatchObject({
         kind: 'ok',
         staged: expect.arrayContaining([
@@ -365,8 +501,8 @@ describe('GitWorktree', () => {
         unstaged: [],
       });
 
-      const unstageAllSeqs = await worktree.unstageAll();
-      expect(unstageAllSeqs.status).toBeGreaterThanOrEqual(1);
+      const unstageAllSequences = await worktree.unstageAll();
+      expect(unstageAllSequences.status).toBeGreaterThanOrEqual(1);
       expect(await worktree.getStatus()).toMatchObject({
         kind: 'ok',
         staged: [],
@@ -377,8 +513,8 @@ describe('GitWorktree', () => {
         ]),
       });
 
-      const revertAllSeqs = await worktree.revertAll();
-      expect(revertAllSeqs.status).toBeGreaterThanOrEqual(1);
+      const revertAllSequences = await worktree.revertAll();
+      expect(revertAllSequences.status).toBeGreaterThanOrEqual(1);
       expect(await worktree.getStatus()).toMatchObject({
         kind: 'ok',
         staged: [],
@@ -395,6 +531,50 @@ describe('GitWorktree', () => {
     }
   });
 
+  it('refreshes staged status when the index blob changes but summary fields stay equal', async () => {
+    const repo = await makeRepo();
+    const runtime = new GitRuntime();
+
+    try {
+      const lease = await runtime.openWorktree(repo);
+      const worktree = lease.value;
+
+      await writeFile(path.join(repo, 'tracked.txt'), 'two\n', 'utf8');
+      const firstSequences = await worktree.stage(['tracked.txt']);
+      const firstStatus = await worktree.getStatus();
+      if (firstStatus.kind !== 'ok') throw new Error('Expected ok status');
+      const firstChange = firstStatus.staged[0];
+      expect(firstChange).toMatchObject({
+        path: 'tracked.txt',
+        status: 'modified',
+        additions: 1,
+        deletions: 1,
+        indexOid: expect.stringMatching(/^[0-9a-f]{40}$/),
+      });
+
+      await writeFile(path.join(repo, 'tracked.txt'), 'too\n', 'utf8');
+      const secondSequences = await worktree.stage(['tracked.txt']);
+      const secondStatus = await worktree.getStatus();
+      if (secondStatus.kind !== 'ok') throw new Error('Expected ok status');
+      const secondChange = secondStatus.staged[0];
+
+      expect(secondSequences.status).toBeGreaterThan(firstSequences.status!);
+      expect(secondChange).toMatchObject({
+        path: 'tracked.txt',
+        status: 'modified',
+        additions: 1,
+        deletions: 1,
+        indexOid: expect.stringMatching(/^[0-9a-f]{40}$/),
+      });
+      expect(secondChange?.indexOid).not.toBe(firstChange?.indexOid);
+      await expect(worktree.getFileAtIndex('tracked.txt')).resolves.toBe('too\n');
+
+      lease.release();
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it('unstageAll and revertAll tolerate unborn HEAD', async () => {
     const repo = await mkdtemp(path.join(tmpdir(), 'emdash-shared-worktree-unborn-'));
     await execFileAsync('git', ['init', '-b', 'main'], { cwd: repo });
@@ -407,11 +587,11 @@ describe('GitWorktree', () => {
       const lease = await runtime.openWorktree(repo);
       await writeFile(path.join(repo, 'extra.txt'), 'bar\n', 'utf8');
 
-      const unstageSeqs = await lease.value.unstageAll();
-      expect(unstageSeqs.status).toBeGreaterThanOrEqual(1);
+      const unstageSequences = await lease.value.unstageAll();
+      expect(unstageSequences.status).toBeGreaterThanOrEqual(1);
 
-      const revertSeqs = await lease.value.revertAll();
-      expect(revertSeqs.status).toBeGreaterThanOrEqual(1);
+      const revertSequences = await lease.value.revertAll();
+      expect(revertSequences.status).toBeGreaterThanOrEqual(1);
       await expect(readFile(path.join(repo, 'untracked.txt'), 'utf8')).rejects.toThrow();
       await expect(readFile(path.join(repo, 'extra.txt'), 'utf8')).rejects.toThrow();
 

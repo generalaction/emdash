@@ -1,9 +1,11 @@
+import { isDeepEqual } from './deep-equal';
 import { Emitter } from './emitter';
 import type { IDisposable, Unsubscribe } from './lifecycle';
 
 export type LiveValue<T> = {
   value: T;
-  seq: number;
+  generation: number;
+  sequence: number;
 };
 
 export type LiveModelOptions<T> = {
@@ -13,6 +15,8 @@ export type LiveModelOptions<T> = {
   debounceMs?: number;
   /** While subscribed, recompute at this interval even without invalidation. */
   revalidateIntervalMs?: number;
+  /* Used to suppress no-op updates */
+  isEqual?: (a: T, b: T) => boolean;
   /** Receives errors from background recomputes (invalidation, revalidation). */
   onError?: (error: unknown) => void;
 };
@@ -20,7 +24,7 @@ export type LiveModelOptions<T> = {
 /**
  * A cached, invalidation-driven model.
  *
- * - Holds the latest computed value with a monotonic seq.
+ * - Holds the latest computed value with a monotonic sequence.
  * - Recomputes are single-flight; a `refresh()` during an in-flight compute queues exactly
  *   one trailing run and resolves with its result.
  * - Demand-gated: `invalidate()` only marks dirty while there are no subscribers; the next
@@ -31,7 +35,9 @@ export type LiveModelOptions<T> = {
  */
 export class LiveModel<T> implements IDisposable {
   private cached: LiveValue<T> | undefined;
-  private seq = 0;
+  private static lastGeneration = 0;
+  private readonly generation = LiveModel.nextGeneration();
+  private sequence = 0;
   private dirty = true;
   private disposed = false;
   private inFlight: Promise<LiveValue<T>> | null = null;
@@ -94,6 +100,11 @@ export class LiveModel<T> implements IDisposable {
     this.emitter.clear();
   }
 
+  private static nextGeneration(): number {
+    LiveModel.lastGeneration = Math.max(LiveModel.lastGeneration + 1, Date.now());
+    return LiveModel.lastGeneration;
+  }
+
   private schedule(): Promise<LiveValue<T>> {
     if (this.inFlight) {
       this.queued ??= this.inFlight.then(
@@ -119,7 +130,14 @@ export class LiveModel<T> implements IDisposable {
       try {
         const value = await this.options.compute();
         succeeded = true;
-        const update: LiveValue<T> = { value, seq: ++this.seq };
+        if (this.cached && (this.options.isEqual ?? isDeepEqual)(value, this.cached.value)) {
+          return this.cached;
+        }
+        const update: LiveValue<T> = {
+          value,
+          generation: this.generation,
+          sequence: ++this.sequence,
+        };
         this.cached = update;
         if (!this.disposed) this.emitter.emit(update);
         return update;
