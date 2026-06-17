@@ -7,13 +7,13 @@
  */
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
-import type { TranscriptApi } from '../state/transcript';
-import type { ScriptStep } from './chat-host';
-import { ChatHost, ScriptedChat } from './chat-host';
-import { scenario, seedStep, streamMessage, streamThinking } from './streaming/scenario';
+import type { TranscriptApi } from '../../state/transcript';
+import type { ScriptStep } from '../chat-host';
+import { ChatHost, ScriptedChat } from '../chat-host';
+import { scenario, seedStep, streamMessage, streamThinking } from '../streaming/scenario';
 
 const meta: Meta = {
-  title: 'ChatUI/Thinking',
+  title: 'Rows/Thinking',
   parameters: { layout: 'centered' },
 };
 export default meta;
@@ -21,7 +21,7 @@ export default meta;
 type Story = StoryObj;
 
 // Default view: preview window visible, no user interaction needed.
-export const ThinkingActive: Story = {
+export const Generating: Story = {
   render: () => (
     <ChatHost
       items={[
@@ -43,7 +43,7 @@ export const ThinkingActive: Story = {
  * paragraph gaps. Visually verifies the preview uses the same BlockStack
  * pipeline as the expanded body (no raw-text fallback).
  */
-export const ThinkingActiveProsePreview: Story = {
+export const GeneratingProsePreview: Story = {
   render: () => (
     <ChatHost
       items={[
@@ -67,7 +67,7 @@ export const ThinkingActiveProsePreview: Story = {
 };
 
 // Active state expanded: click to reveal full prose body while still streaming.
-export const ThinkingActiveExpanded: Story = {
+export const GeneratingExpanded: Story = {
   render: () => {
     const script: ScriptStep[] = [
       {
@@ -98,7 +98,7 @@ export const ThinkingActiveExpanded: Story = {
 };
 
 // Default view for done: header only, no content rendered.
-export const ThinkingDoneCollapsed: Story = {
+export const DoneCollapsed: Story = {
   render: () => (
     <ChatHost
       items={[
@@ -117,7 +117,7 @@ export const ThinkingDoneCollapsed: Story = {
 };
 
 // Done expanded: click to reveal full prose body.
-export const ThinkingDoneExpanded: Story = {
+export const DoneExpanded: Story = {
   render: () => {
     const script: ScriptStep[] = [
       {
@@ -161,7 +161,7 @@ export const TransitionToDone: Story = {
 };
 
 /** Full turn: user prompt → thinking → streamed reply. */
-export const ThinkingThenProse: Story = {
+export const ThenProse: Story = {
   render: () => (
     <ScriptedChat
       height={320}
@@ -187,7 +187,7 @@ export const ThinkingThenProse: Story = {
  * bold, inline code, and a fenced code block. Exercises the flattenHeadings +
  * downgradeIslandsToText path and verifies BlockStack renders inside the body.
  */
-export const ThinkingExpandedProse: Story = {
+export const ExpandedProse: Story = {
   render: () => {
     const script: ScriptStep[] = [
       {
@@ -231,29 +231,4 @@ export const ThinkingExpandedProse: Story = {
     ];
     return <ScriptedChat script={script} height={380} />;
   },
-};
-
-export const InMixedTranscript: Story = {
-  render: () => (
-    <ChatHost
-      items={[
-        { kind: 'message', id: 'u1', role: 'user', text: 'Explain the deployment pipeline' },
-        {
-          kind: 'thinking',
-          id: 'th1',
-          status: 'done',
-          text: 'The user wants to understand how we deploy. Let me think through the stages: build → test → staging → production.',
-          startedAt: Date.now() - 60000,
-          durationMs: 4200,
-        },
-        {
-          kind: 'message',
-          id: 'a1',
-          role: 'assistant',
-          text: 'The deployment pipeline has four stages:\n\n1. **Build**: TypeScript compilation + bundling\n2. **Test**: Unit + integration tests in CI\n3. **Staging**: Auto-deploy to staging environment\n4. **Production**: Manual approval gate before release',
-        },
-      ]}
-      height={500}
-    />
-  ),
 };

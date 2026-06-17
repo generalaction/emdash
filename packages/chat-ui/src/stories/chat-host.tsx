@@ -3,7 +3,8 @@
  *
  * ChatHost wraps mountChat in a Solid component so stories can use Solid's
  * reactive system to feed data. ScriptedChat runs a scripted sequence of
- * TranscriptApi calls and re-runs on every story re-mount.
+ * TranscriptApi calls and re-runs on every story re-mount. ChatHostExpanded
+ * pre-toggles a specific item so expanded-state stories start already opened.
  */
 
 import { createEffect, getOwner, onCleanup, onMount, runWithOwner, type JSX } from 'solid-js';
@@ -41,6 +42,33 @@ export type ChatHostProps = {
   /** Viewport height in px (default: 600). */
   height?: number;
 };
+
+/**
+ * Variant of ChatHost that pre-expands a specific item by id.
+ * Used for stories that show the expanded state of collapsible rows.
+ */
+export function ChatHostExpanded(props: { items: ChatItem[]; expandId: string; height: number }) {
+  const transcript = createTranscript();
+  const viewState = createViewState();
+
+  createEffect(() => {
+    transcript.seed(props.items);
+  });
+
+  // Pre-toggle so the item starts in the expanded state.
+  viewState.toggleCollapsed(props.expandId);
+
+  return (
+    <StoryViewport height={props.height}>
+      <ChatRoot
+        transcript={transcript}
+        viewState={viewState}
+        fonts={DEFAULT_FONT_CONFIG}
+        stickToBottom
+      />
+    </StoryViewport>
+  );
+}
 
 /**
  * Full ChatRoot host — renders a mountChat-equivalent inline Solid component

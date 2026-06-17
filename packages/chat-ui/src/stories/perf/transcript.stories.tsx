@@ -13,15 +13,15 @@
 
 import { createEffect, createSignal, onMount } from 'solid-js';
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
-import { ChatRoot } from '../ChatRoot';
-import { DEFAULT_FONT_CONFIG } from '../core/measure/fonts';
-import { generateMockTranscript } from '../mock-transcript';
-import { createTranscript } from '../state/transcript';
-import { createViewState } from '../state/view-state';
-import { resetRowCreations, runPerfSweep } from './perf-instrument';
+import { ChatRoot } from '../../ChatRoot';
+import { DEFAULT_FONT_CONFIG } from '../../core/measure/fonts';
+import { generateMockTranscript } from '../../mock-transcript';
+import { createTranscript } from '../../state/transcript';
+import { createViewState } from '../../state/view-state';
+import { resetRowCreations, runPerfSweep } from '../perf-instrument';
 
 const meta: Meta = {
-  title: 'ChatUI/Perf',
+  title: 'Perf/Transcript',
   parameters: { layout: 'centered' },
 };
 export default meta;
@@ -105,12 +105,12 @@ function PerfHost(props: { count: number; label: string; height?: number }) {
   );
 }
 
-export const Perf10k: Story = {
+export const TenK: Story = {
   name: '10k scroll sweep',
   render: () => <PerfHost count={10000} label="10k rows" />,
 };
 
-export const Perf2k: Story = {
+export const TwoK: Story = {
   name: '2k scroll sweep',
   render: () => <PerfHost count={2000} label="2k rows" />,
 };

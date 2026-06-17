@@ -1,13 +1,13 @@
 /**
- * Large transcript story — 10k items for performance profiling.
+ * Large transcript stories — large item counts for rendering validation.
  */
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
-import { generateMockTranscript } from '../mock-transcript';
-import { ChatHost } from './chat-host';
+import { generateMockTranscript } from '../../mock-transcript';
+import { ChatHost } from '../chat-host';
 
 const meta: Meta = {
-  title: 'ChatUI/Large',
+  title: 'Examples/Large',
   parameters: { layout: 'centered' },
 };
 export default meta;
