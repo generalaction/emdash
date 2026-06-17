@@ -100,4 +100,36 @@ describe('MermaidDiagramPreview', () => {
     expect(onExpand).toHaveBeenCalledTimes(1);
     expect(onParentClick).not.toHaveBeenCalled();
   });
+
+  it.each(['Enter', ' '])('expands preview with keyboard key "%s"', (key) => {
+    const onExpand = vi.fn();
+    const onParentKeyDown = vi.fn();
+
+    act(() => {
+      root.render(
+        React.createElement(
+          'div',
+          { onKeyDown: onParentKeyDown },
+          React.createElement(MermaidDiagramPreview, {
+            svg: "<svg xmlns='http://www.w3.org/2000/svg' width='120' height='40'></svg>",
+            onExpand,
+          })
+        )
+      );
+    });
+
+    const preview = container.querySelector<HTMLDivElement>(
+      '[aria-label="Expand Mermaid diagram preview"]'
+    );
+    expect(preview).not.toBeNull();
+
+    const event = new dom.window.KeyboardEvent('keydown', { bubbles: true, cancelable: true, key });
+    act(() => {
+      preview?.dispatchEvent(event);
+    });
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(onExpand).toHaveBeenCalledTimes(1);
+    expect(onParentKeyDown).not.toHaveBeenCalled();
+  });
 });
