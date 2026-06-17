@@ -140,9 +140,16 @@ void app.whenReady().then(async () => {
     log.error('Failed to start agent event service:', e);
   });
 
-  emdashAccountService.loadSessionToken().catch((e) => {
-    log.warn('Failed to load account session token:', e);
-  });
+  emdashAccountService
+    .initialize()
+    .then((result) => {
+      if (!result.success) {
+        log.warn('Failed to load account session token:', result.error);
+      }
+    })
+    .catch((e: unknown) => {
+      log.warn('Account session initialization threw unexpectedly:', e);
+    });
 
   const githubAuthServerAdapter = new GitHubAuthServerAdapter(githubAccountRegistry);
   providerTokenRegistry.register('github', (payload) =>
@@ -153,7 +160,7 @@ void app.whenReady().then(async () => {
 
   void reconcileResourceSampler();
 
-  localDependencyManager.probeAll().catch((e) => {
+  localDependencyManager.probeAll().catch((e: unknown) => {
     log.error('Failed to probe dependencies:', e);
   });
 

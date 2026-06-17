@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
 import { useDevServers } from '@renderer/features/tasks/task-view-context';
 import { events, rpc } from '@renderer/lib/ipc';
+import { usePreviewServers } from '@renderer/features/tasks/task-view-context';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
 import { tabNavigationShortcutChannel } from '@shared/events/appEvents';
 import { browserControlsRegistry } from './browser-controls-registry';
@@ -29,6 +30,7 @@ export const BrowserPane = observer(function BrowserPane({
   const session = browserSessionStore.getSession(browserId);
   const { tabManager } = useTabGroupContext();
   const devServers = useDevServers();
+  const previewServers = usePreviewServers();
   const webviewRef = useRef<BrowserWebviewElement | null>(null);
   const focusUrlRef = useRef<() => void>(() => {});
   const pendingUrlRef = useRef<string | null>(null);
@@ -261,7 +263,7 @@ export const BrowserPane = observer(function BrowserPane({
       />
       <div className="emlight min-h-0 flex-1 bg-background">
         {showStartPage ? (
-          <BrowserStartPage devServerUrls={devServers.urls} onOpenUrl={navigateTo} />
+          <BrowserStartPage devServerUrls={previewServers.urls} onOpenUrl={navigateTo} />
         ) : webviewProps && isRegistered ? (
           <webview
             key={`${webviewMount?.browserId ?? 'browser'}:${webviewMount?.partition ?? 'partition'}:${webviewMount?.revision ?? 0}`}
