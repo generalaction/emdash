@@ -1,0 +1,20 @@
+apps/emdash-desktop/src/renderer/lib/components/monaco-keyboard-bridge.tsx
+  s_d6a672ca4dce7c::t_b973814e26d009 1-6
+  s_d6a672ca4dce7c::t_0ca4ceb1eb9062 33,43,60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "d071c0e5e2a3d1c4e7f449012c1d805352a429f9",
+  "prompts": {},
+  "sessions": {
+    "s_d6a672ca4dce7c": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed6fc-1e0e-7b0e-b7b0-665f656fd709",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
