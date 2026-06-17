@@ -8,7 +8,7 @@
 
 import type { Node } from '@tiptap/pm/model';
 import { describe, expect, it } from 'vitest';
-import { serializeDoc } from '@renderer/lib/components/prompt-editor/serialize';
+import { serializeDoc } from './serialize';
 
 // ── Minimal node builders ─────────────────────────────────────────────────────
 

@@ -262,9 +262,8 @@ describe('AcpSessionManager – routing', () => {
 
   it('reconnecting with a providerSessionId calls loadSession and emits a replay turn', async () => {
     const { events } = await import('@main/lib/events');
-    const { acpSessionStateChannel, acpTurnCommittedChannel } = await import(
-      '@shared/core/acp/acpEvents'
-    );
+    const { acpSessionStateChannel, acpTurnCommittedChannel } =
+      await import('@shared/core/acp/acpEvents');
 
     (events.emit as Mock).mockReset();
 
@@ -289,7 +288,9 @@ describe('AcpSessionManager – routing', () => {
     const stateCalls = (events.emit as Mock).mock.calls.filter(
       (args: unknown[]) => args[0] === acpSessionStateChannel
     );
-    const lifecycles = stateCalls.map((args: unknown[]) => (args[1] as { lifecycle: string }).lifecycle);
+    const lifecycles = stateCalls.map(
+      (args: unknown[]) => (args[1] as { lifecycle: string }).lifecycle
+    );
     expect(lifecycles).toContain('replaying');
     expect(lifecycles).toContain('ready');
 
@@ -340,9 +341,8 @@ describe('AcpSessionManager – routing', () => {
   it('loadSession replay: agent-assigned session ID is dynamically registered and routed', async () => {
     const { events } = await import('@main/lib/events');
     const { acpSessionUpdateChannel } = await import('@shared/core/acp/acpEvents');
-    const { setProviderSessionId } = await import(
-      '@main/core/conversations/set-provider-session-id'
-    );
+    const { setProviderSessionId } =
+      await import('@main/core/conversations/set-provider-session-id');
 
     (events.emit as Mock).mockReset();
     (setProviderSessionId as Mock).mockClear();
@@ -430,9 +430,8 @@ describe('AcpSessionManager – turn model', () => {
 
   it('prompt() opens a live turn, commits it as complete on end_turn stopReason', async () => {
     const { events } = await import('@main/lib/events');
-    const { acpSessionStateChannel, acpTurnCommittedChannel } = await import(
-      '@shared/core/acp/acpEvents'
-    );
+    const { acpSessionStateChannel, acpTurnCommittedChannel } =
+      await import('@shared/core/acp/acpEvents');
 
     const manager = new AcpSessionManager();
     (mockConnection.newSession as Mock).mockResolvedValue({ sessionId: 'session-1' });
@@ -585,7 +584,9 @@ describe('AcpSessionManager – turn model', () => {
     );
     expect(updateEmits).toHaveLength(2);
 
-    const [e1, e2] = updateEmits.map((args: unknown[]) => args[1] as { seq: number; turnId: string });
+    const [e1, e2] = updateEmits.map(
+      (args: unknown[]) => args[1] as { seq: number; turnId: string }
+    );
     expect(e1.seq).toBe(0);
     expect(e2.seq).toBe(1);
     expect(e1.turnId).toBe(e2.turnId); // Same turn.

@@ -187,7 +187,7 @@
   --typography-code-lang-size: var(--typography-body-size);
   --typography-code-lang-weight: 400;
   --typography-code-line-height: var(--typography-body-line-height);
-  --typography-code-size: var(--typography-body-size);
+  --typography-code-size: 13px;
   --typography-code-weight: 400;
   --typography-font-family-mono: 'Menlo', 'Monaco', 'Courier New', monospace;
   --typography-font-family-sans: 'Inter Variable', sans-serif;

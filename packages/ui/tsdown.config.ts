@@ -2,8 +2,9 @@ import { defineConfig } from 'tsdown';
 
 export default defineConfig({
   entry: {
-    index: 'src/index.ts',
-    'recipes/button': 'src/components/button.variants.ts',
+    primitives: 'src/primitives/index.ts',
+    components: 'src/components/index.ts',
+    'recipes/button': 'src/primitives/button.variants.ts',
   },
   format: ['esm'],
   dts: true,
@@ -17,6 +18,13 @@ export default defineConfig({
       '@base-ui/react',
       'lucide-react',
       'class-variance-authority',
+      '@tiptap/core',
+      '@tiptap/extension-mention',
+      '@tiptap/extension-placeholder',
+      '@tiptap/pm',
+      '@tiptap/react',
+      '@tiptap/starter-kit',
+      '@tiptap/suggestion',
     ],
   },
   sourcemap: true,

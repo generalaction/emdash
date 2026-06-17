@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { BoldIcon, CopyIcon, ItalicIcon, ScissorsIcon, UnderlineIcon } from 'lucide-react';
 import React from 'react';
-import { Button } from '../components/button';
+import { Button } from '../primitives/button';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -17,7 +17,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from '../components/dropdown-menu';
+} from '../primitives/dropdown-menu';
 
 const meta: Meta = {
   title: 'Components/DropdownMenu',

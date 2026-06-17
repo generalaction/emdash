@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
-import { ScrollFade } from '../components/scroll-fade';
+import { ScrollFade } from '../primitives/scroll-fade';
 
 const meta: Meta<typeof ScrollFade> = {
   title: 'Theme/ScrollFade',

@@ -1,5 +1,5 @@
+import { resolveFileIconClass } from '@emdash/ui/primitives';
 import { For, createEffect, onCleanup } from 'solid-js';
-import { resolveFileIconClass } from '@emdash/ui';
 import { type CodeToken, highlightCode, peekHighlight } from '../../core/highlight/highlighter';
 import type { ChatDiff } from '../../model';
 import { cancelIdle, scheduleIdle } from '../dom-utils';
@@ -68,10 +68,14 @@ function DiffHeader(props: { item: ChatDiff; adds: number; dels: number }) {
 
   return (
     <div
-      class={`${styles['pdiff__header']} flex items-center gap-2 px-3 border-b border-border text-xs`}
+      class={`${styles['pdiff__header']} flex items-center gap-2 border-b border-border px-3 text-xs`}
     >
       {iconClass() ? (
-        <i class={`${iconClass()} shrink-0`} style={{ 'font-size': '14px', 'line-height': '1' }} aria-hidden="true" />
+        <i
+          class={`${iconClass()} shrink-0`}
+          style={{ 'font-size': '14px', 'line-height': '1' }}
+          aria-hidden="true"
+        />
       ) : (
         <GenericFileIcon />
       )}
@@ -144,7 +148,7 @@ export function Diff(props: DiffProps) {
   });
 
   return (
-    <div class={`${styles.pdiff} rounded-lg border border-border overflow-hidden`}>
+    <div class={`${styles.pdiff} overflow-hidden rounded-lg border border-border`}>
       <DiffHeader item={props.item} adds={props.layout.adds} dels={props.layout.dels} />
       <div class={styles['pdiff__body']}>
         <For each={props.layout.previewRows}>

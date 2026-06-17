@@ -1,14 +1,14 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
-import { Button } from '../components/button';
-import { Input } from '../components/input';
+import { Button } from '../primitives/button';
+import { Input } from '../primitives/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '../components/select';
+} from '../primitives/select';
 
 const FAMILIES = ['sunken', 'base', 'raised', 'overlay', 'floating'] as const;
 type SurfaceFamily = (typeof FAMILIES)[number];

@@ -18,7 +18,7 @@ import { StarterKit } from '@tiptap/starter-kit';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { cn } from '@renderer/utils/utils';
+import { cn } from '../../lib/cn';
 import { buildMentionExtension } from './extensions/mention';
 import { buildSlashCommandExtension } from './extensions/slash-command';
 import { buildSubmitKeymap } from './extensions/submit-keymap';

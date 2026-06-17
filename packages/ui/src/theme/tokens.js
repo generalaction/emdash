@@ -2596,7 +2596,7 @@ export const tokens = {
   },
   'typography.code.size': {
     '.': {
-      value: 14,
+      value: 13,
       unit: 'px',
     },
   },
@@ -2785,7 +2785,7 @@ export const tokens = {
     '.': {
       fontFamily: ['Menlo', 'Monaco', 'Courier New', 'monospace'],
       fontSize: {
-        value: 14,
+        value: 13,
         unit: 'px',
       },
       fontWeight: 400,

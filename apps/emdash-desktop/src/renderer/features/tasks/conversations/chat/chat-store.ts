@@ -245,7 +245,11 @@ export class ChatStore {
           if (payload.conversationId !== this._conversationId) return;
           if (!this._historyLoaded) {
             // Hold updates that race in while the initial query is in-flight.
-            this._pendingLive.push({ turnId: payload.turnId, seq: payload.seq, update: payload.update });
+            this._pendingLive.push({
+              turnId: payload.turnId,
+              seq: payload.seq,
+              update: payload.update,
+            });
           } else if (payload.seq > this._lastSeq) {
             this._applyUpdate(payload.update);
             this._lastSeq = payload.seq;
@@ -457,8 +461,7 @@ export class ChatStore {
         (it): it is ChatExecuteItem => it.kind === 'execute' && it.id === update.toolCallId
       );
       const existingDiffs = this.items.filter(
-        (it): it is ChatDiffItem =>
-          it.kind === 'diff' && it.id.startsWith(`${update.toolCallId}:`)
+        (it): it is ChatDiffItem => it.kind === 'diff' && it.id.startsWith(`${update.toolCallId}:`)
       );
       if (existingFileOp) {
         const newOps = update.locations
@@ -686,7 +689,10 @@ export class ChatStore {
    * duplicate rows. Ignores entries without valid path/newText.
    */
   private _upsertDiffsFromUpdate(
-    update: { toolCallId: string; content?: { type: string; path?: string; newText?: string; oldText?: string | null }[] | null },
+    update: {
+      toolCallId: string;
+      content?: { type: string; path?: string; newText?: string; oldText?: string | null }[] | null;
+    },
     status?: ToolStatus
   ): void {
     if (!update.content) return;

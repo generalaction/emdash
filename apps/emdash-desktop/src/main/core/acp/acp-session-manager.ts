@@ -34,7 +34,14 @@ import {
   acpSessionUpdateChannel,
   acpTurnCommittedChannel,
 } from '@shared/core/acp/acpEvents';
-import type { AcpTurn, ChatHistory, SessionLifecycle, SessionState, TurnSource, TurnStatus } from '@shared/core/acp/acpTurns';
+import type {
+  AcpTurn,
+  ChatHistory,
+  SessionLifecycle,
+  SessionState,
+  TurnSource,
+  TurnStatus,
+} from '@shared/core/acp/acpTurns';
 import type { AgentEvent } from '@shared/core/agents/agentEvents';
 import { agentSessionExitedChannel } from '@shared/core/agents/agentEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';
@@ -325,9 +332,7 @@ class AcpSessionManager {
     const conv = this.resolveConv(conversationId);
     if (!conv) return { turns: [], complete: true };
     return {
-      turns: conv.turns
-        .filter((t) => t.status !== 'active')
-        .map((t) => structuredClone(t)),
+      turns: conv.turns.filter((t) => t.status !== 'active').map((t) => structuredClone(t)),
       complete: conv.lifecycle !== 'starting' && conv.lifecycle !== 'replaying',
     };
   }

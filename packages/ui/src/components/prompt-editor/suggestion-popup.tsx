@@ -11,7 +11,7 @@
  */
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { cn } from '@renderer/utils/utils';
+import { cn } from '../../lib/cn';
 import type { MentionItem, CommandItem } from './types';
 
 export type SuggestionItem = MentionItem | CommandItem;

@@ -13,13 +13,14 @@
   ],
   "type": "module",
   "sideEffects": false,
-  "main": "./dist/index.mjs",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.mts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.mts",
-      "default": "./dist/index.mjs"
+    "./primitives": {
+      "types": "./dist/primitives.d.mts",
+      "default": "./dist/primitives.mjs"
+    },
+    "./components": {
+      "types": "./dist/components.d.mts",
+      "default": "./dist/components.mjs"
     },
     "./theme/theme.css": "./src/theme/theme.css",
     "./theme/tailwind.css": "./src/theme/tailwind.css",
@@ -52,6 +53,13 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
+    "@tiptap/core": "^3.26.1",
+    "@tiptap/extension-mention": "^3.26.1",
+    "@tiptap/extension-placeholder": "^3.26.1",
+    "@tiptap/pm": "^3.26.1",
+    "@tiptap/react": "^3.26.1",
+    "@tiptap/starter-kit": "^3.26.1",
+    "@tiptap/suggestion": "^3.26.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.564.0",

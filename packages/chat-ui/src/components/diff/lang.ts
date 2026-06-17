@@ -50,5 +50,3 @@ export function langFromPath(path: string): string | undefined {
   if (!ext) return undefined;
   return EXT_LANG[ext];
 }
-
-

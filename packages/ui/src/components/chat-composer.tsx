@@ -9,36 +9,43 @@
  *   │ [Model selector]          [Attach?] [Stop | Send]  │
  *   └────────────────────────────────────────────────────┘
  *
- * Delegates input state and submit/cancel to ChatStore via props.
+ * Delegates input state and submit/cancel to the caller via props.
  * The PromptEditor component is data-source-agnostic; queryMentions /
- * queryCommands are passed in as props (initially no-ops; wired to real
- * sources in a follow-up).
+ * queryCommands are passed in as props so the host application can wire
+ * real context-search sources without touching this package.
  */
 
 import { Paperclip, Send, Square } from 'lucide-react';
 import { useRef } from 'react';
-import {
-  PromptEditor,
-  type PromptEditorRef,
-  type MentionItem,
-  type CommandItem,
-} from '@renderer/lib/components/prompt-editor';
-import { cn } from '@renderer/utils/utils';
-import type { ModelOption } from '@shared/core/agents/agent-payload';
+import { cn } from '../lib/cn';
+import { PromptEditor } from './prompt-editor/prompt-editor';
+import type { MentionItem, CommandItem, PromptEditorRef } from './prompt-editor/types';
+
+export type { MentionItem, CommandItem };
+export type { MentionKind, CommandBehavior } from './prompt-editor/types';
+
+/** Minimal model descriptor the composer needs to render the model selector. */
+export interface ComposerModelOption {
+  name: string;
+  description?: string;
+}
 
 export interface ChatComposerProps {
   disabled?: boolean;
   isWorking?: boolean;
-  /** False while the ACP session is still starting up. Blocks Send/Enter but keeps the editor typeable. */
+  /** False while the session is still starting up. Blocks Send/Enter but keeps the editor typeable. */
   canSubmit?: boolean;
-  modelOptions?: Record<string, ModelOption> | null;
+  modelOptions?: Record<string, ComposerModelOption> | null;
   selectedModel?: string;
   onModelChange?: (modelId: string) => void;
   onSubmit: (text: string) => void;
   onStop?: () => void;
   onAttach?: () => void;
+  /** Async callback returning @ mention suggestions for the given query. */
   queryMentions?: (query: string) => Promise<MentionItem[]>;
+  /** Async callback returning / command suggestions for the given query. */
   queryCommands?: (query: string) => Promise<CommandItem[]>;
+  /** Called when a / command with behavior='execute' is selected. */
   onCommand?: (item: CommandItem) => void;
   className?: string;
 }

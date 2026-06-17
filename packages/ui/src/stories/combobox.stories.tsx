@@ -13,7 +13,7 @@ import {
   ComboboxLabel,
   ComboboxList,
   ComboboxSeparator,
-} from '../components/combobox';
+} from '../primitives/combobox';
 
 const meta: Meta = {
   title: 'Components/Combobox',

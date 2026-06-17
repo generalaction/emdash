@@ -8,7 +8,7 @@ import {
   InputGroupInput,
   InputGroupText,
   InputGroupTextarea,
-} from '../components/input-group';
+} from '../primitives/input-group';
 
 const meta: Meta = {
   title: 'Components/InputGroup',

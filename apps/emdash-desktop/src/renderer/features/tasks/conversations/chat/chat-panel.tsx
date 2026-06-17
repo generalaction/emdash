@@ -1,11 +1,11 @@
 import type { ChatHandle } from '@emdash/chat-ui';
 import { ChatTranscript } from '@emdash/chat-ui/react';
+import { ChatComposer } from '@emdash/ui/components';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import type { ModelOption } from '@shared/core/agents/agent-payload';
 import { useConversations } from '../../task-view-context';
-import { ChatComposer } from './chat-composer';
 import { ChatEmptyState } from './chat-empty-state';
 
 const PAD_TOP = 16;
@@ -81,7 +81,7 @@ export const ChatPanel = observer(function ChatPanel({
       {/* Floating composer — measured via ResizeObserver above */}
       <div
         ref={composerRef}
-        className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-2xl px-4 pb-3 bg-background/80 backdrop-blur-sm"
+        className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-2xl bg-background/80 px-4 pb-3 backdrop-blur-sm"
       >
         <ChatComposer
           disabled={store.isClosed}

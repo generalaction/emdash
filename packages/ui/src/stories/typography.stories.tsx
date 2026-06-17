@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
-import { Heading } from '../components/typography/Heading';
-import { Text } from '../components/typography/Text';
-import { textVariants, type TextVariantProps } from '../components/typography/typography.variants';
+import { Heading } from '../primitives/typography/Heading';
+import { Text } from '../primitives/typography/Text';
+import { textVariants, type TextVariantProps } from '../primitives/typography/typography.variants';
 
 const meta: Meta = {
   title: 'Theme/Typography',

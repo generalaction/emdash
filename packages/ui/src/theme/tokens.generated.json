@@ -2759,7 +2759,7 @@
     "code": {
       "size": {
         "$type": "dimension",
-        "$value": "{typography.body.size}"
+        "$value": "13px"
       },
       "weight": {
         "$type": "fontWeight",

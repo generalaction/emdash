@@ -21,12 +21,10 @@ const listeners = new Map<string, (payload: unknown) => void>();
 
 vi.mock('@renderer/lib/ipc', () => ({
   events: {
-    on: vi.fn(
-      (channel: { name: string }, handler: (payload: unknown) => void) => {
-        listeners.set(channel.name, handler);
-        return () => listeners.delete(channel.name);
-      }
-    ),
+    on: vi.fn((channel: { name: string }, handler: (payload: unknown) => void) => {
+      listeners.set(channel.name, handler);
+      return () => listeners.delete(channel.name);
+    }),
   },
   rpc: {
     acp: {
@@ -47,13 +45,13 @@ vi.mock('@renderer/utils/logger', () => ({
 // Helpers
 // ---------------------------------------------------------------------------
 
-import { ChatStore } from './chat-store';
-import type { ChatMessageItem } from './chat-store';
 import {
   acpSessionStateChannel,
   acpSessionUpdateChannel,
   acpTurnCommittedChannel,
 } from '@shared/core/acp/acpEvents';
+import { ChatStore } from './chat-store';
+import type { ChatMessageItem } from './chat-store';
 
 /** Emit a channel event and run all pending microtasks. */
 async function emit(channel: { name: string }, payload: unknown): Promise<void> {
@@ -285,7 +283,11 @@ describe('ChatStore – event channel subscriptions', () => {
     const { rpc } = await import('@renderer/lib/ipc');
     const rpc_ = rpc as unknown as { acp: { getSessionState: Mock; getChatHistory: Mock } };
     rpc_.acp.getChatHistory.mockResolvedValue({ turns: [], complete: true });
-    rpc_.acp.getSessionState.mockResolvedValue({ lifecycle: 'ready', activeTurn: null, model: null });
+    rpc_.acp.getSessionState.mockResolvedValue({
+      lifecycle: 'ready',
+      activeTurn: null,
+      model: null,
+    });
 
     const store = new ChatStore('conv-1', 'proj-1', 'task-1');
     await flushAsync(10);
@@ -359,7 +361,11 @@ describe('ChatStore – event channel subscriptions', () => {
     const { rpc } = await import('@renderer/lib/ipc');
     const rpc_ = rpc as unknown as { acp: { getSessionState: Mock; getChatHistory: Mock } };
     rpc_.acp.getChatHistory.mockResolvedValue({ turns: [], complete: true });
-    rpc_.acp.getSessionState.mockResolvedValue({ lifecycle: 'ready', activeTurn: null, model: null });
+    rpc_.acp.getSessionState.mockResolvedValue({
+      lifecycle: 'ready',
+      activeTurn: null,
+      model: null,
+    });
 
     const store = new ChatStore('conv-1', 'proj-1', 'task-1');
     await flushAsync(10);

@@ -1,5 +1,5 @@
-import { createRPCController } from '@shared/lib/ipc/rpc';
 import type { ChatHistory, SessionState } from '@shared/core/acp/acpTurns';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { acpSessionManager } from './acp-session-manager';
 
 async function prompt(conversationId: string, text: string): Promise<void> {
