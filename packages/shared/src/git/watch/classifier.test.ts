@@ -24,4 +24,29 @@ describe('classifyGitWatchEvents', () => {
 
     expect(classification.repo).toEqual({ refs: false, remotes: false });
   });
+
+  it('treats branch ref changes as worktree head and status staleness', () => {
+    const gitCommonDir = path.join(path.sep, 'repo', '.git');
+    const worktree = path.join(path.sep, 'repo');
+
+    const classification = classifyGitWatchEvents(
+      [{ kind: 'update', path: path.join(gitCommonDir, 'refs', 'heads', 'main') }],
+      { gitCommonDir, worktrees: [{ id: 'main', gitDir: gitCommonDir, worktree }] }
+    );
+
+    expect(classification.repo).toEqual({ refs: true, remotes: false });
+    expect(classification.worktrees.get('main')).toEqual({ status: true, head: true });
+  });
+
+  it('treats direct HEAD changes as status staleness', () => {
+    const gitCommonDir = path.join(path.sep, 'repo', '.git');
+    const worktree = path.join(path.sep, 'repo');
+
+    const classification = classifyGitWatchEvents(
+      [{ kind: 'update', path: path.join(gitCommonDir, 'HEAD') }],
+      { gitCommonDir, worktrees: [{ id: 'main', gitDir: gitCommonDir, worktree }] }
+    );
+
+    expect(classification.worktrees.get('main')).toEqual({ status: true, head: true });
+  });
 });

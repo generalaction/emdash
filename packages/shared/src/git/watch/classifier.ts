@@ -39,18 +39,33 @@ export function classifyGitWatchEvents(
     current[effect] = true;
     worktrees.set(id, current);
   };
+  const addAllWorktreeEffects = (effects: Partial<WorktreeWatchEffects>) => {
+    for (const worktree of normalizedWorktrees) {
+      const current = worktrees.get(worktree.id) ?? { status: false, head: false };
+      worktrees.set(worktree.id, {
+        status: current.status || effects.status === true,
+        head: current.head || effects.head === true,
+      });
+    }
+  };
 
   for (const event of events) {
     const eventPath = normalize(event.path);
     const commonRel = relativeInside(gitCommonDir, eventPath);
     if (commonRel !== null) {
       classifyCommonGitPath(commonRel, repo);
+      if (commonGitPathAffectsWorktreeHead(commonRel)) {
+        addAllWorktreeEffects({ status: true, head: true });
+      }
     }
 
     for (const worktree of normalizedWorktrees) {
       const gitRel = relativeInside(worktree.gitDir, eventPath);
       if (gitRel !== null) {
-        if (gitRel === 'HEAD') addWorktreeEffect(worktree.id, 'head');
+        if (gitRel === 'HEAD') {
+          addWorktreeEffect(worktree.id, 'head');
+          addWorktreeEffect(worktree.id, 'status');
+        }
         if (gitRel === 'index') addWorktreeEffect(worktree.id, 'status');
       }
 
@@ -78,6 +93,16 @@ function classifyCommonGitPath(rel: string, repo: RepoWatchEffects): void {
     repo.refs = true;
     repo.remotes = true;
   }
+}
+
+function commonGitPathAffectsWorktreeHead(rel: string): boolean {
+  return (
+    rel.startsWith('refs/heads/') ||
+    rel === 'packed-refs' ||
+    rel === 'HEAD' ||
+    rel === 'logs/HEAD' ||
+    rel.startsWith('logs/refs/heads/')
+  );
 }
 
 function relativeInside(root: string, child: string): string | null {
