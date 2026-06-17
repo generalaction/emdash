@@ -1,0 +1,28 @@
+apps/emdash-desktop/src/renderer/lib/stores/tab-utils.ts
+  s_e19d50f0e6568c::t_231cbfff312a00 42-43
+  s_e19d50f0e6568c::t_c157dc730f62cf 32-35,39-41
+apps/emdash-desktop/src/renderer/lib/stores/tab-utils.test.ts
+  s_e19d50f0e6568c::t_ad2b2da271dc94 1-26
+apps/emdash-desktop/src/renderer/lib/hooks/useTabShortcuts.ts
+  s_e19d50f0e6568c::t_3889f12ffa0ab7 48,82-93
+apps/emdash-desktop/src/renderer/lib/pty/use-pty.ts
+  s_e19d50f0e6568c::t_31ee43b27b09a5 50-56,73,76
+  s_e19d50f0e6568c::t_ebfe90f66883dd 468-474
+  s_e19d50f0e6568c::t_f4f84c280ca6ad 1,47-49,57-72,74-75,77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "311c2edaa479145bec0d06eae97769da628302e6",
+  "prompts": {},
+  "sessions": {
+    "s_e19d50f0e6568c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed40c-b594-7c43-a583-87b03477497c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
