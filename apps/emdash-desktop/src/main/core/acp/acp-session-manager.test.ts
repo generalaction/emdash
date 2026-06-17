@@ -84,7 +84,7 @@ vi.mock('@main/core/agent-hooks/notification', () => ({
 }));
 
 vi.mock('@main/core/conversations/set-provider-session-id', () => ({
-  setProviderSessionId: vi.fn().mockResolvedValue(true), // writes to conversations.sessionId
+  setProviderSessionId: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock('@main/core/conversations/updateConversationModel', () => ({
@@ -152,7 +152,6 @@ describe('AcpSessionManager – pooling', () => {
     const convA = makeConversation({ conversationId: 'conv-a' });
     const convB = makeConversation({ conversationId: 'conv-b' });
 
-    // First conversation creates the pool.
     (mockConnection.newSession as Mock)
       .mockResolvedValueOnce({ sessionId: 'session-a' })
       .mockResolvedValueOnce({ sessionId: 'session-b' });
@@ -160,9 +159,7 @@ describe('AcpSessionManager – pooling', () => {
     await manager.start(convA, 'ws-1', '/tmp/workspace');
     await manager.start(convB, 'ws-1', '/tmp/workspace');
 
-    // spawn should have been called exactly once.
     expect(spawn).toHaveBeenCalledTimes(1);
-    // newSession should have been called once per conversation.
     expect(mockConnection.newSession).toHaveBeenCalledTimes(2);
   });
 
@@ -229,7 +226,7 @@ describe('AcpSessionManager – routing', () => {
     mockChild.on.mockReset();
   });
 
-  it('sessionUpdate routes to the correct conversationId without cross-talk', async () => {
+  it('sessionUpdate routes to the correct conversationId and emits turnId + seq', async () => {
     const { events } = await import('@main/lib/events');
     const { acpSessionUpdateChannel } = await import('@shared/core/acp/acpEvents');
 
@@ -244,31 +241,30 @@ describe('AcpSessionManager – routing', () => {
     await manager.start(makeConversation({ conversationId: 'conv-a' }), 'ws-1', '/tmp/workspace');
     await manager.start(makeConversation({ conversationId: 'conv-b' }), 'ws-1', '/tmp/workspace');
 
-    // Get the handler that was registered with the pool.
     expect(capturedHandlerFactory).not.toBeNull();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handler = capturedHandlerFactory!(null) as any;
 
-    // Reset emit so we only count the routing calls.
     (events.emit as Mock).mockReset();
 
-    // Simulate an update arriving for session-b.
     await handler.sessionUpdate({
       sessionId: 'session-b',
       update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'hello' } },
     });
 
-    expect(events.emit).toHaveBeenCalledTimes(1);
     expect(events.emit).toHaveBeenCalledWith(acpSessionUpdateChannel, {
       conversationId: 'conv-b',
+      turnId: expect.any(String),
       update: expect.objectContaining({ sessionUpdate: 'agent_message_chunk' }),
       seq: expect.any(Number),
     });
   });
 
-  it('reconnecting with an existing providerSessionId calls loadSession and emits replay events', async () => {
+  it('reconnecting with a providerSessionId calls loadSession and emits a replay turn', async () => {
     const { events } = await import('@main/lib/events');
-    const { acpSessionReplayChannel } = await import('@shared/core/acp/acpEvents');
+    const { acpSessionStateChannel, acpTurnCommittedChannel } = await import(
+      '@shared/core/acp/acpEvents'
+    );
 
     (events.emit as Mock).mockReset();
 
@@ -288,17 +284,29 @@ describe('AcpSessionManager – routing', () => {
     });
     expect(mockConnection.newSession).not.toHaveBeenCalled();
 
-    const replayCalls = (events.emit as Mock).mock.calls.filter(
-      (args: unknown[]) => args[0] === acpSessionReplayChannel
+    // Should emit acpSessionStateChannel with lifecycle 'replaying' (openTurn)
+    // then 'ready' (closeTurn + final ready).
+    const stateCalls = (events.emit as Mock).mock.calls.filter(
+      (args: unknown[]) => args[0] === acpSessionStateChannel
     );
-    expect(replayCalls).toHaveLength(2);
-    expect(replayCalls[0][1]).toMatchObject({ conversationId: 'conv-replay', phase: 'start' });
-    expect(replayCalls[1][1]).toMatchObject({ conversationId: 'conv-replay', phase: 'end' });
+    const lifecycles = stateCalls.map((args: unknown[]) => (args[1] as { lifecycle: string }).lifecycle);
+    expect(lifecycles).toContain('replaying');
+    expect(lifecycles).toContain('ready');
+
+    // The replay turn should be committed.
+    const committedCalls = (events.emit as Mock).mock.calls.filter(
+      (args: unknown[]) => args[0] === acpTurnCommittedChannel
+    );
+    expect(committedCalls).toHaveLength(1);
+    expect(committedCalls[0][1]).toMatchObject({
+      conversationId: 'conv-replay',
+      turn: expect.objectContaining({ source: 'replay', status: 'complete' }),
+    });
   });
 
-  it('falls back to newSession when loadSession throws and emits replay-end to close the reset', async () => {
+  it('falls back to newSession when loadSession throws; replay turn is committed as complete', async () => {
     const { events } = await import('@main/lib/events');
-    const { acpSessionReplayChannel } = await import('@shared/core/acp/acpEvents');
+    const { acpTurnCommittedChannel } = await import('@shared/core/acp/acpEvents');
 
     (events.emit as Mock).mockReset();
 
@@ -318,30 +326,29 @@ describe('AcpSessionManager – routing', () => {
     expect(mockConnection.newSession).toHaveBeenCalled();
     expect(manager.isRunning('conv-fallback')).toBe(true);
 
-    const replayCalls = (events.emit as Mock).mock.calls.filter(
-      (args: unknown[]) => args[0] === acpSessionReplayChannel
+    // Replay turn is still committed even on failure.
+    const committedCalls = (events.emit as Mock).mock.calls.filter(
+      (args: unknown[]) => args[0] === acpTurnCommittedChannel
     );
-    // Both start and end must be emitted even on loadSession failure.
-    expect(replayCalls).toHaveLength(2);
-    expect(replayCalls[0][1]).toMatchObject({ phase: 'start' });
-    expect(replayCalls[1][1]).toMatchObject({ phase: 'end' });
+    expect(committedCalls).toHaveLength(1);
+    expect(committedCalls[0][1]).toMatchObject({
+      conversationId: 'conv-fallback',
+      turn: expect.objectContaining({ source: 'replay', status: 'complete' }),
+    });
   });
 
   it('loadSession replay: agent-assigned session ID is dynamically registered and routed', async () => {
     const { events } = await import('@main/lib/events');
     const { acpSessionUpdateChannel } = await import('@shared/core/acp/acpEvents');
-    const { setProviderSessionId } =
-      await import('@main/core/conversations/set-provider-session-id');
+    const { setProviderSessionId } = await import(
+      '@main/core/conversations/set-provider-session-id'
+    );
 
     (events.emit as Mock).mockReset();
     (setProviderSessionId as Mock).mockClear();
 
     const manager = new AcpSessionManager();
 
-    // Make loadSession simulate the agent sending a sessionUpdate with a NEW session
-    // ID (different from the one provided in the request) before the call resolves.
-    // This mirrors agents that generate a fresh UUID during replay rather than reusing
-    // the ID from the loadSession request.
     mockConnection.loadSession = vi.fn().mockImplementation(async () => {
       expect(capturedHandlerFactory).not.toBeNull();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -361,65 +368,24 @@ describe('AcpSessionManager – routing', () => {
 
     await manager.start(conv, 'ws-1', '/tmp/workspace');
 
-    // The replay notification should have been routed to conv-dynamic.
     const updateEmits = (events.emit as Mock).mock.calls.filter(
       (args: unknown[]) => args[0] === acpSessionUpdateChannel
     );
     expect(updateEmits).toHaveLength(1);
     expect(updateEmits[0][1]).toMatchObject({
       conversationId: 'conv-dynamic',
+      turnId: expect.any(String),
       update: expect.objectContaining({ sessionUpdate: 'agent_message_chunk' }),
     });
 
-    // loadSession succeeded — newSession should not have been called.
     expect(mockConnection.newSession).not.toHaveBeenCalled();
-
-    // The new session ID should have been persisted so future starts use it.
     expect(setProviderSessionId).toHaveBeenCalledWith('conv-dynamic', 'agent-assigned-session-99');
-
     expect(manager.isRunning('conv-dynamic')).toBe(true);
-  });
-
-  it('buffers updates with incrementing seq and getTranscript returns them', async () => {
-    const { events } = await import('@main/lib/events');
-    const { acpSessionUpdateChannel } = await import('@shared/core/acp/acpEvents');
-
-    (events.emit as Mock).mockReset();
-
-    const manager = new AcpSessionManager();
-
-    (mockConnection.newSession as Mock).mockResolvedValue({ sessionId: 'session-buf' });
-    await manager.start(makeConversation({ conversationId: 'conv-buf' }), 'ws-1', '/tmp/workspace');
-
-    expect(capturedHandlerFactory).not.toBeNull();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const handler = capturedHandlerFactory!(null) as any;
-
-    const update1 = { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'a' } };
-    const update2 = { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'b' } };
-
-    await handler.sessionUpdate({ sessionId: 'session-buf', update: update1 });
-    await handler.sessionUpdate({ sessionId: 'session-buf', update: update2 });
-
-    const transcript = manager.getTranscript('conv-buf');
-    expect(transcript).toHaveLength(2);
-    expect(transcript[0]).toEqual({ seq: 0, update: update1 });
-    expect(transcript[1]).toEqual({ seq: 1, update: update2 });
-
-    // Events should carry seq as well.
-    const emittedSeqs = (events.emit as Mock).mock.calls
-      .filter((args: unknown[]) => args[0] === acpSessionUpdateChannel)
-      .map((args: unknown[]) => (args[1] as { seq: number }).seq);
-    expect(emittedSeqs).toEqual([0, 1]);
-  });
-
-  it('getTranscript returns [] for unknown or stopped conversation', async () => {
-    const manager = new AcpSessionManager();
-    expect(manager.getTranscript('no-such-conversation')).toEqual([]);
   });
 
   it('sessionUpdate for unknown sessionId does not emit an event', async () => {
     const { events } = await import('@main/lib/events');
+    const { acpSessionUpdateChannel } = await import('@shared/core/acp/acpEvents');
 
     (events.emit as Mock).mockReset();
 
@@ -434,18 +400,208 @@ describe('AcpSessionManager – routing', () => {
 
     (events.emit as Mock).mockReset();
 
-    // Unknown session id — should not route.
     await handler.sessionUpdate({
       sessionId: 'unknown-session-xyz',
       update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'ghost' } },
     });
 
-    // Only the acpSessionUpdateChannel emit should NOT happen (events.emit may
-    // still be called for agent events, but acpSessionUpdateChannel should be
-    // absent).
-    const acpEmits = (events.emit as Mock).mock.calls.filter(
-      (args: unknown[]) => args[0] === 'acp:session-update'
+    const acpUpdateEmits = (events.emit as Mock).mock.calls.filter(
+      (args: unknown[]) => args[0] === acpSessionUpdateChannel
     );
-    expect(acpEmits).toHaveLength(0);
+    expect(acpUpdateEmits).toHaveLength(0);
+  });
+});
+
+describe('AcpSessionManager – turn model', () => {
+  beforeEach(() => {
+    capturedHandlerFactory = null;
+    mockConnection.initialize = vi.fn().mockResolvedValue({ protocolVersion: 1 });
+    mockConnection.newSession = vi.fn().mockResolvedValue({ sessionId: 'session-1' });
+    mockConnection.loadSession = vi.fn().mockResolvedValue({});
+    mockConnection.closeSession = vi.fn().mockResolvedValue({});
+    mockConnection.cancel = vi.fn().mockResolvedValue({});
+    mockConnection.prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' });
+    mockConnection.setSessionConfigOption = vi.fn().mockResolvedValue({});
+    mockConnection.closed = new Promise<void>(() => {});
+    (spawn as Mock).mockReturnValue(mockChild);
+    mockChild.kill.mockReset();
+    mockChild.on.mockReset();
+  });
+
+  it('prompt() opens a live turn, commits it as complete on end_turn stopReason', async () => {
+    const { events } = await import('@main/lib/events');
+    const { acpSessionStateChannel, acpTurnCommittedChannel } = await import(
+      '@shared/core/acp/acpEvents'
+    );
+
+    const manager = new AcpSessionManager();
+    (mockConnection.newSession as Mock).mockResolvedValue({ sessionId: 'session-1' });
+    await manager.start(makeConversation({ conversationId: 'conv-1' }), 'ws-1', '/tmp');
+
+    (events.emit as Mock).mockReset();
+    mockConnection.prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' });
+
+    await manager.prompt('conv-1', 'hello');
+
+    const stateCalls = (events.emit as Mock).mock.calls.filter(
+      (args: unknown[]) => args[0] === acpSessionStateChannel
+    );
+    const lifecycles = stateCalls.map((a: unknown[]) => (a[1] as { lifecycle: string }).lifecycle);
+    expect(lifecycles).toContain('working');
+    expect(lifecycles).toContain('ready');
+
+    const committedCalls = (events.emit as Mock).mock.calls.filter(
+      (args: unknown[]) => args[0] === acpTurnCommittedChannel
+    );
+    expect(committedCalls).toHaveLength(1);
+    expect(committedCalls[0][1]).toMatchObject({
+      conversationId: 'conv-1',
+      turn: expect.objectContaining({ source: 'live', status: 'complete' }),
+    });
+  });
+
+  it('prompt() commits turn as cancelled when stopReason is cancelled', async () => {
+    const { events } = await import('@main/lib/events');
+    const { acpTurnCommittedChannel } = await import('@shared/core/acp/acpEvents');
+
+    const manager = new AcpSessionManager();
+    (mockConnection.newSession as Mock).mockResolvedValue({ sessionId: 'session-1' });
+    await manager.start(makeConversation({ conversationId: 'conv-1' }), 'ws-1', '/tmp');
+
+    (events.emit as Mock).mockReset();
+    mockConnection.prompt = vi.fn().mockResolvedValue({ stopReason: 'cancelled' });
+
+    await manager.prompt('conv-1', 'hi');
+
+    const committedCalls = (events.emit as Mock).mock.calls.filter(
+      (args: unknown[]) => args[0] === acpTurnCommittedChannel
+    );
+    expect(committedCalls).toHaveLength(1);
+    expect(committedCalls[0][1]).toMatchObject({
+      turn: expect.objectContaining({ status: 'cancelled' }),
+    });
+  });
+
+  it('prompt() commits turn as error when prompt() rejects', async () => {
+    const { events } = await import('@main/lib/events');
+    const { acpTurnCommittedChannel } = await import('@shared/core/acp/acpEvents');
+
+    const manager = new AcpSessionManager();
+    (mockConnection.newSession as Mock).mockResolvedValue({ sessionId: 'session-1' });
+    await manager.start(makeConversation({ conversationId: 'conv-1' }), 'ws-1', '/tmp');
+
+    (events.emit as Mock).mockReset();
+    mockConnection.prompt = vi.fn().mockRejectedValue(new Error('boom'));
+
+    await manager.prompt('conv-1', 'fail');
+
+    const committedCalls = (events.emit as Mock).mock.calls.filter(
+      (args: unknown[]) => args[0] === acpTurnCommittedChannel
+    );
+    expect(committedCalls).toHaveLength(1);
+    expect(committedCalls[0][1]).toMatchObject({
+      turn: expect.objectContaining({ status: 'error' }),
+    });
+  });
+
+  it('getChatHistory returns only committed turns and correct complete flag', async () => {
+    const manager = new AcpSessionManager();
+    (mockConnection.newSession as Mock).mockResolvedValue({ sessionId: 'session-hist' });
+
+    // Before session started: empty, complete=true (nothing in-flight).
+    expect(manager.getChatHistory('no-such-conv')).toEqual({ turns: [], complete: true });
+
+    await manager.start(makeConversation({ conversationId: 'conv-hist' }), 'ws-1', '/tmp');
+
+    // After start (no replay, no turns yet): empty turns, complete=true (ready).
+    let history = manager.getChatHistory('conv-hist');
+    expect(history.turns).toHaveLength(0);
+    expect(history.complete).toBe(true);
+
+    // Run a prompt to create + commit a turn.
+    mockConnection.prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' });
+    await manager.prompt('conv-hist', 'hello');
+
+    history = manager.getChatHistory('conv-hist');
+    expect(history.turns).toHaveLength(1);
+    expect(history.turns[0].status).toBe('complete');
+    expect(history.complete).toBe(true);
+  });
+
+  it('getSessionState returns active turn mid-prompt', async () => {
+    const manager = new AcpSessionManager();
+    (mockConnection.newSession as Mock).mockResolvedValue({ sessionId: 'session-state' });
+    await manager.start(makeConversation({ conversationId: 'conv-state' }), 'ws-1', '/tmp');
+
+    let promptResolved = false;
+    let resolvePrompt!: (val: { stopReason: string }) => void;
+    mockConnection.prompt = vi.fn().mockReturnValue(
+      new Promise((res) => {
+        resolvePrompt = res;
+      })
+    );
+
+    const promptPromise = manager.prompt('conv-state', 'hi');
+
+    // Mid-flight: getSessionState should show working + activeTurn.
+    const stateMidFlight = manager.getSessionState('conv-state');
+    expect(stateMidFlight.lifecycle).toBe('working');
+    expect(stateMidFlight.activeTurn).not.toBeNull();
+    expect(stateMidFlight.activeTurn?.status).toBe('active');
+
+    resolvePrompt({ stopReason: 'end_turn' });
+    await promptPromise;
+    promptResolved = true;
+
+    // After prompt: no active turn.
+    const stateAfter = manager.getSessionState('conv-state');
+    expect(stateAfter.lifecycle).toBe('ready');
+    expect(stateAfter.activeTurn).toBeNull();
+    expect(promptResolved).toBe(true);
+  });
+
+  it('sessionUpdate attributes to active turn with incrementing seq and emits turnId', async () => {
+    const { events } = await import('@main/lib/events');
+    const { acpSessionUpdateChannel } = await import('@shared/core/acp/acpEvents');
+
+    (events.emit as Mock).mockReset();
+
+    const manager = new AcpSessionManager();
+    (mockConnection.newSession as Mock).mockResolvedValue({ sessionId: 'session-buf' });
+    await manager.start(makeConversation({ conversationId: 'conv-buf' }), 'ws-1', '/tmp/workspace');
+
+    expect(capturedHandlerFactory).not.toBeNull();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = capturedHandlerFactory!(null) as any;
+
+    const update1 = { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'a' } };
+    const update2 = { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'b' } };
+
+    await handler.sessionUpdate({ sessionId: 'session-buf', update: update1 });
+    await handler.sessionUpdate({ sessionId: 'session-buf', update: update2 });
+
+    const updateEmits = (events.emit as Mock).mock.calls.filter(
+      (args: unknown[]) => args[0] === acpSessionUpdateChannel
+    );
+    expect(updateEmits).toHaveLength(2);
+
+    const [e1, e2] = updateEmits.map((args: unknown[]) => args[1] as { seq: number; turnId: string });
+    expect(e1.seq).toBe(0);
+    expect(e2.seq).toBe(1);
+    expect(e1.turnId).toBe(e2.turnId); // Same turn.
+    expect(typeof e1.turnId).toBe('string');
+
+    // Updates should be stored in the active turn via getChatHistory after commit.
+    // (Turn is still active here since no prompt() resolved it.)
+    const sessionState = manager.getSessionState('conv-buf');
+    expect(sessionState.activeTurn?.updates).toHaveLength(2);
+    expect(sessionState.activeTurn?.updates[0].seq).toBe(0);
+    expect(sessionState.activeTurn?.updates[1].seq).toBe(1);
+  });
+
+  it('getChatHistory returns empty complete result for unknown conversation', () => {
+    const manager = new AcpSessionManager();
+    const history = manager.getChatHistory('no-such-conversation');
+    expect(history).toEqual({ turns: [], complete: true });
   });
 });

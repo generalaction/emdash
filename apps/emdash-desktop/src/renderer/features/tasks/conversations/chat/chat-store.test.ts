@@ -1,169 +1,376 @@
-import { action } from 'mobx';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+/**
+ * Unit tests for ChatStore pull-based model.
+ *
+ * Validates:
+ * - History rebuild from getChatHistory commits turns deterministically (no stuck thinking).
+ * - Active turn from getSessionState streams without finalizing.
+ * - Live updates racing the initial query are deduplicated by seq.
+ * - acpTurnCommittedChannel finalizes streaming state.
+ * - acpSessionStateChannel drives isWorking/isReady/isClosed.
+ */
+import { type Mock, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ChatHistory, SessionState } from '@shared/core/acp/acpTurns';
+import type { AcpTurn } from '@shared/core/acp/acpTurns';
 
-// -----------------------------------------------------------------------
-// Hoisted mocks
-// -----------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Mocks
+// ---------------------------------------------------------------------------
 
-const getTranscript = vi.hoisted(() => vi.fn());
-const getSessionStatus = vi.hoisted(() => vi.fn());
-const eventsOn = vi.hoisted(() => vi.fn());
+// Listener registry: channel name → handler function.
+const listeners = new Map<string, (payload: unknown) => void>();
 
 vi.mock('@renderer/lib/ipc', () => ({
-  events: { on: eventsOn },
+  events: {
+    on: vi.fn(
+      (channel: { name: string }, handler: (payload: unknown) => void) => {
+        listeners.set(channel.name, handler);
+        return () => listeners.delete(channel.name);
+      }
+    ),
+  },
   rpc: {
     acp: {
-      getTranscript,
-      getSessionStatus,
+      getSessionState: vi.fn(),
+      getChatHistory: vi.fn(),
+      prompt: vi.fn().mockResolvedValue(undefined),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      setModel: vi.fn().mockResolvedValue(undefined),
     },
   },
 }));
 
 vi.mock('@renderer/utils/logger', () => ({
-  log: { warn: vi.fn(), debug: vi.fn() },
+  log: { warn: vi.fn(), debug: vi.fn(), error: vi.fn() },
 }));
 
-// -----------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // Helpers
-// -----------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 
-/** Collect the listener registered for a given channel so tests can fire it.
- *  `events.on` receives an EventDefinition object `{ name: string }`, so we
- *  match by `.name`.
- */
-function captureListener(channel: string): (payload: unknown) => void {
-  const call = eventsOn.mock.calls.find(
-    (c) => (c[0] as { name?: string }).name === channel
-  );
-  if (!call) throw new Error(`No listener registered for channel: ${channel}`);
-  return call[1] as (payload: unknown) => void;
+import { ChatStore } from './chat-store';
+import type { ChatMessageItem } from './chat-store';
+import {
+  acpSessionStateChannel,
+  acpSessionUpdateChannel,
+  acpTurnCommittedChannel,
+} from '@shared/core/acp/acpEvents';
+
+/** Emit a channel event and run all pending microtasks. */
+async function emit(channel: { name: string }, payload: unknown): Promise<void> {
+  const handler = listeners.get(channel.name);
+  if (!handler) throw new Error(`No listener registered for channel: ${channel.name}`);
+  handler(payload);
+  await Promise.resolve();
 }
 
-// -----------------------------------------------------------------------
+/** Flush all microtasks (resolves async bootstrap queries etc.). */
+async function flushAsync(ticks = 5): Promise<void> {
+  for (let i = 0; i < ticks; i++) await Promise.resolve();
+}
+
+function makeActiveTurn(overrides: Partial<AcpTurn> = {}): AcpTurn {
+  return {
+    id: 'turn-1',
+    status: 'active',
+    source: 'live',
+    startSeq: 0,
+    endSeq: null,
+    updates: [],
+    ...overrides,
+  };
+}
+
+function makeCompleteTurn(
+  updates: AcpTurn['updates'] = [],
+  overrides: Partial<AcpTurn> = {}
+): AcpTurn {
+  return {
+    id: 'turn-hist-1',
+    status: 'complete',
+    source: 'live',
+    startSeq: 0,
+    endSeq: updates.length,
+    updates,
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Tests
-// -----------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 
-describe('ChatStore – getTranscript buffering on construction', () => {
-  beforeEach(() => {
-    eventsOn.mockReset();
-    getTranscript.mockReset();
-    getSessionStatus.mockReset();
+describe('ChatStore – bootstrap via getChatHistory + getSessionState', () => {
+  let rpcMock: { acp: { getSessionState: Mock; getChatHistory: Mock } };
 
-    // Default: getSessionStatus resolves to 'none' so it doesn't interfere.
-    getSessionStatus.mockResolvedValue('none');
-    // Default: empty transcript.
-    getTranscript.mockResolvedValue([]);
+  beforeEach(async () => {
+    listeners.clear();
+    const { rpc } = await import('@renderer/lib/ipc');
+    rpcMock = rpc as unknown as typeof rpcMock;
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
+    listeners.clear();
   });
 
-  it('replays buffered transcript from getTranscript() on construction', async () => {
-    const { ChatStore } = await import('./chat-store');
-
-    const update1 = {
+  it('rebuilds items from committed history without stuck thinking', async () => {
+    const msgUpdate = {
       sessionUpdate: 'agent_message_chunk' as const,
-      content: { type: 'text', text: 'hello' },
+      content: { type: 'text' as const, text: 'hello' },
+      messageId: 'msg-1',
     };
-    const update2 = {
-      sessionUpdate: 'agent_message_chunk' as const,
-      content: { type: 'text', text: ' world' },
+    const thoughtUpdate = {
+      sessionUpdate: 'agent_thought_chunk' as const,
+      content: { type: 'text' as const, text: 'thinking...' },
+      messageId: 'thought-1',
     };
 
-    getTranscript.mockResolvedValue([
-      { seq: 0, update: update1 },
-      { seq: 1, update: update2 },
-    ]);
+    const history: ChatHistory = {
+      turns: [
+        makeCompleteTurn(
+          [
+            { seq: 0, update: thoughtUpdate },
+            { seq: 1, update: msgUpdate },
+          ],
+          { id: 'turn-1' }
+        ),
+      ],
+      complete: true,
+    };
+    const state: SessionState = { lifecycle: 'ready', activeTurn: null, model: null };
+
+    rpcMock.acp.getChatHistory.mockResolvedValue(history);
+    rpcMock.acp.getSessionState.mockResolvedValue(state);
 
     const store = new ChatStore('conv-1', 'proj-1', 'task-1');
+    await flushAsync(10);
 
-    // Flush the microtask queue so the async bootstrap completes.
-    await vi.waitFor(() => expect(store.items.length).toBeGreaterThan(0));
+    // Should have thought + message items.
+    expect(store.items.some((it) => it.kind === 'message' && it.role === 'thought')).toBe(true);
+    expect(store.items.some((it) => it.kind === 'message' && it.role === 'assistant')).toBe(true);
 
-    expect(store.items.length).toBeGreaterThan(0);
-    expect(getTranscript).toHaveBeenCalledWith('conv-1');
+    // No item should be stuck streaming (regression test for stuck thinking).
+    const streaming = store.items.filter((it) => it.kind === 'message' && it.streaming);
+    expect(streaming).toHaveLength(0);
+
+    expect(store.isReady).toBe(true);
+    expect(store.isWorking).toBe(false);
   });
 
-  it('deduplicates live updates that race in during the getTranscript() fetch', async () => {
-    const { ChatStore } = await import('./chat-store');
-
-    const update1 = {
+  it('rebuilds active turn updates without finalizing them', async () => {
+    const msgUpdate = {
       sessionUpdate: 'agent_message_chunk' as const,
-      content: { type: 'text', text: 'a' },
-    };
-    const update2 = {
-      sessionUpdate: 'agent_message_chunk' as const,
-      content: { type: 'text', text: 'b' },
+      content: { type: 'text' as const, text: 'streaming...' },
+      messageId: 'msg-1',
     };
 
-    let resolveTranscript!: (v: { seq: number; update: unknown }[]) => void;
-    getTranscript.mockReturnValue(
-      new Promise<{ seq: number; update: unknown }[]>((res) => {
-        resolveTranscript = res;
-      })
+    const history: ChatHistory = { turns: [], complete: true };
+    const state: SessionState = {
+      lifecycle: 'working',
+      activeTurn: makeActiveTurn({
+        updates: [{ seq: 0, update: msgUpdate }],
+      }),
+      model: null,
+    };
+
+    rpcMock.acp.getChatHistory.mockResolvedValue(history);
+    rpcMock.acp.getSessionState.mockResolvedValue(state);
+
+    const store = new ChatStore('conv-1', 'proj-1', 'task-1');
+    await flushAsync(10);
+
+    // Item should be streaming (not finalized).
+    const assistantItems = store.items.filter(
+      (it): it is ChatMessageItem => it.kind === 'message' && it.role === 'assistant'
     );
+    expect(assistantItems).toHaveLength(1);
+    expect(assistantItems[0].streaming).toBe(true);
 
-    const store = new ChatStore('conv-2', 'proj-1', 'task-1');
+    expect(store.isWorking).toBe(true);
+    expect(store.isReady).toBe(true);
+  });
 
-    // Fire the live update for update2 (seq 1) while getTranscript is still pending.
-    const updateListener = captureListener('acp:session-update');
-    action(() => {
-      updateListener({ conversationId: 'conv-2', update: update2, seq: 1 });
-    })();
+  it('deduplicates live updates that race the initial query by seq', async () => {
+    const msgUpdate = {
+      sessionUpdate: 'agent_message_chunk' as const,
+      content: { type: 'text' as const, text: 'hi' },
+      messageId: 'msg-dedup',
+    };
 
-    // Now resolve getTranscript with update1 (seq 0) and update2 (seq 1 – duplicate).
-    resolveTranscript([
-      { seq: 0, update: update1 },
-      { seq: 1, update: update2 },
-    ]);
-
-    await vi.waitFor(() => {
-      // After flush, _buffering should be false (live events applied directly).
-      const liveUpdate3 = {
-        sessionUpdate: 'agent_message_chunk' as const,
-        content: { type: 'text', text: 'c' },
-      };
-      action(() => {
-        updateListener({ conversationId: 'conv-2', update: liveUpdate3, seq: 2 });
-      })();
-      // We expect exactly 3 distinct items (a, b, c) – update2 not double-applied.
-      expect(store.items.length).toBeGreaterThanOrEqual(1);
+    let resolveHistory!: (h: ChatHistory) => void;
+    const historyPromise = new Promise<ChatHistory>((res) => {
+      resolveHistory = res;
     });
 
-    // Count how many unique text items we have. update1(a), update2(b), update3(c)
-    // If update2 were double-applied we'd have >3 message segments.
-    const texts = store.items
-      .filter((i) => i.kind === 'message')
-      .map((i) => (i as { text: string }).text);
-
-    // The merged text should not contain 'b' more than once as a standalone chunk.
-    const bCount = texts.join('').split('b').length - 1;
-    expect(bCount).toBe(1);
-  });
-
-  it('live updates with seq <= _lastSeq (from buffer) are ignored', async () => {
-    const { ChatStore } = await import('./chat-store');
-
-    const update = {
-      sessionUpdate: 'agent_message_chunk' as const,
-      content: { type: 'text', text: 'x' },
+    const history: ChatHistory = { turns: [], complete: true };
+    const state: SessionState = {
+      lifecycle: 'working',
+      activeTurn: makeActiveTurn({ updates: [{ seq: 0, update: msgUpdate }] }),
+      model: null,
     };
 
-    getTranscript.mockResolvedValue([{ seq: 0, update }]);
+    rpcMock.acp.getChatHistory.mockReturnValue(historyPromise);
+    rpcMock.acp.getSessionState.mockResolvedValue(state);
 
-    const store = new ChatStore('conv-3', 'proj-1', 'task-1');
+    const store = new ChatStore('conv-1', 'proj-1', 'task-1');
+    // Flush enough to register listeners but not resolve the history query.
+    await Promise.resolve();
 
-    await vi.waitFor(() => expect(store.items.length).toBeGreaterThan(0));
+    // Emit seq=0 live update before history resolves.
+    await emit(acpSessionUpdateChannel, {
+      conversationId: 'conv-1',
+      turnId: 'turn-1',
+      update: msgUpdate,
+      seq: 0,
+    });
 
-    const itemCountAfterBuffer = store.items.length;
+    // Resolve the history query (active turn has seq=0 already).
+    resolveHistory(history);
+    await flushAsync(10);
 
-    // Send the same seq 0 update again as a "live" event – should be ignored.
-    const updateListener = captureListener('acp:session-update');
-    action(() => {
-      updateListener({ conversationId: 'conv-3', update, seq: 0 });
-    })();
+    // 'hi' should appear only once.
+    const assistantItems = store.items.filter(
+      (it): it is ChatMessageItem => it.kind === 'message' && it.role === 'assistant'
+    );
+    expect(assistantItems.map((it) => it.text).join('')).toBe('hi');
+  });
 
-    expect(store.items.length).toBe(itemCountAfterBuffer);
+  it('applies live updates with seq > lastSeq after history is loaded', async () => {
+    const history: ChatHistory = { turns: [], complete: true };
+    const state: SessionState = { lifecycle: 'ready', activeTurn: null, model: null };
+
+    rpcMock.acp.getChatHistory.mockResolvedValue(history);
+    rpcMock.acp.getSessionState.mockResolvedValue(state);
+
+    const store = new ChatStore('conv-1', 'proj-1', 'task-1');
+    await flushAsync(10); // bootstrap complete
+
+    await emit(acpSessionStateChannel, {
+      conversationId: 'conv-1',
+      lifecycle: 'working',
+      activeTurnId: 'turn-live',
+    });
+
+    await emit(acpSessionUpdateChannel, {
+      conversationId: 'conv-1',
+      turnId: 'turn-live',
+      update: {
+        sessionUpdate: 'agent_message_chunk' as const,
+        content: { type: 'text' as const, text: 'new' },
+        messageId: 'msg-live',
+      },
+      seq: 0,
+    });
+
+    const assistantItems = store.items.filter(
+      (it): it is ChatMessageItem => it.kind === 'message' && it.role === 'assistant'
+    );
+    expect(assistantItems).toHaveLength(1);
+    expect(assistantItems[0].text).toBe('new');
+    expect(store.isWorking).toBe(true);
+  });
+});
+
+describe('ChatStore – event channel subscriptions', () => {
+  beforeEach(() => {
+    listeners.clear();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    listeners.clear();
+  });
+
+  it('acpSessionStateChannel drives isWorking / isReady / isClosed', async () => {
+    const { rpc } = await import('@renderer/lib/ipc');
+    const rpc_ = rpc as unknown as { acp: { getSessionState: Mock; getChatHistory: Mock } };
+    rpc_.acp.getChatHistory.mockResolvedValue({ turns: [], complete: true });
+    rpc_.acp.getSessionState.mockResolvedValue({ lifecycle: 'ready', activeTurn: null, model: null });
+
+    const store = new ChatStore('conv-1', 'proj-1', 'task-1');
+    await flushAsync(10);
+
+    await emit(acpSessionStateChannel, {
+      conversationId: 'conv-1',
+      lifecycle: 'working',
+      activeTurnId: 'turn-x',
+    });
+    expect(store.isWorking).toBe(true);
+    expect(store.isReady).toBe(true);
+    expect(store.isClosed).toBe(false);
+
+    await emit(acpSessionStateChannel, {
+      conversationId: 'conv-1',
+      lifecycle: 'ready',
+      activeTurnId: null,
+    });
+    expect(store.isWorking).toBe(false);
+    expect(store.isReady).toBe(true);
+
+    await emit(acpSessionStateChannel, {
+      conversationId: 'conv-1',
+      lifecycle: 'closed',
+      activeTurnId: null,
+    });
+    expect(store.isClosed).toBe(true);
+    expect(store.isWorking).toBe(false);
+  });
+
+  it('acpTurnCommittedChannel finalizes streaming items (turn_done)', async () => {
+    const { rpc } = await import('@renderer/lib/ipc');
+    const rpc_ = rpc as unknown as { acp: { getSessionState: Mock; getChatHistory: Mock } };
+
+    const msgUpdate = {
+      sessionUpdate: 'agent_message_chunk' as const,
+      content: { type: 'text' as const, text: 'hi' },
+      messageId: 'msg-commit',
+    };
+
+    const history: ChatHistory = { turns: [], complete: true };
+    const state: SessionState = {
+      lifecycle: 'working',
+      activeTurn: makeActiveTurn({
+        updates: [{ seq: 0, update: msgUpdate }],
+      }),
+      model: null,
+    };
+
+    rpc_.acp.getChatHistory.mockResolvedValue(history);
+    rpc_.acp.getSessionState.mockResolvedValue(state);
+
+    const store = new ChatStore('conv-1', 'proj-1', 'task-1');
+    await flushAsync(10);
+
+    // Should be streaming.
+    expect(store.items.some((it) => it.kind === 'message' && it.streaming)).toBe(true);
+
+    // Commit the turn.
+    await emit(acpTurnCommittedChannel, {
+      conversationId: 'conv-1',
+      turn: makeCompleteTurn([{ seq: 0, update: msgUpdate }]),
+    });
+
+    // No more streaming items.
+    const streaming = store.items.filter((it) => it.kind === 'message' && it.streaming);
+    expect(streaming).toHaveLength(0);
+  });
+
+  it('ignores events for other conversation ids', async () => {
+    const { rpc } = await import('@renderer/lib/ipc');
+    const rpc_ = rpc as unknown as { acp: { getSessionState: Mock; getChatHistory: Mock } };
+    rpc_.acp.getChatHistory.mockResolvedValue({ turns: [], complete: true });
+    rpc_.acp.getSessionState.mockResolvedValue({ lifecycle: 'ready', activeTurn: null, model: null });
+
+    const store = new ChatStore('conv-1', 'proj-1', 'task-1');
+    await flushAsync(10);
+
+    // Emit for a different conversation.
+    await emit(acpSessionStateChannel, {
+      conversationId: 'other-conv',
+      lifecycle: 'working',
+      activeTurnId: 'turn-x',
+    });
+
+    expect(store.isWorking).toBe(false);
   });
 });

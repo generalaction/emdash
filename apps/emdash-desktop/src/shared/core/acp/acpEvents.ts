@@ -1,12 +1,18 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import { defineEvent } from '@shared/lib/ipc/events';
+import type { AcpTurn, SessionLifecycle } from './acpTurns';
 
-/** Forwarded from the main process whenever the ACP agent emits a session/update notification. */
+/**
+ * Forwarded from the main process whenever the ACP agent emits a
+ * session/update notification.  Only emitted for the currently-active turn;
+ * history is served via the getChatHistory RPC.
+ */
 export const acpSessionUpdateChannel = defineEvent<{
   conversationId: string;
+  /** Turn this update belongs to (matches the current activeTurnId). */
+  turnId: string;
   update: SessionUpdate;
-  /** Monotonic per-session sequence number.  Used by the renderer to dedup
-   *  buffered history against live updates that race in during getTranscript(). */
+  /** Monotonic per-conversation sequence number for cross-reload dedup. */
   seq: number;
 }>('acp:session-update');
 
@@ -17,21 +23,22 @@ export const acpSessionClosedChannel = defineEvent<{
 }>('acp:session-closed');
 
 /**
- * Emitted around a loadSession replay so the renderer can reset the transcript
- * before replay arrives and finalize streaming when it ends.
- * `start` fires before the loadSession call; `end` fires after it resolves.
+ * Emitted when the session lifecycle changes (starting → replaying → ready →
+ * working → closed) so the renderer can update isReady / isWorking without
+ * polling.
  */
-export const acpSessionReplayChannel = defineEvent<{
+export const acpSessionStateChannel = defineEvent<{
   conversationId: string;
-  phase: 'start' | 'end';
-}>('acp:session-replay');
+  lifecycle: SessionLifecycle;
+  /** Non-null when lifecycle === 'working'. */
+  activeTurnId: string | null;
+}>('acp:session-state');
 
 /**
- * Emitted by the main process to report ACP session lifecycle readiness.
- * `starting` fires when the session setup begins; `ready` fires once the
- * agent has a live session and can accept prompts.
+ * Emitted when the active turn is committed to history (prompt() resolves or
+ * rejects).  The renderer uses this to finalise streaming state.
  */
-export const acpSessionStatusChannel = defineEvent<{
+export const acpTurnCommittedChannel = defineEvent<{
   conversationId: string;
-  status: 'starting' | 'ready';
-}>('acp:session-status');
+  turn: AcpTurn;
+}>('acp:turn-committed');

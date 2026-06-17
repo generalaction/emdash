@@ -41,7 +41,6 @@
     "@chenglou/pretext": "^0.0.8",
     "@emdash/ui": "workspace:*",
     "@fontsource-variable/inter": "^5.2.8",
-    "@fontsource/cascadia-code": "^5.2.3",
     "@shikijs/langs": "^4.2.0",
     "@shikijs/themes": "^4.2.0",
     "remark-gfm": "^4.0.1",

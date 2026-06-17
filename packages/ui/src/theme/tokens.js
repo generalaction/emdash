@@ -2526,7 +2526,7 @@ export const tokens = {
     '.': ['Inter Variable', 'sans-serif'],
   },
   'typography.font-family.mono': {
-    '.': ['Cascadia Code', 'ui-monospace', 'monospace'],
+    '.': ['Menlo', 'Monaco', 'Courier New', 'monospace'],
   },
   'typography.body.size': {
     '.': {
@@ -2544,10 +2544,10 @@ export const tokens = {
     },
   },
   'typography.body.bold-weight': {
-    '.': 700,
+    '.': 600,
   },
   'typography.body.link-weight': {
-    '.': 500,
+    '.': 400,
   },
   'typography.h1.size': {
     '.': {
@@ -2556,7 +2556,7 @@ export const tokens = {
     },
   },
   'typography.h1.weight': {
-    '.': 700,
+    '.': 600,
   },
   'typography.h1.line-height': {
     '.': {
@@ -2571,7 +2571,7 @@ export const tokens = {
     },
   },
   'typography.h2.weight': {
-    '.': 700,
+    '.': 600,
   },
   'typography.h2.line-height': {
     '.': {
@@ -2616,7 +2616,7 @@ export const tokens = {
     },
   },
   'typography.code-lang.weight': {
-    '.': 500,
+    '.': 400,
   },
   'typography.code-lang.line-height': {
     '.': {
@@ -2631,7 +2631,7 @@ export const tokens = {
     },
   },
   'typography.inline-code.weight': {
-    '.': 600,
+    '.': 400,
   },
   'typography.inline-code.line-height': {
     '.': {
@@ -2646,7 +2646,7 @@ export const tokens = {
     },
   },
   'typography.mention.weight': {
-    '.': 700,
+    '.': 400,
   },
   'typography.mention.line-height': {
     '.': {
@@ -2675,7 +2675,7 @@ export const tokens = {
         value: 14,
         unit: 'px',
       },
-      fontWeight: 700,
+      fontWeight: 600,
       lineHeight: {
         value: 20,
         unit: 'px',
@@ -2704,7 +2704,7 @@ export const tokens = {
         value: 14,
         unit: 'px',
       },
-      fontWeight: 500,
+      fontWeight: 400,
       lineHeight: {
         value: 20,
         unit: 'px',
@@ -2718,7 +2718,7 @@ export const tokens = {
         value: 20,
         unit: 'px',
       },
-      fontWeight: 700,
+      fontWeight: 600,
       lineHeight: {
         value: 28,
         unit: 'px',
@@ -2732,7 +2732,7 @@ export const tokens = {
         value: 17,
         unit: 'px',
       },
-      fontWeight: 700,
+      fontWeight: 600,
       lineHeight: {
         value: 25,
         unit: 'px',
@@ -2755,12 +2755,12 @@ export const tokens = {
   },
   'type.inline-code': {
     '.': {
-      fontFamily: ['Cascadia Code', 'ui-monospace', 'monospace'],
+      fontFamily: ['Menlo', 'Monaco', 'Courier New', 'monospace'],
       fontSize: {
         value: 12,
         unit: 'px',
       },
-      fontWeight: 600,
+      fontWeight: 400,
       lineHeight: {
         value: 20,
         unit: 'px',
@@ -2774,7 +2774,7 @@ export const tokens = {
         value: 14,
         unit: 'px',
       },
-      fontWeight: 700,
+      fontWeight: 400,
       lineHeight: {
         value: 20,
         unit: 'px',
@@ -2783,7 +2783,7 @@ export const tokens = {
   },
   'type.code': {
     '.': {
-      fontFamily: ['Cascadia Code', 'ui-monospace', 'monospace'],
+      fontFamily: ['Menlo', 'Monaco', 'Courier New', 'monospace'],
       fontSize: {
         value: 14,
         unit: 'px',
@@ -2802,7 +2802,7 @@ export const tokens = {
         value: 14,
         unit: 'px',
       },
-      fontWeight: 500,
+      fontWeight: 400,
       lineHeight: {
         value: 20,
         unit: 'px',

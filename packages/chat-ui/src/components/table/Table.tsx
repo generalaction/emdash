@@ -28,20 +28,20 @@ export type TableProps = {
 
 export function Table(props: TableProps) {
   return (
-    <BlockFrame layout={props.block} class="overflow-x-auto">
+    <BlockFrame layout={props.block} class="overflow-x-auto border rounded-lg">
       <table
-        class={`${styles['pchat-table']} rounded-lg overflow-hidden`}
+        class={`${styles['pchat-table']}`}
         style={{ width: `${props.block.tableWidth}px`, 'table-layout': 'fixed' }}
       >
         <colgroup>
           <For each={props.block.colWidths}>{(w) => <col style={{ width: `${w}px` }} />}</For>
         </colgroup>
-        <thead>
+        <thead class="bg-background-1">
           <tr>
             <For each={props.block.header}>
               {(cell) => (
                 <th
-                  class="overflow-hidden border border-border bg-background-1 text-ellipsis whitespace-nowrap"
+                  class="overflow-hidden border-b border-r last:border-r-0 border-border text-ellipsis whitespace-nowrap"
                   title={cell}
                 >
                   {cell}
@@ -52,12 +52,12 @@ export function Table(props: TableProps) {
         </thead>
         <tbody>
           <For each={props.block.rows}>
-            {(row) => (
+            {(row, i) => (
               <tr>
                 <For each={row}>
                   {(cell) => (
                     <td
-                      class="overflow-hidden border border-border text-ellipsis whitespace-nowrap"
+                      class={`overflow-hidden border-b border-r last:border-r-0 border-border text-ellipsis whitespace-nowrap ${i() === props.block.rows.length - 1 ? 'border-b-0' : ''}`}
                       title={cell}
                     >
                       {cell}

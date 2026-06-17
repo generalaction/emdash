@@ -2689,7 +2689,7 @@
         "$value": ["Inter Variable", "sans-serif"]
       },
       "mono": {
-        "$value": ["Cascadia Code", "ui-monospace", "monospace"]
+        "$value": ["Menlo", "Monaco", "Courier New", "monospace"]
       }
     },
     "body": {
@@ -2707,11 +2707,11 @@
       },
       "bold-weight": {
         "$type": "fontWeight",
-        "$value": 700
+        "$value": 600
       },
       "link-weight": {
         "$type": "fontWeight",
-        "$value": 500
+        "$value": 400
       }
     },
     "h1": {
@@ -2721,7 +2721,7 @@
       },
       "weight": {
         "$type": "fontWeight",
-        "$value": 700
+        "$value": 600
       },
       "line-height": {
         "$type": "dimension",
@@ -2735,7 +2735,7 @@
       },
       "weight": {
         "$type": "fontWeight",
-        "$value": 700
+        "$value": 600
       },
       "line-height": {
         "$type": "dimension",
@@ -2777,7 +2777,7 @@
       },
       "weight": {
         "$type": "fontWeight",
-        "$value": 500
+        "$value": 400
       },
       "line-height": {
         "$type": "dimension",
@@ -2791,7 +2791,7 @@
       },
       "weight": {
         "$type": "fontWeight",
-        "$value": 600
+        "$value": 400
       },
       "line-height": {
         "$type": "dimension",
@@ -2805,7 +2805,7 @@
       },
       "weight": {
         "$type": "fontWeight",
-        "$value": 700
+        "$value": 400
       },
       "line-height": {
         "$type": "dimension",

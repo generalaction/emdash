@@ -10,11 +10,12 @@ import type {
   InitializeResponse,
   LoadSessionRequest,
   NewSessionRequest,
+  PromptResponse,
   RequestPermissionRequest,
   RequestPermissionResponse,
   SessionNotification,
-  SessionUpdate,
   SetSessionConfigOptionRequest,
+  StopReason,
   WriteTextFileRequest,
   WriteTextFileResponse,
   ReadTextFileRequest,
@@ -29,10 +30,11 @@ import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import {
   acpSessionClosedChannel,
-  acpSessionReplayChannel,
-  acpSessionStatusChannel,
+  acpSessionStateChannel,
   acpSessionUpdateChannel,
+  acpTurnCommittedChannel,
 } from '@shared/core/acp/acpEvents';
+import type { AcpTurn, ChatHistory, SessionLifecycle, SessionState, TurnSource, TurnStatus } from '@shared/core/acp/acpTurns';
 import type { AgentEvent } from '@shared/core/agents/agentEvents';
 import { agentSessionExitedChannel } from '@shared/core/agents/agentEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';
@@ -52,14 +54,14 @@ interface AcpConversation {
   acpSessionId: string | null;
   /** Model to apply after session is established (from persisted config). */
   pendingModel: string | null;
-  /**
-   * Ordered buffer of every SessionUpdate forwarded to the renderer, tagged
-   * with a monotonic sequence number.  Used by getTranscript() so a reloaded
-   * renderer can replay history without re-driving the agent.
-   */
-  updates: { seq: number; update: SessionUpdate }[];
-  /** Next sequence number to assign to an incoming update. */
+  /** All turns for this conversation (committed + at most one active). */
+  turns: AcpTurn[];
+  /** Id of the currently-active turn, or null when idle. */
+  activeTurnId: string | null;
+  /** Monotonic per-conversation sequence counter for cross-reload dedup. */
   nextSeq: number;
+  /** Coarse session lifecycle state. */
+  lifecycle: SessionLifecycle;
 }
 
 /**
@@ -111,8 +113,9 @@ class AcpSessionManager {
 
     if (this.conversationIndex.has(conversationId)) {
       log.debug('AcpSessionManager: conversation already running', { conversationId });
-      // Session already exists — report ready so any late subscriber gets the current state.
-      events.emit(acpSessionStatusChannel, { conversationId, status: 'ready' });
+      // Session already exists — emit current state so any late subscriber syncs.
+      const conv = this.resolveConv(conversationId);
+      if (conv) this.emitState(conv);
       return;
     }
 
@@ -137,14 +140,16 @@ class AcpSessionManager {
       providerId,
       acpSessionId: conversation.providerSessionId ?? null,
       pendingModel: conversation.model ?? null,
-      updates: [],
+      turns: [],
+      activeTurnId: null,
       nextSeq: 0,
+      lifecycle: 'starting',
     };
 
     pool.conversations.set(conversationId, conv);
     this.conversationIndex.set(conversationId, { poolKey, acpSessionId: conv.acpSessionId });
 
-    events.emit(acpSessionStatusChannel, { conversationId, status: 'starting' });
+    this.emitState(conv);
 
     try {
       let acpSessionId: string;
@@ -157,10 +162,10 @@ class AcpSessionManager {
         const originalSessionId = conv.acpSessionId;
         pool.sessionToConversation.set(originalSessionId, conversationId);
         pool.loadingConversations.add(conversationId);
+        this.openTurn(conv, 'replay');
         try {
-          events.emit(acpSessionReplayChannel, { conversationId, phase: 'start' });
           await pool.connection.loadSession(this.buildLoadSessionRequest(path, originalSessionId));
-          events.emit(acpSessionReplayChannel, { conversationId, phase: 'end' });
+          this.closeTurn(conv, 'complete');
           // conv.acpSessionId may have been updated to a new ID by the dynamic routing
           // fallback in buildClientHandler. Use that updated value.
           acpSessionId = conv.acpSessionId;
@@ -172,8 +177,7 @@ class AcpSessionManager {
           log.warn('AcpSessionManager: loadSession failed, starting new session', {
             conversationId,
           });
-          // Close the replay window so the renderer's ChatStore finalizes correctly.
-          events.emit(acpSessionReplayChannel, { conversationId, phase: 'end' });
+          this.closeTurn(conv, 'complete');
           // Clean up both the original pre-registration and any dynamically registered ID.
           pool.sessionToConversation.delete(originalSessionId);
           if (conv.acpSessionId !== originalSessionId) {
@@ -203,7 +207,8 @@ class AcpSessionManager {
       }
 
       // Session is ready — the agent can now accept prompts.
-      events.emit(acpSessionStatusChannel, { conversationId, status: 'ready' });
+      conv.lifecycle = 'ready';
+      this.emitState(conv);
 
       // Do not emit 'start' here — session setup alone is not agent activity.
       // start/stop are emitted in sendPromptInternal so status reflects actual
@@ -243,6 +248,8 @@ class AcpSessionManager {
     if (!pool) return;
     try {
       await pool.connection.cancel({ sessionId: entry.acpSessionId });
+      // The in-flight prompt() resolves with stopReason:'cancelled', which
+      // will call closeTurn('cancelled') via sendPromptInternal.
     } catch (err) {
       log.warn('AcpSessionManager: cancel failed', {
         conversationId,
@@ -286,17 +293,6 @@ class AcpSessionManager {
     }
   }
 
-  /**
-   * Returns the current readiness state of a conversation's ACP session.
-   * Used by the renderer to bootstrap `ChatStore.isReady` when the status
-   * event may have fired before the store was created.
-   */
-  getSessionStatus(conversationId: string): 'ready' | 'starting' | 'none' {
-    const entry = this.conversationIndex.get(conversationId);
-    if (!entry) return 'none';
-    return entry.acpSessionId ? 'ready' : 'starting';
-  }
-
   async setModel(conversationId: string, model: string): Promise<void> {
     const entry = this.conversationIndex.get(conversationId);
     const pool = entry ? this.pools.get(entry.poolKey) : undefined;
@@ -320,16 +316,38 @@ class AcpSessionManager {
   }
 
   /**
-   * Returns a snapshot of every SessionUpdate buffered for the conversation
-   * since the current session was established.  Used by a reloaded renderer to
-   * replay transcript history without re-driving the agent via loadSession.
-   * Returns an empty array when the session is not running.
+   * Returns committed (non-active) turns for the conversation.
+   * `complete` is false while the session is still starting or a loadSession
+   * replay is in progress — the renderer can show a loading indicator.
+   * Returns an empty, complete result for unknown/stopped conversations.
    */
-  getTranscript(conversationId: string): { seq: number; update: SessionUpdate }[] {
-    const entry = this.conversationIndex.get(conversationId);
-    const pool = entry ? this.pools.get(entry.poolKey) : undefined;
-    const conv = pool?.conversations.get(conversationId);
-    return conv ? conv.updates.slice() : [];
+  getChatHistory(conversationId: string): ChatHistory {
+    const conv = this.resolveConv(conversationId);
+    if (!conv) return { turns: [], complete: true };
+    return {
+      turns: conv.turns
+        .filter((t) => t.status !== 'active')
+        .map((t) => structuredClone(t)),
+      complete: conv.lifecycle !== 'starting' && conv.lifecycle !== 'replaying',
+    };
+  }
+
+  /**
+   * Returns the current session lifecycle + active turn (if any).
+   * The active turn snapshot includes all updates received so far, so a
+   * reloaded renderer can resume streaming from where it left off.
+   */
+  getSessionState(conversationId: string): SessionState {
+    const conv = this.resolveConv(conversationId);
+    if (!conv) return { lifecycle: 'closed', activeTurn: null, model: null };
+    const activeTurn = conv.activeTurnId
+      ? (conv.turns.find((t) => t.id === conv.activeTurnId) ?? null)
+      : null;
+    return {
+      lifecycle: conv.lifecycle,
+      activeTurn: activeTurn ? structuredClone(activeTurn) : null,
+      model: conv.pendingModel,
+    };
   }
 
   // -------------------------------------------------------------------------
@@ -462,6 +480,14 @@ class AcpSessionManager {
     // Fan out close events to every conversation that was live in this pool.
     for (const conv of pool.conversations.values()) {
       this.conversationIndex.delete(conv.conversationId);
+
+      // Close any active turn so history stays consistent.
+      if (conv.activeTurnId) {
+        this.closeTurnInternal(conv, 'error');
+      }
+      conv.lifecycle = 'closed';
+      this.emitState(conv);
+
       events.emit(acpSessionClosedChannel, {
         conversationId: conv.conversationId,
         exitCode,
@@ -512,9 +538,16 @@ class AcpSessionManager {
         const conv = pool.conversations.get(conversationId);
         if (!conv) return;
 
+        // Lazy-open a turn if an update arrives with no active turn (defensive;
+        // in practice prompt() always opens one first for live turns).
+        if (!conv.activeTurnId) {
+          this.openTurn(conv, 'live');
+        }
+        const turn = conv.turns.find((t) => t.id === conv.activeTurnId)!;
+
         const seq = conv.nextSeq++;
-        conv.updates.push({ seq, update });
-        events.emit(acpSessionUpdateChannel, { conversationId, update, seq });
+        turn.updates.push({ seq, update });
+        events.emit(acpSessionUpdateChannel, { conversationId, turnId: turn.id, update, seq });
       },
 
       requestPermission: async (
@@ -562,8 +595,75 @@ class AcpSessionManager {
   }
 
   // -------------------------------------------------------------------------
+  // Turn lifecycle helpers
+  // -------------------------------------------------------------------------
+
+  private openTurn(conv: AcpConversation, source: TurnSource): AcpTurn {
+    const turn: AcpTurn = {
+      id: `turn-${conv.conversationId}-${conv.turns.length}`,
+      status: 'active',
+      source,
+      startSeq: conv.nextSeq,
+      endSeq: null,
+      updates: [],
+    };
+    conv.turns.push(turn);
+    conv.activeTurnId = turn.id;
+    conv.lifecycle = source === 'replay' ? 'replaying' : 'working';
+    this.emitState(conv);
+    return turn;
+  }
+
+  /** Mutate the active turn to committed status and emit events. */
+  private closeTurnInternal(conv: AcpConversation, status: Exclude<TurnStatus, 'active'>): void {
+    const turn = conv.turns.find((t) => t.id === conv.activeTurnId);
+    if (!turn) return;
+    turn.status = status;
+    turn.endSeq = conv.nextSeq;
+    conv.activeTurnId = null;
+    events.emit(acpTurnCommittedChannel, {
+      conversationId: conv.conversationId,
+      turn: structuredClone(turn),
+    });
+  }
+
+  /**
+   * Close the active turn, set lifecycle back to ready, and emit state.
+   * Callers that set a different lifecycle afterwards (e.g. 'closed') can
+   * mutate conv.lifecycle directly before calling emitState.
+   */
+  private closeTurn(conv: AcpConversation, status: Exclude<TurnStatus, 'active'>): void {
+    this.closeTurnInternal(conv, status);
+    // Only transition to 'ready' if we're not already 'closed'.
+    if (conv.lifecycle !== 'closed') {
+      conv.lifecycle = 'ready';
+    }
+    this.emitState(conv);
+  }
+
+  private emitState(conv: AcpConversation): void {
+    events.emit(acpSessionStateChannel, {
+      conversationId: conv.conversationId,
+      lifecycle: conv.lifecycle,
+      activeTurnId: conv.activeTurnId,
+    });
+  }
+
+  private statusFromStopReason(r: StopReason): Exclude<TurnStatus, 'active'> {
+    return r === 'cancelled' ? 'cancelled' : 'complete';
+  }
+
+  // -------------------------------------------------------------------------
   // Internal helpers
   // -------------------------------------------------------------------------
+
+  /** Look up an AcpConversation without throwing — returns null if not found. */
+  private resolveConv(conversationId: string): AcpConversation | null {
+    const entry = this.conversationIndex.get(conversationId);
+    if (!entry) return null;
+    const pool = this.pools.get(entry.poolKey);
+    return pool?.conversations.get(conversationId) ?? null;
+  }
 
   private resolveConversation(conversationId: string): { pool: AcpPool; conv: AcpConversation } {
     const entry = this.conversationIndex.get(conversationId);
@@ -584,19 +684,22 @@ class AcpSessionManager {
     text: string
   ): Promise<void> {
     if (!conv.acpSessionId) return;
+    this.openTurn(conv, 'live');
     this.emitAgentEvent(conv, 'start');
 
     try {
-      await pool.connection.prompt({
+      const res: PromptResponse = await pool.connection.prompt({
         sessionId: conv.acpSessionId,
         prompt: [{ type: 'text', text }],
       });
+      this.closeTurn(conv, this.statusFromStopReason(res.stopReason));
       this.emitAgentEvent(conv, 'stop');
     } catch (err) {
       log.error('AcpSessionManager: prompt error', {
         conversationId: conv.conversationId,
         error: err instanceof Error ? err.message : String(err),
       });
+      this.closeTurn(conv, 'error');
       this.emitAgentEvent(conv, 'error');
     }
   }

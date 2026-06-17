@@ -133,8 +133,25 @@ export function createTranscript(): TranscriptApi {
     dispatch(event) {
       setState(
         produce((s) => {
+          /**
+           * Auto-finalize any still-active thinking row when a content event
+           * that follows reasoning arrives.  This stops the thinking header from
+           * shimmering "Thinking Ns" mid-turn once the agent transitions from
+           * reasoning to response — no explicit `thinking_done` signal required.
+           */
+          const finalizeOpenThinking = (): void => {
+            if (!s.activeTurn) return;
+            for (const item of s.activeTurn) {
+              if (item.kind === 'thinking' && item.status === 'thinking') {
+                item.status = 'done';
+                item.durationMs = Date.now() - item.startedAt;
+              }
+            }
+          };
+
           switch (event.type) {
             case 'message_chunk': {
+              finalizeOpenThinking();
               if (s.activeTurn === null) s.activeTurn = [];
               const existing = s.activeTurn.find(
                 (it): it is ChatMessage => it.kind === 'message' && it.id === event.id
@@ -154,6 +171,7 @@ export function createTranscript(): TranscriptApi {
             }
 
             case 'tool_start': {
+              finalizeOpenThinking();
               if (s.activeTurn === null) s.activeTurn = [];
               const existing = s.activeTurn.find(
                 (it): it is ChatToolCall => it.kind === 'tool' && it.id === event.id
@@ -224,6 +242,7 @@ export function createTranscript(): TranscriptApi {
             }
 
             case 'file_op_start': {
+              finalizeOpenThinking();
               if (s.activeTurn === null) s.activeTurn = [];
               const existing = s.activeTurn.find(
                 (it): it is ChatFileOpToolCall => it.kind === 'file-op' && it.id === event.id
@@ -262,6 +281,7 @@ export function createTranscript(): TranscriptApi {
             }
 
             case 'execute_start': {
+              finalizeOpenThinking();
               if (s.activeTurn === null) s.activeTurn = [];
               const existing = s.activeTurn.find(
                 (it): it is ChatExecute => it.kind === 'execute' && it.id === event.id

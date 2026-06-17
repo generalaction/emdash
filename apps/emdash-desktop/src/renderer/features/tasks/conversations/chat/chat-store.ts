@@ -11,9 +11,9 @@ import { events, rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import {
   acpSessionClosedChannel,
-  acpSessionReplayChannel,
-  acpSessionStatusChannel,
+  acpSessionStateChannel,
   acpSessionUpdateChannel,
+  acpTurnCommittedChannel,
 } from '@shared/core/acp/acpEvents';
 
 export type ChatMessageRole = 'user' | 'assistant' | 'thought';
@@ -29,7 +29,7 @@ export type ChatMessageItem = {
   streaming: boolean;
 };
 
-/** A tool call line, positioned chronologically within the transcript. */
+/** A generic tool call line. */
 export type ChatToolItem = {
   kind: 'tool';
   id: string;
@@ -61,15 +61,7 @@ export type ChatExecuteItem = {
 /** A single ordered entry in the chat transcript. */
 export type ChatItem = ChatMessageItem | ChatToolItem | ChatFileOpItem | ChatExecuteItem;
 
-/**
- * Convert desktop ChatItem[] to chat-ui ChatItem[] for TranscriptApi.seed().
- *
- * BOUNDARY INVARIANT: Only plain, non-observable snapshots may cross into
- * TranscriptApi (seed/dispatch). Never pass MobX observable references here —
- * the Solid store will proxy them and MobX's own proxy will crash on nested reads.
- * All fields must be copied as plain JS values; nested arrays (e.g. `ops`) must
- * be mapped into fresh literals.
- */
+/** Convert desktop ChatItem[] to chat-ui ChatItem[] for TranscriptApi.seed(). */
 function toChatUiItems(items: ChatItem[]): UiChatItem[] {
   return items.flatMap((item): UiChatItem[] => {
     if (item.kind === 'tool') {
@@ -90,8 +82,7 @@ function toChatUiItems(items: ChatItem[]): UiChatItem[] {
           id: item.id,
           op: item.op,
           status: item.status,
-          // Deep-copy ops into plain literals — never forward observable arrays.
-          ops: item.ops.map((o) => ({ path: o.path })),
+          ops: item.ops,
         } satisfies ChatFileOpToolCall,
       ];
     }
@@ -112,6 +103,7 @@ function toChatUiItems(items: ChatItem[]): UiChatItem[] {
         {
           kind: 'thinking',
           id: item.id,
+          // Committed history turns always have finalized thought rows.
           status: 'done',
           text: item.text,
           startedAt: 0,
@@ -175,20 +167,6 @@ export class ChatStore {
   private readonly _unsubs: (() => void)[] = [];
 
   /**
-   * Last sequence number applied from the main-process buffer or live stream.
-   * Initialised to -1 so every update (seq >= 0) is accepted on first contact.
-   * Reset to -1 on replay-start so a fresh loadSession re-buffers from 0.
-   */
-  private _lastSeq = -1;
-  /**
-   * True while the initial getTranscript() fetch is in-flight.  Live updates
-   * that arrive during this window are held in _pendingLive and applied after
-   * the buffered transcript has been replayed, deduplicated by seq.
-   */
-  private _buffering = true;
-  private _pendingLive: { seq: number; update: SessionUpdate }[] = [];
-
-  /**
    * Maps a streaming message key (`${role}:${messageId}`) to its item, so chunks
    * for the same role+message merge while different roles stay separate bubbles.
    */
@@ -197,6 +175,19 @@ export class ChatStore {
   /** Bound chat-ui transcript — set when the ChatTranscript component mounts. */
   private _transcript: TranscriptApi | null = null;
 
+  /**
+   * False while the initial getChatHistory/getSessionState fetch is in-flight.
+   * Live updates that arrive during this window are held in _pendingLive.
+   */
+  private _historyLoaded = false;
+  private _pendingLive: { turnId: string; seq: number; update: SessionUpdate }[] = [];
+
+  /**
+   * Last sequence number applied from either the history buffer or the live
+   * stream.  Used to dedup live updates that race the initial query.
+   */
+  private _lastSeq = -1;
+
   constructor(conversationId: string, projectId: string, taskId: string, initialModel?: string) {
     this._conversationId = conversationId;
     this._projectId = projectId;
@@ -204,10 +195,7 @@ export class ChatStore {
     if (initialModel) this.selectedModel = initialModel;
 
     makeObservable(this, {
-      // Shallow: MobX tracks array membership (push/replace/clear) but does not
-      // deep-proxy item objects. This keeps item internals as plain JS so they
-      // can never accidentally cross into the chat-ui Solid store as observable proxies.
-      items: observable.shallow,
+      items: observable,
       isWorking: observable,
       isClosed: observable,
       isReady: observable,
@@ -219,14 +207,15 @@ export class ChatStore {
       setModel: action,
     });
 
+    // Live update deltas — only the active turn streams.
     this._unsubs.push(
       events.on(
         acpSessionUpdateChannel,
         action((payload) => {
           if (payload.conversationId !== this._conversationId) return;
-          if (this._buffering) {
-            // Hold updates that race in while getTranscript() is in-flight.
-            this._pendingLive.push({ seq: payload.seq, update: payload.update });
+          if (!this._historyLoaded) {
+            // Hold updates that race in while the initial query is in-flight.
+            this._pendingLive.push({ turnId: payload.turnId, seq: payload.seq, update: payload.update });
           } else if (payload.seq > this._lastSeq) {
             this._applyUpdate(payload.update);
             this._lastSeq = payload.seq;
@@ -235,6 +224,31 @@ export class ChatStore {
       )
     );
 
+    // Session lifecycle transitions (ready/working/closed).
+    this._unsubs.push(
+      events.on(
+        acpSessionStateChannel,
+        action((payload) => {
+          if (payload.conversationId !== this._conversationId) return;
+          this.isReady = payload.lifecycle === 'ready' || payload.lifecycle === 'working';
+          this.isWorking = payload.lifecycle === 'working';
+          this.isClosed = payload.lifecycle === 'closed';
+        })
+      )
+    );
+
+    // Active turn committed — finalize streaming items and dispatch turn_done.
+    this._unsubs.push(
+      events.on(
+        acpTurnCommittedChannel,
+        action((payload) => {
+          if (payload.conversationId !== this._conversationId) return;
+          this._finalizeStreaming();
+        })
+      )
+    );
+
+    // Session closed — also finalise any open streaming state.
     this._unsubs.push(
       events.on(
         acpSessionClosedChannel,
@@ -247,81 +261,59 @@ export class ChatStore {
       )
     );
 
-    // Reset transcript before a loadSession replay and finalize streaming once
-    // all replayed chunks have arrived.
-    this._unsubs.push(
-      events.on(
-        acpSessionReplayChannel,
-        action((payload) => {
-          if (payload.conversationId !== this._conversationId) return;
-          if (payload.phase === 'start') {
-            this.items = [];
-            this._streamKeyMap.clear();
-            this.isClosed = false;
-            // Align seq space: the new loadSession replay will re-buffer from
-            // seq 0, so reset so we accept the full fresh stream.
-            this._lastSeq = -1;
-            this._transcript?.reset();
-          } else {
+    // Bootstrap: pull history (committed turns) and current session state.
+    // History turns are known-complete so each one is finalized deterministically,
+    // fixing the stuck-thinking race that existed in the old event-stream model.
+    void Promise.all([
+      rpc.acp.getSessionState(this._conversationId),
+      rpc.acp.getChatHistory(this._conversationId),
+    ])
+      .then(
+        action(([state, history]) => {
+          // 1. Committed history: reduce each turn then finalize.
+          for (const turn of history.turns) {
+            for (const { seq, update } of turn.updates) {
+              this._applyUpdate(update);
+              this._lastSeq = Math.max(this._lastSeq, seq);
+            }
+            // Each committed turn is known-complete: finalize unconditionally.
             this._finalizeStreaming();
           }
-        })
-      )
-    );
 
-    // Track ACP session readiness so the composer can gate Send and the panel
-    // can show a loading state while the agent cold-starts or replays history.
-    this._unsubs.push(
-      events.on(
-        acpSessionStatusChannel,
-        action((payload) => {
-          if (payload.conversationId !== this._conversationId) return;
-          if (payload.status === 'ready') this.isReady = true;
-          else if (payload.status === 'starting') this.isReady = false;
-        })
-      )
-    );
-
-    // Bootstrap in case the status event fired before this store was created
-    // (e.g. keepAlive pool: tab was already hydrated when ChatStore is lazily
-    // constructed). Only upgrade: never clobber a 'ready' that arrived first.
-    void rpc.acp.getSessionStatus(this._conversationId).then(
-      action((status) => {
-        if (status === 'ready' && !this.isReady) this.isReady = true;
-      })
-    );
-
-    // Fetch the transcript buffer from the main process so a reloaded renderer
-    // can replay history without re-driving the agent via loadSession.
-    void rpc.acp
-      .getTranscript(this._conversationId)
-      .then(
-        action((buffered) => {
-          for (const { seq, update } of buffered) {
-            if (seq > this._lastSeq) {
+          // 2. Active turn (mid-flight on reload): reduce without finalizing.
+          if (state.activeTurn) {
+            for (const { seq, update } of state.activeTurn.updates) {
               this._applyUpdate(update);
-              this._lastSeq = seq;
+              this._lastSeq = Math.max(this._lastSeq, seq);
             }
           }
-          // Flush live updates that raced in during the async fetch.
-          for (const { seq, update } of this._pendingLive) {
-            if (seq > this._lastSeq) {
-              this._applyUpdate(update);
-              this._lastSeq = seq;
-            }
+
+          // 3. Sync lifecycle state.
+          this.isWorking = state.lifecycle === 'working';
+          this.isReady = state.lifecycle === 'ready' || state.lifecycle === 'working';
+          this.isClosed = state.lifecycle === 'closed';
+          if (state.model && state.model !== 'default') {
+            this.selectedModel = state.model;
           }
         })
       )
       .catch((err) => {
-        log.warn('ChatStore: getTranscript failed', {
+        log.warn('ChatStore: initial query failed', {
           conversationId: this._conversationId,
           error: err instanceof Error ? err.message : String(err),
         });
       })
       .finally(
         action(() => {
+          // Flush live updates that raced the async query (seq-guarded).
+          for (const { seq, update } of this._pendingLive) {
+            if (seq > this._lastSeq) {
+              this._applyUpdate(update);
+              this._lastSeq = seq;
+            }
+          }
           this._pendingLive = [];
-          this._buffering = false;
+          this._historyLoaded = true;
         })
       );
   }
@@ -337,9 +329,7 @@ export class ChatStore {
   bindTranscript(api: TranscriptApi): void {
     this._transcript = api;
     if (this.items.length > 0) {
-      // structuredClone is the belt-and-suspenders guarantee: even if toChatUiItems
-      // ever forgets to plain-copy a field, nothing observable reaches the Solid store.
-      api.seed(structuredClone(toChatUiItems(this.items)));
+      api.seed(toChatUiItems(this.items));
     }
   }
 
@@ -369,13 +359,14 @@ export class ChatStore {
       .prompt(this._conversationId, text)
       .then(
         action(() => {
-          this.isWorking = false;
-          this._finalizeStreaming();
+          // isWorking is now driven by acpSessionStateChannel; this is just a fallback
+          // in case the state event hasn't arrived yet.
+          if (this.isWorking) this.isWorking = false;
         })
       )
       .catch(
         action(() => {
-          this.isWorking = false;
+          if (this.isWorking) this.isWorking = false;
           this._finalizeStreaming();
         })
       );
@@ -396,12 +387,6 @@ export class ChatStore {
 
   private _applyUpdate(update: SessionUpdate): void {
     const kind = update.sessionUpdate;
-    log.debug('ChatStore: _applyUpdate [TEMP]', {
-      conversationId: this._conversationId,
-      kind,
-      itemsBeforeUpdate: this.items.length,
-      transcriptBound: this._transcript !== null,
-    });
 
     if (kind === 'agent_message_chunk') {
       this._appendChunk('assistant', update);
@@ -532,9 +517,9 @@ export class ChatStore {
       streaming,
     };
     this.items.push(item);
-    // items is observable.shallow: items stay as plain JS objects, so we can
-    // return the original reference directly and mutate it for chunk accumulation.
-    return item;
+    // Return the array-resident element: MobX wraps pushed plain objects in an
+    // observable proxy, so mutating the original `item` would not be reactive.
+    return this.items[this.items.length - 1] as ChatMessageItem;
   }
 
   private _upsertTool(patch: {
