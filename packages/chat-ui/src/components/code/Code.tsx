@@ -7,7 +7,7 @@
  * Positioning is handled by BlockFrame; this component only describes content.
  */
 
-import { For, createEffect, onCleanup } from 'solid-js';
+import { For, Show, createEffect, createSignal, onCleanup } from 'solid-js';
 import type { CodeBlock } from '../../core/blocks/block-types';
 import { highlightCode, peekHighlight } from '../../core/highlight/highlighter';
 import type { CodeLaidOut } from '../../core/layout/layout-types';
@@ -46,6 +46,75 @@ function applyHighlight(
       }
     }
   }
+}
+
+function IconCopy() {
+  return (
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="5" y="5" width="9" height="9" rx="1" />
+      <path d="M11 5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h2" />
+    </svg>
+  );
+}
+
+function IconCheck() {
+  return (
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="2,8 6,12 14,4" />
+    </svg>
+  );
+}
+
+function CopyCodeButton(props: { text: string }) {
+  const [copied, setCopied] = createSignal(false);
+  let resetTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const handleClick = () => {
+    void navigator.clipboard.writeText(props.text).then(() => {
+      setCopied(true);
+      resetTimer = setTimeout(() => {
+        setCopied(false);
+        resetTimer = undefined;
+      }, 1500);
+    });
+  };
+
+  onCleanup(() => {
+    if (resetTimer !== undefined) clearTimeout(resetTimer);
+  });
+
+  return (
+    <button
+      type="button"
+      class="absolute top-1.5 right-1.5 z-10 flex cursor-pointer items-center justify-center rounded p-0.5 text-foreground-passive opacity-0 transition-opacity select-none group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100"
+      aria-label={copied() ? 'Copied' : 'Copy code'}
+      onClick={handleClick}
+    >
+      <Show when={copied()} fallback={<IconCopy />}>
+        <IconCheck />
+      </Show>
+    </button>
+  );
 }
 
 export function Code(props: CodeProps) {
@@ -106,11 +175,12 @@ export function Code(props: CodeProps) {
   return (
     <BlockFrame
       layout={props.block}
-      class={`${styles['pcode-block']} overflow-x-auto overflow-y-hidden rounded-lg`}
+      class={`${styles['pcode-block']} group overflow-x-auto overflow-y-hidden rounded-lg`}
       ref={(el) => {
         wrapperEl = el;
       }}
     >
+      <CopyCodeButton text={props.rawBlock.code} />
       <For each={props.block.lines}>
         {(line, i) => (
           <div
