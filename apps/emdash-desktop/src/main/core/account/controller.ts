@@ -5,70 +5,78 @@ import { emdashAccountService } from './services/emdash-account-service';
 
 export const accountController = createRPCController({
   getSession: async () => {
-    try {
-      return await emdashAccountService.getSession();
-    } catch (error) {
-      log.error('Failed to get account session:', error);
+    const result = await emdashAccountService.getSession();
+    if (!result.success) {
+      log.error('Failed to get account session:', result.error);
       return { user: null, isSignedIn: false, hasAccount: false };
     }
+    return result.data;
+  },
+
+  getValidatedSession: async () => {
+    const result = await emdashAccountService.getValidatedSession();
+    if (!result.success) {
+      log.error('Failed to get validated account session:', result.error);
+      return { user: null, isSignedIn: false, hasAccount: false };
+    }
+    return result.data;
   },
 
   signIn: async (provider?: string) => {
-    try {
-      const result = await emdashAccountService.signIn(provider);
-      telemetryService.capture('user_signed_in');
-      return { success: true, user: result.user };
-    } catch (error) {
-      log.error('Account sign-in failed:', error);
+    const result = await emdashAccountService.signIn(provider);
+    if (!result.success) {
+      log.error('Account sign-in failed:', result.error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Sign-in failed',
+        code: result.error.type,
+        error: result.error.message,
       };
     }
+
+    telemetryService.capture('user_signed_in');
+    return { success: true, user: result.data.user };
   },
 
   linkProviderAccount: async (provider?: string) => {
-    try {
-      const result = await emdashAccountService.linkProviderAccount(provider);
-      telemetryService.capture('integration_connected', { provider: result.provider });
-      return {
-        success: true,
-        provider: result.provider,
-        providerAccount: result.providerAccount,
-      };
-    } catch (error) {
-      log.error('Provider account link failed:', error);
+    const result = await emdashAccountService.linkProviderAccount(provider);
+    if (!result.success) {
+      if (result.error.type !== 'session_expired') {
+        log.error('Provider account link failed:', result.error);
+      }
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Account link failed',
+        code: result.error.type,
+        error: result.error.message,
       };
     }
+
+    telemetryService.capture('integration_connected', { provider: result.data.provider });
+    return {
+      success: true,
+      provider: result.data.provider,
+      providerAccountStatus: result.data.providerAccountStatus,
+      providerAccount: result.data.providerAccount,
+    };
   },
 
   signOut: async () => {
-    try {
-      await emdashAccountService.signOut();
-      telemetryService.capture('user_signed_out');
-      return { success: true };
-    } catch (error) {
-      log.error('Account sign-out failed:', error);
-      return { success: false, error: 'Sign-out failed' };
+    const result = await emdashAccountService.signOut();
+    if (!result.success) {
+      log.error('Account sign-out failed:', result.error);
+      return { success: false, code: result.error.type, error: result.error.message };
     }
+
+    telemetryService.capture('user_signed_out');
+    return { success: true };
   },
 
   checkHealth: async () => {
-    try {
-      return await emdashAccountService.checkServerHealth();
-    } catch {
-      return false;
-    }
+    return await emdashAccountService.checkServerHealth();
   },
 
   validateSession: async () => {
-    try {
-      return await emdashAccountService.validateSession();
-    } catch {
-      return false;
-    }
+    const result = await emdashAccountService.validateSession();
+    if (!result.success) return false;
+    return result.data !== 'invalid';
   },
 });
