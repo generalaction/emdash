@@ -1,7 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
-import { useDevServers } from '@renderer/features/tasks/task-view-context';
 import { usePreviewServers } from '@renderer/features/tasks/task-view-context';
 import { events, rpc } from '@renderer/lib/ipc';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
@@ -29,7 +28,6 @@ export const BrowserPane = observer(function BrowserPane({
 }) {
   const session = browserSessionStore.getSession(browserId);
   const { tabManager } = useTabGroupContext();
-  const devServers = useDevServers();
   const previewServers = usePreviewServers();
   const webviewRef = useRef<BrowserWebviewElement | null>(null);
   const focusUrlRef = useRef<() => void>(() => {});
