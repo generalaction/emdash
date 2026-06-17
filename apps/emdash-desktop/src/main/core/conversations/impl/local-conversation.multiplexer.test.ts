@@ -13,6 +13,9 @@ import type { Conversation } from '@shared/core/conversations/conversations';
 import { LocalConversationProvider } from './local-conversation';
 
 const spawnLocalPty = vi.hoisted(() => vi.fn());
+const resolveLocalPtySpawnMock = vi.hoisted(() =>
+  vi.fn(() => ({ command: 'sh', args: [], cwd: '/tmp/task-1', warnings: [] as string[] }))
+);
 const buildCommandMock = vi.hoisted(() =>
   vi.fn((_ctx: Record<string, unknown>) => ({
     command: 'agent',
@@ -81,6 +84,11 @@ vi.mock('@main/core/agents/plugin-fs', () => ({
 
 vi.mock('@main/core/pty/local-pty', () => ({
   spawnLocalPty,
+}));
+
+vi.mock('@main/core/pty/pty-spawn-platform', () => ({
+  resolveLocalPtySpawn: resolveLocalPtySpawnMock,
+  logLocalPtySpawnWarnings: vi.fn(),
 }));
 
 vi.mock('./keystroke-injection', () => ({
@@ -192,6 +200,13 @@ describe('LocalConversationProvider multiplexer-based respawn suppression', () =
   beforeEach(() => {
     vi.useFakeTimers();
     spawnLocalPty.mockReset();
+    resolveLocalPtySpawnMock.mockReset();
+    resolveLocalPtySpawnMock.mockReturnValue({
+      command: 'sh',
+      args: [],
+      cwd: '/tmp/task-1',
+      warnings: [],
+    });
     buildCommandMock.mockReset();
     buildCommandMock.mockReturnValue({ command: 'agent', args: [], env: {} });
     vi.mocked(events.emit).mockClear();
@@ -254,10 +269,14 @@ describe('LocalConversationProvider multiplexer-based respawn suppression', () =
     const item = conversation();
     await provider.startSession(item);
 
-    // The resolved spawn should have been called via resolveLocalPtySpawn, which
-    // receives the multiplexer field from the intent. We verify that spawnLocalPty
-    // was called (it would throw a typecheck error if multiplexer were absent from
-    // the intent type, which the earlier typecheck gate would catch).
     expect(spawnLocalPty).toHaveBeenCalledTimes(1);
+    // The intent passed to resolveLocalPtySpawn must carry the multiplexer backend id.
+    expect(resolveLocalPtySpawnMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: expect.objectContaining({
+          multiplexer: expect.objectContaining({ id: tmuxBackend.id }),
+        }),
+      })
+    );
   });
 });

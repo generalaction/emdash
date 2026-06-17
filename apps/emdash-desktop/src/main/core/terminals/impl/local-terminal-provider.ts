@@ -276,10 +276,9 @@ export class LocalTerminalProvider implements TerminalProvider {
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
     if (this.multiplexer) {
+      const mux = this.multiplexer;
       await Promise.all(
-        sessionIds.map((id) =>
-          this.multiplexer!.killSession(this.ctx, this.multiplexer!.makeSessionName(id))
-        )
+        sessionIds.map((id) => mux.killSession(this.ctx, mux.makeSessionName(id)))
       );
     }
     this.knownSessionIds.clear();
