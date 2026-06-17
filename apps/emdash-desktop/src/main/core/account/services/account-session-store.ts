@@ -121,9 +121,9 @@ export class AccountSessionStore {
   }
 
   async clearSessionPreservingAccount(): Promise<Result<void, AccountSessionPersistenceError>> {
-    this.sessionToken = null;
     const clearedToken = await accountCredentialStore.clear();
     if (!clearedToken.success) return clearedToken;
+    this.sessionToken = null;
 
     try {
       const profile = this.cachedProfile ?? (await accountKV.get('profile'));

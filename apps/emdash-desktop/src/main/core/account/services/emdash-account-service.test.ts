@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ok, type Result } from '@shared/lib/result';
+import { err, ok, type Result } from '@shared/lib/result';
 import { EmdashAccountService } from './emdash-account-service';
 
 const mockCredGet = vi.fn();
@@ -134,55 +134,6 @@ describe('EmdashAccountService', () => {
       mockCredGet.mockResolvedValue(ok('token-123'));
       unwrapResult(await service.loadSessionToken());
       expect(mockCredGet).toHaveBeenCalled();
-    });
-  });
-
-  describe('getValidatedSession()', () => {
-    it('clears stale local session before reporting session state', async () => {
-      const accountCleared = vi.fn();
-      service.on('accountCleared', accountCleared);
-      mockCredGet.mockResolvedValue(ok('stale-session-token'));
-      mockKvGet.mockResolvedValue({
-        hasAccount: true,
-        userId: 'u1',
-        name: 'Test User',
-        username: 'test',
-        avatarUrl: '',
-        email: 'test@test.com',
-        lastValidated: '2026-01-01',
-      });
-      mockFetch.mockResolvedValue({ ok: false, status: 401 });
-
-      const session = unwrapResult(await service.getValidatedSession());
-      expect(session).toMatchObject({
-        isSignedIn: false,
-        hasAccount: true,
-        user: null,
-      });
-      expect(mockCredClear).toHaveBeenCalled();
-      expect(accountCleared).toHaveBeenCalled();
-    });
-
-    it('keeps a local session on validation network errors', async () => {
-      mockCredGet.mockResolvedValue(ok('session-abc'));
-      mockKvGet.mockResolvedValue({
-        hasAccount: true,
-        userId: 'u1',
-        name: 'Test User',
-        username: 'test',
-        avatarUrl: '',
-        email: 'test@test.com',
-        lastValidated: '2026-01-01',
-      });
-      mockFetch.mockRejectedValue(new Error('network error'));
-
-      const session = unwrapResult(await service.getValidatedSession());
-      expect(session).toMatchObject({
-        isSignedIn: true,
-        hasAccount: true,
-        user: expect.objectContaining({ username: 'test' }),
-      });
-      expect(mockCredClear).not.toHaveBeenCalled();
     });
   });
 
@@ -556,6 +507,39 @@ describe('EmdashAccountService', () => {
       });
       const session = unwrapResult(await service.getSession());
       expect(session.isSignedIn).toBe(false);
+      expect(session.hasAccount).toBe(true);
+    });
+
+    it('keeps the in-memory session token when credential clearing fails', async () => {
+      const exchangeResult = {
+        sessionToken: 'session-abc',
+        accessToken: 'ghp_123',
+        providerId: 'github',
+        user: { userId: 'u1', username: 'test', avatarUrl: '', email: '' },
+      };
+      mockExecuteOAuthFlow.mockResolvedValue(exchangeResult);
+      unwrapResult(await service.signIn());
+      vi.clearAllMocks();
+      mockCredClear.mockResolvedValue(
+        err({
+          type: 'session_persistence_failed',
+          message: 'Failed to clear session token',
+        })
+      );
+
+      const error = unwrapError(await service.signOut());
+      expect(error).toMatchObject({ type: 'session_persistence_failed' });
+      expect(mockKvSet).not.toHaveBeenCalled();
+
+      mockKvGet.mockResolvedValue({
+        hasAccount: true,
+        userId: 'u1',
+        username: 'test',
+        avatarUrl: '',
+        email: '',
+      });
+      const session = unwrapResult(await service.getSession());
+      expect(session.isSignedIn).toBe(true);
       expect(session.hasAccount).toBe(true);
     });
   });

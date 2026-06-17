@@ -4,7 +4,6 @@ import { err, ok, type Result } from '@shared/lib/result';
 import {
   type AccountInitializeError,
   type AccountLinkProviderError,
-  type AccountSessionError,
   type AccountSessionReadError,
   type AccountSessionValidationError,
   type AccountSignInError,
@@ -68,20 +67,6 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
 
   async getSession(): Promise<Result<SessionState, AccountSessionReadError>> {
     return this.sessionStore.getSession();
-  }
-
-  async getValidatedSession(): Promise<Result<SessionState, AccountSessionError>> {
-    const token = await this.sessionStore.ensureTokenLoaded();
-    if (!token.success) return token;
-
-    const session = await this.getSession();
-    if (!session.success) return session;
-    if (!session.data.hasAccount || !session.data.isSignedIn) return session;
-
-    const validation = await this.validateSession();
-    if (!validation.success) return validation;
-
-    return this.getSession();
   }
 
   async validateSession(): Promise<Result<SessionValidationResult, AccountSessionValidationError>> {

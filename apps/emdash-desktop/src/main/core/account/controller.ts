@@ -13,15 +13,6 @@ export const accountController = createRPCController({
     return result.data;
   },
 
-  getValidatedSession: async () => {
-    const result = await emdashAccountService.getValidatedSession();
-    if (!result.success) {
-      log.error('Failed to get validated account session:', result.error);
-      return { user: null, isSignedIn: false, hasAccount: false };
-    }
-    return result.data;
-  },
-
   signIn: async (provider?: string) => {
     const result = await emdashAccountService.signIn(provider);
     if (!result.success) {

@@ -4,8 +4,6 @@ export type AccountSessionReadError = AccountSessionPersistenceError;
 
 export type AccountSessionValidationError = AccountSessionPersistenceError | AccountAuthServerError;
 
-export type AccountSessionError = AccountSessionReadError | AccountSessionValidationError;
-
 export type AccountSignInError =
   | AccountInvalidAuthResponseError
   | AccountOAuthError
