@@ -1,0 +1,22 @@
+apps/emdash-desktop/src/renderer/features/automations/automations-sidebar-status.ts
+  s_89f177dc5897cb::t_f8150ef1d1557e 1-52
+apps/emdash-desktop/src/renderer/features/sidebar/left-sidebar.tsx
+  s_89f177dc5897cb::t_49af66f2fdff74 4-5
+  s_89f177dc5897cb::t_8061e030bad215 81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "a3a2c8618bb6a663eb79d521ee407c1af0fb57a9",
+  "prompts": {},
+  "sessions": {
+    "s_89f177dc5897cb": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f7aaafc0-4765-4660-bd6f-e97229d01313",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
