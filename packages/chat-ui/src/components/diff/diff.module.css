@@ -1,0 +1,46 @@
+/*
+ * diff row — geometry and Shiki token color rules only.
+ *
+ * The header height, padding, and line height are driven by CSS vars so they
+ * stay in sync with the layout arithmetic in measure.ts.
+ *
+ * Visual styling (border, colors, flex layout) lives in Tailwind classes in
+ * Diff.tsx.  Only rules that cannot be expressed cleanly in Tailwind remain here.
+ */
+
+/* ── Row wrapper ──────────────────────────────────────────────────────────── */
+
+.pdiff {
+  padding-inline: var(--chat-msg-pad-x);
+}
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+
+.pdiff__header {
+  height: var(--chat-diff-header-h);
+}
+
+/* ── Body ─────────────────────────────────────────────────────────────────── */
+
+.pdiff__body {
+  padding-block: var(--chat-diff-pad-y);
+}
+
+/* ── Diff lines ───────────────────────────────────────────────────────────── */
+
+.pdiff__line {
+  white-space: pre;
+  font-size: var(--chat-code-size);
+  font-weight: var(--chat-code-weight);
+  font-family: var(--type-code-font-family);
+  line-height: var(--chat-code-lh);
+}
+
+/* Shiki token color wiring (same pattern as code.module.css) */
+.pdiff__line span {
+  color: var(--shiki-light);
+}
+
+:global(.emdark) .pdiff__line span {
+  color: var(--shiki-dark);
+}

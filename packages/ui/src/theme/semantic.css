@@ -11,6 +11,7 @@
 
     --foreground: var(--neutral-12);
     --foreground-inverse: white;
+    --foreground-body: color-mix(in srgb, var(--neutral-11) 40%, var(--neutral-12));
     --foreground-muted: var(--neutral-11);
     --foreground-passive: var(--neutral-8);
 
@@ -123,6 +124,7 @@
 
     --foreground: var(--neutral-12);
     --foreground-inverse: var(--neutral-1);
+    --foreground-body: color-mix(in srgb, var(--neutral-11) 40%, var(--neutral-12));
     --foreground-muted: var(--neutral-11);
     --foreground-passive: var(--neutral-9);
 

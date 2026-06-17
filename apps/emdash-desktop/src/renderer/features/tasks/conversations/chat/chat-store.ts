@@ -1,9 +1,11 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import type {
+  ChatDiff,
   ChatExecute,
   ChatFileOpToolCall,
   ChatItem as UiChatItem,
   FileOpKind,
+  ToolStatus,
   TranscriptApi,
 } from '@emdash/chat-ui';
 import { action, makeObservable, observable } from 'mobx';
@@ -58,8 +60,24 @@ export type ChatExecuteItem = {
   durationMs?: number;
 };
 
+/** A diff preview row — one per changed file in an ACP edit tool call. */
+export type ChatDiffItem = {
+  kind: 'diff';
+  /** `${toolCallId}:${path}` */
+  id: string;
+  path: string;
+  oldText: string | null;
+  newText: string;
+  status: ToolStatusKind;
+};
+
 /** A single ordered entry in the chat transcript. */
-export type ChatItem = ChatMessageItem | ChatToolItem | ChatFileOpItem | ChatExecuteItem;
+export type ChatItem =
+  | ChatMessageItem
+  | ChatToolItem
+  | ChatFileOpItem
+  | ChatExecuteItem
+  | ChatDiffItem;
 
 /** Convert desktop ChatItem[] to chat-ui ChatItem[] for TranscriptApi.seed(). */
 function toChatUiItems(items: ChatItem[]): UiChatItem[] {
@@ -98,6 +116,18 @@ function toChatUiItems(items: ChatItem[]): UiChatItem[] {
         } satisfies ChatExecute,
       ];
     }
+    if (item.kind === 'diff') {
+      return [
+        {
+          kind: 'diff',
+          id: item.id,
+          path: item.path,
+          oldText: item.oldText,
+          newText: item.newText,
+          status: item.status,
+        } satisfies ChatDiff,
+      ];
+    }
     if (item.role === 'thought') {
       return [
         {
@@ -122,7 +152,7 @@ function toChatUiItems(items: ChatItem[]): UiChatItem[] {
   });
 }
 
-const FILE_OP_KINDS = new Set<string>(['read', 'edit', 'delete', 'move']);
+const FILE_OP_KINDS = new Set<string>(['read', 'delete', 'move']);
 
 /**
  * Extract unique file paths from an ACP tool call notification.
@@ -403,6 +433,8 @@ export class ChatStore {
           status: 'running',
           ops: extractPaths(update),
         });
+      } else if (acpKind === 'edit') {
+        this._upsertDiffsFromUpdate(update);
       } else if (acpKind === 'execute') {
         const rawInput = update.rawInput as Record<string, unknown> | null | undefined;
         this._upsertExecute({
@@ -424,6 +456,10 @@ export class ChatStore {
       const existingExecute = this.items.find(
         (it): it is ChatExecuteItem => it.kind === 'execute' && it.id === update.toolCallId
       );
+      const existingDiffs = this.items.filter(
+        (it): it is ChatDiffItem =>
+          it.kind === 'diff' && it.id.startsWith(`${update.toolCallId}:`)
+      );
       if (existingFileOp) {
         const newOps = update.locations
           ? update.locations
@@ -443,6 +479,17 @@ export class ChatStore {
           command: newCommand,
           status: newStatus,
         });
+      } else if (existingDiffs.length > 0) {
+        const newStatus: ToolStatus | undefined =
+          update.status === 'completed' ? 'done' : update.status === 'failed' ? 'error' : undefined;
+        if (update.content) {
+          // Re-apply content diffs (updated oldText/newText) and status
+          this._upsertDiffsFromUpdate(update, newStatus);
+        } else if (newStatus) {
+          for (const d of existingDiffs) {
+            this._upsertDiff({ id: d.id, path: d.path, status: newStatus });
+          }
+        }
       } else if (update.status === 'completed') {
         this._upsertTool({ toolCallId: update.toolCallId, status: 'done' });
       } else if (update.status === 'failed') {
@@ -627,6 +674,73 @@ export class ChatStore {
         id: patch.id,
         command: patch.command ?? '',
         startedAt,
+      });
+    }
+  }
+
+  /**
+   * Parse diff content from an ACP `tool_call` (or `tool_call_update`) payload
+   * and upsert one diff row per changed file.
+   *
+   * Groups by path and uses only the first diff block per path to avoid
+   * duplicate rows. Ignores entries without valid path/newText.
+   */
+  private _upsertDiffsFromUpdate(
+    update: { toolCallId: string; content?: { type: string; path?: string; newText?: string; oldText?: string | null }[] | null },
+    status?: ToolStatus
+  ): void {
+    if (!update.content) return;
+
+    const seenPaths = new Set<string>();
+    for (const entry of update.content) {
+      if (entry.type !== 'diff') continue;
+      const { path, newText, oldText: entryOldText } = entry;
+      if (!path || !newText) continue;
+      if (seenPaths.has(path)) continue;
+      seenPaths.add(path);
+
+      const oldText = entryOldText ?? null;
+      const id = `${update.toolCallId}:${path}`;
+      this._upsertDiff({ id, path, oldText, newText, status });
+    }
+  }
+
+  private _upsertDiff(patch: {
+    id: string;
+    path: string;
+    oldText?: string | null;
+    newText?: string;
+    status?: ToolStatus;
+  }): void {
+    const existing = this.items.find(
+      (it): it is ChatDiffItem => it.kind === 'diff' && it.id === patch.id
+    );
+    if (existing) {
+      if (patch.status !== undefined) existing.status = patch.status;
+      if (patch.oldText !== undefined) existing.oldText = patch.oldText;
+      if (patch.newText !== undefined) existing.newText = patch.newText;
+      this._transcript?.dispatch({
+        type: 'diff_update',
+        id: patch.id,
+        status: patch.status,
+        oldText: patch.oldText,
+        newText: patch.newText,
+      });
+    } else {
+      this.items.push({
+        kind: 'diff',
+        id: patch.id,
+        path: patch.path,
+        oldText: patch.oldText ?? null,
+        newText: patch.newText ?? '',
+        status: patch.status ?? 'running',
+      });
+      this._transcript?.dispatch({
+        type: 'diff_start',
+        id: patch.id,
+        path: patch.path,
+        oldText: patch.oldText ?? null,
+        newText: patch.newText ?? '',
       });
     }
   }

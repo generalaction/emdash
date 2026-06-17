@@ -75,7 +75,7 @@ function ThinkingHeader(props: { item: ChatThinking; expanded: boolean }) {
 
   return (
     <div
-      class={`${styles['pthinking__header']} flex cursor-pointer items-center gap-1.5 text-sm text-foreground-passive select-none hover:text-foreground`}
+      class={`${styles['pthinking__header']} flex cursor-pointer items-center gap-1.5 text-sm text-foreground-passive select-none hover:text-foreground-muted`}
       role="button"
       aria-expanded={props.expanded ? 'true' : 'false'}
       aria-live={props.item.status === 'thinking' ? 'polite' : undefined}

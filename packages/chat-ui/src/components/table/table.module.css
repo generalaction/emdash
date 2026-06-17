@@ -15,7 +15,8 @@
 /* ── Table ────────────────────────────────────────────────────────────────── */
 
 .pchat-table {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   /* font-size and line-height define TABLE_ROW_H — must stay here */
   font-size: var(--type-body-font-size);
   line-height: var(--type-body-line-height);

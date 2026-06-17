@@ -104,11 +104,12 @@ export const ROW_INSET_X = 16;
  * group tightly and message rows have generous breathing room.
  */
 export const ROW_PAD_Y = {
-  message: 8,
-  thinking: 4,
-  tool: 2,
-  'file-op': 2,
-  execute: 2,
+  message: 4,
+  thinking: 0,
+  tool: 0,
+  'file-op': 0,
+  execute: 0,
+  diff: 0,
 } as const satisfies Record<string, number>;
 
 export type RowKind = keyof typeof ROW_PAD_Y;

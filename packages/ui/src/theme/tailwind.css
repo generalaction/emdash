@@ -33,6 +33,7 @@
 
   --color-foreground: var(--foreground);
   --color-foreground-inverse: var(--foreground-inverse);
+  --color-foreground-body: var(--foreground-body);
   --color-foreground-muted: var(--foreground-muted);
   --color-foreground-passive: var(--foreground-passive);
 

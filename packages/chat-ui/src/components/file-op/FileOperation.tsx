@@ -135,19 +135,16 @@ export function FileOperation(props: FileOperationProps) {
       <div class={styles.pfileop} style={{ position: 'relative', height: `${multiH()}px` }}>
         {/* Header */}
         <div
-          class={`${styles['pfileop__header']} flex cursor-pointer items-center gap-1.5 select-none hover:text-foreground`}
+          class={`${styles['pfileop__header']} flex cursor-pointer items-center gap-1.5 text-sm text-foreground-passive select-none hover:text-foreground-muted`}
           role="button"
           aria-expanded={expanded() ? 'true' : 'false'}
           data-collapse-id={props.item.id}
         >
-          <span
-            class="text-sm text-foreground-passive"
-            classList={{ 'text-shimmer': props.item.status === 'running' }}
-          >
+          <span classList={{ 'text-shimmer': props.item.status === 'running' }}>
             {verb()} {props.item.ops.length} files
           </span>
           <span
-            class="inline-block text-[10px] text-foreground-passive transition-transform duration-150 ease-out"
+            class="inline-block text-[10px] transition-transform duration-150 ease-out"
             classList={{ 'rotate-90': expanded() }}
             aria-hidden="true"
           >

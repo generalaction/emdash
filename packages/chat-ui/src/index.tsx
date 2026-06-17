@@ -23,9 +23,11 @@ export type {
   ChatThinking,
   ChatFileOpToolCall,
   ChatExecute,
+  ChatDiff,
   ChatRole,
   FileOpKind,
   FileOp,
+  ToolStatus,
 } from './model';
 export type { TranscriptApi, TranscriptEvent } from './state/transcript';
 export type { ViewState } from './state/view-state';

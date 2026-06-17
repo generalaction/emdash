@@ -22,7 +22,6 @@ export type ExecuteProps = {
 };
 
 export function Execute(props: ExecuteProps) {
-
   const command = () => props.item.command || '…';
 
   return (

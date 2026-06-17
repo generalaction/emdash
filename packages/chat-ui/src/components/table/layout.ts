@@ -20,7 +20,12 @@ export function layoutTable(
   contentWidth: number
 ): TableLaidOut {
   const colCount = Math.max(1, block.header.length);
-  const target = Math.floor(contentWidth / colCount);
+  // The visible table sits inside a 1px-bordered wrapper, so the usable inner
+  // width is contentWidth minus the left+right border. Distributing columns over
+  // the full contentWidth would make the table 2px wider than its container and
+  // trigger a spurious horizontal scrollbar.
+  const available = contentWidth - 2 * TABLE_BORDER;
+  const target = Math.floor(available / colCount);
   const colW = Math.max(TABLE_MIN_COL_W, target);
   const colWidths = Array<number>(colCount).fill(colW);
   const tableWidth = colW * colCount;

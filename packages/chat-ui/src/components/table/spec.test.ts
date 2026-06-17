@@ -86,9 +86,11 @@ describe('layoutTable — column clamping', () => {
     const block = makeBlock(4, 1);
     const contentWidth = 800;
     const result = layoutTable(block, 0, contentWidth);
-    // target = floor(800/4) = 200, colW = max(80, 200) = 200
-    expect(result.colWidths).toEqual([200, 200, 200, 200]);
-    expect(result.tableWidth).toBe(800);
+    // available = 800 - 2*TABLE_BORDER = 798; target = floor(798/4) = 199
+    expect(result.colWidths).toEqual([199, 199, 199, 199]);
+    expect(result.tableWidth).toBe(796);
+    // table fits within the bordered wrapper (contentWidth - 2px border)
+    expect(result.tableWidth).toBeLessThanOrEqual(contentWidth - 2 * TABLE_BORDER);
   });
 
   it('clamps columns to TABLE_MIN_COL_W when container is narrow', () => {

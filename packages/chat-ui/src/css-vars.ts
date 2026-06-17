@@ -15,6 +15,7 @@
  */
 
 import { codeSpec } from './components/code/spec';
+import { diffCssVars } from './components/diff/css-vars';
 import { execCssVars } from './components/execute/css-vars';
 import { fileOpCssVars } from './components/file-op/css-vars';
 import { islandSpec } from './components/island/spec';
@@ -38,5 +39,6 @@ export function chatCssVars(): Record<string, string> {
     ...thinkingCssVars(),
     ...fileOpCssVars(),
     ...execCssVars(),
+    ...diffCssVars(),
   };
 }

@@ -48,10 +48,7 @@ export type RowProps = {
  * wrapper's offsetHeight should equal layout().height + 2 * padY. We compare
  * the full wrapper height (including padding) and flag a mismatch in red.
  */
-function RowDebugOverlay(props: {
-  reserved: number;
-  rowEl: () => HTMLElement | undefined;
-}) {
+function RowDebugOverlay(props: { reserved: number; rowEl: () => HTMLElement | undefined }) {
   const [mismatch, setMismatch] = createSignal(false);
   const [actualH, setActualH] = createSignal(0);
 

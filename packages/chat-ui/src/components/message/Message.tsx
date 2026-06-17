@@ -116,7 +116,7 @@ function CopyButton(props: { text: string }) {
   return (
     <button
       type="button"
-      class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity flex items-center gap-1 text-foreground-passive hover:text-foreground cursor-pointer select-none text-xs"
+      class="flex cursor-pointer items-center gap-1 text-xs text-foreground-passive opacity-0 transition-opacity select-none group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100"
       aria-label={copied() ? 'Copied' : 'Copy message'}
       onClick={handleClick}
     >
@@ -153,7 +153,7 @@ export function Message(props: MessageProps) {
     if (rc() === 'user')
       return 'bg-[var(--chat-bubble-user)] text-[var(--chat-bubble-user-fg)] rounded-lg';
     if (rc() === 'thought') return 'text-foreground-muted italic';
-    return '';
+    return 'text-foreground-body';
   };
 
   return (

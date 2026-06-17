@@ -28,47 +28,49 @@ export type TableProps = {
 
 export function Table(props: TableProps) {
   return (
-    <BlockFrame layout={props.block} class="overflow-x-auto border rounded-lg">
-      <table
-        class={`${styles['pchat-table']}`}
-        style={{ width: `${props.block.tableWidth}px`, 'table-layout': 'fixed' }}
-      >
-        <colgroup>
-          <For each={props.block.colWidths}>{(w) => <col style={{ width: `${w}px` }} />}</For>
-        </colgroup>
-        <thead class="bg-background-1">
-          <tr>
-            <For each={props.block.header}>
-              {(cell) => (
-                <th
-                  class="overflow-hidden border-b border-r last:border-r-0 border-border text-ellipsis whitespace-nowrap"
-                  title={cell}
-                >
-                  {cell}
-                </th>
+    <BlockFrame layout={props.block}>
+      <div class="box-border h-full w-full overflow-x-auto rounded-lg border border-border">
+        <table
+          class={`${styles['pchat-table']}`}
+          style={{ width: `${props.block.tableWidth}px`, 'table-layout': 'fixed' }}
+        >
+          <colgroup>
+            <For each={props.block.colWidths}>{(w) => <col style={{ width: `${w}px` }} />}</For>
+          </colgroup>
+          <thead>
+            <tr>
+              <For each={props.block.header}>
+                {(cell) => (
+                  <th
+                    class="overflow-hidden border-r border-b border-border bg-background-1 text-ellipsis whitespace-nowrap last:border-r-0"
+                    title={cell}
+                  >
+                    {cell}
+                  </th>
+                )}
+              </For>
+            </tr>
+          </thead>
+          <tbody>
+            <For each={props.block.rows}>
+              {(row, i) => (
+                <tr>
+                  <For each={row}>
+                    {(cell) => (
+                      <td
+                        class={`overflow-hidden border-r border-b border-border text-ellipsis whitespace-nowrap last:border-r-0 ${i() === props.block.rows.length - 1 ? 'border-b-0' : ''}`}
+                        title={cell}
+                      >
+                        {cell}
+                      </td>
+                    )}
+                  </For>
+                </tr>
               )}
             </For>
-          </tr>
-        </thead>
-        <tbody>
-          <For each={props.block.rows}>
-            {(row, i) => (
-              <tr>
-                <For each={row}>
-                  {(cell) => (
-                    <td
-                      class={`overflow-hidden border-b border-r last:border-r-0 border-border text-ellipsis whitespace-nowrap ${i() === props.block.rows.length - 1 ? 'border-b-0' : ''}`}
-                      title={cell}
-                    >
-                      {cell}
-                    </td>
-                  )}
-                </For>
-              </tr>
-            )}
-          </For>
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
     </BlockFrame>
   );
 }

@@ -95,4 +95,32 @@ export type ChatExecute = {
   durationMs?: number;
 };
 
-export type ChatItem = ChatMessage | ChatToolCall | ChatThinking | ChatFileOpToolCall | ChatExecute;
+/**
+ * A diff preview row — produced by ACP `kind: 'edit'` tool calls.
+ *
+ * Renders a compact, non-scrollable preview of the first changed region
+ * (capped at 12 lines with ±1 context), with syntax + diff highlighting.
+ * One `ChatDiff` is created per changed file within a single tool call.
+ *
+ * `oldText` is the replaced region (old_string). `null` means a new file —
+ * all `newText` lines are additions.
+ */
+export type ChatDiff = {
+  kind: 'diff';
+  /** `${toolCallId}:${path}` — unique per file within a tool call. */
+  id: string;
+  /** Full path; basename and extension derived in the component. */
+  path: string;
+  /** The replaced region, or null for new files. */
+  oldText: string | null;
+  newText: string;
+  status: ToolStatus;
+};
+
+export type ChatItem =
+  | ChatMessage
+  | ChatToolCall
+  | ChatThinking
+  | ChatFileOpToolCall
+  | ChatExecute
+  | ChatDiff;

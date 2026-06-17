@@ -8,6 +8,7 @@
 
 import type { RowComponent } from '../core/layout/spec-types';
 import type { ChatItem } from '../model';
+import { diffRow } from './diff/spec';
 import { executeRow } from './execute/spec';
 import { fileOpRow } from './file-op/spec';
 import { messageRow } from './message/spec';
@@ -21,4 +22,5 @@ export const ROW_REGISTRY: Record<ChatItem['kind'], RowComponent<any, any>> = {
   thinking: thinkingRow,
   'file-op': fileOpRow,
   execute: executeRow,
+  diff: diffRow,
 };

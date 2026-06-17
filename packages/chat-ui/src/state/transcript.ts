@@ -12,6 +12,7 @@
 
 import { createStore, produce } from 'solid-js/store';
 import type {
+  ChatDiff,
   ChatExecute,
   ChatFileOpToolCall,
   ChatItem,
@@ -76,6 +77,27 @@ export type TranscriptEvent =
       id: string;
       command?: string;
       status?: ToolStatus;
+    }
+  /**
+   * A new diff preview has started (one per changed file within an edit tool call).
+   * `id` must be unique per file: `${toolCallId}:${path}`.
+   */
+  | {
+      type: 'diff_start';
+      id: string;
+      path: string;
+      oldText: string | null;
+      newText: string;
+    }
+  /**
+   * An existing diff row was updated (status, or new text if content evolved).
+   */
+  | {
+      type: 'diff_update';
+      id: string;
+      status?: ToolStatus;
+      oldText?: string | null;
+      newText?: string;
     }
   /**
    * The current turn is finished. Clears `streaming` flags, finalizes any
@@ -324,6 +346,38 @@ export function createTranscript(): TranscriptApi {
               break;
             }
 
+            case 'diff_start': {
+              finalizeOpenThinking();
+              if (s.activeTurn === null) s.activeTurn = [];
+              const existingDiff = s.activeTurn.find(
+                (it): it is ChatDiff => it.kind === 'diff' && it.id === event.id
+              );
+              if (!existingDiff) {
+                s.activeTurn.push({
+                  kind: 'diff',
+                  id: event.id,
+                  path: event.path,
+                  oldText: event.oldText,
+                  newText: event.newText,
+                  status: 'running',
+                } satisfies ChatDiff);
+              }
+              break;
+            }
+
+            case 'diff_update': {
+              if (s.activeTurn === null) s.activeTurn = [];
+              const existingDiff = s.activeTurn.find(
+                (it): it is ChatDiff => it.kind === 'diff' && it.id === event.id
+              );
+              if (existingDiff) {
+                if (event.status !== undefined) existingDiff.status = event.status;
+                if (event.oldText !== undefined) existingDiff.oldText = event.oldText;
+                if (event.newText !== undefined) existingDiff.newText = event.newText;
+              }
+              break;
+            }
+
             case 'turn_done': {
               if (!s.activeTurn) break;
               const finalized: ChatItem[] = s.activeTurn.map((item) => {
@@ -343,6 +397,9 @@ export function createTranscript(): TranscriptApi {
                     status: 'done' as const,
                     durationMs: Date.now() - item.startedAt,
                   };
+                }
+                if (item.kind === 'diff' && item.status === 'running') {
+                  return { ...item, status: 'done' as const };
                 }
                 return item;
               });
