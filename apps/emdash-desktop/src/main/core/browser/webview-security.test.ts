@@ -79,22 +79,6 @@ describe('browser webview security helpers', () => {
     });
   });
 
-  it('allows disabling web security for browser CORS testing', () => {
-    const preferences: WebviewPreferences = {};
-
-    hardenBrowserWebviewPreferences(preferences, { disableCors: true });
-
-    expect(preferences).toEqual({
-      nodeIntegration: false,
-      nodeIntegrationInSubFrames: false,
-      nodeIntegrationInWorker: false,
-      contextIsolation: true,
-      sandbox: true,
-      webSecurity: false,
-      allowRunningInsecureContent: true,
-    });
-  });
-
   it('strips untrusted webview attach params', () => {
     const params = {
       preload: '/tmp/untrusted.js',

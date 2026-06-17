@@ -24,10 +24,6 @@ export type WebviewPreferences = {
   preload?: string;
 };
 
-export type BrowserWebviewSecurityOptions = {
-  disableCors?: boolean;
-};
-
 export type WebviewAttachValidation =
   | { ok: true; partition: string; url: string }
   | { ok: false; reason: 'missing-partition' | 'unregistered-partition' | 'unsupported-url' };
@@ -59,17 +55,14 @@ export function validateBrowserWebviewAttach(
   return { ok: true, partition, url: normalized.url };
 }
 
-export function hardenBrowserWebviewPreferences(
-  webPreferences: WebviewPreferences,
-  options: BrowserWebviewSecurityOptions = {}
-): void {
+export function hardenBrowserWebviewPreferences(webPreferences: WebviewPreferences): void {
   webPreferences.nodeIntegration = false;
   webPreferences.nodeIntegrationInSubFrames = false;
   webPreferences.nodeIntegrationInWorker = false;
   webPreferences.contextIsolation = true;
   webPreferences.sandbox = true;
-  webPreferences.webSecurity = !options.disableCors;
-  webPreferences.allowRunningInsecureContent = !!options.disableCors;
+  webPreferences.webSecurity = true;
+  webPreferences.allowRunningInsecureContent = false;
   delete webPreferences.preload;
 }
 

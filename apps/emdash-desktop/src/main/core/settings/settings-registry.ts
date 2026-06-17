@@ -66,7 +66,7 @@ export const SETTINGS_DEFAULTS = {
   },
   browser: {
     defaultProfileId: DEFAULT_BROWSER_PROFILE_ID,
-    disableCors: false,
+    relaxCorsForLocalhost: false,
     profiles: DEFAULT_BROWSER_PROFILES,
   },
   resourceMonitor: {

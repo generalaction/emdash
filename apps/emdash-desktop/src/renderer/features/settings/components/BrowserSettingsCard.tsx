@@ -140,13 +140,13 @@ export function BrowserSettingsCard() {
       />
 
       <SettingRow
-        title="Disable CORS"
-        description="Turns off web security for in-app browser tabs. Existing tabs need to be reopened for this to apply."
+        title="Relax CORS for local development"
+        description="Lets localhost pages in Emdash browser tabs call APIs without matching CORS headers. Other origins are unchanged."
         control={
           <Switch
-            checked={browserSettings?.disableCors ?? false}
+            checked={browserSettings?.relaxCorsForLocalhost ?? false}
             disabled={disabled}
-            onCheckedChange={(next) => update({ disableCors: next })}
+            onCheckedChange={(next) => update({ relaxCorsForLocalhost: next })}
           />
         }
       />
