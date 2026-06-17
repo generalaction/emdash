@@ -1,0 +1,29 @@
+{
+  "name": "emdash-agent-operator",
+  "version": "0.1.0",
+  "description": "Operate Emdash multi-agent workspaces with verifiable handoffs.",
+  "author": {
+    "name": "Emdash contributors"
+  },
+  "skills": "./skills/",
+  "repository": "https://github.com/generalaction/emdash",
+  "keywords": [
+    "agent-plugin",
+    "evals",
+    "emdash"
+  ],
+  "interface": {
+    "displayName": "Emdash Agent Operator",
+    "shortDescription": "Operate Emdash multi-agent workspaces with verifiable handoffs.",
+    "longDescription": "Plan, launch, review, and close Emdash multi-agent coding sessions with explicit workspace, worktree, handoff, and verification metadata.",
+    "developerName": "Emdash contributors",
+    "category": "Developer Tools",
+    "capabilities": [
+      "multi-agent session planning",
+      "worktree tracking",
+      "handoff review",
+      "completion verification"
+    ],
+    "defaultPrompt": "Use the Emdash plugin to plan the workflow, identify verification checks, and produce plugin eval metadata."
+  }
+}
