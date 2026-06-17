@@ -4,11 +4,13 @@ import { Resource } from '@renderer/lib/stores/resource';
 import { previewServerEventChannel } from '@shared/core/preview-servers/events';
 import type {
   ManualPreviewServerRequest,
+  ManualPreviewServerResult,
   PreviewServer,
   PreviewServerEvent,
   PreviewServerProtocol,
 } from '@shared/core/preview-servers/types';
 import { previewServerUrl } from '@shared/core/preview-servers/types';
+import { err } from '@shared/lib/result';
 
 type PreviewServerStoreOptions = {
   projectId: string;
@@ -80,9 +82,12 @@ export class PreviewServerStore implements IDisposable {
       .filter((url): url is string => url !== null);
   }
 
-  async forwardManual(input: ManualForwardInput): Promise<PreviewServer> {
+  async forwardManual(input: ManualForwardInput): Promise<ManualPreviewServerResult> {
     if (!this.connectionId) {
-      throw new Error('Manual port forwarding requires an SSH workspace');
+      return err({
+        type: 'not-ssh-workspace',
+        message: 'Manual port forwarding requires an SSH workspace',
+      });
     }
     const request: ManualPreviewServerRequest = {
       projectId: this.projectId,
@@ -92,9 +97,9 @@ export class PreviewServerStore implements IDisposable {
       remotePort: input.remotePort,
       ...(input.preferredLocalPort ? { preferredLocalPort: input.preferredLocalPort } : {}),
     };
-    const server = await rpc.previewServers.forwardManual(request);
-    this.upsert(server);
-    return server;
+    const result = await rpc.previewServers.forwardManual(request);
+    if (result.success) this.upsert(result.data);
+    return result;
   }
 
   async restart(id: string): Promise<void> {

@@ -16,6 +16,7 @@ function createService(
       preferredLocalPort?: number;
       onConnectionError?: (error: Error) => void;
     }) => Promise<PortForwardTunnel>;
+    getSshProxy?: (connectionId: string) => Promise<Pick<SshClientProxy, 'client' | 'isConnected'>>;
   } = {}
 ) {
   const events: PreviewServerEvent[] = [];
@@ -39,7 +40,7 @@ function createService(
     portForwards,
     emit: (event) => events.push(event),
     getConnectionState: () => connectionState,
-    getSshProxy: async () => fakeProxy(),
+    getSshProxy: options.getSshProxy ?? (async () => fakeProxy()),
     closeDelayMs: 250,
   });
 
@@ -416,7 +417,7 @@ describe('PreviewServerService', () => {
   it('creates manual forwarded previews with generated identity and root path', async () => {
     const context = createService();
 
-    const first = await context.service.forwardManual({
+    const firstResult = await context.service.forwardManual({
       projectId: 'project-1',
       workspaceId: 'workspace-1',
       connectionId: 'connection-1',
@@ -424,7 +425,7 @@ describe('PreviewServerService', () => {
       remotePort: 8443,
       preferredLocalPort: 9443,
     });
-    const second = await context.service.forwardManual({
+    const secondResult = await context.service.forwardManual({
       projectId: 'project-1',
       workspaceId: 'workspace-1',
       connectionId: 'connection-1',
@@ -432,6 +433,11 @@ describe('PreviewServerService', () => {
       remotePort: 8443,
       preferredLocalPort: 9444,
     });
+    expect(firstResult.success).toBe(true);
+    expect(secondResult.success).toBe(true);
+    if (!firstResult.success || !secondResult.success) throw new Error('manual forward failed');
+    const first = firstResult.data;
+    const second = secondResult.data;
 
     expect(first.id).not.toBe(second.id);
     expect(first.source).toEqual({ kind: 'manual' });
@@ -439,6 +445,111 @@ describe('PreviewServerService', () => {
     expect(first.kind).toBe('forwarded');
     expect(previewServerUrl(first)).toBe('https://127.0.0.1:6001/');
     expect(context.openedTunnels).toBe(2);
+  });
+
+  it('does not open a manual tunnel when the workspace stops while resolving the SSH proxy', async () => {
+    const proxy = deferred<Pick<SshClientProxy, 'client' | 'isConnected'>>();
+    let openCount = 0;
+    const context = createService({
+      getSshProxy: async () => proxy.promise,
+      openTunnel: async () => {
+        openCount++;
+        return { localPort: 6100, close: async () => {} };
+      },
+    });
+
+    const pending = context.service.forwardManual({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      connectionId: 'connection-1',
+      protocol: 'http:',
+      remotePort: 8080,
+    });
+
+    expect(
+      context.service.listForWorkspace({ projectId: 'project-1', workspaceId: 'workspace-1' })
+    ).toMatchObject([{ status: { kind: 'starting' } }]);
+
+    await context.service.stopForWorkspace('project-1', 'workspace-1');
+    proxy.resolve(fakeProxy());
+
+    await expect(pending).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'cancelled',
+        message: 'Manual preview forwarding was cancelled',
+      },
+    });
+    expect(openCount).toBe(0);
+    expect(
+      context.service.listForWorkspace({ projectId: 'project-1', workspaceId: 'workspace-1' })
+    ).toEqual([]);
+  });
+
+  it('closes a manual tunnel that resolves after the workspace stops', async () => {
+    const openStarted = deferred<void>();
+    const tunnel = deferred<PortForwardTunnel>();
+    const close = vi.fn(async () => {});
+    const context = createService({
+      openTunnel: async () => {
+        openStarted.resolve();
+        return await tunnel.promise;
+      },
+    });
+
+    const pending = context.service.forwardManual({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      connectionId: 'connection-1',
+      protocol: 'http:',
+      remotePort: 8080,
+    });
+
+    await openStarted.promise;
+    await context.service.stopForWorkspace('project-1', 'workspace-1');
+
+    tunnel.resolve({ localPort: 6100, close });
+
+    await expect(pending).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'cancelled',
+        message: 'Manual preview forwarding was cancelled',
+      },
+    });
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(context.closedTunnelIds).toHaveLength(1);
+    expect(
+      context.service.listForWorkspace({ projectId: 'project-1', workspaceId: 'workspace-1' })
+    ).toEqual([]);
+  });
+
+  it('returns an error result and removes the row when manual tunnel opening fails', async () => {
+    const context = createService({
+      openTunnel: async () => {
+        throw new Error('bind failed');
+      },
+    });
+
+    const result = await context.service.forwardManual({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      connectionId: 'connection-1',
+      protocol: 'http:',
+      remotePort: 8080,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'open-failed',
+        message: 'Failed to open SSH port forward',
+      },
+    });
+    expect(
+      context.service.listForWorkspace({ projectId: 'project-1', workspaceId: 'workspace-1' })
+    ).toEqual([]);
+    expect(context.events.map((event) => event.type)).toEqual(['upsert', 'remove']);
   });
 
   it('stops only previews owned by a released workspace', async () => {

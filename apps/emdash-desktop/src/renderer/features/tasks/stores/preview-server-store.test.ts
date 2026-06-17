@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PreviewServer, PreviewServerEvent } from '@shared/core/preview-servers/types';
 import { previewServerUrl } from '@shared/core/preview-servers/types';
+import { ok } from '@shared/lib/result';
 
 const handlers: Array<(event: PreviewServerEvent) => void> = [];
 
@@ -139,7 +140,7 @@ describe('PreviewServerStore', () => {
       remotePort: 8080,
       localPort: 6500,
     });
-    rpcMocks.forwardManual.mockResolvedValueOnce(forwarded);
+    rpcMocks.forwardManual.mockResolvedValueOnce(ok(forwarded));
     rpcMocks.listForWorkspace.mockResolvedValueOnce([]);
 
     const store = new PreviewServerStore({
@@ -147,7 +148,7 @@ describe('PreviewServerStore', () => {
       workspaceId: 'workspace-1',
       connectionId: 'ssh-1',
     });
-    await store.forwardManual({ protocol: 'http:', remotePort: 8080 });
+    const result = await store.forwardManual({ protocol: 'http:', remotePort: 8080 });
 
     expect(rpcMocks.forwardManual).toHaveBeenCalledWith({
       projectId: 'project-1',
@@ -156,6 +157,7 @@ describe('PreviewServerStore', () => {
       protocol: 'http:',
       remotePort: 8080,
     });
+    expect(result).toEqual(ok(forwarded));
     expect(store.servers.map((server) => server.id)).toEqual(['manual-1']);
 
     store.dispose();
@@ -167,11 +169,39 @@ describe('PreviewServerStore', () => {
       workspaceId: 'workspace-1',
     });
 
-    await expect(store.forwardManual({ protocol: 'http:', remotePort: 8080 })).rejects.toThrow(
-      'Manual port forwarding requires an SSH workspace'
-    );
+    await expect(store.forwardManual({ protocol: 'http:', remotePort: 8080 })).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'not-ssh-workspace',
+        message: 'Manual port forwarding requires an SSH workspace',
+      },
+    });
 
     expect(rpcMocks.forwardManual).not.toHaveBeenCalled();
+    store.dispose();
+  });
+
+  it('does not upsert manual forwards that return an error result', async () => {
+    rpcMocks.forwardManual.mockResolvedValueOnce({
+      success: false,
+      error: {
+        type: 'open-failed',
+        message: 'Failed to open SSH port forward',
+      },
+    });
+    rpcMocks.listForWorkspace.mockResolvedValueOnce([]);
+
+    const store = new PreviewServerStore({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      connectionId: 'ssh-1',
+    });
+
+    const result = await store.forwardManual({ protocol: 'http:', remotePort: 8080 });
+
+    expect(result.success).toBe(false);
+    expect(store.servers).toEqual([]);
+
     store.dispose();
   });
 });

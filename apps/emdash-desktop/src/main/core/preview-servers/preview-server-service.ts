@@ -3,14 +3,18 @@ import { log } from '@main/lib/logger';
 import type {
   DirectPreviewServer,
   DirectPreviewServerHost,
+  ManualPreviewServerError,
   ManualPreviewServerRequest,
+  ManualPreviewServerResult,
   PreviewServer,
   PreviewServerEvent,
   PreviewServerProtocol,
   PreviewServerSource,
 } from '@shared/core/preview-servers/types';
 import type { ConnectionState } from '@shared/core/ssh/ssh';
+import { err, ok, type Result } from '@shared/lib/result';
 import { PortForwardService } from '../port-forwards/port-forward-service';
+import type { PortForwardRecord } from '../port-forwards/port-forward-service';
 import type { SshClientProxy } from '../ssh/lifecycle/ssh-client-proxy';
 import type { SshConnectionManagerEvent } from '../ssh/lifecycle/ssh-connection-manager';
 import type { DetectedPreviewUrl, PreviewSourceClosed } from './terminal-url-detector';
@@ -192,19 +196,9 @@ export class PreviewServerService {
     }, this.closeDelayMs);
   }
 
-  async forwardManual(request: ManualPreviewServerRequest): Promise<PreviewServer> {
+  async forwardManual(request: ManualPreviewServerRequest): Promise<ManualPreviewServerResult> {
     const id = `manual:${randomUUID()}`;
     const tunnelId = `preview:${id}`;
-    const proxy = await this.getSshProxy(request.connectionId);
-    const forward = await this.portForwards.open({
-      id: tunnelId,
-      projectId: request.projectId,
-      workspaceId: request.workspaceId,
-      connectionId: request.connectionId,
-      proxy,
-      remotePort: request.remotePort,
-      preferredLocalPort: request.preferredLocalPort ?? request.remotePort,
-    });
     const server: PreviewServer = {
       id,
       kind: 'forwarded',
@@ -213,13 +207,52 @@ export class PreviewServerService {
       source: { kind: 'manual' },
       protocol: request.protocol,
       urlPath: '/',
-      status: { kind: 'ready' },
+      status: { kind: 'starting' },
       connectionId: request.connectionId,
       remotePort: request.remotePort,
-      localPort: forward.localPort,
     };
     this.addServer(id, server, { identity: id, tunnelId });
-    return server;
+
+    const proxyResult = await this.resolveManualSshProxy(request.connectionId);
+    if (!proxyResult.success) {
+      if (!this.servers.has(id)) return err(manualForwardCancelledError());
+      await this.removeFailedManualForward(id);
+      return err(proxyResult.error);
+    }
+    const currentBeforeOpen = this.servers.get(id);
+    if (!currentBeforeOpen || currentBeforeOpen.kind !== 'forwarded') {
+      return err(manualForwardCancelledError());
+    }
+
+    const forwardResult = await this.openManualTunnel({
+      id: tunnelId,
+      projectId: request.projectId,
+      workspaceId: request.workspaceId,
+      connectionId: request.connectionId,
+      proxy: proxyResult.data,
+      remotePort: request.remotePort,
+      preferredLocalPort: request.preferredLocalPort ?? request.remotePort,
+    });
+    if (!forwardResult.success) {
+      if (!this.servers.has(id)) return err(manualForwardCancelledError());
+      await this.removeFailedManualForward(id);
+      return err(forwardResult.error);
+    }
+
+    const current = this.servers.get(id);
+    if (!current || current.kind !== 'forwarded') {
+      await this.portForwards.stop(tunnelId);
+      return err(manualForwardCancelledError());
+    }
+
+    const next: PreviewServer = {
+      ...current,
+      localPort: forwardResult.data.localPort,
+      status: { kind: 'ready' },
+    };
+    this.servers.set(next.id, next);
+    this.emit({ type: 'upsert', server: next });
+    return ok(next);
   }
 
   handleSshConnectionEvent(event: Pick<SshConnectionManagerEvent, 'type' | 'connectionId'>): void {
@@ -405,6 +438,49 @@ export class PreviewServerService {
     await Promise.all(ids.map((id) => this.stop(id)));
   }
 
+  private async resolveManualSshProxy(
+    connectionId: string
+  ): Promise<Result<Pick<SshClientProxy, 'client' | 'isConnected'>, ManualPreviewServerError>> {
+    try {
+      return ok(await this.getSshProxy(connectionId));
+    } catch (error) {
+      log.warn('PreviewServerService: failed to resolve SSH proxy for manual preview tunnel', {
+        connectionId,
+        error: String(error),
+      });
+      return err(manualForwardOpenFailedError());
+    }
+  }
+
+  private async openManualTunnel(request: {
+    id: string;
+    projectId: string;
+    workspaceId: string;
+    connectionId: string;
+    proxy: Pick<SshClientProxy, 'client' | 'isConnected'>;
+    remotePort: number;
+    preferredLocalPort: number;
+  }): Promise<Result<PortForwardRecord, ManualPreviewServerError>> {
+    try {
+      return ok(await this.portForwards.open(request));
+    } catch (error) {
+      log.warn('PreviewServerService: failed to open manual SSH preview tunnel', {
+        projectId: request.projectId,
+        workspaceId: request.workspaceId,
+        connectionId: request.connectionId,
+        remotePort: request.remotePort,
+        error: String(error),
+      });
+      return err(manualForwardOpenFailedError());
+    }
+  }
+
+  private async removeFailedManualForward(id: string): Promise<void> {
+    if (this.servers.has(id)) {
+      await this.stop(id);
+    }
+  }
+
   private addServer(identity: string, server: PreviewServer, metadata: PreviewMetadata): void {
     this.identities.set(identity, server.id);
     this.servers.set(server.id, server);
@@ -441,6 +517,20 @@ function sshAutoIdentity(target: {
   port: number;
 }): string {
   return `ssh:auto:${target.projectId}:${target.workspaceId}:${target.connectionId}:${target.port}`;
+}
+
+function manualForwardCancelledError(): ManualPreviewServerError {
+  return {
+    type: 'cancelled',
+    message: 'Manual preview forwarding was cancelled',
+  };
+}
+
+function manualForwardOpenFailedError(): ManualPreviewServerError {
+  return {
+    type: 'open-failed',
+    message: 'Failed to open SSH port forward',
+  };
 }
 
 function matchesDetectedServer(

@@ -1,3 +1,5 @@
+import type { Result } from '../../lib/result';
+
 export type PreviewServerSource =
   | {
       kind: 'terminal-output';
@@ -56,6 +58,13 @@ export type ManualPreviewServerRequest = {
   remotePort: number;
   preferredLocalPort?: number;
 };
+
+export type ManualPreviewServerError =
+  | { type: 'not-ssh-workspace'; message: string }
+  | { type: 'cancelled'; message: string }
+  | { type: 'open-failed'; message: string };
+
+export type ManualPreviewServerResult = Result<PreviewServer, ManualPreviewServerError>;
 
 export type PreviewServerEvent =
   | { type: 'upsert'; server: PreviewServer }

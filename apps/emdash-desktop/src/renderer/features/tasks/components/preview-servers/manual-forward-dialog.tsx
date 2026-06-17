@@ -46,11 +46,15 @@ export function ManualForwardDialog({ onClose }: { onClose: () => void }) {
 
     setIsSubmitting(true);
     try {
-      await previews.forwardManual({
+      const result = await previews.forwardManual({
         protocol,
         remotePort: parsedRemotePort,
         ...(parsedLocalPort ? { preferredLocalPort: parsedLocalPort } : {}),
       });
+      if (!result.success) {
+        setError(result.error.message);
+        return;
+      }
       setRemotePort('');
       setLocalPort('');
       onClose();
