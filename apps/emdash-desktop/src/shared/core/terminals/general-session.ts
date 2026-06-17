@@ -8,7 +8,7 @@ export interface GeneralSessionConfig {
   cwd: string;
   projectPath?: string;
   shellSetup?: string;
-  tmuxSessionName?: string;
+  multiplexer?: { id: 'tmux' | 'boo'; sessionName: string };
   command?: string;
   args?: string[];
 }

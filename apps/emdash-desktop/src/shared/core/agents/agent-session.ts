@@ -9,7 +9,7 @@ export interface AgentSessionConfig {
   cwd: string;
   sessionId?: string;
   shellSetup?: string;
-  tmuxSessionName?: string;
+  multiplexer?: { id: 'tmux' | 'boo'; sessionName: string };
   autoApprove: boolean;
   resume: boolean;
 }

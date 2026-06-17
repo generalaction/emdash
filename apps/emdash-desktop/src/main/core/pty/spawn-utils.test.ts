@@ -142,7 +142,7 @@ describe('resolveSshCommand', () => {
     const result = resolveSshCommand(
       'agent',
       makeAgentConfig({
-        tmuxSessionName: 'agent-session',
+        multiplexer: { id: 'tmux', sessionName: 'agent-session' },
       }),
       undefined,
       zshProfile
@@ -204,5 +204,22 @@ describe('resolveSshCommand', () => {
 
     expect(result).toContain("'/usr/bin/env' 'PATH=/usr/bin' 'tcsh' -c");
     expect(result).toContain("'\\''hello\\!'\\''");
+  });
+});
+
+describe('resolveSshCommand multiplexer wrapping', () => {
+  it('wraps with the tmux backend when multiplexer.id is tmux', () => {
+    const cmd = resolveSshCommand('agent', makeAgentConfig({ multiplexer: { id: 'tmux', sessionName: 's' } }));
+    expect(cmd).toContain('tmux -u attach-session -t \\"s\\"');
+  });
+
+  it('wraps with the boo backend when multiplexer.id is boo', () => {
+    const cmd = resolveSshCommand('agent', makeAgentConfig({ multiplexer: { id: 'boo', sessionName: 's' } }));
+    expect(cmd).toContain('exec boo attach');
+  });
+
+  it('does not wrap when multiplexer is absent', () => {
+    const cmd = resolveSshCommand('agent', makeAgentConfig());
+    expect(cmd).not.toContain('attach');
   });
 });

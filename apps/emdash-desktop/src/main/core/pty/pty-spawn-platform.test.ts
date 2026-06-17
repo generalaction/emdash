@@ -401,7 +401,7 @@ describe('resolveLocalPtySpawn - Windows', () => {
         kind: 'interactive-shell',
         cwd: 'C:\\repo',
         shellSetup: 'source ~/.nvm/nvm.sh',
-        tmuxSessionName: 'session-1',
+        multiplexer: { id: 'tmux', sessionName: 'session-1' },
       },
     });
 
@@ -409,6 +409,21 @@ describe('resolveLocalPtySpawn - Windows', () => {
       'shell_setup_ignored_on_windows',
       'tmux_unsupported_on_windows',
     ]);
+  });
+
+  it('returns tmux_unsupported_on_windows warning when multiplexer is set', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'win32',
+      env: winEnv,
+      intent: {
+        kind: 'interactive-shell',
+        cwd: 'C:\\repo',
+        shellSetup: 'source ~/.nvm/nvm.sh',
+        multiplexer: { id: 'boo', sessionName: 'session-1' },
+      },
+    });
+
+    expect(result.warnings).toContain('tmux_unsupported_on_windows');
   });
 });
 
@@ -637,5 +652,34 @@ describe('resolveLocalPtySpawn - POSIX', () => {
       cwd: '/repo',
       warnings: [],
     });
+  });
+
+  it('wraps run-command with boo backend when multiplexer.id is boo', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'linux',
+      env: posixEnv,
+      intent: {
+        kind: 'run-command',
+        cwd: '/repo',
+        multiplexer: { id: 'boo', sessionName: 's' },
+        command: { kind: 'argv', command: 'claude', args: [] },
+      },
+    });
+
+    expect(result.args[result.args.length - 1]).toContain('exec boo attach');
+  });
+
+  it('wraps interactive-shell with tmux backend when multiplexer.id is tmux', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'linux',
+      env: posixEnv,
+      intent: {
+        kind: 'interactive-shell',
+        cwd: '/repo',
+        multiplexer: { id: 'tmux', sessionName: 's' },
+      },
+    });
+
+    expect(result.args[result.args.length - 1]).toContain('tmux -u attach-session');
   });
 });

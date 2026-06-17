@@ -17,7 +17,7 @@ import {
   terminalInteractiveShellArgs,
   terminalShellBasename,
 } from '@shared/core/terminals/terminal-settings';
-import { buildTmuxShellLine } from './tmux-session-name';
+import { backendFor } from './multiplexer';
 
 export type SessionType = 'agent' | 'general';
 export type SessionConfig = AgentSessionConfig | GeneralSessionConfig;
@@ -37,7 +37,9 @@ function posixShellLineForSsh(
       const line = cfg.shellSetup ? `${cfg.shellSetup} && ${baseCmd}` : baseCmd;
       return {
         cwd: cfg.cwd,
-        line: cfg.tmuxSessionName ? buildTmuxShellLine(cfg.tmuxSessionName, line) : line,
+        line: cfg.multiplexer
+          ? backendFor(cfg.multiplexer.id).buildAttachShellLine(cfg.multiplexer.sessionName, line)
+          : line,
       };
     }
     case 'general': {
@@ -48,7 +50,9 @@ function posixShellLineForSsh(
       const line = cfg.shellSetup ? `${cfg.shellSetup} && ${baseCmd}` : baseCmd;
       return {
         cwd: cfg.cwd,
-        line: cfg.tmuxSessionName ? buildTmuxShellLine(cfg.tmuxSessionName, line) : line,
+        line: cfg.multiplexer
+          ? backendFor(cfg.multiplexer.id).buildAttachShellLine(cfg.multiplexer.sessionName, line)
+          : line,
       };
     }
     default:
