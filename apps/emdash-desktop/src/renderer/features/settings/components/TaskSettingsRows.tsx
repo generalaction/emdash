@@ -1,7 +1,10 @@
-import { Info } from 'lucide-react';
-import React from 'react';
+import type { DependencyStatus } from '@emdash/shared/deps/runtime';
+import { Info, Loader2 } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
+import { rpc } from '@renderer/lib/ipc';
+import { Button } from '@renderer/lib/ui/button';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
@@ -178,25 +181,90 @@ export const EnableTmuxRow: React.FC = () => {
 
   const tmuxByDefault = projects?.tmuxByDefault ?? false;
 
+  const [booStatus, setBooStatus] = useState<DependencyStatus | null>(null);
+  const [installing, setInstalling] = useState(false);
+
+  const fetchBooStatus = useCallback(async () => {
+    try {
+      const result = await rpc.coreDeps.getCoreDependencyStatus('boo');
+      setBooStatus(result.status);
+    } catch {
+      setBooStatus('error');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tmuxByDefault) {
+      void fetchBooStatus();
+    }
+  }, [tmuxByDefault, fetchBooStatus]);
+
+  const handleInstallBoo = async () => {
+    setInstalling(true);
+    try {
+      await rpc.coreDeps.installCoreDependency('boo');
+      await fetchBooStatus();
+    } finally {
+      setInstalling(false);
+    }
+  };
+
+  const renderBooHint = () => {
+    if (!tmuxByDefault) return null;
+    if (booStatus === null) return null;
+
+    if (booStatus === 'available') {
+      return (
+        <div className="text-xs text-foreground-passive">
+          Active backend: <span className="text-foreground">boo</span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-foreground-passive">
+          Active backend: tmux
+          {' — '}
+          boo not found
+        </span>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-6 px-2 text-xs"
+          disabled={installing}
+          onClick={() => void handleInstallBoo()}
+        >
+          {installing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+          Install boo
+        </Button>
+      </div>
+    );
+  };
+
   return (
-    <SettingRow
-      title="Enable tmux"
-      description="Run agent sessions and terminals in tmux sessions by default."
-      control={
-        <>
-          <ResetToDefaultButton
-            visible={isFieldOverridden('tmuxByDefault')}
-            defaultLabel="off"
-            onReset={() => resetField('tmuxByDefault')}
-            disabled={loading || saving}
-          />
-          <Switch
-            checked={tmuxByDefault}
-            disabled={loading || saving}
-            onCheckedChange={(checked) => update({ tmuxByDefault: checked })}
-          />
-        </>
-      }
-    />
+    <div className="flex flex-col gap-1.5">
+      <SettingRow
+        title="Persistent sessions"
+        description="Sessions survive disconnects and app restarts. The backend is chosen automatically — boo for agents when available, otherwise tmux."
+        control={
+          <>
+            <ResetToDefaultButton
+              visible={isFieldOverridden('tmuxByDefault')}
+              defaultLabel="off"
+              onReset={() => resetField('tmuxByDefault')}
+              disabled={loading || saving}
+            />
+            <Switch
+              checked={tmuxByDefault}
+              disabled={loading || saving}
+              onCheckedChange={(checked) => update({ tmuxByDefault: checked })}
+            />
+          </>
+        }
+      />
+      {renderBooHint()}
+    </div>
   );
 };
