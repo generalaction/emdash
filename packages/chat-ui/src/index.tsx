@@ -15,7 +15,16 @@ import type { TranscriptApi } from './state/transcript';
 import { createViewState } from './state/view-state';
 import type { ViewState } from './state/view-state';
 
-export type { ChatItem, ChatMessage, ChatToolCall, ChatThinking, ChatRole } from './model';
+export type {
+  ChatItem,
+  ChatMessage,
+  ChatToolCall,
+  ChatThinking,
+  ChatFileOpToolCall,
+  ChatRole,
+  FileOpKind,
+  FileOp,
+} from './model';
 export type { TranscriptApi, TranscriptEvent } from './state/transcript';
 export type { ViewState } from './state/view-state';
 export { generateMockTranscript } from './mock-transcript';

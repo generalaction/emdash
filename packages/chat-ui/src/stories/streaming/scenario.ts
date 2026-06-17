@@ -5,7 +5,7 @@
  * No Solid imports so this module can run in the Node Vitest project.
  */
 
-import type { ChatItem, ChatRole, ToolStatus } from '../../model';
+import type { ChatItem, ChatRole, FileOp, FileOpKind, ToolStatus } from '../../model';
 import type { TranscriptApi } from '../../state/transcript';
 import type { ScriptStep } from '../chat-host';
 
@@ -161,6 +161,59 @@ export function streamThinking(opts: {
   });
 
   return steps;
+}
+
+/**
+ * Produce steps that simulate a file-operation tool call: the first path
+ * is revealed synchronously, then each subsequent path is added one at a
+ * time with a configurable delay.
+ *
+ * Each `file_op_update` sends the *full* accumulated list so far (matching
+ * ACP's "replaces locations collection" semantics). Ends with a
+ * `file_op_update` that sets status to `finalStatus` (default: 'done').
+ */
+export function streamFileOp(opts: {
+  id: string;
+  op: FileOpKind;
+  /** Paths to reveal progressively. At least one is required. */
+  paths: string[];
+  /** Delay between revealing each new path in ms (default: 300). */
+  pathMs?: number;
+  /** Final status dispatched after the last path (default: 'done'). */
+  finalStatus?: ToolStatus;
+}): ScriptStep[] {
+  const { id, op, paths, pathMs = 300, finalStatus = 'done' } = opts;
+
+  if (paths.length === 0) return [];
+
+  const result: ScriptStep[] = [];
+
+  // Create the row synchronously with the first path.
+  const firstOps: FileOp[] = [{ path: paths[0] }];
+  result.push({
+    kind: 'call',
+    fn: (api: TranscriptApi) => api.dispatch({ type: 'file_op_start', id, op, ops: firstOps }),
+  });
+
+  // Reveal remaining paths one by one, each update includes all paths so far.
+  for (let i = 1; i < paths.length; i++) {
+    const accumulatedOps: FileOp[] = paths.slice(0, i + 1).map((path) => ({ path }));
+    result.push({ kind: 'wait', ms: pathMs });
+    result.push({
+      kind: 'call',
+      fn: (api: TranscriptApi) =>
+        api.dispatch({ type: 'file_op_update', id, ops: accumulatedOps }),
+    });
+  }
+
+  // Finalize.
+  result.push({ kind: 'wait', ms: pathMs });
+  result.push({
+    kind: 'call',
+    fn: (api: TranscriptApi) => api.dispatch({ type: 'file_op_update', id, status: finalStatus }),
+  });
+
+  return result;
 }
 
 /** A single timed update applied to a running tool call. */

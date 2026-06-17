@@ -50,4 +50,32 @@ export type ChatThinking = {
   durationMs?: number;
 };
 
-export type ChatItem = ChatMessage | ChatToolCall | ChatThinking;
+/** ACP tool-call categories that represent file operations. */
+export type FileOpKind = 'read' | 'edit' | 'delete' | 'move';
+
+/** A single file touched by a file-operation tool call. */
+export type FileOp = {
+  path: string;
+};
+
+/**
+ * A file-operation tool call row (read / edit / delete / move).
+ *
+ * Single file (ops.length <= 1): renders as an inline one-liner, e.g. "Read foo.tsx".
+ * Multiple files (ops.length > 1): renders as a collapsible header "Read 2 files ›"
+ * that expands to a per-file list. While `status === 'running'` the collapsed
+ * header shows a fixed-height streaming preview window (like ChatThinking).
+ *
+ * Collapse semantics are inverted: the stored "collapsed" bool means "expanded"
+ * (same convention as ChatThinking).
+ */
+export type ChatFileOpToolCall = {
+  kind: 'file-op';
+  id: string;
+  op: FileOpKind;
+  status: ToolStatus;
+  /** Accumulating list of files touched. Replaced (not appended) on each update. */
+  ops: FileOp[];
+};
+
+export type ChatItem = ChatMessage | ChatToolCall | ChatThinking | ChatFileOpToolCall;

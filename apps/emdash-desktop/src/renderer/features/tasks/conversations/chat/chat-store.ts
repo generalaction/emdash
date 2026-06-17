@@ -1,5 +1,10 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
-import type { ChatItem as UiChatItem, TranscriptApi } from '@emdash/chat-ui';
+import type {
+  ChatFileOpToolCall,
+  ChatItem as UiChatItem,
+  FileOpKind,
+  TranscriptApi,
+} from '@emdash/chat-ui';
 import { action, makeObservable, observable } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
@@ -33,8 +38,17 @@ export type ChatToolItem = {
   inputSummary?: string;
 };
 
+/** A file-operation tool call line (read / edit / delete / move). */
+export type ChatFileOpItem = {
+  kind: 'file-op';
+  id: string;
+  op: FileOpKind;
+  status: ToolStatusKind;
+  ops: { path: string }[];
+};
+
 /** A single ordered entry in the chat transcript. */
-export type ChatItem = ChatMessageItem | ChatToolItem;
+export type ChatItem = ChatMessageItem | ChatToolItem | ChatFileOpItem;
 
 /** Convert desktop ChatItem[] to chat-ui ChatItem[] for TranscriptApi.seed(). */
 function toChatUiItems(items: ChatItem[]): UiChatItem[] {
@@ -48,6 +62,17 @@ function toChatUiItems(items: ChatItem[]): UiChatItem[] {
           status: item.status,
           inputSummary: item.inputSummary,
         },
+      ];
+    }
+    if (item.kind === 'file-op') {
+      return [
+        {
+          kind: 'file-op',
+          id: item.id,
+          op: item.op,
+          status: item.status,
+          ops: item.ops,
+        } satisfies ChatFileOpToolCall,
       ];
     }
     if (item.role === 'thought') {
@@ -71,6 +96,32 @@ function toChatUiItems(items: ChatItem[]): UiChatItem[] {
       },
     ];
   });
+}
+
+const FILE_OP_KINDS = new Set<string>(['read', 'edit', 'delete', 'move']);
+
+/**
+ * Extract unique file paths from an ACP tool call notification.
+ * Prefers locations[]; falls back to diff content[] paths for edit calls.
+ */
+function extractPaths(
+  update: Extract<SessionUpdate, { sessionUpdate: 'tool_call' }>
+): { path: string }[] {
+  const paths = new Set<string>();
+
+  if (update.locations) {
+    for (const loc of update.locations) {
+      if (loc.path) paths.add(loc.path);
+    }
+  }
+
+  if (paths.size === 0 && update.content) {
+    for (const c of update.content) {
+      if (c.type === 'diff' && c.path) paths.add(c.path);
+    }
+  }
+
+  return Array.from(paths, (path) => ({ path }));
 }
 
 export class ChatStore {
@@ -265,14 +316,40 @@ export class ChatStore {
     } else if (kind === 'user_message_chunk') {
       this._appendChunk('user', update);
     } else if (kind === 'tool_call') {
-      this._upsertTool({
-        toolCallId: update.toolCallId,
-        toolName: update.title,
-        status: 'running',
-        inputSummary: this._summarizeInput(update.rawInput),
-      });
+      const acpKind = update.kind ?? undefined;
+      if (acpKind && FILE_OP_KINDS.has(acpKind)) {
+        this._upsertFileOp({
+          id: update.toolCallId,
+          op: acpKind as FileOpKind,
+          status: 'running',
+          ops: extractPaths(update),
+        });
+      } else {
+        this._upsertTool({
+          toolCallId: update.toolCallId,
+          toolName: update.title,
+          status: 'running',
+          inputSummary: this._summarizeInput(update.rawInput),
+        });
+      }
     } else if (kind === 'tool_call_update') {
-      if (update.status === 'completed') {
+      const existingFileOp = this.items.find(
+        (it): it is ChatFileOpItem => it.kind === 'file-op' && it.id === update.toolCallId
+      );
+      if (existingFileOp) {
+        const newOps = update.locations
+          ? update.locations
+              .filter((l): l is { path: string } => typeof l.path === 'string')
+              .map((l) => ({ path: l.path }))
+          : undefined;
+        const newStatus =
+          update.status === 'completed'
+            ? 'done'
+            : update.status === 'failed'
+              ? 'error'
+              : undefined;
+        this._upsertFileOp({ id: update.toolCallId, status: newStatus, ops: newOps });
+      } else if (update.status === 'completed') {
         this._upsertTool({ toolCallId: update.toolCallId, status: 'done' });
       } else if (update.status === 'failed') {
         this._upsertTool({ toolCallId: update.toolCallId, status: 'error' });
@@ -388,6 +465,41 @@ export class ChatStore {
         id: patch.toolCallId,
         name: patch.toolName ?? '(tool)',
         inputSummary: patch.inputSummary,
+      });
+    }
+  }
+
+  private _upsertFileOp(patch: {
+    id: string;
+    op?: FileOpKind;
+    status?: ToolStatusKind;
+    ops?: { path: string }[];
+  }): void {
+    const existing = this.items.find(
+      (it): it is ChatFileOpItem => it.kind === 'file-op' && it.id === patch.id
+    );
+    if (existing) {
+      if (patch.status !== undefined) existing.status = patch.status;
+      if (patch.ops !== undefined) existing.ops = patch.ops;
+      this._transcript?.dispatch({
+        type: 'file_op_update',
+        id: patch.id,
+        status: patch.status,
+        ops: patch.ops,
+      });
+    } else {
+      this.items.push({
+        kind: 'file-op',
+        id: patch.id,
+        op: patch.op ?? 'read',
+        status: patch.status ?? 'running',
+        ops: patch.ops ?? [],
+      });
+      this._transcript?.dispatch({
+        type: 'file_op_start',
+        id: patch.id,
+        op: patch.op ?? 'read',
+        ops: patch.ops ?? [],
       });
     }
   }

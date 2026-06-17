@@ -12,11 +12,14 @@
 
 import { createStore, produce } from 'solid-js/store';
 import type {
+  ChatFileOpToolCall,
   ChatItem,
   ChatMessage,
   ChatRole,
   ChatThinking,
   ChatToolCall,
+  FileOp,
+  FileOpKind,
   ToolStatus,
 } from '../model';
 
@@ -52,6 +55,13 @@ export type TranscriptEvent =
    * (explicit value, or computed from startedAt).
    */
   | { type: 'thinking_done'; id: string; durationMs?: number }
+  /** A new file-operation tool call has started. */
+  | { type: 'file_op_start'; id: string; op: FileOpKind; ops: FileOp[] }
+  /**
+   * An existing file-operation tool call was updated.
+   * `ops` replaces the full file list when provided (not appended).
+   */
+  | { type: 'file_op_update'; id: string; status?: ToolStatus; ops?: FileOp[] }
   /**
    * The current turn is finished. Clears `streaming` flags, finalizes any
    * still-active thinking rows, and moves activeTurn into committed.
@@ -197,6 +207,46 @@ export function createTranscript(): TranscriptApi {
               if (existing) {
                 existing.status = 'done';
                 existing.durationMs = event.durationMs ?? Date.now() - existing.startedAt;
+              }
+              break;
+            }
+
+            case 'file_op_start': {
+              if (s.activeTurn === null) s.activeTurn = [];
+              const existing = s.activeTurn.find(
+                (it): it is ChatFileOpToolCall =>
+                  it.kind === 'file-op' && it.id === event.id
+              );
+              if (!existing) {
+                s.activeTurn.push({
+                  kind: 'file-op',
+                  id: event.id,
+                  op: event.op,
+                  status: 'running',
+                  ops: event.ops,
+                } satisfies ChatFileOpToolCall);
+              }
+              break;
+            }
+
+            case 'file_op_update': {
+              if (s.activeTurn === null) s.activeTurn = [];
+              const existing = s.activeTurn.find(
+                (it): it is ChatFileOpToolCall =>
+                  it.kind === 'file-op' && it.id === event.id
+              );
+              if (existing) {
+                if (event.status !== undefined) existing.status = event.status;
+                if (event.ops !== undefined) existing.ops = event.ops;
+              } else {
+                // Defensive: handle update arriving before start
+                s.activeTurn.push({
+                  kind: 'file-op',
+                  id: event.id,
+                  op: 'read',
+                  status: event.status ?? 'running',
+                  ops: event.ops ?? [],
+                } satisfies ChatFileOpToolCall);
               }
               break;
             }

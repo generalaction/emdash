@@ -2,9 +2,45 @@
  * Row-level stories — one transcript item per story for quick style iteration.
  */
 
+import { createEffect } from 'solid-js';
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
+import { ChatRoot } from '../ChatRoot';
+import { DEFAULT_FONT_CONFIG } from '../core/measure/fonts';
+import type { ChatItem } from '../model';
+import { createTranscript } from '../state/transcript';
+import { createViewState } from '../state/view-state';
 import { ChatHost, ScriptedChat } from './chat-host';
-import { scenario, seedStep, streamMessage } from './streaming/scenario';
+import { scenario, seedStep, streamFileOp, streamMessage } from './streaming/scenario';
+
+/**
+ * Variant of ChatHost that pre-expands a specific item by id.
+ * Used for stories that show the expanded state of collapsible rows.
+ */
+function ChatHostExpanded(props: { items: ChatItem[]; expandId: string; height: number }) {
+  const transcript = createTranscript();
+  const viewState = createViewState();
+
+  createEffect(() => {
+    transcript.seed(props.items);
+  });
+
+  // Pre-toggle so the item starts in the expanded state.
+  viewState.toggleCollapsed(props.expandId);
+
+  return (
+    <div
+      class="overflow-hidden rounded-lg border border-border bg-background"
+      style={{ width: '880px', height: `${props.height}px` }}
+    >
+      <ChatRoot
+        transcript={transcript}
+        viewState={viewState}
+        fonts={DEFAULT_FONT_CONFIG}
+        stickToBottom
+      />
+    </div>
+  );
+}
 
 const meta: Meta = {
   title: 'ChatUI/Rows',
@@ -219,6 +255,218 @@ export const MixedConversation: Story = {
         },
       ]}
       height={340}
+    />
+  ),
+};
+
+// ── File-operation row stories ─────────────────────────────────────────────────
+
+export const FileOpReadSingle: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'file-op',
+          id: 'fo1',
+          op: 'read',
+          status: 'done',
+          ops: [{ path: 'packages/chat-ui/src/model.ts' }],
+        },
+      ]}
+      height={80}
+    />
+  ),
+};
+
+export const FileOpEditSingle: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'file-op',
+          id: 'fo2',
+          op: 'edit',
+          status: 'done',
+          ops: [{ path: 'packages/chat-ui/src/components/tool/Tool.tsx' }],
+        },
+      ]}
+      height={80}
+    />
+  ),
+};
+
+export const FileOpDeleteSingle: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'file-op',
+          id: 'fo3',
+          op: 'delete',
+          status: 'done',
+          ops: [{ path: 'packages/chat-ui/src/old-spec.ts' }],
+        },
+      ]}
+      height={80}
+    />
+  ),
+};
+
+export const FileOpMoveSingle: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'file-op',
+          id: 'fo4',
+          op: 'move',
+          status: 'done',
+          ops: [{ path: 'packages/chat-ui/src/components/tool/GenericTool.tsx' }],
+        },
+      ]}
+      height={80}
+    />
+  ),
+};
+
+export const FileOpMultiCollapsed: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'file-op',
+          id: 'fo5',
+          op: 'read',
+          status: 'done',
+          ops: [
+            { path: 'packages/chat-ui/src/model.ts' },
+            { path: 'packages/chat-ui/src/state/transcript.ts' },
+            { path: 'packages/chat-ui/src/components/tool/Tool.tsx' },
+          ],
+        },
+      ]}
+      height={80}
+    />
+  ),
+};
+
+export const FileOpMultiExpanded: Story = {
+  render: () => (
+    <ChatHostExpanded
+      items={[
+        {
+          kind: 'file-op',
+          id: 'fo6',
+          op: 'read',
+          status: 'done',
+          ops: [
+            { path: 'packages/chat-ui/src/model.ts' },
+            { path: 'packages/chat-ui/src/state/transcript.ts' },
+            { path: 'packages/chat-ui/src/components/tool/Tool.tsx' },
+          ],
+        },
+      ]}
+      expandId="fo6"
+      height={180}
+    />
+  ),
+};
+
+export const FileOpMultiRunningPreview: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'file-op',
+          id: 'fo7',
+          op: 'read',
+          status: 'running',
+          ops: [
+            { path: 'packages/chat-ui/src/model.ts' },
+            { path: 'packages/chat-ui/src/state/transcript.ts' },
+            { path: 'packages/chat-ui/src/components/tool/Tool.tsx' },
+          ],
+        },
+      ]}
+      height={160}
+    />
+  ),
+};
+
+export const FileOpEditMultiExpanded: Story = {
+  render: () => (
+    <ChatHostExpanded
+      items={[
+        {
+          kind: 'file-op',
+          id: 'fo8',
+          op: 'edit',
+          status: 'done',
+          ops: [
+            { path: 'packages/chat-ui/src/model.ts' },
+            { path: 'packages/chat-ui/src/components/row-registry.ts' },
+          ],
+        },
+      ]}
+      expandId="fo8"
+      height={140}
+    />
+  ),
+};
+
+export const FileOpReadStreaming: Story = {
+  render: () => (
+    <ScriptedChat
+      height={200}
+      script={scenario(
+        [seedStep([{ kind: 'message', id: 'u1', role: 'user', text: 'Explore the codebase' }])],
+        streamFileOp({
+          id: 'fo9',
+          op: 'read',
+          paths: [
+            'packages/chat-ui/src/model.ts',
+            'packages/chat-ui/src/state/transcript.ts',
+            'packages/chat-ui/src/components/tool/Tool.tsx',
+            'packages/chat-ui/src/components/thinking/Thinking.tsx',
+            'packages/chat-ui/src/components/row-registry.ts',
+          ],
+          pathMs: 500,
+        })
+      )}
+    />
+  ),
+};
+
+export const FileOpMixedConversation: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        { kind: 'message', id: 'u1', role: 'user', text: 'Refactor the tool renderer' },
+        {
+          kind: 'file-op',
+          id: 'fo10',
+          op: 'read',
+          status: 'done',
+          ops: [
+            { path: 'packages/chat-ui/src/components/tool/Tool.tsx' },
+            { path: 'packages/chat-ui/src/components/tool/spec.tsx' },
+          ],
+        },
+        {
+          kind: 'file-op',
+          id: 'fo11',
+          op: 'edit',
+          status: 'done',
+          ops: [{ path: 'packages/chat-ui/src/components/tool/Tool.tsx' }],
+        },
+        {
+          kind: 'message',
+          id: 'a1',
+          role: 'assistant',
+          text: 'Done! I have split `Tool.tsx` into a generic fallback and a dedicated `FileOperation` renderer.',
+        },
+      ]}
+      height={320}
     />
   ),
 };
