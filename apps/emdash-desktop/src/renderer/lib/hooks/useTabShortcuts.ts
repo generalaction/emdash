@@ -86,7 +86,7 @@ export function useTabShortcuts(
       e.preventDefault();
       store?.setNextTabActive();
     },
-    { enabled: enabled && tabNextHotkey !== null, conflictBehavior: 'allow' }
+    { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
     TAB_NAVIGATION_HOTKEYS.previous,
@@ -94,7 +94,7 @@ export function useTabShortcuts(
       e.preventDefault();
       store?.setPreviousTabActive();
     },
-    { enabled: enabled && tabPrevHotkey !== null, conflictBehavior: 'allow' }
+    { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
     getHotkeyRegistration('tabClose', keyboard),
