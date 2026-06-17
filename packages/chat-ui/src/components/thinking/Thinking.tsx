@@ -68,14 +68,14 @@ function ThinkingHeader(props: { item: ChatThinking; expanded: boolean }) {
 
   const label = () => {
     if (props.item.status === 'thinking') return `Thinking ${elapsed()}s`;
-    const durationS =
-      props.item.durationMs !== undefined ? formatDurationS(props.item.durationMs) : '?';
-    return `Thought for ${durationS}s`;
+    if (props.item.durationMs !== undefined)
+      return `Thought for ${formatDurationS(props.item.durationMs)}s`;
+    return 'Thought';
   };
 
   return (
     <div
-      class={`${styles['pthinking__header']} flex cursor-pointer items-center gap-1.5 text-xs text-foreground-muted select-none hover:text-foreground`}
+      class={`${styles['pthinking__header']} flex cursor-pointer items-center gap-1.5 text-sm text-foreground-muted select-none hover:text-foreground`}
       role="button"
       aria-expanded={props.expanded ? 'true' : 'false'}
       aria-live={props.item.status === 'thinking' ? 'polite' : undefined}

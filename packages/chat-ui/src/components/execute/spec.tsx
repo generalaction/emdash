@@ -1,12 +1,9 @@
 /**
  * executeRow — RowComponent for ChatExecute.
  *
- * estimate / measure: both call measureExecute (pure arithmetic, no pretext).
- * Render:            Execute component.
- * cssVars:           execute layout constants.
- *
- * Collapse semantics are inverted (same as file-op and thinking rows): the
- * stored "collapsed" bool means "expanded" — default absent/false → collapsed.
+ * estimate / measure: constant EXEC_ROW_H + ROW_GAP (no collapse state).
+ * Render:            Execute component (no props beyond item).
+ * cssVars:           execute row height constant.
  */
 
 import type { Component } from 'solid-js';
@@ -20,16 +17,19 @@ export { execCssVars } from './css-vars';
 export type ExecuteRowLayout = { height: number };
 
 function ExecuteRender(props: { item: ChatExecute; layout: ExecuteRowLayout; ctx: RenderCtx }) {
-  return <Execute item={props.item} collapsed={props.ctx.viewState.isCollapsed(props.item.id)} />;
+  // layout.height is consumed by the virtualizer; ctx provides view state not needed here.
+  void props.layout;
+  void props.ctx;
+  return <Execute item={props.item} />;
 }
 
 export const executeRow: RowComponent<ChatExecute, ExecuteRowLayout> = {
-  estimate(item: ChatExecute, ctx: MeasureCtx): number {
-    return measureExecute(item, ctx.isCollapsed);
+  estimate(item: ChatExecute, _ctx: MeasureCtx): number {
+    return measureExecute(item);
   },
 
-  measure(item: ChatExecute, ctx: MeasureCtx): ExecuteRowLayout {
-    return { height: measureExecute(item, ctx.isCollapsed) };
+  measure(item: ChatExecute, _ctx: MeasureCtx): ExecuteRowLayout {
+    return { height: measureExecute(item) };
   },
 
   Render: ExecuteRender as Component<{

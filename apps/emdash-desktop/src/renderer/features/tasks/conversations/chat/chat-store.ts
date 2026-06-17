@@ -53,7 +53,6 @@ export type ChatExecuteItem = {
   kind: 'execute';
   id: string;
   command: string;
-  output?: string;
   status: ToolStatusKind;
   startedAt: number;
   durationMs?: number;
@@ -93,7 +92,6 @@ function toChatUiItems(items: ChatItem[]): UiChatItem[] {
           kind: 'execute',
           id: item.id,
           command: item.command,
-          output: item.output,
           status: item.status,
           startedAt: item.startedAt,
           durationMs: item.durationMs,
@@ -382,13 +380,11 @@ export class ChatStore {
       } else if (existingExecute) {
         const rawInput = update.rawInput as Record<string, unknown> | null | undefined;
         const newCommand = typeof rawInput?.command === 'string' ? rawInput.command : undefined;
-        const newOutput = update.rawOutput != null ? String(update.rawOutput) : undefined;
         const newStatus =
           update.status === 'completed' ? 'done' : update.status === 'failed' ? 'error' : undefined;
         this._upsertExecute({
           id: update.toolCallId,
           command: newCommand,
-          output: newOutput,
           status: newStatus,
         });
       } else if (update.status === 'completed') {
@@ -543,18 +539,12 @@ export class ChatStore {
     }
   }
 
-  private _upsertExecute(patch: {
-    id: string;
-    command?: string;
-    output?: string;
-    status?: ToolStatusKind;
-  }): void {
+  private _upsertExecute(patch: { id: string; command?: string; status?: ToolStatusKind }): void {
     const existing = this.items.find(
       (it): it is ChatExecuteItem => it.kind === 'execute' && it.id === patch.id
     );
     if (existing) {
       if (patch.command !== undefined) existing.command = patch.command;
-      if (patch.output !== undefined) existing.output = patch.output;
       if (patch.status !== undefined) {
         existing.status = patch.status;
         if (patch.status === 'done' && existing.durationMs === undefined) {
@@ -565,7 +555,6 @@ export class ChatStore {
         type: 'execute_update',
         id: patch.id,
         command: patch.command,
-        output: patch.output,
         status: patch.status,
       });
     } else {
@@ -574,7 +563,6 @@ export class ChatStore {
         kind: 'execute',
         id: patch.id,
         command: patch.command ?? '',
-        output: patch.output,
         status: patch.status ?? 'running',
         startedAt,
       });

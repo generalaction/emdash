@@ -2539,7 +2539,7 @@ export const tokens = {
   },
   'typography.body.line-height': {
     '.': {
-      value: 22,
+      value: 20,
       unit: 'px',
     },
   },
@@ -2596,7 +2596,7 @@ export const tokens = {
   },
   'typography.code.size': {
     '.': {
-      value: 12,
+      value: 14,
       unit: 'px',
     },
   },
@@ -2605,13 +2605,13 @@ export const tokens = {
   },
   'typography.code.line-height': {
     '.': {
-      value: 18,
+      value: 20,
       unit: 'px',
     },
   },
   'typography.code-lang.size': {
     '.': {
-      value: 11,
+      value: 14,
       unit: 'px',
     },
   },
@@ -2620,7 +2620,7 @@ export const tokens = {
   },
   'typography.code-lang.line-height': {
     '.': {
-      value: 18,
+      value: 20,
       unit: 'px',
     },
   },
@@ -2635,13 +2635,13 @@ export const tokens = {
   },
   'typography.inline-code.line-height': {
     '.': {
-      value: 22,
+      value: 20,
       unit: 'px',
     },
   },
   'typography.mention.size': {
     '.': {
-      value: 12,
+      value: 14,
       unit: 'px',
     },
   },
@@ -2650,7 +2650,7 @@ export const tokens = {
   },
   'typography.mention.line-height': {
     '.': {
-      value: 22,
+      value: 20,
       unit: 'px',
     },
   },
@@ -2663,7 +2663,7 @@ export const tokens = {
       },
       fontWeight: 400,
       lineHeight: {
-        value: 22,
+        value: 20,
         unit: 'px',
       },
     },
@@ -2677,7 +2677,7 @@ export const tokens = {
       },
       fontWeight: 700,
       lineHeight: {
-        value: 22,
+        value: 20,
         unit: 'px',
       },
     },
@@ -2691,7 +2691,7 @@ export const tokens = {
       },
       fontWeight: 400,
       lineHeight: {
-        value: 22,
+        value: 20,
         unit: 'px',
       },
       fontStyle: 'italic',
@@ -2706,7 +2706,7 @@ export const tokens = {
       },
       fontWeight: 500,
       lineHeight: {
-        value: 22,
+        value: 20,
         unit: 'px',
       },
     },
@@ -2762,7 +2762,7 @@ export const tokens = {
       },
       fontWeight: 600,
       lineHeight: {
-        value: 22,
+        value: 20,
         unit: 'px',
       },
     },
@@ -2771,12 +2771,12 @@ export const tokens = {
     '.': {
       fontFamily: ['Inter Variable', 'sans-serif'],
       fontSize: {
-        value: 12,
+        value: 14,
         unit: 'px',
       },
       fontWeight: 700,
       lineHeight: {
-        value: 22,
+        value: 20,
         unit: 'px',
       },
     },
@@ -2785,12 +2785,12 @@ export const tokens = {
     '.': {
       fontFamily: ['Cascadia Code', 'ui-monospace', 'monospace'],
       fontSize: {
-        value: 12,
+        value: 14,
         unit: 'px',
       },
       fontWeight: 400,
       lineHeight: {
-        value: 18,
+        value: 20,
         unit: 'px',
       },
     },
@@ -2799,12 +2799,12 @@ export const tokens = {
     '.': {
       fontFamily: ['Inter Variable', 'sans-serif'],
       fontSize: {
-        value: 11,
+        value: 14,
         unit: 'px',
       },
       fontWeight: 500,
       lineHeight: {
-        value: 18,
+        value: 20,
         unit: 'px',
       },
     },

@@ -4,9 +4,10 @@
  * TABLE_ROW_H must match the CSS: line-height(20) + padding-top(6) + padding-bottom(6) = 32.
  * A parity test in spec.test.ts enforces this invariant.
  */
+import { BODY } from '../../core/metrics';
 
 /** Height of a single table row in px (header or data). Must match CSS. */
-export const TABLE_ROW_H = 32;
+export const TABLE_ROW_H = BODY.lineHeight + 12;
 
 /** Additional px for the outermost border that border-collapse doesn't absorb. */
 export const TABLE_BORDER = 1;

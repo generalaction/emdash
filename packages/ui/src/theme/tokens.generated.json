@@ -2703,7 +2703,7 @@
       },
       "line-height": {
         "$type": "dimension",
-        "$value": "22px"
+        "$value": "20px"
       },
       "bold-weight": {
         "$type": "fontWeight",
@@ -2759,7 +2759,7 @@
     "code": {
       "size": {
         "$type": "dimension",
-        "$value": "12px"
+        "$value": "{typography.body.size}"
       },
       "weight": {
         "$type": "fontWeight",
@@ -2767,13 +2767,13 @@
       },
       "line-height": {
         "$type": "dimension",
-        "$value": "18px"
+        "$value": "{typography.body.line-height}"
       }
     },
     "code-lang": {
       "size": {
         "$type": "dimension",
-        "$value": "11px"
+        "$value": "{typography.body.size}"
       },
       "weight": {
         "$type": "fontWeight",
@@ -2781,7 +2781,7 @@
       },
       "line-height": {
         "$type": "dimension",
-        "$value": "18px"
+        "$value": "{typography.body.line-height}"
       }
     },
     "inline-code": {
@@ -2795,13 +2795,13 @@
       },
       "line-height": {
         "$type": "dimension",
-        "$value": "22px"
+        "$value": "{typography.body.line-height}"
       }
     },
     "mention": {
       "size": {
         "$type": "dimension",
-        "$value": "12px"
+        "$value": "{typography.body.size}"
       },
       "weight": {
         "$type": "fontWeight",
@@ -2809,7 +2809,7 @@
       },
       "line-height": {
         "$type": "dimension",
-        "$value": "22px"
+        "$value": "{typography.body.line-height}"
       }
     }
   },

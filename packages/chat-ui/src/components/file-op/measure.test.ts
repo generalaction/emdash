@@ -105,8 +105,8 @@ describe('measureFileOp()', () => {
     ).toBe(FILEOP_ROW_H + 3 * FILEOP_LINE_H + 2 * FILEOP_PAD_Y + ROW_GAP);
   });
 
-  it('multi expanded height is larger than preview height', () => {
-    const expandedH = FILEOP_ROW_H + 3 * FILEOP_LINE_H + 2 * FILEOP_PAD_Y + ROW_GAP;
+  it('multi expanded height is larger than preview height for 4+ files', () => {
+    const expandedH = FILEOP_ROW_H + 4 * FILEOP_LINE_H + 2 * FILEOP_PAD_Y + ROW_GAP;
     const previewH = FILEOP_ROW_H + FILEOP_WINDOW_H + ROW_GAP;
     expect(expandedH).toBeGreaterThan(previewH);
   });

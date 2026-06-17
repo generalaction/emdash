@@ -473,26 +473,6 @@ export const FileOpMixedConversation: Story = {
 
 // ── Execute row stories ────────────────────────────────────────────────────────
 
-const LS_OUTPUT = [
-  '.',
-  '..',
-  '.astro',
-  '.claude',
-  '.env.example',
-  '.git',
-  '.gitignore',
-  '.prettierrc',
-  'astro.config.mjs',
-  'LICENSE',
-  'node_modules',
-  'package.json',
-  'pnpm-lock.yaml',
-  'public',
-  'README.md',
-  'src',
-  'tsconfig.json',
-].join('\n');
-
 export const ExecuteRunning: Story = {
   render: () => (
     <ChatHost
@@ -518,10 +498,27 @@ export const ExecuteDone: Story = {
           kind: 'execute',
           id: 'ex2',
           command: 'ls -a',
-          output: LS_OUTPUT,
           status: 'done',
           startedAt: Date.now() - 5000,
           durationMs: 5000,
+        },
+      ]}
+      height={80}
+    />
+  ),
+};
+
+/** Duration omitted — e.g. when replaying from a stored transcript with no durationMs. */
+export const ExecuteDoneNoDuration: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'execute',
+          id: 'ex3',
+          command: 'ls -a',
+          status: 'done',
+          startedAt: 0,
         },
       ]}
       height={80}
@@ -535,9 +532,8 @@ export const ExecuteError: Story = {
       items={[
         {
           kind: 'execute',
-          id: 'ex3',
+          id: 'ex4',
           command: 'pnpm run test',
-          output: 'FAIL src/foo.test.ts\n  ✕ should work\n\n1 failed, 0 passed',
           status: 'error',
           startedAt: Date.now() - 8000,
           durationMs: 8000,
@@ -548,42 +544,21 @@ export const ExecuteError: Story = {
   ),
 };
 
-export const ExecuteExpanded: Story = {
+/** Long command — demos 150px truncation with full value on hover. */
+export const ExecuteLongCommand: Story = {
   render: () => (
-    <ChatHostExpanded
-      items={[
-        {
-          kind: 'execute',
-          id: 'ex4',
-          command: 'ls -a',
-          output: LS_OUTPUT,
-          status: 'done',
-          startedAt: Date.now() - 5000,
-          durationMs: 5000,
-        },
-      ]}
-      expandId="ex4"
-      height={320}
-    />
-  ),
-};
-
-export const ExecuteExpandedLong: Story = {
-  render: () => (
-    <ChatHostExpanded
+    <ChatHost
       items={[
         {
           kind: 'execute',
           id: 'ex5',
-          command: 'find . -name "*.ts"',
-          output: Array.from({ length: 30 }, (_, i) => `./src/file${i}.ts`).join('\n'),
+          command: 'find . -type f -name "*.ts" | xargs grep -l "import.*from.*solid-js"',
           status: 'done',
           startedAt: Date.now() - 2000,
           durationMs: 2000,
         },
       ]}
-      expandId="ex5"
-      height={360}
+      height={80}
     />
   ),
 };
@@ -597,7 +572,6 @@ export const ExecuteMixedConversation: Story = {
           kind: 'execute',
           id: 'ex6',
           command: 'ls -a',
-          output: LS_OUTPUT,
           status: 'done',
           startedAt: Date.now() - 10000,
           durationMs: 1000,
@@ -606,7 +580,6 @@ export const ExecuteMixedConversation: Story = {
           kind: 'execute',
           id: 'ex7',
           command: 'pnpm run test',
-          output: '✓ all 42 tests passed',
           status: 'done',
           startedAt: Date.now() - 8000,
           durationMs: 4120,
@@ -618,7 +591,7 @@ export const ExecuteMixedConversation: Story = {
           text: 'All tests passed! The directory listing looks correct.',
         },
       ]}
-      height={280}
+      height={240}
     />
   ),
 };

@@ -1,10 +1,11 @@
 /** File-op row layout constants. */
+import { BODY } from '../../core/metrics';
 
-/** Height of the single-line header / inline row. */
-export const FILEOP_ROW_H = 28;
+/** Height of the single-line header / inline row: body line-height + 4px top + 4px bottom padding. */
+export const FILEOP_ROW_H = BODY.lineHeight + 8;
 
 /** Height of each file row in the expanded list. */
-export const FILEOP_LINE_H = 22;
+export const FILEOP_LINE_H = BODY.lineHeight;
 
 /** Height of the streaming preview window (visible when running + collapsed). */
 export const FILEOP_WINDOW_H = 72;

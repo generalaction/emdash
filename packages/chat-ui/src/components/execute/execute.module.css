@@ -1,55 +1,33 @@
 /*
- * Execute row — geometry and positioning rules only.
+ * Execute row — geometry rules only.
  *
- * All values here feed the layout engine's arithmetic (EXEC_ROW_H,
- * EXEC_LINE_H, EXEC_PAD_Y, EXEC_MAX_LINES) via the --chat-exec-*
- * CSS vars declared in css-vars.ts.
- *
- * Visual rules (colors, flex layout, chevron animation, fonts, overflow)
- * live in Tailwind classes in Execute.tsx.
- *
- * NOTE: .pexec__body has no padding-block — vertical spacing is baked into
- * the expanded body height via EXEC_PAD_Y applied inline in JSX.
+ * Visual rules (colors, fonts, shimmer) live in Tailwind classes in Execute.tsx.
  */
 
-/* ── Row inset ────────────────────────────────────────────────────────────── */
+/* ── Row ──────────────────────────────────────────────────────────────────── */
 
 /* padding-inline matches --chat-msg-pad-x so the row aligns with messages */
 .pexec {
+  height: var(--chat-exec-row-h);
   padding-inline: var(--chat-msg-pad-x);
 }
 
-/* ── Header geometry ──────────────────────────────────────────────────────── */
-
-/* height feeds EXEC_ROW_H in the layout engine */
-.pexec__header {
-  height: var(--chat-exec-row-h);
-}
-
-/* ── Expanded body geometry ───────────────────────────────────────────────── */
+/* ── Command chip ─────────────────────────────────────────────────────────── */
 
 /*
- * Absolutely positioned below the header. left/right give the same inset as
- * the header row. No padding-block — vertical spacing lives in JSX inline
- * styles (EXEC_PAD_Y) so the height calculation in measure.ts stays in sync.
+ * Inline-code chip mirroring .pf--inline-code from prose.module.css.
+ * Font tokens and padding are the same; truncation added.
+ * bg and border-radius live in Tailwind (Execute.tsx).
  */
-.pexec__body {
-  position: absolute;
-  top: var(--chat-exec-row-h);
-  left: var(--chat-msg-pad-x);
-  right: var(--chat-msg-pad-x);
-}
-
-/* ── Output scroll area ───────────────────────────────────────────────────── */
-
-/*
- * max-height caps the visible output to EXEC_MAX_LINES rows.
- * white-space: pre preserves terminal newlines and allows horizontal scroll.
- * scrollbar-gutter: stable reserves scrollbar space so row width is stable.
- */
-.pexec__scroll {
-  max-height: var(--chat-exec-max-h);
-  overflow: auto;
-  white-space: pre;
-  scrollbar-gutter: stable;
+.pexec__cmd {
+  font-size: var(--type-inline-code-font-size);
+  font-weight: var(--type-inline-code-font-weight);
+  font-family: var(--type-inline-code-font-family);
+  padding: var(--chat-ic-pad-y) var(--chat-ic-pad-x);
+  display: inline-block;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
 }

@@ -70,13 +70,12 @@ export type TranscriptEvent =
   | { type: 'execute_start'; id: string; command: string; startedAt?: number }
   /**
    * An existing execute tool call was updated.
-   * `command` is patched when provided; `output` replaces the previous value.
+   * `command` is patched when provided.
    */
   | {
       type: 'execute_update';
       id: string;
       command?: string;
-      output?: string;
       status?: ToolStatus;
     }
   /**
@@ -290,7 +289,6 @@ export function createTranscript(): TranscriptApi {
               );
               if (existing) {
                 if (event.command !== undefined) existing.command = event.command;
-                if (event.output !== undefined) existing.output = event.output;
                 if (event.status !== undefined) {
                   existing.status = event.status;
                   if (event.status === 'done' && existing.durationMs === undefined) {
@@ -303,7 +301,6 @@ export function createTranscript(): TranscriptApi {
                   kind: 'execute',
                   id: event.id,
                   command: event.command ?? '',
-                  output: event.output,
                   status: event.status ?? 'running',
                   startedAt: Date.now(),
                 } satisfies ChatExecute);

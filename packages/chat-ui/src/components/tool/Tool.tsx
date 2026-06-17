@@ -57,9 +57,7 @@ export function Tool(props: ToolProps) {
             </button>
             <Show when={!props.collapsed}>
               <div class={`${styles['pchat-tool__detail']} font-mono text-foreground-muted`}>
-                <pre style={{ margin: '0', 'font-size': '11px', 'white-space': 'pre-wrap' }}>
-                  {detail()}
-                </pre>
+                <pre style={{ margin: '0', 'white-space': 'pre-wrap' }}>{detail()}</pre>
               </div>
             </Show>
           </>

@@ -1,39 +1,28 @@
 /**
  * Execute — SolidJS component for ChatExecute rows.
  *
- * Renders ACP `kind: 'execute'` tool calls (e.g. Bash commands).
+ * Renders ACP `kind: 'execute'` tool calls as a single non-interactive row:
  *
- * Header: "Execute {command} {elapsed}s ›"
- *   - Shimmer while running.
- *   - Live ticking elapsed counter while running; frozen duration when done.
- *   - Clicking the whole header toggles collapsed/expanded via data-collapse-id
- *     delegation in ChatRoot (no ChatRoot changes needed).
+ *   Execute  `{command}`  {elapsed}s
  *
- * Collapsed (default): header only.
- * Expanded: header + scrollable, max-height monospace output body.
+ * - Command is shown as a truncated inline-code chip (max 150px, mirrors Prose
+ *   inline code styling). Full command is exposed via the title attribute.
+ * - Shimmer on the whole row while running.
+ * - Live ticking elapsed counter while running; frozen duration when done.
+ *   Duration is omitted entirely when not running and durationMs is absent.
  *
- * Collapse semantics are inverted (same as FileOperation / Thinking):
- *   stored false (default) → not expanded
- *   stored true            → expanded
- *
- * Geometry-coupled rules live in execute.module.css.
- * All visual styling uses Tailwind utilities.
+ * Geometry lives in execute.module.css. Visual styling uses Tailwind.
  */
 
 import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
 import type { ChatExecute } from '../../model';
-import { EXEC_PAD_Y } from './metrics';
 import styles from './execute.module.css';
 
 export type ExecuteProps = {
   item: ChatExecute;
-  /** Inverted semantics: stored "collapsed" bool means "expanded". */
-  collapsed?: boolean;
 };
 
-// ── ExecuteHeader ─────────────────────────────────────────────────────────────
-
-function ExecuteHeader(props: { item: ChatExecute; expanded: boolean }) {
+export function Execute(props: ExecuteProps) {
   const startElapsed = Math.floor((Date.now() - props.item.startedAt) / 1000);
   const [elapsed, setElapsed] = createSignal(startElapsed);
 
@@ -52,62 +41,26 @@ function ExecuteHeader(props: { item: ChatExecute; expanded: boolean }) {
   onCleanup(() => clearInterval(timer));
 
   const durationS = () => {
+    if (props.item.status === 'running') return elapsed();
     if (props.item.durationMs !== undefined) return Math.floor(props.item.durationMs / 1000);
-    return elapsed();
+    return undefined;
   };
 
   const command = () => props.item.command || '…';
 
   return (
     <div
-      class={`${styles['pexec__header']} flex cursor-pointer items-center gap-1.5 select-none hover:text-foreground`}
-      role="button"
-      aria-expanded={props.expanded ? 'true' : 'false'}
-      data-collapse-id={props.item.id}
+      class={`${styles.pexec} flex items-center gap-1.5 text-sm text-foreground-muted select-none`}
+      classList={{ 'text-shimmer': props.item.status === 'running' }}
     >
+      <span>Execute</span>
       <span
-        class="text-xs text-foreground-muted"
-        classList={{ 'text-shimmer': props.item.status === 'running' }}
+        class={`${styles['pexec__cmd']} rounded bg-[var(--chat-code-inline-bg,rgba(0,0,0,0.06))]`}
+        title={props.item.command || undefined}
       >
-        Execute {command()} {durationS()}s
+        {command()}
       </span>
-      <span
-        class="inline-block text-[10px] text-foreground-muted transition-transform duration-150 ease-out"
-        classList={{ 'rotate-90': props.expanded }}
-        aria-hidden="true"
-      >
-        ›
-      </span>
-    </div>
-  );
-}
-
-// ── ExecuteBody ───────────────────────────────────────────────────────────────
-
-function ExecuteBody(props: { output: string }) {
-  return (
-    <div class={styles['pexec__body']}>
-      <div style={{ 'padding-block': `${EXEC_PAD_Y}px` }}>
-        <div class={`${styles['pexec__scroll']} text-xs text-foreground-muted`}>
-          {props.output}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Execute ───────────────────────────────────────────────────────────────────
-
-export function Execute(props: ExecuteProps) {
-  // Inverted semantics: stored "collapsed" flag is treated as "expanded".
-  const expanded = () => !!props.collapsed;
-
-  return (
-    <div class={styles.pexec} style={{ position: 'relative' }}>
-      <ExecuteHeader item={props.item} expanded={expanded()} />
-      <Show when={expanded() && props.item.output}>
-        {(output) => <ExecuteBody output={output()} />}
-      </Show>
+      <Show when={durationS() !== undefined}>{(s) => <span>{s()}s</span>}</Show>
     </div>
   );
 }
