@@ -1,5 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
+import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
+import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import {
   workspaceBootstrapService,
   type WorkspaceBootstrapResult,
@@ -134,7 +136,11 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     const project = projectManager.getProject(task.projectId);
     if (!project) throw new Error(`Project not found: ${task.projectId}`);
 
-    await taskSessionManager.registerTask(taskId, data, task.projectId, project.ctx);
+    const liveProxy = data.sshConnectionId
+      ? sshConnectionManager.getProxy(data.sshConnectionId)
+      : undefined;
+    const sessionHostCtx = liveProxy ? new SshExecutionContext(liveProxy) : project.ctx;
+    await taskSessionManager.registerTask(taskId, data, task.projectId, sessionHostCtx);
 
     await db
       .update(tasks)

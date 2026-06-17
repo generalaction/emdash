@@ -1,5 +1,5 @@
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { killSessionById } from '@main/core/pty/multiplexer';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import type { WorkspaceBootstrapResult } from '@main/core/workspaces/workspace-bootstrap-service';
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
@@ -69,12 +69,22 @@ async function cleanupDetachedSessions(
   ctx: IExecutionContext
 ): Promise<void> {
   const { conversationIds, terminalIds } = await getTaskSessionLeafIds(projectId, taskId);
-  const sessionIds = [...conversationIds, ...terminalIds].map((leafId) =>
-    makePtySessionId(projectId, taskId, leafId)
-  );
-  await Promise.all(
-    sessionIds.map((sessionId) => killTmuxSession(ctx, makeTmuxSessionName(sessionId)))
-  );
+  await Promise.all([
+    ...conversationIds.map((leafId) =>
+      killSessionById({
+        hostCtx: ctx,
+        kind: 'agent',
+        sessionId: makePtySessionId(projectId, taskId, leafId),
+      })
+    ),
+    ...terminalIds.map((leafId) =>
+      killSessionById({
+        hostCtx: ctx,
+        kind: 'terminal',
+        sessionId: makePtySessionId(projectId, taskId, leafId),
+      })
+    ),
+  ]);
 }
 
 class TaskSessionManager {
