@@ -166,6 +166,20 @@ export class ChatStore {
   private readonly _unsubs: (() => void)[] = [];
 
   /**
+   * Last sequence number applied from the main-process buffer or live stream.
+   * Initialised to -1 so every update (seq >= 0) is accepted on first contact.
+   * Reset to -1 on replay-start so a fresh loadSession re-buffers from 0.
+   */
+  private _lastSeq = -1;
+  /**
+   * True while the initial getTranscript() fetch is in-flight.  Live updates
+   * that arrive during this window are held in _pendingLive and applied after
+   * the buffered transcript has been replayed, deduplicated by seq.
+   */
+  private _buffering = true;
+  private _pendingLive: { seq: number; update: SessionUpdate }[] = [];
+
+  /**
    * Maps a streaming message key (`${role}:${messageId}`) to its item, so chunks
    * for the same role+message merge while different roles stay separate bubbles.
    */
@@ -198,7 +212,13 @@ export class ChatStore {
         acpSessionUpdateChannel,
         action((payload) => {
           if (payload.conversationId !== this._conversationId) return;
-          this._applyUpdate(payload.update);
+          if (this._buffering) {
+            // Hold updates that race in while getTranscript() is in-flight.
+            this._pendingLive.push({ seq: payload.seq, update: payload.update });
+          } else if (payload.seq > this._lastSeq) {
+            this._applyUpdate(payload.update);
+            this._lastSeq = payload.seq;
+          }
         })
       )
     );
@@ -226,6 +246,9 @@ export class ChatStore {
             this.items = [];
             this._streamKeyMap.clear();
             this.isClosed = false;
+            // Align seq space: the new loadSession replay will re-buffer from
+            // seq 0, so reset so we accept the full fresh stream.
+            this._lastSeq = -1;
             this._transcript?.reset();
           } else {
             this._finalizeStreaming();
@@ -255,6 +278,40 @@ export class ChatStore {
         if (status === 'ready' && !this.isReady) this.isReady = true;
       })
     );
+
+    // Fetch the transcript buffer from the main process so a reloaded renderer
+    // can replay history without re-driving the agent via loadSession.
+    void rpc.acp
+      .getTranscript(this._conversationId)
+      .then(
+        action((buffered) => {
+          for (const { seq, update } of buffered) {
+            if (seq > this._lastSeq) {
+              this._applyUpdate(update);
+              this._lastSeq = seq;
+            }
+          }
+          // Flush live updates that raced in during the async fetch.
+          for (const { seq, update } of this._pendingLive) {
+            if (seq > this._lastSeq) {
+              this._applyUpdate(update);
+              this._lastSeq = seq;
+            }
+          }
+        })
+      )
+      .catch((err) => {
+        log.warn('ChatStore: getTranscript failed', {
+          conversationId: this._conversationId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      })
+      .finally(
+        action(() => {
+          this._pendingLive = [];
+          this._buffering = false;
+        })
+      );
   }
 
   get hasItems(): boolean {

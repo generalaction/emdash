@@ -50,7 +50,7 @@ export function Execute(props: ExecuteProps) {
 
   return (
     <div
-      class={`${styles.pexec} flex items-center gap-1.5 text-sm text-foreground-muted select-none`}
+      class={`${styles.pexec} flex items-center gap-1.5 text-sm text-foreground-passive select-none`}
       classList={{ 'text-shimmer': props.item.status === 'running' }}
     >
       <span>Execute</span>

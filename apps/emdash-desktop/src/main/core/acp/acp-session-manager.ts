@@ -13,6 +13,7 @@ import type {
   RequestPermissionRequest,
   RequestPermissionResponse,
   SessionNotification,
+  SessionUpdate,
   SetSessionConfigOptionRequest,
   WriteTextFileRequest,
   WriteTextFileResponse,
@@ -51,6 +52,14 @@ interface AcpConversation {
   acpSessionId: string | null;
   /** Model to apply after session is established (from persisted config). */
   pendingModel: string | null;
+  /**
+   * Ordered buffer of every SessionUpdate forwarded to the renderer, tagged
+   * with a monotonic sequence number.  Used by getTranscript() so a reloaded
+   * renderer can replay history without re-driving the agent.
+   */
+  updates: { seq: number; update: SessionUpdate }[];
+  /** Next sequence number to assign to an incoming update. */
+  nextSeq: number;
 }
 
 /**
@@ -128,6 +137,8 @@ class AcpSessionManager {
       providerId,
       acpSessionId: conversation.providerSessionId ?? null,
       pendingModel: conversation.model ?? null,
+      updates: [],
+      nextSeq: 0,
     };
 
     pool.conversations.set(conversationId, conv);
@@ -308,6 +319,19 @@ class AcpSessionManager {
     return this.conversationIndex.has(conversationId);
   }
 
+  /**
+   * Returns a snapshot of every SessionUpdate buffered for the conversation
+   * since the current session was established.  Used by a reloaded renderer to
+   * replay transcript history without re-driving the agent via loadSession.
+   * Returns an empty array when the session is not running.
+   */
+  getTranscript(conversationId: string): { seq: number; update: SessionUpdate }[] {
+    const entry = this.conversationIndex.get(conversationId);
+    const pool = entry ? this.pools.get(entry.poolKey) : undefined;
+    const conv = pool?.conversations.get(conversationId);
+    return conv ? conv.updates.slice() : [];
+  }
+
   // -------------------------------------------------------------------------
   // Pool management
   // -------------------------------------------------------------------------
@@ -467,7 +491,6 @@ class AcpSessionManager {
       sessionUpdate: async (params: SessionNotification): Promise<void> => {
         const update = params.update;
         let conversationId = pool.sessionToConversation.get(params.sessionId);
-        const usedDynamicRouting = !conversationId && pool.loadingConversations.size > 0;
         if (!conversationId && pool.loadingConversations.size > 0) {
           // The agent used a different session ID during loadSession replay than the
           // one provided in the request. Route to the pending conversation and register
@@ -480,21 +503,18 @@ class AcpSessionManager {
             if (conv) conv.acpSessionId = params.sessionId;
           }
         }
-        log.debug('AcpSessionManager: sessionUpdate routing [TEMP]', {
-          sessionId: params.sessionId,
-          conversationId,
-          kind: update.sessionUpdate,
-          usedDynamicRouting,
-        });
         if (!conversationId) {
           log.warn('AcpSessionManager: sessionUpdate for unknown sessionId', {
             sessionId: params.sessionId,
           });
           return;
         }
-        if (!pool.conversations.has(conversationId)) return;
+        const conv = pool.conversations.get(conversationId);
+        if (!conv) return;
 
-        events.emit(acpSessionUpdateChannel, { conversationId, update });
+        const seq = conv.nextSeq++;
+        conv.updates.push({ seq, update });
+        events.emit(acpSessionUpdateChannel, { conversationId, update, seq });
       },
 
       requestPermission: async (

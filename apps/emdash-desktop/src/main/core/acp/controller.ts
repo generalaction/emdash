@@ -1,3 +1,4 @@
+import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { acpSessionManager } from './acp-session-manager';
 
@@ -17,4 +18,16 @@ function getSessionStatus(conversationId: string): Promise<'ready' | 'starting' 
   return Promise.resolve(acpSessionManager.getSessionStatus(conversationId));
 }
 
-export const acpController = createRPCController({ prompt, cancel, setModel, getSessionStatus });
+function getTranscript(
+  conversationId: string
+): Promise<{ seq: number; update: SessionUpdate }[]> {
+  return Promise.resolve(acpSessionManager.getTranscript(conversationId));
+}
+
+export const acpController = createRPCController({
+  prompt,
+  cancel,
+  setModel,
+  getSessionStatus,
+  getTranscript,
+});

@@ -262,6 +262,7 @@ describe('AcpSessionManager – routing', () => {
     expect(events.emit).toHaveBeenCalledWith(acpSessionUpdateChannel, {
       conversationId: 'conv-b',
       update: expect.objectContaining({ sessionUpdate: 'agent_message_chunk' }),
+      seq: expect.any(Number),
     });
   });
 
@@ -377,6 +378,44 @@ describe('AcpSessionManager – routing', () => {
     expect(setProviderSessionId).toHaveBeenCalledWith('conv-dynamic', 'agent-assigned-session-99');
 
     expect(manager.isRunning('conv-dynamic')).toBe(true);
+  });
+
+  it('buffers updates with incrementing seq and getTranscript returns them', async () => {
+    const { events } = await import('@main/lib/events');
+    const { acpSessionUpdateChannel } = await import('@shared/core/acp/acpEvents');
+
+    (events.emit as Mock).mockReset();
+
+    const manager = new AcpSessionManager();
+
+    (mockConnection.newSession as Mock).mockResolvedValue({ sessionId: 'session-buf' });
+    await manager.start(makeConversation({ conversationId: 'conv-buf' }), 'ws-1', '/tmp/workspace');
+
+    expect(capturedHandlerFactory).not.toBeNull();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = capturedHandlerFactory!(null) as any;
+
+    const update1 = { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'a' } };
+    const update2 = { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'b' } };
+
+    await handler.sessionUpdate({ sessionId: 'session-buf', update: update1 });
+    await handler.sessionUpdate({ sessionId: 'session-buf', update: update2 });
+
+    const transcript = manager.getTranscript('conv-buf');
+    expect(transcript).toHaveLength(2);
+    expect(transcript[0]).toEqual({ seq: 0, update: update1 });
+    expect(transcript[1]).toEqual({ seq: 1, update: update2 });
+
+    // Events should carry seq as well.
+    const emittedSeqs = (events.emit as Mock).mock.calls
+      .filter((args: unknown[]) => args[0] === acpSessionUpdateChannel)
+      .map((args: unknown[]) => (args[1] as { seq: number }).seq);
+    expect(emittedSeqs).toEqual([0, 1]);
+  });
+
+  it('getTranscript returns [] for unknown or stopped conversation', async () => {
+    const manager = new AcpSessionManager();
+    expect(manager.getTranscript('no-such-conversation')).toEqual([]);
   });
 
   it('sessionUpdate for unknown sessionId does not emit an event', async () => {

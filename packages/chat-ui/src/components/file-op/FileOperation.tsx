@@ -44,9 +44,9 @@ function basename(path: string): string {
 function FileRow(props: { verb: string; path: string }) {
   return (
     <div
-      class={`${styles['pfileop__line']} flex items-center gap-1.5 text-sm text-foreground-muted`}
+      class={`${styles['pfileop__line']} flex items-center gap-1.5 text-sm text-foreground-passive`}
     >
-      <span class="text-foreground">{props.verb}</span>
+      <span>{props.verb}</span>
       <span title={props.path}>{basename(props.path)}</span>
     </div>
   );
@@ -119,7 +119,7 @@ export function FileOperation(props: FileOperationProps) {
             when={props.item.ops[0]}
             fallback={
               <span
-                class="font-mono text-sm"
+                class="font-mono text-sm text-foreground-passive"
                 classList={{ 'text-shimmer': props.item.status === 'running' }}
               >
                 {verb()}…
@@ -141,13 +141,13 @@ export function FileOperation(props: FileOperationProps) {
           data-collapse-id={props.item.id}
         >
           <span
-            class="text-sm text-foreground-muted"
+            class="text-sm text-foreground-passive"
             classList={{ 'text-shimmer': props.item.status === 'running' }}
           >
             {verb()} {props.item.ops.length} files
           </span>
           <span
-            class="inline-block text-[10px] text-foreground-muted transition-transform duration-150 ease-out"
+            class="inline-block text-[10px] text-foreground-passive transition-transform duration-150 ease-out"
             classList={{ 'rotate-90': expanded() }}
             aria-hidden="true"
           >

@@ -19,10 +19,10 @@ export type ToolProps = {
 export function Tool(props: ToolProps) {
   return (
     <div
-      class={`${styles['pchat-tool']} flex items-center gap-1.5 text-sm text-foreground-muted select-none`}
+      class={`${styles['pchat-tool']} flex items-center gap-1.5 text-sm text-foreground-passive select-none`}
       classList={{ 'text-shimmer': props.item.status === 'running' }}
     >
-      <span class="text-foreground">{props.item.name}</span>
+      <span>{props.item.name}</span>
       <Show when={props.item.inputSummary}>
         <span class="overflow-hidden text-ellipsis whitespace-nowrap opacity-75">
           {props.item.inputSummary}

@@ -5,6 +5,9 @@ import { defineEvent } from '@shared/lib/ipc/events';
 export const acpSessionUpdateChannel = defineEvent<{
   conversationId: string;
   update: SessionUpdate;
+  /** Monotonic per-session sequence number.  Used by the renderer to dedup
+   *  buffered history against live updates that race in during getTranscript(). */
+  seq: number;
 }>('acp:session-update');
 
 /** Emitted when the ACP agent subprocess exits or the connection closes. */
