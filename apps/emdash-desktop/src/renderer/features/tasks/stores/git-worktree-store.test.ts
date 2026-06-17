@@ -1,4 +1,4 @@
-import type { GitHeadModel, GitStatusData, GitStatusModel } from '@emdash/shared/git';
+import type { GitHeadModel, GitStatusData, GitStatusModel } from '@emdash/core/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { gitWorktreeUpdateChannel, type GitWorktreeUpdateEvent } from '@shared/core/git/events';
 import { err } from '@shared/lib/result';

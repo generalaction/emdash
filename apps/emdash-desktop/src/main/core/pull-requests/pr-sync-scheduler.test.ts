@@ -1,5 +1,5 @@
-import type { GitRemotesModel } from '@emdash/shared/git';
-import type { GitRemote } from '@emdash/shared/git';
+import type { GitRemotesModel } from '@emdash/core/git';
+import type { GitRemote } from '@emdash/core/git';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveProjectGitHubAuthContext } from '@main/core/github/services/project-github-auth-context';
 import { prSyncProgressChannel } from '@shared/core/pull-requests/prEvents';

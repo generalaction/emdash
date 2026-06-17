@@ -1,4 +1,4 @@
-import type { GitRemote } from '@emdash/shared/git';
+import type { GitRemote } from '@emdash/core/git';
 import { useCallback, useMemo, useState } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useModalContext } from '@renderer/lib/modal/modal-provider';

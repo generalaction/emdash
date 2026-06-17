@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { GitRemote } from '@emdash/shared/git';
+import type { GitRemote } from '@emdash/core/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import type { IExecutionContext } from '@main/core/execution-context/types';

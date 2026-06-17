@@ -1,4 +1,4 @@
-import { isDeepEqual } from '@emdash/shared/lib';
+import { isDeepEqual } from '@emdash/core/lib';
 import { eq } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { appSettings } from '@main/db/schema';

@@ -1,4 +1,4 @@
-import type { LiveValue, Unsubscribe } from '@emdash/shared/lib';
+import type { LiveValue, Unsubscribe } from '@emdash/core/lib';
 import { makeObservable, observable, runInAction } from 'mobx';
 import type { Result } from '@shared/lib/result';
 import type { ModelMirror } from './model-mirror';

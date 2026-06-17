@@ -1,7 +1,7 @@
 {
-  "name": "@emdash/shared",
+  "name": "@emdash/core",
   "version": "1.0.0",
-  "description": "Transport-agnostic shared runtime primitives for Emdash",
+  "description": "Transport-agnostic core runtime primitives for Emdash",
   "license": "Apache-2.0",
   "author": {
     "name": "Emdash Contributors",
@@ -51,7 +51,7 @@
     "dev": "tsdown --watch",
     "build": "tsdown",
     "test": "vitest run",
-    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/shared\"'",
+    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/core\"'",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "typecheck": "tsgo --noEmit -p tsconfig.json"

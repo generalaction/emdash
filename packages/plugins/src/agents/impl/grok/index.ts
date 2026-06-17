@@ -1,5 +1,5 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
 import { buildGrokHookConfig } from './hooks';
 import { icon } from './icon';
 

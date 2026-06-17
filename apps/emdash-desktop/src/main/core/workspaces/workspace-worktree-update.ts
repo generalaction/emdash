@@ -1,4 +1,4 @@
-import type { GitHeadModel, GitStatusModel, GitWorktreeUpdate } from '@emdash/shared/git';
+import type { GitHeadModel, GitStatusModel, GitWorktreeUpdate } from '@emdash/core/git';
 import { eq } from 'drizzle-orm';
 import { refreshWorkspaceCurrentBranchCache } from '@main/core/workspaces/workspace-current-branch-cache';
 import { db } from '@main/db/client';

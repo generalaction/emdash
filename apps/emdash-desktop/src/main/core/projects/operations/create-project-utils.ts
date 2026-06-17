@@ -1,5 +1,5 @@
-import type { IGitRepository, IGitRuntime } from '@emdash/shared/git';
-import { gitErrorMessage } from '@emdash/shared/git';
+import type { IGitRepository, IGitRuntime } from '@emdash/core/git';
+import { gitErrorMessage } from '@emdash/core/git';
 import { log } from '@main/lib/logger';
 import {
   remoteNameFromQualifiedRef,

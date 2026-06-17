@@ -1,4 +1,4 @@
-import { isDeepEqual } from '@emdash/shared/lib';
+import { isDeepEqual } from '@emdash/core/lib';
 
 export function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);

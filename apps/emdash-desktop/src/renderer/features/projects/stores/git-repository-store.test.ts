@@ -1,4 +1,4 @@
-import type { GitRefsModel, GitRemotesModel } from '@emdash/shared/git';
+import type { GitRefsModel, GitRemotesModel } from '@emdash/core/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { gitRepoUpdateChannel, type GitRepoUpdateEvent } from '@shared/core/git/events';
 import { err, ok } from '@shared/lib/result';
