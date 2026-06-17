@@ -21,6 +21,7 @@ vi.mock('@main/lib/logger', () => ({
 
 const { refreshWorkspaceCurrentBranchCache } =
   await import('@main/core/workspaces/workspace-current-branch-cache');
+const { log } = await import('@main/lib/logger');
 const { handleGitWorktreeUpdate } = await import('./workspace-worktree-update');
 
 function headUpdate(model: GitHeadModel): GitWorktreeUpdate {
@@ -101,8 +102,30 @@ describe('handleGitWorktreeUpdate', () => {
     await expect(read()).resolves.toBeNull();
   });
 
-  it('emits status updates immediately and does not touch the branch cache', () => {
-    mockUpdateChain();
+  it('logs head update emit failures', async () => {
+    vi.mocked(refreshWorkspaceCurrentBranchCache).mockResolvedValue({
+      branchName: 'feature/new',
+      changed: true,
+    });
+    const emit = vi.fn(() => {
+      throw new Error('emit failed');
+    });
+
+    handleGitWorktreeUpdate(
+      'ws-1',
+      headUpdate({ kind: 'branch', name: 'feature/new', oid: 'abc' }),
+      emit
+    );
+
+    await vi.waitFor(() => expect(emit).toHaveBeenCalledTimes(1));
+    expect(log.warn).toHaveBeenCalledWith('Failed to emit git worktree head update', {
+      workspaceId: 'ws-1',
+      error: 'Error: emit failed',
+    });
+  });
+
+  it('emits status updates immediately and does not touch the branch cache', async () => {
+    const { set, where } = mockUpdateChain();
     const emit = vi.fn();
     const status: GitStatusModel = {
       kind: 'ok',
@@ -116,5 +139,12 @@ describe('handleGitWorktreeUpdate', () => {
 
     expect(emit).toHaveBeenCalledTimes(1);
     expect(refreshWorkspaceCurrentBranchCache).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(where).toHaveBeenCalled());
+    expect(set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        linesAdded: 0,
+        linesDeleted: 0,
+      })
+    );
   });
 });

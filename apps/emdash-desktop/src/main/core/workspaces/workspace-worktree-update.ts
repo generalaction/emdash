@@ -17,7 +17,13 @@ export function handleGitWorktreeUpdate(
   if (update.kind === 'head') {
     void refreshWorkspaceCurrentBranchCache(workspaceId, () =>
       Promise.resolve(branchNameFromHead(update.model))
-    ).finally(() => emit(update));
+    ).finally(() => {
+      try {
+        emit(update);
+      } catch (e) {
+        log.warn('Failed to emit git worktree head update', { workspaceId, error: String(e) });
+      }
+    });
     return;
   }
   emit(update);
