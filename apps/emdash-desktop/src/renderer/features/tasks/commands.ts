@@ -66,6 +66,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       const browserGoForwardDef = taskDef('task.browserGoForward');
       const browserReloadDef = taskDef('task.browserReload');
       const browserFocusUrlDef = taskDef('task.browserFocusUrl');
+      const browserFindDef = taskDef('task.browserFind');
       const browserOpenExternalDef = taskDef('task.browserOpenExternal');
       const browserCopyUrlDef = taskDef('task.browserCopyUrl');
       const gitFetchDef = taskDef('task.gitFetch');
@@ -254,6 +255,18 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           execute() {
             if (activeBrowserTab?.kind !== 'browser') return;
             browserControlsRegistry.get(activeBrowserTab.browserId)?.focusUrl();
+          },
+        },
+        {
+          id: browserFindDef.id,
+          label: browserFindDef.label,
+          description: browserFindDef.description,
+          shortcutKey: browserFindDef.shortcutKey,
+          group: browserFindDef.group,
+          enabled: activeBrowserTab != null,
+          execute() {
+            if (activeBrowserTab?.kind !== 'browser') return;
+            browserControlsRegistry.get(activeBrowserTab.browserId)?.openFind();
           },
         },
         {

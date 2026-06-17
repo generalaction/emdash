@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   goForward: vi.fn(),
   navigate: vi.fn(),
   openExternal: vi.fn(),
+  openFind: vi.fn(),
   reload: vi.fn(),
   showModal: vi.fn(),
   toast: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock('@renderer/features/browser/browser-controls-registry', () => ({
         reload: mocks.reload,
       },
       focusUrl: mocks.focusUrl,
+      openFind: mocks.openFind,
     })),
   },
 }));
@@ -216,6 +218,10 @@ describe('createTaskCommandProvider', () => {
       ?.execute();
     provider
       .getCommands()
+      .find((candidate) => candidate.id === 'task.browserFind')
+      ?.execute();
+    provider
+      .getCommands()
       .find((candidate) => candidate.id === 'task.browserOpenExternal')
       ?.execute();
     provider
@@ -225,6 +231,7 @@ describe('createTaskCommandProvider', () => {
 
     expect(mocks.reload).toHaveBeenCalledWith();
     expect(mocks.focusUrl).toHaveBeenCalledWith();
+    expect(mocks.openFind).toHaveBeenCalledWith();
     expect(mocks.openExternal).toHaveBeenCalledWith('https://example.com/');
     expect(mocks.writeText).toHaveBeenCalledWith('https://example.com/');
   });

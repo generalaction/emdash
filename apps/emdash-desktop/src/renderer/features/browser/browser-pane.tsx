@@ -1,8 +1,9 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDevServers } from '@renderer/features/tasks/task-view-context';
-import { rpc } from '@renderer/lib/ipc';
+import { events, rpc } from '@renderer/lib/ipc';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
+import { browserFindRequestedChannel } from '@shared/events/browserEvents';
 import { browserControlsRegistry } from './browser-controls-registry';
 import { decideBrowserReload } from './browser-navigation-controls';
 import { browserSessionStore } from './browser-session-store';
@@ -28,6 +29,7 @@ export const BrowserPane = observer(function BrowserPane({
   const devServers = useDevServers();
   const webviewRef = useRef<BrowserWebviewElement | null>(null);
   const focusUrlRef = useRef<() => void>(() => {});
+  const openFindRef = useRef<() => void>(() => {});
   const pendingUrlRef = useRef<string | null>(null);
   const [adapter, setAdapter] = useState<BrowserWebviewAdapter | null>(null);
   const [webviewElement, setWebviewElement] = useState<BrowserWebviewElement | null>(null);
@@ -196,11 +198,16 @@ export const BrowserPane = observer(function BrowserPane({
         if (webviewRef.current !== webviewElement) return;
         // Browsers can share profile partitions, so the main process cannot infer
         // which browser a webview belongs to; bind it explicitly.
-        void rpc.browser.bindWebContents({
-          browserId: sessionBrowserId,
-          webContentsId: webviewElement.getWebContentsId(),
-        });
-        setAdapter(createBrowserWebviewAdapter(webviewElement));
+        void rpc.browser
+          .bindWebContents({
+            browserId: sessionBrowserId,
+            webContentsId: webviewElement.getWebContentsId(),
+          })
+          .then((result) => {
+            if (result.success && webviewRef.current === webviewElement) {
+              setAdapter(createBrowserWebviewAdapter(webviewElement));
+            }
+          });
       },
     });
   }, [sessionBrowserId, webviewElement]);
@@ -217,8 +224,16 @@ export const BrowserPane = observer(function BrowserPane({
     return browserControlsRegistry.register(sessionBrowserId, {
       adapter,
       focusUrl: () => focusUrlRef.current(),
+      openFind: () => openFindRef.current(),
     });
   }, [adapter, sessionBrowserId]);
+
+  useEffect(() => {
+    if (!sessionBrowserId) return;
+    return events.on(browserFindRequestedChannel, ({ browserId }) => {
+      if (browserId === sessionBrowserId) openFindRef.current();
+    });
+  }, [sessionBrowserId]);
 
   if (!session) {
     return (
@@ -242,6 +257,9 @@ export const BrowserPane = observer(function BrowserPane({
         onSetZoomFactor={setZoomFactor}
         onFocusUrl={(focus) => {
           focusUrlRef.current = focus;
+        }}
+        onRegisterOpenFind={(openFind) => {
+          openFindRef.current = openFind;
         }}
       />
       <div className="emlight min-h-0 flex-1 bg-background">

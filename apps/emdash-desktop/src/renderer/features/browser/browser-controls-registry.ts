@@ -3,6 +3,7 @@ import type { BrowserWebviewAdapter } from './browser-webview-types';
 export type BrowserControls = {
   adapter: BrowserWebviewAdapter | null;
   focusUrl(): void;
+  openFind(): void;
 };
 
 class BrowserControlsRegistry {

@@ -215,6 +215,15 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     iconKey: 'text-cursor-input',
   },
   {
+    id: 'task.browserFind',
+    label: 'Find in Browser Page',
+    description: 'Search within the active browser tab',
+    scope: 'task',
+    shortcutKey: 'browserFind',
+    group: 'Browser',
+    iconKey: 'search',
+  },
+  {
     id: 'task.browserOpenExternal',
     label: 'Open Browser URL Externally',
     description: 'Open the active browser URL in the system browser',

@@ -75,6 +75,17 @@ function sessionFor(partition: string): object {
   return value;
 }
 
+function platformFindInput() {
+  return {
+    type: 'keyDown',
+    key: 'f',
+    meta: process.platform === 'darwin',
+    control: process.platform !== 'darwin',
+    shift: false,
+    alt: false,
+  };
+}
+
 describe('BrowserWebContentsRegistry', () => {
   beforeEach(() => {
     sessionsByPartition.clear();
@@ -194,16 +205,26 @@ describe('BrowserWebContentsRegistry', () => {
     registry.bindWebContents('browser-1', webContents);
 
     const event = { preventDefault: vi.fn() };
-    webContents.emitEvent('before-input-event', event, {
-      type: 'keyDown',
-      key: 'f',
-      meta: process.platform === 'darwin',
-      control: process.platform !== 'darwin',
-      shift: false,
-      alt: false,
-    });
+    webContents.emitEvent('before-input-event', event, platformFindInput());
 
     expect(event.preventDefault).toHaveBeenCalled();
+    expect(events.emit).toHaveBeenCalledWith(expect.anything(), { browserId: 'browser-1' });
+  });
+
+  it('replays a find shortcut pressed before webContents binding completes', () => {
+    const registry = new BrowserWebContentsRegistry();
+    registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
+
+    const webContents = fakeWebContents();
+    registry.handleWebviewAttached(webContents);
+
+    const event = { preventDefault: vi.fn() };
+    webContents.emitEvent('before-input-event', event, platformFindInput());
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(events.emit).not.toHaveBeenCalled();
+
+    expect(registry.bindWebContents('browser-1', webContents)).toBe(true);
     expect(events.emit).toHaveBeenCalledWith(expect.anything(), { browserId: 'browser-1' });
   });
 

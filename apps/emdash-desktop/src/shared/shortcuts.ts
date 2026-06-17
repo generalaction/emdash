@@ -19,6 +19,78 @@ export function resolveDefaultHotkey(def: AppShortcutDef): string | undefined {
   return typeof def.defaultHotkey === 'function' ? def.defaultHotkey() : def.defaultHotkey;
 }
 
+export type ShortcutInput = {
+  type?: string;
+  key: string;
+  shift?: boolean;
+  alt?: boolean;
+  meta?: boolean;
+  control?: boolean;
+};
+
+export type ParsedShortcut = {
+  key: string;
+  shift: boolean;
+  alt: boolean;
+  meta: boolean;
+  control: boolean;
+};
+
+export function parseShortcutHotkey(shortcut: string): ParsedShortcut | null {
+  const parts = shortcut
+    .split('+')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const key = parts.pop();
+  if (!key) return null;
+  const modifiers = { shift: false, alt: false, meta: false, control: false };
+  for (const part of parts) {
+    switch (part.toLowerCase()) {
+      case 'shift':
+        modifiers.shift = true;
+        break;
+      case 'alt':
+      case 'option':
+        modifiers.alt = true;
+        break;
+      case 'meta':
+      case 'cmd':
+      case 'command':
+        modifiers.meta = true;
+        break;
+      case 'ctrl':
+      case 'control':
+        modifiers.control = true;
+        break;
+      case 'mod':
+        if (process.platform === 'darwin') modifiers.meta = true;
+        else modifiers.control = true;
+        break;
+      default:
+        return null;
+    }
+  }
+  return { key: normalizeShortcutKey(key), ...modifiers };
+}
+
+export function isShortcutInput(input: ShortcutInput, shortcut: string | null): boolean {
+  if (shortcut === null) return false;
+  const parsed = parseShortcutHotkey(shortcut);
+  if (!parsed) return false;
+  return (
+    (input.type === undefined || input.type === 'keyDown') &&
+    normalizeShortcutKey(input.key) === parsed.key &&
+    Boolean(input.shift) === parsed.shift &&
+    Boolean(input.alt) === parsed.alt &&
+    Boolean(input.meta) === parsed.meta &&
+    Boolean(input.control) === parsed.control
+  );
+}
+
+function normalizeShortcutKey(key: string): string {
+  return key.toLowerCase();
+}
+
 function defineShortcuts<T extends Record<string, AppShortcutDef>>(
   shortcuts: T
 ): Record<keyof T, AppShortcutDef> {
@@ -154,6 +226,12 @@ export const APP_SHORTCUTS = defineShortcuts({
     defaultHotkey: 'Mod+Shift+C',
     label: 'Copy Browser URL',
     description: 'Copy the current in-app browser URL',
+    category: 'Task View',
+  },
+  browserFind: {
+    defaultHotkey: 'Mod+F',
+    label: 'Find in Browser Page',
+    description: 'Search within the active in-app browser page',
     category: 'Task View',
   },
   toggleTerminalDrawer: {

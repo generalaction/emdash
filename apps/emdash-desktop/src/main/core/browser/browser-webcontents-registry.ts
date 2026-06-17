@@ -21,7 +21,12 @@ import {
   browserLinkCopiedChannel,
   browserOpenInNewTabChannel,
 } from '@shared/events/browserEvents';
-import { APP_SHORTCUTS, resolveDefaultHotkey } from '@shared/shortcuts';
+import {
+  APP_SHORTCUTS,
+  isShortcutInput,
+  parseShortcutHotkey,
+  resolveDefaultHotkey,
+} from '@shared/shortcuts';
 import { isGoogleAuthUrl, userAgentForBrowserUrl } from './browser-user-agent';
 
 type RegisteredBrowserSession = {
@@ -50,8 +55,10 @@ export class BrowserWebContentsRegistry {
   private readonly webContentsByBrowserId = new Map<string, WebContents>();
   private readonly browserIdByWebContentsId = new Map<number, string>();
   private readonly pendingWebContentsIds = new Set<number>();
+  private readonly pendingFindWebContentsIds = new Set<number>();
   private activeBrowserId: string | null = null;
   private copyBrowserUrlShortcut = getBrowserCopyUrlShortcut();
+  private browserFindShortcut = getBrowserFindShortcut();
 
   registerSession(input: RegisteredBrowserSession): void {
     this.sessionsByBrowserId.set(input.browserId, input);
@@ -71,6 +78,7 @@ export class BrowserWebContentsRegistry {
 
   setKeyboardSettings(keyboard: AppSettings['keyboard']): void {
     this.copyBrowserUrlShortcut = getBrowserCopyUrlShortcut(keyboard);
+    this.browserFindShortcut = getBrowserFindShortcut(keyboard);
   }
 
   get registeredPartitions(): ReadonlySet<string> {
@@ -100,6 +108,7 @@ export class BrowserWebContentsRegistry {
 
     webContents.once('destroyed', () => {
       this.pendingWebContentsIds.delete(webContentsId);
+      this.pendingFindWebContentsIds.delete(webContentsId);
       const boundBrowserId = this.browserIdByWebContentsId.get(webContentsId);
       if (boundBrowserId === undefined) return;
       this.browserIdByWebContentsId.delete(webContentsId);
@@ -125,6 +134,7 @@ export class BrowserWebContentsRegistry {
     }
 
     this.pendingWebContentsIds.delete(webContents.id);
+    const hadPendingFind = this.pendingFindWebContentsIds.delete(webContents.id);
     const previous = this.webContentsByBrowserId.get(browserId);
     if (previous && previous.id !== webContents.id) {
       this.browserIdByWebContentsId.delete(previous.id);
@@ -132,6 +142,9 @@ export class BrowserWebContentsRegistry {
     this.webContentsByBrowserId.set(browserId, webContents);
     this.browserIdByWebContentsId.set(webContents.id, browserId);
     this.activeBrowserId = browserId;
+    if (hadPendingFind) {
+      events.emit(browserFindRequestedChannel, { browserId });
+    }
     return true;
   }
 
@@ -215,21 +228,25 @@ export class BrowserWebContentsRegistry {
     });
 
     webContents.on('before-input-event', (event, input) => {
-      if (isBrowserFindShortcut(input)) {
-        const browserId = this.browserIdByWebContentsId.get(webContents.id);
-        if (!browserId) return;
+      if (isCopyBrowserUrlShortcut(input, this.copyBrowserUrlShortcut)) {
+        const normalized = normalizeBrowserUrl(webContents.getURL(), { allowSearchQueries: false });
+        if (!normalized.ok || !isExternalHttpUrl(normalized.url)) return;
         event.preventDefault();
-        events.emit(browserFindRequestedChannel, { browserId });
+        clipboard.writeText(normalized.url);
+        events.emit(browserLinkCopiedChannel, { kind: 'url', url: normalized.url });
         return;
       }
 
-      if (!isCopyBrowserUrlShortcut(input, this.copyBrowserUrlShortcut)) return;
-
-      const normalized = normalizeBrowserUrl(webContents.getURL(), { allowSearchQueries: false });
-      if (!normalized.ok || !isExternalHttpUrl(normalized.url)) return;
+      if (!isBrowserFindShortcut(input, this.browserFindShortcut)) return;
+      const browserId = this.browserIdByWebContentsId.get(webContents.id);
       event.preventDefault();
-      clipboard.writeText(normalized.url);
-      events.emit(browserLinkCopiedChannel, { kind: 'url', url: normalized.url });
+      if (browserId) {
+        events.emit(browserFindRequestedChannel, { browserId });
+        return;
+      }
+      if (this.pendingWebContentsIds.has(webContents.id)) {
+        this.pendingFindWebContentsIds.add(webContents.id);
+      }
     });
 
     webContents.on('context-menu', (event, params) => {
@@ -375,7 +392,7 @@ function getBrowserCopyUrlShortcut(keyboard?: AppSettings['keyboard']): string |
   const configured = keyboard?.browserCopyUrl;
   if (configured === null) return null;
   const fallback = resolveDefaultHotkey(APP_SHORTCUTS.browserCopyUrl) ?? null;
-  if (configured && !parseShortcut(configured)) {
+  if (configured && !parseShortcutHotkey(configured)) {
     log.warn('Invalid browser copy URL shortcut, falling back to default', {
       shortcut: configured,
     });
@@ -384,76 +401,25 @@ function getBrowserCopyUrlShortcut(keyboard?: AppSettings['keyboard']): string |
   return configured ?? fallback;
 }
 
-function isCopyBrowserUrlShortcut(input: Electron.Input, shortcut: string | null): boolean {
-  if (shortcut === null) return false;
-  const parsed = parseShortcut(shortcut);
-  if (!parsed) return false;
-  return (
-    input.type === 'keyDown' &&
-    normalizeInputKey(input.key) === parsed.key &&
-    Boolean(input.shift) === parsed.shift &&
-    Boolean(input.alt) === parsed.alt &&
-    Boolean(input.meta) === parsed.meta &&
-    Boolean(input.control) === parsed.control
-  );
-}
-
-function isBrowserFindShortcut(input: Electron.Input): boolean {
-  return (
-    input.type === 'keyDown' &&
-    normalizeInputKey(input.key) === 'f' &&
-    Boolean(input.shift) === false &&
-    Boolean(input.alt) === false &&
-    ((process.platform === 'darwin' && Boolean(input.meta) && !input.control) ||
-      (process.platform !== 'darwin' && Boolean(input.control) && !input.meta))
-  );
-}
-
-function parseShortcut(shortcut: string): {
-  key: string;
-  shift: boolean;
-  alt: boolean;
-  meta: boolean;
-  control: boolean;
-} | null {
-  const parts = shortcut
-    .split('+')
-    .map((part) => part.trim())
-    .filter(Boolean);
-  const key = parts.pop();
-  if (!key) return null;
-  const modifiers = { shift: false, alt: false, meta: false, control: false };
-  for (const part of parts) {
-    switch (part.toLowerCase()) {
-      case 'shift':
-        modifiers.shift = true;
-        break;
-      case 'alt':
-      case 'option':
-        modifiers.alt = true;
-        break;
-      case 'meta':
-      case 'cmd':
-      case 'command':
-        modifiers.meta = true;
-        break;
-      case 'ctrl':
-      case 'control':
-        modifiers.control = true;
-        break;
-      case 'mod':
-        if (process.platform === 'darwin') modifiers.meta = true;
-        else modifiers.control = true;
-        break;
-      default:
-        return null;
-    }
+function getBrowserFindShortcut(keyboard?: AppSettings['keyboard']): string | null {
+  const configured = keyboard?.browserFind;
+  if (configured === null) return null;
+  const fallback = resolveDefaultHotkey(APP_SHORTCUTS.browserFind) ?? null;
+  if (configured && !parseShortcutHotkey(configured)) {
+    log.warn('Invalid browser find shortcut, falling back to default', {
+      shortcut: configured,
+    });
+    return fallback;
   }
-  return { key: normalizeInputKey(key), ...modifiers };
+  return configured ?? fallback;
 }
 
-function normalizeInputKey(key: string): string {
-  return key.toLowerCase();
+function isCopyBrowserUrlShortcut(input: Electron.Input, shortcut: string | null): boolean {
+  return isShortcutInput(input, shortcut);
+}
+
+function isBrowserFindShortcut(input: Electron.Input, shortcut: string | null): boolean {
+  return isShortcutInput(input, shortcut);
 }
 
 function clearWebviewSelection(webContents: WebContents): void {
