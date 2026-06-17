@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/lib/hooks/useTabShortcuts.ts
+  s_f0ae108633d173::t_76b45d02e9393f 89,97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "04442467fa8f1e8ca2595381200c870a72cc231b",
+  "prompts": {},
+  "sessions": {
+    "s_f0ae108633d173": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed563-80f5-71c3-a312-cf3d9e5cb003",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
