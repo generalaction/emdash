@@ -1,0 +1,37 @@
+apps/emdash-desktop/src/main/core/settings/schema.ts
+  s_166b3ea10fcf14::t_02de8c4437a058 112
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_166b3ea10fcf14::t_942cc88797ba9f 302-313,321-324,330
+  s_166b3ea10fcf14::t_f1cbe0412915d6 51,73-80,213-216,287
+apps/emdash-desktop/src/main/app/window.ts
+  s_166b3ea10fcf14::t_addf4fedd60b2b 100-102
+apps/emdash-desktop/src/main/core/browser/webview-security.test.ts
+  s_166b3ea10fcf14::t_02de8c4437a058 82-97
+apps/emdash-desktop/src/main/core/settings/controller.ts
+  s_166b3ea10fcf14::t_660685ec393dff 24-25
+  s_166b3ea10fcf14::t_addf4fedd60b2b 34-36,45-46
+apps/emdash-desktop/src/main/core/browser/webview-security.ts
+  s_166b3ea10fcf14::t_02de8c4437a058 27-30,62-65,71-72
+apps/emdash-desktop/src/main/core/settings/settings-registry.ts
+  s_166b3ea10fcf14::t_02de8c4437a058 69
+apps/emdash-desktop/src/renderer/features/settings/components/BrowserSettingsCard.tsx
+  s_166b3ea10fcf14::t_02de8c4437a058 25,142-150
+apps/emdash-desktop/src/main/index.ts
+  s_166b3ea10fcf14::t_addf4fedd60b2b 137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "7df8300e1e57737950c6f420eb10791dc2442f39",
+  "prompts": {},
+  "sessions": {
+    "s_166b3ea10fcf14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed3f8-1972-73e0-8959-a4661edcfdb1",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
