@@ -61,7 +61,15 @@ export type ChatExecuteItem = {
 /** A single ordered entry in the chat transcript. */
 export type ChatItem = ChatMessageItem | ChatToolItem | ChatFileOpItem | ChatExecuteItem;
 
-/** Convert desktop ChatItem[] to chat-ui ChatItem[] for TranscriptApi.seed(). */
+/**
+ * Convert desktop ChatItem[] to chat-ui ChatItem[] for TranscriptApi.seed().
+ *
+ * BOUNDARY INVARIANT: Only plain, non-observable snapshots may cross into
+ * TranscriptApi (seed/dispatch). Never pass MobX observable references here —
+ * the Solid store will proxy them and MobX's own proxy will crash on nested reads.
+ * All fields must be copied as plain JS values; nested arrays (e.g. `ops`) must
+ * be mapped into fresh literals.
+ */
 function toChatUiItems(items: ChatItem[]): UiChatItem[] {
   return items.flatMap((item): UiChatItem[] => {
     if (item.kind === 'tool') {
@@ -82,7 +90,8 @@ function toChatUiItems(items: ChatItem[]): UiChatItem[] {
           id: item.id,
           op: item.op,
           status: item.status,
-          ops: item.ops,
+          // Deep-copy ops into plain literals — never forward observable arrays.
+          ops: item.ops.map((o) => ({ path: o.path })),
         } satisfies ChatFileOpToolCall,
       ];
     }
@@ -195,7 +204,10 @@ export class ChatStore {
     if (initialModel) this.selectedModel = initialModel;
 
     makeObservable(this, {
-      items: observable,
+      // Shallow: MobX tracks array membership (push/replace/clear) but does not
+      // deep-proxy item objects. This keeps item internals as plain JS so they
+      // can never accidentally cross into the chat-ui Solid store as observable proxies.
+      items: observable.shallow,
       isWorking: observable,
       isClosed: observable,
       isReady: observable,
@@ -325,7 +337,9 @@ export class ChatStore {
   bindTranscript(api: TranscriptApi): void {
     this._transcript = api;
     if (this.items.length > 0) {
-      api.seed(toChatUiItems(this.items));
+      // structuredClone is the belt-and-suspenders guarantee: even if toChatUiItems
+      // ever forgets to plain-copy a field, nothing observable reaches the Solid store.
+      api.seed(structuredClone(toChatUiItems(this.items)));
     }
   }
 
@@ -518,9 +532,9 @@ export class ChatStore {
       streaming,
     };
     this.items.push(item);
-    // Return the array-resident element: MobX wraps pushed plain objects in an
-    // observable proxy, so mutating the original `item` would not be reactive.
-    return this.items[this.items.length - 1] as ChatMessageItem;
+    // items is observable.shallow: items stay as plain JS objects, so we can
+    // return the original reference directly and mutate it for chunk accumulation.
+    return item;
   }
 
   private _upsertTool(patch: {

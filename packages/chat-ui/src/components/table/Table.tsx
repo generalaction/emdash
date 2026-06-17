@@ -30,7 +30,7 @@ export function Table(props: TableProps) {
   return (
     <BlockFrame layout={props.block} class="overflow-x-auto">
       <table
-        class={styles['pchat-table']}
+        class={`${styles['pchat-table']} rounded-lg overflow-hidden`}
         style={{ width: `${props.block.tableWidth}px`, 'table-layout': 'fixed' }}
       >
         <colgroup>

@@ -14,7 +14,6 @@
  * Geometry lives in execute.module.css. Visual styling uses Tailwind.
  */
 
-import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
 import type { ChatExecute } from '../../model';
 import styles from './execute.module.css';
 
@@ -23,28 +22,6 @@ export type ExecuteProps = {
 };
 
 export function Execute(props: ExecuteProps) {
-  const startElapsed = Math.floor((Date.now() - props.item.startedAt) / 1000);
-  const [elapsed, setElapsed] = createSignal(startElapsed);
-
-  let timer: ReturnType<typeof setInterval> | undefined;
-
-  createEffect(() => {
-    if (props.item.status === 'running') {
-      timer = setInterval(() => {
-        setElapsed(Math.floor((Date.now() - props.item.startedAt) / 1000));
-      }, 1000);
-    } else {
-      clearInterval(timer);
-      timer = undefined;
-    }
-  });
-  onCleanup(() => clearInterval(timer));
-
-  const durationS = () => {
-    if (props.item.status === 'running') return elapsed();
-    if (props.item.durationMs !== undefined) return Math.floor(props.item.durationMs / 1000);
-    return undefined;
-  };
 
   const command = () => props.item.command || '…';
 
@@ -60,7 +37,6 @@ export function Execute(props: ExecuteProps) {
       >
         {command()}
       </span>
-      <Show when={durationS() !== undefined}>{(s) => <span>{s()}s</span>}</Show>
     </div>
   );
 }
