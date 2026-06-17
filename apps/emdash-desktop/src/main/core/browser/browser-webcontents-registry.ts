@@ -48,6 +48,7 @@ export class BrowserWebContentsRegistry {
   private readonly pendingWebContentsIds = new Set<number>();
   private activeBrowserId: string | null = null;
   private copyBrowserUrlShortcut = getBrowserCopyUrlShortcut();
+  private disableCors = false;
 
   registerSession(input: RegisteredBrowserSession): void {
     this.sessionsByBrowserId.set(input.browserId, input);
@@ -67,6 +68,14 @@ export class BrowserWebContentsRegistry {
 
   setKeyboardSettings(keyboard: AppSettings['keyboard']): void {
     this.copyBrowserUrlShortcut = getBrowserCopyUrlShortcut(keyboard);
+  }
+
+  setBrowserSettings(browser: AppSettings['browser']): void {
+    this.disableCors = browser.disableCors;
+  }
+
+  get browserWebSecurityDisabled(): boolean {
+    return this.disableCors;
   }
 
   get registeredPartitions(): ReadonlySet<string> {
@@ -201,7 +210,10 @@ export class BrowserWebContentsRegistry {
       if (details.disposition === 'new-window' && isAllowedAuthPopupUrl(details.url)) {
         // window.open popups (OAuth sign-in flows) need a real child window in
         // the same partition so window.opener/postMessage keep working.
-        return { action: 'allow', overrideBrowserWindowOptions: BROWSER_POPUP_WINDOW_OPTIONS };
+        return {
+          action: 'allow',
+          overrideBrowserWindowOptions: getBrowserPopupWindowOptions(this.disableCors),
+        };
       }
       const sourceBrowserId = this.browserIdByWebContentsId.get(webContents.id);
       if (sourceBrowserId && isExternalHttpUrl(details.url)) {
@@ -272,7 +284,7 @@ export class BrowserWebContentsRegistry {
     });
 
     webContents.on('did-create-window', (window) => {
-      hardenBrowserPopupWindow(window);
+      hardenBrowserPopupWindow(window, this.disableCors);
     });
 
     webContents.on('will-navigate', (event, url) => {
@@ -287,7 +299,18 @@ export class BrowserWebContentsRegistry {
 
 export const browserWebContentsRegistry = new BrowserWebContentsRegistry();
 
-function hardenBrowserPopupWindow(window: BrowserWindow): void {
+function getBrowserPopupWindowOptions(disableCors: boolean): BrowserWindowConstructorOptions {
+  return {
+    ...BROWSER_POPUP_WINDOW_OPTIONS,
+    webPreferences: {
+      ...BROWSER_POPUP_WINDOW_OPTIONS.webPreferences,
+      webSecurity: !disableCors,
+      allowRunningInsecureContent: disableCors,
+    },
+  };
+}
+
+function hardenBrowserPopupWindow(window: BrowserWindow, disableCors: boolean): void {
   const webContents = window.webContents;
 
   webContents.setWindowOpenHandler(({ url, disposition }) => {
@@ -295,13 +318,16 @@ function hardenBrowserPopupWindow(window: BrowserWindow): void {
       return { action: 'deny' };
     }
     if (disposition === 'new-window' && isAllowedAuthPopupUrl(url)) {
-      return { action: 'allow', overrideBrowserWindowOptions: BROWSER_POPUP_WINDOW_OPTIONS };
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: getBrowserPopupWindowOptions(disableCors),
+      };
     }
     return { action: 'deny' };
   });
 
   webContents.on('did-create-window', (child) => {
-    hardenBrowserPopupWindow(child);
+    hardenBrowserPopupWindow(child, disableCors);
   });
 
   webContents.on('will-navigate', (event, url) => {

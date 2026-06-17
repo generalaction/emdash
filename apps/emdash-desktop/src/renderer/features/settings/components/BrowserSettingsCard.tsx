@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@renderer/lib/ui/select';
+import { Switch } from '@renderer/lib/ui/switch';
 import {
   BROWSER_ISOLATED_PROFILE_ID,
   DEFAULT_BROWSER_PROFILE_ID,
@@ -135,6 +136,18 @@ export function BrowserSettingsCard() {
               <SelectItem value={BROWSER_ISOLATED_PROFILE_ID}>Isolated per task</SelectItem>
             </SelectContent>
           </Select>
+        }
+      />
+
+      <SettingRow
+        title="Disable CORS"
+        description="Turns off web security for in-app browser tabs. Existing tabs need to be reopened for this to apply."
+        control={
+          <Switch
+            checked={browserSettings?.disableCors ?? false}
+            disabled={disabled}
+            onCheckedChange={(next) => update({ disableCors: next })}
+          />
         }
       />
 

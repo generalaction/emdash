@@ -134,6 +134,7 @@ void app.whenReady().then(async () => {
   appService.initialize();
   await appSettingsService.initialize();
   browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
+  browserWebContentsRegistry.setBrowserSettings(await appSettingsService.get('browser'));
   await promptLibraryService.initialize();
 
   agentHookService.initialize().catch((e) => {

@@ -97,7 +97,9 @@ function registerBrowserWebviewHandlers(win: BrowserWindow): void {
       return;
     }
 
-    hardenBrowserWebviewPreferences(webPreferences);
+    hardenBrowserWebviewPreferences(webPreferences, {
+      disableCors: browserWebContentsRegistry.browserWebSecurityDisabled,
+    });
     stripBrowserWebviewParams(params);
   });
 

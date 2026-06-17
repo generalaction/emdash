@@ -21,6 +21,8 @@ export const appSettingsController = createRPCController({
     if (key === 'resourceMonitor') await reconcileResourceSampler();
     if (key === 'keyboard')
       browserWebContentsRegistry.setKeyboardSettings(value as AppSettings['keyboard']);
+    if (key === 'browser')
+      browserWebContentsRegistry.setBrowserSettings(value as AppSettings['browser']);
   },
 
   reset: async <T extends AppSettingsKey>(key: T): Promise<void> => {
@@ -29,6 +31,9 @@ export const appSettingsController = createRPCController({
     if (key === 'keyboard') {
       browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
     }
+    if (key === 'browser') {
+      browserWebContentsRegistry.setBrowserSettings(await appSettingsService.get('browser'));
+    }
   },
 
   resetField: async <T extends AppSettingsKey>(key: T, field: string): Promise<void> => {
@@ -36,6 +41,9 @@ export const appSettingsController = createRPCController({
     if (key === 'resourceMonitor') await reconcileResourceSampler();
     if (key === 'keyboard') {
       browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
+    }
+    if (key === 'browser') {
+      browserWebContentsRegistry.setBrowserSettings(await appSettingsService.get('browser'));
     }
   },
 });

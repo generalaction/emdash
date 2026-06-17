@@ -109,6 +109,7 @@ export const browserProfileIdSchema = z
 export const browserSettingsSchema = z
   .object({
     defaultProfileId: z.union([browserProfileIdSchema, z.literal(BROWSER_ISOLATED_PROFILE_ID)]),
+    disableCors: z.boolean(),
     profiles: z
       .array(
         z.object({
