@@ -3,7 +3,7 @@ import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectProvider } from '@main/core/projects/project-provider';
-import { projects, workspaces } from '@main/db/schema';
+import { projects, tasks, workspaces } from '@main/db/schema';
 import type { Task } from '@shared/core/tasks/tasks';
 import { ok } from '@shared/lib/result';
 import { WorkspaceBootstrapService } from './workspace-bootstrap-service';
@@ -113,6 +113,37 @@ describe('WorkspaceBootstrapService', () => {
       expect(returned).toBe(existingWsId);
       const [ws] = await fixture.db.select().from(workspaces).where(eq(workspaces.id, WS_ID));
       expect(ws.path).toBeNull();
+    });
+  });
+
+  describe('ensureWorkspaceSetupForTask', () => {
+    it('returns missing-workspace when a task has no workspace id', async () => {
+      await fixture.db.insert(tasks).values({
+        id: 'task-missing-workspace-id',
+        projectId: 'proj-1',
+        name: 'Missing workspace ID',
+        status: 'in_progress',
+      });
+
+      const result = await svc.ensureWorkspaceSetupForTask('task-missing-workspace-id');
+
+      expect(result.success).toBe(false);
+      if (!result.success) expect(result.error.type).toBe('missing-workspace');
+    });
+
+    it('returns missing-workspace when the workspace row is absent', async () => {
+      await fixture.db.insert(tasks).values({
+        id: 'task-missing-workspace-row',
+        projectId: 'proj-1',
+        name: 'Missing workspace row',
+        status: 'in_progress',
+        workspaceId: 'workspace-missing',
+      });
+
+      const result = await svc.ensureWorkspaceSetupForTask('task-missing-workspace-row');
+
+      expect(result.success).toBe(false);
+      if (!result.success) expect(result.error.type).toBe('missing-workspace');
     });
   });
 

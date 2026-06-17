@@ -127,6 +127,7 @@ export type ProvisionTaskResult = {
 
 export type ProvisionWorkspaceError =
   | { type: 'no-intent' }
+  | { type: 'missing-workspace' }
   | { type: 'setup-failed'; stepKind: string; stepErrorType: string; message?: string };
 
 export type DeleteTaskOptions = {

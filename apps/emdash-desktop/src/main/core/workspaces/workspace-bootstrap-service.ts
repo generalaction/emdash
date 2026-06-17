@@ -264,14 +264,14 @@ export class WorkspaceBootstrapService {
     taskId: string
   ): Promise<Result<WorkspaceBootstrapResult, ProvisionWorkspaceError>> {
     const [row] = await this.db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
-    if (!row?.workspaceId) throw new Error(`Task ${taskId} has no workspaceId`);
+    if (!row?.workspaceId) return err({ type: 'missing-workspace' });
 
     const [wsRow] = await this.db
       .select()
       .from(workspaces)
       .where(eq(workspaces.id, row.workspaceId))
       .limit(1);
-    if (!wsRow) throw new Error(`Workspace ${row.workspaceId} not found for task ${taskId}`);
+    if (!wsRow) return err({ type: 'missing-workspace' });
 
     const project = projectManager.getProject(row.projectId);
     if (!project) throw new Error(`Project ${row.projectId} not found`);

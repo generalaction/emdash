@@ -85,6 +85,8 @@ function formatProvisionWorkspaceError(error: ProvisionWorkspaceError): string {
   switch (error.type) {
     case 'no-intent':
       return 'Workspace has no intent and no resolved path — cannot provision.';
+    case 'missing-workspace':
+      return 'This task does not have a workspace record and cannot be opened.';
     case 'setup-failed':
       return `Setup step '${error.stepKind}' failed (${error.stepErrorType})${error.message ? `: ${error.message}` : ''}.`;
   }
