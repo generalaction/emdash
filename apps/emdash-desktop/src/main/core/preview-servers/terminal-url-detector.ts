@@ -4,6 +4,7 @@ import type {
   DirectPreviewServerHost,
   PreviewServerProtocol,
 } from '@shared/core/preview-servers/types';
+import { normalizeTerminalHttpUrl } from '@shared/terminal-url';
 
 const PROBE_INTERVAL_MS = 1000;
 const PROBE_TIMEOUT_MS = 500;
@@ -89,7 +90,7 @@ function stripAnsi(value: string): string {
 
 function parsePreviewUrl(raw: string): DetectedPreviewUrl | null {
   try {
-    const url = new URL(raw);
+    const url = new URL(normalizeTerminalHttpUrl(raw));
     const protocol = url.protocol === 'https:' ? 'https:' : 'http:';
     const host = normalizeHost(url.hostname);
     const port = Number(url.port) || (protocol === 'https:' ? 443 : 80);

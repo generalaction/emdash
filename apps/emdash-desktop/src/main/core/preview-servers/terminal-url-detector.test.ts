@@ -74,4 +74,42 @@ describe('wireTerminalUrlDetector', () => {
     ]);
     expect(closed).toEqual([{ reason: 'pty-exit' }]);
   });
+
+  it('trims unmatched trailing parentheses from detected preview URLs', () => {
+    const pty = fakePty();
+    const detected: DetectedPreviewUrl[] = [];
+
+    wireTerminalUrlDetector({
+      pty,
+      probeLocalPorts: false,
+      onDetected: (server) => {
+        detected.push(server);
+      },
+    });
+
+    pty.emitData('Local: (http://localhost:3000/)');
+    pty.emitData('Balanced path: http://localhost:3001/foo(bar)');
+    pty.emitData('Extra closing path: http://localhost:3002/foo(bar))');
+
+    expect(detected).toEqual([
+      {
+        protocol: 'http:',
+        host: 'localhost',
+        port: 3000,
+        urlPath: '/',
+      },
+      {
+        protocol: 'http:',
+        host: 'localhost',
+        port: 3001,
+        urlPath: '/foo(bar)',
+      },
+      {
+        protocol: 'http:',
+        host: 'localhost',
+        port: 3002,
+        urlPath: '/foo(bar)',
+      },
+    ]);
+  });
 });
