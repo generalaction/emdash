@@ -1,5 +1,5 @@
-import type { CLIAgentPluginProvider } from '@emdash/shared/agents/plugins';
-import type { DependencyState } from '@emdash/shared/deps/runtime';
+import type { CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
+import type { DependencyState } from '@emdash/core/deps/runtime';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@emdash/plugins/agents', () => ({

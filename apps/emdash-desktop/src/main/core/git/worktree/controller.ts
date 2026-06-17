@@ -1,4 +1,4 @@
-import type { DiffTarget, GitObjectRef } from '@emdash/shared/git';
+import type { DiffTarget, GitObjectRef } from '@emdash/core/git';
 import { resolveWorkspace } from '@main/core/projects/utils';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';

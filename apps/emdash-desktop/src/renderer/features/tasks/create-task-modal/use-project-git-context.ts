@@ -1,5 +1,5 @@
-import type { GitHeadModel } from '@emdash/shared/git';
-import type { GitBranchRef } from '@emdash/shared/git';
+import type { GitHeadModel } from '@emdash/core/git';
+import type { GitBranchRef } from '@emdash/core/git';
 import { useQuery } from '@tanstack/react-query';
 import {
   asMounted,

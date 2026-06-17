@@ -1,6 +1,6 @@
-import type { DependencyStatusUpdatedEvent, DependencyId } from '@emdash/shared/deps/runtime';
-import type { HostDependencyManager } from '@emdash/shared/deps/runtime';
-import { Emitter } from '@emdash/shared/lib';
+import type { DependencyStatusUpdatedEvent, DependencyId } from '@emdash/core/deps/runtime';
+import type { HostDependencyManager } from '@emdash/core/deps/runtime';
+import { Emitter } from '@emdash/core/lib';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 // Mock the registry

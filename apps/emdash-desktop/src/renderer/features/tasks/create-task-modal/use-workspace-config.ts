@@ -1,4 +1,4 @@
-import type { GitBranchRef } from '@emdash/shared/git';
+import type { GitBranchRef } from '@emdash/core/git';
 import { useMemo, useState } from 'react';
 import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { useProjectWorkspaces } from '@renderer/features/tasks/task-config/existing-workspace-picker';

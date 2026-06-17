@@ -1,4 +1,4 @@
-import type { GitBranchRef } from '@emdash/shared/git';
+import type { GitBranchRef } from '@emdash/core/git';
 import { eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectProvider, TaskProvider } from '@main/core/projects/project-provider';

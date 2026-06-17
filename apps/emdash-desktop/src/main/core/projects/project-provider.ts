@@ -1,4 +1,4 @@
-import type { GitBranchRef, GitHeadModel, GitSequences, IGitRuntime } from '@emdash/shared/git';
+import type { GitBranchRef, GitHeadModel, GitSequences, IGitRuntime } from '@emdash/core/git';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';

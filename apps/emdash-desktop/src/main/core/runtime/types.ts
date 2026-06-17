@@ -1,5 +1,5 @@
-import type { IGitRuntime } from '@emdash/shared/git';
-import type { IDisposable, Lease, Unsubscribe } from '@emdash/shared/lib';
+import type { IGitRuntime } from '@emdash/core/git';
+import type { IDisposable, Lease, Unsubscribe } from '@emdash/core/lib';
 
 export type MachineRef = { kind: 'local' } | { kind: 'ssh'; connectionId: string };
 

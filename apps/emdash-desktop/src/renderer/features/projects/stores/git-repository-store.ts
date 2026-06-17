@@ -6,7 +6,7 @@ import type {
   GitRemotesModel,
   LocalBranch,
   RemoteBranch,
-} from '@emdash/shared/git';
+} from '@emdash/core/git';
 import { computed, makeObservable, reaction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
 import { bindMirror, coalesce, ModelMirror, type MirrorBinding } from '@renderer/lib/stores/live';

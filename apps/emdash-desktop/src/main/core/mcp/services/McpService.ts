@@ -1,6 +1,6 @@
 import os from 'node:os';
+import type { McpServerRegistration } from '@emdash/core/agents/plugins';
 import { pluginRegistry } from '@emdash/plugins/agents';
-import type { McpServerRegistration } from '@emdash/shared/agents/plugins';
 import { createPluginFs } from '@main/core/agents/plugin-fs';
 import { log } from '@main/lib/logger';
 import type { McpLoadAllResponse, McpServer } from '@shared/core/mcp/types';

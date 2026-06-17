@@ -1,4 +1,4 @@
-import type { GitHeadModel, GitStatusModel, GitWorktreeUpdate } from '@emdash/shared/git';
+import type { GitHeadModel, GitStatusModel, GitWorktreeUpdate } from '@emdash/core/git';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const dbMocks = vi.hoisted(() => ({ update: vi.fn() }));
