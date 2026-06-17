@@ -189,7 +189,8 @@
   --typography-code-line-height: var(--typography-body-line-height);
   --typography-code-size: 13px;
   --typography-code-weight: 400;
-  --typography-font-family-mono: 'Menlo', 'Monaco', 'Courier New', monospace;
+  --typography-font-family-mono:
+    'JetBrains Mono Variable', 'JetBrains Mono', 'Menlo', 'Monaco', monospace;
   --typography-font-family-sans: 'Inter Variable', sans-serif;
   --typography-h1-line-height: 28px;
   --typography-h1-size: 20px;

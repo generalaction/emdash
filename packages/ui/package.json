@@ -53,6 +53,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
+    "@fontsource-variable/jetbrains-mono": "5.2.8",
     "@tiptap/core": "^3.26.1",
     "@tiptap/extension-mention": "^3.26.1",
     "@tiptap/extension-placeholder": "^3.26.1",

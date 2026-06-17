@@ -2689,7 +2689,7 @@
         "$value": ["Inter Variable", "sans-serif"]
       },
       "mono": {
-        "$value": ["Menlo", "Monaco", "Courier New", "monospace"]
+        "$value": ["JetBrains Mono Variable", "JetBrains Mono", "Menlo", "Monaco", "monospace"]
       }
     },
     "body": {

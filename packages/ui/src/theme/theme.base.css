@@ -2,13 +2,14 @@
  * Lifted from apps/emdash-desktop/src/renderer/index.css.
  * Import after tailwindcss and before the color theme files. */
 
+@import '@fontsource-variable/jetbrains-mono/index.css';
 @import './effects.css';
 
 @theme inline {
   --font-sans:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans',
     'Droid Sans', 'Helvetica Neue', sans-serif;
-  --font-mono: Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, monospace;
 
   --text-code: 13px;
   --text-code--line-height: 1.2;

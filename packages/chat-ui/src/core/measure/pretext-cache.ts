@@ -79,8 +79,8 @@ export function clearPretextCache(): void {
 const FONT_LOAD_SPECS = [
   '400 14px "Inter Variable"',
   '600 14px "Inter Variable"',
-  '400 12px "Menlo"',
-  '500 12px "Menlo"',
+  '400 13px "JetBrains Mono Variable"',
+  '400 12px "JetBrains Mono Variable"',
 ];
 
 /**

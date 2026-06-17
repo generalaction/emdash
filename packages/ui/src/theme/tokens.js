@@ -2526,7 +2526,7 @@ export const tokens = {
     '.': ['Inter Variable', 'sans-serif'],
   },
   'typography.font-family.mono': {
-    '.': ['Menlo', 'Monaco', 'Courier New', 'monospace'],
+    '.': ['JetBrains Mono Variable', 'JetBrains Mono', 'Menlo', 'Monaco', 'monospace'],
   },
   'typography.body.size': {
     '.': {
@@ -2755,7 +2755,7 @@ export const tokens = {
   },
   'type.inline-code': {
     '.': {
-      fontFamily: ['Menlo', 'Monaco', 'Courier New', 'monospace'],
+      fontFamily: ['JetBrains Mono Variable', 'JetBrains Mono', 'Menlo', 'Monaco', 'monospace'],
       fontSize: {
         value: 12,
         unit: 'px',
@@ -2783,7 +2783,7 @@ export const tokens = {
   },
   'type.code': {
     '.': {
-      fontFamily: ['Menlo', 'Monaco', 'Courier New', 'monospace'],
+      fontFamily: ['JetBrains Mono Variable', 'JetBrains Mono', 'Menlo', 'Monaco', 'monospace'],
       fontSize: {
         value: 13,
         unit: 'px',
