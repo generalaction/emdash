@@ -3,6 +3,7 @@ import { For, createEffect, onCleanup } from 'solid-js';
 import { type CodeToken, highlightCode, peekHighlight } from '../../core/highlight/highlighter';
 import type { ChatDiff } from '../../model';
 import { cancelIdle, scheduleIdle } from '../dom-utils';
+import { useCommands } from '../CommandsContext';
 import { useTheme } from '../ThemeContext';
 import type { DiffRow } from './diff-lines';
 import type { DiffLayout } from './diff.def';
@@ -66,11 +67,18 @@ const ROW_CLASS: Record<DiffRow['type'], string> = {
 function DiffHeader(props: { item: ChatDiff; adds: number; dels: number; headerH: number }) {
   const name = () => basename(props.item.path);
   const iconClass = () => resolveFileIconClass(name());
+  const commands = useCommands();
+
+  const handleClick = () => {
+    commands().onOpenFile?.({ path: props.item.path, itemId: props.item.id, source: 'diff' });
+  };
 
   return (
     <div
-      class="flex items-center gap-2 border-b border-border px-3 text-xs"
+      class="flex cursor-pointer items-center gap-2 border-b border-border px-3 text-xs hover:bg-background-hover"
       style={{ height: `${props.headerH}px` }}
+      role="button"
+      onClick={handleClick}
     >
       {iconClass() ? (
         <i

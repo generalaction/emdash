@@ -173,6 +173,32 @@ export class Virtualizer {
   }
 
   /**
+   * Prepend `count` rows at the front of the virtualizer, seeding each with
+   * `estimate(i)` where `i` is the logical index within the prepended batch
+   * (0 = the first prepended row, count-1 = the last).
+   *
+   * All existing row sizes are preserved: they shift to indices [count, count+n)
+   * and their measured heights remain valid. The BIT is rebuilt in O(n) after
+   * the shift — acceptable for user-paced history page-loads.
+   *
+   * Used by ChatRoot.loadOlder for incremental history loading.
+   */
+  prepend(count: number, estimate: (i: number) => number): void {
+    if (count <= 0) return;
+    const newN = this.n + count;
+    const newSizes = new Float64Array(newN);
+    // Seed the prepended rows with estimates.
+    for (let i = 0; i < count; i++) {
+      newSizes[i] = estimate(i);
+    }
+    // Copy existing rows shifted by count.
+    newSizes.set(this.sizes.subarray(0, this.n), count);
+    this.sizes = newSizes;
+    this.n = newN;
+    this.rebuild();
+  }
+
+  /**
    * Returns inclusive { start, end } row indices visible at [scrollTop, scrollTop+viewH].
    *
    * Two call signatures:

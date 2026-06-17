@@ -16,6 +16,8 @@
  *   - Drops `chatCssVars()` writes — all geometry is projected via inline styles.
  *   - Drops `clearMessageLayoutCache` — invalidation is via node memo fingerprint.
  *   - Drops `ROW_REGISTRY` import in favour of the unified `REGISTRY`.
+ *   - Accepts `commands` / `onReachStart` / `onAtBottomChange` / `controls`
+ *     for command callbacks, pagination events, and imperative scroll.
  */
 
 import {
@@ -29,6 +31,7 @@ import {
   untrack,
   useContext,
 } from 'solid-js';
+import { CommandsContext } from './components/CommandsContext';
 import { DebugContext } from './components/debug-context';
 import { REGISTRY } from './components/registry';
 import { Row } from './components/Row';
@@ -38,6 +41,8 @@ import { StickToBottom } from './core/stick-to-bottom';
 import type { ChatTheme } from './core/theme';
 import { DEFAULT_THEME } from './core/theme';
 import { Virtualizer } from './core/virtualizer';
+import type { ChatCommands, ScrollToItemOptions } from './index';
+import type { ChatItem } from './model';
 import { getItem, itemCount } from './state/transcript';
 import type { TranscriptApi } from './state/transcript';
 import type { ViewState } from './state/view-state';
@@ -53,6 +58,25 @@ const OVERSCAN_BASE = 4;
 // Leading buffer in the direction of scroll; trailing buffer behind it
 const OVERSCAN_LEADING = 12;
 const OVERSCAN_TRAILING = 3;
+
+// onReachStart fires when the top row is visible and scrollTop is within this
+// threshold of the canvas top. Debounced: only fires once until reset.
+const REACH_START_THRESHOLD_PX = 200;
+
+// ── EngineControls ────────────────────────────────────────────────────────────
+
+/**
+ * Mutable holder populated by ChatRoot.onMount. mountChat creates an instance
+ * and passes it to ChatRoot; the handle methods delegate to it so callers
+ * never hold stale closures.
+ */
+export type EngineControls = {
+  scrollToBottom(opts?: { behavior?: ScrollBehavior }): void;
+  scrollToItem(id: string, opts?: ScrollToItemOptions): void;
+  loadOlder(items: ChatItem[]): void;
+};
+
+// ── ChatRootProps ─────────────────────────────────────────────────────────────
 
 export type ChatRootProps = {
   transcript: TranscriptApi;
@@ -84,11 +108,28 @@ export type ChatRootProps = {
    * Accepts a static number or a reactive accessor so mountChat can pass a signal.
    */
   padBottom?: number | (() => number);
+  /**
+   * Reactive accessor returning the current ChatCommands. Provided by mountChat
+   * via a signal so setCommands can update them without remounting.
+   */
+  commands?: () => ChatCommands;
+  /** Fired when the user scrolls near the top and the engine has run out of history. */
+  onReachStart?: () => void;
+  /** Fired when the "at bottom" sticky state changes. */
+  onAtBottomChange?: (atBottom: boolean) => void;
+  /**
+   * Mutable holder that ChatRoot.onMount populates with imperative scroll
+   * methods. mountChat passes its own holder so handle methods delegate here.
+   */
+  controls?: EngineControls;
 };
+
+// ── ChatRoot ──────────────────────────────────────────────────────────────────
 
 export function ChatRoot(props: ChatRootProps) {
   const theme = () => props.theme ?? DEFAULT_THEME;
   const contentClass = () => props.contentClass ?? DEFAULT_CONTENT_CLASS;
+  const commands = () => props.commands?.() ?? {};
 
   const padTop = () => {
     const v = props.padTop;
@@ -205,12 +246,114 @@ export function ChatRoot(props: ChatRootProps) {
     }
   };
 
+  // ── Scroll helpers ────────────────────────────────────────────────────────
+
+  const doScrollToBottom = (opts?: { behavior?: ScrollBehavior }) => {
+    const el = scrollEl;
+    if (!el) return;
+    if (opts?.behavior === 'smooth') {
+      el.scrollTo({ top: el.scrollHeight - el.clientHeight, behavior: 'smooth' });
+    } else if (sticky) {
+      sticky.scrollToBottom();
+    } else {
+      el.scrollTo({ top: el.scrollHeight - el.clientHeight });
+    }
+  };
+
+  const doScrollToItem = (id: string, opts?: ScrollToItemOptions) => {
+    const el = scrollEl;
+    if (!el) return;
+    const idx = props.transcript.findIndexById(id);
+    if (idx < 0) return;
+
+    const align = opts?.align ?? 'start';
+    const extraOffset = opts?.offset ?? 0;
+    const behavior = opts?.behavior ?? 'auto';
+
+    const computeTarget = () => {
+      const rowTop = virt.top(idx) + padTop();
+      const rowH = virt.size(idx);
+      const vh = el.clientHeight;
+      let target: number;
+      if (align === 'center') {
+        target = rowTop - (vh - rowH) / 2;
+      } else if (align === 'end') {
+        target = rowTop - vh + rowH;
+      } else {
+        target = rowTop;
+      }
+      return Math.max(0, target + extraOffset);
+    };
+
+    el.scrollTo({ top: computeTarget(), behavior });
+
+    // Settle pass: after one rAF the row may have measured; re-read its top.
+    if (behavior !== 'smooth') {
+      programmaticScroll = true;
+      requestAnimationFrame(() => {
+        programmaticScroll = false;
+        el.scrollTo({ top: computeTarget(), behavior: 'auto' });
+      });
+    }
+  };
+
+  const doLoadOlder = (items: ChatItem[]) => {
+    const el = scrollEl;
+    if (!el || items.length === 0) return;
+
+    const t = theme();
+
+    // Capture anchor: the first fully-visible row and its offset from scrollTop.
+    const anchorIdx = virt.findIndex(Math.max(0, el.scrollTop - padTop()));
+    const anchorId = getItem(props.transcript.state, anchorIdx)?.id;
+    const anchorOffset = el.scrollTop - (virt.top(anchorIdx) + padTop());
+
+    // Grow the virtualizer at the front with estimated heights.
+    const count = items.length;
+    virt.prepend(count, (i) => {
+      const item = items[i];
+      if (!item) return 60;
+      const def = REGISTRY[item.kind as keyof typeof REGISTRY];
+      return (
+        def.estimate(item, {
+          theme: t,
+          width: containerWidth(),
+          isCollapsed: () => false,
+          measured: () => undefined,
+        }) +
+        2 * (t.geometry.rowPadY[item.kind] ?? 0)
+      );
+    });
+
+    // Update the transcript store (triggers the count-sync effect).
+    props.transcript.prependHistory(items);
+    refreshTotal();
+
+    // Restore scroll position so the previously-visible row stays in view.
+    if (anchorId !== undefined) {
+      const newIdx = props.transcript.findIndexById(anchorId);
+      if (newIdx >= 0) {
+        const newTop = virt.top(newIdx) + padTop() + anchorOffset;
+        programmaticScroll = true;
+        el.scrollTop = newTop;
+        setScrollTop(newTop);
+      }
+    }
+  };
+
   // ── DOM setup ─────────────────────────────────────────────────────────────
 
   onMount(() => {
     const el = scrollEl!;
 
     sticky = new StickToBottom(el);
+
+    // Populate the controls holder so handle delegates resolve immediately.
+    if (props.controls) {
+      props.controls.scrollToBottom = doScrollToBottom;
+      props.controls.scrollToItem = doScrollToItem;
+      props.controls.loadOlder = doLoadOlder;
+    }
 
     // CSS vars required by CSS modules. Set once on mount (theme is not reactive
     // in the current architecture; if theme changes, a full unmount/remount is
@@ -245,6 +388,8 @@ export function ChatRoot(props: ChatRootProps) {
 
     let rafId: number | null = null;
     let lastScrollTop = 0;
+    let atBottom = sticky.isStuck();
+    let reachStartFired = false;
 
     const flushScroll = () => {
       rafId = null;
@@ -252,6 +397,23 @@ export function ChatRoot(props: ChatRootProps) {
       setScrollVelocity(st - lastScrollTop);
       lastScrollTop = st;
       setScrollTop(st);
+
+      // onAtBottomChange
+      const nowAtBottom = sticky!.isStuck();
+      if (nowAtBottom !== atBottom) {
+        atBottom = nowAtBottom;
+        props.onAtBottomChange?.(atBottom);
+      }
+
+      // onReachStart — fire once when near the top; reset when user scrolls away
+      if (st <= REACH_START_THRESHOLD_PX) {
+        if (!reachStartFired) {
+          reachStartFired = true;
+          props.onReachStart?.();
+        }
+      } else {
+        reachStartFired = false;
+      }
     };
 
     const onScroll = () => {
@@ -318,56 +480,58 @@ export function ChatRoot(props: ChatRootProps) {
   return (
     <DebugContext.Provider value={debugValue}>
       <ThemeContext.Provider value={theme}>
-        <div
-          ref={(el) => {
-            scrollEl = el;
-          }}
-          data-chat-scroll
-          class={`relative h-full w-full overflow-x-hidden overflow-y-auto${props.class ? ` ${props.class}` : ''}`}
-        >
+        <CommandsContext.Provider value={commands}>
           <div
             ref={(el) => {
-              canvasEl = el;
+              scrollEl = el;
             }}
-            data-chat-canvas
-            class={`relative ${contentClass()}`}
-            style={{ height: `${totalHeight() + padTop() + padBottom()}px` }}
+            data-chat-scroll
+            class={`relative h-full w-full overflow-x-hidden overflow-y-auto${props.class ? ` ${props.class}` : ''}`}
           >
-            <For each={visibleIndexes()}>
-              {(rowIndex) => {
-                const rowTop = createMemo(() => {
-                  totalHeight();
-                  return virt.top(rowIndex) + padTop();
-                });
-
-                const item = createMemo(() => getItem(props.transcript.state, rowIndex));
-                const committedCount = () => props.transcript.state.committed.length;
-                const isActiveTurn = () => rowIndex >= committedCount();
-
-                return (
-                  <Show when={item()}>
-                    <div
-                      class="absolute top-0 left-0 w-full will-change-transform [contain:layout_paint_style]"
-                      style={{ transform: `translateY(${rowTop()}px)` }}
-                      data-index={String(rowIndex)}
-                    >
-                      <Row
-                        item={item()!}
-                        index={rowIndex}
-                        rowWidth={containerWidth()}
-                        theme={theme()}
-                        viewState={props.viewState}
-                        virt={virt}
-                        onHeightChanged={onHeightChanged}
-                        isActiveTurn={isActiveTurn()}
-                      />
-                    </div>
-                  </Show>
-                );
+            <div
+              ref={(el) => {
+                canvasEl = el;
               }}
-            </For>
+              data-chat-canvas
+              class={`relative ${contentClass()}`}
+              style={{ height: `${totalHeight() + padTop() + padBottom()}px` }}
+            >
+              <For each={visibleIndexes()}>
+                {(rowIndex) => {
+                  const rowTop = createMemo(() => {
+                    totalHeight();
+                    return virt.top(rowIndex) + padTop();
+                  });
+
+                  const item = createMemo(() => getItem(props.transcript.state, rowIndex));
+                  const committedCount = () => props.transcript.state.committed.length;
+                  const isActiveTurn = () => rowIndex >= committedCount();
+
+                  return (
+                    <Show when={item()}>
+                      <div
+                        class="absolute top-0 left-0 w-full will-change-transform [contain:layout_paint_style]"
+                        style={{ transform: `translateY(${rowTop()}px)` }}
+                        data-index={String(rowIndex)}
+                      >
+                        <Row
+                          item={item()!}
+                          index={rowIndex}
+                          rowWidth={containerWidth()}
+                          theme={theme()}
+                          viewState={props.viewState}
+                          virt={virt}
+                          onHeightChanged={onHeightChanged}
+                          isActiveTurn={isActiveTurn()}
+                        />
+                      </div>
+                    </Show>
+                  );
+                }}
+              </For>
+            </div>
           </div>
-        </div>
+        </CommandsContext.Provider>
       </ThemeContext.Provider>
     </DebugContext.Provider>
   );

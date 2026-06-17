@@ -115,6 +115,17 @@ export type TranscriptApi = {
   dispatch(event: TranscriptEvent): void;
   /** Clear all state (e.g. at the start of a replay). */
   reset(): void;
+  /**
+   * Prepend older history items before the existing committed items without
+   * touching activeTurn. Items must be stable object references — the engine's
+   * identity-based node memo is keyed by reference.
+   */
+  prependHistory(items: ChatItem[]): void;
+  /**
+   * Returns the absolute index (committed-first) of the item with the given id,
+   * or -1 if not found.
+   */
+  findIndexById(id: string): number;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -145,11 +156,44 @@ export function createTranscript(): TranscriptApi {
     activeTurn: null,
   });
 
+  // id → committed index map; rebuilt on seed/prepend, patched on turn_done.
+  const idMap = new Map<string, number>();
+
+  const rebuildIdMap = (items: readonly ChatItem[]): void => {
+    idMap.clear();
+    for (let i = 0; i < items.length; i++) {
+      idMap.set(items[i].id, i);
+    }
+  };
+
   return {
     state,
 
     seed(history) {
       setState({ committed: [...history], activeTurn: null });
+      rebuildIdMap(history);
+    },
+
+    prependHistory(items) {
+      if (items.length === 0) return;
+      setState('committed', (prev) => [...items, ...prev]);
+      // Rebuild: indices of all existing committed items shifted by items.length.
+      rebuildIdMap(state.committed);
+    },
+
+    findIndexById(id) {
+      // Check committed first via fast map.
+      const ci = idMap.get(id);
+      if (ci !== undefined) return ci;
+      // Fall back to activeTurn scan (small; not worth a separate map).
+      const at = state.activeTurn;
+      if (at) {
+        const offset = state.committed.length;
+        for (let i = 0; i < at.length; i++) {
+          if (at[i].id === id) return offset + i;
+        }
+      }
+      return -1;
     },
 
     dispatch(event) {
@@ -403,8 +447,13 @@ export function createTranscript(): TranscriptApi {
                 }
                 return item;
               });
+              const offset = s.committed.length;
               s.committed = [...s.committed, ...finalized];
               s.activeTurn = null;
+              // Patch idMap: only new items added at the tail.
+              for (let i = 0; i < finalized.length; i++) {
+                idMap.set(finalized[i].id, offset + i);
+              }
               break;
             }
           }
@@ -414,6 +463,7 @@ export function createTranscript(): TranscriptApi {
 
     reset() {
       setState({ committed: [], activeTurn: null });
+      idMap.clear();
     },
   };
 }

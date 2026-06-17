@@ -25,6 +25,7 @@
 
 import { For, Show, createEffect } from 'solid-js';
 import type { ChatFileOpToolCall, FileOpKind } from '../../model';
+import { useCommands } from '../CommandsContext';
 import { useTheme } from '../ThemeContext';
 
 const VERB: Record<FileOpKind, string> = {
@@ -40,11 +41,14 @@ function basename(path: string): string {
 
 // ── FileRow ───────────────────────────────────────────────────────────────────
 
-function FileRow(props: { verb: string; path: string; lineH: number }) {
+function FileRow(props: { verb: string; path: string; lineH: number; onClick?: () => void }) {
   return (
     <div
       class="flex items-center gap-1.5 text-sm text-foreground-passive"
+      classList={{ 'cursor-pointer hover:text-foreground-muted': !!props.onClick }}
       style={{ height: `${props.lineH}px` }}
+      role={props.onClick ? 'button' : undefined}
+      onClick={props.onClick}
     >
       <span>{props.verb}</span>
       <span title={props.path}>{basename(props.path)}</span>
@@ -103,8 +107,13 @@ export type FileOperationProps = {
 export function FileOperation(props: FileOperationProps) {
   const theme = useTheme();
   const g = () => theme().geometry;
+  const commands = useCommands();
 
   const verb = () => VERB[props.item.op];
+
+  const openFile = (path: string) => {
+    commands().onOpenFile?.({ path, itemId: props.item.id, source: 'file-op' });
+  };
   // Inverted: stored collapsed = true means expanded.
   const expanded = () => !!props.collapsed;
 
@@ -141,7 +150,14 @@ export function FileOperation(props: FileOperationProps) {
               </span>
             }
           >
-            {(op) => <FileRow verb={verb()} path={op().path} lineH={g().fileopLineH} />}
+            {(op) => (
+              <FileRow
+                verb={verb()}
+                path={op().path}
+                lineH={g().fileopLineH}
+                onClick={() => openFile(op().path)}
+              />
+            )}
           </Show>
         </div>
       }
@@ -209,7 +225,14 @@ export function FileOperation(props: FileOperationProps) {
           >
             <div style={{ 'padding-block': `${g().fileopPadY}px` }}>
               <For each={props.item.ops}>
-                {(op) => <FileRow verb={verb()} path={op.path} lineH={g().fileopLineH} />}
+                {(op) => (
+                  <FileRow
+                    verb={verb()}
+                    path={op.path}
+                    lineH={g().fileopLineH}
+                    onClick={() => openFile(op.path)}
+                  />
+                )}
               </For>
             </div>
           </div>
