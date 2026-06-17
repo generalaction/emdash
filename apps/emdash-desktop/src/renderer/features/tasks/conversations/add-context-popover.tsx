@@ -77,7 +77,9 @@ export function ActionItemRow({ action }: { action: ContextAction }) {
 export interface AddContextPopoverProps {
   actions: ContextAction[];
   disabled: boolean;
+  emptyMessage?: string;
   hideTrigger?: boolean;
+  hotkeyEnabled?: boolean;
   isActivePane?: boolean;
   onApplyAction: (
     text: string,
@@ -92,7 +94,9 @@ export interface AddContextPopoverProps {
 export function AddContextPopover({
   actions,
   disabled,
+  emptyMessage = 'No context found',
   hideTrigger = false,
+  hotkeyEnabled,
   isActivePane = true,
   onApplyAction,
   renderTrigger,
@@ -124,7 +128,9 @@ export function AddContextPopover({
     });
   }, [query, actions]);
 
-  useHotkey(ADD_CONTEXT_HOTKEY, () => setOpen((v) => !v), { enabled: !disabled && isActivePane });
+  useHotkey(ADD_CONTEXT_HOTKEY, () => setOpen((v) => !v), {
+    enabled: (hotkeyEnabled ?? !disabled) && isActivePane,
+  });
 
   const handleConfirm = (action: ContextAction | null, opts?: { andSend?: boolean }) => {
     if (!action) return;
@@ -235,7 +241,7 @@ export function AddContextPopover({
           )}
         </ComboboxList>
         <ComboboxEmpty className="flex flex-1 items-center justify-center">
-          No context found
+          {emptyMessage}
         </ComboboxEmpty>
         <div className="flex items-center justify-end border-t px-2 py-1.5">
           <span className="flex items-center gap-1">

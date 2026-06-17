@@ -55,9 +55,9 @@ export const ContextBar = observer(function ContextBar({
     [task?.linkedIssue, draftComments?.comments, promptLibrary]
   );
 
-  if (!draftComments || !hasConversation || actions.length === 0) return null;
-
   const isActivePane = taskView.tabGroupManager.activeGroupId === groupId;
+  const hasVisibleContextBar = Boolean(draftComments && hasConversation && actions.length > 0);
+  const popoverActions = canApplyContext ? actions : [];
 
   const handleApplyAction = async (
     text: string,
@@ -74,7 +74,7 @@ export const ContextBar = observer(function ContextBar({
     });
 
     if (action.kind === 'draft-comments') {
-      draftComments.consumeAll();
+      draftComments?.consumeAll();
     }
 
     if (opts?.andSend) {
@@ -91,9 +91,11 @@ export const ContextBar = observer(function ContextBar({
 
   const contextPopover = (
     <AddContextPopover
-      actions={actions}
+      actions={hideTrigger ? popoverActions : actions}
       disabled={!canApplyContext || isSavingPromptLibrary}
+      emptyMessage={canApplyContext ? undefined : 'No active sessions'}
       hideTrigger={hideTrigger}
+      hotkeyEnabled={hideTrigger ? true : undefined}
       isActivePane={isActivePane}
       onApplyAction={handleApplyAction}
       side="top"
@@ -103,6 +105,8 @@ export const ContextBar = observer(function ContextBar({
   if (hideTrigger) {
     return <div className="relative h-0 w-full overflow-visible">{contextPopover}</div>;
   }
+
+  if (!hasVisibleContextBar) return null;
 
   return (
     <ContextMenu open={menuOpen} onOpenChange={setMenuOpen}>
