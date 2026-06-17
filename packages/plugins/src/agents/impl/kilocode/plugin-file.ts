@@ -31,6 +31,7 @@ async function postToEmdash({ port, token, ptyId, type, body }) {
         'X-Emdash-Pty-Id': ptyId,
         'X-Emdash-Event-Type': type,
       },
+      signal: AbortSignal.timeout(2000),
       body: JSON.stringify(body),
     });
   } catch {
