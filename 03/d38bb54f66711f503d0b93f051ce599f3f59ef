@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/lib/ui/search-input.tsx
+  s_a0bc144eabb22e::t_6e8b6d9e210a00 1,19-25
+apps/emdash-desktop/src/renderer/features/browser/browser-find-bar.tsx
+  s_a0bc144eabb22e::t_6e8b6d9e210a00 20,27-32,38-39,84,89-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "03d38bb54f66711f503d0b93f051ce599f3f59ef",
+  "prompts": {},
+  "sessions": {
+    "s_a0bc144eabb22e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed58d-29ab-7230-a39c-70575eeaaba5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
