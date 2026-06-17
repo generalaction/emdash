@@ -1,0 +1,23 @@
+packages/plugins/src/agents/impl/codex/hooks.ts
+  s_e0cc7bb495d095::t_4c33ce2b6bc0f7 18-22,93-94,101-102,106,109-114,119,135-141,157
+packages/shared/src/agents/plugins/helpers/hooks.ts
+  s_e0cc7bb495d095::t_4c33ce2b6bc0f7 85
+packages/plugins/src/agents/impl/codex/hooks.test.ts
+  s_e0cc7bb495d095::t_4c33ce2b6bc0f7 1-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "f6eeb00c1996eb13c9a65f71faa55c04cfe67534",
+  "prompts": {},
+  "sessions": {
+    "s_e0cc7bb495d095": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed66a-1cba-7194-8f84-1a2785a9006a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
