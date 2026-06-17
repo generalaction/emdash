@@ -13,6 +13,7 @@ export interface AppShortcutDef {
   category: string;
   hideFromSettings?: boolean;
   conflictBehavior?: 'prevent' | 'allow';
+  ignoreWhenMonacoFocused?: boolean;
 }
 
 export type TabNavigationDirection = 'next' | 'previous';
@@ -187,6 +188,20 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Switch to the previous tab',
     category: 'Tab Navigation',
     conflictBehavior: 'allow',
+  },
+  taskNext: {
+    defaultHotkey: 'Mod+Alt+ArrowDown',
+    label: 'Next Task',
+    description: 'Switch to the next task',
+    category: 'Task View',
+    ignoreWhenMonacoFocused: true,
+  },
+  taskPrev: {
+    defaultHotkey: 'Mod+Alt+ArrowUp',
+    label: 'Previous Task',
+    description: 'Switch to the previous task',
+    category: 'Task View',
+    ignoreWhenMonacoFocused: true,
   },
   tabClose: {
     defaultHotkey: 'Mod+W',
