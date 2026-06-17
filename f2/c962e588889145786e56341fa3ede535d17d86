@@ -1,0 +1,33 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar-actions.test.ts
+  s_b85bd2f27ef840::t_200d161d2305c1 54
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_b85bd2f27ef840::t_28d689ffea6a80 5-9,186
+  s_b85bd2f27ef840::t_84ae7fd6b1c6f1 185,187-192,255,260-276,290
+  s_b85bd2f27ef840::t_6f2f7f8a373832 277-289
+apps/emdash-desktop/src/renderer/features/browser/browser-session-store.ts
+  s_b85bd2f27ef840::t_aa9823f9c67cee 9,28-31,82,150-153
+apps/emdash-desktop/src/renderer/features/browser/browser-session-store.test.ts
+  s_b85bd2f27ef840::t_cd38759a8130db 84,90-106
+apps/emdash-desktop/src/shared/browser.ts
+  s_b85bd2f27ef840::t_089101aff6dc75 49-56,67,73,75,108-112,115-116,160-178,304
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_b85bd2f27ef840::t_1db149b7da7219 267-269
+  s_b85bd2f27ef840::t_6f2f7f8a373832 172-223,225-227,229-232,234-238,240-266,270-290,292,295,297-334,340-342,344,348-378,444
+  s_b85bd2f27ef840::t_fcf133d117267b 13,37,50,77,89,95,170-171,379-443,445-447,450-480
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "f2c962e588889145786e56341fa3ede535d17d86",
+  "prompts": {},
+  "sessions": {
+    "s_b85bd2f27ef840": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed3f9-b70a-7051-9d2d-61f97ccc1b3d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
