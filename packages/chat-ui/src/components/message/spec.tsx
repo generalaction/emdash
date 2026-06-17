@@ -10,11 +10,10 @@
 import type { Component } from 'solid-js';
 import type { MessageLayout } from '../../core/layout/layout-types';
 import type { MeasureCtx, RenderCtx, RowComponent } from '../../core/layout/spec-types';
-import { ROW_GAP } from '../../core/metrics';
 import type { ChatMessage } from '../../model';
 import { measureMessage } from './measure';
 import { Message } from './Message';
-import { BUBBLE_PAD_Y } from './metrics';
+import { BUBBLE_PAD_Y, MESSAGE_FOOTER_H } from './metrics';
 export { BUBBLE_PAD_X, BUBBLE_PAD_Y, BLOCK_GAP, messageCssVars } from './css-vars';
 
 export type MessageRowLayout = MessageLayout;
@@ -30,7 +29,8 @@ export const messageRow: RowComponent<ChatMessage, MessageRowLayout> = {
     // Must NOT call layoutMessage / pretext — this runs for all N rows at setCount.
     const lines = Math.ceil(item.text.length / 60);
     const lineH = ctx.fonts.body.lineHeight;
-    return lineH * Math.max(1, lines) + 2 * BUBBLE_PAD_Y + ROW_GAP + 8;
+    const footer = item.role === 'assistant' ? MESSAGE_FOOTER_H : 0;
+    return lineH * Math.max(1, lines) + 2 * BUBBLE_PAD_Y + footer + 8;
   },
 
   measure(item: ChatMessage, ctx: MeasureCtx): MessageRowLayout {

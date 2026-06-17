@@ -23,12 +23,11 @@ import { proseSpec } from './components/prose/spec';
 import { tableSpec } from './components/table/spec';
 import { thinkingCssVars } from './components/thinking/css-vars';
 import { toolCssVars } from './components/tool/spec';
-import { MENTION_EXTRA_WIDTH, ROW_GAP, ROW_INSET_X } from './core/metrics';
+import { MENTION_EXTRA_WIDTH, ROW_INSET_X } from './core/metrics';
 
 export function chatCssVars(): Record<string, string> {
   return {
     '--chat-mention-pad-x': `${MENTION_EXTRA_WIDTH / 2}px`,
-    '--chat-row-gap': `${ROW_GAP}px`,
     '--chat-msg-pad-x': `${ROW_INSET_X}px`,
     ...proseSpec.cssVars(),
     ...codeSpec.cssVars(),

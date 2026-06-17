@@ -34,6 +34,7 @@ import { clearPretextCache, registerFontsReadyClear } from './core/measure/prete
 import { StickToBottom } from './core/stick-to-bottom';
 import { Virtualizer } from './core/virtualizer';
 import { chatCssVars } from './css-vars';
+import { rowPadY } from './core/metrics';
 import { getItem, itemCount } from './state/transcript';
 import type { TranscriptApi } from './state/transcript';
 import type { ViewState } from './state/view-state';
@@ -129,12 +130,15 @@ export function ChatRoot(props: ChatRootProps) {
         const item = getItem(props.transcript.state, i);
         if (!item) return 60;
         const spec = ROW_REGISTRY[item.kind];
-        return spec.estimate(item, {
-          fonts: f,
-          rowWidth: 0,
-          isCollapsed: () => false,
-          measured: () => undefined,
-        });
+        return (
+          spec.estimate(item, {
+            fonts: f,
+            rowWidth: 0,
+            isCollapsed: () => false,
+            measured: () => undefined,
+          }) +
+          2 * rowPadY(item.kind)
+        );
       });
       refreshTotal();
       if (props.stickToBottom !== false) sticky?.schedule();

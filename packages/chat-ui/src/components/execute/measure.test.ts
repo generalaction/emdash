@@ -1,10 +1,10 @@
 /**
  * execute height parity — CSS var must match the metrics constant,
- * and measureExecute must always return the header-only height.
+ * and measureExecute must always return the content-only height.
+ * Row.tsx adds 2 * ROW_PAD_Y['execute'] for the wrapper padding.
  */
 
 import { describe, expect, it } from 'vitest';
-import { ROW_GAP } from '../../core/metrics';
 import type { ChatExecute } from '../../model';
 import { execCssVars } from './css-vars';
 import { measureExecute } from './measure';
@@ -32,21 +32,19 @@ function makeItem(overrides: Partial<ChatExecute> = {}): ChatExecute {
 }
 
 describe('measureExecute()', () => {
-  it('running — header only', () => {
-    expect(measureExecute(makeItem())).toBe(EXEC_ROW_H + ROW_GAP);
+  it('running — content height only', () => {
+    expect(measureExecute(makeItem())).toBe(EXEC_ROW_H);
   });
 
-  it('done with duration — header only', () => {
-    expect(measureExecute(makeItem({ status: 'done', durationMs: 2000 }))).toBe(
-      EXEC_ROW_H + ROW_GAP
-    );
+  it('done with duration — content height only', () => {
+    expect(measureExecute(makeItem({ status: 'done', durationMs: 2000 }))).toBe(EXEC_ROW_H);
   });
 
-  it('done without duration — header only', () => {
-    expect(measureExecute(makeItem({ status: 'done' }))).toBe(EXEC_ROW_H + ROW_GAP);
+  it('done without duration — content height only', () => {
+    expect(measureExecute(makeItem({ status: 'done' }))).toBe(EXEC_ROW_H);
   });
 
-  it('error — header only', () => {
-    expect(measureExecute(makeItem({ status: 'error' }))).toBe(EXEC_ROW_H + ROW_GAP);
+  it('error — content height only', () => {
+    expect(measureExecute(makeItem({ status: 'error' }))).toBe(EXEC_ROW_H);
   });
 });

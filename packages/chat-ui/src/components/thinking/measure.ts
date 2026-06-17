@@ -23,7 +23,7 @@ import {
   parseBlocksCached,
 } from '../../core/blocks/parse-blocks';
 import type { FontConfig } from '../../core/measure/fonts';
-import { ROW_GAP, ROW_INSET_X } from '../../core/metrics';
+import { ROW_INSET_X } from '../../core/metrics';
 import type { ChatThinking } from '../../model';
 import { BLOCK_GAP, PROSE_GAP } from '../message/metrics';
 import type { BlocksLayout } from '../rich-text/layout';
@@ -68,13 +68,13 @@ export function estimateThinking(
   if (!isExpanded(item.id)) {
     // Default / not expanded: active shows preview window, done shows header only.
     if (item.status === 'thinking') {
-      return THINKING_HEADER_H + THINKING_WINDOW_H + ROW_GAP;
+      return THINKING_HEADER_H + THINKING_WINDOW_H;
     }
-    return THINKING_HEADER_H + ROW_GAP;
+    return THINKING_HEADER_H;
   }
   // Cheap character-count estimate for the O(1) fast path.
   const lines = Math.max(1, Math.ceil((item.text?.length ?? 0) / 60));
-  return THINKING_HEADER_H + 2 * THINKING_PAD_Y + lines * fonts.body.lineHeight + ROW_GAP;
+  return THINKING_HEADER_H + 2 * THINKING_PAD_Y + lines * fonts.body.lineHeight;
 }
 
 export function measureThinking(
@@ -98,5 +98,5 @@ export function measureThinking(
   // Expanded: lay out the full body via pretext (DOM-free arithmetic).
   const blocks = buildThinkingBlocks(item);
   const body = layoutThinkingBody(blocks, fonts, rowWidth);
-  return { height: THINKING_HEADER_H + body.height + ROW_GAP, body };
+  return { height: THINKING_HEADER_H + body.height, body };
 }

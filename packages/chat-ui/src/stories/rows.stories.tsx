@@ -562,6 +562,41 @@ export const ExecuteLongCommand: Story = {
   ),
 };
 
+/** Assistant message footer — copy button revealed on hover; debug overlay must stay green. */
+export const AssistantMessageFooter: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'message',
+          id: 'a1',
+          role: 'assistant',
+          text: 'The refactor is complete. I updated the authentication middleware to use JWT tokens stored in environment variables, replaced the session store, and added refresh-token handling via httpOnly cookies.',
+        },
+      ]}
+      height={160}
+    />
+  ),
+};
+
+/** User message has no footer; assistant message has footer — confirms layout parity. */
+export const UserVsAssistantFooter: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        { kind: 'message', id: 'u1', role: 'user', text: 'Can you summarise the changes?' },
+        {
+          kind: 'message',
+          id: 'a2',
+          role: 'assistant',
+          text: 'Sure! The main change was replacing session-based auth with JWT middleware.',
+        },
+      ]}
+      height={200}
+    />
+  ),
+};
+
 export const ExecuteMixedConversation: Story = {
   render: () => (
     <ChatHost

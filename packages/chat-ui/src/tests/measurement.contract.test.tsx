@@ -12,7 +12,7 @@
  *  3. Table formula — rowCount*TABLE_ROW_H + (rowCount+1)*TABLE_BORDER matches a real <table>
  *  4. TABLE_ROW_H CSS parity — a table cell with the right padding/font-size is 32px tall
  *  5. Thinking header — THINKING_HEADER_H matches a div with that height
- *  6. ROW_GAP — the gap constant matches a measured spacer div
+ *  6. ROW_PAD_Y — per-kind wrapper padding constants are non-negative integers and produce correct offsetHeight
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -20,7 +20,8 @@ import { CODE_BLOCK_PAD_Y, CODE_BLOCK_BORDER } from '../components/code/metrics'
 import { TABLE_ROW_H, TABLE_BORDER } from '../components/table/metrics';
 import { THINKING_HEADER_H } from '../components/thinking/metrics';
 import { reserveHeight } from '../core/layout/reserve-height';
-import { ROW_GAP, CODE_BLOCK } from '../core/metrics';
+import { ROW_PAD_Y, CODE_BLOCK } from '../core/metrics';
+import type { RowKind } from '../core/metrics';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -226,19 +227,34 @@ describe('THINKING_HEADER_H', () => {
   });
 });
 
-// ── 6. ROW_GAP ────────────────────────────────────────────────────────────────
+// ── 6. ROW_PAD_Y ──────────────────────────────────────────────────────────────
 
-describe('ROW_GAP', () => {
-  it('ROW_GAP is a positive integer pixel value', () => {
-    expect(ROW_GAP).toBeGreaterThan(0);
-    expect(Number.isInteger(ROW_GAP)).toBe(true);
+describe('ROW_PAD_Y', () => {
+  const kinds = Object.keys(ROW_PAD_Y) as RowKind[];
+
+  it('all values are non-negative integers', () => {
+    for (const kind of kinds) {
+      const v = ROW_PAD_Y[kind];
+      expect(v, `ROW_PAD_Y['${kind}']`).toBeGreaterThanOrEqual(0);
+      expect(Number.isInteger(v), `ROW_PAD_Y['${kind}'] is integer`).toBe(true);
+    }
   });
 
-  it('a spacer div of height ROW_GAP has correct offsetHeight', () => {
-    const el = div({
-      height: `${ROW_GAP}px`,
-      position: 'relative',
-    });
-    expect(el.offsetHeight).toBe(ROW_GAP);
-  });
+  it.each(kinds)(
+    'wrapper with padding-block ROW_PAD_Y[%s] has offsetHeight = content + 2*padY',
+    (kind) => {
+      const padY = ROW_PAD_Y[kind];
+      const contentH = 20; // arbitrary fixed-height content child
+      const wrapper = document.createElement('div');
+      wrapper.style.position = 'relative';
+      wrapper.style.paddingTop = `${padY}px`;
+      wrapper.style.paddingBottom = `${padY}px`;
+      const child = document.createElement('div');
+      child.style.height = `${contentH}px`;
+      wrapper.appendChild(child);
+      document.body.appendChild(wrapper);
+      held.push(wrapper);
+      expect(wrapper.offsetHeight).toBe(contentH + 2 * padY);
+    }
+  );
 });

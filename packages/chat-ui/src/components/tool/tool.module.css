@@ -6,7 +6,7 @@
  */
 
 .pchat-tool {
-  padding: 2px var(--chat-msg-pad-x);
+  padding: 0 var(--chat-msg-pad-x);
   font-size: var(--type-body-font-size);
   line-height: var(--type-body-line-height);
 }

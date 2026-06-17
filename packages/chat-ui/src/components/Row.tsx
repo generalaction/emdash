@@ -24,7 +24,7 @@ import { Dynamic } from 'solid-js/web';
 import type { MeasureCtx, RenderCtx } from '../core/layout/spec-types';
 import { DEFAULT_FONT_CONFIG } from '../core/measure/fonts';
 import type { FontConfig } from '../core/measure/fonts';
-import { ROW_GAP } from '../core/metrics';
+import { rowPadY } from '../core/metrics';
 import type { Virtualizer } from '../core/virtualizer';
 import type { ChatItem } from '../model';
 import type { ViewState } from '../state/view-state';
@@ -44,20 +44,12 @@ export type RowProps = {
 // ── Row-level debug overlay ────────────────────────────────────────────────────
 
 /**
- * contentHeight  = layout().height - ROW_GAP
- *   — the height actually occupied by the row's DOM box (what offsetHeight
- *     should equal).  The ROW_GAP is realized as space between virtualizer
- *     rows via translateY offsets, never as in-DOM pixels.
- *
- * totalReserved  = layout().height
- *   — the height the virtualizer slot reserves (content + gap).
- *
- * The overlay is sized to contentHeight and flags a mismatch in red when the
- * element's offsetHeight differs by more than 0.5px.
+ * The row wrapper includes symmetric padding-block (padY each side), so the
+ * wrapper's offsetHeight should equal layout().height + 2 * padY. We compare
+ * the full wrapper height (including padding) and flag a mismatch in red.
  */
 function RowDebugOverlay(props: {
-  contentHeight: number;
-  totalReserved: number;
+  reserved: number;
   rowEl: () => HTMLElement | undefined;
 }) {
   const [mismatch, setMismatch] = createSignal(false);
@@ -70,7 +62,7 @@ function RowDebugOverlay(props: {
     const check = () => {
       const h = el.offsetHeight;
       setActualH(h);
-      setMismatch(Math.abs(h - props.contentHeight) > 0.5);
+      setMismatch(Math.abs(h - props.reserved) > 0.5);
     };
     const ro = new ResizeObserver(check);
     ro.observe(el);
@@ -81,18 +73,18 @@ function RowDebugOverlay(props: {
   return (
     <div
       class="pointer-events-none absolute inset-x-0 top-0 outline outline-1 outline-dashed"
-      style={{ height: `${props.contentHeight}px` }}
+      style={{ height: `${props.reserved}px` }}
       classList={{
         'outline-red-500/80': mismatch(),
         'outline-emerald-400/50': !mismatch(),
       }}
     >
       <span class="absolute top-0 left-0 bg-black/70 px-1 text-[9px] leading-tight text-white">
-        row · content={props.contentHeight} reserved={props.totalReserved}
+        row · reserved={props.reserved}
         <Show when={mismatch()}>
           {' '}
           <span class="text-red-400">
-            ⚠ actual={actualH()} (+{actualH() - props.contentHeight})
+            ⚠ actual={actualH()} (+{actualH() - props.reserved})
           </span>
         </Show>
       </span>
@@ -129,12 +121,20 @@ export function Row(props: RowProps) {
 
   const spec = createMemo(() => ROW_REGISTRY[props.item.kind]);
 
+  // Per-kind symmetric wrapper padding. The visible gap between two consecutive
+  // rows is padY(kindA) + padY(kindB), giving tight tool grouping and generous
+  // message spacing without any neighbor-awareness.
+  const padY = () => rowPadY(props.item.kind);
+
   // ── Layout + height bridge ────────────────────────────────────────────────────
 
   const layout = createMemo(() => spec().measure(props.item, measureCtx()));
 
+  // Virtualizer height = content height + both padding sides.
+  const reserved = () => layout().height + 2 * padY();
+
   createEffect(() => {
-    const delta = props.virt.setSize(props.index, layout().height);
+    const delta = props.virt.setSize(props.index, reserved());
     if (delta !== 0) props.onHeightChanged(props.index, delta);
   });
 
@@ -145,15 +145,15 @@ export function Row(props: RowProps) {
       ref={(e) => {
         rowEl = e;
       }}
-      style={{ position: 'relative' }}
+      style={{
+        position: 'relative',
+        'padding-top': `${padY()}px`,
+        'padding-bottom': `${padY()}px`,
+      }}
     >
       <Dynamic component={spec().Render} item={props.item} layout={layout()} ctx={renderCtx} />
       <Show when={debug()}>
-        <RowDebugOverlay
-          contentHeight={layout().height - ROW_GAP}
-          totalReserved={layout().height}
-          rowEl={() => rowEl}
-        />
+        <RowDebugOverlay reserved={reserved()} rowEl={() => rowEl} />
       </Show>
     </div>
   );

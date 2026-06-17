@@ -95,10 +95,25 @@ export const USER_BUBBLE_MAX_WIDTH_PCT = 85;
 
 // ── Engine-level row constants ───────────────────────────────────────────────
 
-/** Vertical gap between consecutive virtualised rows. */
-export const ROW_GAP = 8;
 /** Horizontal padding of each message row from the viewport edge. */
 export const ROW_INSET_X = 16;
+
+/**
+ * Symmetric vertical padding (px) applied to each row wrapper by the engine.
+ * The visible gap between two rows is padY(kindA) + padY(kindB), so tool rows
+ * group tightly and message rows have generous breathing room.
+ */
+export const ROW_PAD_Y = {
+  message: 8,
+  thinking: 4,
+  tool: 2,
+  'file-op': 2,
+  execute: 2,
+} as const satisfies Record<string, number>;
+
+export type RowKind = keyof typeof ROW_PAD_Y;
+
+export const rowPadY = (kind: RowKind): number => ROW_PAD_Y[kind];
 
 // ── CSS font shorthands ───────────────────────────────────────────────────────
 
