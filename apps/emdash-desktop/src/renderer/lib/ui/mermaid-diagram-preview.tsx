@@ -1,4 +1,5 @@
 import { Expand } from 'lucide-react';
+import type React from 'react';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
@@ -10,8 +11,28 @@ interface MermaidDiagramPreviewProps {
 }
 
 export function MermaidDiagramPreview({ svg, compact, onExpand }: MermaidDiagramPreviewProps) {
+  const expandFromInteraction = (event: React.SyntheticEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onExpand();
+  };
+
+  const handleExpand = (event: React.MouseEvent<HTMLButtonElement>) => {
+    expandFromInteraction(event);
+  };
+
+  const handlePreviewClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    expandFromInteraction(event);
+  };
+
+  const handlePreviewKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      expandFromInteraction(event);
+    }
+  };
+
   return (
-    <div className="group relative overflow-x-auto rounded-md border border-border bg-background">
+    <div className="group/mermaid relative overflow-x-auto rounded-md border border-border bg-background">
       <Tooltip>
         <TooltipTrigger
           render={
@@ -20,8 +41,8 @@ export function MermaidDiagramPreview({ svg, compact, onExpand }: MermaidDiagram
               variant="secondary"
               size="icon-xs"
               aria-label="Expand Mermaid diagram"
-              className="absolute top-1 right-1 z-10 opacity-0 shadow-sm ring-1 ring-border/80 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-              onClick={onExpand}
+              className="absolute top-1 right-1 z-10 opacity-0 shadow-sm ring-1 ring-border/80 transition-opacity group-hover/mermaid:opacity-100 focus-visible:opacity-100"
+              onClick={handleExpand}
             >
               <Expand className="size-3" />
             </Button>
@@ -32,10 +53,15 @@ export function MermaidDiagramPreview({ svg, compact, onExpand }: MermaidDiagram
         </TooltipContent>
       </Tooltip>
       <div
+        role="button"
+        tabIndex={0}
+        aria-label="Expand Mermaid diagram preview"
         className={cn(
-          'min-w-fit p-2 text-foreground [&_svg]:block [&_svg]:h-auto [&_svg]:max-w-full',
+          'min-w-fit cursor-zoom-in p-2 text-foreground [&_svg]:block [&_svg]:h-auto [&_svg]:max-w-full',
           compact && 'p-1.5'
         )}
+        onClick={handlePreviewClick}
+        onKeyDown={handlePreviewKeyDown}
         dangerouslySetInnerHTML={{ __html: svg }}
       />
     </div>
