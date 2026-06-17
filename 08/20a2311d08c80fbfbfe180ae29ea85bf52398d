@@ -1,0 +1,19 @@
+packages/plugins/src/agents/impl/kilocode/plugin-file.ts
+  s_61a478e91ba704::t_0723c6af930e92 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "0820a2311d08c80fbfbfe180ae29ea85bf52398d",
+  "prompts": {},
+  "sessions": {
+    "s_61a478e91ba704": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed4f9-829e-7390-991c-75fb009b2c2e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
