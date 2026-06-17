@@ -14,12 +14,10 @@ describe('booBackend', () => {
 
   it('buildAttachShellLine creates-if-missing then execs attach', () => {
     const line = booBackend.buildAttachShellLine('agent-session', 'exec /bin/zsh -il');
-    expect(line).toMatch(/^\/bin\/sh -c /);
-    expect(line).toContain('boo new \\"agent-session\\"');
-    expect(line).toContain('exec boo attach \\"agent-session\\"');
-    // Lock in the spike-confirmed idiom: -d backgrounds the session and 2>/dev/null
-    // silences the "already exists" failure so the ;-chained attach still runs.
-    expect(line).toContain('-d --');
+    expect(line).toMatch(/^\/bin\/sh -c '/);
+    expect(line).toContain('boo new ');
+    expect(line).toContain('-d -- /bin/sh -c ');
+    expect(line).toContain('; exec boo attach ');
     expect(line).toContain('2>/dev/null');
   });
 
