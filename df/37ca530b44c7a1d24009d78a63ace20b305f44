@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_674d10cbbee75f::t_deb1619fb10e47 124
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.ts
+  s_674d10cbbee75f::t_90b1e442ce58dc 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "df37ca530b44c7a1d24009d78a63ace20b305f44",
+  "prompts": {},
+  "sessions": {
+    "s_674d10cbbee75f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed40e-dce0-7953-b5b1-2553dec1842c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
