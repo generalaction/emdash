@@ -5,11 +5,11 @@
  * across all renderers via the transcript root element.
  */
 
-import { DIFF_HEADER_H, DIFF_PAD_Y } from './metrics';
+import { DIFF_FADE_H, DIFF_HEADER_H } from './metrics';
 
 export function diffCssVars(): Record<string, string> {
   return {
     '--chat-diff-header-h': `${DIFF_HEADER_H}px`,
-    '--chat-diff-pad-y': `${DIFF_PAD_Y}px`,
+    '--chat-diff-fade-h': `${DIFF_FADE_H}px`,
   };
 }

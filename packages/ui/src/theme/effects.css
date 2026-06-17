@@ -52,3 +52,16 @@
     color-mix(in oklab, var(--fade-color, var(--background)), transparent 100%) 100%
   );
 }
+
+/* Static bottom-edge fade overlay — mirror of fade-overlay-top. Surface color
+   sits at the bottom edge and fades up to transparent, signalling clipped
+   content below. Same token contract: --fade-color and --fade-softness. */
+@utility fade-overlay-bottom {
+  background: linear-gradient(
+    to top,
+    var(--fade-color, var(--background)) 0%,
+    color-mix(in oklab, var(--fade-color, var(--background)), transparent 50%)
+      calc(var(--fade-softness, 0.4) * 100%),
+    color-mix(in oklab, var(--fade-color, var(--background)), transparent 100%) 100%
+  );
+}

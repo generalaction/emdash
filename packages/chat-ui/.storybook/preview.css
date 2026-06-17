@@ -1,3 +1,6 @@
+/* Devicon icon font — required for FileIcon in diff header stories */
+@import 'devicon/devicon.min.css';
+
 /* Emdash design tokens + semantic color aliases */
 @import '@emdash/ui/theme/theme.css';
 @import '@emdash/ui/theme/semantic.css';

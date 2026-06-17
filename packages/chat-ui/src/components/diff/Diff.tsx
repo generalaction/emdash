@@ -1,27 +1,9 @@
-/**
- * Diff — SolidJS component for ChatDiff rows.
- *
- * Renders a compact, non-scrollable diff preview capped at DIFF_MAX_LINES rows:
- *
- * ┌─────────────────────────────────────────────────────────┐
- * │ [TS] model.ts  +3  −1                          (header) │
- * ├─────────────────────────────────────────────────────────┤
- * │   export type ChatToolCall = {                          │
- * │ + kind: 'diff';                                         │
- * │ − kind: 'tool';                                         │
- * └─────────────────────────────────────────────────────────┘
- *
- * Syntax highlighting is applied via an idle callback: tokenize `newText`
- * and `oldText` as whole strings, then look up each preview row's tokens by
- * `newIdx` / `oldIdx` — the same technique used in Code.tsx.
- */
-
 import { For, createEffect, onCleanup } from 'solid-js';
+import { resolveFileIconClass } from '@emdash/ui';
 import { type CodeToken, highlightCode, peekHighlight } from '../../core/highlight/highlighter';
 import type { ChatDiff } from '../../model';
 import { cancelIdle, scheduleIdle } from '../dom-utils';
 import type { DiffRow } from './diff-lines';
-import { langGlyph } from './lang';
 import type { DiffMeasureResult } from './measure';
 import styles from './diff.module.css';
 
@@ -48,35 +30,57 @@ function applyTokens(el: HTMLElement, tokens: CodeToken[]): void {
   }
 }
 
-// ── Row background / gutter sign maps ────────────────────────────────────────
+// ── Fallback generic-file SVG icon (no lucide-react in Solid context) ────────
 
-const ROW_BG: Record<DiffRow['type'], string> = {
-  add: 'bg-foreground-diff-added/10',
-  remove: 'bg-foreground-diff-deleted/10',
-  context: '',
-};
+function GenericFileIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+      class="shrink-0 text-foreground-muted"
+    >
+      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+      <polyline points="14 2 14 8 20 8" />
+    </svg>
+  );
+}
 
-const ROW_SIGN: Record<DiffRow['type'], string> = {
-  add: '+',
-  remove: '−',
-  context: ' ',
+// ── Row style map (background tint + 3px left accent border) ──────────────────
+
+const ROW_CLASS: Record<DiffRow['type'], string> = {
+  add: 'bg-foreground-diff-added/10 border-l-[3px] border-foreground-diff-added',
+  remove: 'bg-foreground-diff-deleted/10 border-l-[3px] border-foreground-diff-deleted',
+  context: 'border-l-[3px] border-transparent',
 };
 
 // ── DiffHeader ────────────────────────────────────────────────────────────────
 
 function DiffHeader(props: { item: ChatDiff; adds: number; dels: number }) {
+  const name = () => basename(props.item.path);
+  const iconClass = () => resolveFileIconClass(name());
+
   return (
     <div
-      class={`${styles['pdiff__header']} flex items-center gap-1.5 border-b border-border text-xs`}
+      class={`${styles['pdiff__header']} flex items-center gap-2 px-3 border-b border-border text-xs`}
     >
-      <span class="shrink-0 rounded bg-foreground-muted/15 px-1 font-mono text-[10px] font-semibold text-foreground-muted">
-        {langGlyph(props.item.path)}
+      {iconClass() ? (
+        <i class={`${iconClass()} shrink-0`} style={{ 'font-size': '14px', 'line-height': '1' }} aria-hidden="true" />
+      ) : (
+        <GenericFileIcon />
+      )}
+      <span class="min-w-0 truncate text-sm text-foreground-muted" title={props.item.path}>
+        {name()}
       </span>
-      <span class="min-w-0 flex-1 truncate text-foreground" title={props.item.path}>
-        {basename(props.item.path)}
-      </span>
-      <span class="shrink-0 text-foreground-diff-added">+{props.adds}</span>
-      <span class="shrink-0 text-foreground-diff-deleted">−{props.dels}</span>
+      <span class="shrink-0 text-sm text-foreground-diff-added">+{props.adds}</span>
+      <span class="shrink-0 text-sm text-foreground-diff-deleted">−{props.dels}</span>
+      <span class="flex-1" />
     </div>
   );
 }
@@ -140,27 +144,27 @@ export function Diff(props: DiffProps) {
   });
 
   return (
-    <div class={styles.pdiff}>
+    <div class={`${styles.pdiff} rounded-lg border border-border overflow-hidden`}>
       <DiffHeader item={props.item} adds={props.layout.adds} dels={props.layout.dels} />
       <div class={styles['pdiff__body']}>
         <For each={props.layout.previewRows}>
           {(row, i) => (
-            <div class={`flex ${ROW_BG[row.type]}`}>
-              <span class="w-4 shrink-0 text-center font-mono text-foreground-muted/60 select-none">
-                {ROW_SIGN[row.type]}
-              </span>
+            <div class={`flex ${ROW_CLASS[row.type]}`}>
               <span
                 ref={(el) => {
                   lineEls.set(i(), el);
                   onCleanup(() => lineEls.delete(i()));
                 }}
-                class={`${styles['pdiff__line']} flex-1 overflow-hidden text-foreground`}
+                class={`${styles['pdiff__line']} flex-1 overflow-hidden px-3 text-foreground`}
               >
                 {row.text}
               </span>
             </div>
           )}
         </For>
+        {props.layout.truncated && (
+          <div class={`${styles['pdiff__fade']} fade-overlay-bottom`} aria-hidden="true" />
+        )}
       </div>
     </div>
   );

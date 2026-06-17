@@ -51,46 +51,4 @@ export function langFromPath(path: string): string | undefined {
   return EXT_LANG[ext];
 }
 
-/** Return just the file extension (lowercase) from a path. */
-export function extFromPath(path: string): string {
-  return path.split('.').pop()?.toLowerCase() ?? '';
-}
 
-// ── Language icon glyphs ──────────────────────────────────────────────────────
-
-const EXT_GLYPH: Record<string, string> = {
-  ts: 'TS',
-  tsx: 'TSX',
-  js: 'JS',
-  jsx: 'JSX',
-  mjs: 'JS',
-  cjs: 'JS',
-  py: 'PY',
-  sh: 'SH',
-  bash: 'SH',
-  zsh: 'SH',
-  json: '{}',
-  jsonc: '{}',
-  yaml: 'YML',
-  yml: 'YML',
-  toml: 'TOM',
-  md: 'MD',
-  mdx: 'MDX',
-  css: 'CSS',
-  html: 'HTML',
-  rs: 'RS',
-  go: 'GO',
-  rb: 'RB',
-  java: 'JV',
-  kt: 'KT',
-  swift: 'SW',
-  sql: 'SQL',
-};
-
-/** Return a short text glyph representing the file language. Falls back to the
- *  extension in uppercase, or '◻' for unknown types. */
-export function langGlyph(path: string): string {
-  const ext = path.split('.').pop()?.toLowerCase() ?? '';
-  const glyph = EXT_GLYPH[ext] ?? ext.toUpperCase().slice(0, 3);
-  return glyph || '◻';
-}

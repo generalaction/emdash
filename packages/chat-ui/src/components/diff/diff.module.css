@@ -11,7 +11,9 @@
 /* ── Row wrapper ──────────────────────────────────────────────────────────── */
 
 .pdiff {
-  padding-inline: var(--chat-msg-pad-x);
+  /* Outer horizontal inset from the chat viewport edge.
+     The rounded border sits inside this margin. */
+  margin-inline: var(--chat-msg-pad-x);
 }
 
 /* ── Header ───────────────────────────────────────────────────────────────── */
@@ -23,7 +25,18 @@
 /* ── Body ─────────────────────────────────────────────────────────────────── */
 
 .pdiff__body {
-  padding-block: var(--chat-diff-pad-y);
+  position: relative;
+}
+
+/* Bottom fade overlay — shown when the preview window truncates the diff.
+   Fades the card surface up to transparent so the cut-off line reads as
+   "there is more below". Height is driven by --chat-diff-fade-h. */
+.pdiff__fade {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: var(--chat-diff-fade-h);
+  pointer-events: none;
 }
 
 /* ── Diff lines ───────────────────────────────────────────────────────────── */
