@@ -1,0 +1,25 @@
+packages/plugins/src/agents/impl/kilocode/plugin-file.test.ts
+  s_bbcfd1fc5ddf54::t_6c37be8fb80e25 1-45
+packages/plugins/src/agents/impl/kilocode/index.ts
+  s_bbcfd1fc5ddf54::t_ac27d5fead58cd 2-6,8-10,28-30,44-45,67-70
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_bbcfd1fc5ddf54::t_ac27d5fead58cd 464
+packages/plugins/src/agents/impl/kilocode/plugin-file.ts
+  s_bbcfd1fc5ddf54::t_ac27d5fead58cd 1-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "796ea4bda07147706debe04526c3fe1349f004ef",
+  "prompts": {},
+  "sessions": {
+    "s_bbcfd1fc5ddf54": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed3fa-2ee4-7863-81f6-fdef63f5b9a1",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
