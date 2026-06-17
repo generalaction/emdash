@@ -1,6 +1,6 @@
-import { detectPlatform, getHotkeyManager, matchesKeyboardEvent } from '@tanstack/hotkeys';
 import { type Terminal } from '@xterm/xterm';
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { dispatchMatchingHotkeys } from '@renderer/lib/hotkeys/dispatch-matching-hotkeys';
 import { events, rpc } from '@renderer/lib/ipc';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { log } from '@renderer/utils/logger';
@@ -8,6 +8,7 @@ import type { AppSettings } from '@shared/core/app-settings';
 import { ptyDataChannel, ptyExitChannel } from '@shared/core/pty/ptyEvents';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/core/terminals/terminal-settings';
 import { appPasteChannel } from '@shared/events/appEvents';
+import { getDomTabNavigationDirection } from '@shared/shortcuts';
 import { usePaneSizingContext } from './pane-sizing-context';
 import type { FrontendPty, SessionTheme } from './pty';
 import { measureDimensions } from './pty-dimensions';
@@ -44,36 +45,10 @@ const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
 const LAST_SELECTION_COPY_GRACE_MS = 2_000;
-const HOTKEY_PLATFORM = detectPlatform();
 
-function isCtrlTabNavigationShortcut(event: KeyboardEvent): boolean {
-  return (
-    event.type === 'keydown' &&
-    event.key === 'Tab' &&
-    event.ctrlKey &&
-    !event.altKey &&
-    !event.metaKey
-  );
-}
-
-function dispatchTerminalHotkey(event: KeyboardEvent): boolean {
-  if (!isCtrlTabNavigationShortcut(event)) return false;
-
-  const manager = getHotkeyManager();
-
-  for (const [, registration] of manager.registrations.state) {
-    if (!registration.options.enabled) continue;
-    if (!matchesKeyboardEvent(event, registration.parsedHotkey, HOTKEY_PLATFORM)) continue;
-
-    if (registration.options.preventDefault) event.preventDefault();
-    registration.callback(event, {
-      hotkey: registration.hotkey,
-      parsedHotkey: registration.parsedHotkey,
-    });
-    return true;
-  }
-
-  return false;
+function dispatchTerminalTabNavigationHotkey(event: KeyboardEvent): boolean {
+  if (!getDomTabNavigationDirection(event)) return false;
+  return dispatchMatchingHotkeys(event, { dispatch: 'first' });
 }
 
 function getCellMetrics(terminal: Terminal): { width: number; height: number } | null {
@@ -465,7 +440,7 @@ export function usePty(
       terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
         if (document.querySelector('[role="dialog"]')) return false;
 
-        if (dispatchTerminalHotkey(event)) {
+        if (dispatchTerminalTabNavigationHotkey(event)) {
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();

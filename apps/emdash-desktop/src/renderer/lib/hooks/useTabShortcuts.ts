@@ -1,5 +1,6 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { TAB_NAVIGATION_HOTKEYS } from '@shared/shortcuts';
 import { getEffectiveHotkey, getHotkeyRegistration } from './useKeyboardShortcuts';
 
 /**
@@ -80,7 +81,7 @@ export function useTabShortcuts(
     { enabled: enabled && tabPrevHotkey !== null, conflictBehavior: 'allow' }
   );
   useHotkey(
-    'Control+Tab',
+    TAB_NAVIGATION_HOTKEYS.next,
     (e) => {
       e.preventDefault();
       store?.setNextTabActive();
@@ -88,7 +89,7 @@ export function useTabShortcuts(
     { enabled: enabled && tabNextHotkey !== null, conflictBehavior: 'allow' }
   );
   useHotkey(
-    'Control+Shift+Tab',
+    TAB_NAVIGATION_HOTKEYS.previous,
     (e) => {
       e.preventDefault();
       store?.setPreviousTabActive();
