@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tasks/components/agent-status-indicator.tsx
+  s_d5002060001a7c::t_51e4bb0a2d03d5 51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "b84ea23f225121a664367187a8705dd5f2b93a03",
+  "prompts": {},
+  "sessions": {
+    "s_d5002060001a7c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed40b-f61f-7b61-a3ed-a424ebe94697",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
