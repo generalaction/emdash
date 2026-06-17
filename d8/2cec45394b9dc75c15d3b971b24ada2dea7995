@@ -1,0 +1,25 @@
+packages/plugins/src/agents/impl/mistral/index.ts
+  s_674d10cbbee75f::t_0c9560426d4b59 24,68,81-83
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_674d10cbbee75f::t_0c9560426d4b59 596-598
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_674d10cbbee75f::t_e93686291733d4 105,255-272
+packages/plugins/src/agents/impl/mistral/hooks.ts
+  s_674d10cbbee75f::t_0c9560426d4b59 15-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "d82cec45394b9dc75c15d3b971b24ada2dea7995",
+  "prompts": {},
+  "sessions": {
+    "s_674d10cbbee75f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed40e-dce0-7953-b5b1-2553dec1842c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
