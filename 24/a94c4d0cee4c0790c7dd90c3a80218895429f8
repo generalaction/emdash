@@ -1,0 +1,27 @@
+packages/plugins/src/agents/impl/kilocode/index.ts
+  s_674d10cbbee75f::t_c40a39e6e2c937 54-56
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_674d10cbbee75f::t_856a2d71d4dca1 481-483
+packages/plugins/src/agents/impl/commandcode/index.ts
+  s_674d10cbbee75f::t_efa1b0a523e32b 43
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_674d10cbbee75f::t_202a0ec9e8d990 111,340-375
+packages/plugins/src/agents/impl/continue/index.ts
+  s_674d10cbbee75f::t_510509f4de5b69 71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "24a94c4d0cee4c0790c7dd90c3a80218895429f8",
+  "prompts": {},
+  "sessions": {
+    "s_674d10cbbee75f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed40e-dce0-7953-b5b1-2553dec1842c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
