@@ -1,0 +1,28 @@
+packages/plugins/src/agents/impl/auggie/index.ts
+  s_674d10cbbee75f::t_950a7951936932 50-52
+packages/plugins/src/agents/impl/cursor/index.ts
+  s_674d10cbbee75f::t_950a7951936932 79-80
+packages/plugins/src/agents/impl/devin/index.ts
+  s_674d10cbbee75f::t_950a7951936932 79-81
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_674d10cbbee75f::t_950a7951936932 179-181,201-202,410-411
+  s_674d10cbbee75f::t_f9d701aa0075e2 409
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_674d10cbbee75f::t_950a7951936932 98-109,254-294
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "07f19c40d0f865861c1f741191faf85c48ebc591",
+  "prompts": {},
+  "sessions": {
+    "s_674d10cbbee75f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed40e-dce0-7953-b5b1-2553dec1842c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
