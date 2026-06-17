@@ -82,7 +82,7 @@ export function makeStdinHookCommand(eventType: string, opts: HookCommandOptions
  * Sends a JSON body with a `notification_type` key (used by Codex-style events).
  */
 export function makeNotificationHookCommand(
-  notificationType: 'idle_prompt' | 'permission_prompt',
+  notificationType: 'idle_prompt' | 'permission_prompt' | 'elicitation_dialog',
   opts: HookCommandOptions = {}
 ): string {
   return makeHookPostCommand(

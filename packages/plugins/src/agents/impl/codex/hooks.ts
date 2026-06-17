@@ -15,6 +15,11 @@ import * as toml from 'smol-toml';
 export const CODEX_HOOKS_PATH = '.codex/hooks.json';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
 
+// Built-in Codex tool the model calls to ask the user a question (e.g. in plan
+// mode). Invoking it pauses the turn without firing `Stop`, so we scope a
+// `PreToolUse` hook to this tool to surface an attention prompt.
+const CODEX_USER_INPUT_TOOL = 'request_user_input';
+
 const LEGACY_CODEX_NOTIFY_COMMAND = [
   'bash',
   '-c',
@@ -85,28 +90,33 @@ function parseCodexHookEvent(eventType: string, body: Record<string, unknown>): 
     if (nt === 'idle_prompt' || (typeof nt !== 'string' && body.type === 'agent-turn-complete')) {
       return { kind: 'status', type: 'stop' };
     }
-    if (nt === 'permission_prompt') {
-      return { kind: 'status', type: 'notification', notificationType: 'permission_prompt' };
+    if (nt === 'permission_prompt' || nt === 'elicitation_dialog') {
+      return { kind: 'status', type: 'notification', notificationType: nt };
     }
   }
 
   return defaultHookEventParser(eventType, body);
 }
 
+const CODEX_HOOK_EVENTS = ['Stop', 'PermissionRequest', 'SessionStart', 'PreToolUse'];
+
 export function buildCodexHookConfig() {
   const stopCmd = makeNotificationHookCommand('idle_prompt');
   const permCmd = makeNotificationHookCommand('permission_prompt');
+  const userInputCmd = makeNotificationHookCommand('elicitation_dialog');
   const sessionCmd = makeCodexSessionStartCommand();
+
+  const isEmdashInstalled = (hooks: Record<string, unknown[]>): boolean =>
+    CODEX_HOOK_EVENTS.some((k) => {
+      const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
+      return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+    });
 
   return {
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readJsonConfig(fs, CODEX_HOOKS_PATH);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      const installed = ['Stop', 'PermissionRequest', 'SessionStart'].some((k) => {
-        const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
-      });
-      return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
+      return isEmdashInstalled(hooks) ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, CODEX_HOOKS_PATH);
@@ -122,6 +132,13 @@ export function buildCodexHookConfig() {
           buildNestedEntry(cmd),
         ];
       }
+      // Scope the user-input prompt hook to the `request_user_input` tool so it
+      // does not fire for every tool call.
+      const preToolUse = Array.isArray(hooks.PreToolUse) ? hooks.PreToolUse : [];
+      hooks.PreToolUse = [
+        ...filterUserHooks(preToolUse as Record<string, unknown>[]),
+        { matcher: CODEX_USER_INPUT_TOOL, ...buildNestedEntry(userInputCmd) },
+      ];
       await writeJsonConfig(fs, CODEX_HOOKS_PATH, { ...config, hooks });
       await removeLegacyCodexNotify(fs).catch(() => {});
       return [CODEX_HOOKS_PATH];
@@ -137,10 +154,7 @@ export function buildCodexHookConfig() {
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
       const config = await readJsonConfig(fs, CODEX_HOOKS_PATH);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      return ['Stop', 'PermissionRequest', 'SessionStart'].some((k) => {
-        const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
-      });
+      return isEmdashInstalled(hooks);
     },
     parseHookEvent: parseCodexHookEvent,
   };
