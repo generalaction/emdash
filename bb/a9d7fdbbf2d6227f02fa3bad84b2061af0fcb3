@@ -1,0 +1,483 @@
+apps/emdash-desktop/src/shared/core/git/utils.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1-207
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-manager.ts
+  s_24668beb85a874::t_f036c3209318e0 3,9,14,88-89,106,115,126-127,207,232-233,477,507,660-661
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/base-branch.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1,10,16,27,32,48,52,69-70,87
+apps/emdash-desktop/src/renderer/features/mcp/components/McpCard.tsx
+  s_24668beb85a874::t_f036c3209318e0 19-20,39-40,65-66,74-75,78-82,87
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/unstaged-section.tsx
+  s_24668beb85a874::t_f036c3209318e0 1,4,14-16,30,85-90,101-106,112-118,122-126
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/files-list.tsx
+  s_24668beb85a874::t_f036c3209318e0 1,9
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.tsx
+  s_24668beb85a874::t_f036c3209318e0 298,303,310
+apps/emdash-desktop/src/main/core/git/worktree/controller.ts
+  s_24668beb85a874::t_f036c3209318e0 1-269
+packages/plugins/src/agents/impl/amp/plugin-file.ts
+  s_24668beb85a874::t_f036c3209318e0 5,30
+apps/emdash-desktop/src/main/core/settings/utils.ts
+  s_24668beb85a874::t_f036c3209318e0 1
+apps/emdash-desktop/src/main/core/git/repository/fetch-service.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1-29
+packages/shared/src/git/git-repository.test.ts
+  s_24668beb85a874::t_f036c3209318e0 8,80,83-86,109,112,175-200,287-292
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-registry.ts
+  s_24668beb85a874::t_f036c3209318e0 2,32,42
+packages/shared/src/git/models/head.ts
+  s_24668beb85a874::t_f036c3209318e0 2-3
+apps/emdash-desktop/src/main/core/issues/git-remote-resolver.ts
+  s_24668beb85a874::t_f036c3209318e0 13-16,19-21,23
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-branch-name.ts
+  s_24668beb85a874::t_f036c3209318e0 2,70
+apps/emdash-desktop/src/main/core/pull-requests/project-remotes-service.ts
+  s_24668beb85a874::t_f036c3209318e0 1,11,13
+apps/emdash-desktop/src/renderer/lib/stores/live/index.ts
+  s_24668beb85a874::t_f036c3209318e0 1-4
+apps/emdash-desktop/src/main/core/git/legacy/git-service-utils.ts
+  s_24668beb85a874::t_f036c3209318e0 1-29
+apps/emdash-desktop/src/renderer/features/tasks/commands.test.ts
+  s_24668beb85a874::t_f036c3209318e0 9,40,132
+apps/emdash-desktop/src/renderer/tests/use-branch-selection.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1,11,19,25
+apps/emdash-desktop/src/main/core/projects/settings/legacy-project-settings-migration.ts
+  s_24668beb85a874::t_f036c3209318e0 3,28,34-35
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversations-panel.tsx
+  s_24668beb85a874::t_f036c3209318e0 87,135
+apps/emdash-desktop/src/main/rpc.ts
+  s_24668beb85a874::t_f036c3209318e0 13-14,52,82
+apps/emdash-desktop/src/renderer/features/projects/components/project-titlebar.tsx
+  s_24668beb85a874::t_f036c3209318e0 7,35
+apps/emdash-desktop/src/renderer/lib/stores/live/optimistic-model.ts
+  s_24668beb85a874::t_f036c3209318e0 1-102
+apps/emdash-desktop/src/renderer/features/settings/components/UpdateCard.tsx
+  s_24668beb85a874::t_f036c3209318e0 48,145-146,153-154,161-162,169-170
+apps/emdash-desktop/src/shared/core/workspaces/build-workspace-config-from-preset.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1,9,67
+apps/emdash-desktop/src/main/core/projects/settings/providers/db-project-settings-provider.ts
+  s_24668beb85a874::t_f036c3209318e0 4,18-21,29,131,145,159,161
+packages/shared/src/git/utils.ts
+  s_24668beb85a874::t_f036c3209318e0 1-34
+apps/emdash-desktop/src/shared/core/tasks/tasks.ts
+  s_24668beb85a874::t_f036c3209318e0 1,4,21,130
+apps/emdash-desktop/src/renderer/features/projects/components/settings-view/project-settings-form.tsx
+  s_24668beb85a874::t_f036c3209318e0 1,3,42,57
+apps/emdash-desktop/src/renderer/lib/stores/live/model-mirror.ts
+  s_24668beb85a874::t_f036c3209318e0 1-104
+packages/shared/src/git/models/diff-target.ts
+  s_24668beb85a874::t_f036c3209318e0 1,6
+apps/emdash-desktop/src/shared/core/git/utils.ts
+  s_24668beb85a874::t_f036c3209318e0 1-224
+apps/emdash-desktop/src/main/core/projects/project-provider.ts
+  s_24668beb85a874::t_f036c3209318e0 1,4-6,9,36,48,50,61,63,66,69,78,80-81,87,91,93,95,104,118-128,133
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/changes-list-item.tsx
+  s_24668beb85a874::t_f036c3209318e0 1
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/diff-file-renderer.tsx
+  s_24668beb85a874::t_f036c3209318e0 1,19-20
+apps/emdash-desktop/src/main/core/tasks/task-builder.ts
+  s_24668beb85a874::t_f036c3209318e0 1,52
+apps/emdash-desktop/src/renderer/utils/mcpIcons.tsx
+  s_24668beb85a874::t_f036c3209318e0 36,41,45,49
+apps/emdash-desktop/src/renderer/features/projects/components/settings-view/project-settings-form-model.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1,14-15
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/changes-view-store.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1,5,8,51,53,115-153
+apps/emdash-desktop/src/main/core/git/repository/controller.ts
+  s_24668beb85a874::t_f036c3209318e0 1-116
+apps/emdash-desktop/src/main/core/issues/helpers/provider-inputs.test.ts
+  s_24668beb85a874::t_f036c3209318e0 2-7,24-29
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/file-model-lifecycle-store.ts
+  s_24668beb85a874::t_f036c3209318e0 11
+packages/shared/src/git/parsers/status-parser.test.ts
+  s_24668beb85a874::t_f036c3209318e0 5-8,11-17,20-26,32-69,73-84,86,93
+apps/emdash-desktop/src/shared/lib/ipc/rpc.test.ts
+  s_24668beb85a874::t_f036c3209318e0 14,24,28-31,37,42-43,77,79,86,88,104,128-129,138-139,147,155,176,180,188,194,210-211
+apps/emdash-desktop/src/main/core/git/legacy/git-service.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1-569
+packages/plugins/src/agents/impl/mistral/hooks.ts
+  s_24668beb85a874::t_f036c3209318e0 1-57
+packages/ui/src/components/popover.tsx
+  s_24668beb85a874::t_f036c3209318e0 41
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-project-git-context.ts
+  s_24668beb85a874::t_f036c3209318e0 1-45
+packages/plugins/src/agents/impl/mistral/hooks.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1-53
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-git.ts
+  s_24668beb85a874::t_f036c3209318e0 1-752
+packages/shared/src/git/git-runtime.test.ts
+  s_24668beb85a874::t_f036c3209318e0 7,35-44,46-134,140,161
+packages/shared/src/git/git-worktree.test.ts
+  s_24668beb85a874::t_f036c3209318e0 75-79,81-89,125-126,128,147,152-158,189-306,492-493,504-505,516-517,534-577,590-591,593-594
+apps/emdash-desktop/src/renderer/features/projects/stores/project-manager.test.ts
+  s_24668beb85a874::t_f036c3209318e0 75-78,83,128-129,168,191,218,245,252-254,280-282,297-330,332-334,358-360,397,412-414,460-463,497-500
+apps/emdash-desktop/src/renderer/features/tasks/utils.ts
+  s_24668beb85a874::t_f036c3209318e0 1,12-15
+apps/emdash-desktop/src/main/core/settings/settings-service.ts
+  s_24668beb85a874::t_f036c3209318e0 1,9
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/use-pr-commits.ts
+  s_24668beb85a874::t_f036c3209318e0 3,19
+apps/emdash-desktop/src/renderer/features/tasks/tabs/tab-manager-store.ts
+  s_24668beb85a874::t_f036c3209318e0 1,27
+apps/emdash-desktop/src/main/core/workspaces/workspace-registry.ts
+  s_24668beb85a874::t_f036c3209318e0 86-87,123-124
+apps/emdash-desktop/src/main/core/projects/operations/create-local-project.ts
+  s_24668beb85a874::t_f036c3209318e0 5,9-10,12,22-24,27-31,34-41,50,60,79,88-94
+apps/emdash-desktop/src/main/core/projects/operations/createProject.ts
+  s_24668beb85a874::t_f036c3209318e0 3,11
+apps/emdash-desktop/src/main/core/gitlab/gitlab-issue-provider.ts
+  s_24668beb85a874::t_f036c3209318e0 4,65,69-70,96,108-109,145-147,150,154-156,159
+apps/emdash-desktop/src/main/core/runtime/types.ts
+  s_24668beb85a874::t_f036c3209318e0 1-28
+apps/emdash-desktop/src/main/core/projects/operations/create-project-utils.ts
+  s_24668beb85a874::t_f036c3209318e0 1-2,7-9,12,19,21,23-27,38-40,42-45,47-65
+apps/emdash-desktop/src/renderer/lib/stores/live/coalesce.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1-42
+packages/shared/src/git/watch/classifier.ts
+  s_24668beb85a874::t_f036c3209318e0 42-50,57-61,67-70,100-101
+apps/emdash-desktop/src/shared/view-state.ts
+  s_24668beb85a874::t_f036c3209318e0 1
+apps/emdash-desktop/src/main/core/github/controller.ts
+  s_24668beb85a874::t_f036c3209318e0 4-7,205-209,226
+packages/shared/src/git/parsers/status-parser.ts
+  s_24668beb85a874::t_f036c3209318e0 16-17,54-69,71-104,106-112,114-129,131,133-143,145-152,154-166
+apps/emdash-desktop/src/shared/issue-providers.ts
+  s_24668beb85a874::t_f036c3209318e0 28-29,38-39
+apps/emdash-desktop/src/main/core/workspaces/workspace-bootstrap-service.db.test.ts
+  s_24668beb85a874::t_f036c3209318e0 6,119-149,162,165
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/create-pr-modal.tsx
+  s_24668beb85a874::t_f036c3209318e0 1,5,29,55,59,108,115
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/changes-tree-utils.ts
+  s_24668beb85a874::t_f036c3209318e0 1
+apps/emdash-desktop/src/main/core/projects/operations/create-ssh-project.ts
+  s_24668beb85a874::t_f036c3209318e0 6,11-13,24-26,32-36,38-48,58,69,88,103-109
+apps/emdash-desktop/src/renderer/features/projects/stores/project-selectors.ts
+  s_24668beb85a874::t_f036c3209318e0 3,91-93
+apps/emdash-desktop/src/shared/core/workspaces/workspace-presets.ts
+  s_24668beb85a874::t_f036c3209318e0 1,81,106
+packages/shared/src/git/errors.ts
+  s_24668beb85a874::t_f036c3209318e0 9-14,52-56,61-64,72-73,77-99
+apps/emdash-desktop/src/main/core/projects/worktrees/worktree-service.test.ts
+  s_24668beb85a874::t_f036c3209318e0 4,44
+apps/emdash-desktop/src/renderer/features/tasks/editor/editor-file-tree.tsx
+  s_24668beb85a874::t_f036c3209318e0 146
+packages/ui/.storybook/preview.tsx
+  s_24668beb85a874::t_f036c3209318e0 8
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-branch-selection.ts
+  s_24668beb85a874::t_f036c3209318e0 1,10,15,39,46,54
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/target-remote.ts
+  s_24668beb85a874::t_f036c3209318e0 1,5,10
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/git-status-section.tsx
+  s_24668beb85a874::t_f036c3209318e0 5,8-11,22,27
+apps/emdash-desktop/src/shared/lib/ipc/rpc.ts
+  s_24668beb85a874::t_f036c3209318e0 26,46-47
+packages/shared/src/git/models/status.ts
+  s_24668beb85a874::t_f036c3209318e0 8
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/virtualized-changes-list.tsx
+  s_24668beb85a874::t_f036c3209318e0 1
+packages/ui/src/theme/tokens.json
+  s_24668beb85a874::t_f036c3209318e0 2414,2419,2429-2447,2450,2459,2468,2477,2486,2495
+apps/emdash-desktop/src/main/core/tasks/operations/deleteTask.ts
+  s_24668beb85a874::t_f036c3209318e0 67-72
+packages/ui/src/stories/surfaces.stories.tsx
+  s_24668beb85a874::t_f036c3209318e0 1-122
+packages/ui/src/theme/tailwind.css
+  s_24668beb85a874::t_f036c3209318e0 90-111
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/diff-selectors.ts
+  s_24668beb85a874::t_f036c3209318e0 1,12
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/hooks/use-prefetch-diff-models.ts
+  s_24668beb85a874::t_f036c3209318e0 6
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/base-branch.ts
+  s_24668beb85a874::t_f036c3209318e0 1,5,16-18,37-39,41
+packages/shared/src/lib/live-model.ts
+  s_24668beb85a874::t_f036c3209318e0 1,7-8,18-19,27,38-40,103-107,133-140
+apps/emdash-desktop/src/main/db/legacy-port/service.ts
+  s_24668beb85a874::t_f036c3209318e0 31,218
+apps/emdash-desktop/src/renderer/features/projects/components/add-project-modal/add-project-modal.tsx
+  s_24668beb85a874::t_f036c3209318e0 325-330
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store.ts
+  s_24668beb85a874::t_f036c3209318e0 4,7,25,62-63,92-93
+apps/emdash-desktop/src/main/core/git/repository/service.ts
+  s_24668beb85a874::t_f036c3209318e0 1-135
+apps/emdash-desktop/src/renderer/lib/stores/live/model-mirror.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1-82
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/create-task-modal.tsx
+  s_24668beb85a874::t_f036c3209318e0 6,31,69-70,72-74,79,96
+apps/emdash-desktop/src/renderer/features/projects/stores/git-repository-store.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1-191
+apps/emdash-desktop/src/main/core/workspaces/workspace.ts
+  s_24668beb85a874::t_f036c3209318e0 1,3-4,12,15-17
+apps/emdash-desktop/src/renderer/features/automations/useAutomationFormState.ts
+  s_24668beb85a874::t_f036c3209318e0 1,14,29,97-98,160
+apps/emdash-desktop/tooling/seeds/baseline.ts
+  s_24668beb85a874::t_f036c3209318e0 1,6
+apps/emdash-desktop/src/main/core/workspaces/byoi/provision-byoi-task.ts
+  s_24668beb85a874::t_f036c3209318e0 3-4,10-13,82-83,88-110,112-113,127
+packages/ui/src/theme/surfaces.css
+  s_24668beb85a874::t_f036c3209318e0 1-11,13-17,20-23,26-29,32-47
+apps/emdash-desktop/src/renderer/tests/mermaid-diagram-preview.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1-135
+apps/emdash-desktop/src/main/core/issues/controller.ts
+  s_24668beb85a874::t_f036c3209318e0 78-90
+apps/emdash-desktop/src/main/core/gitlab/gitlab-connection-service.ts
+  s_24668beb85a874::t_f036c3209318e0 2,179,184
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/changes-panel.tsx
+  s_24668beb85a874::t_f036c3209318e0 29
+packages/shared/src/git/watch/classifier.test.ts
+  s_24668beb85a874::t_f036c3209318e0 27-80
+apps/emdash-desktop/src/shared/core/git/rpc.ts
+  s_24668beb85a874::t_f036c3209318e0 1-38
+apps/emdash-desktop/src/renderer/features/projects/components/settings-view/project-settings-form-model.ts
+  s_24668beb85a874::t_f036c3209318e0 1-2,23
+apps/emdash-desktop/src/shared/core/git/events.ts
+  s_24668beb85a874::t_f036c3209318e0 1-17
+apps/emdash-desktop/src/main/core/git/repository/fetch-service.ts
+  s_24668beb85a874::t_f036c3209318e0 1-81
+packages/plugins/src/agents/impl/mistral/index.ts
+  s_24668beb85a874::t_f036c3209318e0 3,22-24,75
+packages/ui/src/components/dropdown-menu.tsx
+  s_24668beb85a874::t_f036c3209318e0 39,88,113,159,195
+apps/emdash-desktop/src/main/core/projects/operations/git-repository-setup.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1-226
+packages/shared/src/git/git-worktree.ts
+  s_24668beb85a874::t_f036c3209318e0 35,164,315-316,318-319,347,353,358,364,371,377,385-387,391,397-399,402,408,411,457-458,463-467,471,473,476,482,486-492,516
+packages/shared/src/git/index.ts
+  s_24668beb85a874::t_f036c3209318e0 2-3,5,19-29,42-43,47,49,53,64-69
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/diff-view-store.ts
+  s_24668beb85a874::t_f036c3209318e0 1,6,8,44,47,97-102,170,181-183,205,207
+apps/emdash-desktop/src/main/core/runtime/runtime-manager.ts
+  s_24668beb85a874::t_f036c3209318e0 1-60
+packages/ui/src/theme/watch.mjs
+  s_24668beb85a874::t_f036c3209318e0 1-35
+apps/emdash-desktop/src/main/core/skills/bundled-catalog.json
+  s_24668beb85a874::t_f036c3209318e0 3,5-44,60-62,64,66,68-69,73-75,77-78,80,82-83,87-89,91-92,94,96-139,150,156-183,213-215,217,219,221-222,253-264,338,343,346,351-365,367-368,370,372-373,459,488,496,502,510-524,541-568,596-598,600,603-604,608-610,612,615-616,620-622,624,627-628,632-634,636,639-640,644-646,648,651-664,670,676,680-682,684,687-688,692-694,696,699-700,704-706,708,711-712,716-718,720,723-724,730,736,740-742,744,747-748,752-754,756,759-760,764-766,768,771-772
+apps/emdash-desktop/src/renderer/lib/components/branch-selector.tsx
+  s_24668beb85a874::t_f036c3209318e0 1,32-34,40
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_24668beb85a874::t_f036c3209318e0 20-26,88,90
+apps/emdash-desktop/src/renderer/features/tasks/stores/pr-store.ts
+  s_24668beb85a874::t_f036c3209318e0 1,3,7-8,37,70-71,73-74,78,177,199,202
+apps/emdash-desktop/src/renderer/lib/stores/live/bind-mirror.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1-198
+apps/emdash-desktop/src/renderer/lib/monaco/monaco-model-registry.test.ts
+  s_24668beb85a874::t_f036c3209318e0 2,13,23-26
+apps/emdash-desktop/src/renderer/features/tasks/conversations/context-bar.tsx
+  s_24668beb85a874::t_f036c3209318e0 28,31-34,59-60,77,92-110,115
+apps/emdash-desktop/src/renderer/features/projects/components/settings-view/sections/base-project-settings-section.tsx
+  s_24668beb85a874::t_f036c3209318e0 1,36,171
+apps/emdash-desktop/src/renderer/features/tasks/tabs/diff-tab-store.ts
+  s_24668beb85a874::t_f036c3209318e0 1
+apps/emdash-desktop/src/main/core/workspaces/workspace-bootstrap-service.ts
+  s_24668beb85a874::t_f036c3209318e0 1,5,83,173,177,267,274,325,346-349,352-353,389
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/target-remote.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1,5
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_24668beb85a874::t_f036c3209318e0 580
+apps/emdash-desktop/src/renderer/features/projects/components/pr-view/pr-view.tsx
+  s_24668beb85a874::t_f036c3209318e0 11,212
+apps/emdash-desktop/src/renderer/features/projects/components/task-view/task-list-empty-state.tsx
+  s_24668beb85a874::t_f036c3209318e0 4,28
+apps/emdash-desktop/src/renderer/features/tasks/stores/git-worktree-store.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1-217
+apps/emdash-desktop/src/renderer/lib/components/branch-selector-utils.ts
+  s_24668beb85a874::t_f036c3209318e0 1,6,14,17,26,29,44
+apps/emdash-desktop/src/renderer/lib/ui/mermaid-diagram-preview.tsx
+  s_24668beb85a874::t_f036c3209318e0 2,14-25,27,36-37,48-50,52,55-56
+packages/shared/src/git/types.ts
+  s_24668beb85a874::t_f036c3209318e0 4,41-42,51-52,54,101-116,135-142,146,149,153,183-191,195-203
+apps/emdash-desktop/src/main/core/git/worktree/mutations.ts
+  s_24668beb85a874::t_f036c3209318e0 1-76
+apps/emdash-desktop/src/main/db/legacy-port/importers/relational/relational.test.ts
+  s_24668beb85a874::t_f036c3209318e0 9,71-89,101-103,164-185,216-233,241-242,312-326,350,357,367,372-397,415-460
+apps/emdash-desktop/src/renderer/features/tasks/components/task-git-diff-stats.tsx
+  s_24668beb85a874::t_f036c3209318e0 2,13,26
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/changes-view-store.ts
+  s_24668beb85a874::t_f036c3209318e0 3,22,35-36,56,58-59,77-78,130,138,157,163-166,181,187-190
+packages/shared/src/lib/live-model.test.ts
+  s_24668beb85a874::t_f036c3209318e0 14-17,31-32,34,46,56,64,88-90,137,143,181-236
+apps/emdash-desktop/src/main/core/workspaces/workspace-factory.ts
+  s_24668beb85a874::t_f036c3209318e0 1,10-12,27,29,45-48,51-52,55,132-136,138-139,141-145,151,154-161,170-177,182,233,273-293
+apps/emdash-desktop/src/main/core/git/repository/error-mappers.ts
+  s_24668beb85a874::t_f036c3209318e0 1-80
+apps/emdash-desktop/src/main/core/projects/operations/git-repository-setup.ts
+  s_24668beb85a874::t_f036c3209318e0 1-128
+apps/emdash-desktop/src/renderer/features/tasks/stores/git-status-optimistic-updates.ts
+  s_24668beb85a874::t_f036c3209318e0 1-100
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/stacked-diff-view.tsx
+  s_24668beb85a874::t_f036c3209318e0 24,34
+apps/emdash-desktop/src/main/core/forgejo/forgejo-connection-service.ts
+  s_24668beb85a874::t_f036c3209318e0 4,180,183
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.test.ts
+  s_24668beb85a874::t_f036c3209318e0 26-29,33,208-210,416-418
+packages/shared/src/git/git-repository.ts
+  s_24668beb85a874::t_f036c3209318e0 27,174-175,177-178,214,217,223,229-232,236,244,260,269,272,280,297,313,320,332,341,352,385,390-391,403,409
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/virtualized-changes-tree.tsx
+  s_24668beb85a874::t_f036c3209318e0 1
+packages/shared/src/lib/deep-equal.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1-32
+apps/emdash-desktop/src/main/core/tasks/stored-branch.ts
+  s_24668beb85a874::t_f036c3209318e0 1,9,13-15,33,57
+apps/emdash-desktop/src/renderer/features/projects/stores/project-creation-types.ts
+  s_24668beb85a874::t_f036c3209318e0 1-3,32-40,43
+apps/emdash-desktop/src/renderer/lib/components/branch-selector-utils.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1,8,44,58,70
+apps/emdash-desktop/src/main/core/workspaces/workspace-current-branch-cache.ts
+  s_24668beb85a874::t_f036c3209318e0 15,18
+packages/ui/src/components/combobox.tsx
+  s_24668beb85a874::t_f036c3209318e0 118,151,241
+apps/emdash-desktop/src/main/core/pull-requests/pr-sync-scheduler.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1-2,84-111,120,148-213,215,243,276,304-306,334,372
+apps/emdash-desktop/src/renderer/features/tasks/git-action-handlers.ts
+  s_24668beb85a874::t_f036c3209318e0 1-64
+packages/shared/src/lib/deep-equal.ts
+  s_24668beb85a874::t_f036c3209318e0 1-32
+apps/emdash-desktop/src/main/core/pull-requests/pr-sync-scheduler.ts
+  s_24668beb85a874::t_f036c3209318e0 24,31,50-55,61-62,82-84,107,172-188,245
+apps/emdash-desktop/src/main/core/projects/operations/createProject.test.ts
+  s_24668beb85a874::t_f036c3209318e0 5,10-17,27-30,60-65,73-100,126-129,132-139,141-146,166-168,177-183,185-189,204-206,210-216,218-220,235-248,252-258,278-291,295-301,323-326,329-337,340-346,364-366,376-382,384-386,399-402,404,413-426,430-437,455,459-460,462,468
+apps/emdash-desktop/src/renderer/features/tasks/view/pane-content.tsx
+  s_24668beb85a874::t_f036c3209318e0 3,5,10,24-32,48-55
+apps/emdash-desktop/src/main/core/issues/git-remote-resolver.test.ts
+  s_24668beb85a874::t_f036c3209318e0 2,31-44
+apps/emdash-desktop/src/shared/projects.ts
+  s_24668beb85a874::t_f036c3209318e0 1-2,54-60
+apps/emdash-desktop/src/renderer/features/tasks/commands.ts
+  s_24668beb85a874::t_f036c3209318e0 2,5,17,46-47,353,355,365,378-380,382-387
+apps/emdash-desktop/src/main/db/legacy-port/task-workspace-backfill.db.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1-215
+packages/ui/package.json
+  s_24668beb85a874::t_f036c3209318e0 36
+apps/emdash-desktop/src/main/core/runtime/health.ts
+  s_24668beb85a874::t_f036c3209318e0 1-13
+apps/emdash-desktop/src/renderer/lib/stores/live/coalesce.ts
+  s_24668beb85a874::t_f036c3209318e0 1-15
+apps/emdash-desktop/src/main/db/legacy-port/service.test.ts
+  s_24668beb85a874::t_f036c3209318e0 66-84,95-97,253-277
+apps/emdash-desktop/src/renderer/lib/components/card-grid.tsx
+  s_24668beb85a874::t_f036c3209318e0 7-13
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/image-diff-view.tsx
+  s_24668beb85a874::t_f036c3209318e0 12-13,78,123,234,239-240,242
+apps/emdash-desktop/src/main/core/projects/worktrees/worktree-service.ts
+  s_24668beb85a874::t_f036c3209318e0 2,6,144,169,227,238,308
+packages/shared/src/agents/plugins/helpers/hook-config.ts
+  s_24668beb85a874::t_f036c3209318e0 1,28-47,82-130
+packages/shared/src/git/models/refs.ts
+  s_24668beb85a874::t_f036c3209318e0 6-19
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-create-task-state.ts
+  s_24668beb85a874::t_f036c3209318e0 1,18
+packages/shared/src/lib/index.ts
+  s_24668beb85a874::t_f036c3209318e0 1
+apps/emdash-desktop/src/main/core/git/legacy/git-service.ts
+  s_24668beb85a874::t_f036c3209318e0 1-1368
+apps/emdash-desktop/src/main/db/legacy-port/importers/settings/importer.test.ts
+  s_24668beb85a874::t_f036c3209318e0 4,8
+packages/ui/src/components/button.tsx
+  s_24668beb85a874::t_f036c3209318e0 14,18
+apps/emdash-desktop/src/main/core/issues/helpers/provider-inputs.ts
+  s_24668beb85a874::t_f036c3209318e0 11-15
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/commits-list.tsx
+  s_24668beb85a874::t_f036c3209318e0 1,15
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-store.ts
+  s_24668beb85a874::t_f036c3209318e0 2,104,109
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/commit-card.tsx
+  s_24668beb85a874::t_f036c3209318e0 4-5,16,36,47,51,55-66,69,72,87,90,104,114,117
+apps/emdash-desktop/src/main/core/tasks/stored-branch.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1,7,14
+apps/emdash-desktop/src/renderer/lib/commit-history-invalidation.ts
+  s_24668beb85a874::t_f036c3209318e0 3,6-7
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-workspace-config.ts
+  s_24668beb85a874::t_f036c3209318e0 1,3,118,252
+apps/emdash-desktop/src/renderer/features/settings/components/InterfaceSettingsCard.tsx
+  s_24668beb85a874::t_f036c3209318e0 24
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-manager.test.ts
+  s_24668beb85a874::t_f036c3209318e0 25,65,150,179
+apps/emdash-desktop/src/renderer/tests/changes-list-item.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1
+apps/emdash-desktop/src/renderer/features/tasks/task-titlebar.tsx
+  s_24668beb85a874::t_f036c3209318e0 124-125,171,281
+apps/emdash-desktop/src/renderer/lib/components/project-branch-selector.tsx
+  s_24668beb85a874::t_f036c3209318e0 1,4,9-10,28,35
+apps/emdash-desktop/src/renderer/features/projects/stores/project.ts
+  s_24668beb85a874::t_f036c3209318e0 6,29,46-47,49,57,65
+packages/ui/src/components/select.tsx
+  s_24668beb85a874::t_f036c3209318e0 88,117,154,172
+packages/ui/src/theme/theme.css
+  s_24668beb85a874::t_f036c3209318e0 114-128,331-345,548-562
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/pr-section.tsx
+  s_24668beb85a874::t_f036c3209318e0 13,37-38
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/staged-section.tsx
+  s_24668beb85a874::t_f036c3209318e0 1,4,13-15,29,74-80,84-88
+apps/emdash-desktop/src/renderer/features/tasks/stores/git-worktree-store.ts
+  s_24668beb85a874::t_f036c3209318e0 1-334
+apps/emdash-desktop/src/main/core/tasks/operations/getDeletePreflight.ts
+  s_24668beb85a874::t_f036c3209318e0 3,53-73
+apps/emdash-desktop/src/renderer/features/projects/components/settings-view/use-project-settings-form.ts
+  s_24668beb85a874::t_f036c3209318e0 1,39
+apps/emdash-desktop/src/main/db/legacy-port/task-workspace-backfill.ts
+  s_24668beb85a874::t_f036c3209318e0 1-209
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-selectors.ts
+  s_24668beb85a874::t_f036c3209318e0 56,59
+apps/emdash-desktop/src/renderer/features/tasks/add-remote-modal.tsx
+  s_24668beb85a874::t_f036c3209318e0 6,75,120,131,143,149,152-153,157,169
+apps/emdash-desktop/src/renderer/features/sidebar/task-item.tsx
+  s_24668beb85a874::t_f036c3209318e0 6,81
+apps/emdash-desktop/src/main/core/github/controller.test.ts
+  s_24668beb85a874::t_f036c3209318e0 5,7,35-37,166-204
+apps/emdash-desktop/src/renderer/features/tasks/stores/git-status-optimistic-updates.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1-202
+apps/emdash-desktop/src/renderer/features/projects/stores/git-repository-store.ts
+  s_24668beb85a874::t_f036c3209318e0 1-285
+apps/emdash-desktop/src/renderer/features/tasks/conversations/add-context-popover.tsx
+  s_24668beb85a874::t_f036c3209318e0 17,80-82,97-99,131-133,187-195,197,244
+apps/emdash-desktop/src/renderer/lib/stores/live/bind-mirror.ts
+  s_24668beb85a874::t_f036c3209318e0 1-145
+apps/emdash-desktop/src/renderer/lib/monaco/invalidation-bridges.ts
+  s_24668beb85a874::t_f036c3209318e0 4-5,51-52,58-62
+apps/emdash-desktop/src/main/core/forgejo/forgejo-issue-provider.ts
+  s_24668beb85a874::t_f036c3209318e0 5,31,35-36,58,70-71,107-109,112,116-118,121
+apps/emdash-desktop/src/renderer/features/projects/stores/project-manager.ts
+  s_24668beb85a874::t_f036c3209318e0 8,23-24,82-83,125,131-157,162-163,166-167,173-180,182-204,207,215-219,222-226,229,238-243,246-247,250-257,259-266,470,474,482-496,498-525,531,541-554,559
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/stacked-diff-panel-store.ts
+  s_24668beb85a874::t_f036c3209318e0 1,8-9,11,117,201
+apps/emdash-desktop/src/shared/core/git/types.ts
+  s_24668beb85a874::t_f036c3209318e0 1-95
+apps/emdash-desktop/src/renderer/features/tasks/use-git-actions.ts
+  s_24668beb85a874::t_f036c3209318e0 2-7,10-12,17,21,25,29
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-store.test.ts
+  s_24668beb85a874::t_f036c3209318e0 104,129
+apps/emdash-desktop/src/renderer/lib/stores/live/optimistic-model.test.ts
+  s_24668beb85a874::t_f036c3209318e0 1-83
+apps/emdash-desktop/src/renderer/features/sidebar/project-item.tsx
+  s_24668beb85a874::t_f036c3209318e0 21,72
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace.ts
+  s_24668beb85a874::t_f036c3209318e0 2,7,12,14,22,28-29,46,55
+apps/emdash-desktop/src/renderer/lib/monaco/monaco-model-registry.ts
+  s_24668beb85a874::t_f036c3209318e0 4-5,350-354,357,770,775
+apps/emdash-desktop/src/main/core/projects/create-project-provider.ts
+  s_24668beb85a874::t_f036c3209318e0 3-4,10-11,13-14,17,19,40-42,44,46-89,100-101,109,112-119,121-127,129-149,151-162,173-185,200-203,208-210,221,229-241,247,249-255
+apps/emdash-desktop/src/main/core/workspaces/workspace-registry.test.ts
+  s_24668beb85a874::t_f036c3209318e0 18,23-24
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/use-commit-files.ts
+  s_24668beb85a874::t_f036c3209318e0 1,17-21
+apps/emdash-desktop/src/renderer/lib/components/remote-select-content.tsx
+  s_24668beb85a874::t_f036c3209318e0 1,5,28
+apps/emdash-desktop/src/renderer/features/projects/components/task-view/task-row.tsx
+  s_24668beb85a874::t_f036c3209318e0 7,59-60
+packages/shared/src/git/git-runtime.ts
+  s_24668beb85a874::t_f036c3209318e0 10-13,17-26,99-152,240-280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "bba9d7fdbbf2d6227f02fa3bad84b2061af0fcb3",
+  "prompts": {},
+  "sessions": {
+    "s_24668beb85a874": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_12c09df41ffePqVrQZPo4EKuKf",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
