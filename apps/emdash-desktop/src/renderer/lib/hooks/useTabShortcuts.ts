@@ -45,6 +45,7 @@ const TAB_INDEX_HOTKEYS = [
  * Shortcuts:
  *   tabNext   (default Mod+Alt+ArrowRight)  — next tab
  *   tabPrev   (default Mod+Alt+ArrowLeft)  — previous tab
+ *   Control+Tab / Control+Shift+Tab         — next / previous tab
  *   tabClose  (default Mod+W)      — close active tab
  *   Mod+1–9                        — jump to tab by index (not configurable)
  *
@@ -74,6 +75,22 @@ export function useTabShortcuts(
   useHotkey(
     getHotkeyRegistration('tabPrev', keyboard),
     () => {
+      store?.setPreviousTabActive();
+    },
+    { enabled: enabled && tabPrevHotkey !== null, conflictBehavior: 'allow' }
+  );
+  useHotkey(
+    'Control+Tab',
+    (e) => {
+      e.preventDefault();
+      store?.setNextTabActive();
+    },
+    { enabled: enabled && tabNextHotkey !== null, conflictBehavior: 'allow' }
+  );
+  useHotkey(
+    'Control+Shift+Tab',
+    (e) => {
+      e.preventDefault();
       store?.setPreviousTabActive();
     },
     { enabled: enabled && tabPrevHotkey !== null, conflictBehavior: 'allow' }

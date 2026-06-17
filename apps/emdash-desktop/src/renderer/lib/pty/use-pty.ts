@@ -1,3 +1,4 @@
+import { detectPlatform, getHotkeyManager, matchesKeyboardEvent } from '@tanstack/hotkeys';
 import { type Terminal } from '@xterm/xterm';
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { events, rpc } from '@renderer/lib/ipc';
@@ -43,6 +44,37 @@ const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
 const LAST_SELECTION_COPY_GRACE_MS = 2_000;
+const HOTKEY_PLATFORM = detectPlatform();
+
+function isCtrlTabNavigationShortcut(event: KeyboardEvent): boolean {
+  return (
+    event.type === 'keydown' &&
+    event.key === 'Tab' &&
+    event.ctrlKey &&
+    !event.altKey &&
+    !event.metaKey
+  );
+}
+
+function dispatchTerminalHotkey(event: KeyboardEvent): boolean {
+  if (!isCtrlTabNavigationShortcut(event)) return false;
+
+  const manager = getHotkeyManager();
+
+  for (const [, registration] of manager.registrations.state) {
+    if (!registration.options.enabled) continue;
+    if (!matchesKeyboardEvent(event, registration.parsedHotkey, HOTKEY_PLATFORM)) continue;
+
+    if (registration.options.preventDefault) event.preventDefault();
+    registration.callback(event, {
+      hotkey: registration.hotkey,
+      parsedHotkey: registration.parsedHotkey,
+    });
+    return true;
+  }
+
+  return false;
+}
 
 function getCellMetrics(terminal: Terminal): { width: number; height: number } | null {
   const t = terminal as unknown as XtermInternals;
@@ -432,6 +464,13 @@ export function usePty(
       // ── Keyboard shortcuts ─────────────────────────────────────────────────
       terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
         if (document.querySelector('[role="dialog"]')) return false;
+
+        if (dispatchTerminalHotkey(event)) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          event.stopPropagation();
+          return false;
+        }
 
         if (
           shouldCopySelectionFromTerminal(
