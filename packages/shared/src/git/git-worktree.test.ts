@@ -186,6 +186,124 @@ describe('GitWorktree', () => {
     }
   });
 
+  it('refreshes staged status when an external commit advances the branch ref', async () => {
+    const repo = await makeRepo();
+    const watcher = new FileWatchService();
+    const runtime = new GitRuntime({ watcher });
+    const updates: GitWorktreeUpdate[] = [];
+
+    try {
+      const lease = await runtime.openWorktree(repo);
+      const worktree = lease.value;
+      worktree.subscribe((update) => updates.push(update));
+
+      await writeFile(path.join(repo, 'tracked.txt'), 'external\n', 'utf8');
+      await execFileAsync('git', ['add', 'tracked.txt'], { cwd: repo });
+
+      await eventually(() =>
+        updates.some(
+          (update) =>
+            update.kind === 'status' &&
+            update.model.kind === 'ok' &&
+            update.model.staged.some((change) => change.path === 'tracked.txt')
+        )
+          ? true
+          : undefined
+      );
+      updates.length = 0;
+
+      await execFileAsync('git', ['commit', '-m', 'external commit'], { cwd: repo });
+
+      await eventually(() =>
+        updates.some(
+          (update) =>
+            update.kind === 'status' &&
+            update.model.kind === 'ok' &&
+            update.model.staged.length === 0 &&
+            update.model.unstaged.length === 0
+        )
+          ? true
+          : undefined
+      );
+
+      await expect(worktree.getStatus()).resolves.toMatchObject({
+        kind: 'ok',
+        staged: [],
+        unstaged: [],
+      });
+
+      lease.release();
+    } finally {
+      await runtime.dispose();
+      await watcher.dispose();
+    }
+  });
+
+  it('refreshes staged status when an external merge continuation commits resolved files', async () => {
+    const repo = await makeRepo();
+    await execFileAsync('git', ['checkout', '-b', 'feature'], { cwd: repo });
+    await writeFile(path.join(repo, 'tracked.txt'), 'feature\n', 'utf8');
+    await execFileAsync('git', ['commit', '-am', 'feature edit'], { cwd: repo });
+    await execFileAsync('git', ['checkout', 'main'], { cwd: repo });
+    await writeFile(path.join(repo, 'tracked.txt'), 'main\n', 'utf8');
+    await execFileAsync('git', ['commit', '-am', 'main edit'], { cwd: repo });
+    await execFileAsync('git', ['checkout', 'feature'], { cwd: repo });
+
+    const watcher = new FileWatchService();
+    const runtime = new GitRuntime({ watcher });
+    const updates: GitWorktreeUpdate[] = [];
+
+    try {
+      const lease = await runtime.openWorktree(repo);
+      const worktree = lease.value;
+      worktree.subscribe((update) => updates.push(update));
+
+      await expect(execFileAsync('git', ['merge', 'main'], { cwd: repo })).rejects.toThrow();
+      await writeFile(path.join(repo, 'tracked.txt'), 'resolved\n', 'utf8');
+      await execFileAsync('git', ['add', 'tracked.txt'], { cwd: repo });
+
+      await eventually(() =>
+        updates.some(
+          (update) =>
+            update.kind === 'status' &&
+            update.model.kind === 'ok' &&
+            update.model.staged.some((change) => change.path === 'tracked.txt')
+        )
+          ? true
+          : undefined
+      );
+      updates.length = 0;
+
+      await execFileAsync('git', ['merge', '--continue'], {
+        cwd: repo,
+        env: { ...process.env, GIT_EDITOR: 'true' },
+      });
+
+      await eventually(() =>
+        updates.some(
+          (update) =>
+            update.kind === 'status' &&
+            update.model.kind === 'ok' &&
+            update.model.staged.length === 0 &&
+            update.model.unstaged.length === 0
+        )
+          ? true
+          : undefined
+      );
+
+      await expect(worktree.getStatus()).resolves.toMatchObject({
+        kind: 'ok',
+        staged: [],
+        unstaged: [],
+      });
+
+      lease.release();
+    } finally {
+      await runtime.dispose();
+      await watcher.dispose();
+    }
+  });
+
   it('computes pushed log state and refreshes refs after push', async () => {
     const { repo } = await makeRepoWithRemote();
     await writeFile(path.join(repo, 'tracked.txt'), 'pushed\n', 'utf8');
