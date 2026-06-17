@@ -1,0 +1,25 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_14679555e45041::t_85dd3370e08f22 1,6,254,259,261-262,280-299,302-303,306-307,309-333
+  s_14679555e45041::t_7457b706877279 48,253,255-258,260
+  s_14679555e45041::t_af409f7bb0755f 9,14,300-301,304-305,308
+apps/emdash-desktop/src/renderer/features/browser/browser-load-error.test.ts
+  s_14679555e45041::t_0954d6826a6954 1-31
+apps/emdash-desktop/src/renderer/features/browser/browser-load-error.ts
+  s_14679555e45041::t_768a957ae6d4ce 1-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "ce7aa77fab10b3ea491a4829fe3bd606fd2cf757",
+  "prompts": {},
+  "sessions": {
+    "s_14679555e45041": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed400-3c4c-7db3-bf1b-cead9d0b9367",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
