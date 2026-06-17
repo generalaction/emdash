@@ -329,9 +329,8 @@ describe('AcpSessionManager – routing', () => {
   it('loadSession replay: agent-assigned session ID is dynamically registered and routed', async () => {
     const { events } = await import('@main/lib/events');
     const { acpSessionUpdateChannel } = await import('@shared/core/acp/acpEvents');
-    const { setProviderSessionId } = await import(
-      '@main/core/conversations/set-provider-session-id'
-    );
+    const { setProviderSessionId } =
+      await import('@main/core/conversations/set-provider-session-id');
 
     (events.emit as Mock).mockReset();
     (setProviderSessionId as Mock).mockClear();

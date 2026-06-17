@@ -15,6 +15,7 @@
  */
 
 import { codeSpec } from './components/code/spec';
+import { execCssVars } from './components/execute/css-vars';
 import { fileOpCssVars } from './components/file-op/css-vars';
 import { islandSpec } from './components/island/spec';
 import { messageCssVars } from './components/message/css-vars';
@@ -37,5 +38,6 @@ export function chatCssVars(): Record<string, string> {
     ...toolCssVars(),
     ...thinkingCssVars(),
     ...fileOpCssVars(),
+    ...execCssVars(),
   };
 }

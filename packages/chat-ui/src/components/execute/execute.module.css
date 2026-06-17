@@ -1,0 +1,55 @@
+/*
+ * Execute row — geometry and positioning rules only.
+ *
+ * All values here feed the layout engine's arithmetic (EXEC_ROW_H,
+ * EXEC_LINE_H, EXEC_PAD_Y, EXEC_MAX_LINES) via the --chat-exec-*
+ * CSS vars declared in css-vars.ts.
+ *
+ * Visual rules (colors, flex layout, chevron animation, fonts, overflow)
+ * live in Tailwind classes in Execute.tsx.
+ *
+ * NOTE: .pexec__body has no padding-block — vertical spacing is baked into
+ * the expanded body height via EXEC_PAD_Y applied inline in JSX.
+ */
+
+/* ── Row inset ────────────────────────────────────────────────────────────── */
+
+/* padding-inline matches --chat-msg-pad-x so the row aligns with messages */
+.pexec {
+  padding-inline: var(--chat-msg-pad-x);
+}
+
+/* ── Header geometry ──────────────────────────────────────────────────────── */
+
+/* height feeds EXEC_ROW_H in the layout engine */
+.pexec__header {
+  height: var(--chat-exec-row-h);
+}
+
+/* ── Expanded body geometry ───────────────────────────────────────────────── */
+
+/*
+ * Absolutely positioned below the header. left/right give the same inset as
+ * the header row. No padding-block — vertical spacing lives in JSX inline
+ * styles (EXEC_PAD_Y) so the height calculation in measure.ts stays in sync.
+ */
+.pexec__body {
+  position: absolute;
+  top: var(--chat-exec-row-h);
+  left: var(--chat-msg-pad-x);
+  right: var(--chat-msg-pad-x);
+}
+
+/* ── Output scroll area ───────────────────────────────────────────────────── */
+
+/*
+ * max-height caps the visible output to EXEC_MAX_LINES rows.
+ * white-space: pre preserves terminal newlines and allows horizontal scroll.
+ * scrollbar-gutter: stable reserves scrollbar space so row width is stable.
+ */
+.pexec__scroll {
+  max-height: var(--chat-exec-max-h);
+  overflow: auto;
+  white-space: pre;
+  scrollbar-gutter: stable;
+}

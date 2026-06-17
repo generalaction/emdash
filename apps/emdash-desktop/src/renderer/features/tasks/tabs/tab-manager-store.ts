@@ -22,8 +22,8 @@ import {
   setTabActiveIndex as tabUtilsSetTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
-import type { ConversationType } from '@shared/core/conversations/conversations';
 import { normalizeBrowserProfileSelection, type BrowserSessionSnapshot } from '@shared/browser';
+import type { ConversationType } from '@shared/core/conversations/conversations';
 import { refsEqual, type GitChangeStatus, type GitObjectRef } from '@shared/core/git/git';
 import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';

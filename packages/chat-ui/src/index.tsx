@@ -21,6 +21,7 @@ export type {
   ChatToolCall,
   ChatThinking,
   ChatFileOpToolCall,
+  ChatExecute,
   ChatRole,
   FileOpKind,
   FileOp,

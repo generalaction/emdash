@@ -5,8 +5,8 @@ import { useCallback } from 'react';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import type { ModelOption } from '@shared/core/agents/agent-payload';
 import { useConversations } from '../../task-view-context';
-import { ChatEmptyState } from './chat-empty-state';
 import { ChatComposer } from './chat-composer';
+import { ChatEmptyState } from './chat-empty-state';
 
 export const ChatPanel = observer(function ChatPanel({
   conversationId,
@@ -45,7 +45,7 @@ export const ChatPanel = observer(function ChatPanel({
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
       {/* Transcript — chat-ui handles virtualization and stick-to-bottom */}
-      <div className="relative flex-1 min-h-0">
+      <div className="relative min-h-0 flex-1">
         <ChatTranscript className="h-full" stickToBottom={true} onReady={handleReady} />
 
         {!store.isReady && !store.isClosed ? (
@@ -56,7 +56,7 @@ export const ChatPanel = observer(function ChatPanel({
       </div>
 
       {/* Input area */}
-      <div className="shrink-0 bg-background max-w-2xl mx-auto w-full px-4 pb-3">
+      <div className="mx-auto w-full max-w-2xl shrink-0 bg-background px-4 pb-3">
         <ChatComposer
           disabled={store.isClosed}
           isWorking={store.isWorking}

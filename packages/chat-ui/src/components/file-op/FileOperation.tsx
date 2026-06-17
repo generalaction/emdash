@@ -114,10 +114,7 @@ export function FileOperation(props: FileOperationProps) {
       when={props.item.ops.length > 1}
       fallback={
         // ── Single file ────────────────────────────────────────────────────────
-        <div
-          class={`${styles.pfileop} flex items-center`}
-          style={{ height: `${FILEOP_ROW_H}px` }}
-        >
+        <div class={`${styles.pfileop} flex items-center`} style={{ height: `${FILEOP_ROW_H}px` }}>
           <Show
             when={props.item.ops[0]}
             fallback={
@@ -135,10 +132,7 @@ export function FileOperation(props: FileOperationProps) {
       }
     >
       {/* ── Multiple files ──────────────────────────────────────────────────── */}
-      <div
-        class={styles.pfileop}
-        style={{ position: 'relative', height: `${multiH()}px` }}
-      >
+      <div class={styles.pfileop} style={{ position: 'relative', height: `${multiH()}px` }}>
         {/* Header */}
         <div
           class={`${styles['pfileop__header']} flex cursor-pointer items-center gap-1.5 select-none hover:text-foreground`}
@@ -174,9 +168,7 @@ export function FileOperation(props: FileOperationProps) {
         >
           <div class={styles['pfileop__body']}>
             <div style={{ 'padding-block': `${FILEOP_PAD_Y}px` }}>
-              <For each={props.item.ops}>
-                {(op) => <FileRow verb={verb()} path={op.path} />}
-              </For>
+              <For each={props.item.ops}>{(op) => <FileRow verb={verb()} path={op.path} />}</For>
             </div>
           </div>
         </Show>

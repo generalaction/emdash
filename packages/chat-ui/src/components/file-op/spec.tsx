@@ -25,10 +25,7 @@ function FileOpRender(props: {
   ctx: RenderCtx;
 }) {
   return (
-    <FileOperation
-      item={props.item}
-      collapsed={props.ctx.viewState.isCollapsed(props.item.id)}
-    />
+    <FileOperation item={props.item} collapsed={props.ctx.viewState.isCollapsed(props.item.id)} />
   );
 }
 

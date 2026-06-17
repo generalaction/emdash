@@ -6,17 +6,13 @@
  * project without a browser/DOM.
  */
 
+import type { Node } from '@tiptap/pm/model';
 import { describe, expect, it } from 'vitest';
 import { serializeDoc } from '@renderer/lib/components/prompt-editor/serialize';
-import type { Node } from '@tiptap/pm/model';
 
 // ── Minimal node builders ─────────────────────────────────────────────────────
 
-function makeNode(
-  typeName: string,
-  attrs: Record<string, unknown>,
-  text?: string
-): Node {
+function makeNode(typeName: string, attrs: Record<string, unknown>, text?: string): Node {
   // Build a lightweight structural mock that satisfies serializeDoc's API surface.
   const children: Node[] = [];
   const forEachFn = (cb: (child: Node) => void) => children.forEach(cb);
@@ -80,7 +76,9 @@ describe('serializeDoc', () => {
   });
 
   it('serializes a mention node as @label', () => {
-    const doc = makeDoc(paragraph(textNode('Fix '), mentionNode('src/foo.ts'), textNode(' please')));
+    const doc = makeDoc(
+      paragraph(textNode('Fix '), mentionNode('src/foo.ts'), textNode(' please'))
+    );
     expect(serializeDoc(doc)).toBe('Fix @src/foo.ts please');
   });
 
@@ -106,7 +104,12 @@ describe('serializeDoc', () => {
 
   it('serializes a complex mixed doc correctly', () => {
     const doc = makeDoc(
-      paragraph(textNode('Add '), mentionNode('README.md'), textNode(' and run '), slashCommandNode('lint')),
+      paragraph(
+        textNode('Add '),
+        mentionNode('README.md'),
+        textNode(' and run '),
+        slashCommandNode('lint')
+      ),
       paragraph(textNode('Thanks'))
     );
     expect(serializeDoc(doc)).toBe('Add @README.md and run /lint\nThanks');

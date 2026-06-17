@@ -201,8 +201,7 @@ export function streamFileOp(opts: {
     result.push({ kind: 'wait', ms: pathMs });
     result.push({
       kind: 'call',
-      fn: (api: TranscriptApi) =>
-        api.dispatch({ type: 'file_op_update', id, ops: accumulatedOps }),
+      fn: (api: TranscriptApi) => api.dispatch({ type: 'file_op_update', id, ops: accumulatedOps }),
     });
   }
 

@@ -1,5 +1,6 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import type {
+  ChatExecute,
   ChatFileOpToolCall,
   ChatItem as UiChatItem,
   FileOpKind,
@@ -47,8 +48,19 @@ export type ChatFileOpItem = {
   ops: { path: string }[];
 };
 
+/** An execute tool call line (shell commands). */
+export type ChatExecuteItem = {
+  kind: 'execute';
+  id: string;
+  command: string;
+  output?: string;
+  status: ToolStatusKind;
+  startedAt: number;
+  durationMs?: number;
+};
+
 /** A single ordered entry in the chat transcript. */
-export type ChatItem = ChatMessageItem | ChatToolItem | ChatFileOpItem;
+export type ChatItem = ChatMessageItem | ChatToolItem | ChatFileOpItem | ChatExecuteItem;
 
 /** Convert desktop ChatItem[] to chat-ui ChatItem[] for TranscriptApi.seed(). */
 function toChatUiItems(items: ChatItem[]): UiChatItem[] {
@@ -73,6 +85,19 @@ function toChatUiItems(items: ChatItem[]): UiChatItem[] {
           status: item.status,
           ops: item.ops,
         } satisfies ChatFileOpToolCall,
+      ];
+    }
+    if (item.kind === 'execute') {
+      return [
+        {
+          kind: 'execute',
+          id: item.id,
+          command: item.command,
+          output: item.output,
+          status: item.status,
+          startedAt: item.startedAt,
+          durationMs: item.durationMs,
+        } satisfies ChatExecute,
       ];
     }
     if (item.role === 'thought') {
@@ -324,6 +349,12 @@ export class ChatStore {
           status: 'running',
           ops: extractPaths(update),
         });
+      } else if (acpKind === 'execute') {
+        const rawInput = update.rawInput as Record<string, unknown> | null | undefined;
+        this._upsertExecute({
+          id: update.toolCallId,
+          command: typeof rawInput?.command === 'string' ? rawInput.command : '',
+        });
       } else {
         this._upsertTool({
           toolCallId: update.toolCallId,
@@ -336,6 +367,9 @@ export class ChatStore {
       const existingFileOp = this.items.find(
         (it): it is ChatFileOpItem => it.kind === 'file-op' && it.id === update.toolCallId
       );
+      const existingExecute = this.items.find(
+        (it): it is ChatExecuteItem => it.kind === 'execute' && it.id === update.toolCallId
+      );
       if (existingFileOp) {
         const newOps = update.locations
           ? update.locations
@@ -343,12 +377,20 @@ export class ChatStore {
               .map((l) => ({ path: l.path }))
           : undefined;
         const newStatus =
-          update.status === 'completed'
-            ? 'done'
-            : update.status === 'failed'
-              ? 'error'
-              : undefined;
+          update.status === 'completed' ? 'done' : update.status === 'failed' ? 'error' : undefined;
         this._upsertFileOp({ id: update.toolCallId, status: newStatus, ops: newOps });
+      } else if (existingExecute) {
+        const rawInput = update.rawInput as Record<string, unknown> | null | undefined;
+        const newCommand = typeof rawInput?.command === 'string' ? rawInput.command : undefined;
+        const newOutput = update.rawOutput != null ? String(update.rawOutput) : undefined;
+        const newStatus =
+          update.status === 'completed' ? 'done' : update.status === 'failed' ? 'error' : undefined;
+        this._upsertExecute({
+          id: update.toolCallId,
+          command: newCommand,
+          output: newOutput,
+          status: newStatus,
+        });
       } else if (update.status === 'completed') {
         this._upsertTool({ toolCallId: update.toolCallId, status: 'done' });
       } else if (update.status === 'failed') {
@@ -392,9 +434,10 @@ export class ChatStore {
     this._transcript?.dispatch({ type: 'message_chunk', role, id: created.id, text });
   }
 
-  private _appendThinkingChunk(
-    chunk: { messageId?: string | null; content: { type: string; text?: string } }
-  ): void {
+  private _appendThinkingChunk(chunk: {
+    messageId?: string | null;
+    content: { type: string; text?: string };
+  }): void {
     const text =
       chunk.content.type === 'text' ? ((chunk.content as { text?: string }).text ?? '') : '';
     const thinkingId = chunk.messageId ?? `thought-${Date.now()}`;
@@ -413,11 +456,7 @@ export class ChatStore {
     this._transcript?.dispatch({ type: 'thinking_chunk', id: thinkingId, text });
   }
 
-  private _pushMessage(
-    role: ChatMessageRole,
-    text: string,
-    streaming = true
-  ): ChatMessageItem {
+  private _pushMessage(role: ChatMessageRole, text: string, streaming = true): ChatMessageItem {
     const item: ChatMessageItem = {
       kind: 'message',
       id: `${role}-${Date.now()}-${Math.random()}`,
@@ -500,6 +539,50 @@ export class ChatStore {
         id: patch.id,
         op: patch.op ?? 'read',
         ops: patch.ops ?? [],
+      });
+    }
+  }
+
+  private _upsertExecute(patch: {
+    id: string;
+    command?: string;
+    output?: string;
+    status?: ToolStatusKind;
+  }): void {
+    const existing = this.items.find(
+      (it): it is ChatExecuteItem => it.kind === 'execute' && it.id === patch.id
+    );
+    if (existing) {
+      if (patch.command !== undefined) existing.command = patch.command;
+      if (patch.output !== undefined) existing.output = patch.output;
+      if (patch.status !== undefined) {
+        existing.status = patch.status;
+        if (patch.status === 'done' && existing.durationMs === undefined) {
+          existing.durationMs = Date.now() - existing.startedAt;
+        }
+      }
+      this._transcript?.dispatch({
+        type: 'execute_update',
+        id: patch.id,
+        command: patch.command,
+        output: patch.output,
+        status: patch.status,
+      });
+    } else {
+      const startedAt = Date.now();
+      this.items.push({
+        kind: 'execute',
+        id: patch.id,
+        command: patch.command ?? '',
+        output: patch.output,
+        status: patch.status ?? 'running',
+        startedAt,
+      });
+      this._transcript?.dispatch({
+        type: 'execute_start',
+        id: patch.id,
+        command: patch.command ?? '',
+        startedAt,
       });
     }
   }

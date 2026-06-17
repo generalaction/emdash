@@ -64,15 +64,15 @@ describe('measureFileOp()', () => {
   });
 
   it('inline (1 op, running) — FILEOP_ROW_H + ROW_GAP', () => {
-    expect(
-      measureFileOp(makeItem({ ops: [{ path: '/a.ts' }] }), notExpanded)
-    ).toBe(FILEOP_ROW_H + ROW_GAP);
+    expect(measureFileOp(makeItem({ ops: [{ path: '/a.ts' }] }), notExpanded)).toBe(
+      FILEOP_ROW_H + ROW_GAP
+    );
   });
 
   it('inline (1 op, done) — FILEOP_ROW_H + ROW_GAP', () => {
-    expect(
-      measureFileOp(makeItem({ ops: [{ path: '/a.ts' }], status: 'done' }), notExpanded)
-    ).toBe(FILEOP_ROW_H + ROW_GAP);
+    expect(measureFileOp(makeItem({ ops: [{ path: '/a.ts' }], status: 'done' }), notExpanded)).toBe(
+      FILEOP_ROW_H + ROW_GAP
+    );
   });
 
   it('multi (2 ops) collapsed + running — shows preview window', () => {
@@ -91,9 +91,9 @@ describe('measureFileOp()', () => {
   });
 
   it('multi (2 ops) expanded — FILEOP_ROW_H + 2×FILEOP_LINE_H + 2×FILEOP_PAD_Y + ROW_GAP', () => {
-    expect(
-      measureFileOp(makeItem({ ops: [{ path: '/a.ts' }, { path: '/b.ts' }] }), expanded)
-    ).toBe(FILEOP_ROW_H + 2 * FILEOP_LINE_H + 2 * FILEOP_PAD_Y + ROW_GAP);
+    expect(measureFileOp(makeItem({ ops: [{ path: '/a.ts' }, { path: '/b.ts' }] }), expanded)).toBe(
+      FILEOP_ROW_H + 2 * FILEOP_LINE_H + 2 * FILEOP_PAD_Y + ROW_GAP
+    );
   });
 
   it('multi (3 ops) expanded — scales by op count', () => {

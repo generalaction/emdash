@@ -12,6 +12,7 @@
 
 import { createStore, produce } from 'solid-js/store';
 import type {
+  ChatExecute,
   ChatFileOpToolCall,
   ChatItem,
   ChatMessage,
@@ -63,8 +64,24 @@ export type TranscriptEvent =
    */
   | { type: 'file_op_update'; id: string; status?: ToolStatus; ops?: FileOp[] }
   /**
+   * A new execute tool call has started.
+   * `command` may be empty string initially; it is filled by `execute_update`.
+   */
+  | { type: 'execute_start'; id: string; command: string; startedAt?: number }
+  /**
+   * An existing execute tool call was updated.
+   * `command` is patched when provided; `output` replaces the previous value.
+   */
+  | {
+      type: 'execute_update';
+      id: string;
+      command?: string;
+      output?: string;
+      status?: ToolStatus;
+    }
+  /**
    * The current turn is finished. Clears `streaming` flags, finalizes any
-   * still-active thinking rows, and moves activeTurn into committed.
+   * still-active thinking and execute rows, and moves activeTurn into committed.
    */
   | { type: 'turn_done' };
 
@@ -214,8 +231,7 @@ export function createTranscript(): TranscriptApi {
             case 'file_op_start': {
               if (s.activeTurn === null) s.activeTurn = [];
               const existing = s.activeTurn.find(
-                (it): it is ChatFileOpToolCall =>
-                  it.kind === 'file-op' && it.id === event.id
+                (it): it is ChatFileOpToolCall => it.kind === 'file-op' && it.id === event.id
               );
               if (!existing) {
                 s.activeTurn.push({
@@ -232,8 +248,7 @@ export function createTranscript(): TranscriptApi {
             case 'file_op_update': {
               if (s.activeTurn === null) s.activeTurn = [];
               const existing = s.activeTurn.find(
-                (it): it is ChatFileOpToolCall =>
-                  it.kind === 'file-op' && it.id === event.id
+                (it): it is ChatFileOpToolCall => it.kind === 'file-op' && it.id === event.id
               );
               if (existing) {
                 if (event.status !== undefined) existing.status = event.status;
@@ -251,6 +266,51 @@ export function createTranscript(): TranscriptApi {
               break;
             }
 
+            case 'execute_start': {
+              if (s.activeTurn === null) s.activeTurn = [];
+              const existing = s.activeTurn.find(
+                (it): it is ChatExecute => it.kind === 'execute' && it.id === event.id
+              );
+              if (!existing) {
+                s.activeTurn.push({
+                  kind: 'execute',
+                  id: event.id,
+                  command: event.command,
+                  status: 'running',
+                  startedAt: event.startedAt ?? Date.now(),
+                } satisfies ChatExecute);
+              }
+              break;
+            }
+
+            case 'execute_update': {
+              if (s.activeTurn === null) s.activeTurn = [];
+              const existing = s.activeTurn.find(
+                (it): it is ChatExecute => it.kind === 'execute' && it.id === event.id
+              );
+              if (existing) {
+                if (event.command !== undefined) existing.command = event.command;
+                if (event.output !== undefined) existing.output = event.output;
+                if (event.status !== undefined) {
+                  existing.status = event.status;
+                  if (event.status === 'done' && existing.durationMs === undefined) {
+                    existing.durationMs = Date.now() - existing.startedAt;
+                  }
+                }
+              } else {
+                // Defensive: handle update arriving before start
+                s.activeTurn.push({
+                  kind: 'execute',
+                  id: event.id,
+                  command: event.command ?? '',
+                  output: event.output,
+                  status: event.status ?? 'running',
+                  startedAt: Date.now(),
+                } satisfies ChatExecute);
+              }
+              break;
+            }
+
             case 'turn_done': {
               if (!s.activeTurn) break;
               const finalized: ChatItem[] = s.activeTurn.map((item) => {
@@ -258,6 +318,13 @@ export function createTranscript(): TranscriptApi {
                   return { ...item, streaming: false };
                 }
                 if (item.kind === 'thinking' && item.status === 'thinking') {
+                  return {
+                    ...item,
+                    status: 'done' as const,
+                    durationMs: Date.now() - item.startedAt,
+                  };
+                }
+                if (item.kind === 'execute' && item.status === 'running') {
                   return {
                     ...item,
                     status: 'done' as const,

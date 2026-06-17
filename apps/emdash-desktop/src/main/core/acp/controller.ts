@@ -13,9 +13,7 @@ async function setModel(conversationId: string, model: string): Promise<void> {
   await acpSessionManager.setModel(conversationId, model);
 }
 
-function getSessionStatus(
-  conversationId: string
-): Promise<'ready' | 'starting' | 'none'> {
+function getSessionStatus(conversationId: string): Promise<'ready' | 'starting' | 'none'> {
   return Promise.resolve(acpSessionManager.getSessionStatus(conversationId));
 }
 

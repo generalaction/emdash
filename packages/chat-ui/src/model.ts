@@ -78,4 +78,29 @@ export type ChatFileOpToolCall = {
   ops: FileOp[];
 };
 
-export type ChatItem = ChatMessage | ChatToolCall | ChatThinking | ChatFileOpToolCall;
+/**
+ * An execute tool call row — ACP `kind: 'execute'` commands (e.g. Bash).
+ *
+ * Always rendered as a collapsible header "Execute {command} {elapsed}s ›".
+ * While running: shimmer + live ticking timer. When done: frozen duration.
+ * Default collapsed (no preview); expanded shows scrollable monospace output.
+ *
+ * Collapse semantics are inverted (same as ChatThinking / ChatFileOpToolCall):
+ *   stored false (default) → not expanded
+ *   stored true            → expanded
+ */
+export type ChatExecute = {
+  kind: 'execute';
+  id: string;
+  /** The shell command, e.g. "ls -a". Empty string until the command-bearing update arrives. */
+  command: string;
+  /** Plain-text command output (stdout). Set when the `completed` update arrives. */
+  output?: string;
+  status: ToolStatus;
+  /** Start time (epoch ms) — used to derive the live timer and frozen duration. */
+  startedAt: number;
+  /** Frozen duration once status flips to 'done'. */
+  durationMs?: number;
+};
+
+export type ChatItem = ChatMessage | ChatToolCall | ChatThinking | ChatFileOpToolCall | ChatExecute;
