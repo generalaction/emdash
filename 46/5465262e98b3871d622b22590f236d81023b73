@@ -1,0 +1,34 @@
+apps/emdash-desktop/src/shared/commands.ts
+  s_c445389160228e::t_4cd38b3975b59d 279,288
+apps/emdash-desktop/src/shared/shortcuts.ts
+  s_fdb66a3593f108::t_5335f173ce288f 16,128,135
+  s_c445389160228e::t_4cd38b3975b59d 123-127,129-134,136
+apps/emdash-desktop/src/renderer/lib/components/monaco-keyboard-bridge.tsx
+  s_fdb66a3593f108::t_dd77b9b2aaccc6 2-8,26-42,54,74
+apps/emdash-desktop/src/renderer/features/tasks/commands.ts
+  s_c445389160228e::t_4cd38b3975b59d 411,424
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "465465262e98b3871d622b22590f236d81023b73",
+  "prompts": {},
+  "sessions": {
+    "s_c445389160228e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed40d-3fe3-75b2-8887-215a8965d7b2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_fdb66a3593f108": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed4d7-7a5a-710c-a8ed-353403ba8e34",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
