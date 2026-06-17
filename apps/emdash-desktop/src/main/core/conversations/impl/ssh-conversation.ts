@@ -11,7 +11,7 @@ import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
-import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import type { MultiplexerBackend } from '@main/core/pty/multiplexer';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { events } from '@main/lib/events';
@@ -41,7 +41,7 @@ export class SshConversationProvider implements ConversationProvider {
   private readonly taskPath: string;
   private readonly taskId: string;
   private readonly taskEnvVars: Record<string, string>;
-  private readonly tmux: boolean = false;
+  private readonly multiplexer: MultiplexerBackend | null;
   private readonly shellSetup?: string;
   private readonly ctx: IExecutionContext;
   private readonly proxy: SshClientProxy;
@@ -51,7 +51,7 @@ export class SshConversationProvider implements ConversationProvider {
     taskPath,
     taskId,
     taskEnvVars = {},
-    tmux = false,
+    multiplexer = null,
     shellSetup,
     ctx,
     proxy,
@@ -60,7 +60,7 @@ export class SshConversationProvider implements ConversationProvider {
     taskPath: string;
     taskId: string;
     taskEnvVars?: Record<string, string>;
-    tmux?: boolean;
+    multiplexer?: MultiplexerBackend | null;
     shellSetup?: string;
     ctx: IExecutionContext;
     proxy: SshClientProxy;
@@ -69,7 +69,7 @@ export class SshConversationProvider implements ConversationProvider {
     this.taskPath = taskPath;
     this.taskId = taskId;
     this.taskEnvVars = taskEnvVars;
-    this.tmux = tmux;
+    this.multiplexer = multiplexer;
     this.shellSetup = shellSetup;
     this.ctx = ctx;
     this.proxy = proxy;
@@ -150,8 +150,6 @@ export class SshConversationProvider implements ConversationProvider {
       const customEnv = providerConfig?.env ?? {};
       const providerEnv: Record<string, string> = { ...agentCommand.env, ...customEnv };
 
-      const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
-
       const cfg: AgentSessionConfig = {
         taskId: this.taskId,
         conversationId: conversation.id,
@@ -160,7 +158,9 @@ export class SshConversationProvider implements ConversationProvider {
         args: agentCommand.args,
         cwd: this.taskPath,
         shellSetup: this.shellSetup,
-        tmuxSessionName,
+        multiplexer: this.multiplexer
+          ? { id: this.multiplexer.id, sessionName: this.multiplexer.makeSessionName(sessionId) }
+          : undefined,
         autoApprove: conversation.autoApprove ?? false,
         resume: agentSession.isResuming,
       };
@@ -211,7 +211,7 @@ export class SshConversationProvider implements ConversationProvider {
           return;
         }
 
-        if (this.tmux) {
+        if (this.multiplexer) {
           events.emit(agentSessionExitedChannel, {
             conversationId: conversation.id,
             taskId: conversation.taskId,
@@ -308,7 +308,7 @@ export class SshConversationProvider implements ConversationProvider {
   async detachSession(conversationId: string): Promise<void> {
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
     this.detachPty(sessionId);
-    if (!this.tmux) {
+    if (!this.multiplexer) {
       this.knownSessionIds.delete(sessionId);
       this.supervisor.forget(sessionId);
     }
@@ -330,17 +330,19 @@ export class SshConversationProvider implements ConversationProvider {
         });
       }
     }
-    if (this.tmux) {
-      await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
-    }
+    await this.multiplexer?.killSession(this.ctx, this.multiplexer.makeSessionName(sessionId));
     this.supervisor.forget(sessionId);
   }
 
   async destroyAll(): Promise<void> {
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
-    if (this.tmux) {
-      await Promise.all(sessionIds.map((id) => killTmuxSession(this.ctx, makeTmuxSessionName(id))));
+    if (this.multiplexer) {
+      await Promise.all(
+        sessionIds.map((id) =>
+          this.multiplexer!.killSession(this.ctx, this.multiplexer!.makeSessionName(id))
+        )
+      );
     }
     for (const sessionId of sessionIds) {
       this.supervisor.forget(sessionId);

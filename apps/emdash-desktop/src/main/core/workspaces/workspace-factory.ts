@@ -3,12 +3,15 @@ import { eq } from 'drizzle-orm';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import type { ConversationProvider } from '@main/core/conversations/types';
+import { detectMultiplexers } from '@main/core/dependencies/core-deps/detect-multiplexers';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
 import { GitRepositoryService } from '@main/core/git/repository/service';
+import type { MultiplexerBackend, MultiplexerId } from '@main/core/pty/multiplexer';
+import { selectMultiplexer } from '@main/core/pty/multiplexer';
 import type { MachineRef, RuntimeManager } from '@main/core/runtime/types';
 import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
 import { appSettingsService } from '@main/core/settings/settings-service';
@@ -32,6 +35,23 @@ import { getEffectiveTaskSettings } from '../projects/settings/effective-task-se
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
 import { TEARDOWN_SCRIPT_WAIT_MS } from '../tasks/provision-task-error';
 import { getTaskEnvVars } from './workspace-env';
+
+export async function resolveMultiplexers(
+  persistenceOn: boolean,
+  connectionId: string | undefined
+): Promise<{ agentMultiplexer: MultiplexerBackend | null; terminalMultiplexer: MultiplexerBackend | null }> {
+  if (!persistenceOn) {
+    return { agentMultiplexer: null, terminalMultiplexer: null };
+  }
+  const detected = await detectMultiplexers(connectionId);
+  const overrideEnv = process.env.EMDASH_AGENT_MULTIPLEXER;
+  const override: MultiplexerId | undefined =
+    overrideEnv === 'tmux' || overrideEnv === 'boo' ? overrideEnv : undefined;
+  return {
+    agentMultiplexer: selectMultiplexer('agent', detected, override),
+    terminalMultiplexer: selectMultiplexer('terminal', detected),
+  };
+}
 
 export type WorkspaceType =
   | { kind: 'local' }
@@ -91,7 +111,9 @@ export function createWorkspaceFactory(
       defaultBranch,
       portSeed: workDir,
     });
-    const tmuxEnabled = projectSettings.tmux ?? false;
+    const persistenceOn = projectSettings.tmux ?? false;
+    const connectionId = type.kind === 'ssh' ? type.connectionId : undefined;
+    const { terminalMultiplexer } = await resolveMultiplexers(persistenceOn, connectionId);
     const taskLevelSettings = await getEffectiveTaskSettings({
       projectSettings: context.settings,
       taskFs: workspaceFs,
@@ -106,7 +128,7 @@ export function createWorkspaceFactory(
             projectId: context.projectId,
             scopeId: workspaceId,
             taskPath: workDir,
-            tmux: tmuxEnabled,
+            multiplexer: terminalMultiplexer,
             shellSetup,
             ctx,
             proxy: type.proxy,
@@ -117,7 +139,7 @@ export function createWorkspaceFactory(
             projectId: context.projectId,
             scopeId: workspaceId,
             taskPath: workDir,
-            tmux: tmuxEnabled,
+            multiplexer: terminalMultiplexer,
             shellSetup,
             ctx,
             taskEnvVars: bootstrapTaskEnvVars,
@@ -297,7 +319,8 @@ type TaskProviderOpts = {
   projectId: string;
   taskId: string;
   taskPath: string;
-  tmuxEnabled: boolean;
+  agentMultiplexer: MultiplexerBackend | null;
+  terminalMultiplexer: MultiplexerBackend | null;
   shellSetup?: string;
   taskEnvVars: Record<string, string>;
 };
@@ -333,7 +356,7 @@ export async function buildTaskProviders(
         projectId: opts.projectId,
         taskPath: opts.taskPath,
         taskId: opts.taskId,
-        tmux: opts.tmuxEnabled,
+        multiplexer: opts.agentMultiplexer,
         shellSetup: opts.shellSetup,
         ctx,
         proxy: type.proxy,
@@ -343,7 +366,7 @@ export async function buildTaskProviders(
         projectId: opts.projectId,
         scopeId: opts.taskId,
         taskPath: opts.taskPath,
-        tmux: opts.tmuxEnabled,
+        multiplexer: opts.terminalMultiplexer,
         shellSetup: opts.shellSetup,
         ctx,
         proxy: type.proxy,
@@ -360,7 +383,7 @@ export async function buildTaskProviders(
       projectId: opts.projectId,
       taskPath: opts.taskPath,
       taskId: opts.taskId,
-      tmux: opts.tmuxEnabled,
+      multiplexer: opts.agentMultiplexer,
       shellSetup: opts.shellSetup,
       shellProfile: conversationShellProfile,
       ctx,
@@ -370,7 +393,7 @@ export async function buildTaskProviders(
       projectId: opts.projectId,
       scopeId: opts.taskId,
       taskPath: opts.taskPath,
-      tmux: opts.tmuxEnabled,
+      multiplexer: opts.terminalMultiplexer,
       shellSetup: opts.shellSetup,
       ctx,
       taskEnvVars: opts.taskEnvVars,
@@ -386,10 +409,12 @@ export async function resolveTaskEnv(
   task: Pick<Task, 'id' | 'name'>,
   workspace: Pick<Workspace, 'path' | 'fs'>,
   projectPath: string,
-  settings: ProjectSettingsProvider
+  settings: ProjectSettingsProvider,
+  type: WorkspaceType
 ): Promise<{
   taskEnvVars: Record<string, string>;
-  tmuxEnabled: boolean;
+  agentMultiplexer: MultiplexerBackend | null;
+  terminalMultiplexer: MultiplexerBackend | null;
   shellSetup?: string;
 }> {
   const projectSettings = await settings.get();
@@ -398,6 +423,12 @@ export async function resolveTaskEnv(
     projectSettings: settings,
     taskFs: workspace.fs,
   });
+  const persistenceOn = projectSettings.tmux ?? false;
+  const connectionId = type.kind === 'ssh' ? type.connectionId : undefined;
+  const { agentMultiplexer, terminalMultiplexer } = await resolveMultiplexers(
+    persistenceOn,
+    connectionId
+  );
   return {
     taskEnvVars: getTaskEnvVars({
       taskId: task.id,
@@ -407,7 +438,8 @@ export async function resolveTaskEnv(
       defaultBranch,
       portSeed: workspace.path,
     }),
-    tmuxEnabled: projectSettings.tmux ?? false,
+    agentMultiplexer,
+    terminalMultiplexer,
     shellSetup: taskLevelSettings.shellSetup ?? projectSettings.shellSetup,
   };
 }

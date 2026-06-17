@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CONVERSATION_FRESH_RECOVERY_GRACE_MS } from '@main/core/conversations/conversation-session-supervisor';
 import type { Pty, PtyExitInfo } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
+import type { MultiplexerBackend } from '@main/core/pty/multiplexer';
+import { tmuxBackend } from '@main/core/pty/multiplexer/tmux';
 import { agentSessionExitedChannel } from '@shared/core/agents/agentEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { ptyExitChannel } from '@shared/core/pty/ptyEvents';
@@ -160,7 +162,7 @@ type RespawnState = {
 };
 
 function localProvider({
-  tmux = false,
+  multiplexer = null,
   shellProfile = {
     id: 'sh',
     resolvedShellId: 'sh',
@@ -173,7 +175,7 @@ function localProvider({
   },
   ctx = {} as never,
 }: {
-  tmux?: boolean;
+  multiplexer?: MultiplexerBackend | null;
   shellProfile?: ConstructorParameters<typeof LocalConversationProvider>[0]['shellProfile'];
   ctx?: ConstructorParameters<typeof LocalConversationProvider>[0]['ctx'];
 } = {}) {
@@ -181,7 +183,7 @@ function localProvider({
     projectId: 'project-1',
     taskId: 'task-1',
     taskPath: '/tmp/task-1',
-    tmux,
+    multiplexer,
     shellProfile,
     ctx,
   });
@@ -190,10 +192,10 @@ function localProvider({
 function sshProvider(
   proxy = { getRemoteShellProfile: vi.fn(async () => ({})) },
   {
-    tmux = false,
+    multiplexer = null,
     ctx = {} as never,
   }: {
-    tmux?: boolean;
+    multiplexer?: MultiplexerBackend | null;
     ctx?: ConstructorParameters<typeof SshConversationProvider>[0]['ctx'];
   } = {}
 ) {
@@ -201,7 +203,7 @@ function sshProvider(
     projectId: 'project-1',
     taskId: 'task-1',
     taskPath: '/tmp/task-1',
-    tmux,
+    multiplexer,
     ctx,
     proxy: proxy as never,
   });
@@ -656,7 +658,7 @@ describe('conversation provider respawn state', () => {
     try {
       const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
       spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
-      const provider = localProvider({ tmux: true });
+      const provider = localProvider({ multiplexer: tmuxBackend });
       const item = conversation();
 
       await provider.startSession(item);
@@ -685,7 +687,7 @@ describe('conversation provider respawn state', () => {
         success: true,
         data: fakePty(exitHandlers),
       });
-      const provider = sshProvider(undefined, { tmux: true });
+      const provider = sshProvider(undefined, { multiplexer: tmuxBackend });
       const item = conversation();
 
       await provider.startSession(item);
@@ -824,7 +826,7 @@ describe('conversation provider respawn state', () => {
     const ctx = {
       exec: vi.fn(async () => ({ stdout: '', stderr: '' })),
     };
-    const provider = localProvider({ tmux: true, ctx: ctx as never });
+    const provider = localProvider({ multiplexer: tmuxBackend, ctx: ctx as never });
     const item = conversation();
     const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
 
@@ -846,7 +848,7 @@ describe('conversation provider respawn state', () => {
     const ctx = {
       exec: vi.fn(async () => ({ stdout: '', stderr: '' })),
     };
-    const provider = sshProvider(undefined, { tmux: true, ctx: ctx as never });
+    const provider = sshProvider(undefined, { multiplexer: tmuxBackend, ctx: ctx as never });
     const item = conversation();
     const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
 
@@ -867,7 +869,7 @@ describe('conversation provider respawn state', () => {
     const ctx = {
       exec: vi.fn(async () => ({ stdout: '', stderr: '' })),
     };
-    const provider = localProvider({ tmux: true, ctx: ctx as never });
+    const provider = localProvider({ multiplexer: tmuxBackend, ctx: ctx as never });
     const item = conversation();
     const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
 
@@ -892,7 +894,7 @@ describe('conversation provider respawn state', () => {
     const ctx = {
       exec: vi.fn(async () => ({ stdout: '', stderr: '' })),
     };
-    const provider = sshProvider(undefined, { tmux: true, ctx: ctx as never });
+    const provider = sshProvider(undefined, { multiplexer: tmuxBackend, ctx: ctx as never });
     const item = conversation();
     const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
 
@@ -914,7 +916,7 @@ describe('conversation provider respawn state', () => {
     const firstPty = fakePty(firstExitHandlers);
     const secondPty = fakePty(secondExitHandlers);
     spawnLocalPty.mockReturnValueOnce(firstPty).mockReturnValueOnce(secondPty);
-    const provider = localProvider({ tmux: true });
+    const provider = localProvider({ multiplexer: tmuxBackend });
     const item = conversation();
     const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
 
@@ -936,7 +938,7 @@ describe('conversation provider respawn state', () => {
     openSsh2Pty
       .mockResolvedValueOnce({ success: true, data: firstPty })
       .mockResolvedValueOnce({ success: true, data: secondPty });
-    const provider = sshProvider(undefined, { tmux: true });
+    const provider = sshProvider(undefined, { multiplexer: tmuxBackend });
     const item = conversation();
     const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
 

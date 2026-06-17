@@ -5,7 +5,7 @@ import { ptySessionRegistry, type PtySessionMetadata } from '@main/core/pty/pty-
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
-import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import type { MultiplexerBackend } from '@main/core/pty/multiplexer';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import type { SshConnectionManagerEvent } from '@main/core/ssh/lifecycle/ssh-connection-manager';
@@ -46,7 +46,7 @@ export class SshTerminalProvider implements TerminalProvider {
   private readonly scopeId: string;
   private readonly taskPath: string;
   private readonly taskEnvVars: Record<string, string>;
-  private readonly tmux: boolean;
+  private readonly multiplexer: MultiplexerBackend | null;
   private readonly shellSetup?: string;
   private readonly ctx: IExecutionContext;
   private readonly proxy: SshClientProxy;
@@ -58,7 +58,7 @@ export class SshTerminalProvider implements TerminalProvider {
     scopeId,
     taskPath,
     taskEnvVars = {},
-    tmux = false,
+    multiplexer = null,
     shellSetup,
     ctx,
     proxy,
@@ -68,7 +68,7 @@ export class SshTerminalProvider implements TerminalProvider {
     scopeId: string;
     taskPath: string;
     taskEnvVars?: Record<string, string>;
-    tmux?: boolean;
+    multiplexer?: MultiplexerBackend | null;
     shellSetup?: string;
     ctx: IExecutionContext;
     proxy: SshClientProxy;
@@ -78,7 +78,7 @@ export class SshTerminalProvider implements TerminalProvider {
     this.scopeId = scopeId;
     this.taskPath = taskPath;
     this.taskEnvVars = taskEnvVars;
-    this.tmux = tmux;
+    this.multiplexer = multiplexer;
     this.shellSetup = shellSetup;
     this.ctx = ctx;
     this.proxy = proxy;
@@ -163,7 +163,9 @@ export class SshTerminalProvider implements TerminalProvider {
       taskId: this.scopeId,
       cwd: this.taskPath,
       shellSetup: shellSetup ?? this.shellSetup,
-      tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
+      multiplexer: this.multiplexer
+        ? { id: this.multiplexer.id, sessionName: this.multiplexer.makeSessionName(sessionId) }
+        : undefined,
       command: command?.command,
       args: command?.args,
     };
@@ -214,7 +216,7 @@ export class SshTerminalProvider implements TerminalProvider {
       if (!policy.preserveBufferOnExit) {
         ptySessionRegistry.unregister(sessionId, { pty, exitInfo: info });
       }
-      if (shouldRespawn && !this.tmux) {
+      if (shouldRespawn && !this.multiplexer) {
         const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
         this.respawnCounts.set(sessionId, count);
 
@@ -311,17 +313,19 @@ export class SshTerminalProvider implements TerminalProvider {
     }
     this.terminals.delete(terminalId);
     this.shellProfiles.delete(sessionId);
-    if (this.tmux) {
-      await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
-    }
+    await this.multiplexer?.killSession(this.ctx, this.multiplexer.makeSessionName(sessionId));
   }
 
   async destroyAll(): Promise<void> {
     sshConnectionManager.off('connection-event', this._handleReconnect);
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
-    if (this.tmux) {
-      await Promise.all(sessionIds.map((id) => killTmuxSession(this.ctx, makeTmuxSessionName(id))));
+    if (this.multiplexer) {
+      await Promise.all(
+        sessionIds.map((id) =>
+          this.multiplexer!.killSession(this.ctx, this.multiplexer!.makeSessionName(id))
+        )
+      );
     }
     this.knownSessionIds.clear();
     this.terminals.clear();

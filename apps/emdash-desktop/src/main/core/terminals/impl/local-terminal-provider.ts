@@ -11,7 +11,7 @@ import {
   type PtySpawnIntent,
 } from '@main/core/pty/pty-spawn-platform';
 import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
-import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import type { MultiplexerBackend } from '@main/core/pty/multiplexer';
 import { resolveTerminalShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { log } from '@main/lib/logger';
@@ -45,7 +45,7 @@ export class LocalTerminalProvider implements TerminalProvider {
   private readonly projectId: string;
   private readonly scopeId: string;
   private readonly taskPath: string;
-  private readonly tmux: boolean;
+  private readonly multiplexer: MultiplexerBackend | null;
   private readonly shellSetup?: string;
   private readonly ctx: IExecutionContext;
   private readonly taskEnvVars: Record<string, string>;
@@ -54,7 +54,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     projectId,
     scopeId,
     taskPath,
-    tmux = false,
+    multiplexer = null,
     shellSetup,
     ctx,
     taskEnvVars = {},
@@ -62,7 +62,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     projectId: string;
     scopeId: string;
     taskPath: string;
-    tmux?: boolean;
+    multiplexer?: MultiplexerBackend | null;
     shellSetup?: string;
     ctx: IExecutionContext;
     taskEnvVars?: Record<string, string>;
@@ -70,7 +70,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     this.projectId = projectId;
     this.scopeId = scopeId;
     this.taskPath = taskPath;
-    this.tmux = tmux;
+    this.multiplexer = multiplexer;
     this.shellSetup = shellSetup;
     this.ctx = ctx;
     this.taskEnvVars = taskEnvVars;
@@ -143,14 +143,18 @@ export class LocalTerminalProvider implements TerminalProvider {
           command,
           shellProfile,
           shellSetup: shellSetup ?? this.shellSetup,
-          tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
+          multiplexer: this.multiplexer
+            ? { id: this.multiplexer.id, sessionName: this.multiplexer.makeSessionName(sessionId) }
+            : undefined,
         }
       : {
           kind: 'interactive-shell',
           cwd: this.taskPath,
           shellProfile,
           shellSetup: shellSetup ?? this.shellSetup,
-          tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
+          multiplexer: this.multiplexer
+            ? { id: this.multiplexer.id, sessionName: this.multiplexer.makeSessionName(sessionId) }
+            : undefined,
         };
     const resolved = resolveLocalPtySpawn({
       platform: process.platform,
@@ -191,7 +195,7 @@ export class LocalTerminalProvider implements TerminalProvider {
       if (!policy.preserveBufferOnExit) {
         ptySessionRegistry.unregister(sessionId, { pty, exitInfo: info });
       }
-      if (shouldRespawn && !this.tmux) {
+      if (shouldRespawn && !this.multiplexer) {
         const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
         this.respawnCounts.set(sessionId, count);
 
@@ -265,16 +269,18 @@ export class LocalTerminalProvider implements TerminalProvider {
       ptySessionRegistry.unregister(sessionId);
     }
     this.shellProfiles.delete(sessionId);
-    if (this.tmux) {
-      await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
-    }
+    await this.multiplexer?.killSession(this.ctx, this.multiplexer.makeSessionName(sessionId));
   }
 
   async destroyAll(): Promise<void> {
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
-    if (this.tmux) {
-      await Promise.all(sessionIds.map((id) => killTmuxSession(this.ctx, makeTmuxSessionName(id))));
+    if (this.multiplexer) {
+      await Promise.all(
+        sessionIds.map((id) =>
+          this.multiplexer!.killSession(this.ctx, this.multiplexer!.makeSessionName(id))
+        )
+      );
     }
     this.knownSessionIds.clear();
     this.shellProfiles.clear();
