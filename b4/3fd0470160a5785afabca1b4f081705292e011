@@ -1,0 +1,49 @@
+apps/emdash-desktop/src/renderer/lib/hooks/useTabShortcuts.ts
+  s_d5673845777db7::t_397520d493c0e5 3,84,92
+apps/emdash-desktop/src/shared/events/appEvents.ts
+  s_d5673845777db7::t_b7675277eccc61 3,23-26
+apps/emdash-desktop/src/renderer/lib/pty/use-pty.ts
+  s_d5673845777db7::t_588e1d7c0b92dd 3,11,49-51,443
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_e19d50f0e6568c::t_2fc77b3245a6a4 3,5,30,95-96,99-105
+  s_d5673845777db7::t_d4cca6bd8780b0 7,97-98
+apps/emdash-desktop/src/shared/shortcuts.test.ts
+  s_d5673845777db7::t_6aff532d6c165a 1-76
+apps/emdash-desktop/src/renderer/lib/hotkeys/dispatch-matching-hotkeys.ts
+  s_d5673845777db7::t_c2d517d924b2ef 3-9
+  s_d5673845777db7::t_41237be5523e2a 1-2,10-46
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.test.ts
+  s_d5673845777db7::t_af974bc9e0a5b3 4,244-245
+  s_e19d50f0e6568c::t_21c659158ac82c 225-243,246-247
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_d5673845777db7::t_6153fccb8bdbb9 19,21-25,219,224-225
+  s_e19d50f0e6568c::t_5360228e98373e 220-223,226-231
+apps/emdash-desktop/src/shared/shortcuts.ts
+  s_d5673845777db7::t_13428b4fbd250f 18-86
+apps/emdash-desktop/src/renderer/lib/components/monaco-keyboard-bridge.tsx
+  s_d5673845777db7::t_c999a93bd789f4 2,24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "b43fd0470160a5785afabca1b4f081705292e011",
+  "prompts": {},
+  "sessions": {
+    "s_d5673845777db7": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed525-8d02-7f6a-954f-d46851f6ff5f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_e19d50f0e6568c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed40c-b594-7c43-a583-87b03477497c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
