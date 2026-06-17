@@ -62,6 +62,7 @@ export async function buildTaskFromWorkspace(
     await buildTaskProviders(type, {
       projectId,
       taskId: task.id,
+      workspaceId: workspace.id,
       taskPath: workspace.path,
       tmuxEnabled,
       shellSetup,

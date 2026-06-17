@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useDevServers } from '@renderer/features/tasks/task-view-context';
+import { usePreviewServers } from '@renderer/features/tasks/task-view-context';
 import { rpc } from '@renderer/lib/ipc';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
 import { browserControlsRegistry } from './browser-controls-registry';
@@ -25,7 +25,7 @@ export const BrowserPane = observer(function BrowserPane({
   visible: boolean;
 }) {
   const session = browserSessionStore.getSession(browserId);
-  const devServers = useDevServers();
+  const previewServers = usePreviewServers();
   const webviewRef = useRef<BrowserWebviewElement | null>(null);
   const focusUrlRef = useRef<() => void>(() => {});
   const pendingUrlRef = useRef<string | null>(null);
@@ -246,7 +246,7 @@ export const BrowserPane = observer(function BrowserPane({
       />
       <div className="emlight min-h-0 flex-1 bg-background">
         {showStartPage ? (
-          <BrowserStartPage devServerUrls={devServers.urls} onOpenUrl={navigateTo} />
+          <BrowserStartPage devServerUrls={previewServers.urls} onOpenUrl={navigateTo} />
         ) : webviewProps && isRegistered ? (
           <webview
             key={`${webviewMount?.browserId ?? 'browser'}:${webviewMount?.partition ?? 'partition'}:${webviewMount?.revision ?? 0}`}

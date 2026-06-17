@@ -9,6 +9,7 @@ import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
 import { GitRepositoryService } from '@main/core/git/repository/service';
+import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
 import type { MachineRef, RuntimeManager } from '@main/core/runtime/types';
 import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
 import { appSettingsService } from '@main/core/settings/settings-service';
@@ -104,6 +105,7 @@ export function createWorkspaceFactory(
       type.kind === 'ssh'
         ? new SshTerminalProvider({
             projectId: context.projectId,
+            workspaceId,
             scopeId: workspaceId,
             taskPath: workDir,
             tmux: tmuxEnabled,
@@ -115,6 +117,7 @@ export function createWorkspaceFactory(
           })
         : new LocalTerminalProvider({
             projectId: context.projectId,
+            workspaceId,
             scopeId: workspaceId,
             taskPath: workDir,
             tmux: tmuxEnabled,
@@ -229,6 +232,7 @@ export function createWorkspaceFactory(
       onCreate: context.extraHooks?.onCreate,
 
       onDestroy: async (ws) => {
+        await previewServerService.stopForWorkspace(context.projectId, workspaceId);
         if (ownsFetchService) {
           gitRepositoryFetchService.stop();
         }
@@ -264,6 +268,7 @@ export function createWorkspaceFactory(
       },
 
       onDetach: async (ws) => {
+        await previewServerService.stopForWorkspace(context.projectId, workspaceId);
         await context.extraHooks?.onDetach?.(ws);
       },
     };
@@ -296,6 +301,7 @@ async function cacheWorkspaceLineStats(
 type TaskProviderOpts = {
   projectId: string;
   taskId: string;
+  workspaceId: string;
   taskPath: string;
   tmuxEnabled: boolean;
   shellSetup?: string;
@@ -341,6 +347,7 @@ export async function buildTaskProviders(
       }),
       terminals: new SshTerminalProvider({
         projectId: opts.projectId,
+        workspaceId: opts.workspaceId,
         scopeId: opts.taskId,
         taskPath: opts.taskPath,
         tmux: opts.tmuxEnabled,
@@ -368,6 +375,7 @@ export async function buildTaskProviders(
     }),
     terminals: new LocalTerminalProvider({
       projectId: opts.projectId,
+      workspaceId: opts.workspaceId,
       scopeId: opts.taskId,
       taskPath: opts.taskPath,
       tmux: opts.tmuxEnabled,
