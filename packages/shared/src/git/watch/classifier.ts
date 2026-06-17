@@ -55,6 +55,8 @@ export function classifyGitWatchEvents(
     if (commonRel !== null) {
       classifyCommonGitPath(commonRel, repo);
       if (commonGitPathAffectsWorktreeHead(commonRel)) {
+        // Shared branch refs do not identify which registered worktree is on that branch.
+        // Fan out conservatively until GitLayout carries current-branch metadata.
         addAllWorktreeEffects({ status: true, head: true });
       }
     }
@@ -96,13 +98,7 @@ function classifyCommonGitPath(rel: string, repo: RepoWatchEffects): void {
 }
 
 function commonGitPathAffectsWorktreeHead(rel: string): boolean {
-  return (
-    rel.startsWith('refs/heads/') ||
-    rel === 'packed-refs' ||
-    rel === 'HEAD' ||
-    rel === 'logs/HEAD' ||
-    rel.startsWith('logs/refs/heads/')
-  );
+  return rel.startsWith('refs/heads/') || rel === 'HEAD';
 }
 
 function relativeInside(root: string, child: string): string | null {
