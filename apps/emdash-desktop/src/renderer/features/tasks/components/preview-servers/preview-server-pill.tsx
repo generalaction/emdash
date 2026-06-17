@@ -88,8 +88,10 @@ export const PreviewServerPill = observer(function PreviewServerPill({
         <DropdownMenuItem
           disabled={!canOpen}
           onClick={() => {
-            if (canOpen && url) taskView.tabGroupManager.openBrowser(url);
-            taskView.setFocusedRegion('main');
+            if (canOpen && url) {
+              taskView.tabGroupManager.openBrowser(url);
+              taskView.setFocusedRegion('main');
+            }
           }}
         >
           <Globe className="size-3.5" />
