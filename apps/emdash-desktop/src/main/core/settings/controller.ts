@@ -7,6 +7,7 @@ import { appSettingsService, type AppSettings, type AppSettingsKey } from './set
 async function reconcileSettingsRuntimeState(key: AppSettingsKey): Promise<void> {
   if (key === 'resourceMonitor') await reconcileResourceSampler();
   if (key === 'keyboard') {
+    // Re-read the effective settings so runtime state observes service-side defaults or merges.
     browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
   }
   if (key === 'browser') {

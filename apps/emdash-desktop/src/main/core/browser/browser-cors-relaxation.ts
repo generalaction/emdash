@@ -35,6 +35,9 @@ export function applyLocalDevelopmentCorsRelaxation(
   if (request.requestedHeaders) {
     setHeader(next, 'Access-Control-Allow-Headers', [request.requestedHeaders]);
   }
+  if (request.requestedMethod) {
+    setHeader(next, 'Access-Control-Max-Age', ['86400']);
+  }
   appendHeaderToken(next, 'Vary', 'Origin');
   return next;
 }

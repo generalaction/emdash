@@ -40,6 +40,29 @@ describe('browser CORS relaxation', () => {
       'Access-Control-Allow-Credentials': ['true'],
       'Access-Control-Allow-Methods': ['PATCH'],
       'Access-Control-Allow-Headers': ['authorization'],
+      'Access-Control-Max-Age': ['86400'],
+      Vary: ['Accept-Encoding, Origin'],
+    });
+  });
+
+  it('uses default methods without clearing server allow headers for non-preflight requests', () => {
+    expect(
+      applyLocalDevelopmentCorsRelaxation(
+        {
+          'Access-Control-Allow-Headers': ['x-existing-header'],
+          Vary: ['Accept-Encoding'],
+        },
+        {
+          origin: 'http://localhost:3000',
+          requestedMethod: undefined,
+          requestedHeaders: undefined,
+        }
+      )
+    ).toEqual({
+      'Access-Control-Allow-Headers': ['x-existing-header'],
+      'Access-Control-Allow-Origin': ['http://localhost:3000'],
+      'Access-Control-Allow-Credentials': ['true'],
+      'Access-Control-Allow-Methods': ['GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD'],
       Vary: ['Accept-Encoding, Origin'],
     });
   });
