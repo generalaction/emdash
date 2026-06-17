@@ -1,0 +1,38 @@
+apps/emdash-desktop/src/renderer/features/automations/components/AutomationTemplateRail.tsx
+  s_fc7a64f3c71c16::t_3930c25dd5c5b3 1,19-39,41
+apps/emdash-desktop/src/renderer/lib/CronPicker/cron-utils.ts
+  s_fc7a64f3c71c16::t_58cf622433b33e 29-34
+apps/emdash-desktop/src/renderer/lib/CronPicker/CronPicker.tsx
+  s_fc7a64f3c71c16::t_b508815a8b3f38 60-63
+  s_33f136f76128a5::t_10d711464d0827 128,146-147,163,191
+  s_fc7a64f3c71c16::t_b96f995cef4fcf 212,222,224-225
+  s_33f136f76128a5::t_7472086b19a9ee 30-33,42-59,64-65,164,169,177-190,192,211,265-266,359
+  s_fc7a64f3c71c16::t_f326e5554c2625 289-293
+  s_fc7a64f3c71c16::t_614b4b6e88a5d2 104-127,129-145,148-162,165-168,170-176,193-210,213-221,223,226-233
+  s_fc7a64f3c71c16::t_4fadde7b0a2301 1
+  s_33f136f76128a5::t_45854e558f21fb 355
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "b082450c0b40362a7555e9f1ad21645577b173d6",
+  "prompts": {},
+  "sessions": {
+    "s_33f136f76128a5": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed672-71ed-729b-9e37-72398c370fe8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_fc7a64f3c71c16": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b1d3389-4d79-4f12-8710-4a1de3b5e5d9",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
