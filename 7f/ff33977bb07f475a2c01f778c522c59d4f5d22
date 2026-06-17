@@ -1,0 +1,27 @@
+packages/plugins/src/agents/impl/autohand/hooks.ts
+  s_674d10cbbee75f::t_999ae0749182ad 1-75
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_674d10cbbee75f::t_473b67dc7a5c5e 688-691
+packages/plugins/src/agents/impl/autohand/hooks.test.ts
+  s_674d10cbbee75f::t_f17d006d5f17fd 1-92
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_674d10cbbee75f::t_b0f3d952afc2fd 100,298-315
+packages/plugins/src/agents/impl/autohand/index.ts
+  s_674d10cbbee75f::t_6d451e0440d5c6 3,22-24,41,53-55,58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "7fff33977bb07f475a2c01f778c522c59d4f5d22",
+  "prompts": {},
+  "sessions": {
+    "s_674d10cbbee75f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed40e-dce0-7953-b5b1-2553dec1842c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
