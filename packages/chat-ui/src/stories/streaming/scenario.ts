@@ -222,7 +222,6 @@ export type ToolUpdateStep = {
   status?: ToolStatus;
   name?: string;
   inputSummary?: string;
-  detail?: string;
 };
 
 /**
@@ -256,7 +255,6 @@ export function streamTool(opts: {
           ...(u.status !== undefined ? { status: u.status } : {}),
           ...(u.name !== undefined ? { name: u.name } : {}),
           ...(u.inputSummary !== undefined ? { inputSummary: u.inputSummary } : {}),
-          ...(u.detail !== undefined ? { detail: u.detail } : {}),
         }),
     });
   }

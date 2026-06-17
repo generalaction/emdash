@@ -131,9 +131,9 @@ export const ToolRunning: Story = {
         {
           kind: 'tool',
           id: 't1',
-          name: 'read_file',
+          name: 'search',
           status: 'running',
-          inputSummary: 'src/auth/middleware.ts',
+          inputSummary: 'SolidJS virtualized list patterns',
         },
       ]}
       height={80}
@@ -147,10 +147,10 @@ export const ToolDone: Story = {
       items={[
         {
           kind: 'tool',
-          id: 't1',
-          name: 'write_file',
+          id: 't2',
+          name: 'fetch_url',
           status: 'done',
-          inputSummary: 'src/auth/jwt.ts',
+          inputSummary: 'https://solidjs.com/docs/latest',
         },
       ]}
       height={80}
@@ -164,14 +164,13 @@ export const ToolError: Story = {
       items={[
         {
           kind: 'tool',
-          id: 't1',
-          name: 'run_command',
+          id: 't3',
+          name: 'web.run',
           status: 'error',
-          inputSummary: 'npm test',
-          detail: 'Error: ENOENT: no such file or directory',
+          inputSummary: 'latest ACP protocol specification',
         },
       ]}
-      height={120}
+      height={80}
     />
   ),
 };

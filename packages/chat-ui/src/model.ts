@@ -24,10 +24,8 @@ export type ChatToolCall = {
   id: string;
   name: string;
   status: ToolStatus;
-  /** Short one-line synopsis shown in collapsed view. */
+  /** Short one-line synopsis shown alongside the tool name. */
   inputSummary?: string;
-  /** Full detail text (e.g. file path + diff), shown in expanded view. */
-  detail?: string;
 };
 
 /**

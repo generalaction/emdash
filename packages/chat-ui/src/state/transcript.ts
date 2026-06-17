@@ -35,15 +35,14 @@ export type TranscriptEvent =
   /** A text chunk for a message (user or assistant). Delta — appended. */
   | { type: 'message_chunk'; id: string; role: ChatRole; text: string }
   /** A new tool call has started. */
-  | { type: 'tool_start'; id: string; name: string; inputSummary?: string; detail?: string }
-  /** An existing tool call was updated (status, name, summary, or detail). */
+  | { type: 'tool_start'; id: string; name: string; inputSummary?: string }
+  /** An existing tool call was updated (status, name, or summary). */
   | {
       type: 'tool_update';
       id: string;
       status?: ToolStatus;
       name?: string;
       inputSummary?: string;
-      detail?: string;
     }
   /**
    * A chunk of reasoning text. Delta — appended to the thinking row's text.
@@ -166,7 +165,6 @@ export function createTranscript(): TranscriptApi {
                   name: event.name,
                   status: 'running',
                   inputSummary: event.inputSummary,
-                  detail: event.detail,
                 } satisfies ChatToolCall);
               }
               break;
@@ -181,7 +179,6 @@ export function createTranscript(): TranscriptApi {
                 if (event.status !== undefined) existing.status = event.status;
                 if (event.name !== undefined) existing.name = event.name;
                 if (event.inputSummary !== undefined) existing.inputSummary = event.inputSummary;
-                if (event.detail !== undefined) existing.detail = event.detail;
               } else {
                 // Defensive: handle update arriving before start
                 s.activeTurn.push({
@@ -190,7 +187,6 @@ export function createTranscript(): TranscriptApi {
                   name: event.name ?? 'unknown',
                   status: event.status ?? 'running',
                   inputSummary: event.inputSummary,
-                  detail: event.detail,
                 } satisfies ChatToolCall);
               }
               break;

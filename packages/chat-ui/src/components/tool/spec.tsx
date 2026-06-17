@@ -1,9 +1,9 @@
 /**
  * toolRow — RowComponent for ChatToolCall.
  *
- * measure / estimate: both call measureTool (pure arithmetic, no pretext)
- * Render:             Tool component
- * cssVars:            tool row height
+ * estimate / measure: constant TOOL_ROW_H + ROW_GAP (no collapse state).
+ * Render:            Tool component (no props beyond item).
+ * cssVars:           tool row height constant.
  */
 
 import type { Component } from 'solid-js';
@@ -16,16 +16,18 @@ import { Tool } from './Tool';
 export type ToolRowLayout = { height: number };
 
 function ToolRender(props: { item: ChatToolCall; layout: ToolRowLayout; ctx: RenderCtx }) {
-  return <Tool item={props.item} collapsed={props.ctx.viewState.isCollapsed(props.item.id)} />;
+  void props.layout;
+  void props.ctx;
+  return <Tool item={props.item} />;
 }
 
 export const toolRow: RowComponent<ChatToolCall, ToolRowLayout> = {
-  estimate(item: ChatToolCall, ctx: MeasureCtx): number {
-    return measureTool(item, ctx.isCollapsed);
+  estimate(item: ChatToolCall, _ctx: MeasureCtx): number {
+    return measureTool(item);
   },
 
-  measure(item: ChatToolCall, ctx: MeasureCtx): ToolRowLayout {
-    return { height: measureTool(item, ctx.isCollapsed) };
+  measure(item: ChatToolCall, _ctx: MeasureCtx): ToolRowLayout {
+    return { height: measureTool(item) };
   },
 
   Render: ToolRender as Component<{ item: ChatToolCall; layout: ToolRowLayout; ctx: RenderCtx }>,

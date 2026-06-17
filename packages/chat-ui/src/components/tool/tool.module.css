@@ -1,27 +1,12 @@
 /*
- * render-tool retained styles — geometry-coupled rules only.
+ * Tool row — geometry-coupled rules only.
  *
- * Visual rules (flex/gap/items, colors, overflow, cursors) have been moved to
- * Tailwind classes in Tool.tsx. Only the row padding + font-size + line-height
- * are retained because measureTool() uses TOOL_ROW_H (28px) which is derived
- * from BODY.lineHeight (20px) + 4px top/bottom padding.
+ * padding, font-size, and line-height feed TOOL_ROW_H measurement.
+ * Visual rules (flex/gap/colors/shimmer) live in Tailwind in Tool.tsx.
  */
 
-/* ── Row container geometry ────────────────────────────────────────────────── */
-
-/* padding, font-size, and line-height feed TOOL_ROW_H measurement — keep var-driven */
 .pchat-tool {
   padding: 4px var(--chat-msg-pad-x);
   font-size: var(--type-body-font-size);
   line-height: var(--type-body-line-height);
-}
-
-/* ── Detail body geometry ─────────────────────────────────────────────────── */
-
-/* padding feeds the DETAIL_LINE_H + detail padding (12px) calculation */
-.pchat-tool__detail {
-  padding: 6px var(--chat-msg-pad-x) 4px;
-  font-size: var(--type-body-font-size);
-  line-height: var(--type-body-line-height);
-  width: 100%;
 }

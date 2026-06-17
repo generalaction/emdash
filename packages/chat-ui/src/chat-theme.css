@@ -14,8 +14,8 @@
   --chat-muted: var(--foreground-muted);
   --chat-border: var(--border);
   --chat-link: var(--blue-11);
-  --chat-bubble-user: var(--blue-9);
-  --chat-bubble-user-fg: var(--foreground-inverse);
+  --chat-bubble-user: var(--background-3);
+  --chat-bubble-user-fg: var(--foreground);
   --chat-mention-bg: var(--blue-3);
   --chat-mention-fg: var(--blue-11);
   /* --neutral-1 is lightest gray in light mode and near-black in dark mode —

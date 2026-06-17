@@ -1,4 +1,4 @@
-import type { ChatItem, ChatRole, ToolStatus } from './model';
+import type { ChatItem, ChatRole, FileOpKind, ToolStatus } from './model';
 
 /** Tiny deterministic PRNG (mulberry32) so stories render identically each time. */
 function makeRng(seed: number): () => number {
@@ -68,42 +68,176 @@ function bodyFor(rng: () => number, i: number): string {
   }
 }
 
-const TOOL_NAMES = ['read_file', 'write_file', 'run_command', 'search'];
+/** Thinking text — multi-paragraph reasoning block. */
+function thinkingText(rng: () => number): string {
+  return [
+    words(rng, 15, 40) + '.',
+    '',
+    words(rng, 20, 50) + '.',
+    '',
+    `- ${words(rng, 5, 12)}`,
+    `- ${words(rng, 5, 12)}`,
+    `- ${words(rng, 5, 12)}`,
+  ].join('\n');
+}
+
+const FILE_PATHS = [
+  'packages/chat-ui/src/components/execute/Execute.tsx',
+  'packages/chat-ui/src/components/file-op/FileOperation.tsx',
+  'apps/emdash-desktop/src/renderer/features/tasks/conversations/chat/chat-store.ts',
+  'packages/ui/src/theme/theme.css',
+  'packages/chat-ui/src/state/transcript.ts',
+  'apps/emdash-desktop/src/main/core/acp/acp-session-manager.ts',
+  'packages/chat-ui/src/model.ts',
+  'packages/chat-ui/src/components/thinking/Thinking.tsx',
+];
+
+const COMMANDS = [
+  'ls -la',
+  'pnpm run test',
+  'pnpm run build',
+  'find . -name "*.ts" -type f',
+  'git diff --stat HEAD~1',
+  'pnpm --filter @emdash/chat-ui run typecheck',
+];
+
+const GENERIC_TOOL_NAMES = ['search', 'fetch_url', 'think', 'web.run'];
+const GENERIC_TOOL_SUMMARIES = [
+  'emdash SolidJS component patterns',
+  'https://solidjs.com/docs/latest',
+  'how to implement a virtualized list',
+  'latest ACP protocol specification',
+];
+
+function pick<T>(rng: () => number, arr: T[]): T {
+  return arr[Math.floor(rng() * arr.length)];
+}
 
 /**
- * Generate `count` ChatItems (default 6000) alternating user / assistant
- * messages with occasional tool calls. Deterministic given `seed`.
+ * Generate a deterministic mix of ChatItems covering every current renderer:
+ * user messages, thinking (with + without duration), file-op (single + multi),
+ * execute (with + without duration, occasional error), and generic tool rows.
  *
- * IDs are stable (`msg-0`, `tool-3`, …) which matters because HeightModel's
- * cache and ViewStateStore are keyed off `${messageId}#${index}` block IDs.
+ * All rows have terminal status so the perf stories don't spin live timers.
+ * IDs are stable (`msg-0`, `exec-4`, …) — the height cache and ViewStateStore
+ * are keyed by item id.
+ *
+ * The 10-item cycle is:
+ *   0 user message
+ *   1 thinking done
+ *   2 file-op single read
+ *   3 assistant message (varied markdown)
+ *   4 execute done/error
+ *   5 file-op multi edit (2-4 paths)
+ *   6 generic tool
+ *   7 assistant message (varied markdown)
+ *   8 file-op delete or move
+ *   9 assistant message (code/table heavy)
  */
 export function generateMockTranscript(count = 6000, seed = 1): ChatItem[] {
   const rng = makeRng(seed);
   const items: ChatItem[] = [];
 
+  const CYCLE = 10;
+
   for (let i = 0; i < count; i++) {
-    // ~every 7th item is a tool call
-    if (i % 7 === 3) {
-      const statuses: ToolStatus[] = ['done', 'done', 'done', 'error'];
-      const status = statuses[Math.floor(rng() * statuses.length)];
+    const slot = i % CYCLE;
+
+    if (slot === 0) {
+      // ── user message ─────────────────────────────────────────────────────
+      items.push({
+        kind: 'message',
+        id: `msg-${i}`,
+        role: 'user' as ChatRole,
+        text: words(rng, 4, 16) + '?',
+      });
+    } else if (slot === 1) {
+      // ── thinking done ────────────────────────────────────────────────────
+      const hasDuration = rng() > 0.2; // ~80% have durationMs, ~20% omit (exercises optional)
+      items.push({
+        kind: 'thinking',
+        id: `think-${i}`,
+        status: 'done',
+        text: thinkingText(rng),
+        startedAt: 0,
+        ...(hasDuration ? { durationMs: 1000 + Math.floor(rng() * 9000) } : {}),
+      });
+    } else if (slot === 2) {
+      // ── file-op single read ───────────────────────────────────────────────
+      items.push({
+        kind: 'file-op',
+        id: `fo-${i}`,
+        op: 'read' as FileOpKind,
+        status: 'done' as ToolStatus,
+        ops: [{ path: pick(rng, FILE_PATHS) }],
+      });
+    } else if (slot === 3) {
+      // ── assistant message (prose / heading / list / code / quote / table) ─
+      items.push({
+        kind: 'message',
+        id: `msg-${i}`,
+        role: 'assistant' as ChatRole,
+        text: bodyFor(rng, i),
+      });
+    } else if (slot === 4) {
+      // ── execute done (occasional error, ~20% no duration) ─────────────────
+      const isError = rng() < 0.1;
+      const hasDuration = rng() > 0.2;
+      items.push({
+        kind: 'execute',
+        id: `exec-${i}`,
+        command: pick(rng, COMMANDS),
+        status: isError ? 'error' : ('done' as ToolStatus),
+        startedAt: 0,
+        ...(hasDuration ? { durationMs: 500 + Math.floor(rng() * 4500) } : {}),
+      });
+    } else if (slot === 5) {
+      // ── file-op multi edit ───────────────────────────────────────────────
+      const opCount = 2 + Math.floor(rng() * 3); // 2-4 paths
+      const ops = Array.from({ length: opCount }, () => ({ path: pick(rng, FILE_PATHS) }));
+      items.push({
+        kind: 'file-op',
+        id: `fo-${i}`,
+        op: 'edit' as FileOpKind,
+        status: 'done' as ToolStatus,
+        ops,
+      });
+    } else if (slot === 6) {
+      // ── generic tool (search / fetch_url / think / web.run) ──────────────
       items.push({
         kind: 'tool',
         id: `tool-${i}`,
-        name: TOOL_NAMES[Math.floor(rng() * TOOL_NAMES.length)],
-        status,
-        inputSummary: `packages/ui/src/chat/${words(rng, 1, 3).toLowerCase().replace(/ /g, '-')}.ts`,
-        detail: status === 'error' ? words(rng, 5, 12) : undefined,
+        name: pick(rng, GENERIC_TOOL_NAMES),
+        status: 'done' as ToolStatus,
+        inputSummary: pick(rng, GENERIC_TOOL_SUMMARIES),
       });
-      continue;
+    } else if (slot === 7) {
+      // ── assistant message (varied markdown, different phase from slot 3) ──
+      items.push({
+        kind: 'message',
+        id: `msg-${i}`,
+        role: 'assistant' as ChatRole,
+        text: bodyFor(rng, i + 3), // offset so variant differs from slot 3
+      });
+    } else if (slot === 8) {
+      // ── file-op delete or move ────────────────────────────────────────────
+      const op: FileOpKind = rng() < 0.5 ? 'delete' : 'move';
+      items.push({
+        kind: 'file-op',
+        id: `fo-${i}`,
+        op,
+        status: 'done' as ToolStatus,
+        ops: [{ path: pick(rng, FILE_PATHS) }],
+      });
+    } else {
+      // slot === 9: assistant message (code/table heavy)
+      items.push({
+        kind: 'message',
+        id: `msg-${i}`,
+        role: 'assistant' as ChatRole,
+        text: bodyFor(rng, i + 3), // biased toward code/table variants
+      });
     }
-
-    const role: ChatRole = i % 2 === 0 ? 'user' : 'assistant';
-    items.push({
-      kind: 'message',
-      id: `msg-${i}`,
-      role,
-      text: role === 'user' ? words(rng, 4, 16) + '?' : bodyFor(rng, i),
-    });
   }
 
   return items;

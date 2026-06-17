@@ -69,7 +69,7 @@ export function Message(props: MessageProps) {
   // Bubble visual class — user bubble gets a colored bg + radius; thought is muted+italic
   const bubbleVisualClass = () => {
     if (rc() === 'user')
-      return 'bg-[var(--chat-bubble-user,#2563eb)] text-[var(--chat-bubble-user-fg,#fff)] rounded-[16px]';
+      return 'bg-[var(--chat-bubble-user)] text-[var(--chat-bubble-user-fg)] rounded-lg';
     if (rc() === 'thought') return 'text-foreground-muted italic';
     return '';
   };

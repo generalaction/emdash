@@ -164,7 +164,7 @@ describe('streamTool', () => {
       name: 'read_file',
       steps: [
         { afterMs: 200, status: 'done' },
-        { afterMs: 100, detail: 'output' },
+        { afterMs: 100, status: 'done' },
       ],
     });
     // 1 (start) + 2 (update 1) + 2 (update 2)
