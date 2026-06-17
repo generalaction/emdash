@@ -16,7 +16,11 @@ import {
   type BrowserDataClearKind,
 } from '@shared/browser';
 import type { AppSettings } from '@shared/core/app-settings';
-import { browserLinkCopiedChannel, browserOpenInNewTabChannel } from '@shared/events/browserEvents';
+import {
+  browserFindRequestedChannel,
+  browserLinkCopiedChannel,
+  browserOpenInNewTabChannel,
+} from '@shared/events/browserEvents';
 import { APP_SHORTCUTS, resolveDefaultHotkey } from '@shared/shortcuts';
 import { isGoogleAuthUrl, userAgentForBrowserUrl } from './browser-user-agent';
 
@@ -211,6 +215,14 @@ export class BrowserWebContentsRegistry {
     });
 
     webContents.on('before-input-event', (event, input) => {
+      if (isBrowserFindShortcut(input)) {
+        const browserId = this.browserIdByWebContentsId.get(webContents.id);
+        if (!browserId) return;
+        event.preventDefault();
+        events.emit(browserFindRequestedChannel, { browserId });
+        return;
+      }
+
       if (!isCopyBrowserUrlShortcut(input, this.copyBrowserUrlShortcut)) return;
 
       const normalized = normalizeBrowserUrl(webContents.getURL(), { allowSearchQueries: false });
@@ -383,6 +395,17 @@ function isCopyBrowserUrlShortcut(input: Electron.Input, shortcut: string | null
     Boolean(input.alt) === parsed.alt &&
     Boolean(input.meta) === parsed.meta &&
     Boolean(input.control) === parsed.control
+  );
+}
+
+function isBrowserFindShortcut(input: Electron.Input): boolean {
+  return (
+    input.type === 'keyDown' &&
+    normalizeInputKey(input.key) === 'f' &&
+    Boolean(input.shift) === false &&
+    Boolean(input.alt) === false &&
+    ((process.platform === 'darwin' && Boolean(input.meta) && !input.control) ||
+      (process.platform !== 'darwin' && Boolean(input.control) && !input.meta))
   );
 }
 

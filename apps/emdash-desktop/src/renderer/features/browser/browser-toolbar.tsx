@@ -1,6 +1,8 @@
 import {
   ArrowLeft,
   ArrowRight,
+  ChevronDown,
+  ChevronUp,
   Ellipsis,
   Focus,
   Globe,
@@ -9,11 +11,14 @@ import {
   Plus,
   RefreshCw,
   RotateCcw,
+  Search,
   Square,
+  X,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { rpc } from '@renderer/lib/ipc';
+import { useDebounce } from '@renderer/lib/hooks/useDebounce';
+import { events, rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { Button } from '@renderer/lib/ui/button';
 import {
@@ -46,6 +51,7 @@ import {
   previousBrowserZoomFactor,
   type BrowserSessionSnapshot,
 } from '@shared/browser';
+import { browserFindRequestedChannel } from '@shared/events/browserEvents';
 import { browserSessionStore } from './browser-session-store';
 import {
   canOpenBrowserUrlExternally,
@@ -86,13 +92,18 @@ export function BrowserToolbar({
 }) {
   const [urlText, setUrlText] = useState(browserUrlInputText(session.currentUrl));
   const [urlError, setUrlError] = useState<string | null>(null);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findText, setFindText] = useState('');
+  const [findRequestCount, setFindRequestCount] = useState(0);
   const [failedFaviconUrl, setFailedFaviconUrl] = useState<string | null>(null);
   const [screenshotSpin, triggerScreenshotSpin] = useTransientFlag(300);
   const urlInputRef = useRef<HTMLInputElement | null>(null);
+  const findInputRef = useRef<HTMLInputElement | null>(null);
   const { value: browserSettings } = useAppSettingsKey('browser');
   const { navigate: navigateToView } = useNavigate();
   const profiles = browserSettings?.profiles ?? DEFAULT_BROWSER_PROFILES;
   const profileLabel = browserProfileLabel(session.profileId, profiles);
+  const debouncedFindText = useDebounce(findText, 180);
   const faviconUrl =
     session.faviconUrl && session.faviconUrl !== failedFaviconUrl ? session.faviconUrl : null;
 
@@ -119,6 +130,36 @@ export function BrowserToolbar({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [autoFocusUrl]);
+
+  useEffect(() => {
+    if (!findOpen) {
+      adapter?.stopFindInPage('clearSelection');
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      findInputRef.current?.focus();
+      findInputRef.current?.select();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [adapter, findOpen, findRequestCount]);
+
+  useEffect(() => {
+    if (!findOpen) return;
+    const query = debouncedFindText.trim();
+    if (!query) {
+      adapter?.stopFindInPage('clearSelection');
+      return;
+    }
+    adapter?.findInPage(query);
+  }, [adapter, debouncedFindText, findOpen]);
+
+  useEffect(() => {
+    return events.on(browserFindRequestedChannel, ({ browserId }) => {
+      if (browserId !== session.browserId) return;
+      setFindOpen(true);
+      setFindRequestCount((count) => count + 1);
+    });
+  }, [session.browserId]);
 
   const navigate = () => {
     navigateTo(urlText);
@@ -157,11 +198,22 @@ export function BrowserToolbar({
     void captureBrowserScreenshot(session);
   };
 
+  const findNext = (forward: boolean) => {
+    const query = findText.trim();
+    if (!query) return;
+    adapter?.findInPage(query, { findNext: true, forward });
+  };
+
+  const closeFind = () => {
+    setFindOpen(false);
+    setFindText('');
+  };
+
   const canOpenExternal = canOpenBrowserUrlExternally(session.currentUrl);
   const zoomFactor = session.zoomFactor;
 
   return (
-    <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border bg-background-secondary-1 px-2">
+    <div className="relative z-10 flex h-10 shrink-0 items-center gap-1 overflow-visible border-b border-border bg-background-secondary-1 px-2">
       <ToolbarIconButton
         label="Back"
         disabled={!adapter || !session.canGoBack}
@@ -222,6 +274,54 @@ export function BrowserToolbar({
           </div>
         )}
       </form>
+      {findOpen && (
+        <form
+          className="absolute top-11 right-2 z-50 flex min-w-80 items-center gap-1 rounded-md border border-border bg-background px-2 py-1.5 shadow-lg"
+          onSubmit={(event) => {
+            event.preventDefault();
+            findNext(true);
+          }}
+        >
+          <Search className="size-4 shrink-0 text-foreground-muted" />
+          <Input
+            ref={findInputRef}
+            value={findText}
+            onChange={(event) => setFindText(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                closeFind();
+                return;
+              }
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                findNext(!event.shiftKey);
+              }
+            }}
+            className="h-7 min-w-0 flex-1 border-0 px-1 text-sm shadow-none hover:border-0 focus-visible:border-0 focus-visible:ring-0"
+            aria-label="Find in browser page"
+            placeholder="Find"
+            spellCheck={false}
+          />
+          <ToolbarIconButton
+            label="Previous match"
+            disabled={!findText.trim()}
+            onClick={() => findNext(false)}
+          >
+            <ChevronUp className="size-4" />
+          </ToolbarIconButton>
+          <ToolbarIconButton
+            label="Next match"
+            disabled={!findText.trim()}
+            onClick={() => findNext(true)}
+          >
+            <ChevronDown className="size-4" />
+          </ToolbarIconButton>
+          <ToolbarIconButton label="Close find" onClick={closeFind}>
+            <X className="size-4" />
+          </ToolbarIconButton>
+        </form>
+      )}
       <ToolbarIconButton
         label="Copy screenshot"
         disabled={session.currentUrl === BROWSER_DEFAULT_URL || session.isLoading}

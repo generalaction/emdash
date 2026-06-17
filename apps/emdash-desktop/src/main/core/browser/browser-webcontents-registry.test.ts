@@ -185,6 +185,28 @@ describe('BrowserWebContentsRegistry', () => {
     expect(blocked.action).toBe('deny');
   });
 
+  it('routes the platform find shortcut from browser webContents to the renderer', () => {
+    const registry = new BrowserWebContentsRegistry();
+    registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
+
+    const webContents = fakeWebContents();
+    registry.handleWebviewAttached(webContents);
+    registry.bindWebContents('browser-1', webContents);
+
+    const event = { preventDefault: vi.fn() };
+    webContents.emitEvent('before-input-event', event, {
+      type: 'keyDown',
+      key: 'f',
+      meta: process.platform === 'darwin',
+      control: process.platform !== 'darwin',
+      shift: false,
+      alt: false,
+    });
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(events.emit).toHaveBeenCalledWith(expect.anything(), { browserId: 'browser-1' });
+  });
+
   it('switches popup webContents user agent during Google auth navigations', () => {
     const registry = new BrowserWebContentsRegistry();
     registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });

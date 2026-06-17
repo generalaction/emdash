@@ -10,6 +10,8 @@ export type BrowserWebviewEventMap = {
   'page-favicon-updated': { favicons: string[] };
 };
 
+export type BrowserStopFindInPageAction = 'clearSelection' | 'keepSelection' | 'activateSelection';
+
 export type BrowserWebviewElement = HTMLElement & {
   canGoBack(): boolean;
   canGoForward(): boolean;
@@ -23,6 +25,8 @@ export type BrowserWebviewElement = HTMLElement & {
   stop(): void;
   loadURL(url: string): Promise<void> | void;
   setZoomFactor(factor: number): void;
+  findInPage(text: string, options?: Electron.FindInPageOptions): void;
+  stopFindInPage(action: BrowserStopFindInPageAction): void;
   addEventListener<K extends keyof BrowserWebviewEventMap>(
     type: K,
     listener: (event: BrowserWebviewEventMap[K]) => void
@@ -45,6 +49,8 @@ export type BrowserWebviewAdapter = {
   stop(): void;
   loadUrl(url: string): Promise<void>;
   setZoomFactor(factor: number): void;
+  findInPage(text: string, options?: Electron.FindInPageOptions): void;
+  stopFindInPage(action: BrowserStopFindInPageAction): void;
   focus(): void;
 };
 
@@ -63,6 +69,8 @@ export function createBrowserWebviewAdapter(webview: BrowserWebviewElement): Bro
       await webview.loadURL(url);
     },
     setZoomFactor: (factor: number) => webview.setZoomFactor(factor),
+    findInPage: (text, options) => webview.findInPage(text, options),
+    stopFindInPage: (action) => webview.stopFindInPage(action),
     focus: () => webview.focus(),
   };
 }

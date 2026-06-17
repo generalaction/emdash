@@ -9,3 +9,7 @@ export const browserLinkCopiedChannel = defineEvent<{
   kind: 'image' | 'link' | 'url';
   url: string;
 }>('browser:link-copied');
+
+export const browserFindRequestedChannel = defineEvent<{
+  browserId: string;
+}>('browser:find-requested');
