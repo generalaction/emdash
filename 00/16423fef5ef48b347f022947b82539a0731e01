@@ -1,0 +1,24 @@
+packages/plugins/src/agents/impl/charm/index.ts
+  s_674d10cbbee75f::t_61c3566bf5cccd 41,52-53
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_674d10cbbee75f::t_ef4218b45808bb 82-83,245,400
+  s_674d10cbbee75f::t_61c3566bf5cccd 399
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_674d10cbbee75f::t_bfac108728fd54 292-312
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "0016423fef5ef48b347f022947b82539a0731e01",
+  "prompts": {},
+  "sessions": {
+    "s_674d10cbbee75f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed40e-dce0-7953-b5b1-2553dec1842c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
