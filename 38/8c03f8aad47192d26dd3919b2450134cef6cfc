@@ -1,0 +1,61 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-webview-types.ts
+  s_03051761ca3d60::t_00578ba44f1dc3 11-18,36,60,62,83-89
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.test.ts
+  s_f242fdd23d2a6f::t_f3218e414713f7 78-88
+  s_f242fdd23d2a6f::t_a1cb765e411800 208,214-227
+apps/emdash-desktop/src/renderer/features/command-palette/command-icons.ts
+  s_f242fdd23d2a6f::t_ac8fe0919733d5 25,60
+apps/emdash-desktop/src/renderer/features/browser/browser-controls-registry.ts
+  s_f242fdd23d2a6f::t_08c9286d96fd84 6
+apps/emdash-desktop/src/shared/shortcuts.ts
+  s_f242fdd23d2a6f::t_8dc05c8f8ae77b 22-93,231-234
+apps/emdash-desktop/src/shared/commands.ts
+  s_f242fdd23d2a6f::t_57b13f8ef6f9db 218-225
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_f242fdd23d2a6f::t_32b096286513ca 24-29,61,81,231-233,235-236,240-241,418,421-422
+  s_f242fdd23d2a6f::t_9761f9d52abf15 395,404-409
+  s_f242fdd23d2a6f::t_dabbdea9f7dd8c 58,111,137,145-147,243-249
+apps/emdash-desktop/src/renderer/features/tasks/commands.ts
+  s_f242fdd23d2a6f::t_a2721da07d5499 69,260-269
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar-button.tsx
+  s_f242fdd23d2a6f::t_d556d31ef16049 1-36
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_f242fdd23d2a6f::t_97a133442b0614 4,6,32,201-210,227,231-237,261-262
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_f242fdd23d2a6f::t_126a766b8ccfdb 14,16,49
+  s_f242fdd23d2a6f::t_0bf6d6b1a2186d 58
+  s_f242fdd23d2a6f::t_d4dc3be6f828b0 77,89
+  s_f242fdd23d2a6f::t_38aab43e686ddc 229
+apps/emdash-desktop/src/renderer/features/tasks/commands.test.ts
+  s_f242fdd23d2a6f::t_289b1733da7728 16,35,219-222,234
+apps/emdash-desktop/src/renderer/features/browser/browser-find-bar.tsx
+  s_f242fdd23d2a6f::t_12d21c3243bc5b 47,55
+  s_f242fdd23d2a6f::t_52886b4340e486 28
+  s_f242fdd23d2a6f::t_0bf6d6b1a2186d 113
+  s_03051761ca3d60::t_b2bcf3d6bc795f 17,19,34-35,50-51,54,56-66,71,77-78,114-120
+  s_f242fdd23d2a6f::t_2ab84cb5b162f1 1-16,18,20-27,29-33,36-46,48-49,52-53,67-70,72-76,79-112,121-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "388c03f8aad47192d26dd3919b2450134cef6cfc",
+  "prompts": {},
+  "sessions": {
+    "s_03051761ca3d60": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed400-2200-70a2-856c-cdda7aaabfbe",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_f242fdd23d2a6f": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed500-7f9d-70e5-8e82-a91890dd76e7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
