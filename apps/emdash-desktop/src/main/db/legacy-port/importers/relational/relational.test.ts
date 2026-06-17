@@ -161,6 +161,28 @@ function createLegacyDb(): Database.Database {
   return db;
 }
 
+async function withAtomicDestinationImport<T>(
+  sqlite: Database.Database,
+  action: () => Promise<T>
+): Promise<T> {
+  const foreignKeys = sqlite.pragma('foreign_keys', { simple: true }) as number;
+  sqlite.pragma('foreign_keys = OFF');
+  sqlite.exec('BEGIN IMMEDIATE');
+
+  try {
+    const result = await action();
+    sqlite.exec('COMMIT');
+    return result;
+  } catch (error) {
+    if (sqlite.inTransaction) {
+      sqlite.exec('ROLLBACK');
+    }
+    throw error;
+  } finally {
+    sqlite.pragma(`foreign_keys = ${foreignKeys ? 'ON' : 'OFF'}`);
+  }
+}
+
 describe('legacy-port table passes', () => {
   const openDbs: Database.Database[] = [];
   const tempDirs: string[] = [];
@@ -287,16 +309,21 @@ describe('legacy-port table passes', () => {
       .run('conv-legacy-new', 'task-legacy-new', 'New conversation', 'codex');
 
     const remap = createRemapTables();
-    const sshSummary = await portSshConnections({ appDb, legacyDb, remap });
-    const projectsSummary = await portProjects({ appDb, legacyDb, remap });
-    const taskResult = await portTasks({ appDb, legacyDb, remap });
-    ensureImportedTaskWorkspaces(appDb);
-    const conversationsSummary = await portConversations({
-      appDb,
-      legacyDb,
-      remap,
-      mergedLegacyTaskIds: taskResult.mergedLegacyTaskIds,
-    });
+    const { sshSummary, projectsSummary, taskResult, conversationsSummary } =
+      await withAtomicDestinationImport(appSqlite, async () => {
+        const sshSummary = await portSshConnections({ appDb, legacyDb, remap });
+        const projectsSummary = await portProjects({ appDb, legacyDb, remap });
+        const taskResult = await portTasks({ appDb, legacyDb, remap });
+        ensureImportedTaskWorkspaces(appDb);
+        const conversationsSummary = await portConversations({
+          appDb,
+          legacyDb,
+          remap,
+          mergedLegacyTaskIds: taskResult.mergedLegacyTaskIds,
+        });
+
+        return { sshSummary, projectsSummary, taskResult, conversationsSummary };
+      });
 
     expect(sshSummary.considered).toBe(1);
     expect(sshSummary.skippedDedup).toBe(1);
@@ -383,6 +410,54 @@ describe('legacy-port table passes', () => {
         title: 'New conversation',
       },
     ]);
+  });
+
+  it('rolls back imported rows when workspace backfill fails inside the atomic import', async () => {
+    const { appSqlite, appDb } = createAppDb();
+    const legacyDb = createLegacyDb();
+    openDbs.push(appSqlite, legacyDb);
+
+    appSqlite.exec(`DROP TABLE workspaces;`);
+
+    legacyDb
+      .prepare(
+        `INSERT INTO projects (id, name, path, base_ref, is_remote, remote_path, ssh_connection_id) VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run('proj-legacy-local', 'Legacy Local', '/work/repo', 'main', 0, null, null);
+
+    legacyDb
+      .prepare(
+        `INSERT INTO tasks (id, project_id, name, status, branch, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        'task-legacy-new',
+        'proj-legacy-local',
+        'Legacy New Task',
+        'running',
+        'feature/new-legacy',
+        '2026-01-02T12:00:00.000Z'
+      );
+
+    const remap = createRemapTables();
+
+    await expect(
+      withAtomicDestinationImport(appSqlite, async () => {
+        await portSshConnections({ appDb, legacyDb, remap });
+        await portProjects({ appDb, legacyDb, remap });
+        await portTasks({ appDb, legacyDb, remap });
+        ensureImportedTaskWorkspaces(appDb);
+      })
+    ).rejects.toThrow();
+
+    const projectCount = appSqlite.prepare(`SELECT COUNT(*) AS count FROM projects`).get() as {
+      count: number;
+    };
+    const taskCount = appSqlite.prepare(`SELECT COUNT(*) AS count FROM tasks`).get() as {
+      count: number;
+    };
+
+    expect(projectCount.count).toBe(0);
+    expect(taskCount.count).toBe(0);
   });
 
   it('imports direct legacy tasks as source-branch-only when use_worktree is false', async () => {

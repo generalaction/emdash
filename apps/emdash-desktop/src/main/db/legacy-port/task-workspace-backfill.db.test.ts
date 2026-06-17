@@ -115,7 +115,7 @@ describe('ensureImportedTaskWorkspaces', () => {
       sshConnectionId: 'ssh-1',
       branchName: 'feature/imported',
       path: null,
-      key: null,
+      key: computeWorkspaceKey('project-ssh', '/srv/remote#feature/imported', 'ssh-1'),
       config: {
         version: '2',
         git: { kind: 'use-branch', branchName: 'feature/imported' },
@@ -127,6 +127,56 @@ describe('ensureImportedTaskWorkspaces', () => {
     ensureImportedTaskWorkspaces(fixture.db);
     const workspaceCountAfterRerun = await fixture.db.select().from(workspaces);
     expect(workspaceCountAfterRerun).toHaveLength(workspaceCount.length);
+
+    await fixture.db.update(tasks).set({ workspaceId: null }).where(eq(tasks.id, 'task-worktree'));
+    ensureImportedTaskWorkspaces(fixture.db);
+
+    const [repairedTask] = await fixture.db
+      .select({ workspaceId: tasks.workspaceId })
+      .from(tasks)
+      .where(eq(tasks.id, 'task-worktree'));
+    const workspaceCountAfterRepair = await fixture.db.select().from(workspaces);
+
+    expect(repairedTask.workspaceId).toBe(worktreeWorkspaceId);
+    expect(workspaceCountAfterRepair).toHaveLength(workspaceCount.length);
+  });
+
+  it('does not reuse worktree workspaces across projects with the same branch', async () => {
+    await fixture.db.insert(projects).values({
+      id: 'project-local-2',
+      name: 'Local Project 2',
+      path: '/repo/local-2',
+      workspaceProvider: 'local',
+    });
+    await fixture.db.insert(tasks).values([
+      {
+        id: 'task-worktree-1',
+        projectId: 'project-local',
+        name: 'Worktree task 1',
+        status: 'in_progress',
+        taskBranch: 'feature/shared',
+      },
+      {
+        id: 'task-worktree-2',
+        projectId: 'project-local-2',
+        name: 'Worktree task 2',
+        status: 'in_progress',
+        taskBranch: 'feature/shared',
+      },
+    ]);
+
+    ensureImportedTaskWorkspaces(fixture.db);
+
+    const importedTasks = await fixture.db
+      .select({ id: tasks.id, workspaceId: tasks.workspaceId })
+      .from(tasks)
+      .orderBy(tasks.id);
+    const workspaceIds = importedTasks.map((task) => task.workspaceId);
+    const workspaceRows = await fixture.db.select().from(workspaces);
+
+    expect(workspaceIds.every(Boolean)).toBe(true);
+    expect(new Set(workspaceIds).size).toBe(2);
+    expect(workspaceRows).toHaveLength(2);
   });
 
   it('reuses an existing repository workspace by key', async () => {

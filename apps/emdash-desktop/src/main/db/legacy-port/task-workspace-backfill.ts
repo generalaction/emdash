@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { computeWorkspaceKey } from '@main/core/workspaces/workspace-key';
 import type { AppDb, DrizzleTx } from '@main/db/client';
 import { projects, tasks, workspaces } from '@main/db/schema';
@@ -35,6 +35,18 @@ function buildImportedWorktreeConfig(branchName: string): WorkspaceConfig {
     git: { kind: 'use-branch', branchName },
     workspace: { kind: 'new-worktree' },
   };
+}
+
+function buildImportedWorktreeKey(
+  project: ProjectWorkspaceFields,
+  branchName: string,
+  location: ReturnType<typeof deriveWorkspaceLocation>
+): string {
+  return computeWorkspaceKey(
+    location.type,
+    `${project.projectPath}#${branchName}`,
+    location.sshConnectionId ?? undefined
+  );
 }
 
 function ensureRepositoryWorkspace(tx: DrizzleTx, project: ProjectWorkspaceFields): string {
@@ -87,6 +99,43 @@ function ensureRepositoryWorkspace(tx: DrizzleTx, project: ProjectWorkspaceField
   return workspaceId;
 }
 
+function findExistingWorktreeWorkspace(
+  tx: DrizzleTx,
+  project: ProjectWorkspaceFields,
+  branchName: string,
+  location: ReturnType<typeof deriveWorkspaceLocation>
+): string | undefined {
+  const key = buildImportedWorktreeKey(project, branchName, location);
+  const [existingWorkspaceByKey] = tx
+    .select({ id: workspaces.id })
+    .from(workspaces)
+    .where(eq(workspaces.key, key))
+    .limit(1)
+    .all();
+
+  if (existingWorkspaceByKey) return existingWorkspaceByKey.id;
+
+  const conditions = [
+    eq(workspaces.kind, 'worktree'),
+    eq(workspaces.branchName, branchName),
+    eq(workspaces.location, location.location),
+    eq(workspaces.type, location.type),
+    isNull(workspaces.key),
+    location.sshConnectionId
+      ? eq(workspaces.sshConnectionId, location.sshConnectionId)
+      : isNull(workspaces.sshConnectionId),
+  ];
+
+  const existingWorkspaces = tx
+    .select({ id: workspaces.id })
+    .from(workspaces)
+    .where(and(...conditions))
+    .limit(2)
+    .all();
+
+  return existingWorkspaces.length === 1 ? existingWorkspaces[0]?.id : undefined;
+}
+
 /**
  * Backfills the v1 workspace model for v0-imported tasks.
  *
@@ -126,20 +175,29 @@ export function ensureImportedTaskWorkspaces(appDb: AppDb): void {
       let workspaceId: string;
 
       if (row.taskBranch) {
-        workspaceId = randomUUID();
         const location = deriveWorkspaceLocation(project);
+        const existingWorkspaceId = findExistingWorktreeWorkspace(
+          tx,
+          project,
+          row.taskBranch,
+          location
+        );
+        workspaceId = existingWorkspaceId ?? randomUUID();
 
-        tx.insert(workspaces)
-          .values({
-            id: workspaceId,
-            kind: 'worktree',
-            location: location.location,
-            sshConnectionId: location.sshConnectionId,
-            type: location.type,
-            branchName: row.taskBranch,
-            config: buildImportedWorktreeConfig(row.taskBranch),
-          })
-          .run();
+        if (!existingWorkspaceId) {
+          tx.insert(workspaces)
+            .values({
+              id: workspaceId,
+              kind: 'worktree',
+              location: location.location,
+              sshConnectionId: location.sshConnectionId,
+              type: location.type,
+              key: buildImportedWorktreeKey(project, row.taskBranch, location),
+              branchName: row.taskBranch,
+              config: buildImportedWorktreeConfig(row.taskBranch),
+            })
+            .run();
+        }
       } else {
         workspaceId = ensureRepositoryWorkspace(tx, project);
         repositoryWorkspaceIdByProjectId.set(row.projectId, workspaceId);
