@@ -4,7 +4,7 @@
 
 **Goal:** Let persistent **agent** sessions run on `coder/boo` (libghostty VT core) instead of tmux, so agent TUI output renders faithfully, with tmux as the automatic fallback.
 
-**Architecture:** Introduce a pluggable `MultiplexerBackend` abstraction (`tmux` + `boo`) behind the existing persistence flag. A per-host availability probe feeds `selectMultiplexer`, which prefers boo for agent sessions and falls back to tmux; terminal sessions stay on tmux. Backend identity flows into the PTY spawn wrappers and into a backend-/host-aware orphan-cleanup helper. boo is detected and (locally, with consent / remotely, during bootstrap) installed via the existing `HostDependencyManager`.
+**Architecture:** Introduce a pluggable `MultiplexerBackend` abstraction (`tmux` + `boo`) behind the existing persistence flag. A per-host availability probe feeds `selectMultiplexer`, which prefers boo for agent sessions and falls back to tmux; terminal sessions stay on tmux. Backend identity flows into the PTY spawn wrappers and into a backend-/host-aware orphan-cleanup helper. boo is detected per-host at bootstrap (via the host's live execution context); when absent, the session falls back to tmux. Installing boo is **on-demand and consented** via a core-deps RPC that works for local, project-SSH, and BYOI hosts by reusing the live SSH proxy (never a persisted reconnect).
 
 **Tech Stack:** TypeScript (strict), Electron main process, Vitest (`node` project), Drizzle (no migration in this plan), the shared host-dependency runtime in `packages/shared`.
 
@@ -20,7 +20,7 @@ Every task's requirements implicitly include this section.
 - **Merge gate (run before finishing):** `pnpm run format && pnpm run lint && pnpm run typecheck && pnpm run test`.
 - **Scope:** boo is preferred **only for agent (conversation) sessions**; **terminals stay on tmux**; persistence stays **OFF by default / opt-in** (settings keys `tmux` and `tmuxByDefault` are unchanged — UI label only).
 - **Approved decisions (spec §14):** Q1 keep settings keys + relabel UI (no settings migration); Q2 orphan cleanup kills **both** backend names — **no `multiplexerId` column, no Drizzle migration**; Q3 expose core deps via a **sibling controller**, not by overloading the agent RPC; Q4 tmux is **detection-only** (no managed install); Q5 local boo install **auto-runs the official installer behind a consent prompt**; Q6 terminals stay tmux; Q7 keep the `EMDASH_AGENT_MULTIPLEXER` escape hatch; Q8 detached-BYOI remote cleanup is **best-effort**.
-- **Security:** shell-line construction must reuse `quoteShellArg` / `quoteCshArg` from `@main/utils/shellEscape` (as the existing wrappers do). Installer execution is gated behind explicit user consent.
+- **Security:** new shell-line construction must quote every interpolated value with `quoteShellArg` / `quoteCshArg` from `@main/utils/shellEscape` — **never `JSON.stringify`** (its double-quote semantics leave `$`, backticks, and globs shell-active). The `tmuxBackend` delegates to the pre-existing `buildTmuxShellLine`, which predates this work and is left unchanged. Installer execution is gated behind explicit user consent.
 - **Spike gate:** Task 0 must pass before any other task. If boo does not propagate terminal resize (SIGWINCH) to the child PTY, **STOP** — boo is not a viable backend.
 
 ## File Structure
@@ -225,8 +225,13 @@ describe('booBackend', () => {
   it('buildAttachShellLine creates-if-missing then execs attach', () => {
     const line = booBackend.buildAttachShellLine('agent-session', 'exec /bin/zsh -il');
     expect(line).toMatch(/^\/bin\/sh -c /);
-    expect(line).toContain('boo new \\"agent-session\\"');
-    expect(line).toContain('exec boo attach \\"agent-session\\"');
+    // quoteShellArg single-quotes the inner args, then the outer `/bin/sh -c` wrapper
+    // single-quotes the whole script — so assert on the boo-syntax literals (which carry no
+    // single quotes and survive the outer escaping), not on the quoted session name.
+    expect(line).toContain('boo new ');
+    expect(line).toContain('-d -- /bin/sh -c ');
+    expect(line).toContain('; exec boo attach ');
+    expect(line).toContain('2>/dev/null');
   });
 
   it('killSession runs `boo kill <name>` and swallows errors', async () => {
@@ -249,6 +254,7 @@ Create `src/main/core/pty/multiplexer/boo.ts`:
 ```ts
 import { log } from '@main/lib/logger';
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import { quoteShellArg } from '@main/utils/shellEscape';
 import type { MultiplexerBackend } from './types';
 
 const BOO_SESSION_PREFIX = 'emdash-';
@@ -259,12 +265,15 @@ export const booBackend: MultiplexerBackend = {
     return `${BOO_SESSION_PREFIX}${Buffer.from(sessionId, 'utf8').toString('base64url')}`;
   },
   buildAttachShellLine(sessionName: string, commandLine: string): string {
-    const name = JSON.stringify(sessionName);
-    const cmd = JSON.stringify(commandLine);
+    // Security: single-quote every interpolated value with quoteShellArg — never
+    // JSON.stringify, whose double-quote semantics leave $, backticks, and globs active.
+    const name = quoteShellArg(sessionName);
+    const cmd = quoteShellArg(commandLine);
     // Create detached if missing (ignore "already exists"), then attach. `exec` makes the
-    // pty become the boo client. boo's VT is UTF-8 native, so no `-u`-style flag is needed.
+    // pty become the boo client. The outer `/bin/sh -c` forces POSIX semantics for the
+    // `;`/`2>/dev/null` regardless of the user's login shell. boo's VT is UTF-8 native.
     const script = `boo new ${name} -d -- /bin/sh -c ${cmd} 2>/dev/null; exec boo attach ${name}`;
-    return `/bin/sh -c ${JSON.stringify(script)}`;
+    return `/bin/sh -c ${quoteShellArg(script)}`;
   },
   async killSession(ctx: IExecutionContext, sessionName: string): Promise<void> {
     try {
@@ -420,11 +429,12 @@ git commit -m "feat(pty): add multiplexer backend selection"
 
 ### Task 4: Detect boo + tmux as core dependencies
 
-Registers boo (managed, category `tool`) and tmux (detection-only) so `selectMultiplexer` has real availability data, locally and per SSH connection. Reuses the existing `HostDependencyManager` (`dependencies/dependency-managers.ts`) and `registry.ts`.
+Registers boo (managed, category `core`) and tmux (detection-only) so `selectMultiplexer` has real availability data, locally and per SSH connection. Reuses the existing `HostDependencyManager` (`dependencies/dependency-managers.ts`) and `registry.ts`.
 
 **Files:**
 - Create: `src/main/core/dependencies/core-deps/descriptors.ts`
 - Modify: `src/main/core/dependencies/registry.ts` (merge core descriptors into `DEPENDENCIES`)
+- Modify: `src/main/core/dependencies/dependency-managers.ts` (BYOI-safe host resolution — prefer `getProxy` over `connect`, Step 6a)
 - Create: `src/main/core/dependencies/core-deps/detect-multiplexers.ts`
 - Test: `src/main/core/dependencies/core-deps/descriptors.test.ts`
 
@@ -518,18 +528,24 @@ export const DEPENDENCIES: DependencyDescriptor[] = [
 ];
 ```
 
-- [ ] **Step 6: Write `detectMultiplexers`**
+- [ ] **Step 6: Make `getDependencyManager` BYOI-safe, then write `detectMultiplexers`**
 
-Create `src/main/core/dependencies/core-deps/detect-multiplexers.ts`:
+**6a — BYOI-safe host resolution.** In `src/main/core/dependencies/dependency-managers.ts`, `getDependencyManager(connectionId)` currently does `const proxy = await sshConnectionManager.connect(connectionId);`. That breaks for BYOI: BYOI hosts are ephemeral `task:<id>` proxies created via `connectFromConfig` with **no persisted `ssh_connections` row**, so `connect()` either throws (no row, when not pooled) or mutates intentional-disconnect semantics (it calls `intentionalDisconnects.delete(id)`). Prefer the live proxy:
+```ts
+const proxy =
+  sshConnectionManager.getProxy(connectionId) ?? (await sshConnectionManager.connect(connectionId));
+```
+`getProxy(connectionId)` returns the already-open proxy when one exists — always true for a BYOI host during its active task's bootstrap, and for project-SSH once connected — without reconnecting or clearing flags; the `connect()` fallback covers a persisted connection not yet open. (This same path makes the Task 9 remote install BYOI-safe.) Add a focused test that `getDependencyManager` calls `getProxy` and does not call `connect` when a proxy is already pooled.
+
+**6b — detectMultiplexers.** Create `src/main/core/dependencies/core-deps/detect-multiplexers.ts`:
 ```ts
 import { getDependencyManager } from '@main/core/dependencies/dependency-managers';
 import type { DetectedMultiplexers } from '@main/core/pty/multiplexer';
 
 /**
  * Probe boo + tmux availability on the given host (local when no connectionId).
- * `probe()` performs the real detection and returns a DependencyState; `get()` is only a
- * cache read, and a freshly-created SSH manager starts with empty state — so we MUST probe,
- * or fresh remote workspaces would report everything missing and silently disable persistence.
+ * `probe()` performs the real detection; `get()` is only a cache read and a fresh SSH manager
+ * starts empty — so we MUST probe, or fresh remote workspaces report everything missing.
  */
 export async function detectMultiplexers(connectionId?: string): Promise<DetectedMultiplexers> {
   const mgr = await getDependencyManager(connectionId);
@@ -538,7 +554,7 @@ export async function detectMultiplexers(connectionId?: string): Promise<Detecte
 }
 ```
 
-> `HostDependencyManager.probe(id): Promise<DependencyState>` (`packages/shared/src/host-dependencies/runtime/host-dependency-manager.ts:241`) returns a state whose `.status` is `'available' | 'missing' | 'error'`. `get()` (line 214) is a non-awaiting cache read — do not use it here.
+> `HostDependencyManager.probe(id): Promise<DependencyState>` (`host-dependency-manager.ts:241`) returns a state whose `.status` is `'available' | 'missing' | 'error'`; `get()` (line 214) is a non-awaiting cache read — don't use it here. The 6a change is what makes this (and remote install) safe for BYOI.
 
 - [ ] **Step 7: Run the descriptor test to verify it passes**
 
@@ -550,8 +566,8 @@ Expected: PASS (2 tests).
 Run: `pnpm run typecheck`
 Expected: no errors (`'core'` category and string `DependencyId` need no type changes).
 ```bash
-git add src/main/core/dependencies/core-deps/ src/main/core/dependencies/registry.ts
-git commit -m "feat(deps): register boo + tmux as core multiplexer dependencies"
+git add src/main/core/dependencies/core-deps/ src/main/core/dependencies/registry.ts src/main/core/dependencies/dependency-managers.ts
+git commit -m "feat(deps): register boo + tmux as core deps; BYOI-safe host resolution"
 ```
 
 ---

@@ -142,15 +142,15 @@ export const booBackend: MultiplexerBackend = {
     return `${BOO_SESSION_PREFIX}${Buffer.from(sessionId, 'utf8').toString('base64url')}`;
   },
   buildAttachShellLine(sessionName, commandLine) {
-    const name = JSON.stringify(sessionName);
-    // Run the agent command under a shell so the existing command line is interpreted the
-    // same way tmux interprets it. Escaping is security-sensitive — reuse existing quoting
-    // helpers, do not hand-roll.
-    const cmd = JSON.stringify(commandLine);
+    // Security: quote every interpolated value with quoteShellArg (@main/utils/shellEscape),
+    // NOT JSON.stringify — single-quoting neutralizes $, backticks, and globbing.
+    const name = quoteShellArg(sessionName);
+    const cmd = quoteShellArg(commandLine);
     // Create detached if missing (ignore "already exists"), then attach (exec → the PTY
-    // becomes the boo client). boo has no `has-session`; rely on `new` being safe-to-fail.
+    // becomes the boo client). The outer `/bin/sh -c` forces POSIX semantics regardless of the
+    // login shell. boo has no `has-session`; rely on `new` being safe-to-fail.
     const script = `boo new ${name} -d -- /bin/sh -c ${cmd} 2>/dev/null; exec boo attach ${name}`;
-    return `/bin/sh -c ${JSON.stringify(script)}`;
+    return `/bin/sh -c ${quoteShellArg(script)}`;
   },
   async killSession(ctx, sessionName) {
     try {
@@ -259,14 +259,16 @@ Plan:
   `selectMultiplexer` (§7.3) and the §8 matrix.
 - Expose a **core-dependency RPC/UI surface** instead of reusing the agent-shaped one — either
   generalize `agents/controller.ts` to accept non-agent ids, or add a sibling controller (§14).
-- **When persistence is on for an agent and boo is missing on the host that will run it:**
-  - **Local:** consented "Install boo" via the local `HostDependencyManager` (official installer
-    for the local platform; manual instructions as fallback). Fall back to tmux meanwhile.
-  - **Remote — both workspace shapes:** normal **project-SSH** tasks
-    (`workspace-bootstrap-service.ts` → `_acquireAndBuild` / `createWorkspaceFactory`, keyed on
-    `project.defaultWorkspaceType`) **and** BYOI. Drive detect/install through the SSH
-    `HostDependencyManager` for that `connectionId` during task bootstrap — not by editing one
-    provision script — so both paths and both remote platforms are covered.
+- **At bootstrap (all hosts): detect + fall back, never silently install.** Probe boo + tmux on
+  the host that will run the agent and select (boo→tmux→none). There is no consent moment at
+  bootstrap, so it must not install. For SSH/BYOI hosts the per-`connectionId` manager must resolve
+  the host via the **live proxy** (`getProxy`), not a persisted `connect()` — BYOI's ephemeral
+  `task:<id>` proxy has no `ssh_connections` row. This covers both remote shapes: project-SSH tasks
+  (`workspace-bootstrap-service.ts` → `_acquireAndBuild` / `createWorkspaceFactory`) **and** BYOI,
+  on macOS and Linux.
+- **Installing boo is on-demand + consented (not at bootstrap):** the core-deps RPC install action
+  runs the platform installer for **local, project-SSH, or BYOI** hosts (BYOI via the same
+  live-proxy path). Until the user installs boo, the session keeps working on tmux.
 - **Security-sensitive:** installer execution must be gated behind explicit action, pinned to a
   known method, and use the existing install-runner patterns. Flag for review.
 
