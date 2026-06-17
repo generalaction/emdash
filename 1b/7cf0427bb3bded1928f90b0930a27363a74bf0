@@ -1,0 +1,43 @@
+apps/emdash-desktop/src/main/core/settings/controller.ts
+  s_6c9271654bf94b::t_e29865a362e406 1,37,42
+  s_6c9271654bf94b::t_2082a9c24aba46 7-16
+  s_6c9271654bf94b::t_3054faf2963c6c 32
+apps/emdash-desktop/src/main/core/browser/browser-cors-relaxation.ts
+  s_6c9271654bf94b::t_028fa38fe5f417 1-46,48-51,56-91,93-94
+  s_6c9271654bf94b::t_10e1bca657a44b 47,52-55,92
+apps/emdash-desktop/src/renderer/features/settings/components/BrowserSettingsCard.tsx
+  s_6c9271654bf94b::t_66cd42f574ae24 143-144,147,149
+apps/emdash-desktop/src/main/core/browser/webview-security.ts
+  s_6c9271654bf94b::t_18c32cab1a9655 58,64-65
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_6c9271654bf94b::t_0b7f09ed59451e 204,275,290,298,304
+apps/emdash-desktop/src/main/app/window.ts
+  s_6c9271654bf94b::t_cd0b942d8bdbac 100
+apps/emdash-desktop/src/main/core/browser/browser-cors-relaxation.test.ts
+  s_6c9271654bf94b::t_10e1bca657a44b 21
+  s_6c9271654bf94b::t_ae775cf6b50785 1-20,22-46
+apps/emdash-desktop/src/main/core/settings/schema.ts
+  s_6c9271654bf94b::t_4d77bc3ecf6d96 112
+apps/emdash-desktop/src/main/core/settings/settings-registry.ts
+  s_6c9271654bf94b::t_76e6158020c37d 69
+apps/emdash-desktop/src/main/index.ts
+  s_6c9271654bf94b::t_7198f7bc2729b3 18,138
+apps/emdash-desktop/src/main/core/browser/browser-profile-session.ts
+  s_6c9271654bf94b::t_9cbf1a9662db82 3-8,25-29,44-45,50-56,60-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "1b7cf0427bb3bded1928f90b0930a27363a74bf0",
+  "prompts": {},
+  "sessions": {
+    "s_6c9271654bf94b": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed56a-f851-7725-9d0f-60ddebda9aa5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
