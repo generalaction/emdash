@@ -1,24 +1,10 @@
 /**
- * execute height parity — CSS var must match the metrics constant,
- * and measureExecute must always return the content-only height.
- * Row.tsx adds 2 * ROW_PAD_Y['execute'] for the wrapper padding.
+ * execute height — executeDef must always return execRowH for any item state.
  */
 
 import { describe, expect, it } from 'vitest';
 import type { ChatExecute } from '../../model';
-import { execCssVars } from './css-vars';
-import { measureExecute } from './measure';
-import { EXEC_ROW_H } from './metrics';
-
-// ── CSS var parity ─────────────────────────────────────────────────────────────
-
-describe('execCssVars() parity', () => {
-  it('--chat-exec-row-h matches EXEC_ROW_H', () => {
-    expect(execCssVars()['--chat-exec-row-h']).toBe(`${EXEC_ROW_H}px`);
-  });
-});
-
-// ── Height cases ───────────────────────────────────────────────────────────────
+import { EXEC_ROW_H, measureExecute } from './measure';
 
 function makeItem(overrides: Partial<ChatExecute> = {}): ChatExecute {
   return {

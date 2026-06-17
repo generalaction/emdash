@@ -9,7 +9,7 @@
 
 import { createEffect, getOwner, onCleanup, onMount, runWithOwner, type JSX } from 'solid-js';
 import { ChatRoot } from '../ChatRoot';
-import { DEFAULT_FONT_CONFIG } from '../core/measure/fonts';
+import { DEFAULT_THEME } from '../core/theme';
 import type { ChatItem } from '../model';
 import { createTranscript } from '../state/transcript';
 import type { TranscriptApi } from '../state/transcript';
@@ -60,12 +60,7 @@ export function ChatHostExpanded(props: { items: ChatItem[]; expandId: string; h
 
   return (
     <StoryViewport height={props.height}>
-      <ChatRoot
-        transcript={transcript}
-        viewState={viewState}
-        fonts={DEFAULT_FONT_CONFIG}
-        stickToBottom
-      />
+      <ChatRoot transcript={transcript} viewState={viewState} theme={DEFAULT_THEME} stickToBottom />
     </StoryViewport>
   );
 }
@@ -84,12 +79,7 @@ export function ChatHost(props: ChatHostProps) {
 
   return (
     <StoryViewport height={props.height} width={props.width}>
-      <ChatRoot
-        transcript={transcript}
-        viewState={viewState}
-        fonts={DEFAULT_FONT_CONFIG}
-        stickToBottom
-      />
+      <ChatRoot transcript={transcript} viewState={viewState} theme={DEFAULT_THEME} stickToBottom />
     </StoryViewport>
   );
 }
@@ -147,12 +137,7 @@ export function ScriptedChat(props: { script: ScriptStep[]; height?: number; wid
 
   return (
     <StoryViewport height={props.height} width={props.width}>
-      <ChatRoot
-        transcript={transcript}
-        viewState={viewState}
-        fonts={DEFAULT_FONT_CONFIG}
-        stickToBottom
-      />
+      <ChatRoot transcript={transcript} viewState={viewState} theme={DEFAULT_THEME} stickToBottom />
     </StoryViewport>
   );
 }

@@ -1,9 +1,9 @@
 /**
- * Row — generic row dispatcher driven by ROW_REGISTRY.
+ * Row — generic row dispatcher driven by REGISTRY.
  *
- * Owns the virtualizer height bridge: computes exact layout via the row spec's
- * `measure()`, writes the height into the Fenwick tree via `virt.setSize`, and
- * delegates rendering to the spec's `Render` component via <Dynamic>.
+ * Owns the virtualizer height bridge: computes exact layout via the registry
+ * def's `measure()`, writes the height into the Fenwick tree via `virt.setSize`,
+ * and delegates rendering to the def's `Render` component via <Dynamic>.
  *
  * Per-row state:
  *   measured  — DOM-measured heights for islands and thinking bodies, written
@@ -14,40 +14,68 @@
  *
  * Debug overlay: when DebugContext is enabled, a dashed boundary is drawn over
  * the full row at the virtualizer-reserved height. A red boundary + label means
- * the rendered height differs from what the engine reserved — a sure sign that
- * CSS is adding unexpected geometry.
+ * the rendered height differs from what the engine reserved.
  */
 
 import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { Dynamic } from 'solid-js/web';
-import type { MeasureCtx, RenderCtx } from '../core/layout/spec-types';
-import { DEFAULT_FONT_CONFIG } from '../core/measure/fonts';
-import type { FontConfig } from '../core/measure/fonts';
-import { rowPadY } from '../core/metrics';
+import type { Measured, MeasureCtx, RenderCtx } from '../core/define';
+import type { ChatTheme } from '../core/theme';
 import type { Virtualizer } from '../core/virtualizer';
 import type { ChatItem } from '../model';
 import type { ViewState } from '../state/view-state';
 import { useDebug } from './debug-context';
-import { ROW_REGISTRY } from './row-registry';
+import { REGISTRY } from './registry';
+
+// ── Identity-based node memo ───────────────────────────────────────────────────
+//
+// Skips expensive def.measure() calls for committed (immutable) items that
+// haven't changed since the last layout pass.
+//
+// Key:         item object reference (WeakMap — auto-GC when item is dropped)
+// Fingerprint: theme.version + rowWidth + isCollapsed(item.id)
+//              (covers all inputs that affect measured geometry)
+// activeTurn:  bypassed — streaming items change content every tick
+//
+// Items with DOM-measured children (islands): their `measured` heights are
+// per-Row-instance and start empty on each mount. The fingerprint does NOT
+// encode `measured` so scroll-back will briefly use the fixed estimate; the
+// Island mount handler fires immediately and re-triggers layout via setMeasured.
+
+// oxlint-disable typescript/no-explicit-any -- cache boundary; each kind is type-safe at its own def
+const nodeMemo = new WeakMap<object, { fingerprint: string; result: Measured<any> }>();
+
+function cachedMeasure(item: ChatItem, isActiveTurn: boolean, ctx: MeasureCtx): Measured<any> {
+  const def = REGISTRY[item.kind as keyof typeof REGISTRY];
+
+  // Always recompute for activeTurn rows (streaming, content changes every tick).
+  if (isActiveTurn) return def.measure(item, ctx);
+
+  const fingerprint = `${ctx.theme.version}|${ctx.width}|${ctx.isCollapsed(item.id)}`;
+  const cached = nodeMemo.get(item);
+  if (cached?.fingerprint === fingerprint) return cached.result;
+
+  const result = def.measure(item, ctx);
+  nodeMemo.set(item, { fingerprint, result });
+  return result;
+}
+// oxlint-enable typescript/no-explicit-any
 
 export type RowProps = {
   item: ChatItem;
   index: number;
   rowWidth: number;
-  fonts?: FontConfig;
+  theme: ChatTheme;
   viewState: ViewState;
   virt: Virtualizer;
   onHeightChanged: (index: number, delta: number) => void;
+  /** True when this row is in the activeTurn (currently streaming). */
+  isActiveTurn?: boolean;
 };
 
 // ── Row-level debug overlay ────────────────────────────────────────────────────
 
-/**
- * The row wrapper includes symmetric padding-block (padY each side), so the
- * wrapper's offsetHeight should equal layout().height + 2 * padY. We compare
- * the full wrapper height (including padding) and flag a mismatch in red.
- */
 function RowDebugOverlay(props: { reserved: number; rowEl: () => HTMLElement | undefined }) {
   const [mismatch, setMismatch] = createSignal(false);
   const [actualH, setActualH] = createSignal(0);
@@ -92,8 +120,7 @@ function RowDebugOverlay(props: { reserved: number; rowEl: () => HTMLElement | u
 // ── Row ───────────────────────────────────────────────────────────────────────
 
 export function Row(props: RowProps) {
-  const debug = useDebug(); // () => boolean — reactive accessor
-  const fonts = () => props.fonts ?? DEFAULT_FONT_CONFIG;
+  const debug = useDebug();
 
   // DOM-measured heights for islands and thinking bodies.
   const [measured, setMeasured] = createStore<Record<string, number>>({});
@@ -103,8 +130,8 @@ export function Row(props: RowProps) {
   // ── Contexts ─────────────────────────────────────────────────────────────────
 
   const measureCtx = (): MeasureCtx => ({
-    fonts: fonts(),
-    rowWidth: props.rowWidth,
+    theme: props.theme,
+    width: props.rowWidth,
     isCollapsed: (id) => props.viewState.isCollapsed(id),
     measured: (id) => measured[id],
   });
@@ -114,18 +141,16 @@ export function Row(props: RowProps) {
     setMeasured: (id, h) => setMeasured(id, h),
   };
 
-  // ── Spec lookup ───────────────────────────────────────────────────────────────
+  // ── Def + layout ────────────────────────────────────────────────────────────
 
-  const spec = createMemo(() => ROW_REGISTRY[props.item.kind]);
+  const def = createMemo(() => REGISTRY[props.item.kind as keyof typeof REGISTRY]);
 
-  // Per-kind symmetric wrapper padding. The visible gap between two consecutive
-  // rows is padY(kindA) + padY(kindB), giving tight tool grouping and generous
-  // message spacing without any neighbor-awareness.
-  const padY = () => rowPadY(props.item.kind);
+  // Per-kind symmetric wrapper padding from theme geometry.
+  const padY = () => props.theme.geometry.rowPadY[props.item.kind] ?? 0;
 
   // ── Layout + height bridge ────────────────────────────────────────────────────
 
-  const layout = createMemo(() => spec().measure(props.item, measureCtx()));
+  const layout = createMemo(() => cachedMeasure(props.item, !!props.isActiveTurn, measureCtx()));
 
   // Virtualizer height = content height + both padding sides.
   const reserved = () => layout().height + 2 * padY();
@@ -148,7 +173,7 @@ export function Row(props: RowProps) {
         'padding-bottom': `${padY()}px`,
       }}
     >
-      <Dynamic component={spec().Render} item={props.item} layout={layout()} ctx={renderCtx} />
+      <Dynamic component={def().Render} item={props.item} layout={layout()} ctx={renderCtx} />
       <Show when={debug()}>
         <RowDebugOverlay reserved={reserved()} rowEl={() => rowEl} />
       </Show>

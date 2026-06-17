@@ -12,7 +12,13 @@
 import type { TableBlock } from '../../core/blocks/block-types';
 import type { TableLaidOut } from '../../core/layout/layout-types';
 import { reserveHeight } from '../../core/layout/reserve-height';
-import { TABLE_BORDER, TABLE_MIN_COL_W, TABLE_ROW_H } from './metrics';
+import { DEFAULT_THEME } from '../../core/theme';
+
+const {
+  tableRowH: TABLE_ROW_H,
+  tableBorder: TABLE_BORDER,
+  tableMinColW: TABLE_MIN_COL_W,
+} = DEFAULT_THEME.geometry;
 
 export function layoutTable(
   block: TableBlock,

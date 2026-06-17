@@ -14,7 +14,7 @@
 import { createEffect, createSignal, onMount } from 'solid-js';
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import { ChatRoot } from '../../ChatRoot';
-import { DEFAULT_FONT_CONFIG } from '../../core/measure/fonts';
+import { DEFAULT_THEME } from '../../core/theme';
 import { generateMockTranscript } from '../../mock-transcript';
 import { createTranscript } from '../../state/transcript';
 import { createViewState } from '../../state/view-state';
@@ -86,7 +86,7 @@ function PerfHost(props: { count: number; label: string; height?: number }) {
           overflow: 'hidden',
         }}
       >
-        <ChatRoot transcript={transcript} viewState={viewState} fonts={DEFAULT_FONT_CONFIG} />
+        <ChatRoot transcript={transcript} viewState={viewState} theme={DEFAULT_THEME} />
       </div>
       <pre
         style={{

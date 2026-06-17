@@ -12,7 +12,9 @@ import type { CodeBlock } from '../../core/blocks/block-types';
 import type { CodeLaidOut } from '../../core/layout/layout-types';
 import { reserveHeight } from '../../core/layout/reserve-height';
 import type { FontConfig } from '../../core/measure/fonts';
-import { CODE_BLOCK_PAD_Y, CODE_BLOCK_BORDER } from './metrics';
+
+const CODE_BLOCK_PAD_Y = 8;
+const CODE_BLOCK_BORDER = 1;
 
 export function layoutCode(
   block: CodeBlock,

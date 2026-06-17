@@ -1,26 +1,24 @@
 /**
  * measureFileOp — height function for ChatFileOpToolCall rows.
  *
- * Pure arithmetic, no pretext / DOM.
- * Both estimate() and measure() in spec.tsx call this directly.
+ * Pure arithmetic, no pretext / DOM. Constants from DEFAULT_THEME.geometry.
  *
- * Collapse semantics are inverted (same convention as thinking rows):
+ * Collapse semantics are inverted:
  *   isExpanded(id) maps to viewState.isCollapsed(id).
  *   Default absent/false → not expanded.
- *
- * Height table (content-only; Row.tsx adds per-kind wrapper padding):
- *   ops.length <= 1 (inline):
- *     FILEOP_ROW_H
- *   multi + expanded:
- *     FILEOP_ROW_H + ops.length * FILEOP_LINE_H + 2 * FILEOP_PAD_Y
- *   multi + collapsed + running (streaming preview):
- *     FILEOP_ROW_H + FILEOP_WINDOW_H
- *   multi + collapsed + settled:
- *     FILEOP_ROW_H
  */
 
+import { DEFAULT_THEME } from '../../core/theme';
 import type { ChatFileOpToolCall } from '../../model';
-import { FILEOP_LINE_H, FILEOP_PAD_Y, FILEOP_ROW_H, FILEOP_WINDOW_H } from './metrics';
+
+const {
+  fileopRowH: FILEOP_ROW_H,
+  fileopLineH: FILEOP_LINE_H,
+  fileopPadY: FILEOP_PAD_Y,
+  fileopWindowH: FILEOP_WINDOW_H,
+} = DEFAULT_THEME.geometry;
+
+export { FILEOP_ROW_H, FILEOP_LINE_H, FILEOP_PAD_Y, FILEOP_WINDOW_H };
 
 export function measureFileOp(
   item: ChatFileOpToolCall,

@@ -1,15 +1,18 @@
 /**
  * measure.ts unit tests — estimateDiff and measureDiff.
- *
- * Mirrors the pattern in execute/measure.test.ts.
  */
 
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_FONT_CONFIG } from '../../core/measure/fonts';
+import { DEFAULT_THEME } from '../../core/theme';
 import type { ChatDiff } from '../../model';
-import { diffCssVars } from './css-vars';
 import { estimateDiff, measureDiff } from './measure';
-import { DIFF_BORDER, DIFF_FADE_H, DIFF_HEADER_H, DIFF_MAX_LINES } from './metrics';
+
+const {
+  diffBorder: DIFF_BORDER,
+  diffHeaderH: DIFF_HEADER_H,
+  diffMaxLines: DIFF_MAX_LINES,
+} = DEFAULT_THEME.geometry;
 
 const FONTS = DEFAULT_FONT_CONFIG;
 
@@ -25,20 +28,6 @@ function makeItem(overrides: Partial<ChatDiff> = {}): ChatDiff {
   };
 }
 
-// ── CSS var parity ─────────────────────────────────────────────────────────────
-
-describe('diffCssVars() parity', () => {
-  it('--chat-diff-header-h matches DIFF_HEADER_H', () => {
-    expect(diffCssVars()['--chat-diff-header-h']).toBe(`${DIFF_HEADER_H}px`);
-  });
-
-  it('--chat-diff-fade-h matches DIFF_FADE_H', () => {
-    expect(diffCssVars()['--chat-diff-fade-h']).toBe(`${DIFF_FADE_H}px`);
-  });
-});
-
-// ── estimateDiff ──────────────────────────────────────────────────────────────
-
 describe('estimateDiff()', () => {
   it('returns an upper-bound constant (header + max lines + border)', () => {
     const estimated = estimateDiff(FONTS);
@@ -46,8 +35,6 @@ describe('estimateDiff()', () => {
     expect(estimated).toBe(expected);
   });
 });
-
-// ── measureDiff ───────────────────────────────────────────────────────────────
 
 describe('measureDiff()', () => {
   it('returns height = header + border only for identical text (no changes)', () => {

@@ -16,7 +16,7 @@
  * The existing click-delegation in ChatRoot (data-collapse-id → toggleCollapsed)
  * drives the toggle without any ChatRoot or view-state changes.
  *
- * Geometry-coupled rules (heights, insets) live in thinking.module.css.
+ * Geometry comes from ThemeContext (useTheme) instead of CSS vars.
  * All visual styling uses Tailwind utilities.
  */
 
@@ -29,8 +29,7 @@ import {
 import type { ChatThinking } from '../../model';
 import { BlockStack } from '../rich-text/BlockStack';
 import type { BlocksLayout } from '../rich-text/layout';
-import { THINKING_HEADER_H, THINKING_WINDOW_H } from './metrics';
-import styles from './thinking.module.css';
+import { useTheme } from '../ThemeContext';
 
 export type ThinkingProps = {
   item: ChatThinking;
@@ -48,7 +47,7 @@ function formatDurationS(ms: number): string {
 
 // ── ThinkingHeader ─────────────────────────────────────────────────────────────
 
-function ThinkingHeader(props: { item: ChatThinking; expanded: boolean }) {
+function ThinkingHeader(props: { item: ChatThinking; expanded: boolean; headerH: number }) {
   const startElapsed = Math.floor((Date.now() - props.item.startedAt) / 1000);
   const [elapsed, setElapsed] = createSignal(startElapsed);
 
@@ -75,7 +74,8 @@ function ThinkingHeader(props: { item: ChatThinking; expanded: boolean }) {
 
   return (
     <div
-      class={`${styles['pthinking__header']} flex cursor-pointer items-center gap-1.5 text-sm text-foreground-passive select-none hover:text-foreground-muted`}
+      class="flex cursor-pointer items-center gap-1.5 text-sm text-foreground-passive select-none hover:text-foreground-muted"
+      style={{ height: `${props.headerH}px` }}
       role="button"
       aria-expanded={props.expanded ? 'true' : 'false'}
       aria-live={props.item.status === 'thinking' ? 'polite' : undefined}
@@ -96,10 +96,6 @@ function ThinkingHeader(props: { item: ChatThinking; expanded: boolean }) {
 
 // ── ThinkingProse ──────────────────────────────────────────────────────────────
 
-/**
- * Shared prose renderer used by both ActivePreview and ExpandedBody.
- * Renders the thinking text through the standard BlockStack pipeline.
- */
 function ThinkingProse(props: { item: ChatThinking; layout: BlocksLayout }) {
   const blocks = () =>
     downgradeIslandsToText(
@@ -110,26 +106,31 @@ function ThinkingProse(props: { item: ChatThinking; layout: BlocksLayout }) {
 
 // ── ActivePreview ──────────────────────────────────────────────────────────────
 
-function ActivePreview(props: { item: ChatThinking; preview: BlocksLayout }) {
+function ActivePreview(props: {
+  item: ChatThinking;
+  preview: BlocksLayout;
+  windowH: number;
+  fadeH: number;
+}) {
   let scrollEl: HTMLDivElement | undefined;
 
   createEffect(() => {
-    // Reading props.item.text registers this effect as a reactive subscriber
-    // so it re-runs on every streaming update to pin the scroll to bottom.
     if (props.item.text != null && scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
   });
 
   return (
-    <div class={`${styles['pthinking__window']} relative overflow-hidden`}>
+    <div class="relative overflow-hidden" style={{ height: `${props.windowH}px` }}>
       <div
-        class="fade-overlay-top pointer-events-none absolute inset-x-0 top-0 z-10 h-[var(--chat-think-fade-h)]"
+        class="fade-overlay-top pointer-events-none absolute inset-x-0 top-0 z-10"
+        style={{ height: `${props.fadeH}px` }}
         aria-hidden="true"
       />
       <div
         ref={(el) => {
           scrollEl = el;
         }}
-        class={`${styles['pthinking__window-scroll']} overflow-y-auto text-foreground-passive`}
+        class="overflow-y-auto text-foreground-passive"
+        style={{ 'max-height': `${props.windowH}px`, 'scrollbar-gutter': 'stable' }}
       >
         <div style={{ position: 'relative', height: `${props.preview.height}px` }}>
           <ThinkingProse item={props.item} layout={props.preview} />
@@ -141,11 +142,16 @@ function ActivePreview(props: { item: ChatThinking; preview: BlocksLayout }) {
 
 // ── ExpandedBody ───────────────────────────────────────────────────────────────
 
-function ExpandedBody(props: { item: ChatThinking; body: BlocksLayout }) {
+function ExpandedBody(props: { item: ChatThinking; body: BlocksLayout; rowInsetX: number }) {
   return (
     <div
-      class={`${styles['pthinking__body']} text-foreground-passive`}
-      style={{ height: `${props.body.height}px` }}
+      class="text-foreground-passive"
+      style={{
+        height: `${props.body.height}px`,
+        left: `${props.rowInsetX}px`,
+        right: `${props.rowInsetX}px`,
+        position: 'absolute',
+      }}
     >
       <ThinkingProse item={props.item} layout={props.body} />
     </div>
@@ -159,17 +165,37 @@ function ThinkingContent(props: {
   expanded: boolean;
   body?: BlocksLayout;
   preview?: BlocksLayout;
+  windowH: number;
+  fadeH: number;
+  rowInsetX: number;
+  headerH: number;
 }) {
   return (
     <Show
       when={props.expanded && props.body}
       fallback={
         <Show when={props.item.status === 'thinking' && props.preview}>
-          {(preview) => <ActivePreview item={props.item} preview={preview()} />}
+          {(preview) => (
+            <div
+              style={{
+                position: 'absolute',
+                top: `${props.headerH}px`,
+                left: `${props.rowInsetX}px`,
+                right: `${props.rowInsetX}px`,
+              }}
+            >
+              <ActivePreview
+                item={props.item}
+                preview={preview()}
+                windowH={props.windowH}
+                fadeH={props.fadeH}
+              />
+            </div>
+          )}
         </Show>
       }
     >
-      {(body) => <ExpandedBody item={props.item} body={body()} />}
+      {(body) => <ExpandedBody item={props.item} body={body()} rowInsetX={props.rowInsetX} />}
     </Show>
   );
 }
@@ -177,24 +203,36 @@ function ThinkingContent(props: {
 // ── Thinking ───────────────────────────────────────────────────────────────────
 
 export function Thinking(props: ThinkingProps) {
+  const theme = useTheme();
+  const g = () => theme().geometry;
+
   // Inverted semantics: stored "collapsed" flag is treated as "expanded".
-  // Default absent/false → not expanded → preview (active) or header-only (done).
   const expanded = () => !!props.collapsed;
 
   const totalH = () => {
-    if (props.body) return THINKING_HEADER_H + props.body.height;
-    if (props.item.status === 'thinking') return THINKING_HEADER_H + THINKING_WINDOW_H;
-    return THINKING_HEADER_H;
+    if (props.body) return g().thinkingHeaderH + props.body.height;
+    if (props.item.status === 'thinking') return g().thinkingHeaderH + g().thinkingWindowH;
+    return g().thinkingHeaderH;
   };
 
   return (
-    <div class={styles.pthinking} style={{ position: 'relative', height: `${totalH()}px` }}>
-      <ThinkingHeader item={props.item} expanded={expanded()} />
+    <div
+      style={{
+        position: 'relative',
+        height: `${totalH()}px`,
+        'padding-inline': `${g().rowInsetX}px`,
+      }}
+    >
+      <ThinkingHeader item={props.item} expanded={expanded()} headerH={g().thinkingHeaderH} />
       <ThinkingContent
         item={props.item}
         expanded={expanded()}
         body={props.body}
         preview={props.preview}
+        windowH={g().thinkingWindowH}
+        fadeH={g().thinkingFadeH}
+        rowInsetX={g().rowInsetX}
+        headerH={g().thinkingHeaderH}
       />
     </div>
   );

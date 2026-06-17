@@ -6,11 +6,13 @@
  * a plain text row with no status badge, no collapse, no detail view.
  *
  * Shimmer applied while status === 'running'. No error-specific chrome.
+ *
+ * Outer geometry (height, padding) is applied by tool.def.ts Render.
+ * This component only describes inner content.
  */
 
 import { Show } from 'solid-js';
 import type { ChatToolCall } from '../../model';
-import styles from './tool.module.css';
 
 export type ToolProps = {
   item: ChatToolCall;
@@ -19,7 +21,7 @@ export type ToolProps = {
 export function Tool(props: ToolProps) {
   return (
     <div
-      class={`${styles['pchat-tool']} flex items-center gap-1.5 text-sm text-foreground-passive select-none`}
+      class="flex items-center gap-1.5 text-sm text-foreground-passive select-none"
       classList={{ 'text-shimmer': props.item.status === 'running' }}
     >
       <span>{props.item.name}</span>

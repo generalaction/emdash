@@ -19,14 +19,13 @@
  *   stored false (default) → not expanded
  *   stored true            → expanded
  *
- * Geometry-coupled rules live in file-op.module.css.
+ * Geometry comes from ThemeContext (useTheme) instead of CSS vars.
  * All visual styling uses Tailwind utilities.
  */
 
 import { For, Show, createEffect } from 'solid-js';
 import type { ChatFileOpToolCall, FileOpKind } from '../../model';
-import { FILEOP_LINE_H, FILEOP_PAD_Y, FILEOP_ROW_H, FILEOP_WINDOW_H } from './metrics';
-import styles from './file-op.module.css';
+import { useTheme } from '../ThemeContext';
 
 const VERB: Record<FileOpKind, string> = {
   read: 'Read',
@@ -41,10 +40,11 @@ function basename(path: string): string {
 
 // ── FileRow ───────────────────────────────────────────────────────────────────
 
-function FileRow(props: { verb: string; path: string }) {
+function FileRow(props: { verb: string; path: string; lineH: number }) {
   return (
     <div
-      class={`${styles['pfileop__line']} flex items-center gap-1.5 text-sm text-foreground-passive`}
+      class="flex items-center gap-1.5 text-sm text-foreground-passive"
+      style={{ height: `${props.lineH}px` }}
     >
       <span>{props.verb}</span>
       <span title={props.path}>{basename(props.path)}</span>
@@ -54,33 +54,38 @@ function FileRow(props: { verb: string; path: string }) {
 
 // ── FileOpPreview ─────────────────────────────────────────────────────────────
 
-/**
- * Streaming preview window shown while status === 'running' and collapsed.
- * Auto-scrolls to the bottom whenever the ops list grows.
- */
-function FileOpPreview(props: { item: ChatFileOpToolCall; verb: string }) {
+function FileOpPreview(props: {
+  item: ChatFileOpToolCall;
+  verb: string;
+  windowH: number;
+  fadeH: number;
+  padY: number;
+  lineH: number;
+}) {
   let scrollEl: HTMLDivElement | undefined;
 
   createEffect(() => {
-    // Reading props.item.ops registers this effect as a reactive subscriber
-    // so it re-runs on every streaming update to pin the scroll to bottom.
     if (props.item.ops.length > 0 && scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
   });
 
   return (
-    <div class={`${styles['pfileop__window']} relative overflow-hidden`}>
+    <div class="relative overflow-hidden" style={{ height: `${props.windowH}px` }}>
       <div
-        class="fade-overlay-top pointer-events-none absolute inset-x-0 top-0 z-10 h-[var(--chat-fileop-fade-h)]"
+        class="fade-overlay-top pointer-events-none absolute inset-x-0 top-0 z-10"
+        style={{ height: `${props.fadeH}px` }}
         aria-hidden="true"
       />
       <div
         ref={(el) => {
           scrollEl = el;
         }}
-        class={`${styles['pfileop__window-scroll']} overflow-y-auto text-foreground-passive`}
+        class="overflow-y-auto text-foreground-passive"
+        style={{ 'max-height': `${props.windowH}px`, 'scrollbar-gutter': 'stable' }}
       >
-        <div style={{ 'padding-block': `${FILEOP_PAD_Y}px` }}>
-          <For each={props.item.ops}>{(op) => <FileRow verb={props.verb} path={op.path} />}</For>
+        <div style={{ 'padding-block': `${props.padY}px` }}>
+          <For each={props.item.ops}>
+            {(op) => <FileRow verb={props.verb} path={op.path} lineH={props.lineH} />}
+          </For>
         </div>
       </div>
     </div>
@@ -96,25 +101,35 @@ export type FileOperationProps = {
 };
 
 export function FileOperation(props: FileOperationProps) {
+  const theme = useTheme();
+  const g = () => theme().geometry;
+
   const verb = () => VERB[props.item.op];
   // Inverted: stored collapsed = true means expanded.
   const expanded = () => !!props.collapsed;
 
-  // Height of the multi-file container without ROW_GAP (Row.tsx accounts for gap).
+  // Height of the multi-file container without row padding (Row.tsx adds that).
   const multiH = () => {
+    const { fileopRowH, fileopLineH, fileopPadY, fileopWindowH } = g();
     if (expanded()) {
-      return FILEOP_ROW_H + props.item.ops.length * FILEOP_LINE_H + 2 * FILEOP_PAD_Y;
+      return fileopRowH + props.item.ops.length * fileopLineH + 2 * fileopPadY;
     }
-    if (props.item.status === 'running') return FILEOP_ROW_H + FILEOP_WINDOW_H;
-    return FILEOP_ROW_H;
+    if (props.item.status === 'running') return fileopRowH + fileopWindowH;
+    return fileopRowH;
   };
 
   return (
     <Show
       when={props.item.ops.length > 1}
       fallback={
-        // ── Single file ────────────────────────────────────────────────────────
-        <div class={`${styles.pfileop} flex items-center`} style={{ height: `${FILEOP_ROW_H}px` }}>
+        // ── Single file ─────────────────────────────────────────────────────
+        <div
+          class="flex items-center"
+          style={{
+            height: `${g().fileopRowH}px`,
+            'padding-inline': `${g().rowInsetX}px`,
+          }}
+        >
           <Show
             when={props.item.ops[0]}
             fallback={
@@ -126,16 +141,23 @@ export function FileOperation(props: FileOperationProps) {
               </span>
             }
           >
-            {(op) => <FileRow verb={verb()} path={op().path} />}
+            {(op) => <FileRow verb={verb()} path={op().path} lineH={g().fileopLineH} />}
           </Show>
         </div>
       }
     >
-      {/* ── Multiple files ──────────────────────────────────────────────────── */}
-      <div class={styles.pfileop} style={{ position: 'relative', height: `${multiH()}px` }}>
+      {/* ── Multiple files ──────────────────────────────────────────────── */}
+      <div
+        style={{
+          position: 'relative',
+          height: `${multiH()}px`,
+          'padding-inline': `${g().rowInsetX}px`,
+        }}
+      >
         {/* Header */}
         <div
-          class={`${styles['pfileop__header']} flex cursor-pointer items-center gap-1.5 text-sm text-foreground-passive select-none hover:text-foreground-muted`}
+          class="flex cursor-pointer items-center gap-1.5 text-sm text-foreground-passive select-none hover:text-foreground-muted"
+          style={{ height: `${g().fileopRowH}px` }}
           role="button"
           aria-expanded={expanded() ? 'true' : 'false'}
           data-collapse-id={props.item.id}
@@ -157,15 +179,38 @@ export function FileOperation(props: FileOperationProps) {
           when={expanded()}
           fallback={
             <Show when={props.item.status === 'running'}>
-              <div class={styles['pfileop__body']}>
-                <FileOpPreview item={props.item} verb={verb()} />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: `${g().fileopRowH}px`,
+                  left: `${g().rowInsetX}px`,
+                  right: `${g().rowInsetX}px`,
+                }}
+              >
+                <FileOpPreview
+                  item={props.item}
+                  verb={verb()}
+                  windowH={g().fileopWindowH}
+                  fadeH={g().fileopFadeH}
+                  padY={g().fileopPadY}
+                  lineH={g().fileopLineH}
+                />
               </div>
             </Show>
           }
         >
-          <div class={styles['pfileop__body']}>
-            <div style={{ 'padding-block': `${FILEOP_PAD_Y}px` }}>
-              <For each={props.item.ops}>{(op) => <FileRow verb={verb()} path={op.path} />}</For>
+          <div
+            style={{
+              position: 'absolute',
+              top: `${g().fileopRowH}px`,
+              left: `${g().rowInsetX}px`,
+              right: `${g().rowInsetX}px`,
+            }}
+          >
+            <div style={{ 'padding-block': `${g().fileopPadY}px` }}>
+              <For each={props.item.ops}>
+                {(op) => <FileRow verb={verb()} path={op.path} lineH={g().fileopLineH} />}
+              </For>
             </div>
           </div>
         </Show>

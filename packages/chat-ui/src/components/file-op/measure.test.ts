@@ -1,46 +1,16 @@
 /**
- * file-op height parity — CSS vars must match metrics constants,
- * and measureFileOp must produce the expected content-only heights for each state.
- * Row.tsx adds 2 * ROW_PAD_Y['file-op'] for the wrapper padding.
+ * file-op height — measureFileOp must produce expected heights for each state.
  */
 
 import { describe, expect, it } from 'vitest';
 import type { ChatFileOpToolCall } from '../../model';
-import { fileOpCssVars } from './css-vars';
-import { measureFileOp } from './measure';
 import {
-  FILEOP_FADE_H,
   FILEOP_LINE_H,
   FILEOP_PAD_Y,
   FILEOP_ROW_H,
   FILEOP_WINDOW_H,
-} from './metrics';
-
-// ── CSS var parity ─────────────────────────────────────────────────────────────
-
-describe('fileOpCssVars() parity', () => {
-  it('--chat-fileop-row-h matches FILEOP_ROW_H', () => {
-    expect(fileOpCssVars()['--chat-fileop-row-h']).toBe(`${FILEOP_ROW_H}px`);
-  });
-
-  it('--chat-fileop-line-h matches FILEOP_LINE_H', () => {
-    expect(fileOpCssVars()['--chat-fileop-line-h']).toBe(`${FILEOP_LINE_H}px`);
-  });
-
-  it('--chat-fileop-window-h matches FILEOP_WINDOW_H', () => {
-    expect(fileOpCssVars()['--chat-fileop-window-h']).toBe(`${FILEOP_WINDOW_H}px`);
-  });
-
-  it('--chat-fileop-fade-h matches FILEOP_FADE_H', () => {
-    expect(fileOpCssVars()['--chat-fileop-fade-h']).toBe(`${FILEOP_FADE_H}px`);
-  });
-
-  it('--chat-fileop-pad-y matches FILEOP_PAD_Y', () => {
-    expect(fileOpCssVars()['--chat-fileop-pad-y']).toBe(`${FILEOP_PAD_Y}px`);
-  });
-});
-
-// ── Height cases ───────────────────────────────────────────────────────────────
+  measureFileOp,
+} from './measure';
 
 function makeItem(
   overrides: Partial<ChatFileOpToolCall> & { ops?: ChatFileOpToolCall['ops'] }

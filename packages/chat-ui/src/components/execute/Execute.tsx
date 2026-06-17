@@ -3,15 +3,14 @@
  *
  * Renders ACP `kind: 'execute'` tool calls as a single non-interactive row:
  *
- *   Execute  `{command}`  {elapsed}s
+ *   Execute  `{command}`
  *
  * - Command is shown as a truncated inline-code chip (max 150px, mirrors Prose
  *   inline code styling). Full command is exposed via the title attribute.
  * - Shimmer on the whole row while running.
- * - Live ticking elapsed counter while running; frozen duration when done.
- *   Duration is omitted entirely when not running and durationMs is absent.
  *
- * Geometry lives in execute.module.css. Visual styling uses Tailwind.
+ * Outer geometry (height, horizontal padding) is applied by execute.def.ts Render.
+ * This component only describes inner content; no height/padding CSS needed here.
  */
 
 import type { ChatExecute } from '../../model';
@@ -26,7 +25,7 @@ export function Execute(props: ExecuteProps) {
 
   return (
     <div
-      class={`${styles.pexec} flex items-center gap-1.5 text-sm text-foreground-passive select-none`}
+      class="flex items-center gap-1.5 text-sm text-foreground-passive select-none"
       classList={{ 'text-shimmer': props.item.status === 'running' }}
     >
       <span>Execute</span>

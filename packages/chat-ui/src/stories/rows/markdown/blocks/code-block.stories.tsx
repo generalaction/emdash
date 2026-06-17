@@ -63,11 +63,7 @@ export const Generating: Story = {
     <ScriptedChat
       height={260}
       script={scenario(
-        [
-          seedStep([
-            { kind: 'message', id: 'u1', role: 'user', text: 'Show me a greet function' },
-          ]),
-        ],
+        [seedStep([{ kind: 'message', id: 'u1', role: 'user', text: 'Show me a greet function' }])],
         streamMessage({ id: 'a1', text: CODE_STREAMING_BODY, chunkMs: 55 })
       )}
     />

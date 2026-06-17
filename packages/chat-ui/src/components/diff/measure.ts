@@ -1,26 +1,35 @@
 /**
  * measureDiff — height computation for ChatDiff rows.
  *
- * Returns `DiffMeasureResult`, which spec.tsx passes directly to the Render
- * component so it can consume the pre-computed window without re-running
- * the diff algorithm (same pattern as thinkingRow's body BlocksLayout).
+ * Returns DiffMeasureResult, which the Render component consumes directly so
+ * the diff algorithm does not re-run on every render.
  *
  * Height formula (content-only; Row.tsx adds the per-kind wrapper padding):
  *   DIFF_HEADER_H + preview.length * codeLineHeight + 2 * DIFF_BORDER
  *
- * `estimate` returns the maximum possible height (12 lines) so the virtualizer
+ * `estimate` returns the maximum possible height (max lines) so the virtualizer
  * always reserves enough space; `measure` returns the exact height.
+ *
+ * Constants are sourced from DEFAULT_THEME.geometry so they stay consistent
+ * with the new ComponentDef system.
  */
 
 import type { FontConfig } from '../../core/measure/fonts';
+import { DEFAULT_THEME } from '../../core/theme';
 import type { ChatDiff } from '../../model';
 import { computeDiff, countChanges, selectPreview, type DiffRow } from './diff-lines';
 import { langFromPath } from './lang';
-import { DIFF_BORDER, DIFF_CONTEXT, DIFF_HEADER_H, DIFF_MAX_LINES } from './metrics';
+
+const {
+  diffBorder: DIFF_BORDER,
+  diffContext: DIFF_CONTEXT,
+  diffHeaderH: DIFF_HEADER_H,
+  diffMaxLines: DIFF_MAX_LINES,
+} = DEFAULT_THEME.geometry;
 
 export type DiffMeasureResult = {
   height: number;
-  /** Windowed rows to render (≤ DIFF_MAX_LINES). Empty when no changes. */
+  /** Windowed rows to render. Empty when no changes. */
   previewRows: DiffRow[];
   adds: number;
   dels: number;
@@ -42,8 +51,6 @@ export function measureDiff(item: ChatDiff, fonts: FontConfig): DiffMeasureResul
   const previewRows = selectPreview(rows, DIFF_MAX_LINES, DIFF_CONTEXT);
   const lang = langFromPath(item.path);
 
-  // slice() preserves element identity, so the window omits trailing content
-  // whenever its last row is not the last row of the full diff.
   const truncated = previewRows.length > 0 && previewRows.at(-1) !== rows.at(-1);
 
   const height =

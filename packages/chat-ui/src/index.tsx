@@ -9,8 +9,8 @@ import './tailwind.css';
 import { batch, createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import { ChatRoot } from './ChatRoot';
-import { DEFAULT_FONT_CONFIG } from './core/measure/fonts';
-import type { FontConfig } from './core/measure/fonts';
+import type { ChatTheme } from './core/theme';
+import { DEFAULT_THEME } from './core/theme';
 import { createTranscript } from './state/transcript';
 import type { TranscriptApi } from './state/transcript';
 import { createViewState } from './state/view-state';
@@ -32,9 +32,12 @@ export type {
 export type { TranscriptApi, TranscriptEvent } from './state/transcript';
 export type { ViewState } from './state/view-state';
 export { generateMockTranscript } from './mock-transcript';
+export type { ChatTheme, GeometryScale } from './core/theme';
+export { buildTheme, DEFAULT_THEME } from './core/theme';
 
 export type MountChatOptions = {
-  fonts?: FontConfig;
+  /** Full theme (fonts + geometry). Replaces the old `fonts` option. */
+  theme?: ChatTheme;
   stickToBottom?: boolean;
   /** Pre-existing transcript store; if omitted a new one is created. */
   transcript?: TranscriptApi;
@@ -67,9 +70,8 @@ export type ChatHandle = {
 export function mountChat(container: HTMLElement, opts: MountChatOptions = {}): ChatHandle {
   const transcript = opts.transcript ?? createTranscript();
   const viewState = opts.viewState ?? createViewState();
-  const fonts = opts.fonts ?? DEFAULT_FONT_CONFIG;
+  const theme = opts.theme ?? DEFAULT_THEME;
 
-  // Signals owned here so setContentPadding can update them after mount.
   const [padTop, setPadTop] = createSignal(opts.padTop ?? 0);
   const [padBottom, setPadBottom] = createSignal(opts.padBottom ?? 0);
 
@@ -78,7 +80,7 @@ export function mountChat(container: HTMLElement, opts: MountChatOptions = {}): 
       <ChatRoot
         transcript={transcript}
         viewState={viewState}
-        fonts={fonts}
+        theme={theme}
         stickToBottom={opts.stickToBottom}
         class={opts.class}
         contentClass={opts.contentClass}

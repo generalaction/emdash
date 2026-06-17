@@ -3,8 +3,9 @@ import { For, createEffect, onCleanup } from 'solid-js';
 import { type CodeToken, highlightCode, peekHighlight } from '../../core/highlight/highlighter';
 import type { ChatDiff } from '../../model';
 import { cancelIdle, scheduleIdle } from '../dom-utils';
+import { useTheme } from '../ThemeContext';
 import type { DiffRow } from './diff-lines';
-import type { DiffMeasureResult } from './measure';
+import type { DiffLayout } from './diff.def';
 import styles from './diff.module.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -30,7 +31,7 @@ function applyTokens(el: HTMLElement, tokens: CodeToken[]): void {
   }
 }
 
-// ── Fallback generic-file SVG icon (no lucide-react in Solid context) ────────
+// ── Fallback generic-file SVG icon ────────────────────────────────────────────
 
 function GenericFileIcon() {
   return (
@@ -52,7 +53,7 @@ function GenericFileIcon() {
   );
 }
 
-// ── Row style map (background tint + 3px left accent border) ──────────────────
+// ── Row style map ──────────────────────────────────────────────────────────────
 
 const ROW_CLASS: Record<DiffRow['type'], string> = {
   add: 'bg-foreground-diff-added/10 border-l-[3px] border-foreground-diff-added',
@@ -62,13 +63,14 @@ const ROW_CLASS: Record<DiffRow['type'], string> = {
 
 // ── DiffHeader ────────────────────────────────────────────────────────────────
 
-function DiffHeader(props: { item: ChatDiff; adds: number; dels: number }) {
+function DiffHeader(props: { item: ChatDiff; adds: number; dels: number; headerH: number }) {
   const name = () => basename(props.item.path);
   const iconClass = () => resolveFileIconClass(name());
 
   return (
     <div
-      class={`${styles['pdiff__header']} flex items-center gap-2 border-b border-border px-3 text-xs`}
+      class="flex items-center gap-2 border-b border-border px-3 text-xs"
+      style={{ height: `${props.headerH}px` }}
     >
       {iconClass() ? (
         <i
@@ -93,10 +95,13 @@ function DiffHeader(props: { item: ChatDiff; adds: number; dels: number }) {
 
 export type DiffProps = {
   item: ChatDiff;
-  layout: DiffMeasureResult;
+  layout: DiffLayout;
+  codeLineHeight: () => number;
 };
 
 export function Diff(props: DiffProps) {
+  const theme = useTheme();
+  const g = () => theme().geometry;
   const lineEls = new Map<number, HTMLElement>();
 
   createEffect(() => {
@@ -122,7 +127,6 @@ export function Diff(props: DiffProps) {
       }
     }
 
-    // Fast path: both sides already cached
     const newHl = peekHighlight(newCode, lang);
     const oldHl = props.item.oldText
       ? peekHighlight(oldCode, lang)
@@ -148,8 +152,13 @@ export function Diff(props: DiffProps) {
   });
 
   return (
-    <div class={`${styles.pdiff} overflow-hidden rounded-lg border border-border`}>
-      <DiffHeader item={props.item} adds={props.layout.adds} dels={props.layout.dels} />
+    <div class="overflow-hidden rounded-lg border border-border">
+      <DiffHeader
+        item={props.item}
+        adds={props.layout.adds}
+        dels={props.layout.dels}
+        headerH={g().diffHeaderH}
+      />
       <div class={styles['pdiff__body']}>
         <For each={props.layout.previewRows}>
           {(row, i) => (
@@ -167,7 +176,11 @@ export function Diff(props: DiffProps) {
           )}
         </For>
         {props.layout.truncated && (
-          <div class={`${styles['pdiff__fade']} fade-overlay-bottom`} aria-hidden="true" />
+          <div
+            class={`${styles['pdiff__fade']} fade-overlay-bottom`}
+            style={{ height: `${g().diffFadeH}px` }}
+            aria-hidden="true"
+          />
         )}
       </div>
     </div>
