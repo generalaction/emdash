@@ -254,7 +254,7 @@ describe('GitHubCliAccountImportService', () => {
   });
 
   it('skips tombstoned CLI accounts during startup import', async () => {
-    const account = await registry.upsertAccount({
+    const { account } = await registry.upsertAccount({
       accessToken: 'gho_monalisa',
       credentialSource: 'cli',
       providerAccount: {
@@ -288,7 +288,7 @@ describe('GitHubCliAccountImportService', () => {
   });
 
   it('explicit imports reconnect tombstoned CLI accounts and clear the tombstone', async () => {
-    const account = await registry.upsertAccount({
+    const { account } = await registry.upsertAccount({
       accessToken: 'gho_monalisa',
       credentialSource: 'cli',
       providerAccount: {

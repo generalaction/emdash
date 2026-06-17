@@ -77,17 +77,19 @@ describe('GitHubApiAuthService', () => {
     login?: string;
     token?: string;
   } = {}) {
-    return registry.upsertAccount({
-      accessToken: token,
-      credentialSource: 'emdash_oauth',
-      providerAccount: {
-        providerId: 'github',
-        providerAccountId,
-        host,
-        login,
-        avatarUrl: '',
-      },
-    });
+    return (
+      await registry.upsertAccount({
+        accessToken: token,
+        credentialSource: 'emdash_oauth',
+        providerAccount: {
+          providerId: 'github',
+          providerAccountId,
+          host,
+          login,
+          avatarUrl: '',
+        },
+      })
+    ).account;
   }
 
   it('uses the selected GitHub.com account token when an account id is provided', async () => {

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { err, ok, type Result } from '@shared/lib/result';
 import { EmdashAccountService } from './emdash-account-service';
 
 const mockCredGet = vi.fn();
@@ -20,6 +21,9 @@ vi.mock('@main/db/kv', () => ({
       return mockKvGet(...args);
     }
     set(...args: unknown[]) {
+      return mockKvSet(...args);
+    }
+    setOrThrow(...args: unknown[]) {
       return mockKvSet(...args);
     }
   },
@@ -46,19 +50,41 @@ vi.mock('../config', () => ({
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
+function unwrapResult<T, E>(result: Result<T, E>): T {
+  expect(result.success).toBe(true);
+  if (!result.success) {
+    throw new Error(`Expected ok result, got ${JSON.stringify(result.error)}`);
+  }
+  return result.data;
+}
+
+function unwrapError<T, E>(result: Result<T, E>): E {
+  expect(result.success).toBe(false);
+  if (result.success) {
+    throw new Error(`Expected error result, got ${JSON.stringify(result.data)}`);
+  }
+  return result.error;
+}
+
 describe('EmdashAccountService', () => {
   let service: EmdashAccountService;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCredGet.mockResolvedValue(ok(null));
+    mockCredSet.mockResolvedValue(ok());
+    mockCredClear.mockResolvedValue(ok());
     mockKvGet.mockResolvedValue(null);
     mockKvSet.mockResolvedValue(undefined);
+    mockFetch.mockReset();
+    mockExecuteOAuthFlow.mockReset();
+    mockDispatch.mockResolvedValue(undefined);
     service = new EmdashAccountService();
   });
 
   describe('getSession()', () => {
     it('returns no account when profile cache is empty', async () => {
-      const session = await service.getSession();
+      const session = unwrapResult(await service.getSession());
       expect(session).toEqual({ user: null, isSignedIn: false, hasAccount: false });
     });
 
@@ -72,14 +98,14 @@ describe('EmdashAccountService', () => {
         email: 'test@test.com',
         lastValidated: '2026-01-01',
       });
-      const session = await service.getSession();
+      const session = unwrapResult(await service.getSession());
       expect(session.hasAccount).toBe(true);
       expect(session.isSignedIn).toBe(false);
       expect(session.user).toBeNull();
     });
 
     it('returns the cached user name when signed in', async () => {
-      mockCredGet.mockResolvedValue('token-123');
+      mockCredGet.mockResolvedValue(ok('token-123'));
       mockKvGet.mockResolvedValue({
         hasAccount: true,
         userId: 'u1',
@@ -90,8 +116,8 @@ describe('EmdashAccountService', () => {
         lastValidated: '2026-01-01',
       });
 
-      await service.loadSessionToken();
-      const session = await service.getSession();
+      unwrapResult(await service.loadSessionToken());
+      const session = unwrapResult(await service.getSession());
 
       expect(session.user).toEqual({
         userId: 'u1',
@@ -105,8 +131,8 @@ describe('EmdashAccountService', () => {
 
   describe('loadSessionToken()', () => {
     it('loads token from credential store', async () => {
-      mockCredGet.mockResolvedValue('token-123');
-      await service.loadSessionToken();
+      mockCredGet.mockResolvedValue(ok('token-123'));
+      unwrapResult(await service.loadSessionToken());
       expect(mockCredGet).toHaveBeenCalled();
     });
   });
@@ -127,7 +153,7 @@ describe('EmdashAccountService', () => {
       };
       mockExecuteOAuthFlow.mockResolvedValue(oauthResponse);
 
-      const result = await service.signIn();
+      const result = unwrapResult(await service.signIn());
 
       expect(mockExecuteOAuthFlow).toHaveBeenCalledWith(expect.objectContaining({}));
       expect(mockCredSet).toHaveBeenCalledWith('session-abc');
@@ -149,7 +175,7 @@ describe('EmdashAccountService', () => {
       };
       mockExecuteOAuthFlow.mockResolvedValue(oauthResponse);
 
-      await service.signIn('github');
+      unwrapResult(await service.signIn('github'));
 
       expect(mockExecuteOAuthFlow).toHaveBeenCalledWith(expect.objectContaining({}));
     });
@@ -170,7 +196,7 @@ describe('EmdashAccountService', () => {
       };
       mockExecuteOAuthFlow.mockResolvedValue(oauthResponse);
 
-      await service.signIn();
+      unwrapResult(await service.signIn());
 
       expect(mockDispatch).toHaveBeenCalledWith('github', {
         accessToken: 'ghp_123',
@@ -198,7 +224,7 @@ describe('EmdashAccountService', () => {
       };
       mockExecuteOAuthFlow.mockResolvedValue(oauthResponse);
 
-      await service.signIn();
+      unwrapResult(await service.signIn());
 
       expect(mockDispatch).toHaveBeenCalledWith('github', {
         accessToken: 'ghp_123',
@@ -206,7 +232,7 @@ describe('EmdashAccountService', () => {
       });
     });
 
-    it('throws when provider token persistence fails', async () => {
+    it('returns a typed error when provider token persistence fails', async () => {
       const oauthResponse = {
         sessionToken: 'session-abc',
         accessToken: 'ghp_123',
@@ -216,7 +242,12 @@ describe('EmdashAccountService', () => {
       mockExecuteOAuthFlow.mockResolvedValue(oauthResponse);
       mockDispatch.mockRejectedValueOnce(new Error('secure storage failed'));
 
-      await expect(service.signIn()).rejects.toThrow('secure storage failed');
+      const error = unwrapError(await service.signIn());
+      expect(error).toMatchObject({
+        type: 'provider_token_persistence_failed',
+        provider: 'github',
+        message: 'secure storage failed',
+      });
     });
 
     it('does not dispatch when provider token is absent', async () => {
@@ -226,7 +257,7 @@ describe('EmdashAccountService', () => {
       };
       mockExecuteOAuthFlow.mockResolvedValue(oauthResponse);
 
-      await service.signIn();
+      unwrapResult(await service.signIn());
 
       expect(mockDispatch).not.toHaveBeenCalled();
     });
@@ -234,7 +265,7 @@ describe('EmdashAccountService', () => {
 
   describe('linkProviderAccount()', () => {
     it('starts an account-link transaction and stores the linked provider token', async () => {
-      mockCredGet.mockResolvedValue('session-abc');
+      mockCredGet.mockResolvedValue(ok('session-abc'));
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ accountLinkState: 'account-link-state' }),
@@ -251,8 +282,12 @@ describe('EmdashAccountService', () => {
         },
       };
       mockExecuteOAuthFlow.mockResolvedValue(oauthResponse);
+      mockDispatch.mockResolvedValueOnce({
+        providerAccountStatus: 'created',
+        providerAccount: oauthResponse.providerAccount,
+      });
 
-      const result = await service.linkProviderAccount();
+      const result = unwrapResult(await service.linkProviderAccount());
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://auth.test.emdash.sh/api/v1/auth/electron/account-link/start',
@@ -285,6 +320,7 @@ describe('EmdashAccountService', () => {
       });
       expect(result).toEqual({
         provider: 'github',
+        providerAccountStatus: 'created',
         providerAccount: {
           providerId: 'github',
           providerAccountId: '84',
@@ -295,64 +331,149 @@ describe('EmdashAccountService', () => {
       });
     });
 
-    it('requires an existing Emdash session', async () => {
-      mockCredGet.mockResolvedValue(null);
+    it('reports when the linked provider account already exists', async () => {
+      mockCredGet.mockResolvedValue(ok('session-abc'));
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ accountLinkState: 'account-link-state' }),
+      });
+      const providerAccount = {
+        providerId: 'github',
+        providerAccountId: '84',
+        host: 'github.com',
+        login: 'octocat',
+        avatarUrl: 'https://avatars.githubusercontent.com/u/84',
+      };
+      mockExecuteOAuthFlow.mockResolvedValue({
+        accessToken: 'ghp_linked',
+        providerId: 'github',
+        providerAccount,
+      });
+      mockDispatch.mockResolvedValueOnce({
+        providerAccountStatus: 'updated',
+        providerAccount,
+      });
 
-      await expect(service.linkProviderAccount()).rejects.toThrow(
-        'You must be signed in to link a provider account'
-      );
+      const result = unwrapResult(await service.linkProviderAccount());
+
+      expect(result).toEqual({
+        provider: 'github',
+        providerAccountStatus: 'updated',
+        providerAccount,
+      });
+    });
+
+    it('requires an existing Emdash session', async () => {
+      mockCredGet.mockResolvedValue(ok(null));
+
+      const error = unwrapError(await service.linkProviderAccount());
+      expect(error).toMatchObject({
+        type: 'not_signed_in',
+        message: 'You must be signed in to link a provider account',
+      });
       expect(mockFetch).not.toHaveBeenCalled();
       expect(mockExecuteOAuthFlow).not.toHaveBeenCalled();
       expect(mockDispatch).not.toHaveBeenCalled();
     });
 
     it('rejects unsupported providers before starting a link transaction', async () => {
-      await expect(service.linkProviderAccount('gitlab')).rejects.toThrow(
-        'Account linking is not supported for provider "gitlab"'
-      );
+      const error = unwrapError(await service.linkProviderAccount('gitlab'));
+      expect(error).toMatchObject({
+        type: 'unsupported_provider',
+        provider: 'gitlab',
+        message: 'Account linking is not supported for provider "gitlab"',
+      });
       expect(mockCredGet).not.toHaveBeenCalled();
       expect(mockFetch).not.toHaveBeenCalled();
       expect(mockExecuteOAuthFlow).not.toHaveBeenCalled();
     });
 
-    it('surfaces account-link start failures from the auth server', async () => {
-      mockCredGet.mockResolvedValue('session-abc');
+    it('clears stale local session when account-link start reports no active session', async () => {
+      const accountCleared = vi.fn();
+      service.on('accountCleared', accountCleared);
+      mockCredGet.mockResolvedValue(ok('session-abc'));
+      mockKvGet.mockResolvedValue({
+        hasAccount: true,
+        userId: 'u1',
+        username: 'test',
+        avatarUrl: '',
+        email: '',
+        lastValidated: '2026-01-01',
+      });
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
         json: async () => ({ error: 'No active session' }),
       });
 
-      await expect(service.linkProviderAccount()).rejects.toThrow('No active session');
+      const error = unwrapError(await service.linkProviderAccount());
+      expect(error).toMatchObject({
+        type: 'session_expired',
+        message: 'Your Emdash session expired. Sign in again to connect GitHub.',
+      });
+      expect(mockCredClear).toHaveBeenCalled();
+      expect(mockKvSet).toHaveBeenCalledWith(
+        'profile',
+        expect.objectContaining({ hasAccount: true, username: 'test' })
+      );
+      expect(accountCleared).toHaveBeenCalled();
+      expect(mockExecuteOAuthFlow).not.toHaveBeenCalled();
+      expect(mockDispatch).not.toHaveBeenCalled();
+
+      const session = unwrapResult(await service.getSession());
+      expect(session).toMatchObject({
+        isSignedIn: false,
+        hasAccount: true,
+      });
+    });
+
+    it('surfaces non-session account-link start failures from the auth server', async () => {
+      mockCredGet.mockResolvedValue(ok('session-abc'));
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: async () => ({ error: 'Auth server unavailable' }),
+      });
+
+      const error = unwrapError(await service.linkProviderAccount());
+      expect(error).toMatchObject({
+        type: 'auth_server_error',
+        message: 'Auth server unavailable',
+      });
+      expect(mockCredClear).not.toHaveBeenCalled();
       expect(mockExecuteOAuthFlow).not.toHaveBeenCalled();
       expect(mockDispatch).not.toHaveBeenCalled();
     });
 
     it('rejects malformed account-link start responses', async () => {
-      mockCredGet.mockResolvedValue('session-abc');
+      mockCredGet.mockResolvedValue(ok('session-abc'));
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ expiresAt: '2026-01-01T00:00:00.000Z' }),
       });
 
-      await expect(service.linkProviderAccount()).rejects.toThrow(
-        'Invalid account link start response: missing accountLinkState'
-      );
+      const error = unwrapError(await service.linkProviderAccount());
+      expect(error).toMatchObject({
+        type: 'invalid_auth_response',
+        message: 'Invalid account link start response: missing accountLinkState',
+      });
       expect(mockExecuteOAuthFlow).not.toHaveBeenCalled();
       expect(mockDispatch).not.toHaveBeenCalled();
     });
 
     it('rejects account-link exchange responses without a provider token', async () => {
-      mockCredGet.mockResolvedValue('session-abc');
+      mockCredGet.mockResolvedValue(ok('session-abc'));
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ accountLinkState: 'account-link-state' }),
       });
       mockExecuteOAuthFlow.mockResolvedValue({ providerId: 'github' });
 
-      await expect(service.linkProviderAccount()).rejects.toThrow(
-        'Invalid account link response: missing provider token'
-      );
+      const error = unwrapError(await service.linkProviderAccount());
+      expect(error).toMatchObject({
+        type: 'invalid_auth_response',
+        message: 'Invalid account link response: missing provider token',
+      });
       expect(mockDispatch).not.toHaveBeenCalled();
     });
   });
@@ -366,11 +487,11 @@ describe('EmdashAccountService', () => {
         user: { userId: 'u1', username: 'test', avatarUrl: '', email: '' },
       };
       mockExecuteOAuthFlow.mockResolvedValue(exchangeResult);
-      await service.signIn();
+      unwrapResult(await service.signIn());
       vi.clearAllMocks();
       mockKvSet.mockResolvedValue(undefined);
 
-      await service.signOut();
+      unwrapResult(await service.signOut());
 
       expect(mockCredClear).toHaveBeenCalled();
       expect(mockKvSet).toHaveBeenCalledWith(
@@ -384,16 +505,49 @@ describe('EmdashAccountService', () => {
         avatarUrl: '',
         email: '',
       });
-      const session = await service.getSession();
+      const session = unwrapResult(await service.getSession());
       expect(session.isSignedIn).toBe(false);
+      expect(session.hasAccount).toBe(true);
+    });
+
+    it('keeps the in-memory session token when credential clearing fails', async () => {
+      const exchangeResult = {
+        sessionToken: 'session-abc',
+        accessToken: 'ghp_123',
+        providerId: 'github',
+        user: { userId: 'u1', username: 'test', avatarUrl: '', email: '' },
+      };
+      mockExecuteOAuthFlow.mockResolvedValue(exchangeResult);
+      unwrapResult(await service.signIn());
+      vi.clearAllMocks();
+      mockCredClear.mockResolvedValue(
+        err({
+          type: 'session_persistence_failed',
+          message: 'Failed to clear session token',
+        })
+      );
+
+      const error = unwrapError(await service.signOut());
+      expect(error).toMatchObject({ type: 'session_persistence_failed' });
+      expect(mockKvSet).not.toHaveBeenCalled();
+
+      mockKvGet.mockResolvedValue({
+        hasAccount: true,
+        userId: 'u1',
+        username: 'test',
+        avatarUrl: '',
+        email: '',
+      });
+      const session = unwrapResult(await service.getSession());
+      expect(session.isSignedIn).toBe(true);
       expect(session.hasAccount).toBe(true);
     });
   });
 
   describe('validateSession()', () => {
     it('returns false when no session token', async () => {
-      const result = await service.validateSession();
-      expect(result).toBe(false);
+      const result = unwrapResult(await service.validateSession());
+      expect(result).toBe('invalid');
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
@@ -405,14 +559,14 @@ describe('EmdashAccountService', () => {
         user: { userId: 'u1', username: 'test', avatarUrl: '', email: '' },
       };
       mockExecuteOAuthFlow.mockResolvedValue(exchangeResult);
-      await service.signIn();
+      unwrapResult(await service.signIn());
       vi.clearAllMocks();
       mockKvSet.mockResolvedValue(undefined);
 
       mockFetch.mockResolvedValue({ ok: false, status: 401 });
-      const result = await service.validateSession();
+      const result = unwrapResult(await service.validateSession());
 
-      expect(result).toBe(false);
+      expect(result).toBe('invalid');
       expect(mockCredClear).toHaveBeenCalled();
       expect(mockKvSet).toHaveBeenCalledWith(
         'profile',
@@ -428,12 +582,12 @@ describe('EmdashAccountService', () => {
         user: { userId: 'u1', username: 'test', avatarUrl: '', email: '' },
       };
       mockExecuteOAuthFlow.mockResolvedValue(exchangeResult);
-      await service.signIn();
+      unwrapResult(await service.signIn());
       vi.clearAllMocks();
 
       mockFetch.mockRejectedValue(new Error('network error'));
-      const result = await service.validateSession();
-      expect(result).toBe(true);
+      const result = unwrapResult(await service.validateSession());
+      expect(result).toBe('unknown');
     });
   });
 
