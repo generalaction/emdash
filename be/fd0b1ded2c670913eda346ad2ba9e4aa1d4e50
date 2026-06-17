@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/main/db/legacy-port/task-workspace-backfill.db.test.ts
+  s_6d60756d81284c::t_c29b1ec18d5903 182-221
+apps/emdash-desktop/src/main/db/legacy-port/task-workspace-backfill.ts
+  s_6d60756d81284c::t_11fac6c5e7eedd 2,118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "befd0b1ded2c670913eda346ad2ba9e4aa1d4e50",
+  "prompts": {},
+  "sessions": {
+    "s_6d60756d81284c": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed56a-fbbb-751e-ba44-096b4c5f01a2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
