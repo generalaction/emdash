@@ -1,0 +1,21 @@
+packages/plugins/src/agents/impl/devin/index.ts
+  s_674d10cbbee75f::t_7fde5007ff9159 24
+packages/plugins/src/agents/impl/qwen/index.ts
+  s_674d10cbbee75f::t_7fde5007ff9159 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "939881e186d6089f1577b1e2068d79c306ffa647",
+  "prompts": {},
+  "sessions": {
+    "s_674d10cbbee75f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed40e-dce0-7953-b5b1-2553dec1842c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
