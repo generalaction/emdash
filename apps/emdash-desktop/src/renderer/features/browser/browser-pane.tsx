@@ -1,13 +1,17 @@
+import { AlertCircle, ExternalLink, RotateCcw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDevServers } from '@renderer/features/tasks/task-view-context';
 import { rpc } from '@renderer/lib/ipc';
+import { Button } from '@renderer/lib/ui/button';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
 import { browserControlsRegistry } from './browser-controls-registry';
+import { browserLoadErrorCode, browserLoadErrorTitle } from './browser-load-error';
 import { decideBrowserReload } from './browser-navigation-controls';
 import { browserSessionStore } from './browser-session-store';
 import { BrowserStartPage } from './browser-start-page';
 import { BrowserToolbar } from './browser-toolbar';
+import { canOpenBrowserUrlExternally, openBrowserUrlExternally } from './browser-toolbar-actions';
 import { bindBrowserWebviewEvents } from './browser-webview-events';
 import {
   createBrowserWebviewAdapter,
@@ -41,6 +45,7 @@ export const BrowserPane = observer(function BrowserPane({
   const sessionBrowserId = session?.browserId;
   const sessionPartition = session?.partition;
   const showStartPage = session?.currentUrl === 'about:blank' && !session.isLoading;
+  const loadError = session && !session.isLoading ? session.loadError : undefined;
 
   useEffect(() => {
     if (!sessionBrowserId || !sessionPartition || !session) {
@@ -245,7 +250,16 @@ export const BrowserPane = observer(function BrowserPane({
         }}
       />
       <div className="emlight min-h-0 flex-1 bg-background">
-        {showStartPage ? (
+        {loadError ? (
+          <BrowserLoadErrorView
+            url={loadError.url ?? session.currentUrl}
+            title={browserLoadErrorTitle(loadError)}
+            code={browserLoadErrorCode(loadError)}
+            canOpenExternal={canOpenBrowserUrlExternally(loadError.url ?? session.currentUrl)}
+            onReload={reload}
+            onOpenExternal={() => openBrowserUrlExternally(loadError.url ?? session.currentUrl)}
+          />
+        ) : showStartPage ? (
           <BrowserStartPage devServerUrls={devServers.urls} onOpenUrl={navigateTo} />
         ) : webviewProps && isRegistered ? (
           <webview
@@ -263,3 +277,57 @@ export const BrowserPane = observer(function BrowserPane({
     </div>
   );
 });
+
+function BrowserLoadErrorView({
+  title,
+  code,
+  url,
+  canOpenExternal,
+  onReload,
+  onOpenExternal,
+}: {
+  title: string;
+  code: string | null;
+  url: string;
+  canOpenExternal: boolean;
+  onReload: () => void;
+  onOpenExternal: () => void;
+}) {
+  return (
+    <div className="flex h-full min-h-0 items-center justify-center px-6 py-8">
+      <div className="flex w-full max-w-xl flex-col items-start gap-5">
+        <div className="flex items-start gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-border-destructive bg-background-destructive">
+            <AlertCircle className="size-5 text-foreground-destructive" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-base font-medium text-foreground">Page failed to load</h2>
+            <p className="mt-1 text-sm text-foreground-muted">{title}</p>
+          </div>
+        </div>
+        <div className="flex w-full min-w-0 flex-col gap-2 rounded-md border border-border bg-background-secondary-1 px-3 py-2 text-sm">
+          <div className="min-w-0 truncate text-foreground" title={url}>
+            {url}
+          </div>
+          {code && <div className="font-mono text-xs text-foreground-muted">{code}</div>}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" size="sm" onClick={onReload}>
+            <RotateCcw className="size-4" />
+            Reload
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={!canOpenExternal}
+            onClick={onOpenExternal}
+          >
+            <ExternalLink className="size-4" />
+            Open externally
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
