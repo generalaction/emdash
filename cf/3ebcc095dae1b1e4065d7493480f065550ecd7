@@ -1,0 +1,32 @@
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.test.ts
+  s_03051761ca3d60::t_6a41553bea037e 188-209
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_03051761ca3d60::t_f8efb97c84921c 4-5,16,54,95-96,101,134-143,145-146,155-159,161-163,201-209,277-278,280-281,283-284,286-293,295,300,302-305,311-312,318-324
+  s_03051761ca3d60::t_e0ff08714234a6 14,20,97,106,144,148,154,160,216,279,285,301
+  s_03051761ca3d60::t_cca0390ffb89f8 21
+  s_03051761ca3d60::t_b4e71c0b2f285f 282,294,296-299,306-310,313-317
+  s_03051761ca3d60::t_c8601fdcbb531a 147,149-153
+apps/emdash-desktop/src/renderer/features/browser/browser-webview-types.ts
+  s_03051761ca3d60::t_02d30473375d73 13-14,29,53
+  s_03051761ca3d60::t_ccf05e9d0b4800 28,52,72-73
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_03051761ca3d60::t_aa997d56e925c2 19-23,218-225,401-408
+apps/emdash-desktop/src/shared/events/browserEvents.ts
+  s_03051761ca3d60::t_959b0de80f63ae 12-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "cf3ebcc095dae1b1e4065d7493480f065550ecd7",
+  "prompts": {},
+  "sessions": {
+    "s_03051761ca3d60": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed400-2200-70a2-856c-cdda7aaabfbe",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
