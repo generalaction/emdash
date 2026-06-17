@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/main/core/browser/browser-cors-relaxation.ts
+  s_7e0f7d3037dc49::t_d1a2f5014d0154 38-40
+apps/emdash-desktop/src/main/core/browser/browser-cors-relaxation.test.ts
+  s_7e0f7d3037dc49::t_1abc8313ef48a5 43-65
+apps/emdash-desktop/src/main/core/settings/controller.ts
+  s_7e0f7d3037dc49::t_11da980f96f074 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "8493cf9525790796504854583f426fa9a1b0e233",
+  "prompts": {},
+  "sessions": {
+    "s_7e0f7d3037dc49": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed6a0-8faa-7ee3-9c34-4d625556e7b7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
