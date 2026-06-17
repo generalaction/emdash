@@ -344,6 +344,22 @@ Fix: a backend- and host-aware `killSessionById({ hostCtx, kind, sessionId })` h
 The spike should be a throwaway: detect/install boo locally, hand-run the candidate shell line
 against a real agent, and check items 1–5.
 
+### Spike results — 2026-06-17 (boo 0.5.20, macOS arm64) — ALL PASS ✅
+
+1. **Create-then-attach idiom — confirmed.** `boo new <name> -d -- …` exits `1` with
+   "session already exists" when present, and `;`-chaining does not abort the line — so the §7.2
+   candidate `boo new NAME -d -- /bin/sh -c CMD 2>/dev/null; exec boo attach NAME` is valid as
+   written (no `boo ls` guard needed).
+2. **Resize / SIGWINCH (the gate) — PASS.** A Python pty harness attached to a boo session and
+   resized the master twice post-attach (40×120, 50×200); the child reported both new sizes via a
+   `SIGWINCH` trap (`stty size`). boo propagates resize to the child PTY. **Effort is viable.**
+3. **Scrollback — no low cap.** 500 emitted lines → `peek --scrollback` returned 500; `peek --json`
+   exposes `rows/cols/cursor/title/screen`.
+4. **Session-name charset — OK.** `emdash-aGVsbG8_-x` (base64url `-`/`_`) accepted.
+5. **Rendering / UTF-8 fidelity — PASS.** Box-drawing (`┌──┬──┐`) and symbols (`✓ ◉ █▓▒░ ➜`)
+   round-tripped through boo intact — no `-u`-equivalent flag needed (libghostty is UTF-8 native),
+   which is exactly the class of glyph tmux mangles without `-u`.
+
 ## 10. Testing strategy
 
 - **Unit:** `BooBackend.buildAttachShellLine` / `makeSessionName` (mirror existing tmux tests if
