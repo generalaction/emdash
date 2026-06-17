@@ -1,5 +1,5 @@
-import { detectPlatform, getHotkeyManager, matchesKeyboardEvent } from '@tanstack/hotkeys';
 import { useEffect } from 'react';
+import { dispatchMatchingHotkeys } from '@renderer/lib/hotkeys/dispatch-matching-hotkeys';
 
 function isMonacoFocused(): boolean {
   return document.activeElement?.closest('.monaco-editor') !== null;
@@ -18,27 +18,10 @@ function isMonacoFocused(): boolean {
  */
 export function MonacoKeyboardBridge() {
   useEffect(() => {
-    const platform = detectPlatform();
-
     const handler = (e: KeyboardEvent) => {
       if (!isMonacoFocused()) return;
 
-      const manager = getHotkeyManager();
-      let handled = false;
-
-      for (const [, registration] of manager.registrations.state) {
-        if (!registration.options.enabled) continue;
-        if (matchesKeyboardEvent(e, registration.parsedHotkey, platform)) {
-          if (registration.options.preventDefault) e.preventDefault();
-          registration.callback(e, {
-            hotkey: registration.hotkey,
-            parsedHotkey: registration.parsedHotkey,
-          });
-          handled = true;
-          // No break — conflictBehavior: 'allow' keys (tabClose, tabNext, tabPrev)
-          // legitimately have multiple registrations for the same key.
-        }
-      }
+      const handled = dispatchMatchingHotkeys(e);
 
       // Prevent the event from reaching Monaco and skip the TanStack bubbling
       // listener (which would otherwise double-dispatch the same shortcut).
