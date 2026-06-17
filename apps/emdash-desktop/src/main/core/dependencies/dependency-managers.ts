@@ -61,7 +61,8 @@ export async function getDependencyManager(connectionId?: string): Promise<HostD
   if (!connectionId) return localDependencyManager;
   let mgr = sshManagers.get(connectionId);
   if (!mgr) {
-    const proxy = await sshConnectionManager.connect(connectionId);
+    const proxy =
+      sshConnectionManager.getProxy(connectionId) ?? (await sshConnectionManager.connect(connectionId));
     const sshCtx = new SshExecutionContext(proxy);
     const platform = await resolveRemotePlatform(sshCtx);
     mgr = new HostDependencyManager(sshCtx, {

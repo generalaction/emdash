@@ -5,6 +5,7 @@ import type {
   DependencyStatus,
   ProbeResult,
 } from '@emdash/shared/deps/runtime';
+import { CORE_DEPENDENCIES } from './core-deps/descriptors';
 
 /**
  * Agents that output their version on stderr, time out during probing, or return
@@ -67,7 +68,10 @@ function buildAgentDependencies(): DependencyDescriptor[] {
   return pluginRegistry.getAll().map(buildDescriptorFromProvider);
 }
 
-export const DEPENDENCIES: DependencyDescriptor[] = buildAgentDependencies();
+export const DEPENDENCIES: DependencyDescriptor[] = [
+  ...buildAgentDependencies(),
+  ...CORE_DEPENDENCIES,
+];
 
 export function getDependencyDescriptor(id: string): DependencyDescriptor | undefined {
   return DEPENDENCIES.find((d) => d.id === id);
