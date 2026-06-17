@@ -17,14 +17,6 @@ export function MermaidDiagramPreview({ svg, compact, onExpand }: MermaidDiagram
     onExpand();
   };
 
-  const handleExpand = (event: React.MouseEvent<HTMLButtonElement>) => {
-    expandFromInteraction(event);
-  };
-
-  const handlePreviewClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    expandFromInteraction(event);
-  };
-
   const handlePreviewKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Enter' || event.key === ' ') {
       expandFromInteraction(event);
@@ -42,7 +34,7 @@ export function MermaidDiagramPreview({ svg, compact, onExpand }: MermaidDiagram
               size="icon-xs"
               aria-label="Expand Mermaid diagram"
               className="absolute top-1 right-1 z-10 opacity-0 shadow-sm ring-1 ring-border/80 transition-opacity group-hover/mermaid:opacity-100 focus-visible:opacity-100"
-              onClick={handleExpand}
+              onClick={expandFromInteraction}
             >
               <Expand className="size-3" />
             </Button>
@@ -60,7 +52,7 @@ export function MermaidDiagramPreview({ svg, compact, onExpand }: MermaidDiagram
           'min-w-fit cursor-zoom-in p-2 text-foreground [&_svg]:block [&_svg]:h-auto [&_svg]:max-w-full',
           compact && 'p-1.5'
         )}
-        onClick={handlePreviewClick}
+        onClick={expandFromInteraction}
         onKeyDown={handlePreviewKeyDown}
         dangerouslySetInnerHTML={{ __html: svg }}
       />
