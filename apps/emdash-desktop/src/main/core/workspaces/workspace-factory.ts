@@ -39,7 +39,10 @@ import { getTaskEnvVars } from './workspace-env';
 export async function resolveMultiplexers(
   persistenceOn: boolean,
   connectionId: string | undefined
-): Promise<{ agentMultiplexer: MultiplexerBackend | null; terminalMultiplexer: MultiplexerBackend | null }> {
+): Promise<{
+  agentMultiplexer: MultiplexerBackend | null;
+  terminalMultiplexer: MultiplexerBackend | null;
+}> {
   if (!persistenceOn) {
     return { agentMultiplexer: null, terminalMultiplexer: null };
   }

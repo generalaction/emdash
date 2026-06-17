@@ -1,4 +1,3 @@
-import type { DependencyStatus } from '@emdash/shared/deps/runtime';
 import { Info, Loader2 } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
@@ -7,6 +6,7 @@ import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import type { DependencyStatus } from '@shared/core/agents/agent-payload';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 

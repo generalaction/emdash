@@ -59,9 +59,8 @@ describe('getDependencyManager — getProxy preference', () => {
   it('uses an already-pooled proxy without calling connect()', async () => {
     const fakeProxy = { exec: vi.fn().mockResolvedValue({ stdout: 'Linux', stderr: '' }) };
 
-    const { sshConnectionManager } = await import(
-      '@main/core/ssh/lifecycle/production-ssh-connection-manager'
-    );
+    const { sshConnectionManager } =
+      await import('@main/core/ssh/lifecycle/production-ssh-connection-manager');
     const mockManager = sshConnectionManager as unknown as {
       getProxy: ReturnType<typeof vi.fn>;
       connect: ReturnType<typeof vi.fn>;
@@ -82,9 +81,8 @@ describe('getDependencyManager — getProxy preference', () => {
   it('falls back to connect() when no proxy is pooled', async () => {
     const fakeProxy = { exec: vi.fn().mockResolvedValue({ stdout: 'Linux', stderr: '' }) };
 
-    const { sshConnectionManager } = await import(
-      '@main/core/ssh/lifecycle/production-ssh-connection-manager'
-    );
+    const { sshConnectionManager } =
+      await import('@main/core/ssh/lifecycle/production-ssh-connection-manager');
     const mockManager = sshConnectionManager as unknown as {
       getProxy: ReturnType<typeof vi.fn>;
       connect: ReturnType<typeof vi.fn>;

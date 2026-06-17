@@ -1,6 +1,7 @@
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { isUnexpectedPtyExit } from '@main/core/pty/exit-classification';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
+import type { MultiplexerBackend } from '@main/core/pty/multiplexer';
 import type { Pty } from '@main/core/pty/pty';
 import { buildTerminalEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry, type PtySessionMetadata } from '@main/core/pty/pty-session-registry';
@@ -11,7 +12,6 @@ import {
   type PtySpawnIntent,
 } from '@main/core/pty/pty-spawn-platform';
 import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
-import type { MultiplexerBackend } from '@main/core/pty/multiplexer';
 import { resolveTerminalShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { log } from '@main/lib/logger';
@@ -277,9 +277,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     await this.detachAll();
     if (this.multiplexer) {
       const mux = this.multiplexer;
-      await Promise.all(
-        sessionIds.map((id) => mux.killSession(this.ctx, mux.makeSessionName(id)))
-      );
+      await Promise.all(sessionIds.map((id) => mux.killSession(this.ctx, mux.makeSessionName(id))));
     }
     this.knownSessionIds.clear();
     this.shellProfiles.clear();

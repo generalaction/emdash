@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DependencyInstallResult, DependencyState } from '@emdash/shared/deps/runtime';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock getDependencyManager before importing the controller under test
 vi.mock('@main/core/dependencies/dependency-managers', () => ({

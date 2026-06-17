@@ -10,12 +10,12 @@ import { localDependencyManager } from '@main/core/dependencies/dependency-manag
 import { hostDependencyStore } from '@main/core/dependencies/host-dependency-store';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
+import type { MultiplexerBackend } from '@main/core/pty/multiplexer';
 import type { Pty } from '@main/core/pty/pty';
 import { buildAgentEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/pty-spawn-platform';
 import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
-import type { MultiplexerBackend } from '@main/core/pty/multiplexer';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { events } from '@main/lib/events';
@@ -306,9 +306,7 @@ export class LocalConversationProvider implements ConversationProvider {
     await this.detachAll();
     if (this.multiplexer) {
       const mux = this.multiplexer;
-      await Promise.all(
-        sessionIds.map((id) => mux.killSession(this.ctx, mux.makeSessionName(id)))
-      );
+      await Promise.all(sessionIds.map((id) => mux.killSession(this.ctx, mux.makeSessionName(id))));
     }
     for (const sessionId of sessionIds) {
       this.supervisor.forget(sessionId);

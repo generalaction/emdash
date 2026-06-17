@@ -4,10 +4,10 @@
  * a respawn. When multiplexer is null, the provider must respawn.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MultiplexerBackend } from '@main/core/pty/multiplexer';
+import { tmuxBackend } from '@main/core/pty/multiplexer/tmux';
 import type { PtyExitInfo } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
-import { tmuxBackend } from '@main/core/pty/multiplexer/tmux';
-import type { MultiplexerBackend } from '@main/core/pty/multiplexer';
 import { agentSessionExitedChannel } from '@shared/core/agents/agentEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { LocalConversationProvider } from './local-conversation';
@@ -186,7 +186,9 @@ function conversation(): Conversation {
   };
 }
 
-function fakePty(exitHandlers: Array<(info: PtyExitInfo) => void>): ReturnType<typeof spawnLocalPty> {
+function fakePty(
+  exitHandlers: Array<(info: PtyExitInfo) => void>
+): ReturnType<typeof spawnLocalPty> {
   return {
     write: vi.fn(),
     resize: vi.fn(),

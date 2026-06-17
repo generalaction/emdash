@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CONVERSATION_FRESH_RECOVERY_GRACE_MS } from '@main/core/conversations/conversation-session-supervisor';
-import type { Pty, PtyExitInfo } from '@main/core/pty/pty';
-import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import type { MultiplexerBackend } from '@main/core/pty/multiplexer';
 import { tmuxBackend } from '@main/core/pty/multiplexer/tmux';
+import type { Pty, PtyExitInfo } from '@main/core/pty/pty';
+import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { agentSessionExitedChannel } from '@shared/core/agents/agentEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { ptyExitChannel } from '@shared/core/pty/ptyEvents';

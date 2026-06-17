@@ -1,5 +1,5 @@
-import { log } from '@main/lib/logger';
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
 import type { MultiplexerBackend } from './types';
 

@@ -209,12 +209,18 @@ describe('resolveSshCommand', () => {
 
 describe('resolveSshCommand multiplexer wrapping', () => {
   it('wraps with the tmux backend when multiplexer.id is tmux', () => {
-    const cmd = resolveSshCommand('agent', makeAgentConfig({ multiplexer: { id: 'tmux', sessionName: 's' } }));
+    const cmd = resolveSshCommand(
+      'agent',
+      makeAgentConfig({ multiplexer: { id: 'tmux', sessionName: 's' } })
+    );
     expect(cmd).toContain('tmux -u attach-session -t \\"s\\"');
   });
 
   it('wraps with the boo backend when multiplexer.id is boo', () => {
-    const cmd = resolveSshCommand('agent', makeAgentConfig({ multiplexer: { id: 'boo', sessionName: 's' } }));
+    const cmd = resolveSshCommand(
+      'agent',
+      makeAgentConfig({ multiplexer: { id: 'boo', sessionName: 's' } })
+    );
     expect(cmd).toContain('exec boo attach');
   });
 

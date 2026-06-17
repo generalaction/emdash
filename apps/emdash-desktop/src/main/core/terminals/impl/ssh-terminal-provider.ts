@@ -1,11 +1,11 @@
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { isUnexpectedPtyExit } from '@main/core/pty/exit-classification';
+import type { MultiplexerBackend } from '@main/core/pty/multiplexer';
 import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry, type PtySessionMetadata } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
-import type { MultiplexerBackend } from '@main/core/pty/multiplexer';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import type { SshConnectionManagerEvent } from '@main/core/ssh/lifecycle/ssh-connection-manager';
@@ -322,9 +322,7 @@ export class SshTerminalProvider implements TerminalProvider {
     await this.detachAll();
     if (this.multiplexer) {
       const mux = this.multiplexer;
-      await Promise.all(
-        sessionIds.map((id) => mux.killSession(this.ctx, mux.makeSessionName(id)))
-      );
+      await Promise.all(sessionIds.map((id) => mux.killSession(this.ctx, mux.makeSessionName(id))));
     }
     this.knownSessionIds.clear();
     this.terminals.clear();

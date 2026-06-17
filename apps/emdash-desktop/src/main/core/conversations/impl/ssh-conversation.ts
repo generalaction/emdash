@@ -6,12 +6,12 @@ import type { ConversationProvider } from '@main/core/conversations/types';
 import { hostDependencyStore } from '@main/core/dependencies/host-dependency-store';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
+import type { MultiplexerBackend } from '@main/core/pty/multiplexer';
 import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
-import type { MultiplexerBackend } from '@main/core/pty/multiplexer';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { events } from '@main/lib/events';
@@ -339,9 +339,7 @@ export class SshConversationProvider implements ConversationProvider {
     await this.detachAll();
     if (this.multiplexer) {
       const mux = this.multiplexer;
-      await Promise.all(
-        sessionIds.map((id) => mux.killSession(this.ctx, mux.makeSessionName(id)))
-      );
+      await Promise.all(sessionIds.map((id) => mux.killSession(this.ctx, mux.makeSessionName(id))));
     }
     for (const sessionId of sessionIds) {
       this.supervisor.forget(sessionId);

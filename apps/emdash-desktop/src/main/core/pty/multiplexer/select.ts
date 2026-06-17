@@ -28,9 +28,7 @@ export function selectMultiplexer(
     // Gated to agent sessions so terminals are never affected.
     if (override) {
       if (detected[override]) return BACKENDS[override];
-      log.warn(
-        `EMDASH_AGENT_MULTIPLEXER=${override} set but not detected; using normal selection`
-      );
+      log.warn(`EMDASH_AGENT_MULTIPLEXER=${override} set but not detected; using normal selection`);
     }
     if (detected.boo) return booBackend;
     if (detected.tmux) return tmuxBackend;

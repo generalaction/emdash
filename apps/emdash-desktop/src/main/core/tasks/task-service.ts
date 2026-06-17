@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
-import { projectManager } from '@main/core/projects/project-manager';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
+import { projectManager } from '@main/core/projects/project-manager';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import {
   workspaceBootstrapService,
