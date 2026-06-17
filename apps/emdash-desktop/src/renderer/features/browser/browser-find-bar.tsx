@@ -17,16 +17,25 @@ export function BrowserFindBar({
   const [matchStatus, setMatchStatus] = useState({ active: 0, total: 0 });
   const inputRef = useRef<HTMLInputElement | null>(null);
   const activeRequestIdRef = useRef<number | null>(null);
+  const closeFocusTimerRef = useRef<number | null>(null);
 
   const openFind = useCallback(() => {
     setOpen(true);
     setRequestCount((count) => count + 1);
   }, []);
 
+  const clearCloseFocusTimer = useCallback(() => {
+    if (closeFocusTimerRef.current === null) return;
+    window.clearTimeout(closeFocusTimerRef.current);
+    closeFocusTimerRef.current = null;
+  }, []);
+
   useEffect(() => {
     onRegisterOpenFind?.(openFind);
     return () => onRegisterOpenFind?.(() => {});
   }, [onRegisterOpenFind, openFind]);
+
+  useEffect(() => clearCloseFocusTimer, [clearCloseFocusTimer]);
 
   useEffect(() => {
     if (!open) {
@@ -72,11 +81,15 @@ export function BrowserFindBar({
   };
 
   const closeFind = () => {
+    clearCloseFocusTimer();
     setOpen(false);
     setText('');
     setMatchStatus({ active: 0, total: 0 });
     activeRequestIdRef.current = null;
-    window.setTimeout(() => adapter?.focus(), 0);
+    closeFocusTimerRef.current = window.setTimeout(() => {
+      closeFocusTimerRef.current = null;
+      adapter?.focus();
+    }, 0);
   };
 
   if (!open) return null;

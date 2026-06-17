@@ -1,3 +1,4 @@
+import { useHotkey } from '@tanstack/react-hotkeys';
 import { Search } from 'lucide-react';
 import * as React from 'react';
 import { Input } from '@renderer/lib/ui/input';
@@ -14,6 +15,14 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(functio
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   React.useImperativeHandle(forwardedRef, () => inputRef.current as HTMLInputElement);
+
+  useHotkey(
+    'Mod+F',
+    () => {
+      inputRef.current?.focus();
+    },
+    { enabled: true }
+  );
 
   return (
     <div className={cn('relative flex min-w-0 items-center', containerClassName)}>
