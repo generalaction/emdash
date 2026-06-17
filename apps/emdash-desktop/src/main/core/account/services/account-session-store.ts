@@ -43,6 +43,13 @@ export class AccountSessionStore {
     }
   }
 
+  snapshot(): SessionSnapshot {
+    return {
+      token: this.sessionToken,
+      profile: this.cachedProfile,
+    };
+  }
+
   async ensureTokenLoaded(): Promise<Result<string | null, AccountSessionPersistenceError>> {
     if (this.sessionToken) return ok(this.sessionToken);
 
@@ -128,13 +135,6 @@ export class AccountSessionStore {
     } catch (error) {
       return err(toSessionPersistenceError(error, 'Failed to clear account session'));
     }
-  }
-
-  snapshot(): SessionSnapshot {
-    return {
-      token: this.sessionToken,
-      profile: this.cachedProfile,
-    };
   }
 
   private toSessionState(): SessionState {

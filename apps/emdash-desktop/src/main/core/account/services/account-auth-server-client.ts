@@ -10,18 +10,6 @@ import type { SessionValidationResult } from '../account-types';
 import { ACCOUNT_CONFIG } from '../config';
 
 export class AccountAuthServerClient {
-  async checkHealth(): Promise<boolean> {
-    const { baseUrl } = ACCOUNT_CONFIG.authServer;
-    try {
-      const response = await fetch(`${baseUrl}/health`, {
-        signal: AbortSignal.timeout(3000),
-      });
-      return response.ok;
-    } catch {
-      return false;
-    }
-  }
-
   async validateSession(
     token: string
   ): Promise<Result<SessionValidationResult, AccountSessionValidationError>> {
@@ -94,5 +82,17 @@ export class AccountAuthServerClient {
     }
 
     return ok(payload.accountLinkState);
+  }
+
+  async checkHealth(): Promise<boolean> {
+    const { baseUrl } = ACCOUNT_CONFIG.authServer;
+    try {
+      const response = await fetch(`${baseUrl}/health`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
   }
 }

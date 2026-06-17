@@ -84,6 +84,28 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
     return this.getSession();
   }
 
+  async validateSession(): Promise<Result<SessionValidationResult, AccountSessionValidationError>> {
+    const token = await this.sessionStore.ensureTokenLoaded();
+    if (!token.success) return token;
+    if (!token.data) return ok('invalid');
+
+    const validation = await this.authServerClient.validateSession(token.data);
+    if (!validation.success) return validation;
+
+    if (validation.data === 'invalid') {
+      const cleared = await this.clearSessionAndNotify();
+      if (!cleared.success) return cleared;
+      return ok('invalid');
+    }
+
+    if (validation.data === 'valid') {
+      const marked = await this.sessionStore.markValidated(new Date().toISOString());
+      if (!marked.success) return marked;
+    }
+
+    return validation;
+  }
+
   async signIn(provider: string = 'github'): Promise<Result<SignInResult, AccountSignInError>> {
     const raw = await this.oauthClient.signIn(provider);
     if (!raw.success) return raw;
@@ -111,6 +133,10 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
     );
 
     return ok({ user: exchange.data.user });
+  }
+
+  async signOut(): Promise<Result<void, AccountSignOutError>> {
+    return this.clearSessionAndNotify();
   }
 
   async linkProviderAccount(
@@ -157,34 +183,8 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
     return ok(result);
   }
 
-  async signOut(): Promise<Result<void, AccountSignOutError>> {
-    return this.clearSessionAndNotify();
-  }
-
   async checkServerHealth(): Promise<boolean> {
     return this.authServerClient.checkHealth();
-  }
-
-  async validateSession(): Promise<Result<SessionValidationResult, AccountSessionValidationError>> {
-    const token = await this.sessionStore.ensureTokenLoaded();
-    if (!token.success) return token;
-    if (!token.data) return ok('invalid');
-
-    const validation = await this.authServerClient.validateSession(token.data);
-    if (!validation.success) return validation;
-
-    if (validation.data === 'invalid') {
-      const cleared = await this.clearSessionAndNotify();
-      if (!cleared.success) return cleared;
-      return ok('invalid');
-    }
-
-    if (validation.data === 'valid') {
-      const marked = await this.sessionStore.markValidated(new Date().toISOString());
-      if (!marked.success) return marked;
-    }
-
-    return validation;
   }
 
   private async clearSessionAndNotify(): Promise<Result<void, AccountSessionReadError>> {
