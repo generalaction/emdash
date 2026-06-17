@@ -53,9 +53,9 @@ export const terminalSettingsSchema = z.object({
 });
 
 export const themeSchema = z
-  .enum(['emlight', 'emdark'])
+  .enum(['emlight', 'emdark', 'emwebstorm'])
   .nullable()
-  .catch(null)
+  .catch(null) // Unknown / future-version theme values degrade gracefully to system (null).
   .optional()
   .default(null);
 

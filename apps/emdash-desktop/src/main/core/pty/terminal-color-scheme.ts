@@ -7,6 +7,7 @@ type EffectiveTheme = 'emlight' | 'emdark';
 
 export function resolveEffectiveTheme(theme: Theme, shouldUseDarkColors: boolean): EffectiveTheme {
   if (theme === 'emlight' || theme === 'emdark') return theme;
+  if (theme === 'emwebstorm') return 'emdark';
   return shouldUseDarkColors ? 'emdark' : 'emlight';
 }
 

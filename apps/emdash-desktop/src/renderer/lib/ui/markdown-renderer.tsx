@@ -11,6 +11,7 @@ import remarkMath from 'remark-math';
 import type { PluggableList } from 'unified';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
+import { isDarkTheme } from '@renderer/lib/theme/is-dark-theme';
 import { cn } from '@renderer/utils/utils';
 import { ExpandableImage } from './expandable-image';
 import { normalizeLatexDelimiters } from './markdown-latex';
@@ -393,7 +394,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   resolveImage,
 }) => {
   const { effectiveTheme } = useTheme();
-  const isDark = effectiveTheme === 'emdark';
+  const isDark = isDarkTheme(effectiveTheme);
 
   const fullComponents = useFullComponents(isDark, resolveImage);
   const compactComponents = useCompactComponents(isDark);

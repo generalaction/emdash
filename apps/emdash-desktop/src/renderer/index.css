@@ -7,6 +7,7 @@
 @custom-variant dark-black (&:is(.dark-black *));
 @custom-variant emlight (&:is(.emlight *));
 @custom-variant emdark (&:is(.emdark *));
+@custom-variant emwebstorm (&:is(.emwebstorm *));
 
 @theme inline {
   --font-sans:
@@ -726,6 +727,70 @@
 
     --foreground-conflict: var(--orange-9);
     --foreground-merged: var(--purple-9);
+  }
+
+  /* ── WebStorm New UI (Dark) ──────────────────────────────────
+   * Layered on top of .emdark (the renderer adds BOTH classes), so every
+   * semantic token that resolves through the neutral/blue ramps is retuned
+   * automatically — only WebStorm-specific values are overridden below.
+   * Palette sampled from the JetBrains "New UI" Dark theme.
+   */
+  .emwebstorm {
+    /* Neutral ramp — WebStorm greys (1 = darkest … 12 = lightest text) */
+    --neutral-1: #1e1f22; /* app / editor background */
+    --neutral-2: #2b2d30; /* tool windows / panels */
+    --neutral-3: #303236;
+    --neutral-4: #393b40;
+    --neutral-5: #3c3f44;
+    --neutral-6: #43454a; /* borders / dividers */
+    --neutral-7: #4e5157;
+    --neutral-8: #5a5d63;
+    --neutral-9: #6f737a; /* passive text */
+    --neutral-10: #868a91;
+    --neutral-11: #9da0a8; /* muted text */
+    --neutral-12: #dfe1e5; /* primary text */
+
+    /* Blue ramp — WebStorm accent / links / info */
+    --blue-3: #1d2c4a;
+    --blue-4: #20355c;
+    --blue-6: #2e436e;
+    --blue-7: #345088;
+    --blue-9: #3574f0; /* accent */
+    --blue-10: #4280ef;
+    --blue-11: #6b9bfa; /* links */
+    --blue-12: #cdd6f4;
+
+    /* Diff / status accents */
+    --green-9: #5fad65;
+    --green-10: #73bd79;
+    --red-9: #db5c5c;
+    --red-10: #e06c6c;
+    --amber-11: #f2c55c;
+
+    /* Primary button — WebStorm blue (overrides emdark's jade) */
+    --primary-button-background: #3574f0;
+    --primary-button-background-hover: #4280ef;
+    --primary-button-foreground: #ffffff;
+    --primary-button-border: transparent;
+
+    /* Selection — muted navy, not the bright accent */
+    --selection: #2e436e;
+    --selection-foreground: #dfe1e5;
+
+    /* Monaco editor */
+    --monaco-bg: #1e1f22;
+    --monaco-fg: #bcbec4;
+    --monaco-line-highlight: #26282e;
+    --monaco-line-number: #4b4d51;
+    --monaco-gutter: #1e1f22;
+    --monaco-selection-bg: #214283;
+    --monaco-selection-fg: #dfe1e5;
+
+    /* xterm terminal */
+    --xterm-bg: #1e1f22;
+    --xterm-fg: #bcbec4;
+    --xterm-cursor: #bcbec4;
+    --xterm-cursor-accent: #1e1f22;
   }
 }
 

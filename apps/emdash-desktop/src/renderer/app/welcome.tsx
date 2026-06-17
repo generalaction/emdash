@@ -6,6 +6,7 @@ import YTBanner from '@/assets/images/ytbanner.webp';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
+import { isDarkTheme } from '@renderer/lib/theme/is-dark-theme';
 import { Button } from '@renderer/lib/ui/button';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 
@@ -137,7 +138,7 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
               onClick={handleGetStarted}
               size="sm"
               className={
-                effectiveTheme === 'emdark' ? 'bg-gray-200 text-gray-900 hover:bg-gray-300' : ''
+                isDarkTheme(effectiveTheme) ? 'bg-gray-200 text-gray-900 hover:bg-gray-300' : ''
               }
             >
               <span className="flex items-center gap-2">

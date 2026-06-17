@@ -11,7 +11,7 @@ import { applyThemeToAll } from '@renderer/lib/pty/pty';
 import { getNextTheme } from '@renderer/lib/theme/theme-toggle-model';
 import type { Theme } from '@shared/core/app-settings';
 
-type EffectiveTheme = 'emlight' | 'emdark';
+export type EffectiveTheme = 'emlight' | 'emdark' | 'emwebstorm';
 
 function getSystemTheme(): EffectiveTheme {
   if (typeof window === 'undefined') return 'emlight';
@@ -27,8 +27,16 @@ function subscribeToSystemTheme(onChange: () => void) {
 function applyTheme(effective: EffectiveTheme) {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
-  root.classList.remove('emlight', 'emdark');
-  root.classList.add(effective);
+  root.classList.remove('emlight', 'emdark', 'emwebstorm');
+  // WebStorm adds BOTH emdark and emwebstorm so that:
+  //   (a) .emwebstorm{} CSS vars cascade on top of .emdark{} vars (same @layer, later wins), and
+  //   (b) `emdark:` Tailwind variant utilities (emdark:invert, emdark:text-foreground, …) keep
+  //       firing for descendants. Do not drop the emdark class here.
+  if (effective === 'emwebstorm') {
+    root.classList.add('emdark', 'emwebstorm');
+  } else {
+    root.classList.add(effective);
+  }
 }
 
 interface ThemeContextType {

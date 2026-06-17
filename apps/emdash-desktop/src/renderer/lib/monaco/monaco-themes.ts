@@ -9,7 +9,7 @@ type MonacoColors = Record<string, string>;
  * token map. Entries where the variable is not defined for that theme are
  * omitted.
  */
-function readMonacoVarsForTheme(cssClass: 'emlight' | 'emdark'): MonacoColors {
+function readMonacoVarsForTheme(cssClass: string): MonacoColors {
   const el = document.createElement('div');
   el.className = cssClass;
   el.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;';
@@ -64,8 +64,18 @@ export function defineMonacoThemes(monaco: Monaco): void {
     rules: [],
     colors: readMonacoVarsForTheme('emlight'),
   });
+
+  // WebStorm is layered on the dark base, so read both classes together.
+  monaco.editor.defineTheme('custom-webstorm', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [],
+    colors: readMonacoVarsForTheme('emdark emwebstorm'),
+  });
 }
 
 export function getMonacoTheme(effectiveTheme: string): string {
-  return effectiveTheme === 'emlight' ? 'custom-light' : 'custom-dark';
+  if (effectiveTheme === 'emlight') return 'custom-light';
+  if (effectiveTheme === 'emwebstorm') return 'custom-webstorm';
+  return 'custom-dark';
 }

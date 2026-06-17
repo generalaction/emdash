@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
+import { isDarkTheme } from '@renderer/lib/theme/is-dark-theme';
 import type { CatalogSkill } from '@shared/core/skills/types';
 import { resolveSkillIcon } from './skillIcons';
 
@@ -16,7 +17,7 @@ interface SkillIconRendererProps {
 export const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill }) => {
   const [imgError, setImgError] = useState(false);
   const { effectiveTheme } = useTheme();
-  const isDark = effectiveTheme === 'emdark';
+  const isDark = isDarkTheme(effectiveTheme);
 
   const letter = skill.displayName.charAt(0).toUpperCase();
 

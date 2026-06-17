@@ -29,6 +29,11 @@ describe('resolveEffectiveTheme', () => {
     expect(resolveEffectiveTheme('emdark', false)).toBe('emdark');
   });
 
+  it('returns emdark when theme is emwebstorm (a dark variant)', () => {
+    expect(resolveEffectiveTheme('emwebstorm', true)).toBe('emdark');
+    expect(resolveEffectiveTheme('emwebstorm', false)).toBe('emdark');
+  });
+
   it('follows shouldUseDarkColors when theme is null (system)', () => {
     expect(resolveEffectiveTheme(null, true)).toBe('emdark');
     expect(resolveEffectiveTheme(null, false)).toBe('emlight');
@@ -48,6 +53,12 @@ describe('getTerminalColorEnv', () => {
 
   it('returns COLORFGBG 15;0 for dark app theme', async () => {
     vi.mocked(appSettingsService.get).mockResolvedValue('emdark');
+    const result = await getTerminalColorEnv();
+    expect(result).toEqual({ COLORFGBG: '15;0' });
+  });
+
+  it('returns COLORFGBG 15;0 for the WebStorm theme', async () => {
+    vi.mocked(appSettingsService.get).mockResolvedValue('emwebstorm');
     const result = await getTerminalColorEnv();
     expect(result).toEqual({ COLORFGBG: '15;0' });
   });

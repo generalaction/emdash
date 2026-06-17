@@ -4,6 +4,7 @@ import { EmdashShimmerLogo } from '@renderer/lib/emdash-shimmer-logo';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { isDarkTheme } from '@renderer/lib/theme/is-dark-theme';
 import { ActionListItem } from '@renderer/lib/ui/action-list-item';
 
 const PROJECT_ACTIONS = [
@@ -40,7 +41,7 @@ export function HomeMainPanel() {
     (index) => showAddProjectModal(PROJECT_ACTIONS[index].modalArgs)
   );
   const { effectiveTheme } = useTheme();
-  const isDark = effectiveTheme === 'emdark';
+  const isDark = isDarkTheme(effectiveTheme);
 
   return (
     <motion.div

@@ -10,6 +10,10 @@ describe('getNextTheme', () => {
     expect(getNextTheme('emdark', 'emdark')).toBe('emlight');
   });
 
+  it('toggles WebStorm (a dark variant) to light', () => {
+    expect(getNextTheme('emwebstorm', 'emwebstorm')).toBe('emlight');
+  });
+
   it('uses system light when no explicit theme is selected', () => {
     expect(getNextTheme(null, 'emlight')).toBe('emdark');
   });

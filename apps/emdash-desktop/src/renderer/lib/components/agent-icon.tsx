@@ -1,3 +1,4 @@
+import { isDarkTheme } from '@renderer/lib/theme/is-dark-theme';
 import { cn } from '@renderer/utils/utils';
 import { useTheme } from '../hooks/useTheme';
 import { useAgentIcon } from '../stores/use-agents';
@@ -14,7 +15,7 @@ interface AgentIconProps {
 
 export function AgentIcon({ id, size = 16, className, grayscale }: AgentIconProps) {
   const { effectiveTheme } = useTheme();
-  const mode = effectiveTheme === 'emdark' ? 'dark' : 'light';
+  const mode = isDarkTheme(effectiveTheme) ? 'dark' : 'light';
   const icon = useAgentIcon(id);
 
   if (!icon) return null;

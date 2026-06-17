@@ -1,4 +1,4 @@
-import { Monitor, Moon, Sun } from 'lucide-react';
+import { Code2, Monitor, Moon, Sun } from 'lucide-react';
 import React from 'react';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
@@ -56,6 +56,16 @@ const ThemeCard: React.FC = () => {
         >
           <Moon className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="text-center">Emdash Dark</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => handleSetTheme('emwebstorm')}
+          className={`${buttonBase} ${theme === 'emwebstorm' ? activeClass : inactiveClass}`}
+          aria-pressed={theme === 'emwebstorm'}
+          aria-label="Set theme to WebStorm New UI"
+        >
+          <Code2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="text-center">WebStorm</span>
         </button>
       </div>
     </div>

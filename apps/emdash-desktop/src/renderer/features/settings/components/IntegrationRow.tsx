@@ -1,6 +1,7 @@
 import { Check, Copy, ExternalLink, Trash2 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
+import { isDarkTheme } from '@renderer/lib/theme/is-dark-theme';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 
 type IntegrationStatus =
@@ -83,7 +84,7 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
   installCommand,
 }) => {
   const { effectiveTheme } = useTheme();
-  const isDark = effectiveTheme === 'emdark';
+  const isDark = isDarkTheme(effectiveTheme);
   const themedLogoSrc = isDark && logoSrcDark ? logoSrcDark : logoSrc;
   const shouldInvertLogo = isDark && !!invertInDark && !logoSrcDark;
   const resolvedStatus = STATUS_CLASSES[status] ? status : 'disconnected';
