@@ -1,0 +1,20 @@
+apps/emdash-desktop/src/renderer/features/settings/agents-page/AgentRow.tsx
+  s_a70d593824c740::t_8801860379f121 134
+  s_a70d593824c740::t_8b9186c33d0d31 1,4-10,92,95-133,135-139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "8fc2f66cdba28aab22c00606e45af4f764747ee8",
+  "prompts": {},
+  "sessions": {
+    "s_a70d593824c740": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019edae1-7ba7-7452-894a-d272e833ea0c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
