@@ -1,0 +1,35 @@
+packages/plugins/src/agents/impl/junie/index.ts
+  s_8e4a2ef038aa1b::t_6fd6acecf11742 61,74
+packages/plugins/src/agents/impl/freebuff/index.ts
+  s_8e4a2ef038aa1b::t_b3c66d7238bc7d 34,45
+packages/plugins/src/agents/impl/kilocode/index.ts
+  s_8e4a2ef038aa1b::t_1935bc29205b6f 52
+packages/plugins/src/agents/impl/rovo/index.ts
+  s_8e4a2ef038aa1b::t_6f6649cd54dd08 26,59,69,71-74
+packages/plugins/src/agents/impl/charm/index.ts
+  s_8e4a2ef038aa1b::t_92b8a61641e118 41,51,53-57
+packages/plugins/src/agents/impl/codebuff/index.ts
+  s_8e4a2ef038aa1b::t_3d7b7de4d8e811 38,49-52
+packages/plugins/src/agents/impl/jules/index.ts
+  s_8e4a2ef038aa1b::t_f07377c673b5db 49
+packages/plugins/src/agents/impl/cursor/index.ts
+  s_8e4a2ef038aa1b::t_cbe7b1b9036705 66
+packages/plugins/src/agents/impl/continue/index.ts
+  s_8e4a2ef038aa1b::t_75935e5c6e7ffb 68,82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "ee9e3fb9c1980ab192d10962d66c43f3cf391bb5",
+  "prompts": {},
+  "sessions": {
+    "s_8e4a2ef038aa1b": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed935-6527-7cfb-b5ca-7234df7f9ac7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
