@@ -8,9 +8,9 @@
  * Typography (line height) comes from the FontConfig passed in.
  */
 
-import type { CodeBlock } from '../../core/markdown/document';
 import type { CodeLaidOut } from '../../core/layout/layout-types';
 import { reserveHeight } from '../../core/layout/reserve-height';
+import type { CodeBlock } from '../../core/markdown/document';
 import type { FontConfig } from '../../core/measure/fonts';
 
 const CODE_BLOCK_PAD_Y = 8;

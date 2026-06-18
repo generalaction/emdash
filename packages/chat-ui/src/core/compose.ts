@@ -278,12 +278,32 @@ export function scrollWindow<L>(
 // ── slot ──────────────────────────────────────────────────────────────────────
 
 /**
+ * All named slot placeholders used across the built-in ComponentDefs.
+ *
+ * Add a new entry here when adding a new row kind that uses slots, then use
+ * the constant in both the def's `slot(...)` call and its Render `slots` map.
+ * This gives autocomplete and catches typos at compile time.
+ */
+export const SLOT_NAMES = {
+  MESSAGE_FOOTER: 'message:footer',
+  THINKING_HEADER: 'thinking:header',
+  FILE_OP_ROW: 'file-op:row',
+  FILE_OP_HEADER: 'file-op:header',
+  FILE_OP_LIST: 'file-op:list',
+  FILE_OP_PREVIEW: 'file-op:preview',
+  DIFF_HEADER: 'diff:header',
+  DIFF_BODY: 'diff:body',
+} as const;
+
+export type SlotName = (typeof SLOT_NAMES)[keyof typeof SLOT_NAMES];
+
+/**
  * Create a named placeholder node for non-generic chrome.
  *
  * The `height` must equal the real rendered height of the chrome so the
  * containing `stack`'s total height is correct.
  */
-export function slot(name: string, height: number): Measured<SlotLayout> {
+export function slot(name: SlotName | string, height: number): Measured<SlotLayout> {
   return {
     height,
     width: 0,

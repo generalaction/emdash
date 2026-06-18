@@ -19,11 +19,11 @@
  */
 
 import { createEffect, createSignal, onCleanup } from 'solid-js';
-import type { Block } from '../../core/markdown/document';
-import { flattenBlockHeadings } from '../../core/markdown/parse';
-import { collapsible, scrollWindow, slot, stack } from '../../core/compose';
+import { SLOT_NAMES, collapsible, scrollWindow, slot, stack } from '../../core/compose';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import { layoutBlockStack } from '../../core/layout/block-stack';
+import type { Block } from '../../core/markdown/document';
+import { flattenBlockHeadings } from '../../core/markdown/parse';
 import { HEADER_ROW_EXTRA_H } from '../../core/metrics';
 import type { ChatThinking } from '../../model';
 import { CollapseHeader } from '../primitives/CollapseHeader';
@@ -129,7 +129,7 @@ function ThinkingRender(props: {
       <Project
         node={props.layout.layout.tree}
         slots={{
-          'thinking:header': () => (
+          [SLOT_NAMES.THINKING_HEADER]: () => (
             <ThinkingHeader item={props.item} expanded={expanded()} headerH={headerH()} />
           ),
         }}
@@ -163,7 +163,7 @@ export const thinkingDef = defineComponent<ChatThinking, ThinkingLayout>({
   measure(item, ctx: MeasureCtx): Measured<ThinkingLayout> {
     const headerH = thinkingHeaderH(ctx);
     const isExpanded = ctx.expanded(item.id);
-    const headerSlot = 'thinking:header';
+    const headerSlot = SLOT_NAMES.THINKING_HEADER;
 
     // ── Done + not expanded: header only ─────────────────────────────────────
     if (!isExpanded && item.status !== 'thinking') {

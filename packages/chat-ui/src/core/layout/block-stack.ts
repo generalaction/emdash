@@ -9,7 +9,7 @@
  *
  * Level 2 (blockMemo here):  WeakMap keyed by the Block object.
  *   Skips individual block re-measures inside streaming rows.  Since
- *   parseMarkdownToBlocksCached reuses the same Block object references
+ *   `ctx.caches.parseBlocks` reuses the same Block object references
  *   for unchanged content, only the last (growing) block is a cache miss
  *   each tick — the earlier blocks are hits.
  *
@@ -31,10 +31,10 @@ import { layoutCode } from '../../components/code/layout';
 import type { BlockLeafLayout } from '../../components/Project';
 import { layoutProse } from '../../components/prose/layout';
 import { layoutTable } from '../../components/table/layout';
-import type { Block, CodeBlock, ProseBlock, TableBlock } from '../markdown/document';
 import { stack } from '../compose';
 import type { StackLayout } from '../compose';
 import type { Measured, MeasureCtx } from '../define';
+import type { Block, CodeBlock, ProseBlock, TableBlock } from '../markdown/document';
 import type { CodeLaidOut, ProseLaidOut, TableLaidOut } from './layout-types';
 
 // ── Per-block memo ────────────────────────────────────────────────────────────

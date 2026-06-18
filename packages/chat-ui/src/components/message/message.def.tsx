@@ -18,11 +18,11 @@
 
 import type { Component } from 'solid-js';
 import { Show } from 'solid-js';
-import { blockPlainText } from '../../core/markdown/plain-text';
-import type { Block } from '../../core/markdown/document';
-import { bubble, slot, stack } from '../../core/compose';
+import { SLOT_NAMES, bubble, slot, stack } from '../../core/compose';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import { layoutBlockStack } from '../../core/layout/block-stack';
+import type { Block } from '../../core/markdown/document';
+import { blockPlainText } from '../../core/markdown/plain-text';
 import { USER_BUBBLE_MAX_WIDTH_PCT } from '../../core/metrics';
 import type { ChatMessage, ChatRole } from '../../model';
 import { useCaches } from '../CachesContext';
@@ -123,7 +123,7 @@ function MessageRender(props: {
       <Project
         node={props.layout.layout.tree}
         slots={{
-          'message:footer': () => (
+          [SLOT_NAMES.MESSAGE_FOOTER]: () => (
             <div
               class="flex items-center"
               style={{ height: `${MESSAGE_FOOTER_H}px` }}
@@ -204,7 +204,7 @@ export const messageDef = defineComponent<ChatMessage, MessageNodeLayout>({
     }
 
     // assistant: stack([ blockStack, footer slot ])
-    const footerSlot = slot('message:footer', MESSAGE_FOOTER_H);
+    const footerSlot = slot(SLOT_NAMES.MESSAGE_FOOTER, MESSAGE_FOOTER_H);
     const tree = stack(
       [
         { id: `${item.id}:blocks`, measured: blockStack },

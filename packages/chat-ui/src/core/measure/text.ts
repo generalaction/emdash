@@ -14,9 +14,9 @@
  */
 
 import { layoutProse, measureProseNaturalWidth } from '../../components/prose/layout';
-import type { ProseBlock } from '../markdown/document';
 import type { Measured } from '../define';
 import type { ProseLaidOut } from '../layout/layout-types';
+import type { ProseBlock } from '../markdown/document';
 import type { ChatTheme } from '../theme';
 
 /**

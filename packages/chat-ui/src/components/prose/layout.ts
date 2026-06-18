@@ -20,15 +20,15 @@ import {
   prepareRichInline as rawPrepareRichInline,
   walkRichInlineLineRanges,
 } from '@chenglou/pretext/rich-inline';
-import type { InlineRun, ProseBlock } from '../../core/markdown/document';
 import type {
   FragmentLayout,
   LineLayout,
   BulletLayout,
   ProseLaidOut,
 } from '../../core/layout/layout-types';
-import { runsToRichItems } from '../../core/measure/to-rich-items';
+import type { InlineRun, ProseBlock } from '../../core/markdown/document';
 import type { FontConfig } from '../../core/measure/fonts';
+import { runsToRichItems } from '../../core/measure/to-rich-items';
 import { BLOCKQUOTE_INDENT, LIST_BULLET_GAP, LIST_INDENT } from '../../core/metrics';
 
 type PrepareRichInlineFn = (items: RichInlineItem[]) => PreparedRichInline;

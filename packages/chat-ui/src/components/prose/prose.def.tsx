@@ -9,9 +9,9 @@
  * Used by the REGISTRY for block-level dispatch inside message and thinking.
  */
 
-import type { ProseBlock } from '../../core/markdown/document';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import type { ProseLaidOut } from '../../core/layout/layout-types';
+import type { ProseBlock } from '../../core/markdown/document';
 import { layoutProse } from './layout';
 import { Prose } from './Prose';
 

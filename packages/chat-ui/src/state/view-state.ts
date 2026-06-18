@@ -7,7 +7,7 @@
  * key re-run when it toggles.
  */
 
-import { createStore } from 'solid-js/store';
+import { createStore, produce } from 'solid-js/store';
 
 export type ViewState = ReturnType<typeof createViewState>;
 
@@ -23,18 +23,24 @@ export function createViewState() {
 
     setCollapsed: (id: string, value: boolean): void => {
       if (!value) {
-        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-        setCollapsed(id as keyof typeof collapsed, undefined as unknown as boolean);
+        setCollapsed(
+          produce((s) => {
+            delete s[id];
+          })
+        );
       } else {
         setCollapsed(id, true);
       }
     },
 
     expandAll: (): void => {
-      // Replace the entire store with empty to clear all entries
-      for (const key of Object.keys(collapsed)) {
-        setCollapsed(key as keyof typeof collapsed, undefined as unknown as boolean);
-      }
+      setCollapsed(
+        produce((s) => {
+          for (const key of Object.keys(s)) {
+            delete s[key];
+          }
+        })
+      );
     },
   };
 }

@@ -5,19 +5,18 @@
  * Use `pnpm --filter @emdash/chat-ui run test:bench` to execute.
  *
  * Scenarios:
- *   - parseMarkdownToBlocksCached: markdown parse + caching on representative bodies
- *   - layoutBlockStack:            full block layout over cached blocks
- *   - def.measure (message):       row-level measure over a 2 000-item transcript
+ *   - caches.parseBlocks: markdown parse + caching on representative bodies
+ *   - layoutBlockStack:   full block layout over cached blocks
+ *   - def.measure (message): row-level measure over a 2 000-item transcript
  */
 
 import { bench, describe } from 'vitest';
 import { REGISTRY } from '../../components/registry';
+import { generateMockTranscript } from '../../mock-transcript';
+import type { ChatMessage } from '../../model';
 import { createChatCaches } from '../caches';
 import { DEFAULT_THEME } from '../theme';
-import { generateMockTranscript } from '../../mock-transcript';
-import { parseMarkdownToBlocksCached } from '../markdown/parse';
 import { layoutBlockStack } from './block-stack';
-import type { ChatMessage } from '../../model';
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -48,19 +47,20 @@ const MEASURE_CTX = {
 
 // ── Benchmarks ────────────────────────────────────────────────────────────────
 
-describe('parseMarkdownToBlocksCached', () => {
+describe('caches.parseBlocks', () => {
   bench('parse 5 representative bodies (cold cache)', () => {
-    // Use a fresh cache key each time to exercise the parser path.
+    // Use a fresh cache instance + key each time to exercise the parser path.
+    const cold = createChatCaches();
     const id = Math.random().toString(36).slice(2);
     for (const body of REPRESENTATIVE_BODIES) {
-      parseMarkdownToBlocksCached(`${id}-${body.length}`, body);
+      cold.parseBlocks(`${id}-${body.length}`, body);
     }
   });
 
   bench('parse 5 representative bodies (warm cache)', () => {
-    // Stable IDs so every call is a cache hit.
+    // Stable IDs against the shared CACHES instance — every call is a hit.
     for (let i = 0; i < REPRESENTATIVE_BODIES.length; i++) {
-      parseMarkdownToBlocksCached(`bench-warm-${i}`, REPRESENTATIVE_BODIES[i]);
+      CACHES.parseBlocks(`bench-warm-${i}`, REPRESENTATIVE_BODIES[i]);
     }
   });
 });
@@ -68,7 +68,7 @@ describe('parseMarkdownToBlocksCached', () => {
 describe('layoutBlockStack', () => {
   // Pre-parse once so we only measure layout, not parsing.
   const parsedBodies = REPRESENTATIVE_BODIES.map((body, i) =>
-    parseMarkdownToBlocksCached(`bench-layout-${i}`, body)
+    CACHES.parseBlocks(`bench-layout-${i}`, body)
   );
 
   bench('layout 5 representative block stacks', () => {

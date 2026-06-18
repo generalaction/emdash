@@ -579,6 +579,155 @@ geometry — never a source of truth.
 
 ---
 
+## Adding a new row kind
+
+This recipe walks through adding a hypothetical `'status'` row kind. Replace `status` / `ChatStatus` / `StatusLayout` with your actual names throughout.
+
+### 1. Define the model type
+
+Add your item shape to `src/model.ts`:
+
+```ts
+export type ChatStatus = {
+  kind: 'status';
+  id: string;
+  text: string;
+};
+
+export type ChatItem = ChatMessage | ChatThinking | ChatDiff | ChatFileOpToolCall | ChatStatus;
+```
+
+### 2. Implement the `ComponentDef`
+
+Create `src/components/status/status.def.tsx`. A `ComponentDef<Item, Layout>` requires:
+
+| Member | Role |
+| --- | --- |
+| `kind` | String literal matching `ChatItem.kind` |
+| `padY` | Symmetric vertical padding (px) around the row |
+| `estimate(item, ctx)` | O(1) height heuristic; used before measure for scroll-thumb sizing |
+| `measure(item, ctx)` | Exact geometry; returns `Measured<Layout>` (may use compose combinators) |
+| `Render` | SolidJS component `(props: { item, layout, ctx }) => JSX.Element` |
+
+Example skeleton:
+
+```tsx
+import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
+import type { ChatStatus } from '../../model';
+
+type StatusLayout = { kind: 'status'; height: number };
+
+export const statusDef = defineComponent<ChatStatus, StatusLayout>({
+  kind: 'status',
+  padY: 4,
+
+  estimate(_item, ctx: MeasureCtx): number {
+    return ctx.theme.fonts.body.lineHeight;
+  },
+
+  measure(item, ctx: MeasureCtx): Measured<StatusLayout> {
+    const height = ctx.theme.fonts.body.lineHeight;
+    return { height, width: ctx.width, layout: { kind: 'status', height } };
+  },
+
+  Render(props: { item: ChatStatus; layout: Measured<StatusLayout>; ctx: RenderCtx }) {
+    return (
+      <div style={{ height: `${props.layout.height}px` }}>
+        {props.item.text}
+      </div>
+    );
+  },
+});
+```
+
+#### Using slots
+
+If your row needs injected chrome (a header, footer, or side-panel):
+
+1. Add a new entry to `SLOT_NAMES` in `src/core/compose.ts`:
+
+   ```ts
+   STATUS_HEADER: 'status:header',
+   ```
+
+2. Use it in `measure()`:
+
+   ```ts
+   import { SLOT_NAMES, slot, stack } from '../../core/compose';
+
+   const headerSlot = SLOT_NAMES.STATUS_HEADER;
+   const tree = stack([
+     { id: `${item.id}:header`, measured: slot(headerSlot, headerH) },
+     { id: `${item.id}:body`,   measured: body },
+   ], { gap: 0 });
+   ```
+
+3. Supply the slot renderer in `Render`:
+
+   ```tsx
+   <Project
+     node={props.layout.layout.tree}
+     slots={{ [SLOT_NAMES.STATUS_HEADER]: () => <StatusHeader item={props.item} /> }}
+   />
+   ```
+
+### 3. Register the def
+
+Add one line to `src/components/registry.ts`:
+
+```ts
+import { statusDef } from './status/status.def';
+
+export const REGISTRY: Record<string, ComponentDef<ChatItem, any>> = {
+  // … existing entries …
+  status: statusDef,
+};
+```
+
+### 4. Add fixtures
+
+Add representative `ChatStatus` items to the mock transcript fixture
+(`src/mock-transcript.ts` or the fixture generator) so that the benchmark
+and visual snapshot tests cover the new kind:
+
+```ts
+{ kind: 'status', id: 'status-1', text: 'Indexing…' },
+```
+
+### 5. Add a height contract test
+
+Create `src/tests/status.contract.test.tsx`. The contract test verifies that
+`measure()` returns an exact height, protecting against slot-height drift:
+
+```tsx
+import { describe, expect, it } from 'vitest';
+import { DEFAULT_THEME } from '../core/theme';
+import { createChatCaches } from '../core/caches';
+import { makeContractCtx, renderAndMeasure } from './contract';
+import { statusDef } from '../components/status/status.def';
+
+const ctx = makeContractCtx({ width: 640 });
+const item: ChatStatus = { kind: 'status', id: 's1', text: 'Indexing…' };
+
+describe('statusDef height contract', () => {
+  it('measure height matches rendered height', async () => {
+    const layout = statusDef.measure(item, ctx);
+    const renderedH = await renderAndMeasure(
+      <statusDef.Render item={item} layout={layout} ctx={/* RenderCtx */} />,
+      layout.height
+    );
+    expect(renderedH).toBe(layout.height);
+  });
+});
+```
+
+The `renderAndMeasure` helper (see `src/tests/contract.tsx`) mounts the
+component in a headless browser, reads the actual DOM height, and compares
+it to the engine's prediction. A failing test here means a slot height
+constant or padding value is wrong.
+
+---
+
 ## File map
 
 | Concern | Files |
@@ -591,7 +740,7 @@ geometry — never a source of truth.
 | Layout system | `src/core/define.ts`, `src/core/compose.ts`, `src/core/layout/*` |
 | Rendering | `src/components/Project.tsx`, `src/components/Row.tsx`, `src/components/*/` |
 | Registry | `src/components/registry.ts` |
+| Slot names | `src/core/compose.ts` (`SLOT_NAMES`, `SlotName`) |
 | Caching | `src/core/caches.ts`, `src/components/CachesContext.ts` |
 | Theme | `src/core/theme.ts`, `src/core/metrics.ts`, `src/core/measure/fonts.ts` |
 | Contexts | `src/components/{ThemeContext,CachesContext,CommandsContext}.ts` |
-```

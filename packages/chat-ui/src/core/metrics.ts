@@ -7,9 +7,11 @@
  * primitive tokens remain in tokens.js as aliases but are no longer read directly here.
  *
  * Component-private constants (bubble padding, block gap, thinking heights,
- * code block padding) live in each component's metrics.ts.
+ * code block padding) live inline in each component's `.def.tsx` file.
+ * The only standalone component metrics file is `components/file-op/file-op-metrics.ts`.
  *
- * The full CSS variable map is assembled by chatCssVars() in css-vars.ts.
+ * CSS variables are applied inline in `ChatRoot.tsx` `onMount`; there is no
+ * separate css-vars.ts module.
  */
 
 import { tokens } from '@emdash/ui/theme/tokens.js';
@@ -100,26 +102,6 @@ export const USER_BUBBLE_MAX_WIDTH_PCT = 85;
  * Used by thinkingDef and fileOpDef so they share the same constant.
  */
 export const HEADER_ROW_EXTRA_H = 8;
-
-// ── Engine-level row constants ───────────────────────────────────────────────
-
-/**
- * Symmetric vertical padding (px) applied to each row wrapper by the engine.
- * The visible gap between two rows is padY(kindA) + padY(kindB), so tool rows
- * group tightly and message rows have generous breathing room.
- */
-export const ROW_PAD_Y = {
-  message: 4,
-  thinking: 0,
-  tool: 0,
-  'file-op': 0,
-  execute: 0,
-  diff: 0,
-} as const satisfies Record<string, number>;
-
-export type RowKind = keyof typeof ROW_PAD_Y;
-
-export const rowPadY = (kind: RowKind): number => ROW_PAD_Y[kind];
 
 // ── CSS font shorthands ───────────────────────────────────────────────────────
 

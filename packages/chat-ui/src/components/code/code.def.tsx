@@ -6,10 +6,10 @@
  * (layoutBlocks in messageDef) supplies the actual vertical offset.
  */
 
-import type { CodeBlock } from '../../core/markdown/document';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import type { CodeLaidOut } from '../../core/layout/layout-types';
 import { reserveHeight } from '../../core/layout/reserve-height';
+import type { CodeBlock } from '../../core/markdown/document';
 import { Code } from './Code';
 
 /** Vertical padding on each side of the code block (px). */

@@ -3,11 +3,11 @@
  *
  * Converts raw markdown text into the chat-ui document model (Block[]) using
  * remark/unified. Also provides:
- *   - A module-level LRU cache (`parseMarkdownToBlocksCached`) for streaming
- *     message identity stability.
  *   - `flattenBlockHeadings` — normalise heading variants to body for contexts
  *     where large headings are disruptive (e.g. thinking rows).
- *   - `buildThinkingBlocks` — shared pipeline for thinking rows.
+ *
+ * Identity-stable caching of parsed Block arrays lives in the per-instance
+ * `ChatCaches.parseBlocks` bundle (core/caches.ts), not here.
  *
  * This module is PURE: no geometry, no pretext/fonts, no DOM imports.
  */
@@ -314,55 +314,6 @@ export function parseMarkdownToBlocks(messageId: string, markdown: string): Bloc
   return blocks;
 }
 
-// ── Cached entry point ───────────────────────────────────────────────────────
-
-type CacheEntry = { text: string; blocks: Block[] };
-
-const blockCache = new Map<string, CacheEntry>();
-
-/**
- * Parse a markdown string into a stable `Block[]`, with a module-level LRU
- * cache keyed by `messageId`.
- *
- * **Cache semantics**
- * - Committed (non-streaming) messages: text is immutable, so the cache gives
- *   parse-once-per-message semantics across all re-renders and layout passes.
- * - Streaming messages: the text grows each chunk; the text-equality check
- *   ensures a re-parse only when content actually changes.
- * - **Identity guarantee**: consecutive calls with the same `messageId` and
- *   identical `markdown` return the *exact same array reference*, so downstream
- *   identity checks (`===`) can detect "no change".
- * - **Invalidation**: call `clearBlockCache()` when a conversation is torn
- *   down, or `evictBlockCache(id)` to evict a single message (e.g. after
- *   `finalizeTurn` freezes the text and you want a clean re-parse).
- *
- * @param messageId - Stable item id; used as the cache key and block-id prefix.
- * @param markdown  - Raw markdown string to parse.
- */
-export function parseMarkdownToBlocksCached(messageId: string, markdown: string): Block[] {
-  const hit = blockCache.get(messageId);
-  if (hit && hit.text === markdown) return hit.blocks;
-  const blocks = parseMarkdownToBlocks(messageId, markdown);
-  blockCache.set(messageId, { text: markdown, blocks });
-  return blocks;
-}
-
-/**
- * @deprecated Use `parseMarkdownToBlocksCached` instead.
- * @internal kept temporarily for any call sites not yet migrated.
- */
-export const parseBlocksCached = parseMarkdownToBlocksCached;
-
-/** Evict all cached block arrays (call when a conversation store is reset). */
-export function clearBlockCache(): void {
-  blockCache.clear();
-}
-
-/** Evict the cached blocks for a single message (call after finalizeTurn per message). */
-export function evictBlockCache(messageId: string): void {
-  blockCache.delete(messageId);
-}
-
 // ── Block normalization helpers ───────────────────────────────────────────────
 
 /**
@@ -382,28 +333,4 @@ export function flattenBlockHeadings(blocks: Block[]): Block[] {
       ? { ...b, variant: 'body' as const }
       : b
   );
-}
-
-/**
- * @deprecated Use `flattenBlockHeadings` instead.
- * @internal kept temporarily for any call sites not yet migrated.
- */
-export const flattenHeadings = flattenBlockHeadings;
-
-// ── Shared thinking pipeline ──────────────────────────────────────────────────
-
-/**
- * Parse and transform a thinking item's markdown into the `Block[]` used by
- * both the measurement engine and `ThinkingProse`.
- *
- * Applies:
- *   1. `parseMarkdownToBlocksCached` — parse with identity-stable caching.
- *   2. `flattenBlockHeadings` — demote headings to body variant so AI-generated
- *      section headers don't produce oversized lines in the thinking row.
- *
- * @param id   - Stable thinking item id; used as the cache key.
- * @param text - Raw markdown string (may be `undefined` during streaming).
- */
-export function buildThinkingBlocks(id: string, text: string | undefined): Block[] {
-  return flattenBlockHeadings(parseMarkdownToBlocksCached(id, text ?? ''));
 }

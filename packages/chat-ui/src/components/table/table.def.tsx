@@ -6,10 +6,10 @@
  * supplies the actual vertical offset.
  */
 
-import type { TableBlock } from '../../core/markdown/document';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import type { TableLaidOut } from '../../core/layout/layout-types';
 import { reserveHeight } from '../../core/layout/reserve-height';
+import type { TableBlock } from '../../core/markdown/document';
 import { Table } from './Table';
 
 /** Border width (px) around each table cell. */

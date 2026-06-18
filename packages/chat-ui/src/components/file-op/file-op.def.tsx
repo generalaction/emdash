@@ -19,7 +19,7 @@
  * (same convention as thinking rows).
  */
 
-import { collapsible, scrollWindow, slot, stack } from '../../core/compose';
+import { SLOT_NAMES, collapsible, scrollWindow, slot, stack } from '../../core/compose';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import { HEADER_ROW_EXTRA_H } from '../../core/metrics';
 import type { ChatFileOpToolCall } from '../../model';
@@ -60,14 +60,16 @@ function FileOpRender(props: {
       <Project
         node={props.layout.layout.tree}
         slots={{
-          'file-op:row': () => <FileOpRow item={props.item} rowH={rowH()} lineH={lineH()} />,
-          'file-op:header': () => (
+          [SLOT_NAMES.FILE_OP_ROW]: () => (
+            <FileOpRow item={props.item} rowH={rowH()} lineH={lineH()} />
+          ),
+          [SLOT_NAMES.FILE_OP_HEADER]: () => (
             <FileOpHeader item={props.item} expanded={expanded()} rowH={rowH()} />
           ),
-          'file-op:list': () => (
+          [SLOT_NAMES.FILE_OP_LIST]: () => (
             <FileOpList item={props.item} lineH={lineH()} padY={FILEOP_PAD_Y} />
           ),
-          'file-op:preview': () => (
+          [SLOT_NAMES.FILE_OP_PREVIEW]: () => (
             <FileOpPreviewBody item={props.item} lineH={lineH()} padY={FILEOP_PAD_Y} />
           ),
         }}
@@ -91,11 +93,11 @@ export const fileOpDef = defineComponent<ChatFileOpToolCall, FileOpNodeLayout>({
     const rowH = ctx.theme.fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
     const lineH = ctx.theme.fonts.body.lineHeight;
     const isExpanded = ctx.expanded(item.id);
-    const headerSlot = 'file-op:header';
+    const headerSlot = SLOT_NAMES.FILE_OP_HEADER;
 
     // ── Single file ───────────────────────────────────────────────────────────
     if (item.ops.length <= 1) {
-      const tree = slot('file-op:row', rowH);
+      const tree = slot(SLOT_NAMES.FILE_OP_ROW, rowH);
       return { height: tree.height, width: ctx.width, layout: { kind: 'file-op', tree } };
     }
 
@@ -106,17 +108,18 @@ export const fileOpDef = defineComponent<ChatFileOpToolCall, FileOpNodeLayout>({
         headerH: rowH,
         headerSlot,
         expanded: true,
-        body: slot('file-op:list', listH),
+        body: slot(SLOT_NAMES.FILE_OP_LIST, listH),
       });
       return { height: tree.height, width: ctx.width, layout: { kind: 'file-op', tree } };
     }
 
     // ── Multi, collapsed + running: header + scrollWindow preview ─────────────
     if (item.status === 'running') {
-      const preview = scrollWindow(slot('file-op:preview', FILEOP_WINDOW_H), FILEOP_WINDOW_H, {
-        overlay: 'fade-top',
-        autoScrollBottom: true,
-      });
+      const preview = scrollWindow(
+        slot(SLOT_NAMES.FILE_OP_PREVIEW, FILEOP_WINDOW_H),
+        FILEOP_WINDOW_H,
+        { overlay: 'fade-top', autoScrollBottom: true }
+      );
       const tree = stack(
         [
           { id: `${item.id}:header`, measured: slot(headerSlot, rowH) },

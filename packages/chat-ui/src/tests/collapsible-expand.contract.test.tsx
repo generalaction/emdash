@@ -12,14 +12,14 @@ import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CachesContext } from '../components/CachesContext';
-import { ThemeContext } from '../components/ThemeContext';
-import { Project } from '../components/Project';
-import { thinkingDef } from '../components/thinking/thinking.def';
 import { fileOpDef } from '../components/file-op/file-op.def';
-import { collapsible, slot } from '../core/compose';
+import { Project } from '../components/Project';
+import { ThemeContext } from '../components/ThemeContext';
+import { thinkingDef } from '../components/thinking/thinking.def';
 import { createChatCaches } from '../core/caches';
-import { DEFAULT_THEME } from '../core/theme';
+import { collapsible, slot } from '../core/compose';
 import type { Measured, RenderCtx } from '../core/define';
+import { DEFAULT_THEME } from '../core/theme';
 
 const testCaches = createChatCaches();
 
@@ -170,13 +170,7 @@ describe('thinkingDef expands body on viewState toggle', () => {
 
     const { host, dispose } = mountTest(() => {
       const Comp = thinkingDef.Render as (p: any) => any;
-      return (
-        <Comp
-          item={item}
-          layout={layout()}
-          ctx={currentRenderCtx()}
-        />
-      );
+      return <Comp item={item} layout={layout()} ctx={currentRenderCtx()} />;
     });
 
     await raf();

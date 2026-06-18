@@ -28,17 +28,18 @@
 
 import { For, Show, createEffect, createMemo, onCleanup, type JSX } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
-import type { Block, CodeBlock, ProseBlock } from '../core/markdown/document';
 import type {
   BubbleLayout,
   CollapsibleLayout,
   PadLayout,
   SlotLayout,
+  SlotName,
   StackLayout,
   WindowLayout,
 } from '../core/compose';
 import type { Measured } from '../core/define';
 import type { CodeLaidOut, ProseLaidOut, TableLaidOut } from '../core/layout/layout-types';
+import type { Block, CodeBlock, ProseBlock } from '../core/markdown/document';
 import { Code } from './code/Code';
 import { Prose } from './prose/Prose';
 import { Table } from './table/Table';
@@ -54,10 +55,20 @@ type AnyLayout = { kind: string };
  * in a single `Record<string, Component>` and dispatched via `<Dynamic>`.
  * Sub-renderers that do not use `slots` / `renderLeaf` simply ignore them.
  */
+/** Public API type for the slots map: keys must be known SlotName values. */
+export type SlotMap = Partial<Record<SlotName, (n: Measured<SlotLayout>) => JSX.Element>>;
+
+/**
+ * Internal dispatch type: uses `string` keys so runtime slot name lookups
+ * (from `CollapsibleLayout.headerSlot` and `SlotLayout.name`) typecheck without casts.
+ * Production callers always pass a `SlotMap` (narrowed at the public boundary).
+ */
+type InternalSlotMap = Partial<Record<string, (n: Measured<SlotLayout>) => JSX.Element>>;
+
 type SubProps = {
   // oxlint-disable-next-line typescript/no-explicit-any -- dispatch boundary; each renderer narrows at its own call site
   node: Measured<any>;
-  slots: Record<string, (n: Measured<SlotLayout>) => JSX.Element>;
+  slots: InternalSlotMap;
   // oxlint-disable-next-line typescript/no-explicit-any
   render: (child: Measured<any>) => JSX.Element;
   renderLeaf: (node: Measured) => JSX.Element;
@@ -275,8 +286,12 @@ export type ProjectProps = {
   /**
    * Map from slot name to render function.  Consulted for `slot` nodes and
    * for `collapsible` header slots.
+   *
+   * Production callers should use keys from `SLOT_NAMES` (i.e. `SlotMap`) to get
+   * autocomplete and compile-time typo protection.  The prop accepts the wider
+   * `InternalSlotMap` so that test helpers can pass ad-hoc slot names without casts.
    */
-  slots?: Record<string, (node: Measured<SlotLayout>) => JSX.Element>;
+  slots?: InternalSlotMap;
   /**
    * Renderer for non-combinator leaf nodes (prose/code/table block leaves).
    * Defaults to `renderBlockLeaf`.  Callers may override for custom leaves.
@@ -293,7 +308,7 @@ export type ProjectProps = {
  * reactivity when `kind` changes across re-measures.
  */
 export function Project(props: ProjectProps): JSX.Element {
-  const slots = props.slots ?? {};
+  const slots: InternalSlotMap = props.slots ?? {};
   const renderLeaf = props.children ?? renderBlockLeaf;
 
   // oxlint-disable-next-line typescript/no-explicit-any -- tree walk; each branch narrows the type

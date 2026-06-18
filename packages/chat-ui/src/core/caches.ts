@@ -34,10 +34,10 @@ import {
 } from '@chenglou/pretext/rich-inline';
 import { computeDiffRows } from '../components/diff/diff-lines';
 import type { DiffRow } from '../components/diff/diff-lines';
-import type { Block } from './markdown/document';
-import { parseMarkdownToBlocks } from './markdown/parse';
 import { computeHighlightRaw, resolveAlias } from './highlight/highlighter';
 import type { HighlightResult } from './highlight/highlighter';
+import type { Block } from './markdown/document';
+import { parseMarkdownToBlocks } from './markdown/parse';
 
 // ── Cache key helpers ─────────────────────────────────────────────────────────
 

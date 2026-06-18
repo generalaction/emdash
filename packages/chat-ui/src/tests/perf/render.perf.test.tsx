@@ -19,8 +19,8 @@
  */
 
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { createViewState } from '../../state/view-state';
 import { generateMockTranscript } from '../../mock-transcript';
+import { createViewState } from '../../state/view-state';
 import { now, nextPaint, heapUsed, gcHint, record, mountTranscript } from './harness';
 
 // ── Transcript fixture ────────────────────────────────────────────────────────

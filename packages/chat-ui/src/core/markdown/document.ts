@@ -11,16 +11,7 @@
  */
 
 /** Fine-grained variant within the prose block kind. */
-export type ProseVariant =
-  | 'body'
-  | 'h1'
-  | 'h2'
-  | 'h3'
-  | 'h4'
-  | 'h5'
-  | 'h6'
-  | 'list-item'
-  | 'quote';
+export type ProseVariant = 'body' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'list-item' | 'quote';
 
 // ── Inline run types ──────────────────────────────────────────────────────────
 

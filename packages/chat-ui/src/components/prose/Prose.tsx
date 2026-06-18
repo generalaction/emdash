@@ -12,13 +12,13 @@
  */
 
 import { For, Show } from 'solid-js';
-import type { InlineRun } from '../../core/markdown/document';
 import type {
   BulletLayout,
   FragmentLayout,
   LineLayout,
   ProseLaidOut,
 } from '../../core/layout/layout-types';
+import type { InlineRun } from '../../core/markdown/document';
 import { BlockFrame } from '../block-frame';
 import styles from './prose.module.css';
 

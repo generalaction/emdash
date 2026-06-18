@@ -38,7 +38,7 @@ import { REGISTRY } from './registry';
 //
 // Level 2 (blockMemo, core/layout/block-stack.ts): WeakMap keyed by Block object.
 //   Skips individual block re-measures for unchanged blocks within a streaming
-//   row. Since parseMarkdownToBlocksCached reuses the same Block object for
+//   row. Since ctx.caches.parseBlocks reuses the same Block object for
 //   unchanged content, only the last growing block is a miss each tick.
 //
 // Fingerprint: theme.version + rowWidth + isCollapsed(item.id) + expanded(item.id)

@@ -20,10 +20,10 @@
 
 import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
-import { CachesContext } from '../../components/CachesContext';
-import { ThemeContext } from '../../components/ThemeContext';
 import { ChatRoot } from '../../ChatRoot';
+import { CachesContext } from '../../components/CachesContext';
 import { REGISTRY } from '../../components/registry';
+import { ThemeContext } from '../../components/ThemeContext';
 import { createChatCaches } from '../../core/caches';
 import { DEFAULT_THEME } from '../../core/theme';
 import type { ChatItem } from '../../model';

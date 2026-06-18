@@ -13,7 +13,7 @@
  * slots, then delegates to Project.
  */
 
-import { slot, scrollWindow, stack } from '../../core/compose';
+import { SLOT_NAMES, slot, scrollWindow, stack } from '../../core/compose';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import type { ChatDiff } from '../../model';
 import { Project } from '../Project';
@@ -40,15 +40,23 @@ export type DiffLayout = {
   truncated: boolean;
 };
 
+/**
+ * Layout payload for a diff row.
+ *
+ * **Sanctioned contract**: `tree` owns all geometry; it is the single source of
+ * truth for height and is what `Project` walks to produce the DOM. `data` is a
+ * render-only side-channel — it carries the precomputed diff content (rows,
+ * stats, language) that the slot renderers (`DiffHeader`, `DiffLines`) read for
+ * display. `data` has no influence on geometry and is intentionally kept
+ * separate so that unifying `tree`/`data` (a deferred refactor) does not
+ * require changes to the measurement path.
+ */
 export type DiffNodeLayout = {
   kind: 'diff';
-  /**
-   * Compose subtree (stack of header slot + windowed body slot).
-   * Project walks this in DiffRender.
-   */
+  /** Compose subtree (stack of header slot + windowed body slot); owns all geometry. */
   // oxlint-disable-next-line typescript/no-explicit-any -- compose tree
   tree: Measured<any>;
-  /** Computed diff content for rendering in the 'diff:header' and 'diff:body' slots. */
+  /** Render-only diff content for the slot renderers; does not affect geometry. */
   data: DiffLayout;
 };
 
@@ -61,7 +69,7 @@ function DiffRender(props: { item: ChatDiff; layout: Measured<DiffNodeLayout>; c
       <Project
         node={props.layout.layout.tree}
         slots={{
-          'diff:header': () => (
+          [SLOT_NAMES.DIFF_HEADER]: () => (
             <DiffHeader
               item={props.item}
               adds={data().adds}
@@ -69,7 +77,7 @@ function DiffRender(props: { item: ChatDiff; layout: Measured<DiffNodeLayout>; c
               headerH={DIFF_HEADER_H}
             />
           ),
-          'diff:body': () => (
+          [SLOT_NAMES.DIFF_BODY]: () => (
             <DiffLines
               item={props.item}
               layout={data()}
@@ -104,14 +112,14 @@ export const diffDef = defineComponent<ChatDiff, DiffNodeLayout>({
     const maxH = bodyH;
     const data: DiffLayout = { kind: 'diff', previewRows, adds, dels, lang, truncated };
 
-    const bodySlot = slot('diff:body', bodyH);
+    const bodySlot = slot(SLOT_NAMES.DIFF_BODY, bodyH);
     const windowedBody = scrollWindow(bodySlot, maxH, {
       overlay: truncated ? 'fade-bottom' : undefined,
     });
 
     const tree = stack(
       [
-        { id: `${item.id}:header`, measured: slot('diff:header', DIFF_HEADER_H) },
+        { id: `${item.id}:header`, measured: slot(SLOT_NAMES.DIFF_HEADER, DIFF_HEADER_H) },
         { id: `${item.id}:body`, measured: windowedBody },
       ],
       { gap: 0 }

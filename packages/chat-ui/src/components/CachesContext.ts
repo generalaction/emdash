@@ -16,11 +16,21 @@
 import { createContext, useContext } from 'solid-js';
 import { type ChatCaches, getFallbackCaches } from '../core/caches';
 
+let _warnedFallback = false;
+
 export const CachesContext = createContext<ChatCaches>(
   // Proxy to the lazily-created fallback so the heavy createChatCaches() call
   // is deferred until the first actual usage rather than at module-load time.
   new Proxy({} as ChatCaches, {
     get(_target, prop: keyof ChatCaches) {
+      if (import.meta.env.DEV && !_warnedFallback) {
+        _warnedFallback = true;
+        console.warn(
+          '[chat-ui] useCaches() called without a CachesContext.Provider. ' +
+            'Wrap your component tree in <CachesContext.Provider value={caches}> ' +
+            'to use an isolated per-instance cache.'
+        );
+      }
       return getFallbackCaches()[prop];
     },
   })
