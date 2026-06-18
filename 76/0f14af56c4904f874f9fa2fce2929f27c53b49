@@ -1,0 +1,26 @@
+packages/core/src/agents/plugins/helpers/mcp.test.ts
+  s_8e4a2ef038aa1b::t_80617d771c910b 4,198-210,213-214
+  s_8e4a2ef038aa1b::t_8574ddeb06e949 101,108,211-212,215
+packages/plugins/src/agents/impl/kimi/index.ts
+  s_8e4a2ef038aa1b::t_894a834dd7be55 3,78-80,103
+  s_8e4a2ef038aa1b::t_db00d5ebb1de92 5
+packages/core/src/agents/plugins/helpers/mcp.ts
+  s_8e4a2ef038aa1b::t_7ff774bd8bbd7d 387,390-391
+  s_8e4a2ef038aa1b::t_7799ec5add5429 86-109,121,148-151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "760f14af56c4904f874f9fa2fce2929f27c53b49",
+  "prompts": {},
+  "sessions": {
+    "s_8e4a2ef038aa1b": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed935-6527-7cfb-b5ca-7234df7f9ac7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
