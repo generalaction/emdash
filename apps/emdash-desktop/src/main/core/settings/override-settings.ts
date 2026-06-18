@@ -75,18 +75,15 @@ export class OverrideSettings<TConfig extends object> {
     overrides: Partial<TConfig>;
   } | null> {
     const externalDefaults = this.getExternalDefaults();
-    const defaults = externalDefaults[id];
-    if (!defaults) return null;
-
     const storedOverrides = await this.readRawOverrides();
-    const itemOverrides = (storedOverrides[id] ?? {}) as Record<string, unknown>;
-    const trueOverrides = computeTrueOverrides(
-      itemOverrides,
-      defaults as Record<string, unknown>
-    ) as Partial<TConfig>;
-    const value = mergeDeep(defaults as Record<string, unknown>, itemOverrides) as TConfig;
+    if (!(id in externalDefaults) && !(id in storedOverrides)) return null;
 
-    return { value, defaults, overrides: trueOverrides };
+    const defaults = (externalDefaults[id] ?? {}) as Record<string, unknown>;
+    const itemOverrides = (storedOverrides[id] ?? {}) as Record<string, unknown>;
+    const trueOverrides = computeTrueOverrides(itemOverrides, defaults) as Partial<TConfig>;
+    const value = mergeDeep(defaults, itemOverrides) as TConfig;
+
+    return { value, defaults: defaults as TConfig, overrides: trueOverrides };
   }
 
   async updateItem(id: string, config: Partial<TConfig>): Promise<void> {
