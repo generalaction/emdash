@@ -42,11 +42,14 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
   const {
     value: defaultAgentValue,
     update: updateDefaultAgent,
+    isLoading: isLoadingDefaultAgent,
     isSaving: isSavingDefaultAgent,
   } = useAppSettingsKey('defaultAgent');
-  const defaultAgentId: AgentProviderId = isValidProviderId(defaultAgentValue)
-    ? defaultAgentValue
-    : 'claude';
+  const defaultAgentId: AgentProviderId | undefined = isLoadingDefaultAgent
+    ? undefined
+    : isValidProviderId(defaultAgentValue)
+      ? defaultAgentValue
+      : 'claude';
   const normalizedQuery = searchQuery.toLowerCase();
 
   const getDefaultAgentControl = useCallback(
@@ -59,11 +62,11 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
 
       return {
         kind: 'set',
-        disabled: isSavingDefaultAgent,
+        disabled: isLoadingDefaultAgent || isSavingDefaultAgent,
         onSelect: () => updateDefaultAgent(agentId),
       };
     },
-    [defaultAgentId, isSavingDefaultAgent, updateDefaultAgent]
+    [defaultAgentId, isLoadingDefaultAgent, isSavingDefaultAgent, updateDefaultAgent]
   );
 
   const renderRow = useCallback(

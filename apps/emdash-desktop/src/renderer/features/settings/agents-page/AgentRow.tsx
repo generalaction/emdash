@@ -44,10 +44,7 @@ const DefaultAgentButton = ({
       aria-label={`Set ${agentName} as default agent`}
       disabled={control.disabled}
       className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-foreground-muted opacity-0 transition-[background-color,color,opacity] group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-background-2 hover:text-foreground-warning focus-visible:bg-background-2 focus-visible:text-foreground-warning focus-visible:opacity-100 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-      onClick={(event) => {
-        event.stopPropagation();
-        control.onSelect();
-      }}
+      onClick={control.onSelect}
     >
       <Star className="size-3.5" />
     </button>
@@ -84,7 +81,6 @@ export const AgentRow = ({
       <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <span className="truncate text-sm text-foreground">{agent.name}</span>
-          <DefaultAgentButton control={defaultAgentControl} agentName={agent.name} />
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {updateState.render && <UpdateAvailableBadge />}
@@ -93,28 +89,24 @@ export const AgentRow = ({
       </div>
     </>
   );
-  const contentClassName = `flex min-w-0 flex-1 items-center gap-3${
-    isClickable ? ' cursor-pointer text-left' : ''
-  }`;
   const canShowDefaultAgentMenuItem = !!defaultAgentControl;
-  const handleRowKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (!onClick || (event.key !== 'Enter' && event.key !== ' ')) return;
-
-    event.preventDefault();
-    onClick();
-  };
+  const rowClassName =
+    'group flex w-full min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-background-1';
 
   return (
     <ContextMenu>
       <ContextMenuTrigger className="w-full">
-        <div
-          className="group flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-background-1"
-          role={isClickable ? 'button' : undefined}
-          tabIndex={isClickable ? 0 : undefined}
-          onClick={onClick}
-          onKeyDown={handleRowKeyDown}
-        >
-          <div className={contentClassName}>{rowContent}</div>
+        <div className="group flex w-full items-center gap-2">
+          {isClickable ? (
+            <button type="button" className={rowClassName} onClick={onClick}>
+              {rowContent}
+            </button>
+          ) : (
+            <div className={rowClassName}>{rowContent}</div>
+          )}
+          {isClickable && (
+            <DefaultAgentButton control={defaultAgentControl} agentName={agent.name} />
+          )}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
