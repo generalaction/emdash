@@ -148,6 +148,29 @@ describe('SidebarStore project ordering', () => {
     });
   });
 
+  it('requests an immediate save after applying a sort', () => {
+    const saveSnapshotNow = vi.fn();
+    const store = new SidebarStore(
+      projectManagerWithTasks([
+        {
+          id: 'project-1',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          taskIds: ['task-1a', 'task-1b'],
+        },
+      ]),
+      saveSnapshotNow
+    );
+
+    store.setTaskOrder('project-1', ['task-1b', 'task-1a']);
+    saveSnapshotNow.mockClear();
+
+    store.applySort('updated-at');
+
+    expect(saveSnapshotNow).toHaveBeenCalledOnce();
+    expect(store.snapshot.taskSortBy).toBe('updated-at');
+    expect(store.snapshot.taskOrderByProject).toEqual({});
+  });
+
   it('returns visible task entries in rendered project-tree order', () => {
     const store = new SidebarStore(
       projectManagerWithTasks([

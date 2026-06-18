@@ -4,6 +4,7 @@ import { viewStateCache } from './view-state-cache';
 
 export class SnapshotRegistry {
   private readonly disposers = new Map<string, () => void>();
+  private readonly lastSavedSnapshots = new Map<string, unknown>();
 
   /**
    * Register an entity's snapshot with the registry.
@@ -30,7 +31,13 @@ export class SnapshotRegistry {
       () => getSnapshot(),
       (snapshot) => {
         viewStateCache.set(key, snapshot);
-        void rpc.viewState.save(key, snapshot);
+        if (
+          this.lastSavedSnapshots.has(key) &&
+          comparer.structural(this.lastSavedSnapshots.get(key), snapshot)
+        ) {
+          return;
+        }
+        this.persistSnapshot(key, snapshot);
       },
       { equals: comparer.structural, delay: 1000, fireImmediately: false }
     );
@@ -40,12 +47,18 @@ export class SnapshotRegistry {
     return () => {
       disposer();
       viewStateCache.delete(key);
+      this.lastSavedSnapshots.delete(key);
       this.disposers.delete(key);
     };
   }
 
   saveNow(key: string, snapshot: unknown): void {
     viewStateCache.set(key, snapshot);
+    this.persistSnapshot(key, snapshot);
+  }
+
+  private persistSnapshot(key: string, snapshot: unknown): void {
+    this.lastSavedSnapshots.set(key, snapshot);
     void rpc.viewState.save(key, snapshot);
   }
 }
