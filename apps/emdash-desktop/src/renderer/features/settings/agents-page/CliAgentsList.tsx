@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Label } from '@renderer/lib/ui/label';
@@ -36,15 +36,28 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
   filter = 'all',
 }) => {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const defaultAgentSaveInFlight = useRef(false);
   const { data: agentPayloads } = useAgents();
-  const { value: defaultAgentValue, update: updateDefaultAgent } =
-    useAppSettingsKey('defaultAgent');
+  const {
+    value: defaultAgentValue,
+    updateAsync: updateDefaultAgent,
+    isSaving: isSavingDefaultAgent,
+  } = useAppSettingsKey('defaultAgent');
   const defaultAgentId = isValidProviderId(defaultAgentValue) ? defaultAgentValue : 'claude';
   const normalizedQuery = searchQuery.toLowerCase();
 
   const handleSetDefault = useCallback(
     (id: string) => {
-      if (isValidProviderId(id)) updateDefaultAgent(id as AppSettings['defaultAgent']);
+      if (!isValidProviderId(id) || defaultAgentSaveInFlight.current) return;
+
+      defaultAgentSaveInFlight.current = true;
+      void updateDefaultAgent(id as AppSettings['defaultAgent'])
+        .catch(() => {
+          // useAppSettingsKey handles rollback/invalidation; avoid an unhandled rejection here.
+        })
+        .finally(() => {
+          defaultAgentSaveInFlight.current = false;
+        });
     },
     [updateDefaultAgent]
   );
@@ -58,11 +71,15 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
           agent={agent}
           onClick={() => setSelectedAgentId(agent.id)}
           isDefault={agent.id === defaultAgentId}
-          onSetDefault={agent.status === 'available' ? () => handleSetDefault(agent.id) : undefined}
+          onSetDefault={
+            agent.status === 'available' && !isSavingDefaultAgent
+              ? () => handleSetDefault(agent.id)
+              : undefined
+          }
         />
       </div>
     ),
-    [defaultAgentId, handleSetDefault]
+    [defaultAgentId, handleSetDefault, isSavingDefaultAgent]
   );
 
   const allAgents = useMemo(
