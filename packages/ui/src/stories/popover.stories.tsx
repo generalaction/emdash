@@ -23,7 +23,7 @@ export const Default: Story = {
   render: () => (
     <Popover>
       <PopoverTrigger>
-        <Button variant="outline">Open popover</Button>
+        <Button variant="ghost">Open popover</Button>
       </PopoverTrigger>
       <PopoverContent>
         <PopoverHeader>
@@ -42,13 +42,13 @@ export const WithCloseButton: Story = {
   render: () => (
     <Popover>
       <PopoverTrigger>
-        <Button variant="outline">Open popover</Button>
+        <Button variant="ghost">Open popover</Button>
       </PopoverTrigger>
       <PopoverContent>
         <PopoverHeader>
           <PopoverTitle>Settings</PopoverTitle>
           <PopoverClose>
-            <Button variant="ghost" size="icon-xs">
+            <Button variant="ghost" size="sm" icon>
               ×
             </Button>
           </PopoverClose>
@@ -65,7 +65,7 @@ export const Aligned: Story = {
       {(['start', 'center', 'end'] as const).map((align) => (
         <Popover key={align}>
           <PopoverTrigger>
-            <Button variant="outline" size="sm">
+            <Button variant="ghost" size="sm">
               {align}
             </Button>
           </PopoverTrigger>

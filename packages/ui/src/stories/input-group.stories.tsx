@@ -37,7 +37,7 @@ export const WithTrailingButton: Story = {
       <InputGroup>
         <InputGroupInput placeholder="Search…" />
         <InputGroupAddon align="inline-end">
-          <InputGroupButton size="icon-xs" variant="ghost">
+          <InputGroupButton>
             <XIcon />
           </InputGroupButton>
         </InputGroupAddon>

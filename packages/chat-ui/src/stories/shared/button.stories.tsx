@@ -1,8 +1,8 @@
-import { buttonVariants, type ButtonVariantProps } from '@emdash/ui/recipes/button';
+import { controlVariants, type ControlVariantProps } from '@emdash/ui/recipes/control';
 /**
  * Button recipe — Solid usage story.
  *
- * Validates that the shared @emdash/ui/recipes/button recipe works correctly
+ * Validates that the shared @emdash/ui/recipes/control recipe works correctly
  * when imported from @emdash/chat-ui's Solid context. The Tailwind classes are
  * generated from the recipe source via the @source directive in tailwind.css.
  */
@@ -10,14 +10,15 @@ import type { Component, JSX } from 'solid-js';
 import { For } from 'solid-js';
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 
-type Variant = NonNullable<ButtonVariantProps['variant']>;
-type Size = NonNullable<ButtonVariantProps['size']>;
+type Variant = NonNullable<ControlVariantProps['variant']>;
+type Tone = NonNullable<ControlVariantProps['tone']>;
+type Size = NonNullable<ControlVariantProps['size']>;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const VARIANTS: Variant[] = ['default', 'outline', 'ghost', 'link'];
-const TEXT_SIZES: Size[] = ['sm', 'default', 'lg'];
-const ICON_SIZES: Size[] = ['icon-sm', 'icon', 'icon-lg'];
+const VARIANTS: Variant[] = ['ghost', 'primary'];
+const TONES: Tone[] = ['neutral', 'destructive'];
+const SIZES: Size[] = ['base', 'sm', 'link'];
 
 const IconPlaceholder: Component = () => (
   <svg
@@ -36,8 +37,23 @@ const IconPlaceholder: Component = () => (
   </svg>
 );
 
-const Btn: Component<{ variant?: Variant; size?: Size; children?: JSX.Element }> = (props) => (
-  <button class={buttonVariants({ variant: props.variant, size: props.size })}>
+const Btn: Component<{
+  variant?: Variant;
+  tone?: Tone;
+  size?: Size;
+  icon?: boolean;
+  disabled?: boolean;
+  children?: JSX.Element;
+}> = (props) => (
+  <button
+    disabled={props.disabled}
+    class={controlVariants({
+      variant: props.variant,
+      tone: props.tone,
+      size: props.size,
+      icon: props.icon,
+    })}
+  >
     {props.children}
   </button>
 );
@@ -53,7 +69,7 @@ type Story = StoryObj;
 
 // ── Stories ───────────────────────────────────────────────────────────────────
 
-/** All 4 shared variants at default size. */
+/** All variants at default size. */
 export const AllVariants: Story = {
   render: () => (
     <div style={{ display: 'flex', gap: '12px', 'align-items': 'center', 'flex-wrap': 'wrap' }}>
@@ -62,51 +78,42 @@ export const AllVariants: Story = {
   ),
 };
 
-/** 3 logical sizes × text + icon forms. */
+/** Sizes: base / sm / link. */
 export const AllSizes: Story = {
   render: () => (
-    <div style={{ display: 'flex', 'flex-direction': 'column', gap: '12px' }}>
-      <div style={{ display: 'flex', gap: '12px', 'align-items': 'center' }}>
-        <For each={TEXT_SIZES}>{(size) => <Btn size={size}>{size}</Btn>}</For>
-      </div>
-      <div style={{ display: 'flex', gap: '12px', 'align-items': 'center' }}>
-        <For each={ICON_SIZES}>
-          {(size) => (
-            <Btn size={size}>
-              <IconPlaceholder />
-            </Btn>
-          )}
-        </For>
-      </div>
+    <div style={{ display: 'flex', gap: '12px', 'align-items': 'center' }}>
+      <For each={SIZES}>{(size) => <Btn size={size}>{size}</Btn>}</For>
     </div>
   ),
 };
 
-/** Full variant × size matrix. */
+/** Full variant × tone × size matrix. */
 export const Matrix: Story = {
   render: () => (
     <div style={{ display: 'flex', 'flex-direction': 'column', gap: '12px' }}>
       <For each={VARIANTS}>
         {(variant) => (
-          <div style={{ display: 'flex', gap: '8px', 'align-items': 'center' }}>
-            <span style={{ width: '80px', 'font-size': '11px', color: 'var(--foreground-muted)' }}>
-              {variant}
-            </span>
-            <For each={TEXT_SIZES}>
-              {(size) => (
-                <Btn variant={variant} size={size}>
-                  {size}
-                </Btn>
-              )}
-            </For>
-            <For each={ICON_SIZES}>
-              {(size) => (
-                <Btn variant={variant} size={size}>
+          <For each={TONES}>
+            {(tone) => (
+              <div style={{ display: 'flex', gap: '8px', 'align-items': 'center' }}>
+                <span
+                  style={{ width: '120px', 'font-size': '11px', color: 'var(--foreground-muted)' }}
+                >
+                  {variant}/{tone}
+                </span>
+                <For each={SIZES}>
+                  {(size) => (
+                    <Btn variant={variant} tone={tone} size={size}>
+                      {size}
+                    </Btn>
+                  )}
+                </For>
+                <Btn variant={variant} tone={tone} icon>
                   <IconPlaceholder />
                 </Btn>
-              )}
-            </For>
-          </div>
+              </div>
+            )}
+          </For>
         )}
       </For>
     </div>
@@ -119,7 +126,7 @@ export const Disabled: Story = {
     <div style={{ display: 'flex', gap: '12px', 'align-items': 'center' }}>
       <For each={VARIANTS}>
         {(variant) => (
-          <button disabled class={buttonVariants({ variant })}>
+          <button disabled class={controlVariants({ variant })}>
             {variant}
           </button>
         )}

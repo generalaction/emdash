@@ -69,7 +69,7 @@ function SurfaceCard({ level }: { level: SurfaceLevelName }) {
       </Select>
       <div className="flex gap-2">
         <Button size="sm">Confirm</Button>
-        <Button size="sm" variant="outline">
+        <Button size="sm" variant="ghost">
           Cancel
         </Button>
       </div>
@@ -109,21 +109,14 @@ function SurfaceTabs() {
   );
 }
 
-/** Button variants. outline/ghost use bg-surface-hover, so their hover state
- *  adapts to whichever surface they sit on. */
+/** Button variants. ghost uses bg-surface-hover, so its hover state adapts
+ *  to whichever surface it sits on. */
 function SurfaceButtons() {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Button size="sm">Primary</Button>
-      <Button size="sm" variant="outline">
-        Outline
-      </Button>
-      <Button size="sm" variant="ghost">
-        Ghost
-      </Button>
-      <Button size="sm" variant="link">
-        Link
-      </Button>
+      <Button size="sm" variant="primary">Primary</Button>
+      <Button size="sm" variant="ghost">Ghost</Button>
+      <Button size="link">Link</Button>
     </div>
   );
 }

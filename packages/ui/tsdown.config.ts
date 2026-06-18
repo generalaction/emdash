@@ -4,7 +4,7 @@ export default defineConfig({
   entry: {
     primitives: 'src/primitives/index.ts',
     components: 'src/components/index.ts',
-    'recipes/button': 'src/primitives/button.variants.ts',
+    'recipes/control': 'src/recipes/control.ts',
   },
   format: ['esm'],
   dts: true,

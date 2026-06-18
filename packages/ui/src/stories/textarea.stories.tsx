@@ -6,6 +6,9 @@ const meta: Meta<typeof Textarea> = {
   title: 'Components/Textarea',
   component: Textarea,
   parameters: { layout: 'centered' },
+  argTypes: {
+    size: { control: 'select', options: ['base', 'sm'] },
+  },
 };
 
 export default meta;
@@ -15,6 +18,15 @@ export const Default: Story = {
   render: () => (
     <div className="w-64">
       <Textarea placeholder="Enter text…" />
+    </div>
+  ),
+};
+
+export const Sizes: Story = {
+  render: () => (
+    <div className="flex flex-col gap-3 w-64">
+      <Textarea size="base" placeholder="Base size textarea" />
+      <Textarea size="sm" placeholder="Small size textarea" />
     </div>
   ),
 };

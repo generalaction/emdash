@@ -7,6 +7,7 @@ const meta: Meta<typeof Input> = {
   component: Input,
   parameters: { layout: 'centered' },
   argTypes: {
+    size: { control: 'select', options: ['base', 'sm'] },
     disabled: { control: 'boolean' },
     placeholder: { control: 'text' },
   },
@@ -19,6 +20,15 @@ export const Default: Story = {
   render: () => (
     <div className="w-64">
       <Input placeholder="Enter text…" />
+    </div>
+  ),
+};
+
+export const Sizes: Story = {
+  render: () => (
+    <div className="flex flex-col gap-3 w-64">
+      <Input size="base" placeholder="Base (32 px)" />
+      <Input size="sm" placeholder="Small (24 px)" />
     </div>
   ),
 };

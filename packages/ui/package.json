@@ -30,9 +30,9 @@
     "./theme/effects.css": "./src/theme/effects.css",
     "./theme/overflow-fade.css": "./src/theme/overflow-fade.css",
     "./theme/typography.css": "./src/theme/typography.css",
-    "./recipes/button": {
-      "types": "./dist/recipes/button.d.mts",
-      "default": "./dist/recipes/button.mjs"
+    "./recipes/control": {
+      "types": "./dist/recipes/control.d.mts",
+      "default": "./dist/recipes/control.mjs"
     },
     "./theme/tokens.js": "./src/theme/tokens.js",
     "./theme/tokens.d.ts": "./src/theme/tokens.d.ts",

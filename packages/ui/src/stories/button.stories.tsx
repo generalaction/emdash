@@ -2,17 +2,17 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { PlusIcon, SearchIcon, TrashIcon } from 'lucide-react';
 import React from 'react';
 import { Button } from '../primitives/button';
+import { Surface } from '../primitives/surface';
 
 const meta: Meta<typeof Button> = {
   title: 'Components/Button',
   component: Button,
   parameters: { layout: 'centered' },
   argTypes: {
-    variant: {
-      control: 'select',
-      options: ['default', 'outline', 'ghost', 'link'],
-    },
-    size: { control: 'select', options: ['default', 'sm', 'lg', 'icon', 'icon-sm', 'icon-lg'] },
+    variant: { control: 'select', options: ['ghost', 'primary'] },
+    tone: { control: 'select', options: ['neutral', 'destructive'] },
+    size: { control: 'select', options: ['base', 'sm', 'link'] },
+    icon: { control: 'boolean' },
     disabled: { control: 'boolean' },
   },
 };
@@ -21,59 +21,18 @@ export default meta;
 type Story = StoryObj<typeof Button>;
 
 export const Default: Story = {
-  args: { children: 'Button', variant: 'default' },
+  args: { children: 'Button', variant: 'ghost' },
 };
 
-/** The 4 shared variants: Primary (default), Outline, Ghost, Link. */
-export const AllVariants: Story = {
-  render: () => (
-    <div className="flex flex-wrap items-center gap-3">
-      <Button variant="default">Primary</Button>
-      <Button variant="outline">Outline</Button>
-      <Button variant="ghost">Ghost</Button>
-      <Button variant="link">Link</Button>
-    </div>
-  ),
-};
-
-/** The 3 logical sizes: sm / default / lg — each with text and icon form. */
-export const AllSizes: Story = {
+/** All variants × tones. */
+export const VariantMatrix: Story = {
   render: () => (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <Button size="sm">Small</Button>
-        <Button size="default">Default</Button>
-        <Button size="lg">Large</Button>
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <Button size="icon-sm">
-          <PlusIcon />
-        </Button>
-        <Button size="icon">
-          <PlusIcon />
-        </Button>
-        <Button size="icon-lg">
-          <PlusIcon />
-        </Button>
-      </div>
-    </div>
-  ),
-};
-
-/** All variants × all sizes. */
-export const VariantSizeMatrix: Story = {
-  render: () => (
-    <div className="flex flex-col gap-4">
-      {(['default', 'outline', 'ghost'] as const).map((variant) => (
-        <div key={variant} className="flex flex-wrap items-center gap-3">
-          {(['sm', 'default', 'lg'] as const).map((size) => (
-            <Button key={size} variant={variant} size={size}>
-              {variant} / {size}
-            </Button>
-          ))}
-          {(['icon-sm', 'icon', 'icon-lg'] as const).map((size) => (
-            <Button key={size} variant={variant} size={size}>
-              <SearchIcon />
+      {(['ghost', 'primary'] as const).map((variant) => (
+        <div key={variant} className="flex flex-wrap items-center gap-2">
+          {(['neutral', 'destructive'] as const).map((tone) => (
+            <Button key={tone} variant={variant} tone={tone}>
+              {variant} / {tone}
             </Button>
           ))}
         </div>
@@ -82,52 +41,89 @@ export const VariantSizeMatrix: Story = {
   ),
 };
 
-/** Buttons with a leading or trailing icon. */
-export const WithIcon: Story = {
+/** Base (32 px) and SM (24 px) sizes, plus Link. */
+export const Sizes: Story = {
   render: () => (
-    <div className="flex flex-wrap items-center gap-3">
-      <Button>
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-end gap-2">
+        <Button size="base">Base</Button>
+        <Button size="sm">Small</Button>
+        <Button size="link">Link</Button>
+      </div>
+      <div className="flex flex-wrap items-end gap-2">
+        <Button size="base" icon>
+          <SearchIcon />
+        </Button>
+        <Button size="sm" icon>
+          <SearchIcon />
+        </Button>
+      </div>
+    </div>
+  ),
+};
+
+/** Icon-only icon buttons. */
+export const IconButtons: Story = {
+  render: () => (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button icon>
         <PlusIcon />
-        Create
       </Button>
-      <Button variant="outline">
+      <Button icon variant="primary">
         <PlusIcon />
-        Add item
       </Button>
-      <Button variant="ghost">
+      <Button icon size="sm">
+        <SearchIcon />
+      </Button>
+      <Button icon tone="destructive">
         <TrashIcon />
-        Remove
       </Button>
     </div>
   ),
 };
 
-/** Disabled state across all shared variants. */
+/** Disabled state. */
 export const Disabled: Story = {
   render: () => (
-    <div className="flex flex-wrap items-center gap-3">
-      <Button disabled>Primary</Button>
-      <Button variant="outline" disabled>
-        Outline
+    <div className="flex flex-wrap items-center gap-2">
+      <Button disabled>Ghost</Button>
+      <Button variant="primary" disabled>
+        Primary
       </Button>
-      <Button variant="ghost" disabled>
-        Ghost
-      </Button>
-      <Button variant="link" disabled>
-        Link
+      <Button tone="destructive" disabled>
+        Destructive
       </Button>
     </div>
   ),
 };
 
-/** Focus / invalid accessibility states. */
-export const AccessibilityStates: Story = {
+/** Surface-relative hover / active adapt correctly across all backgrounds. */
+export const AcrossSurfaces: Story = {
   render: () => (
-    <div className="flex flex-wrap items-center gap-3">
-      <Button aria-invalid="true">Invalid (default)</Button>
-      <Button variant="outline" aria-invalid="true">
-        Invalid (outline)
-      </Button>
+    <div className="flex flex-col gap-4 rounded-xl p-4 bg-surface-sunken">
+      {(
+        [
+          'sunken',
+          'base',
+          'base-emphasis',
+          'elevated',
+          'elevated-emphasis',
+        ] as const
+      ).map((level) => (
+        <Surface
+          key={level}
+          level={level}
+          className="flex flex-wrap items-center gap-2 rounded-lg p-3 bg-surface"
+        >
+          <span className="w-36 text-xs text-foreground-muted">{level}</span>
+          <Button>Ghost</Button>
+          <Button variant="primary">Primary</Button>
+          <Button tone="destructive">Destructive</Button>
+          <Button icon>
+            <SearchIcon />
+          </Button>
+        </Surface>
+      ))}
     </div>
   ),
 };

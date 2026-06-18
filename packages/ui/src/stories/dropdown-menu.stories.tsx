@@ -31,7 +31,7 @@ export const Default: Story = {
   render: () => (
     <DropdownMenu>
       <DropdownMenuTrigger>
-        <Button variant="outline">Open menu</Button>
+        <Button variant="ghost">Open menu</Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuGroup>
@@ -57,7 +57,7 @@ export const WithLabel: Story = {
   render: () => (
     <DropdownMenu>
       <DropdownMenuTrigger>
-        <Button variant="outline">Open menu</Button>
+        <Button variant="ghost">Open menu</Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuGroup>
@@ -91,7 +91,7 @@ export const WithCheckboxItems: Story = {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger>
-          <Button variant="outline">Text options</Button>
+          <Button variant="ghost">Text options</Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
           <DropdownMenuGroup>
@@ -114,7 +114,7 @@ export const WithRadioItems: Story = {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger>
-          <Button variant="outline">Alignment: {position}</Button>
+          <Button variant="ghost">Alignment: {position}</Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
           <DropdownMenuRadioGroup value={position} onValueChange={setPosition}>
@@ -132,7 +132,7 @@ export const WithSubMenu: Story = {
   render: () => (
     <DropdownMenu>
       <DropdownMenuTrigger>
-        <Button variant="outline">Open menu</Button>
+        <Button variant="ghost">Open menu</Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuItem>Profile</DropdownMenuItem>

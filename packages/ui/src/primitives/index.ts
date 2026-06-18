@@ -1,9 +1,20 @@
-export { Button, buttonVariants } from './button';
+export { Button, type ButtonProps } from './button';
+export { Toggle, ToggleGroup, ToggleGroupItem, type ToggleProps, type ToggleGroupProps } from './toggle';
+export {
+  Tabs,
+  TabsList,
+  TabsTab,
+  TabsPanel,
+  TabsIndicator,
+  type TabsTabProps,
+} from './tabs';
+export { TriggerButton, type TriggerButtonProps } from './trigger-button';
+export { Field, FieldLabel, FieldDescription, FieldError } from './field';
 export { ScrollFade, type ScrollFadeAxis, type ScrollFadeProps } from './scroll-fade';
 export { Text, type TextProps } from './typography/Text';
 export { Heading, type HeadingProps } from './typography/Heading';
 export { textVariants, type TextVariantProps } from './typography/typography.variants';
-export { Input } from './input';
+export { Input, type InputProps } from './input';
 export { Textarea, type TextareaProps } from './textarea';
 export {
   InputGroup,
@@ -71,3 +82,5 @@ export {
 } from './combobox';
 export { Surface, useSurfaceLevel, type SurfaceProps } from './surface';
 export { resolveFileIconClass } from '../lib/file-icons';
+export { controlVariants, type ControlVariantProps } from '../recipes/control';
+export { inputVariants, type InputVariantProps } from '../recipes/input';
