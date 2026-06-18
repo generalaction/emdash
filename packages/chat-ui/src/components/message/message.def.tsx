@@ -17,8 +17,9 @@
  */
 
 import type { Component } from 'solid-js';
-import { Show, createSignal, onCleanup } from 'solid-js';
+import { Show } from 'solid-js';
 import { parseMarkdownToBlocksCached } from '../../core/blocks/parse-blocks';
+import { blockPlainText } from '../../core/blocks/block-text';
 import { bubble, slot, stack } from '../../core/compose';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import { layoutBlockStack } from '../../core/layout/block-stack';
@@ -26,6 +27,7 @@ import { USER_BUBBLE_MAX_WIDTH_PCT } from '../../core/metrics';
 import type { ChatMessage, ChatRole } from '../../model';
 import { measureProseNaturalWidth } from '../prose/layout';
 import { Project, renderBlockLeaf } from '../Project';
+import { CopyButton } from '../primitives/CopyButton';
 
 // ── Message layout constants ──────────────────────────────────────────────────
 
@@ -75,101 +77,6 @@ export type MessageNodeLayout = {
   tree: Measured<any>;
 };
 
-// ── Copy icons ────────────────────────────────────────────────────────────────
-
-function IconCopy() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.5"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="5" y="5" width="9" height="9" rx="1" />
-      <path d="M11 5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h2" />
-    </svg>
-  );
-}
-
-function IconCheck() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.5"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <polyline points="2,8 6,12 14,4" />
-    </svg>
-  );
-}
-
-// ── CopyButton (Lane B — local signal, never touches measure) ─────────────────
-
-function CopyButton(props: { text: string }) {
-  const [copied, setCopied] = createSignal(false);
-  let resetTimer: ReturnType<typeof setTimeout> | undefined;
-
-  const handleClick = () => {
-    void navigator.clipboard.writeText(props.text).then(() => {
-      setCopied(true);
-      resetTimer = setTimeout(() => {
-        setCopied(false);
-        resetTimer = undefined;
-      }, 1500);
-    });
-  };
-
-  onCleanup(() => {
-    if (resetTimer !== undefined) clearTimeout(resetTimer);
-  });
-
-  return (
-    <button
-      type="button"
-      class="flex cursor-pointer items-center gap-1 text-xs text-foreground-passive opacity-0 transition-opacity select-none group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100"
-      aria-label={copied() ? 'Copied' : 'Copy message'}
-      onClick={handleClick}
-    >
-      <Show when={copied()} fallback={<IconCopy />}>
-        <IconCheck />
-      </Show>
-      <span>{copied() ? 'Copied' : 'Copy'}</span>
-    </button>
-  );
-}
-
-// ── Plain-text extractor (a11y) ───────────────────────────────────────────────
-
-function blockPlainText(block: {
-  tier: string;
-  runs?: Array<{ text?: string; label?: string }>;
-  code?: string;
-  raw?: string;
-  header?: string[];
-  rows?: string[][];
-}): string {
-  if (block.tier === 'prose') {
-    return (block.runs ?? []).map((r) => r.text ?? r.label ?? '').join('');
-  }
-  if (block.tier === 'code') return block.code ?? '';
-  if (block.tier === 'table') {
-    const allRows = [block.header ?? [], ...(block.rows ?? [])];
-    return allRows.map((row) => row.join(' | ')).join('\n');
-  }
-  return block.raw ?? '';
-}
-
 // ── Role helpers ──────────────────────────────────────────────────────────────
 
 function roleClass(role: ChatRole): string {
@@ -189,10 +96,7 @@ function MessageRender(props: {
   const rc = () => roleClass(item.role);
   const blocks = () => parseMarkdownToBlocksCached(item.id, item.text);
 
-  const plainText = () =>
-    blocks()
-      .map((b) => blockPlainText(b as unknown as Parameters<typeof blockPlainText>[0]))
-      .join('\n\n');
+  const plainText = () => blocks().map(blockPlainText).join('\n\n');
 
   // Role-specific text color (Lane B — no layout impact).
   const textClass = () => {
@@ -221,7 +125,7 @@ function MessageRender(props: {
               aria-hidden={item.streaming ? 'true' : undefined}
             >
               <Show when={!item.streaming}>
-                <CopyButton text={item.text} />
+                <CopyButton text={item.text} variant="inline" label="Copy message" />
               </Show>
             </div>
           ),

@@ -89,6 +89,18 @@ export const LIST_BULLET_GAP = 12;
 
 export const USER_BUBBLE_MAX_WIDTH_PCT = 85;
 
+// ── Collapsible row header ────────────────────────────────────────────────────
+
+/**
+ * Extra vertical space (px) added to the body line-height to produce the
+ * standard single-line collapsible header row height.
+ *
+ * header height = theme.fonts.body.lineHeight + HEADER_ROW_EXTRA_H
+ *
+ * Used by thinkingDef and fileOpDef so they share the same constant.
+ */
+export const HEADER_ROW_EXTRA_H = 8;
+
 // ── Engine-level row constants ───────────────────────────────────────────────
 
 /**

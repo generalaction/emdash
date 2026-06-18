@@ -24,8 +24,10 @@ import { buildThinkingBlocks } from '../../core/blocks/parse-blocks';
 import { collapsible, scrollWindow, slot, stack } from '../../core/compose';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import { layoutBlockStack } from '../../core/layout/block-stack';
+import { HEADER_ROW_EXTRA_H } from '../../core/metrics';
 import type { ChatThinking } from '../../model';
 import { Project, renderBlockLeaf } from '../Project';
+import { CollapseHeader } from '../primitives/CollapseHeader';
 import { useTheme } from '../ThemeContext';
 
 // ── Module constants ─────────────────────────────────────────────────────────
@@ -38,7 +40,7 @@ const THINKING_WINDOW_H = 72;
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
 function thinkingHeaderH(ctx: MeasureCtx): number {
-  return ctx.theme.fonts.body.lineHeight + 8;
+  return ctx.theme.fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
 }
 
 function layoutThinkingBody(blocks: Block[], ctx: MeasureCtx): Measured {
@@ -64,10 +66,6 @@ export type ThinkingLayout = {
 
 // ── ThinkingHeader (slot component) ───────────────────────────────────────────
 
-function formatDurationS(ms: number): string {
-  return String(Math.floor(ms / 1000));
-}
-
 function ThinkingHeader(props: { item: ChatThinking; expanded: boolean; headerH: number }) {
   const startElapsed = Math.floor((Date.now() - props.item.startedAt) / 1000);
   const [elapsed, setElapsed] = createSignal(startElapsed);
@@ -89,29 +87,24 @@ function ThinkingHeader(props: { item: ChatThinking; expanded: boolean; headerH:
   const label = () => {
     if (props.item.status === 'thinking') return `Thinking ${elapsed()}s`;
     if (props.item.durationMs !== undefined)
-      return `Thought for ${formatDurationS(props.item.durationMs)}s`;
+      return `Thought for ${Math.floor(props.item.durationMs / 1000)}s`;
     return 'Thought';
   };
 
   return (
-    <div
-      class="flex cursor-pointer items-center gap-1.5 text-sm text-foreground-passive select-none hover:text-foreground-muted"
-      style={{ height: `${props.headerH}px` }}
-      role="button"
-      aria-expanded={props.expanded ? 'true' : 'false'}
-      aria-live={props.item.status === 'thinking' ? 'polite' : undefined}
-      aria-atomic={props.item.status === 'thinking' ? 'false' : undefined}
-      data-collapse-id={props.item.id}
+    <CollapseHeader
+      id={props.item.id}
+      expanded={props.expanded}
+      active={props.item.status === 'thinking'}
+      height={props.headerH}
     >
-      <span classList={{ 'text-shimmer': props.item.status === 'thinking' }}>{label()}</span>
       <span
-        class="inline-block text-[10px] transition-transform duration-150 ease-out"
-        classList={{ 'rotate-90': props.expanded }}
-        aria-hidden="true"
+        aria-live={props.item.status === 'thinking' ? 'polite' : undefined}
+        aria-atomic={props.item.status === 'thinking' ? 'false' : undefined}
       >
-        ›
+        {label()}
       </span>
-    </div>
+    </CollapseHeader>
   );
 }
 
@@ -123,7 +116,7 @@ function ThinkingRender(props: {
   ctx: RenderCtx;
 }) {
   const theme = useTheme();
-  const headerH = () => theme().fonts.body.lineHeight + 8;
+  const headerH = () => theme().fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
 
   // Inverted semantics: stored "collapsed" flag is treated as "expanded".
   const expanded = () => props.ctx.viewState.isCollapsed(props.item.id);

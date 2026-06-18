@@ -12,57 +12,15 @@
 import { resolveFileIconClass } from '@emdash/ui/primitives';
 import { For, createEffect, onCleanup } from 'solid-js';
 import { type CodeToken, highlightCode, peekHighlight } from '../../core/highlight/highlighter';
+import { applyTokensToElement } from '../../core/highlight/apply-tokens';
 import type { ChatDiff } from '../../model';
 import { cancelIdle, scheduleIdle } from '../dom-utils';
 import { useCommands } from '../CommandsContext';
+import { GenericFileIcon } from '../primitives/icons';
+import { basename } from '../../lib/path';
 import type { DiffLayout } from './diff.def';
 import type { DiffRow } from './diff-lines';
 import styles from './diff.module.css';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function basename(path: string): string {
-  return path.split('/').pop() ?? path;
-}
-
-function applyTokens(el: HTMLElement, tokens: CodeToken[]): void {
-  while (el.firstChild) el.removeChild(el.firstChild);
-  for (const tok of tokens) {
-    if (!tok.content) continue;
-    if (!tok.htmlStyle) {
-      el.appendChild(document.createTextNode(tok.content));
-    } else {
-      const span = document.createElement('span');
-      span.textContent = tok.content;
-      for (const [prop, val] of Object.entries(tok.htmlStyle)) {
-        span.style.setProperty(prop, val);
-      }
-      el.appendChild(span);
-    }
-  }
-}
-
-// ── Fallback generic-file SVG icon ────────────────────────────────────────────
-
-function GenericFileIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-      class="shrink-0 text-foreground-muted"
-    >
-      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-      <polyline points="14 2 14 8 20 8" />
-    </svg>
-  );
-}
 
 // ── Row style map ──────────────────────────────────────────────────────────────
 
@@ -146,7 +104,7 @@ export function DiffLines(props: DiffLinesProps) {
         } else if (row.newIdx !== undefined) {
           tokens = newLines[row.newIdx];
         }
-        if (tokens) applyTokens(el, tokens);
+        if (tokens) applyTokensToElement(el, tokens);
       }
     }
 

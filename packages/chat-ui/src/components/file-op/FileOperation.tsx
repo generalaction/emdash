@@ -1,36 +1,27 @@
 /**
- * FileOperation — SolidJS component for ChatFileOpToolCall rows.
+ * FileOperation — slot components for ChatFileOpToolCall rows.
  *
- * Renders ACP file-operation tool calls (read / edit / delete / move).
+ * FileOpRow         — single-file inline row ('file-op:row' slot).
+ * FileOpHeader      — multi-file collapsible header ('file-op:header' slot).
+ * FileOpList        — expanded per-file list ('file-op:list' slot).
+ * FileOpPreviewBody — streaming per-file list body ('file-op:preview' slot,
+ *                     wrapped in ProjectWindow by fileOpDef's compose tree).
  *
- * Single file (ops.length <= 1):
- *   Inline one-liner, e.g. "Read foo.tsx". No collapse chrome.
- *
- * Multiple files (ops.length > 1):
- *   Collapsible header "Read 2 files ›" driven by data-collapse-id click
- *   delegation in ChatRoot (no ChatRoot changes needed).
- *   - Collapsed + running  → fixed-height streaming preview window that
- *     auto-scrolls to the bottom as new ops arrive (like ActivePreview in
- *     Thinking.tsx).
- *   - Collapsed + settled  → header only.
- *   - Expanded             → full per-file list.
+ * Constants (FILEOP_PAD_Y, FILEOP_WINDOW_H) live in file-op.def.tsx and are
+ * imported here to keep geometry in a single place.
  *
  * Collapse semantics are inverted (same as Thinking):
  *   stored false (default) → not expanded
  *   stored true            → expanded
- *
- * Geometry comes from ThemeContext (useTheme) instead of CSS vars.
- * All visual styling uses Tailwind utilities.
  */
 
 import { For, Show, createEffect } from 'solid-js';
 import type { ChatFileOpToolCall, FileOpKind } from '../../model';
+import { basename } from '../../lib/path';
 import { useCommands } from '../CommandsContext';
-import { useTheme } from '../ThemeContext';
+import { CollapseHeader } from '../primitives/CollapseHeader';
 
-const FILEOP_PAD_Y = 6;
-const FILEOP_WINDOW_H = 72;
-const FILEOP_FADE_H = 24;
+// ── Verb map ──────────────────────────────────────────────────────────────────
 
 const VERB: Record<FileOpKind, string> = {
   read: 'Read',
@@ -39,13 +30,14 @@ const VERB: Record<FileOpKind, string> = {
   move: 'Moved',
 };
 
-function basename(path: string): string {
-  return path.split('/').pop() ?? path;
-}
+// ── Internal: FileRowItem ─────────────────────────────────────────────────────
 
-// ── FileRow ───────────────────────────────────────────────────────────────────
-
-function FileRow(props: { verb: string; path: string; lineH: number; onClick?: () => void }) {
+function FileRowItem(props: {
+  verb: string;
+  path: string;
+  lineH: number;
+  onClick?: () => void;
+}) {
   return (
     <div
       class="flex items-center gap-1.5 text-sm text-foreground-passive"
@@ -60,48 +52,148 @@ function FileRow(props: { verb: string; path: string; lineH: number; onClick?: (
   );
 }
 
-// ── FileOpPreview ─────────────────────────────────────────────────────────────
+// ── FileOpRow (single-file) ───────────────────────────────────────────────────
 
-function FileOpPreview(props: {
+export type FileOpRowProps = {
   item: ChatFileOpToolCall;
-  verb: string;
-  windowH: number;
-  fadeH: number;
-  padY: number;
+  rowH: number;
   lineH: number;
-}) {
-  let scrollEl: HTMLDivElement | undefined;
+};
+
+export function FileOpRow(props: FileOpRowProps) {
+  const commands = useCommands();
+  const verb = () => VERB[props.item.op];
+
+  const openFile = (path: string) => {
+    commands().onOpenFile?.({ path, itemId: props.item.id, source: 'file-op' });
+  };
+
+  return (
+    <div class="flex items-center" style={{ height: `${props.rowH}px` }}>
+      <Show
+        when={props.item.ops[0]}
+        fallback={
+          <span
+            class="font-mono text-sm text-foreground-passive"
+            classList={{ 'text-shimmer': props.item.status === 'running' }}
+          >
+            {verb()}…
+          </span>
+        }
+      >
+        {(op) => (
+          <FileRowItem
+            verb={verb()}
+            path={op().path}
+            lineH={props.lineH}
+            onClick={() => openFile(op().path)}
+          />
+        )}
+      </Show>
+    </div>
+  );
+}
+
+// ── FileOpHeader (multi-file header) ─────────────────────────────────────────
+
+export type FileOpHeaderProps = {
+  item: ChatFileOpToolCall;
+  expanded: boolean;
+  rowH: number;
+};
+
+export function FileOpHeader(props: FileOpHeaderProps) {
+  return (
+    <CollapseHeader
+      id={props.item.id}
+      expanded={props.expanded}
+      active={props.item.status === 'running'}
+      height={props.rowH}
+    >
+      {VERB[props.item.op]} {props.item.ops.length} files
+    </CollapseHeader>
+  );
+}
+
+// ── FileOpList (expanded per-file list) ───────────────────────────────────────
+
+export type FileOpListProps = {
+  item: ChatFileOpToolCall;
+  lineH: number;
+  padY: number;
+};
+
+export function FileOpList(props: FileOpListProps) {
+  const commands = useCommands();
+  const verb = () => VERB[props.item.op];
+
+  const openFile = (path: string) => {
+    commands().onOpenFile?.({ path, itemId: props.item.id, source: 'file-op' });
+  };
+
+  return (
+    <div style={{ 'padding-block': `${props.padY}px` }}>
+      <For each={props.item.ops}>
+        {(op) => (
+          <FileRowItem
+            verb={verb()}
+            path={op.path}
+            lineH={props.lineH}
+            onClick={() => openFile(op.path)}
+          />
+        )}
+      </For>
+    </div>
+  );
+}
+
+// ── FileOpPreviewBody (streaming ops body inside ProjectWindow) ───────────────
+
+export type FileOpPreviewBodyProps = {
+  item: ChatFileOpToolCall;
+  lineH: number;
+  padY: number;
+};
+
+/**
+ * Renders the ops list for the active-preview state.
+ * ProjectWindow (from the compose tree) handles the overflow container and fade
+ * overlay. Auto-scroll is driven by item.ops.length since the slot height is
+ * fixed (FILEOP_WINDOW_H) and ProjectWindow's child.height never changes.
+ */
+export function FileOpPreviewBody(props: FileOpPreviewBodyProps) {
+  const verb = () => VERB[props.item.op];
+  let innerEl: HTMLDivElement | undefined;
 
   createEffect(() => {
-    if (props.item.ops.length > 0 && scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
+    const _n = props.item.ops.length; // reactive tracking
+    if (innerEl) innerEl.scrollTop = innerEl.scrollHeight;
+    return _n;
   });
 
   return (
-    <div class="relative overflow-hidden" style={{ height: `${props.windowH}px` }}>
-      <div
-        class="fade-overlay-top pointer-events-none absolute inset-x-0 top-0 z-10"
-        style={{ height: `${props.fadeH}px` }}
-        aria-hidden="true"
-      />
-      <div
-        ref={(el) => {
-          scrollEl = el;
-        }}
-        class="overflow-y-auto text-foreground-passive"
-        style={{ 'max-height': `${props.windowH}px`, 'scrollbar-gutter': 'stable' }}
-      >
-        <div style={{ 'padding-block': `${props.padY}px` }}>
-          <For each={props.item.ops}>
-            {(op) => <FileRow verb={props.verb} path={op.path} lineH={props.lineH} />}
-          </For>
-        </div>
+    <div
+      ref={(el) => {
+        innerEl = el;
+      }}
+      style={{ height: '100%', 'overflow-y': 'auto', 'scrollbar-gutter': 'stable' }}
+    >
+      <div style={{ 'padding-block': `${props.padY}px` }}>
+        <For each={props.item.ops}>
+          {(op) => <FileRowItem verb={verb()} path={op.path} lineH={props.lineH} />}
+        </For>
       </div>
     </div>
   );
 }
 
-// ── FileOperation ─────────────────────────────────────────────────────────────
+// ── FileOperation (legacy component kept for open-file contract test) ──────────
 
+/**
+ * @deprecated Use fileOpDef.Render via Project instead.
+ * Kept so open-file.contract.test.tsx can test click-delegation without
+ * mounting the full Row pipeline.
+ */
 export type FileOperationProps = {
   item: ChatFileOpToolCall;
   /** Inverted semantics: stored "collapsed" bool means "expanded". */
@@ -109,73 +201,43 @@ export type FileOperationProps = {
 };
 
 export function FileOperation(props: FileOperationProps) {
-  const theme = useTheme();
   const commands = useCommands();
-
   const verb = () => VERB[props.item.op];
-  const fileopRowH = () => theme().fonts.body.lineHeight + 8;
-  const fileopLineH = () => theme().fonts.body.lineHeight;
+  const expanded = () => !!props.collapsed;
 
   const openFile = (path: string) => {
     commands().onOpenFile?.({ path, itemId: props.item.id, source: 'file-op' });
-  };
-  // Inverted: stored collapsed = true means expanded.
-  const expanded = () => !!props.collapsed;
-
-  // Height of the multi-file container without row padding (Row.tsx adds that).
-  const multiH = () => {
-    if (expanded()) {
-      return fileopRowH() + props.item.ops.length * fileopLineH() + 2 * FILEOP_PAD_Y;
-    }
-    if (props.item.status === 'running') return fileopRowH() + FILEOP_WINDOW_H;
-    return fileopRowH();
   };
 
   return (
     <Show
       when={props.item.ops.length > 1}
       fallback={
-        // ── Single file ─────────────────────────────────────────────────────
-        <div
-          class="flex items-center"
-          style={{
-            height: `${fileopRowH()}px`,
-          }}
+        <Show
+          when={props.item.ops[0]}
+          fallback={
+            <span
+              class="font-mono text-sm text-foreground-passive"
+              classList={{ 'text-shimmer': props.item.status === 'running' }}
+            >
+              {verb()}…
+            </span>
+          }
         >
-          <Show
-            when={props.item.ops[0]}
-            fallback={
-              <span
-                class="font-mono text-sm text-foreground-passive"
-                classList={{ 'text-shimmer': props.item.status === 'running' }}
-              >
-                {verb()}…
-              </span>
-            }
-          >
-            {(op) => (
-              <FileRow
-                verb={verb()}
-                path={op().path}
-                lineH={fileopLineH()}
-                onClick={() => openFile(op().path)}
-              />
-            )}
-          </Show>
-        </div>
+          {(op) => (
+            <FileRowItem
+              verb={verb()}
+              path={op().path}
+              lineH={16}
+              onClick={() => openFile(op().path)}
+            />
+          )}
+        </Show>
       }
     >
-      {/* ── Multiple files ──────────────────────────────────────────────── */}
-      <div
-        style={{
-          position: 'relative',
-          height: `${multiH()}px`,
-        }}
-      >
-        {/* Header */}
+      <div>
         <div
           class="flex cursor-pointer items-center gap-1.5 text-sm text-foreground-passive select-none hover:text-foreground-muted"
-          style={{ height: `${fileopRowH()}px` }}
           role="button"
           aria-expanded={expanded() ? 'true' : 'false'}
           data-collapse-id={props.item.id}
@@ -191,53 +253,17 @@ export function FileOperation(props: FileOperationProps) {
             ›
           </span>
         </div>
-
-        {/* Body: expanded list or streaming preview */}
-        <Show
-          when={expanded()}
-          fallback={
-            <Show when={props.item.status === 'running'}>
-              <div
-                style={{
-                  position: 'absolute',
-                  top: `${fileopRowH()}px`,
-                  left: '0',
-                  right: '0',
-                }}
-              >
-                <FileOpPreview
-                  item={props.item}
-                  verb={verb()}
-                  windowH={FILEOP_WINDOW_H}
-                  fadeH={FILEOP_FADE_H}
-                  padY={FILEOP_PAD_Y}
-                  lineH={fileopLineH()}
-                />
-              </div>
-            </Show>
-          }
-        >
-          <div
-            style={{
-              position: 'absolute',
-              top: `${fileopRowH()}px`,
-              left: '0',
-              right: '0',
-            }}
-          >
-            <div style={{ 'padding-block': `${FILEOP_PAD_Y}px` }}>
-              <For each={props.item.ops}>
-                {(op) => (
-                  <FileRow
-                    verb={verb()}
-                    path={op.path}
-                    lineH={fileopLineH()}
-                    onClick={() => openFile(op.path)}
-                  />
-                )}
-              </For>
-            </div>
-          </div>
+        <Show when={expanded()}>
+          <For each={props.item.ops}>
+            {(op) => (
+              <FileRowItem
+                verb={verb()}
+                path={op.path}
+                lineH={16}
+                onClick={() => openFile(op.path)}
+              />
+            )}
+          </For>
         </Show>
       </div>
     </Show>
