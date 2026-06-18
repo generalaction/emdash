@@ -5,15 +5,14 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
 import { Button } from '@renderer/lib/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/lib/ui/collapsible';
-import { Field } from '@renderer/lib/ui/field';
+import { Field, FieldError } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { log } from '@renderer/utils/logger';
 import { cn } from '@renderer/utils/utils';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
-
-type EnvEntry = { key: string; value: string };
+import { type EnvEntry, validateEnvEntries } from './agent-settings-env';
 
 type AgentSettingsFormValues = {
   extraArgs: string;
@@ -93,12 +92,16 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
       hasUnsavedChangesRef.current = false;
 
       const { extraArgs, envEntries } = values;
+      const envErrors = validateEnvEntries(envEntries);
+      if (envErrors.some(Boolean)) {
+        hasUnsavedChangesRef.current = true;
+        return;
+      }
+
       const envRecord: Record<string, string> = {};
       for (const { key, value } of envEntries) {
         const k = key.trim();
-        if (k && /^[A-Za-z_]\w*$/.test(k)) {
-          envRecord[k] = value;
-        }
+        if (k) envRecord[k] = value;
       }
 
       const isAtDefaults = extraArgs.trim() === '' && envEntries.every((e) => !e.key.trim());
@@ -203,95 +206,103 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
 
           {/* Environment variables */}
           <form.Field name="envEntries">
-            {(field) => (
-              <Field>
-                <div className="flex items-center gap-2">
-                  <Label>Environment variables</Label>
-                  <FieldTooltip content="Environment variables set when running the agent" />
-                </div>
-                <div className="space-y-2">
-                  {field.state.value.map((entry, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <Input
-                        value={entry.key}
-                        placeholder="KEY"
-                        className="min-w-0 flex-1 font-mono text-sm"
-                        onChange={(e) => {
-                          const next = field.state.value.map((v, idx) =>
-                            idx === i ? { ...v, key: e.target.value } : v
-                          );
-                          markChanged({ ...form.state.values, envEntries: next });
-                          field.handleChange(next);
-                        }}
-                        onBlur={() =>
-                          commit({ ...form.state.values, envEntries: field.state.value })
-                        }
-                        onPaste={(e) => {
-                          const pasted = parseEnvAssignmentPaste(e.clipboardData.getData('text'));
-                          if (pasted.length === 0) return;
-                          e.preventDefault();
-                          const next = replaceEnvEntryWithPaste(field.state.value, i, pasted);
-                          markChanged({ ...form.state.values, envEntries: next });
-                          field.handleChange(next);
-                          commit({ ...form.state.values, envEntries: next });
-                        }}
-                      />
-                      <Input
-                        value={entry.value}
-                        placeholder="value"
-                        className="min-w-0 flex-1 font-mono text-sm"
-                        onChange={(e) => {
-                          const next = field.state.value.map((v, idx) =>
-                            idx === i ? { ...v, value: e.target.value } : v
-                          );
-                          markChanged({ ...form.state.values, envEntries: next });
-                          field.handleChange(next);
-                        }}
-                        onBlur={() =>
-                          commit({ ...form.state.values, envEntries: field.state.value })
-                        }
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 shrink-0"
-                        aria-label="Remove"
-                        onClick={() => {
-                          const next = field.state.value.filter((_, idx) => idx !== i);
-                          markChanged({ ...form.state.values, envEntries: next });
-                          field.handleChange(next);
-                          commit({ ...form.state.values, envEntries: next });
-                        }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => {
-                      const next = [...field.state.value, { key: '', value: '' }];
-                      markChanged({ ...form.state.values, envEntries: next });
-                      field.handleChange(next);
-                    }}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add variable
-                  </Button>
-                </div>
-              </Field>
-            )}
-          </form.Field>
+            {(field) => {
+              const envErrors = validateEnvEntries(field.state.value);
 
-          {isOverridden && (
-            <div className="rounded-md border border-border-warning bg-background-warning px-3 py-2 text-xs text-foreground-warning">
-              Custom configuration is applied
-            </div>
-          )}
+              return (
+                <Field data-invalid={envErrors.some(Boolean)}>
+                  <div className="flex items-center gap-2">
+                    <Label>Environment variables</Label>
+                    <FieldTooltip content="Environment variables set when running the agent" />
+                  </div>
+                  <div className="space-y-2">
+                    {field.state.value.map((entry, i) => {
+                      const error = envErrors[i];
+
+                      return (
+                        <div key={i} className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={entry.key}
+                              placeholder="KEY"
+                              aria-invalid={Boolean(error)}
+                              className="min-w-0 flex-1 font-mono text-sm"
+                              onChange={(e) => {
+                                const next = field.state.value.map((v, idx) =>
+                                  idx === i ? { ...v, key: e.target.value } : v
+                                );
+                                markChanged({ ...form.state.values, envEntries: next });
+                                field.handleChange(next);
+                              }}
+                              onBlur={() =>
+                                commit({ ...form.state.values, envEntries: field.state.value })
+                              }
+                              onPaste={(e) => {
+                                const pasted = parseEnvAssignmentPaste(
+                                  e.clipboardData.getData('text')
+                                );
+                                if (pasted.length === 0) return;
+                                e.preventDefault();
+                                const next = replaceEnvEntryWithPaste(field.state.value, i, pasted);
+                                markChanged({ ...form.state.values, envEntries: next });
+                                field.handleChange(next);
+                                commit({ ...form.state.values, envEntries: next });
+                              }}
+                            />
+                            <Input
+                              value={entry.value}
+                              placeholder="value"
+                              className="min-w-0 flex-1 font-mono text-sm"
+                              onChange={(e) => {
+                                const next = field.state.value.map((v, idx) =>
+                                  idx === i ? { ...v, value: e.target.value } : v
+                                );
+                                markChanged({ ...form.state.values, envEntries: next });
+                                field.handleChange(next);
+                              }}
+                              onBlur={() =>
+                                commit({ ...form.state.values, envEntries: field.state.value })
+                              }
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0"
+                              aria-label="Remove"
+                              onClick={() => {
+                                const next = field.state.value.filter((_, idx) => idx !== i);
+                                markChanged({ ...form.state.values, envEntries: next });
+                                field.handleChange(next);
+                                commit({ ...form.state.values, envEntries: next });
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                          {error && <FieldError className="text-xs">{error}</FieldError>}
+                        </div>
+                      );
+                    })}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => {
+                        const next = [...field.state.value, { key: '', value: '' }];
+                        markChanged({ ...form.state.values, envEntries: next });
+                        field.handleChange(next);
+                      }}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add variable
+                    </Button>
+                  </div>
+                </Field>
+              );
+            }}
+          </form.Field>
         </CollapsibleContent>
       </Collapsible>
     </div>
