@@ -1,6 +1,5 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { Emitter, err, ok, type Result } from '@emdash/shared';
 import type { IExecutionContext } from '../../exec/execution-context';
-import { Emitter } from '../../lib/emitter';
 import { consoleLogger, type Logger } from '../../lib/logger';
 import type { InstallMethod, Platform } from '../capability';
 import { resolveInstallOptions, pickInstallOption, toPlatform } from './install-options';
