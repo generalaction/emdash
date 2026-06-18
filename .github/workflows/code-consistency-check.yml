@@ -41,7 +41,7 @@ jobs:
           done
 
       - name: Build core packages
-        run: pnpm --filter @emdash/core run build && pnpm --filter @emdash/plugins run build
+        run: pnpm --filter @emdash/core run build && pnpm --filter @emdash/plugins run build && pnpm --filter @emdash/shared run build
 
       - name: Check formatting
         run: pnpm run format:check
