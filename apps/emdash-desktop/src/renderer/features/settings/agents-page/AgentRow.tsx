@@ -1,6 +1,13 @@
-import { Star } from 'lucide-react';
+import { Info, Star } from 'lucide-react';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { getAgentUpdateActionState } from '@renderer/lib/components/agent-selector/agent-install';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@renderer/lib/ui/context-menu';
 import type { AgentPayload } from '@shared/core/agents/agent-payload';
 import { InstalledBadge, UninstalledBadge, UpdateAvailableBadge } from './agent-status-badge';
 
@@ -82,17 +89,53 @@ export const AgentRow = ({
   const contentClassName = `flex min-w-0 flex-1 items-center gap-3${
     isClickable ? ' cursor-pointer text-left' : ''
   }`;
+  const canShowDefaultAgentMenuItem = !!defaultAgentControl;
 
   return (
-    <div className="group flex w-full items-center gap-2 rounded-lg p-3 hover:bg-background-1">
-      {isClickable ? (
-        <button type="button" className={contentClassName} onClick={onClick}>
-          {rowContent}
-        </button>
-      ) : (
-        <div className={contentClassName}>{rowContent}</div>
-      )}
-      <DefaultAgentButton control={defaultAgentControl} agentName={agent.name} />
-    </div>
+    <ContextMenu>
+      <ContextMenuTrigger className="w-full">
+        <div className="group flex w-full items-center gap-2 rounded-lg p-3 hover:bg-background-1">
+          {isClickable ? (
+            <button type="button" className={contentClassName} onClick={onClick}>
+              {rowContent}
+            </button>
+          ) : (
+            <div className={contentClassName}>{rowContent}</div>
+          )}
+          <DefaultAgentButton control={defaultAgentControl} agentName={agent.name} />
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        {isClickable && (
+          <ContextMenuItem onClick={onClick}>
+            <Info className="size-4" />
+            View details
+          </ContextMenuItem>
+        )}
+        {canShowDefaultAgentMenuItem && (
+          <>
+            {isClickable && <ContextMenuSeparator />}
+            <ContextMenuItem
+              onClick={
+                defaultAgentControl.kind === 'set' ? defaultAgentControl.onSelect : undefined
+              }
+              disabled={
+                defaultAgentControl.kind === 'current' ||
+                (defaultAgentControl.kind === 'set' && defaultAgentControl.disabled)
+              }
+            >
+              <Star
+                className={
+                  defaultAgentControl.kind === 'current'
+                    ? 'size-4 fill-foreground-warning text-foreground-warning'
+                    : 'size-4'
+                }
+              />
+              {defaultAgentControl.kind === 'current' ? 'Default agent' : 'Set as default agent'}
+            </ContextMenuItem>
+          </>
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
   );
 };
