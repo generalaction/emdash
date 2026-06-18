@@ -15,6 +15,11 @@ import type { ProviderCustomConfig } from '@shared/core/app-settings';
 
 type EnvEntry = { key: string; value: string };
 
+type AgentSettingsFormValues = {
+  extraArgs: string;
+  envEntries: EnvEntry[];
+};
+
 const FieldTooltip: React.FC<{ content: string }> = ({ content }) => (
   <TooltipProvider>
     <Tooltip>
@@ -48,7 +53,7 @@ export interface InstalledAgentContentProps {
   ) => void;
 }
 
-function makeDefaultValues(cfg: ProviderCustomConfig | undefined) {
+function makeDefaultValues(cfg: ProviderCustomConfig | undefined): AgentSettingsFormValues {
   return {
     extraArgs: cfg?.extraArgs ?? '',
     envEntries: cfg?.env
@@ -71,38 +76,42 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
   // Re-sync form when external config changes (e.g. after a reset from outside).
   useEffect(() => {
     if (isLoading) return;
+    if (form.state.isDirty) return;
     const next = makeDefaultValues(storedConfig);
     form.setFieldValue('extraArgs', next.extraArgs);
     form.setFieldValue('envEntries', next.envEntries);
   }, [isLoading, storedConfig, isOverridden, form]);
 
-  const commit = useCallback(() => {
-    const { extraArgs, envEntries } = form.state.values;
-    const envRecord: Record<string, string> = {};
-    for (const { key, value } of envEntries) {
-      const k = key.trim();
-      if (k && /^[A-Za-z_]\w*$/.test(k)) {
-        envRecord[k] = value;
+  const commit = useCallback(
+    (values: AgentSettingsFormValues = form.state.values) => {
+      const { extraArgs, envEntries } = values;
+      const envRecord: Record<string, string> = {};
+      for (const { key, value } of envEntries) {
+        const k = key.trim();
+        if (k && /^[A-Za-z_]\w*$/.test(k)) {
+          envRecord[k] = value;
+        }
       }
-    }
 
-    const isAtDefaults = extraArgs.trim() === '' && envEntries.every((e) => !e.key.trim());
+      const isAtDefaults = extraArgs.trim() === '' && envEntries.every((e) => !e.key.trim());
 
-    if (isAtDefaults) {
-      reset(undefined, {
-        onError: (err) => log.error('Failed to reset agent config:', err),
-      });
-    } else {
-      const config: ProviderCustomConfig = {
-        ...(storedConfig ?? {}),
-        extraArgs: extraArgs.trim() || undefined,
-        env: Object.keys(envRecord).length > 0 ? envRecord : undefined,
-      };
-      update(config, {
-        onError: (err) => log.error('Failed to save agent config:', err),
-      });
-    }
-  }, [form, storedConfig, reset, update]);
+      if (isAtDefaults) {
+        reset(undefined, {
+          onError: (err) => log.error('Failed to reset agent config:', err),
+        });
+      } else {
+        const config: ProviderCustomConfig = {
+          ...(storedConfig ?? {}),
+          extraArgs: extraArgs.trim() || undefined,
+          env: Object.keys(envRecord).length > 0 ? envRecord : undefined,
+        };
+        update(config, {
+          onError: (err) => log.error('Failed to save agent config:', err),
+        });
+      }
+    },
+    [form, storedConfig, reset, update]
+  );
 
   const handleResetToDefaults = useCallback(() => {
     form.setFieldValue('extraArgs', '');
@@ -155,7 +164,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                   id="sheet-extraArgs"
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={() => commit()}
+                  onBlur={() => commit({ ...form.state.values, extraArgs: field.state.value })}
                   placeholder="e.g. --enable-all-github-mcp-tools"
                   className="font-mono text-sm"
                 />
@@ -178,35 +187,37 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                         value={entry.key}
                         placeholder="KEY"
                         className="min-w-0 flex-1 font-mono text-sm"
-                        onChange={(e) =>
-                          field.handleChange(
-                            field.state.value.map((v, idx) =>
-                              idx === i ? { ...v, key: e.target.value } : v
-                            )
-                          )
+                        onChange={(e) => {
+                          const next = field.state.value.map((v, idx) =>
+                            idx === i ? { ...v, key: e.target.value } : v
+                          );
+                          field.handleChange(next);
+                        }}
+                        onBlur={() =>
+                          commit({ ...form.state.values, envEntries: field.state.value })
                         }
-                        onBlur={() => commit()}
                         onPaste={(e) => {
                           const pasted = parseEnvAssignmentPaste(e.clipboardData.getData('text'));
                           if (pasted.length === 0) return;
                           e.preventDefault();
-                          field.handleChange(
-                            replaceEnvEntryWithPaste(field.state.value, i, pasted)
-                          );
+                          const next = replaceEnvEntryWithPaste(field.state.value, i, pasted);
+                          field.handleChange(next);
+                          commit({ ...form.state.values, envEntries: next });
                         }}
                       />
                       <Input
                         value={entry.value}
                         placeholder="value"
                         className="min-w-0 flex-1 font-mono text-sm"
-                        onChange={(e) =>
-                          field.handleChange(
-                            field.state.value.map((v, idx) =>
-                              idx === i ? { ...v, value: e.target.value } : v
-                            )
-                          )
+                        onChange={(e) => {
+                          const next = field.state.value.map((v, idx) =>
+                            idx === i ? { ...v, value: e.target.value } : v
+                          );
+                          field.handleChange(next);
+                        }}
+                        onBlur={() =>
+                          commit({ ...form.state.values, envEntries: field.state.value })
                         }
-                        onBlur={() => commit()}
                       />
                       <Button
                         type="button"
@@ -215,8 +226,9 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                         className="h-8 w-8 shrink-0"
                         aria-label="Remove"
                         onClick={() => {
-                          field.handleChange(field.state.value.filter((_, idx) => idx !== i));
-                          commit();
+                          const next = field.state.value.filter((_, idx) => idx !== i);
+                          field.handleChange(next);
+                          commit({ ...form.state.values, envEntries: next });
                         }}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
