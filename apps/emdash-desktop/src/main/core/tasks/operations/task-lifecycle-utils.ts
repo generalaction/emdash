@@ -8,10 +8,11 @@ import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import type { ProjectProvider } from '../../projects/project-provider';
 
 /**
- * Removes the worktree when no remaining sibling tasks share the same workspace.
+ * Removes the worktree for destructive task deletion when no remaining sibling task shares the
+ * same workspace.
  *
- * `excludeArchived = true`  — only non-archived siblings block removal (use for archiveTask).
- * `excludeArchived = false` — any remaining sibling blocks removal (use for deleteTask).
+ * `excludeArchived = false` means any remaining sibling blocks removal. Archive intentionally
+ * preserves workspace assets and does not call this helper.
  *
  * Returns `true` if the worktree was removed (no siblings found), `false` otherwise.
  */
