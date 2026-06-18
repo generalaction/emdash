@@ -1,6 +1,5 @@
-import type { IDisposable } from '@emdash/shared/lib';
+import type { IDisposable, Result } from '@emdash/shared';
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
-import type { Result } from '@shared/lib/result';
 import type { ModelMirror } from './model-mirror';
 
 type OptimisticUpdate<M> = {

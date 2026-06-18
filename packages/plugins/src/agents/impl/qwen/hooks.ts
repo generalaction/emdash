@@ -1,9 +1,9 @@
-import type { CanonicalHookEvent } from '@emdash/shared/agents/plugins';
+import type { CanonicalHookEvent } from '@emdash/core/agents/plugins';
 import {
   buildNestedJsonHookConfig,
   defaultHookEventParser,
   makeStdinHookCommand,
-} from '@emdash/shared/agents/plugins/helpers';
+} from '@emdash/core/agents/plugins/helpers';
 
 export const QWEN_HOOKS_PATH = '.qwen/settings.json';
 

@@ -1,5 +1,3 @@
-import type { GitStatusModel } from '@emdash/shared/git';
-import { eq } from 'drizzle-orm';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import type { ConversationProvider } from '@main/core/conversations/types';
@@ -10,6 +8,7 @@ import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
 import { GitRepositoryService } from '@main/core/git/repository/service';
+import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
 import type { MultiplexerBackend, MultiplexerId } from '@main/core/pty/multiplexer';
 import { selectMultiplexer } from '@main/core/pty/multiplexer';
 import type { MachineRef, RuntimeManager } from '@main/core/runtime/types';
@@ -25,8 +24,7 @@ import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { LifecycleScriptService } from '@main/core/workspaces/workspace-lifecycle-service';
 import { type WorkspaceFactoryResult } from '@main/core/workspaces/workspace-registry';
-import { db } from '@main/db/client';
-import { workspaces as workspacesTable } from '@main/db/schema';
+import { handleGitWorktreeUpdate } from '@main/core/workspaces/workspace-worktree-update';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
@@ -129,6 +127,7 @@ export function createWorkspaceFactory(
       type.kind === 'ssh'
         ? new SshTerminalProvider({
             projectId: context.projectId,
+            workspaceId,
             scopeId: workspaceId,
             taskPath: workDir,
             multiplexer: terminalMultiplexer,
@@ -140,6 +139,7 @@ export function createWorkspaceFactory(
           })
         : new LocalTerminalProvider({
             projectId: context.projectId,
+            workspaceId,
             scopeId: workspaceId,
             taskPath: workDir,
             multiplexer: terminalMultiplexer,
@@ -192,16 +192,15 @@ export function createWorkspaceFactory(
       workspace,
 
       onCreateSideEffect: (ws) => {
-        unsubscribeGitUpdates = ws.gitWorktree.subscribe((update) => {
-          events.emit(gitWorktreeUpdateChannel, {
-            projectId: context.projectId,
-            workspaceId,
-            update,
-          });
-          if (update.kind === 'status' && update.model.kind === 'ok') {
-            void cacheWorkspaceLineStats(workspaceId, update.model);
-          }
-        });
+        unsubscribeGitUpdates = ws.gitWorktree.subscribe((update) =>
+          handleGitWorktreeUpdate(workspaceId, update, (emitted) => {
+            events.emit(gitWorktreeUpdateChannel, {
+              projectId: context.projectId,
+              workspaceId,
+              update: emitted,
+            });
+          })
+        );
 
         if (ownsFetchService) {
           gitRepositoryFetchService.start();
@@ -254,6 +253,7 @@ export function createWorkspaceFactory(
       onCreate: context.extraHooks?.onCreate,
 
       onDestroy: async (ws) => {
+        await previewServerService.stopForWorkspace(context.projectId, workspaceId);
         if (ownsFetchService) {
           gitRepositoryFetchService.stop();
         }
@@ -289,38 +289,17 @@ export function createWorkspaceFactory(
       },
 
       onDetach: async (ws) => {
+        await previewServerService.stopForWorkspace(context.projectId, workspaceId);
         await context.extraHooks?.onDetach?.(ws);
       },
     };
   };
 }
 
-async function cacheWorkspaceLineStats(
-  workspaceId: string,
-  status: Extract<GitStatusModel, { kind: 'ok' }>
-): Promise<void> {
-  let unstagedAdded = 0;
-  let unstagedDeleted = 0;
-  for (const c of status.unstaged) {
-    unstagedAdded += c.additions;
-    unstagedDeleted += c.deletions;
-  }
-  try {
-    await db
-      .update(workspacesTable)
-      .set({
-        linesAdded: status.stagedAdded + unstagedAdded,
-        linesDeleted: status.stagedDeleted + unstagedDeleted,
-      })
-      .where(eq(workspacesTable.id, workspaceId));
-  } catch (e) {
-    log.warn('Failed to cache workspace git status', { workspaceId, error: String(e) });
-  }
-}
-
 type TaskProviderOpts = {
   projectId: string;
   taskId: string;
+  workspaceId: string;
   taskPath: string;
   agentMultiplexer: MultiplexerBackend | null;
   terminalMultiplexer: MultiplexerBackend | null;
@@ -367,6 +346,7 @@ export async function buildTaskProviders(
       }),
       terminals: new SshTerminalProvider({
         projectId: opts.projectId,
+        workspaceId: opts.workspaceId,
         scopeId: opts.taskId,
         taskPath: opts.taskPath,
         multiplexer: opts.terminalMultiplexer,
@@ -394,6 +374,7 @@ export async function buildTaskProviders(
     }),
     terminals: new LocalTerminalProvider({
       projectId: opts.projectId,
+      workspaceId: opts.workspaceId,
       scopeId: opts.taskId,
       taskPath: opts.taskPath,
       multiplexer: opts.terminalMultiplexer,

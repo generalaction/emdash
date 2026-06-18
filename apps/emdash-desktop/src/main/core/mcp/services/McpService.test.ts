@@ -1,4 +1,4 @@
-import type { McpServerRegistration, PluginFs } from '@emdash/shared/agents/plugins';
+import type { McpServerRegistration, PluginFs } from '@emdash/core/agents/plugins';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { McpServer } from '@shared/core/mcp/types';
 import type { McpService as McpServiceType } from './McpService';

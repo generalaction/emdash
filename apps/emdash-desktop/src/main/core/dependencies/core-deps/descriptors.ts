@@ -1,4 +1,4 @@
-import type { DependencyDescriptor } from '@emdash/shared/deps/runtime';
+import type { DependencyDescriptor } from '@emdash/core/deps/runtime';
 
 const BOO_INSTALL = {
   method: 'curl' as const,

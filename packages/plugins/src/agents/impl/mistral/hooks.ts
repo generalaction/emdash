@@ -1,11 +1,11 @@
-import type { PluginFs } from '@emdash/shared/agents/plugins';
+import type { PluginFs } from '@emdash/core/agents/plugins';
 import {
   buildFlatTomlHookConfig,
   makeNotificationHookCommand,
   makeStdinHookCommand,
   readTomlConfig,
   writeTomlConfig,
-} from '@emdash/shared/agents/plugins/helpers';
+} from '@emdash/core/agents/plugins/helpers';
 
 export const MISTRAL_HOOKS_PATH = '.vibe/hooks.toml';
 export const MISTRAL_CONFIG_PATH = '.vibe/config.toml';

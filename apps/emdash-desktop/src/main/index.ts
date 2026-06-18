@@ -15,6 +15,7 @@ import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { automationsService } from './core/automations/automations-service';
 import { cleanupLegacyBrowserPartitions } from './core/browser/browser-partition-cleanup';
+import { setBrowserCorsRelaxationSettings } from './core/browser/browser-profile-session';
 import { browserWebContentsRegistry } from './core/browser/browser-webcontents-registry';
 import { localDependencyManager } from './core/dependencies/dependency-managers';
 import { editorBufferService } from './core/editor/editor-buffer-service';
@@ -134,15 +135,23 @@ void app.whenReady().then(async () => {
   appService.initialize();
   await appSettingsService.initialize();
   browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
+  setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
   await promptLibraryService.initialize();
 
   agentHookService.initialize().catch((e) => {
     log.error('Failed to start agent event service:', e);
   });
 
-  emdashAccountService.loadSessionToken().catch((e) => {
-    log.warn('Failed to load account session token:', e);
-  });
+  emdashAccountService
+    .initialize()
+    .then((result) => {
+      if (!result.success) {
+        log.warn('Failed to load account session token:', result.error);
+      }
+    })
+    .catch((e: unknown) => {
+      log.warn('Account session initialization threw unexpectedly:', e);
+    });
 
   const githubAuthServerAdapter = new GitHubAuthServerAdapter(githubAccountRegistry);
   providerTokenRegistry.register('github', (payload) =>
@@ -153,7 +162,7 @@ void app.whenReady().then(async () => {
 
   void reconcileResourceSampler();
 
-  localDependencyManager.probeAll().catch((e) => {
+  localDependencyManager.probeAll().catch((e: unknown) => {
     log.error('Failed to probe dependencies:', e);
   });
 

@@ -1,4 +1,4 @@
-import type { DependencyInstallResult, DependencyState } from '@emdash/shared/deps/runtime';
+import type { DependencyInstallResult, DependencyState } from '@emdash/core/deps/runtime';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock getDependencyManager before importing the controller under test

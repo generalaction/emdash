@@ -1,4 +1,4 @@
-import type { Commit, GitChange, GitObjectRef } from '@emdash/shared/git';
+import type { Commit, GitChange, GitObjectRef } from '@emdash/core/git';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { observer } from 'mobx-react-lite';

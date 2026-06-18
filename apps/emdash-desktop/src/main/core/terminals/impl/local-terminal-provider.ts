@@ -1,4 +1,6 @@
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
+import { wireTerminalUrlDetector } from '@main/core/preview-servers/terminal-url-detector';
 import { isUnexpectedPtyExit } from '@main/core/pty/exit-classification';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { MultiplexerBackend } from '@main/core/pty/multiplexer';
@@ -18,7 +20,6 @@ import { log } from '@main/lib/logger';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
 import type { Terminal } from '@shared/core/terminals/terminals';
-import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
 import {
   type LifecycleScriptSpawnRequest,
   type TerminalProvider,
@@ -43,6 +44,7 @@ export class LocalTerminalProvider implements TerminalProvider {
   private shellProfiles = new Map<string, ResolvedShellProfile>();
   private respawnCounts = new Map<string, number>();
   private readonly projectId: string;
+  private readonly workspaceId: string;
   private readonly scopeId: string;
   private readonly taskPath: string;
   private readonly multiplexer: MultiplexerBackend | null;
@@ -52,6 +54,7 @@ export class LocalTerminalProvider implements TerminalProvider {
 
   constructor({
     projectId,
+    workspaceId,
     scopeId,
     taskPath,
     multiplexer = null,
@@ -60,6 +63,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     taskEnvVars = {},
   }: {
     projectId: string;
+    workspaceId?: string;
     scopeId: string;
     taskPath: string;
     multiplexer?: MultiplexerBackend | null;
@@ -68,6 +72,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     taskEnvVars?: Record<string, string>;
   }) {
     this.projectId = projectId;
+    this.workspaceId = workspaceId ?? scopeId;
     this.scopeId = scopeId;
     this.taskPath = taskPath;
     this.multiplexer = multiplexer;
@@ -182,7 +187,38 @@ export class LocalTerminalProvider implements TerminalProvider {
     });
 
     if (policy.watchDevServer) {
-      wireTerminalDevServerWatcher({ pty, scopeId: this.scopeId, terminalId: terminal.id });
+      wireTerminalUrlDetector({
+        pty,
+        probeLocalPorts: true,
+        onDetected: (server) => {
+          void previewServerService
+            .registerDetectedTarget({
+              projectId: this.projectId,
+              workspaceId: this.workspaceId,
+              transport: 'local',
+              source: { kind: 'terminal-output', terminalId: terminal.id },
+              protocol: server.protocol,
+              host: server.host,
+              port: server.port,
+              urlPath: server.urlPath,
+            })
+            .catch((error) => {
+              log.warn('LocalTerminalProvider: preview target registration failed', {
+                terminalId: terminal.id,
+                error: String(error),
+              });
+            });
+        },
+        onSourceClosed: (event) =>
+          previewServerService.handleTerminalSourceClosed({
+            projectId: this.projectId,
+            workspaceId: this.workspaceId,
+            terminalId: terminal.id,
+            transport: 'local',
+            reason: event.reason,
+            server: 'server' in event ? event.server : undefined,
+          }),
+      });
     }
 
     pty.onExit((info) => {

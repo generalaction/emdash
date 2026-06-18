@@ -1,4 +1,4 @@
-import type { GitRemote } from '@emdash/shared/git';
+import type { GitRemote } from '@emdash/core/git';
 import { describe, expect, it } from 'vitest';
 import type { ProjectSettings } from '@shared/core/project-settings/project-settings';
 import {

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { err, ok } from '@emdash/shared';
 import { sql } from 'drizzle-orm';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
@@ -6,7 +7,6 @@ import { runtimeManager } from '@main/core/runtime/runtime-manager';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import { err, ok } from '@shared/lib/result';
 import type { CreateProjectResult, ProjectPathStatus } from '@shared/projects';
 import { checkIsValidDirectory } from '../path-utils';
 import { ensureProjectRepository } from './create-project-utils';

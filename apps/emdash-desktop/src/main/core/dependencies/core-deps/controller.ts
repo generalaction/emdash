@@ -1,4 +1,4 @@
-import type { DependencyInstallResult, DependencyStatus } from '@emdash/shared/deps/runtime';
+import type { DependencyInstallResult, DependencyStatus } from '@emdash/core/deps/runtime';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { getDependencyManager } from '../dependency-managers';
 
