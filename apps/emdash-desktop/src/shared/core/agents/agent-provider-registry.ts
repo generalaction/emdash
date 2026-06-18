@@ -30,6 +30,7 @@ export const AGENT_PROVIDER_IDS = [
   'pi',
   'letta',
   'autohand',
+  'atlascloud',
 ] as const;
 
 export type AgentProviderId = (typeof AGENT_PROVIDER_IDS)[number];
@@ -663,6 +664,28 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'autohand.svg',
     alt: 'Autohand Code CLI',
     terminalOnly: true,
+  },
+  {
+    id: 'atlascloud',
+    name: 'Atlas Cloud',
+    description:
+      'Route the OpenCode CLI through Atlas Cloud — 300+ frontier models (DeepSeek, Qwen, Claude, GPT, Gemini, Grok…) via a single OpenAI-compatible endpoint. Requires OpenCode; set ATLASCLOUD_API_KEY in this provider\'s environment settings.',
+    docUrl: 'https://www.atlascloud.ai/docs',
+    // Atlas Cloud reuses the OpenCode binary pointed at Atlas's OpenAI-compatible
+    // endpoint via env injection (see resolveProviderEnv). Not separately
+    // detectable to avoid a second probe of the `opencode` binary.
+    detectable: false,
+    cli: 'opencode',
+    autoApproveViaEnv: true,
+    initialPromptFlag: '--prompt',
+    resumeFlag: '--session',
+    sessionIdFlag: '--session',
+    sessionIdOnResumeOnly: true,
+    resumeWithoutSessionFlag: '--continue',
+    icon: 'atlas.png',
+    alt: 'Atlas Cloud',
+    terminalOnly: true,
+    supportsHooks: true,
   },
 ];
 
