@@ -157,6 +157,19 @@ export class WorktreeService {
     return undefined;
   }
 
+  private async isInCurrentWorktreePool(candidatePath: string): Promise<boolean> {
+    try {
+      const realPoolPath = await this.host.realPathAbsolute(await this.resolveWorktreePoolPath());
+      return (
+        candidatePath === realPoolPath ||
+        candidatePath.startsWith(`${realPoolPath}/`) ||
+        candidatePath.startsWith(`${realPoolPath}\\`)
+      );
+    } catch {
+      return false;
+    }
+  }
+
   private async resolveSourceBaseRef(
     sourceBranch: GitBranchRef | undefined
   ): Promise<string | undefined> {
@@ -397,6 +410,15 @@ export class WorktreeService {
 
     const checkedOutPath = await this.findBranchAnywhere(branchName);
     if (!checkedOutPath) return ok({ kind: 'create' });
+
+    if (!(await this.isInCurrentWorktreePool(checkedOutPath))) {
+      return err({
+        type: 'worktree-setup-failed',
+        cause: new Error(
+          `Branch "${branchName}" is already checked out at "${checkedOutPath}", outside the stored workspace path`
+        ),
+      });
+    }
 
     try {
       await this.host.mkdirAbsolute(this.host.pathApi.dirname(targetPath), { recursive: true });
