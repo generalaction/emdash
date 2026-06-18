@@ -6,7 +6,7 @@
  * the suggestion's `clientRect`. Keyboard navigation is forwarded through the
  * `onKeyDown` contract the suggestion plugin requires.
  *
- * Visually mirrors the existing Combobox family (bg-background-quaternary,
+ * Visually mirrors the existing Combobox family (bg-surface-floating,
  * ring, shadow) for consistency with AgentSelector / AddContextPopover.
  */
 
@@ -102,7 +102,7 @@ export const SuggestionPopup = forwardRef<SuggestionPopupHandle, SuggestionPopup
         style={style}
         className={cn(
           'z-50 min-w-[220px] max-w-[340px] overflow-hidden rounded-md',
-          'bg-background-quaternary text-foreground shadow-sm ring-1 ring-foreground/10',
+          'bg-surface-floating text-foreground shadow-sm ring-1 ring-foreground/10',
           'animate-in fade-in-0 zoom-in-95'
         )}
       >
@@ -121,8 +121,8 @@ export const SuggestionPopup = forwardRef<SuggestionPopupHandle, SuggestionPopup
                 'relative flex w-full cursor-default select-none items-center gap-2',
                 'rounded-sm py-1.5 pl-2 pr-8 text-sm outline-hidden',
                 index === selectedIndex
-                  ? 'bg-background-quaternary-1 text-foreground'
-                  : 'text-foreground hover:bg-background-quaternary-1'
+                  ? 'bg-surface-floating-hover text-foreground'
+                  : 'text-foreground hover:bg-surface-floating-hover'
               )}
             >
               <span className="flex-1 truncate">{getDisplayLabel(item)}</span>

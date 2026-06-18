@@ -124,11 +124,7 @@ const DIFF_SAMPLES: DiffSample[] = [
   },
   // Multi-line modify — function body rewrite
   {
-    oldText: [
-      'export function estimate(item: ChatItem): number {',
-      '  return 60;',
-      '}',
-    ].join('\n'),
+    oldText: ['export function estimate(item: ChatItem): number {', '  return 60;', '}'].join('\n'),
     newText: [
       'export function estimate(item: ChatItem, ctx: MeasureCtx): number {',
       '  const text = "text" in item ? item.text : "";',
@@ -202,14 +198,7 @@ function bodyFor(rng: () => number, i: number): string {
     // Heavy variants for content-magnitude variety
     case 6:
       // Long prose (120-200 words) to stress pretext line-break measurement
-      return (
-        words(rng, 40, 80) +
-        '.\n\n' +
-        words(rng, 40, 80) +
-        '.\n\n' +
-        words(rng, 20, 40) +
-        '.'
-      );
+      return words(rng, 40, 80) + '.\n\n' + words(rng, 40, 80) + '.\n\n' + words(rng, 20, 40) + '.';
     default:
       // Heavy: multi-paragraph + large code block
       return `${words(rng, 10, 25)}.\n\n${LARGE_CODE_SAMPLE}`;
@@ -381,7 +370,10 @@ export function generateMockTranscript(count = 6000, seed = 1): ChatItem[] {
     } else if (slot === 7) {
       // ── diff modify (existing file) ───────────────────────────────────────
       const path = pick(rng, FILE_PATHS);
-      const sample = pick(rng, DIFF_SAMPLES.filter((s) => s.oldText !== null)) as {
+      const sample = pick(
+        rng,
+        DIFF_SAMPLES.filter((s) => s.oldText !== null)
+      ) as {
         oldText: string;
         newText: string;
       };

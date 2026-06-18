@@ -21,7 +21,7 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
 
   return (
     <div className="flex h-[40px] items-center justify-between pr-2.5 pl-5">
-      <MicroLabel className="text-foreground-tertiary-passive">Projects</MicroLabel>
+      <MicroLabel className="text-foreground-passive">Projects</MicroLabel>
       <div className="flex items-center gap-1">
         <DropdownMenu>
           <Tooltip>

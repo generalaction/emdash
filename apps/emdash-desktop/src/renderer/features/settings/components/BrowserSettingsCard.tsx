@@ -138,7 +138,7 @@ export function BrowserSettingsCard() {
         }
       />
 
-      <div className="rounded-lg border border-border/70 bg-background-secondary-1 p-3">
+      <div className="rounded-lg border border-border/70 bg-background-1 p-3">
         <div className="flex flex-col gap-1">
           <div className="text-sm text-foreground">Browser profiles</div>
           <div className="text-xs text-foreground-passive">

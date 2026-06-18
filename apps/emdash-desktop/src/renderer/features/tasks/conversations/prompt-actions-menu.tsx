@@ -85,7 +85,7 @@ export function PromptActionsMenu({
             return (
               <div
                 key={action.id}
-                className="flex items-start gap-2 rounded-md px-3 py-2 transition-colors focus-within:bg-background-quaternary-1 hover:bg-background-quaternary-1"
+                className="flex items-start gap-2 rounded-md px-3 py-2 transition-colors focus-within:bg-background-1 hover:bg-background-1"
               >
                 <button
                   type="button"
@@ -112,7 +112,7 @@ export function PromptActionsMenu({
                   {canExpand ? (
                     <button
                       type="button"
-                      className="rounded-sm p-1 text-foreground-muted hover:bg-background-quaternary-2 hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30"
+                      className="rounded-sm p-1 text-foreground-muted hover:bg-background-2 hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30"
                       onClick={() => toggleExpanded(action.id)}
                       aria-label={`${expanded ? 'Collapse' : 'Expand'} ${action.prompt.title}`}
                     >
@@ -125,7 +125,7 @@ export function PromptActionsMenu({
                   ) : null}
                   <button
                     type="button"
-                    className="rounded-sm p-1 text-foreground-muted hover:bg-background-quaternary-2 hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30"
+                    className="rounded-sm p-1 text-foreground-muted hover:bg-background-2 hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30"
                     onClick={() => handleActionClick(action)}
                     aria-label={`Add ${action.prompt.title}`}
                   >

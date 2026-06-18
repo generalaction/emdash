@@ -154,7 +154,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
               className={cn(
                 'truncate transition-colors select-none',
                 projectViewKind(getProjectStore(projectId)) === 'bootstrapping' &&
-                  'text-foreground-tertiary-passive'
+                  'text-foreground-passive'
               )}
             >
               {isSshProject ? (

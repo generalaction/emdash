@@ -76,7 +76,7 @@ export function ChatComposer({
   return (
     <div
       className={cn(
-        'flex flex-col gap-0 rounded-xl border border-border bg-background-secondary',
+        'flex flex-col gap-0 rounded-xl border border-border bg-background-1',
         className
       )}
     >
@@ -99,9 +99,9 @@ export function ChatComposer({
         <div className="flex items-center gap-1.5">
           {modelOptions ? (
             <>
-              <span className="text-xs text-foreground-secondary">Model:</span>
+              <span className="text-xs text-foreground-muted">Model:</span>
               <select
-                className="rounded border border-border bg-background-secondary-2 px-2 py-0.5 text-xs text-foreground focus:outline-none disabled:opacity-50"
+                className="rounded border border-border bg-background-2 px-2 py-0.5 text-xs text-foreground focus:outline-none disabled:opacity-50"
                 value={selectedModel}
                 onChange={(e) => onModelChange?.(e.target.value)}
                 disabled={disabled}
@@ -127,7 +127,7 @@ export function ChatComposer({
               onClick={onAttach}
               disabled={disabled}
               aria-label="Add attachment"
-              className="flex size-7 items-center justify-center rounded-lg text-foreground-muted hover:bg-background-secondary-3 hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+              className="flex size-7 items-center justify-center rounded-lg text-foreground-muted hover:bg-background-3 hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
             >
               <Paperclip className="size-3.5" />
             </button>

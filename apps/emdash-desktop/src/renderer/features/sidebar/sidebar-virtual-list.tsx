@@ -307,7 +307,7 @@ function DragOverlayContent({ dndId }: { dndId: string }) {
   if (!parsed) return null;
   return (
     <div className="px-3">
-      <div className="rounded-lg bg-background-tertiary-2 shadow-md">
+      <div className="rounded-lg bg-background-2 shadow-md">
         {parsed.kind === 'project' ? (
           <SidebarProjectItem projectId={parsed.projectId} />
         ) : (

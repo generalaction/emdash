@@ -1,6 +1,5 @@
 /* @theme mapping — connects Tailwind utilities to the semantic CSS custom properties
- * emitted by theme.css (Terrazzo). Hand-authored for exact parity with the inline block
- * in apps/emdash-desktop/src/renderer/index.css. */
+ * emitted by semantic.css (Terrazzo). Import after theme.css + semantic.css. */
 
 @theme inline {
   /* Typography — font families and text scales */
@@ -25,70 +24,59 @@
   --radius-xl: var(--radius-lg);
   --radius-full: var(--radius-full);
 
-  /* Colors */
+  /* ── Base backgrounds ─────────────────────────────────────────── */
   --color-background: var(--background);
   --color-background-1: var(--background-1);
   --color-background-2: var(--background-2);
   --color-background-3: var(--background-3);
 
+  /* ── Foregrounds ──────────────────────────────────────────────── */
   --color-foreground: var(--foreground);
   --color-foreground-inverse: var(--foreground-inverse);
   --color-foreground-body: var(--foreground-body);
   --color-foreground-muted: var(--foreground-muted);
   --color-foreground-passive: var(--foreground-passive);
 
-  --color-background-secondary: var(--background-secondary);
-  --color-background-secondary-1: var(--background-secondary-1);
-  --color-background-secondary-2: var(--background-secondary-2);
-  --color-background-secondary-3: var(--background-secondary-3);
-
-  --color-foreground-secondary: var(--foreground-secondary);
-  --color-foreground-secondary-muted: var(--foreground-secondary-muted);
-  --color-foreground-secondary-passive: var(--foreground-secondary-passive);
-
-  --color-background-tertiary: var(--background-tertiary);
-  --color-background-tertiary-1: var(--background-tertiary-1);
-  --color-background-tertiary-2: var(--background-tertiary-2);
-  --color-background-tertiary-3: var(--background-tertiary-3);
-
-  --color-foreground-tertiary: var(--foreground-tertiary);
-  --color-foreground-tertiary-muted: var(--foreground-tertiary-muted);
-  --color-foreground-tertiary-passive: var(--foreground-tertiary-passive);
-
+  /* ── Destructive ──────────────────────────────────────────────── */
   --color-background-destructive: var(--background-destructive);
+  --color-background-destructive-1: var(--background-destructive-1);
   --color-foreground-destructive: var(--foreground-destructive);
+  --color-foreground-destructive-muted: var(--foreground-destructive-muted);
 
-  --color-background-quaternary: var(--background-quaternary);
-  --color-background-quaternary-1: var(--background-quaternary-1);
-  --color-background-quaternary-2: var(--background-quaternary-2);
-
+  /* ── Neutral inverse ──────────────────────────────────────────── */
   --color-background-neutral: var(--background-neutral);
   --color-foreground-neutral: var(--foreground-neutral);
 
+  /* ── Primary action ───────────────────────────────────────────── */
   --color-primary-button-background: var(--primary-button-background);
   --color-primary-button-background-hover: var(--primary-button-background-hover);
   --color-primary-button-foreground: var(--primary-button-foreground);
   --color-primary-button-border: var(--primary-button-border);
 
+  /* ── Diff / VCS ───────────────────────────────────────────────── */
   --color-foreground-diff-added: var(--foreground-diff-added);
   --color-foreground-diff-modified: var(--foreground-diff-modified);
   --color-foreground-diff-deleted: var(--foreground-diff-deleted);
 
+  /* ── Selection ────────────────────────────────────────────────── */
+  --color-selection: var(--selection);
   --color-selection-foreground: var(--selection-foreground);
-  --color-selection-background: var(--selection-background);
 
+  /* ── Borders ──────────────────────────────────────────────────── */
   --color-border: var(--border);
   --color-border-1: var(--border-1);
   --color-border-2: var(--border-2);
   --color-border-destructive: var(--border-destructive);
   --color-border-primary: var(--border-primary);
 
+  /* ── Task / workflow status ───────────────────────────────────── */
   --color-status-in-progress: var(--status-in-progress);
   --color-status-in-review: var(--status-in-review);
   --color-status-done: var(--status-done);
   --color-status-todo: var(--status-todo);
   --color-status-cancelled: var(--status-cancelled);
 
+  /* ── Feedback states (success / error / warning / info) ───────── */
   --color-foreground-success: var(--foreground-success);
   --color-background-success: var(--background-success);
   --color-background-success-hover: var(--background-success-hover);
@@ -97,6 +85,7 @@
   --color-foreground-error: var(--foreground-error);
   --color-background-error: var(--background-error);
   --color-background-error-hover: var(--background-error-hover);
+  --color-border-error: var(--border-error);
 
   --color-foreground-warning: var(--foreground-warning);
   --color-background-warning: var(--background-warning);
@@ -108,12 +97,14 @@
   --color-background-info-hover: var(--background-info-hover);
   --color-border-info: var(--border-info);
 
+  /* ── VCS merge conflict state ─────────────────────────────────── */
   --color-foreground-conflict: var(--foreground-conflict);
   --color-foreground-merged: var(--foreground-merged);
 
-  /* Surface system — bg-surface / bg-surface-hover / bg-surface-selected adapt to the
-   * nearest .surface-* ancestor. Direct elevation utilities (bg-surface-raised etc.)
-   * target a specific level regardless of context. */
+  /* ── Surface system ───────────────────────────────────────────── */
+  /* bg-surface / bg-surface-hover / bg-surface-selected adapt to the
+   * nearest .surface-* ancestor. Direct elevation utilities target a
+   * specific level regardless of context. */
   --color-surface: var(--surface);
   --color-surface-hover: var(--surface-hover);
   --color-surface-selected: var(--surface-selected);

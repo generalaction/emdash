@@ -352,7 +352,7 @@ export function RemoteDirectorySelector({
           render={
             <button
               type="button"
-              className="flex h-9 w-full items-center gap-2 rounded-md border border-border p-2 pr-1.5 transition-colors hover:bg-background-quaternary-1 disabled:pointer-events-none disabled:opacity-50"
+              className="flex h-9 w-full items-center gap-2 rounded-md border border-border p-2 pr-1.5 transition-colors hover:bg-background-1 disabled:pointer-events-none disabled:opacity-50"
               disabled={!connectionId}
             >
               <Folder className="size-4 text-foreground-muted" />
@@ -433,7 +433,7 @@ export function RemoteDirectorySelector({
 
           <div className="min-h-0 flex-1 overflow-y-auto">{renderDirectoryList()}</div>
 
-          <div className="flex items-center justify-end border-t border-border bg-background-quaternary px-3 py-2">
+          <div className="flex items-center justify-end border-t border-border bg-background-1 px-3 py-2">
             <Button
               type="button"
               size="sm"

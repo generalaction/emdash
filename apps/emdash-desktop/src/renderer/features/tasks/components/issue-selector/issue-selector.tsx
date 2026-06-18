@@ -355,11 +355,11 @@ export function ConnectIssueIntegrationPlaceholder() {
 
   return (
     <div className="flex w-full flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border p-4">
-      <div className="flex items-center justify-center [&>span]:ring-2 [&>span]:ring-background-quaternary [&>span:not(:first-child)]:-ml-1.5">
+      <div className="flex items-center justify-center [&>span]:ring-2 [&>span]:ring-background [&>span:not(:first-child)]:-ml-1.5">
         {ISSUE_PROVIDER_ORDER.map((provider) => (
           <span
             key={provider}
-            className="relative flex size-5 items-center justify-center overflow-hidden rounded-full bg-background-quaternary-2"
+            className="relative flex size-5 items-center justify-center overflow-hidden rounded-full bg-background-2"
           >
             <ProviderLogo provider={provider} className="size-3" />
           </span>

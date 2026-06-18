@@ -61,7 +61,7 @@ export const ChatPanel = observer(function ChatPanel({
   }, []);
 
   return (
-    <div className="relative h-full overflow-hidden bg-background-secondary-1">
+    <div className="relative h-full overflow-hidden bg-background">
       {/* Full-bleed transcript — reserves canvas space for the floating composer */}
       <ChatTranscript
         className="absolute inset-0"

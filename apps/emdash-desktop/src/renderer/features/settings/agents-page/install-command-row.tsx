@@ -61,7 +61,7 @@ export function CopyButton({ command }: { command: string }) {
 export function CommandRow({ command, action }: { command: string; action: React.ReactNode }) {
   return (
     <div className="flex w-full items-stretch gap-[2px]">
-      <div className="group flex min-w-0 flex-1 items-center gap-2 rounded-l-lg bg-background-quaternary-1 px-2 py-1.5">
+      <div className="group flex min-w-0 flex-1 items-center gap-2 rounded-l-lg bg-background-2 px-2 py-1.5">
         <code className="min-w-0 flex-1 truncate font-mono text-xs text-foreground-muted">
           {command}
         </code>
@@ -80,7 +80,7 @@ export function CommandActionButton({ ...props }: React.ButtonHTMLAttributes<HTM
   return (
     <button
       type="button"
-      className="group flex items-center gap-2 rounded-r-lg bg-background-quaternary-1 px-4 text-sm hover:bg-background-quaternary-2 disabled:cursor-not-allowed disabled:text-foreground-passive disabled:hover:bg-background-quaternary-1"
+      className="group flex items-center gap-2 rounded-r-lg bg-background-2 px-4 text-sm hover:bg-background-3 disabled:cursor-not-allowed disabled:text-foreground-passive disabled:hover:bg-background-2"
       {...props}
     />
   );

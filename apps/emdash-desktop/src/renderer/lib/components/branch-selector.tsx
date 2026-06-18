@@ -161,20 +161,20 @@ export function BranchSelector({
           >
             <ToggleGroupItem
               value="local"
-              className="group flex flex-1 items-center gap-1 hover:bg-background-quaternary-1 data-pressed:bg-background-quaternary-2"
+              className="group flex flex-1 items-center gap-1 hover:bg-background-1 data-pressed:bg-background-2"
               disabled={localCount === 0}
             >
               Local
               <Badge
                 variant="secondary"
-                className="group-data-pressed:bg-background-quaternary-3 shrink-0 bg-background-2 transition-colors hover:bg-background-quaternary-1"
+                className="shrink-0 bg-background-2 transition-colors group-data-pressed:bg-background-3 hover:bg-background-1"
               >
                 {localCount}
               </Badge>
             </ToggleGroupItem>
             <ToggleGroupItem
               value="remote"
-              className="group flex flex-1 items-center gap-1 hover:bg-background-quaternary-1 data-pressed:bg-background-quaternary-2"
+              className="group flex flex-1 items-center gap-1 hover:bg-background-1 data-pressed:bg-background-2"
               disabled={remoteCount === 0}
             >
               Remote
@@ -244,7 +244,7 @@ export function BranchSelector({
                 });
               }}
             >
-              <SelectTrigger className="h-7 w-full rounded-none border-0 bg-transparent px-3 text-sm shadow-none hover:bg-background-quaternary-1 focus-visible:ring-0">
+              <SelectTrigger className="h-7 w-full rounded-none border-0 bg-transparent px-3 text-sm shadow-none hover:bg-background-1 focus-visible:ring-0">
                 <span className="min-w-0 flex-1 truncate text-left text-foreground-muted">
                   {activeRemoteName}
                 </span>

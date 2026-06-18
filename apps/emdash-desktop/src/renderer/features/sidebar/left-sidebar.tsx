@@ -36,7 +36,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
   return (
     <div
       className={cn(
-        'relative flex flex-col h-full bg-background-tertiary text-foreground-tertiary-muted transition-colors',
+        'relative flex flex-col h-full bg-surface-sunken text-foreground-muted transition-colors',
         isDragOver && 'bg-accent/10 ring-2 ring-inset ring-accent/50'
       )}
       onDragOver={onDragOver}
@@ -45,7 +45,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
       onDrop={onDrop}
     >
       {isDragOver && (
-        <div className="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center gap-2 bg-background-tertiary/80 backdrop-blur-sm">
+        <div className="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center gap-2 bg-surface-sunken/80 backdrop-blur-sm">
           <FolderInput className="size-8 text-foreground" />
           <span className="text-xs font-medium text-foreground">Drop to add project</span>
         </div>

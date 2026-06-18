@@ -105,7 +105,7 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
             <>
               <span>Found</span>
               {versionText && (
-                <span className="ml-1 rounded-md bg-background-quaternary-2 px-1 py-0.5 font-mono text-xs text-foreground-muted">
+                <span className="ml-1 rounded-md bg-surface-floating-selected px-1 py-0.5 font-mono text-xs text-foreground-muted">
                   {versionText}
                 </span>
               )}

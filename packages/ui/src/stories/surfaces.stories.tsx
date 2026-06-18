@@ -25,11 +25,11 @@ type Story = StoryObj;
 function SurfaceSwatch({ family }: { family: SurfaceFamily }) {
   return (
     <div className={`surface-${family} flex flex-col gap-1`}>
-      <div className="bg-surface rounded px-3 py-2 text-sm font-medium text-foreground">
+      <div className="rounded bg-surface px-3 py-2 text-sm font-medium text-foreground">
         .surface-{family}
       </div>
-      <div className="bg-surface-hover rounded px-3 py-2 text-xs text-foreground-muted">hover</div>
-      <div className="bg-surface-selected rounded px-3 py-2 text-xs text-foreground-muted">
+      <div className="rounded bg-surface-hover px-3 py-2 text-xs text-foreground-muted">hover</div>
+      <div className="rounded bg-surface-selected px-3 py-2 text-xs text-foreground-muted">
         selected
       </div>
     </div>
@@ -40,7 +40,7 @@ function SurfaceSwatch({ family }: { family: SurfaceFamily }) {
 function SurfaceCard({ family }: { family: SurfaceFamily }) {
   return (
     <div
-      className={`surface-${family} bg-surface flex flex-col gap-3 rounded-lg border border-border p-4`}
+      className={`surface-${family} flex flex-col gap-3 rounded-lg border border-border bg-surface p-4`}
     >
       <p className="font-mono text-xs text-foreground-muted">.surface-{family}</p>
       <Input placeholder="Search…" />

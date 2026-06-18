@@ -24,7 +24,7 @@ export const DiffToolbar = observer(function DiffToolbar({ tab }: DiffToolbarPro
   if (!diffView || !diffStyle) return null;
 
   return (
-    <div className="flex h-[41px] items-center justify-between gap-2 border-b border-border bg-background-secondary-1 px-2">
+    <div className="flex h-[41px] items-center justify-between gap-2 border-b border-border bg-background-1 px-2">
       <div className="flex items-center gap-3">
         {diffSourceLabel && <MicroLabel>{diffSourceLabel}</MicroLabel>}
       </div>

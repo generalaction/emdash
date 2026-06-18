@@ -158,10 +158,7 @@ export function IssueStatusIndicator({
         <svg
           viewBox="0 0 16 16"
           fill="none"
-          className={cn(
-            'size-3 text-foreground-tertiary-muted hover:text-foreground-tertiary shrink-0',
-            className
-          )}
+          className={cn('size-3 text-foreground-muted hover:text-foreground shrink-0', className)}
           strokeWidth="1.5"
         >
           <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />

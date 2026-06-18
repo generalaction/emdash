@@ -78,7 +78,7 @@ function DialogHeader({
         <DialogPrimitive.Close
           data-slot="dialog-close"
           render={
-            <button className="bg-transparent p-0 text-foreground-tertiary-muted hover:bg-transparent hover:text-foreground-tertiary" />
+            <button className="bg-transparent p-0 text-foreground-muted hover:bg-transparent hover:text-foreground" />
           }
         >
           <XIcon className="size-4" />
@@ -101,7 +101,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        'flex shrink-0 flex-col-reverse gap-2 p-3 border-t border-border bg-background-quaternary-1 sm:flex-row sm:justify-end',
+        'flex shrink-0 flex-col-reverse gap-2 p-3 border-t border-border bg-background-2 sm:flex-row sm:justify-end',
         className
       )}
       {...props}
@@ -119,7 +119,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cn(
-        'text-xs font-mono tracking-wider uppercase text-foreground-tertiary-passive',
+        'text-xs font-mono tracking-wider uppercase text-foreground-passive',
         className
       )}
       {...props}

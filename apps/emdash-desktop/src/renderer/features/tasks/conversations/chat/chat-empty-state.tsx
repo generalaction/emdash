@@ -19,7 +19,7 @@ export function ChatEmptyState({ variant }: { variant: ChatEmptyStateVariant }) 
         <>
           <MessageSquare className="size-7 text-foreground-muted opacity-40" />
           <div className="flex flex-col items-center gap-1 text-center">
-            <p className="text-sm font-medium text-foreground-secondary">Start a conversation</p>
+            <p className="text-sm font-medium text-foreground-muted">Start a conversation</p>
             <p className="text-xs text-foreground-muted">
               Type a message below and press Enter or Send.
             </p>

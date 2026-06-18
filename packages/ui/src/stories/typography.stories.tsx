@@ -101,7 +101,7 @@ export const AllSurfaces: Story = {
   render: () => (
     <div className="grid grid-cols-5 gap-3">
       {(['sunken', 'base', 'raised', 'overlay', 'floating'] as const).map((s) => (
-        <div key={s} className={`surface-${s} bg-surface rounded-lg p-4`}>
+        <div key={s} className={`surface-${s} rounded-lg bg-surface p-4`}>
           <p className="mb-1 font-mono text-xs text-foreground-passive">.surface-{s}</p>
           <Heading level={2} className="mb-1">
             Heading

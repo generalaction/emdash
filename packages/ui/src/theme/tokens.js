@@ -2848,6 +2848,574 @@ export const tokens = {
   'fade.softness': {
     '.': 0.4,
   },
+  'semantic.background': {
+    '.': {
+      colorSpace: 'srgb',
+      channels: [1, 1, 1],
+      alpha: 1,
+      hex: '#ffffff',
+    },
+    light: {
+      colorSpace: 'srgb',
+      channels: [1, 1, 1],
+      alpha: 1,
+      hex: '#ffffff',
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.988, 0.988, 0.988],
+      alpha: 1,
+    },
+  },
+  'semantic.background-1': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.975, 0.975, 0.975],
+      alpha: 1,
+    },
+  },
+  'semantic.background-2': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.939, 0.939, 0.939],
+      alpha: 1,
+    },
+  },
+  'semantic.background-3': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.908, 0.908, 0.908],
+      alpha: 1,
+    },
+  },
+  'semantic.foreground': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.125, 0.125, 0.125],
+      alpha: 1,
+    },
+  },
+  'semantic.foreground-inverse': {
+    '.': {
+      colorSpace: 'srgb',
+      channels: [1, 1, 1],
+      alpha: 1,
+      hex: '#ffffff',
+    },
+    light: {
+      colorSpace: 'srgb',
+      channels: [1, 1, 1],
+      alpha: 1,
+      hex: '#ffffff',
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.988, 0.988, 0.988],
+      alpha: 1,
+    },
+  },
+  'semantic.foreground-body': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.26, 0.26, 0.26],
+      alpha: 1,
+    },
+  },
+  'semantic.foreground-muted': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.392, 0.392, 0.392],
+      alpha: 1,
+    },
+  },
+  'semantic.foreground-passive': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.732, 0.732, 0.732],
+      alpha: 1,
+    },
+    light: {
+      colorSpace: 'display-p3',
+      channels: [0.732, 0.732, 0.732],
+      alpha: 1,
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.553, 0.553, 0.553],
+      alpha: 1,
+    },
+  },
+  'semantic.background-destructive': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.995, 0.971, 0.971],
+      alpha: 1,
+    },
+    light: {
+      colorSpace: 'display-p3',
+      channels: [0.995, 0.971, 0.971],
+      alpha: 1,
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.985, 0.925, 0.925],
+      alpha: 1,
+    },
+  },
+  'semantic.background-destructive-1': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.985, 0.925, 0.925],
+      alpha: 1,
+    },
+    light: {
+      colorSpace: 'display-p3',
+      channels: [0.985, 0.925, 0.925],
+      alpha: 1,
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.25, 0.102, 0.122],
+      alpha: 1,
+    },
+  },
+  'semantic.foreground-destructive': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.744, 0.234, 0.222],
+      alpha: 1,
+    },
+    light: {
+      colorSpace: 'display-p3',
+      channels: [0.744, 0.234, 0.222],
+      alpha: 1,
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.83, 0.329, 0.324],
+      alpha: 1,
+    },
+  },
+  'semantic.foreground-destructive-muted': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.744, 0.234, 0.222],
+      alpha: 1,
+    },
+    light: {
+      colorSpace: 'display-p3',
+      channels: [0.744, 0.234, 0.222],
+      alpha: 1,
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.661, 0.263, 0.26],
+      alpha: 1,
+    },
+  },
+  'semantic.background-neutral': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.125, 0.125, 0.125],
+      alpha: 1,
+    },
+  },
+  'semantic.foreground-neutral': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.988, 0.988, 0.988],
+      alpha: 1,
+    },
+  },
+  'semantic.primary-button-background': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.142, 0.229, 0.194],
+      alpha: 1,
+    },
+    light: {
+      colorSpace: 'display-p3',
+      channels: [0.142, 0.229, 0.194],
+      alpha: 1,
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.858, 0.941, 0.893],
+      alpha: 1,
+    },
+  },
+  'semantic.primary-button-background-hover': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.15, 0.5, 0.37],
+      alpha: 1,
+    },
+    light: {
+      colorSpace: 'display-p3',
+      channels: [0.15, 0.5, 0.37],
+      alpha: 1,
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.795, 0.909, 0.847],
+      alpha: 1,
+    },
+  },
+  'semantic.primary-button-foreground': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.962, 0.983, 0.969],
+      alpha: 1,
+    },
+    light: {
+      colorSpace: 'display-p3',
+      channels: [0.962, 0.983, 0.969],
+      alpha: 1,
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.142, 0.229, 0.194],
+      alpha: 1,
+    },
+  },
+  'semantic.primary-button-border': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.603, 0.802, 0.718],
+      alpha: 1,
+    },
+    light: {
+      colorSpace: 'display-p3',
+      channels: [0.603, 0.802, 0.718],
+      alpha: 1,
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.603, 0.802, 0.718],
+      alpha: 1,
+    },
+  },
+  'semantic.border': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.88, 0.88, 0.88],
+      alpha: 1,
+    },
+    light: {
+      colorSpace: 'display-p3',
+      channels: [0.88, 0.88, 0.88],
+      alpha: 1,
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.849, 0.849, 0.849],
+      alpha: 1,
+    },
+  },
+  'semantic.border-1': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.732, 0.732, 0.732],
+      alpha: 1,
+    },
+    light: {
+      colorSpace: 'display-p3',
+      channels: [0.732, 0.732, 0.732],
+      alpha: 1,
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.807, 0.807, 0.807],
+      alpha: 1,
+    },
+  },
+  'semantic.border-2': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.553, 0.553, 0.553],
+      alpha: 1,
+    },
+    light: {
+      colorSpace: 'display-p3',
+      channels: [0.553, 0.553, 0.553],
+      alpha: 1,
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.732, 0.732, 0.732],
+      alpha: 1,
+    },
+  },
+  'semantic.border-destructive': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.872, 0.575, 0.572],
+      alpha: 1,
+    },
+  },
+  'semantic.border-primary': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.553, 0.553, 0.553],
+      alpha: 1,
+    },
+    light: {
+      colorSpace: 'display-p3',
+      channels: [0.553, 0.553, 0.553],
+      alpha: 1,
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.512, 0.512, 0.512],
+      alpha: 1,
+    },
+  },
+  'semantic.selection': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.709, 0.843, 0.976],
+      alpha: 1,
+    },
+    light: {
+      colorSpace: 'display-p3',
+      channels: [0.709, 0.843, 0.976],
+      alpha: 1,
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.247, 0.556, 0.969],
+      alpha: 1,
+    },
+  },
+  'semantic.selection-foreground': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.102, 0.193, 0.379],
+      alpha: 1,
+    },
+  },
+  'semantic.status-in-progress': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.64, 0.4, 0],
+      alpha: 1,
+    },
+  },
+  'semantic.status-in-review': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.344, 0.598, 0.342],
+      alpha: 1,
+    },
+  },
+  'semantic.status-done': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.553, 0.553, 0.553],
+      alpha: 1,
+    },
+    light: {
+      colorSpace: 'display-p3',
+      channels: [0.553, 0.553, 0.553],
+      alpha: 1,
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.512, 0.512, 0.512],
+      alpha: 1,
+    },
+  },
+  'semantic.status-todo': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.553, 0.553, 0.553],
+      alpha: 1,
+    },
+    light: {
+      colorSpace: 'display-p3',
+      channels: [0.553, 0.553, 0.553],
+      alpha: 1,
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.512, 0.512, 0.512],
+      alpha: 1,
+    },
+  },
+  'semantic.status-cancelled': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.553, 0.553, 0.553],
+      alpha: 1,
+    },
+    light: {
+      colorSpace: 'display-p3',
+      channels: [0.553, 0.553, 0.553],
+      alpha: 1,
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.512, 0.512, 0.512],
+      alpha: 1,
+    },
+  },
+  'semantic.foreground-diff-added': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.38, 0.647, 0.378],
+      alpha: 1,
+    },
+    light: {
+      colorSpace: 'display-p3',
+      channels: [0.38, 0.647, 0.378],
+      alpha: 1,
+    },
+    dark: {
+      colorSpace: 'display-p3',
+      channels: [0.344, 0.598, 0.342],
+      alpha: 1,
+    },
+  },
+  'semantic.foreground-diff-modified': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [1, 0.77, 0.26],
+      alpha: 1,
+    },
+  },
+  'semantic.foreground-diff-deleted': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.83, 0.329, 0.324],
+      alpha: 1,
+    },
+  },
+  'semantic.foreground-success': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.38, 0.647, 0.378],
+      alpha: 1,
+    },
+  },
+  'semantic.background-success': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.923, 0.965, 0.917],
+      alpha: 1,
+    },
+  },
+  'semantic.background-success-hover': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.872, 0.94, 0.865],
+      alpha: 1,
+    },
+  },
+  'semantic.border-success': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.628, 0.803, 0.622],
+      alpha: 1,
+    },
+  },
+  'semantic.foreground-error': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.83, 0.329, 0.324],
+      alpha: 1,
+    },
+  },
+  'semantic.background-error': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.985, 0.925, 0.925],
+      alpha: 1,
+    },
+  },
+  'semantic.background-error-hover': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.999, 0.866, 0.866],
+      alpha: 1,
+    },
+  },
+  'semantic.border-error': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.915, 0.675, 0.672],
+      alpha: 1,
+    },
+  },
+  'semantic.foreground-warning': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.64, 0.4, 0],
+      alpha: 1,
+    },
+  },
+  'semantic.background-warning': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.994, 0.969, 0.782],
+      alpha: 1,
+    },
+  },
+  'semantic.background-warning-hover': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.989, 0.937, 0.65],
+      alpha: 1,
+    },
+  },
+  'semantic.border-warning': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.89, 0.762, 0.443],
+      alpha: 1,
+    },
+  },
+  'semantic.foreground-info': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.247, 0.556, 0.969],
+      alpha: 1,
+    },
+  },
+  'semantic.background-info': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.912, 0.956, 0.991],
+      alpha: 1,
+    },
+  },
+  'semantic.background-info-hover': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.853, 0.932, 1],
+      alpha: 1,
+    },
+  },
+  'semantic.border-info': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.606, 0.777, 0.947],
+      alpha: 1,
+    },
+  },
+  'semantic.foreground-conflict': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.9, 0.45, 0.2],
+      alpha: 1,
+    },
+  },
+  'semantic.foreground-merged': {
+    '.': {
+      colorSpace: 'display-p3',
+      channels: [0.523, 0.318, 0.751],
+      alpha: 1,
+    },
+  },
 };
 
 /** Get individual token */

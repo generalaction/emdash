@@ -22,7 +22,7 @@ function deleteProjectDescription(projectLabel: string, automations: Automation[
           {automations.length === 1 ? 'This automation' : 'These automations'} will be detached from
           the project and will not run until attached to another project:
         </p>
-        <ul className="max-h-32 space-y-1 overflow-auto rounded-md border border-border bg-background-secondary p-2 text-sm">
+        <ul className="max-h-32 space-y-1 overflow-auto rounded-md border border-border bg-background-1 p-2 text-sm">
           {automations.map((automation) => (
             <li key={automation.id} className="truncate">
               {automation.name}

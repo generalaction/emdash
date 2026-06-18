@@ -1,7 +1,7 @@
 // Derives surface hover/selected state-layer tokens from surface base tokens
 // using OKLab perceptual lightness shifts for constant perceived contrast.
 //
-// Reads tokens.json, writes tokens.generated.json with hover/selected added.
+// Reads primitives.tokens.json, writes primitives.generated.json with hover/selected added.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -37,8 +37,8 @@ function deriveStateLayer(p3channels, mode, delta) {
   };
 }
 
-const tokensPath = join(__dirname, 'tokens.json');
-const outputPath = join(__dirname, 'tokens.generated.json');
+const tokensPath = join(__dirname, 'primitives.tokens.json');
+const outputPath = join(__dirname, 'primitives.generated.json');
 
 const tokens = JSON.parse(readFileSync(tokensPath, 'utf8'));
 
@@ -71,4 +71,4 @@ for (const [familyName, familyToken] of Object.entries(generated.surface)) {
 }
 
 writeFileSync(outputPath, JSON.stringify(generated, null, 2));
-console.log('✓ Derived surface state layers → tokens.generated.json');
+console.log('✓ Derived surface state layers → primitives.generated.json');

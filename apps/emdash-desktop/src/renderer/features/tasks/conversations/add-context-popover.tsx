@@ -178,7 +178,7 @@ export function AddContextPopover({
         className={
           renderTrigger
             ? undefined
-            : 'flex h-6 min-w-[160px] items-center justify-between gap-1.5 rounded-lg border-border bg-background-secondary-2 px-2 text-xs font-normal text-foreground-muted transition-colors hover:bg-background-secondary-3 hover:text-foreground disabled:pointer-events-none'
+            : 'flex h-6 min-w-[160px] items-center justify-between gap-1.5 rounded-lg border-border bg-background-2 px-2 text-xs font-normal text-foreground-muted transition-colors hover:bg-background-3 hover:text-foreground disabled:pointer-events-none'
         }
       >
         {renderTrigger ? (

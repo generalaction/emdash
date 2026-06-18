@@ -522,10 +522,7 @@ export function ChatRoot(props: ChatRootProps) {
       // Backward pass: behind .. visStart-1 (only when forward pass exhausted)
       if (prefetchStart > prefetchEnd) {
         let backCursor = visStart - 1;
-        while (
-          backCursor >= behind &&
-          deadline.timeRemaining() >= PREFETCH_MIN_REMAINING_MS
-        ) {
+        while (backCursor >= behind && deadline.timeRemaining() >= PREFETCH_MIN_REMAINING_MS) {
           const item = getItem(props.transcript.state, backCursor);
           if (item) {
             const resolveExpanded = makeResolveExpanded(item, props.viewState);

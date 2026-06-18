@@ -29,7 +29,7 @@ export const AgentInfoCard: React.FC<Props> = ({ id, connectionId }) => {
   const isInstalled = (statusData?.status ?? payload?.status) === 'available';
 
   return (
-    <div className="w-96 bg-background-quaternary p-3">
+    <div className="w-96 bg-surface-floating p-3">
       <div className="mb-2 flex items-center justify-between gap-1.5">
         <div className="flex items-center gap-2 text-sm">
           <AgentIcon id={id} size={16} className="rounded-sm" />

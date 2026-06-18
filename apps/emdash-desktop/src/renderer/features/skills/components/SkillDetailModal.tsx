@@ -152,7 +152,7 @@ function SkillDetailShimmer() {
 
   return (
     <div
-      className="min-h-32 space-y-4 rounded-md border border-border bg-background-quaternary-1 px-3 py-3"
+      className="min-h-32 space-y-4 rounded-md border border-border bg-background-2 px-3 py-3"
       aria-label="Loading skill details"
     >
       <div className="space-y-2">

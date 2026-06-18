@@ -161,7 +161,7 @@ export function BrowserToolbar({
   const zoomFactor = session.zoomFactor;
 
   return (
-    <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border bg-background-secondary-1 px-2">
+    <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border bg-background-1 px-2">
       <ToolbarIconButton
         label="Back"
         disabled={!adapter || !session.canGoBack}
@@ -292,7 +292,7 @@ export function BrowserToolbar({
           <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-sm">
             <span>Zoom</span>
             <div className="flex items-center gap-1">
-              <div className="flex items-center rounded-md bg-background-quaternary-1">
+              <div className="flex items-center rounded-md bg-surface-floating-hover">
                 <Button
                   type="button"
                   variant="ghost"

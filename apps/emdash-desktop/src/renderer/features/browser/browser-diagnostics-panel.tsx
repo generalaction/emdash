@@ -12,12 +12,12 @@ export const BrowserDiagnosticsPanel = observer(function BrowserDiagnosticsPanel
   if (entries.length === 0) return null;
 
   return (
-    <div className="h-32 shrink-0 overflow-hidden border-t border-border bg-background-secondary">
+    <div className="h-32 shrink-0 overflow-hidden border-t border-border bg-background-1">
       <div className="flex h-8 items-center justify-between px-3 text-xs text-foreground-muted">
         <span>Diagnostics</span>
         <button
           type="button"
-          className="rounded px-2 py-1 hover:bg-background-secondary-1"
+          className="rounded px-2 py-1 hover:bg-background"
           onClick={() => browserDiagnosticsStore.clearBrowser(browserId)}
         >
           Clear

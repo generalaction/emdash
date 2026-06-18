@@ -111,13 +111,13 @@ export const CreateConversationModal = observer(function CreateConversationModal
           {supportsAcp && (
             <Field>
               <FieldLabel>Mode</FieldLabel>
-              <div className="flex gap-1 rounded-lg border border-border bg-background-secondary p-0.5">
+              <div className="flex gap-1 rounded-lg border border-border bg-background-1 p-0.5">
                 <button
                   type="button"
                   className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
                     effectiveType === 'pty'
                       ? 'bg-background text-foreground shadow-sm'
-                      : 'text-foreground-secondary hover:text-foreground'
+                      : 'text-foreground-muted hover:text-foreground'
                   }`}
                   onClick={() => setConversationType('pty')}
                 >
@@ -129,7 +129,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
                   className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
                     effectiveType === 'acp'
                       ? 'bg-background text-foreground shadow-sm'
-                      : 'text-foreground-secondary hover:text-foreground'
+                      : 'text-foreground-muted hover:text-foreground'
                   }`}
                   onClick={() => setConversationType('acp')}
                 >

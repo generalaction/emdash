@@ -96,7 +96,7 @@ export const PrCommitsList = observer(function PrCommitsList() {
       {hasNextPage && (
         <div className="flex justify-center py-2">
           <button
-            className="hover:bg-surface-raised rounded-md px-3 py-1 text-xs text-foreground-muted transition-colors hover:text-foreground"
+            className="rounded-md px-3 py-1 text-xs text-foreground-muted transition-colors hover:bg-surface-raised hover:text-foreground"
             onClick={() => void fetchNextPage()}
             disabled={isFetchingNextPage}
           >
