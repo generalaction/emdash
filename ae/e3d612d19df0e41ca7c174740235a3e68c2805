@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/renderer/features/tasks/view/tab-bar.tsx
+  s_b1fed7d0a469e6::t_e0976ba5e43cf7 146-155,158-167
+apps/emdash-desktop/src/renderer/lib/ui/tab-bar.tsx
+  s_b1fed7d0a469e6::t_645deacd9b9979 1,3,71-90,165-180,183-196,201-228
+  s_b1fed7d0a469e6::t_4fd3c9d4ef4f0a 197-200
+apps/emdash-desktop/src/renderer/lib/components/reorder-list.tsx
+  s_b1fed7d0a469e6::t_2f3319acd775b8 15,28,34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "aee3d612d19df0e41ca7c174740235a3e68c2805",
+  "prompts": {},
+  "sessions": {
+    "s_b1fed7d0a469e6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019edae8-00db-7ef3-ad29-220948d7a896",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
