@@ -55,6 +55,15 @@ export const BrowserPane = observer(function BrowserPane({
   const sessionPartition = session?.partition;
   const showStartPage = session?.currentUrl === 'about:blank' && !session.isLoading;
   const loadError = session && !session.isLoading ? session.loadError : undefined;
+  const loadErrorUrl = loadError ? (loadError.url ?? session?.currentUrl ?? '') : '';
+  const loadErrorPresentation = useMemo<BrowserLoadErrorPresentation | undefined>(
+    () => (loadError ? describeBrowserLoadError(loadError, loadErrorUrl) : undefined),
+    [loadError, loadErrorUrl]
+  );
+  const canOpenLoadErrorExternal = useMemo(
+    () => (loadError ? canOpenBrowserUrlExternally(loadErrorUrl) : false),
+    [loadError, loadErrorUrl]
+  );
 
   useEffect(() => {
     if (!sessionBrowserId || !sessionPartition || !session) {
@@ -271,14 +280,14 @@ export const BrowserPane = observer(function BrowserPane({
         }}
       />
       <div className="emlight min-h-0 flex-1 bg-background">
-        {loadError ? (
+        {loadError && loadErrorPresentation ? (
           <BrowserLoadErrorView
-            url={loadError.url ?? session.currentUrl}
-            presentation={describeBrowserLoadError(loadError, loadError.url ?? session.currentUrl)}
+            url={loadErrorUrl}
+            presentation={loadErrorPresentation}
             code={browserLoadErrorCode(loadError)}
-            canOpenExternal={canOpenBrowserUrlExternally(loadError.url ?? session.currentUrl)}
+            canOpenExternal={canOpenLoadErrorExternal}
             onReload={reload}
-            onOpenExternal={() => openBrowserUrlExternally(loadError.url ?? session.currentUrl)}
+            onOpenExternal={() => openBrowserUrlExternally(loadErrorUrl)}
           />
         ) : showStartPage ? (
           <BrowserStartPage devServerUrls={previewServers.urls} onOpenUrl={navigateTo} />
