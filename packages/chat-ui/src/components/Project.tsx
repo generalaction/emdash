@@ -12,9 +12,15 @@
  * Leaf layouts produced by `core/layout/block-stack.ts` carry a `raw`
  * back-reference to the source `Block`; `renderBlockLeaf` uses this to
  * construct `Prose`/`Code`/`Table` without a separate block lookup.
+ *
+ * Reactivity note: all sub-renderers read `props.node.layout` through an
+ * accessor function rather than destructuring at the call site.  This ensures
+ * that when a parent re-measures and passes a new Measured object with a
+ * different layout value (e.g. collapsible toggling expanded/collapsed), the
+ * JSX expressions inside each sub-renderer re-evaluate correctly.
  */
 
-import { For, Show, createEffect, onCleanup, type JSX } from 'solid-js';
+import { For, Match, Show, Switch, createEffect, onCleanup, type JSX } from 'solid-js';
 import type { Block, CodeBlock, ProseBlock } from '../core/markdown/document';
 import type {
   BubbleLayout,
@@ -77,21 +83,21 @@ function ProjectPad(props: {
   node: Measured<PadLayout>;
   render: (child: Measured) => JSX.Element;
 }) {
-  const { padX, padY, border, child } = props.node.layout;
+  const l = () => props.node.layout;
   return (
     <div
       style={{
         position: 'relative',
         height: `${props.node.height}px`,
         'box-sizing': 'border-box',
-        'border-width': `${border}px`,
-        'padding-top': `${padY}px`,
-        'padding-bottom': `${padY}px`,
-        'padding-left': `${padX}px`,
-        'padding-right': `${padX}px`,
+        'border-width': `${l().border}px`,
+        'padding-top': `${l().padY}px`,
+        'padding-bottom': `${l().padY}px`,
+        'padding-left': `${l().padX}px`,
+        'padding-right': `${l().padX}px`,
       }}
     >
-      {props.render(child)}
+      {props.render(l().child)}
     </div>
   );
 }
@@ -100,19 +106,19 @@ function ProjectBubble(props: {
   node: Measured<BubbleLayout>;
   render: (child: Measured) => JSX.Element;
 }) {
-  const { padX, child, variantClass, width } = props.node.layout;
+  const l = () => props.node.layout;
   return (
     <div
-      class={variantClass}
+      class={l().variantClass}
       style={{
         position: 'relative',
         height: `${props.node.height}px`,
-        'padding-left': `${padX}px`,
-        'padding-right': `${padX}px`,
-        ...(width !== undefined ? { width: `${width}px` } : {}),
+        'padding-left': `${l().padX}px`,
+        'padding-right': `${l().padX}px`,
+        ...(l().width !== undefined ? { width: `${l().width}px` } : {}),
       }}
     >
-      {props.render(child)}
+      {props.render(l().child)}
     </div>
   );
 }
@@ -122,23 +128,23 @@ function ProjectCollapsible(props: {
   slots: Record<string, (node: Measured<SlotLayout>) => JSX.Element>;
   render: (child: Measured) => JSX.Element;
 }) {
-  const { headerH, bodyTop, expanded, child, headerSlot } = props.node.layout;
-  const headerSlotNode: Measured<SlotLayout> = {
-    height: headerH,
+  const l = () => props.node.layout;
+  const headerSlotNode = (): Measured<SlotLayout> => ({
+    height: l().headerH,
     width: props.node.width,
-    layout: { kind: 'slot', name: headerSlot, height: headerH },
-  };
+    layout: { kind: 'slot', name: l().headerSlot, height: l().headerH },
+  });
   return (
     <div style={{ position: 'relative', height: `${props.node.height}px` }}>
-      <div style={{ position: 'absolute', top: '0', left: 0, right: 0, height: `${headerH}px` }}>
-        {props.slots[headerSlot]?.(headerSlotNode)}
+      <div style={{ position: 'absolute', top: '0', left: 0, right: 0, height: `${l().headerH}px` }}>
+        {props.slots[l().headerSlot]?.(headerSlotNode())}
       </div>
-      <Show when={expanded && child}>
+      <Show when={l().expanded && l().child}>
         {(c) => (
           <div
             style={{
               position: 'absolute',
-              top: `${bodyTop}px`,
+              top: `${l().bodyTop}px`,
               left: 0,
               right: 0,
               height: `${c().height}px`,
@@ -156,49 +162,53 @@ function ProjectWindow(props: {
   node: Measured<WindowLayout>;
   render: (child: Measured) => JSX.Element;
 }) {
-  const { maxH, child, overlay, autoScrollBottom } = props.node.layout;
+  const l = () => props.node.layout;
   let scrollEl: HTMLDivElement | undefined;
 
-  // Auto-scroll to bottom when the child height changes (active thinking preview).
-  if (autoScrollBottom) {
-    createEffect(() => {
-      const _h = child.height; // track height reactively
-      if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
-      return _h;
-    });
-    onCleanup(() => {
-      scrollEl = undefined;
-    });
-  }
-
-  const fadeClass =
-    overlay === 'fade-top'
-      ? 'fade-overlay-top pointer-events-none absolute inset-x-0 top-0 z-10'
-      : overlay === 'fade-bottom'
-        ? 'fade-overlay-bottom pointer-events-none absolute inset-x-0 bottom-0 z-10'
-        : '';
+  // Auto-scroll to bottom when autoScrollBottom is enabled.
+  // The effect is registered unconditionally so it runs whenever l().child.height
+  // changes (active thinking/file-op preview auto-scrolls as content grows).
+  createEffect(() => {
+    if (!l().autoScrollBottom) return;
+    const _h = l().child.height; // track height reactively
+    if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
+    return _h;
+  });
+  onCleanup(() => {
+    scrollEl = undefined;
+  });
 
   return (
     <div
       style={{
         height: `${props.node.height}px`,
-        'max-height': `${maxH}px`,
+        'max-height': `${l().maxH}px`,
         overflow: 'hidden',
         position: 'relative',
       }}
     >
-      {overlay && <div class={fadeClass} style={{ height: '28px' }} aria-hidden="true" />}
+      <Show when={l().overlay}>
+        <div
+          class={
+            l().overlay === 'fade-top'
+              ? 'fade-overlay-top pointer-events-none absolute inset-x-0 top-0 z-10'
+              : 'fade-overlay-bottom pointer-events-none absolute inset-x-0 bottom-0 z-10'
+          }
+          style={{ height: '28px' }}
+          aria-hidden="true"
+        />
+      </Show>
       <div
         ref={(el) => {
           scrollEl = el;
         }}
         style={{
-          'max-height': `${maxH}px`,
-          overflow: autoScrollBottom ? 'auto' : 'hidden',
-          'scrollbar-gutter': autoScrollBottom ? 'stable' : undefined,
+          'max-height': `${l().maxH}px`,
+          overflow: l().autoScrollBottom ? 'auto' : 'hidden',
+          'scrollbar-gutter': l().autoScrollBottom ? 'stable' : undefined,
         }}
       >
-        {props.render(child)}
+        {props.render(l().child)}
       </div>
     </div>
   );
@@ -254,9 +264,13 @@ export type ProjectProps = {
  * recursively.  Slot nodes are resolved via `props.slots`.  All other kinds
  * are treated as block leaves and rendered via `renderBlockLeaf` (or the
  * `children` override).
+ *
+ * The `layout.kind` accessor drives a reactive `<Switch>` so that when a
+ * parent passes a re-measured node with a different kind (e.g. file-op going
+ * from `slot` to `collapsible` as ops stream in), the correct branch mounts.
  */
 export function Project(props: ProjectProps): JSX.Element {
-  const layout = props.node.layout as AnyLayout;
+  const layout = () => props.node.layout as AnyLayout;
   const slots = props.slots ?? {};
   const renderLeaf = props.children ?? renderBlockLeaf;
 
@@ -267,28 +281,30 @@ export function Project(props: ProjectProps): JSX.Element {
     </Project>
   );
 
-  switch (layout.kind) {
-    case 'stack':
-      return <ProjectStack node={props.node as Measured<StackLayout>} render={renderChild} />;
-    case 'pad':
-      return <ProjectPad node={props.node as Measured<PadLayout>} render={renderChild} />;
-    case 'bubble':
-      return <ProjectBubble node={props.node as Measured<BubbleLayout>} render={renderChild} />;
-    case 'collapsible':
-      return (
+  return (
+    <Switch fallback={renderLeaf(props.node) ?? null}>
+      <Match when={layout().kind === 'stack'}>
+        <ProjectStack node={props.node as Measured<StackLayout>} render={renderChild} />
+      </Match>
+      <Match when={layout().kind === 'pad'}>
+        <ProjectPad node={props.node as Measured<PadLayout>} render={renderChild} />
+      </Match>
+      <Match when={layout().kind === 'bubble'}>
+        <ProjectBubble node={props.node as Measured<BubbleLayout>} render={renderChild} />
+      </Match>
+      <Match when={layout().kind === 'collapsible'}>
         <ProjectCollapsible
           node={props.node as Measured<CollapsibleLayout>}
           slots={slots}
           render={renderChild}
         />
-      );
-    case 'window':
-      return <ProjectWindow node={props.node as Measured<WindowLayout>} render={renderChild} />;
-    case 'slot': {
-      const slotLayout = layout as SlotLayout;
-      return slots[slotLayout.name]?.(props.node as Measured<SlotLayout>) ?? null;
-    }
-    default:
-      return renderLeaf(props.node) ?? null;
-  }
+      </Match>
+      <Match when={layout().kind === 'window'}>
+        <ProjectWindow node={props.node as Measured<WindowLayout>} render={renderChild} />
+      </Match>
+      <Match when={layout().kind === 'slot'}>
+        {slots[(layout() as SlotLayout).name]?.(props.node as Measured<SlotLayout>) ?? null}
+      </Match>
+    </Switch>
+  );
 }
