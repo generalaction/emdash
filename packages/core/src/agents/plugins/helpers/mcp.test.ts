@@ -1,7 +1,7 @@
 import { parse as parseTOML } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
 import type { PluginFs } from '../../runtime/fs';
-import { codexMcpAdapter, createMcpAdapter, passthroughMcpAdapter } from './mcp';
+import { codexMcpAdapter, createMcpAdapter, droidMcpAdapter, passthroughMcpAdapter } from './mcp';
 
 // ── In-memory PluginFs ───────────────────────────────────────────────────────
 
@@ -98,15 +98,14 @@ describe('createMcpAdapter with legacyReadPaths', () => {
     expect(result[0].command).toBe('canonical-cmd');
   });
 
-  it('writeServers writes only the canonical path', async () => {
+  it('writeServers writes canonical path and clears migrated legacy servers', async () => {
     const fs = createMemoryFs({
       '.legacy/mcp.json': jsonFile({ mcpServers: { old: { command: 'l' } } }),
     });
     await adapter.writeServers(fs, [{ name: 'new', command: 'c' }]);
     expect(await fs.read('.canonical/mcp.json')).not.toBeNull();
-    // Legacy file unchanged
     const legacy = JSON.parse((await fs.read('.legacy/mcp.json'))!) as Record<string, unknown>;
-    expect((legacy.mcpServers as Record<string, unknown>).old).toBeDefined();
+    expect(legacy.mcpServers).toEqual({});
   });
 
   it('removeServer removes from canonical and all legacy paths', async () => {
@@ -193,6 +192,27 @@ describe('createMcpAdapter with multiple legacyReadPaths', () => {
       const parsed = JSON.parse(content) as Record<string, unknown>;
       expect((parsed.mcpServers as Record<string, unknown>).gone).toBeUndefined();
     }
+  });
+});
+
+// ── Droid adapter ───────────────────────────────────────────────────────────
+
+describe('droidMcpAdapter', () => {
+  const adapter = droidMcpAdapter();
+
+  it('writes Factory MCP config and reads legacy Droid settings', async () => {
+    const fs = createMemoryFs({
+      '.droid/settings.json': jsonFile({ mcpServers: { legacy: { command: 'legacy-cmd' } } }),
+    });
+
+    await adapter.writeServers(fs, [{ name: 'factory', command: 'factory-cmd' }]);
+
+    expect(await fs.read('.factory/mcp.json')).not.toBeNull();
+    const legacy = JSON.parse((await fs.read('.droid/settings.json'))!) as Record<string, unknown>;
+    expect(legacy.mcpServers).toEqual({});
+
+    const result = await adapter.readServers(fs);
+    expect(result.map((server) => server.name)).toEqual(['factory']);
   });
 });
 

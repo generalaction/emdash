@@ -1,7 +1,8 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import type { AgentCommand, CommandContext } from '@emdash/core/agents/plugins';
-import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
+import { buildStandardCommand, passthroughMcpAdapter } from '@emdash/core/agents/plugins/helpers';
 import { addKimiHooksToConfigText, buildKimiHookConfig } from './hooks';
+import { icon } from './icon';
 
 function injectKimiHooksIntoInlineConfig(args: string[]): string[] {
   return args.map((arg, index) => {
@@ -24,7 +25,6 @@ function buildKimiCommand(ctx: CommandContext): AgentCommand {
   });
   return { ...cmd, args: injectKimiHooksIntoInlineConfig(cmd.args) };
 }
-import { icon } from './icon';
 
 export const plugin = definePlugin(
   {
@@ -75,7 +75,9 @@ export const plugin = definePlugin(
       },
     },
     mcp: {
-      kind: 'none',
+      kind: 'supported',
+      scope: 'global',
+      supportedTransports: ['stdio', 'http'],
     },
     models: {
       kind: 'none',
@@ -98,6 +100,7 @@ export const provider = registerPluginBehavior(plugin, {
     buildCommand: buildKimiCommand,
   },
   hooks: buildKimiHookConfig(),
+  mcp: passthroughMcpAdapter('.kimi-code/mcp.json', ['.kimi/mcp.json']),
   sessions: {
     validateSessionId: undefined,
   },

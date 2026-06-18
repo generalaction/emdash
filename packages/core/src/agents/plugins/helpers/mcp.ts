@@ -83,6 +83,30 @@ export function createMcpAdapter(shape: McpConfigShape) {
     }
   }
 
+  async function writeParsedFile(
+    fs: PluginFs,
+    filePath: string,
+    parsed: Record<string, unknown>
+  ): Promise<void> {
+    const output =
+      shape.format === 'json' ? JSON.stringify(parsed, null, 2) + '\n' : stringifyTOML(parsed);
+    await fs.write(filePath, output);
+  }
+
+  async function clearServersFromPath(fs: PluginFs, filePath: string): Promise<void> {
+    const content = await fs.read(filePath);
+    if (!content) return;
+    try {
+      const parsed = parseMcpFile(content, shape.format);
+      const servers = getNestedValue(parsed, shape.serversKey) ?? {};
+      if (!Object.keys(servers as Record<string, unknown>).length) return;
+      setNestedValue(parsed, shape.serversKey, {});
+      await writeParsedFile(fs, filePath, parsed);
+    } catch {
+      // ignore parse errors in legacy files
+    }
+  }
+
   async function removeFromPath(fs: PluginFs, filePath: string, name: string): Promise<void> {
     const content = await fs.read(filePath);
     if (!content) return;
@@ -94,9 +118,7 @@ export function createMcpAdapter(shape: McpConfigShape) {
         Object.entries(servers as Record<string, unknown>).filter(([k]) => k !== name)
       );
       setNestedValue(parsed, shape.serversKey, filtered);
-      const output =
-        shape.format === 'json' ? JSON.stringify(parsed, null, 2) + '\n' : stringifyTOML(parsed);
-      await fs.write(filePath, output);
+      await writeParsedFile(fs, filePath, parsed);
     } catch {
       // ignore parse errors in legacy files
     }
@@ -123,9 +145,10 @@ export function createMcpAdapter(shape: McpConfigShape) {
       const parsed: Record<string, unknown> = content ? parseMcpFile(content, shape.format) : {};
       const native = Object.fromEntries(servers.map((s) => [s.name, shape.toNative(s)]));
       setNestedValue(parsed, shape.serversKey, native);
-      const output =
-        shape.format === 'json' ? JSON.stringify(parsed, null, 2) + '\n' : stringifyTOML(parsed);
-      await fs.write(shape.configPath, output);
+      await writeParsedFile(fs, shape.configPath, parsed);
+      for (const legacyPath of shape.legacyReadPaths ?? []) {
+        await clearServersFromPath(fs, legacyPath);
+      }
     },
     async removeServer(fs: PluginFs, name: string): Promise<void> {
       // Remove from canonical path
@@ -361,11 +384,11 @@ export function copilotMcpAdapter(
 
 /**
  * Droid (Factory AI) adapter — passthrough, uses mcpServers JSON key.
- * Write: ~/.droid/settings.json; legacy read: ~/.factory/config.json.
+ * Write: ~/.factory/mcp.json; legacy read: ~/.droid/settings.json and ~/.factory/config.json.
  */
 export function droidMcpAdapter(
-  configPath = '.droid/settings.json',
-  legacyReadPaths = ['.factory/config.json']
+  configPath = '.factory/mcp.json',
+  legacyReadPaths = ['.droid/settings.json', '.factory/config.json']
 ) {
   return passthroughMcpAdapter(configPath, legacyReadPaths);
 }
