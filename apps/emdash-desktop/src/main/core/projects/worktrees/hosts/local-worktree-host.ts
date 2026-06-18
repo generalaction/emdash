@@ -60,6 +60,22 @@ export class LocalWorktreeHost implements WorktreeHost {
     }
   }
 
+  async allowPath(targetPath: string): Promise<void> {
+    const resolved = this.assertAbsolute(targetPath);
+    let allowedRoot: string;
+    try {
+      allowedRoot = await fs.realpath(resolved);
+    } catch (error) {
+      if (!isNotFound(error)) throw error;
+      const { realAncestor } = await this.nearestExistingPath(resolved);
+      allowedRoot = realAncestor;
+    }
+
+    if (!this.roots.some((existing) => existing === allowedRoot)) {
+      this.roots.push(allowedRoot);
+    }
+  }
+
   private assertAbsolute(input: string): string {
     const resolved = path.resolve(input);
     if (!path.isAbsolute(input)) {

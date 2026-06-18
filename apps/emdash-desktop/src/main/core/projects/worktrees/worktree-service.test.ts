@@ -284,6 +284,45 @@ describe('WorktreeService', () => {
       expect(fs.existsSync(result.data)).toBe(true);
     });
 
+    it('creates a resumed worktree at the persisted path outside the current pool', async () => {
+      const branchName = 'task/resume-persisted';
+      await git(['branch', branchName], { cwd: repoDir });
+      const persistedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-persisted-'));
+      const persistedPath = path.join(persistedRoot, 'task', 'resume-persisted');
+      const svc = makeService();
+
+      const result = await svc.serveBranchWorktreeAtPath(branchName, undefined, persistedPath);
+
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(result.data).toBe(persistedPath);
+      expect(fs.existsSync(path.join(persistedPath, '.git'))).toBe(true);
+      expect(fs.existsSync(path.join(poolDir, 'task', 'resume-persisted'))).toBe(false);
+
+      fs.rmSync(persistedRoot, { recursive: true, force: true });
+    });
+
+    it('moves a branch from the current pool back to the persisted resume path', async () => {
+      const branchName = 'task/resume-move-back';
+      await git(['branch', branchName], { cwd: repoDir });
+      const persistedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-persisted-'));
+      const persistedPath = path.join(persistedRoot, 'task', 'resume-move-back');
+      const svc = makeService();
+      const currentPoolResult = await svc.checkoutExistingBranch(branchName);
+      expect(currentPoolResult.success).toBe(true);
+      if (!currentPoolResult.success) throw new Error('expected success');
+
+      const result = await svc.serveBranchWorktreeAtPath(branchName, undefined, persistedPath);
+
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(result.data).toBe(persistedPath);
+      expect(fs.existsSync(path.join(persistedPath, '.git'))).toBe(true);
+      expect(fs.existsSync(currentPoolResult.data)).toBe(false);
+
+      fs.rmSync(persistedRoot, { recursive: true, force: true });
+    });
+
     it('records base metadata before returning an existing valid target worktree', async () => {
       const branchName = 'task/existing-target';
       const targetPath = path.join(poolDir, branchName);

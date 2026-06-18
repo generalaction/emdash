@@ -74,6 +74,23 @@ export class WorktreeService {
     }
   }
 
+  private async isValidBranchWorktree(worktreePath: string, branchName: string): Promise<boolean> {
+    if (!(await this.isValidWorktree(worktreePath))) return false;
+
+    try {
+      const { stdout } = await this.ctx.exec('git', [
+        '-C',
+        worktreePath,
+        'rev-parse',
+        '--abbrev-ref',
+        'HEAD',
+      ]);
+      return stdout.trim() === branchName;
+    } catch {
+      return false;
+    }
+  }
+
   /** Returns the resolved path to the worktree pool directory. */
   getWorktreePoolPath(): Promise<string> {
     return this.resolveWorktreePoolPath();
@@ -237,16 +254,29 @@ export class WorktreeService {
   private async doCheckoutBranchWorktree(
     sourceBranch: GitBranchRef | undefined,
     branchName: string,
-    options: { copyPreservedFiles?: boolean }
+    options: { copyPreservedFiles?: boolean; targetPath?: string }
   ): Promise<Result<string, ServeWorktreeError>> {
     const baseConfigValue = this.getBranchBaseConfigValue(sourceBranch);
-    const checkedOutPath = await this.findBranchAnywhere(branchName);
-    if (checkedOutPath) {
-      await this.ensureBranchBaseConfig(branchName, baseConfigValue);
-      return ok(checkedOutPath);
+    const targetPath =
+      options.targetPath ??
+      this.host.pathApi.join(await this.resolveWorktreePoolPath(), branchName);
+
+    if (options.targetPath) {
+      const prepared = await this.prepareExplicitWorktreeTarget(
+        branchName,
+        targetPath,
+        baseConfigValue
+      );
+      if (!prepared.success) return prepared;
+      if (prepared.data.kind === 'ready') return ok(prepared.data.path);
+    } else {
+      const checkedOutPath = await this.findBranchAnywhere(branchName);
+      if (checkedOutPath) {
+        await this.ensureBranchBaseConfig(branchName, baseConfigValue);
+        return ok(checkedOutPath);
+      }
     }
 
-    const targetPath = this.host.pathApi.join(await this.resolveWorktreePoolPath(), branchName);
     if (await this.host.existsAbsolute(targetPath)) {
       if (await this.isValidWorktree(targetPath)) {
         await this.ensureBranchBaseConfig(branchName, baseConfigValue);
@@ -318,25 +348,93 @@ export class WorktreeService {
     return this.checkoutBranchWorktree(sourceBranch, branchName, { copyPreservedFiles });
   }
 
-  private async doCheckoutExistingBranch(
+  async serveBranchWorktreeAtPath(
     branchName: string,
-    options: { copyPreservedFiles?: boolean }
+    sourceBranch: GitBranchRef | undefined,
+    targetPath: string,
+    copyPreservedFiles?: boolean
   ): Promise<Result<string, ServeWorktreeError>> {
-    const checkedOutPath = await this.findBranchAnywhere(branchName);
-    if (checkedOutPath) {
-      return ok(checkedOutPath);
-    }
+    return this.enqueueGitOp(() => {
+      if (!sourceBranch || branchName === sourceBranch.branch) {
+        return this.doCheckoutExistingBranch(branchName, { copyPreservedFiles, targetPath });
+      }
+      return this.doCheckoutBranchWorktree(sourceBranch, branchName, {
+        copyPreservedFiles,
+        targetPath,
+      });
+    });
+  }
 
-    const targetPath = this.host.pathApi.join(await this.resolveWorktreePoolPath(), branchName);
-    const remoteCandidates = await this.getRemoteCandidates();
+  private async prepareExplicitWorktreeTarget(
+    branchName: string,
+    targetPath: string,
+    baseConfigValue?: string
+  ): Promise<Result<{ kind: 'ready'; path: string } | { kind: 'create' }, ServeWorktreeError>> {
+    await this.host.allowPath?.(targetPath);
 
     if (await this.host.existsAbsolute(targetPath)) {
-      if (await this.isValidWorktree(targetPath)) return ok(targetPath);
+      if (await this.isValidBranchWorktree(targetPath, branchName)) {
+        await this.ensureBranchBaseConfig(branchName, baseConfigValue);
+        return ok({ kind: 'ready', path: targetPath });
+      }
+
+      if (await this.isValidWorktree(targetPath)) {
+        return err({
+          type: 'worktree-setup-failed',
+          cause: new Error(
+            `Stored worktree path "${targetPath}" is already a valid worktree for another branch`
+          ),
+        });
+      }
+
       try {
         await this.removePathForReuse(targetPath);
         await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
       } catch (cause) {
         return err({ type: 'worktree-setup-failed', cause });
+      }
+    }
+
+    const checkedOutPath = await this.findBranchAnywhere(branchName);
+    if (!checkedOutPath) return ok({ kind: 'create' });
+
+    try {
+      await this.host.mkdirAbsolute(this.host.pathApi.dirname(targetPath), { recursive: true });
+      await this.ctx.exec('git', ['worktree', 'move', checkedOutPath, targetPath]);
+      await this.ensureBranchBaseConfig(branchName, baseConfigValue);
+      return ok({ kind: 'ready', path: targetPath });
+    } catch (cause) {
+      return err({ type: 'worktree-setup-failed', cause });
+    }
+  }
+
+  private async doCheckoutExistingBranch(
+    branchName: string,
+    options: { copyPreservedFiles?: boolean; targetPath?: string }
+  ): Promise<Result<string, ServeWorktreeError>> {
+    const targetPath =
+      options.targetPath ??
+      this.host.pathApi.join(await this.resolveWorktreePoolPath(), branchName);
+    const remoteCandidates = await this.getRemoteCandidates();
+
+    if (options.targetPath) {
+      const prepared = await this.prepareExplicitWorktreeTarget(branchName, targetPath);
+      if (!prepared.success) return prepared;
+      if (prepared.data.kind === 'ready') return ok(prepared.data.path);
+    } else {
+      const checkedOutPath = await this.findBranchAnywhere(branchName);
+      if (checkedOutPath) {
+        return ok(checkedOutPath);
+      }
+
+      if (await this.host.existsAbsolute(targetPath)) {
+        if (await this.isValidWorktree(targetPath)) return ok(targetPath);
+        try {
+          await this.removePathForReuse(targetPath);
+          await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+        } catch (cause) {
+          return err({ type: 'worktree-setup-failed', cause });
+        }
       }
     }
 
@@ -463,4 +561,5 @@ export type WorktreeBootstrapOps = Pick<
   | 'checkoutExistingBranch'
   | 'checkoutBranchWorktree'
   | 'serveBranchWorktree'
+  | 'serveBranchWorktreeAtPath'
 >;
