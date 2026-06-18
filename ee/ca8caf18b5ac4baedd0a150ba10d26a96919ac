@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/settings/agents-page/InstalledAgentContent.tsx
+  s_cbe7484d2be8cc::t_c5154447dd799f 4,75-77,84-85,92-94,124-137,139-141,191-195,223,234,247,262,276-280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "eeca8caf18b5ac4baedd0a150ba10d26a96919ac",
+  "prompts": {},
+  "sessions": {
+    "s_cbe7484d2be8cc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed938-1f03-70c0-abaa-15a24023cf68",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
