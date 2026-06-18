@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/git-fetch.test.ts
+  s_334934cd9c1815::t_2f132c5878ffb6 1-2,4-18,20-34,36-49,51-65,67-73
+  s_334934cd9c1815::t_9930f550c0dcc8 19,35,50,66
+  s_334934cd9c1815::t_beb7ff39f2fa92 3
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/git-fetch.ts
+  s_334934cd9c1815::t_735a5df2500d15 5-27,42-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "7254665b2015328071a27854f6b9a2e6024eb6ff",
+  "prompts": {},
+  "sessions": {
+    "s_334934cd9c1815": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed940-6b67-7f90-a3f3-f997191cb8d0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
