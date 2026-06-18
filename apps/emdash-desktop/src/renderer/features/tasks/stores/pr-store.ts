@@ -1,4 +1,4 @@
-import type { GitChange } from '@emdash/shared/git';
+import type { GitChange } from '@emdash/core/git';
 import { makeAutoObservable } from 'mobx';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import { events, rpc } from '@renderer/lib/ipc';

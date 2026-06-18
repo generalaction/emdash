@@ -1,5 +1,6 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { TAB_NAVIGATION_HOTKEYS } from '@shared/shortcuts';
 import { getEffectiveHotkey, getHotkeyRegistration } from './useKeyboardShortcuts';
 
 /**
@@ -45,6 +46,7 @@ const TAB_INDEX_HOTKEYS = [
  * Shortcuts:
  *   tabNext   (default Mod+Alt+ArrowRight)  — next tab
  *   tabPrev   (default Mod+Alt+ArrowLeft)  — previous tab
+ *   Control+Tab / Control+Shift+Tab         — next / previous tab
  *   tabClose  (default Mod+W)      — close active tab
  *   Mod+1–9                        — jump to tab by index (not configurable)
  *
@@ -77,6 +79,22 @@ export function useTabShortcuts(
       store?.setPreviousTabActive();
     },
     { enabled: enabled && tabPrevHotkey !== null, conflictBehavior: 'allow' }
+  );
+  useHotkey(
+    TAB_NAVIGATION_HOTKEYS.next,
+    (e) => {
+      e.preventDefault();
+      store?.setNextTabActive();
+    },
+    { enabled, conflictBehavior: 'allow' }
+  );
+  useHotkey(
+    TAB_NAVIGATION_HOTKEYS.previous,
+    (e) => {
+      e.preventDefault();
+      store?.setPreviousTabActive();
+    },
+    { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
     getHotkeyRegistration('tabClose', keyboard),

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { err, ok, type Result } from '@emdash/shared';
 import type { Octokit } from '@octokit/rest';
 import { and, eq, inArray, lt, ne } from 'drizzle-orm';
 import type { GitHubApiAuthError } from '@main/core/github/services/github-api-auth-errors';
@@ -36,7 +37,6 @@ import type {
   PullRequestStatus,
   PullRequestUser,
 } from '@shared/core/pull-requests/pull-requests';
-import { err, ok, type Result } from '@shared/lib/result';
 import { parseRepositoryRef, parseRepositoryRefResult } from '@shared/repository-ref';
 import {
   isPrSyncHostUnreachable,

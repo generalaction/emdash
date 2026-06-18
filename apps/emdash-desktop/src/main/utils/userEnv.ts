@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -118,20 +118,27 @@ export async function resolveUserEnv(): Promise<void> {
   const baseEnv = buildExternalToolEnv();
 
   try {
-    const raw = execSync(`${shell} -ilc 'env'`, {
-      encoding: 'utf8',
+    // Route through buildExternalToolEnv so AppImage runtime vars (APPIMAGE,
+    // APPDIR, ARGV0, ...) and `/tmp/.mount_*` PATH entries don't leak into
+    // the probe shell. Otherwise login-shell hooks that resolve a binary by
+    // name through PATH (mise/starship/oh-my-zsh) can re-enter the AppImage
+    // and fork-bomb the app on Linux. See #1679.
+    const shellEnvProbeOptions = {
+      encoding: 'utf8' as const,
       timeout: 5_000,
-      // Route through buildExternalToolEnv so AppImage runtime vars (APPIMAGE,
-      // APPDIR, ARGV0, ...) and `/tmp/.mount_*` PATH entries don't leak into
-      // the probe shell. Otherwise login-shell hooks that resolve a binary by
-      // name through PATH (mise/starship/oh-my-zsh) can re-enter the AppImage
-      // and fork-bomb the app on Linux. See #1679.
+      maxBuffer: 1024 * 1024,
       env: {
         ...baseEnv,
         ...SHELL_ENV_CAPTURE_GUARD,
       },
-    });
-
+      detached: true,
+      stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'],
+    };
+    const result = spawnSync(shell, ['-ilc', 'env'], shellEnvProbeOptions);
+    if (result.error) {
+      throw result.error;
+    }
+    const raw = result.stdout;
     const shellEnv = parseEnvOutput(raw);
 
     for (const [key, value] of Object.entries(shellEnv)) {

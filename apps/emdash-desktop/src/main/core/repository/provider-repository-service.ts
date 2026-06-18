@@ -1,6 +1,6 @@
+import { err, ok } from '@emdash/shared';
 import { githubRepositoryResolver } from '@main/core/github/services/github-repository-resolver';
 import { projectManager } from '@main/core/projects/project-manager';
-import { err, ok } from '@shared/lib/result';
 import type { ProviderRepositoryResult } from '@shared/provider-repository';
 
 export class ProviderRepositoryService {

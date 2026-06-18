@@ -24,14 +24,15 @@
     "format": "oxfmt --write",
     "format:check": "oxfmt --check",
     "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/plugins/src\"'",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
-    "@emdash/shared": "workspace:*",
+    "@emdash/core": "workspace:*",
     "smol-toml": "^1.6.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@typescript/native-preview": "7.0.0-dev.20260609.1",
     "oxfmt": "^0.51.0",
     "oxlint": "^1.69.0",
     "tsdown": "^0.22.2",

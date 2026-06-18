@@ -41,6 +41,9 @@ export function useAccountLinkProvider() {
       void queryClient.invalidateQueries({ queryKey: GITHUB_ACCOUNT_STATE_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
     },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: [...ACCOUNT_SESSION_KEY] });
+    },
   });
 }
 

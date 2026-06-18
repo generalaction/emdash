@@ -1,3 +1,4 @@
+import type { Result } from '@emdash/shared';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
 import { remoteNameFromQualifiedRef } from '@shared/core/git/utils';
@@ -10,7 +11,6 @@ import {
   type ShareableProjectSettings,
 } from '@shared/core/project-settings/project-settings';
 import { mergeShareableProjectSettings } from '@shared/core/project-settings/project-settings-fields';
-import type { Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import {
   hasLegacyShareableConfigMigrated,

@@ -13,6 +13,76 @@ export interface AppShortcutDef {
   category: string;
   hideFromSettings?: boolean;
   conflictBehavior?: 'prevent' | 'allow';
+  ignoreWhenMonacoFocused?: boolean;
+}
+
+export type TabNavigationDirection = 'next' | 'previous';
+
+export const TAB_NAVIGATION_HOTKEYS = {
+  next: 'Control+Tab',
+  previous: 'Control+Shift+Tab',
+} as const;
+
+export interface DomTabNavigationInput {
+  type: string;
+  key: string;
+  ctrlKey: boolean;
+  shiftKey: boolean;
+  altKey: boolean;
+  metaKey: boolean;
+}
+
+export interface ElectronTabNavigationInput {
+  type: string;
+  key: string;
+  control?: boolean;
+  shift?: boolean;
+  alt?: boolean;
+  meta?: boolean;
+}
+
+function normalizeShortcutKey(key: string): string {
+  return key.toLowerCase();
+}
+
+function resolveTabNavigationDirection(input: {
+  type: string;
+  key: string;
+  control: boolean;
+  shift: boolean;
+  alt: boolean;
+  meta: boolean;
+}): TabNavigationDirection | null {
+  if (input.type !== 'keydown' && input.type !== 'keyDown') return null;
+  if (normalizeShortcutKey(input.key) !== 'tab') return null;
+  if (!input.control || input.alt || input.meta) return null;
+  return input.shift ? 'previous' : 'next';
+}
+
+export function getDomTabNavigationDirection(
+  input: DomTabNavigationInput
+): TabNavigationDirection | null {
+  return resolveTabNavigationDirection({
+    type: input.type,
+    key: input.key,
+    control: input.ctrlKey,
+    shift: input.shiftKey,
+    alt: input.altKey,
+    meta: input.metaKey,
+  });
+}
+
+export function getElectronTabNavigationDirection(
+  input: ElectronTabNavigationInput
+): TabNavigationDirection | null {
+  return resolveTabNavigationDirection({
+    type: input.type,
+    key: input.key,
+    control: Boolean(input.control),
+    shift: Boolean(input.shift),
+    alt: Boolean(input.alt),
+    meta: Boolean(input.meta),
+  });
 }
 
 export function resolveDefaultHotkey(def: AppShortcutDef): string | undefined {
@@ -118,6 +188,20 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Switch to the previous tab',
     category: 'Tab Navigation',
     conflictBehavior: 'allow',
+  },
+  taskNext: {
+    defaultHotkey: 'Mod+Alt+ArrowDown',
+    label: 'Next Task',
+    description: 'Switch to the next task',
+    category: 'Task View',
+    ignoreWhenMonacoFocused: true,
+  },
+  taskPrev: {
+    defaultHotkey: 'Mod+Alt+ArrowUp',
+    label: 'Previous Task',
+    description: 'Switch to the previous task',
+    category: 'Task View',
+    ignoreWhenMonacoFocused: true,
   },
   tabClose: {
     defaultHotkey: 'Mod+W',
