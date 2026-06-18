@@ -75,10 +75,15 @@ export const STATE_LAYER_DELTA = {
 
 /**
  * Absolute OKLCH L values for each surface level per polarity.
- * Elevation always gets lighter (higher L) in both modes.
- * Sunken is the darkest level in both modes.
- * Light mode: sunken = medium gray, elevated-emphasis ≈ pure white.
- * Dark mode: sunken = near-black, elevated-emphasis = noticeably lighter.
+ *
+ * Dark mode: elevation gets lighter at every step (monotonic, sunken darkest).
+ *
+ * Light mode: sunken is darkest, base is a mid gray, and `elevated` is near-white.
+ * Emphasis is relative to its canvas: on the gray `base` it lightens
+ * (base → base-emphasis, toward white). On the near-white `elevated` a card
+ * reads as a subtle gray panel — slightly darker than `elevated` but never
+ * darker than `base`. So light mode is intentionally non-monotonic by name.
+ *
  * Tune these values in Storybook after running theme:build.
  */
 export const SURFACE_L: Record<Polarity, Record<SurfaceLevelName, number>> = {
@@ -87,7 +92,7 @@ export const SURFACE_L: Record<Polarity, Record<SurfaceLevelName, number>> = {
     'base': 0.965,
     'base-emphasis': 0.982,
     'elevated': 0.993,
-    'elevated-emphasis': 1.0,
+    'elevated-emphasis': 0.973,
   },
   dark: {
     'sunken': 0.155,

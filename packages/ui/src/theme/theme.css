@@ -120,9 +120,9 @@
   --surface-elevated: color(display-p3 0.9909 0.9907 0.9908);
   --surface-elevated-hover: color(display-p3 0.9385 0.9383 0.9384);
   --surface-elevated-selected: color(display-p3 0.8866 0.8865 0.8865);
-  --surface-elevated-emphasis: color(display-p3 1 1 1);
-  --surface-elevated-emphasis-hover: color(display-p3 0.9475 0.9475 0.9475);
-  --surface-elevated-emphasis-selected: color(display-p3 0.8956 0.8956 0.8956);
+  --surface-elevated-emphasis: color(display-p3 0.9646 0.9645 0.9645);
+  --surface-elevated-emphasis-hover: color(display-p3 0.9125 0.9123 0.9124);
+  --surface-elevated-emphasis-selected: color(display-p3 0.8609 0.8608 0.8608);
   --background: color(display-p3 0.9883 0.9881 0.9881);
   --background-1: color(display-p3 0.9436 0.9432 0.9433);
   --background-2: color(display-p3 0.8995 0.8987 0.8989);
@@ -311,9 +311,9 @@
   --surface-elevated: color(display-p3 0.9909 0.9907 0.9908);
   --surface-elevated-hover: color(display-p3 0.9385 0.9383 0.9384);
   --surface-elevated-selected: color(display-p3 0.8866 0.8865 0.8865);
-  --surface-elevated-emphasis: color(display-p3 1 1 1);
-  --surface-elevated-emphasis-hover: color(display-p3 0.9475 0.9475 0.9475);
-  --surface-elevated-emphasis-selected: color(display-p3 0.8956 0.8956 0.8956);
+  --surface-elevated-emphasis: color(display-p3 0.9646 0.9645 0.9645);
+  --surface-elevated-emphasis-hover: color(display-p3 0.9125 0.9123 0.9124);
+  --surface-elevated-emphasis-selected: color(display-p3 0.8609 0.8608 0.8608);
   --background: color(display-p3 0.9883 0.9881 0.9881);
   --background-1: color(display-p3 0.9436 0.9432 0.9433);
   --background-2: color(display-p3 0.8995 0.8987 0.8989);

@@ -58,6 +58,27 @@
   --surface-emphasis-selected: var(--surface-elevated-emphasis-selected);
 }
 
+/* Emphasis levels as explicit canvas scopes, so a component can also target them
+ * directly (e.g. a tab strip that is itself the emphasis surface). */
+.surface-base-emphasis {
+  --surface: var(--surface-base-emphasis);
+  --surface-hover: var(--surface-base-emphasis-hover);
+  --surface-selected: var(--surface-base-emphasis-selected);
+  --surface-emphasis: var(--surface-elevated);
+  --surface-emphasis-hover: var(--surface-elevated-hover);
+  --surface-emphasis-selected: var(--surface-elevated-selected);
+}
+
+.surface-elevated-emphasis {
+  --surface: var(--surface-elevated-emphasis);
+  --surface-hover: var(--surface-elevated-emphasis-hover);
+  --surface-selected: var(--surface-elevated-emphasis-selected);
+  /* Top of the ladder — emphasis clamps to itself */
+  --surface-emphasis: var(--surface-elevated-emphasis);
+  --surface-emphasis-hover: var(--surface-elevated-emphasis-hover);
+  --surface-emphasis-selected: var(--surface-elevated-emphasis-selected);
+}
+
 /* A card/tab adopts its canvas's emphasis color as its own surface.
  * --surface-emphasis is intentionally NOT redeclared here: re-declaring a custom
  * property in terms of itself creates a dependency cycle (the whole cycle then

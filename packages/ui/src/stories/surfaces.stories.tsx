@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import React from 'react';
+import React, { useState } from 'react';
 import { Surface } from '../primitives/surface';
 import { Button } from '../primitives/button';
 import { Input } from '../primitives/input';
@@ -74,6 +74,57 @@ function SurfaceCard({ level }: { level: SurfaceLevelName }) {
         </Button>
       </div>
     </Surface>
+  );
+}
+
+// ── Interactive state demos (hover / selected) ───────────────────────────────
+
+/**
+ * A minimal tab strip whose hover and selected states are driven by the
+ * surface vars of the nearest scope (bg-surface-hover / bg-surface-selected).
+ * The active tab shows the selected state; hovering an inactive tab shows hover.
+ */
+function SurfaceTabs() {
+  const tabs = ['Overview', 'Activity', 'Settings'] as const;
+  const [active, setActive] = useState<string>('Overview');
+  return (
+    <div
+      role="tablist"
+      className="inline-flex gap-1 rounded-lg border border-border bg-surface p-1"
+    >
+      {tabs.map((t) => (
+        <button
+          key={t}
+          type="button"
+          role="tab"
+          aria-selected={active === t}
+          data-active={active === t}
+          onClick={() => setActive(t)}
+          className="rounded-md px-3 py-1.5 text-sm text-foreground-muted transition-colors hover:bg-surface-hover hover:text-foreground data-[active=true]:bg-surface-selected data-[active=true]:text-foreground"
+        >
+          {t}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Button variants. outline/ghost use bg-surface-hover, so their hover state
+ *  adapts to whichever surface they sit on. */
+function SurfaceButtons() {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button size="sm">Primary</Button>
+      <Button size="sm" variant="outline">
+        Outline
+      </Button>
+      <Button size="sm" variant="ghost">
+        Ghost
+      </Button>
+      <Button size="sm" variant="link">
+        Link
+      </Button>
+    </div>
   );
 }
 
@@ -174,6 +225,67 @@ export const ComponentsOnAllSurfaces: Story = {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         {SURFACE_LEVELS.map((level) => (
           <SurfaceCard key={level} level={level} />
+        ))}
+      </div>
+    </div>
+  ),
+};
+
+/**
+ * Tabs on every surface level. Hover an inactive tab to see the hover state;
+ * the active tab shows the selected state. Both adapt to the surface they sit on.
+ */
+export const Tabs: Story = {
+  render: () => (
+    <div className="flex flex-col gap-4 bg-background p-8">
+      <div>
+        <h2 className="text-sm font-semibold text-foreground">Tabs — hover &amp; selected</h2>
+        <p className="mt-1 text-xs text-foreground-muted">
+          Each tab strip sits on a different surface. Hover an inactive tab for the hover state
+          (<code className="font-mono">bg-surface-hover</code>); the active tab uses the selected
+          state (<code className="font-mono">bg-surface-selected</code>).
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {SURFACE_LEVELS.map((level) => (
+          <Surface
+            key={level}
+            level={level}
+            className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
+          >
+            <p className="font-mono text-xs text-foreground-muted">.surface-{level}</p>
+            <SurfaceTabs />
+          </Surface>
+        ))}
+      </div>
+    </div>
+  ),
+};
+
+/**
+ * Buttons on every surface level. The outline and ghost variants use
+ * bg-surface-hover, so hovering them shows the surface-relative hover state.
+ */
+export const Buttons: Story = {
+  render: () => (
+    <div className="flex flex-col gap-4 bg-background p-8">
+      <div>
+        <h2 className="text-sm font-semibold text-foreground">Buttons — hover states</h2>
+        <p className="mt-1 text-xs text-foreground-muted">
+          Hover the outline and ghost buttons: their hover background
+          (<code className="font-mono">bg-surface-hover</code>) adapts to the surface they sit on.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {SURFACE_LEVELS.map((level) => (
+          <Surface
+            key={level}
+            level={level}
+            className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
+          >
+            <p className="font-mono text-xs text-foreground-muted">.surface-{level}</p>
+            <SurfaceButtons />
+          </Surface>
         ))}
       </div>
     </div>

@@ -148,19 +148,44 @@ describe('Theme generation', () => {
     });
   });
 
-  // 7. Surface levels are strictly monotonic in OKLCH L (darkest → lightest)
-  describe('Surface elevation monotonicity', () => {
+  // 7. Surface elevation invariants
+  describe('Surface elevation', () => {
+    function surfaceLs(theme: ResolvedTheme) {
+      return SURFACE_LEVELS.map((level) => {
+        const cssVal = theme.cssVars[`--surface-${level}`];
+        expect(cssVal).toBeTruthy();
+        return { level, l: new Color(cssVal!).to('oklch').coords[0] };
+      });
+    }
+
+    // Dark mode is a clean monotonic ladder (sunken darkest → elevated-emphasis lightest)
+    it('dark: surface L values are strictly increasing (sunken → elevated-emphasis)', () => {
+      const levels = surfaceLs(darkTheme);
+      for (let i = 1; i < levels.length; i++) {
+        expect(levels[i].l).toBeGreaterThan(levels[i - 1].l);
+      }
+    });
+
+    // Light mode is intentionally non-monotonic (emphasis darkens on near-white
+    // canvases), but sunken stays darkest, elevated stays lightest, and all
+    // levels remain visually distinct.
+    it('light: sunken is darkest and elevated is lightest', () => {
+      const byLevel = Object.fromEntries(surfaceLs(lightTheme).map((x) => [x.level, x.l]));
+      const all = Object.values(byLevel);
+      expect(byLevel['sunken']).toBe(Math.min(...all));
+      expect(byLevel['elevated']).toBe(Math.max(...all));
+    });
+
+    it('light: elevated-emphasis is not darker than base', () => {
+      const byLevel = Object.fromEntries(surfaceLs(lightTheme).map((x) => [x.level, x.l]));
+      expect(byLevel['elevated-emphasis']).toBeGreaterThanOrEqual(byLevel['base']);
+    });
+
     for (const theme of [lightTheme, darkTheme]) {
-      it(`${theme.id}: surface L values are strictly increasing (sunken → elevated-emphasis)`, () => {
-        const levels = SURFACE_LEVELS.map((level) => {
-          const cssVal = theme.cssVars[`--surface-${level}`];
-          expect(cssVal).toBeTruthy();
-          const l = new Color(cssVal!).to('oklch').coords[0];
-          return { level, l };
-        });
-        for (let i = 1; i < levels.length; i++) {
-          expect(levels[i].l).toBeGreaterThan(levels[i - 1].l);
-        }
+      it(`${theme.id}: all 5 surface levels are visually distinct`, () => {
+        const ls = surfaceLs(theme).map((x) => x.l);
+        const unique = new Set(ls.map((l) => l.toFixed(3)));
+        expect(unique.size).toBe(SURFACE_LEVELS.length);
       });
 
       it(`${theme.id}: all surface colors are in P3 gamut`, () => {
