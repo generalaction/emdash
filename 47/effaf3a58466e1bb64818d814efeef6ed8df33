@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/git-fetch.test.ts
+  s_408a9b2e2cb196::t_64d366b421ad21 73-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "47effaf3a58466e1bb64818d814efeef6ed8df33",
+  "prompts": {},
+  "sessions": {
+    "s_408a9b2e2cb196": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019edac7-0751-7e42-8325-bd39cc72172c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
