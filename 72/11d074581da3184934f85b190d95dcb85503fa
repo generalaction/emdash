@@ -1,0 +1,26 @@
+apps/emdash-desktop/tsconfig.json
+  s_063cf8375c3709::t_a106637daf99fb 16-28
+packages/plugins/tsconfig.json
+  s_063cf8375c3709::t_b0ad9012cb3edc 8-9,11-13
+  s_063cf8375c3709::t_0466835be0f58f 10
+packages/core/tsconfig.json
+  s_063cf8375c3709::t_3353514de67e69 15-18
+packages/plugins/src/agents/impl/codex/hooks.test.ts
+  s_063cf8375c3709::t_b0ad9012cb3edc 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "7211d074581da3184934f85b190d95dcb85503fa",
+  "prompts": {},
+  "sessions": {
+    "s_063cf8375c3709": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_126e51991ffe59FgnAypU62IAe",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
