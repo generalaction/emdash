@@ -1,0 +1,31 @@
+packages/plugins/src/agents/impl/claude/index.ts
+  s_8e4a2ef038aa1b::t_c74198c6c06edb 52-61
+packages/plugins/src/agents/impl/index.test.ts
+  s_8e4a2ef038aa1b::t_d0f2f3182386fc 145-213
+packages/plugins/src/agents/impl/autohand/index.ts
+  s_8e4a2ef038aa1b::t_1a887d08ab0edd 11
+packages/plugins/src/agents/impl/grok/index.ts
+  s_8e4a2ef038aa1b::t_7d799db9a4603f 42-47,52-53,56-57
+packages/plugins/src/agents/impl/devin/index.ts
+  s_8e4a2ef038aa1b::t_3b6e71f1b9ce0b 49-50,78
+packages/plugins/src/agents/impl/droid/index.ts
+  s_8e4a2ef038aa1b::t_04472e94e75ecf 45-46,49-50
+packages/plugins/src/agents/impl/cline/index.ts
+  s_8e4a2ef038aa1b::t_d290c06856aecb 11,48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "98356a967b85eaa209b791017ad4deace18d7393",
+  "prompts": {},
+  "sessions": {
+    "s_8e4a2ef038aa1b": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed935-6527-7cfb-b5ca-7234df7f9ac7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
