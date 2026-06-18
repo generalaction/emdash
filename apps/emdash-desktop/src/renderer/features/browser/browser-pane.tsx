@@ -1,12 +1,17 @@
-import { AlertCircle, ExternalLink, RotateCcw } from 'lucide-react';
+import { ExternalLink, RotateCcw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDevServers } from '@renderer/features/tasks/task-view-context';
+import { EmdashLogo } from '@renderer/lib/emdash-logo';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
 import { browserControlsRegistry } from './browser-controls-registry';
-import { browserLoadErrorCode, browserLoadErrorTitle } from './browser-load-error';
+import {
+  browserLoadErrorCode,
+  describeBrowserLoadError,
+  type BrowserLoadErrorPresentation,
+} from './browser-load-error';
 import { decideBrowserReload } from './browser-navigation-controls';
 import { browserSessionStore } from './browser-session-store';
 import { BrowserStartPage } from './browser-start-page';
@@ -253,7 +258,7 @@ export const BrowserPane = observer(function BrowserPane({
         {loadError ? (
           <BrowserLoadErrorView
             url={loadError.url ?? session.currentUrl}
-            title={browserLoadErrorTitle(loadError)}
+            presentation={describeBrowserLoadError(loadError, loadError.url ?? session.currentUrl)}
             code={browserLoadErrorCode(loadError)}
             canOpenExternal={canOpenBrowserUrlExternally(loadError.url ?? session.currentUrl)}
             onReload={reload}
@@ -279,14 +284,14 @@ export const BrowserPane = observer(function BrowserPane({
 });
 
 function BrowserLoadErrorView({
-  title,
+  presentation,
   code,
   url,
   canOpenExternal,
   onReload,
   onOpenExternal,
 }: {
-  title: string;
+  presentation: BrowserLoadErrorPresentation;
   code: string | null;
   url: string;
   canOpenExternal: boolean;
@@ -294,24 +299,33 @@ function BrowserLoadErrorView({
   onOpenExternal: () => void;
 }) {
   return (
-    <div className="flex h-full min-h-0 items-center justify-center px-6 py-8">
-      <div className="flex w-full max-w-xl flex-col items-start gap-5">
-        <div className="flex items-start gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-border-destructive bg-background-destructive">
-            <AlertCircle className="size-5 text-foreground-destructive" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-base font-medium text-foreground">Page failed to load</h2>
-            <p className="mt-1 text-sm text-foreground-muted">{title}</p>
-          </div>
+    <div className="flex h-full min-h-0 items-center justify-center overflow-auto px-8 py-12">
+      <div className="flex w-full max-w-md flex-col gap-6">
+        <EmdashLogo height={16} className="text-foreground" />
+        <div className="flex flex-col gap-2.5">
+          <h1 className="text-xl font-medium tracking-tight text-foreground">
+            {presentation.heading}
+          </h1>
+          <p className="text-sm text-foreground-muted" title={url}>
+            {presentation.detail}
+          </p>
         </div>
-        <div className="flex w-full min-w-0 flex-col gap-2 rounded-md border border-border bg-background-secondary-1 px-3 py-2 text-sm">
-          <div className="min-w-0 truncate text-foreground" title={url}>
-            {url}
+        {presentation.suggestions.length > 0 && (
+          <div className="flex flex-col gap-2 text-sm text-foreground-muted">
+            <span>Try:</span>
+            <ul className="flex list-disc flex-col gap-1.5 pl-6 marker:text-foreground-tertiary-muted">
+              {presentation.suggestions.map((suggestion) => (
+                <li key={suggestion}>{suggestion}</li>
+              ))}
+            </ul>
           </div>
-          {code && <div className="font-mono text-xs text-foreground-muted">{code}</div>}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+        )}
+        {code && (
+          <div className="font-mono text-xs tracking-wide text-foreground-tertiary-muted">
+            {code}
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-2 pt-1">
           <Button type="button" size="sm" onClick={onReload}>
             <RotateCcw className="size-4" />
             Reload

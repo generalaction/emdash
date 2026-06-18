@@ -348,19 +348,6 @@ export function BrowserToolbar({
           <DropdownMenuItem onClick={confirmClearStorage}>Clear browser storage</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      {session.loadError && (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <div className="border-destructive/40 text-destructive flex h-7 max-w-[220px] items-center gap-1 truncate rounded border px-2 text-xs">
-                <RotateCcw className="size-3 shrink-0" />
-                <span className="truncate">{session.loadError.description}</span>
-              </div>
-            }
-          />
-          <TooltipContent>{session.loadError.description}</TooltipContent>
-        </Tooltip>
-      )}
     </div>
   );
 }
