@@ -30,6 +30,8 @@ const DIFF_MAX_LINES = 12;
 const DIFF_CONTEXT = 1;
 /** Border width (px) on each side of the diff block. */
 const DIFF_BORDER = 1;
+/** Symmetric vertical padding (px) applied to the row wrapper by Row.tsx. */
+const DIFF_PAD_Y = 8;
 
 export type DiffLayout = {
   kind: 'diff';
@@ -95,6 +97,8 @@ function DiffRender(props: { item: ChatDiff; layout: Measured<DiffNodeLayout>; c
 
 export const diffDef = defineComponent<ChatDiff, DiffNodeLayout>({
   kind: 'diff',
+
+  padY: DIFF_PAD_Y,
 
   estimate(item, ctx: MeasureCtx): number {
     // Streaming with no content yet collapses to a single header row.

@@ -1,4 +1,4 @@
-import type { ChatItem, ChatRole, FileOpKind, ToolStatus } from './model';
+import type { ChatItem, ChatPlanEntry, ChatRole, FileOpKind, ToolStatus } from './model';
 
 /** Tiny deterministic PRNG (mulberry32) so stories render identically each time. */
 function makeRng(seed: number): () => number {
@@ -260,6 +260,40 @@ const GENERIC_TOOL_SUMMARIES = [
   'packages/chat-ui/src/components',
 ];
 
+/** Sample plan entries covering all statuses, priorities, and a long wrapping entry. */
+const PLAN_ENTRIES: ChatPlanEntry[] = [
+  {
+    content: 'Analyze existing codebase structure and identify components to modify',
+    status: 'completed',
+    priority: 'high',
+  },
+  {
+    content: 'Update `generateMockTranscript` to include diff, thought-role, and plan rows with varied content magnitude',
+    status: 'completed',
+    priority: 'high',
+  },
+  {
+    content: 'Add `LARGE_CODE_SAMPLE` and `LARGE_TABLE_SAMPLE` for content-magnitude variety in the perf sweep',
+    status: 'in_progress',
+    priority: 'medium',
+  },
+  {
+    content: 'Extend cycle length to cover every renderer kind and status',
+    status: 'pending',
+    priority: 'medium',
+  },
+  {
+    content: 'Add HundredK Storybook story',
+    status: 'pending',
+    priority: 'low',
+  },
+  {
+    content: 'Run typecheck, lint, and test suite; verify all 121+ tests pass',
+    status: 'pending',
+    priority: 'high',
+  },
+];
+
 function pick<T>(rng: () => number, arr: T[]): T {
   return arr[Math.floor(rng() * arr.length)];
 }
@@ -274,7 +308,7 @@ function pick<T>(rng: () => number, arr: T[]): T {
  * IDs are stable (`msg-0`, `exec-4`, …) — the height cache and ViewStateStore
  * are keyed by item id.
  *
- * The 14-item cycle is:
+ * The 15-item cycle is:
  *   0  user message
  *   1  thinking done
  *   2  file-op single read
@@ -289,12 +323,13 @@ function pick<T>(rng: () => number, arr: T[]): T {
  *   11 thought-role message (short reasoning aside)
  *   12 file-op multi edit with error status (terminal)
  *   13 assistant message (heavy: large table or large code)
+ *   14 plan (task list with mixed statuses and priorities)
  */
 export function generateMockTranscript(count = 6000, seed = 1): ChatItem[] {
   const rng = makeRng(seed);
   const items: ChatItem[] = [];
 
-  const CYCLE = 14;
+  const CYCLE = 15;
 
   for (let i = 0; i < count; i++) {
     const slot = i % CYCLE;
@@ -434,13 +469,20 @@ export function generateMockTranscript(count = 6000, seed = 1): ChatItem[] {
         status: 'error' as ToolStatus,
         ops,
       });
-    } else {
-      // slot === 13: assistant message (heavy — large table or large code)
+    } else if (slot === 13) {
+      // ── assistant message (heavy — large table or large code) ──────────────
       items.push({
         kind: 'message',
         id: `msg-${i}`,
         role: 'assistant' as ChatRole,
         text: heavyBodyFor(rng, i),
+      });
+    } else {
+      // slot === 14: plan (task list with mixed statuses and priorities)
+      items.push({
+        kind: 'plan',
+        id: `plan-${i}`,
+        entries: PLAN_ENTRIES,
       });
     }
   }

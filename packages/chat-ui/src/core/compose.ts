@@ -293,6 +293,8 @@ export const SLOT_NAMES = {
   FILE_OP_PREVIEW: 'file-op:preview',
   DIFF_HEADER: 'diff:header',
   DIFF_BODY: 'diff:body',
+  PLAN_HEADER: 'plan:header',
+  PLAN_LIST: 'plan:list',
 } as const;
 
 export type SlotName = (typeof SLOT_NAMES)[keyof typeof SLOT_NAMES];

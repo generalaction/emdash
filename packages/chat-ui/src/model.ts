@@ -117,10 +117,49 @@ export type ChatDiff = {
   status: ToolStatus;
 };
 
+/** Lifecycle status of a single plan entry. Mirrors ACP `PlanEntryStatus`. */
+export type PlanEntryStatus = 'pending' | 'in_progress' | 'completed';
+
+/** Relative importance of a plan entry. Mirrors ACP `PlanEntryPriority`. */
+export type PlanEntryPriority = 'high' | 'medium' | 'low';
+
+/**
+ * A single task entry within an agent execution plan.
+ *
+ * `content` is a markdown-capable description of the task.
+ * `status` and `priority` mirror the ACP `PlanEntry` schema.
+ */
+export type ChatPlanEntry = {
+  content: string;
+  status: PlanEntryStatus;
+  priority: PlanEntryPriority;
+};
+
+/**
+ * An agent execution plan row — produced by ACP `plan` / `plan_update` session updates.
+ *
+ * Renders as a collapsible checklist (collapsed by default to a capped preview
+ * window; click the header to expand the full list). Each entry shows a status
+ * glyph (○ / ◐ / ●) and its markdown content (wrapped text). The plan replaces
+ * its entries wholesale on each ACP update.
+ *
+ * While `streaming` is true, entries are still being appended: the collapsed
+ * preview auto-scrolls to the newest task and the header shimmers. Cleared on
+ * turn completion.
+ */
+export type ChatPlan = {
+  kind: 'plan';
+  id: string;
+  entries: ChatPlanEntry[];
+  /** True while tasks are still being appended (drives preview auto-scroll + shimmer). */
+  streaming?: boolean;
+};
+
 export type ChatItem =
   | ChatMessage
   | ChatToolCall
   | ChatThinking
   | ChatFileOpToolCall
   | ChatExecute
-  | ChatDiff;
+  | ChatDiff
+  | ChatPlan;

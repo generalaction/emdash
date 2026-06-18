@@ -17,6 +17,8 @@ import type {
   ChatFileOpToolCall,
   ChatItem,
   ChatMessage,
+  ChatPlan,
+  ChatPlanEntry,
   ChatRole,
   ChatThinking,
   ChatToolCall,
@@ -99,6 +101,16 @@ export type TranscriptEvent =
       oldText?: string | null;
       newText?: string;
     }
+  /**
+   * A plan row was created or updated. `entries` replaces the full task list
+   * (ACP plans are sent wholesale on each update). On first dispatch for a
+   * given id the row is created. `streaming` defaults to true on create so the
+   * collapsed preview auto-scrolls as tasks arrive; set it false (or rely on
+   * `turn_done`) to settle the row.
+   */
+  | { type: 'plan_update'; id: string; entries: ChatPlanEntry[]; streaming?: boolean }
+  /** A plan row was removed (ACP `plan_removed`). */
+  | { type: 'plan_removed'; id: string }
   /**
    * The current turn is finished. Clears `streaming` flags, finalizes any
    * still-active thinking and execute rows, and moves activeTurn into committed.
@@ -422,6 +434,35 @@ export function createTranscript(): TranscriptApi {
               break;
             }
 
+            case 'plan_update': {
+              finalizeOpenThinking();
+              if (s.activeTurn === null) s.activeTurn = [];
+              const existingPlan = s.activeTurn.find(
+                (it): it is ChatPlan => it.kind === 'plan' && it.id === event.id
+              );
+              if (existingPlan) {
+                // ACP plans replace the full entry list on each update.
+                existingPlan.entries = event.entries;
+                if (event.streaming !== undefined) existingPlan.streaming = event.streaming;
+              } else {
+                s.activeTurn.push({
+                  kind: 'plan',
+                  id: event.id,
+                  entries: event.entries,
+                  streaming: event.streaming ?? true,
+                } satisfies ChatPlan);
+              }
+              break;
+            }
+
+            case 'plan_removed': {
+              if (!s.activeTurn) break;
+              s.activeTurn = s.activeTurn.filter(
+                (it) => !(it.kind === 'plan' && it.id === event.id)
+              );
+              break;
+            }
+
             case 'turn_done': {
               if (!s.activeTurn) break;
               const finalized: ChatItem[] = s.activeTurn.map((item) => {
@@ -444,6 +485,9 @@ export function createTranscript(): TranscriptApi {
                 }
                 if (item.kind === 'diff' && item.status === 'running') {
                   return { ...item, status: 'done' as const };
+                }
+                if (item.kind === 'plan' && item.streaming) {
+                  return { ...item, streaming: false };
                 }
                 return item;
               });
