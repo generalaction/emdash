@@ -12,6 +12,7 @@ interface ReorderListProps<T> {
   itemClassName?: string;
   layoutScroll?: boolean;
   as?: ReorderTag;
+  ref?: React.Ref<HTMLDivElement>;
   getKey?: (item: T, index: number) => string | number;
   children: (item: T, index: number) => React.ReactNode;
 }
@@ -24,11 +25,13 @@ export function ReorderList<T>({
   itemClassName,
   layoutScroll = true,
   as = 'div',
+  ref,
   getKey,
   children,
 }: ReorderListProps<T>) {
   return (
     <Reorder.Group
+      ref={ref}
       as={as}
       axis={axis}
       values={items}

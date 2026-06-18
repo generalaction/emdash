@@ -1,6 +1,6 @@
-import { X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { observer, Observer } from 'mobx-react-lite';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ReorderList } from '@renderer/lib/components/reorder-list';
 import { cn } from '@renderer/utils/utils';
 import { Separator } from './separator';
@@ -68,6 +68,26 @@ export const TabBar = observer(function TabBar<TEntity>({
   actions,
 }: TabBarProps<TEntity>) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [scrollEdges, setScrollEdges] = useState({ left: false, right: false });
+
+  const updateScrollEdges = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    const maxScrollLeft = el.scrollWidth - el.clientWidth;
+    setScrollEdges({
+      left: el.scrollLeft > 0,
+      right: el.scrollLeft < maxScrollLeft - 1,
+    });
+  }, []);
+
+  const scrollTabsBy = useCallback((direction: -1 | 1) => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    el.scrollBy({ left: direction * Math.round(el.clientWidth * 0.7), behavior: 'smooth' });
+  }, []);
 
   const renderTab = (entity: TEntity) => {
     const id = getId(entity);
@@ -142,24 +162,70 @@ export const TabBar = observer(function TabBar<TEntity>({
     }
   };
 
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    updateScrollEdges();
+    el.addEventListener('scroll', updateScrollEdges, { passive: true });
+
+    const resizeObserver = new ResizeObserver(updateScrollEdges);
+    resizeObserver.observe(el);
+
+    return () => {
+      el.removeEventListener('scroll', updateScrollEdges);
+      resizeObserver.disconnect();
+    };
+  }, [tabs.length, updateScrollEdges]);
+
   return (
     <div className="flex h-[41px] items-center justify-between border-b border-border bg-background-secondary">
-      {onReorder ? (
-        <ReorderList
-          items={tabs}
-          onReorder={handleReorder}
-          axis="x"
-          className="flex h-full w-full scrollbar-none overflow-x-auto"
-          itemClassName="list-none flex h-full"
-          getKey={(item) => getId(item)}
-        >
-          {(entity) => <Observer>{() => renderTab(entity)}</Observer>}
-        </ReorderList>
-      ) : (
-        <div className="flex h-full scrollbar-none overflow-x-auto">
-          {tabs.map((entity) => renderTab(entity))}
-        </div>
-      )}
+      <div className="relative h-full min-w-0 flex-1">
+        {onReorder ? (
+          <ReorderList
+            ref={scrollContainerRef}
+            items={tabs}
+            onReorder={handleReorder}
+            axis="x"
+            className="flex h-full w-full scrollbar-none overflow-x-auto"
+            itemClassName="list-none flex h-full"
+            getKey={(item) => getId(item)}
+          >
+            {(entity) => <Observer>{() => renderTab(entity)}</Observer>}
+          </ReorderList>
+        ) : (
+          <div
+            ref={scrollContainerRef}
+            className="flex h-full w-full scrollbar-none overflow-x-auto"
+          >
+            {tabs.map((entity) => renderTab(entity))}
+          </div>
+        )}
+        {scrollEdges.left && (
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex w-7 items-center justify-start bg-linear-to-r from-background-secondary via-background-secondary/90 to-transparent pl-1 text-foreground-muted">
+            <button
+              type="button"
+              className="pointer-events-auto rounded-sm hover:text-foreground"
+              aria-label="Scroll tabs left"
+              onClick={() => scrollTabsBy(-1)}
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+          </div>
+        )}
+        {scrollEdges.right && (
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex w-7 items-center justify-end bg-linear-to-l from-background-secondary via-background-secondary/90 to-transparent pr-1 text-foreground-muted">
+            <button
+              type="button"
+              className="pointer-events-auto rounded-sm hover:text-foreground"
+              aria-label="Scroll tabs right"
+              onClick={() => scrollTabsBy(1)}
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
+        )}
+      </div>
       {actions && <div className="shrink-0">{actions}</div>}
     </div>
   );

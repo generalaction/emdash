@@ -143,24 +143,28 @@ export const TabBar = observer(function TabBar() {
           <PaneDropZone groupId={groupId} />
         </div>
         {scrollEdges.left && (
-          <button
-            type="button"
-            className="absolute inset-y-0 left-0 flex w-7 items-center justify-start bg-linear-to-r from-background-secondary via-background-secondary/90 to-transparent pl-1 text-foreground-muted hover:text-foreground"
-            aria-label="Scroll tabs left"
-            onClick={() => scrollTabsBy(-1)}
-          >
-            <ChevronLeft className="size-4" />
-          </button>
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex w-7 items-center justify-start bg-linear-to-r from-background-secondary via-background-secondary/90 to-transparent pl-1 text-foreground-muted">
+            <button
+              type="button"
+              className="pointer-events-auto rounded-sm hover:text-foreground"
+              aria-label="Scroll tabs left"
+              onClick={() => scrollTabsBy(-1)}
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+          </div>
         )}
         {scrollEdges.right && (
-          <button
-            type="button"
-            className="absolute inset-y-0 right-0 flex w-7 items-center justify-end bg-linear-to-l from-background-secondary via-background-secondary/90 to-transparent pr-1 text-foreground-muted hover:text-foreground"
-            aria-label="Scroll tabs right"
-            onClick={() => scrollTabsBy(1)}
-          >
-            <ChevronRight className="size-4" />
-          </button>
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex w-7 items-center justify-end bg-linear-to-l from-background-secondary via-background-secondary/90 to-transparent pr-1 text-foreground-muted">
+            <button
+              type="button"
+              className="pointer-events-auto rounded-sm hover:text-foreground"
+              aria-label="Scroll tabs right"
+              onClick={() => scrollTabsBy(1)}
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
         )}
       </div>
       <TabBarActions />
