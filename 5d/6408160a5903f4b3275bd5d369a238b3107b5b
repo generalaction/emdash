@@ -1,0 +1,27 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-load-error.ts
+  s_ac65752961e0c4::t_24560fd9a0d240 3-32,34-44,48-49,54-158
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_ac65752961e0c4::t_142436ed04a20e 287,294,302-303,305-311,313-320,322-328
+  s_ac65752961e0c4::t_103dafd537e408 261
+  s_ac65752961e0c4::t_a4a6d798857410 304
+  s_ac65752961e0c4::t_91240d24b1013e 5
+  s_ac65752961e0c4::t_ddea9b129cc86b 1,10-14
+apps/emdash-desktop/src/renderer/features/browser/browser-load-error.test.ts
+  s_ac65752961e0c4::t_5637964627f2ce 2,4-15,17-19,21,23-28,30-35,38-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "5d6408160a5903f4b3275bd5d369a238b3107b5b",
+  "prompts": {},
+  "sessions": {
+    "s_ac65752961e0c4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54c9de1f-913d-4484-8a79-f542548b5be5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
