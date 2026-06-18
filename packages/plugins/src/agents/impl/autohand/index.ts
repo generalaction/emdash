@@ -8,7 +8,7 @@ export const plugin = definePlugin(
     name: 'Autohand Code',
     description:
       'Terminal coding agent with auto-commit, dry-run previews, community skills, and headless automation modes.',
-    websiteUrl: 'https://autohand.ai/code/',
+    websiteUrl: 'https://autohand.ai/cli/',
   },
   {
     autoApprove: {

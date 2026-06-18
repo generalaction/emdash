@@ -42,10 +42,12 @@ export const plugin = definePlugin(
       updates: {
         kind: 'supported',
         releaseSource: {
-          kind: 'none',
+          kind: 'npm',
+          package: 'droid',
         },
         update: {
-          kind: 'package-manager',
+          kind: 'cli',
+          args: ['update'],
         },
       },
     },

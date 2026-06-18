@@ -8,7 +8,7 @@ export const plugin = definePlugin(
     name: 'Cline',
     description:
       'Cline CLI runs coding agents directly in your terminal with multi-provider model support.',
-    websiteUrl: 'https://docs.cline.bot/cline-cli/overview',
+    websiteUrl: 'https://docs.cline.bot',
   },
   {
     autoApprove: {
@@ -45,7 +45,7 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
-        autoApproveFlag: '--yolo',
+        autoApproveFlag: '--auto-approve true',
         initialPromptFlag: '',
       }),
   },

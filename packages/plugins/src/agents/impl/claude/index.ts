@@ -49,6 +49,17 @@ export const plugin = definePlugin(
         ],
         windows: [
           {
+            method: 'powershell',
+            command: 'irm https://claude.ai/install.ps1 | iex',
+            uninstallCommand: 'claude uninstall',
+            recommended: true,
+          },
+          {
+            method: 'winget',
+            command: 'winget install Anthropic.ClaudeCode',
+            uninstallCommand: 'winget uninstall Anthropic.ClaudeCode',
+          },
+          {
             method: 'curl',
             command:
               'curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd',

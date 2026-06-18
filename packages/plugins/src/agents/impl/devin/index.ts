@@ -46,7 +46,8 @@ export const plugin = definePlugin(
           kind: 'none',
         },
         update: {
-          kind: 'package-manager',
+          kind: 'cli',
+          args: ['update'],
         },
       },
     },
@@ -74,7 +75,7 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
-        autoApproveFlag: '--permission-mode=bypass',
+        autoApproveFlag: '--permission-mode=dangerous',
         initialPromptFlag: '--',
         resumeFlag: '--continue',
       }),

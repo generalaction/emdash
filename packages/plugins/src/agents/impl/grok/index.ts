@@ -39,14 +39,22 @@ export const plugin = definePlugin(
             command: 'curl -fsSL https://x.ai/cli/install.sh | bash',
           },
         ],
+        windows: [
+          {
+            method: 'powershell',
+            command: 'irm https://x.ai/cli/install.ps1 | iex',
+          },
+        ],
       },
       updates: {
         kind: 'supported',
         releaseSource: {
-          kind: 'none',
+          kind: 'npm',
+          package: '@xai-official/grok',
         },
         update: {
-          kind: 'package-manager',
+          kind: 'cli',
+          args: ['update'],
         },
       },
     },

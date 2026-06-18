@@ -142,4 +142,73 @@ describe('pluginRegistry', () => {
       env: {},
     });
   });
+
+  it('builds provider-specific CLI command shapes from current docs', () => {
+    const freshContext = {
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: '',
+    };
+
+    expect(
+      pluginRegistry.get('devin')!.behavior.prompt!.buildCommand({
+        ...freshContext,
+        cli: 'devin',
+      }).args
+    ).toEqual(['--permission-mode=dangerous', '--', 'Fix the bug']);
+
+    expect(
+      pluginRegistry.get('kilocode')!.behavior.prompt!.buildCommand({
+        ...freshContext,
+        cli: 'kilo',
+      }).args
+    ).toEqual(['run', '--auto', 'Fix the bug']);
+
+    expect(
+      pluginRegistry.get('rovo')!.behavior.prompt!.buildCommand({
+        ...freshContext,
+        cli: 'acli',
+      }).args
+    ).toEqual(['rovodev', 'run', '--yolo', 'Fix the bug']);
+
+    expect(
+      pluginRegistry.get('junie')!.behavior.prompt!.buildCommand({
+        ...freshContext,
+        autoApprove: false,
+        cli: 'junie',
+      }).args
+    ).toEqual(['--session-id', 'conv-1', '--prompt', 'Fix the bug']);
+
+    expect(
+      pluginRegistry.get('jules')!.behavior.prompt!.buildCommand({
+        ...freshContext,
+        autoApprove: false,
+        cli: 'jules',
+      }).args
+    ).toEqual([]);
+
+    expect(
+      pluginRegistry.get('charm')!.behavior.prompt!.buildCommand({
+        ...freshContext,
+        cli: 'crush',
+      }).args
+    ).toEqual(['run', '--yolo', 'Fix the bug']);
+
+    expect(
+      pluginRegistry.get('freebuff')!.behavior.prompt!.buildCommand({
+        ...freshContext,
+        autoApprove: false,
+        cli: 'freebuff',
+      }).args
+    ).toEqual([]);
+
+    expect(
+      pluginRegistry.get('continue')!.behavior.prompt!.buildCommand({
+        ...freshContext,
+        cli: 'cn',
+      }).args
+    ).toEqual(['--auto', '-p', 'Fix the bug']);
+  });
 });
