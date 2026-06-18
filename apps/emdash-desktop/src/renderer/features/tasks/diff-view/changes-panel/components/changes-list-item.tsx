@@ -1,4 +1,4 @@
-import type { GitChange, GitChangeStatus } from '@emdash/shared/git';
+import type { GitChange, GitChangeStatus } from '@emdash/core/git';
 import { SquareArrowRight, SquareDot, SquareMinus, SquarePlus, SquareX } from 'lucide-react';
 import { forwardRef, useMemo, type ButtonHTMLAttributes } from 'react';
 import { splitPath } from '@renderer/features/tasks/utils';

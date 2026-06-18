@@ -1,4 +1,4 @@
-import type { GitChange } from '@emdash/shared/git';
+import type { GitChange } from '@emdash/core/git';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useRef } from 'react';
 import { cn } from '@renderer/utils/utils';

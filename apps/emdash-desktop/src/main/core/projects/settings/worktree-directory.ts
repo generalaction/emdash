@@ -1,6 +1,6 @@
 import type path from 'node:path';
+import { err, ok, type Result } from '@emdash/shared';
 import type { FileSystemProvider } from '@main/core/fs/types';
-import { err, ok, type Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 
 export type PathPlatform = 'posix' | 'win32';

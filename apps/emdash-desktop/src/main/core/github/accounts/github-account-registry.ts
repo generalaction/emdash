@@ -34,6 +34,11 @@ export type GitHubAccountUpsert = {
   providerAccount: GitHubProviderAccount;
 };
 
+export type GitHubAccountUpsertResult = {
+  account: GitHubAccount;
+  status: 'created' | 'updated';
+};
+
 export type GitHubAccountMetadataStore = {
   getAccounts(): Promise<GitHubAccount[] | null>;
   setAccounts(accounts: GitHubAccount[]): Promise<void>;
@@ -55,7 +60,7 @@ export class GitHubAccountRegistry {
     private readonly secretStore: GitHubAccountSecretStore
   ) {}
 
-  async upsertAccount(input: GitHubAccountUpsert): Promise<GitHubAccount> {
+  async upsertAccount(input: GitHubAccountUpsert): Promise<GitHubAccountUpsertResult> {
     const now = Date.now();
     const id = this.accountId(input.providerAccount);
     const accounts = await this.listAccounts();
@@ -78,7 +83,10 @@ export class GitHubAccountRegistry {
     await this.metadataStore.setAccounts(nextAccounts);
     await this.clearRemovedCliAccount(id);
     await this.ensureDefaultAccount(nextAccounts);
-    return next;
+    return {
+      account: next,
+      status: existing ? 'updated' : 'created',
+    };
   }
 
   async listAccounts(): Promise<GitHubAccount[]> {

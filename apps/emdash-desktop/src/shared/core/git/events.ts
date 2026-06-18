@@ -1,4 +1,4 @@
-import type { GitRepoUpdate, GitWorktreeUpdate } from '@emdash/shared/git';
+import type { GitRepoUpdate, GitWorktreeUpdate } from '@emdash/core/git';
 import { defineEvent } from '@shared/lib/ipc/events';
 
 export type GitRepoUpdateEvent = {

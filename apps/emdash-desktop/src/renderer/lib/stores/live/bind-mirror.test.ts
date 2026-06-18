@@ -1,5 +1,5 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { err, ok, type Result } from '@shared/lib/result';
 import { bindMirror } from './bind-mirror';
 import { ModelMirror } from './model-mirror';
 

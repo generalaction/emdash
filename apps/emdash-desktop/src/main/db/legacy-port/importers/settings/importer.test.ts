@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { isDeepEqual } from '@emdash/shared/lib';
+import { isDeepEqual } from '@emdash/shared';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import { getDefaultForKey } from '@main/core/settings/settings-registry';

@@ -1,5 +1,5 @@
-import type { PluginFs } from '@emdash/shared/agents/plugins';
-import type { HookRegistration } from '@emdash/shared/agents/plugins';
+import type { PluginFs } from '@emdash/core/agents/plugins';
+import type { HookRegistration } from '@emdash/core/agents/plugins';
 import {
   EMDASH_MARKER,
   buildFlatEntry,
@@ -8,7 +8,7 @@ import {
   makeStdinHookCommand,
   readJsonConfig,
   writeJsonConfig,
-} from '@emdash/shared/agents/plugins/helpers';
+} from '@emdash/core/agents/plugins/helpers';
 
 export const COPILOT_HOOKS_PATH = '.github/hooks/emdash.json';
 

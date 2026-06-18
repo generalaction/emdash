@@ -1,5 +1,5 @@
-import type { PluginFs } from '@emdash/shared/agents/plugins';
-import type { CanonicalHookEvent, HookRegistration } from '@emdash/shared/agents/plugins';
+import type { PluginFs } from '@emdash/core/agents/plugins';
+import type { CanonicalHookEvent, HookRegistration } from '@emdash/core/agents/plugins';
 import {
   EMDASH_MARKER,
   buildNestedEntry,
@@ -9,7 +9,7 @@ import {
   makeNotificationHookCommand,
   readJsonConfig,
   writeJsonConfig,
-} from '@emdash/shared/agents/plugins/helpers';
+} from '@emdash/core/agents/plugins/helpers';
 import * as toml from 'smol-toml';
 
 export const CODEX_HOOKS_PATH = '.codex/hooks.json';

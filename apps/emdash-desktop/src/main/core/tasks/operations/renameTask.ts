@@ -1,9 +1,9 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, sql } from 'drizzle-orm';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import type { RenameTaskError, RenameTaskSuccess } from '@shared/core/tasks/tasks';
-import { err, ok, type Result } from '@shared/lib/result';
 
 export async function renameTask(
   projectId: string,

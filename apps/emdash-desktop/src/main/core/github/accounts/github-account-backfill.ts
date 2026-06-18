@@ -41,7 +41,7 @@ export class GitHubAccountBackfillService {
     const user = await this.identityClient.getAuthenticatedUser(tokenRecord.token, 'github.com');
     if (!user) return null;
 
-    const account = await this.accountRegistry.upsertAccount({
+    const { account } = await this.accountRegistry.upsertAccount({
       accessToken: tokenRecord.token,
       credentialSource: credentialSource(tokenRecord.source),
       providerAccount: providerAccountFromUser(user),

@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { Result } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Result } from '@shared/lib/result';
 import { createLocalProject } from './create-local-project';
 import { createSshProject, getSshProjectPathStatus } from './create-ssh-project';
 

@@ -1,4 +1,4 @@
-import type { DiffMode, GitChange, GitObjectRef, GitRemote } from '@emdash/shared/git';
+import type { DiffMode, GitChange, GitObjectRef, GitRemote } from '@emdash/core/git';
 
 export interface ImageBlob {
   dataUrl: string;

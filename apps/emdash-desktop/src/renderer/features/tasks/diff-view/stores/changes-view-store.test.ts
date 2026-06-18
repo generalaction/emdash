@@ -1,4 +1,4 @@
-import type { GitChange } from '@emdash/shared/git';
+import type { GitChange } from '@emdash/core/git';
 import { makeAutoObservable, runInAction } from 'mobx';
 import { describe, expect, it } from 'vitest';
 import { type PrStore } from '@renderer/features/tasks/stores/pr-store';
