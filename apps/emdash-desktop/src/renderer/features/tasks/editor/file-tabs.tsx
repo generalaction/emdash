@@ -63,14 +63,14 @@ export const FileTabs: React.FC<FileTabsProps> = ({
           items={tabs}
           onReorder={handleReorder}
           axis="x"
-          className="flex h-full w-full overflow-x-auto"
+          className="flex h-full w-full scrollbar-none overflow-x-auto"
           itemClassName="list-none flex h-full"
           getKey={(item) => item.tabId}
         >
           {renderTab}
         </ReorderList>
       ) : (
-        <div className="flex h-full overflow-x-auto">{tabs.map(renderTab)}</div>
+        <div className="flex h-full scrollbar-none overflow-x-auto">{tabs.map(renderTab)}</div>
       )}
     </div>
   );

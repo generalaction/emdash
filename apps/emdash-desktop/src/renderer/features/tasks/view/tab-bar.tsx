@@ -1,5 +1,6 @@
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   closeActiveTabWithConfirm,
   closeTabWithConfirm,
@@ -88,6 +89,41 @@ export const TabBar = observer(function TabBar() {
   const resolvedTabs = tabManager.resolvedTabs;
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [scrollEdges, setScrollEdges] = useState({ left: false, right: false });
+
+  const updateScrollEdges = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    const maxScrollLeft = el.scrollWidth - el.clientWidth;
+    setScrollEdges({
+      left: el.scrollLeft > 0,
+      right: el.scrollLeft < maxScrollLeft - 1,
+    });
+  }, []);
+
+  const scrollTabsBy = useCallback((direction: -1 | 1) => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    el.scrollBy({ left: direction * Math.round(el.clientWidth * 0.7), behavior: 'smooth' });
+  }, []);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    updateScrollEdges();
+    el.addEventListener('scroll', updateScrollEdges, { passive: true });
+
+    const resizeObserver = new ResizeObserver(updateScrollEdges);
+    resizeObserver.observe(el);
+
+    return () => {
+      el.removeEventListener('scroll', updateScrollEdges);
+      resizeObserver.disconnect();
+    };
+  }, [resolvedTabs.length, updateScrollEdges]);
 
   useEffect(() => {
     const id = tabManager.activeTabId;
@@ -96,13 +132,36 @@ export const TabBar = observer(function TabBar() {
       `[data-tabid="${CSS.escape(id)}"]`
     );
     el?.scrollIntoView({ behavior: 'instant', inline: 'nearest', block: 'nearest' });
-  }, [tabManager.activeTabId]);
+    updateScrollEdges();
+  }, [tabManager.activeTabId, updateScrollEdges]);
 
   return (
     <div className="task-tab-bar flex h-[41px] shrink-0 items-center justify-between border-b border-border bg-background-secondary">
-      <div ref={scrollContainerRef} className="flex h-full w-full overflow-x-auto">
-        {resolvedTabs.map((tab) => tabRenderers[tab.kind](tab as never))}
-        <PaneDropZone groupId={groupId} />
+      <div className="relative h-full min-w-0 flex-1">
+        <div ref={scrollContainerRef} className="flex h-full w-full scrollbar-none overflow-x-auto">
+          {resolvedTabs.map((tab) => tabRenderers[tab.kind](tab as never))}
+          <PaneDropZone groupId={groupId} />
+        </div>
+        {scrollEdges.left && (
+          <button
+            type="button"
+            className="absolute inset-y-0 left-0 flex w-7 items-center justify-start bg-linear-to-r from-background-secondary via-background-secondary/90 to-transparent pl-1 text-foreground-muted hover:text-foreground"
+            aria-label="Scroll tabs left"
+            onClick={() => scrollTabsBy(-1)}
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+        )}
+        {scrollEdges.right && (
+          <button
+            type="button"
+            className="absolute inset-y-0 right-0 flex w-7 items-center justify-end bg-linear-to-l from-background-secondary via-background-secondary/90 to-transparent pr-1 text-foreground-muted hover:text-foreground"
+            aria-label="Scroll tabs right"
+            onClick={() => scrollTabsBy(1)}
+          >
+            <ChevronRight className="size-4" />
+          </button>
+        )}
       </div>
       <TabBarActions />
     </div>

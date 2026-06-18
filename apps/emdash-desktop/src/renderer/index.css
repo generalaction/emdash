@@ -175,6 +175,17 @@
   height: 0 !important;
 }
 
+@layer utilities {
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @layer base {
   .emlight {
     /* ── Color palette (Radix P3) ──────────────────────────────── */

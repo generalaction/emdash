@@ -63,7 +63,7 @@ export const ConversationTabItem = observer(function ConversationTabItem({
 
   return (
     <ContextMenu>
-      <ContextMenuTrigger>
+      <ContextMenuTrigger className="h-full shrink-0">
         <TabItemShell
           tabId={tab.tabId}
           isActive={tab.isActive}

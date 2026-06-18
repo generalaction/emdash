@@ -12,6 +12,7 @@ export function DraggableTab({ id, children }: { id: string; children: React.Rea
       }}
       style={{
         display: 'flex',
+        flexShrink: 0,
         height: '100%',
         alignItems: 'center',
         position: 'relative',

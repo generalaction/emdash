@@ -149,14 +149,16 @@ export const TabBar = observer(function TabBar<TEntity>({
           items={tabs}
           onReorder={handleReorder}
           axis="x"
-          className="flex h-full w-full overflow-x-auto"
+          className="flex h-full w-full scrollbar-none overflow-x-auto"
           itemClassName="list-none flex h-full"
           getKey={(item) => getId(item)}
         >
           {(entity) => <Observer>{() => renderTab(entity)}</Observer>}
         </ReorderList>
       ) : (
-        <div className="flex h-full overflow-x-auto">{tabs.map((entity) => renderTab(entity))}</div>
+        <div className="flex h-full scrollbar-none overflow-x-auto">
+          {tabs.map((entity) => renderTab(entity))}
+        </div>
       )}
       {actions && <div className="shrink-0">{actions}</div>}
     </div>
