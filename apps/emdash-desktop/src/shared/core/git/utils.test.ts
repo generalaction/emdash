@@ -1,4 +1,4 @@
-import type { GitBranchRef } from '@emdash/shared/git';
+import type { GitBranchRef } from '@emdash/core/git';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_REMOTE_NAME } from './types';
 import {

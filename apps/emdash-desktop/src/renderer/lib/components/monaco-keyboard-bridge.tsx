@@ -1,5 +1,12 @@
-import { detectPlatform, getHotkeyManager, matchesKeyboardEvent } from '@tanstack/hotkeys';
-import { useEffect } from 'react';
+import { detectPlatform, normalizeHotkey } from '@tanstack/hotkeys';
+import { useEffect, useMemo } from 'react';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import {
+  APP_SHORTCUTS,
+  getEffectiveHotkey,
+  type ShortcutSettingsKey,
+} from '@renderer/lib/hooks/useKeyboardShortcuts';
+import { dispatchMatchingHotkeys } from '@renderer/lib/hotkeys/dispatch-matching-hotkeys';
 
 function isMonacoFocused(): boolean {
   return document.activeElement?.closest('.monaco-editor') !== null;
@@ -17,28 +24,34 @@ function isMonacoFocused(): boolean {
  * bubbling-phase handling takes over unchanged.
  */
 export function MonacoKeyboardBridge() {
+  const { value: keyboard } = useAppSettingsKey('keyboard');
+  const ignoredHotkeys = useMemo(() => {
+    const platform = detectPlatform();
+    const next = new Set<string>();
+    const shortcuts = Object.entries(APP_SHORTCUTS) as [
+      ShortcutSettingsKey,
+      (typeof APP_SHORTCUTS)[ShortcutSettingsKey],
+    ][];
+
+    for (const [key, def] of shortcuts) {
+      if (!def.ignoreWhenMonacoFocused) continue;
+      const hotkey = getEffectiveHotkey(key, keyboard);
+      if (hotkey !== null) next.add(normalizeHotkey(hotkey, platform));
+    }
+
+    return next;
+  }, [keyboard]);
+
   useEffect(() => {
     const platform = detectPlatform();
 
     const handler = (e: KeyboardEvent) => {
       if (!isMonacoFocused()) return;
 
-      const manager = getHotkeyManager();
-      let handled = false;
-
-      for (const [, registration] of manager.registrations.state) {
-        if (!registration.options.enabled) continue;
-        if (matchesKeyboardEvent(e, registration.parsedHotkey, platform)) {
-          if (registration.options.preventDefault) e.preventDefault();
-          registration.callback(e, {
-            hotkey: registration.hotkey,
-            parsedHotkey: registration.parsedHotkey,
-          });
-          handled = true;
-          // No break — conflictBehavior: 'allow' keys (tabClose, tabNext, tabPrev)
-          // legitimately have multiple registrations for the same key.
-        }
-      }
+      const handled = dispatchMatchingHotkeys(e, {
+        filter: (registration) =>
+          !ignoredHotkeys.has(normalizeHotkey(registration.hotkey, platform)),
+      });
 
       // Prevent the event from reaching Monaco and skip the TanStack bubbling
       // listener (which would otherwise double-dispatch the same shortcut).
@@ -47,7 +60,7 @@ export function MonacoKeyboardBridge() {
 
     document.addEventListener('keydown', handler, { capture: true });
     return () => document.removeEventListener('keydown', handler, { capture: true });
-  }, []);
+  }, [ignoredHotkeys]);
 
   return null;
 }

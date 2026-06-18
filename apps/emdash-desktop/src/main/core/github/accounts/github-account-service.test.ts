@@ -75,17 +75,19 @@ describe('GitHubAccountService', () => {
   });
 
   async function upsertAccount(login: string, providerAccountId: string, host = 'github.com') {
-    return registry.upsertAccount({
-      accessToken: `token-${host}-${providerAccountId}`,
-      credentialSource: host === 'github.com' ? 'emdash_oauth' : 'cli',
-      providerAccount: {
-        providerId: 'github',
-        providerAccountId,
-        host,
-        login,
-        avatarUrl: `https://${host}/avatars/${providerAccountId}`,
-      },
-    });
+    return (
+      await registry.upsertAccount({
+        accessToken: `token-${host}-${providerAccountId}`,
+        credentialSource: host === 'github.com' ? 'emdash_oauth' : 'cli',
+        providerAccount: {
+          providerId: 'github',
+          providerAccountId,
+          host,
+          login,
+          avatarUrl: `https://${host}/avatars/${providerAccountId}`,
+        },
+      })
+    ).account;
   }
 
   it('lists linked accounts with exactly one default account marker', async () => {
@@ -123,17 +125,19 @@ describe('GitHubAccountService', () => {
   it('imports CLI accounts and returns the refreshed account list', async () => {
     const existing = await upsertAccount('monalisa', '42');
     importCliAccounts = async () => [
-      await registry.upsertAccount({
-        accessToken: 'token-ghe',
-        credentialSource: 'cli',
-        providerAccount: {
-          providerId: 'github',
-          providerAccountId: '168',
-          host: 'ghe.example.com',
-          login: 'enterprise',
-          avatarUrl: 'https://ghe.example.com/avatars/168',
-        },
-      }),
+      (
+        await registry.upsertAccount({
+          accessToken: 'token-ghe',
+          credentialSource: 'cli',
+          providerAccount: {
+            providerId: 'github',
+            providerAccountId: '168',
+            host: 'ghe.example.com',
+            login: 'enterprise',
+            avatarUrl: 'https://ghe.example.com/avatars/168',
+          },
+        })
+      ).account,
     ];
 
     const result = await service.importCliAccounts();

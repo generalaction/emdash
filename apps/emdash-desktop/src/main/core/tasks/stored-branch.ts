@@ -1,4 +1,4 @@
-import type { GitBranchRef } from '@emdash/shared/git';
+import type { GitBranchRef } from '@emdash/core/git';
 
 /**
  * The persisted form of a Branch stored in SQLite. The column is plain text so

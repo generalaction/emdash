@@ -63,21 +63,23 @@ describe('GitHubAccountRegistry', () => {
   });
 
   async function upsertAccount(login: string, providerAccountId: string, host = 'github.com') {
-    return registry.upsertAccount({
-      accessToken: `gho_${login}`,
-      credentialSource: 'emdash_oauth',
-      providerAccount: {
-        providerId: 'github',
-        providerAccountId,
-        host,
-        login,
-        avatarUrl: '',
-      },
-    });
+    return (
+      await registry.upsertAccount({
+        accessToken: `gho_${login}`,
+        credentialSource: 'emdash_oauth',
+        providerAccount: {
+          providerId: 'github',
+          providerAccountId,
+          host,
+          login,
+          avatarUrl: '',
+        },
+      })
+    ).account;
   }
 
   it('stores OAuth account metadata separately from the account token', async () => {
-    const account = await registry.upsertAccount({
+    const { account } = await registry.upsertAccount({
       accessToken: 'gho_monalisa',
       credentialSource: 'emdash_oauth',
       providerAccount: {
@@ -117,7 +119,7 @@ describe('GitHubAccountRegistry', () => {
       },
     });
 
-    const updated = await registry.upsertAccount({
+    const { account: updated } = await registry.upsertAccount({
       accessToken: 'new-token',
       credentialSource: 'emdash_oauth',
       providerAccount: {
@@ -139,8 +141,38 @@ describe('GitHubAccountRegistry', () => {
     });
   });
 
+  it('reports whether an upsert created or updated an account', async () => {
+    const created = await registry.upsertAccount({
+      accessToken: 'old-token',
+      credentialSource: 'emdash_oauth',
+      providerAccount: {
+        providerId: 'github',
+        providerAccountId: '42',
+        host: 'github.com',
+        login: 'monalisa',
+        avatarUrl: '',
+      },
+    });
+
+    const updated = await registry.upsertAccount({
+      accessToken: 'new-token',
+      credentialSource: 'emdash_oauth',
+      providerAccount: {
+        providerId: 'github',
+        providerAccountId: '42',
+        host: 'github.com',
+        login: 'monalisa',
+        avatarUrl: '',
+      },
+    });
+
+    expect(created.status).toBe('created');
+    expect(updated.status).toBe('updated');
+    expect(updated.account.id).toBe(created.account.id);
+  });
+
   it('removes account metadata and credentials together', async () => {
-    const account = await registry.upsertAccount({
+    const { account } = await registry.upsertAccount({
       accessToken: 'gho_monalisa',
       credentialSource: 'emdash_oauth',
       providerAccount: {
@@ -159,7 +191,7 @@ describe('GitHubAccountRegistry', () => {
   });
 
   it('records a durable tombstone when a CLI-sourced account is removed', async () => {
-    const account = await registry.upsertAccount({
+    const { account } = await registry.upsertAccount({
       accessToken: 'gho_monalisa',
       credentialSource: 'cli',
       providerAccount: {
@@ -191,7 +223,7 @@ describe('GitHubAccountRegistry', () => {
   });
 
   it('clears a matching CLI tombstone when the account is reconnected', async () => {
-    const account = await registry.upsertAccount({
+    const { account } = await registry.upsertAccount({
       accessToken: 'gho_monalisa',
       credentialSource: 'cli',
       providerAccount: {

@@ -1,5 +1,6 @@
 import type { AgentInstallationStatus } from '@shared/core/agents/agent-payload';
 import { defineEvent } from '@shared/lib/ipc/events';
+import type { TabNavigationDirection } from '@shared/shortcuts';
 
 // App editing actions (renderer → main, no payload)
 export const appUndoChannel = defineEvent<void>('app:undo');
@@ -18,6 +19,11 @@ export const menuGiveFeedbackChannel = defineEvent<void>('menu:give-feedback');
 export const externalLinkOpenRequestedChannel = defineEvent<{ url: string }>(
   'external-link:open-requested'
 );
+
+export const tabNavigationShortcutChannel = defineEvent<{
+  source: { kind: 'browser'; browserId: string };
+  direction: TabNavigationDirection;
+}>('tab-navigation:shortcut');
 
 export const notificationFocusTaskChannel = defineEvent<{
   projectId: string;

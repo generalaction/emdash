@@ -1,4 +1,4 @@
-import type { GitBranchRef } from '@emdash/shared/git';
+import type { GitBranchRef } from '@emdash/core/git';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import type { Workspace } from '@main/core/workspaces/workspace';
@@ -62,6 +62,7 @@ export async function buildTaskFromWorkspace(
     await buildTaskProviders(type, {
       projectId,
       taskId: task.id,
+      workspaceId: workspace.id,
       taskPath: workspace.path,
       tmuxEnabled,
       shellSetup,

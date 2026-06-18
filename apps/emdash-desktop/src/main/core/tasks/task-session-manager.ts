@@ -1,3 +1,4 @@
+import { ok, type Result } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
@@ -9,7 +10,6 @@ import { log } from '@main/lib/logger';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import type { TaskBootstrapStatus } from '@shared/core/tasks/tasks';
 import type { WorkspaceType as SharedWorkspaceType } from '@shared/core/workspaces/workspaces';
-import { ok, type Result } from '@shared/lib/result';
 import type {
   ProvisionResult,
   TaskProvider,

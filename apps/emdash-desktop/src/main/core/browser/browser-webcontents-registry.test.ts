@@ -1,6 +1,7 @@
 import type { WebContents } from 'electron';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { events } from '@main/lib/events';
+import { tabNavigationShortcutChannel } from '@shared/events/appEvents';
 import { BrowserWebContentsRegistry } from './browser-webcontents-registry';
 
 const sessionsByPartition = new Map<string, object>();
@@ -262,6 +263,31 @@ describe('BrowserWebContentsRegistry', () => {
 
     expect(registry.getActiveBrowser()).toBeNull();
     expect(registry.openDevTools('browser-1')).toBe(false);
+  });
+
+  it('emits tab navigation shortcuts from focused browser webContents', () => {
+    const registry = new BrowserWebContentsRegistry();
+    registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
+
+    const webContents = fakeWebContents();
+    registry.handleWebviewAttached(webContents);
+    registry.bindWebContents('browser-1', webContents);
+
+    const keyEvent = { preventDefault: vi.fn() };
+    webContents.emitEvent('before-input-event', keyEvent, {
+      type: 'keyDown',
+      key: 'Tab',
+      control: true,
+      shift: true,
+      alt: false,
+      meta: false,
+    });
+
+    expect(keyEvent.preventDefault).toHaveBeenCalled();
+    expect(events.emit).toHaveBeenCalledWith(tabNavigationShortcutChannel, {
+      source: { kind: 'browser', browserId: 'browser-1' },
+      direction: 'previous',
+    });
   });
 
   it('clears storage for a named profile without requiring an open browser', async () => {

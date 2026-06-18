@@ -341,7 +341,7 @@ function getInitialState(mode: McpModalMode) {
     const cfg = mode.entry.defaultConfig;
     const isHttp = cfg.type === 'http' || ('url' in cfg && !('command' in cfg));
     const clearPlaceholders = (entries: [string, string][]): [string, string][] =>
-      entries.map(([k, v]) => [k, typeof v === 'string' && v.startsWith('YOUR_') ? '' : v]);
+      entries.map(([k, v]) => [k, typeof v === 'string' && v.includes('YOUR_') ? '' : v]);
     return {
       name: mode.entry.key,
       transport: (isHttp ? 'http' : 'stdio') as 'stdio' | 'http',

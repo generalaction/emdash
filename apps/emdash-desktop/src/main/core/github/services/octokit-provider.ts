@@ -1,6 +1,6 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { Octokit } from '@octokit/rest';
 import { log } from '@main/lib/logger';
-import { err, ok, type Result } from '@shared/lib/result';
 import { normalizeRepositoryHost } from '@shared/repository-ref';
 import type { GitHubApiAuthError } from './github-api-auth-errors';
 import type { GitHubApiAuthContext } from './github-api-auth-service';

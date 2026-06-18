@@ -1,4 +1,4 @@
-import type { GitChangeStatus, GitObjectRef } from '@emdash/shared/git';
+import type { GitChangeStatus, GitObjectRef } from '@emdash/core/git';
 import { action, autorun, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { browserDiagnosticsStore } from '@renderer/features/browser/browser-diagnostics-store';
 import { browserSessionStore } from '@renderer/features/browser/browser-session-store';

@@ -1,8 +1,10 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useDevServers } from '@renderer/features/tasks/task-view-context';
+import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
+import { usePreviewServers } from '@renderer/features/tasks/task-view-context';
 import { events, rpc } from '@renderer/lib/ipc';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
+import { tabNavigationShortcutChannel } from '@shared/events/appEvents';
 import { browserFindRequestedChannel } from '@shared/events/browserEvents';
 import { browserControlsRegistry } from './browser-controls-registry';
 import { decideBrowserReload } from './browser-navigation-controls';
@@ -26,7 +28,8 @@ export const BrowserPane = observer(function BrowserPane({
   visible: boolean;
 }) {
   const session = browserSessionStore.getSession(browserId);
-  const devServers = useDevServers();
+  const { tabManager } = useTabGroupContext();
+  const previewServers = usePreviewServers();
   const webviewRef = useRef<BrowserWebviewElement | null>(null);
   const focusUrlRef = useRef<() => void>(() => {});
   const openFindRef = useRef<() => void>(() => {});
@@ -90,6 +93,18 @@ export const BrowserPane = observer(function BrowserPane({
     if (!visible || !sessionBrowserId || adapter === null) return;
     void rpc.browser.setActiveBrowser(sessionBrowserId);
   }, [adapter, sessionBrowserId, visible]);
+
+  useEffect(() => {
+    if (!visible || !sessionBrowserId) return;
+    return events.on(tabNavigationShortcutChannel, (event) => {
+      if (event.source.kind !== 'browser' || event.source.browserId !== sessionBrowserId) return;
+      if (event.direction === 'next') {
+        tabManager.setNextTabActive();
+      } else {
+        tabManager.setPreviousTabActive();
+      }
+    });
+  }, [sessionBrowserId, tabManager, visible]);
 
   const webviewProps = useMemo(() => {
     if (!webviewMount) return null;
@@ -264,7 +279,7 @@ export const BrowserPane = observer(function BrowserPane({
       />
       <div className="emlight min-h-0 flex-1 bg-background">
         {showStartPage ? (
-          <BrowserStartPage devServerUrls={devServers.urls} onOpenUrl={navigateTo} />
+          <BrowserStartPage devServerUrls={previewServers.urls} onOpenUrl={navigateTo} />
         ) : webviewProps && isRegistered ? (
           <webview
             key={`${webviewMount?.browserId ?? 'browser'}:${webviewMount?.partition ?? 'partition'}:${webviewMount?.revision ?? 0}`}

@@ -1,4 +1,4 @@
-import type { GitBranchRef, GitObjectRef, GitRemote, MergeBaseRange } from '@emdash/shared/git';
+import type { GitBranchRef, GitObjectRef, GitRemote, MergeBaseRange } from '@emdash/core/git';
 import type { ProjectSettings } from '../project-settings/project-settings';
 import { DEFAULT_REMOTE_NAME, type ConfiguredRemotes, type GitRef } from './types';
 

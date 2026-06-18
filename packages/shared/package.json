@@ -1,7 +1,7 @@
 {
   "name": "@emdash/shared",
   "version": "1.0.0",
-  "description": "Transport-agnostic shared runtime primitives for Emdash",
+  "description": "Shared primitives for Emdash",
   "license": "Apache-2.0",
   "author": {
     "name": "Emdash Contributors",
@@ -13,37 +13,9 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    "./deps": {
-      "types": "./dist/deps.d.mts",
-      "default": "./dist/deps.mjs"
-    },
-    "./deps/runtime": {
-      "types": "./dist/deps-runtime.d.mts",
-      "default": "./dist/deps-runtime.mjs"
-    },
-    "./exec": {
-      "types": "./dist/exec.d.mts",
-      "default": "./dist/exec.mjs"
-    },
-    "./fs": {
-      "types": "./dist/fs.d.mts",
-      "default": "./dist/fs.mjs"
-    },
-    "./git": {
-      "types": "./dist/git.d.mts",
-      "default": "./dist/git.mjs"
-    },
-    "./lib": {
-      "types": "./dist/lib.d.mts",
-      "default": "./dist/lib.mjs"
-    },
-    "./agents/plugins": {
-      "types": "./dist/agents-plugins.d.mts",
-      "default": "./dist/agents-plugins.mjs"
-    },
-    "./agents/plugins/helpers": {
-      "types": "./dist/agents-plugins-helpers.d.mts",
-      "default": "./dist/agents-plugins-helpers.mjs"
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
     },
     "./package.json": "./package.json"
   },
@@ -56,15 +28,9 @@
     "format:check": "oxfmt --check",
     "typecheck": "tsgo --noEmit -p tsconfig.json"
   },
-  "dependencies": {
-    "@parcel/watcher": "^2.5.6",
-    "semver": "^7.8.4",
-    "smol-toml": "^1.6.0",
-    "zod": "^4.4.3"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "^20.19.42",
-    "@types/semver": "^7.7.1",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",
     "tsdown": "^0.22.2",
     "vitest": "^4.1.0"

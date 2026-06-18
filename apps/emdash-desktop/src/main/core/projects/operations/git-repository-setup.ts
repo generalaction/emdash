@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { CloneRepositoryError, GitHeadModel, IGitWorktree } from '@emdash/shared/git';
+import type { CloneRepositoryError, GitHeadModel, IGitWorktree } from '@emdash/core/git';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
