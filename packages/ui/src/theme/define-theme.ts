@@ -16,6 +16,9 @@ import { fillGaps } from './generate/fill-gaps.js';
 import { generateSyntaxTheme } from './generate/syntax.js';
 import type { ScaleTweaks } from './generate/ramp.js';
 import type { SyntaxThemeInput } from './generate/syntax.js';
+import {
+  SCALE_NAMES,
+} from './contract/roles.js';
 import type {
   HueScaleName,
   Polarity,
@@ -193,16 +196,6 @@ export function defineTheme(input: ThemeInput): ResolvedTheme {
 
   // 1. Resolve all scales
   const scales: Scales = {} as Scales;
-  const SCALE_NAMES: ScaleName[] = [
-    'neutral',
-    'accent',
-    'green',
-    'red',
-    'amber',
-    'blue',
-    'orange',
-    'purple',
-  ];
   for (const name of SCALE_NAMES) {
     const explicit = input.scales?.[name];
     scales[name] = resolveScale(name, input, explicit);

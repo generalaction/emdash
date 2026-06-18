@@ -26,6 +26,21 @@ export type ScaleName =
 /** Hue-named scales that carry no fixed semantic role. */
 export type HueScaleName = Exclude<ScaleName, 'neutral' | 'accent'>;
 
+/** Canonical ordered list of all palette scales. Shared between the generator and stories. */
+export const SCALE_NAMES = [
+  'neutral',
+  'accent',
+  'green',
+  'red',
+  'amber',
+  'blue',
+  'orange',
+  'purple',
+] as const satisfies readonly ScaleName[];
+
+/** Steps 1–12 for iteration. */
+export const STEPS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
+
 export type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
 
 export type SyntaxRole =
