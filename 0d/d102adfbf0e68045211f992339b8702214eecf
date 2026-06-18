@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_79f3901d03e1de::t_b4e0496a28b422 334,342,355
+  s_79f3901d03e1de::t_2ba7be63a8f121 287-311,327-328,330-333,337,340-341,354
+  s_79f3901d03e1de::t_8dfcd08b788717 13
+apps/emdash-desktop/src/renderer/features/browser/browser-load-error.ts
+  s_79f3901d03e1de::t_d1f9ce9addd005 145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "0dd102adfbf0e68045211f992339b8702214eecf",
+  "prompts": {},
+  "sessions": {
+    "s_79f3901d03e1de": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "ca9d8100-011d-4e6a-b482-b5312b35cd1e",
+        "model": "grok-4.3"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
