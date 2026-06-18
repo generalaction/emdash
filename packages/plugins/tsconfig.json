@@ -5,7 +5,12 @@
     "jsx": "react-jsx",
     "noEmit": true,
     "lib": ["ES2022", "DOM"],
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "@emdash/shared": ["../shared/src/index.ts"],
+      "@emdash/core/agents/plugins": ["../core/src/agents/plugins/index.ts"],
+      "@emdash/core/agents/plugins/helpers": ["../core/src/agents/plugins/helpers/index.ts"]
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist"]

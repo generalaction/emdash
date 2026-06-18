@@ -13,7 +13,19 @@
       "@shared/*": ["./src/shared/*"],
       "@root/*": ["./*"],
       "@/*": ["./src/*"],
-      "@tooling/*": ["./tooling/*"]
+      "@tooling/*": ["./tooling/*"],
+      "@emdash/shared": ["../../packages/shared/src/index.ts"],
+      "@emdash/core/deps": ["../../packages/core/src/host-dependencies/capability.ts"],
+      "@emdash/core/deps/runtime": ["../../packages/core/src/host-dependencies/runtime/index.ts"],
+      "@emdash/core/agents/plugins": ["../../packages/core/src/agents/plugins/index.ts"],
+      "@emdash/core/agents/plugins/helpers": [
+        "../../packages/core/src/agents/plugins/helpers/index.ts"
+      ],
+      "@emdash/core/exec": ["../../packages/core/src/exec/index.ts"],
+      "@emdash/core/fs": ["../../packages/core/src/fs/index.ts"],
+      "@emdash/core/git": ["../../packages/core/src/git/index.ts"],
+      "@emdash/core/lib": ["../../packages/core/src/lib/index.ts"],
+      "@emdash/plugins/agents": ["../../packages/plugins/src/agents/registry.ts"]
     }
   },
   "include": [
