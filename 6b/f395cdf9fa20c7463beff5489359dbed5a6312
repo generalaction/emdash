@@ -1,0 +1,77 @@
+packages/plugins/src/agents/impl/devin/hooks.ts
+  s_8e4a2ef038aa1b::t_227d5be107edd9 20-55,60-62,66,76-77,82
+  s_8e4a2ef038aa1b::t_c90241ee24ab09 1,3-4,7-9,14-19,57-59,63-65,67-75,78-81,83-84
+packages/core/src/agents/plugins/helpers/mcp.ts
+  s_8e4a2ef038aa1b::t_7799ec5add5429 86-109,121,148-151
+  s_8e4a2ef038aa1b::t_7ff774bd8bbd7d 387,390-391
+packages/plugins/src/agents/impl/gemini/index.ts
+  s_8e4a2ef038aa1b::t_3de4b7d202ad22 7,26-28,60-61,65
+packages/plugins/src/agents/impl/junie/index.ts
+  s_8e4a2ef038aa1b::t_6fd6acecf11742 61,74
+packages/plugins/src/agents/impl/cursor/index.ts
+  s_8e4a2ef038aa1b::t_cbe7b1b9036705 66
+packages/plugins/src/agents/impl/cline/index.ts
+  s_8e4a2ef038aa1b::t_d290c06856aecb 11,48
+packages/plugins/src/agents/impl/devin/index.ts
+  s_8e4a2ef038aa1b::t_3b6e71f1b9ce0b 49-50,78
+packages/plugins/src/agents/impl/continue/index.ts
+  s_8e4a2ef038aa1b::t_75935e5c6e7ffb 68,82
+packages/plugins/src/agents/impl/kilocode/index.ts
+  s_8e4a2ef038aa1b::t_1935bc29205b6f 52
+packages/plugins/src/agents/impl/charm/index.ts
+  s_8e4a2ef038aa1b::t_92b8a61641e118 41,51,53-57
+packages/plugins/src/agents/impl/kimi/index.ts
+  s_8e4a2ef038aa1b::t_db00d5ebb1de92 5
+  s_8e4a2ef038aa1b::t_894a834dd7be55 3,78-80,103
+packages/plugins/src/agents/impl/index.test.ts
+  s_8e4a2ef038aa1b::t_d0f2f3182386fc 145-213
+packages/plugins/src/agents/impl/claude/hooks.ts
+  s_8e4a2ef038aa1b::t_89169ee9b62874 1,16-29,36-45
+  s_8e4a2ef038aa1b::t_c4c46b3b8bbbeb 11-12
+packages/plugins/src/agents/impl/gemini/hooks.ts
+  s_8e4a2ef038aa1b::t_51f6510c9ab483 1-10,13-16
+  s_8e4a2ef038aa1b::t_2d98afd263122f 11-12
+packages/plugins/src/agents/impl/jules/index.ts
+  s_8e4a2ef038aa1b::t_f07377c673b5db 49
+packages/plugins/src/agents/impl/droid/hooks.ts
+  s_8e4a2ef038aa1b::t_bf855723bb3272 1,3-4,6-8,12-39,42-58,60-63,65-66,68-70,73-85
+  s_8e4a2ef038aa1b::t_2688f6b7bb6c8f 71-72
+  s_8e4a2ef038aa1b::t_3baef44cef8430 11
+  s_8e4a2ef038aa1b::t_d3dd5898a932f9 59,64,67
+packages/plugins/src/agents/impl/copilot/hooks.ts
+  s_8e4a2ef038aa1b::t_5fdc2fb9c337ea 19,52-56,72
+  s_8e4a2ef038aa1b::t_e35aff3cfe55bc 25-30
+packages/plugins/src/agents/impl/codebuff/index.ts
+  s_8e4a2ef038aa1b::t_3d7b7de4d8e811 38,49-52
+packages/plugins/src/agents/impl/autohand/index.ts
+  s_8e4a2ef038aa1b::t_1a887d08ab0edd 11
+packages/plugins/src/agents/impl/rovo/index.ts
+  s_8e4a2ef038aa1b::t_6f6649cd54dd08 26,59,69,71-74
+packages/plugins/src/agents/impl/droid/index.ts
+  s_8e4a2ef038aa1b::t_04472e94e75ecf 45-46,49-50
+packages/core/src/agents/plugins/helpers/mcp.test.ts
+  s_8e4a2ef038aa1b::t_80617d771c910b 4,198-210,213-214
+  s_8e4a2ef038aa1b::t_8574ddeb06e949 101,108,211-212,215
+packages/plugins/src/agents/impl/grok/index.ts
+  s_8e4a2ef038aa1b::t_7d799db9a4603f 42-47,52-53,56-57
+packages/plugins/src/agents/impl/claude/index.ts
+  s_8e4a2ef038aa1b::t_c74198c6c06edb 52-61
+packages/plugins/src/agents/impl/freebuff/index.ts
+  s_8e4a2ef038aa1b::t_b3c66d7238bc7d 34,45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "6bf395cdf9fa20c7463beff5489359dbed5a6312",
+  "prompts": {},
+  "sessions": {
+    "s_8e4a2ef038aa1b": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed935-6527-7cfb-b5ca-7234df7f9ac7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
