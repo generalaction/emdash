@@ -1,11 +1,11 @@
+import type { GitBranchRef } from '@emdash/core/git';
 import { describe, expect, it } from 'vitest';
-import type { Branch } from '@shared/core/git/git';
 import { filterBranchesForPicker, prioritizeExactBranchMatches } from './branch-selector-utils';
 
 const origin = { name: 'origin', url: 'git@github.com:example/repo.git' };
 const upstream = { name: 'upstream', url: 'git@github.com:example/upstream.git' };
 
-const branches: Branch[] = [
+const branches: GitBranchRef[] = [
   { type: 'local', branch: 'main' },
   { type: 'local', branch: 'feature/local' },
   { type: 'remote', branch: 'main', remote: origin },
@@ -41,7 +41,7 @@ describe('filterBranchesForPicker', () => {
 
 describe('prioritizeExactBranchMatches', () => {
   it('moves exact branch-name matches before partial matches', () => {
-    const matchingBranches: Branch[] = [
+    const matchingBranches: GitBranchRef[] = [
       { type: 'local', branch: 'feature/main' },
       { type: 'local', branch: 'main' },
       { type: 'local', branch: 'maintenance/main' },
@@ -55,7 +55,7 @@ describe('prioritizeExactBranchMatches', () => {
   });
 
   it('treats remote branch names as exact matches even when labels include the remote', () => {
-    const matchingBranches: Branch[] = [
+    const matchingBranches: GitBranchRef[] = [
       { type: 'remote', branch: 'feature/main', remote: origin },
       { type: 'remote', branch: 'main', remote: origin },
     ];
@@ -67,7 +67,7 @@ describe('prioritizeExactBranchMatches', () => {
   });
 
   it('moves exact remote-label matches before partial matches', () => {
-    const matchingBranches: Branch[] = [
+    const matchingBranches: GitBranchRef[] = [
       { type: 'remote', branch: 'feature/origin-main', remote: origin },
       { type: 'remote', branch: 'main', remote: origin },
     ];

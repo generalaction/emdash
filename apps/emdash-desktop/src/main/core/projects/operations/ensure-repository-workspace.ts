@@ -25,7 +25,9 @@ export function ensureRepositoryWorkspace(project: LocalProject | SshProject): s
     .limit(1)
     .all();
 
-  if (row?.repositoryWorkspaceId) return row.repositoryWorkspaceId;
+  if (row?.repositoryWorkspaceId) {
+    return row.repositoryWorkspaceId;
+  }
 
   const workspaceId = randomUUID();
   const location = project.type === 'ssh' ? 'remote' : 'local';

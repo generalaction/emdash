@@ -1,14 +1,14 @@
+import type { ILifecycle } from '@emdash/shared';
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
 import { DiffTabLifecycleStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
-import { DevServerStore } from '@renderer/features/tasks/stores/dev-server-store';
+import { PreviewServerStore } from '@renderer/features/tasks/stores/preview-server-store';
 import { TabGroupManagerStore } from '@renderer/features/tasks/tabs/tab-group-manager-store';
 import type { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { type SidebarTab } from '@renderer/features/tasks/types';
 import { appState } from '@renderer/lib/stores/app-state';
-import type { ILifecycle } from '@renderer/lib/stores/lifecycle';
 import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 import { log } from '@renderer/utils/logger';
@@ -56,7 +56,7 @@ export class WorkspaceViewModel implements ILifecycle {
    */
   diffView: DiffViewStore | null = null;
   prStore: PrStore | null = null;
-  devServers: DevServerStore | null = null;
+  previewServers: PreviewServerStore | null = null;
 
   private _diffTabLifecycle: DiffTabLifecycleStore | null = null;
 
@@ -291,23 +291,28 @@ export class WorkspaceViewModel implements ILifecycle {
 
     const taskData = this._taskStore.data as Task;
     const workspaceId = this._taskStore.workspaceId!;
-    this.devServers = new DevServerStore(this.taskId, workspaceId);
+    this.previewServers = new PreviewServerStore({
+      projectId: taskData.projectId,
+      workspaceId,
+      connectionId: workspace.sshConnectionId,
+    });
+    this.previewServers.start();
     this.prStore = new PrStore(
       taskData.projectId,
       workspaceId,
-      workspace.repository,
+      workspace.gitRepository,
       this._taskStore
     );
 
     // Create DiffViewStore with live git/pr references from the workspace.
-    this.diffView = new DiffViewStore(workspace.git, this.prStore);
+    this.diffView = new DiffViewStore(workspace.gitWorktree, this.prStore);
     if (this._savedDiffViewSnapshot) {
       this.diffView.restoreSnapshot(this._savedDiffViewSnapshot);
     }
 
     this._diffTabLifecycle = new DiffTabLifecycleStore(
       this.tabGroupManager.focusedGroup,
-      workspace.git,
+      workspace.gitWorktree,
       this.prStore,
       this.diffView
     );
@@ -328,22 +333,33 @@ export class WorkspaceViewModel implements ILifecycle {
     );
     this._sessionDisposers.push(conversationHydrationDisposer);
 
-    // Auto-create a terminal when the drawer is open and no terminals exist.
-    const terminalsDisposer = reaction(
+    const closeEmptyTerminalDrawerDisposer = reaction(
       () => {
         const terminals = terminalRegistry.get(this.taskId);
-        return (
-          this.isTerminalDrawerOpen &&
-          !this._isCreatingTerminal &&
-          (terminals?.isLoaded ?? false) &&
-          (terminals?.terminals.size ?? 0) === 0
-        );
+        return {
+          isDrawerOpen: this.isTerminalDrawerOpen,
+          isCreatingTerminal: this._isCreatingTerminal,
+          isLoaded: terminals?.isLoaded ?? false,
+          terminalCount: terminals?.terminals.size ?? 0,
+        };
       },
-      (shouldCreate) => {
-        if (shouldCreate) void this._createDefaultTerminal();
-      }
+      (state, previous) => {
+        if (
+          state.isDrawerOpen &&
+          !state.isCreatingTerminal &&
+          state.isLoaded &&
+          state.terminalCount === 0 &&
+          (previous === undefined || previous.terminalCount > 0 || !previous.isLoaded)
+        ) {
+          runInAction(() => {
+            this.setTerminalDrawerOpen(false);
+            this.terminalDrawerActiveItem = undefined;
+          });
+        }
+      },
+      { fireImmediately: true }
     );
-    this._sessionDisposers.push(terminalsDisposer);
+    this._sessionDisposers.push(closeEmptyTerminalDrawerDisposer);
   }
 
   /**
@@ -362,8 +378,8 @@ export class WorkspaceViewModel implements ILifecycle {
     this._diffTabLifecycle = null;
     this.prStore?.dispose();
     this.prStore = null;
-    this.devServers?.dispose();
-    this.devServers = null;
+    this.previewServers?.dispose();
+    this.previewServers = null;
 
     this._conversationHydration.dispose();
 
@@ -416,6 +432,13 @@ export class WorkspaceViewModel implements ILifecycle {
 
   setSidebarCollapsed(collapsed: boolean): void {
     this.isSidebarCollapsed = collapsed;
+  }
+
+  // Single source of truth for whether the changes panel is actually visible. TaskSidebar
+  // hides it via ShowHide (display: none) based on this, and usePanelLayout must defer
+  // imperative panel resizes to exactly the same condition (ENG-1559).
+  get isChangesPanelVisible(): boolean {
+    return !this.isSidebarCollapsed && this.sidebarTab === 'changes';
   }
 
   setFocusedRegion(region: 'main' | 'bottom'): void {

@@ -106,7 +106,7 @@ describe('GitHubAccountBackfillService', () => {
   });
 
   it('does not replace an existing default account', async () => {
-    const existing = await registry.upsertAccount({
+    const { account: existing } = await registry.upsertAccount({
       accessToken: 'gho_octocat',
       credentialSource: 'emdash_oauth',
       providerAccount: {

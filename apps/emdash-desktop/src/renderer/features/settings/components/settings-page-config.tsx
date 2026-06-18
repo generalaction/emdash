@@ -6,6 +6,7 @@ export type SettingsPageTab =
   | 'clis-models'
   | 'integrations'
   | 'connections'
+  | 'browser'
   | 'repository'
   | 'interface'
   | 'docs';
@@ -55,6 +56,7 @@ export const settingsTabs: SettingsNavTab[] = [
   { id: 'connections', label: 'Connections' },
   { id: 'repository', label: 'Repository' },
   { id: 'interface', label: 'Interface' },
+  { id: 'browser', label: 'Browser' },
   { id: 'docs', label: 'Docs', isExternal: true },
 ];
 
@@ -144,6 +146,16 @@ export const settingsSearchContent: Record<SettingsContentTab, TabSearchConfig> 
       {
         id: 'ssh-connections',
         searchText: 'ssh connections remote hosts keys servers reusable projects',
+      },
+    ],
+  },
+  browser: {
+    title: 'Browser',
+    description: 'Manage browser profiles and their stored logins.',
+    sections: [
+      {
+        id: 'browser-profiles',
+        searchText: 'browser profiles logins authentication cookies sessions stored login',
       },
     ],
   },

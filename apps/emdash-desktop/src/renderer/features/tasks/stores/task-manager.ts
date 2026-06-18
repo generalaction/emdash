@@ -1,15 +1,17 @@
 import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
-import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
+import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
+import {
+  getProjectManagerStore,
+  getProjectSshConnectionId,
+} from '@renderer/features/projects/stores/project-selectors';
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
-import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
-import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors';
+import { getTaskGitWorktreeStore } from '@renderer/features/tasks/stores/task-selectors';
 import { events, rpc } from '@renderer/lib/ipc';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Conversation } from '@shared/core/conversations/conversations';
-import type { FetchError } from '@shared/core/git/git';
-import { gitWorkspaceChangedChannel } from '@shared/core/git/gitEvents';
+import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
 import {
   lifecycleScriptStatusChannel,
@@ -28,7 +30,7 @@ import type {
   TaskLifecycleStatus,
 } from '@shared/core/tasks/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
-import { formatPushErrorDetail } from '../utils';
+import { formatFetchErrorDetail, formatPushErrorDetail } from '../utils';
 import { conversationRegistry } from './conversation-registry';
 import {
   createUnprovisionedTask,
@@ -42,22 +44,7 @@ import {
 import { terminalRegistry } from './terminal-registry';
 import { workspaceRegistry } from './workspace-registry';
 
-function formatFetchErrorDetail(error: FetchError): string {
-  switch (error.type) {
-    case 'no_remote':
-      return 'No remote is configured for this repository.';
-    case 'auth_failed':
-      return 'Authentication failed. Authenticate Git on this machine, then try again.';
-    case 'network_error':
-      return 'Cannot reach the remote. Check your network connection, then try again.';
-    case 'remote_not_found':
-      return 'The remote repository was not found, or your local Git credentials do not have access.';
-    case 'error':
-      return 'An unexpected error occurred while fetching from the remote.';
-  }
-}
-
-function formatCreateTaskError(error: CreateTaskError): string {
+function formatCreateTaskError(error: CreateTaskError, opts?: { isSshProject?: boolean }): string {
   switch (error.type) {
     case 'project-not-found':
       return 'Project not found.';
@@ -68,7 +55,7 @@ function formatCreateTaskError(error: CreateTaskError): string {
         case 'already_exists':
           return `Branch "${error.error.name}" already exists. Try a different task name.`;
         case 'fetch_failed':
-          return `Could not update "${error.error.remote}/${error.error.branch}" before creating the task: ${formatFetchErrorDetail(error.error.error)}`;
+          return `Could not update "${error.error.remote}/${error.error.branch}" before creating the task: ${formatFetchErrorDetail(error.error.error, opts)}`;
         case 'invalid_base':
           return `Source branch "${error.error.from}" is not a valid base. Check that it exists locally or on the selected remote.`;
         case 'invalid_name':
@@ -98,6 +85,8 @@ function formatProvisionWorkspaceError(error: ProvisionWorkspaceError): string {
   switch (error.type) {
     case 'no-intent':
       return 'Workspace has no intent and no resolved path — cannot provision.';
+    case 'missing-workspace':
+      return 'This task does not have a workspace record and cannot be opened.';
     case 'setup-failed':
       return `Setup step '${error.stepKind}' failed (${error.stepErrorType})${error.message ? `: ${error.message}` : ''}.`;
   }
@@ -114,9 +103,8 @@ function formatCreateTaskWarning(warning: CreateTaskWarning): string {
 
 export class TaskManagerStore {
   private readonly projectId: string;
-  private readonly _repository: RepositoryStore;
+  private readonly _repository: GitRepositoryStore;
   private readonly _settingsStore: ProjectSettingsStore;
-  private readonly _baseRef: string;
   private _loadPromise: Promise<void> | null = null;
   private _teardownPromises = new Map<string, Promise<void>>();
   private _provisionPromises = new Map<string, Promise<void>>();
@@ -124,7 +112,7 @@ export class TaskManagerStore {
   private _unsubTaskCreated: (() => void) | null = null;
   private _unsubPrUpdated: (() => void) | null = null;
   private _unsubPrSyncProgress: (() => void) | null = null;
-  private _unsubGitWorkspaceChanged: (() => void) | null = null;
+  private _unsubGitWorktreeUpdate: (() => void) | null = null;
   private _unsubProvisionProgress: (() => void) | null = null;
   private _unsubStatusUpdated: (() => void) | null = null;
   private _unsubLifecycleScriptStatus: (() => void) | null = null;
@@ -135,14 +123,12 @@ export class TaskManagerStore {
 
   constructor(
     projectId: string,
-    repository: RepositoryStore,
-    settingsStore: ProjectSettingsStore,
-    baseRef: string
+    repository: GitRepositoryStore,
+    settingsStore: ProjectSettingsStore
   ) {
     this.projectId = projectId;
     this._repository = repository;
     this._settingsStore = settingsStore;
-    this._baseRef = baseRef;
     makeObservable(this, { tasks: observable });
 
     this._unsubTaskCreated = events.on(taskCreatedChannel, ({ task }) => {
@@ -218,7 +204,7 @@ export class TaskManagerStore {
         for (const [, store] of this.tasks) {
           if (!isRegistered(store)) continue;
           const task = store.data as Task;
-          const branchName = getTaskGitStore(task.projectId, task.id)?.branchName;
+          const branchName = getTaskGitWorktreeStore(task.projectId, task.id)?.branchName;
           if (branchName !== pr.headRefName) continue;
           runInAction(() => {
             const idx = task.prs.findIndex((p) => p.url === pr.url);
@@ -243,8 +229,8 @@ export class TaskManagerStore {
       }
     });
 
-    this._unsubGitWorkspaceChanged = events.on(gitWorkspaceChangedChannel, (payload) => {
-      if (payload.projectId !== this.projectId || payload.kind !== 'head') return;
+    this._unsubGitWorktreeUpdate = events.on(gitWorktreeUpdateChannel, (payload) => {
+      if (payload.projectId !== this.projectId || payload.update.kind !== 'head') return;
       for (const [, store] of this.tasks) {
         if (isRegistered(store) && store.workspaceId === payload.workspaceId) {
           void this._reloadPrsForTask(store);
@@ -274,6 +260,11 @@ export class TaskManagerStore {
         (store.data as Task).prs = prs;
       }
     });
+  }
+
+  private _releaseTaskRegistries(taskId: string): void {
+    conversationRegistry.release(taskId);
+    terminalRegistry.release(taskId);
   }
 
   loadTasks(): Promise<void> {
@@ -380,7 +371,9 @@ export class TaskManagerStore {
       });
 
     if (!result.success) {
-      const message = formatCreateTaskError(result.error);
+      const message = formatCreateTaskError(result.error, {
+        isSshProject: getProjectSshConnectionId(this.projectId) !== undefined,
+      });
       clearOptimisticInitialConversationWorking();
       runInAction(() => {
         const current = this.tasks.get(params.id);
@@ -471,6 +464,9 @@ export class TaskManagerStore {
     runInAction(() => {
       const current = this.tasks.get(taskId);
       if (current && isUnprovisioned(current)) {
+        conversationRegistry.acquire(taskId, this.projectId);
+        terminalRegistry.acquire(taskId, this.projectId);
+        current.ensureRegisteredStores();
         if (savedSnapshot && current.viewModel) {
           current.viewModel.restoreSnapshot(savedSnapshot);
         }
@@ -478,8 +474,7 @@ export class TaskManagerStore {
           { ...current.data, lastInteractedAt: new Date().toISOString() },
           result.data.path,
           result.data.workspaceId,
-          this._settingsStore,
-          this._baseRef,
+          this._repository,
           result.data.sshConnectionId ?? undefined
         );
         current.activate();
@@ -499,6 +494,9 @@ export class TaskManagerStore {
     runInAction(() => {
       const current = this.tasks.get(taskId);
       if (current && isUnprovisioned(current)) {
+        conversationRegistry.acquire(taskId, this.projectId);
+        terminalRegistry.acquire(taskId, this.projectId);
+        current.ensureRegisteredStores();
         if (savedSnapshot && current.viewModel) {
           current.viewModel.restoreSnapshot(savedSnapshot);
         }
@@ -506,8 +504,7 @@ export class TaskManagerStore {
           { ...current.data, lastInteractedAt: new Date().toISOString() },
           path,
           workspaceId,
-          this._settingsStore,
-          this._baseRef,
+          this._repository,
           sshConnectionId
         );
         current.activate();
@@ -578,7 +575,6 @@ export class TaskManagerStore {
         }
       });
       await rpc.tasks.archiveTask(this.projectId, taskId);
-      void this.teardownTask(taskId).catch(() => {});
     } catch (e) {
       runInAction(() => {
         const task = this.tasks.get(taskId);
@@ -588,6 +584,14 @@ export class TaskManagerStore {
       });
       throw e;
     }
+
+    this._releaseTaskRegistries(taskId);
+    runInAction(() => {
+      const task = this.tasks.get(taskId);
+      if (task && isRegistered(task)) {
+        task.transitionToDryUnprovisioned({ ...task.data }, 'idle');
+      }
+    });
   }
 
   async restoreTask(taskId: string): Promise<void> {
@@ -634,8 +638,7 @@ export class TaskManagerStore {
     try {
       // Release conversation and terminal registries before disposing each task.
       removed.forEach((t, id) => {
-        conversationRegistry.release(id);
-        terminalRegistry.release(id);
+        this._releaseTaskRegistries(id);
         t.dispose();
       });
       await rpc.tasks.deleteTasks(this.projectId, taskIds, opts);
@@ -654,8 +657,8 @@ export class TaskManagerStore {
     this._unsubPrUpdated = null;
     this._unsubPrSyncProgress?.();
     this._unsubPrSyncProgress = null;
-    this._unsubGitWorkspaceChanged?.();
-    this._unsubGitWorkspaceChanged = null;
+    this._unsubGitWorktreeUpdate?.();
+    this._unsubGitWorktreeUpdate = null;
     this._unsubProvisionProgress?.();
     this._unsubProvisionProgress = null;
     this._unsubStatusUpdated?.();

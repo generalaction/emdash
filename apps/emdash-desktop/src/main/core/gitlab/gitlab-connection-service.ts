@@ -1,5 +1,5 @@
 import { GitbeakerRequestError, Gitlab } from '@gitbeaker/rest';
-import { resolvePreferredRemote } from '@main/core/issues/git-remote-resolver';
+import { resolveRepositoryRemote } from '@main/core/issues/git-remote-resolver';
 import {
   assertRemoteHostMatchesInstance,
   hasKnownNetworkErrorCode,
@@ -176,13 +176,12 @@ export class GitLabConnectionService {
   }
 
   async resolveProject(
-    projectPath: string,
-    remoteName?: string
+    repositoryUrl: string | undefined
   ): Promise<{ client: Gitlab; projectId: number; projectName: string | null }> {
     const { instanceUrl, client } = await this.requireAuth();
 
     try {
-      const remote = await resolvePreferredRemote(projectPath, remoteName);
+      const remote = resolveRepositoryRemote(repositoryUrl);
 
       assertRemoteHostMatchesInstance(remote.host, instanceUrl, 'GitLab');
 

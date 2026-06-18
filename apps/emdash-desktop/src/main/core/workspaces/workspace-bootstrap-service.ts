@@ -1,20 +1,23 @@
-import path from 'node:path';
+import type { GitBranchRef } from '@emdash/core/git';
+import { err, ok, type Result } from '@emdash/shared';
 import { eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectProvider, TaskProvider } from '@main/core/projects/project-provider';
+import { runtimeManager } from '@main/core/runtime/runtime-manager';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
+import {
+  formatProvisionTaskError,
+  mapWorktreeErrorToProvisionError,
+} from '@main/core/tasks/provision-task-error';
 import { buildTaskFromWorkspace, emitTaskProvisionProgress } from '@main/core/tasks/task-builder';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db as appDb, type AppDb } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
-import { log } from '@main/lib/logger';
-import type { Branch } from '@shared/core/git/git';
 import type { Task, ProvisionWorkspaceError } from '@shared/core/tasks/tasks';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import type { WorkspaceProviderData } from '@shared/core/workspaces/workspace-provider-data';
 import { compileSetupSpec } from '@shared/core/workspaces/workspace-setup-spec';
 import type { WorkspaceType } from '@shared/core/workspaces/workspaces';
-import { err, ok, type Result } from '@shared/lib/result';
 import { deriveBranchName, resolveWorkspaceIntent } from '../tasks/resolve-workspace-intent';
 import { provisionBYOITask } from './byoi/provision-byoi-task';
 import { LocalWorkspaceSetupExecutor } from './local-workspace-setup-executor';
@@ -41,8 +44,10 @@ export class WorkspaceBootstrapService {
    * Ensures the workspace for a task is fully set up on disk, acquires the
    * workspace (running lifecycle scripts), and builds task providers.
    *
-   * - **Fast path (idempotent)**: if `workspaceRow.path` is set and the directory
-   *   exists on disk, skips git setup and goes straight to workspace acquisition.
+   * - **Fast path (idempotent)**: if a non-worktree `workspaceRow.path` is set and
+   *   the directory exists on disk, skips git setup and goes straight to workspace
+   *   acquisition. Persisted worktree paths are resolved through `WorktreeService`
+   *   so stale partial directories are repaired before acquisition.
    * - **BYOI workspaces**: delegates to `provisionBYOITask` which runs the
    *   provision script, connects SSH, and acquires the workspace.
    * - **Local/SSH workspaces**: compiles and executes the `WorkspaceSetupSpec`,
@@ -74,8 +79,13 @@ export class WorkspaceBootstrapService {
     // Derive branch info from workspace config for passing to task providers.
     const wsConfig = workspaceRow.config;
     const workspaceBranchName = getProvisionedWorkspaceBranch(workspaceRow) ?? undefined;
-    const workspaceSourceBranch: Branch | undefined =
+    const isWorktreeWorkspace = wsKind === 'worktree' || (!wsKind && !!workspaceBranchName);
+    const workspaceSourceBranch: GitBranchRef | undefined =
       wsConfig?.git.kind === 'create-branch' ? wsConfig.git.fromBranch : undefined;
+    const connectionId =
+      project.defaultWorkspaceType.kind === 'ssh'
+        ? project.defaultWorkspaceType.connectionId
+        : undefined;
 
     // project-root fast-path: use the project repo path directly.
     // Path is set by ensureRepositoryWorkspace at mount time.
@@ -91,7 +101,51 @@ export class WorkspaceBootstrapService {
       );
     }
 
-    // Fast path: path already persisted and still exists on disk.
+    // Persisted worktree path: resolve through WorktreeService instead of trusting
+    // path existence. Archive/delete can leave a partial directory behind; the
+    // worktree service knows how to remove stale targets and recreate the checkout.
+    if (workspaceRow.path && workspaceBranchName && isWorktreeWorkspace && !isByoi) {
+      const serveResult = await project.worktreeService.serveBranchWorktree(
+        workspaceBranchName,
+        workspaceSourceBranch
+      );
+      if (!serveResult.success) {
+        const provisionError = mapWorktreeErrorToProvisionError(
+          workspaceBranchName,
+          serveResult.error
+        );
+        return err({
+          type: 'setup-failed',
+          stepKind: 'worktree',
+          stepErrorType: provisionError.type,
+          message: formatProvisionTaskError(provisionError),
+        });
+      }
+      const resolvedPath = serveResult.data;
+
+      await this.persistPath(
+        workspaceRow.id,
+        resolvedPath,
+        workspaceRow.type,
+        connectionId,
+        workspaceBranchName
+      );
+
+      if (connectionId) {
+        sshConnectionManager.reportChannelRecovered(connectionId);
+      }
+
+      return this._acquireAndBuild(
+        workspaceRow.id,
+        task,
+        project,
+        resolvedPath,
+        workspaceBranchName,
+        workspaceSourceBranch
+      );
+    }
+
+    // Fast path: non-worktree path already persisted and still exists on disk.
     if (workspaceRow.path && !isByoi) {
       const exists = await project.worktreeHost.existsAbsolute(workspaceRow.path);
       if (exists) {
@@ -116,16 +170,11 @@ export class WorkspaceBootstrapService {
       return err({ type: 'no-intent' });
     }
 
-    const connectionId =
-      project.defaultWorkspaceType.kind === 'ssh'
-        ? project.defaultWorkspaceType.connectionId
-        : undefined;
-
-    const { baseRemote, pushRemote } = await project.repository.getConfiguredRemotes();
+    const { baseRemote, pushRemote } = await project.gitRepository.getConfiguredRemotes();
     const spec = compileSetupSpec(intent.git, intent.workspace, { baseRemote, pushRemote });
 
     const intentBranchName = deriveBranchName(intent.git) ?? undefined;
-    const intentSourceBranch: Branch | undefined =
+    const intentSourceBranch: GitBranchRef | undefined =
       intent.git.kind === 'create-branch' ? intent.git.fromBranch : undefined;
 
     if (spec.length === 0) {
@@ -158,6 +207,7 @@ export class WorkspaceBootstrapService {
       worktreePoolPath,
       host: project.worktreeHost,
       projectSettings: project.settings,
+      worktreeService: project.worktreeService,
     };
 
     const executor = new LocalWorkspaceSetupExecutor(stepCtx);
@@ -214,14 +264,14 @@ export class WorkspaceBootstrapService {
     taskId: string
   ): Promise<Result<WorkspaceBootstrapResult, ProvisionWorkspaceError>> {
     const [row] = await this.db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
-    if (!row?.workspaceId) throw new Error(`Task ${taskId} has no workspaceId`);
+    if (!row?.workspaceId) return err({ type: 'missing-workspace' });
 
     const [wsRow] = await this.db
       .select()
       .from(workspaces)
       .where(eq(workspaces.id, row.workspaceId))
       .limit(1);
-    if (!wsRow) throw new Error(`Workspace ${row.workspaceId} not found for task ${taskId}`);
+    if (!wsRow) return err({ type: 'missing-workspace' });
 
     const project = projectManager.getProject(row.projectId);
     if (!project) throw new Error(`Project ${row.projectId} not found`);
@@ -272,7 +322,7 @@ export class WorkspaceBootstrapService {
     project: ProjectProvider,
     workDir: string,
     workspaceBranchName?: string,
-    workspaceSourceBranch?: Branch
+    workspaceSourceBranch?: GitBranchRef
   ): Promise<Result<WorkspaceBootstrapResult, ProvisionWorkspaceError>> {
     const type = project.defaultWorkspaceType;
 
@@ -293,10 +343,14 @@ export class WorkspaceBootstrapService {
           workDir,
           projectId: project.projectId,
           projectPath: project.repoPath,
+          workspaceRuntime: {
+            machine: project.defaultWorkspaceMachine,
+            manager: runtimeManager,
+          },
           settings: project.settings,
           logPrefix: 'WorkspaceBootstrapService',
-          repository: project.repository,
-          fetchService: project.gitFetchService,
+          gitRepository: project.gitRepository,
+          gitRepositoryFetchService: project.gitRepositoryFetchService,
         })
       );
     } catch (e) {
@@ -306,20 +360,6 @@ export class WorkspaceBootstrapService {
         stepErrorType: 'error',
         message: String(e),
       });
-    }
-
-    // Compute worktreeGitDir for local workspaces (used by git watcher registry).
-    let worktreeGitDir: string | undefined;
-    if (type.kind === 'local') {
-      try {
-        const mainDotGitAbs = path.resolve(project.repoPath, '.git');
-        worktreeGitDir = await workspace.git.getWorktreeGitDir(mainDotGitAbs);
-      } catch (e) {
-        log.warn('WorkspaceBootstrapService: failed to resolve worktreeGitDir', {
-          workspaceId,
-          error: String(e),
-        });
-      }
     }
 
     emitTaskProvisionProgress({
@@ -346,7 +386,7 @@ export class WorkspaceBootstrapService {
         path: workDir,
         workspaceId,
         sshConnectionId: type.kind === 'ssh' ? type.connectionId : undefined,
-        worktreeGitDir,
+        worktreeGitDir: undefined,
         taskProvider: buildResult.taskProvider,
       });
     } catch (e) {

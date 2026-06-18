@@ -1,5 +1,7 @@
+import type { GitChange } from '@emdash/core/git';
 import { Plus, Undo2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { toast } from 'sonner';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -9,7 +11,9 @@ import {
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { commitRef, type GitChange, HEAD_REF } from '@shared/core/git/git';
+import { HEAD_REF } from '@shared/core/git/types';
+import { commitRef } from '@shared/core/git/utils';
+import { formatErrorType } from '../../utils';
 import { ActionCard } from './components/action-card';
 import { ChangesListOrTree } from './components/changes-list-or-tree';
 import { ChangesViewModeToggle } from './components/changes-view-mode-toggle';
@@ -23,7 +27,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
   const workspaceId = useWorkspaceId();
   const taskView = useWorkspaceViewModel();
   const workspace = useWorkspace();
-  const git = workspace.git;
+  const git = workspace.gitWorktree;
   const diffView = taskView.diffView;
   const changesView = diffView?.changesView;
 
@@ -78,8 +82,12 @@ export const UnstagedSection = observer(function UnstagedSection() {
         'Are you sure you want to discard the changes to the selected files? This can not be undone.',
       onSuccess: () => {
         void (async () => {
-          await git.discardFiles(paths);
-          changesView.clearUnstagedSelection();
+          const result = await git.discardFiles(paths);
+          if (!result.success) {
+            toast.error(`Failed to discard changes: ${formatErrorType(result.error)} `);
+            return;
+          }
+          changesView.removeUnstagedSelection(paths);
         })();
       },
     });
@@ -90,18 +98,32 @@ export const UnstagedSection = observer(function UnstagedSection() {
       title: 'Discard All Changes',
       variant: 'destructive',
       description: 'Are you sure you want to discard all changes? This can not be undone.',
-      onSuccess: () => void git.discardAllFiles(),
+      onSuccess: () =>
+        void git.discardAllFiles().then((result) => {
+          if (!result.success) {
+            toast.error(`Failed to discard changes: ${formatErrorType(result.error)} `);
+          }
+        }),
     });
   };
 
   const handleStageSelection = () => {
     const paths = [...changesView.unstagedSelection];
-    void git.stageFiles(paths);
-    changesView.clearUnstagedSelection();
+    void git.stageFiles(paths).then((result) => {
+      if (!result.success) {
+        toast.error(`Failed to stage changes: ${formatErrorType(result.error)} `);
+        return;
+      }
+      changesView.removeUnstagedSelection(paths);
+    });
   };
 
   const handleStageAll = () => {
-    void git.stageAllFiles();
+    void git.stageAllFiles().then((result) => {
+      if (!result.success) {
+        toast.error(`Failed to stage changes: ${formatErrorType(result.error)} `);
+      }
+    });
   };
 
   return (

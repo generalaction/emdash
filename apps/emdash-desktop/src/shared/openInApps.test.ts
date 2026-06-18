@@ -45,4 +45,26 @@ describe('OPEN_IN_APPS', () => {
       'start "" alacritty --working-directory "{{path_raw}}"'
     );
   });
+
+  it('registers Athas as an open-in editor option', () => {
+    expect(isValidOpenInAppId('athas')).toBe(true);
+    expect(OPEN_IN_APPS.athas).toMatchObject({
+      id: 'athas',
+      iconPath: 'athas.svg',
+      label: 'Athas',
+      supportsRemote: true,
+    });
+  });
+
+  it('configures Athas launch commands for supported desktop platforms', () => {
+    expect(OPEN_IN_APPS.athas.platforms.darwin?.bundleIds).toContain('com.code.athas');
+    expect(OPEN_IN_APPS.athas.platforms.darwin?.openCommands).toContain(
+      'command -v athas >/dev/null 2>&1 && athas {{path}}'
+    );
+    expect(OPEN_IN_APPS.athas.platforms.darwin?.openCommands).toContain(
+      'open -n -b com.code.athas --args {{path}}'
+    );
+    expect(OPEN_IN_APPS.athas.platforms.win32?.openCommands).toEqual(['athas "{{path_raw}}"']);
+    expect(OPEN_IN_APPS.athas.platforms.linux?.openCommands).toEqual(['athas {{path}}']);
+  });
 });

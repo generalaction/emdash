@@ -3,7 +3,7 @@ import { TaskSidebarTrailingSlot } from '@renderer/features/sidebar/task-sidebar
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
 import {
-  getTaskGitStore,
+  getTaskGitWorktreeStore,
   getTaskManagerStore,
   getTaskStore,
   getWorkspaceForTask,
@@ -46,11 +46,6 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
   const task = getTaskStore(projectId, taskId)!;
   const taskManager = getTaskManagerStore(projectId);
 
-  const isBootstrapping =
-    task.state === 'unregistered' ||
-    (task.state === 'unprovisioned' &&
-      (task.phase === 'provision' || task.phase === 'provision-error'));
-
   const taskName = task.data.name;
 
   const handleProvision = () => {
@@ -83,7 +78,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
   const canPin = task.state !== 'unregistered';
 
   const workspaceStore = getWorkspaceForTask(projectId, taskId);
-  const git = getTaskGitStore(projectId, taskId);
+  const git = getTaskGitWorktreeStore(projectId, taskId);
   const showLineChanges = interfaceSettings?.showLeftSidebarLineChanges ?? true;
   const showPrStatus = interfaceSettings?.showLeftSidebarPrStatus ?? true;
   const showTimestamps = interfaceSettings?.showLeftSidebarTimestamps ?? true;
@@ -121,7 +116,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           <span
             className={cn(
               'min-w-0 truncate text-left transition-colors',
-              isBootstrapping && 'text-foreground/40'
+              task.isBootstrapping && 'text-foreground/40'
             )}
           >
             {taskName}

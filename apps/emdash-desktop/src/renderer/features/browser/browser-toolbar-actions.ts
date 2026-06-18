@@ -1,6 +1,11 @@
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
-import { normalizeBrowserUrl, type BrowserSessionSnapshot } from '@shared/browser';
+import {
+  normalizeBrowserUrl,
+  type BrowserDataClearKind,
+  type BrowserSessionSnapshot,
+} from '@shared/browser';
 import type { BrowserWebviewAdapter } from './browser-webview-types';
 
 export function openBrowserUrlExternally(url: string): void {
@@ -16,20 +21,56 @@ export function canOpenBrowserUrlExternally(url: string): boolean {
   return normalized.ok && (normalized.protocol === 'http:' || normalized.protocol === 'https:');
 }
 
+export async function captureBrowserScreenshot(session: BrowserSessionSnapshot): Promise<void> {
+  const result = await rpc.browser.captureScreenshot(session.browserId);
+  if (result.success) {
+    toast({ title: 'Screenshot copied to clipboard' });
+  } else {
+    toast({ title: 'Could not capture screenshot', variant: 'destructive' });
+  }
+}
+
+export function clearBrowserData(
+  session: BrowserSessionSnapshot,
+  kind: BrowserDataClearKind,
+  onSuccess: () => void
+): Promise<void> {
+  return rpc.browser
+    .clearData(session.browserId, kind)
+    .then((result) => {
+      if (result.success) {
+        onSuccess();
+        return;
+      }
+
+      toast({
+        title: 'Could not clear browser data',
+        description: 'Try again, or reload the browser view manually.',
+        variant: 'destructive',
+      });
+    })
+    .catch((error: unknown) => {
+      console.error('Failed to clear browser data', error);
+      toast({
+        title: 'Could not clear browser data',
+        description: error instanceof Error ? error.message : 'The browser data request failed.',
+        variant: 'destructive',
+      });
+    });
+}
+
 export function confirmClearBrowserStorage(
   session: BrowserSessionSnapshot,
-  adapter: BrowserWebviewAdapter | null
+  adapter: BrowserWebviewAdapter | null,
+  profileLabel = 'this browser profile'
 ): void {
   showModal('confirmActionModal', {
     title: 'Clear browser storage?',
-    description:
-      'This clears cookies, local storage, IndexedDB, and cache for this browser session only.',
+    description: `This clears cookies, local storage, IndexedDB, and cache for ${profileLabel}. Browser tabs using the same storage boundary will be signed out.`,
     confirmLabel: 'Clear Storage',
     variant: 'destructive',
     onSuccess: () => {
-      void rpc.browser.clearStorage(session.browserId).then((result) => {
-        if (result.success) adapter?.reload();
-      });
+      void clearBrowserData(session, 'storage', () => adapter?.reload());
     },
   });
 }

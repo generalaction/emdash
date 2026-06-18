@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { GitRemote } from '@emdash/core/git';
+import { ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { Remote } from '@shared/core/git/git';
-import { ok } from '@shared/lib/result';
 import type { ProjectSettingsProvider } from '../settings/provider';
 import { LocalWorktreeHost } from './hosts/local-worktree-host';
 import type { WorktreeHost } from './hosts/worktree-host';
@@ -41,7 +41,7 @@ function makeSettings(preservePatterns: string[] = []): ProjectSettingsProvider 
   } as ProjectSettingsProvider;
 }
 
-const originRemote = (url = 'ssh://example.com/repo.git'): Remote => ({ name: 'origin', url });
+const originRemote = (url = 'ssh://example.com/repo.git'): GitRemote => ({ name: 'origin', url });
 
 describe('WorktreeService', () => {
   let repoDir: string;
@@ -291,6 +291,9 @@ describe('WorktreeService', () => {
         const key = args.join(' ');
         if (key === 'worktree prune' || key === 'worktree list --porcelain') {
           return { stdout: '', stderr: '' };
+        }
+        if (key === `-C ${targetPath} rev-parse --is-inside-work-tree`) {
+          return { stdout: 'true\n', stderr: '' };
         }
         if (key === `config --get branch.${branchName}.base`) {
           throw Object.assign(new Error('missing config'), { code: 1 });

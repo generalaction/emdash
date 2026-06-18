@@ -11,6 +11,7 @@ const v0Schema = z.object({
     'linear',
     'jira',
     'gitlab',
+    'plane',
     'plain',
     'forgejo',
     'featurebase',

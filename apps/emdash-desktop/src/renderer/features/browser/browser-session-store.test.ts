@@ -14,7 +14,8 @@ describe('BrowserSessionStore', () => {
     });
 
     expect(session.currentUrl).toBe('http://localhost:5173/');
-    expect(session.partition).toBe('persist:emdash-browser-project-1-workspace-1-task-1-browser-1');
+    expect(session.profileId).toBe('default');
+    expect(session.partition).toBe('persist:emdash-browser-profile');
     expect(store.getSession('browser-1')).toEqual(session);
   });
 
@@ -41,7 +42,22 @@ describe('BrowserSessionStore', () => {
     });
   });
 
-  it('restores sessions with a derived partition and clears transient load state', () => {
+  it('clears favicon state explicitly', () => {
+    const store = new BrowserSessionStore();
+    store.createSession({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+    });
+
+    store.updateSession('browser-1', { faviconUrl: 'https://example.com/favicon.ico' });
+    store.updateSession('browser-1', { faviconUrl: null });
+
+    expect(store.getSession('browser-1')?.faviconUrl).toBeUndefined();
+  });
+
+  it('restores sessions onto their profile partition and clears transient load state', () => {
     const store = new BrowserSessionStore();
 
     store.restoreSession({
@@ -49,6 +65,7 @@ describe('BrowserSessionStore', () => {
       projectId: 'project-1',
       workspaceId: 'workspace-1',
       taskId: 'task-1',
+      profileId: 'work',
       partition: 'persist:wrong',
       currentUrl: 'example.com',
       title: 'Example',
@@ -61,10 +78,152 @@ describe('BrowserSessionStore', () => {
     });
 
     expect(store.getSession('browser-1')).toMatchObject({
-      partition: 'persist:emdash-browser-project-1-workspace-1-task-1-browser-1',
+      profileId: 'work',
+      partition: 'persist:emdash-browser-profile-work',
       currentUrl: 'https://example.com/',
       isLoading: false,
       loadError: undefined,
+    });
+  });
+
+  it('falls back to the default profile when restoring invalid profile ids', () => {
+    const store = new BrowserSessionStore();
+
+    store.restoreSession({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+      profileId: '../not-safe',
+      partition: 'persist:wrong',
+      currentUrl: 'about:blank',
+      title: '',
+      isLoading: false,
+      canGoBack: false,
+      canGoForward: false,
+      createdAt: 100,
+      updatedAt: 100,
+    });
+
+    expect(store.getSession('browser-1')).toMatchObject({
+      profileId: 'default',
+      partition: 'persist:emdash-browser-profile',
+    });
+  });
+
+  it('falls back to the first available profile when restoring deleted profile ids', () => {
+    const store = new BrowserSessionStore();
+
+    store.restoreSession(
+      {
+        browserId: 'browser-1',
+        projectId: 'project-1',
+        workspaceId: 'workspace-1',
+        taskId: 'task-1',
+        profileId: 'work',
+        partition: 'persist:wrong',
+        currentUrl: 'about:blank',
+        title: '',
+        isLoading: false,
+        canGoBack: false,
+        canGoForward: false,
+        createdAt: 100,
+        updatedAt: 100,
+      },
+      [{ id: 'personal', name: 'Personal' }]
+    );
+
+    expect(store.getSession('browser-1')).toMatchObject({
+      profileId: 'personal',
+      partition: 'persist:emdash-browser-profile-personal',
+    });
+  });
+
+  it('switches a session onto another profile partition', () => {
+    const store = new BrowserSessionStore();
+    store.createSession({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+      initialUrl: 'https://example.com',
+    });
+    store.updateSession('browser-1', {
+      isLoading: true,
+      loadError: { description: 'stale failure' },
+    });
+
+    const switched = store.setSessionProfile('browser-1', 'work', [
+      { id: 'default', name: 'Default' },
+      { id: 'work', name: 'Work' },
+    ]);
+
+    expect(switched).toMatchObject({
+      profileId: 'work',
+      partition: 'persist:emdash-browser-profile-work',
+      currentUrl: 'https://example.com/',
+      isLoading: false,
+      loadError: undefined,
+    });
+    expect(store.getSession('browser-1')).toEqual(switched);
+  });
+
+  it('switches sessions to isolated per-task partitions and back', () => {
+    const store = new BrowserSessionStore();
+    store.createSession({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+    });
+
+    store.setSessionProfile('browser-1', 'isolated-per-task');
+    expect(store.getSession('browser-1')).toMatchObject({
+      profileId: 'isolated-per-task',
+      partition: 'persist:emdash-browser-isolated-project-1-workspace-1-task-1',
+    });
+
+    store.setSessionProfile('browser-1', 'default');
+    expect(store.getSession('browser-1')).toMatchObject({
+      profileId: 'default',
+      partition: 'persist:emdash-browser-profile',
+    });
+  });
+
+  it('ignores profile switches to unknown profiles or sessions', () => {
+    const store = new BrowserSessionStore();
+    const session = store.createSession({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+    });
+
+    expect(store.setSessionProfile('missing', 'work')).toBeNull();
+    expect(
+      store.setSessionProfile('browser-1', 'work', [{ id: 'default', name: 'Default' }])
+    ).toMatchObject({ profileId: 'default' });
+    expect(store.getSession('browser-1')).toEqual(session);
+  });
+
+  it('migrates active sessions away from deleted profiles', () => {
+    const store = new BrowserSessionStore();
+    store.createSession({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+      profileId: 'work',
+    });
+
+    store.migrateProfileSessions('work', 'personal', [
+      { id: 'default', name: 'Default' },
+      { id: 'personal', name: 'Personal' },
+    ]);
+
+    expect(store.getSession('browser-1')).toMatchObject({
+      profileId: 'personal',
+      partition: 'persist:emdash-browser-profile-personal',
     });
   });
 

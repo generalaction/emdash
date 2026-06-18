@@ -1,21 +1,20 @@
 import { CircleDot, GitBranch, GitPullRequest, type LucideIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useConnectedIssueProviders } from '@renderer/features/integrations/use-connected-issue-providers';
-import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
+import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
+import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { ActionListItem } from '@renderer/lib/ui/action-list-item';
 import { isGitHubDotComHost } from '@shared/repository-ref';
-
-type TaskStrategy = 'from-branch' | 'from-issue' | 'from-pull-request';
 
 interface TaskAction {
   label: string;
   description: string;
   icon: LucideIcon;
-  strategy: TaskStrategy;
   disabled: boolean;
   disabledReason?: string;
+  onActivate: () => void;
 }
 
 export const TaskListEmptyState = observer(function TaskListEmptyState({
@@ -24,8 +23,9 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
   projectId: string;
 }) {
   const showTaskModal = useShowModal('taskModal');
+  const { navigate } = useNavigate();
   const { hasAnyIssueIntegration } = useConnectedIssueProviders();
-  const repositoryStore = getRepositoryStore(projectId);
+  const repositoryStore = getGitRepositoryStore(projectId);
   const supportsPullRequests = Boolean(repositoryStore?.pullRequestRepositoryUrl);
   const supportsGhesIssues = Boolean(
     repositoryStore?.issueRepositoryUrl &&
@@ -39,30 +39,34 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
       label: 'Create a Task from a Branch',
       description: 'Create a task from an existing branch',
       icon: GitBranch,
-      strategy: 'from-branch',
       disabled: false,
+      onActivate: () => showTaskModal({ projectId, strategy: 'from-branch' }),
     },
     {
       label: 'Create from Issue',
-      description: 'Link and create a task from an issue',
+      description: hasAnyIntegration
+        ? 'Link and create a task from an issue'
+        : 'Configure issue integrations',
       icon: CircleDot,
-      strategy: 'from-issue',
-      disabled: !hasAnyIntegration,
-      disabledReason: 'Configure issue integrations',
+      disabled: false,
+      onActivate: () =>
+        hasAnyIntegration
+          ? showTaskModal({ projectId, strategy: 'from-issue' })
+          : navigate('settings', { tab: 'integrations' }),
     },
     {
       label: 'Create from Pull Request',
       description: 'Create a task from a pull request',
       icon: GitPullRequest,
-      strategy: 'from-pull-request',
       disabled: !supportsPullRequests,
       disabledReason: 'No remote repository connected',
+      onActivate: () => showTaskModal({ projectId, strategy: 'from-pull-request' }),
     },
   ];
 
   const { selectedIndex, setSelectedIndex } = useArrowKeyNavigation(actions.length, (index) => {
     const action = actions[index];
-    if (action && !action.disabled) showTaskModal({ projectId, strategy: action.strategy });
+    if (action && !action.disabled) action.onActivate();
   });
 
   return (
@@ -70,7 +74,7 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
       <div className="flex w-full max-w-sm flex-col gap-1">
         {actions.map((action, i) => (
           <ActionListItem
-            key={action.strategy}
+            key={action.label}
             label={action.label}
             description={action.description}
             icon={action.icon}
@@ -79,7 +83,7 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
             disabledReason={action.disabledReason}
             onMouseEnter={() => setSelectedIndex(i)}
             onClick={() => {
-              if (!action.disabled) showTaskModal({ projectId, strategy: action.strategy });
+              if (!action.disabled) action.onActivate();
             }}
           />
         ))}

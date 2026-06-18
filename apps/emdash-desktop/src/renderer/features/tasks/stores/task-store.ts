@@ -1,5 +1,6 @@
+import { err, type Result } from '@emdash/shared';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
-import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
+import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import { DraftCommentsStore } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
@@ -10,7 +11,6 @@ import type {
   Task,
   TaskLifecycleStatus,
 } from '@shared/core/tasks/tasks';
-import { err, type Result } from '@shared/lib/result';
 import { conversationRegistry } from './conversation-registry';
 import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';
@@ -57,11 +57,11 @@ export class TaskStore {
     return this.data.name;
   }
 
+  /** True only while creation/provisioning is actively running — error phases are settled, not busy. */
   get isBootstrapping(): boolean {
     return (
-      this.state === 'unregistered' ||
-      (this.state === 'unprovisioned' &&
-        (this.phase === 'provision' || this.phase === 'provision-error'))
+      (this.state === 'unregistered' && this.phase === 'creating') ||
+      (this.state === 'unprovisioned' && this.phase === 'provision')
     );
   }
 
@@ -82,33 +82,31 @@ export class TaskStore {
 
     // Create stable task-lifetime stores immediately for registered tasks.
     if (state !== 'unregistered') {
-      this._initRegisteredStores();
+      this.ensureRegisteredStores();
     }
   }
 
-  private _initRegisteredStores(): void {
+  ensureRegisteredStores(): void {
+    if (this.state === 'unregistered') return;
     const taskData = this.data as Task;
-    this.draftComments = new DraftCommentsStore(taskData.id);
-    this.viewModel = new WorkspaceViewModel(this);
+    if (!this.draftComments) {
+      this.draftComments = new DraftCommentsStore(taskData.id);
+    }
+    if (!this.viewModel) {
+      this.viewModel = new WorkspaceViewModel(this);
+    }
   }
 
   transitionToProvisioned(
     data: Task,
     path: string,
     workspaceId: string,
-    settingsStore: ProjectSettingsStore,
-    baseRef: string,
+    gitRepository: GitRepositoryStore,
     sshConnectionId?: string
   ): void {
     this.data = data;
-    workspaceRegistry.acquire(
-      data.projectId,
-      workspaceId,
-      path,
-      settingsStore,
-      baseRef,
-      sshConnectionId
-    );
+    this.ensureRegisteredStores();
+    workspaceRegistry.acquire(data.projectId, workspaceId, path, gitRepository, sshConnectionId);
     this.workspaceId = workspaceId;
     this.state = 'provisioned';
     this.phase = null;
@@ -130,7 +128,16 @@ export class TaskStore {
     this.provisionProgressMessage = null;
 
     // Create stable stores on first registration (when transitioning from unregistered).
-    if (!this.draftComments) this._initRegisteredStores();
+    if (!this.draftComments || !this.viewModel) this.ensureRegisteredStores();
+  }
+
+  transitionToDryUnprovisioned(data: Task, phase: UnprovisionedTaskPhase = 'idle'): void {
+    this.dispose();
+    this.data = data;
+    this.state = 'unprovisioned';
+    this.phase = phase;
+    this.errorMessage = undefined;
+    this.provisionProgressMessage = null;
   }
 
   transitionToUnregistered(data: UnregisteredTaskData): void {

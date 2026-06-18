@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BROWSER_PROFILE_PARTITION,
+  BROWSER_ISOLATED_PROFILE_ID,
   createBrowserSessionSnapshot,
-  deriveBrowserPartition,
+  makeIsolatedBrowserPartition,
   makeBrowserSessionIdentity,
+  normalizeBrowserProfileSelection,
   normalizeBrowserUrl,
 } from './browser';
 
@@ -25,6 +28,35 @@ describe('normalizeBrowserUrl', () => {
       ok: true,
       url: 'https://example.com/path',
       protocol: 'https:',
+    });
+  });
+
+  it('uses Google search for non-URL input', () => {
+    expect(normalizeBrowserUrl('react compiler')).toEqual({
+      ok: true,
+      url: 'https://www.google.com/search?q=react+compiler',
+      protocol: 'https:',
+    });
+    expect(normalizeBrowserUrl('vitest')).toEqual({
+      ok: true,
+      url: 'https://www.google.com/search?q=vitest',
+      protocol: 'https:',
+    });
+    expect(normalizeBrowserUrl('react: useState')).toEqual({
+      ok: true,
+      url: 'https://www.google.com/search?q=react%3A+useState',
+      protocol: 'https:',
+    });
+  });
+
+  it('can reject search-like inputs when validating actual navigation URLs', () => {
+    expect(normalizeBrowserUrl('react: useState', { allowSearchQueries: false })).toEqual({
+      ok: false,
+      reason: 'unsupported-protocol',
+    });
+    expect(normalizeBrowserUrl('mailto: user@example.com', { allowSearchQueries: false })).toEqual({
+      ok: false,
+      reason: 'unsupported-protocol',
     });
   });
 
@@ -57,8 +89,19 @@ describe('normalizeBrowserUrl', () => {
   });
 });
 
+describe('browser profile selection', () => {
+  it('falls back to the first available profile when default was deleted', () => {
+    expect(
+      normalizeBrowserProfileSelection('missing', [
+        { id: 'personal', name: 'Personal' },
+        { id: 'work', name: 'Work' },
+      ])
+    ).toBe('personal');
+  });
+});
+
 describe('browser session identity', () => {
-  it('derives sanitized persistent partitions from stable identity', () => {
+  it('assigns the default persistent profile partition to new sessions', () => {
     const identity = makeBrowserSessionIdentity({
       browserId: 'Browser One',
       projectId: 'Project/One',
@@ -66,9 +109,33 @@ describe('browser session identity', () => {
       taskId: 'Task One',
     });
 
-    expect(deriveBrowserPartition(identity)).toBe(
-      'persist:emdash-browser-project-one-workspace-one-task-one-browser-one'
+    expect(BROWSER_PROFILE_PARTITION).toBe('persist:emdash-browser-profile');
+    expect(createBrowserSessionSnapshot({ identity, now: 100 }).partition).toBe(
+      BROWSER_PROFILE_PARTITION
     );
+  });
+
+  it('can assign an isolated persistent task partition', () => {
+    const identity = makeBrowserSessionIdentity({
+      browserId: 'Browser One',
+      projectId: 'Project/One',
+      workspaceId: 'Workspace.One',
+      taskId: 'Task One',
+    });
+
+    expect(makeIsolatedBrowserPartition(identity)).toBe(
+      'persist:emdash-browser-isolated-Project_One-Workspace_One-Task_One'
+    );
+    expect(
+      createBrowserSessionSnapshot({
+        identity,
+        profileId: BROWSER_ISOLATED_PROFILE_ID,
+        now: 100,
+      })
+    ).toMatchObject({
+      profileId: BROWSER_ISOLATED_PROFILE_ID,
+      partition: 'persist:emdash-browser-isolated-Project_One-Workspace_One-Task_One',
+    });
   });
 
   it('creates safe snapshots with normalized URLs', () => {
@@ -90,6 +157,25 @@ describe('browser session identity', () => {
       currentUrl: 'about:blank',
       createdAt: 100,
       updatedAt: 100,
+    });
+  });
+
+  it('preserves bare host URLs in snapshots', () => {
+    const identity = makeBrowserSessionIdentity({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+    });
+
+    expect(
+      createBrowserSessionSnapshot({
+        identity,
+        currentUrl: 'intranet',
+        now: 100,
+      })
+    ).toMatchObject({
+      currentUrl: 'https://intranet/',
     });
   });
 });

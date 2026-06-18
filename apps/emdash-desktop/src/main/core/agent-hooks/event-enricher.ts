@@ -1,78 +1,94 @@
+import type { CanonicalHookEvent } from '@emdash/core/agents/plugins';
+import { defaultHookEventParser } from '@emdash/core/agents/plugins/helpers';
 import { eq } from 'drizzle-orm';
+import { getPlugin } from '@main/core/agents/plugin-registry';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import type { AgentEvent } from '@shared/core/agents/agentEvents';
 import { parsePtyId } from '@shared/core/pty/ptyId';
 import type { RawHookRequest } from './hook-server';
 
-function normalizePayload(
-  providerId: string,
-  eventType: string,
-  body: Record<string, unknown>
-): AgentEvent['payload'] {
-  const payload: AgentEvent['payload'] = {
-    notificationType: (body.notification_type ??
-      body.notificationType) as AgentEvent['payload']['notificationType'],
-    lastAssistantMessage: (body.last_assistant_message ?? body.lastAssistantMessage) as
-      | string
-      | undefined,
-    title: body.title as string | undefined,
-    message: body.message as string | undefined,
-  };
+export type ConversationContext = {
+  conversationId: string;
+  taskId: string;
+  projectId: string;
+  providerId: string;
+  ptyId: string;
+};
 
-  if (!payload.notificationType && providerId === 'codex' && body.type === 'agent-turn-complete') {
-    payload.notificationType = 'idle_prompt';
-  }
+export type ParsedHookEvent =
+  | { kind: 'status'; event: AgentEvent }
+  | { kind: 'session'; ctx: ConversationContext; providerSessionId: string }
+  | { kind: 'ignore' };
 
-  if (!payload.notificationType && providerId === 'grok' && eventType === 'notification') {
-    payload.notificationType = 'permission_prompt';
-  }
+async function resolveContext(ptyId: string): Promise<ConversationContext | null> {
+  const parsed = parsePtyId(ptyId);
+  if (!parsed) return null;
 
-  if (
-    !payload.notificationType &&
-    providerId === 'qwen' &&
-    eventType === 'notification' &&
-    body.hook_event_name === 'PermissionRequest'
-  ) {
-    payload.notificationType = 'permission_prompt';
-  }
-
-  if (
-    providerId === 'gemini' &&
-    eventType === 'notification' &&
-    body.notification_type === 'ToolPermission'
-  ) {
-    payload.notificationType = 'permission_prompt';
-  }
-
-  return payload;
-}
-
-export async function enrichEvent(raw: RawHookRequest): Promise<AgentEvent> {
-  const parsed = parsePtyId(raw.ptyId);
-  if (!parsed) {
-    throw new Error(`Unrecognised ptyId: ${raw.ptyId}`);
-  }
-
-  const [convRows] = await db
+  const [row] = await db
     .select({ taskId: conversations.taskId, projectId: conversations.projectId })
     .from(conversations)
     .where(eq(conversations.id, parsed.conversationId))
     .limit(1);
 
-  const taskId = convRows.taskId;
-  const projectId = convRows.projectId;
-  const body = raw.body ? JSON.parse(raw.body) : {};
-  const payload = normalizePayload(parsed.providerId, raw.type, body);
+  if (!row) return null;
 
   return {
-    type: raw.type as AgentEvent['type'],
-    ptyId: raw.ptyId,
-    providerId: parsed.providerId,
-    projectId,
     conversationId: parsed.conversationId,
-    taskId,
-    timestamp: Date.now(),
-    payload,
+    taskId: row.taskId,
+    projectId: row.projectId,
+    providerId: parsed.providerId,
+    ptyId,
   };
+}
+
+function parseBody(raw: RawHookRequest): Record<string, unknown> {
+  if (!raw.body) return {};
+  try {
+    const value: unknown = JSON.parse(raw.body);
+    if (typeof value === 'object' && value !== null) return value as Record<string, unknown>;
+  } catch {}
+  return {};
+}
+
+function canonicalToAgentEvent(
+  canonical: CanonicalHookEvent & { kind: 'status' },
+  ctx: ConversationContext
+): AgentEvent {
+  return {
+    type: canonical.type,
+    source: 'hook',
+    ptyId: ctx.ptyId,
+    providerId: ctx.providerId,
+    projectId: ctx.projectId,
+    conversationId: ctx.conversationId,
+    taskId: ctx.taskId,
+    timestamp: Date.now(),
+    payload: {
+      notificationType: canonical.notificationType,
+      title: canonical.title,
+      message: canonical.message,
+      lastAssistantMessage: canonical.lastAssistantMessage,
+    },
+  };
+}
+
+export async function parseHookEvent(raw: RawHookRequest): Promise<ParsedHookEvent> {
+  const ctx = await resolveContext(raw.ptyId);
+  if (!ctx) {
+    throw new Error(`Unrecognised ptyId: ${raw.ptyId}`);
+  }
+
+  const body = parseBody(raw);
+  const plugin = getPlugin(ctx.providerId);
+  const parser = plugin?.behavior.hooks?.parseHookEvent ?? defaultHookEventParser;
+  const canonical = parser(raw.type, body);
+
+  if (canonical.kind === 'ignore') return { kind: 'ignore' };
+
+  if (canonical.kind === 'session') {
+    return { kind: 'session', ctx, providerSessionId: canonical.providerSessionId };
+  }
+
+  return { kind: 'status', event: canonicalToAgentEvent(canonical, ctx) };
 }

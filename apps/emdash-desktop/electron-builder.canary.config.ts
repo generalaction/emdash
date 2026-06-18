@@ -1,11 +1,12 @@
 import type { Configuration } from 'electron-builder';
 import {
   APP_ID,
+  APP_NAME_LOWER,
   ARTIFACT_PREFIX,
   PRODUCT_NAME,
   R2_BASE_URL,
   UPDATE_CHANNEL,
-} from './src/shared/app-identity.canary';
+} from './src/shared/app-identity.canary.ts';
 
 const config: Configuration = {
   appId: APP_ID,
@@ -14,6 +15,17 @@ const config: Configuration = {
   directories: { output: 'release' },
   artifactName: `${ARTIFACT_PREFIX}-\${arch}.\${ext}`,
   publish: [
+    {
+      provider: 'github',
+      owner: 'generalaction',
+      repo: 'emdash',
+      releaseType: 'draft',
+      // 'canary' must match the prerelease identifier in scripts/release/lib/version.ts
+      // (e.g. 1.1.33-canary.42 -> prerelease id "canary"). electron-updater uses this
+      // id to select the matching release from the Atom feed and to construct the
+      // channel filename (canary*.yml) it fetches from GitHub.
+      channel: 'canary',
+    },
     {
       provider: 'generic',
       url: R2_BASE_URL,
@@ -42,14 +54,27 @@ const config: Configuration = {
   },
   dmg: {
     icon: 'src/assets/images/emdash/emdash-canary.icns',
+    background: 'build/dmg-background.tiff',
+    window: { width: 530, height: 319 },
+    contents: [
+      { x: 132, y: 150, type: 'file' },
+      { x: 398, y: 150, type: 'link', path: '/Applications' },
+    ],
   },
   linux: {
     category: 'Development',
+    executableName: APP_NAME_LOWER,
     target: [
       { target: 'AppImage', arch: ['x64'] },
       { target: 'deb', arch: ['x64'] },
       { target: 'rpm', arch: ['x64'] },
     ],
+  },
+  deb: {
+    packageName: APP_NAME_LOWER,
+  },
+  rpm: {
+    packageName: APP_NAME_LOWER,
   },
   win: {
     icon: 'src/assets/images/emdash/app-icon-canary.png',
@@ -75,6 +100,12 @@ const config: Configuration = {
     perMachine: false,
   },
   npmRebuild: false,
+  // Encrypt Chromium's on-disk cookie store (in-app browser logins) with OS-level
+  // keys, like Chrome does. One-way: never disable once shipped or existing
+  // cookie stores become unreadable.
+  electronFuses: {
+    enableCookieEncryption: true,
+  },
 };
 
 export default config;

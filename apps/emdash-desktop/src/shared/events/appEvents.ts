@@ -1,5 +1,6 @@
-import type { DependencyStatusUpdatedEvent } from '@shared/core/dependencies';
+import type { AgentInstallationStatus } from '@shared/core/agents/agent-payload';
 import { defineEvent } from '@shared/lib/ipc/events';
+import type { TabNavigationDirection } from '@shared/shortcuts';
 
 // App editing actions (renderer → main, no payload)
 export const appUndoChannel = defineEvent<void>('app:undo');
@@ -14,6 +15,15 @@ export const menuRedoChannel = defineEvent<void>('menu:redo');
 export const menuCloseTabChannel = defineEvent<void>('menu:close-tab');
 export const menuQuitRequestedChannel = defineEvent<void>('menu:quit-requested');
 export const menuGiveFeedbackChannel = defineEvent<void>('menu:give-feedback');
+
+export const externalLinkOpenRequestedChannel = defineEvent<{ url: string }>(
+  'external-link:open-requested'
+);
+
+export const tabNavigationShortcutChannel = defineEvent<{
+  source: { kind: 'browser'; browserId: string };
+  direction: TabNavigationDirection;
+}>('tab-navigation:shortcut');
 
 export const notificationFocusTaskChannel = defineEvent<{
   projectId: string;
@@ -57,7 +67,7 @@ export const shellSessionStartedChannel = defineEvent<{
   title: string;
 }>('shell:session-started');
 
-/** Emitted after each dependency probe completes (path resolution or version check). */
-export const dependencyStatusUpdatedChannel = defineEvent<DependencyStatusUpdatedEvent>(
-  'dependency:status-updated'
+/** Emitted when an agent installation status changes (probe, install, update, or selection change). */
+export const agentInstallationStatusUpdatedChannel = defineEvent<AgentInstallationStatus>(
+  'agent:installation-status-updated'
 );

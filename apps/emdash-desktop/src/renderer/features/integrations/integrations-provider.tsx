@@ -48,6 +48,17 @@ function validateInstanceCredentials(input: { instanceUrl: string; token: string
   return null;
 }
 
+function validatePlaneCredentials(input: {
+  apiBaseUrl: string;
+  workspaceSlug: string;
+  token: string;
+}): string | null {
+  if (!input.apiBaseUrl?.trim() || !input.workspaceSlug?.trim() || !input.token?.trim()) {
+    return 'API base URL, workspace slug, and API key are required.';
+  }
+  return null;
+}
+
 function validateMondayCredentials(input: { token: string; boardUrls: string }): string | null {
   if (!input.token?.trim()) {
     return 'API token is required.';
@@ -83,6 +94,11 @@ const PROVIDER_CONNECTION_CONFIG: {
     connectMutationFn: (credentials) => rpc.gitlab.saveCredentials(credentials),
     disconnectMutationFn: () => rpc.gitlab.clearCredentials(),
     validateInput: validateInstanceCredentials,
+  },
+  plane: {
+    connectMutationFn: (credentials) => rpc.plane.saveCredentials(credentials),
+    disconnectMutationFn: () => rpc.plane.clearCredentials(),
+    validateInput: validatePlaneCredentials,
   },
   plain: {
     connectMutationFn: (apiKey) => rpc.plain.saveToken(apiKey),
@@ -170,6 +186,10 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     ...PROVIDER_CONNECTION_CONFIG.gitlab,
     invalidate: invalidateStatuses,
   });
+  const planeConnection = useProviderConnection({
+    ...PROVIDER_CONNECTION_CONFIG.plane,
+    invalidate: invalidateStatuses,
+  });
   const plainConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.plain,
     invalidate: invalidateStatuses,
@@ -195,11 +215,14 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     invalidate: invalidateStatuses,
   });
 
-  const connectionStatus = statusData ?? DEFAULT_CONNECTION_STATUS;
+  const connectionStatus = statusData
+    ? { ...DEFAULT_CONNECTION_STATUS, ...statusData }
+    : DEFAULT_CONNECTION_STATUS;
   const providers: ProviderConnectionMap = {
     linear: linearConnection,
     jira: jiraConnection,
     gitlab: gitlabConnection,
+    plane: planeConnection,
     plain: plainConnection,
     forgejo: forgejoConnection,
     featurebase: featurebaseConnection,

@@ -1,3 +1,4 @@
+import type { HostDependencySelection } from '@emdash/core/deps/runtime';
 // DB metadata column helpers for SSH connections.
 import type { SshConnectionRow } from '@main/db/schema';
 import type { SshConfig } from '@shared/core/ssh/ssh';
@@ -11,7 +12,7 @@ type SshConnectionMetadataUpdate = {
   proxyJump?: string;
 };
 
-const SSH_ALIAS_PATTERN = /^[A-Za-z0-9._@%+:/[\]-]+$/;
+const SSH_ALIAS_PATTERN = /^[\w.@%+:/[\]-]+$/;
 
 function optionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
@@ -34,11 +35,27 @@ export function mergeSshConnectionMetadata(
     Object.prototype.hasOwnProperty.call(update, key);
 
   return {
+    ...existing,
     sshConfigAlias: has('sshConfigAlias')
       ? optionalSshConfigAlias(update.sshConfigAlias)
       : existing.sshConfigAlias,
     forwardAgent: has('forwardAgent') ? update.forwardAgent : existing.forwardAgent,
     proxyJump: has('proxyJump') ? optionalString(update.proxyJump) : existing.proxyJump,
+  };
+}
+
+/** Merge a single dependency selection into the existing SSH connection metadata. */
+export function mergeDependencySelection(
+  existing: SshConnectionMetadata,
+  depId: string,
+  selection: HostDependencySelection
+): SshConnectionMetadata {
+  return {
+    ...existing,
+    dependencySelections: {
+      ...existing.dependencySelections,
+      [depId]: selection,
+    },
   };
 }
 

@@ -1,4 +1,4 @@
-import type { PushError } from '@shared/core/git/git';
+import type { FetchError, PushError } from '@shared/core/git/types';
 
 type PushLikeError = PushError | { type: string; message?: string };
 
@@ -7,6 +7,12 @@ export function extractErrorMessage(error: unknown): string {
     return String((error as { message: unknown }).message);
   }
   return 'Unknown error';
+}
+
+export function formatErrorType(error: unknown): string {
+  return error && typeof error === 'object' && 'type' in error
+    ? String((error as { type: unknown }).type)
+    : String(error);
 }
 
 export function splitPath(filePath: string) {
@@ -31,6 +37,28 @@ export function friendlyGitError(raw: string): string {
   if (s.includes('nothing to commit')) return 'Nothing to commit.';
   const firstLine = raw.split('\n').find((l) => l.trim().length > 0) || raw;
   return firstLine.length > 120 ? firstLine.slice(0, 120) + '...' : firstLine;
+}
+
+export function formatFetchErrorDetail(
+  error: FetchError,
+  opts?: { isSshProject?: boolean }
+): string {
+  // SSH projects run git on the remote host, so credential fixes belong there.
+  const machine = opts?.isSshProject ? 'the remote SSH machine' : 'this machine';
+  switch (error.type) {
+    case 'no_remote':
+      return 'No remote is configured for this repository.';
+    case 'auth_failed':
+      return error.message.toLowerCase().includes('github.com')
+        ? `GitHub authentication failed. Run "gh auth login" on ${machine}, then try again.`
+        : `Git authentication failed. Authenticate Git on ${machine}, then try again.`;
+    case 'network_error':
+      return 'Cannot reach the remote. Check your network connection, then try again.';
+    case 'remote_not_found':
+      return 'The remote repository was not found, or your Git credentials do not have access.';
+    case 'error':
+      return 'An unexpected error occurred while fetching from the remote.';
+  }
 }
 
 const GITHUB_REPOSITORY_ACCESS_ERROR =

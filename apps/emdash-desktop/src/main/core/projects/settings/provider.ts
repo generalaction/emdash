@@ -1,8 +1,8 @@
+import type { Result } from '@emdash/shared';
 import type {
   ProjectSettings,
   ProjectSettingsPatch,
 } from '@shared/core/project-settings/project-settings';
-import type { Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 export type { ProjectSettingsPatch };
 

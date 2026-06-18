@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
+import { CliAgentsList } from '../agents-page/CliAgentsList';
+import { DefaultAgentSelector } from '../agents-page/DefaultAgentSelector';
 import { AccountTab } from './AccountTab';
-import { CliAgentsList } from './CliAgentsList';
-import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
+import { BrowserSettingsCard } from './BrowserSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
 import InterfaceSettingsCard from './InterfaceSettingsCard';
@@ -95,7 +96,7 @@ export const settingsTabContent: Record<SettingsContentTab, TabContent> = {
     sections: [
       {
         ...settingsSearchContent['clis-models'].sections[0],
-        component: <DefaultAgentSettingsCard />,
+        component: <DefaultAgentSelector />,
       },
       {
         ...settingsSearchContent['clis-models'].sections[1],
@@ -122,6 +123,15 @@ export const settingsTabContent: Record<SettingsContentTab, TabContent> = {
       {
         ...settingsSearchContent.connections.sections[0],
         component: <SshConnectionsSettingsCard />,
+      },
+    ],
+  },
+  browser: {
+    ...settingsSearchContent.browser,
+    sections: [
+      {
+        ...settingsSearchContent.browser.sections[0],
+        component: <BrowserSettingsCard />,
       },
     ],
   },

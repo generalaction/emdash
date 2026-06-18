@@ -9,15 +9,47 @@ on:
         default: 'both'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
+  prepare-release:
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    environment: release
+    outputs:
+      release_id: ${{ steps.prepare.outputs.release_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create or reuse draft release
+        id: prepare
+        working-directory: apps/emdash-desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: node --experimental-strip-types scripts/release/prepare-release.ts
+
   release-linux:
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    needs: [prepare-release]
     runs-on: ubuntu-latest
     container: ubuntu:22.04
     permissions:
-      contents: read
+      contents: write
     environment: release
     steps:
       - name: Install system build dependencies
@@ -51,6 +83,8 @@ jobs:
 
       - name: Build Linux packages
         working-directory: apps/emdash-desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
           node --experimental-strip-types scripts/release/build.ts
           --platform linux --arch x64
@@ -68,9 +102,10 @@ jobs:
 
   release-win:
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    needs: [prepare-release]
     runs-on: windows-2022
     permissions:
-      contents: read
+      contents: write
     environment: release
     steps:
       - uses: actions/checkout@v4
@@ -112,6 +147,7 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
           node --experimental-strip-types scripts/release/build.ts
           --platform win --arch x64
@@ -132,9 +168,10 @@ jobs:
 
   release-mac:
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    needs: [prepare-release]
     runs-on: macos-latest
     permissions:
-      contents: read
+      contents: write
     environment: release
     steps:
       - uses: actions/checkout@v4
@@ -160,6 +197,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
           node --experimental-strip-types scripts/release/build.ts
           --platform mac --arch ${{ github.event.inputs.arch || 'both' }} --targets dmg,zip
@@ -179,3 +217,30 @@ jobs:
           r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
           r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           r2-bucket: ${{ secrets.R2_BUCKET }}
+
+  finalize-release:
+    needs: [release-linux, release-win, release-mac]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Publish GitHub release draft
+        working-directory: apps/emdash-desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node --experimental-strip-types scripts/release/finalize-release.ts

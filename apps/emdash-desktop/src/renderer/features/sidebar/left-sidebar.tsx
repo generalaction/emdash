@@ -7,7 +7,6 @@ import {
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import { Badge } from '@renderer/lib/ui/badge';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 import { SidebarPinnedTaskList } from './pinned-task-list';
@@ -77,9 +76,6 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
                 <Clock className="h-5 w-5 shrink-0 sm:h-4 sm:w-4" />
                 <span className="truncate">Automations</span>
               </span>
-              <Badge variant="secondary" className="h-4 px-1.5 text-[9px] tracking-wide uppercase">
-                Beta
-              </Badge>
             </SidebarMenuButton>
             <SidebarMenuButton
               isActive={

@@ -74,6 +74,22 @@
       }
     },
     {
+      "files": ["src/renderer/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@emdash/core/deps", "@emdash/core/deps/*"],
+                "message": "Import dependency types from @shared/core/agents/agent-payload instead of @emdash/core/deps*."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["**/*.test.{ts,tsx}"],
       "rules": {
         "typescript/no-explicit-any": "off",

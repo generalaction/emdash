@@ -25,13 +25,18 @@ export const ISSUE_PROVIDER_CAPABILITIES: Record<IssueProviderType, IssueProvide
     supportsIssueContext: false,
   },
   gitlab: {
-    requiresProjectPath: true,
-    requiresRepositoryUrl: false,
+    requiresProjectPath: false,
+    requiresRepositoryUrl: true,
     supportsIssueContext: false,
   },
-  forgejo: {
-    requiresProjectPath: true,
+  plane: {
+    requiresProjectPath: false,
     requiresRepositoryUrl: false,
+    supportsIssueContext: true,
+  },
+  forgejo: {
+    requiresProjectPath: false,
+    requiresRepositoryUrl: true,
     supportsIssueContext: false,
   },
   featurebase: {

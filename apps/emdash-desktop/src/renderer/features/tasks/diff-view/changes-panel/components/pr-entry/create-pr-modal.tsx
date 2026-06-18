@@ -1,7 +1,8 @@
+import type { GitBranchRef } from '@emdash/core/git';
 import { ChevronDown, CircleAlert, GitBranch, GitPullRequest } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
-import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
+import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { BranchDisplay } from '@renderer/lib/components/branch-display';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import { RemoteSelectContent } from '@renderer/lib/components/remote-select-content';
@@ -23,9 +24,9 @@ import { Separator } from '@renderer/lib/ui/separator';
 import { SplitButton } from '@renderer/lib/ui/split-button';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { log } from '@renderer/utils/logger';
-import type { Branch } from '@shared/core/git/git';
 import { pullRequestErrorMessage } from '@shared/core/pull-requests/pull-requests';
 import { parseRepositoryRef } from '@shared/repository-ref';
+import { formatPushErrorDetail } from '../../../../utils';
 import { resolveInitialBaseBranch } from './base-branch';
 import { getTargetRemotes, resolveCreatePrTargetRemote } from './target-remote';
 
@@ -51,11 +52,11 @@ export const CreatePrModal = observer(function CreatePrModal({
 }: Props) {
   const [title, setTitle] = useState(branchName);
   const [description, setDescription] = useState('');
-  const [selectedBaseOverride, setSelectedBaseOverride] = useState<Branch | undefined>();
+  const [selectedBaseOverride, setSelectedBaseOverride] = useState<GitBranchRef | undefined>();
   const [selectedTargetRemoteName, setSelectedTargetRemoteName] = useState<string | undefined>();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const repo = getRepositoryStore(projectId);
+  const repo = getGitRepositoryStore(projectId);
   const defaultBranch = repo?.defaultBranch;
   const isOnRemote = repo?.isBranchOnRemote(branchName) ?? false;
   const aheadCount = repo?.getBranchDivergence(branchName)?.ahead ?? 0;
@@ -104,16 +105,14 @@ export const CreatePrModal = observer(function CreatePrModal({
     setIsCreating(true);
     try {
       if (push) {
-        const pushResult = await rpc.workspace.git.push(
+        const pushResult = await rpc.workspace.gitWorktree.push(
           projectId,
           workspaceId,
           repo?.pushRemote.name ?? 'origin'
         );
         if (!pushResult.success) {
           log.error('Failed to push branch:', pushResult.error);
-          setError(
-            ('message' in pushResult.error && pushResult.error.message) || 'Failed to push branch'
-          );
+          setError(formatPushErrorDetail(pushResult.error));
           return;
         }
       }

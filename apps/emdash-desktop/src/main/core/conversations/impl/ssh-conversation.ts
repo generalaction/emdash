@@ -1,13 +1,16 @@
 import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
+import { getPlugin } from '@main/core/agents/plugin-registry';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
+import { hostDependencyStore } from '@main/core/dependencies/host-dependency-store';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
+import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
@@ -18,14 +21,17 @@ import type { AgentSessionConfig } from '@shared/core/agents/agent-session';
 import { agentSessionExitedChannel } from '@shared/core/agents/agentEvents';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
-import { buildAgentSessionCommand } from './agent-command';
-import { createInitialPromptDelivery } from './initial-prompt-delivery';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
-import { resolveProviderEnv } from './provider-env';
+import { resolveAgentExecutable } from './resolve-agent-executable';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const RESPAWN_DELAY_MS = 500;
+
+function parseExtraArgs(value: string | undefined): string[] {
+  if (!value?.trim()) return [];
+  return value.trim().split(/\s+/);
+}
 
 export class SshConversationProvider implements ConversationProvider {
   private sessions = new Map<string, Pty>();
@@ -118,27 +124,31 @@ export class SshConversationProvider implements ConversationProvider {
       const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming, {
         requireProviderSessionId: false,
       });
-      const initialPromptDelivery = createInitialPromptDelivery({
+      const plugin = getPlugin(conversation.providerId);
+
+      const binaryName =
+        plugin.capabilities.hostDependency.binaryNames[0] ?? conversation.providerId;
+      const executableCli = await resolveAgentExecutable({
         providerId: conversation.providerId,
-        conversationId: conversation.id,
-        providerConfig,
-        initialPrompt,
-        isResuming: agentSession.isResuming,
+        binaryName,
+        ctx: this.ctx,
+        hostDependencyStore,
+        connectionId: this.proxy.connectionId,
       });
-      const { command, args } = buildAgentSessionCommand({
-        providerId: conversation.providerId,
-        providerConfig,
-        autoApprove: conversation.autoApprove,
-        extraInitialArgs: initialPromptDelivery.argvAddition(),
-        initialPrompt,
+
+      const agentCommand = plugin.behavior.prompt!.buildCommand({
+        cli: executableCli,
+        extraArgs: parseExtraArgs(providerConfig?.extraArgs),
+        autoApprove: conversation.autoApprove ?? false,
+        initialPrompt: agentSession.isResuming ? undefined : initialPrompt,
         sessionId: agentSession.sessionId,
-        providerSessionId: conversation.providerSessionId,
+        providerSessionId: conversation.providerSessionId ?? undefined,
         isResuming: agentSession.isResuming,
+        model: '',
       });
-      const providerEnv = resolveProviderEnv(providerConfig, {
-        providerId: conversation.providerId,
-        autoApprove: conversation.autoApprove,
-      });
+
+      const customEnv = providerConfig?.env ?? {};
+      const providerEnv: Record<string, string> = { ...agentCommand.env, ...customEnv };
 
       const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 
@@ -146,8 +156,8 @@ export class SshConversationProvider implements ConversationProvider {
         taskId: this.taskId,
         conversationId: conversation.id,
         providerId: conversation.providerId,
-        command,
-        args,
+        command: agentCommand.command,
+        args: agentCommand.args,
         cwd: this.taskPath,
         shellSetup: this.shellSetup,
         tmuxSessionName,
@@ -155,11 +165,14 @@ export class SshConversationProvider implements ConversationProvider {
         resume: agentSession.isResuming,
       };
 
-      const profile = await this.proxy.getRemoteShellProfile();
+      const [profile, colorEnv] = await Promise.all([
+        this.proxy.getRemoteShellProfile(),
+        getTerminalColorEnv(),
+      ]);
       const sshCommand = resolveSshCommand(
         'agent',
         cfg,
-        { ...providerEnv, ...this.taskEnvVars },
+        { ...providerEnv, ...colorEnv, ...this.taskEnvVars },
         profile
       );
 

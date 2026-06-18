@@ -169,6 +169,7 @@ export function SettingsPage({
                 displayedContent && (
                   <div className="space-y-8">
                     <PageHeader
+                      sticky
                       title={displayedContent.title}
                       description={displayedContent.description}
                     />

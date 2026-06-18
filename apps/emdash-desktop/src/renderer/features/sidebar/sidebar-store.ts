@@ -113,6 +113,13 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
     return rows;
   }
 
+  /** Visible unpinned tasks in the same order they are rendered in the project tree. */
+  get visibleTaskEntries(): { projectId: string; taskId: string }[] {
+    return this.sidebarRows
+      .filter((row): row is Extract<SidebarRow, { kind: 'task' }> => row.kind === 'task')
+      .map(({ projectId, taskId }) => ({ projectId, taskId }));
+  }
+
   /** Flat list of pinned tasks (all mounted projects), same sort rules as project tree tasks. */
   get pinnedSidebarEntries(): { projectId: string; taskId: string }[] {
     const pairs: { projectId: string; task: TaskStore }[] = [];

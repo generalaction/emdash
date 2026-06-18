@@ -7,31 +7,47 @@ diff review, integrations, terminal sessions, and packaging for desktop releases
 
 ## Repository Structure
 
+This is a pnpm workspace monorepo. The Electron app lives in `apps/emdash-desktop/`
+(package `@emdash/emdash-desktop`). Unless prefixed otherwise, `src/...`, `drizzle/`,
+`scripts/`, `build/`, and config-file paths in this document and in `agents/` docs are
+relative to `apps/emdash-desktop/`.
+
+Repo root:
+
 - `.claude/` - Local Claude agent settings for this checkout.
 - `.github/` - GitHub issue templates, reusable actions, CI, and release workflows.
-- `.husky/` - Git hooks that run lint-staged formatting and linting on commits.
 - `agents/` - Agent-facing architecture, workflow, convention, integration, and risk docs.
+- `apps/emdash-desktop/` - The Electron desktop app (everything below).
+- `packages/` - Reserved for future shared workspace packages (currently empty).
+- Root config files - `pnpm-workspace.yaml`, root `package.json` with aggregate scripts,
+  `.nvmrc`, `.oxfmtrc.json`, `.oxlintrc.json`.
+
+Inside `apps/emdash-desktop/`:
+
 - `build/` - Electron packaging assets; avoid edits unless working on packaging or signing.
 - `drizzle/` - Generated Drizzle SQL migrations and metadata.
-- `node_modules/` - Installed dependencies; generated and never edited manually.
 - `scripts/` - Release, verification, and build support scripts.
 - `src/main/` - Electron main process, RPC controllers, services, database, PTY, SSH.
 - `src/preload/` - Typed Electron preload bridge exposed to the renderer.
 - `src/renderer/` - React app organized around `app/`, `features/`, `lib/`, and tests.
 - `src/shared/` - Shared IPC primitives, provider metadata, events, MCP, skills, and types.
 - `src/types/` - Ambient and cross-cutting TypeScript declarations.
-- `tooling/` - Development and test infrastructure that is not bundled into production.
-- Root config files - Electron Vite, Vitest, TypeScript, Drizzle, pnpm, Nix, and packaging config.
+- `tooling/` - App-level dev and test infrastructure that is not bundled into production.
+- App config files - Electron Vite, Vitest, TypeScript, Drizzle, Nix, and packaging config.
 
 ## Build & Development Commands
 
-Install dependencies:
+The repo root only has aggregate scripts (`dev`, `build`, `test`, `lint`, `format`,
+`format:check`, `typecheck`) that delegate via `pnpm --filter` / `pnpm -r`. All other
+scripts below run from `apps/emdash-desktop/`.
+
+Install dependencies (repo root):
 
 ```bash
 pnpm install
 ```
 
-Start the app:
+Start the app (repo root via `pnpm run dev`, or in `apps/emdash-desktop/`):
 
 ```bash
 pnpm run d
@@ -51,11 +67,12 @@ Run with debug logging:
 pnpm run dev:debug
 ```
 
-Use an isolated development database for schema or migration work:
+Use an isolated development database for schema or migration work by pointing
+`EMDASH_DB_FILE` at a scratch path, and reset the dev databases with:
 
 ```bash
-pnpm run db:dev
-pnpm run db:dev:reset
+EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev
+pnpm run db:reset
 ```
 
 Build the app:
@@ -118,6 +135,11 @@ gh workflow run release-prod.yml --ref main -f arch=both
 gh workflow run release-canary.yml --ref main -f arch=both
 ```
 
+Production releases publish artifacts to **GitHub Releases** (primary update feed) and
+**Cloudflare R2** (fallback). All three platform build jobs run in parallel; a final
+`finalize-release` job publishes the draft GitHub release once all succeed.
+Canary releases currently publish to R2 only.
+
 ## Code Style & Conventions
 
 - Use Node `24.14.0` from `.nvmrc` and `pnpm@10.28.2`.
@@ -128,7 +150,8 @@ gh workflow run release-canary.yml --ref main -f arch=both
   trailing commas where valid in ES5, and sorted imports.
 - Lint with `oxlint`; config is `.oxlintrc.json` with correctness errors,
   TypeScript, React hooks, and local repo rules enabled.
-- TypeScript strict mode is enabled in the single root `tsconfig.json`.
+- TypeScript strict mode is enabled in `apps/emdash-desktop/tsconfig.json`, the single
+  tsconfig for all app targets.
 - Avoid `any`; if a registry or boundary needs it, keep the escape local and documented.
 - Use top-level `import` statements; do not use `require()`.
 - Never re-export as a shortcut; import from the original source.

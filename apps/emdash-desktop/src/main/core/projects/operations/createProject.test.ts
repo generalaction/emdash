@@ -1,15 +1,20 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { Result } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLocalProject } from './create-local-project';
 import { createSshProject, getSshProjectPathStatus } from './create-ssh-project';
 
 const mocks = vi.hoisted(() => ({
-  detectInfoMock: vi.fn(),
-  getBranchesMock: vi.fn(),
-  getDefaultBranchMock: vi.fn(),
-  initRepositoryMock: vi.fn(),
+  acquireRuntimeMock: vi.fn(),
+  ensureRepositoryMock: vi.fn(),
+  inspectPathMock: vi.fn(),
+  openRepositoryMock: vi.fn(),
+  repoGetDefaultBranchMock: vi.fn(),
+  repoGetRefsMock: vi.fn(),
+  repoReleaseMock: vi.fn(),
+  runtimeReleaseMock: vi.fn(),
   openProjectMock: vi.fn(),
   getProjectMock: vi.fn(),
   insertMock: vi.fn(),
@@ -19,15 +24,10 @@ const mocks = vi.hoisted(() => ({
   sshStatMock: vi.fn(),
 }));
 
-vi.mock('@main/core/git/impl/git-service', () => ({
-  GitService: vi.fn(function MockGitService() {
-    return {
-      detectInfo: mocks.detectInfoMock,
-      getBranches: mocks.getBranchesMock,
-      getDefaultBranch: mocks.getDefaultBranchMock,
-      initRepository: mocks.initRepositoryMock,
-    };
-  }),
+vi.mock('@main/core/runtime/runtime-manager', () => ({
+  runtimeManager: {
+    acquire: mocks.acquireRuntimeMock,
+  },
 }));
 
 vi.mock('@main/core/fs/impl/ssh-fs', () => ({
@@ -57,6 +57,12 @@ vi.mock('@main/db/client', () => ({
   },
 }));
 
+function expectOk<T, E>(result: Result<T, E>): T {
+  expect(result.success).toBe(true);
+  if (!result.success) throw new Error(`Expected success, got ${JSON.stringify(result.error)}`);
+  return result.data;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 
@@ -64,9 +70,34 @@ beforeEach(() => {
   mocks.valuesMock.mockReturnValue({ returning: mocks.returningMock });
   mocks.openProjectMock.mockResolvedValue(undefined);
   mocks.getProjectMock.mockReturnValue(undefined);
-  mocks.getBranchesMock.mockResolvedValue([]);
-  mocks.getDefaultBranchMock.mockResolvedValue('main');
-  mocks.initRepositoryMock.mockResolvedValue(undefined);
+  mocks.acquireRuntimeMock.mockResolvedValue({
+    value: {
+      git: {
+        ensureRepository: mocks.ensureRepositoryMock,
+        inspectPath: mocks.inspectPathMock,
+        openRepository: mocks.openRepositoryMock,
+      },
+    },
+    release: mocks.runtimeReleaseMock,
+  });
+  mocks.ensureRepositoryMock.mockImplementation(async (projectPath: string) => ({
+    success: true,
+    data: { kind: 'repository', rootPath: projectPath, baseRef: 'main' },
+  }));
+  mocks.inspectPathMock.mockImplementation(async (projectPath: string) => ({
+    kind: 'repository',
+    rootPath: projectPath,
+    baseRef: 'main',
+  }));
+  mocks.openRepositoryMock.mockResolvedValue({
+    value: {
+      getDefaultBranch: mocks.repoGetDefaultBranchMock,
+      getRefs: mocks.repoGetRefsMock,
+    },
+    release: mocks.repoReleaseMock,
+  });
+  mocks.repoGetRefsMock.mockResolvedValue({ branches: [] });
+  mocks.repoGetDefaultBranchMock.mockResolvedValue('main');
   mocks.sshConnectMock.mockResolvedValue({ id: 'ssh-proxy' });
   mocks.sshStatMock.mockResolvedValue({ path: '', type: 'dir' });
 });
@@ -92,28 +123,27 @@ describe('createLocalProject', () => {
       updatedAt: '2026-04-16T00:00:00.000Z',
     };
 
-    mocks.detectInfoMock
-      .mockResolvedValueOnce({
-        isGitRepo: false,
-        baseRef: 'main',
-        rootPath: projectPath,
-      })
-      .mockResolvedValueOnce({
-        isGitRepo: true,
-        baseRef: 'main',
-        rootPath: projectPath,
-      });
+    mocks.ensureRepositoryMock.mockResolvedValueOnce({
+      success: true,
+      data: { kind: 'repository', rootPath: projectPath, baseRef: 'main' },
+    });
     mocks.returningMock.mockResolvedValue([row]);
 
-    const created = await createLocalProject({
-      id: 'project-id',
-      name: 'Project',
-      path: projectPath,
-      initGitRepository: true,
-    });
+    const created = expectOk(
+      await createLocalProject({
+        id: 'project-id',
+        name: 'Project',
+        path: projectPath,
+        initGitRepository: true,
+      })
+    );
 
-    expect(mocks.initRepositoryMock).toHaveBeenCalledTimes(1);
-    expect(mocks.detectInfoMock).toHaveBeenCalledTimes(2);
+    expect(mocks.ensureRepositoryMock).toHaveBeenCalledWith(projectPath, {
+      initIfMissing: true,
+    });
+    expect(mocks.openRepositoryMock).toHaveBeenCalledWith(projectPath);
+    expect(mocks.repoReleaseMock).toHaveBeenCalledTimes(1);
+    expect(mocks.runtimeReleaseMock).toHaveBeenCalledTimes(1);
     expect(created).toMatchObject({
       id: 'project-id',
       name: 'Project',
@@ -133,10 +163,9 @@ describe('createLocalProject', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-project-'));
     tempDirs.push(projectPath);
 
-    mocks.detectInfoMock.mockResolvedValue({
-      isGitRepo: false,
-      baseRef: 'main',
-      rootPath: projectPath,
+    mocks.ensureRepositoryMock.mockResolvedValueOnce({
+      success: false,
+      error: { type: 'not-repository', path: projectPath },
     });
 
     await expect(
@@ -145,10 +174,19 @@ describe('createLocalProject', () => {
         name: 'Project',
         path: projectPath,
       })
-    ).rejects.toThrow('Directory is not a git repository');
+    ).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'not-repository',
+        path: projectPath,
+      },
+    });
 
-    expect(mocks.initRepositoryMock).not.toHaveBeenCalled();
-    expect(mocks.detectInfoMock).toHaveBeenCalledTimes(1);
+    expect(mocks.ensureRepositoryMock).toHaveBeenCalledWith(projectPath, {
+      initIfMissing: false,
+    });
+    expect(mocks.openRepositoryMock).not.toHaveBeenCalled();
+    expect(mocks.runtimeReleaseMock).toHaveBeenCalledTimes(1);
   });
 
   it('does not run git init when the folder is already a repository', async () => {
@@ -163,21 +201,23 @@ describe('createLocalProject', () => {
       updatedAt: '2026-04-16T00:00:00.000Z',
     };
 
-    mocks.detectInfoMock.mockResolvedValue({
-      isGitRepo: true,
-      baseRef: 'origin/main',
-      rootPath: projectPath,
+    mocks.ensureRepositoryMock.mockResolvedValueOnce({
+      success: true,
+      data: { kind: 'repository', rootPath: projectPath, baseRef: 'origin/main' },
     });
     mocks.returningMock.mockResolvedValue([row]);
 
-    await createLocalProject({
-      id: 'project-id',
-      name: 'Project',
-      path: projectPath,
-    });
+    expectOk(
+      await createLocalProject({
+        id: 'project-id',
+        name: 'Project',
+        path: projectPath,
+      })
+    );
 
-    expect(mocks.initRepositoryMock).not.toHaveBeenCalled();
-    expect(mocks.detectInfoMock).toHaveBeenCalledTimes(1);
+    expect(mocks.ensureRepositoryMock).toHaveBeenCalledWith(projectPath, {
+      initIfMissing: false,
+    });
   });
 
   it('stores the git remote default branch as baseRef instead of the current feature branch', async () => {
@@ -192,26 +232,30 @@ describe('createLocalProject', () => {
       updatedAt: '2026-04-16T00:00:00.000Z',
     };
 
-    mocks.detectInfoMock.mockResolvedValue({
-      isGitRepo: true,
-      baseRef: 'origin/feature/current',
-      rootPath: projectPath,
+    mocks.ensureRepositoryMock.mockResolvedValueOnce({
+      success: true,
+      data: { kind: 'repository', rootPath: projectPath, baseRef: 'origin/feature/current' },
     });
-    mocks.getDefaultBranchMock.mockResolvedValue('main');
-    mocks.getBranchesMock.mockResolvedValue([
-      {
-        type: 'remote',
-        branch: 'main',
-        remote: { name: 'origin', url: 'git@github.com:example/repo.git' },
-      },
-    ]);
+    mocks.repoGetDefaultBranchMock.mockResolvedValue('main');
+    mocks.repoGetRefsMock.mockResolvedValue({
+      branches: [
+        {
+          type: 'remote',
+          branch: 'main',
+          remote: { name: 'origin', url: 'git@github.com:example/repo.git' },
+          oid: '1111111111111111111111111111111111111111',
+        },
+      ],
+    });
     mocks.returningMock.mockResolvedValue([row]);
 
-    const created = await createLocalProject({
-      id: 'project-id',
-      name: 'Project',
-      path: projectPath,
-    });
+    const created = expectOk(
+      await createLocalProject({
+        id: 'project-id',
+        name: 'Project',
+        path: projectPath,
+      })
+    );
 
     expect(mocks.valuesMock).toHaveBeenCalledWith(
       expect.objectContaining({ baseRef: 'origin/main' })
@@ -231,26 +275,30 @@ describe('createLocalProject', () => {
       updatedAt: '2026-04-16T00:00:00.000Z',
     };
 
-    mocks.detectInfoMock.mockResolvedValue({
-      isGitRepo: true,
-      baseRef: 'origin/feature/current',
-      rootPath: projectPath,
+    mocks.ensureRepositoryMock.mockResolvedValueOnce({
+      success: true,
+      data: { kind: 'repository', rootPath: projectPath, baseRef: 'origin/feature/current' },
     });
-    mocks.getDefaultBranchMock.mockResolvedValue('main');
-    mocks.getBranchesMock.mockResolvedValue([
-      {
-        type: 'remote',
-        branch: 'develop',
-        remote: { name: 'origin', url: 'git@github.com:example/repo.git' },
-      },
-    ]);
+    mocks.repoGetDefaultBranchMock.mockResolvedValue('main');
+    mocks.repoGetRefsMock.mockResolvedValue({
+      branches: [
+        {
+          type: 'remote',
+          branch: 'develop',
+          remote: { name: 'origin', url: 'git@github.com:example/repo.git' },
+          oid: '1111111111111111111111111111111111111111',
+        },
+      ],
+    });
     mocks.returningMock.mockResolvedValue([row]);
 
-    const created = await createLocalProject({
-      id: 'project-id',
-      name: 'Project',
-      path: projectPath,
-    });
+    const created = expectOk(
+      await createLocalProject({
+        id: 'project-id',
+        name: 'Project',
+        path: projectPath,
+      })
+    );
 
     expect(mocks.valuesMock).toHaveBeenCalledWith(
       expect.objectContaining({ baseRef: 'origin/feature/current' })
@@ -272,30 +320,30 @@ describe('createSshProject', () => {
   };
 
   it('initializes git when the selected remote folder is not yet a repository', async () => {
-    mocks.detectInfoMock
-      .mockResolvedValueOnce({
-        isGitRepo: false,
-        baseRef: 'main',
-        rootPath: projectPath,
-      })
-      .mockResolvedValueOnce({
-        isGitRepo: true,
-        baseRef: 'main',
-        rootPath: row.path,
-      });
+    mocks.ensureRepositoryMock.mockResolvedValueOnce({
+      success: true,
+      data: { kind: 'repository', rootPath: row.path, baseRef: 'main' },
+    });
     mocks.returningMock.mockResolvedValue([row]);
 
-    const created = await createSshProject({
-      id: 'project-id',
-      name: 'Project',
-      path: projectPath,
-      connectionId: 'connection-id',
-      initGitRepository: true,
-    });
+    const created = expectOk(
+      await createSshProject({
+        id: 'project-id',
+        name: 'Project',
+        path: projectPath,
+        connectionId: 'connection-id',
+        initGitRepository: true,
+      })
+    );
 
     expect(mocks.sshStatMock).toHaveBeenCalledWith('');
-    expect(mocks.initRepositoryMock).toHaveBeenCalledTimes(1);
-    expect(mocks.detectInfoMock).toHaveBeenCalledTimes(2);
+    expect(mocks.acquireRuntimeMock).toHaveBeenCalledWith({
+      kind: 'ssh',
+      connectionId: 'connection-id',
+    });
+    expect(mocks.ensureRepositoryMock).toHaveBeenCalledWith(projectPath, {
+      initIfMissing: true,
+    });
     expect(created).toMatchObject({
       id: 'project-id',
       name: 'Project',
@@ -313,10 +361,9 @@ describe('createSshProject', () => {
   });
 
   it('rejects non-git remote directories unless initialization is explicitly enabled', async () => {
-    mocks.detectInfoMock.mockResolvedValue({
-      isGitRepo: false,
-      baseRef: 'main',
-      rootPath: projectPath,
+    mocks.ensureRepositoryMock.mockResolvedValueOnce({
+      success: false,
+      error: { type: 'not-repository', path: projectPath },
     });
 
     await expect(
@@ -326,10 +373,17 @@ describe('createSshProject', () => {
         path: projectPath,
         connectionId: 'connection-id',
       })
-    ).rejects.toThrow('Directory is not a git repository');
+    ).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'not-repository',
+        path: projectPath,
+      },
+    });
 
-    expect(mocks.initRepositoryMock).not.toHaveBeenCalled();
-    expect(mocks.detectInfoMock).toHaveBeenCalledTimes(1);
+    expect(mocks.ensureRepositoryMock).toHaveBeenCalledWith(projectPath, {
+      initIfMissing: false,
+    });
   });
 
   it('rejects invalid remote directories', async () => {
@@ -342,10 +396,12 @@ describe('createSshProject', () => {
         path: projectPath,
         connectionId: 'connection-id',
       })
-    ).rejects.toThrow('Invalid directory');
+    ).resolves.toEqual({
+      success: false,
+      error: { type: 'invalid-directory', path: projectPath, message: 'Invalid directory' },
+    });
 
-    expect(mocks.detectInfoMock).not.toHaveBeenCalled();
-    expect(mocks.initRepositoryMock).not.toHaveBeenCalled();
+    expect(mocks.ensureRepositoryMock).not.toHaveBeenCalled();
   });
 
   it('stores the git remote default branch as the SSH project baseRef', async () => {
@@ -354,27 +410,31 @@ describe('createSshProject', () => {
       baseRef: 'origin/main',
     };
 
-    mocks.detectInfoMock.mockResolvedValue({
-      isGitRepo: true,
-      baseRef: 'origin/feature/current',
-      rootPath: row.path,
+    mocks.ensureRepositoryMock.mockResolvedValueOnce({
+      success: true,
+      data: { kind: 'repository', rootPath: row.path, baseRef: 'origin/feature/current' },
     });
-    mocks.getDefaultBranchMock.mockResolvedValue('main');
-    mocks.getBranchesMock.mockResolvedValue([
-      {
-        type: 'remote',
-        branch: 'main',
-        remote: { name: 'origin', url: 'git@github.com:example/repo.git' },
-      },
-    ]);
+    mocks.repoGetDefaultBranchMock.mockResolvedValue('main');
+    mocks.repoGetRefsMock.mockResolvedValue({
+      branches: [
+        {
+          type: 'remote',
+          branch: 'main',
+          remote: { name: 'origin', url: 'git@github.com:example/repo.git' },
+          oid: '1111111111111111111111111111111111111111',
+        },
+      ],
+    });
     mocks.returningMock.mockResolvedValue([rowWithDefault]);
 
-    const created = await createSshProject({
-      id: 'project-id',
-      name: 'Project',
-      path: projectPath,
-      connectionId: 'connection-id',
-    });
+    const created = expectOk(
+      await createSshProject({
+        id: 'project-id',
+        name: 'Project',
+        path: projectPath,
+        connectionId: 'connection-id',
+      })
+    );
 
     expect(mocks.valuesMock).toHaveBeenCalledWith(
       expect.objectContaining({ baseRef: 'origin/main' })
@@ -392,19 +452,19 @@ describe('getSshProjectPathStatus', () => {
     const status = await getSshProjectPathStatus(projectPath, 'connection-id');
 
     expect(status).toEqual({ isDirectory: false, isGitRepo: false });
-    expect(mocks.detectInfoMock).not.toHaveBeenCalled();
+    expect(mocks.inspectPathMock).not.toHaveBeenCalled();
   });
 
   it('returns git status for existing remote directories', async () => {
-    mocks.detectInfoMock.mockResolvedValueOnce({
-      isGitRepo: true,
-      baseRef: 'origin/main',
+    mocks.inspectPathMock.mockResolvedValueOnce({
+      kind: 'repository',
       rootPath: '/remote/repo-root',
+      baseRef: 'origin/main',
     });
 
     const status = await getSshProjectPathStatus(projectPath, 'connection-id');
 
     expect(status).toEqual({ isDirectory: true, isGitRepo: true });
-    expect(mocks.detectInfoMock).toHaveBeenCalledTimes(1);
+    expect(mocks.inspectPathMock).toHaveBeenCalledWith(projectPath);
   });
 });

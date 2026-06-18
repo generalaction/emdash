@@ -149,8 +149,8 @@ describe('resolveSshCommand', () => {
     );
 
     expect(result).toContain('tmux has-session -t \\"agent-session\\"');
-    expect(result).toContain('tmux new-session -d -s \\"agent-session\\"');
-    expect(result).toContain('tmux attach-session -t \\"agent-session\\"');
+    expect(result).toContain('tmux -u new-session -d -s \\"agent-session\\"');
+    expect(result).toContain('tmux -u attach-session -t \\"agent-session\\"');
     expect(result).toContain('/bin/sh -c');
     expect(result).toContain("'\\''claude'\\'' '\\''--resume'\\'' '\\''conv-1'\\''");
   });
