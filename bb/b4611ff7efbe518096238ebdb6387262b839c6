@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/main/core/mcp/services/McpService.ts
+  s_0d8f4c7b67fb31::t_c81ab1961bc872 45,153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "bbb4611ff7efbe518096238ebdb6387262b839c6",
+  "prompts": {},
+  "sessions": {
+    "s_0d8f4c7b67fb31": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019edbb3-5081-75f1-84f1-faac1b1b8da2",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
