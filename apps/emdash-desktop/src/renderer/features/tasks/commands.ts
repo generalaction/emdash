@@ -40,8 +40,10 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       const tabManager = taskView?.tabManager;
       const hasTabs = (tabManager?.resolvedTabs.length ?? 0) > 0;
 
-      const taskIds = sidebarStore.visibleTaskIdsForProject(projectId);
-      const currentIdx = taskIds.indexOf(taskId);
+      const visibleTaskEntries = sidebarStore.visibleTaskEntries;
+      const currentIdx = visibleTaskEntries.findIndex(
+        (entry) => entry.projectId === projectId && entry.taskId === taskId
+      );
 
       const git = getTaskGitWorktreeStore(projectId, taskId);
       const repository = git ? getGitRepositoryStore(projectId) : undefined;
@@ -410,11 +412,11 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           description: nextTaskDef.description,
           shortcutKey: nextTaskDef.shortcutKey,
           group: nextTaskDef.group,
-          enabled: currentIdx !== -1 && currentIdx < taskIds.length - 1,
+          enabled: currentIdx !== -1 && currentIdx < visibleTaskEntries.length - 1,
           hideFromPalette: true,
           execute() {
-            const nextId = taskIds[currentIdx + 1];
-            if (nextId) appState.navigation.navigate('task', { projectId, taskId: nextId });
+            const next = visibleTaskEntries[currentIdx + 1];
+            if (next) appState.navigation.navigate('task', next);
           },
         },
         {
@@ -426,8 +428,8 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           enabled: currentIdx > 0,
           hideFromPalette: true,
           execute() {
-            const prevId = taskIds[currentIdx - 1];
-            if (prevId) appState.navigation.navigate('task', { projectId, taskId: prevId });
+            const previous = visibleTaskEntries[currentIdx - 1];
+            if (previous) appState.navigation.navigate('task', previous);
           },
         },
       ];
