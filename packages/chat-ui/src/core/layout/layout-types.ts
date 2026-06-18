@@ -66,18 +66,6 @@ export type CodeLaidOut = {
   lang?: string;
 };
 
-/** Island block: a fixed or DOM-measured box. */
-export type IslandLaidOut = {
-  kind: 'island';
-  id: string;
-  top: number;
-  height: number;
-  /** Full effective width — islands always fill their allocated area. */
-  contentWidth: number;
-  islandType: string;
-  raw: string;
-};
-
 /** Table block: formula-measured, single-line truncated cells. */
 export type TableLaidOut = {
   kind: 'table';
@@ -93,7 +81,7 @@ export type TableLaidOut = {
   rows: string[][];
 };
 
-export type BlockLaidOut = ProseLaidOut | CodeLaidOut | IslandLaidOut | TableLaidOut;
+export type BlockLaidOut = ProseLaidOut | CodeLaidOut | TableLaidOut;
 
 /** Full layout for a single ChatMessage virtualizer row. */
 export type MessageLayout = {

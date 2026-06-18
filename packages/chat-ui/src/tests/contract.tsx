@@ -39,19 +39,18 @@ export function makeContractCtx(opts: {
   width?: number;
   theme?: ChatTheme;
   isCollapsed?: (id: string) => boolean;
-  measured?: (id: string) => number | undefined;
+  expanded?: (id: string) => boolean;
 }): ContractCtx {
   return {
     theme: opts.theme ?? DEFAULT_THEME,
     width: opts.width ?? 640,
     isCollapsed: opts.isCollapsed ?? (() => false),
-    measured: opts.measured ?? (() => undefined),
+    expanded: opts.expanded ?? (() => false),
   };
 }
 
 const makeRenderCtx = (): RenderCtx => ({
   viewState: { isCollapsed: () => false },
-  setMeasured: () => {},
 });
 
 /**

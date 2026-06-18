@@ -1,20 +1,17 @@
 /**
- * Block-model types produced by parseBlocks().
+ * Block-model types produced by parseMarkdownToBlocks().
  *
  * A ChatMessage's markdown is split into Block[]  so that:
  *   1. HeightModel can measure each block independently.
- *   2. Renderers can specialise per-tier (prose / code / island).
+ *   2. Renderers can specialise per-tier (prose / code / table).
  *   3. Collapse state is stored per-block by stable ID.
  */
 
 /** Coarse rendering tier – controls measurement strategy. */
-export type BlockTier = 'prose' | 'code' | 'island' | 'table';
+export type BlockTier = 'prose' | 'code' | 'table';
 
 /** Fine-grained variant within the prose tier. */
 export type ProseVariant = 'body' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'list-item' | 'quote';
-
-/** Types of rich "island" blocks rendered via slots. */
-export type IslandType = 'math' | 'mermaid' | 'image' | 'rule';
 
 // ── Inline run types ──────────────────────────────────────────────────────────
 
@@ -85,19 +82,6 @@ export type CodeBlock = {
 };
 
 /**
- * A rich "island" block rendered entirely through a slot.
- * Height uses a fixed constant or is measured once via DOM.
- */
-export type IslandBlock = {
-  kind: 'island';
-  tier: 'island';
-  id: BlockId;
-  islandType: IslandType;
-  /** Raw source (markdown table, math expression, mermaid definition, URL, or '-'). */
-  raw: string;
-};
-
-/**
  * A markdown table — formula-measured (static row height), no DOM write-back.
  * Height = (1 + rows.length) * TABLE_ROW_H + TABLE_BORDER.
  */
@@ -111,4 +95,4 @@ export type TableBlock = {
   rows: string[][];
 };
 
-export type Block = ProseBlock | CodeBlock | IslandBlock | TableBlock;
+export type Block = ProseBlock | CodeBlock | TableBlock;

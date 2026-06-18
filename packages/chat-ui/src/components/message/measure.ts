@@ -8,13 +8,12 @@
  * `"${item.id}\x00${rowWidth}"`. The cache is bypassed (and computed fresh) for:
  *   - Streaming messages (text is still changing)
  *   - Any message with a collapsed block (collapse state is external)
- *   - Any message that has a DOM-measured island override (getMeasured returns a value)
  *
  * Call clearMessageLayoutCache() alongside clearPretextCache() on container
  * width changes so layouts are recomputed for the new line width.
  */
 
-import { parseBlocksCached } from '../../core/blocks/parse-blocks';
+import { parseMarkdownToBlocksCached } from '../../core/blocks/parse-blocks';
 import type { MessageLayout } from '../../core/layout/layout-types';
 import { DEFAULT_FONT_CONFIG } from '../../core/measure/fonts';
 import type { FontConfig } from '../../core/measure/fonts';
@@ -42,26 +41,21 @@ export function measureMessage(
   item: ChatMessage,
   rowWidth: number,
   fonts: FontConfig = DEFAULT_FONT_CONFIG,
-  isCollapsed: (id: string) => boolean = () => false,
-  getMeasured: (id: string) => number | undefined = () => undefined
+  isCollapsed: (id: string) => boolean = () => false
 ): MessageLayout {
-  const blocks = parseBlocksCached(item.id, item.text);
+  const blocks = parseMarkdownToBlocksCached(item.id, item.text);
 
   // Determine if this layout is safe to cache:
   //  - Not streaming (text still growing)
   //  - No collapsed blocks (collapse is external state not in the key)
-  //  - No DOM-measured island overrides (those change asynchronously)
-  const isCacheable =
-    !item.streaming &&
-    !blocks.some((b) => isCollapsed(b.id)) &&
-    !blocks.some((b) => b.tier === 'island' && getMeasured(b.id) !== undefined);
+  const isCacheable = !item.streaming && !blocks.some((b) => isCollapsed(b.id));
 
   if (isCacheable) {
     const key = cacheKey(item.id, rowWidth);
     const cached = layoutCache.get(key);
     if (cached) return cached;
 
-    const layout = layoutMessage(blocks, rowWidth, fonts, isCollapsed, getMeasured, item.role);
+    const layout = layoutMessage(blocks, rowWidth, fonts, isCollapsed, item.role);
 
     // Evict oldest entry if at capacity (Map preserves insertion order)
     if (layoutCache.size >= CACHE_MAX) {
@@ -72,5 +66,5 @@ export function measureMessage(
     return layout;
   }
 
-  return layoutMessage(blocks, rowWidth, fonts, isCollapsed, getMeasured, item.role);
+  return layoutMessage(blocks, rowWidth, fonts, isCollapsed, item.role);
 }

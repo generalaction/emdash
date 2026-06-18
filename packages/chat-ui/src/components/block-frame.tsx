@@ -1,14 +1,10 @@
 /**
- * BlockFrame / MeasuredBlockFrame — reusable absolute-position wrappers for
- * block-level content inside a message bubble.
+ * BlockFrame — reusable absolute-position wrapper for block-level content
+ * inside a message bubble.
  *
- * Block components (Code, Prose, Island) should use these instead of
- * hand-writing `position: absolute; top; height; left: 0; right: 0` inline
- * styles.  Placement lives here; components only describe content.
- *
- * BlockFrame        — exact geometry from the layout engine (no DOM measurement)
- * MeasuredBlockFrame — opt-in for islands / thinking bodies that need a real
- *                      DOM write-back after mount (ResizeObserver).
+ * Block components (Code, Prose, Table) use this instead of hand-writing
+ * `position: absolute; top; height; left: 0; right: 0` inline styles.
+ * Placement lives here; components only describe content.
  *
  * Debug overlay: when the DebugContext is enabled, a dashed blue boundary is
  * drawn over the engine-reserved box. If the real DOM offsetHeight diverges from
@@ -119,60 +115,3 @@ export function BlockFrame(props: BlockFrameProps) {
   );
 }
 
-// ── MeasuredBlockFrame ────────────────────────────────────────────────────────
-
-export type MeasuredBlockFrameProps = {
-  layout: { top: number; height: number };
-  id: string;
-  class?: string;
-  onMeasured: (id: string, height: number) => void;
-  children: JSX.Element;
-};
-
-/**
- * Positioning wrapper that also measures its content height after mount and
- * reports it via `onMeasured(id, height)`.  Use for blocks whose height is
- * unknown at layout time (islands, thinking bodies).
- *
- * Implements the write-back with a ResizeObserver (falls back to rAF) so that
- * content that loads asynchronously (images, lazy math) also triggers a
- * re-measure.  The observer is disconnected on cleanup.
- */
-export function MeasuredBlockFrame(props: MeasuredBlockFrameProps) {
-  const debug = useDebug(); // () => boolean — reactive accessor
-  let el!: HTMLElement;
-
-  onMount(() => {
-    const report = () => {
-      // offsetHeight matches the border-box height reserved by the engine.
-      const h = el?.offsetHeight ?? 0;
-      if (h > 0) props.onMeasured(props.id, h);
-    };
-
-    const ro = new ResizeObserver(report);
-    ro.observe(el);
-    onCleanup(() => ro.disconnect());
-
-    requestAnimationFrame(report);
-  });
-
-  return (
-    <div
-      ref={(e) => {
-        el = e;
-      }}
-      data-block-id={props.id}
-      class={`${styles.pblock}${props.class ? ` ${props.class}` : ''}`}
-      style={{
-        top: `${props.layout.top}px`,
-        left: '0',
-        right: '0',
-      }}
-    >
-      {props.children}
-      <Show when={debug()}>
-        <DebugOverlay id={props.id} reservedHeight={props.layout.height} elRef={() => el} />
-      </Show>
-    </div>
-  );
-}

@@ -28,6 +28,10 @@ import type { ChatFileOpToolCall, FileOpKind } from '../../model';
 import { useCommands } from '../CommandsContext';
 import { useTheme } from '../ThemeContext';
 
+const FILEOP_PAD_Y = 6;
+const FILEOP_WINDOW_H = 72;
+const FILEOP_FADE_H = 24;
+
 const VERB: Record<FileOpKind, string> = {
   read: 'Read',
   edit: 'Edited',
@@ -106,10 +110,11 @@ export type FileOperationProps = {
 
 export function FileOperation(props: FileOperationProps) {
   const theme = useTheme();
-  const g = () => theme().geometry;
   const commands = useCommands();
 
   const verb = () => VERB[props.item.op];
+  const fileopRowH = () => theme().fonts.body.lineHeight + 8;
+  const fileopLineH = () => theme().fonts.body.lineHeight;
 
   const openFile = (path: string) => {
     commands().onOpenFile?.({ path, itemId: props.item.id, source: 'file-op' });
@@ -119,12 +124,11 @@ export function FileOperation(props: FileOperationProps) {
 
   // Height of the multi-file container without row padding (Row.tsx adds that).
   const multiH = () => {
-    const { fileopRowH, fileopLineH, fileopPadY, fileopWindowH } = g();
     if (expanded()) {
-      return fileopRowH + props.item.ops.length * fileopLineH + 2 * fileopPadY;
+      return fileopRowH() + props.item.ops.length * fileopLineH() + 2 * FILEOP_PAD_Y;
     }
-    if (props.item.status === 'running') return fileopRowH + fileopWindowH;
-    return fileopRowH;
+    if (props.item.status === 'running') return fileopRowH() + FILEOP_WINDOW_H;
+    return fileopRowH();
   };
 
   return (
@@ -135,8 +139,7 @@ export function FileOperation(props: FileOperationProps) {
         <div
           class="flex items-center"
           style={{
-            height: `${g().fileopRowH}px`,
-            'padding-inline': `${g().rowInsetX}px`,
+            height: `${fileopRowH()}px`,
           }}
         >
           <Show
@@ -154,7 +157,7 @@ export function FileOperation(props: FileOperationProps) {
               <FileRow
                 verb={verb()}
                 path={op().path}
-                lineH={g().fileopLineH}
+                lineH={fileopLineH()}
                 onClick={() => openFile(op().path)}
               />
             )}
@@ -167,13 +170,12 @@ export function FileOperation(props: FileOperationProps) {
         style={{
           position: 'relative',
           height: `${multiH()}px`,
-          'padding-inline': `${g().rowInsetX}px`,
         }}
       >
         {/* Header */}
         <div
           class="flex cursor-pointer items-center gap-1.5 text-sm text-foreground-passive select-none hover:text-foreground-muted"
-          style={{ height: `${g().fileopRowH}px` }}
+          style={{ height: `${fileopRowH()}px` }}
           role="button"
           aria-expanded={expanded() ? 'true' : 'false'}
           data-collapse-id={props.item.id}
@@ -198,18 +200,18 @@ export function FileOperation(props: FileOperationProps) {
               <div
                 style={{
                   position: 'absolute',
-                  top: `${g().fileopRowH}px`,
-                  left: `${g().rowInsetX}px`,
-                  right: `${g().rowInsetX}px`,
+                  top: `${fileopRowH()}px`,
+                  left: '0',
+                  right: '0',
                 }}
               >
                 <FileOpPreview
                   item={props.item}
                   verb={verb()}
-                  windowH={g().fileopWindowH}
-                  fadeH={g().fileopFadeH}
-                  padY={g().fileopPadY}
-                  lineH={g().fileopLineH}
+                  windowH={FILEOP_WINDOW_H}
+                  fadeH={FILEOP_FADE_H}
+                  padY={FILEOP_PAD_Y}
+                  lineH={fileopLineH()}
                 />
               </div>
             </Show>
@@ -218,18 +220,18 @@ export function FileOperation(props: FileOperationProps) {
           <div
             style={{
               position: 'absolute',
-              top: `${g().fileopRowH}px`,
-              left: `${g().rowInsetX}px`,
-              right: `${g().rowInsetX}px`,
+              top: `${fileopRowH()}px`,
+              left: '0',
+              right: '0',
             }}
           >
-            <div style={{ 'padding-block': `${g().fileopPadY}px` }}>
+            <div style={{ 'padding-block': `${FILEOP_PAD_Y}px` }}>
               <For each={props.item.ops}>
                 {(op) => (
                   <FileRow
                     verb={verb()}
                     path={op.path}
-                    lineH={g().fileopLineH}
+                    lineH={fileopLineH()}
                     onClick={() => openFile(op.path)}
                   />
                 )}

@@ -11,14 +11,12 @@
 
 import type { TableBlock } from '../../core/blocks/block-types';
 import type { TableLaidOut } from '../../core/layout/layout-types';
+import { DEFAULT_FONT_CONFIG } from '../../core/measure/fonts';
 import { reserveHeight } from '../../core/layout/reserve-height';
-import { DEFAULT_THEME } from '../../core/theme';
 
-const {
-  tableRowH: TABLE_ROW_H,
-  tableBorder: TABLE_BORDER,
-  tableMinColW: TABLE_MIN_COL_W,
-} = DEFAULT_THEME.geometry;
+const TABLE_ROW_H = DEFAULT_FONT_CONFIG.body.lineHeight + 12;
+const TABLE_BORDER = 1;
+const TABLE_MIN_COL_W = 80;
 
 export function layoutTable(
   block: TableBlock,

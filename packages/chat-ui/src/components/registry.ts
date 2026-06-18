@@ -18,7 +18,6 @@ import { codeDef } from './code/code.def';
 import { diffDef } from './diff/diff.def';
 import { executeDef } from './execute/execute.def';
 import { fileOpDef } from './file-op/file-op.def';
-import { islandDef } from './island/island.def';
 import { messageDef } from './message/message.def';
 import { proseDef } from './prose/prose.def';
 import { tableDef } from './table/table.def';
@@ -35,7 +34,6 @@ export type NodeKind =
   | 'diff'
   | 'prose'
   | 'code'
-  | 'island'
   | 'table';
 
 // oxlint-disable-next-line typescript/no-explicit-any -- registry boundary; each kind is type-safe at its own def file
@@ -50,6 +48,5 @@ export const REGISTRY: Record<NodeKind, ComponentDef<any, any>> = {
   // Block tiers
   prose: proseDef,
   code: codeDef,
-  island: islandDef,
   table: tableDef,
 };

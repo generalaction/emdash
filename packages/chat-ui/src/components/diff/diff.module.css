@@ -1,20 +1,10 @@
 /*
- * diff row — geometry and Shiki token color rules only.
+ * diff row — Shiki token color rules and diff-specific geometry only.
  *
- * The header height, padding, and line height are driven by CSS vars so they
- * stay in sync with the layout arithmetic in measure.ts.
- *
+ * All rows sit flush at the content-column edge (no per-row inset).
  * Visual styling (border, colors, flex layout) lives in Tailwind classes in
- * Diff.tsx.  Only rules that cannot be expressed cleanly in Tailwind remain here.
+ * Diff.tsx. Only rules that cannot be expressed cleanly in Tailwind remain here.
  */
-
-/* ── Row wrapper ──────────────────────────────────────────────────────────── */
-
-.pdiff {
-  /* Outer horizontal inset from the chat viewport edge.
-     The rounded border sits inside this margin. */
-  margin-inline: var(--chat-msg-pad-x);
-}
 
 /* ── Header ───────────────────────────────────────────────────────────────── */
 

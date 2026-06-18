@@ -13,11 +13,7 @@
  */
 
 import type { Block } from '../../core/blocks/block-types';
-import {
-  downgradeIslandsToText,
-  flattenHeadings,
-  parseBlocksCached,
-} from '../../core/blocks/parse-blocks';
+import { buildThinkingBlocks } from '../../core/blocks/parse-blocks';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import type { ChatThinking } from '../../model';
 import type { BlocksLayout } from '../rich-text/layout';
@@ -30,20 +26,23 @@ export type ThinkingLayout = {
   preview?: BlocksLayout;
 };
 
+/** Vertical padding (px) inside the expanded thinking body block stack. */
+const THINKING_PAD_Y = 8;
+/** Preview window height (px) during active thinking. */
+const THINKING_WINDOW_H = 72;
+
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
-function buildThinkingBlocks(item: ChatThinking): Block[] {
-  return downgradeIslandsToText(flattenHeadings(parseBlocksCached(item.id, item.text ?? '')));
+function thinkingHeaderH(ctx: MeasureCtx): number {
+  return ctx.theme.fonts.body.lineHeight + 8;
 }
 
 function layoutThinkingBody(blocks: Block[], ctx: MeasureCtx): BlocksLayout {
-  const bodyWidth = ctx.width - 2 * ctx.theme.geometry.rowInsetX;
-  const { thinkingPadY, blockGap, proseGap } = ctx.theme.geometry;
-  return layoutBlocks(blocks, bodyWidth, ctx.theme.fonts, {
-    padY: thinkingPadY,
+  const { blockGap, proseGap } = ctx.theme.density;
+  return layoutBlocks(blocks, ctx.width, ctx.theme.fonts, {
+    padY: THINKING_PAD_Y,
     blockGap,
     proseGap,
-    getMeasured: () => undefined,
   });
 }
 
@@ -69,30 +68,31 @@ function ThinkingRender(props: {
 export const thinkingDef = defineComponent<ChatThinking, ThinkingLayout>({
   kind: 'thinking',
 
+  collapse: { mode: 'inverted', default: false },
+
   estimate(item, ctx: MeasureCtx): number {
-    const { thinkingHeaderH, thinkingWindowH, thinkingPadY } = ctx.theme.geometry;
-    // isCollapsed serves as isExpanded (inverted semantics)
-    const isExpanded = ctx.isCollapsed(item.id);
+    const headerH = thinkingHeaderH(ctx);
+    const isExpanded = ctx.expanded(item.id);
 
     if (!isExpanded) {
-      if (item.status === 'thinking') return thinkingHeaderH + thinkingWindowH;
-      return thinkingHeaderH;
+      if (item.status === 'thinking') return headerH + THINKING_WINDOW_H;
+      return headerH;
     }
 
     const lines = Math.max(1, Math.ceil((item.text?.length ?? 0) / 60));
-    return thinkingHeaderH + 2 * thinkingPadY + lines * ctx.theme.fonts.body.lineHeight;
+    return headerH + 2 * THINKING_PAD_Y + lines * ctx.theme.fonts.body.lineHeight;
   },
 
   measure(item, ctx: MeasureCtx): Measured<ThinkingLayout> {
-    const { thinkingHeaderH, thinkingWindowH } = ctx.theme.geometry;
-    const isExpanded = ctx.isCollapsed(item.id);
+    const headerH = thinkingHeaderH(ctx);
+    const isExpanded = ctx.expanded(item.id);
 
     if (!isExpanded) {
       const height =
-        item.status === 'thinking' ? thinkingHeaderH + thinkingWindowH : thinkingHeaderH;
+        item.status === 'thinking' ? headerH + THINKING_WINDOW_H : headerH;
 
       if (item.status === 'thinking') {
-        const blocks = buildThinkingBlocks(item);
+        const blocks = buildThinkingBlocks(item.id, item.text);
         const preview = layoutThinkingBody(blocks, ctx);
         return { height, width: ctx.width, layout: { kind: 'thinking', preview } };
       }
@@ -101,10 +101,10 @@ export const thinkingDef = defineComponent<ChatThinking, ThinkingLayout>({
     }
 
     // Expanded: full body layout
-    const blocks = buildThinkingBlocks(item);
+    const blocks = buildThinkingBlocks(item.id, item.text);
     const body = layoutThinkingBody(blocks, ctx);
     return {
-      height: thinkingHeaderH + body.height,
+      height: headerH + body.height,
       width: ctx.width,
       layout: { kind: 'thinking', body },
     };

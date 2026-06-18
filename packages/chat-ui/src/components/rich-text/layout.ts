@@ -21,7 +21,6 @@ import type { Block } from '../../core/blocks/block-types';
 import type { BlockLaidOut } from '../../core/layout/layout-types';
 import type { FontConfig } from '../../core/measure/fonts';
 import { layoutCode } from '../code/layout';
-import { layoutIsland } from '../island/layout';
 import { layoutProse } from '../prose/layout';
 import { layoutTable } from '../table/layout';
 
@@ -29,12 +28,11 @@ export type BlocksLayout = { height: number; width: number; blocks: BlockLaidOut
 
 export type LayoutBlocksOpts = {
   padY: number;
-  /** Gap applied between two visible blocks of different tiers (code/table/island), or when proseGap is not set. */
+  /** Gap applied between two visible blocks of different tiers (code/table), or when proseGap is not set. */
   blockGap: number;
   /** Optional tighter gap applied when *both* the previous and current visible block are prose. Defaults to blockGap. */
   proseGap?: number;
   isCollapsed?: (id: string) => boolean;
-  getMeasured?: (id: string) => number | undefined;
 };
 
 export function layoutBlocks(
@@ -44,7 +42,6 @@ export function layoutBlocks(
   opts: LayoutBlocksOpts
 ): BlocksLayout {
   const isCollapsed = opts.isCollapsed ?? (() => false);
-  const getMeasured = opts.getMeasured ?? (() => undefined);
 
   let cursor = opts.padY;
   let visibleCount = 0;
@@ -78,7 +75,7 @@ export function layoutBlocks(
           contentWidth: 0,
           lines: [],
         };
-      } else if (block.tier === 'table') {
+      } else {
         laidBlock = {
           kind: 'table',
           id: block.id,
@@ -89,16 +86,6 @@ export function layoutBlocks(
           tableWidth: 0,
           header: block.header,
           rows: block.rows,
-        };
-      } else {
-        laidBlock = {
-          kind: 'island',
-          id: block.id,
-          top: cursor,
-          height: 0,
-          contentWidth: 0,
-          islandType: block.islandType,
-          raw: block.raw,
         };
       }
       laid.push(laidBlock);
@@ -119,9 +106,6 @@ export function layoutBlocks(
         break;
       case 'code':
         laidBlock = layoutCode(block, fonts, cursor, width);
-        break;
-      case 'island':
-        laidBlock = layoutIsland(block, cursor, width, getMeasured(block.id));
         break;
       case 'table':
         laidBlock = layoutTable(block, cursor, width);

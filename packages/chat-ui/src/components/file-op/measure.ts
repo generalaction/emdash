@@ -1,24 +1,20 @@
 /**
  * measureFileOp — height function for ChatFileOpToolCall rows.
  *
- * Pure arithmetic, no pretext / DOM. Constants from DEFAULT_THEME.geometry.
+ * Pure arithmetic, no pretext / DOM.
  *
  * Collapse semantics are inverted:
  *   isExpanded(id) maps to viewState.isCollapsed(id).
  *   Default absent/false → not expanded.
  */
 
-import { DEFAULT_THEME } from '../../core/theme';
+import { DEFAULT_FONT_CONFIG } from '../../core/measure/fonts';
 import type { ChatFileOpToolCall } from '../../model';
 
-const {
-  fileopRowH: FILEOP_ROW_H,
-  fileopLineH: FILEOP_LINE_H,
-  fileopPadY: FILEOP_PAD_Y,
-  fileopWindowH: FILEOP_WINDOW_H,
-} = DEFAULT_THEME.geometry;
-
-export { FILEOP_ROW_H, FILEOP_LINE_H, FILEOP_PAD_Y, FILEOP_WINDOW_H };
+export const FILEOP_ROW_H = DEFAULT_FONT_CONFIG.body.lineHeight + 8;
+export const FILEOP_LINE_H = DEFAULT_FONT_CONFIG.body.lineHeight;
+export const FILEOP_PAD_Y = 6;
+export const FILEOP_WINDOW_H = 72;
 
 export function measureFileOp(
   item: ChatFileOpToolCall,

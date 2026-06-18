@@ -9,25 +9,36 @@
  * and empty-blocks fallback. The row wrapper padding (ROW_PAD_Y) is applied
  * by Row.tsx and is NOT baked into the height returned here.
  *
- * The `isCollapsed` / `getMeasured` injected functions keep this module
- * framework-agnostic (no Solid imports, no ViewState import).
+ * The `isCollapsed` injected function keeps this module framework-agnostic
+ * (no Solid imports, no ViewState import).
  */
 
 import type { Block } from '../../core/blocks/block-types';
 import type { MessageLayout } from '../../core/layout/layout-types';
 import type { FontConfig } from '../../core/measure/fonts';
-import { ROW_INSET_X, USER_BUBBLE_MAX_WIDTH_PCT } from '../../core/metrics';
+import { USER_BUBBLE_MAX_WIDTH_PCT } from '../../core/metrics';
 import type { ChatRole } from '../../model';
 import { measureProseNaturalWidth } from '../prose/layout';
 import { layoutBlocks } from '../rich-text/layout';
-import { BUBBLE_PAD_X, BUBBLE_PAD_Y, BLOCK_GAP, MESSAGE_FOOTER_H, PROSE_GAP } from './metrics';
+
+// ── Message layout constants ──────────────────────────────────────────────────
+
+/** Horizontal padding inside the message bubble on each side (px). */
+export const BUBBLE_PAD_X = 14;
+/** Vertical padding inside the message bubble on each side (px). */
+export const BUBBLE_PAD_Y = 8;
+/** Gap between blocks of different tiers (code, table) in the block stack (px). */
+export const BLOCK_GAP = 10;
+/** Tighter gap between two consecutive prose blocks (px). */
+export const PROSE_GAP = 4;
+/** Reserved height for the assistant message footer (copy button row, px). */
+export const MESSAGE_FOOTER_H = 24;
 
 export function layoutMessage(
   blocks: Block[],
   rowWidth: number,
   fonts: FontConfig,
   isCollapsed: (id: string) => boolean,
-  getMeasured: (id: string) => number | undefined,
   role: ChatRole = 'assistant'
 ): MessageLayout {
   // Reserve footer space for assistant messages (copy button).
@@ -41,7 +52,7 @@ export function layoutMessage(
     };
   }
 
-  const contentWidth = rowWidth - 2 * ROW_INSET_X;
+  const contentWidth = rowWidth;
   const effectiveWidth =
     role === 'user' ? userEffectiveWidth(blocks, contentWidth, fonts, isCollapsed) : contentWidth;
 
@@ -50,7 +61,6 @@ export function layoutMessage(
     blockGap: BLOCK_GAP,
     proseGap: PROSE_GAP,
     isCollapsed,
-    getMeasured,
   });
 
   return { ...inner, height: inner.height + footer };

@@ -34,7 +34,7 @@ export type {
 export type { TranscriptApi, TranscriptEvent } from './state/transcript';
 export type { ViewState } from './state/view-state';
 export { generateMockTranscript } from './mock-transcript';
-export type { ChatTheme, GeometryScale } from './core/theme';
+export type { ChatTheme, DensityScale } from './core/theme';
 export { buildTheme, DEFAULT_THEME } from './core/theme';
 
 // ── Commands ──────────────────────────────────────────────────────────────────

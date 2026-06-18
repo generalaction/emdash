@@ -85,18 +85,11 @@ export const BLOCKQUOTE_INDENT = 18;
 /** Horizontal gap from the bullet's center anchor to the start of list text. */
 export const LIST_BULLET_GAP = 12;
 
-// ── Island ───────────────────────────────────────────────────────────────────
-
-export const ISLAND_FIXED_HEIGHT = 300;
-
 // ── User bubble max-width ────────────────────────────────────────────────────
 
 export const USER_BUBBLE_MAX_WIDTH_PCT = 85;
 
 // ── Engine-level row constants ───────────────────────────────────────────────
-
-/** Horizontal padding of each message row from the viewport edge. */
-export const ROW_INSET_X = 16;
 
 /**
  * Symmetric vertical padding (px) applied to each row wrapper by the engine.

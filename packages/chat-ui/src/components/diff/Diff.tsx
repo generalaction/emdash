@@ -4,7 +4,6 @@ import { type CodeToken, highlightCode, peekHighlight } from '../../core/highlig
 import type { ChatDiff } from '../../model';
 import { cancelIdle, scheduleIdle } from '../dom-utils';
 import { useCommands } from '../CommandsContext';
-import { useTheme } from '../ThemeContext';
 import type { DiffRow } from './diff-lines';
 import type { DiffLayout } from './diff.def';
 import styles from './diff.module.css';
@@ -107,9 +106,10 @@ export type DiffProps = {
   codeLineHeight: () => number;
 };
 
+const DIFF_HEADER_H = 28;
+const DIFF_FADE_H = 24;
+
 export function Diff(props: DiffProps) {
-  const theme = useTheme();
-  const g = () => theme().geometry;
   const lineEls = new Map<number, HTMLElement>();
 
   createEffect(() => {
@@ -165,7 +165,7 @@ export function Diff(props: DiffProps) {
         item={props.item}
         adds={props.layout.adds}
         dels={props.layout.dels}
-        headerH={g().diffHeaderH}
+        headerH={DIFF_HEADER_H}
       />
       <div class={styles['pdiff__body']}>
         <For each={props.layout.previewRows}>
@@ -186,7 +186,7 @@ export function Diff(props: DiffProps) {
         {props.layout.truncated && (
           <div
             class={`${styles['pdiff__fade']} fade-overlay-bottom`}
-            style={{ height: `${g().diffFadeH}px` }}
+            style={{ height: `${DIFF_FADE_H}px` }}
             aria-hidden="true"
           />
         )}

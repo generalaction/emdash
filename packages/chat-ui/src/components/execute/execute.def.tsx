@@ -1,17 +1,15 @@
 /**
  * executeDef — ComponentDef for ChatExecute rows.
  *
- * Height is always a fixed `execRowH` from the theme geometry (formerly
- * the EXEC_ROW_H constant in execute/metrics.ts).  No collapse state.
- *
- * The Render wrapper applies row geometry (height, horizontal padding) via
- * inline styles so execute.module.css no longer needs geometry CSS vars.
+ * Fixed height of EXEC_ROW_H (28px). No collapse state.
  */
 
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import type { ChatExecute } from '../../model';
-import { useTheme } from '../ThemeContext';
 import { Execute } from './Execute';
+
+/** Fixed row height for execute rows (px). */
+const EXEC_ROW_H = 28;
 
 export type ExecuteLayout = { kind: 'execute' };
 
@@ -20,14 +18,10 @@ function ExecuteRender(props: {
   layout: Measured<ExecuteLayout>;
   ctx: RenderCtx;
 }) {
-  const theme = useTheme();
-  const g = () => theme().geometry;
-
   return (
     <div
       style={{
         height: `${props.layout.height}px`,
-        'padding-inline': `${g().rowInsetX}px`,
         display: 'flex',
         'align-items': 'center',
       }}
@@ -40,13 +34,13 @@ function ExecuteRender(props: {
 export const executeDef = defineComponent<ChatExecute, ExecuteLayout>({
   kind: 'execute',
 
-  estimate(_item, ctx: MeasureCtx): number {
-    return ctx.theme.geometry.execRowH;
+  estimate(): number {
+    return EXEC_ROW_H;
   },
 
   measure(_item, ctx: MeasureCtx): Measured<ExecuteLayout> {
     return {
-      height: ctx.theme.geometry.execRowH,
+      height: EXEC_ROW_H,
       width: ctx.width,
       layout: { kind: 'execute' },
     };

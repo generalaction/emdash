@@ -24,7 +24,6 @@ import type {
   InlineMention,
   InlineRun,
   InlineText,
-  IslandBlock,
   ProseBlock,
   ProseVariant,
   TableBlock,
@@ -152,28 +151,16 @@ function blockToBlocks(
   switch (node.type) {
     case 'paragraph': {
       const parent = node as Parent;
-      // A paragraph that contains only an image becomes an island.
-      if (parent.children.length === 1 && parent.children[0].type === 'image') {
-        const img = parent.children[0] as Image;
+      const runs = phrasingsToRuns(parent.children as PhrasingContent[]);
+      if (runs.length > 0) {
         blocks.push({
-          kind: 'island',
-          tier: 'island',
+          kind: 'prose',
+          tier: 'prose',
           id: nextId(),
-          islandType: 'image',
-          raw: img.url,
-        } satisfies IslandBlock);
-      } else {
-        const runs = phrasingsToRuns(parent.children as PhrasingContent[]);
-        if (runs.length > 0) {
-          blocks.push({
-            kind: 'prose',
-            tier: 'prose',
-            id: nextId(),
-            variant: 'body',
-            runs,
-            depth,
-          } satisfies ProseBlock);
-        }
+          variant: 'body',
+          runs,
+          depth,
+        } satisfies ProseBlock);
       }
       break;
     }
@@ -260,25 +247,26 @@ function blockToBlocks(
     }
 
     case 'thematicBreak': {
+      // Horizontal rules are rendered as a prose separator line.
       blocks.push({
-        kind: 'island',
-        tier: 'island',
+        kind: 'prose',
+        tier: 'prose',
         id: nextId(),
-        islandType: 'rule',
-        raw: '-',
-      } satisfies IslandBlock);
+        variant: 'body',
+        runs: [{ kind: 'text', text: '—' }],
+      } satisfies ProseBlock);
       break;
     }
 
-    // remark-math adds 'math' (block-level)
+    // remark-math adds 'math' (block-level) — rendered as plain text for now.
     case 'math': {
       blocks.push({
-        kind: 'island',
-        tier: 'island',
+        kind: 'prose',
+        tier: 'prose',
         id: nextId(),
-        islandType: 'math',
-        raw: node.value,
-      } satisfies IslandBlock);
+        variant: 'body',
+        runs: [{ kind: 'text', text: node.value }],
+      } satisfies ProseBlock);
       break;
     }
 
@@ -293,16 +281,19 @@ function blockToBlocks(
 // ── Public API ──────────────────────────────────────────────────────────────
 
 /**
- * Parse a markdown string into a stable `Block[]` that both `HeightModel`
- * (measurement) and the block renderer components consume.
+ * Parse a markdown string into a stable `Block[]` that both the measurement
+ * engine and block renderer components consume.
  *
  * Block IDs are in the form `${messageId}#${index}` where `index` is the
  * position in the flat block list produced by the parse. IDs are stable as
  * long as the full text is re-parsed (not incrementally mutated). A streaming
  * message is kept as a single prose unit until `finalizeTurn()` freezes the
  * text and re-parses with the complete content.
+ *
+ * @param messageId - Stable item id used as the block-id prefix.
+ * @param markdown  - Raw markdown string to parse.
  */
-export function parseBlocks(messageId: string, markdown: string): Block[] {
+export function parseMarkdownToBlocks(messageId: string, markdown: string): Block[] {
   if (!markdown.trim()) return [];
 
   const tree = parser.parse(markdown) as Root;
@@ -320,23 +311,40 @@ export function parseBlocks(messageId: string, markdown: string): Block[] {
 
 type CacheEntry = { text: string; blocks: Block[] };
 
-/**
- * Module-level parse cache keyed by `messageId`.
- *
- * For committed (non-streaming) messages the text never changes, so this gives
- * parse-once-per-message semantics. For streaming messages the text grows each
- * chunk, so the text-equality check ensures a re-parse happens only when content
- * actually changes. Call `clearBlockCache()` when a conversation is torn down.
- */
 const blockCache = new Map<string, CacheEntry>();
 
-export function parseBlocksCached(messageId: string, markdown: string): Block[] {
+/**
+ * Parse a markdown string into a stable `Block[]`, with a module-level LRU
+ * cache keyed by `messageId`.
+ *
+ * **Cache semantics**
+ * - Committed (non-streaming) messages: text is immutable, so the cache gives
+ *   parse-once-per-message semantics across all re-renders and layout passes.
+ * - Streaming messages: the text grows each chunk; the text-equality check
+ *   ensures a re-parse only when content actually changes.
+ * - **Identity guarantee**: consecutive calls with the same `messageId` and
+ *   identical `markdown` return the *exact same array reference*, so downstream
+ *   identity checks (`===`) can detect "no change".
+ * - **Invalidation**: call `clearBlockCache()` when a conversation is torn
+ *   down, or `evictBlockCache(id)` to evict a single message (e.g. after
+ *   `finalizeTurn` freezes the text and you want a clean re-parse).
+ *
+ * @param messageId - Stable item id; used as the cache key and block-id prefix.
+ * @param markdown  - Raw markdown string to parse.
+ */
+export function parseMarkdownToBlocksCached(messageId: string, markdown: string): Block[] {
   const hit = blockCache.get(messageId);
   if (hit && hit.text === markdown) return hit.blocks;
-  const blocks = parseBlocks(messageId, markdown);
+  const blocks = parseMarkdownToBlocks(messageId, markdown);
   blockCache.set(messageId, { text: markdown, blocks });
   return blocks;
 }
+
+/**
+ * @deprecated Use `parseMarkdownToBlocksCached` instead.
+ * @internal kept temporarily for any call sites not yet migrated.
+ */
+export const parseBlocksCached = parseMarkdownToBlocksCached;
 
 /** Evict all cached block arrays (call when a conversation store is reset). */
 export function clearBlockCache(): void {
@@ -351,11 +359,17 @@ export function evictBlockCache(messageId: string): void {
 // ── Block normalization helpers ───────────────────────────────────────────────
 
 /**
- * Map any heading variant (h1–h6) to 'body' so the text measures and renders
- * at body size/weight. Inline runs (bold, code, links, mentions) are preserved.
- * Use when large headings are not appropriate (e.g. reasoning / thinking rows).
+ * Demote every heading variant (h1–h6) to `'body'` so the text measures and
+ * renders at body size/weight. Inline runs (bold, code, links, mentions) are
+ * preserved untouched.
+ *
+ * Use when large headings are not appropriate for the rendering context (e.g.
+ * the reasoning / thinking row where AI-generated section headers would be
+ * visually disruptive).
+ *
+ * @param blocks - Block array to transform (not mutated; returns a new array).
  */
-export function flattenHeadings(blocks: Block[]): Block[] {
+export function flattenBlockHeadings(blocks: Block[]): Block[] {
   return blocks.map((b) =>
     b.tier === 'prose' && b.variant !== 'body' && b.variant !== 'list-item' && b.variant !== 'quote'
       ? { ...b, variant: 'body' as const }
@@ -364,21 +378,26 @@ export function flattenHeadings(blocks: Block[]): Block[] {
 }
 
 /**
- * Convert island blocks (math, mermaid, image, rule) to plain prose text using
- * their `raw` value. Keeps measurement 100% DOM-free so rows that cannot use
- * island DOM write-back (e.g. thinking) can safely call layoutBlocks.
+ * @deprecated Use `flattenBlockHeadings` instead.
+ * @internal kept temporarily for any call sites not yet migrated.
  */
-export function downgradeIslandsToText(blocks: Block[]): Block[] {
-  return blocks.map(
-    (b): Block =>
-      b.tier === 'island'
-        ? {
-            kind: 'prose',
-            tier: 'prose',
-            id: b.id,
-            variant: 'body',
-            runs: [{ kind: 'text', text: b.raw }],
-          }
-        : b
-  );
+export const flattenHeadings = flattenBlockHeadings;
+
+// ── Shared thinking pipeline ──────────────────────────────────────────────────
+
+/**
+ * Parse and transform a thinking item's markdown into the `Block[]` used by
+ * both the measurement engine and `ThinkingProse`.
+ *
+ * Applies:
+ *   1. `parseMarkdownToBlocksCached` — parse with identity-stable caching.
+ *   2. `flattenBlockHeadings` — demote headings to body variant so AI-generated
+ *      section headers don't produce oversized lines in the thinking row.
+ *
+ * @param id   - Stable thinking item id; used as the cache key.
+ * @param text - Raw markdown string (may be `undefined` during streaming).
+ */
+export function buildThinkingBlocks(id: string, text: string | undefined): Block[] {
+  return flattenBlockHeadings(parseMarkdownToBlocksCached(id, text ?? ''));
 }
+

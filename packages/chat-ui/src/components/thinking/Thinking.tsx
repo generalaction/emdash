@@ -21,11 +21,7 @@
  */
 
 import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
-import {
-  downgradeIslandsToText,
-  flattenHeadings,
-  parseBlocksCached,
-} from '../../core/blocks/parse-blocks';
+import { buildThinkingBlocks } from '../../core/blocks/parse-blocks';
 import type { ChatThinking } from '../../model';
 import { BlockStack } from '../rich-text/BlockStack';
 import type { BlocksLayout } from '../rich-text/layout';
@@ -97,10 +93,7 @@ function ThinkingHeader(props: { item: ChatThinking; expanded: boolean; headerH:
 // ── ThinkingProse ──────────────────────────────────────────────────────────────
 
 function ThinkingProse(props: { item: ChatThinking; layout: BlocksLayout }) {
-  const blocks = () =>
-    downgradeIslandsToText(
-      flattenHeadings(parseBlocksCached(props.item.id, props.item.text ?? ''))
-    );
+  const blocks = () => buildThinkingBlocks(props.item.id, props.item.text);
   return <BlockStack blocks={blocks()} laid={props.layout.blocks} />;
 }
 
@@ -142,14 +135,14 @@ function ActivePreview(props: {
 
 // ── ExpandedBody ───────────────────────────────────────────────────────────────
 
-function ExpandedBody(props: { item: ChatThinking; body: BlocksLayout; rowInsetX: number }) {
+function ExpandedBody(props: { item: ChatThinking; body: BlocksLayout }) {
   return (
     <div
       class="text-foreground-passive"
       style={{
         height: `${props.body.height}px`,
-        left: `${props.rowInsetX}px`,
-        right: `${props.rowInsetX}px`,
+        left: '0',
+        right: '0',
         position: 'absolute',
       }}
     >
@@ -167,7 +160,6 @@ function ThinkingContent(props: {
   preview?: BlocksLayout;
   windowH: number;
   fadeH: number;
-  rowInsetX: number;
   headerH: number;
 }) {
   return (
@@ -180,8 +172,8 @@ function ThinkingContent(props: {
               style={{
                 position: 'absolute',
                 top: `${props.headerH}px`,
-                left: `${props.rowInsetX}px`,
-                right: `${props.rowInsetX}px`,
+                left: '0',
+                right: '0',
               }}
             >
               <ActivePreview
@@ -195,24 +187,27 @@ function ThinkingContent(props: {
         </Show>
       }
     >
-      {(body) => <ExpandedBody item={props.item} body={body()} rowInsetX={props.rowInsetX} />}
+      {(body) => <ExpandedBody item={props.item} body={body()} />}
     </Show>
   );
 }
 
 // ── Thinking ───────────────────────────────────────────────────────────────────
 
+const THINKING_WINDOW_H = 72;
+const THINKING_FADE_H = 28;
+
 export function Thinking(props: ThinkingProps) {
   const theme = useTheme();
-  const g = () => theme().geometry;
+  const headerH = () => theme().fonts.body.lineHeight + 8;
 
   // Inverted semantics: stored "collapsed" flag is treated as "expanded".
   const expanded = () => !!props.collapsed;
 
   const totalH = () => {
-    if (props.body) return g().thinkingHeaderH + props.body.height;
-    if (props.item.status === 'thinking') return g().thinkingHeaderH + g().thinkingWindowH;
-    return g().thinkingHeaderH;
+    if (props.body) return headerH() + props.body.height;
+    if (props.item.status === 'thinking') return headerH() + THINKING_WINDOW_H;
+    return headerH();
   };
 
   return (
@@ -220,19 +215,17 @@ export function Thinking(props: ThinkingProps) {
       style={{
         position: 'relative',
         height: `${totalH()}px`,
-        'padding-inline': `${g().rowInsetX}px`,
       }}
     >
-      <ThinkingHeader item={props.item} expanded={expanded()} headerH={g().thinkingHeaderH} />
+      <ThinkingHeader item={props.item} expanded={expanded()} headerH={headerH()} />
       <ThinkingContent
         item={props.item}
         expanded={expanded()}
         body={props.body}
         preview={props.preview}
-        windowH={g().thinkingWindowH}
-        fadeH={g().thinkingFadeH}
-        rowInsetX={g().rowInsetX}
-        headerH={g().thinkingHeaderH}
+        windowH={THINKING_WINDOW_H}
+        fadeH={THINKING_FADE_H}
+        headerH={headerH()}
       />
     </div>
   );

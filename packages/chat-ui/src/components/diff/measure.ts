@@ -15,17 +15,14 @@
  */
 
 import type { FontConfig } from '../../core/measure/fonts';
-import { DEFAULT_THEME } from '../../core/theme';
 import type { ChatDiff } from '../../model';
 import { computeDiff, countChanges, selectPreview, type DiffRow } from './diff-lines';
 import { langFromPath } from './lang';
 
-const {
-  diffBorder: DIFF_BORDER,
-  diffContext: DIFF_CONTEXT,
-  diffHeaderH: DIFF_HEADER_H,
-  diffMaxLines: DIFF_MAX_LINES,
-} = DEFAULT_THEME.geometry;
+const DIFF_BORDER = 1;
+const DIFF_CONTEXT = 1;
+const DIFF_HEADER_H = 28;
+const DIFF_MAX_LINES = 12;
 
 export type DiffMeasureResult = {
   height: number;

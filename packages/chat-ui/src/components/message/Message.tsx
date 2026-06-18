@@ -3,25 +3,23 @@
  *
  * Uses pre-computed MessageLayout to absolutely-position blocks. Prose lines
  * are rendered via keyed <For> so Solid re-renders only changed lines during
- * streaming. Islands write back their measured height to the parent via
- * onIslandMeasured.
+ * streaming.
  *
  * Assistant messages include a reserved footer (MESSAGE_FOOTER_H) below the
  * bubble that shows a hover-revealed Copy button.
  */
 
 import { Show, createSignal, onCleanup } from 'solid-js';
-import { parseBlocksCached } from '../../core/blocks/parse-blocks';
+import { parseMarkdownToBlocksCached } from '../../core/blocks/parse-blocks';
 import type { MessageLayout } from '../../core/layout/layout-types';
 import type { ChatMessage, ChatRole } from '../../model';
 import { BlockStack } from '../rich-text/BlockStack';
-import { BUBBLE_PAD_X, MESSAGE_FOOTER_H } from './metrics';
+import { BUBBLE_PAD_X, MESSAGE_FOOTER_H } from './layout';
 import styles from './message.module.css';
 
 export type MessageProps = {
   item: ChatMessage;
   layout: MessageLayout;
-  onIslandMeasured?: (blockId: string, height: number) => void;
 };
 
 // ── Plain-text extractor (a11y) ───────────────────────────────────────────────
@@ -134,7 +132,7 @@ export function Message(props: MessageProps) {
   const isUser = () => props.item.role === 'user';
   const isAssistant = () => props.item.role === 'assistant';
   const rc = () => roleClass(props.item.role);
-  const blocks = () => parseBlocksCached(props.item.id, props.item.text);
+  const blocks = () => parseMarkdownToBlocksCached(props.item.id, props.item.text);
 
   // Reserve footer space for assistant; bubble uses the remaining height.
   const footer = () => (isAssistant() ? MESSAGE_FOOTER_H : 0);
@@ -158,19 +156,21 @@ export function Message(props: MessageProps) {
 
   return (
     <div
-      class={`group flex flex-col px-[var(--chat-msg-pad-x)] ${rc() === 'user' ? 'items-end' : 'items-start'}`}
+      class={`group flex flex-col ${rc() === 'user' ? 'items-end' : 'items-start'}`}
     >
       {/* a11y visually-hidden mirror */}
       <div class="sr-only" aria-label={props.item.text}>
         {plainText()}
       </div>
-      {/* Visible bubble */}
+      {/* Visible bubble — UserBubble pads content with BUBBLE_PAD_X on each side */}
       <div
         class={`${styles['pmsg-bubble']} ${bubbleVisualClass()}`}
         aria-hidden="true"
         style={{
           height: `${bubbleHeight()}px`,
-          ...(isUser() ? { width: `${bubbleWidth()}px` } : { width: '100%' }),
+          ...(isUser()
+            ? { width: `${bubbleWidth()}px`, 'border-radius': '12px' }
+            : { width: '100%' }),
           position: 'relative',
         }}
       >
@@ -183,11 +183,7 @@ export function Message(props: MessageProps) {
             right: `${contentInsetX()}px`,
           }}
         >
-          <BlockStack
-            blocks={blocks()}
-            laid={props.layout.blocks}
-            onIslandMeasured={props.onIslandMeasured}
-          />
+          <BlockStack blocks={blocks()} laid={props.layout.blocks} />
         </div>
       </div>
       {/* Actions footer — reserved height, copy button visible on hover */}

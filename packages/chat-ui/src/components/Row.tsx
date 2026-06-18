@@ -18,7 +18,6 @@
  */
 
 import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
-import { createStore } from 'solid-js/store';
 import { Dynamic } from 'solid-js/web';
 import type { Measured, MeasureCtx, RenderCtx } from '../core/define';
 import type { ChatTheme } from '../core/theme';
@@ -37,11 +36,6 @@ import { REGISTRY } from './registry';
 // Fingerprint: theme.version + rowWidth + isCollapsed(item.id)
 //              (covers all inputs that affect measured geometry)
 // activeTurn:  bypassed — streaming items change content every tick
-//
-// Items with DOM-measured children (islands): their `measured` heights are
-// per-Row-instance and start empty on each mount. The fingerprint does NOT
-// encode `measured` so scroll-back will briefly use the fixed estimate; the
-// Island mount handler fires immediately and re-triggers layout via setMeasured.
 
 // oxlint-disable typescript/no-explicit-any -- cache boundary; each kind is type-safe at its own def
 const nodeMemo = new WeakMap<object, { fingerprint: string; result: Measured<any> }>();
@@ -52,7 +46,10 @@ function cachedMeasure(item: ChatItem, isActiveTurn: boolean, ctx: MeasureCtx): 
   // Always recompute for activeTurn rows (streaming, content changes every tick).
   if (isActiveTurn) return def.measure(item, ctx);
 
-  const fingerprint = `${ctx.theme.version}|${ctx.width}|${ctx.isCollapsed(item.id)}`;
+  // Include expanded(id) in the fingerprint only for collapsible defs.
+  // Non-collapsible defs never call ctx.expanded so it has no effect on layout.
+  const expandedBit = def.collapse !== undefined ? ctx.expanded(item.id) : '';
+  const fingerprint = `${ctx.theme.version}|${ctx.width}|${ctx.isCollapsed(item.id)}|${expandedBit}`;
   const cached = nodeMemo.get(item);
   if (cached?.fingerprint === fingerprint) return cached.result;
 
@@ -122,31 +119,39 @@ function RowDebugOverlay(props: { reserved: number; rowEl: () => HTMLElement | u
 export function Row(props: RowProps) {
   const debug = useDebug();
 
-  // DOM-measured heights for islands and thinking bodies.
-  const [measured, setMeasured] = createStore<Record<string, number>>({});
-
   let rowEl: HTMLElement | undefined;
 
   // ── Contexts ─────────────────────────────────────────────────────────────────
+
+  const resolveExpanded = (id: string): boolean => {
+    const collapseDecl = def().collapse;
+    if (!collapseDecl) return false;
+    const flag = props.viewState.isCollapsed(id);
+    if (collapseDecl.mode === 'inverted') {
+      // Inverted: stored "collapsed" flag means "expanded"; absence means not expanded.
+      return flag;
+    }
+    // Normal: expanded when the view-state "collapsed" flag is NOT set.
+    return !flag;
+  };
 
   const measureCtx = (): MeasureCtx => ({
     theme: props.theme,
     width: props.rowWidth,
     isCollapsed: (id) => props.viewState.isCollapsed(id),
-    measured: (id) => measured[id],
+    expanded: resolveExpanded,
   });
 
   const renderCtx: RenderCtx = {
     viewState: { isCollapsed: (id) => props.viewState.isCollapsed(id) },
-    setMeasured: (id, h) => setMeasured(id, h),
   };
 
   // ── Def + layout ────────────────────────────────────────────────────────────
 
   const def = createMemo(() => REGISTRY[props.item.kind as keyof typeof REGISTRY]);
 
-  // Per-kind symmetric wrapper padding from theme geometry.
-  const padY = () => props.theme.geometry.rowPadY[props.item.kind] ?? 0;
+  // Per-kind symmetric wrapper padding declared in each ComponentDef.
+  const padY = () => def().padY ?? 0;
 
   // ── Layout + height bridge ────────────────────────────────────────────────────
 

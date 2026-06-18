@@ -173,9 +173,9 @@ export function ChatRoot(props: ChatRootProps) {
             theme: t,
             width: 0,
             isCollapsed: () => false,
-            measured: () => undefined,
+            expanded: () => false,
           }) +
-          2 * (t.geometry.rowPadY[item.kind] ?? 0)
+          2 * (def.padY ?? 0)
         );
       });
       refreshTotal();
@@ -319,9 +319,9 @@ export function ChatRoot(props: ChatRootProps) {
           theme: t,
           width: containerWidth(),
           isCollapsed: () => false,
-          measured: () => undefined,
+          expanded: () => false,
         }) +
-        2 * (t.geometry.rowPadY[item.kind] ?? 0)
+        2 * (def.padY ?? 0)
       );
     });
 
@@ -363,7 +363,7 @@ export function ChatRoot(props: ChatRootProps) {
     //   Code block geometry — feed Code.tsx visual chrome (padding, border).
     //   Island geometry — caps the max-height of fixed-size island blocks.
     const t = theme();
-    const g = t.geometry;
+    const d = t.density;
     // Extract font-size px value from CSS shorthand "weight size family".
     const codeSizePx = t.fonts.code.font.match(/(\d+(?:\.\d+)?)px/)?.[1] ?? '13';
     const cssVars: Record<string, string> = {
@@ -372,15 +372,13 @@ export function ChatRoot(props: ChatRootProps) {
       '--chat-code-lh': `${t.fonts.code.lineHeight}px`,
       '--chat-code-weight': '400',
       // Inline code / mention chrome (feed pretext extra-width accounting)
-      '--chat-ic-pad-x': `${g.inlineCodePadX}px`,
-      '--chat-ic-pad-y': `${g.inlineCodePadY}px`,
+      '--chat-ic-pad-x': `${d.inlineCodePadX}px`,
+      '--chat-ic-pad-y': `${d.inlineCodePadY}px`,
       '--chat-mention-pad-x': `${Math.round(t.fonts.mentionExtraWidth / 2)}px`,
-      // Code block geometry (visual chrome — border, padding)
-      '--chat-code-border': `${g.codeBorder}px`,
-      '--chat-code-pad-x': `${g.codePadX}px`,
-      '--chat-code-pad-y': `${g.codePadY}px`,
-      // Island geometry
-      '--chat-island-max-h': `${g.islandFixedH}px`,
+      // Code block geometry (visual chrome — border, padding; matches code.def.tsx constants)
+      '--chat-code-border': '1px',
+      '--chat-code-pad-x': '8px',
+      '--chat-code-pad-y': '8px',
     };
     for (const [k, v] of Object.entries(cssVars)) {
       el.style.setProperty(k, v);

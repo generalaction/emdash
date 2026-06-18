@@ -14,6 +14,7 @@ import type { Component } from 'solid-js';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import type { MessageLayout } from '../../core/layout/layout-types';
 import type { ChatMessage } from '../../model';
+import { BUBBLE_PAD_Y, MESSAGE_FOOTER_H } from './layout';
 import { measureMessage } from './measure';
 import { Message } from './Message';
 
@@ -24,25 +25,22 @@ function MessageRender(props: {
   layout: Measured<MessageNodeLayout>;
   ctx: RenderCtx;
 }) {
-  const onIslandMeasured = (id: string, h: number) => props.ctx.setMeasured(id, h);
-  return (
-    <Message item={props.item} layout={props.layout.layout} onIslandMeasured={onIslandMeasured} />
-  );
+  return <Message item={props.item} layout={props.layout.layout} />;
 }
 
 export const messageDef = defineComponent<ChatMessage, MessageNodeLayout>({
   kind: 'message',
+  padY: 4,
 
   estimate(item, ctx: MeasureCtx): number {
     const lines = Math.ceil(item.text.length / 60);
     const lineH = ctx.theme.fonts.body.lineHeight;
-    const { bubblePadY, messageFooterH } = ctx.theme.geometry;
-    const footer = item.role === 'assistant' ? messageFooterH : 0;
-    return lineH * Math.max(1, lines) + 2 * bubblePadY + footer + 8;
+    const footer = item.role === 'assistant' ? MESSAGE_FOOTER_H : 0;
+    return lineH * Math.max(1, lines) + 2 * BUBBLE_PAD_Y + footer + 8;
   },
 
   measure(item, ctx: MeasureCtx): Measured<MessageNodeLayout> {
-    const layout = measureMessage(item, ctx.width, ctx.theme.fonts, ctx.isCollapsed, ctx.measured);
+    const layout = measureMessage(item, ctx.width, ctx.theme.fonts, ctx.isCollapsed);
     return {
       height: layout.height,
       width: layout.width,

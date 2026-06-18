@@ -1,16 +1,9 @@
 /*
  * Execute row — geometry rules only.
  *
+ * All rows sit flush at the content-column edge (no per-row inset).
  * Visual rules (colors, fonts, shimmer) live in Tailwind classes in Execute.tsx.
  */
-
-/* ── Row ──────────────────────────────────────────────────────────────────── */
-
-/* padding-inline matches --chat-msg-pad-x so the row aligns with messages */
-.pexec {
-  height: var(--chat-exec-row-h);
-  padding-inline: var(--chat-msg-pad-x);
-}
 
 /* ── Command chip ─────────────────────────────────────────────────────────── */
 

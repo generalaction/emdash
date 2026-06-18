@@ -4,15 +4,12 @@
 
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_FONT_CONFIG } from '../../core/measure/fonts';
-import { DEFAULT_THEME } from '../../core/theme';
 import type { ChatDiff } from '../../model';
 import { estimateDiff, measureDiff } from './measure';
 
-const {
-  diffBorder: DIFF_BORDER,
-  diffHeaderH: DIFF_HEADER_H,
-  diffMaxLines: DIFF_MAX_LINES,
-} = DEFAULT_THEME.geometry;
+const DIFF_BORDER = 1;
+const DIFF_HEADER_H = 28;
+const DIFF_MAX_LINES = 12;
 
 const FONTS = DEFAULT_FONT_CONFIG;
 
