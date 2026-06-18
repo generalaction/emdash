@@ -30,6 +30,7 @@ const DefaultAgentButton = ({
         className="flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-warning"
         title="Default agent"
         aria-label="Default agent"
+        onClick={(event) => event.stopPropagation()}
       >
         <Star className="size-3.5 fill-current" />
       </span>
@@ -42,8 +43,11 @@ const DefaultAgentButton = ({
       title="Set as default agent"
       aria-label={`Set ${agentName} as default agent`}
       disabled={control.disabled}
-      className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-foreground-muted transition hover:bg-background-2 hover:text-foreground-warning focus-visible:bg-background-2 focus-visible:text-foreground-warning focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-      onClick={control.onSelect}
+      className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-foreground-muted opacity-0 transition-[background-color,color,opacity] group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-background-2 hover:text-foreground-warning focus-visible:bg-background-2 focus-visible:text-foreground-warning focus-visible:opacity-100 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+      onClick={(event) => {
+        event.stopPropagation();
+        control.onSelect();
+      }}
     >
       <Star className="size-3.5" />
     </button>
@@ -78,7 +82,10 @@ export const AgentRow = ({
         <AgentIcon id={agent.id} size={16} />
       </div>
       <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-        <span className="truncate text-sm text-foreground">{agent.name}</span>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-sm text-foreground">{agent.name}</span>
+          <DefaultAgentButton control={defaultAgentControl} agentName={agent.name} />
+        </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {updateState.render && <UpdateAvailableBadge />}
           {isInstalled ? <InstalledBadge /> : <UninstalledBadge />}
@@ -90,19 +97,24 @@ export const AgentRow = ({
     isClickable ? ' cursor-pointer text-left' : ''
   }`;
   const canShowDefaultAgentMenuItem = !!defaultAgentControl;
+  const handleRowKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!onClick || (event.key !== 'Enter' && event.key !== ' ')) return;
+
+    event.preventDefault();
+    onClick();
+  };
 
   return (
     <ContextMenu>
       <ContextMenuTrigger className="w-full">
-        <div className="group flex w-full items-center gap-2 rounded-lg p-3 hover:bg-background-1">
-          {isClickable ? (
-            <button type="button" className={contentClassName} onClick={onClick}>
-              {rowContent}
-            </button>
-          ) : (
-            <div className={contentClassName}>{rowContent}</div>
-          )}
-          <DefaultAgentButton control={defaultAgentControl} agentName={agent.name} />
+        <div
+          className="group flex w-full items-center gap-2 rounded-lg px-3 py-2 hover:bg-background-1"
+          role={isClickable ? 'button' : undefined}
+          tabIndex={isClickable ? 0 : undefined}
+          onClick={onClick}
+          onKeyDown={handleRowKeyDown}
+        >
+          <div className={contentClassName}>{rowContent}</div>
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
