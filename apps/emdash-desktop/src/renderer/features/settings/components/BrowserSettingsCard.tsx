@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@renderer/lib/ui/select';
+import { Switch } from '@renderer/lib/ui/switch';
 import {
   BROWSER_ISOLATED_PROFILE_ID,
   DEFAULT_BROWSER_PROFILE_ID,
@@ -135,6 +136,18 @@ export function BrowserSettingsCard() {
               <SelectItem value={BROWSER_ISOLATED_PROFILE_ID}>Isolated per task</SelectItem>
             </SelectContent>
           </Select>
+        }
+      />
+
+      <SettingRow
+        title="Disable CORS for localhost"
+        description="Allows pages opened from localhost in Emdash browser tabs to call APIs that do not send matching CORS headers."
+        control={
+          <Switch
+            checked={browserSettings?.relaxCorsForLocalhost ?? false}
+            disabled={disabled}
+            onCheckedChange={(next) => update({ relaxCorsForLocalhost: next })}
+          />
         }
       />
 
