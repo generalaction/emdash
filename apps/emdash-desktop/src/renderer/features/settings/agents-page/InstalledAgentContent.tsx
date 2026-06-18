@@ -3,6 +3,7 @@ import { ChevronRight, Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { Button } from '@renderer/lib/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/lib/ui/collapsible';
 import { Field, FieldError } from '@renderer/lib/ui/field';
@@ -17,6 +18,10 @@ import { type EnvEntry, validateEnvEntries } from './agent-settings-env';
 type AgentSettingsFormValues = {
   extraArgs: string;
   envEntries: EnvEntry[];
+};
+
+type CommitOptions = {
+  notifyOnValidationError?: boolean;
 };
 
 const FieldTooltip: React.FC<{ content: string }> = ({ content }) => (
@@ -73,12 +78,14 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
   const form = useForm({ defaultValues: makeDefaultValues(storedConfig) });
   const latestValuesRef = useRef<AgentSettingsFormValues>(form.state.values);
   const hasUnsavedChangesRef = useRef(false);
-  const commitRef = useRef<(values: AgentSettingsFormValues) => void>(() => {});
+  const commitRef = useRef<(values: AgentSettingsFormValues, options?: CommitOptions) => void>(
+    () => {}
+  );
 
   // Re-sync form when external config changes (e.g. after a reset from outside).
   useEffect(() => {
     if (isLoading) return;
-    if (form.state.isDirty) return;
+    if (hasUnsavedChangesRef.current) return;
     const next = makeDefaultValues(storedConfig);
     latestValuesRef.current = next;
     hasUnsavedChangesRef.current = false;
@@ -87,7 +94,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
   }, [isLoading, storedConfig, isOverridden, form]);
 
   const commit = useCallback(
-    (values: AgentSettingsFormValues = form.state.values) => {
+    (values: AgentSettingsFormValues = form.state.values, options?: CommitOptions) => {
       latestValuesRef.current = values;
       hasUnsavedChangesRef.current = false;
 
@@ -95,6 +102,13 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
       const envErrors = validateEnvEntries(envEntries);
       if (envErrors.some(Boolean)) {
         hasUnsavedChangesRef.current = true;
+        if (options?.notifyOnValidationError) {
+          toast({
+            title: 'Environment variables not saved',
+            description: 'Fix invalid environment variable keys before closing this panel.',
+            variant: 'destructive',
+          });
+        }
         return;
       }
 
@@ -129,7 +143,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
   useEffect(() => {
     return () => {
       if (!hasUnsavedChangesRef.current) return;
-      commitRef.current(latestValuesRef.current);
+      commitRef.current(latestValuesRef.current, { notifyOnValidationError: true });
     };
   }, []);
 
