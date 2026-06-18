@@ -23,7 +23,6 @@ export function AgentsSettingsPage() {
   return (
     <>
       <PageHeader sticky title="Agents" description="Manage CLI agents and model configurations.">
-        {/* <DefaultAgentSelector /> */}
         <div className="flex items-center justify-between gap-2">
           <ToggleGroup
             multiple={false}

@@ -1,7 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Label } from '@renderer/lib/ui/label';
 import { Separator } from '@renderer/lib/ui/separator';
+import type { AgentPayload } from '@shared/core/agents/agent-payload';
+import { isValidProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { AppSettings } from '@shared/core/app-settings';
 import { AgentDetailSheet } from './AgentDetailSheet';
 import { AgentRow } from './AgentRow';
 
@@ -33,7 +37,33 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
 }) => {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const { data: agentPayloads } = useAgents();
+  const { value: defaultAgentValue, update: updateDefaultAgent } =
+    useAppSettingsKey('defaultAgent');
+  const defaultAgentId = isValidProviderId(defaultAgentValue) ? defaultAgentValue : 'claude';
   const normalizedQuery = searchQuery.toLowerCase();
+
+  const handleSetDefault = useCallback(
+    (id: string) => {
+      if (isValidProviderId(id)) updateDefaultAgent(id as AppSettings['defaultAgent']);
+    },
+    [updateDefaultAgent]
+  );
+
+  // Only installed agents can be the default — the default is preselected when
+  // creating a task, and an uninstalled agent cannot run one.
+  const renderRow = useCallback(
+    (agent: AgentPayload) => (
+      <div key={agent.id} className="w-full py-0.5">
+        <AgentRow
+          agent={agent}
+          onClick={() => setSelectedAgentId(agent.id)}
+          isDefault={agent.id === defaultAgentId}
+          onSetDefault={agent.status === 'available' ? () => handleSetDefault(agent.id) : undefined}
+        />
+      </div>
+    ),
+    [defaultAgentId, handleSetDefault]
+  );
 
   const allAgents = useMemo(
     () =>
@@ -70,21 +100,13 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
         {allRecommended.length > 0 && (
           <div className="pt-4">
             <SectionLabel totalCount={allRecommended.length}>Recommended</SectionLabel>
-            {allRecommended.map((agent) => (
-              <div key={agent.id} className="w-full py-0.5">
-                <AgentRow agent={agent} onClick={() => setSelectedAgentId(agent.id)} />
-              </div>
-            ))}
+            {allRecommended.map(renderRow)}
           </div>
         )}
         {allOthers.length > 0 && (
           <div className="pt-4">
             <SectionLabel totalCount={allOthers.length}>All agents</SectionLabel>
-            {allOthers.map((agent) => (
-              <div key={agent.id} className="w-full py-0.5">
-                <AgentRow agent={agent} onClick={() => setSelectedAgentId(agent.id)} />
-              </div>
-            ))}
+            {allOthers.map(renderRow)}
           </div>
         )}
         <AgentDetailSheet agentId={selectedAgentId} onClose={() => setSelectedAgentId(null)} />
@@ -98,11 +120,7 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
         {installed.length > 0 && (
           <div className="pt-4">
             <SectionLabel totalCount={installed.length}>Installed</SectionLabel>
-            {installed.map((agent) => (
-              <div key={agent.id} className="w-full py-0.5">
-                <AgentRow agent={agent} onClick={() => setSelectedAgentId(agent.id)} />
-              </div>
-            ))}
+            {installed.map(renderRow)}
           </div>
         )}
         <AgentDetailSheet agentId={selectedAgentId} onClose={() => setSelectedAgentId(null)} />
@@ -116,11 +134,7 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
       {uninstalledRecommended.length > 0 && (
         <div className="pt-4">
           <SectionLabel totalCount={uninstalledRecommended.length}>Recommended</SectionLabel>
-          {uninstalledRecommended.map((agent) => (
-            <div key={agent.id} className="w-full py-0.5">
-              <AgentRow agent={agent} onClick={() => setSelectedAgentId(agent.id)} />
-            </div>
-          ))}
+          {uninstalledRecommended.map(renderRow)}
         </div>
       )}
       {uninstalledRest.length > 0 && (
@@ -128,11 +142,7 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
           {uninstalledRecommended.length > 0 && <Separator />}
           <div className="pt-4">
             <SectionLabel totalCount={uninstalledRest.length}>Not installed</SectionLabel>
-            {uninstalledRest.map((agent) => (
-              <div key={agent.id} className="w-full py-0.5">
-                <AgentRow agent={agent} onClick={() => setSelectedAgentId(agent.id)} />
-              </div>
-            ))}
+            {uninstalledRest.map(renderRow)}
           </div>
         </>
       )}
