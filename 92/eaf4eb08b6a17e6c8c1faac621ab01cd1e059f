@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/projects/components/main-panel/pending-project.tsx
+  s_60474e911ca5b5::t_13b1f3d6523539 39,46,72-73,79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "92eaf4eb08b6a17e6c8c1faac621ab01cd1e059f",
+  "prompts": {},
+  "sessions": {
+    "s_60474e911ca5b5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019edb83-ad16-7203-9255-7c46e89a0a79",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
