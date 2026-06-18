@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { IGitRepository, IGitRuntime } from '@emdash/core/git';
-import type { Lease } from '@emdash/core/lib';
+import type { Lease } from '@emdash/shared';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';

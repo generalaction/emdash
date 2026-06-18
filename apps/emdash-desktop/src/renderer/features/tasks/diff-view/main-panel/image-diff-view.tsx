@@ -1,3 +1,4 @@
+import type { Result } from '@emdash/shared';
 import { useQuery } from '@tanstack/react-query';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -11,7 +12,6 @@ import {
   type ImageUnavailableReason,
 } from '@shared/core/git/types';
 import { gitRefToString } from '@shared/core/git/utils';
-import type { Result } from '@shared/lib/result';
 import type { ActiveFile } from '@shared/view-state';
 
 interface ImageDiffViewProps {

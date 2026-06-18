@@ -1,4 +1,4 @@
-import type { IDisposable } from '../lib';
+import type { IDisposable } from '@emdash/shared';
 import { ResourceMap } from '../lib';
 import { NativeWatch } from './native-watch';
 import { realpathOrResolve } from './paths';

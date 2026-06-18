@@ -46,13 +46,14 @@
     "lint": "oxlint .",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts/release/tsconfig.json",
+    "typecheck": "tsgo --noEmit && tsgo --noEmit -p scripts/release/tsconfig.json",
     "docs": "cd docs && pnpm run dev",
     "docs:build": "cd docs && pnpm run build"
   },
   "dependencies": {
     "@emdash/core": "workspace:*",
     "@emdash/plugins": "workspace:*",
+    "@emdash/shared": "workspace:*",
     "@emdash/ui": "workspace:*",
     "@gitbeaker/rest": "^43.8.0",
     "@linear/sdk": "^77.0.0",
@@ -61,6 +62,7 @@
     "@octokit/rest": "^22.0.1",
     "@parcel/watcher": "^2.5.6",
     "@team-plain/graphql": "^1.0.1",
+    "@typescript/native-preview": "7.0.0-dev.20260609.1",
     "better-sqlite3": "^12.6.0",
     "croner": "^10.0.1",
     "cronstrue": "^3.14.0",

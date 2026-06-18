@@ -1,6 +1,6 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
-import { err, ok, type Result } from '@shared/lib/result';
 import {
   type AccountInitializeError,
   type AccountLinkProviderError,

@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@shared/lib/result';
+import { err, ok, type Result } from '@emdash/shared';
 import {
   SESSION_EXPIRED_MESSAGE,
   type AccountAuthServerError,

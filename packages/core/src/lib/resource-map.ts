@@ -1,4 +1,4 @@
-import type { IDisposable, Lease } from './lifecycle';
+import type { IDisposable, Lease } from '@emdash/shared';
 
 export type ResourceMapOptions<T> = {
   /** Tears down a provisioned value after its last lease is released. */

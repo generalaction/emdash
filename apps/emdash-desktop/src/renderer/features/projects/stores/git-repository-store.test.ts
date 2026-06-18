@@ -1,7 +1,7 @@
 import type { GitRefsModel, GitRemotesModel } from '@emdash/core/git';
+import { err, ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { gitRepoUpdateChannel, type GitRepoUpdateEvent } from '@shared/core/git/events';
-import { err, ok } from '@shared/lib/result';
 import { GitRepositoryStore } from './git-repository-store';
 import type { ProjectSettingsStore } from './project-settings-store';
 

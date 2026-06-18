@@ -1,5 +1,5 @@
+import { ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
-import { ok } from '@shared/lib/result';
 import { ModelMirror } from './model-mirror';
 import { OptimisticModel } from './optimistic-model';
 

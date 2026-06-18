@@ -1,4 +1,5 @@
 import type { GitBranchRef } from '@emdash/core/git';
+import { err, ok, type Result } from '@emdash/shared';
 import { eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectProvider, TaskProvider } from '@main/core/projects/project-provider';
@@ -17,7 +18,6 @@ import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import type { WorkspaceProviderData } from '@shared/core/workspaces/workspace-provider-data';
 import { compileSetupSpec } from '@shared/core/workspaces/workspace-setup-spec';
 import type { WorkspaceType } from '@shared/core/workspaces/workspaces';
-import { err, ok, type Result } from '@shared/lib/result';
 import { deriveBranchName, resolveWorkspaceIntent } from '../tasks/resolve-workspace-intent';
 import { provisionBYOITask } from './byoi/provision-byoi-task';
 import { LocalWorkspaceSetupExecutor } from './local-workspace-setup-executor';

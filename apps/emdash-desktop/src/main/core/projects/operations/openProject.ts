@@ -1,6 +1,6 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { projectManager } from '@main/core/projects/project-manager';
 import { log } from '@main/lib/logger';
-import { err, ok, type Result } from '@shared/lib/result';
 import type { OpenProjectError, OpenProjectSuccess } from '@shared/projects';
 import { checkIsValidDirectory } from '../path-utils';
 import { ensureRepositoryWorkspace } from './ensure-repository-workspace';

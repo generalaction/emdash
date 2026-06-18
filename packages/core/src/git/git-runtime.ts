@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { err, ok, type Lease, type Result } from '@emdash/shared';
 import type { BoundExec } from '../exec';
 import {
   FileWatchService,
@@ -7,8 +8,7 @@ import {
   type IFileWatchService,
   type IFsService,
 } from '../fs';
-import { err, KeyedMutex, ok, ResourceMap, type Lease } from '../lib';
-import type { Result } from '../lib';
+import { KeyedMutex, ResourceMap } from '../lib';
 import { classifyCloneRepositoryError, gitErrorMessage } from './errors';
 import type { CloneRepositoryError } from './errors';
 import { createGitExec } from './git-env';

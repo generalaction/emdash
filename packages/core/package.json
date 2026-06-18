@@ -57,6 +57,7 @@
     "typecheck": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@emdash/shared": "workspace:*",
     "@parcel/watcher": "^2.5.6",
     "semver": "^7.8.4",
     "smol-toml": "^1.6.0",

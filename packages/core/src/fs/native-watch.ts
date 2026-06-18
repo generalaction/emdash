@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
+import type { IDisposable } from '@emdash/shared';
 import parcelWatcher from '@parcel/watcher';
-import type { IDisposable } from '../lib';
 import type { RawFileEvent } from './types';
 
 const RESUBSCRIBE_DELAY_MS = 250;

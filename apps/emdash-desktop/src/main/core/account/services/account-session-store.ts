@@ -1,5 +1,5 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { KV } from '@main/db/kv';
-import { err, ok, type Result } from '@shared/lib/result';
 import {
   type AccountNotSignedInError,
   type AccountSessionPersistenceError,

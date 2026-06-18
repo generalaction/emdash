@@ -1,6 +1,6 @@
+import { err, ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '../../exec/execution-context';
-import { err, ok } from '../../lib/result';
 import { HostDependencyManager } from './host-dependency-manager';
 import type { InstallMethodDetector } from './method-detection';
 import type { DependencyDescriptor, Provenance } from './types';

@@ -1,5 +1,6 @@
+import { err } from '@emdash/shared';
+import type { IDisposable } from '@emdash/shared';
 import { events, rpc } from '@renderer/lib/ipc';
-import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { Resource } from '@renderer/lib/stores/resource';
 import { previewServerEventChannel } from '@shared/core/preview-servers/events';
 import type {
@@ -10,7 +11,6 @@ import type {
   PreviewServerProtocol,
 } from '@shared/core/preview-servers/types';
 import { previewServerUrl } from '@shared/core/preview-servers/types';
-import { err } from '@shared/lib/result';
 
 type PreviewServerStoreOptions = {
   projectId: string;

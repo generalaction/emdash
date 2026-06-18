@@ -1,4 +1,4 @@
-import type { IDisposable } from '@renderer/lib/stores/lifecycle';
+import type { IDisposable } from '@emdash/shared';
 
 export type ConversationSessionAdapter = {
   hydrateConversation(conversationId: string): Promise<void>;

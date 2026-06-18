@@ -1,7 +1,7 @@
+import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PreviewServer, PreviewServerEvent } from '@shared/core/preview-servers/types';
 import { previewServerUrl } from '@shared/core/preview-servers/types';
-import { ok } from '@shared/lib/result';
 
 const handlers: Array<(event: PreviewServerEvent) => void> = [];
 

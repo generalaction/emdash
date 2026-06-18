@@ -1,7 +1,7 @@
 import type { GitChange, GitStatusData, GitStatusModel } from '@emdash/core/git';
+import { ok, type Result } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { ModelMirror, OptimisticModel } from '@renderer/lib/stores/live';
-import { ok, type Result } from '@shared/lib/result';
 import {
   commitOptimistically,
   discardAllOptimistically,
