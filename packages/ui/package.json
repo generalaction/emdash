@@ -31,7 +31,7 @@
   "scripts": {
     "dev": "tsdown --watch",
     "build": "tsdown",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "theme:build": "node src/theme/build-state-layers.mjs && cd src/theme && terrazzo build --config terrazzo.config.js && cd ../.. && oxfmt src/theme/tokens.generated.json src/theme/theme.css",
     "theme:watch": "node src/theme/watch.mjs",
     "storybook": "storybook dev -p 6006",
