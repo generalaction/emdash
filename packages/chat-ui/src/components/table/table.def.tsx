@@ -6,7 +6,7 @@
  * supplies the actual vertical offset.
  */
 
-import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
+import { defineComponent, type Measured, type RenderCtx } from '../../core/define';
 import type { TableLaidOut } from '../../core/layout/layout-types';
 import { reserveHeight } from '../../core/layout/reserve-height';
 import type { TableBlock } from '../../core/markdown/document';
@@ -30,18 +30,7 @@ function TableRender(props: {
 export const tableDef = defineComponent<TableBlock, TableDefLayout>({
   kind: 'table',
 
-  estimate(item, ctx: MeasureCtx): number {
-    // Table row height: body line-height + 12px vertical padding per row.
-    const tableRowH = ctx.theme.fonts.body.lineHeight + 12;
-    const rowCount = item.rows.length + 1;
-    return reserveHeight({
-      content: rowCount * tableRowH,
-      border: TABLE_BORDER,
-      borderLines: rowCount + 1,
-    });
-  },
-
-  measure(item, ctx: MeasureCtx): Measured<TableDefLayout> {
+  measure(item, ctx): Measured<TableDefLayout> {
     const tableRowH = ctx.theme.fonts.body.lineHeight + 12;
     const colCount = Math.max(1, item.header.length);
     const available = ctx.width - 2 * TABLE_BORDER;

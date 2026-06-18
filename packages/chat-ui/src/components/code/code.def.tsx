@@ -6,7 +6,7 @@
  * (layoutBlocks in messageDef) supplies the actual vertical offset.
  */
 
-import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
+import { defineComponent, type Measured, type RenderCtx } from '../../core/define';
 import type { CodeLaidOut } from '../../core/layout/layout-types';
 import { reserveHeight } from '../../core/layout/reserve-height';
 import type { CodeBlock } from '../../core/markdown/document';
@@ -26,16 +26,7 @@ function CodeRender(props: { item: CodeBlock; layout: Measured<CodeDefLayout>; c
 export const codeDef = defineComponent<CodeBlock, CodeDefLayout>({
   kind: 'code',
 
-  estimate(item, ctx: MeasureCtx): number {
-    const lineCount = Math.max(1, item.code.split('\n').length);
-    return reserveHeight({
-      content: lineCount * ctx.theme.fonts.code.lineHeight,
-      padY: CODE_PAD_Y,
-      border: CODE_BORDER,
-    });
-  },
-
-  measure(item, ctx: MeasureCtx): Measured<CodeDefLayout> {
+  measure(item, ctx): Measured<CodeDefLayout> {
     const codeLineHeight = ctx.theme.fonts.code.lineHeight;
     const rawLines = item.code.split('\n');
 

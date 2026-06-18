@@ -22,8 +22,8 @@
  *   • `ctx.theme.version`  — theme version token
  *   • `ctx.expanded(id)`   — resolved collapse state for collapsible defs
  *
- * Lane B — presentational / ephemeral state. These must NEVER enter `measure`,
- * `estimate`, or the memo fingerprint because they do not affect height:
+ * Lane B — presentational / ephemeral state. These must NEVER enter `measure`
+ * or the memo fingerprint because they do not affect height:
  *   • copied state (Message.tsx code block copy button)
  *   • hover / focus state
  *   • shimmer / loading animation flags
@@ -48,8 +48,8 @@ import type { ChatTheme } from './theme';
 /**
  * Universal measurement output.
  *
- * Every `estimate` and `measure` call returns this shape (or just a `number`
- * for `estimate`).  `layout` is a discriminated payload typed per component —
+ * Every `measure` call returns this shape.  `layout` is a discriminated payload
+ * typed per component —
  * the generic `Project` renderer walks it by `layout.kind`.
  *
  * `width` is the natural content width (used by the user-bubble hug algorithm);
@@ -64,7 +64,7 @@ export type Measured<L = unknown> = {
 // ── Contexts ──────────────────────────────────────────────────────────────────
 
 /**
- * Read-only inputs available to every `estimate` and `measure` call.
+ * Read-only inputs available to every `measure` call (and optional `estimate`).
  *
  * `theme`       — full ChatTheme (fonts + density); replaces the bare
  *                 `FontConfig` that was threaded through the old `MeasureCtx`.
@@ -126,7 +126,15 @@ export type CollapseDecl = {
  *              resolves `ctx.expanded(id)` using `collapse.mode` and includes
  *              the result in the memo fingerprint. Defs without `collapse`
  *              should not call `ctx.expanded`.
- * `estimate` — O(1) height heuristic; called for every row at `setCount` time.
+ * `estimate` — optional O(1) height heuristic used for off-screen rows at
+ *              `setCount` / `prepend` time. Omit for simple constant-height or
+ *              single-line-text kinds; the engine falls back to `genericEstimate`
+ *              (text-length lines × lineHeight) which is corrected to an exact
+ *              height the moment the row enters the visible window. Implement it
+ *              when the generic default would be materially wrong — e.g.
+ *              collapsible kinds (expanded vs collapsed differ greatly), kinds
+ *              with fixed chrome (footer, header, border) that the generic formula
+ *              omits, or hug-width bubbles.
  * `measure`  — exact layout; called only for visible rows; may use pretext.
  * `Render`   — Solid component; receives item, Measured layout, and RenderCtx.
  */
@@ -136,7 +144,7 @@ export type ComponentDef<TNode, L> = {
   padY?: number;
   /** Optional declarative collapse; engine resolves ctx.expanded(id) from this. */
   collapse?: CollapseDecl;
-  estimate(node: TNode, ctx: MeasureCtx): number;
+  estimate?(node: TNode, ctx: MeasureCtx): number;
   measure(node: TNode, ctx: MeasureCtx): Measured<L>;
   Render: Component<{ item: TNode; layout: Measured<L>; ctx: RenderCtx }>;
 };

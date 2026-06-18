@@ -9,7 +9,7 @@
  * Used by the REGISTRY for block-level dispatch inside message and thinking.
  */
 
-import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
+import { defineComponent, type Measured, type RenderCtx } from '../../core/define';
 import type { ProseLaidOut } from '../../core/layout/layout-types';
 import type { ProseBlock } from '../../core/markdown/document';
 import { layoutProse } from './layout';
@@ -28,15 +28,7 @@ function ProseRender(props: {
 export const proseDef = defineComponent<ProseBlock, ProseDefLayout>({
   kind: 'prose',
 
-  estimate(item, ctx: MeasureCtx): number {
-    const lines = Math.max(
-      1,
-      Math.ceil(item.runs.map((r) => ('text' in r ? (r.text ?? '') : '')).join('').length / 60)
-    );
-    return lines * ctx.theme.fonts.body.lineHeight;
-  },
-
-  measure(item, ctx: MeasureCtx): Measured<ProseDefLayout> {
+  measure(item, ctx): Measured<ProseDefLayout> {
     const laid = layoutProse(item, ctx.width, ctx.theme.fonts, 0);
     return {
       height: laid.height,

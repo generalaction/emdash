@@ -36,8 +36,10 @@ import { CommandsContext } from './components/CommandsContext';
 import { DebugContext } from './components/debug-context';
 import { REGISTRY } from './components/registry';
 import { Row } from './components/Row';
+import { cachedMeasure, makeResolveExpanded } from './components/row-measure';
 import { ThemeContext } from './components/ThemeContext';
 import { createChatCaches } from './core/caches';
+import { genericEstimate } from './core/layout/generic-estimate';
 import { registerFontsReadyClear } from './core/measure/pretext-cache';
 import { StickToBottom } from './core/stick-to-bottom';
 import type { ChatTheme } from './core/theme';
@@ -60,6 +62,15 @@ const OVERSCAN_BASE = 4;
 // Leading buffer in the direction of scroll; trailing buffer behind it
 const OVERSCAN_LEADING = 12;
 const OVERSCAN_TRAILING = 3;
+
+// Idle-time prefetch: how many rows beyond the overscan window to pre-measure
+// during requestIdleCallback slices. Rows ahead in scroll direction get a
+// larger budget; behind get a smaller one.
+const PREFETCH_AHEAD = 30;
+const PREFETCH_BEHIND = 10;
+// Stop the current idle slice if less than this many ms remain (leaves headroom
+// for the browser's own idle tasks).
+const PREFETCH_MIN_REMAINING_MS = 3;
 
 // onReachStart fires when the top row is visible and scrollTop is within this
 // threshold of the canvas top. Debounced: only fires once until reset.
@@ -167,18 +178,19 @@ export function ChatRoot(props: ChatRootProps) {
     const n = itemCount(props.transcript.state);
     const t = theme();
     untrack(() => {
+      const estimateCtx = {
+        theme: t,
+        width: 0,
+        isCollapsed: () => false,
+        expanded: () => false,
+        caches,
+      };
       virt.setCount(n, (i) => {
         const item = getItem(props.transcript.state, i);
         if (!item) return 60;
         const def = REGISTRY[item.kind as keyof typeof REGISTRY];
         return (
-          def.estimate(item, {
-            theme: t,
-            width: 0,
-            isCollapsed: () => false,
-            expanded: () => false,
-            caches,
-          }) +
+          (def.estimate?.(item, estimateCtx) ?? genericEstimate(item, estimateCtx)) +
           2 * (def.padY ?? 0)
         );
       });
@@ -313,19 +325,20 @@ export function ChatRoot(props: ChatRootProps) {
     const anchorOffset = el.scrollTop - (virt.top(anchorIdx) + padTop());
 
     // Grow the virtualizer at the front with estimated heights.
+    const loadEstimateCtx = {
+      theme: t,
+      width: containerWidth(),
+      isCollapsed: () => false,
+      expanded: () => false,
+      caches,
+    };
     const count = items.length;
     virt.prepend(count, (i) => {
       const item = items[i];
       if (!item) return 60;
       const def = REGISTRY[item.kind as keyof typeof REGISTRY];
       return (
-        def.estimate(item, {
-          theme: t,
-          width: containerWidth(),
-          isCollapsed: () => false,
-          expanded: () => false,
-          caches,
-        }) +
+        (def.estimate?.(item, loadEstimateCtx) ?? genericEstimate(item, loadEstimateCtx)) +
         2 * (def.padY ?? 0)
       );
     });
@@ -417,6 +430,127 @@ export function ChatRoot(props: ChatRootProps) {
       } else {
         reachStartFired = false;
       }
+
+      // Arm idle prefetch after scroll settles.
+      schedulePrefetch();
+    };
+
+    // ── Idle-time prefetch scheduler ────────────────────────────────────────────
+    //
+    // After each scroll settle (no new scroll event fires before the rAF callback
+    // flushes) we schedule a requestIdleCallback to pre-measure rows just beyond
+    // the overscan window. This populates the shared nodeMemo WeakMap so those
+    // rows are cache hits when they later scroll into view, converting ~1500x
+    // cold-vs-warm measure cost into background idle work.
+    //
+    // Cancellation / rescheduling:
+    //   - Cancelled immediately when a new scroll event fires (so it never
+    //     competes with active scrolling).
+    //   - Re-scheduled after each flushScroll (settle).
+    //   - Per-slice budget: stop if deadline.timeRemaining() < PREFETCH_MIN_REMAINING_MS.
+    //   - Reschedules itself if work remains within the current window.
+    //
+    // Falls back to setTimeout(fn, 0) when requestIdleCallback is unavailable.
+
+    let prefetchIdleId: ReturnType<typeof requestIdleCallback> | null = null;
+
+    // Index cursor: prefetcher tracks where it left off so each slice continues
+    // from the previous boundary without re-scanning already-warm rows.
+    let prefetchStart = -1;
+    let prefetchEnd = -1;
+
+    const schedulePrefetch = () => {
+      if (prefetchIdleId !== null) return;
+      prefetchIdleId = requestIdleCallback(runPrefetchSlice, { timeout: 500 });
+    };
+
+    const cancelPrefetch = () => {
+      if (prefetchIdleId !== null) {
+        cancelIdleCallback(prefetchIdleId);
+        prefetchIdleId = null;
+      }
+    };
+
+    const runPrefetchSlice = (deadline: IdleDeadline) => {
+      prefetchIdleId = null;
+
+      const { start: visStart, end: visEnd } = visibleRange();
+      const n = itemCount(props.transcript.state);
+      if (n === 0) return;
+
+      // Determine the window to prefetch: rows beyond the current visible+overscan
+      // range, ahead in scroll direction + a shorter tail behind.
+      const ahead = Math.min(visEnd + PREFETCH_AHEAD, n - 1);
+      const behind = Math.max(visStart - PREFETCH_BEHIND, 0);
+
+      // Initialise cursor on first call after a settle.
+      if (prefetchStart < 0 || prefetchEnd < 0) {
+        prefetchStart = visEnd + 1;
+        prefetchEnd = ahead;
+      }
+
+      const w = containerWidth();
+      const t = theme();
+
+      let measured = 0;
+
+      // Forward pass: visEnd+1 .. ahead
+      while (
+        prefetchStart <= prefetchEnd &&
+        deadline.timeRemaining() >= PREFETCH_MIN_REMAINING_MS
+      ) {
+        const item = getItem(props.transcript.state, prefetchStart);
+        if (item) {
+          const resolveExpanded = makeResolveExpanded(item, props.viewState);
+          const ctx = {
+            theme: t,
+            width: w,
+            isCollapsed: (id: string) => props.viewState.isCollapsed(id),
+            expanded: resolveExpanded,
+            caches,
+          };
+          const measuredLayout = cachedMeasure(item, false, ctx);
+          const def = REGISTRY[item.kind as keyof typeof REGISTRY];
+          const h = measuredLayout.height + 2 * (def.padY ?? 0);
+          const delta = virt.setSize(prefetchStart, h);
+          if (delta !== 0) onHeightChanged(prefetchStart, delta);
+          measured++;
+        }
+        prefetchStart++;
+      }
+
+      // Backward pass: behind .. visStart-1 (only when forward pass exhausted)
+      if (prefetchStart > prefetchEnd) {
+        let backCursor = visStart - 1;
+        while (
+          backCursor >= behind &&
+          deadline.timeRemaining() >= PREFETCH_MIN_REMAINING_MS
+        ) {
+          const item = getItem(props.transcript.state, backCursor);
+          if (item) {
+            const resolveExpanded = makeResolveExpanded(item, props.viewState);
+            const ctx = {
+              theme: t,
+              width: w,
+              isCollapsed: (id: string) => props.viewState.isCollapsed(id),
+              expanded: resolveExpanded,
+              caches,
+            };
+            const measuredLayout = cachedMeasure(item, false, ctx);
+            const def = REGISTRY[item.kind as keyof typeof REGISTRY];
+            const h = measuredLayout.height + 2 * (def.padY ?? 0);
+            const delta = virt.setSize(backCursor, h);
+            if (delta !== 0) onHeightChanged(backCursor, delta);
+            measured++;
+          }
+          backCursor--;
+        }
+      }
+
+      // Reschedule if work remains in the forward window.
+      if (measured > 0 && prefetchStart <= prefetchEnd) {
+        schedulePrefetch();
+      }
     };
 
     const onScroll = () => {
@@ -425,6 +559,11 @@ export function ChatRoot(props: ChatRootProps) {
         programmaticScroll = false;
         return;
       }
+      // Cancel any in-flight prefetch so it never competes with active scrolling.
+      cancelPrefetch();
+      // Reset cursor so the next settle re-targets the new viewport position.
+      prefetchStart = -1;
+      prefetchEnd = -1;
       if (rafId === null) {
         rafId = requestAnimationFrame(flushScroll);
       }
@@ -436,6 +575,7 @@ export function ChatRoot(props: ChatRootProps) {
         cancelAnimationFrame(rafId);
         rafId = null;
       }
+      cancelPrefetch();
     });
 
     const roHeight = new ResizeObserver((entries) => {

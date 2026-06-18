@@ -20,19 +20,20 @@
 import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
 import type { ChatCaches } from '../core/caches';
-import type { Measured, MeasureCtx, RenderCtx } from '../core/define';
+import type { MeasureCtx, RenderCtx } from '../core/define';
 import type { ChatTheme } from '../core/theme';
 import type { Virtualizer } from '../core/virtualizer';
 import type { ChatItem } from '../model';
 import type { ViewState } from '../state/view-state';
 import { useDebug } from './debug-context';
 import { REGISTRY } from './registry';
+import { cachedMeasure } from './row-measure';
 
 // ── Two-level identity-based memo ─────────────────────────────────────────────
 //
-// Level 1 (nodeMemo, here): WeakMap keyed by the ChatItem object.
-//   Skips the entire def.measure() call for committed (non-streaming) items
-//   when the fingerprint is unchanged.
+// Level 1 (nodeMemo, components/row-measure.ts): WeakMap keyed by the ChatItem
+//   object.  Shared with the idle-time prefetch scheduler so prefetch cache
+//   hits are visible to Row on mount.
 //   activeTurn rows bypass this level (streaming — content changes every tick),
 //   but they benefit from Level 2.
 //
@@ -43,28 +44,6 @@ import { REGISTRY } from './registry';
 //
 // Fingerprint: theme.version + rowWidth + isCollapsed(item.id) + expanded(item.id)
 //              (covers all Lane A inputs — see core/define.ts state split docs)
-
-// oxlint-disable typescript/no-explicit-any -- cache boundary; each kind is type-safe at its own def
-const nodeMemo = new WeakMap<object, { fingerprint: string; result: Measured<any> }>();
-
-function cachedMeasure(item: ChatItem, isActiveTurn: boolean, ctx: MeasureCtx): Measured<any> {
-  const def = REGISTRY[item.kind as keyof typeof REGISTRY];
-
-  // Always recompute for activeTurn rows (streaming, content changes every tick).
-  if (isActiveTurn) return def.measure(item, ctx);
-
-  // Include expanded(id) in the fingerprint only for collapsible defs.
-  // Non-collapsible defs never call ctx.expanded so it has no effect on layout.
-  const expandedBit = def.collapse !== undefined ? ctx.expanded(item.id) : '';
-  const fingerprint = `${ctx.theme.version}|${ctx.width}|${ctx.isCollapsed(item.id)}|${expandedBit}`;
-  const cached = nodeMemo.get(item);
-  if (cached?.fingerprint === fingerprint) return cached.result;
-
-  const result = def.measure(item, ctx);
-  nodeMemo.set(item, { fingerprint, result });
-  return result;
-}
-// oxlint-enable typescript/no-explicit-any
 
 export type RowProps = {
   item: ChatItem;

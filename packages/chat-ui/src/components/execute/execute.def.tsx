@@ -4,7 +4,7 @@
  * Fixed height of EXEC_ROW_H (28px). No collapse state.
  */
 
-import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
+import { defineComponent, type Measured, type RenderCtx } from '../../core/define';
 import type { ChatExecute } from '../../model';
 import { Execute } from './Execute';
 
@@ -34,11 +34,7 @@ function ExecuteRender(props: {
 export const executeDef = defineComponent<ChatExecute, ExecuteLayout>({
   kind: 'execute',
 
-  estimate(): number {
-    return EXEC_ROW_H;
-  },
-
-  measure(_item, ctx: MeasureCtx): Measured<ExecuteLayout> {
+  measure(_item, ctx): Measured<ExecuteLayout> {
     return {
       height: EXEC_ROW_H,
       width: ctx.width,
