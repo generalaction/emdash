@@ -1,7 +1,7 @@
 import { useForm } from '@tanstack/react-form';
 import { ChevronRight, Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
 import { Button } from '@renderer/lib/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/lib/ui/collapsible';
@@ -72,18 +72,26 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
   const [open, setOpen] = useState(false);
 
   const form = useForm({ defaultValues: makeDefaultValues(storedConfig) });
+  const latestValuesRef = useRef<AgentSettingsFormValues>(form.state.values);
+  const hasUnsavedChangesRef = useRef(false);
+  const commitRef = useRef<(values: AgentSettingsFormValues) => void>(() => {});
 
   // Re-sync form when external config changes (e.g. after a reset from outside).
   useEffect(() => {
     if (isLoading) return;
     if (form.state.isDirty) return;
     const next = makeDefaultValues(storedConfig);
+    latestValuesRef.current = next;
+    hasUnsavedChangesRef.current = false;
     form.setFieldValue('extraArgs', next.extraArgs);
     form.setFieldValue('envEntries', next.envEntries);
   }, [isLoading, storedConfig, isOverridden, form]);
 
   const commit = useCallback(
     (values: AgentSettingsFormValues = form.state.values) => {
+      latestValuesRef.current = values;
+      hasUnsavedChangesRef.current = false;
+
       const { extraArgs, envEntries } = values;
       const envRecord: Record<string, string> = {};
       for (const { key, value } of envEntries) {
@@ -113,7 +121,24 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
     [form, storedConfig, reset, update]
   );
 
+  commitRef.current = commit;
+
+  useEffect(() => {
+    return () => {
+      if (!hasUnsavedChangesRef.current) return;
+      commitRef.current(latestValuesRef.current);
+    };
+  }, []);
+
+  const markChanged = useCallback((values: AgentSettingsFormValues) => {
+    latestValuesRef.current = values;
+    hasUnsavedChangesRef.current = true;
+  }, []);
+
   const handleResetToDefaults = useCallback(() => {
+    const next = makeDefaultValues(undefined);
+    latestValuesRef.current = next;
+    hasUnsavedChangesRef.current = false;
     form.setFieldValue('extraArgs', '');
     form.setFieldValue('envEntries', []);
     reset(undefined, {
@@ -163,7 +188,11 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                 <Input
                   id="sheet-extraArgs"
                   value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
+                  onChange={(e) => {
+                    const next = { ...form.state.values, extraArgs: e.target.value };
+                    markChanged(next);
+                    field.handleChange(e.target.value);
+                  }}
                   onBlur={() => commit({ ...form.state.values, extraArgs: field.state.value })}
                   placeholder="e.g. --enable-all-github-mcp-tools"
                   className="font-mono text-sm"
@@ -191,6 +220,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                           const next = field.state.value.map((v, idx) =>
                             idx === i ? { ...v, key: e.target.value } : v
                           );
+                          markChanged({ ...form.state.values, envEntries: next });
                           field.handleChange(next);
                         }}
                         onBlur={() =>
@@ -201,6 +231,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                           if (pasted.length === 0) return;
                           e.preventDefault();
                           const next = replaceEnvEntryWithPaste(field.state.value, i, pasted);
+                          markChanged({ ...form.state.values, envEntries: next });
                           field.handleChange(next);
                           commit({ ...form.state.values, envEntries: next });
                         }}
@@ -213,6 +244,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                           const next = field.state.value.map((v, idx) =>
                             idx === i ? { ...v, value: e.target.value } : v
                           );
+                          markChanged({ ...form.state.values, envEntries: next });
                           field.handleChange(next);
                         }}
                         onBlur={() =>
@@ -227,6 +259,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                         aria-label="Remove"
                         onClick={() => {
                           const next = field.state.value.filter((_, idx) => idx !== i);
+                          markChanged({ ...form.state.values, envEntries: next });
                           field.handleChange(next);
                           commit({ ...form.state.values, envEntries: next });
                         }}
@@ -240,9 +273,11 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                     variant="outline"
                     size="sm"
                     className="gap-1.5"
-                    onClick={() =>
-                      field.handleChange([...field.state.value, { key: '', value: '' }])
-                    }
+                    onClick={() => {
+                      const next = [...field.state.value, { key: '', value: '' }];
+                      markChanged({ ...form.state.values, envEntries: next });
+                      field.handleChange(next);
+                    }}
                   >
                     <Plus className="h-3.5 w-3.5" />
                     Add variable
