@@ -19,11 +19,13 @@ import type {
   ChatMessage,
   ChatPlan,
   ChatPlanEntry,
+  ChatResourceLink,
   ChatRole,
   ChatThinking,
   ChatToolCall,
   FileOp,
   FileOpKind,
+  ResourceTarget,
   ToolStatus,
 } from '../model';
 
@@ -101,6 +103,28 @@ export type TranscriptEvent =
       oldText?: string | null;
       newText?: string;
     }
+  /**
+   * A new resource-link row has appeared (a `resource_link` ACP content block
+   * was emitted as a standalone row, split from the surrounding message).
+   * `target` is pre-resolved by the desktop enrichment transform.
+   */
+  | {
+      type: 'resource_link_start';
+      id: string;
+      uri: string;
+      name: string;
+      title?: string;
+      description?: string;
+      mimeType?: string;
+      size?: number;
+      target: ResourceTarget;
+    }
+  /**
+   * An existing resource-link row was updated.
+   * Primarily used to upgrade the `target` from provisional to `workspace-file`
+   * once the desktop resolver completes, or to set the final status.
+   */
+  | { type: 'resource_link_update'; id: string; target?: ResourceTarget; status?: ToolStatus }
   /**
    * A plan row was created or updated. `entries` replaces the full task list
    * (ACP plans are sent wholesale on each update). On first dispatch for a
@@ -434,6 +458,40 @@ export function createTranscript(): TranscriptApi {
               break;
             }
 
+            case 'resource_link_start': {
+              if (s.activeTurn === null) s.activeTurn = [];
+              const existingLink = s.activeTurn.find(
+                (it): it is ChatResourceLink => it.kind === 'resource-link' && it.id === event.id
+              );
+              if (!existingLink) {
+                s.activeTurn.push({
+                  kind: 'resource-link',
+                  id: event.id,
+                  uri: event.uri,
+                  name: event.name,
+                  title: event.title,
+                  description: event.description,
+                  mimeType: event.mimeType,
+                  size: event.size,
+                  target: event.target,
+                  status: 'running',
+                } satisfies ChatResourceLink);
+              }
+              break;
+            }
+
+            case 'resource_link_update': {
+              if (s.activeTurn === null) break;
+              const existingLink = s.activeTurn.find(
+                (it): it is ChatResourceLink => it.kind === 'resource-link' && it.id === event.id
+              );
+              if (existingLink) {
+                if (event.target !== undefined) existingLink.target = event.target;
+                if (event.status !== undefined) existingLink.status = event.status;
+              }
+              break;
+            }
+
             case 'plan_update': {
               finalizeOpenThinking();
               if (s.activeTurn === null) s.activeTurn = [];
@@ -488,6 +546,9 @@ export function createTranscript(): TranscriptApi {
                 }
                 if (item.kind === 'plan' && item.streaming) {
                   return { ...item, streaming: false };
+                }
+                if (item.kind === 'resource-link' && item.status === 'running') {
+                  return { ...item, status: 'done' as const };
                 }
                 return item;
               });

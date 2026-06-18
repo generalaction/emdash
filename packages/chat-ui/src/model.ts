@@ -117,6 +117,50 @@ export type ChatDiff = {
   status: ToolStatus;
 };
 
+/**
+ * Resolved addressing target for a resource link.
+ *
+ * `workspace-file` — the URI resolves to a file inside the current workspace;
+ *   `path` is the workspace-relative or absolute path, ready for the editor.
+ * `external` — an http(s) URL or other browser-openable resource.
+ * `opaque` — a custom MCP server scheme the client cannot resolve locally.
+ */
+export type ResourceTarget =
+  | { kind: 'workspace-file'; path: string }
+  | { kind: 'external'; url: string }
+  | { kind: 'opaque' };
+
+/**
+ * A resource-link row — produced by ACP `resource_link` content blocks inside
+ * agent messages, emitted as a standalone row (split from the surrounding message).
+ *
+ * The `target` is pre-resolved by the desktop enrichment transform before the
+ * item enters chat-ui, so the renderer stays transport-agnostic.
+ *
+ * Renders as a compact card: mime icon, `title ?? name`, secondary line
+ * derived from `target` (path / host / scheme), and optional size.
+ * Clicking a `workspace-file` target opens it in the editor.
+ */
+export type ChatResourceLink = {
+  kind: 'resource-link';
+  id: string;
+  /** Original ACP URI, preserved for display and copy. */
+  uri: string;
+  /** Required resource name. */
+  name: string;
+  /** Optional human-friendly label (preferred for display over `name`). */
+  title?: string;
+  /** Optional one-line description shown below the title. */
+  description?: string;
+  /** MIME type hint; drives the file-type icon. */
+  mimeType?: string;
+  /** File size in bytes; shown when present. */
+  size?: number;
+  /** Pre-resolved addressing target. */
+  target: ResourceTarget;
+  status?: ToolStatus;
+};
+
 /** Lifecycle status of a single plan entry. Mirrors ACP `PlanEntryStatus`. */
 export type PlanEntryStatus = 'pending' | 'in_progress' | 'completed';
 
@@ -162,4 +206,5 @@ export type ChatItem =
   | ChatFileOpToolCall
   | ChatExecute
   | ChatDiff
+  | ChatResourceLink
   | ChatPlan;

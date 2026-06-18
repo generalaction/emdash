@@ -58,6 +58,27 @@ const CODE_STREAMING_BODY = [
   'Call `greet` with any name string.',
 ].join('');
 
+/**
+ * A single very long line that exceeds the column width — verifies that the
+ * code block clips and scrolls horizontally without overflowing the message
+ * column, and that the copy button stays pinned at the top-right.
+ */
+export const LongLines: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'message',
+          id: 'm1',
+          role: 'assistant',
+          text: '```typescript\nconst result = await fetchSomeData({ endpoint: "https://api.example.com/v1/this/is/a/very/long/path/that/keeps/going", headers: { Authorization: `Bearer ${token}`, "X-Request-Id": requestId, "Content-Type": "application/json" }, params: { include: "everything", expand: "deeply", format: "verbose" } });\nconst short = 1;\nconst alsoShort = true;\n```',
+        },
+      ]}
+      height={200}
+    />
+  ),
+};
+
 export const Generating: Story = {
   render: () => (
     <ScriptedChat

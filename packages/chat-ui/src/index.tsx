@@ -26,6 +26,8 @@ export type {
   ChatFileOpToolCall,
   ChatExecute,
   ChatDiff,
+  ChatResourceLink,
+  ResourceTarget,
   ChatPlan,
   ChatPlanEntry,
   PlanEntryStatus,
@@ -50,10 +52,29 @@ export { buildTheme, DEFAULT_THEME } from './core/theme';
  */
 export type ChatCommands = {
   /**
-   * Called when the user clicks a file path in a diff header or file-op row.
+   * Called when the user clicks a file path in a diff header, file-op row,
+   * resource-link card, or inline prose link.
    * `source` distinguishes the click origin; `itemId` is the ChatItem id.
    */
-  onOpenFile?: (arg: { path: string; itemId: string; source: 'diff' | 'file-op' }) => void;
+  onOpenFile?: (arg: {
+    path: string;
+    itemId: string;
+    source: 'diff' | 'file-op' | 'resource-link' | 'prose-link';
+  }) => void;
+
+  /**
+   * Synchronously classify an `href` from a rendered markdown link.
+   *
+   * Returns `{ kind: 'workspace-file'; path: string }` if the href resolves to
+   * a workspace file (click should open it in the editor), or
+   * `{ kind: 'external' }` to keep the default external-link behavior.
+   *
+   * When absent, all markdown links open externally (today's behavior).
+   *
+   * The implementation must be synchronous and cheap (a cache lookup) because
+   * it is called at render time.
+   */
+  classifyLink?: (href: string) => { kind: 'workspace-file'; path: string } | { kind: 'external' };
 };
 
 // ── Mount options ─────────────────────────────────────────────────────────────

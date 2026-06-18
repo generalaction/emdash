@@ -29,6 +29,22 @@ import { useDebug } from './debug-context';
 import { REGISTRY } from './registry';
 import { cachedMeasure } from './row-measure';
 
+// ── Item-aware horizontal inset ───────────────────────────────────────────────
+//
+// User messages are full width (insetX = 0).
+// Every other row gets 16px on each side so assistant/tool content is visually
+// distinguished without needing backgrounds or shrink-wrap on either side.
+//
+// Because the inset is width-affecting it must be subtracted from the width
+// handed to measure() — not just added as visual padding — so that block
+// heights are computed at the correct (narrower) width.
+
+const ROW_INSET_X = 16;
+
+function rowInsetX(item: ChatItem): number {
+  return item.kind === 'message' && item.role === 'user' ? 0 : ROW_INSET_X;
+}
+
 // ── Two-level identity-based memo ─────────────────────────────────────────────
 //
 // Level 1 (nodeMemo, components/row-measure.ts): WeakMap keyed by the ChatItem
@@ -123,9 +139,11 @@ export function Row(props: RowProps) {
     return !flag;
   };
 
+  const insetX = () => rowInsetX(props.item);
+
   const measureCtx = (): MeasureCtx => ({
     theme: props.theme,
-    width: props.rowWidth,
+    width: props.rowWidth - 2 * insetX(),
     isCollapsed: (id) => props.viewState.isCollapsed(id),
     expanded: resolveExpanded,
     caches: props.caches,
@@ -165,6 +183,8 @@ export function Row(props: RowProps) {
         position: 'relative',
         'padding-top': `${padY()}px`,
         'padding-bottom': `${padY()}px`,
+        'padding-left': `${insetX()}px`,
+        'padding-right': `${insetX()}px`,
       }}
     >
       <Dynamic component={def().Render} item={props.item} layout={layout()} ctx={renderCtx} />

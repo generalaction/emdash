@@ -20,6 +20,7 @@ import type {
 } from '../../core/layout/layout-types';
 import type { InlineRun } from '../../core/markdown/document';
 import { BlockFrame } from '../block-frame';
+import { useCommands } from '../CommandsContext';
 import styles from './prose.module.css';
 
 // ── Fragment ──────────────────────────────────────────────────────────────────
@@ -48,20 +49,43 @@ function fragVisualClass(run: InlineRun, variant: string): string {
   return '';
 }
 
-function ProseFragment(props: { run: InlineRun; frag: FragmentLayout; variant: string }) {
+function ProseFragment(props: {
+  run: InlineRun;
+  frag: FragmentLayout;
+  variant: string;
+  blockId: string;
+}) {
+  const commands = useCommands();
   const key = fragKey(props.run, props.variant);
   const moduleCls = `${styles.pf} ${styles[key] ?? ''}`.trim();
   const visualCls = fragVisualClass(props.run, props.variant);
   const cls = visualCls ? `${moduleCls} ${visualCls}` : moduleCls;
 
   if (props.run.kind === 'text' && props.run.href) {
+    const href = props.run.href;
+    const classification = () => commands().classifyLink?.(href);
+
+    const handleClick = (e: MouseEvent) => {
+      const result = classification();
+      if (result?.kind === 'workspace-file') {
+        e.preventDefault();
+        commands().onOpenFile?.({
+          path: result.path,
+          itemId: props.blockId,
+          source: 'prose-link',
+        });
+      }
+      // else: browser follows the <a> normally (new tab via target="_blank")
+    };
+
     return (
       <a
         class={cls}
         style={{ left: `${props.frag.x}px` }}
-        href={props.run.href}
+        href={href}
         target="_blank"
         rel="noopener noreferrer"
+        onClick={handleClick}
       >
         {props.frag.text}
       </a>
@@ -82,6 +106,7 @@ function ProseLine(props: {
   lineHeight: number;
   runs: InlineRun[];
   variant: string;
+  blockId: string;
 }) {
   return (
     <div
@@ -95,7 +120,9 @@ function ProseLine(props: {
       <For each={props.line.fragments}>
         {(frag) => {
           const run = props.runs[frag.runIndex];
-          return run ? <ProseFragment run={run} frag={frag} variant={props.variant} /> : null;
+          return run ? (
+            <ProseFragment run={run} frag={frag} variant={props.variant} blockId={props.blockId} />
+          ) : null;
         }}
       </For>
     </div>
@@ -147,6 +174,7 @@ export function Prose(props: ProseProps) {
             lineHeight={props.block.lineHeight}
             runs={props.runs}
             variant={props.variant}
+            blockId={props.block.id}
           />
         )}
       </For>

@@ -61,7 +61,7 @@ export function DiffHeader(props: DiffHeaderProps) {
 
   return (
     <div
-      class="hover:bg-background-3 flex cursor-pointer items-center gap-2 border-border px-3 text-xs transition-colors"
+      class="hover:bg-background-3 flex cursor-pointer items-center gap-2 border-border px-2 text-xs transition-colors"
       classList={{
         'rounded-lg border': !props.hasBody,
         'rounded-t-lg border-x border-t border-b': props.hasBody,
@@ -196,7 +196,7 @@ export function Diff(props: DiffProps) {
         item={props.item}
         adds={props.layout.adds}
         dels={props.layout.dels}
-        headerH={28}
+        headerH={32}
         hasBody
       />
       <DiffLines item={props.item} layout={props.layout} codeLineHeight={props.codeLineHeight} />

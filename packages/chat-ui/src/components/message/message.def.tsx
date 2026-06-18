@@ -4,8 +4,11 @@
  * measure: builds a role-specific compose Measured tree and stores it in the
  *          layout payload so MessageRender can walk it via Project.
  *
- *   user:       bubble(blockStack, { padX, variantClass: bg+radius, width: hugWidth })
+ *   user:       bubble(blockStack, { padX, variantClass: bg+radius })
+ *               Full row width (no shrink-wrap); Row.tsx gives users insetX=0
+ *               so they span edge-to-edge. BUBBLE_PAD_X keeps text off the edge.
  *   assistant:  stack([ blockStack, slot('message:footer', MESSAGE_FOOTER_H) ])
+ *               Row.tsx applies a 16px inset so measure receives narrowed width.
  *   thought:    blockStack  (text color applied in the Render shell)
  *
  * MessageRender is a thin shell that applies flex alignment, the a11y mirror,
@@ -21,14 +24,11 @@ import { Show } from 'solid-js';
 import { SLOT_NAMES, bubble, slot, stack } from '../../core/compose';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import { layoutBlockStack } from '../../core/layout/block-stack';
-import type { Block } from '../../core/markdown/document';
 import { blockPlainText } from '../../core/markdown/plain-text';
-import { USER_BUBBLE_MAX_WIDTH_PCT } from '../../core/metrics';
 import type { ChatMessage, ChatRole } from '../../model';
 import { useCaches } from '../CachesContext';
 import { CopyButton } from '../primitives/CopyButton';
 import { Project, renderBlockLeaf } from '../Project';
-import { measureProseNaturalWidth } from '../prose/layout';
 
 // ── Message layout constants ──────────────────────────────────────────────────
 
@@ -42,32 +42,6 @@ export const BLOCK_GAP = 10;
 export const PROSE_GAP = 4;
 /** Reserved height for the assistant message footer (copy button row, px). */
 export const MESSAGE_FOOTER_H = 24;
-
-// ── User-bubble hug width ─────────────────────────────────────────────────────
-
-function userEffectiveWidth(blocks: Block[], contentWidth: number, ctx: MeasureCtx): number {
-  const maxAllowed =
-    Math.floor((contentWidth * USER_BUBBLE_MAX_WIDTH_PCT) / 100) - 2 * BUBBLE_PAD_X;
-
-  let maxNatural = 0;
-  for (const block of blocks) {
-    if (ctx.isCollapsed(block.id)) continue;
-    if (block.kind === 'prose') {
-      maxNatural = Math.max(
-        maxNatural,
-        measureProseNaturalWidth(
-          block,
-          ctx.theme.fonts,
-          ctx.caches.prepareRichInline.bind(ctx.caches)
-        )
-      );
-    } else {
-      return Math.max(1, maxAllowed);
-    }
-  }
-
-  return Math.max(1, Math.min(Math.ceil(maxNatural) + 1, maxAllowed));
-}
 
 // ── Layout type ───────────────────────────────────────────────────────────────
 
@@ -152,7 +126,7 @@ export const messageDef = defineComponent<ChatMessage, MessageNodeLayout>({
     const lines = Math.ceil(item.text.length / 60);
     const lineH = ctx.theme.fonts.body.lineHeight;
     const footer = item.role === 'assistant' ? MESSAGE_FOOTER_H : 0;
-    return lineH * Math.max(1, lines) + 2 * BUBBLE_PAD_Y + footer + 8;
+    return lineH * Math.max(1, lines) + 2 * BUBBLE_PAD_Y + footer;
   },
 
   measure(item, ctx: MeasureCtx): Measured<MessageNodeLayout> {
@@ -180,14 +154,16 @@ export const messageDef = defineComponent<ChatMessage, MessageNodeLayout>({
     }
 
     // ── User bubble ──────────────────────────────────────────────────────────
+    // Full row width (Row.tsx gives user rows insetX=0). The bubble takes an
+    // explicit full width so the flex `items-end` shell does not shrink-wrap it;
+    // BUBBLE_PAD_X (with border-box sizing) keeps text off the tinted edge.
     if (item.role === 'user') {
-      const hugWidth = userEffectiveWidth(blocks, ctx.width, ctx);
-      const blockStack = layoutBlockStack(blocks, { ...ctx, width: hugWidth }, blockStackOpts);
-      const bubbleWidth = hugWidth + 2 * BUBBLE_PAD_X;
+      const innerWidth = Math.max(1, ctx.width - 2 * BUBBLE_PAD_X);
+      const blockStack = layoutBlockStack(blocks, { ...ctx, width: innerWidth }, blockStackOpts);
       const tree = bubble(blockStack, {
         padX: BUBBLE_PAD_X,
         variantClass: 'bg-[var(--chat-bubble-user)] text-[var(--chat-bubble-user-fg)] rounded-lg',
-        width: bubbleWidth,
+        width: ctx.width,
       });
       return { height: tree.height, width: tree.width, layout: { kind: 'message', tree } };
     }

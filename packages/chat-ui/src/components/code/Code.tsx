@@ -4,7 +4,16 @@
  * Renders plain text first (synchronous), then applies Shiki highlighting
  * asynchronously on an idle callback.
  *
- * Positioning is handled by BlockFrame; this component only describes content.
+ * Layout: BlockFrame positions the block (absolute, full-width, height from
+ * layout). Inside it:
+ *   - CopyButton: absolute top-right, stays pinned because it is a sibling of
+ *     the scroll container (not inside it).
+ *   - inner div: absolute inset-0, is the actual scroll+card element. It has
+ *     no .pblock class, so overflow-x-auto wins without a specificity fight
+ *     against block-frame's `overflow: visible` base rule.
+ *
+ * Shiki writes --shiki-light-bg / --shiki-dark-bg as inline custom properties
+ * onto wrapperEl (the inner div), which carries the background Tailwind class.
  */
 
 import { For, createEffect, onCleanup } from 'solid-js';
@@ -15,7 +24,6 @@ import { BlockFrame } from '../block-frame';
 import { useCaches } from '../CachesContext';
 import { cancelIdle, scheduleIdle } from '../dom-utils';
 import { CopyButton } from '../primitives/CopyButton';
-import styles from './code.module.css';
 
 export type CodeProps = {
   block: CodeLaidOut;
@@ -79,28 +87,58 @@ export function Code(props: CodeProps) {
   });
 
   return (
-    <BlockFrame
-      layout={props.block}
-      class={`${styles['pcode-block']} group overflow-x-auto overflow-y-hidden rounded-lg`}
-      ref={(el) => {
-        wrapperEl = el;
-      }}
-    >
+    <BlockFrame layout={props.block} class="group">
+      {/*
+       * Pinned copy button — sibling of the scroll container so it stays
+       * fixed at top-right regardless of horizontal scroll position.
+       */}
       <CopyButton text={props.rawBlock.code} variant="overlay" label="Copy code" />
-      <For each={props.block.lines}>
-        {(line, i) => (
-          <div
-            ref={(el) => {
-              lineElsMap.set(i(), el);
-              onCleanup(() => lineElsMap.delete(i()));
-            }}
-            class={`${styles['pcode-line']} text-foreground`}
-            style={{ top: `${line.top}px` }}
-          >
-            {line.text}
-          </div>
-        )}
-      </For>
+
+      {/*
+       * Scroll + card container. `absolute inset-0` makes its border-box equal
+       * the frame box, preserving the reserved height arithmetic. Having no
+       * .pblock class means overflow-x-auto wins without any specificity tie.
+       *
+       * bg-[var(...)] references the same --shiki-light-bg / --chat-code-bg
+       * vars that Shiki writes at runtime so the background transitions smoothly
+       * from the pre-highlight fallback to the theme colour.
+       *
+       * [&_span] targets the imperatively-created token <span>s from
+       * apply-tokens.ts, which have no Tailwind class of their own.
+       */}
+      <div
+        ref={(el) => {
+          wrapperEl = el;
+        }}
+        class={[
+          'absolute inset-0 overflow-x-auto overflow-y-hidden rounded-lg',
+          'border border-border pl-2',
+          'scrollbar-thin',
+          'bg-(--shiki-light-bg,var(--chat-code-bg))',
+          'emdark:bg-(--shiki-dark-bg,var(--chat-code-bg))',
+          '[&_span]:text-(--shiki-light)',
+          'emdark:[&_span]:text-(--shiki-dark)',
+        ].join(' ')}
+      >
+        <For each={props.block.lines}>
+          {(line, i) => (
+            <div
+              ref={(el) => {
+                lineElsMap.set(i(), el);
+                onCleanup(() => lineElsMap.delete(i()));
+              }}
+              class={[
+                'absolute whitespace-pre text-foreground font-normal',
+                'text-(length:--chat-code-size) leading-(--chat-code-lh)',
+                '[font-family:var(--type-code-font-family)]',
+              ].join(' ')}
+              style={{ top: `${line.top}px` }}
+            >
+              {line.text}
+            </div>
+          )}
+        </For>
+      </div>
     </BlockFrame>
   );
 }

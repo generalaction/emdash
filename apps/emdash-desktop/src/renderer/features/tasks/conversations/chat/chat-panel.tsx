@@ -1,8 +1,9 @@
-import type { ChatHandle } from '@emdash/chat-ui';
+import type { ChatCommands, ChatHandle } from '@emdash/chat-ui';
 import { ChatTranscript } from '@emdash/chat-ui/react';
 import { ChatComposer } from '@emdash/ui/components';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { openFileInTaskEditor } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import type { ModelOption } from '@shared/core/agents/agent-payload';
 import { useConversations } from '../../task-view-context';
@@ -33,12 +34,27 @@ export const ChatPanel = observer(function ChatPanel({
         ).modelOptions
       : null;
 
+  const projectId = convStore?.data.projectId;
+  const taskId = convStore?.data.taskId;
+
   const handleReady = useCallback(
     ({ transcript }: ChatHandle) => {
       store.bindTranscript(transcript);
     },
     [store]
   );
+
+  const commands = useMemo((): ChatCommands => {
+    if (!projectId || !taskId) return {};
+    return {
+      onOpenFile({ path }) {
+        void openFileInTaskEditor(projectId, taskId, path);
+      },
+      classifyLink(href) {
+        return store.getResolver()?.classifyLink(href) ?? { kind: 'external' };
+      },
+    };
+  }, [projectId, taskId, store]);
 
   const handleSubmit = (text: string) => {
     store.setInput(text);
@@ -68,6 +84,7 @@ export const ChatPanel = observer(function ChatPanel({
         stickToBottom={true}
         padTop={PAD_TOP}
         padBottom={composerH + PAD_BOTTOM_MARGIN}
+        commands={commands}
         onReady={handleReady}
       />
 

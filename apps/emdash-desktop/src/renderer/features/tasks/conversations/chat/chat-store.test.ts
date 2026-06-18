@@ -41,6 +41,20 @@ vi.mock('@renderer/utils/logger', () => ({
   log: { warn: vi.fn(), debug: vi.fn(), error: vi.fn() },
 }));
 
+vi.mock('@renderer/features/tasks/stores/task-selectors', () => ({
+  asProvisioned: vi.fn(() => null),
+  getTaskStore: vi.fn(() => null),
+}));
+
+vi.mock('@renderer/features/tasks/stores/workspace-file-resolver', () => ({
+  createWorkspaceFileResolver: vi.fn(() => ({
+    classifyLink: vi.fn(() => ({ kind: 'external' })),
+    resolve: vi.fn(async () => ({ kind: 'opaque' })),
+    reEnrichStale: vi.fn(async () => {}),
+    clear: vi.fn(),
+  })),
+}));
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

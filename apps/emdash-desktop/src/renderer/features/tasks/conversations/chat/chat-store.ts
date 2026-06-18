@@ -4,11 +4,18 @@ import type {
   ChatExecute,
   ChatFileOpToolCall,
   ChatItem as UiChatItem,
+  ChatResourceLink,
   FileOpKind,
+  ResourceTarget,
   ToolStatus,
   TranscriptApi,
 } from '@emdash/chat-ui';
 import { action, makeObservable, observable } from 'mobx';
+import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
+import {
+  createWorkspaceFileResolver,
+  type WorkspaceFileResolver,
+} from '@renderer/features/tasks/stores/workspace-file-resolver';
 import { events, rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import {
@@ -71,17 +78,51 @@ export type ChatDiffItem = {
   status: ToolStatusKind;
 };
 
+/**
+ * A resource-link row — produced by ACP `resource_link` content blocks.
+ * The `target` starts as provisional and is patched async by the resolver.
+ */
+export type ChatResourceLinkItem = {
+  kind: 'resource-link';
+  id: string;
+  uri: string;
+  name: string;
+  title?: string;
+  description?: string;
+  mimeType?: string;
+  size?: number;
+  target: ResourceTarget;
+  status: ToolStatusKind;
+};
+
 /** A single ordered entry in the chat transcript. */
 export type ChatItem =
   | ChatMessageItem
   | ChatToolItem
   | ChatFileOpItem
   | ChatExecuteItem
-  | ChatDiffItem;
+  | ChatDiffItem
+  | ChatResourceLinkItem;
 
 /** Convert desktop ChatItem[] to chat-ui ChatItem[] for TranscriptApi.seed(). */
 function toChatUiItems(items: ChatItem[]): UiChatItem[] {
   return items.flatMap((item): UiChatItem[] => {
+    if (item.kind === 'resource-link') {
+      return [
+        {
+          kind: 'resource-link',
+          id: item.id,
+          uri: item.uri,
+          name: item.name,
+          title: item.title,
+          description: item.description,
+          mimeType: item.mimeType,
+          size: item.size,
+          target: item.target,
+          status: item.status,
+        } satisfies ChatResourceLink,
+      ];
+    }
     if (item.kind === 'tool') {
       return [
         {
@@ -201,6 +242,17 @@ export class ChatStore {
    * for the same role+message merge while different roles stay separate bubbles.
    */
   private _streamKeyMap = new Map<string, ChatMessageItem>();
+
+  /**
+   * Counts how many resource_link blocks have been seen per message+role stream
+   * (`${role}:${messageId}`). Incremented on each resource_link; used to build
+   * a new stream key for text following a link, so post-link text starts a new
+   * message segment instead of merging into the pre-link bubble.
+   */
+  private _segmentCountMap = new Map<string, number>();
+
+  /** Lazily initialized per-session file resolver; null until first resource_link. */
+  private _resolver: WorkspaceFileResolver | null = null;
 
   /** Bound chat-ui transcript — set when the ChatTranscript component mounts. */
   private _transcript: TranscriptApi | null = null;
@@ -417,6 +469,8 @@ export class ChatStore {
 
   dispose(): void {
     for (const unsub of this._unsubs) unsub();
+    this._resolver?.clear();
+    this._resolver = null;
   }
 
   private _applyUpdate(update: SessionUpdate): void {
@@ -505,22 +559,45 @@ export class ChatStore {
     role: 'user' | 'assistant',
     chunk: { messageId?: string | null; content: { type: string; text?: string } }
   ): void {
+    // Intercept resource_link content blocks — emit a standalone row and bump the
+    // segment counter so subsequent text for the same messageId starts a new bubble.
+    if (chunk.content.type === 'resource_link') {
+      const messageId = chunk.messageId ?? undefined;
+      const rc = chunk.content as {
+        uri?: string;
+        name?: string;
+        title?: string;
+        description?: string;
+        mimeType?: string;
+        size?: number;
+      };
+      this._appendResourceLink(role, messageId, rc);
+      return;
+    }
+
     const text =
       chunk.content.type === 'text' ? ((chunk.content as { text?: string }).text ?? '') : '';
     const messageId = chunk.messageId ?? undefined;
 
     // Merge by role + messageId so chunks of the same message coalesce while a
     // thought and an assistant message sharing a messageId stay distinct bubbles.
+    // After a resource_link split, the segment counter is > 0 and the stream key
+    // is suffixed so a new bubble is created for post-link text.
     if (messageId) {
-      const streamKey = `${role}:${messageId}`;
+      const baseKey = `${role}:${messageId}`;
+      const segCount = this._segmentCountMap.get(baseKey) ?? 0;
+      const streamKey = segCount > 0 ? `${baseKey}:${segCount}` : baseKey;
       const existing = this._streamKeyMap.get(streamKey);
       if (existing) {
         existing.text += text;
+        this._transcript?.dispatch({ type: 'message_chunk', role, id: existing.id, text });
       } else {
         const created = this._pushMessage(role, text);
         this._streamKeyMap.set(streamKey, created);
+        // Use the generated item id for the transcript, not the ACP messageId,
+        // because split segments within the same ACP message need distinct ids.
+        this._transcript?.dispatch({ type: 'message_chunk', role, id: created.id, text });
       }
-      this._transcript?.dispatch({ type: 'message_chunk', role, id: messageId, text });
       return;
     }
 
@@ -534,6 +611,75 @@ export class ChatStore {
     }
     const created = this._pushMessage(role, text);
     this._transcript?.dispatch({ type: 'message_chunk', role, id: created.id, text });
+  }
+
+  private _appendResourceLink(
+    role: 'user' | 'assistant',
+    messageId: string | undefined,
+    content: {
+      uri?: string;
+      name?: string;
+      title?: string;
+      description?: string;
+      mimeType?: string;
+      size?: number;
+    }
+  ): void {
+    const uri = content.uri ?? '';
+    const name = content.name ?? uri;
+    // Stable id based on the order of links within the message (or a timestamp fallback).
+    const baseKey = messageId ? `${role}:${messageId}` : null;
+    const segCount = baseKey ? (this._segmentCountMap.get(baseKey) ?? 0) : 0;
+    const id = messageId ? `${messageId}:rl:${segCount}` : `rl-${Date.now()}-${Math.random()}`;
+
+    // Bump segment counter so subsequent text for this messageId starts a new bubble.
+    if (baseKey) {
+      this._segmentCountMap.set(baseKey, segCount + 1);
+    }
+
+    // Provisional target — will be patched asynchronously by the resolver.
+    const provisionalTarget: ResourceTarget = { kind: 'opaque' };
+
+    const item: ChatResourceLinkItem = {
+      kind: 'resource-link',
+      id,
+      uri,
+      name,
+      title: content.title,
+      description: content.description,
+      mimeType: content.mimeType,
+      size: content.size,
+      target: provisionalTarget,
+      status: 'running',
+    };
+    this.items.push(item);
+
+    this._transcript?.dispatch({
+      type: 'resource_link_start',
+      id,
+      uri,
+      name,
+      title: content.title,
+      description: content.description,
+      mimeType: content.mimeType,
+      size: content.size,
+      target: provisionalTarget,
+    });
+
+    // Async resolve the target; patch when done (two-phase enrichment).
+    const resolver = this.getResolver();
+    if (resolver && uri) {
+      void resolver.resolve(uri).then(
+        action((resolved) => {
+          item.target = resolved;
+          this._transcript?.dispatch({
+            type: 'resource_link_update',
+            id,
+            target: resolved,
+          });
+        })
+      );
+    }
   }
 
   private _appendThinkingChunk(chunk: {
@@ -570,6 +716,20 @@ export class ChatStore {
     // Return the array-resident element: MobX wraps pushed plain objects in an
     // observable proxy, so mutating the original `item` would not be reactive.
     return this.items[this.items.length - 1] as ChatMessageItem;
+  }
+
+  /**
+   * Returns the workspace file resolver for this session, creating it lazily on
+   * first access. Returns null if the task is not yet provisioned.
+   *
+   * Used externally by the conversation-manager to implement `classifyLink`.
+   */
+  getResolver(): WorkspaceFileResolver | null {
+    if (this._resolver) return this._resolver;
+    const provisioned = asProvisioned(getTaskStore(this._projectId, this._taskId));
+    if (!provisioned) return null;
+    this._resolver = createWorkspaceFileResolver(this._projectId, provisioned.workspaceId);
+    return this._resolver;
   }
 
   private _upsertTool(patch: {
@@ -757,7 +917,22 @@ export class ChatStore {
       if (item.kind === 'message') item.streaming = false;
     }
     this._streamKeyMap.clear();
+    this._segmentCountMap.clear();
     this._transcript?.dispatch({ type: 'turn_done' });
+    // Re-enrich resource links whose file existence may have changed mid-turn
+    // (e.g., a file referenced at the start of the turn that was created later).
+    void this._resolver?.reEnrichStale().then(() => {
+      if (!this._transcript) return;
+      for (const item of this.items) {
+        if (item.kind === 'resource-link') {
+          this._transcript?.dispatch({
+            type: 'resource_link_update',
+            id: item.id,
+            target: item.target,
+          });
+        }
+      }
+    });
   }
 
   private _summarizeInput(input: unknown): string | undefined {

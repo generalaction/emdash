@@ -21,6 +21,7 @@ import { fileOpDef } from './file-op/file-op.def';
 import { messageDef } from './message/message.def';
 import { planDef } from './plan/plan.def';
 import { proseDef } from './prose/prose.def';
+import { resourceLinkDef } from './resource-link/resource-link.def';
 import { tableDef } from './table/table.def';
 import { thinkingDef } from './thinking/thinking.def';
 import { toolDef } from './tool/tool.def';
@@ -33,6 +34,7 @@ export type NodeKind =
   | 'file-op'
   | 'execute'
   | 'diff'
+  | 'resource-link'
   | 'plan'
   | 'prose'
   | 'code'
@@ -47,6 +49,7 @@ export const REGISTRY: Record<NodeKind, ComponentDef<any, any>> = {
   'file-op': fileOpDef,
   execute: executeDef,
   diff: diffDef,
+  'resource-link': resourceLinkDef,
   plan: planDef,
   // Block tiers
   prose: proseDef,

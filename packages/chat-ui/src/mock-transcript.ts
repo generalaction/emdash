@@ -1,4 +1,12 @@
-import type { ChatItem, ChatPlanEntry, ChatRole, FileOpKind, ToolStatus } from './model';
+import type {
+  ChatItem,
+  ChatPlanEntry,
+  ChatResourceLink,
+  ChatRole,
+  FileOpKind,
+  ResourceTarget,
+  ToolStatus,
+} from './model';
 
 /** Tiny deterministic PRNG (mulberry32) so stories render identically each time. */
 function makeRng(seed: number): () => number {
@@ -268,12 +276,14 @@ const PLAN_ENTRIES: ChatPlanEntry[] = [
     priority: 'high',
   },
   {
-    content: 'Update `generateMockTranscript` to include diff, thought-role, and plan rows with varied content magnitude',
+    content:
+      'Update `generateMockTranscript` to include diff, thought-role, and plan rows with varied content magnitude',
     status: 'completed',
     priority: 'high',
   },
   {
-    content: 'Add `LARGE_CODE_SAMPLE` and `LARGE_TABLE_SAMPLE` for content-magnitude variety in the perf sweep',
+    content:
+      'Add `LARGE_CODE_SAMPLE` and `LARGE_TABLE_SAMPLE` for content-magnitude variety in the perf sweep',
     status: 'in_progress',
     priority: 'medium',
   },
@@ -298,17 +308,32 @@ function pick<T>(rng: () => number, arr: T[]): T {
   return arr[Math.floor(rng() * arr.length)];
 }
 
+/** Varied resource-link targets for the mock cycle. */
+const RESOURCE_LINK_TARGETS: ResourceTarget[] = [
+  { kind: 'workspace-file', path: 'src/renderer/features/tasks/conversations/chat/chat-store.ts' },
+  { kind: 'workspace-file', path: 'packages/chat-ui/src/model.ts' },
+  { kind: 'external', url: 'https://github.com/anthropics/anthropic-sdk-python' },
+  { kind: 'opaque' },
+];
+
+const RESOURCE_LINK_NAMES = [
+  'chat-store.ts',
+  'model.ts',
+  'anthropic-sdk-python',
+  'resource://internal/plan',
+];
+
 /**
  * Generate a deterministic mix of ChatItems covering every current renderer:
  * user messages, thinking (done), file-op (single + multi), execute
- * (done/error), generic tool rows, diff (modify + new-file), and
- * thought-role messages.
+ * (done/error), generic tool rows, diff (modify + new-file), thought-role
+ * messages, plans, and resource-link rows.
  *
  * All rows have terminal status so the perf stories don't spin live timers.
  * IDs are stable (`msg-0`, `exec-4`, …) — the height cache and ViewStateStore
  * are keyed by item id.
  *
- * The 15-item cycle is:
+ * The 16-item cycle is:
  *   0  user message
  *   1  thinking done
  *   2  file-op single read
@@ -324,12 +349,13 @@ function pick<T>(rng: () => number, arr: T[]): T {
  *   12 file-op multi edit with error status (terminal)
  *   13 assistant message (heavy: large table or large code)
  *   14 plan (task list with mixed statuses and priorities)
+ *   15 resource-link (workspace-file / external / opaque)
  */
 export function generateMockTranscript(count = 6000, seed = 1): ChatItem[] {
   const rng = makeRng(seed);
   const items: ChatItem[] = [];
 
-  const CYCLE = 15;
+  const CYCLE = 16;
 
   for (let i = 0; i < count; i++) {
     const slot = i % CYCLE;
@@ -477,13 +503,34 @@ export function generateMockTranscript(count = 6000, seed = 1): ChatItem[] {
         role: 'assistant' as ChatRole,
         text: heavyBodyFor(rng, i),
       });
-    } else {
-      // slot === 14: plan (task list with mixed statuses and priorities)
+    } else if (slot === 14) {
+      // ── plan (task list with mixed statuses and priorities) ───────────────
       items.push({
         kind: 'plan',
         id: `plan-${i}`,
         entries: PLAN_ENTRIES,
       });
+    } else {
+      // slot === 15: resource-link row (workspace-file / external / opaque)
+      const targetIdx = Math.floor(rng() * RESOURCE_LINK_TARGETS.length);
+      const target = RESOURCE_LINK_TARGETS[targetIdx];
+      const name = RESOURCE_LINK_NAMES[targetIdx];
+      items.push({
+        kind: 'resource-link',
+        id: `rl-${i}`,
+        uri:
+          target.kind === 'workspace-file'
+            ? `file:///${target.path}`
+            : target.kind === 'external'
+              ? target.url
+              : `resource://internal/${i}`,
+        name,
+        title: target.kind === 'workspace-file' ? name : undefined,
+        description: target.kind === 'external' ? 'External documentation reference' : undefined,
+        mimeType: name.endsWith('.ts') ? 'text/typescript' : undefined,
+        target,
+        status: 'done',
+      } satisfies ChatResourceLink);
     }
   }
 

@@ -23,7 +23,7 @@ import { countChanges, selectPreview, type DiffRow } from './diff-lines';
 import { langFromPath } from './lang';
 
 /** Header row height (px). */
-const DIFF_HEADER_H = 28;
+const DIFF_HEADER_H = 32;
 /** Maximum diff lines to include in the preview window. */
 const DIFF_MAX_LINES = 12;
 /** Lines of unchanged context shown around each change hunk. */

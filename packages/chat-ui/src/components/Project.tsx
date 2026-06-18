@@ -130,6 +130,9 @@ function ProjectBubble(props: SubProps) {
   const l = () => (props.node as Measured<BubbleLayout>).layout;
   const style = createMemo(() => ({
     position: 'relative' as const,
+    // Explicit border-box so the bubble width includes padX on both sides
+    // regardless of host preflight (chat-ui ships utilities-only, no preflight).
+    'box-sizing': 'border-box' as const,
     height: `${props.node.height}px`,
     'padding-left': `${l().padX}px`,
     'padding-right': `${l().padX}px`,
