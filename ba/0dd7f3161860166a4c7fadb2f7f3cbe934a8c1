@@ -1,0 +1,29 @@
+apps/emdash-desktop/src/renderer/tests/file-link-provider.test.ts
+  s_47d40f6c0f47de::t_7d27ecb0bcb547 184,190-192,194-195,198,204-206,208-209
+apps/emdash-desktop/src/renderer/lib/pty/use-pty.ts
+  s_43e3d16e579156::t_39f88b01d856a2 615-641
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "ba0dd7f3161860166a4c7fadb2f7f3cbe934a8c1",
+  "prompts": {},
+  "sessions": {
+    "s_43e3d16e579156": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033ZwCeYMe2q35XHWPxyng",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_47d40f6c0f47de": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed129-57c9-761f-9be7-0721659404f8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
