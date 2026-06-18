@@ -70,4 +70,33 @@ describe('git-fetch setup step', () => {
     if (result.success) throw new Error('expected failure');
     expect(result.error.type).toBe('fetch-failed');
   });
+
+  it('returns the fetch failure when checking worktrees fails', async () => {
+    const fetchError = {
+      stderr:
+        "fatal: refusing to fetch into branch 'refs/heads/feature/pr' checked out at '/worktrees/feature-pr'",
+    };
+    const exec = vi.fn().mockRejectedValueOnce(fetchError).mockRejectedValueOnce({
+      stderr: 'fatal: not a git repository',
+    });
+
+    const result = await execute(
+      {
+        remote: 'origin',
+        refspec: 'refs/pull/123/head:refs/heads/feature/pr',
+        force: true,
+      },
+      makeCtx(exec as StepContext['ctx']['exec'])
+    );
+
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error('expected failure');
+    expect(result.error).toEqual({
+      type: 'fetch-failed',
+      remote: 'origin',
+      refspec: 'refs/pull/123/head:refs/heads/feature/pr',
+      message: fetchError.stderr,
+    });
+    expect(exec).toHaveBeenNthCalledWith(2, 'git', ['worktree', 'list', '--porcelain']);
+  });
 });
