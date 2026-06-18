@@ -1,0 +1,38 @@
+packages/shared/src/host-dependencies/runtime/host-dependency-manager.ts
+  s_38e698512434b3::t_305504d25127a7 150,254,256,279-283,301-302,304-307,309-312
+  s_9f84968d6ec68b::t_097721b0e5300a 246-253,255,262-263,267,271-278,297,303,308
+  s_9f84968d6ec68b::t_e33f5e34296739 899-908,910-914
+  s_9f84968d6ec68b::t_2d37e03bd95be5 149,162-163
+  s_9f84968d6ec68b::t_bb023029af0d52 699,786,868
+  s_9f84968d6ec68b::t_f838f631674cb2 909
+  s_9f84968d6ec68b::t_cc54b56e33f6ee 411-430
+  s_9f84968d6ec68b::t_1e9c1048e1e10f 408,435-436,441-442,446-447,458
+packages/shared/src/host-dependencies/runtime/host-dependency-manager.test.ts
+  s_9f84968d6ec68b::t_f1b3b993c039ac 446-495
+  s_9f84968d6ec68b::t_1900ef8688a76b 496-555
+  s_38e698512434b3::t_d200397f3077a8 413-445
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "878311e1c32e731c9a4285e6e682214a2f920a7a",
+  "prompts": {},
+  "sessions": {
+    "s_38e698512434b3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed400-4e0f-70d3-bec6-1a47a31614e6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_9f84968d6ec68b": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed58f-2b09-7652-9813-01922728762b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
