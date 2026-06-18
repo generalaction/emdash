@@ -18,8 +18,8 @@ import javascript from '@shikijs/langs/javascript';
 import json from '@shikijs/langs/json';
 import python from '@shikijs/langs/python';
 import typescript from '@shikijs/langs/typescript';
-import githubDark from '@shikijs/themes/github-dark';
-import githubLight from '@shikijs/themes/github-light';
+import type { ThemeRegistrationRaw } from 'shiki/core';
+import { SHIKI_THEME_MAP } from '@emdash/ui/theme/shiki-themes';
 import { createHighlighterCoreSync } from 'shiki/core';
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
 
@@ -78,7 +78,12 @@ function getHighlighter(): SyncHighlighter {
     _highlighter = createHighlighterCoreSync({
       engine: createJavaScriptRegexEngine(),
       langs: [typescript, javascript, python, json, bash],
-      themes: [githubLight, githubDark],
+      // Use generated emdash themes for consistent palette with the app chrome.
+      // Cast needed because the generated `as const` makes arrays readonly; Shiki expects mutable.
+      themes: [
+        SHIKI_THEME_MAP.light as unknown as ThemeRegistrationRaw,
+        SHIKI_THEME_MAP.dark as unknown as ThemeRegistrationRaw,
+      ],
     });
   }
   return _highlighter;
@@ -92,9 +97,12 @@ function getHighlighter(): SyncHighlighter {
  */
 export function computeHighlightRaw(code: string, resolvedLang: string): HighlightResult {
   const hl = getHighlighter();
+  // Map keys 'light'/'dark' control the CSS var suffix: --shiki-light and --shiki-dark.
+  // Code.tsx and diff.module.css consume those exact vars via .emdark: variant classes.
+  // The values 'em-light'/'em-dark' are the registered theme names from SHIKI_THEME_MAP.
   const result = hl.codeToTokens(code, {
     lang: resolvedLang,
-    themes: { light: 'github-light', dark: 'github-dark' },
+    themes: { light: 'em-light', dark: 'em-dark' },
     defaultColor: false,
   });
 

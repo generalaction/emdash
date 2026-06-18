@@ -119,7 +119,7 @@
     --xterm-cursor: var(--foreground);
     --xterm-cursor-accent: var(--foreground-inverse);
     --xterm-selection-bg: color(display-p3 0.004 0.502 0.984 / 0.212);
-    --xterm-selection-fg: var(--blue-12);
+    --xterm-selection-fg: var(--info-12);
 
     /* Diff glyph colors — referenced by .diff-glyph-* in @layer components */
     --diff-added: var(--foreground-diff-added);
@@ -157,7 +157,7 @@
     --xterm-cursor: var(--foreground);
     --xterm-cursor-accent: var(--foreground-inverse);
     --xterm-selection-bg: color(display-p3 0.224 0.557 1 / 0.475);
-    --xterm-selection-fg: var(--blue-11);
+    --xterm-selection-fg: var(--info-11);
 
     /* Diff glyph colors — referenced by .diff-glyph-* in @layer components */
     --diff-added: var(--foreground-diff-added);

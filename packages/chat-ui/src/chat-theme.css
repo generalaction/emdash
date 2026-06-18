@@ -13,11 +13,11 @@
   --chat-fg: var(--foreground);
   --chat-muted: var(--foreground-muted);
   --chat-border: var(--border);
-  --chat-link: var(--blue-11);
+  --chat-link: var(--info-11);
   --chat-bubble-user: var(--background-3);
   --chat-bubble-user-fg: var(--foreground);
-  --chat-mention-bg: var(--blue-3);
-  --chat-mention-fg: var(--blue-11);
+  --chat-mention-bg: var(--info-3);
+  --chat-mention-fg: var(--info-11);
   /* --neutral-1 is lightest gray in light mode and near-black in dark mode —
    * an ideal code-block background in both themes. */
   --chat-code-bg: var(--neutral-1);
