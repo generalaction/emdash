@@ -142,7 +142,7 @@ export function describeBrowserLoadError(
   }
 }
 
-function hostLabel(url: string): string {
+export function hostLabel(url: string): string {
   const trimmed = url.trim();
   if (trimmed.length === 0 || trimmed === 'about:blank') return 'This site';
   try {

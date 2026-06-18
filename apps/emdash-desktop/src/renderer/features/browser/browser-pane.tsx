@@ -10,6 +10,7 @@ import { browserControlsRegistry } from './browser-controls-registry';
 import {
   browserLoadErrorCode,
   describeBrowserLoadError,
+  hostLabel,
   type BrowserLoadErrorPresentation,
 } from './browser-load-error';
 import { decideBrowserReload } from './browser-navigation-controls';
@@ -283,6 +284,31 @@ export const BrowserPane = observer(function BrowserPane({
   );
 });
 
+function BrowserLoadErrorDetail({
+  detail,
+  host,
+  url,
+}: {
+  detail: string;
+  host: string;
+  url: string;
+}) {
+  if (detail.startsWith(host)) {
+    return (
+      <p className="text-base leading-relaxed text-foreground-muted" title={url}>
+        <span className="font-medium text-foreground">{host}</span>
+        {detail.slice(host.length)}
+      </p>
+    );
+  }
+
+  return (
+    <p className="text-base leading-relaxed text-foreground-muted" title={url}>
+      {detail}
+    </p>
+  );
+}
+
 function BrowserLoadErrorView({
   presentation,
   code,
@@ -298,22 +324,22 @@ function BrowserLoadErrorView({
   onReload: () => void;
   onOpenExternal: () => void;
 }) {
+  const host = hostLabel(url);
+
   return (
-    <div className="flex h-full min-h-0 items-center justify-center overflow-auto px-8 py-12">
-      <div className="flex w-full max-w-md flex-col gap-6">
-        <EmdashLogo height={16} className="text-foreground" />
-        <div className="flex flex-col gap-2.5">
-          <h1 className="text-xl font-medium tracking-tight text-foreground">
+    <div className="flex h-full min-h-0 items-center justify-center overflow-auto px-10 py-14">
+      <div className="flex w-full max-w-lg flex-col gap-7">
+        <EmdashLogo height={18} className="text-foreground" />
+        <div className="flex flex-col gap-3">
+          <h1 className="text-2xl font-medium tracking-tight text-foreground">
             {presentation.heading}
           </h1>
-          <p className="text-sm text-foreground-muted" title={url}>
-            {presentation.detail}
-          </p>
+          <BrowserLoadErrorDetail detail={presentation.detail} host={host} url={url} />
         </div>
         {presentation.suggestions.length > 0 && (
-          <div className="flex flex-col gap-2 text-sm text-foreground-muted">
-            <span>Try:</span>
-            <ul className="flex list-disc flex-col gap-1.5 pl-6 marker:text-foreground-tertiary-muted">
+          <div className="flex flex-col gap-2.5">
+            <span className="text-sm font-medium text-foreground">Try:</span>
+            <ul className="flex list-disc flex-col gap-2 pl-5 text-sm leading-relaxed text-foreground-muted marker:text-foreground-tertiary-muted">
               {presentation.suggestions.map((suggestion) => (
                 <li key={suggestion}>{suggestion}</li>
               ))}
@@ -325,15 +351,14 @@ function BrowserLoadErrorView({
             {code}
           </div>
         )}
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          <Button type="button" size="sm" onClick={onReload}>
+        <div className="flex flex-wrap items-center gap-2.5 pt-1">
+          <Button type="button" onClick={onReload}>
             <RotateCcw className="size-4" />
             Reload
           </Button>
           <Button
             type="button"
             variant="secondary"
-            size="sm"
             disabled={!canOpenExternal}
             onClick={onOpenExternal}
           >
