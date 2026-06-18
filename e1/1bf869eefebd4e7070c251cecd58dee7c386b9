@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/tasks/view/tab-bar/conversation-tab-item.tsx
+  s_58f6989c3612db::t_8c624fb2686657 79
+apps/emdash-desktop/src/renderer/features/tasks/view/tab-bar.tsx
+  s_58f6989c3612db::t_de131ccfe5f081 103-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "e11bf869eefebd4e7070c251cecd58dee7c386b9",
+  "prompts": {},
+  "sessions": {
+    "s_58f6989c3612db": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed957-6836-7f50-9478-9c3a5378ef09",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
