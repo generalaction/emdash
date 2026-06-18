@@ -58,8 +58,8 @@ describe('WorktreeService', () => {
   });
 
   afterEach(() => {
-    fs.rmSync(repoDir, { recursive: true, force: true });
-    fs.rmSync(poolDir, { recursive: true, force: true });
+    fs.rmSync(repoDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+    fs.rmSync(poolDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
   });
 
   function makeService(
@@ -303,11 +303,29 @@ describe('WorktreeService', () => {
       fs.rmSync(persistedRoot, { recursive: true, force: true });
     });
 
-    it('repairs a stale persisted directory outside the current pool', async () => {
+    it('does not remove a stale persisted directory outside the current pool', async () => {
       const branchName = 'task/resume-stale-persisted';
       await git(['branch', branchName], { cwd: repoDir });
       const persistedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-persisted-'));
       const persistedPath = path.join(persistedRoot, 'task', 'resume-stale-persisted');
+      fs.mkdirSync(path.join(persistedPath, 'node_modules'), { recursive: true });
+      fs.writeFileSync(path.join(persistedPath, 'node_modules', 'stale.txt'), 'stale');
+      const svc = makeService();
+
+      const result = await svc.serveBranchWorktreeAtPath(branchName, undefined, persistedPath);
+
+      expect(result.success).toBe(false);
+      if (result.success) throw new Error('expected failure');
+      expect(result.error.type).toBe('worktree-setup-failed');
+      expect(fs.existsSync(path.join(persistedPath, 'node_modules', 'stale.txt'))).toBe(true);
+
+      fs.rmSync(persistedRoot, { recursive: true, force: true });
+    });
+
+    it('repairs a stale persisted directory inside the current pool', async () => {
+      const branchName = 'task/resume-stale-pool';
+      await git(['branch', branchName], { cwd: repoDir });
+      const persistedPath = path.join(poolDir, 'task', 'resume-stale-pool');
       fs.mkdirSync(path.join(persistedPath, 'node_modules'), { recursive: true });
       fs.writeFileSync(path.join(persistedPath, 'node_modules', 'stale.txt'), 'stale');
       const svc = makeService();
@@ -319,6 +337,46 @@ describe('WorktreeService', () => {
       expect(result.data).toBe(persistedPath);
       expect(fs.existsSync(path.join(persistedPath, '.git'))).toBe(true);
       expect(fs.existsSync(path.join(persistedPath, 'node_modules'))).toBe(false);
+
+      await git(['worktree', 'remove', '--force', persistedPath], { cwd: repoDir });
+    });
+
+    it('does not remove a stale persisted directory inside the current pool when it contains user files', async () => {
+      const branchName = 'task/resume-stale-pool-with-changes';
+      await git(['branch', branchName], { cwd: repoDir });
+      const persistedPath = path.join(poolDir, 'task', 'resume-stale-pool-with-changes');
+      const userFile = path.join(persistedPath, 'notes.txt');
+      fs.mkdirSync(persistedPath, { recursive: true });
+      fs.writeFileSync(userFile, 'do not delete');
+      const svc = makeService();
+
+      const result = await svc.serveBranchWorktreeAtPath(branchName, undefined, persistedPath);
+
+      expect(result.success).toBe(false);
+      if (result.success) throw new Error('expected failure');
+      expect(result.error.type).toBe('worktree-setup-failed');
+      expect(fs.readFileSync(userFile, 'utf8')).toBe('do not delete');
+      expect(fs.existsSync(path.join(persistedPath, '.git'))).toBe(false);
+
+      fs.rmSync(persistedPath, { recursive: true, force: true });
+    });
+
+    it('keeps uncommitted changes in a valid persisted worktree', async () => {
+      const branchName = 'task/resume-valid-with-changes';
+      await git(['branch', branchName], { cwd: repoDir });
+      const persistedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-persisted-'));
+      const persistedPath = path.join(persistedRoot, 'task', 'resume-valid-with-changes');
+      await git(['worktree', 'add', persistedPath, branchName], { cwd: repoDir });
+      const changedFile = path.join(persistedPath, 'notes.txt');
+      fs.writeFileSync(changedFile, 'keep me');
+      const svc = makeService();
+
+      const result = await svc.serveBranchWorktreeAtPath(branchName, undefined, persistedPath);
+
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(result.data).toBe(persistedPath);
+      expect(fs.readFileSync(changedFile, 'utf8')).toBe('keep me');
 
       await git(['worktree', 'remove', '--force', persistedPath], { cwd: repoDir });
       fs.rmSync(persistedRoot, { recursive: true, force: true });

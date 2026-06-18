@@ -117,6 +117,18 @@ export class WorktreeService {
     }
   }
 
+  private async assertStaleTargetSafeForReuse(targetPath: string): Promise<void> {
+    const allowedGeneratedDirectories = new Set(['node_modules']);
+    const entries = await this.host.globAbsolute('*', { cwd: targetPath, dot: true });
+    for (const entry of entries) {
+      const stat = await this.host.statAbsolute(this.host.pathApi.join(targetPath, entry));
+      if (stat?.type === 'dir' && allowedGeneratedDirectories.has(entry)) continue;
+      throw new Error(
+        `Refusing to remove stale worktree directory "${targetPath}" because it contains "${entry}"`
+      );
+    }
+  }
+
   private async getRemoteCandidates(): Promise<string[]> {
     const baseRemote = (await this.projectSettings.getBaseRemote().catch(() => '')).trim();
     if (!baseRemote || baseRemote === DEFAULT_REMOTE_NAME) {
@@ -160,10 +172,11 @@ export class WorktreeService {
   private async isInCurrentWorktreePool(candidatePath: string): Promise<boolean> {
     try {
       const realPoolPath = await this.host.realPathAbsolute(await this.resolveWorktreePoolPath());
+      const realCandidatePath = await this.host.realPathAbsolute(candidatePath);
       return (
-        candidatePath === realPoolPath ||
-        candidatePath.startsWith(`${realPoolPath}/`) ||
-        candidatePath.startsWith(`${realPoolPath}\\`)
+        realCandidatePath === realPoolPath ||
+        realCandidatePath.startsWith(`${realPoolPath}/`) ||
+        realCandidatePath.startsWith(`${realPoolPath}\\`)
       );
     } catch {
       return false;
@@ -296,6 +309,7 @@ export class WorktreeService {
         return ok(targetPath);
       }
       try {
+        await this.assertStaleTargetSafeForReuse(targetPath);
         await this.removePathForReuse(targetPath);
         await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
       } catch (cause) {
@@ -384,6 +398,7 @@ export class WorktreeService {
     baseConfigValue?: string
   ): Promise<Result<{ kind: 'ready'; path: string } | { kind: 'create' }, ServeWorktreeError>> {
     await this.host.allowPath?.(targetPath);
+    const targetIsInCurrentPool = await this.isInCurrentWorktreePool(targetPath);
 
     if (await this.host.existsAbsolute(targetPath)) {
       if (await this.isValidBranchWorktree(targetPath, branchName)) {
@@ -400,7 +415,17 @@ export class WorktreeService {
         });
       }
 
+      if (!targetIsInCurrentPool) {
+        return err({
+          type: 'worktree-setup-failed',
+          cause: new Error(
+            `Stored worktree path "${targetPath}" exists but is not an Emdash-managed worktree path`
+          ),
+        });
+      }
+
       try {
+        await this.assertStaleTargetSafeForReuse(targetPath);
         await this.removePathForReuse(targetPath);
         await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
       } catch (cause) {
@@ -452,6 +477,7 @@ export class WorktreeService {
       if (await this.host.existsAbsolute(targetPath)) {
         if (await this.isValidWorktree(targetPath)) return ok(targetPath);
         try {
+          await this.assertStaleTargetSafeForReuse(targetPath);
           await this.removePathForReuse(targetPath);
           await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
         } catch (cause) {
