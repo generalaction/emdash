@@ -128,7 +128,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col border-t border-border')}>
       <div className="flex w-full flex-col gap-2 p-2.5">
-        <div className="flex items-center justify-between gap-2">
+        <div className="group/header flex items-center justify-between gap-2">
           <button
             className="group relative flex min-w-0 flex-1 items-center gap-2"
             onClick={() => rpc.app.openExternal(pr.url)}
@@ -147,7 +147,10 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
                   type="button"
                   aria-label={justCopied ? 'PR URL copied' : 'Copy PR URL'}
                   onClick={handleCopyPrUrl}
-                  className="hover:bg-muted focus-visible:ring-ring/50 flex shrink-0 items-center justify-center rounded p-1 text-foreground-muted outline-none hover:text-foreground focus-visible:ring-3"
+                  className={cn(
+                    'flex shrink-0 items-center justify-center rounded p-1 text-foreground-muted outline-none transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 group-hover/header:opacity-100',
+                    justCopied ? 'opacity-100' : 'opacity-0'
+                  )}
                 >
                   {justCopied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                 </button>
