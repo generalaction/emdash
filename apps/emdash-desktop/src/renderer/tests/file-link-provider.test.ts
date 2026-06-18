@@ -5,6 +5,7 @@ import {
   ActivationModifierTracker,
   FileLinkProvider,
   isActivationModifierPressed,
+  isPrimaryMouseButton,
 } from '@renderer/lib/pty/file-link-provider';
 
 class MockBufferLine {
@@ -136,6 +137,12 @@ describe('file link provider', () => {
     expect(isActivationModifierPressed({ metaKey: true, ctrlKey: true }, false)).toBe(false);
   });
 
+  it('only treats the primary mouse button as link activation', () => {
+    expect(isPrimaryMouseButton({ button: 0 })).toBe(true);
+    expect(isPrimaryMouseButton({ button: 1 })).toBe(false);
+    expect(isPrimaryMouseButton({ button: 2 })).toBe(false);
+  });
+
   it('clears initial underline decorations from mouse events without the modifier', () => {
     const tracker = new ActivationModifierTracker(true);
 
@@ -174,12 +181,32 @@ describe('file link provider', () => {
     });
 
     const relativeLink = links[0]!;
-    relativeLink.activate({ metaKey: false, ctrlKey: false } as MouseEvent, relativeLink.text);
-    relativeLink.activate({ metaKey: true, ctrlKey: false } as MouseEvent, relativeLink.text);
+    relativeLink.activate(
+      { button: 0, metaKey: false, ctrlKey: false } as MouseEvent,
+      relativeLink.text
+    );
+    relativeLink.activate(
+      { button: 2, metaKey: true, ctrlKey: false } as MouseEvent,
+      relativeLink.text
+    );
+    relativeLink.activate(
+      { button: 0, metaKey: true, ctrlKey: false } as MouseEvent,
+      relativeLink.text
+    );
 
     const externalLink = links[1]!;
-    externalLink.activate({ metaKey: false, ctrlKey: false } as MouseEvent, externalLink.text);
-    externalLink.activate({ metaKey: true, ctrlKey: false } as MouseEvent, externalLink.text);
+    externalLink.activate(
+      { button: 0, metaKey: false, ctrlKey: false } as MouseEvent,
+      externalLink.text
+    );
+    externalLink.activate(
+      { button: 2, metaKey: true, ctrlKey: false } as MouseEvent,
+      externalLink.text
+    );
+    externalLink.activate(
+      { button: 0, metaKey: true, ctrlKey: false } as MouseEvent,
+      externalLink.text
+    );
 
     expect(openedFiles).toEqual(['src/app.ts']);
     expect(openedExternal).toEqual(['/tmp/report.md']);

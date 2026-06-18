@@ -3,7 +3,7 @@ import { readFile, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { eq } from 'drizzle-orm';
-import { app, clipboard, dialog, shell } from 'electron';
+import { app, clipboard, dialog, Menu, shell } from 'electron';
 import { getMainWindow } from '@main/app/window';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
@@ -229,6 +229,40 @@ class AppService implements IInitializable, IDisposable {
   clipboardWriteText(text: string): void {
     if (typeof text !== 'string') throw new Error('Invalid clipboard text');
     clipboard.writeText(text);
+  }
+
+  showTextContextMenu(args: {
+    selectionText?: string | null;
+    linkText?: string | null;
+    x: number;
+    y: number;
+  }): void {
+    const selectionText = args.selectionText?.trim() ?? '';
+    const linkText = args.linkText?.trim() ?? '';
+    const hasSelection = selectionText.length > 0;
+    const hasLink = linkText.length > 0;
+    const template: Electron.MenuItemConstructorOptions[] = [
+      {
+        label: 'Copy',
+        enabled: hasSelection,
+        click: () => clipboard.writeText(selectionText),
+      },
+      ...(hasLink
+        ? [
+            { type: 'separator' as const },
+            {
+              label: 'Copy Link',
+              click: () => clipboard.writeText(linkText),
+            },
+          ]
+        : []),
+    ];
+
+    Menu.buildFromTemplate(template).popup({
+      window: getMainWindow() ?? undefined,
+      x: Math.round(args.x),
+      y: Math.round(args.y),
+    });
   }
 
   quit(): void {

@@ -7,6 +7,7 @@ import type { AppSettings } from '@shared/core/app-settings';
 import { ptyDataChannel, ptyExitChannel } from '@shared/core/pty/ptyEvents';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/core/terminals/terminal-settings';
 import { appPasteChannel } from '@shared/events/appEvents';
+import { findFileLinks } from './file-link-detection';
 import { usePaneSizingContext } from './pane-sizing-context';
 import type { FrontendPty, SessionTheme } from './pty';
 import { measureDimensions } from './pty-dimensions';
@@ -43,6 +44,7 @@ const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
 const LAST_SELECTION_COPY_GRACE_MS = 2_000;
+const URL_PATTERN = /https?:\/\/[^\s"'<>`]+/gi;
 
 function getCellMetrics(terminal: Terminal): { width: number; height: number } | null {
   const t = terminal as unknown as XtermInternals;
@@ -64,6 +66,49 @@ function getRecentSelection(selection: { text: string; capturedAt: number } | nu
   if (!selection) return '';
   if (Date.now() - selection.capturedAt > LAST_SELECTION_COPY_GRACE_MS) return '';
   return selection.text;
+}
+
+function getTerminalContextLink(terminal: Terminal, event: MouseEvent): string | null {
+  const cell = getCellMetrics(terminal);
+  const element = (terminal as unknown as { element?: HTMLElement }).element;
+  if (!cell || !element) return null;
+
+  const rect = element.getBoundingClientRect();
+  const row = Math.floor((event.clientY - rect.top) / cell.height);
+  const column = Math.floor((event.clientX - rect.left) / cell.width) + 1;
+  if (row < 0 || row >= terminal.rows || column < 1 || column > terminal.cols) return null;
+
+  const buffer = terminal.buffer.active;
+  const bufferLineNumber = buffer.viewportY + row + 1;
+  const fileLink = findFileLinks(buffer, bufferLineNumber).find((link) =>
+    rangeContainsColumn(link.range, bufferLineNumber, column)
+  );
+  if (fileLink) return fileLink.text;
+
+  const line = buffer.getLine(bufferLineNumber - 1)?.translateToString(true);
+  if (!line) return null;
+  for (const match of line.matchAll(URL_PATTERN)) {
+    const text = trimLinkText(match[0]);
+    const start = (match.index ?? 0) + 1;
+    const end = start + text.length;
+    if (column >= start && column <= end) return text;
+  }
+  return null;
+}
+
+function rangeContainsColumn(
+  range: ReturnType<typeof findFileLinks>[number]['range'],
+  bufferLineNumber: number,
+  column: number
+): boolean {
+  if (bufferLineNumber < range.start.y || bufferLineNumber > range.end.y) return false;
+  const startColumn = bufferLineNumber === range.start.y ? range.start.x : 1;
+  const endColumn = bufferLineNumber === range.end.y ? range.end.x : Number.POSITIVE_INFINITY;
+  return column >= startColumn && column <= endColumn;
+}
+
+function trimLinkText(text: string): string {
+  return text.replace(/[),.;:!?]+$/, '');
 }
 
 export interface UsePtyOptions {
@@ -564,6 +609,37 @@ export function usePty(
       cleanups.push(() => {
         selectionDisposable.dispose();
         if (selectionDebounceTimer) clearTimeout(selectionDebounceTimer);
+      });
+
+      // ── Native context menu ────────────────────────────────────────────────
+      const handleContextMenuMouseDown = (event: MouseEvent) => {
+        if (event.button !== 2) return;
+        event.preventDefault();
+        event.stopPropagation();
+      };
+      const handleContextMenu = (event: MouseEvent) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const selectionText =
+          terminal.getSelection() || getRecentSelection(lastSelectionRef.current);
+        const linkText = getTerminalContextLink(terminal, event);
+        void rpc.app.showTextContextMenu({
+          selectionText,
+          linkText,
+          x: event.clientX,
+          y: event.clientY,
+        });
+      };
+      frontendPty.ownedContainer.addEventListener('mousedown', handleContextMenuMouseDown, true);
+      frontendPty.ownedContainer.addEventListener('contextmenu', handleContextMenu);
+      cleanups.push(() => {
+        frontendPty.ownedContainer.removeEventListener(
+          'mousedown',
+          handleContextMenuMouseDown,
+          true
+        );
+        frontendPty.ownedContainer.removeEventListener('contextmenu', handleContextMenu);
       });
 
       // ── Paste from app menu ────────────────────────────────────────────────

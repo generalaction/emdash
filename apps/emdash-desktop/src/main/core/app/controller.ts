@@ -41,6 +41,19 @@ export const appController = createRPCController({
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
+  showTextContextMenu: async (args: {
+    selectionText?: string | null;
+    linkText?: string | null;
+    x: number;
+    y: number;
+  }) => {
+    try {
+      appService.showTextContextMenu(args);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
   quit: () => {
     try {
       appService.quit();
