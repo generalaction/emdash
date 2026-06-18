@@ -15,7 +15,7 @@
  * Steps 11–12 anchor the text contrast targets (~60 / ~95 Lc).
  */
 
-import type { Polarity } from './roles.js';
+import type { Polarity, SurfaceLevelName } from './roles.js';
 
 export type ApcaTargets = readonly [
   number, // step 1  — background, Lc≈0
@@ -74,17 +74,29 @@ export const STATE_LAYER_DELTA = {
 } as const;
 
 /**
- * Fractional positions on the neutral L-curve for each surface elevation.
- * 0 = step 1 lightness; 1 = step 12 lightness.
- * Chosen so elevations are perceptually distinct without being jarring.
+ * Absolute OKLCH L values for each surface level per polarity.
+ * Elevation always gets lighter (higher L) in both modes.
+ * Sunken is the darkest level in both modes.
+ * Light mode: sunken = medium gray, elevated-emphasis ≈ pure white.
+ * Dark mode: sunken = near-black, elevated-emphasis = noticeably lighter.
+ * Tune these values in Storybook after running theme:build.
  */
-export const ELEVATION_POSITIONS = {
-  sunken: 0.18, // slightly deeper than base
-  base: 0.08, // canvas floor
-  raised: 0.12, // panels
-  overlay: 0.2, // cards / inset areas
-  floating: 0.27, // popovers, dropdowns
-} as const;
+export const SURFACE_L: Record<Polarity, Record<SurfaceLevelName, number>> = {
+  light: {
+    'sunken': 0.928,
+    'base': 0.965,
+    'base-emphasis': 0.982,
+    'elevated': 0.993,
+    'elevated-emphasis': 1.0,
+  },
+  dark: {
+    'sunken': 0.155,
+    'base': 0.195,
+    'base-emphasis': 0.235,
+    'elevated': 0.265,
+    'elevated-emphasis': 0.305,
+  },
+};
 
 /**
  * Minimum APCA |Lc| for syntax token colors vs the code background.

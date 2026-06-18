@@ -97,10 +97,21 @@ export type SurfaceLevel = {
   selected: string;
 };
 
-export type Surfaces = {
-  sunken: SurfaceLevel;
-  base: SurfaceLevel;
-  raised: SurfaceLevel;
-  overlay: SurfaceLevel;
-  floating: SurfaceLevel;
-};
+/** Named elevation levels, ordered from darkest to lightest. */
+export type SurfaceLevelName =
+  | 'sunken'
+  | 'base'
+  | 'base-emphasis'
+  | 'elevated'
+  | 'elevated-emphasis';
+
+/** Canonical ordered list of all surface levels (darkest → lightest). */
+export const SURFACE_LEVELS = [
+  'sunken',
+  'base',
+  'base-emphasis',
+  'elevated',
+  'elevated-emphasis',
+] as const satisfies readonly SurfaceLevelName[];
+
+export type Surfaces = Record<SurfaceLevelName, SurfaceLevel>;

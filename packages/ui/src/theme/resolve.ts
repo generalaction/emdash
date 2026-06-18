@@ -11,6 +11,7 @@
  */
 
 import { SEMANTIC_TEMPLATE } from './contract/semantic-template.js';
+import { SURFACE_LEVELS } from './contract/roles.js';
 import type { Scales, Surfaces, Polarity } from './contract/roles.js';
 
 // ── Ref resolution ────────────────────────────────────────────────────────────
@@ -63,10 +64,12 @@ function resolveRef(ref: string, scales: Scales, _surfaces: Surfaces): string {
 
 function buildSurfaceVars(surfaces: Surfaces): Record<string, string> {
   const vars: Record<string, string> = {};
-  for (const [elevName, level] of Object.entries(surfaces)) {
-    vars[`--surface-${elevName}`] = level.base;
-    vars[`--surface-${elevName}-hover`] = level.hover;
-    vars[`--surface-${elevName}-selected`] = level.selected;
+  // Iterate in canonical order (darkest → lightest) via SURFACE_LEVELS
+  for (const levelName of SURFACE_LEVELS) {
+    const level = surfaces[levelName];
+    vars[`--surface-${levelName}`] = level.base;
+    vars[`--surface-${levelName}-hover`] = level.hover;
+    vars[`--surface-${levelName}-selected`] = level.selected;
   }
   return vars;
 }

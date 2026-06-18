@@ -102,26 +102,48 @@
   --color-foreground-merged: var(--foreground-merged);
 
   /* ── Surface system ───────────────────────────────────────────── */
-  /* bg-surface / bg-surface-hover / bg-surface-selected adapt to the
-   * nearest .surface-* ancestor. Direct elevation utilities target a
-   * specific level regardless of context. */
+  /* Context-relative utilities: adapt to the nearest .surface-* ancestor.
+   * bg-surface          = current surface level
+   * bg-surface-emphasis = one rung above the current canvas (for cards/tabs) */
   --color-surface: var(--surface);
   --color-surface-hover: var(--surface-hover);
   --color-surface-selected: var(--surface-selected);
-  /* Direct elevation access */
+  --color-surface-emphasis: var(--surface-emphasis);
+  --color-surface-emphasis-hover: var(--surface-emphasis-hover);
+  --color-surface-emphasis-selected: var(--surface-emphasis-selected);
+
+  /* Direct elevation utilities (target a specific level regardless of context) */
   --color-surface-sunken: var(--surface-sunken);
   --color-surface-sunken-hover: var(--surface-sunken-hover);
   --color-surface-sunken-selected: var(--surface-sunken-selected);
+
   --color-surface-base: var(--surface-base);
   --color-surface-base-hover: var(--surface-base-hover);
   --color-surface-base-selected: var(--surface-base-selected);
-  --color-surface-raised: var(--surface-raised);
-  --color-surface-raised-hover: var(--surface-raised-hover);
-  --color-surface-raised-selected: var(--surface-raised-selected);
-  --color-surface-overlay: var(--surface-overlay);
-  --color-surface-overlay-hover: var(--surface-overlay-hover);
-  --color-surface-overlay-selected: var(--surface-overlay-selected);
-  --color-surface-floating: var(--surface-floating);
-  --color-surface-floating-hover: var(--surface-floating-hover);
-  --color-surface-floating-selected: var(--surface-floating-selected);
+
+  --color-surface-base-emphasis: var(--surface-base-emphasis);
+  --color-surface-base-emphasis-hover: var(--surface-base-emphasis-hover);
+  --color-surface-base-emphasis-selected: var(--surface-base-emphasis-selected);
+
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-elevated-hover: var(--surface-elevated-hover);
+  --color-surface-elevated-selected: var(--surface-elevated-selected);
+
+  --color-surface-elevated-emphasis: var(--surface-elevated-emphasis);
+  --color-surface-elevated-emphasis-hover: var(--surface-elevated-emphasis-hover);
+  --color-surface-elevated-emphasis-selected: var(--surface-elevated-emphasis-selected);
+
+  /* Back-compat aliases — kept so existing app code resolves without edits.
+   * raised → base-emphasis, overlay/floating → elevated */
+  --color-surface-raised: var(--surface-base-emphasis);
+  --color-surface-raised-hover: var(--surface-base-emphasis-hover);
+  --color-surface-raised-selected: var(--surface-base-emphasis-selected);
+
+  --color-surface-overlay: var(--surface-elevated);
+  --color-surface-overlay-hover: var(--surface-elevated-hover);
+  --color-surface-overlay-selected: var(--surface-elevated-selected);
+
+  --color-surface-floating: var(--surface-elevated);
+  --color-surface-floating-hover: var(--surface-elevated-hover);
+  --color-surface-floating-selected: var(--surface-elevated-selected);
 }

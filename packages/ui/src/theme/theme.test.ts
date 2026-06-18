@@ -13,6 +13,7 @@ import Color from 'colorjs.io';
 import { lightTheme } from './themes/light.theme.js';
 import { darkTheme } from './themes/dark.theme.js';
 import { SEMANTIC_TEMPLATE } from './contract/semantic-template.js';
+import { SURFACE_LEVELS } from './contract/roles.js';
 import type { ResolvedTheme } from './define-theme.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -147,7 +148,35 @@ describe('Theme generation', () => {
     });
   });
 
-  // 7. Both themes produce Shiki themes
+  // 7. Surface levels are strictly monotonic in OKLCH L (darkest → lightest)
+  describe('Surface elevation monotonicity', () => {
+    for (const theme of [lightTheme, darkTheme]) {
+      it(`${theme.id}: surface L values are strictly increasing (sunken → elevated-emphasis)`, () => {
+        const levels = SURFACE_LEVELS.map((level) => {
+          const cssVal = theme.cssVars[`--surface-${level}`];
+          expect(cssVal).toBeTruthy();
+          const l = new Color(cssVal!).to('oklch').coords[0];
+          return { level, l };
+        });
+        for (let i = 1; i < levels.length; i++) {
+          expect(levels[i].l).toBeGreaterThan(levels[i - 1].l);
+        }
+      });
+
+      it(`${theme.id}: all surface colors are in P3 gamut`, () => {
+        for (const level of SURFACE_LEVELS) {
+          for (const variant of ['', '-hover', '-selected']) {
+            const cssVal = theme.cssVars[`--surface-${level}${variant}`];
+            expect(cssVal).toBeTruthy();
+            const c = new Color(cssVal!);
+            expect(c.inGamut('p3')).toBe(true);
+          }
+        }
+      });
+    }
+  });
+
+  // 8. Both themes produce Shiki themes
   describe('Shiki theme generation', () => {
     it('light shiki theme has tokenColors', () => {
       const theme = lightTheme.shikiTheme as { tokenColors?: unknown[] };

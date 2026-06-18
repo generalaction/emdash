@@ -69,4 +69,5 @@ export {
   ComboboxValue,
   useComboboxAnchor,
 } from './combobox';
+export { Surface, useSurfaceLevel, type SurfaceProps } from './surface';
 export { resolveFileIconClass } from '../lib/file-icons';
