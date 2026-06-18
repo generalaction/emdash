@@ -105,6 +105,11 @@ function PerfHost(props: { count: number; label: string; height?: number }) {
   );
 }
 
+export const HundredK: Story = {
+  name: '100k scroll sweep',
+  render: () => <PerfHost count={100000} label="100k rows" />,
+};
+
 export const TenK: Story = {
   name: '10k scroll sweep',
   render: () => <PerfHost count={10000} label="10k rows" />,
