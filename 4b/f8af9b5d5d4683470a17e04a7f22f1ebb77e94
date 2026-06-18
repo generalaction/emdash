@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_05eaf5d4b03e28::t_dbe2e3820f63cc 458
+packages/plugins/src/agents/impl/kilocode/index.ts
+  s_05eaf5d4b03e28::t_64cc0147bae35a 15
+  s_05eaf5d4b03e28::t_dbe2e3820f63cc 38
+packages/plugins/src/agents/impl/index.test.ts
+  s_05eaf5d4b03e28::t_64cc0147bae35a 167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "4bf8af9b5d5d4683470a17e04a7f22f1ebb77e94",
+  "prompts": {},
+  "sessions": {
+    "s_05eaf5d4b03e28": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eda4a-84e2-79d1-af35-62d77ab8ee58",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
