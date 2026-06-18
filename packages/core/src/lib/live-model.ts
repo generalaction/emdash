@@ -1,5 +1,4 @@
-import type { IDisposable, Unsubscribe } from '@emdash/shared';
-import { isDeepEqual } from './deep-equal';
+import { isDeepEqual, type IDisposable, type Unsubscribe } from '@emdash/shared';
 import { Emitter } from './emitter';
 
 export type LiveValue<T> = {
