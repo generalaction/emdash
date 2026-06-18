@@ -75,6 +75,31 @@ describe('LocalWorktreeHost', () => {
     expect(fs.existsSync(target)).toBe(true);
   });
 
+  it('allows the exact missing parent for a target inside an allowed root', async () => {
+    const host = await makeHost();
+    const target = path.join(worktreeDir, 'deep', 'nested', 'task-1');
+
+    await host.allowPath(target);
+    await host.mkdirAbsolute(target, { recursive: true });
+
+    expect(fs.existsSync(target)).toBe(true);
+    expect(fs.existsSync(path.dirname(target))).toBe(true);
+  });
+
+  it('does not allow a broad ancestor for a missing external target path', async () => {
+    const host = await makeHost();
+    const target = path.join(outsideDir, 'deep', 'nested', 'task-1');
+    const sibling = path.join(outsideDir, 'deep', 'sibling');
+
+    await host.allowPath(target);
+    await host.mkdirAbsolute(target, { recursive: true });
+
+    expect(fs.existsSync(target)).toBe(true);
+    await expect(host.mkdirAbsolute(sibling, { recursive: true })).rejects.toMatchObject({
+      code: FileSystemErrorCodes.PATH_ESCAPE,
+    });
+  });
+
   it('rejects symlink escapes outside the allowed roots', async () => {
     if (process.platform === 'win32') {
       return;

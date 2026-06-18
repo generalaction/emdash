@@ -383,6 +383,7 @@ export class WorktreeService {
     targetPath: string,
     copyPreservedFiles?: boolean
   ): Promise<Result<string, ServeWorktreeError>> {
+    await this.ensureWorktreePoolDirExists();
     return this.enqueueGitOp(() => {
       if (!sourceBranch || branchName === sourceBranch.branch) {
         return this.doCheckoutExistingBranch(branchName, { copyPreservedFiles, targetPath });

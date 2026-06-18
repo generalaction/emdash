@@ -68,8 +68,10 @@ export class LocalWorktreeHost implements WorktreeHost {
       allowedRoot = await fs.realpath(parent);
     } catch (error) {
       if (!isNotFound(error)) throw error;
-      const { realAncestor } = await this.nearestExistingPath(parent);
-      allowedRoot = realAncestor;
+      const { realAncestor, unresolvedSegments } = await this.nearestExistingPath(parent);
+      const parentTarget = path.join(realAncestor, ...unresolvedSegments);
+      await fs.mkdir(parentTarget, { recursive: true });
+      allowedRoot = await fs.realpath(parentTarget);
     }
 
     if (!this.roots.some((existing) => existing === allowedRoot)) {
@@ -138,7 +140,6 @@ export class LocalWorktreeHost implements WorktreeHost {
     }
 
     const { realAncestor, unresolvedSegments } = await this.nearestExistingPath(resolved);
-    this.assertInsideAllowedRoots(realAncestor, input);
     const target = path.join(realAncestor, ...unresolvedSegments);
     this.assertInsideAllowedRoots(target, input);
     return target;

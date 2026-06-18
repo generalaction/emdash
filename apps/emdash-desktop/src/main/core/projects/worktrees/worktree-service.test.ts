@@ -361,6 +361,23 @@ describe('WorktreeService', () => {
       await git(['worktree', 'remove', '--force', persistedPath], { cwd: repoDir });
     });
 
+    it('creates the pool directory before resuming a stored worktree path', async () => {
+      const branchName = 'task/resume-missing-pool';
+      await git(['branch', branchName], { cwd: repoDir });
+      fs.rmSync(poolDir, { recursive: true, force: true });
+      const persistedPath = path.join(poolDir, 'task', 'resume-missing-pool');
+      const svc = makeService();
+
+      const result = await svc.serveBranchWorktreeAtPath(branchName, undefined, persistedPath);
+
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(result.data).toBe(persistedPath);
+      expect(fs.existsSync(path.join(persistedPath, '.git'))).toBe(true);
+
+      await git(['worktree', 'remove', '--force', persistedPath], { cwd: repoDir });
+    });
+
     it('does not remove a stale persisted directory inside the current pool when it contains user files', async () => {
       const branchName = 'task/resume-stale-pool-with-changes';
       await git(['branch', branchName], { cwd: repoDir });
