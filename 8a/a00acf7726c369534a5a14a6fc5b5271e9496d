@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/main/core/settings/override-settings.ts
+  s_cbe7484d2be8cc::t_f0dd37ec982c8c 79-81,84,86
+  s_cbe7484d2be8cc::t_88ffdb25063d73 83
+apps/emdash-desktop/src/main/core/settings/override-settings.test.ts
+  s_cbe7484d2be8cc::t_ba4f7a84ca9e03 1,3-26,31-73
+  s_cbe7484d2be8cc::t_88ffdb25063d73 2
+  s_cbe7484d2be8cc::t_13cad09010e914 27-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "8aa00acf7726c369534a5a14a6fc5b5271e9496d",
+  "prompts": {},
+  "sessions": {
+    "s_cbe7484d2be8cc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed938-1f03-70c0-abaa-15a24023cf68",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
