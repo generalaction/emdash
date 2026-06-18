@@ -1,0 +1,36 @@
+packages/plugins/src/agents/impl/droid/hooks.ts
+  s_8e4a2ef038aa1b::t_3baef44cef8430 11
+  s_8e4a2ef038aa1b::t_bf855723bb3272 1,3-4,6-8,12-39,42-58,60-63,65-66,68-70,73-85
+  s_8e4a2ef038aa1b::t_d3dd5898a932f9 59,64,67
+  s_8e4a2ef038aa1b::t_2688f6b7bb6c8f 71-72
+packages/plugins/src/agents/impl/devin/hooks.ts
+  s_8e4a2ef038aa1b::t_c90241ee24ab09 1,3-4,7-9,14-19,57-59,63-65,67-75,78-81,83-84
+  s_8e4a2ef038aa1b::t_227d5be107edd9 20-55,60-62,66,76-77,82
+packages/plugins/src/agents/impl/claude/hooks.ts
+  s_8e4a2ef038aa1b::t_89169ee9b62874 1,16-29,36-45
+  s_8e4a2ef038aa1b::t_c4c46b3b8bbbeb 11-12
+packages/plugins/src/agents/impl/gemini/hooks.ts
+  s_8e4a2ef038aa1b::t_51f6510c9ab483 1-10,13-16
+  s_8e4a2ef038aa1b::t_2d98afd263122f 11-12
+packages/plugins/src/agents/impl/copilot/hooks.ts
+  s_8e4a2ef038aa1b::t_e35aff3cfe55bc 25-30
+  s_8e4a2ef038aa1b::t_5fdc2fb9c337ea 19,52-56,72
+packages/plugins/src/agents/impl/gemini/index.ts
+  s_8e4a2ef038aa1b::t_3de4b7d202ad22 7,26-28,60-61,65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "dd93cc8c70311bd766f4e57cd7b5abd1e2f258b2",
+  "prompts": {},
+  "sessions": {
+    "s_8e4a2ef038aa1b": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ed935-6527-7cfb-b5ca-7234df7f9ac7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
