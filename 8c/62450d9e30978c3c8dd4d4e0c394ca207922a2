@@ -1,0 +1,25 @@
+apps/emdash-desktop/src/renderer/lib/stores/app-state.ts
+  s_e7a3fceb36b708::t_5fb0364be1b0de 24-26
+apps/emdash-desktop/src/renderer/features/sidebar/sidebar-store.ts
+  s_e7a3fceb36b708::t_af97eb8ac017c9 46-49,220,225,250
+apps/emdash-desktop/src/renderer/lib/stores/snapshot-registry.ts
+  s_e7a3fceb36b708::t_05b25aa643556b 46-50
+apps/emdash-desktop/src/renderer/features/sidebar/sidebar-store.test.ts
+  s_e7a3fceb36b708::t_4c9dea3a9956cb 88-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "8c62450d9e30978c3c8dd4d4e0c394ca207922a2",
+  "prompts": {},
+  "sessions": {
+    "s_e7a3fceb36b708": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019edaba-b4dc-75b0-a3b3-086189eeacc3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
