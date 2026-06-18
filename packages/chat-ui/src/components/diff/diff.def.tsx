@@ -63,6 +63,8 @@ export type DiffNodeLayout = {
 function DiffRender(props: { item: ChatDiff; layout: Measured<DiffNodeLayout>; ctx: RenderCtx }) {
   const theme = useTheme();
   const data = () => props.layout.layout.data;
+  // Streaming with no content yet renders the header alone (no body slot).
+  const headerOnly = () => props.item.status === 'running' && props.item.newText.length === 0;
 
   return (
     <div style={{ height: `${props.layout.height}px` }}>
@@ -75,6 +77,7 @@ function DiffRender(props: { item: ChatDiff; layout: Measured<DiffNodeLayout>; c
               adds={data().adds}
               dels={data().dels}
               headerH={DIFF_HEADER_H}
+              hasBody={!headerOnly()}
             />
           ),
           [SLOT_NAMES.DIFF_BODY]: () => (
@@ -93,7 +96,9 @@ function DiffRender(props: { item: ChatDiff; layout: Measured<DiffNodeLayout>; c
 export const diffDef = defineComponent<ChatDiff, DiffNodeLayout>({
   kind: 'diff',
 
-  estimate(_item, ctx: MeasureCtx): number {
+  estimate(item, ctx: MeasureCtx): number {
+    // Streaming with no content yet collapses to a single header row.
+    if (item.status === 'running' && item.newText.length === 0) return DIFF_HEADER_H;
     return DIFF_HEADER_H + DIFF_MAX_LINES * ctx.theme.fonts.code.lineHeight + 2 * DIFF_BORDER;
   },
 
@@ -106,11 +111,18 @@ export const diffDef = defineComponent<ChatDiff, DiffNodeLayout>({
     const lang = langFromPath(item.path);
     const truncated = previewRows.length > 0 && previewRows.at(-1) !== rows.at(-1);
 
+    const data: DiffLayout = { kind: 'diff', previewRows, adds, dels, lang, truncated };
+
+    // ── Stage A — streaming, no content yet: header only ──────────────────────
+    if (item.status === 'running' && item.newText.length === 0) {
+      const tree = slot(SLOT_NAMES.DIFF_HEADER, DIFF_HEADER_H);
+      return { height: tree.height, width: ctx.width, layout: { kind: 'diff', tree, data } };
+    }
+
     const bodyH =
       previewRows.length === 0 ? 2 * DIFF_BORDER : previewRows.length * codeLineH + 2 * DIFF_BORDER;
 
     const maxH = bodyH;
-    const data: DiffLayout = { kind: 'diff', previewRows, adds, dels, lang, truncated };
 
     const bodySlot = slot(SLOT_NAMES.DIFF_BODY, bodyH);
     const windowedBody = scrollWindow(bodySlot, maxH, {

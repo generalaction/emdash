@@ -10,7 +10,7 @@
  */
 
 import { resolveFileIconClass } from '@emdash/ui/primitives';
-import { For, createEffect, onCleanup } from 'solid-js';
+import { For, Show, createEffect, onCleanup } from 'solid-js';
 import { applyTokensToElement } from '../../core/highlight/apply-tokens';
 import type { CodeToken } from '../../core/highlight/highlighter';
 import { basename } from '../../lib/path';
@@ -38,11 +38,21 @@ export type DiffHeaderProps = {
   adds: number;
   dels: number;
   headerH: number;
+  /**
+   * Whether a diff body is rendered below this header. Controls the border
+   * shape: with a body the header owns the top + side edges and the separator
+   * (`rounded-t`), standalone it owns the full rounded card border.
+   */
+  hasBody: boolean;
 };
 
 export function DiffHeader(props: DiffHeaderProps) {
   const name = () => basename(props.item.path);
   const iconClass = () => resolveFileIconClass(name());
+  const running = () => props.item.status === 'running';
+  // Stats are meaningless until a diff body exists; hide them while streaming
+  // the header alone or when there are genuinely no changes.
+  const showStats = () => props.hasBody && (props.adds > 0 || props.dels > 0);
   const commands = useCommands();
 
   const handleClick = () => {
@@ -51,7 +61,11 @@ export function DiffHeader(props: DiffHeaderProps) {
 
   return (
     <div
-      class="hover:bg-background-hover flex cursor-pointer items-center gap-2 border-b border-border px-3 text-xs"
+      class="hover:bg-background-3 flex cursor-pointer items-center gap-2 border-border px-3 text-xs transition-colors"
+      classList={{
+        'rounded-lg border': !props.hasBody,
+        'rounded-t-lg border-x border-t border-b': props.hasBody,
+      }}
       style={{ height: `${props.headerH}px` }}
       role="button"
       onClick={handleClick}
@@ -65,11 +79,17 @@ export function DiffHeader(props: DiffHeaderProps) {
       ) : (
         <GenericFileIcon />
       )}
-      <span class="min-w-0 truncate text-sm text-foreground-muted" title={props.item.path}>
+      <span
+        class="min-w-0 truncate text-sm text-foreground-muted"
+        classList={{ 'text-shimmer': running() }}
+        title={props.item.path}
+      >
         {name()}
       </span>
-      <span class="shrink-0 text-sm text-foreground-diff-added">+{props.adds}</span>
-      <span class="shrink-0 text-sm text-foreground-diff-deleted">−{props.dels}</span>
+      <Show when={showStats()}>
+        <span class="shrink-0 text-sm text-foreground-diff-added">+{props.adds}</span>
+        <span class="shrink-0 text-sm text-foreground-diff-deleted">−{props.dels}</span>
+      </Show>
       <span class="flex-1" />
     </div>
   );
@@ -171,12 +191,13 @@ export type DiffProps = {
 
 export function Diff(props: DiffProps) {
   return (
-    <div class="overflow-hidden rounded-lg border border-border">
+    <div>
       <DiffHeader
         item={props.item}
         adds={props.layout.adds}
         dels={props.layout.dels}
         headerH={28}
+        hasBody
       />
       <DiffLines item={props.item} layout={props.layout} codeLineHeight={props.codeLineHeight} />
     </div>

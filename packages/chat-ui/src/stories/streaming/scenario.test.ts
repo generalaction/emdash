@@ -12,6 +12,7 @@ import {
   chunkText,
   scenario,
   seedStep,
+  streamDiff,
   streamMessage,
   streamThinking,
   streamTool,
@@ -173,6 +174,46 @@ describe('streamTool', () => {
     expect(steps[2].kind).toBe('call');
     expect(steps[3].kind).toBe('wait');
     expect(steps[4].kind).toBe('call');
+  });
+});
+
+// ── streamDiff ────────────────────────────────────────────────────────────────
+
+describe('streamDiff', () => {
+  it('first step is a synchronous call that starts with empty newText (Stage A)', () => {
+    const calls: Array<{ type: string; newText?: string }> = [];
+    const steps = streamDiff({ id: 'd1', path: 'src/a.ts', oldText: 'a', newText: 'a\nb\nc' });
+    expect(steps[0].kind).toBe('call');
+    if (steps[0].kind === 'call') {
+      steps[0].fn({ dispatch: (e: { type: string; newText?: string }) => calls.push(e) } as never);
+    }
+    expect(calls[0]).toMatchObject({ type: 'diff_start', newText: '' });
+  });
+
+  it('every post-init call is preceded by a wait', () => {
+    const steps = streamDiff({ id: 'd1', path: 'src/a.ts', oldText: null, newText: 'x\ny' });
+    for (let i = 1; i < steps.length - 1; i += 2) {
+      expect(steps[i].kind).toBe('wait');
+      expect(steps[i + 1].kind).toBe('call');
+    }
+  });
+
+  it('last step flips status to the final status (Stage C)', () => {
+    const calls: Array<{ type: string; status?: string }> = [];
+    const steps = streamDiff({ id: 'd1', path: 'src/a.ts', oldText: null, newText: 'x' });
+    const last = steps[steps.length - 1];
+    expect(last.kind).toBe('call');
+    if (last.kind === 'call') {
+      last.fn({ dispatch: (e: { type: string; status?: string }) => calls.push(e) } as never);
+    }
+    expect(calls[0]).toMatchObject({ type: 'diff_update', status: 'done' });
+  });
+
+  it('step count: 1 (start) + 2*lines (content) + 2 (final wait+settle)', () => {
+    const newText = 'a\nb\nc';
+    const lines = chunkText(newText, { mode: 'line' });
+    const steps = streamDiff({ id: 'd1', path: 'src/a.ts', oldText: null, newText });
+    expect(steps).toHaveLength(1 + 2 * lines.length + 2);
   });
 });
 

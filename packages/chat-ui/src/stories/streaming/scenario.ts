@@ -215,6 +215,64 @@ export function streamFileOp(opts: {
   return result;
 }
 
+/**
+ * Produce steps that simulate a diff preview streaming in:
+ *
+ *   1. `diff_start` with empty `newText` (synchronous) — the row appears as a
+ *      header-only card with the file name shimmering (Stage A).
+ *   2. After `headerMs`, content is revealed line-by-line via `diff_update`,
+ *      each update sending the full accumulated text (Stage B — streaming body).
+ *   3. A final `diff_update` flips status to `finalStatus`, dropping the shimmer
+ *      (Stage C — settled).
+ *
+ * Each update sends the whole snapshot so far (mirrors ACP's replace semantics).
+ */
+export function streamDiff(opts: {
+  id: string;
+  path: string;
+  oldText: string | null;
+  newText: string;
+  /** Dwell on the header-only state before the first content arrives, ms (default: 700). */
+  headerMs?: number;
+  /** Delay between subsequent content line chunks in ms (default: 140). */
+  chunkMs?: number;
+  /** Final status dispatched after the full content (default: 'done'). */
+  finalStatus?: ToolStatus;
+}): ScriptStep[] {
+  const { id, path, oldText, newText, headerMs = 700, chunkMs = 140, finalStatus = 'done' } = opts;
+
+  const result: ScriptStep[] = [];
+
+  // Stage A — create the row with no content yet (header only, shimmering).
+  result.push({
+    kind: 'call',
+    fn: (api: TranscriptApi) =>
+      api.dispatch({ type: 'diff_start', id, path, oldText, newText: '' }),
+  });
+
+  // Stage B — reveal content line-by-line; each update carries the full snapshot.
+  const lines = chunkText(newText, { mode: 'line' });
+  let acc = '';
+  for (let i = 0; i < lines.length; i++) {
+    acc += lines[i];
+    const snapshot = acc;
+    result.push({ kind: 'wait', ms: i === 0 ? headerMs : chunkMs });
+    result.push({
+      kind: 'call',
+      fn: (api: TranscriptApi) => api.dispatch({ type: 'diff_update', id, newText: snapshot }),
+    });
+  }
+
+  // Stage C — settle (drops the shimmer).
+  result.push({ kind: 'wait', ms: chunkMs });
+  result.push({
+    kind: 'call',
+    fn: (api: TranscriptApi) => api.dispatch({ type: 'diff_update', id, status: finalStatus }),
+  });
+
+  return result;
+}
+
 /** A single timed update applied to a running tool call. */
 export type ToolUpdateStep = {
   /** Milliseconds to wait after the previous step before applying this update. */

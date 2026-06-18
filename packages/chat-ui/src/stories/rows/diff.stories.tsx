@@ -3,7 +3,8 @@
  */
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
-import { ChatHost } from '../chat-host';
+import { ChatHost, ScriptedChat } from '../chat-host';
+import { scenario, seedStep, streamDiff } from '../streaming/scenario';
 
 const meta: Meta = {
   title: 'Rows/Diff',
@@ -116,7 +117,7 @@ export const MultiFile: Story = {
   ),
 };
 
-/** Running diff — status still in progress. */
+/** Running diff — status still in progress, body already streaming. */
 export const Generating: Story = {
   render: () => (
     <ChatHost
@@ -131,6 +132,61 @@ export const Generating: Story = {
         },
       ]}
       height={120}
+    />
+  ),
+};
+
+/**
+ * Running diff before any content has streamed — header only, with the
+ * file name shimmering to signal in-progress generation.
+ */
+export const GeneratingHeaderOnly: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'diff',
+          id: 'tc6:src/components/diff/Diff.tsx',
+          path: 'src/components/diff/Diff.tsx',
+          oldText: null,
+          newText: '',
+          status: 'running',
+        },
+      ]}
+      height={120}
+    />
+  ),
+};
+
+const STREAM_OLD = `export const DIFF_HEADER_H = 28;
+export const DIFF_MAX_LINES = 12;`;
+
+const STREAM_NEW = `export const DIFF_HEADER_H = 28;
+export const DIFF_MAX_LINES = 12;
+export const DIFF_CONTEXT = 1;
+export const DIFF_BORDER = 1;
+export const DIFF_FADE_H = 24;`;
+
+/**
+ * Full generation transition: the diff starts as a header-only shimmering card
+ * (Stage A), then streams its body in line-by-line (Stage B), and finally
+ * settles to the static done state with the shimmer removed (Stage C).
+ */
+export const StreamingTransition: Story = {
+  render: () => (
+    <ScriptedChat
+      height={220}
+      script={scenario(
+        [seedStep([{ kind: 'message', id: 'u1', role: 'user', text: 'Add the diff constants' }])],
+        streamDiff({
+          id: 'tc7:src/components/diff/metrics.ts',
+          path: 'src/components/diff/metrics.ts',
+          oldText: STREAM_OLD,
+          newText: STREAM_NEW,
+          headerMs: 900,
+          chunkMs: 220,
+        })
+      )}
     />
   ),
 };
