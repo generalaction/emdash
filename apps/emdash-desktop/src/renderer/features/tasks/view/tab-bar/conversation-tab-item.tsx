@@ -34,7 +34,6 @@ export const ConversationTabItem = observer(function ConversationTabItem({
 
   const title = formatConversationTitleForDisplay(tab.store.data.providerId, tab.store.data.title);
   const rawTitle = tab.store.data.title ?? '';
-  const renameInputWidth = `${Math.min(Math.max(rawTitle.length || title.length, 8), 24)}ch`;
 
   const handleRename = useCallback(() => {
     committedRef.current = false;
@@ -77,8 +76,7 @@ export const ConversationTabItem = observer(function ConversationTabItem({
           {isEditing ? (
             <input
               ref={handleRenameInputRef}
-              className="my-1 min-w-0 rounded bg-background-1 px-1.5 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
-              style={{ width: renameInputWidth }}
+              className="field-sizing-content max-w-24 min-w-8 rounded border-0 bg-background-1 p-1 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
               defaultValue={rawTitle}
               maxLength={MAX_CONVERSATION_TITLE_LENGTH}
               onClick={(e) => e.stopPropagation()}
