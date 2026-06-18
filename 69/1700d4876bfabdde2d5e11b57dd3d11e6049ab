@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/lib/CronPicker/CronPicker.tsx
+  s_fc7a64f3c71c16::t_5f542ffede9d4b 172-187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "691700d4876bfabdde2d5e11b57dd3d11e6049ab",
+  "prompts": {},
+  "sessions": {
+    "s_fc7a64f3c71c16": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b1d3389-4d79-4f12-8710-4a1de3b5e5d9",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
