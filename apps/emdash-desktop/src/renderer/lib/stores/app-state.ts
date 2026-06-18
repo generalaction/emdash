@@ -21,7 +21,9 @@ class AppState {
     this.snapshots = snapshotRegistry;
     this.update = new UpdateStore();
     this.projects = new ProjectManagerStore();
-    this.sidebar = new SidebarStore(this.projects);
+    this.sidebar = new SidebarStore(this.projects, () => {
+      this.snapshots.saveNow('sidebar', this.sidebar.snapshot);
+    });
     this.history = new NavigationHistoryStore();
     this.navigation = new NavigationStore();
     this.sshConnections = new SshConnectionStore({

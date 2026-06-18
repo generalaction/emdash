@@ -43,6 +43,11 @@ export class SnapshotRegistry {
       this.disposers.delete(key);
     };
   }
+
+  saveNow(key: string, snapshot: unknown): void {
+    viewStateCache.set(key, snapshot);
+    void rpc.viewState.save(key, snapshot);
+  }
 }
 
 export const snapshotRegistry = new SnapshotRegistry();

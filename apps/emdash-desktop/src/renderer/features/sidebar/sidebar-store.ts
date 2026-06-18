@@ -43,7 +43,10 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
   expandedProjectIds = observable.set<string>();
   taskSortBy: SidebarTaskSortBy = 'created-at';
 
-  constructor(private readonly projectManager: ProjectManagerStore) {
+  constructor(
+    private readonly projectManager: ProjectManagerStore,
+    private readonly saveSnapshotNow: (() => void) | undefined = undefined
+  ) {
     makeAutoObservable(this, {
       expandedProjectIds: false,
       sidebarRows: computed,
@@ -214,10 +217,12 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
   applySort(sortBy: SidebarTaskSortBy): void {
     this.taskSortBy = sortBy;
     this.taskOrderByProject = {};
+    this.saveSnapshotNow?.();
   }
 
   setProjectOrder(ids: string[]): void {
     this.projectOrder = ids;
+    this.saveSnapshotNow?.();
   }
 
   mergeTaskOrder(projectId: string, tasks: TaskStore[]): TaskStore[] {
@@ -242,6 +247,7 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
 
   setTaskOrder(projectId: string, orderedIds: string[]): void {
     this.taskOrderByProject = { ...this.taskOrderByProject, [projectId]: orderedIds };
+    this.saveSnapshotNow?.();
   }
 
   private compareSidebarTasks(a: TaskStore, b: TaskStore): number {

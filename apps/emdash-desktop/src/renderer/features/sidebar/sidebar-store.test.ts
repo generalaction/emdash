@@ -85,6 +85,69 @@ describe('SidebarStore project ordering', () => {
     expect(store.orderedProjects.map((project) => project.id)).toEqual(['new', 'manual', 'old']);
   });
 
+  it('restores saved manual project and task order', () => {
+    const store = new SidebarStore(
+      projectManagerWithTasks([
+        {
+          id: 'project-1',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          taskIds: ['task-1a', 'task-1b'],
+        },
+        {
+          id: 'project-2',
+          createdAt: '2026-01-02T00:00:00.000Z',
+          taskIds: ['task-2a'],
+        },
+      ])
+    );
+
+    store.restoreSnapshot({
+      expandedProjectIds: ['project-1', 'project-2'],
+      projectOrder: ['project-1', 'project-2'],
+      taskOrderByProject: { 'project-1': ['task-1a', 'task-1b'] },
+    });
+
+    expect(store.orderedProjects.map((project) => project.id)).toEqual(['project-1', 'project-2']);
+    expect(store.visibleTaskIdsForProject('project-1')).toEqual(['task-1a', 'task-1b']);
+  });
+
+  it('requests an immediate save after manual project order changes', () => {
+    const saveSnapshotNow = vi.fn();
+    const store = new SidebarStore(
+      projectManager([
+        { id: 'old', createdAt: '2026-01-01T00:00:00.000Z' },
+        { id: 'new', createdAt: '2026-01-02T00:00:00.000Z' },
+      ]),
+      saveSnapshotNow
+    );
+
+    store.setProjectOrder(['old', 'new']);
+
+    expect(saveSnapshotNow).toHaveBeenCalledOnce();
+    expect(store.snapshot.projectOrder).toEqual(['old', 'new']);
+  });
+
+  it('requests an immediate save after manual task order changes', () => {
+    const saveSnapshotNow = vi.fn();
+    const store = new SidebarStore(
+      projectManagerWithTasks([
+        {
+          id: 'project-1',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          taskIds: ['task-1a', 'task-1b'],
+        },
+      ]),
+      saveSnapshotNow
+    );
+
+    store.setTaskOrder('project-1', ['task-1b', 'task-1a']);
+
+    expect(saveSnapshotNow).toHaveBeenCalledOnce();
+    expect(store.snapshot.taskOrderByProject).toEqual({
+      'project-1': ['task-1b', 'task-1a'],
+    });
+  });
+
   it('returns visible task entries in rendered project-tree order', () => {
     const store = new SidebarStore(
       projectManagerWithTasks([
