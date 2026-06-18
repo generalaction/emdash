@@ -1,0 +1,971 @@
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/staged-section.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/github/accounts/github-account-service.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 78-90,128-140
+apps/emdash-desktop/src/renderer/lib/pty/use-pty.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 3,11,49-53,443-448
+packages/plugins/src/agents/impl/jules/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/git/watch/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-7
+packages/plugins/src/agents/impl/codebuff/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/renderer/features/projects/components/settings-view/project-settings-form.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/shared/core/git/rpc.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 6-7
+packages/plugins/src/agents/impl/hermes/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/core/src/git/parsers/diff-parser.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-9
+apps/emdash-desktop/src/renderer/features/projects/stores/project-settings-store.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/lib/resource-map.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-141
+packages/core/src/lib/plugins/framework.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-54
+packages/core/tsconfig.json
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-19
+apps/emdash-desktop/src/renderer/features/settings/components/BrowserSettingsCard.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 25,142-150
+packages/plugins/src/agents/impl/copilot/hooks.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2,11
+apps/emdash-desktop/src/shared/core/git/events.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 4,268-290
+apps/emdash-desktop/src/main/core/pull-requests/pr-sync-scheduler.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-3
+packages/core/src/exec/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-9
+packages/plugins/src/agents/impl/jules/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/main/core/tasks/task-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/tests/use-branch-selection.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/workspaces/workspace-worktree-update.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-150
+apps/emdash-desktop/src/renderer/features/mcp/components/McpModal.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 344
+apps/emdash-desktop/src/main/core/tasks/operations/renameTask.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/git/watch/classifier.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-117
+apps/emdash-desktop/src/shared/projects.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/settings/components/github-connect-modal.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 72-75,77-80,82-86
+packages/shared/src/emitter.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-49
+packages/plugins/src/agents/impl/kilocode/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/main/core/preview-servers/terminal-url-detector.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-160
+apps/emdash-desktop/src/shared/core/workspaces/build-workspace-config-from-preset.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/base-branch.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/workspaces/workspace-lifecycle-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/stacked-diff-panel-store.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/agents/plugins/helpers/hierarchical.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-50
+apps/emdash-desktop/src/main/core/pull-requests/project-pull-request-context.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/terminals/impl/ssh-terminal-provider.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 14-22,52-57,89-92,146-180
+apps/emdash-desktop/src/shared/core/preview-servers/events.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-4
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/files-list.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/antigravity/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/registry.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 2
+packages/core/src/git/git-runtime.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-173
+apps/emdash-desktop/src/main/core/preview-servers/preview-server-service.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-593
+packages/core/src/git/parsers/status-parser.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-101
+packages/shared/src/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-13
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-project-git-context.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/plugins/src/agents/impl/gemini/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/shared/core/tasks/tasks.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/git/repository/fetch-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/tasks/components/preview-servers/preview-server-pills.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-22
+packages/core/src/git/cat-file-batch.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-57
+packages/core/src/git/types.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-207
+packages/plugins/src/agents/impl/kimi/hooks.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2,7
+apps/emdash-desktop/src/main/core/account/services/account-session-store.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-169
+apps/emdash-desktop/src/main/core/projects/settings/sharing/config-migration.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/git/repository/controller.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/projects/components/settings-view/project-settings-form-model.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/goose/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/package.json
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 27,30,35
+packages/core/src/git/git-runtime.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-295
+packages/core/src/git/git-env.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-13
+apps/emdash-desktop/src/main/core/projects/settings/legacy-project-settings-migration.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-3
+packages/plugins/src/agents/impl/grok/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2,63-64,78
+apps/emdash-desktop/src/main/core/git/repository/error-mappers.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 7
+apps/emdash-desktop/src/main/core/projects/operations/create-ssh-project.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 2
+packages/shared/src/emitter.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-26
+packages/plugins/src/agents/impl/devin/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/runtime/runtime-manager.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-3
+packages/plugins/src/agents/impl/hermes/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/tasks/task-builder.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,65
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/create-pr-modal.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/image-diff-view.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/exec/bound-exec.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-185
+agents/integrations/providers.md
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 34-35
+packages/core/src/agents/plugins/capabilities/auto-approve.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-15
+apps/emdash-desktop/src/main/core/dependencies/latest-version-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/main/core/projects/settings/project-settings-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/main/core/projects/settings/sharing/paseo-config-migration.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/tests/changes-list-item.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/junie/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/repository/provider-repository-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/add-worktree.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/projects/operations/create-local-project.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 2
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-create-task-state.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/lib/hooks/useAccount.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 44-46
+apps/emdash-desktop/src/shared/terminal-url.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-56
+packages/core/src/agents/plugins/helpers/merge.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-69
+apps/emdash-desktop/src/main/core/browser/browser-cors-relaxation.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-97
+packages/plugins/src/agents/impl/auggie/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/plugins/src/agents/impl/copilot/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+.github/workflows/code-consistency-check.yml
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 43-44
+packages/core/src/agents/plugins/helpers/config.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-50
+packages/core/src/git/models/head.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-4
+apps/emdash-desktop/src/main/core/account/controller.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 8-10,13,17-19,22-23,26-28,32-36,39-40,43-50,54-57,59-61,65,69-71
+packages/plugins/src/agents/impl/junie/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/main/core/browser/browser-profile-session.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 3-8,25-29,44-45,50-56,60-77
+apps/emdash-desktop/src/main/core/github/services/project-github-auth-context.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/fs/paths.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-14
+packages/core/src/host-dependencies/runtime/method-detection.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-186
+apps/emdash-desktop/src/main/core/account/services/account-auth-server-client.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-98
+packages/core/src/agents/plugins/helpers/standard-command.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-175
+apps/emdash-desktop/src/main/core/mcp/controller.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/account/services/account-auth-response-parser.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-96
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/set-branch-base.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 10-11
+packages/ui/package.json
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 34,42,46
+apps/emdash-desktop/src/main/db/legacy-port/importers/settings/importer.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 4
+apps/emdash-desktop/src/main/core/prompt-library/service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/projects/operations/createProject.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 4
+packages/core/src/git/parsers/diff-parser.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-12
+packages/plugins/src/agents/impl/copilot/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,6
+packages/plugins/src/agents/impl/droid/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/main/core/workspaces/workspace-bootstrap-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/plugins/src/agents/impl/mistral/hooks.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,8
+apps/emdash-desktop/src/renderer/lib/components/branch-selector-utils.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/lib/hooks/useTabShortcuts.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 3,49,83-97
+apps/emdash-desktop/src/renderer/lib/components/branch-selector-utils.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/claude/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/shared/core/git/utils.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/lib/plugins/registry.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-11
+packages/core/package.json
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-73
+apps/emdash-desktop/src/main/core/account/services/provider-token-dispatcher.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-39
+apps/emdash-desktop/src/main/core/projects/settings/sharing/superset-config-migration.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/git/models/diff-target.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-32
+apps/emdash-desktop/src/main/core/terminals/impl/local-terminal-provider.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 2-3,47,57,66,75,186-217
+apps/emdash-desktop/package.json
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 49,54,65
+packages/core/src/agents/plugins/capabilities/hooks-types.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-40
+packages/core/src/lib/resource-map.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-111
+apps/emdash-desktop/src/shared/core/agents/agent-payload.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 4,31,37,95,115,174
+apps/emdash-desktop/src/shared/openInApps.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 48-69
+apps/emdash-desktop/src/renderer/features/projects/components/settings-view/share-project-config-modal.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/git/utils.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-34
+packages/shared/src/deep-equal.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-32
+apps/emdash-desktop/src/main/core/projects/settings/worktree-directory.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 2
+packages/plugins/src/agents/impl/qwen/hooks.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,6
+apps/emdash-desktop/src/main/core/github/services/github-api-auth-service.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,80-92
+package.json
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 6
+apps/emdash-desktop/src/renderer/features/tasks/stores/git-worktree-store.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 6-7
+apps/emdash-desktop/src/main/core/workspaces/workspace-current-branch-cache.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-104
+apps/emdash-desktop/src/main/core/dependencies/dependency-managers.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/core/src/lib/plugins/capability.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-56
+packages/plugins/src/agents/impl/mistral/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/agents/plugins/helpers/parse-hook-event.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-79
+packages/core/src/agents/plugins/helpers/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-11
+apps/emdash-desktop/src/main/core/pull-requests/controller.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/git/index.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-12
+apps/emdash-desktop/src/shared/shortcuts.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-76
+apps/emdash-desktop/src/main/core/pull-requests/project-remotes-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/terminals/impl/local-terminal-provider.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 13-21,41-46,71-74,120-151
+apps/emdash-desktop/src/main/core/github/services/issue-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/utils/userEnv.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 6,9,17-27,83-84,98-99,112-119,121-122
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/unstaged-section.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/github/accounts/github-cli-account-import.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 257,291
+apps/emdash-desktop/src/renderer/features/projects/stores/git-repository-store.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/main/core/git/legacy/git-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 21-23,51,125
+packages/core/src/git/models/refs.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-27
+apps/emdash-desktop/src/main/core/ssh/config/connection-metadata.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/projects/stores/project-manager.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/kiro/hooks.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 4
+apps/emdash-desktop/src/renderer/lib/stores/live/optimistic-model.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/projects/stores/git-repository-store.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 9-10
+apps/emdash-desktop/src/main/core/github/accounts/github-auth-server-adapter.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-4,10-12,21,32-36
+packages/plugins/src/agents/impl/codex/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/use-commit-files.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/account/services/credential-store.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,4,9,11,14-18,22,25,28-32,36,39,42-46
+apps/emdash-desktop/src/renderer/lib/components/remote-select-content.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 156
+packages/plugins/src/agents/impl/mistral/hooks.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/git/worktree/controller.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/renderer/features/automations/useAutomationFormState.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-manager.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/host-dependencies/runtime/probe.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-115
+apps/emdash-desktop/src/main/core/port-forwards/port-forward-tunnel.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-204
+packages/core/src/host-dependencies/capability.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-120
+packages/core/src/host-dependencies/runtime/types.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-335
+apps/emdash-desktop/src/renderer/features/sidebar/sidebar-store.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 23-61,87-113
+apps/emdash-desktop/src/renderer/features/tasks/tabs/tab-manager-store.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/git/git-worktree.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-603
+packages/core/src/agents/plugins/capabilities/effort.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-28
+apps/emdash-desktop/src/main/core/workspaces/workspace-bootstrap-service.db.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 2
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/diff-view-store.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 18,138,145-154,165
+apps/emdash-desktop/src/shared/core/workspaces/workspace-presets.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/pull-requests/project-pull-request-context.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/projects/components/settings-view/project-settings-form-model.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/claude/hooks.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,6
+apps/emdash-desktop/src/main/core/github/accounts/github-account-registry.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 66-78,82,122,144-173,175,194,226
+apps/emdash-desktop/src/main/core/account/account-errors.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-83
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/target-remote.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,6,59,294-299,381-382
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/diff-file-renderer.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/lib/stores/live/optimistic-model.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/mistral/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/renderer/lib/stores/live/bind-mirror.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/shared/repository-ref.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/shared/terminal-url.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-17
+packages/core/src/exec/execution-context.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-62
+apps/emdash-desktop/src/main/core/preview-servers/controller.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-15
+packages/core/src/host-dependencies/runtime/location-hints.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-89
+apps/emdash-desktop/src/main/core/git/legacy/git-service-utils.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/agents/plugins/helpers/command-builder.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-29
+packages/plugins/src/agents/impl/gemini/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,6
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/set-branch-tracking.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/utils/userEnv.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,121-127,129,134-141
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/changes-view-store.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/shared/commands.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 288,297
+apps/emdash-desktop/.oxlintrc.json
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 84-85
+packages/plugins/tsdown.config.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 10
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-workspace-config.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/git/watch/classifier.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-81
+apps/emdash-desktop/src/main/core/github/accounts/github-auth-server-adapter.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 79,82-85,107,110-113,128-151
+packages/plugins/src/agents/impl/amp/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,7
+apps/emdash-desktop/src/main/core/github/services/octokit-provider.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/port-forwards/port-forward-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-121
+apps/emdash-desktop/src/main/core/github/services/github-host-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/conversations/impl/resolve-agent-executable.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/main/core/projects/settings/sharing/share-project-settings-to-config.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/github/accounts/github-account-registry.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 37-41,63,86-89
+apps/emdash-desktop/src/renderer/features/tasks/stores/git-status-optimistic-updates.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/shared/shortcuts.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 16-85,260-272
+packages/core/src/agents/plugins/assets/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-45
+apps/emdash-desktop/src/main/core/agents/controller.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,7
+apps/emdash-desktop/src/renderer/lib/stores/live/model-mirror.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/kimi/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-3
+apps/emdash-desktop/src/main/core/workspaces/local-workspace-setup-executor.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/tasks/stored-branch.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/qwen/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/claude/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,6
+apps/emdash-desktop/src/main/core/preview-servers/terminal-url-detector.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-115
+apps/emdash-desktop/src/main/core/pull-requests/pr-sync-engine.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/plugins/src/agents/impl/amp/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/lib/telemetry.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 2
+packages/shared/package.json
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 4,16-18,31
+packages/plugins/src/agents/impl/charm/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/shared/src/deep-equal.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-32
+packages/core/src/git/git-env.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-34
+packages/core/src/lib/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-4
+apps/emdash-desktop/src/main/core/agents/agent-payload-builder.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2,9,15
+packages/shared/src/result.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-28
+apps/emdash-desktop/src/main/core/tasks/task-session-manager.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/shared/src/lifecycle.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-16
+apps/emdash-desktop/src/renderer/features/tasks/task-view-context.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 5,76-77,79-81
+packages/plugins/src/agents/impl/pi/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/workspaces/workspace.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/account/services/emdash-account-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,4-25,36-42,48-50,52,55-57,60-61,64-70,72-75,77-78,80-83,86-88,91-121,123-124,127-129,131-135,138-147,150-157,160,162-163,165-166,168,172,175-177,179-180
+apps/emdash-desktop/src/main/core/account/services/emdash-account-service.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,26-28,53-68,74-76,79-81,87,101,108,119-120,134-135,156,178,199,227,235,245-250,260,268,285-288,290,323,334-365,367,369-373,380-385,391-402,409-443,449,455-459,465,472-476,490,494,508,512-544,549-550,562,567,569,585,589-590
+apps/emdash-desktop/src/renderer/features/tasks/components/preview-servers/preview-server-pill.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-128
+apps/emdash-desktop/src/main/core/github/services/github-device-flow-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 80
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/create-local-branch.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/tasks/stores/pr-store.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/github/github-issue-provider.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/lib/theme/theme-toggle.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/settings/schema.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 112
+packages/core/src/fs/types.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-63
+apps/emdash-desktop/src/shared/events/appEvents.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 3,23-26
+apps/emdash-desktop/src/main/core/port-forwards/port-forward-service.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-78
+apps/emdash-desktop/src/renderer/features/tasks/commands.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 43-46,426,428,431-432,439,444-445
+packages/plugins/src/agents/impl/kilocode/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/shared/core/git/utils.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/lib/plugins/asset.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-35
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/host-dependencies/runtime/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-45
+packages/core/src/host-dependencies/runtime/host-dependency-manager.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-926
+packages/core/src/git/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-69
+apps/emdash-desktop/src/main/core/projects/operations/deleteProject.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,100
+apps/emdash-desktop/src/main/core/pull-requests/controller.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/git/cat-file-batch.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-195
+apps/emdash-desktop/src/main/core/automations/automation-scheduler.db.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,68,70-84,208,233,618-619,654-662
+apps/emdash-desktop/src/shared/view-state.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/rpc.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 24,73
+apps/emdash-desktop/src/shared/core/preview-servers/types.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-71
+apps/emdash-desktop/src/main/core/projects/operations/git-repository-setup.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 2
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/base-branch.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/pty/ssh2-pty.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/git/parsers/status-parser.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-167
+packages/plugins/src/agents/impl/auggie/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/tasks/stores/git-worktree-store.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/plugins/src/agents/impl/autohand/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/renderer/features/tasks/stores/preview-server-store.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-207
+apps/emdash-desktop/src/shared/core/ssh/ssh-connection-metadata.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/commits-list.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/shared/tsdown.config.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 4,7
+packages/core/src/git/models/diff.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-12
+packages/plugins/src/agents/impl/cursor/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/core/src/host-dependencies/runtime/host-dependency-manager.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-836
+packages/core/src/lib/live-model.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-251
+apps/emdash-desktop/src/assets/images/athas.svg
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-75
+apps/emdash-desktop/src/main/core/mcp/services/McpService.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/tasks/terminals/terminal-manager.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/fs/file-watch-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-160
+packages/plugins/src/agents/impl/cline/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/workspaces/workspace-worktree-update.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-56
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-branch-selection.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/projects/project-provider.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-3,8,139
+apps/emdash-desktop/src/renderer/features/tasks/stores/preview-server-store.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-134
+packages/plugins/src/agents/impl/rovo/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/main/core/account/provider-token-registry.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 14-21,30-33,35-36
+apps/emdash-desktop/src/main/core/agents/agent-payload-builder.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/plugins/src/agents/impl/kiro/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/plugins/src/agents/impl/continue/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/core/src/agents/plugins/capabilities/plugins.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-33
+apps/emdash-desktop/src/main/core/projects/worktrees/worktree-service.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 4-5
+apps/emdash-desktop/src/main/core/workspaces/workspace-factory.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 10,24,105,117,170-178,231,267,277,323,351
+apps/emdash-desktop/src/main/core/agents/plugin-fs.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 3
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/virtualized-changes-list.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/git/git-repository.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-292
+apps/emdash-desktop/src/main/core/github/services/github-api-auth-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/agents/plugin-registry.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/github/services/project-github-account-backfill.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/shared/openInApps.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 57,384-407
+packages/core/src/agents/plugins/helpers/host-dependency.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-134
+packages/core/src/git/models/status.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-31
+packages/plugins/src/agents/impl/droid/hooks.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 4
+packages/plugins/src/agents/impl/kiro/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/dependencies/host-dependency-store.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/plugins/src/agents/impl/freebuff/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/shared/core/mcp/catalog.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 47,57,68,78,113,117-118,134,144,149,231-234,239-240,282,302,323,363,373,379,481-483,487-489
+packages/plugins/src/agents/impl/grok/hooks.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 2-3,12
+apps/emdash-desktop/src/renderer/lib/stores/tab-utils.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-26
+packages/core/src/fs/fs-service.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-147
+packages/core/src/agents/plugins/capabilities/sessions.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-14
+apps/emdash-desktop/src/shared/core/git/types.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/browser/browser-cors-relaxation.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-69
+apps/emdash-desktop/src/renderer/lib/components/project-branch-selector.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/freebuff/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/agents/plugins/capabilities/prompt.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-53
+packages/plugins/src/agents/impl/opencode/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,7
+apps/emdash-desktop/src/main/core/github/services/project-github-auth-context-resolver.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/projects/settings/provider.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/projects/stores/project-creation-types.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/lib/lifecycle-map.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/codebuff/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/devin/hooks.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 5
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/target-remote.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/tasks/components/preview-servers/manual-forward-dialog.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-125
+apps/emdash-desktop/src/main/core/dependencies/install-runner.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 2-3
+apps/emdash-desktop/src/main/core/projects/settings/sharing/codex-config-migration.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/git/legacy/git-service.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 2
+apps/emdash-desktop/src/main/core/projects/operations/openProject.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/changes-list-item.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/tasks/stores/conversation-hydration-reconciler.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/pull-requests/pr-sync-scheduler.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/updates/update-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/shared/provider-repository.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/codex/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,7
+apps/emdash-desktop/src/renderer/lib/stores/tab-utils.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 32-35,39-43
+packages/plugins/src/agents/impl/cursor/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/projects/settings/providers/db-project-settings-provider.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/tooling/seeds/baseline.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/projects/worktrees/worktree-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 2-3
+apps/emdash-desktop/src/main/core/resource-monitor/controller.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/host-dependencies/runtime/install-options.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-53
+apps/emdash-desktop/src/main/core/terminals/impl/ssh-terminal-provider.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 2-3,47,60,71,82,204,206-237
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/ensure-remote.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/qwen/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,6
+apps/emdash-desktop/src/main/core/preview-servers/preview-server-service-instance.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-16
+apps/emdash-desktop/src/main/core/pull-requests/pr-sync-engine.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 2
+apps/emdash-desktop/src/main/core/tasks/stored-branch.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/lib/hotkeys/dispatch-matching-hotkeys.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-46
+apps/emdash-desktop/src/main/core/account/provider-token-registry.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 52-77
+apps/emdash-desktop/src/main/core/github/accounts/github-account-backfill.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 109
+apps/emdash-desktop/src/main/core/dependencies/registry.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,6-7
+apps/emdash-desktop/src/renderer/features/tasks/components/agent-status-indicator.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 51
+apps/emdash-desktop/src/renderer/features/tasks/components/preview-servers/preview-server-format.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-44
+apps/emdash-desktop/src/renderer/features/tasks/tabs/diff-tab-store.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/agents/plugins/helpers/mcp.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-254
+packages/plugins/src/agents/impl/commandcode/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/goose/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/core/src/lib/live-model.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-194
+apps/emdash-desktop/src/main/core/conversations/impl/resolve-agent-executable.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,9
+apps/emdash-desktop/src/renderer/features/projects/components/settings-view/sections/base-project-settings-section.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/git/errors.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-200
+packages/plugins/src/agents/impl/devin/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/main/core/conversations/impl/keystroke-injection.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 115-128
+packages/core/src/agents/plugins/capabilities/models.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-31
+packages/core/tsdown.config.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-21
+packages/plugins/src/agents/impl/commandcode/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/core/src/fs/fs-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-61
+packages/core/src/host-dependencies/runtime/location-hints.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-129
+packages/plugins/src/agents/impl/index.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 128-144
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/changes-tree-utils.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/virtualized-changes-tree.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/agents/plugins/helpers/hook-config.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-275
+packages/core/src/git/models/log.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-24
+apps/emdash-desktop/src/main/core/git/worktree/mutations.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/lib/keyed-mutex.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-30
+packages/plugins/src/agents/impl/droid/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/tasks/task-titlebar.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 49,314
+packages/plugins/src/agents/impl/grok/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/continue/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-store.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/codex/hooks.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2,12
+packages/plugins/src/agents/impl/pi/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,6
+apps/emdash-desktop/src/renderer/lib/external-url.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,4
+packages/core/src/agents/plugins/helpers/hooks.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-93
+apps/emdash-desktop/src/renderer/features/tasks/components/preview-servers/manual-forward-button.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-31
+apps/emdash-desktop/src/main/core/projects/settings/providers/ssh-project-settings-provider.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 2
+packages/core/src/fs/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-13
+apps/emdash-desktop/src/main/core/projects/operations/create-project-utils.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-3
+apps/emdash-desktop/src/main/core/projects/settings/providers/local-project-settings-provider.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 4
+packages/plugins/src/agents/impl/letta/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/core/src/agents/plugins/capabilities/hooks.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-49
+apps/emdash-desktop/src/main/core/workspaces/workspace-setup-executor.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/automations/actions/taskCreate.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 2
+apps/emdash-desktop/src/main/core/github/services/github-repository-resolver.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/mcp/utils/registration.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/git-fetch.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/preview-servers/preview-server-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-546
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/copy-preserved-files.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/github/services/project-github-auth-context.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/fs/controller.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 3
+apps/emdash-desktop/src/main/core/settings/provider-config-migrations.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/plugins/src/agents/impl/rovo/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/autohand/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/lib/components/branch-selector.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/agents/plugins/helpers/host-dependency.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-83
+apps/emdash-desktop/src/renderer/features/tasks/commands.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 20-23,77-79,138-141,300-334
+packages/core/src/git/git-worktree.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-669
+packages/core/src/exec/types.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-44
+packages/plugins/src/agents/impl/opencode/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/lib/keyed-mutex.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-81
+apps/emdash-desktop/src/main/core/tasks/operations/createTask.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 2
+packages/core/src/agents/plugins/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-72
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-git.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 6,17,35-40,46-48
+apps/emdash-desktop/src/main/core/github/accounts/github-account-backfill.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 44
+packages/core/src/lib/logger.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-22
+apps/emdash-desktop/src/main/core/mcp/services/McpService.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 2
+packages/core/src/agents/plugins/capabilities/mcp.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-37
+apps/emdash-desktop/src/main/core/github/services/repo-service.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/agents/runtime/fs.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-7
+apps/emdash-desktop/src/main/core/runtime/types.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/main/core/agent-hooks/event-enricher.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_8e0b3f191a98dc::t_5a769572d5ecb6 19,27,233-245
+apps/emdash-desktop/src/main/core/automations/runtime.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/pty/controller.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 3
+apps/emdash-desktop/src/main/core/settings/settings-registry.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 69
+apps/emdash-desktop/src/main/core/projects/project-manager.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/core/src/agents/plugins/helpers/mcp.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-382
+packages/core/src/agents/plugins/helpers/file-drop.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-29
+apps/emdash-desktop/src/main/core/port-forwards/port-forward-tunnel.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-127
+packages/core/src/exec/bound-exec.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-109
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/push-branch.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/tasks/stores/git-status-optimistic-updates.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/main/core/git/repository/service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/plugins/src/agents/impl/antigravity/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/main/core/github/services/issue-service.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/charm/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/projects/components/settings-view/use-project-settings-form.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+apps/emdash-desktop/src/main/core/workspaces/byoi/provision-output.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/settings/settings-service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/plugins/src/agents/impl/kimi/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/projects/components/settings-view/project-config-import-modal.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/lib/components/monaco-keyboard-bridge.tsx
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-9,27-44,51-54,63
+apps/emdash-desktop/src/main/core/account/account-types.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-54
+packages/plugins/src/agents/impl/cline/index.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-2
+packages/core/src/fs/native-watch.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-104
+apps/emdash-desktop/src/main/core/settings/controller.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1,7-17,33,38,43
+apps/emdash-desktop/src/renderer/lib/stores/live/bind-mirror.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/github/services/octokit-provider.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/core/src/git/git-repository.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-474
+apps/emdash-desktop/src/main/core/app/service.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 5
+apps/emdash-desktop/src/main/core/github/services/github-repository-resolver.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/execution-context/types.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 2
+apps/emdash-desktop/src/main/core/settings/utils.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+packages/plugins/src/agents/impl/letta/icon.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/projects/create-project-provider.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 3-4
+packages/core/src/host-dependencies/runtime/method-detection.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-266
+apps/emdash-desktop/src/renderer/features/sidebar/sidebar-store.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 116-122
+apps/emdash-desktop/src/main/core/github/accounts/github-cli-account-import.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 78-89
+apps/emdash-desktop/src/main/core/projects/settings/sharing/conductor-config-migration.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/github/github-issue-provider.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/repository/provider-repository-service.test.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1
+apps/emdash-desktop/src/main/core/account/services/account-oauth-client.ts
+  s_8e0b3f191a98dc::t_93fbf5d44c0f3c 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "6a1cfa968bcfe01f825efe45e9b52a97f037653f",
+  "prompts": {},
+  "sessions": {
+    "s_8e0b3f191a98dc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_126e4b546ffeu3ru7XGeXgHFmL",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
