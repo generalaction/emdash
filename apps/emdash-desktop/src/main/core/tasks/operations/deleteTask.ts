@@ -9,7 +9,11 @@ import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import type { DeleteTaskOptions } from '@shared/core/tasks/tasks';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
-import { deleteWorkspaceIfUnused, removeWorktreeIfUnused } from './task-lifecycle-utils';
+import {
+  deleteIndexIfUnused,
+  deleteWorkspaceIfUnused,
+  removeWorktreeIfUnused,
+} from './task-lifecycle-utils';
 
 export async function deleteTask(
   projectId: string,
@@ -54,6 +58,9 @@ export async function deleteTask(
   }
 
   await db.delete(tasks).where(eq(tasks.id, taskId));
+  if (task.workspaceId) {
+    await deleteIndexIfUnused(task.workspaceId);
+  }
   void viewStateService.del(`task:${taskId}`);
   telemetryService.capture('task_deleted', { project_id: projectId, task_id: taskId });
 

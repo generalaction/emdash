@@ -1,0 +1,79 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { deleteTask } from './deleteTask';
+
+const mocks = vi.hoisted(() => ({
+  capture: vi.fn(),
+  deleteIndex: vi.fn(),
+  deleteWhere: vi.fn(),
+  getProject: vi.fn(),
+  selectLimit: vi.fn(),
+  teardownTask: vi.fn(),
+}));
+
+vi.mock('@main/db/client', () => ({
+  db: {
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          limit: mocks.selectLimit,
+        }),
+      }),
+    }),
+    delete: () => ({
+      where: mocks.deleteWhere,
+    }),
+  },
+}));
+
+vi.mock('@main/core/projects/project-manager', () => ({
+  projectManager: {
+    getProject: mocks.getProject,
+  },
+}));
+
+vi.mock('@main/core/tasks/task-session-manager', () => ({
+  taskSessionManager: {
+    teardownTask: mocks.teardownTask,
+  },
+}));
+
+vi.mock('@main/core/view-state/view-state-service', () => ({
+  viewStateService: {
+    del: vi.fn(),
+  },
+}));
+
+vi.mock('@main/core/search/workspace-file-index-service', () => ({
+  workspaceFileIndexService: {
+    deleteIndex: mocks.deleteIndex,
+  },
+}));
+
+vi.mock('@main/lib/telemetry', () => ({
+  telemetryService: {
+    capture: mocks.capture,
+  },
+}));
+
+describe('deleteTask', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.deleteWhere.mockResolvedValue(undefined);
+    mocks.getProject.mockReturnValue(undefined);
+  });
+
+  it('deletes the workspace file index after deleting the last non-archived task', async () => {
+    mocks.selectLimit
+      .mockResolvedValueOnce([{ id: 'task-1', workspaceId: 'workspace-1' }])
+      .mockResolvedValueOnce([
+        { id: 'workspace-1', kind: 'worktree', branchName: null, config: null },
+      ])
+      .mockResolvedValueOnce([{ id: 'workspace-1', kind: 'worktree' }])
+      .mockResolvedValueOnce([{ id: 'archived-sibling' }])
+      .mockResolvedValueOnce([]);
+
+    await deleteTask('project-1', 'task-1', { deleteWorktree: false });
+
+    expect(mocks.deleteIndex).toHaveBeenCalledWith('workspace-1');
+  });
+});
