@@ -16,7 +16,7 @@
 
 import type { FontConfig } from '../../core/measure/fonts';
 import type { ChatDiff } from '../../model';
-import { computeDiff, countChanges, selectPreview, type DiffRow } from './diff-lines';
+import { computeDiffRows, countChanges, selectPreview, type DiffRow } from './diff-lines';
 import { langFromPath } from './lang';
 
 const DIFF_BORDER = 1;
@@ -43,7 +43,7 @@ export function estimateDiff(fonts: FontConfig): number {
 
 /** Exact measure — runs computeDiff + selectPreview. */
 export function measureDiff(item: ChatDiff, fonts: FontConfig): DiffMeasureResult {
-  const rows = computeDiff(item.oldText, item.newText);
+  const rows = computeDiffRows(item.oldText, item.newText);
   const { adds, dels } = countChanges(rows);
   const previewRows = selectPreview(rows, DIFF_MAX_LINES, DIFF_CONTEXT);
   const lang = langFromPath(item.path);

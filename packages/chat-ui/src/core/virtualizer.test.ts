@@ -86,8 +86,8 @@ describe('Virtualizer.prepend', () => {
     expect(v.top(0)).toBe(0);
     expect(v.top(1)).toBe(5);
     expect(v.top(2)).toBe(15);
-    expect(v.top(3)).toBe(30);   // first original row
-    expect(v.top(4)).toBe(130);  // after original row (height 100)
+    expect(v.top(3)).toBe(30); // first original row
+    expect(v.top(4)).toBe(130); // after original row (height 100)
   });
 
   it('setSize on a formerly-existing row (shifted index) keeps total correct', () => {
@@ -111,8 +111,8 @@ describe('Virtualizer.prepend', () => {
 
   it('multiple successive prepends compose correctly', () => {
     const v = buildVirt([100]);
-    v.prepend(1, () => 10);  // rows: [10, 100]
-    v.prepend(1, () => 20);  // rows: [20, 10, 100]
+    v.prepend(1, () => 10); // rows: [10, 100]
+    v.prepend(1, () => 20); // rows: [20, 10, 100]
     expect(v.count).toBe(3);
     expect(v.top(1)).toBe(20);
     expect(v.top(2)).toBe(30);
@@ -123,12 +123,12 @@ describe('Virtualizer.prepend', () => {
     const v = buildVirt([10, 20, 30]);
     v.prepend(2, () => 5); // rows: [5, 5, 10, 20, 30]
     // Tops: row0=0, row1=5, row2=10, row3=20, row4=40
-    expect(v.findIndex(0)).toBe(0);   // within [0,5)
-    expect(v.findIndex(5)).toBe(1);   // within [5,10)
-    expect(v.findIndex(10)).toBe(2);  // within [10,20)
-    expect(v.findIndex(20)).toBe(3);  // within [20,40)
-    expect(v.findIndex(30)).toBe(3);  // still within [20,40), not the 30px row at index 4
-    expect(v.findIndex(40)).toBe(4);  // within [40,70)
+    expect(v.findIndex(0)).toBe(0); // within [0,5)
+    expect(v.findIndex(5)).toBe(1); // within [5,10)
+    expect(v.findIndex(10)).toBe(2); // within [10,20)
+    expect(v.findIndex(20)).toBe(3); // within [20,40)
+    expect(v.findIndex(30)).toBe(3); // still within [20,40), not the 30px row at index 4
+    expect(v.findIndex(40)).toBe(4); // within [40,70)
   });
 
   it('range works correctly after prepend', () => {

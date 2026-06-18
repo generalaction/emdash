@@ -16,8 +16,8 @@
  */
 
 import { For, Show, createEffect } from 'solid-js';
-import type { ChatFileOpToolCall, FileOpKind } from '../../model';
 import { basename } from '../../lib/path';
+import type { ChatFileOpToolCall, FileOpKind } from '../../model';
 import { useCommands } from '../CommandsContext';
 import { CollapseHeader } from '../primitives/CollapseHeader';
 
@@ -32,12 +32,7 @@ const VERB: Record<FileOpKind, string> = {
 
 // ── Internal: FileRowItem ─────────────────────────────────────────────────────
 
-function FileRowItem(props: {
-  verb: string;
-  path: string;
-  lineH: number;
-  onClick?: () => void;
-}) {
+function FileRowItem(props: { verb: string; path: string; lineH: number; onClick?: () => void }) {
   return (
     <div
       class="flex items-center gap-1.5 text-sm text-foreground-passive"

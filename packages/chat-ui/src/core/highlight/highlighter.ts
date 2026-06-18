@@ -3,11 +3,14 @@
  *
  * Uses `createHighlighterCoreSync` + `createJavaScriptRegexEngine` so there is
  * no WebAssembly dependency and no async initialisation. The highlighter is
- * constructed lazily on the first call to `highlightCode`.
+ * constructed lazily on the first call to `computeHighlightRaw`.
  *
- * Results are stored in a bounded LRU cache (keyed by `lang\x00code`).
- * `peekHighlight` does a cache-only lookup, letting the renderer take a
- * synchronous fast-path on scroll-back re-mounts without triggering parsing.
+ * This module exports only pure / stateless helpers:
+ *   computeHighlightRaw  — tokenise code for a resolved language (no cache)
+ *   resolveAlias         — normalise a lang string to a supported language name
+ *
+ * Caching (highlight LRU, peekHighlight) lives in ChatCaches (core/caches.ts)
+ * so each mounted ChatRoot instance owns an isolated cache.
  */
 
 import bash from '@shikijs/langs/bash';
@@ -59,37 +62,10 @@ const LANG_ALIASES: Record<string, string> = {
   json5: 'json',
 };
 
-function resolveAlias(lang: string | undefined): string | undefined {
+export function resolveAlias(lang: string | undefined): string | undefined {
   if (!lang) return undefined;
   const lower = lang.toLowerCase();
   return LANG_ALIASES[lower] ?? (SUPPORTED_LANGS.has(lower) ? lower : undefined);
-}
-
-// ── Bounded LRU cache ─────────────────────────────────────────────────────────
-
-const CACHE_MAX = 200;
-const highlightCache = new Map<string, HighlightResult>();
-
-function cacheKey(code: string, resolvedLang: string): string {
-  return `${resolvedLang}\x00${code}`;
-}
-
-function cacheGet(key: string): HighlightResult | undefined {
-  const val = highlightCache.get(key);
-  if (val) {
-    // Move to end (most-recently-used).
-    highlightCache.delete(key);
-    highlightCache.set(key, val);
-  }
-  return val;
-}
-
-function cacheSet(key: string, val: HighlightResult): void {
-  if (highlightCache.size >= CACHE_MAX) {
-    // Evict the least-recently-used (first) entry.
-    highlightCache.delete(highlightCache.keys().next().value!);
-  }
-  highlightCache.set(key, val);
 }
 
 // ── Highlighter singleton ─────────────────────────────────────────────────────
@@ -110,7 +86,11 @@ function getHighlighter(): SyncHighlighter {
 
 // ── Token extraction ──────────────────────────────────────────────────────────
 
-function computeHighlight(code: string, resolvedLang: string): HighlightResult {
+/**
+ * Tokenise `code` using Shiki for the given resolved language.
+ * Pure — no internal cache. Caching is handled by ChatCaches in core/caches.ts.
+ */
+export function computeHighlightRaw(code: string, resolvedLang: string): HighlightResult {
   const hl = getHighlighter();
   const result = hl.codeToTokens(code, {
     lang: resolvedLang,
@@ -133,43 +113,4 @@ function computeHighlight(code: string, resolvedLang: string): HighlightResult {
   const rootStyle = typeof result.bg === 'string' ? result.bg : '';
 
   return { rootStyle, lines };
-}
-
-// ── Public API ────────────────────────────────────────────────────────────────
-
-/**
- * Compute syntax-highlighted tokens for `code` in the given language.
- *
- * Triggers grammar initialisation on the first call (one-time synchronous cost).
- * Returns `null` for unknown / unsupported languages.
- * Results are stored in the bounded LRU cache.
- */
-export function highlightCode(code: string, lang: string | undefined): HighlightResult | null {
-  const resolved = resolveAlias(lang);
-  if (!resolved) return null;
-
-  const key = cacheKey(code, resolved);
-  const cached = cacheGet(key);
-  if (cached) return cached;
-
-  try {
-    const result = computeHighlight(code, resolved);
-    cacheSet(key, result);
-    return result;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Cache-only lookup — never triggers grammar initialisation or tokenisation.
- *
- * Returns a previously cached result, or `null` if the block has not been
- * highlighted yet. Use this for the synchronous fast-path on scroll-back
- * re-mounts.
- */
-export function peekHighlight(code: string, lang: string | undefined): HighlightResult | null {
-  const resolved = resolveAlias(lang);
-  if (!resolved) return null;
-  return cacheGet(cacheKey(code, resolved)) ?? null;
 }

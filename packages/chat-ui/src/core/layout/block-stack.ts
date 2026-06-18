@@ -27,19 +27,15 @@
  * it without a separate block lookup.
  */
 
-import type { Block, CodeBlock, ProseBlock, TableBlock } from '../blocks/block-types';
-import type { Measured, MeasureCtx } from '../define';
-import { stack } from '../compose';
-import type { StackLayout } from '../compose';
 import { layoutCode } from '../../components/code/layout';
+import type { BlockLeafLayout } from '../../components/Project';
 import { layoutProse } from '../../components/prose/layout';
 import { layoutTable } from '../../components/table/layout';
-import type {
-  CodeLaidOut,
-  ProseLaidOut,
-  TableLaidOut,
-} from './layout-types';
-import type { BlockLeafLayout } from '../../components/Project';
+import type { Block, CodeBlock, ProseBlock, TableBlock } from '../blocks/block-types';
+import { stack } from '../compose';
+import type { StackLayout } from '../compose';
+import type { Measured, MeasureCtx } from '../define';
+import type { CodeLaidOut, ProseLaidOut, TableLaidOut } from './layout-types';
 
 // ── Per-block memo ────────────────────────────────────────────────────────────
 
@@ -54,14 +50,26 @@ function measureBlockCached(block: Block, ctx: MeasureCtx): Measured<BlockLeafLa
 
   switch (block.tier) {
     case 'prose': {
-      const laid: ProseLaidOut = layoutProse(block as ProseBlock, ctx.width, ctx.theme.fonts, 0);
-      const layout: BlockLeafLayout = { ...(laid as ProseLaidOut & { kind: 'prose' }), raw: block as ProseBlock };
+      const laid: ProseLaidOut = layoutProse(
+        block as ProseBlock,
+        ctx.width,
+        ctx.theme.fonts,
+        0,
+        ctx.caches.prepareRichInline.bind(ctx.caches)
+      );
+      const layout: BlockLeafLayout = {
+        ...(laid as ProseLaidOut & { kind: 'prose' }),
+        raw: block as ProseBlock,
+      };
       result = { height: laid.height, width: laid.contentWidth, layout };
       break;
     }
     case 'code': {
       const laid: CodeLaidOut = layoutCode(block as CodeBlock, ctx.theme.fonts, 0, ctx.width);
-      const layout: BlockLeafLayout = { ...(laid as CodeLaidOut & { kind: 'code' }), raw: block as CodeBlock };
+      const layout: BlockLeafLayout = {
+        ...(laid as CodeLaidOut & { kind: 'code' }),
+        raw: block as CodeBlock,
+      };
       result = { height: laid.height, width: laid.contentWidth, layout };
       break;
     }
@@ -182,9 +190,7 @@ export function layoutBlockStack(
   // Gap function: receives visible-index i (≥ 1) and returns gap before child[i].
   // We need to map the children array index to the visible sequence.
   // Since collapsed blocks are in `children` too (zero-height), build a mapping.
-  const tiers: Array<Block['tier'] | null> = blocks.map((b) =>
-    isCollapsed(b.id) ? null : b.tier
-  );
+  const tiers: Array<Block['tier'] | null> = blocks.map((b) => (isCollapsed(b.id) ? null : b.tier));
 
   const gapFn = (idx: number): number => {
     // idx is the index in `children` (includes collapsed). Find prev visible tier.

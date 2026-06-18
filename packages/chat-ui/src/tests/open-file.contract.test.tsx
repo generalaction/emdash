@@ -8,14 +8,18 @@
 import { type JSX } from 'solid-js';
 import { render } from 'solid-js/web';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { CachesContext } from '../components/CachesContext';
 import { CommandsContext } from '../components/CommandsContext';
-import { ThemeContext } from '../components/ThemeContext';
 import { diffDef } from '../components/diff/diff.def';
 import { diffFixtures } from '../components/diff/diff.fixtures';
 import { FileOperation } from '../components/file-op/FileOperation';
+import { ThemeContext } from '../components/ThemeContext';
+import { createChatCaches } from '../core/caches';
 import { DEFAULT_THEME } from '../core/theme';
 import type { ChatCommands } from '../index';
 import { makeContractCtx } from './contract';
+
+const testCaches = createChatCaches();
 
 const ctx = makeContractCtx({ width: 640 });
 
@@ -35,9 +39,9 @@ function mountWithCommands(
   const dispose = render(
     () => (
       <ThemeContext.Provider value={() => DEFAULT_THEME}>
-        <CommandsContext.Provider value={commands}>
-          {renderFn()}
-        </CommandsContext.Provider>
+        <CachesContext.Provider value={testCaches}>
+          <CommandsContext.Provider value={commands}>{renderFn()}</CommandsContext.Provider>
+        </CachesContext.Provider>
       </ThemeContext.Provider>
     ),
     host
@@ -64,9 +68,7 @@ describe('Diff header: onOpenFile', () => {
 
     const { dispose } = mountWithCommands(
       () => ({ onOpenFile }),
-      () => (
-        <diffDef.Render item={item} layout={measured} ctx={renderCtx} />
-      )
+      () => <diffDef.Render item={item} layout={measured} ctx={renderCtx} />
     );
 
     await new Promise<void>((r) => requestAnimationFrame(() => r()));
@@ -91,9 +93,7 @@ describe('Diff header: onOpenFile', () => {
 
     const { dispose } = mountWithCommands(
       () => ({}),
-      () => (
-        <diffDef.Render item={item} layout={measured} ctx={renderCtx} />
-      )
+      () => <diffDef.Render item={item} layout={measured} ctx={renderCtx} />
     );
 
     await new Promise<void>((r) => requestAnimationFrame(() => r()));

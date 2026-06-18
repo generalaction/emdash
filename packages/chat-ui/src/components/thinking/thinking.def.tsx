@@ -20,14 +20,14 @@
 
 import { createEffect, createSignal, onCleanup } from 'solid-js';
 import type { Block } from '../../core/blocks/block-types';
-import { buildThinkingBlocks } from '../../core/blocks/parse-blocks';
+import { flattenBlockHeadings } from '../../core/blocks/parse-blocks';
 import { collapsible, scrollWindow, slot, stack } from '../../core/compose';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import { layoutBlockStack } from '../../core/layout/block-stack';
 import { HEADER_ROW_EXTRA_H } from '../../core/metrics';
 import type { ChatThinking } from '../../model';
-import { Project, renderBlockLeaf } from '../Project';
 import { CollapseHeader } from '../primitives/CollapseHeader';
+import { Project, renderBlockLeaf } from '../Project';
 import { useTheme } from '../ThemeContext';
 
 // ── Module constants ─────────────────────────────────────────────────────────
@@ -122,16 +122,15 @@ function ThinkingRender(props: {
   const expanded = () => props.ctx.viewState.isCollapsed(props.item.id);
 
   return (
-    <div class="text-foreground-passive" style={{ position: 'relative', height: `${props.layout.height}px` }}>
+    <div
+      class="text-foreground-passive"
+      style={{ position: 'relative', height: `${props.layout.height}px` }}
+    >
       <Project
         node={props.layout.layout.tree}
         slots={{
           'thinking:header': () => (
-            <ThinkingHeader
-              item={props.item}
-              expanded={expanded()}
-              headerH={headerH()}
-            />
+            <ThinkingHeader item={props.item} expanded={expanded()} headerH={headerH()} />
           ),
         }}
       >
@@ -174,7 +173,7 @@ export const thinkingDef = defineComponent<ChatThinking, ThinkingLayout>({
 
     // ── Active + not expanded: header + scrollWindow preview ─────────────────
     if (!isExpanded) {
-      const blocks = buildThinkingBlocks(item.id, item.text);
+      const blocks = flattenBlockHeadings(ctx.caches.parseBlocks(item.id, item.text ?? ''));
       const body = layoutThinkingBody(blocks, ctx);
       const preview = scrollWindow(body, THINKING_WINDOW_H, {
         overlay: 'fade-top',
@@ -191,7 +190,7 @@ export const thinkingDef = defineComponent<ChatThinking, ThinkingLayout>({
     }
 
     // ── Expanded: header + full body ─────────────────────────────────────────
-    const blocks = buildThinkingBlocks(item.id, item.text);
+    const blocks = flattenBlockHeadings(ctx.caches.parseBlocks(item.id, item.text ?? ''));
     const body = layoutThinkingBody(blocks, ctx);
     const tree = collapsible({ headerH, headerSlot, expanded: true, body });
     return { height: tree.height, width: ctx.width, layout: { kind: 'thinking', tree } };

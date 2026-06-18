@@ -11,15 +11,16 @@
 
 import { resolveFileIconClass } from '@emdash/ui/primitives';
 import { For, createEffect, onCleanup } from 'solid-js';
-import { type CodeToken, highlightCode, peekHighlight } from '../../core/highlight/highlighter';
 import { applyTokensToElement } from '../../core/highlight/apply-tokens';
-import type { ChatDiff } from '../../model';
-import { cancelIdle, scheduleIdle } from '../dom-utils';
-import { useCommands } from '../CommandsContext';
-import { GenericFileIcon } from '../primitives/icons';
+import type { CodeToken } from '../../core/highlight/highlighter';
 import { basename } from '../../lib/path';
-import type { DiffLayout } from './diff.def';
+import type { ChatDiff } from '../../model';
+import { useCaches } from '../CachesContext';
+import { useCommands } from '../CommandsContext';
+import { cancelIdle, scheduleIdle } from '../dom-utils';
+import { GenericFileIcon } from '../primitives/icons';
 import type { DiffRow } from './diff-lines';
+import type { DiffLayout } from './diff.def';
 import styles from './diff.module.css';
 
 // ── Row style map ──────────────────────────────────────────────────────────────
@@ -50,7 +51,7 @@ export function DiffHeader(props: DiffHeaderProps) {
 
   return (
     <div
-      class="flex cursor-pointer items-center gap-2 border-b border-border px-3 text-xs hover:bg-background-hover"
+      class="hover:bg-background-hover flex cursor-pointer items-center gap-2 border-b border-border px-3 text-xs"
       style={{ height: `${props.headerH}px` }}
       role="button"
       onClick={handleClick}
@@ -83,6 +84,7 @@ export type DiffLinesProps = {
 };
 
 export function DiffLines(props: DiffLinesProps) {
+  const caches = useCaches();
   const lineEls = new Map<number, HTMLElement>();
 
   createEffect(() => {
@@ -108,9 +110,9 @@ export function DiffLines(props: DiffLinesProps) {
       }
     }
 
-    const newHl = peekHighlight(newCode, lang);
+    const newHl = caches.peekHighlight(newCode, lang);
     const oldHl = props.item.oldText
-      ? peekHighlight(oldCode, lang)
+      ? caches.peekHighlight(oldCode, lang)
       : { lines: [] as CodeToken[][], rootStyle: '' };
     if (newHl && oldHl) {
       paint(newHl.lines, oldHl.lines);
@@ -120,8 +122,8 @@ export function DiffLines(props: DiffLinesProps) {
     let cancelled = false;
     const handle = scheduleIdle(() => {
       if (cancelled) return;
-      const newResult = highlightCode(newCode, lang);
-      const oldResult = props.item.oldText ? highlightCode(oldCode, lang) : null;
+      const newResult = caches.highlight(newCode, lang);
+      const oldResult = props.item.oldText ? caches.highlight(oldCode, lang) : null;
       if (cancelled) return;
       paint(newResult?.lines ?? [], oldResult?.lines ?? []);
     });
@@ -176,11 +178,7 @@ export function Diff(props: DiffProps) {
         dels={props.layout.dels}
         headerH={28}
       />
-      <DiffLines
-        item={props.item}
-        layout={props.layout}
-        codeLineHeight={props.codeLineHeight}
-      />
+      <DiffLines item={props.item} layout={props.layout} codeLineHeight={props.codeLineHeight} />
     </div>
   );
 }

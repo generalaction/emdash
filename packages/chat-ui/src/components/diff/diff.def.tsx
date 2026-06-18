@@ -13,14 +13,14 @@
  * slots, then delegates to Project.
  */
 
+import { slot, scrollWindow, stack } from '../../core/compose';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import type { ChatDiff } from '../../model';
-import { slot, scrollWindow, stack } from '../../core/compose';
+import { Project } from '../Project';
 import { useTheme } from '../ThemeContext';
 import { DiffHeader, DiffLines } from './Diff';
-import { computeDiff, countChanges, selectPreview, type DiffRow } from './diff-lines';
+import { countChanges, selectPreview, type DiffRow } from './diff-lines';
 import { langFromPath } from './lang';
-import { Project } from '../Project';
 
 /** Header row height (px). */
 const DIFF_HEADER_H = 28;
@@ -92,16 +92,14 @@ export const diffDef = defineComponent<ChatDiff, DiffNodeLayout>({
   measure(item, ctx: MeasureCtx): Measured<DiffNodeLayout> {
     const codeLineH = ctx.theme.fonts.code.lineHeight;
 
-    const rows = computeDiff(item.oldText, item.newText);
+    const rows = ctx.caches.computeDiff(item.oldText, item.newText);
     const { adds, dels } = countChanges(rows);
     const previewRows = selectPreview(rows, DIFF_MAX_LINES, DIFF_CONTEXT);
     const lang = langFromPath(item.path);
     const truncated = previewRows.length > 0 && previewRows.at(-1) !== rows.at(-1);
 
     const bodyH =
-      previewRows.length === 0
-        ? 2 * DIFF_BORDER
-        : previewRows.length * codeLineH + 2 * DIFF_BORDER;
+      previewRows.length === 0 ? 2 * DIFF_BORDER : previewRows.length * codeLineH + 2 * DIFF_BORDER;
 
     const maxH = bodyH;
     const data: DiffLayout = { kind: 'diff', previewRows, adds, dels, lang, truncated };

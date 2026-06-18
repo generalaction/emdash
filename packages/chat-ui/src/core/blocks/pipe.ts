@@ -25,12 +25,7 @@ export function pipe<A, B>(value: A, fn1: (a: A) => B): B;
 /** Thread `value` through two functions. */
 export function pipe<A, B, C>(value: A, fn1: (a: A) => B, fn2: (b: B) => C): C;
 /** Thread `value` through three functions. */
-export function pipe<A, B, C, D>(
-  value: A,
-  fn1: (a: A) => B,
-  fn2: (b: B) => C,
-  fn3: (c: C) => D
-): D;
+export function pipe<A, B, C, D>(value: A, fn1: (a: A) => B, fn2: (b: B) => C, fn3: (c: C) => D): D;
 /** Thread `value` through four functions. */
 export function pipe<A, B, C, D, E>(
   value: A,

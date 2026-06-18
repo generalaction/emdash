@@ -114,4 +114,3 @@ export function BlockFrame(props: BlockFrameProps) {
     </div>
   );
 }
-

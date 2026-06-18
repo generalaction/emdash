@@ -24,7 +24,9 @@
 import { type JSX } from 'solid-js';
 import { render } from 'solid-js/web';
 import { afterEach } from 'vitest';
+import { CachesContext } from '../components/CachesContext';
 import { ThemeContext } from '../components/ThemeContext';
+import { createChatCaches } from '../core/caches';
 import type { ComponentDef, MeasureCtx, Measured, RenderCtx } from '../core/define';
 import type { ChatTheme } from '../core/theme';
 import { DEFAULT_THEME } from '../core/theme';
@@ -46,6 +48,7 @@ export function makeContractCtx(opts: {
     width: opts.width ?? 640,
     isCollapsed: opts.isCollapsed ?? (() => false),
     expanded: opts.expanded ?? (() => false),
+    caches: createChatCaches(),
   };
 }
 
@@ -77,10 +80,13 @@ export async function renderAndMeasure<TNode, L>(
   try {
     // oxlint-disable-next-line typescript/no-explicit-any -- JSX typed per-def; safe at boundary
     const Comp = def.Render as (p: any) => JSX.Element;
+    const caches = ctx.caches;
     dispose = render(
       () => (
         <ThemeContext.Provider value={() => theme}>
-          <Comp item={item} layout={layout} ctx={renderCtx} />
+          <CachesContext.Provider value={caches}>
+            <Comp item={item} layout={layout} ctx={renderCtx} />
+          </CachesContext.Provider>
         </ThemeContext.Provider>
       ),
       host

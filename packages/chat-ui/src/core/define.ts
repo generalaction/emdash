@@ -40,6 +40,7 @@
  */
 
 import type { Component } from 'solid-js';
+import type { ChatCaches } from './caches';
 import type { ChatTheme } from './theme';
 
 // ── Measured ──────────────────────────────────────────────────────────────────
@@ -81,6 +82,7 @@ export type MeasureCtx = {
   width: number;
   isCollapsed: (id: string) => boolean;
   expanded: (id: string) => boolean;
+  caches: ChatCaches;
 };
 
 /**

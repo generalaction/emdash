@@ -18,16 +18,17 @@
 
 import type { Component } from 'solid-js';
 import { Show } from 'solid-js';
-import { parseMarkdownToBlocksCached } from '../../core/blocks/parse-blocks';
 import { blockPlainText } from '../../core/blocks/block-text';
+import type { Block } from '../../core/blocks/block-types';
 import { bubble, slot, stack } from '../../core/compose';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import { layoutBlockStack } from '../../core/layout/block-stack';
 import { USER_BUBBLE_MAX_WIDTH_PCT } from '../../core/metrics';
 import type { ChatMessage, ChatRole } from '../../model';
-import { measureProseNaturalWidth } from '../prose/layout';
-import { Project, renderBlockLeaf } from '../Project';
+import { useCaches } from '../CachesContext';
 import { CopyButton } from '../primitives/CopyButton';
+import { Project, renderBlockLeaf } from '../Project';
+import { measureProseNaturalWidth } from '../prose/layout';
 
 // ── Message layout constants ──────────────────────────────────────────────────
 
@@ -44,11 +45,7 @@ export const MESSAGE_FOOTER_H = 24;
 
 // ── User-bubble hug width ─────────────────────────────────────────────────────
 
-function userEffectiveWidth(
-  blocks: ReturnType<typeof parseMarkdownToBlocksCached>,
-  contentWidth: number,
-  ctx: MeasureCtx
-): number {
+function userEffectiveWidth(blocks: Block[], contentWidth: number, ctx: MeasureCtx): number {
   const maxAllowed =
     Math.floor((contentWidth * USER_BUBBLE_MAX_WIDTH_PCT) / 100) - 2 * BUBBLE_PAD_X;
 
@@ -56,7 +53,14 @@ function userEffectiveWidth(
   for (const block of blocks) {
     if (ctx.isCollapsed(block.id)) continue;
     if (block.tier === 'prose') {
-      maxNatural = Math.max(maxNatural, measureProseNaturalWidth(block, ctx.theme.fonts));
+      maxNatural = Math.max(
+        maxNatural,
+        measureProseNaturalWidth(
+          block,
+          ctx.theme.fonts,
+          ctx.caches.prepareRichInline.bind(ctx.caches)
+        )
+      );
     } else {
       return Math.max(1, maxAllowed);
     }
@@ -93,8 +97,9 @@ function MessageRender(props: {
   ctx: RenderCtx;
 }) {
   const item = props.item;
+  const caches = useCaches();
   const rc = () => roleClass(item.role);
-  const blocks = () => parseMarkdownToBlocksCached(item.id, item.text);
+  const blocks = () => caches.parseBlocks(item.id, item.text);
 
   const plainText = () => blocks().map(blockPlainText).join('\n\n');
 
@@ -151,7 +156,7 @@ export const messageDef = defineComponent<ChatMessage, MessageNodeLayout>({
   },
 
   measure(item, ctx: MeasureCtx): Measured<MessageNodeLayout> {
-    const blocks = parseMarkdownToBlocksCached(item.id, item.text);
+    const blocks = ctx.caches.parseBlocks(item.id, item.text);
     const isAssistant = item.role === 'assistant';
 
     const blockStackOpts = {
@@ -181,8 +186,7 @@ export const messageDef = defineComponent<ChatMessage, MessageNodeLayout>({
       const bubbleWidth = hugWidth + 2 * BUBBLE_PAD_X;
       const tree = bubble(blockStack, {
         padX: BUBBLE_PAD_X,
-        variantClass:
-          'bg-[var(--chat-bubble-user)] text-[var(--chat-bubble-user-fg)] rounded-lg',
+        variantClass: 'bg-[var(--chat-bubble-user)] text-[var(--chat-bubble-user-fg)] rounded-lg',
         width: bubbleWidth,
       });
       return { height: tree.height, width: tree.width, layout: { kind: 'message', tree } };

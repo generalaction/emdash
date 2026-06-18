@@ -9,12 +9,12 @@
 
 import { For, createEffect, onCleanup } from 'solid-js';
 import type { CodeBlock } from '../../core/blocks/block-types';
-import { highlightCode, peekHighlight } from '../../core/highlight/highlighter';
+import { applyTokenLines } from '../../core/highlight/apply-tokens';
 import type { CodeLaidOut } from '../../core/layout/layout-types';
 import { BlockFrame } from '../block-frame';
+import { useCaches } from '../CachesContext';
 import { cancelIdle, scheduleIdle } from '../dom-utils';
 import { CopyButton } from '../primitives/CopyButton';
-import { applyTokenLines } from '../../core/highlight/apply-tokens';
 import styles from './code.module.css';
 
 export type CodeProps = {
@@ -23,6 +23,7 @@ export type CodeProps = {
 };
 
 export function Code(props: CodeProps) {
+  const caches = useCaches();
   const lineElsMap: Map<number, HTMLElement> = new Map();
   let wrapperEl: HTMLElement | undefined;
 
@@ -34,7 +35,7 @@ export function Code(props: CodeProps) {
     const code = props.rawBlock.code;
 
     // Synchronous fast-path on cache hit
-    const cached = peekHighlight(code, lang);
+    const cached = caches.peekHighlight(code, lang);
     if (cached) {
       const lineEls = Array.from(lineElsMap.values());
       if (cached.rootStyle) {
@@ -54,7 +55,7 @@ export function Code(props: CodeProps) {
     let cancelled = false;
     const handle = scheduleIdle(() => {
       if (cancelled) return;
-      const hl = highlightCode(code, lang);
+      const hl = caches.highlight(code, lang);
       if (!hl || cancelled) return;
       const el = wrapperEl;
       if (!el) return;

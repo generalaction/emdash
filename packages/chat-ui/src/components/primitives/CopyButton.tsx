@@ -9,8 +9,8 @@
  */
 
 import { Show } from 'solid-js';
-import { createClipboard } from './use-clipboard';
 import { IconCheck, IconCopy } from './icons';
+import { createClipboard } from './use-clipboard';
 
 export type CopyButtonProps = {
   text: string;

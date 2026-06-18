@@ -15,6 +15,9 @@
 import {
   materializeRichInlineLineRange,
   measureRichInlineStats,
+  type PreparedRichInline,
+  type RichInlineItem,
+  prepareRichInline as rawPrepareRichInline,
   walkRichInlineLineRanges,
 } from '@chenglou/pretext/rich-inline';
 import type { InlineRun, ProseBlock } from '../../core/blocks/block-types';
@@ -26,8 +29,9 @@ import type {
 } from '../../core/layout/layout-types';
 import { runsToRichItems } from '../../core/layout/runs-to-rich-items';
 import type { FontConfig } from '../../core/measure/fonts';
-import { getPreparedRichInline } from '../../core/measure/pretext-cache';
 import { BLOCKQUOTE_INDENT, LIST_BULLET_GAP, LIST_INDENT } from '../../core/metrics';
+
+type PrepareRichInlineFn = (items: RichInlineItem[]) => PreparedRichInline;
 
 const UNBOUNDED_WIDTH = 1e7;
 
@@ -80,7 +84,11 @@ function segmentRuns(runs: InlineRun[]): Array<{ segRuns: InlineRun[]; baseIndex
   return segments;
 }
 
-export function measureProseNaturalWidth(block: ProseBlock, fonts: FontConfig): number {
+export function measureProseNaturalWidth(
+  block: ProseBlock,
+  fonts: FontConfig,
+  prepareRichInline: PrepareRichInlineFn = rawPrepareRichInline
+): number {
   if (block.runs.length === 0) return 0;
   const { textLeft } = proseIndent(block);
   const segments = segmentRuns(block.runs);
@@ -91,7 +99,7 @@ export function measureProseNaturalWidth(block: ProseBlock, fonts: FontConfig): 
       seg.map((s) => s.segRuns[0]),
       fonts
     );
-    const prepared = getPreparedRichInline(items);
+    const prepared = prepareRichInline(items);
     const stats = measureRichInlineStats(prepared, UNBOUNDED_WIDTH);
     maxWidth = Math.max(maxWidth, textLeft + stats.maxLineWidth);
   }
@@ -102,7 +110,8 @@ export function layoutProse(
   block: ProseBlock,
   width: number,
   fonts: FontConfig,
-  blockTop: number
+  blockTop: number,
+  prepareRichInline: PrepareRichInlineFn = rawPrepareRichInline
 ): ProseLaidOut {
   const lineHeight = lineHeightForVariant(block.variant, fonts);
 
@@ -141,7 +150,7 @@ export function layoutProse(
     const indexMap = seg.map((s) => s.baseIndex);
 
     const items = runsToRichItems(segRunList, fonts);
-    const prepared = getPreparedRichInline(items);
+    const prepared = prepareRichInline(items);
 
     walkRichInlineLineRanges(prepared, effectiveWidth, (range) => {
       const line = materializeRichInlineLineRange(prepared, range);

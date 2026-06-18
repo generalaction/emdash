@@ -19,14 +19,14 @@
  * (same convention as thinking rows).
  */
 
-import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
-import type { ChatFileOpToolCall } from '../../model';
 import { collapsible, scrollWindow, slot, stack } from '../../core/compose';
+import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import { HEADER_ROW_EXTRA_H } from '../../core/metrics';
+import type { ChatFileOpToolCall } from '../../model';
 import { Project } from '../Project';
 import { useTheme } from '../ThemeContext';
-import { FileOpRow, FileOpHeader, FileOpList, FileOpPreviewBody } from './FileOperation';
 import { FILEOP_PAD_Y, FILEOP_WINDOW_H } from './file-op-metrics';
+import { FileOpRow, FileOpHeader, FileOpList, FileOpPreviewBody } from './FileOperation';
 
 export { FILEOP_PAD_Y, FILEOP_WINDOW_H };
 
@@ -60,15 +60,9 @@ function FileOpRender(props: {
       <Project
         node={props.layout.layout.tree}
         slots={{
-          'file-op:row': () => (
-            <FileOpRow item={props.item} rowH={rowH()} lineH={lineH()} />
-          ),
+          'file-op:row': () => <FileOpRow item={props.item} rowH={rowH()} lineH={lineH()} />,
           'file-op:header': () => (
-            <FileOpHeader
-              item={props.item}
-              expanded={expanded()}
-              rowH={rowH()}
-            />
+            <FileOpHeader item={props.item} expanded={expanded()} rowH={rowH()} />
           ),
           'file-op:list': () => (
             <FileOpList item={props.item} lineH={lineH()} padY={FILEOP_PAD_Y} />

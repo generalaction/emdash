@@ -187,13 +187,7 @@ function ProjectWindow(props: {
         position: 'relative',
       }}
     >
-      {overlay && (
-        <div
-          class={fadeClass}
-          style={{ height: '28px' }}
-          aria-hidden="true"
-        />
-      )}
+      {overlay && <div class={fadeClass} style={{ height: '28px' }} aria-hidden="true" />}
       <div
         ref={(el) => {
           scrollEl = el;

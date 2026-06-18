@@ -31,12 +31,14 @@ import {
   untrack,
   useContext,
 } from 'solid-js';
+import { CachesContext } from './components/CachesContext';
 import { CommandsContext } from './components/CommandsContext';
 import { DebugContext } from './components/debug-context';
 import { REGISTRY } from './components/registry';
 import { Row } from './components/Row';
 import { ThemeContext } from './components/ThemeContext';
-import { clearPretextCache, registerFontsReadyClear } from './core/measure/pretext-cache';
+import { createChatCaches } from './core/caches';
+import { registerFontsReadyClear } from './core/measure/pretext-cache';
 import { StickToBottom } from './core/stick-to-bottom';
 import type { ChatTheme } from './core/theme';
 import { DEFAULT_THEME } from './core/theme';
@@ -127,6 +129,7 @@ export type ChatRootProps = {
 // ── ChatRoot ──────────────────────────────────────────────────────────────────
 
 export function ChatRoot(props: ChatRootProps) {
+  const caches = createChatCaches();
   const theme = () => props.theme ?? DEFAULT_THEME;
   const contentClass = () => props.contentClass ?? DEFAULT_CONTENT_CLASS;
   const commands = () => props.commands?.() ?? {};
@@ -174,6 +177,7 @@ export function ChatRoot(props: ChatRootProps) {
             width: 0,
             isCollapsed: () => false,
             expanded: () => false,
+            caches,
           }) +
           2 * (def.padY ?? 0)
         );
@@ -188,7 +192,7 @@ export function ChatRoot(props: ChatRootProps) {
   createEffect(() => {
     const w = containerWidth();
     if (w <= 0) return;
-    clearPretextCache();
+    caches.clearTextMeasure();
     // Node memo in registry is fingerprint-keyed (includes width) so it
     // self-invalidates on width change — no explicit cache clear needed.
   });
@@ -320,6 +324,7 @@ export function ChatRoot(props: ChatRootProps) {
           width: containerWidth(),
           isCollapsed: () => false,
           expanded: () => false,
+          caches,
         }) +
         2 * (def.padY ?? 0)
       );
@@ -459,7 +464,7 @@ export function ChatRoot(props: ChatRootProps) {
     onCleanup(() => el.removeEventListener('click', onClick));
 
     registerFontsReadyClear(() => {
-      clearPretextCache();
+      caches.clearTextMeasure();
       refreshTotal();
     });
 
@@ -471,6 +476,8 @@ export function ChatRoot(props: ChatRootProps) {
       sticky?.dispose();
       sticky = null;
     });
+
+    onCleanup(() => caches.clear());
   });
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -478,58 +485,61 @@ export function ChatRoot(props: ChatRootProps) {
   return (
     <DebugContext.Provider value={debugValue}>
       <ThemeContext.Provider value={theme}>
-        <CommandsContext.Provider value={commands}>
-          <div
-            ref={(el) => {
-              scrollEl = el;
-            }}
-            data-chat-scroll
-            class={`relative h-full w-full overflow-x-hidden overflow-y-auto${props.class ? ` ${props.class}` : ''}`}
-          >
+        <CachesContext.Provider value={caches}>
+          <CommandsContext.Provider value={commands}>
             <div
               ref={(el) => {
-                canvasEl = el;
+                scrollEl = el;
               }}
-              data-chat-canvas
-              class={`relative ${contentClass()}`}
-              style={{ height: `${totalHeight() + padTop() + padBottom()}px` }}
+              data-chat-scroll
+              class={`relative h-full w-full overflow-x-hidden overflow-y-auto${props.class ? ` ${props.class}` : ''}`}
             >
-              <For each={visibleIndexes()}>
-                {(rowIndex) => {
-                  const rowTop = createMemo(() => {
-                    totalHeight();
-                    return virt.top(rowIndex) + padTop();
-                  });
-
-                  const item = createMemo(() => getItem(props.transcript.state, rowIndex));
-                  const committedCount = () => props.transcript.state.committed.length;
-                  const isActiveTurn = () => rowIndex >= committedCount();
-
-                  return (
-                    <Show when={item()}>
-                      <div
-                        class="absolute top-0 left-0 w-full will-change-transform [contain:layout_paint_style]"
-                        style={{ transform: `translateY(${rowTop()}px)` }}
-                        data-index={String(rowIndex)}
-                      >
-                        <Row
-                          item={item()!}
-                          index={rowIndex}
-                          rowWidth={containerWidth()}
-                          theme={theme()}
-                          viewState={props.viewState}
-                          virt={virt}
-                          onHeightChanged={onHeightChanged}
-                          isActiveTurn={isActiveTurn()}
-                        />
-                      </div>
-                    </Show>
-                  );
+              <div
+                ref={(el) => {
+                  canvasEl = el;
                 }}
-              </For>
+                data-chat-canvas
+                class={`relative ${contentClass()}`}
+                style={{ height: `${totalHeight() + padTop() + padBottom()}px` }}
+              >
+                <For each={visibleIndexes()}>
+                  {(rowIndex) => {
+                    const rowTop = createMemo(() => {
+                      totalHeight();
+                      return virt.top(rowIndex) + padTop();
+                    });
+
+                    const item = createMemo(() => getItem(props.transcript.state, rowIndex));
+                    const committedCount = () => props.transcript.state.committed.length;
+                    const isActiveTurn = () => rowIndex >= committedCount();
+
+                    return (
+                      <Show when={item()}>
+                        <div
+                          class="absolute top-0 left-0 w-full will-change-transform [contain:layout_paint_style]"
+                          style={{ transform: `translateY(${rowTop()}px)` }}
+                          data-index={String(rowIndex)}
+                        >
+                          <Row
+                            item={item()!}
+                            index={rowIndex}
+                            rowWidth={containerWidth()}
+                            theme={theme()}
+                            viewState={props.viewState}
+                            virt={virt}
+                            onHeightChanged={onHeightChanged}
+                            isActiveTurn={isActiveTurn()}
+                            caches={caches}
+                          />
+                        </div>
+                      </Show>
+                    );
+                  }}
+                </For>
+              </div>
             </div>
-          </div>
-        </CommandsContext.Provider>
+          </CommandsContext.Provider>
+        </CachesContext.Provider>
       </ThemeContext.Provider>
     </DebugContext.Provider>
   );

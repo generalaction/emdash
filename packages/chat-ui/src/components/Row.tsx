@@ -19,6 +19,7 @@
 
 import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
+import type { ChatCaches } from '../core/caches';
 import type { Measured, MeasureCtx, RenderCtx } from '../core/define';
 import type { ChatTheme } from '../core/theme';
 import type { Virtualizer } from '../core/virtualizer';
@@ -75,6 +76,8 @@ export type RowProps = {
   onHeightChanged: (index: number, delta: number) => void;
   /** True when this row is in the activeTurn (currently streaming). */
   isActiveTurn?: boolean;
+  /** Per-instance cache bundle from ChatRoot. */
+  caches: ChatCaches;
 };
 
 // ── Row-level debug overlay ────────────────────────────────────────────────────
@@ -146,6 +149,7 @@ export function Row(props: RowProps) {
     width: props.rowWidth,
     isCollapsed: (id) => props.viewState.isCollapsed(id),
     expanded: resolveExpanded,
+    caches: props.caches,
   });
 
   const renderCtx: RenderCtx = {

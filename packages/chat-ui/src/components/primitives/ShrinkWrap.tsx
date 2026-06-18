@@ -60,7 +60,11 @@ export function ShrinkWrap(props: ShrinkWrapProps) {
 export function makeShrinkWrap(
   defaults: Omit<ShrinkWrapProps, 'children' | 'width'>
 ): (props: { children: JSX.Element; width?: number }) => JSX.Element {
-  return (props) => <ShrinkWrap {...defaults} width={props.width}>{props.children}</ShrinkWrap>;
+  return (props) => (
+    <ShrinkWrap {...defaults} width={props.width}>
+      {props.children}
+    </ShrinkWrap>
+  );
 }
 
 // ── InlineCodeChip preset ─────────────────────────────────────────────────────

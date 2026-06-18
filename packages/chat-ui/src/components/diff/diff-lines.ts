@@ -5,9 +5,11 @@
  * (`oldText` = old_string, `newText` = new_string), not on whole-file content.
  *
  * Public API:
- *   computeDiff(oldText, newText) — full interleaved row list, memoized
- *   countChanges(rows)            — adds + dels over the whole diff
- *   selectPreview(rows)           — window of ≤12 rows around the first change
+ *   computeDiffRows(oldText, newText) — full interleaved row list, pure (no cache)
+ *   countChanges(rows)               — adds + dels over the whole diff
+ *   selectPreview(rows)              — window of ≤12 rows around the first change
+ *
+ * Memoization is handled by the per-instance ChatCaches bundle in core/caches.ts.
  */
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -22,31 +24,6 @@ export type DiffRow = {
   /** Index into the new lines array (present on 'context' and 'add' rows). */
   newIdx?: number;
 };
-
-// ── Bounded LRU cache ─────────────────────────────────────────────────────────
-
-const CACHE_MAX = 100;
-const diffCache = new Map<string, DiffRow[]>();
-
-function cacheKey(oldText: string | null, newText: string): string {
-  return `${oldText ?? '\x00null'}\x00${newText}`;
-}
-
-function cacheGet(key: string): DiffRow[] | undefined {
-  const val = diffCache.get(key);
-  if (val) {
-    diffCache.delete(key);
-    diffCache.set(key, val);
-  }
-  return val;
-}
-
-function cacheSet(key: string, val: DiffRow[]): void {
-  if (diffCache.size >= CACHE_MAX) {
-    diffCache.delete(diffCache.keys().next().value!);
-  }
-  diffCache.set(key, val);
-}
 
 // ── Myers diff ────────────────────────────────────────────────────────────────
 
@@ -158,40 +135,31 @@ function myersDiff(a: string[], b: string[]): EditOp[] {
  * Compute a line-level diff between `oldText` and `newText`.
  *
  * When `oldText` is null (new file), every line in `newText` is an 'add' row.
- * Results are memoized in a bounded LRU cache.
+ * Pure — no internal cache. Memoization lives in ChatCaches (core/caches.ts).
  */
-export function computeDiff(oldText: string | null, newText: string): DiffRow[] {
-  const key = cacheKey(oldText, newText);
-  const cached = cacheGet(key);
-  if (cached) return cached;
-
-  let result: DiffRow[];
-
+export function computeDiffRows(oldText: string | null, newText: string): DiffRow[] {
   if (oldText === null) {
-    result = newText.split('\n').map((text, i) => ({ type: 'add' as const, text, newIdx: i }));
-  } else {
-    const aLines = oldText.split('\n');
-    const bLines = newText.split('\n');
-    const ops = myersDiff(aLines, bLines);
-
-    result = ops.map((op) => {
-      if (op.op === 'keep') {
-        return {
-          type: 'context' as const,
-          text: aLines[op.aIdx]!,
-          oldIdx: op.aIdx,
-          newIdx: op.bIdx,
-        };
-      }
-      if (op.op === 'delete') {
-        return { type: 'remove' as const, text: aLines[op.aIdx]!, oldIdx: op.aIdx };
-      }
-      return { type: 'add' as const, text: bLines[op.bIdx]!, newIdx: op.bIdx };
-    });
+    return newText.split('\n').map((text, i) => ({ type: 'add' as const, text, newIdx: i }));
   }
 
-  cacheSet(key, result);
-  return result;
+  const aLines = oldText.split('\n');
+  const bLines = newText.split('\n');
+  const ops = myersDiff(aLines, bLines);
+
+  return ops.map((op) => {
+    if (op.op === 'keep') {
+      return {
+        type: 'context' as const,
+        text: aLines[op.aIdx]!,
+        oldIdx: op.aIdx,
+        newIdx: op.bIdx,
+      };
+    }
+    if (op.op === 'delete') {
+      return { type: 'remove' as const, text: aLines[op.aIdx]!, oldIdx: op.aIdx };
+    }
+    return { type: 'add' as const, text: bLines[op.bIdx]!, newIdx: op.bIdx };
+  });
 }
 
 /**
