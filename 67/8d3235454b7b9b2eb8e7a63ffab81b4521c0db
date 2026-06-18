@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/settings/components/UpdateCard.tsx
+  s_253e3d9099cc22::t_e4fb87d6906d06 54-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "678d3235454b7b9b2eb8e7a63ffab81b4521c0db",
+  "prompts": {},
+  "sessions": {
+    "s_253e3d9099cc22": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "10fb43c0-8aed-4cb9-b4c5-a492ab0dffa0",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
