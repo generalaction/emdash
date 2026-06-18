@@ -1,0 +1,39 @@
+pnpm-lock.yaml
+  s_f302e58cf62b32::t_8ce24d1793e411 13-15,46-48,312,317-350,361-363,397-399
+packages/plugins/src/agents/impl/autohand/hooks.test.ts
+  s_f302e58cf62b32::t_24c446984a6b64 1
+packages/plugins/src/agents/impl/gemini/hooks.ts
+  s_f302e58cf62b32::t_776fb9a2a75099 4
+packages/plugins/src/agents/impl/hermes/index.ts
+  s_f302e58cf62b32::t_8ce24d1793e411 1-2
+packages/plugins/src/agents/impl/autohand/hooks.ts
+  s_f302e58cf62b32::t_7b830fc91aae94 1,8
+packages/plugins/src/agents/impl/letta/hooks.ts
+  s_f302e58cf62b32::t_50f5d2a2c1ae19 4
+packages/plugins/src/agents/impl/gemini/index.ts
+  s_f302e58cf62b32::t_8ce24d1793e411 1,6
+packages/plugins/src/agents/impl/hermes/hooks.test.ts
+  s_f302e58cf62b32::t_1721d9874837d9 1
+packages/plugins/src/agents/impl/autohand/index.ts
+  s_f302e58cf62b32::t_8ce24d1793e411 1-2
+packages/plugins/src/agents/impl/hermes/hooks.ts
+  s_f302e58cf62b32::t_97f33536341fe2 1
+packages/plugins/src/agents/impl/letta/index.ts
+  s_f302e58cf62b32::t_8ce24d1793e411 1-2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "010f2313b06e43659530ab383a358804fa600328",
+  "prompts": {},
+  "sessions": {
+    "s_f302e58cf62b32": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eda23-8a66-719f-ad8b-a720d2edb175",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
