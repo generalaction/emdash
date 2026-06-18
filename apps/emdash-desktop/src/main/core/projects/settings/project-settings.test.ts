@@ -12,6 +12,7 @@ import { SshProjectSettingsProvider } from './providers/ssh-project-settings-pro
 
 const storageMockState = vi.hoisted(() => ({
   storage: undefined as ProjectSettingsStorage | undefined,
+  defaultWorktreeDirectory: '/tmp/emdash/worktrees',
 }));
 
 function makeTrackingGit(isFileCleanlyTracked: boolean) {
@@ -25,7 +26,7 @@ vi.mock('@main/core/settings/settings-service', () => ({
     get: vi.fn().mockImplementation((key: string) => {
       if (key === 'project') return Promise.resolve({ tmuxByDefault: false });
       return Promise.resolve({
-        defaultWorktreeDirectory: '/tmp/emdash/worktrees',
+        defaultWorktreeDirectory: storageMockState.defaultWorktreeDirectory,
       });
     }),
   },
@@ -76,6 +77,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
 
   beforeEach(() => {
     storageMockState.storage = createStorage();
+    storageMockState.defaultWorktreeDirectory = '/tmp/emdash/worktrees';
   });
 
   afterEach(() => {
@@ -271,6 +273,32 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const expectedOverride = fs.realpathSync(expectedOverridePath);
     await expect(provider.get()).resolves.toMatchObject({ worktreeDirectory: expectedOverride });
     await expect(provider.getDefaultWorktreeDirectory()).resolves.toBe('/tmp/emdash/worktrees');
+    await expect(provider.getWorktreeDirectory()).resolves.toBe(expectedOverride);
+  });
+
+  it('uses updated app-level default without replacing project worktreeDirectory overrides', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
+    const defaultPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-default-'));
+    tempDirs.push(projectPath, defaultPath);
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+    await expect(provider.getWorktreeDirectory()).resolves.toBe('/tmp/emdash/worktrees');
+
+    storageMockState.defaultWorktreeDirectory = defaultPath;
+    await expect(provider.get()).resolves.not.toHaveProperty('worktreeDirectory');
+    await expect(provider.getDefaultWorktreeDirectory()).resolves.toBe(defaultPath);
+    await expect(provider.getWorktreeDirectory()).resolves.toBe(defaultPath);
+
+    const overridePath = path.join(projectPath, 'worktrees');
+    const result = await provider.update({ preservePatterns: [], worktreeDirectory: overridePath });
+    expect(result.success).toBe(true);
+    const expectedOverride = fs.realpathSync(overridePath);
+
+    const nextDefaultPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-default-'));
+    tempDirs.push(nextDefaultPath);
+    storageMockState.defaultWorktreeDirectory = nextDefaultPath;
+
+    await expect(provider.getDefaultWorktreeDirectory()).resolves.toBe(nextDefaultPath);
+    await expect(provider.get()).resolves.toMatchObject({ worktreeDirectory: expectedOverride });
     await expect(provider.getWorktreeDirectory()).resolves.toBe(expectedOverride);
   });
 

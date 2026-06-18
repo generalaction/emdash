@@ -5,6 +5,10 @@ import { db } from '@main/db/client';
 import { appSettings } from '@main/db/schema';
 import { AppSettingsKeys, type AppSettings, type AppSettingsKey } from '@shared/core/app-settings';
 import { APP_SETTINGS_SCHEMA_MAP } from './schema';
+import {
+  normalizeSettingValueForRead,
+  normalizeSettingValueForStorage,
+} from './settings-normalizers';
 import { getDefaultForKey } from './settings-registry';
 import { computeDelta, computeTrueOverrides, isPlainObject, mergeDeep } from './utils';
 
@@ -52,6 +56,7 @@ export class SettingsStore implements IInitializable {
       value = raw as AppSettings[K];
     }
 
+    value = await normalizeSettingValueForRead(key, value, defaults);
     this.cache[key] = value;
     return value;
   }
@@ -63,7 +68,8 @@ export class SettingsStore implements IInitializable {
     defaults: AppSettings[K];
     overrides: Partial<AppSettings[K]>;
   }> {
-    const defaults = getDefaultForKey(key);
+    const rawDefaults = getDefaultForKey(key);
+    const defaults = await normalizeSettingValueForRead(key, rawDefaults, rawDefaults);
     const raw = await this.readRaw(key);
 
     if (raw === null || raw === undefined) {
@@ -73,34 +79,52 @@ export class SettingsStore implements IInitializable {
     let value: AppSettings[K];
     let overrides: Partial<AppSettings[K]>;
 
-    if (isPlainObject(raw) && isPlainObject(defaults)) {
-      value = mergeDeep(defaults as Record<string, unknown>, raw) as AppSettings[K];
-      overrides = computeTrueOverrides(raw, defaults as Record<string, unknown>) as Partial<
-        AppSettings[K]
-      >;
+    if (isPlainObject(raw) && isPlainObject(rawDefaults)) {
+      value = mergeDeep(rawDefaults as Record<string, unknown>, raw) as AppSettings[K];
     } else {
       value = raw as AppSettings[K];
-      overrides = (isDeepEqual(raw, defaults) ? {} : raw) as Partial<AppSettings[K]>;
+    }
+
+    value = await normalizeSettingValueForRead(key, value, rawDefaults);
+
+    if (isPlainObject(value) && isPlainObject(defaults)) {
+      overrides = computeTrueOverrides(
+        value as Record<string, unknown>,
+        defaults as Record<string, unknown>
+      ) as Partial<AppSettings[K]>;
+    } else {
+      overrides = (isDeepEqual(value, defaults) ? {} : value) as Partial<AppSettings[K]>;
     }
 
     return { value, defaults, overrides };
   }
 
   async update<K extends AppSettingsKey>(key: K, value: AppSettings[K]): Promise<void> {
-    const validated = APP_SETTINGS_SCHEMA_MAP[key].parse(value) as AppSettings[K];
+    const parsed = APP_SETTINGS_SCHEMA_MAP[key].parse(value) as AppSettings[K];
     const defaults = getDefaultForKey(key);
+    const raw = await this.readRaw(key);
+    const previousValue =
+      isPlainObject(raw) && isPlainObject(defaults)
+        ? (mergeDeep(defaults as Record<string, unknown>, raw) as AppSettings[K])
+        : raw === null || raw === undefined
+          ? defaults
+          : (raw as AppSettings[K]);
+    const [validated, normalizedDefaults] = await Promise.all([
+      normalizeSettingValueForStorage(key, parsed, previousValue),
+      normalizeSettingValueForRead(key, defaults, defaults),
+    ]);
 
     if (isPlainObject(validated) && isPlainObject(defaults)) {
       const delta = computeDelta(
         validated as Record<string, unknown>,
-        defaults as Record<string, unknown>
+        normalizedDefaults as Record<string, unknown>
       );
       if (Object.keys(delta).length === 0) {
         await this.deleteRow(key);
       } else {
         await this.storeRaw(key, delta);
       }
-    } else if (isDeepEqual(validated, defaults)) {
+    } else if (isDeepEqual(validated, normalizedDefaults)) {
       await this.deleteRow(key);
     } else {
       await this.storeRaw(key, validated);
