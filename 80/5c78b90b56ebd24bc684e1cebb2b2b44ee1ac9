@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/main/core/projects/worktrees/worktree-service.test.ts
+  s_cf77c185bf71a1::t_8493975b57d613 344-363
+apps/emdash-desktop/src/main/core/projects/worktrees/worktree-service.ts
+  s_cf77c185bf71a1::t_682fb157512e38 122,127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "805c78b90b56ebd24bc684e1cebb2b2b44ee1ac9",
+  "prompts": {},
+  "sessions": {
+    "s_cf77c185bf71a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019edbf0-95d7-7263-8e3d-bdc6fac44d54",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
