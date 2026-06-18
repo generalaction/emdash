@@ -8,7 +8,7 @@
  */
 
 import { For, createEffect, onCleanup } from 'solid-js';
-import type { CodeBlock } from '../../core/blocks/block-types';
+import type { CodeBlock } from '../../core/markdown/document';
 import { applyTokenLines } from '../../core/highlight/apply-tokens';
 import type { CodeLaidOut } from '../../core/layout/layout-types';
 import { BlockFrame } from '../block-frame';

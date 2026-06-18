@@ -19,8 +19,8 @@
  */
 
 import { createEffect, createSignal, onCleanup } from 'solid-js';
-import type { Block } from '../../core/blocks/block-types';
-import { flattenBlockHeadings } from '../../core/blocks/parse-blocks';
+import type { Block } from '../../core/markdown/document';
+import { flattenBlockHeadings } from '../../core/markdown/parse';
 import { collapsible, scrollWindow, slot, stack } from '../../core/compose';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import { layoutBlockStack } from '../../core/layout/block-stack';

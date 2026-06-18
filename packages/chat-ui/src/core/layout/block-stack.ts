@@ -31,7 +31,7 @@ import { layoutCode } from '../../components/code/layout';
 import type { BlockLeafLayout } from '../../components/Project';
 import { layoutProse } from '../../components/prose/layout';
 import { layoutTable } from '../../components/table/layout';
-import type { Block, CodeBlock, ProseBlock, TableBlock } from '../blocks/block-types';
+import type { Block, CodeBlock, ProseBlock, TableBlock } from '../markdown/document';
 import { stack } from '../compose';
 import type { StackLayout } from '../compose';
 import type { Measured, MeasureCtx } from '../define';
@@ -48,7 +48,7 @@ function measureBlockCached(block: Block, ctx: MeasureCtx): Measured<BlockLeafLa
 
   let result: Measured<BlockLeafLayout>;
 
-  switch (block.tier) {
+  switch (block.kind) {
     case 'prose': {
       const laid: ProseLaidOut = layoutProse(
         block as ProseBlock,
@@ -57,25 +57,19 @@ function measureBlockCached(block: Block, ctx: MeasureCtx): Measured<BlockLeafLa
         0,
         ctx.caches.prepareRichInline.bind(ctx.caches)
       );
-      const layout: BlockLeafLayout = {
-        ...(laid as ProseLaidOut & { kind: 'prose' }),
-        raw: block as ProseBlock,
-      };
+      const layout: BlockLeafLayout = { ...laid, raw: block as ProseBlock };
       result = { height: laid.height, width: laid.contentWidth, layout };
       break;
     }
     case 'code': {
       const laid: CodeLaidOut = layoutCode(block as CodeBlock, ctx.theme.fonts, 0, ctx.width);
-      const layout: BlockLeafLayout = {
-        ...(laid as CodeLaidOut & { kind: 'code' }),
-        raw: block as CodeBlock,
-      };
+      const layout: BlockLeafLayout = { ...laid, raw: block as CodeBlock };
       result = { height: laid.height, width: laid.contentWidth, layout };
       break;
     }
     case 'table': {
       const laid: TableLaidOut = layoutTable(block as TableBlock, 0, ctx.width);
-      const layout: BlockLeafLayout = { ...(laid as TableLaidOut & { kind: 'table' }), raw: block };
+      const layout: BlockLeafLayout = { ...laid, raw: block };
       result = { height: laid.height, width: laid.contentWidth, layout };
       break;
     }
@@ -90,7 +84,7 @@ function measureBlockCached(block: Block, ctx: MeasureCtx): Measured<BlockLeafLa
 export type BlockStackOpts = {
   /** Symmetric vertical padding (px) applied around the entire stack. */
   padY?: number;
-  /** Gap between consecutive blocks of different tiers (or default gap). */
+  /** Gap between consecutive blocks of different kinds (or default gap). */
   blockGap?: number;
   /** Tighter gap when both the previous and current visible block are prose. */
   proseGap?: number;
@@ -126,8 +120,8 @@ export function layoutBlockStack(
         height: 0,
         width: 0,
         layout: (() => {
-          // Return a minimal typed placeholder matching the block's tier.
-          if (block.tier === 'prose') {
+          // Return a minimal typed placeholder matching the block's kind.
+          if (block.kind === 'prose') {
             const l: BlockLeafLayout = {
               kind: 'prose',
               id: block.id,
@@ -140,7 +134,7 @@ export function layoutBlockStack(
             };
             return l;
           }
-          if (block.tier === 'code') {
+          if (block.kind === 'code') {
             const l: BlockLeafLayout = {
               kind: 'code',
               id: block.id,
@@ -181,36 +175,36 @@ export function layoutBlockStack(
     visibleCount++;
   }
 
-  // Build the tier sequence for gap computation (excluding collapsed/zero entries).
-  const visibleTiers: Array<Block['tier'] | null> = [];
+  // Build the kind sequence for gap computation (excluding collapsed/zero entries).
+  const visibleKinds: Array<Block['kind'] | null> = [];
   for (const block of blocks) {
-    if (!isCollapsed(block.id)) visibleTiers.push(block.tier);
+    if (!isCollapsed(block.id)) visibleKinds.push(block.kind);
   }
 
   // Gap function: receives visible-index i (≥ 1) and returns gap before child[i].
   // We need to map the children array index to the visible sequence.
   // Since collapsed blocks are in `children` too (zero-height), build a mapping.
-  const tiers: Array<Block['tier'] | null> = blocks.map((b) => (isCollapsed(b.id) ? null : b.tier));
+  const kinds: Array<Block['kind'] | null> = blocks.map((b) => (isCollapsed(b.id) ? null : b.kind));
 
   const gapFn = (idx: number): number => {
-    // idx is the index in `children` (includes collapsed). Find prev visible tier.
-    let prevVisible: Block['tier'] | null = null;
+    // idx is the index in `children` (includes collapsed). Find prev visible kind.
+    let prevVisible: Block['kind'] | null = null;
     for (let j = idx - 1; j >= 0; j--) {
-      if (tiers[j] !== null) {
-        prevVisible = tiers[j];
+      if (kinds[j] !== null) {
+        prevVisible = kinds[j];
         break;
       }
     }
-    const curTier = tiers[idx];
-    if (prevVisible === null || curTier === null) return 0;
-    if (proseGap !== undefined && prevVisible === 'prose' && curTier === 'prose') return proseGap;
+    const curKind = kinds[idx];
+    if (prevVisible === null || curKind === null) return 0;
+    if (proseGap !== undefined && prevVisible === 'prose' && curKind === 'prose') return proseGap;
     return blockGap;
   };
 
   // Only apply gap between non-collapsed items; collapsed ones have height 0
   // so gap before them would still be added. Use gap 0 before collapsed.
   const safegapFn = (idx: number): number => {
-    if (tiers[idx] === null) return 0;
+    if (kinds[idx] === null) return 0;
     return gapFn(idx);
   };
 

@@ -1,7 +1,7 @@
 /**
  * REGISTRY — single map from NodeKind to ComponentDef.
  *
- * Covers both row kinds (ChatItem.kind) and block tiers (Block.tier),
+ * Covers both row kinds (ChatItem.kind) and block kinds (Block.kind),
  * replacing the separate ROW_REGISTRY and per-spec BlockSpec pattern.
  *
  * Row.tsx dispatches row-level estimate/measure/Render through this map.

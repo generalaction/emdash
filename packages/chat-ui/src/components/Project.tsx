@@ -15,7 +15,7 @@
  */
 
 import { For, Show, createEffect, onCleanup, type JSX } from 'solid-js';
-import type { Block, CodeBlock, ProseBlock } from '../core/blocks/block-types';
+import type { Block, CodeBlock, ProseBlock } from '../core/markdown/document';
 import type {
   BubbleLayout,
   CollapsibleLayout,
@@ -40,9 +40,9 @@ type AnyLayout = { kind: string };
  * Extended leaf layout types that carry a back-reference to the source Block.
  * Produced by `measureBlockCached` in `core/layout/block-stack.ts`.
  */
-export type ProseLeafLayout = ProseLaidOut & { kind: 'prose'; raw: ProseBlock };
-export type CodeLeafLayout = CodeLaidOut & { kind: 'code'; raw: CodeBlock };
-export type TableLeafLayout = TableLaidOut & { kind: 'table'; raw: Block };
+export type ProseLeafLayout = ProseLaidOut & { raw: ProseBlock };
+export type CodeLeafLayout = CodeLaidOut & { raw: CodeBlock };
+export type TableLeafLayout = TableLaidOut & { raw: Block };
 
 export type BlockLeafLayout = ProseLeafLayout | CodeLeafLayout | TableLeafLayout;
 

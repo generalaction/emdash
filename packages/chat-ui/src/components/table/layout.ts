@@ -9,7 +9,7 @@
  * TABLE_ROW_H tall because cells are single-line truncated.
  */
 
-import type { TableBlock } from '../../core/blocks/block-types';
+import type { TableBlock } from '../../core/markdown/document';
 import type { TableLaidOut } from '../../core/layout/layout-types';
 import { reserveHeight } from '../../core/layout/reserve-height';
 import { DEFAULT_FONT_CONFIG } from '../../core/measure/fonts';

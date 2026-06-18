@@ -1,3 +1,17 @@
+/**
+ * parse — Markdown string to Block[].
+ *
+ * Converts raw markdown text into the chat-ui document model (Block[]) using
+ * remark/unified. Also provides:
+ *   - A module-level LRU cache (`parseMarkdownToBlocksCached`) for streaming
+ *     message identity stability.
+ *   - `flattenBlockHeadings` — normalise heading variants to body for contexts
+ *     where large headings are disruptive (e.g. thinking rows).
+ *   - `buildThinkingBlocks` — shared pipeline for thinking rows.
+ *
+ * This module is PURE: no geometry, no pretext/fonts, no DOM imports.
+ */
+
 import type {
   BlockContent,
   DefinitionContent,
@@ -27,7 +41,7 @@ import type {
   ProseBlock,
   ProseVariant,
   TableBlock,
-} from './block-types';
+} from './document';
 
 // ── Shared parser instance ──────────────────────────────────────────────────
 
@@ -155,7 +169,6 @@ function blockToBlocks(
       if (runs.length > 0) {
         blocks.push({
           kind: 'prose',
-          tier: 'prose',
           id: nextId(),
           variant: 'body',
           runs,
@@ -172,7 +185,6 @@ function blockToBlocks(
       if (runs.length > 0) {
         blocks.push({
           kind: 'prose',
-          tier: 'prose',
           id: nextId(),
           variant,
           runs,
@@ -199,7 +211,6 @@ function blockToBlocks(
             if (runs.length > 0) {
               blocks.push({
                 kind: 'prose',
-                tier: 'prose',
                 id: nextId(),
                 variant: 'list-item',
                 runs,
@@ -217,7 +228,6 @@ function blockToBlocks(
     case 'code': {
       blocks.push({
         kind: 'code',
-        tier: 'code',
         id: nextId(),
         code: node.value,
         lang: node.lang ?? undefined,
@@ -238,7 +248,6 @@ function blockToBlocks(
       const [header = [], ...rows] = allRows;
       blocks.push({
         kind: 'table',
-        tier: 'table',
         id: nextId(),
         header,
         rows,
@@ -250,7 +259,6 @@ function blockToBlocks(
       // Horizontal rules are rendered as a prose separator line.
       blocks.push({
         kind: 'prose',
-        tier: 'prose',
         id: nextId(),
         variant: 'body',
         runs: [{ kind: 'text', text: '—' }],
@@ -262,7 +270,6 @@ function blockToBlocks(
     case 'math': {
       blocks.push({
         kind: 'prose',
-        tier: 'prose',
         id: nextId(),
         variant: 'body',
         runs: [{ kind: 'text', text: node.value }],
@@ -307,6 +314,55 @@ export function parseMarkdownToBlocks(messageId: string, markdown: string): Bloc
   return blocks;
 }
 
+// ── Cached entry point ───────────────────────────────────────────────────────
+
+type CacheEntry = { text: string; blocks: Block[] };
+
+const blockCache = new Map<string, CacheEntry>();
+
+/**
+ * Parse a markdown string into a stable `Block[]`, with a module-level LRU
+ * cache keyed by `messageId`.
+ *
+ * **Cache semantics**
+ * - Committed (non-streaming) messages: text is immutable, so the cache gives
+ *   parse-once-per-message semantics across all re-renders and layout passes.
+ * - Streaming messages: the text grows each chunk; the text-equality check
+ *   ensures a re-parse only when content actually changes.
+ * - **Identity guarantee**: consecutive calls with the same `messageId` and
+ *   identical `markdown` return the *exact same array reference*, so downstream
+ *   identity checks (`===`) can detect "no change".
+ * - **Invalidation**: call `clearBlockCache()` when a conversation is torn
+ *   down, or `evictBlockCache(id)` to evict a single message (e.g. after
+ *   `finalizeTurn` freezes the text and you want a clean re-parse).
+ *
+ * @param messageId - Stable item id; used as the cache key and block-id prefix.
+ * @param markdown  - Raw markdown string to parse.
+ */
+export function parseMarkdownToBlocksCached(messageId: string, markdown: string): Block[] {
+  const hit = blockCache.get(messageId);
+  if (hit && hit.text === markdown) return hit.blocks;
+  const blocks = parseMarkdownToBlocks(messageId, markdown);
+  blockCache.set(messageId, { text: markdown, blocks });
+  return blocks;
+}
+
+/**
+ * @deprecated Use `parseMarkdownToBlocksCached` instead.
+ * @internal kept temporarily for any call sites not yet migrated.
+ */
+export const parseBlocksCached = parseMarkdownToBlocksCached;
+
+/** Evict all cached block arrays (call when a conversation store is reset). */
+export function clearBlockCache(): void {
+  blockCache.clear();
+}
+
+/** Evict the cached blocks for a single message (call after finalizeTurn per message). */
+export function evictBlockCache(messageId: string): void {
+  blockCache.delete(messageId);
+}
+
 // ── Block normalization helpers ───────────────────────────────────────────────
 
 /**
@@ -322,7 +378,7 @@ export function parseMarkdownToBlocks(messageId: string, markdown: string): Bloc
  */
 export function flattenBlockHeadings(blocks: Block[]): Block[] {
   return blocks.map((b) =>
-    b.tier === 'prose' && b.variant !== 'body' && b.variant !== 'list-item' && b.variant !== 'quote'
+    b.kind === 'prose' && b.variant !== 'body' && b.variant !== 'list-item' && b.variant !== 'quote'
       ? { ...b, variant: 'body' as const }
       : b
   );
@@ -333,3 +389,21 @@ export function flattenBlockHeadings(blocks: Block[]): Block[] {
  * @internal kept temporarily for any call sites not yet migrated.
  */
 export const flattenHeadings = flattenBlockHeadings;
+
+// ── Shared thinking pipeline ──────────────────────────────────────────────────
+
+/**
+ * Parse and transform a thinking item's markdown into the `Block[]` used by
+ * both the measurement engine and `ThinkingProse`.
+ *
+ * Applies:
+ *   1. `parseMarkdownToBlocksCached` — parse with identity-stable caching.
+ *   2. `flattenBlockHeadings` — demote headings to body variant so AI-generated
+ *      section headers don't produce oversized lines in the thinking row.
+ *
+ * @param id   - Stable thinking item id; used as the cache key.
+ * @param text - Raw markdown string (may be `undefined` during streaming).
+ */
+export function buildThinkingBlocks(id: string, text: string | undefined): Block[] {
+  return flattenBlockHeadings(parseMarkdownToBlocksCached(id, text ?? ''));
+}

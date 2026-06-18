@@ -1,10 +1,15 @@
 /**
- * Convert InlineRun[] to the RichInlineItem[] format that pretext expects.
+ * to-rich-items — Convert InlineRun[] to the RichInlineItem[] format that pretext expects.
+ *
+ * Bridges the markdown document model (InlineRun) and the measurement tier
+ * (pretext / FontConfig). Lives in core/measure/ because it depends on both
+ * pretext and FontConfig — keeping it out of core/markdown/ preserves that
+ * module as a pure, dependency-free document model.
  */
 
 import type { RichInlineItem } from '@chenglou/pretext/rich-inline';
-import type { InlineCode, InlineMention, InlineRun, InlineText } from '../blocks/block-types';
-import type { FontConfig } from '../measure/fonts';
+import type { InlineCode, InlineMention, InlineRun, InlineText } from '../markdown/document';
+import type { FontConfig } from './fonts';
 
 export function runsToRichItems(runs: InlineRun[], fonts: FontConfig): RichInlineItem[] {
   return runs.flatMap((run): RichInlineItem[] => {

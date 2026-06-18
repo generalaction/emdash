@@ -1,17 +1,26 @@
 /**
- * Block-model types produced by parseMarkdownToBlocks().
+ * document — Parsed markdown document model.
  *
- * A ChatMessage's markdown is split into Block[]  so that:
- *   1. HeightModel can measure each block independently.
- *   2. Renderers can specialise per-tier (prose / code / table).
+ * This is the output contract of the markdown parser (core/markdown/parse.ts).
+ * A ChatMessage's markdown is split into Block[] so that:
+ *   1. The measurement engine can measure each block independently.
+ *   2. Renderers can specialise per block kind (prose / code / table).
  *   3. Collapse state is stored per-block by stable ID.
+ *
+ * This module is PURE: no geometry, no pretext/fonts, no DOM imports.
  */
 
-/** Coarse rendering tier – controls measurement strategy. */
-export type BlockTier = 'prose' | 'code' | 'table';
-
-/** Fine-grained variant within the prose tier. */
-export type ProseVariant = 'body' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'list-item' | 'quote';
+/** Fine-grained variant within the prose block kind. */
+export type ProseVariant =
+  | 'body'
+  | 'h1'
+  | 'h2'
+  | 'h3'
+  | 'h4'
+  | 'h5'
+  | 'h6'
+  | 'list-item'
+  | 'quote';
 
 // ── Inline run types ──────────────────────────────────────────────────────────
 
@@ -59,7 +68,6 @@ export type BlockId = string;
  */
 export type ProseBlock = {
   kind: 'prose';
-  tier: 'prose';
   id: BlockId;
   variant: ProseVariant;
   runs: InlineRun[];
@@ -73,7 +81,6 @@ export type ProseBlock = {
  */
 export type CodeBlock = {
   kind: 'code';
-  tier: 'code';
   id: BlockId;
   /** Raw source code. */
   code: string;
@@ -87,7 +94,6 @@ export type CodeBlock = {
  */
 export type TableBlock = {
   kind: 'table';
-  tier: 'table';
   id: BlockId;
   /** Column header labels. */
   header: string[];

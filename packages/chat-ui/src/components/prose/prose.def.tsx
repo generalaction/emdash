@@ -1,21 +1,21 @@
 /**
- * proseDef — ComponentDef for ProseBlock / ProseLaidOut (block tier).
+ * proseDef — ComponentDef for ProseBlock / ProseLaidOut (block kind).
  *
  * Wraps the existing layoutProse() / measureProseNaturalWidth() functions.
- * The block-tier `measure()` always passes `blockTop: 0`; the parent composite
+ * The block-kind `measure()` always passes `blockTop: 0`; the parent composite
  * (messageDef via layoutBlocks) supplies the actual absolute `top` offset in
- * the composed BlocksLayout.
+ * the composed stack.
  *
  * Used by the REGISTRY for block-level dispatch inside message and thinking.
  */
 
-import type { ProseBlock } from '../../core/blocks/block-types';
+import type { ProseBlock } from '../../core/markdown/document';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import type { ProseLaidOut } from '../../core/layout/layout-types';
 import { layoutProse } from './layout';
 import { Prose } from './Prose';
 
-export type ProseDefLayout = ProseLaidOut & { kind: 'prose' };
+export type ProseDefLayout = ProseLaidOut;
 
 function ProseRender(props: {
   item: ProseBlock;
@@ -41,7 +41,7 @@ export const proseDef = defineComponent<ProseBlock, ProseDefLayout>({
     return {
       height: laid.height,
       width: laid.contentWidth,
-      layout: { ...laid, kind: 'prose' },
+      layout: laid,
     };
   },
 

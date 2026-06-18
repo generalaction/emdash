@@ -18,8 +18,8 @@
 
 import type { Component } from 'solid-js';
 import { Show } from 'solid-js';
-import { blockPlainText } from '../../core/blocks/block-text';
-import type { Block } from '../../core/blocks/block-types';
+import { blockPlainText } from '../../core/markdown/plain-text';
+import type { Block } from '../../core/markdown/document';
 import { bubble, slot, stack } from '../../core/compose';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import { layoutBlockStack } from '../../core/layout/block-stack';
@@ -52,7 +52,7 @@ function userEffectiveWidth(blocks: Block[], contentWidth: number, ctx: MeasureC
   let maxNatural = 0;
   for (const block of blocks) {
     if (ctx.isCollapsed(block.id)) continue;
-    if (block.tier === 'prose') {
+    if (block.kind === 'prose') {
       maxNatural = Math.max(
         maxNatural,
         measureProseNaturalWidth(

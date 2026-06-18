@@ -8,14 +8,14 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { ProseBlock } from '../../core/blocks/block-types';
+import type { ProseBlock } from '../../core/markdown/document';
 import { DEFAULT_FONT_CONFIG } from '../../core/measure/fonts';
 import { layoutProse, measureProseNaturalWidth } from './layout';
 
 const LH = DEFAULT_FONT_CONFIG.body.lineHeight;
 
 function bodyBlock(runs: ProseBlock['runs']): ProseBlock {
-  return { kind: 'prose', tier: 'prose', id: 'b0', variant: 'body', runs };
+  return { kind: 'prose', id: 'b0', variant: 'body', runs };
 }
 
 describe('layoutProse — break runs', () => {

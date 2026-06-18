@@ -1,12 +1,12 @@
 /**
- * tableDef — ComponentDef for TableBlock / TableLaidOut (block tier).
+ * tableDef — ComponentDef for TableBlock / TableLaidOut (block kind).
  *
  * Height formula: (1 + rows.length) * TABLE_ROW_H + (rows.length + 2) * TABLE_BORDER
  * `measure()` always passes `blockTop: 0`; the parent stack combinator
  * supplies the actual vertical offset.
  */
 
-import type { TableBlock } from '../../core/blocks/block-types';
+import type { TableBlock } from '../../core/markdown/document';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import type { TableLaidOut } from '../../core/layout/layout-types';
 import { reserveHeight } from '../../core/layout/reserve-height';
@@ -17,7 +17,7 @@ const TABLE_BORDER = 1;
 /** Minimum column width (px). */
 const TABLE_MIN_COL_W = 80;
 
-export type TableDefLayout = TableLaidOut & { kind: 'table' };
+export type TableDefLayout = TableLaidOut;
 
 function TableRender(props: {
   item: TableBlock;
@@ -71,7 +71,7 @@ export const tableDef = defineComponent<TableBlock, TableDefLayout>({
     return {
       height,
       width: tableWidth,
-      layout: { ...laid, kind: 'table' },
+      layout: laid,
     };
   },
 

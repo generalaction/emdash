@@ -1,12 +1,12 @@
 /**
- * codeDef — ComponentDef for CodeBlock / CodeLaidOut (block tier).
+ * codeDef — ComponentDef for CodeBlock / CodeLaidOut (block kind).
  *
  * Height = lines.length * code.lineHeight + 2 * CODE_PAD_Y + 2 * CODE_BORDER
  * `measure()` always passes `blockTop: 0`; the parent stack combinator
  * (layoutBlocks in messageDef) supplies the actual vertical offset.
  */
 
-import type { CodeBlock } from '../../core/blocks/block-types';
+import type { CodeBlock } from '../../core/markdown/document';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import type { CodeLaidOut } from '../../core/layout/layout-types';
 import { reserveHeight } from '../../core/layout/reserve-height';
@@ -17,7 +17,7 @@ const CODE_PAD_Y = 8;
 /** Border width (px) on each side of the code block. */
 const CODE_BORDER = 1;
 
-export type CodeDefLayout = CodeLaidOut & { kind: 'code' };
+export type CodeDefLayout = CodeLaidOut;
 
 function CodeRender(props: { item: CodeBlock; layout: Measured<CodeDefLayout>; ctx: RenderCtx }) {
   return <Code block={props.layout.layout} rawBlock={props.item} />;
@@ -63,7 +63,7 @@ export const codeDef = defineComponent<CodeBlock, CodeDefLayout>({
     return {
       height,
       width: ctx.width,
-      layout: { ...laid, kind: 'code' },
+      layout: laid,
     };
   },
 

@@ -12,7 +12,7 @@
  */
 
 import { For, Show } from 'solid-js';
-import type { InlineRun } from '../../core/blocks/block-types';
+import type { InlineRun } from '../../core/markdown/document';
 import type {
   BulletLayout,
   FragmentLayout,
