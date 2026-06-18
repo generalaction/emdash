@@ -1,18 +1,26 @@
 /**
  * diffDef — ComponentDef for ChatDiff rows.
  *
- * estimate: cheap constant upper-bound (max preview lines).
- * measure:  exact — runs computeDiff + selectPreview; returns DiffMeasureResult
- *           wrapped in Measured so the Render component can consume the
- *           pre-computed preview window without re-running the diff algorithm.
+ * measure: builds a compose Measured tree and stores it alongside DiffLayout
+ *          data in the layout payload.
+ *
+ *   tree = stack([
+ *     slot('diff:header', DIFF_HEADER_H),
+ *     scrollWindow(slot('diff:body', bodyH), maxH, { overlay: 'fade-bottom'? })
+ *   ])
+ *
+ * DiffRender provides 'diff:header' (DiffHeader) and 'diff:body' (DiffLines)
+ * slots, then delegates to Project.
  */
 
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import type { ChatDiff } from '../../model';
+import { slot, scrollWindow, stack } from '../../core/compose';
 import { useTheme } from '../ThemeContext';
-import { Diff } from './Diff';
+import { DiffHeader, DiffLines } from './Diff';
 import { computeDiff, countChanges, selectPreview, type DiffRow } from './diff-lines';
 import { langFromPath } from './lang';
+import { Project } from '../Project';
 
 /** Header row height (px). */
 const DIFF_HEADER_H = 28;
@@ -32,28 +40,56 @@ export type DiffLayout = {
   truncated: boolean;
 };
 
-function DiffRender(props: { item: ChatDiff; layout: Measured<DiffLayout>; ctx: RenderCtx }) {
+export type DiffNodeLayout = {
+  kind: 'diff';
+  /**
+   * Compose subtree (stack of header slot + windowed body slot).
+   * Project walks this in DiffRender.
+   */
+  // oxlint-disable-next-line typescript/no-explicit-any -- compose tree
+  tree: Measured<any>;
+  /** Computed diff content for rendering in the 'diff:header' and 'diff:body' slots. */
+  data: DiffLayout;
+};
+
+function DiffRender(props: { item: ChatDiff; layout: Measured<DiffNodeLayout>; ctx: RenderCtx }) {
   const theme = useTheme();
+  const data = () => props.layout.layout.data;
 
   return (
     <div style={{ height: `${props.layout.height}px` }}>
-      <Diff
-        item={props.item}
-        layout={props.layout.layout}
-        codeLineHeight={() => theme().fonts.code.lineHeight}
+      <Project
+        node={props.layout.layout.tree}
+        slots={{
+          'diff:header': () => (
+            <DiffHeader
+              item={props.item}
+              adds={data().adds}
+              dels={data().dels}
+              headerH={DIFF_HEADER_H}
+            />
+          ),
+          'diff:body': () => (
+            <DiffLines
+              item={props.item}
+              layout={data()}
+              codeLineHeight={() => theme().fonts.code.lineHeight}
+            />
+          ),
+        }}
       />
     </div>
   );
 }
 
-export const diffDef = defineComponent<ChatDiff, DiffLayout>({
+export const diffDef = defineComponent<ChatDiff, DiffNodeLayout>({
   kind: 'diff',
 
   estimate(_item, ctx: MeasureCtx): number {
     return DIFF_HEADER_H + DIFF_MAX_LINES * ctx.theme.fonts.code.lineHeight + 2 * DIFF_BORDER;
   },
 
-  measure(item, ctx: MeasureCtx): Measured<DiffLayout> {
+  measure(item, ctx: MeasureCtx): Measured<DiffNodeLayout> {
     const codeLineH = ctx.theme.fonts.code.lineHeight;
 
     const rows = computeDiff(item.oldText, item.newText);
@@ -62,15 +98,31 @@ export const diffDef = defineComponent<ChatDiff, DiffLayout>({
     const lang = langFromPath(item.path);
     const truncated = previewRows.length > 0 && previewRows.at(-1) !== rows.at(-1);
 
-    const height =
+    const bodyH =
       previewRows.length === 0
-        ? DIFF_HEADER_H + 2 * DIFF_BORDER
-        : DIFF_HEADER_H + previewRows.length * codeLineH + 2 * DIFF_BORDER;
+        ? 2 * DIFF_BORDER
+        : previewRows.length * codeLineH + 2 * DIFF_BORDER;
+
+    const maxH = bodyH;
+    const data: DiffLayout = { kind: 'diff', previewRows, adds, dels, lang, truncated };
+
+    const bodySlot = slot('diff:body', bodyH);
+    const windowedBody = scrollWindow(bodySlot, maxH, {
+      overlay: truncated ? 'fade-bottom' : undefined,
+    });
+
+    const tree = stack(
+      [
+        { id: `${item.id}:header`, measured: slot('diff:header', DIFF_HEADER_H) },
+        { id: `${item.id}:body`, measured: windowedBody },
+      ],
+      { gap: 0 }
+    );
 
     return {
-      height,
+      height: tree.height,
       width: ctx.width,
-      layout: { kind: 'diff', previewRows, adds, dels, lang, truncated },
+      layout: { kind: 'diff', tree, data },
     };
   },
 

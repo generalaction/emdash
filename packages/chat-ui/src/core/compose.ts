@@ -11,8 +11,9 @@
  *   stack        — vertical sequence with symmetric padY and per-gap function.
  *   pad          — uniform padding + optional border around one child.
  *   bubble       — horizontal hug-wrap (user message bubble).
- *   collapsible  — header + optional collapsible body.
+ *   collapsible  — header slot + optional collapsible body.
  *   scrollWindow — clip a tall child to a fixed-height scroll viewport.
+ *   slot         — named placeholder for non-generic chrome (headers/footers).
  *
  * Width convention: width flows *down* (callers narrow the budget before
  * calling measure); height flows *up* (combinators accumulate child heights).
@@ -42,6 +43,16 @@ export type BubbleLayout<L = unknown> = {
   padX: number;
   padY: number;
   child: Measured<L>;
+  /**
+   * Optional Tailwind/CSS class string applied to the bubble container by
+   * ProjectBubble (e.g. background color, border-radius, text color).
+   */
+  variantClass?: string;
+  /**
+   * Explicit pixel width for the bubble container. When absent, Project
+   * renders the bubble at 100% of the available width.
+   */
+  width?: number;
 };
 
 export type CollapsibleLayout<L = unknown> = {
@@ -51,12 +62,44 @@ export type CollapsibleLayout<L = unknown> = {
   bodyTop: number;
   expanded: boolean;
   child: Measured<L> | null;
+  /**
+   * Name of the slot rendered as the header.  Project resolves this from the
+   * `slots` map passed to `<Project>`.
+   */
+  headerSlot: string;
 };
 
 export type WindowLayout<L = unknown> = {
   kind: 'window';
   maxH: number;
   child: Measured<L>;
+  /**
+   * Optional decorative fade overlay applied by ProjectWindow.
+   * 'fade-top'    — gradient from transparent at top to opaque (for preview scroll).
+   * 'fade-bottom' — gradient from opaque to transparent (for truncated diffs).
+   */
+  overlay?: 'fade-top' | 'fade-bottom';
+  /** When true, ProjectWindow auto-scrolls to the bottom whenever child height changes. */
+  autoScrollBottom?: boolean;
+};
+
+// ── slot ──────────────────────────────────────────────────────────────────────
+
+/**
+ * A named placeholder for non-generic chrome (headers, footers, diff-body).
+ *
+ * `slot` has no generic children — it is a leaf in the compose tree.
+ * `Project` dispatches it by `name` using the `slots` map supplied by the
+ * calling Render shell.
+ *
+ * Callers pass the precise pixel height expected from the real chrome so the
+ * tree's total height is correct.  If the real height diverges, contract
+ * tests will catch it.
+ */
+export type SlotLayout = {
+  kind: 'slot';
+  name: string;
+  height: number;
 };
 
 // ── stack ─────────────────────────────────────────────────────────────────────
@@ -136,24 +179,39 @@ export function pad<L>(
  * is already baked into the child's height via a `stack` call.  It only
  * expands the *reported width* by `2*padX` so the caller can derive the
  * rendered bubble width (content width + 2 × side padding).
+ *
+ * `variantClass` is applied to the bubble div by ProjectBubble (bg, radius, etc.)
+ * `width` pins the bubble container to an explicit pixel width (user bubble hug).
  */
 export function bubble<L>(
   child: Measured<L>,
-  opts: { padX?: number; padY?: number } = {}
+  opts: {
+    padX?: number;
+    padY?: number;
+    variantClass?: string;
+    width?: number;
+  } = {}
 ): Measured<BubbleLayout<L>> {
   const padX = opts.padX ?? 0;
   const padY = opts.padY ?? 0;
   return {
     height: child.height,
-    width: child.width + 2 * padX,
-    layout: { kind: 'bubble', padX, padY, child },
+    width: opts.width ?? child.width + 2 * padX,
+    layout: {
+      kind: 'bubble',
+      padX,
+      padY,
+      child,
+      variantClass: opts.variantClass,
+      width: opts.width,
+    },
   };
 }
 
 // ── collapsible ───────────────────────────────────────────────────────────────
 
 /**
- * A header (fixed height) plus an optional collapsible body.
+ * A header slot (fixed height) plus an optional collapsible body.
  *
  * When `expanded` is false (or `body` is absent), only the header contributes
  * to `height`.  When `expanded` is true and `body` is provided, height =
@@ -161,13 +219,17 @@ export function bubble<L>(
  *
  * `headerTop` is always 0 (the header is the first element).
  * `bodyTop` is always `headerH`.
+ *
+ * `headerSlot` — the slot name that `Project` resolves from its `slots` map
+ * to render the header chrome.
  */
 export function collapsible<L>(opts: {
   headerH: number;
+  headerSlot: string;
   expanded: boolean;
   body?: Measured<L>;
 }): Measured<CollapsibleLayout<L>> {
-  const { headerH, expanded, body } = opts;
+  const { headerH, headerSlot, expanded, body } = opts;
   const bodyHeight = expanded && body ? body.height : 0;
   return {
     height: headerH + bodyHeight,
@@ -179,6 +241,7 @@ export function collapsible<L>(opts: {
       bodyTop: headerH,
       expanded,
       child: body ?? null,
+      headerSlot,
     },
   };
 }
@@ -190,11 +253,40 @@ export function collapsible<L>(opts: {
  *
  * The returned `height` is `min(child.height, maxH)`.  The rendered viewport
  * shows a scrollable window of the child content up to `maxH` px.
+ *
+ * `overlay`           — optional decorative fade (see WindowLayout).
+ * `autoScrollBottom`  — when true, ProjectWindow scrolls to bottom on resize.
  */
-export function scrollWindow<L>(child: Measured<L>, maxH: number): Measured<WindowLayout<L>> {
+export function scrollWindow<L>(
+  child: Measured<L>,
+  maxH: number,
+  opts: { overlay?: 'fade-top' | 'fade-bottom'; autoScrollBottom?: boolean } = {}
+): Measured<WindowLayout<L>> {
   return {
     height: Math.min(child.height, maxH),
     width: child.width,
-    layout: { kind: 'window', maxH, child },
+    layout: {
+      kind: 'window',
+      maxH,
+      child,
+      overlay: opts.overlay,
+      autoScrollBottom: opts.autoScrollBottom,
+    },
+  };
+}
+
+// ── slot ──────────────────────────────────────────────────────────────────────
+
+/**
+ * Create a named placeholder node for non-generic chrome.
+ *
+ * The `height` must equal the real rendered height of the chrome so the
+ * containing `stack`'s total height is correct.
+ */
+export function slot(name: string, height: number): Measured<SlotLayout> {
+  return {
+    height,
+    width: 0,
+    layout: { kind: 'slot', name, height },
   };
 }

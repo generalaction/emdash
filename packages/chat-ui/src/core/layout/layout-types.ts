@@ -2,9 +2,14 @@
  * Geometry types produced by the projected layout engine.
  *
  * These are plain data structures (no React, no MobX).
- * `layoutMessage()` produces a `MessageLayout` that is used for BOTH
- * the virtualizer height and the absolute-positioned DOM projection —
- * measure/render parity is structural.
+ * Leaf block layout types (ProseLaidOut, CodeLaidOut, TableLaidOut) are
+ * consumed by Prose/Code/Table renderers and by BlockFrame for positioning.
+ * They are also extended with a `raw` back-reference in BlockLeafLayout
+ * (Project.tsx) so renderBlockLeaf can access source block data without a
+ * separate lookup.
+ *
+ * Row-level layout aggregates (formerly MessageLayout) are now expressed as
+ * compose trees (core/compose.ts) returned by each ComponentDef.measure().
  */
 
 /** A single fragment on a line: the text to render and its x offset. */
@@ -82,16 +87,3 @@ export type TableLaidOut = {
 };
 
 export type BlockLaidOut = ProseLaidOut | CodeLaidOut | TableLaidOut;
-
-/** Full layout for a single ChatMessage virtualizer row. */
-export type MessageLayout = {
-  /** Total pixel height of the row (bubble padding + block heights + gaps). */
-  height: number;
-  /**
-   * Maximum content width across all blocks.
-   * For user messages, the bubble is sized to this + 2*BUBBLE_PAD_X so it
-   * hugs the widest line of text.
-   */
-  width: number;
-  blocks: BlockLaidOut[];
-};

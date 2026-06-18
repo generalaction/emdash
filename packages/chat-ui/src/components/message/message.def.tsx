@@ -1,32 +1,239 @@
 /**
  * messageDef — ComponentDef for ChatMessage rows.
  *
- * estimate:  O(1) character-count heuristic; no pretext.
- * measure:   exact layout via layoutMessage (uses pretext for prose blocks).
+ * measure: builds a role-specific compose Measured tree and stores it in the
+ *          layout payload so MessageRender can walk it via Project.
  *
- * The bespoke message LRU cache (clearMessageLayoutCache) is replaced by the
- * identity-based node memo in registry.ts (phase 6). The `layoutMessage` and
- * `measureMessage` helpers are still called here; those layout functions remain
- * in message/layout.ts and message/measure.ts while this def coordinates them.
+ *   user:       bubble(blockStack, { padX, variantClass: bg+radius, width: hugWidth })
+ *   assistant:  stack([ blockStack, slot('message:footer', MESSAGE_FOOTER_H) ])
+ *   thought:    blockStack  (text color applied in the Render shell)
+ *
+ * MessageRender is a thin shell that applies flex alignment, the a11y mirror,
+ * and the role-specific text color, then delegates entirely to Project.
+ *
+ * Per-block subtree memoization is handled by layoutBlockStack (block-stack.ts):
+ * measureBlockCached (WeakMap by Block identity) makes streaming rows cheap —
+ * only the last growing block re-measures each tick.
  */
 
 import type { Component } from 'solid-js';
+import { Show, createSignal, onCleanup } from 'solid-js';
+import { parseMarkdownToBlocksCached } from '../../core/blocks/parse-blocks';
+import { bubble, slot, stack } from '../../core/compose';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
-import type { MessageLayout } from '../../core/layout/layout-types';
-import type { ChatMessage } from '../../model';
-import { BUBBLE_PAD_Y, MESSAGE_FOOTER_H } from './layout';
-import { measureMessage } from './measure';
-import { Message } from './Message';
+import { layoutBlockStack } from '../../core/layout/block-stack';
+import { USER_BUBBLE_MAX_WIDTH_PCT } from '../../core/metrics';
+import type { ChatMessage, ChatRole } from '../../model';
+import { measureProseNaturalWidth } from '../prose/layout';
+import { Project, renderBlockLeaf } from '../Project';
 
-export type MessageNodeLayout = MessageLayout & { kind: 'message' };
+// ── Message layout constants ──────────────────────────────────────────────────
+
+/** Horizontal padding inside the user message bubble on each side (px). */
+export const BUBBLE_PAD_X = 14;
+/** Vertical padding inside the message bubble block stack on each side (px). */
+export const BUBBLE_PAD_Y = 8;
+/** Gap between consecutive blocks of different tiers in the block stack (px). */
+export const BLOCK_GAP = 10;
+/** Tighter gap between two consecutive prose blocks (px). */
+export const PROSE_GAP = 4;
+/** Reserved height for the assistant message footer (copy button row, px). */
+export const MESSAGE_FOOTER_H = 24;
+
+// ── User-bubble hug width ─────────────────────────────────────────────────────
+
+function userEffectiveWidth(
+  blocks: ReturnType<typeof parseMarkdownToBlocksCached>,
+  contentWidth: number,
+  ctx: MeasureCtx
+): number {
+  const maxAllowed =
+    Math.floor((contentWidth * USER_BUBBLE_MAX_WIDTH_PCT) / 100) - 2 * BUBBLE_PAD_X;
+
+  let maxNatural = 0;
+  for (const block of blocks) {
+    if (ctx.isCollapsed(block.id)) continue;
+    if (block.tier === 'prose') {
+      maxNatural = Math.max(maxNatural, measureProseNaturalWidth(block, ctx.theme.fonts));
+    } else {
+      return Math.max(1, maxAllowed);
+    }
+  }
+
+  return Math.max(1, Math.min(Math.ceil(maxNatural) + 1, maxAllowed));
+}
+
+// ── Layout type ───────────────────────────────────────────────────────────────
+
+export type MessageNodeLayout = {
+  kind: 'message';
+  /**
+   * The role-specific compose subtree produced by measure().
+   * Project walks this to render the message content.
+   */
+  // oxlint-disable-next-line typescript/no-explicit-any -- compose tree; type varies by role
+  tree: Measured<any>;
+};
+
+// ── Copy icons ────────────────────────────────────────────────────────────────
+
+function IconCopy() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="5" y="5" width="9" height="9" rx="1" />
+      <path d="M11 5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h2" />
+    </svg>
+  );
+}
+
+function IconCheck() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="2,8 6,12 14,4" />
+    </svg>
+  );
+}
+
+// ── CopyButton (Lane B — local signal, never touches measure) ─────────────────
+
+function CopyButton(props: { text: string }) {
+  const [copied, setCopied] = createSignal(false);
+  let resetTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const handleClick = () => {
+    void navigator.clipboard.writeText(props.text).then(() => {
+      setCopied(true);
+      resetTimer = setTimeout(() => {
+        setCopied(false);
+        resetTimer = undefined;
+      }, 1500);
+    });
+  };
+
+  onCleanup(() => {
+    if (resetTimer !== undefined) clearTimeout(resetTimer);
+  });
+
+  return (
+    <button
+      type="button"
+      class="flex cursor-pointer items-center gap-1 text-xs text-foreground-passive opacity-0 transition-opacity select-none group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100"
+      aria-label={copied() ? 'Copied' : 'Copy message'}
+      onClick={handleClick}
+    >
+      <Show when={copied()} fallback={<IconCopy />}>
+        <IconCheck />
+      </Show>
+      <span>{copied() ? 'Copied' : 'Copy'}</span>
+    </button>
+  );
+}
+
+// ── Plain-text extractor (a11y) ───────────────────────────────────────────────
+
+function blockPlainText(block: {
+  tier: string;
+  runs?: Array<{ text?: string; label?: string }>;
+  code?: string;
+  raw?: string;
+  header?: string[];
+  rows?: string[][];
+}): string {
+  if (block.tier === 'prose') {
+    return (block.runs ?? []).map((r) => r.text ?? r.label ?? '').join('');
+  }
+  if (block.tier === 'code') return block.code ?? '';
+  if (block.tier === 'table') {
+    const allRows = [block.header ?? [], ...(block.rows ?? [])];
+    return allRows.map((row) => row.join(' | ')).join('\n');
+  }
+  return block.raw ?? '';
+}
+
+// ── Role helpers ──────────────────────────────────────────────────────────────
+
+function roleClass(role: ChatRole): string {
+  if (role === 'user') return 'user';
+  if (role === 'thought') return 'thought';
+  return 'assistant';
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
 
 function MessageRender(props: {
   item: ChatMessage;
   layout: Measured<MessageNodeLayout>;
   ctx: RenderCtx;
 }) {
-  return <Message item={props.item} layout={props.layout.layout} />;
+  const item = props.item;
+  const rc = () => roleClass(item.role);
+  const blocks = () => parseMarkdownToBlocksCached(item.id, item.text);
+
+  const plainText = () =>
+    blocks()
+      .map((b) => blockPlainText(b as unknown as Parameters<typeof blockPlainText>[0]))
+      .join('\n\n');
+
+  // Role-specific text color (Lane B — no layout impact).
+  const textClass = () => {
+    if (rc() === 'thought') return 'text-foreground-muted italic';
+    if (rc() === 'assistant') return 'text-foreground-body';
+    return ''; // user: text color is in the bubble variantClass
+  };
+
+  return (
+    <div
+      style={{ height: `${props.layout.height}px` }}
+      class={`group flex flex-col ${rc() === 'user' ? 'items-end' : 'items-start'} ${textClass()}`}
+    >
+      {/* a11y visually-hidden mirror — sr-only is position:absolute, no height impact */}
+      <div class="sr-only" aria-label={item.text}>
+        {plainText()}
+      </div>
+      {/* Compose tree: Project walks the Measured tree for this role */}
+      <Project
+        node={props.layout.layout.tree}
+        slots={{
+          'message:footer': () => (
+            <div
+              class="flex items-center"
+              style={{ height: `${MESSAGE_FOOTER_H}px` }}
+              aria-hidden={item.streaming ? 'true' : undefined}
+            >
+              <Show when={!item.streaming}>
+                <CopyButton text={item.text} />
+              </Show>
+            </div>
+          ),
+        }}
+      >
+        {renderBlockLeaf}
+      </Project>
+    </div>
+  );
 }
+
+// ── ComponentDef ──────────────────────────────────────────────────────────────
 
 export const messageDef = defineComponent<ChatMessage, MessageNodeLayout>({
   kind: 'message',
@@ -40,12 +247,64 @@ export const messageDef = defineComponent<ChatMessage, MessageNodeLayout>({
   },
 
   measure(item, ctx: MeasureCtx): Measured<MessageNodeLayout> {
-    const layout = measureMessage(item, ctx.width, ctx.theme.fonts, ctx.isCollapsed);
-    return {
-      height: layout.height,
-      width: layout.width,
-      layout: { ...layout, kind: 'message' },
+    const blocks = parseMarkdownToBlocksCached(item.id, item.text);
+    const isAssistant = item.role === 'assistant';
+
+    const blockStackOpts = {
+      padY: BUBBLE_PAD_Y,
+      blockGap: BLOCK_GAP,
+      proseGap: PROSE_GAP,
+      isCollapsed: ctx.isCollapsed,
     };
+
+    // ── Empty-blocks fallback ────────────────────────────────────────────────
+    if (blocks.length === 0) {
+      const emptyLineH = ctx.theme.fonts.body.lineHeight;
+      const emptyH = emptyLineH + 2 * BUBBLE_PAD_Y + (isAssistant ? MESSAGE_FOOTER_H : 0);
+      // An empty stack with the correct height so Project still renders a container.
+      const emptyTree: Measured<{ kind: 'stack'; placed: [] }> = {
+        height: emptyH,
+        width: 0,
+        layout: { kind: 'stack', placed: [] },
+      };
+      return { height: emptyH, width: 0, layout: { kind: 'message', tree: emptyTree } };
+    }
+
+    // ── User bubble ──────────────────────────────────────────────────────────
+    if (item.role === 'user') {
+      const hugWidth = userEffectiveWidth(blocks, ctx.width, ctx);
+      const blockStack = layoutBlockStack(blocks, { ...ctx, width: hugWidth }, blockStackOpts);
+      const bubbleWidth = hugWidth + 2 * BUBBLE_PAD_X;
+      const tree = bubble(blockStack, {
+        padX: BUBBLE_PAD_X,
+        variantClass:
+          'bg-[var(--chat-bubble-user)] text-[var(--chat-bubble-user-fg)] rounded-lg',
+        width: bubbleWidth,
+      });
+      return { height: tree.height, width: tree.width, layout: { kind: 'message', tree } };
+    }
+
+    // ── Assistant / thought ──────────────────────────────────────────────────
+    const blockStack = layoutBlockStack(blocks, ctx, blockStackOpts);
+    if (!isAssistant) {
+      // thought: blockStack directly, text color applied in shell
+      return {
+        height: blockStack.height,
+        width: blockStack.width,
+        layout: { kind: 'message', tree: blockStack },
+      };
+    }
+
+    // assistant: stack([ blockStack, footer slot ])
+    const footerSlot = slot('message:footer', MESSAGE_FOOTER_H);
+    const tree = stack(
+      [
+        { id: `${item.id}:blocks`, measured: blockStack },
+        { id: `${item.id}:footer`, measured: footerSlot },
+      ],
+      { gap: 0 }
+    );
+    return { height: tree.height, width: tree.width, layout: { kind: 'message', tree } };
   },
 
   Render: MessageRender as Component<{

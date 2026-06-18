@@ -27,15 +27,21 @@ import type { ViewState } from '../state/view-state';
 import { useDebug } from './debug-context';
 import { REGISTRY } from './registry';
 
-// ── Identity-based node memo ───────────────────────────────────────────────────
+// ── Two-level identity-based memo ─────────────────────────────────────────────
 //
-// Skips expensive def.measure() calls for committed (immutable) items that
-// haven't changed since the last layout pass.
+// Level 1 (nodeMemo, here): WeakMap keyed by the ChatItem object.
+//   Skips the entire def.measure() call for committed (non-streaming) items
+//   when the fingerprint is unchanged.
+//   activeTurn rows bypass this level (streaming — content changes every tick),
+//   but they benefit from Level 2.
 //
-// Key:         item object reference (WeakMap — auto-GC when item is dropped)
-// Fingerprint: theme.version + rowWidth + isCollapsed(item.id)
-//              (covers all inputs that affect measured geometry)
-// activeTurn:  bypassed — streaming items change content every tick
+// Level 2 (blockMemo, core/layout/block-stack.ts): WeakMap keyed by Block object.
+//   Skips individual block re-measures for unchanged blocks within a streaming
+//   row. Since parseMarkdownToBlocksCached reuses the same Block object for
+//   unchanged content, only the last growing block is a miss each tick.
+//
+// Fingerprint: theme.version + rowWidth + isCollapsed(item.id) + expanded(item.id)
+//              (covers all Lane A inputs — see core/define.ts state split docs)
 
 // oxlint-disable typescript/no-explicit-any -- cache boundary; each kind is type-safe at its own def
 const nodeMemo = new WeakMap<object, { fingerprint: string; result: Measured<any> }>();

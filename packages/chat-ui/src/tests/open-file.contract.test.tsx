@@ -10,7 +10,6 @@ import { render } from 'solid-js/web';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CommandsContext } from '../components/CommandsContext';
 import { ThemeContext } from '../components/ThemeContext';
-import { Diff } from '../components/diff/Diff';
 import { diffDef } from '../components/diff/diff.def';
 import { diffFixtures } from '../components/diff/diff.fixtures';
 import { FileOperation } from '../components/file-op/FileOperation';
@@ -55,6 +54,8 @@ afterEach(() => {
 
 // ── Diff header ───────────────────────────────────────────────────────────────
 
+const renderCtx = { viewState: { isCollapsed: () => false } };
+
 describe('Diff header: onOpenFile', () => {
   it('fires with correct payload when clicking the header', async () => {
     const item = diffFixtures[0];
@@ -64,11 +65,7 @@ describe('Diff header: onOpenFile', () => {
     const { dispose } = mountWithCommands(
       () => ({ onOpenFile }),
       () => (
-        <Diff
-          item={item}
-          layout={measured.layout}
-          codeLineHeight={() => DEFAULT_THEME.fonts.code.lineHeight}
-        />
+        <diffDef.Render item={item} layout={measured} ctx={renderCtx} />
       )
     );
 
@@ -95,11 +92,7 @@ describe('Diff header: onOpenFile', () => {
     const { dispose } = mountWithCommands(
       () => ({}),
       () => (
-        <Diff
-          item={item}
-          layout={measured.layout}
-          codeLineHeight={() => DEFAULT_THEME.fonts.code.lineHeight}
-        />
+        <diffDef.Render item={item} layout={measured} ctx={renderCtx} />
       )
     );
 

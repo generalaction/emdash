@@ -2,29 +2,33 @@
  * thinkingDef — ComponentDef for ChatThinking rows.
  *
  * estimate: O(1) character-count heuristic.
- * measure:  full pretext layout via layoutBlocks; returns body/preview
- *           BlocksLayout for the Render component to consume directly.
+ * measure:  builds a compose Measured tree and stores it in ThinkingLayout.tree.
+ *
+ *   done + not expanded:   collapsible({ headerSlot, expanded: false })
+ *   active + not expanded: stack([ slot(header), scrollWindow(blockStack, WINDOW_H, { overlay, autoScroll }) ])
+ *   expanded:              stack([ slot(header), blockStack ])
  *
  * Collapse semantics are inverted: the stored "collapsed" bool means
  * "expanded" — default absent/false → preview (active) or header-only (done).
  *
- * The bespoke `measureThinking` / `estimateThinking` functions from
- * thinking/measure.ts are inlined here; that file is deleted.
+ * The expanded/active branch is now chosen once in measure() via ctx.expanded,
+ * so Render cannot diverge from measure (fixes the old ctx.viewState split).
+ *
+ * ThinkingRender is a thin shell that supplies the 'thinking:header' slot
+ * (ThinkingHeader component) and delegates entirely to Project.
  */
 
+import { createEffect, createSignal, onCleanup } from 'solid-js';
 import type { Block } from '../../core/blocks/block-types';
 import { buildThinkingBlocks } from '../../core/blocks/parse-blocks';
+import { collapsible, scrollWindow, slot, stack } from '../../core/compose';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
+import { layoutBlockStack } from '../../core/layout/block-stack';
 import type { ChatThinking } from '../../model';
-import type { BlocksLayout } from '../rich-text/layout';
-import { layoutBlocks } from '../rich-text/layout';
-import { Thinking } from './Thinking';
+import { Project, renderBlockLeaf } from '../Project';
+import { useTheme } from '../ThemeContext';
 
-export type ThinkingLayout = {
-  kind: 'thinking';
-  body?: BlocksLayout;
-  preview?: BlocksLayout;
-};
+// ── Module constants ─────────────────────────────────────────────────────────
 
 /** Vertical padding (px) inside the expanded thinking body block stack. */
 const THINKING_PAD_Y = 8;
@@ -37,13 +41,78 @@ function thinkingHeaderH(ctx: MeasureCtx): number {
   return ctx.theme.fonts.body.lineHeight + 8;
 }
 
-function layoutThinkingBody(blocks: Block[], ctx: MeasureCtx): BlocksLayout {
+function layoutThinkingBody(blocks: Block[], ctx: MeasureCtx): Measured {
   const { blockGap, proseGap } = ctx.theme.density;
-  return layoutBlocks(blocks, ctx.width, ctx.theme.fonts, {
+  return layoutBlockStack(blocks, ctx, {
     padY: THINKING_PAD_Y,
     blockGap,
     proseGap,
   });
+}
+
+// ── Layout type ───────────────────────────────────────────────────────────────
+
+export type ThinkingLayout = {
+  kind: 'thinking';
+  /**
+   * The compose subtree produced by measure().  Varies by expanded/active state.
+   * Project walks this in ThinkingRender.
+   */
+  // oxlint-disable-next-line typescript/no-explicit-any -- compose tree; structure varies by state
+  tree: Measured<any>;
+};
+
+// ── ThinkingHeader (slot component) ───────────────────────────────────────────
+
+function formatDurationS(ms: number): string {
+  return String(Math.floor(ms / 1000));
+}
+
+function ThinkingHeader(props: { item: ChatThinking; expanded: boolean; headerH: number }) {
+  const startElapsed = Math.floor((Date.now() - props.item.startedAt) / 1000);
+  const [elapsed, setElapsed] = createSignal(startElapsed);
+
+  let timer: ReturnType<typeof setInterval> | undefined;
+
+  createEffect(() => {
+    if (props.item.status === 'thinking') {
+      timer = setInterval(() => {
+        setElapsed(Math.floor((Date.now() - props.item.startedAt) / 1000));
+      }, 1000);
+    } else {
+      clearInterval(timer);
+      timer = undefined;
+    }
+  });
+  onCleanup(() => clearInterval(timer));
+
+  const label = () => {
+    if (props.item.status === 'thinking') return `Thinking ${elapsed()}s`;
+    if (props.item.durationMs !== undefined)
+      return `Thought for ${formatDurationS(props.item.durationMs)}s`;
+    return 'Thought';
+  };
+
+  return (
+    <div
+      class="flex cursor-pointer items-center gap-1.5 text-sm text-foreground-passive select-none hover:text-foreground-muted"
+      style={{ height: `${props.headerH}px` }}
+      role="button"
+      aria-expanded={props.expanded ? 'true' : 'false'}
+      aria-live={props.item.status === 'thinking' ? 'polite' : undefined}
+      aria-atomic={props.item.status === 'thinking' ? 'false' : undefined}
+      data-collapse-id={props.item.id}
+    >
+      <span classList={{ 'text-shimmer': props.item.status === 'thinking' }}>{label()}</span>
+      <span
+        class="inline-block text-[10px] transition-transform duration-150 ease-out"
+        classList={{ 'rotate-90': props.expanded }}
+        aria-hidden="true"
+      >
+        ›
+      </span>
+    </div>
+  );
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
@@ -53,13 +122,29 @@ function ThinkingRender(props: {
   layout: Measured<ThinkingLayout>;
   ctx: RenderCtx;
 }) {
+  const theme = useTheme();
+  const headerH = () => theme().fonts.body.lineHeight + 8;
+
+  // Inverted semantics: stored "collapsed" flag is treated as "expanded".
+  const expanded = () => props.ctx.viewState.isCollapsed(props.item.id);
+
   return (
-    <Thinking
-      item={props.item}
-      collapsed={props.ctx.viewState.isCollapsed(props.item.id)}
-      body={props.layout.layout.body}
-      preview={props.layout.layout.preview}
-    />
+    <div class="text-foreground-passive" style={{ position: 'relative', height: `${props.layout.height}px` }}>
+      <Project
+        node={props.layout.layout.tree}
+        slots={{
+          'thinking:header': () => (
+            <ThinkingHeader
+              item={props.item}
+              expanded={expanded()}
+              headerH={headerH()}
+            />
+          ),
+        }}
+      >
+        {renderBlockLeaf}
+      </Project>
+    </div>
   );
 }
 
@@ -86,28 +171,37 @@ export const thinkingDef = defineComponent<ChatThinking, ThinkingLayout>({
   measure(item, ctx: MeasureCtx): Measured<ThinkingLayout> {
     const headerH = thinkingHeaderH(ctx);
     const isExpanded = ctx.expanded(item.id);
+    const headerSlot = 'thinking:header';
 
-    if (!isExpanded) {
-      const height =
-        item.status === 'thinking' ? headerH + THINKING_WINDOW_H : headerH;
-
-      if (item.status === 'thinking') {
-        const blocks = buildThinkingBlocks(item.id, item.text);
-        const preview = layoutThinkingBody(blocks, ctx);
-        return { height, width: ctx.width, layout: { kind: 'thinking', preview } };
-      }
-
-      return { height, width: ctx.width, layout: { kind: 'thinking' } };
+    // ── Done + not expanded: header only ─────────────────────────────────────
+    if (!isExpanded && item.status !== 'thinking') {
+      const tree = collapsible({ headerH, headerSlot, expanded: false });
+      return { height: tree.height, width: ctx.width, layout: { kind: 'thinking', tree } };
     }
 
-    // Expanded: full body layout
+    // ── Active + not expanded: header + scrollWindow preview ─────────────────
+    if (!isExpanded) {
+      const blocks = buildThinkingBlocks(item.id, item.text);
+      const body = layoutThinkingBody(blocks, ctx);
+      const preview = scrollWindow(body, THINKING_WINDOW_H, {
+        overlay: 'fade-top',
+        autoScrollBottom: true,
+      });
+      const tree = stack(
+        [
+          { id: `${item.id}:header`, measured: slot(headerSlot, headerH) },
+          { id: `${item.id}:preview`, measured: preview },
+        ],
+        { gap: 0 }
+      );
+      return { height: tree.height, width: ctx.width, layout: { kind: 'thinking', tree } };
+    }
+
+    // ── Expanded: header + full body ─────────────────────────────────────────
     const blocks = buildThinkingBlocks(item.id, item.text);
     const body = layoutThinkingBody(blocks, ctx);
-    return {
-      height: headerH + body.height,
-      width: ctx.width,
-      layout: { kind: 'thinking', body },
-    };
+    const tree = collapsible({ headerH, headerSlot, expanded: true, body });
+    return { height: tree.height, width: ctx.width, layout: { kind: 'thinking', tree } };
   },
 
   Render: ThinkingRender,

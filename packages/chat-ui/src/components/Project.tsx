@@ -1,37 +1,50 @@
 /**
  * Project — generic layout tree renderer.
  *
- * Walks a `Measured` tree by `layout.kind` and renders each node with full
+ * Walks a `Measured` tree by `layout.kind` and renders each node using full
  * projection (all geometry from the layout, no CSS-driven geometry).
  *
  * Combinator nodes (stack / pad / bubble / collapsible / window) are handled
- * by this component directly. Leaf nodes (prose / code / table / island) are
- * dispatched to the corresponding ComponentDef.Render via REGISTRY.
+ * recursively.  Slot nodes are dispatched to the `slots` map supplied by the
+ * calling Render shell.  All other `layout.kind` values are treated as generic
+ * block leaves and dispatched to `children`.
  *
- * Row-level composite components (message, thinking, file-op) use
- * `layoutBlocks` + `BlockStack` internally and do NOT go through `Project`;
- * `Project` is used by those composites only when they want to compose
- * block-level layouts using the new combinator-based approach.
- *
- * Currently `Project` handles the block-level stack / pad / bubble layouts
- * that composites construct via the compose.ts combinators. The existing
- * BlockStack.tsx remains in use for backward-compatible rendering inside
- * Message.tsx and Thinking.tsx.
+ * Leaf layouts produced by `core/layout/block-stack.ts` carry a `raw`
+ * back-reference to the source `Block`; `renderBlockLeaf` uses this to
+ * construct `Prose`/`Code`/`Table` without a separate block lookup.
  */
 
-import { For, Show, type JSX } from 'solid-js';
+import { For, Show, createEffect, onCleanup, type JSX } from 'solid-js';
+import type { Block, CodeBlock, ProseBlock } from '../core/blocks/block-types';
 import type {
-  StackLayout,
-  PadLayout,
   BubbleLayout,
   CollapsibleLayout,
+  PadLayout,
+  SlotLayout,
+  StackLayout,
   WindowLayout,
 } from '../core/compose';
 import type { Measured } from '../core/define';
+import type { CodeLaidOut, ProseLaidOut, TableLaidOut } from '../core/layout/layout-types';
+import { Code } from './code/Code';
+import { Prose } from './prose/Prose';
+import { Table } from './table/Table';
 
 // ── Type discriminator ────────────────────────────────────────────────────────
 
 type AnyLayout = { kind: string };
+
+// ── Block leaf layout (produced by block-stack.ts) ────────────────────────────
+
+/**
+ * Extended leaf layout types that carry a back-reference to the source Block.
+ * Produced by `measureBlockCached` in `core/layout/block-stack.ts`.
+ */
+export type ProseLeafLayout = ProseLaidOut & { kind: 'prose'; raw: ProseBlock };
+export type CodeLeafLayout = CodeLaidOut & { kind: 'code'; raw: CodeBlock };
+export type TableLeafLayout = TableLaidOut & { kind: 'table'; raw: Block };
+
+export type BlockLeafLayout = ProseLeafLayout | CodeLeafLayout | TableLeafLayout;
 
 // ── Sub-renderers ─────────────────────────────────────────────────────────────
 
@@ -87,14 +100,16 @@ function ProjectBubble(props: {
   node: Measured<BubbleLayout>;
   render: (child: Measured) => JSX.Element;
 }) {
-  const { padX, child } = props.node.layout;
+  const { padX, child, variantClass, width } = props.node.layout;
   return (
     <div
+      class={variantClass}
       style={{
         position: 'relative',
         height: `${props.node.height}px`,
         'padding-left': `${padX}px`,
         'padding-right': `${padX}px`,
+        ...(width !== undefined ? { width: `${width}px` } : {}),
       }}
     >
       {props.render(child)}
@@ -104,14 +119,19 @@ function ProjectBubble(props: {
 
 function ProjectCollapsible(props: {
   node: Measured<CollapsibleLayout>;
-  renderHeader: () => JSX.Element;
+  slots: Record<string, (node: Measured<SlotLayout>) => JSX.Element>;
   render: (child: Measured) => JSX.Element;
 }) {
-  const { headerH, bodyTop, expanded, child } = props.node.layout;
+  const { headerH, bodyTop, expanded, child, headerSlot } = props.node.layout;
+  const headerSlotNode: Measured<SlotLayout> = {
+    height: headerH,
+    width: props.node.width,
+    layout: { kind: 'slot', name: headerSlot, height: headerH },
+  };
   return (
     <div style={{ position: 'relative', height: `${props.node.height}px` }}>
       <div style={{ position: 'absolute', top: '0', left: 0, right: 0, height: `${headerH}px` }}>
-        {props.renderHeader()}
+        {props.slots[headerSlot]?.(headerSlotNode)}
       </div>
       <Show when={expanded && child}>
         {(c) => (
@@ -136,7 +156,28 @@ function ProjectWindow(props: {
   node: Measured<WindowLayout>;
   render: (child: Measured) => JSX.Element;
 }) {
-  const { maxH, child } = props.node.layout;
+  const { maxH, child, overlay, autoScrollBottom } = props.node.layout;
+  let scrollEl: HTMLDivElement | undefined;
+
+  // Auto-scroll to bottom when the child height changes (active thinking preview).
+  if (autoScrollBottom) {
+    createEffect(() => {
+      const _h = child.height; // track height reactively
+      if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
+      return _h;
+    });
+    onCleanup(() => {
+      scrollEl = undefined;
+    });
+  }
+
+  const fadeClass =
+    overlay === 'fade-top'
+      ? 'fade-overlay-top pointer-events-none absolute inset-x-0 top-0 z-10'
+      : overlay === 'fade-bottom'
+        ? 'fade-overlay-bottom pointer-events-none absolute inset-x-0 bottom-0 z-10'
+        : '';
+
   return (
     <div
       style={{
@@ -146,15 +187,69 @@ function ProjectWindow(props: {
         position: 'relative',
       }}
     >
-      {props.render(child)}
+      {overlay && (
+        <div
+          class={fadeClass}
+          style={{ height: '28px' }}
+          aria-hidden="true"
+        />
+      )}
+      <div
+        ref={(el) => {
+          scrollEl = el;
+        }}
+        style={{
+          'max-height': `${maxH}px`,
+          overflow: autoScrollBottom ? 'auto' : 'hidden',
+          'scrollbar-gutter': autoScrollBottom ? 'stable' : undefined,
+        }}
+      >
+        {props.render(child)}
+      </div>
     </div>
   );
+}
+
+// ── Block leaf renderer ───────────────────────────────────────────────────────
+
+/**
+ * Render a generic block leaf node produced by `layoutBlockStack`.
+ *
+ * The layout carries a `raw` back-reference to the source `Block` so
+ * Prose/Code/Table renderers can access `runs`, `variant`, and code text
+ * without a separate lookup.  This replaces `BlockStack.tsx`.
+ */
+export function renderBlockLeaf(node: Measured): JSX.Element {
+  const layout = node.layout as AnyLayout;
+  if (layout.kind === 'prose') {
+    const l = node.layout as ProseLeafLayout;
+    return <Prose block={l} runs={l.raw.runs} variant={l.raw.variant} />;
+  }
+  if (layout.kind === 'code') {
+    const l = node.layout as CodeLeafLayout;
+    return <Code block={l} rawBlock={l.raw} />;
+  }
+  if (layout.kind === 'table') {
+    const l = node.layout as TableLeafLayout;
+    return <Table block={l as TableLaidOut} />;
+  }
+  return null;
 }
 
 // ── Main dispatcher ───────────────────────────────────────────────────────────
 
 export type ProjectProps = {
-  node: Measured<AnyLayout>;
+  // oxlint-disable-next-line typescript/no-explicit-any -- accepts any layout tree node
+  node: Measured<any>;
+  /**
+   * Map from slot name to render function.  Consulted for `slot` nodes and
+   * for `collapsible` header slots.
+   */
+  slots?: Record<string, (node: Measured<SlotLayout>) => JSX.Element>;
+  /**
+   * Renderer for non-combinator leaf nodes (prose/code/table block leaves).
+   * Defaults to `renderBlockLeaf`.  Callers may override for custom leaves.
+   */
   children?: (child: Measured) => JSX.Element;
 };
 
@@ -162,16 +257,21 @@ export type ProjectProps = {
  * Render a `Measured` layout tree by `layout.kind`.
  *
  * Combinator nodes (stack / pad / bubble / collapsible / window) are rendered
- * recursively.  All other kinds are treated as leaves and rendered via the
- * `children` slot (which the caller provides from their own REGISTRY lookup).
- *
- * If `children` is not provided, leaf nodes render nothing — callers must
- * supply a `children` render prop for any leaf kinds they want to display.
+ * recursively.  Slot nodes are resolved via `props.slots`.  All other kinds
+ * are treated as block leaves and rendered via `renderBlockLeaf` (or the
+ * `children` override).
  */
 export function Project(props: ProjectProps): JSX.Element {
   const layout = props.node.layout as AnyLayout;
-  const renderChild = (child: Measured): JSX.Element =>
-    props.children ? props.children(child) : null;
+  const slots = props.slots ?? {};
+  const renderLeaf = props.children ?? renderBlockLeaf;
+
+  // oxlint-disable-next-line typescript/no-explicit-any -- tree walk; each branch narrows the type
+  const renderChild = (child: Measured<any>): JSX.Element => (
+    <Project node={child} slots={slots}>
+      {renderLeaf}
+    </Project>
+  );
 
   switch (layout.kind) {
     case 'stack':
@@ -184,13 +284,17 @@ export function Project(props: ProjectProps): JSX.Element {
       return (
         <ProjectCollapsible
           node={props.node as Measured<CollapsibleLayout>}
-          renderHeader={() => null}
+          slots={slots}
           render={renderChild}
         />
       );
     case 'window':
       return <ProjectWindow node={props.node as Measured<WindowLayout>} render={renderChild} />;
+    case 'slot': {
+      const slotLayout = layout as SlotLayout;
+      return slots[slotLayout.name]?.(props.node as Measured<SlotLayout>) ?? null;
+    }
     default:
-      return renderChild(props.node) ?? null;
+      return renderLeaf(props.node) ?? null;
   }
 }

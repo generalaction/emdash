@@ -1,11 +1,22 @@
+/**
+ * Diff — slot components for ChatDiff rows.
+ *
+ * DiffHeader   — clickable file header (rendered in the 'diff:header' slot).
+ * DiffLines    — diff line body with Shiki syntax highlighting
+ *                (rendered in the 'diff:body' slot inside ProjectWindow).
+ *
+ * Both components are pure content; outer geometry is handled by the compose
+ * tree built in diffDef (stack + scrollWindow + slot nodes rendered by Project).
+ */
+
 import { resolveFileIconClass } from '@emdash/ui/primitives';
 import { For, createEffect, onCleanup } from 'solid-js';
 import { type CodeToken, highlightCode, peekHighlight } from '../../core/highlight/highlighter';
 import type { ChatDiff } from '../../model';
 import { cancelIdle, scheduleIdle } from '../dom-utils';
 import { useCommands } from '../CommandsContext';
-import type { DiffRow } from './diff-lines';
 import type { DiffLayout } from './diff.def';
+import type { DiffRow } from './diff-lines';
 import styles from './diff.module.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -63,7 +74,14 @@ const ROW_CLASS: Record<DiffRow['type'], string> = {
 
 // ── DiffHeader ────────────────────────────────────────────────────────────────
 
-function DiffHeader(props: { item: ChatDiff; adds: number; dels: number; headerH: number }) {
+export type DiffHeaderProps = {
+  item: ChatDiff;
+  adds: number;
+  dels: number;
+  headerH: number;
+};
+
+export function DiffHeader(props: DiffHeaderProps) {
   const name = () => basename(props.item.path);
   const iconClass = () => resolveFileIconClass(name());
   const commands = useCommands();
@@ -98,18 +116,15 @@ function DiffHeader(props: { item: ChatDiff; adds: number; dels: number; headerH
   );
 }
 
-// ── Diff ──────────────────────────────────────────────────────────────────────
+// ── DiffLines ─────────────────────────────────────────────────────────────────
 
-export type DiffProps = {
+export type DiffLinesProps = {
   item: ChatDiff;
   layout: DiffLayout;
   codeLineHeight: () => number;
 };
 
-const DIFF_HEADER_H = 28;
-const DIFF_FADE_H = 24;
-
-export function Diff(props: DiffProps) {
+export function DiffLines(props: DiffLinesProps) {
   const lineEls = new Map<number, HTMLElement>();
 
   createEffect(() => {
@@ -160,13 +175,7 @@ export function Diff(props: DiffProps) {
   });
 
   return (
-    <div class="overflow-hidden rounded-lg border border-border">
-      <DiffHeader
-        item={props.item}
-        adds={props.layout.adds}
-        dels={props.layout.dels}
-        headerH={DIFF_HEADER_H}
-      />
+    <div class="overflow-hidden rounded-b-lg border-x border-b border-border">
       <div class={styles['pdiff__body']}>
         <For each={props.layout.previewRows}>
           {(row, i) => (
@@ -183,14 +192,37 @@ export function Diff(props: DiffProps) {
             </div>
           )}
         </For>
-        {props.layout.truncated && (
-          <div
-            class={`${styles['pdiff__fade']} fade-overlay-bottom`}
-            style={{ height: `${DIFF_FADE_H}px` }}
-            aria-hidden="true"
-          />
-        )}
       </div>
+    </div>
+  );
+}
+
+// ── Diff (legacy combined component for contract tests) ───────────────────────
+
+/**
+ * @deprecated Use diffDef.Render via Project instead.
+ * Kept for backward compatibility with open-file.contract.test.tsx.
+ */
+export type DiffProps = {
+  item: ChatDiff;
+  layout: DiffLayout;
+  codeLineHeight: () => number;
+};
+
+export function Diff(props: DiffProps) {
+  return (
+    <div class="overflow-hidden rounded-lg border border-border">
+      <DiffHeader
+        item={props.item}
+        adds={props.layout.adds}
+        dels={props.layout.dels}
+        headerH={28}
+      />
+      <DiffLines
+        item={props.item}
+        layout={props.layout}
+        codeLineHeight={props.codeLineHeight}
+      />
     </div>
   );
 }
