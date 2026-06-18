@@ -4,6 +4,7 @@ import {
   geminiMcpAdapter,
   npmDependency,
 } from '@emdash/core/agents/plugins/helpers';
+import { buildGeminiHookConfig } from './hooks';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -22,7 +23,9 @@ export const plugin = definePlugin(
       kind: 'none',
     },
     hooks: {
-      kind: 'none',
+      kind: 'config',
+      scope: 'workspace',
+      supportedEvents: ['notification', 'stop', 'session', 'start'],
     },
     hostDependency: npmDependency({ id: 'gemini', package: '@google/gemini-cli' }),
     mcp: {
@@ -54,8 +57,11 @@ export const provider = registerPluginBehavior(plugin, {
         autoApproveFlag: '--approval-mode=yolo --skip-trust',
         initialPromptFlag: '-i',
         resumeFlag: '--resume',
+        sessionIdFlag: '--resume',
+        sessionIdOnResumeOnly: true,
         extraEnv: ctx.autoApprove ? { GEMINI_CLI_TRUST_WORKSPACE: 'true' } : {},
       }),
   },
+  hooks: buildGeminiHookConfig(),
   mcp: geminiMcpAdapter(),
 });

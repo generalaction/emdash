@@ -16,15 +16,18 @@ export function buildCopilotHookConfig() {
   const stopCmd = makeStdinHookCommand('stop');
   const sessionCmd = makeStdinHookCommand('session');
   const permCmd = makeNotificationHookCommand('permission_prompt');
+  const notificationCmd = makeStdinHookCommand('notification');
 
   return {
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readJsonConfig(fs, COPILOT_HOOKS_PATH);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      const installed = ['agentStop', 'sessionStart', 'permissionRequest'].some((k) => {
-        const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
-      });
+      const installed = ['agentStop', 'sessionStart', 'permissionRequest', 'notification'].some(
+        (k) => {
+          const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
+          return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+        }
+      );
       return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
@@ -46,9 +49,11 @@ export function buildCopilotHookConfig() {
         ...filterUserHooks(permExisting as Record<string, unknown>[]),
         buildFlatEntry(permCmd),
       ];
-      if (Array.isArray(hooks.notification)) {
-        hooks.notification = filterUserHooks(hooks.notification as Record<string, unknown>[]);
-      }
+      const notificationExisting = Array.isArray(hooks.notification) ? hooks.notification : [];
+      hooks.notification = [
+        ...filterUserHooks(notificationExisting as Record<string, unknown>[]),
+        buildFlatEntry(notificationCmd),
+      ];
 
       await writeJsonConfig(fs, COPILOT_HOOKS_PATH, { ...config, version: 1, hooks });
       return [COPILOT_HOOKS_PATH];
@@ -64,7 +69,7 @@ export function buildCopilotHookConfig() {
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
       const config = await readJsonConfig(fs, COPILOT_HOOKS_PATH);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      return ['agentStop', 'sessionStart', 'permissionRequest'].some((k) => {
+      return ['agentStop', 'sessionStart', 'permissionRequest', 'notification'].some((k) => {
         const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
         return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
       });
