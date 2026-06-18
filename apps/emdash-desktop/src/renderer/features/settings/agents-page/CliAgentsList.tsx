@@ -1,13 +1,15 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Label } from '@renderer/lib/ui/label';
 import { Separator } from '@renderer/lib/ui/separator';
 import type { AgentPayload } from '@shared/core/agents/agent-payload';
-import { isValidProviderId } from '@shared/core/agents/agent-provider-registry';
-import type { AppSettings } from '@shared/core/app-settings';
+import {
+  isValidProviderId,
+  type AgentProviderId,
+} from '@shared/core/agents/agent-provider-registry';
 import { AgentDetailSheet } from './AgentDetailSheet';
-import { AgentRow } from './AgentRow';
+import { AgentRow, type DefaultAgentControl } from './AgentRow';
 
 const SectionLabel: React.FC<{ children: React.ReactNode; totalCount: number }> = ({
   children,
@@ -36,50 +38,45 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
   filter = 'all',
 }) => {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const defaultAgentSaveInFlight = useRef(false);
   const { data: agentPayloads } = useAgents();
   const {
     value: defaultAgentValue,
-    updateAsync: updateDefaultAgent,
+    update: updateDefaultAgent,
     isSaving: isSavingDefaultAgent,
   } = useAppSettingsKey('defaultAgent');
-  const defaultAgentId = isValidProviderId(defaultAgentValue) ? defaultAgentValue : 'claude';
+  const defaultAgentId: AgentProviderId = isValidProviderId(defaultAgentValue)
+    ? defaultAgentValue
+    : 'claude';
   const normalizedQuery = searchQuery.toLowerCase();
 
-  const handleSetDefault = useCallback(
-    (id: string) => {
-      if (!isValidProviderId(id) || defaultAgentSaveInFlight.current) return;
+  const getDefaultAgentControl = useCallback(
+    (agent: AgentPayload): DefaultAgentControl | undefined => {
+      if (!isValidProviderId(agent.id)) return undefined;
 
-      defaultAgentSaveInFlight.current = true;
-      void updateDefaultAgent(id as AppSettings['defaultAgent'])
-        .catch(() => {
-          // useAppSettingsKey handles rollback/invalidation; avoid an unhandled rejection here.
-        })
-        .finally(() => {
-          defaultAgentSaveInFlight.current = false;
-        });
+      const agentId = agent.id;
+      if (agentId === defaultAgentId) return { kind: 'current' };
+      if (agent.status !== 'available') return undefined;
+
+      return {
+        kind: 'set',
+        disabled: isSavingDefaultAgent,
+        onSelect: () => updateDefaultAgent(agentId),
+      };
     },
-    [updateDefaultAgent]
+    [defaultAgentId, isSavingDefaultAgent, updateDefaultAgent]
   );
 
-  // Only installed agents can be the default — the default is preselected when
-  // creating a task, and an uninstalled agent cannot run one.
   const renderRow = useCallback(
     (agent: AgentPayload) => (
       <div key={agent.id} className="w-full py-0.5">
         <AgentRow
           agent={agent}
           onClick={() => setSelectedAgentId(agent.id)}
-          isDefault={agent.id === defaultAgentId}
-          onSetDefault={
-            agent.status === 'available' && !isSavingDefaultAgent
-              ? () => handleSetDefault(agent.id)
-              : undefined
-          }
+          defaultAgentControl={getDefaultAgentControl(agent)}
         />
       </div>
     ),
-    [defaultAgentId, handleSetDefault, isSavingDefaultAgent]
+    [getDefaultAgentControl]
   );
 
   const allAgents = useMemo(
