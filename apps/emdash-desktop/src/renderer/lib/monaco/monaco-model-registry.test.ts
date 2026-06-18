@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { HEAD_REF, STAGED_REF } from '@shared/core/git/git';
+import { HEAD_REF, STAGED_REF } from '@shared/core/git/types';
 import { MonacoModelRegistry } from './monaco-model-registry';
 
 const rpcState = vi.hoisted(() => ({
@@ -10,13 +10,7 @@ const rpcState = vi.hoisted(() => ({
 vi.mock('@renderer/lib/ipc', () => ({
   rpc: {
     workspace: {
-      fs: {
-        readFile: vi.fn(async () => ({
-          success: true,
-          data: { content: 'base', truncated: false, totalSize: 4 },
-        })),
-      },
-      git: {
+      gitWorktree: {
         getFileAtIndex: vi.fn(async () => ({
           success: true,
           data: { content: rpcState.indexContent },
@@ -24,6 +18,12 @@ vi.mock('@renderer/lib/ipc', () => ({
         getFileAtRef: vi.fn(async () => ({
           success: true,
           data: { content: rpcState.refContent },
+        })),
+      },
+      fs: {
+        readFile: vi.fn(async () => ({
+          success: true,
+          data: { content: 'base', truncated: false, totalSize: 4 },
         })),
       },
       editor: {

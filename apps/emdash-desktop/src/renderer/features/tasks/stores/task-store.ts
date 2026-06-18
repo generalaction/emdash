@@ -1,5 +1,6 @@
+import { err, type Result } from '@emdash/shared';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
-import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
+import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import { DraftCommentsStore } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
@@ -10,7 +11,6 @@ import type {
   Task,
   TaskLifecycleStatus,
 } from '@shared/core/tasks/tasks';
-import { err, type Result } from '@shared/lib/result';
 import { conversationRegistry } from './conversation-registry';
 import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';
@@ -101,20 +101,12 @@ export class TaskStore {
     data: Task,
     path: string,
     workspaceId: string,
-    settingsStore: ProjectSettingsStore,
-    baseRef: string,
+    gitRepository: GitRepositoryStore,
     sshConnectionId?: string
   ): void {
     this.data = data;
     this.ensureRegisteredStores();
-    workspaceRegistry.acquire(
-      data.projectId,
-      workspaceId,
-      path,
-      settingsStore,
-      baseRef,
-      sshConnectionId
-    );
+    workspaceRegistry.acquire(data.projectId, workspaceId, path, gitRepository, sshConnectionId);
     this.workspaceId = workspaceId;
     this.state = 'provisioned';
     this.phase = null;

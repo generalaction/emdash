@@ -1,5 +1,7 @@
+import type { GitChange } from '@emdash/core/git';
 import { Minus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { toast } from 'sonner';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -8,7 +10,9 @@ import {
 } from '@renderer/features/tasks/task-view-context';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { commitRef, type GitChange, HEAD_REF } from '@shared/core/git/git';
+import { HEAD_REF } from '@shared/core/git/types';
+import { commitRef } from '@shared/core/git/utils';
+import { formatErrorType } from '../../utils';
 import { ActionCard } from './components/action-card';
 import { ChangesListOrTree } from './components/changes-list-or-tree';
 import { ChangesViewModeToggle } from './components/changes-view-mode-toggle';
@@ -22,7 +26,7 @@ export const StagedSection = observer(function StagedSection() {
   const workspaceId = useWorkspaceId();
   const taskView = useWorkspaceViewModel();
   const workspace = useWorkspace();
-  const git = workspace.git;
+  const git = workspace.gitWorktree;
   const diffView = taskView.diffView;
   const changesView = diffView?.changesView;
 
@@ -67,12 +71,21 @@ export const StagedSection = observer(function StagedSection() {
 
   const handleUnstageSelection = () => {
     const paths = [...changesView.stagedSelection];
-    void git.unstageFiles(paths);
-    changesView.clearStagedSelection();
+    void git.unstageFiles(paths).then((result) => {
+      if (!result.success) {
+        toast.error(`Failed to unstage changes: ${formatErrorType(result.error)} `);
+        return;
+      }
+      changesView.removeStagedSelection(paths);
+    });
   };
 
   const handleUnstageAll = () => {
-    void git.unstageAllFiles();
+    void git.unstageAllFiles().then((result) => {
+      if (!result.success) {
+        toast.error(`Failed to unstage changes: ${formatErrorType(result.error)} `);
+      }
+    });
   };
 
   return (

@@ -75,8 +75,19 @@ async function withResolvedRemote<T extends IssueQueryOpts>(opts: T): Promise<T>
   const project = projectManager.getProject(opts.projectId);
   if (!project) return opts;
 
-  const remote = await project.repository.getBaseRemote().catch(() => undefined);
-  return { ...opts, remote };
+  const remote = await project.gitRepository.getBaseRemote().catch(() => undefined);
+  const selectedRemote = opts.remote?.trim() || remote;
+  const providedRepositoryUrl = opts.repositoryUrl?.trim();
+
+  const remoteRepositoryUrl =
+    !providedRepositoryUrl && selectedRemote
+      ? (await project.gitRepository.getRemotes().catch(() => [])).find(
+          (candidate) => candidate.name === selectedRemote
+        )?.url
+      : undefined;
+  const repositoryUrl = providedRepositoryUrl ?? remoteRepositoryUrl;
+
+  return { ...opts, remote: selectedRemote, repositoryUrl };
 }
 
 export const issueController = createRPCController({

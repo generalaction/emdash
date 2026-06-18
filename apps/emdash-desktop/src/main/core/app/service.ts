@@ -2,13 +2,13 @@ import { exec } from 'node:child_process';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { extname, isAbsolute, join, resolve, sep } from 'node:path';
+import type { IDisposable, IInitializable } from '@emdash/shared';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, Menu, shell } from 'electron';
 import { getMainWindow } from '@main/app/window';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
 import { events } from '@main/lib/events';
-import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import { buildExternalToolEnv } from '@main/utils/childProcessEnv';
 import {

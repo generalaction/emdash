@@ -1,7 +1,8 @@
 import { browserControlsRegistry } from '@renderer/features/browser/browser-controls-registry';
+import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import {
   getRegisteredTaskData,
-  getTaskGitStore,
+  getTaskGitWorktreeStore,
   getTaskStore,
   getTaskView,
 } from '@renderer/features/tasks/stores/task-selectors';
@@ -13,6 +14,7 @@ import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
 import { normalizeBrowserUrl } from '@shared/browser';
 import { TASK_COMMAND_DEFS, type CommandDef, type TaskCommandId } from '@shared/commands';
+import { runGitFetch, runGitPublishBranch, runGitPull, runGitPush } from './git-action-handlers';
 
 function taskDef(id: TaskCommandId): CommandDef {
   return TASK_COMMAND_DEFS.find((d) => d.id === id)!;
@@ -38,10 +40,13 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       const tabManager = taskView?.tabManager;
       const hasTabs = (tabManager?.resolvedTabs.length ?? 0) > 0;
 
-      const taskIds = sidebarStore.visibleTaskIdsForProject(projectId);
-      const currentIdx = taskIds.indexOf(taskId);
+      const visibleTaskEntries = sidebarStore.visibleTaskEntries;
+      const currentIdx = visibleTaskEntries.findIndex(
+        (entry) => entry.projectId === projectId && entry.taskId === taskId
+      );
 
-      const git = getTaskGitStore(projectId, taskId);
+      const git = getTaskGitWorktreeStore(projectId, taskId);
+      const repository = git ? getGitRepositoryStore(projectId) : undefined;
       const taskData = getRegisteredTaskData(projectId, taskId);
       const activeBrowserTab = tabManager?.resolvedTabs.find(
         (tab) => tab.isActive && tab.kind === 'browser'
@@ -347,9 +352,9 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           label: gitFetchDef.label,
           description: gitFetchDef.description,
           group: gitFetchDef.group,
-          enabled: git != null,
+          enabled: repository != null,
           execute() {
-            void git?.fetchRemote();
+            if (repository) void runGitFetch(repository);
           },
         },
         {
@@ -359,7 +364,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           group: gitPullDef.group,
           enabled: git != null,
           execute() {
-            void git?.pull();
+            if (git) void runGitPull(git);
           },
         },
         {
@@ -372,10 +377,16 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           group: gitPushDef.group,
           enabled: git != null,
           execute() {
-            if (git?.isBranchPublished) {
-              void git.push();
+            if (!git) return;
+            if (git.isBranchPublished) {
+              void runGitPush(git);
             } else {
-              void git?.publishBranch();
+              if (!repository) return;
+              void runGitPublishBranch({
+                repository,
+                branchName: git.branchName,
+                workspaceId: taskStore.workspaceId ?? undefined,
+              });
             }
           },
         },
@@ -399,24 +410,26 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           id: nextTaskDef.id,
           label: nextTaskDef.label,
           description: nextTaskDef.description,
+          shortcutKey: nextTaskDef.shortcutKey,
           group: nextTaskDef.group,
-          enabled: currentIdx !== -1 && currentIdx < taskIds.length - 1,
+          enabled: currentIdx !== -1 && currentIdx < visibleTaskEntries.length - 1,
           hideFromPalette: true,
           execute() {
-            const nextId = taskIds[currentIdx + 1];
-            if (nextId) appState.navigation.navigate('task', { projectId, taskId: nextId });
+            const next = visibleTaskEntries[currentIdx + 1];
+            if (next) appState.navigation.navigate('task', next);
           },
         },
         {
           id: prevTaskDef.id,
           label: prevTaskDef.label,
           description: prevTaskDef.description,
+          shortcutKey: prevTaskDef.shortcutKey,
           group: prevTaskDef.group,
           enabled: currentIdx > 0,
           hideFromPalette: true,
           execute() {
-            const prevId = taskIds[currentIdx - 1];
-            if (prevId) appState.navigation.navigate('task', { projectId, taskId: prevId });
+            const previous = visibleTaskEntries[currentIdx - 1];
+            if (previous) appState.navigation.navigate('task', previous);
           },
         },
       ];

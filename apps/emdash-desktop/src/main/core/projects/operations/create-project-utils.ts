@@ -1,23 +1,30 @@
-import type { GitService } from '@main/core/git/impl/git-service';
+import type { IGitRepository, IGitRuntime } from '@emdash/core/git';
+import { gitErrorMessage } from '@emdash/core/git';
+import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@main/lib/logger';
 import {
   remoteNameFromQualifiedRef,
   resolveBaseRefFromRemoteDefault,
-} from '@shared/core/git/git-utils';
+} from '@shared/core/git/utils';
+import type { CreateProjectError } from '@shared/projects';
 
 export async function resolveProjectBaseRef(
-  git: GitService,
+  git: IGitRepository,
   detectedBaseRef: string
 ): Promise<string> {
   const remoteName = remoteNameFromQualifiedRef(detectedBaseRef);
   if (!remoteName) return detectedBaseRef;
 
   try {
-    const [gitDefaultBranch, branches] = await Promise.all([
+    const [gitDefaultBranch, refs] = await Promise.all([
       git.getDefaultBranch(remoteName),
-      git.getBranches(),
+      git.getRefs(),
     ]);
-    return resolveBaseRefFromRemoteDefault({ detectedBaseRef, gitDefaultBranch, branches });
+    return resolveBaseRefFromRemoteDefault({
+      detectedBaseRef,
+      gitDefaultBranch,
+      branches: refs.branches,
+    });
   } catch (error) {
     log.debug('Failed to resolve project base ref, using detected base ref', {
       detectedBaseRef,
@@ -28,22 +35,33 @@ export async function resolveProjectBaseRef(
   return detectedBaseRef;
 }
 
-export async function ensureGitRepository(
-  git: GitService,
+export async function ensureProjectRepository(
+  git: IGitRuntime,
+  path: string,
   initGitRepository?: boolean
-): ReturnType<GitService['detectInfo']> {
-  let gitInfo = await git.detectInfo();
-  if (!gitInfo.isGitRepo) {
-    if (!initGitRepository) {
-      throw new Error(
-        'Directory is not a git repository. Enable "Initialize git repository" to continue.'
-      );
-    }
-    await git.initRepository();
-    gitInfo = await git.detectInfo();
+): Promise<Result<{ rootPath: string; baseRef: string }, CreateProjectError>> {
+  const ensured = await git.ensureRepository(path, { initIfMissing: initGitRepository ?? false });
+  if (!ensured.success) {
+    return err(ensured.error);
   }
-  if (!gitInfo.isGitRepo) {
-    throw new Error('Failed to initialize git repository');
+
+  const repoLeaseResult = await git.openRepository(ensured.data.rootPath).then(
+    (lease) => ok(lease),
+    (error: unknown) => err(error)
+  );
+  if (!repoLeaseResult.success) {
+    return err({
+      type: 'open-repository-failed',
+      path: ensured.data.rootPath,
+      message: gitErrorMessage(repoLeaseResult.error),
+    });
   }
-  return gitInfo;
+  const repoLease = repoLeaseResult.data;
+
+  try {
+    const baseRef = await resolveProjectBaseRef(repoLease.value, ensured.data.baseRef);
+    return ok({ rootPath: ensured.data.rootPath, baseRef });
+  } finally {
+    repoLease.release();
+  }
 }

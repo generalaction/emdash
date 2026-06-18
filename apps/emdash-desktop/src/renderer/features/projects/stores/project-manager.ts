@@ -1,3 +1,4 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { makeObservable, observable, runInAction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -19,6 +20,8 @@ import {
 } from './project';
 import type {
   ModeData,
+  ProjectCreationCompletion,
+  ProjectCreationError,
   ProjectType,
   StartProjectCreationOptions,
   StartProjectCreationResult,
@@ -76,8 +79,8 @@ export class ProjectManagerStore {
     const result = await this.startProjectCreation(projectType, data, { id });
     if (result.kind === 'existing') return result.projectId;
 
-    await result.completion;
-    return result.projectId;
+    const completion = await result.completion;
+    return completion.success ? result.projectId : undefined;
   }
 
   async startProjectCreation(
@@ -119,96 +122,89 @@ export class ProjectManagerStore {
     data: ModeData,
     projectId: string,
     targetPath: string
-  ): Promise<void> {
+  ): Promise<ProjectCreationCompletion> {
     const isSsh = projectType.type === 'ssh';
     const projectTelemetryType: 'local' | 'ssh' = isSsh ? 'ssh' : 'local';
     const projectTelemetryStrategy: 'open' | 'create' | 'clone' =
       data.mode === 'clone' ? 'clone' : data.mode === 'new' ? 'create' : 'open';
 
-    switch (data.mode) {
-      case 'pick': {
-        try {
-          const project = isSsh
-            ? await rpc.projects.createProject({
-                type: 'ssh',
-                id: projectId,
-                path: targetPath,
-                name: data.name,
-                connectionId: projectType.connectionId,
-                initGitRepository: data.initGitRepository,
-              })
-            : await rpc.projects.createProject({
-                type: 'local',
-                id: projectId,
-                path: targetPath,
-                name: data.name,
-                initGitRepository: data.initGitRepository,
-              });
+    let result: ProjectCreationCompletion;
+    try {
+      switch (data.mode) {
+        case 'pick': {
+          const projectResult =
+            projectType.type === 'ssh'
+              ? await rpc.projects.createProject({
+                  type: 'ssh',
+                  id: projectId,
+                  path: targetPath,
+                  name: data.name,
+                  connectionId: projectType.connectionId,
+                  initGitRepository: data.initGitRepository,
+                })
+              : await rpc.projects.createProject({
+                  type: 'local',
+                  id: projectId,
+                  path: targetPath,
+                  name: data.name,
+                  initGitRepository: data.initGitRepository,
+                });
+          if (!projectResult.success) {
+            result = err(projectResult.error);
+            break;
+          }
+
+          const project = projectResult.data;
           if (data.initGitRepository) {
             await this._saveInitialGitHubAccountSetting(project.id, data.githubAccountId);
           }
           this._setAndOpenProject(projectId, project);
-          captureTelemetry('project_added', {
-            type: projectTelemetryType,
-            strategy: projectTelemetryStrategy,
-            success: true,
-          });
-        } catch (err) {
-          this._markError(projectId, err);
-          captureTelemetry('project_added', {
-            type: projectTelemetryType,
-            strategy: projectTelemetryStrategy,
-            success: false,
-          });
-          throw err;
+          result = ok();
+          break;
         }
-        break;
-      }
 
-      case 'clone': {
-        try {
-          const connectionId = isSsh ? projectType.connectionId : undefined;
+        case 'clone': {
+          const connectionId = projectType.type === 'ssh' ? projectType.connectionId : undefined;
           const cloneResult = await rpc.github.cloneRepository(
             data.repositoryUrl,
             targetPath,
             connectionId
           );
-          if (!cloneResult.success) throw new Error(cloneResult.error);
-          this._updatePhase(projectId, 'registering');
-          const project = isSsh
-            ? await rpc.projects.createProject({
-                type: 'ssh',
-                id: projectId,
-                path: targetPath,
-                name: data.name,
-                connectionId: projectType.connectionId,
-              })
-            : await rpc.projects.createProject({
-                type: 'local',
-                id: projectId,
-                path: targetPath,
-                name: data.name,
-              });
-          this._setAndOpenProject(projectId, project);
-          captureTelemetry('project_added', {
-            type: projectTelemetryType,
-            strategy: projectTelemetryStrategy,
-            success: true,
-          });
-        } catch (err) {
-          this._markError(projectId, err);
-          captureTelemetry('project_added', {
-            type: projectTelemetryType,
-            strategy: projectTelemetryStrategy,
-            success: false,
-          });
-          throw err;
-        }
-        break;
-      }
+          if (!cloneResult.success) {
+            result = err({
+              type: 'clone-failed',
+              message: cloneResult.error?.trim() || 'Clone failed',
+            });
+            break;
+          }
 
-      case 'new': {
-        try {
+          this._updatePhase(projectId, 'registering');
+          const projectResult =
+            projectType.type === 'ssh'
+              ? await rpc.projects.createProject({
+                  type: 'ssh',
+                  id: projectId,
+                  path: targetPath,
+                  name: data.name,
+                  connectionId: projectType.connectionId,
+                })
+              : await rpc.projects.createProject({
+                  type: 'local',
+                  id: projectId,
+                  path: targetPath,
+                  name: data.name,
+                });
+          if (!projectResult.success) {
+            result = err(projectResult.error);
+            break;
+          }
+
+          this._setAndOpenProject(projectId, projectResult.data);
+          result = ok();
+          break;
+        }
+
+        case 'new': {
           const repoResult = await rpc.github.createRepository({
             name: data.repositoryName,
             owner: data.repositoryOwner,
@@ -216,13 +212,21 @@ export class ProjectManagerStore {
             accountId: data.githubAccountId ?? undefined,
           });
           if (!repoResult.success) {
-            throw new Error(repoResult.error);
+            result = err({
+              type: 'repository-create-failed',
+              message: repoResult.error?.trim() || 'Repository creation failed',
+            });
+            break;
           }
           if (!repoResult.nameWithOwner || !repoResult.cloneUrl) {
-            throw new Error('Repository creation response was incomplete');
+            result = err({
+              type: 'repository-response-incomplete',
+              message: 'Repository creation response was incomplete',
+            });
+            break;
           }
 
-          const project = await this._cloneInitializeAndCreateGitHubProject({
+          const projectResult = await this._cloneInitializeAndCreateGitHubProject({
             projectType,
             projectId,
             targetPath,
@@ -231,25 +235,35 @@ export class ProjectManagerStore {
             repositoryNameWithOwner: repoResult.nameWithOwner,
             githubAccountId: data.githubAccountId,
           });
+          if (!projectResult.success) {
+            result = err(projectResult.error);
+            break;
+          }
+
+          const project = projectResult.data;
           await this._saveInitialGitHubAccountSetting(project.id, data.githubAccountId);
           this._setAndOpenProject(projectId, project);
-          captureTelemetry('project_added', {
-            type: projectTelemetryType,
-            strategy: projectTelemetryStrategy,
-            success: true,
-          });
-        } catch (err) {
-          this._markError(projectId, err);
-          captureTelemetry('project_added', {
-            type: projectTelemetryType,
-            strategy: projectTelemetryStrategy,
-            success: false,
-          });
-          throw err;
+          result = ok();
+          break;
         }
-        break;
       }
+    } catch (error) {
+      this._markUnexpectedCreationError(projectId, error);
+      captureTelemetry('project_added', {
+        type: projectTelemetryType,
+        strategy: projectTelemetryStrategy,
+        success: false,
+      });
+      throw error;
     }
+
+    if (!result.success) this._markCreationError(projectId, result.error);
+    captureTelemetry('project_added', {
+      type: projectTelemetryType,
+      strategy: projectTelemetryStrategy,
+      success: result.success,
+    });
+    return result;
   }
 
   mountProject(projectId: string): Promise<void> {
@@ -453,10 +467,11 @@ export class ProjectManagerStore {
     cloneUrl: string;
     repositoryNameWithOwner: string;
     githubAccountId?: string;
-  }): Promise<LocalProject | SshProject> {
+  }): Promise<Result<LocalProject | SshProject, ProjectCreationError>> {
     const connectionId =
       opts.projectType.type === 'ssh' ? opts.projectType.connectionId : undefined;
 
+    let result: Result<LocalProject | SshProject, ProjectCreationError>;
     try {
       this._updatePhase(opts.projectId, 'cloning');
       const cloneResult = await rpc.github.cloneRepository(
@@ -464,37 +479,56 @@ export class ProjectManagerStore {
         opts.targetPath,
         connectionId
       );
-      if (!cloneResult.success) throw new Error(cloneResult.error);
-
-      const initResult = await rpc.github.initializeProject({
-        targetPath: opts.targetPath,
-        name: opts.name,
-        connectionId,
-      });
-      if (!initResult.success) throw new Error(initResult.error);
-
-      this._updatePhase(opts.projectId, 'registering');
-      return opts.projectType.type === 'ssh'
-        ? await rpc.projects.createProject({
-            type: 'ssh',
-            id: opts.projectId,
-            path: opts.targetPath,
-            name: opts.name,
-            connectionId: opts.projectType.connectionId,
-          })
-        : await rpc.projects.createProject({
-            type: 'local',
-            id: opts.projectId,
-            path: opts.targetPath,
-            name: opts.name,
+      if (!cloneResult.success) {
+        result = err({
+          type: 'clone-failed',
+          message: cloneResult.error?.trim() || 'Clone failed',
+        });
+      } else {
+        const initResult = await rpc.github.initializeProject({
+          targetPath: opts.targetPath,
+          name: opts.name,
+          connectionId,
+        });
+        if (!initResult.success) {
+          result = err({
+            type: 'initialize-failed',
+            message: initResult.error?.trim() || 'Project initialization failed',
           });
-    } catch (err) {
+        } else {
+          this._updatePhase(opts.projectId, 'registering');
+          result =
+            opts.projectType.type === 'ssh'
+              ? await rpc.projects.createProject({
+                  type: 'ssh',
+                  id: opts.projectId,
+                  path: opts.targetPath,
+                  name: opts.name,
+                  connectionId: opts.projectType.connectionId,
+                })
+              : await rpc.projects.createProject({
+                  type: 'local',
+                  id: opts.projectId,
+                  path: opts.targetPath,
+                  name: opts.name,
+                });
+        }
+      }
+    } catch (error) {
       await this._rollbackCreatedGitHubRepository(
         opts.repositoryNameWithOwner,
         opts.githubAccountId
       );
-      throw err;
+      throw error;
     }
+
+    if (!result.success) {
+      await this._rollbackCreatedGitHubRepository(
+        opts.repositoryNameWithOwner,
+        opts.githubAccountId
+      );
+    }
+    return result;
   }
 
   private _updatePhase(id: string, phase: UnregisteredProjectPhase): void {
@@ -504,12 +538,25 @@ export class ProjectManagerStore {
     });
   }
 
-  private _markError(id: string, err: unknown): void {
+  private _markCreationError(id: string, error: ProjectCreationError): void {
     runInAction(() => {
       const store = this.projects.get(id);
       if (store && isUnregisteredProject(store)) {
         store.phase = 'error';
-        store.error = err instanceof Error ? err.message : String(err);
+        store.error =
+          error.type === 'not-repository'
+            ? 'Directory is not a git repository. Enable "Initialize git repository" to continue.'
+            : error.message;
+      }
+    });
+  }
+
+  private _markUnexpectedCreationError(id: string, error: unknown): void {
+    runInAction(() => {
+      const store = this.projects.get(id);
+      if (store && isUnregisteredProject(store)) {
+        store.phase = 'error';
+        store.error = error instanceof Error ? error.message : String(error);
       }
     });
   }

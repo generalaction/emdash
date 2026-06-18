@@ -1,7 +1,7 @@
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
 
 // ---------------------------------------------------------------------------
-// Install methods — mirrors INSTALL_METHODS in @emdash/shared/deps/capability.ts
+// Install methods — mirrors INSTALL_METHODS in @emdash/core/deps/capability.ts
 // ---------------------------------------------------------------------------
 
 export type InstallMethod =
@@ -28,13 +28,13 @@ export type InstallOption = {
 };
 
 // ---------------------------------------------------------------------------
-// Installation state — mirrors @emdash/shared/deps/runtime types.ts
+// Installation state — mirrors @emdash/core/deps/runtime types.ts
 // ---------------------------------------------------------------------------
 
 export type DependencyStatus = 'available' | 'missing' | 'error';
 
 /**
- * Installation provenance — mirrors Provenance in @emdash/shared/deps/runtime types.ts.
+ * Installation provenance — mirrors Provenance in @emdash/core/deps/runtime types.ts.
  */
 export type Provenance = {
   kind: InstallMethod | 'manual' | 'version-manager' | 'unknown';
@@ -92,7 +92,7 @@ export type Installation = {
 
 /**
  * Resolves the active Installation from a list given a SelectedSource.
- * Mirrors resolveActiveInstallation from @emdash/shared/deps/runtime.
+ * Mirrors resolveActiveInstallation from @emdash/core/deps/runtime.
  */
 export function resolveActiveInstallation(
   installations: Installation[],
@@ -112,7 +112,7 @@ export function resolveActiveInstallation(
 export type HostDependencySelection = InstallOverride | null;
 
 // ---------------------------------------------------------------------------
-// Error DTOs — mirrors Dependency*Error types in @emdash/shared/deps/runtime
+// Error DTOs — mirrors Dependency*Error types in @emdash/core/deps/runtime
 // ---------------------------------------------------------------------------
 
 type InstallCommandError =
@@ -171,7 +171,7 @@ export type AgentCapabilities = {
 };
 
 // ---------------------------------------------------------------------------
-// Icon asset DTO — mirrors AgentIconAsset from @emdash/shared/agents/plugins
+// Icon asset DTO — mirrors AgentIconAsset from @emdash/core/agents/plugins
 // ---------------------------------------------------------------------------
 
 export type AgentIconVariant = {

@@ -1,4 +1,4 @@
-import { normalizeSelection } from '@emdash/shared/deps/runtime';
+import { normalizeSelection } from '@emdash/core/deps/runtime';
 import z from 'zod';
 import { defineVersionedSchema } from '@shared/lib/versioned-schema/versioned-schema';
 

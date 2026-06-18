@@ -69,12 +69,21 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
         return;
       }
 
+      const providerAccount = 'providerAccount' in result ? result.providerAccount : undefined;
+      const providerAccountStatus =
+        'providerAccountStatus' in result ? result.providerAccountStatus : undefined;
+
       toast({
-        title: 'Connected to GitHub',
+        title:
+          providerAccountStatus === 'updated'
+            ? 'GitHub account already connected'
+            : 'Connected to GitHub',
         description:
-          'providerAccount' in result && result.providerAccount
-            ? `Linked @${result.providerAccount.login}.`
-            : 'GitHub is connected.',
+          providerAccountStatus === 'updated' && providerAccount
+            ? `@${providerAccount.login} was already connected.`
+            : providerAccount
+              ? `Linked @${providerAccount.login}.`
+              : 'GitHub is connected.',
       });
       onSuccess();
     } finally {

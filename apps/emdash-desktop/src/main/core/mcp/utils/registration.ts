@@ -1,4 +1,4 @@
-import type { McpServerRegistration } from '@emdash/shared/agents/plugins';
+import type { McpServerRegistration } from '@emdash/core/agents/plugins';
 import type { McpServer } from '@shared/core/mcp/types';
 
 /** Convert a plugin registration to the canonical desktop McpServer shape. */
