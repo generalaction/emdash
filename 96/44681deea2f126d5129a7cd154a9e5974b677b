@@ -1,0 +1,29 @@
+apps/emdash-desktop/src/renderer/features/settings/agents-page/CliAgentsList.tsx
+  s_44c48347642784::t_f20545457f785d 1-2,6-8
+  s_44c48347642784::t_7d1f8ef854a967 109
+  s_44c48347642784::t_0a2bf395ac83e9 145
+  s_44c48347642784::t_fc8e7b1502105c 40-41,61
+  s_44c48347642784::t_452222ea3f6cc2 137
+  s_44c48347642784::t_d0ddaef6073157 123
+  s_44c48347642784::t_73d2cd83d2b47a 103
+  s_44c48347642784::t_11daad0f91f539 42,45-60,62-66
+apps/emdash-desktop/src/renderer/features/settings/agents-page/AgentRow.tsx
+  s_44c48347642784::t_cd1a721ef8050a 51-53,55-60,68,71,74-75
+  s_44c48347642784::t_eb972cf916ccb0 1,7-19,33-36,38-47,50,54,61-67,69-70,72-73,76-77,81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "9644681deea2f126d5129a7cd154a9e5974b677b",
+  "prompts": {},
+  "sessions": {
+    "s_44c48347642784": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc0bf4b5-5643-43d6-86fd-2022325450cf",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
