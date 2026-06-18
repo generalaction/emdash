@@ -1,6 +1,6 @@
+import { err, ok } from '@emdash/shared';
 import type { Octokit } from '@octokit/rest';
 import { describe, expect, it, vi } from 'vitest';
-import { err, ok } from '@shared/lib/result';
 import { issueService } from './issue-service';
 import { getOctokit } from './octokit-provider';
 

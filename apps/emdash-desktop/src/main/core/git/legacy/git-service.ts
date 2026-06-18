@@ -19,6 +19,7 @@ import {
   type MergeBaseRange,
   type RemoteBranch,
 } from '@emdash/core/git';
+import { err, ok, type Result } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GIT_EXECUTABLE } from '@main/core/utils/exec';
@@ -38,7 +39,6 @@ import {
   type PushError,
 } from '@shared/core/git/types';
 import { toRangeString, toRefString } from '@shared/core/git/utils';
-import { err, ok, type Result } from '@shared/lib/result';
 import { parseRepositoryRef } from '@shared/repository-ref';
 import {
   mapStatus,

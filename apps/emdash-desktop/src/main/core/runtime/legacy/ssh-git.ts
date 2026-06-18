@@ -44,15 +44,8 @@ import type {
   GitStatusModel,
   GitStatusUntrackedMode,
 } from '@emdash/core/git';
-import {
-  err,
-  LiveModel,
-  ok,
-  ResourceMap,
-  type Lease,
-  type Result,
-  type Unsubscribe,
-} from '@emdash/core/lib';
+import { LiveModel, ResourceMap, type Lease, type Unsubscribe } from '@emdash/core/lib';
+import { err, ok, type Result } from '@emdash/shared';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { GitService } from '@main/core/git/legacy/git-service';

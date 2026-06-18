@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@shared/lib/result';
+import { err, ok, type Result } from '@emdash/shared';
 import { type AccountProviderTokenPersistenceError, unknownErrorMessage } from '../account-errors';
 import type { AuthProviderToken } from '../account-types';
 import {

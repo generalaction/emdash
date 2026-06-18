@@ -1,4 +1,5 @@
 import type { GitRemote } from '@emdash/core/git';
+import type { Result } from '@emdash/shared';
 import { observer } from 'mobx-react-lite';
 import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
@@ -13,7 +14,6 @@ import type {
   ProjectSettingsWriteTargetOption,
   WriteProjectConfigRequest,
 } from '@shared/core/project-settings/project-settings';
-import type { Result } from '@shared/lib/result';
 import type { Project, UpdateProjectSettingsError } from '@shared/projects';
 import { ProjectSettingsFooter } from './project-settings-footer';
 import { BaseProjectSettingsSection } from './sections/base-project-settings-section';

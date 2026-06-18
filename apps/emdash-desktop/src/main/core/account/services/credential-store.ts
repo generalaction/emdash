@@ -1,6 +1,6 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { log } from '@main/lib/logger';
-import { err, ok, type Result } from '@shared/lib/result';
 import { type AccountSessionPersistenceError, unknownErrorMessage } from '../account-errors';
 
 const ACCOUNT_SESSION_SECRET_KEY = 'emdash-account-token';

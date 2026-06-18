@@ -1,7 +1,8 @@
+import { err, ok, type Result } from '@emdash/shared';
 import type { BoundExec } from '../exec';
 import type { IFileWatchService, WatchHandle } from '../fs';
 import { realpathOrResolve } from '../fs';
-import { err, LiveModel, ok, type Result, type Unsubscribe } from '../lib';
+import { LiveModel, type Unsubscribe } from '../lib';
 import type { KeyedMutex } from '../lib';
 import { CatFileBatch } from './cat-file-batch';
 import {

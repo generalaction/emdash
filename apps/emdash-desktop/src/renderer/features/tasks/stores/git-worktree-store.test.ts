@@ -1,7 +1,7 @@
 import type { GitHeadModel, GitStatusData, GitStatusModel } from '@emdash/core/git';
+import { err } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { gitWorktreeUpdateChannel, type GitWorktreeUpdateEvent } from '@shared/core/git/events';
-import { err } from '@shared/lib/result';
 import { GitWorktreeStore } from './git-worktree-store';
 
 const mocks = vi.hoisted(() => ({

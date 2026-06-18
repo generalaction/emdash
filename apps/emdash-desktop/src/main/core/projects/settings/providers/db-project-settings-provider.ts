@@ -1,3 +1,4 @@
+import { err, ok, type Result } from '@emdash/shared';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
@@ -13,7 +14,6 @@ import {
   type ShareableProjectSettings,
 } from '@shared/core/project-settings/project-settings';
 import { SHAREABLE_FIELD_ACCESSORS } from '@shared/core/project-settings/project-settings-fields';
-import { err, ok, type Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import {
   migrateLegacyProjectSettingsIfNeeded,

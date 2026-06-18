@@ -1,8 +1,8 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import type { IDisposable } from '@main/lib/lifecycle';
 import { LifecycleMap } from '@main/lib/lifecycle-map';
 import { log } from '@main/lib/logger';
-import { err, ok, type Result } from '@shared/lib/result';
 import type { LocalProject, SshProject } from '@shared/projects';
 import { createProvider } from './create-project-provider';
 import type { ProjectProvider } from './project-provider';

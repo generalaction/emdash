@@ -1,5 +1,5 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { err, ok, type Result } from '@shared/lib/result';
 import { EmdashAccountService } from './emdash-account-service';
 
 const mockCredGet = vi.fn();

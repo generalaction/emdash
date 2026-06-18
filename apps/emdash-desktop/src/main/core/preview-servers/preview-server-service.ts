@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@main/lib/logger';
 import type {
   DirectPreviewServer,
@@ -12,7 +13,6 @@ import type {
   PreviewServerSource,
 } from '@shared/core/preview-servers/types';
 import type { ConnectionState } from '@shared/core/ssh/ssh';
-import { err, ok, type Result } from '@shared/lib/result';
 import { PortForwardService } from '../port-forwards/port-forward-service';
 import type { PortForwardRecord } from '../port-forwards/port-forward-service';
 import type { SshClientProxy } from '../ssh/lifecycle/ssh-client-proxy';

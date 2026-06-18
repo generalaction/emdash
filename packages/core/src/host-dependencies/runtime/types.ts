@@ -1,5 +1,5 @@
+import type { Result } from '@emdash/shared';
 import z from 'zod';
-import type { Result } from '../../lib/result';
 import type {
   InstallMethod,
   InstallOption,

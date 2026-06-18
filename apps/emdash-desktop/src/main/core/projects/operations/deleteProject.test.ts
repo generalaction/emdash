@@ -1,5 +1,5 @@
+import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ok } from '@shared/lib/result';
 import { deleteProject } from './deleteProject';
 
 const mocks = vi.hoisted(() => ({

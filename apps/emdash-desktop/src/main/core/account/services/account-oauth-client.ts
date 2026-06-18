@@ -1,5 +1,5 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
-import { err, ok, type Result } from '@shared/lib/result';
 import { type AccountOAuthError, unknownErrorMessage } from '../account-errors';
 import { ACCOUNT_CONFIG } from '../config';
 

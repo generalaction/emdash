@@ -1,4 +1,4 @@
-import type { Result } from './lib/result';
+import type { Result } from '@emdash/shared';
 
 export type ProjectPathStatus = {
   isDirectory: boolean;

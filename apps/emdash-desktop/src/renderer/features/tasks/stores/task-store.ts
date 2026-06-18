@@ -1,3 +1,4 @@
+import { err, type Result } from '@emdash/shared';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import { DraftCommentsStore } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
@@ -10,7 +11,6 @@ import type {
   Task,
   TaskLifecycleStatus,
 } from '@shared/core/tasks/tasks';
-import { err, type Result } from '@shared/lib/result';
 import { conversationRegistry } from './conversation-registry';
 import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';

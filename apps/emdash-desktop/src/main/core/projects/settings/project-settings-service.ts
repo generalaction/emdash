@@ -1,3 +1,4 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import type { IInitializable } from '@main/lib/lifecycle';
@@ -12,7 +13,6 @@ import {
 } from '@shared/core/project-settings/project-settings';
 import { hasConfiguredShareableProjectSettings } from '@shared/core/project-settings/project-settings-fields';
 import { projectSettingsChangedChannel } from '@shared/core/projects/projectEvents';
-import { err, ok, type Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { projectManager } from '../project-manager';
 import type { ProjectProvider } from '../project-provider';

@@ -1,5 +1,5 @@
+import { err } from '@emdash/shared';
 import { log } from '@main/lib/logger';
-import { err } from '@shared/lib/result';
 import type { GitRepositoryService } from './service';
 
 const DEFAULT_INTERVAL_MS = 2 * 60 * 1000;

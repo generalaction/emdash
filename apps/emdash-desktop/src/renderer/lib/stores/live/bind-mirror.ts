@@ -1,6 +1,6 @@
 import type { LiveValue, Unsubscribe } from '@emdash/core/lib';
+import type { Result } from '@emdash/shared';
 import { makeObservable, observable, runInAction } from 'mobx';
-import type { Result } from '@shared/lib/result';
 import type { ModelMirror } from './model-mirror';
 
 export type MirrorBindingStatus =

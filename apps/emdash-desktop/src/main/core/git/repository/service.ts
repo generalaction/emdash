@@ -1,5 +1,6 @@
 import type { GitRemotesModel, GitSequences, IGitRepository } from '@emdash/core/git';
 import type { Unsubscribe } from '@emdash/core/lib';
+import { err, ok, type Result } from '@emdash/shared';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type {
   CreateBranchError,
@@ -9,7 +10,6 @@ import type {
   PushError,
 } from '@shared/core/git/types';
 import { resolveConfiguredRemotes } from '@shared/core/git/utils';
-import { err, ok, type Result } from '@shared/lib/result';
 import type { ProjectRemoteState } from '@shared/projects';
 import {
   mapCreateBranchError,

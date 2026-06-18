@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@shared/lib/result';
+import { err, ok, type Result } from '@emdash/shared';
 import type { AccountInvalidAuthResponseError } from '../account-errors';
 import type { AccountUser, AuthProviderToken, SignInExchange } from '../account-types';
 import type { ProviderAccountPayload } from '../provider-token-registry';
