@@ -35,7 +35,9 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --project node --project browser",
+    "test:perf": "vitest run --project perf",
+    "test:bench": "vitest bench --project browser"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.8",

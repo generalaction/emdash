@@ -13,14 +13,21 @@
  * back-reference to the source `Block`; `renderBlockLeaf` uses this to
  * construct `Prose`/`Code`/`Table` without a separate block lookup.
  *
- * Reactivity note: all sub-renderers read `props.node.layout` through an
- * accessor function rather than destructuring at the call site.  This ensures
- * that when a parent re-measures and passes a new Measured object with a
- * different layout value (e.g. collapsible toggling expanded/collapsed), the
- * JSX expressions inside each sub-renderer re-evaluate correctly.
+ * Performance design:
+ *   - Dispatch: one `createMemo` over `layout.kind` feeds `<Dynamic>`.
+ *     This replaces the previous `<Switch>+6<Match>` (which created many
+ *     reactive scopes per node) and an eagerly-evaluated `fallback`.
+ *     The leaf/slot fast-path also skips all 6 condition checks.
+ *   - Styles: each sub-renderer batches all `l()`-derived style properties
+ *     into a single `createMemo` so Solid tracks one computation rather than
+ *     N per-property reactive bindings.
+ *   - Reactivity for correctness: `l() = () => props.node.layout` ensures that
+ *     when a parent passes a new `Measured` node (e.g. collapsible toggling
+ *     expanded/collapsed), all JSX expressions re-evaluate correctly.
  */
 
-import { For, Match, Show, Switch, createEffect, onCleanup, type JSX } from 'solid-js';
+import { For, Show, createEffect, createMemo, onCleanup, type JSX } from 'solid-js';
+import { Dynamic } from 'solid-js/web';
 import type { Block, CodeBlock, ProseBlock } from '../core/markdown/document';
 import type {
   BubbleLayout,
@@ -40,6 +47,22 @@ import { Table } from './table/Table';
 
 type AnyLayout = { kind: string };
 
+// ── Uniform sub-renderer prop type ────────────────────────────────────────────
+
+/**
+ * Prop shape shared by every sub-renderer component so they can all be stored
+ * in a single `Record<string, Component>` and dispatched via `<Dynamic>`.
+ * Sub-renderers that do not use `slots` / `renderLeaf` simply ignore them.
+ */
+type SubProps = {
+  // oxlint-disable-next-line typescript/no-explicit-any -- dispatch boundary; each renderer narrows at its own call site
+  node: Measured<any>;
+  slots: Record<string, (n: Measured<SlotLayout>) => JSX.Element>;
+  // oxlint-disable-next-line typescript/no-explicit-any
+  render: (child: Measured<any>) => JSX.Element;
+  renderLeaf: (node: Measured) => JSX.Element;
+};
+
 // ── Block leaf layout (produced by block-stack.ts) ────────────────────────────
 
 /**
@@ -54,24 +77,22 @@ export type BlockLeafLayout = ProseLeafLayout | CodeLeafLayout | TableLeafLayout
 
 // ── Sub-renderers ─────────────────────────────────────────────────────────────
 
-function ProjectStack(props: {
-  node: Measured<StackLayout>;
-  render: (child: Measured) => JSX.Element;
-}) {
+function ProjectStack(props: SubProps) {
+  const placed = () => (props.node as Measured<StackLayout>).layout.placed;
   return (
     <div style={{ position: 'relative', height: `${props.node.height}px`, width: '100%' }}>
-      <For each={props.node.layout.placed}>
-        {(placed) => (
+      <For each={placed()}>
+        {(p) => (
           <div
             style={{
               position: 'absolute',
-              top: `${placed.top}px`,
+              top: `${p.top}px`,
               left: 0,
               right: 0,
-              height: `${placed.child.height}px`,
+              height: `${p.child.height}px`,
             }}
           >
-            {props.render(placed.child)}
+            {props.render(p.child)}
           </div>
         )}
       </For>
@@ -79,98 +100,83 @@ function ProjectStack(props: {
   );
 }
 
-function ProjectPad(props: {
-  node: Measured<PadLayout>;
-  render: (child: Measured) => JSX.Element;
-}) {
-  const l = () => props.node.layout;
+function ProjectPad(props: SubProps) {
+  const l = () => (props.node as Measured<PadLayout>).layout;
+  const style = createMemo(() => ({
+    position: 'relative' as const,
+    height: `${props.node.height}px`,
+    'box-sizing': 'border-box' as const,
+    'border-width': `${l().border}px`,
+    'padding-top': `${l().padY}px`,
+    'padding-bottom': `${l().padY}px`,
+    'padding-left': `${l().padX}px`,
+    'padding-right': `${l().padX}px`,
+  }));
+  return <div style={style()}>{props.render(l().child)}</div>;
+}
+
+function ProjectBubble(props: SubProps) {
+  const l = () => (props.node as Measured<BubbleLayout>).layout;
+  const style = createMemo(() => ({
+    position: 'relative' as const,
+    height: `${props.node.height}px`,
+    'padding-left': `${l().padX}px`,
+    'padding-right': `${l().padX}px`,
+    ...(l().width !== undefined ? { width: `${l().width}px` } : {}),
+  }));
   return (
-    <div
-      style={{
-        position: 'relative',
-        height: `${props.node.height}px`,
-        'box-sizing': 'border-box',
-        'border-width': `${l().border}px`,
-        'padding-top': `${l().padY}px`,
-        'padding-bottom': `${l().padY}px`,
-        'padding-left': `${l().padX}px`,
-        'padding-right': `${l().padX}px`,
-      }}
-    >
+    <div class={l().variantClass} style={style()}>
       {props.render(l().child)}
     </div>
   );
 }
 
-function ProjectBubble(props: {
-  node: Measured<BubbleLayout>;
-  render: (child: Measured) => JSX.Element;
-}) {
-  const l = () => props.node.layout;
-  return (
-    <div
-      class={l().variantClass}
-      style={{
-        position: 'relative',
-        height: `${props.node.height}px`,
-        'padding-left': `${l().padX}px`,
-        'padding-right': `${l().padX}px`,
-        ...(l().width !== undefined ? { width: `${l().width}px` } : {}),
-      }}
-    >
-      {props.render(l().child)}
-    </div>
-  );
-}
-
-function ProjectCollapsible(props: {
-  node: Measured<CollapsibleLayout>;
-  slots: Record<string, (node: Measured<SlotLayout>) => JSX.Element>;
-  render: (child: Measured) => JSX.Element;
-}) {
-  const l = () => props.node.layout;
+function ProjectCollapsible(props: SubProps) {
+  const l = () => (props.node as Measured<CollapsibleLayout>).layout;
   const headerSlotNode = (): Measured<SlotLayout> => ({
     height: l().headerH,
     width: props.node.width,
     layout: { kind: 'slot', name: l().headerSlot, height: l().headerH },
   });
+  const outerStyle = createMemo(() => ({
+    position: 'relative' as const,
+    height: `${props.node.height}px`,
+  }));
+  const headerStyle = createMemo(() => ({
+    position: 'absolute' as const,
+    top: '0',
+    left: '0',
+    right: '0',
+    height: `${l().headerH}px`,
+  }));
+  const bodyStyle = createMemo(() => ({
+    position: 'absolute' as const,
+    top: `${l().bodyTop}px`,
+    left: '0',
+    right: '0',
+  }));
   return (
-    <div style={{ position: 'relative', height: `${props.node.height}px` }}>
-      <div style={{ position: 'absolute', top: '0', left: 0, right: 0, height: `${l().headerH}px` }}>
-        {props.slots[l().headerSlot]?.(headerSlotNode())}
-      </div>
+    <div style={outerStyle()}>
+      <div style={headerStyle()}>{props.slots[l().headerSlot]?.(headerSlotNode())}</div>
       <Show when={l().expanded && l().child}>
         {(c) => (
-          <div
-            style={{
-              position: 'absolute',
-              top: `${l().bodyTop}px`,
-              left: 0,
-              right: 0,
-              height: `${c().height}px`,
-            }}
-          >
-            {props.render(c())}
-          </div>
+          <div style={{ ...bodyStyle(), height: `${c().height}px` }}>{props.render(c())}</div>
         )}
       </Show>
     </div>
   );
 }
 
-function ProjectWindow(props: {
-  node: Measured<WindowLayout>;
-  render: (child: Measured) => JSX.Element;
-}) {
-  const l = () => props.node.layout;
+function ProjectWindow(props: SubProps) {
+  const l = () => (props.node as Measured<WindowLayout>).layout;
   let scrollEl: HTMLDivElement | undefined;
 
   // Auto-scroll to bottom when autoScrollBottom is enabled.
-  // The effect is registered unconditionally so it runs whenever l().child.height
-  // changes (active thinking/file-op preview auto-scrolls as content grows).
+  // Runs unconditionally so Solid tracks l().child.height reactively as
+  // content grows during active thinking/file-op preview streaming.
   createEffect(() => {
     if (!l().autoScrollBottom) return;
-    const _h = l().child.height; // track height reactively
+    const _h = l().child.height;
     if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
     return _h;
   });
@@ -178,15 +184,20 @@ function ProjectWindow(props: {
     scrollEl = undefined;
   });
 
+  const outerStyle = createMemo(() => ({
+    height: `${props.node.height}px`,
+    'max-height': `${l().maxH}px`,
+    overflow: 'hidden' as const,
+    position: 'relative' as const,
+  }));
+  const scrollStyle = createMemo(() => ({
+    'max-height': `${l().maxH}px`,
+    overflow: l().autoScrollBottom ? 'auto' : ('hidden' as const),
+    'scrollbar-gutter': l().autoScrollBottom ? ('stable' as const) : undefined,
+  }));
+
   return (
-    <div
-      style={{
-        height: `${props.node.height}px`,
-        'max-height': `${l().maxH}px`,
-        overflow: 'hidden',
-        position: 'relative',
-      }}
-    >
+    <div style={outerStyle()}>
       <Show when={l().overlay}>
         <div
           class={
@@ -202,17 +213,33 @@ function ProjectWindow(props: {
         ref={(el) => {
           scrollEl = el;
         }}
-        style={{
-          'max-height': `${l().maxH}px`,
-          overflow: l().autoScrollBottom ? 'auto' : 'hidden',
-          'scrollbar-gutter': l().autoScrollBottom ? 'stable' : undefined,
-        }}
+        style={scrollStyle()}
       >
         {props.render(l().child)}
       </div>
     </div>
   );
 }
+
+function ProjectSlot(props: SubProps) {
+  const name = () => (props.node.layout as SlotLayout).name;
+  return <>{props.slots[name()]?.(props.node as Measured<SlotLayout>) ?? null}</>;
+}
+
+function ProjectLeaf(props: SubProps) {
+  return <>{props.renderLeaf(props.node) ?? null}</>;
+}
+
+// ── Dispatch table ────────────────────────────────────────────────────────────
+
+const RENDERERS: Record<string, (p: SubProps) => JSX.Element> = {
+  stack: ProjectStack,
+  pad: ProjectPad,
+  bubble: ProjectBubble,
+  collapsible: ProjectCollapsible,
+  window: ProjectWindow,
+  slot: ProjectSlot,
+};
 
 // ── Block leaf renderer ───────────────────────────────────────────────────────
 
@@ -260,17 +287,12 @@ export type ProjectProps = {
 /**
  * Render a `Measured` layout tree by `layout.kind`.
  *
- * Combinator nodes (stack / pad / bubble / collapsible / window) are rendered
- * recursively.  Slot nodes are resolved via `props.slots`.  All other kinds
- * are treated as block leaves and rendered via `renderBlockLeaf` (or the
- * `children` override).
- *
- * The `layout.kind` accessor drives a reactive `<Switch>` so that when a
- * parent passes a re-measured node with a different kind (e.g. file-op going
- * from `slot` to `collapsible` as ops stream in), the correct branch mounts.
+ * A single `createMemo` over `layout.kind` feeds `<Dynamic component={comp()}>`,
+ * replacing a `<Switch>+6<Match>` structure.  This cuts per-node reactive
+ * overhead from ~7 constructs to 1 memo + 1 Dynamic, while keeping full
+ * reactivity when `kind` changes across re-measures.
  */
 export function Project(props: ProjectProps): JSX.Element {
-  const layout = () => props.node.layout as AnyLayout;
   const slots = props.slots ?? {};
   const renderLeaf = props.children ?? renderBlockLeaf;
 
@@ -281,30 +303,16 @@ export function Project(props: ProjectProps): JSX.Element {
     </Project>
   );
 
+  const layout = () => props.node.layout as AnyLayout;
+  const comp = createMemo(() => RENDERERS[layout().kind] ?? ProjectLeaf);
+
   return (
-    <Switch fallback={renderLeaf(props.node) ?? null}>
-      <Match when={layout().kind === 'stack'}>
-        <ProjectStack node={props.node as Measured<StackLayout>} render={renderChild} />
-      </Match>
-      <Match when={layout().kind === 'pad'}>
-        <ProjectPad node={props.node as Measured<PadLayout>} render={renderChild} />
-      </Match>
-      <Match when={layout().kind === 'bubble'}>
-        <ProjectBubble node={props.node as Measured<BubbleLayout>} render={renderChild} />
-      </Match>
-      <Match when={layout().kind === 'collapsible'}>
-        <ProjectCollapsible
-          node={props.node as Measured<CollapsibleLayout>}
-          slots={slots}
-          render={renderChild}
-        />
-      </Match>
-      <Match when={layout().kind === 'window'}>
-        <ProjectWindow node={props.node as Measured<WindowLayout>} render={renderChild} />
-      </Match>
-      <Match when={layout().kind === 'slot'}>
-        {slots[(layout() as SlotLayout).name]?.(props.node as Measured<SlotLayout>) ?? null}
-      </Match>
-    </Switch>
+    <Dynamic
+      component={comp()}
+      node={props.node}
+      slots={slots}
+      render={renderChild}
+      renderLeaf={renderLeaf}
+    />
   );
 }

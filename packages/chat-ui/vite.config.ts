@@ -18,6 +18,8 @@ export default defineConfig({
     projects: [
       {
         // Parity / arithmetic tests — pure Node, no DOM needed.
+        // Benchmarks are excluded here because measure.bench.ts imports from
+        // REGISTRY which transitively uses solid-js/web (browser-only).
         extends: true,
         test: {
           name: 'node',
@@ -25,10 +27,14 @@ export default defineConfig({
           include: ['src/**/*.test.ts'],
           css: false,
         },
+        benchmark: {
+          include: [],
+        },
       },
       {
-        // Measurement contract tests — need real browser layout for offsetHeight.
-        // Mirrors the desktop app's browser Vitest project setup.
+        // Measurement contract tests and benchmarks — need real browser layout.
+        // Benchmarks live here (not in node) because measure.bench.ts imports
+        // from REGISTRY which transitively uses solid-js/web.
         extends: true,
         test: {
           name: 'browser',
@@ -39,6 +45,31 @@ export default defineConfig({
             instances: [{ browser: 'chromium' }],
           },
           include: ['src/**/*.contract.test.tsx'],
+          setupFiles: ['src/tests/contract-setup.ts'],
+        },
+        benchmark: {
+          include: ['src/**/*.bench.ts'],
+          browser: {
+            enabled: true,
+            provider: playwright(),
+            headless: true,
+            instances: [{ browser: 'chromium' }],
+          },
+        },
+      },
+      {
+        // Performance + memory tests — informational only, excluded from `pnpm test`.
+        // Run with `pnpm --filter @emdash/chat-ui run test:perf`.
+        extends: true,
+        test: {
+          name: 'perf',
+          browser: {
+            enabled: true,
+            provider: playwright(),
+            headless: true,
+            instances: [{ browser: 'chromium' }],
+          },
+          include: ['src/tests/perf/**/*.perf.test.tsx'],
           setupFiles: ['src/tests/contract-setup.ts'],
         },
       },
