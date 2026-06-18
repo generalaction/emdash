@@ -1,6 +1,6 @@
 import { Check, Copy, ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useState } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import {
   useTaskViewContext,
   useWorkspaceViewModel,
@@ -12,7 +12,7 @@ import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { getPrNumber, type PullRequest } from '@shared/core/pull-requests/pull-requests';
 import { PrChecksList } from './checks-list';
@@ -57,13 +57,18 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
   const [bypassRequirements, setBypassRequirements] = useState(false);
   const [justCopied, setJustCopied] = useState(false);
 
-  const handleCopyPrUrl = async (e: React.MouseEvent) => {
+  useEffect(() => {
+    if (!justCopied) return;
+    const timer = window.setTimeout(() => setJustCopied(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [justCopied]);
+
+  const handleCopyPrUrl = async (e: MouseEvent) => {
     e.stopPropagation();
     try {
       await navigator.clipboard.writeText(pr.url);
       setJustCopied(true);
       toast({ title: 'PR URL copied' });
-      window.setTimeout(() => setJustCopied(false), 1500);
     } catch {
       toast({
         title: 'Copy failed',
@@ -135,23 +140,21 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
               <ExternalLink className="size-3.5 text-foreground-muted" />
             </span>
           </button>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    aria-label="Copy PR URL"
-                    onClick={handleCopyPrUrl}
-                    className="hover:bg-muted flex shrink-0 items-center justify-center rounded p-1 text-foreground-muted hover:text-foreground"
-                  >
-                    {justCopied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                  </button>
-                }
-              />
-              <TooltipContent>{justCopied ? 'Copied!' : 'Copy PR URL'}</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label={justCopied ? 'PR URL copied' : 'Copy PR URL'}
+                  onClick={handleCopyPrUrl}
+                  className="hover:bg-muted focus-visible:ring-ring/50 flex shrink-0 items-center justify-center rounded p-1 text-foreground-muted outline-none hover:text-foreground focus-visible:ring-3"
+                >
+                  {justCopied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                </button>
+              }
+            />
+            <TooltipContent>{justCopied ? 'Copied!' : 'Copy PR URL'}</TooltipContent>
+          </Tooltip>
         </div>
         <PrMergeLine pr={pr} />
       </div>
