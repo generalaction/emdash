@@ -35,7 +35,7 @@ export const plugin = definePlugin(
       flag: '',
     },
     sessions: {
-      kind: 'stateless',
+      kind: 'resumable',
     },
   },
   { icon }
@@ -46,6 +46,10 @@ export const provider = registerPluginBehavior(plugin, {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
         initialPromptFlag: '',
+        resumeFlag: '--continue',
+        sessionIdFlag: '--continue',
+        sessionIdOnResumeOnly: true,
+        resumeWithoutSessionFlag: '--continue',
       }),
   },
 });

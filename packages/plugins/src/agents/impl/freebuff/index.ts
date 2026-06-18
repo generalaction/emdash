@@ -31,8 +31,7 @@ export const plugin = definePlugin(
       kind: 'none',
     },
     prompt: {
-      kind: 'argv',
-      flag: '',
+      kind: 'keystroke',
     },
     sessions: {
       kind: 'stateless',
@@ -43,9 +42,6 @@ export const plugin = definePlugin(
 
 export const provider = registerPluginBehavior(plugin, {
   prompt: {
-    buildCommand: (ctx) =>
-      buildStandardCommand(ctx, {
-        initialPromptFlag: '',
-      }),
+    buildCommand: (ctx) => buildStandardCommand(ctx, {}),
   },
 });

@@ -23,7 +23,7 @@ export const plugin = definePlugin(
     },
     hostDependency: {
       id: 'rovo',
-      binaryNames: ['rovodev', 'acli'],
+      binaryNames: ['acli'],
       installCommands: {
         macos: [
           {
@@ -56,7 +56,7 @@ export const plugin = definePlugin(
       flag: '',
     },
     sessions: {
-      kind: 'stateless',
+      kind: 'resumable',
     },
   },
   { icon }
@@ -66,7 +66,12 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
+        defaultArgs: ['rovodev', 'run'],
         autoApproveFlag: '--yolo',
+        initialPromptFlag: '',
+        resumeFlag: '--restore',
+        sessionIdFlag: '--restore',
+        sessionIdOnResumeOnly: true,
       }),
   },
 });

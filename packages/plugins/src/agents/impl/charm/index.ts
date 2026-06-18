@@ -38,7 +38,7 @@ export const plugin = definePlugin(
       flag: '',
     },
     sessions: {
-      kind: 'stateless',
+      kind: 'resumable',
     },
   },
   { icon }
@@ -48,7 +48,13 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
+        defaultArgs: ['run'],
         autoApproveFlag: '--yolo',
+        initialPromptFlag: '',
+        resumeFlag: '--session',
+        sessionIdFlag: '--session',
+        sessionIdOnResumeOnly: true,
+        resumeWithoutSessionFlag: '--continue',
       }),
   },
 });

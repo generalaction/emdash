@@ -63,7 +63,7 @@ export const plugin = definePlugin(
       flag: '',
     },
     sessions: {
-      kind: 'resumable',
+      kind: 'stateless',
     },
   },
   { icon }
@@ -75,7 +75,6 @@ export const provider = registerPluginBehavior(plugin, {
       buildStandardCommand(ctx, {
         autoApproveFlag: '-f --approve-mcps',
         initialPromptFlag: '',
-        resumeFlag: '--resume',
       }),
   },
   mcp: cursorMcpAdapter(),

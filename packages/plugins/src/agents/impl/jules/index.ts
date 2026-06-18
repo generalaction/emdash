@@ -46,9 +46,6 @@ export const plugin = definePlugin(
 
 export const provider = registerPluginBehavior(plugin, {
   prompt: {
-    buildCommand: (ctx) =>
-      buildStandardCommand(ctx, {
-        initialPromptFlag: '',
-      }),
+    buildCommand: (ctx) => buildStandardCommand(ctx, {}),
   },
 });

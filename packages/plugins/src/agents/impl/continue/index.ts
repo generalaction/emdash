@@ -65,7 +65,7 @@ export const plugin = definePlugin(
     },
     prompt: {
       kind: 'argv',
-      flag: '',
+      flag: '-p',
     },
     sessions: {
       kind: 'resumable',
@@ -79,7 +79,7 @@ export const provider = registerPluginBehavior(plugin, {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
         autoApproveFlag: '--auto',
-        initialPromptFlag: '',
+        initialPromptFlag: '-p',
         resumeFlag: '--resume',
       }),
   },
