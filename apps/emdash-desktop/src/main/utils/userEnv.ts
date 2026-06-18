@@ -135,6 +135,9 @@ export async function resolveUserEnv(): Promise<void> {
       stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'],
     };
     const result = spawnSync(shell, ['-ilc', 'env'], shellEnvProbeOptions);
+    if (result.error) {
+      throw result.error;
+    }
     const raw = result.stdout;
     const shellEnv = parseEnvOutput(raw);
 
