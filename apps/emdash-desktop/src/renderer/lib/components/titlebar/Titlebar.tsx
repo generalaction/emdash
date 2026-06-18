@@ -1,3 +1,4 @@
+import { detectPlatform } from '@tanstack/react-hotkeys';
 import { PanelLeft } from 'lucide-react';
 import { type ReactNode } from 'react';
 import { NavButtons } from '@renderer/lib/components/nav-buttons';
@@ -6,17 +7,26 @@ import { Button } from '@renderer/lib/ui/button';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import { WindowControls } from './window-controls';
+
+const platform = detectPlatform();
+const isMac = platform === 'mac';
+const isLinux = platform === 'linux';
 
 export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightSlot?: ReactNode }) {
   const { setCollapsed, isLeftOpen } = useWorkspaceLayoutContext();
   return (
     <header
       className={cn(
-        'flex h-10 shrink-0 items-center bg-background-secondary pr-2 border-b border-border [-webkit-app-region:drag] dark:bg-background',
-        !isLeftOpen && 'pl-18'
+        'flex h-10 shrink-0 items-center bg-background-secondary border-b border-border [-webkit-app-region:drag] dark:bg-background',
+        // macOS traffic lights sit at the top-left, so clear room only there.
+        !isLeftOpen && isMac && 'pl-18',
+        // Linux draws its own controls flush to the right corner (no native
+        // frame); everywhere else keep the normal right padding.
+        isLinux ? 'pr-0' : 'pr-2'
       )}
     >
-      <div className="pointer-events-auto flex w-full items-center gap-1">
+      <div className="pointer-events-auto flex min-w-0 flex-1 items-center gap-1">
         {!isLeftOpen && <div className="[-webkit-app-region:no-drag]"></div>}
         <div className="flex w-full items-center justify-between">
           <div className="flex items-center justify-start [-webkit-app-region:no-drag]">
@@ -48,6 +58,7 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
           </div>
         </div>
       </div>
+      {isLinux && <WindowControls />}
     </header>
   );
 }

@@ -23,5 +23,6 @@ export function AutomationsMainPanel() {
 
 export const automationsView = {
   WrapView: AutomationsViewWrapper,
+  TitlebarSlot: AutomationsTitlebar,
   MainPanel: AutomationsMainPanel,
 };

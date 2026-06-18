@@ -5,6 +5,7 @@ import { WelcomeScreen } from './app/welcome';
 import { Workspace } from './app/workspace';
 import { IntegrationsProvider } from './features/integrations/integrations-provider';
 import { Onboarding } from './features/onboarding/onboarding';
+import { FramelessTitlebarOverlay } from './lib/components/titlebar/window-controls';
 import { useAccountSession } from './lib/hooks/useAccount';
 import { useLegacyPortStatus } from './lib/hooks/useLegacyPort';
 import { WorkspaceLayoutContextProvider } from './lib/layout/layout-provider';
@@ -66,12 +67,22 @@ function AppContent() {
       return null;
     }
     if (view === 'onboarding' && stepsNeeded.length > 0) {
-      return <Onboarding steps={stepsNeeded} onComplete={handleOnboardingComplete} />;
+      return (
+        <>
+          <Onboarding steps={stepsNeeded} onComplete={handleOnboardingComplete} />
+          <FramelessTitlebarOverlay />
+        </>
+      );
     }
     return (
       <>
         <Workspace />
-        {view === 'welcome' && <WelcomeScreen onGetStarted={() => window.location.reload()} />}
+        {view === 'welcome' && (
+          <>
+            <WelcomeScreen onGetStarted={() => window.location.reload()} />
+            <FramelessTitlebarOverlay />
+          </>
+        )}
       </>
     );
   };
