@@ -140,8 +140,8 @@ export function BrowserSettingsCard() {
       />
 
       <SettingRow
-        title="Relax CORS for local development"
-        description="Lets localhost pages in Emdash browser tabs call APIs without matching CORS headers. Other origins are unchanged."
+        title="Disable CORS for localhost"
+        description="Allows pages opened from localhost in Emdash browser tabs to call APIs that do not send matching CORS headers."
         control={
           <Switch
             checked={browserSettings?.relaxCorsForLocalhost ?? false}
