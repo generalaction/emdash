@@ -1,5 +1,6 @@
 import type { GitBranchRef, GitHeadModel, GitSequences, IGitRuntime } from '@emdash/core/git';
 import type { Result } from '@emdash/shared';
+import type { IDisposable } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
@@ -7,7 +8,6 @@ import type { GitRepositoryService } from '@main/core/git/repository/service';
 import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
 import type { MachineRef } from '@main/core/runtime/types';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
-import type { IDisposable } from '@main/lib/lifecycle';
 import type { FetchError } from '@shared/core/git/types';
 import type { WorkspaceProviderData } from '@shared/core/workspaces/workspace-provider-data';
 import type { ProjectRemoteState } from '@shared/projects';

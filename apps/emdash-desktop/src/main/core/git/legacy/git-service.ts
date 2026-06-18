@@ -20,10 +20,10 @@ import {
   type RemoteBranch,
 } from '@emdash/core/git';
 import { err, ok, type Result } from '@emdash/shared';
+import type { IDisposable } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GIT_EXECUTABLE } from '@main/core/utils/exec';
-import type { IDisposable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import {
   DEFAULT_REMOTE_NAME,

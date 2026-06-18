@@ -1,6 +1,5 @@
 import type { GitRemotesModel, GitSequences, IGitRepository } from '@emdash/core/git';
-import type { Unsubscribe } from '@emdash/core/lib';
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type {
   CreateBranchError,

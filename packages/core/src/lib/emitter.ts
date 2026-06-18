@@ -1,4 +1,4 @@
-import type { Unsubscribe } from './lifecycle';
+import type { Unsubscribe } from '@emdash/shared';
 
 export class Emitter<T> {
   private readonly subscribers = new Set<(value: T) => void>();

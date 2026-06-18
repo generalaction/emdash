@@ -1,5 +1,4 @@
-import type { IDisposable } from '@emdash/core/lib';
-import type { Result } from '@emdash/shared';
+import type { IDisposable, Result } from '@emdash/shared';
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import type { ModelMirror } from './model-mirror';
 

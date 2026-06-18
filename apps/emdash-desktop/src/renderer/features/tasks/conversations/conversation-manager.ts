@@ -1,8 +1,8 @@
+import type { IDisposable } from '@emdash/shared';
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
-import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { Resource } from '@renderer/lib/stores/resource';
 import { log } from '@renderer/utils/logger';
 import { soundPlayer } from '@renderer/utils/soundPlayer';

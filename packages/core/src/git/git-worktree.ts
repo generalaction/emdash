@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import { ExecError, type BoundExec } from '../exec';
 import type { IFileWatchService, IFsService, WatchHandle } from '../fs';
-import { LiveModel, type Unsubscribe } from '../lib';
+import { LiveModel } from '../lib';
 import {
   classifyCommitError,
   classifyPullError,

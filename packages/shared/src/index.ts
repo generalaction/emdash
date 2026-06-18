@@ -8,3 +8,4 @@ export {
   type Ok,
   type Result,
 } from './result';
+export type { IDisposable, IInitializable, ILifecycle, Lease, Unsubscribe } from './lifecycle';

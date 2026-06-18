@@ -1,7 +1,7 @@
 import { err, ok, type Result } from '@emdash/shared';
+import type { IInitializable } from '@emdash/shared';
 import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
-import type { IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import {
   type MigrateProjectConfigRequest,

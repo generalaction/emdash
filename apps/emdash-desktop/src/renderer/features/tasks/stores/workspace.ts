@@ -1,7 +1,7 @@
+import type { ILifecycle } from '@emdash/shared';
 import { computed, makeObservable } from 'mobx';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import { appState } from '@renderer/lib/stores/app-state';
-import type { ILifecycle } from '@renderer/lib/stores/lifecycle';
 import type { ConnectionState } from '@shared/core/ssh/ssh';
 import { FilesStore } from '../editor/stores/files-store';
 import { GitWorktreeStore } from './git-worktree-store';

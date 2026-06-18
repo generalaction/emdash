@@ -1,10 +1,1 @@
-export type Unsubscribe = () => void;
-
-export interface IDisposable {
-  dispose(): void | Promise<void>;
-}
-
-export interface Lease<T> {
-  readonly value: T;
-  release(): void;
-}
+export type { IDisposable, IInitializable, ILifecycle, Lease, Unsubscribe } from '@emdash/shared';
