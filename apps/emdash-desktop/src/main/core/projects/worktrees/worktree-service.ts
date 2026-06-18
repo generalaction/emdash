@@ -119,10 +119,12 @@ export class WorktreeService {
 
   private async assertStaleTargetSafeForReuse(targetPath: string): Promise<void> {
     const allowedGeneratedDirectories = new Set(['node_modules']);
+    const allowedGeneratedFiles = new Set(['.git', '.gitignore']);
     const entries = await this.host.globAbsolute('*', { cwd: targetPath, dot: true });
     for (const entry of entries) {
       const stat = await this.host.statAbsolute(this.host.pathApi.join(targetPath, entry));
       if (stat?.type === 'dir' && allowedGeneratedDirectories.has(entry)) continue;
+      if (stat?.type === 'file' && allowedGeneratedFiles.has(entry)) continue;
       throw new Error(
         `Refusing to remove stale worktree directory "${targetPath}" because it contains "${entry}"`
       );
