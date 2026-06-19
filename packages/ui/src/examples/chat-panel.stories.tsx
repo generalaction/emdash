@@ -21,9 +21,9 @@ import '@emdash/chat-ui/style.css';
 import '@emdash/chat-ui/chat-theme.css';
 
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import type { ChatHandle } from '@emdash/chat-ui/react';
-import { ChatTranscript } from '@emdash/chat-ui/react';
+import type { ChatHandle, MentionProvider } from '@emdash/chat-ui';
 import { generateMockTranscript } from '@emdash/chat-ui';
+import { ChatTranscript } from '@emdash/chat-ui/react';
 import { ArrowDown } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatComposer, stopReasonNotice } from '../components/chat-composer';
@@ -93,6 +93,19 @@ const MOCK_MODELS: Record<string, ComposerModelOption> = {
   },
 };
 
+/**
+ * Synchronous chat-ui MentionProvider — resolves @label tokens in submitted
+ * messages back to rich metadata for pill rendering in the transcript.
+ * Distinct from mockMentionProvider (async, for the composer popup).
+ */
+const chatMentionProvider: MentionProvider = {
+  resolve(token: string) {
+    const match = MOCK_FILES.find((f) => f.label === token || f.name === token);
+    if (!match) return null;
+    return { id: match.id, label: match.label, name: match.name, kind: match.kind };
+  },
+};
+
 const mockMentionProvider: ContextMentionProvider = {
   async search(query: string) {
     await new Promise((r) => setTimeout(r, 80)); // simulate latency
@@ -143,7 +156,27 @@ function LiveChatPanel({ notice }: { notice?: ComposerNotice | null }) {
 
   const handleReady = useCallback((handle: ChatHandle) => {
     handleRef.current = handle;
-    handle.transcript.seed(generateMockTranscript(40, 1));
+    const items = generateMockTranscript(40, 1);
+    // Prepend a long user message so the collapse/expand + sticky-mirror mechanism
+    // is exercisable immediately: click it to expand (360px), click outside to collapse.
+    const longUserId = 'long-user-seed';
+    const longUserText = [
+      'Refactor the authentication module to use JWT tokens:',
+      '',
+      '1. Replace the session store with a signing key stored in environment variables.',
+      '2. Generate tokens on login and validate them on each request via middleware.',
+      '3. Store refresh tokens in an `httpOnly` cookie with a 7-day expiry.',
+      '4. Add rate limiting (100 req/min per IP) to all auth endpoints.',
+      '5. Write unit tests covering success, expiry, and tampered-token cases.',
+      '6. Update the OpenAPI spec to document the Authorization header.',
+      '7. Add `POST /auth/refresh` to renew access tokens without re-login.',
+      '',
+      'Preserve backward compatibility for existing sessions during the migration period.',
+    ].join('\n');
+    handle.transcript.seed([
+      { kind: 'message', id: longUserId, role: 'user', text: longUserText },
+      ...items,
+    ]);
   }, []);
 
   // Mock onFilesDropped: insert non-image dropped files as path mentions.
@@ -186,6 +219,7 @@ function LiveChatPanel({ notice }: { notice?: ComposerNotice | null }) {
         className="absolute inset-0"
         stickToBottom
         pinUserMessages
+        mentionProvider={chatMentionProvider}
         padTop={PAD_TOP}
         padBottom={composerH + PAD_BOTTOM_MARGIN}
         onReady={handleReady}

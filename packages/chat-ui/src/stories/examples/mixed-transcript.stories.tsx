@@ -124,6 +124,94 @@ export const FileOps: Story = {
   ),
 };
 
+const PINNED_LONG_USER_TEXT = [
+  'Refactor the authentication module:',
+  '',
+  '1. Replace session cookies with JWT tokens signed with a key from environment variables.',
+  '2. Add rate limiting middleware (100 req/min per IP) to all auth endpoints.',
+  '3. Write unit tests covering success, expiry, and tampered-token cases.',
+  '4. Store refresh tokens in an `httpOnly` cookie with a 7-day expiry.',
+  '5. Update the OpenAPI spec to document the Authorization header.',
+  '6. Add a `POST /auth/refresh` endpoint for renewing access tokens.',
+  '',
+  'Preserve backward compatibility for existing sessions during the migration period.',
+].join('\n');
+
+/**
+ * Pinned user message + scrollable content — verifies that the sticky overlay
+ * mirrors the same expand/collapse state as the inline card.
+ * The long user message exceeds USER_COLLAPSED_MAX_H (120px); click it to expand
+ * to USER_EXPANDED_MAX_H (360px). Click outside to collapse. Scroll down to see
+ * the PinnedUserMessage appear at the top with the same state.
+ */
+export const PinnedOverflow: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        { kind: 'message', id: 'u1', role: 'user', text: PINNED_LONG_USER_TEXT },
+        {
+          kind: 'thinking',
+          id: 'th1',
+          status: 'done',
+          text: 'Let me plan the JWT migration carefully, checking the session store usage first.',
+          startedAt: Date.now() - 90000,
+          durationMs: 3100,
+        },
+        {
+          kind: 'tool',
+          id: 't1',
+          name: 'read_file',
+          status: 'done',
+          inputSummary: 'src/auth/session.ts',
+        },
+        {
+          kind: 'tool',
+          id: 't2',
+          name: 'read_file',
+          status: 'done',
+          inputSummary: 'src/auth/middleware.ts',
+        },
+        {
+          kind: 'tool',
+          id: 't3',
+          name: 'write_file',
+          status: 'done',
+          inputSummary: 'src/auth/jwt.ts',
+        },
+        {
+          kind: 'tool',
+          id: 't4',
+          name: 'write_file',
+          status: 'done',
+          inputSummary: 'src/auth/middleware.ts',
+        },
+        {
+          kind: 'tool',
+          id: 't5',
+          name: 'write_file',
+          status: 'done',
+          inputSummary: 'src/auth/refresh.ts',
+        },
+        {
+          kind: 'execute',
+          id: 'ex1',
+          command: 'pnpm run test:auth',
+          status: 'done',
+          startedAt: Date.now() - 30000,
+          durationMs: 8200,
+        },
+        {
+          kind: 'message',
+          id: 'a1',
+          role: 'assistant',
+          text: 'Done! The session store has been replaced with JWT middleware.\n\n- `src/auth/jwt.ts` — signing and verification helpers\n- `src/auth/middleware.ts` — updated request validator with rate limiting\n- `src/auth/refresh.ts` — new `POST /auth/refresh` endpoint\n\nAll 47 auth tests are passing. The old session-based paths still work during the migration window.',
+        },
+      ]}
+      height={600}
+    />
+  ),
+};
+
 /** Execute commands in a mixed transcript. */
 export const Execute: Story = {
   render: () => (

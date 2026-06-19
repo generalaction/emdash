@@ -60,7 +60,13 @@ export function ChatHostExpanded(props: { items: ChatItem[]; expandId: string; h
 
   return (
     <StoryViewport height={props.height}>
-      <ChatRoot transcript={transcript} viewState={viewState} theme={DEFAULT_THEME} stickToBottom />
+      <ChatRoot
+        transcript={transcript}
+        viewState={viewState}
+        theme={DEFAULT_THEME}
+        stickToBottom
+        pinUserMessages
+      />
     </StoryViewport>
   );
 }
@@ -79,7 +85,13 @@ export function ChatHost(props: ChatHostProps) {
 
   return (
     <StoryViewport height={props.height} width={props.width}>
-      <ChatRoot transcript={transcript} viewState={viewState} theme={DEFAULT_THEME} stickToBottom />
+      <ChatRoot
+        transcript={transcript}
+        viewState={viewState}
+        theme={DEFAULT_THEME}
+        stickToBottom
+        pinUserMessages
+      />
     </StoryViewport>
   );
 }
@@ -137,7 +149,13 @@ export function ScriptedChat(props: { script: ScriptStep[]; height?: number; wid
 
   return (
     <StoryViewport height={props.height} width={props.width}>
-      <ChatRoot transcript={transcript} viewState={viewState} theme={DEFAULT_THEME} stickToBottom />
+      <ChatRoot
+        transcript={transcript}
+        viewState={viewState}
+        theme={DEFAULT_THEME}
+        stickToBottom
+        pinUserMessages
+      />
     </StoryViewport>
   );
 }

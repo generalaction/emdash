@@ -37,6 +37,12 @@
   /* ── Border ─────────────────────────────────────────────────────────────── */
   --chat-border: var(--border);
 
+  /* ── User message card ───────────────────────────────────────────────────── */
+  /* Elevated surface to match the ChatComposer (bg-surface-base-emphasis). */
+  --chat-user-card-bg: var(--surface-base-emphasis);
+  --chat-user-card-border: var(--border);
+  --chat-user-card-border-hover: var(--border-1);
+
   /* ── Diff / VCS ─────────────────────────────────────────────────────────── */
   --chat-diff-added: var(--foreground-diff-added);
   --chat-diff-deleted: var(--foreground-diff-deleted);

@@ -67,3 +67,57 @@ export function GenericFileIcon() {
     </svg>
   );
 }
+
+// ── Mention pill kind icons ────────────────────────────────────────────────────
+
+const MENTION_ICON_PROPS = {
+  width: '10',
+  height: '10',
+  viewBox: '0 0 16 16',
+  fill: 'none',
+  stroke: 'currentColor',
+  'stroke-width': '2',
+  'stroke-linecap': 'round' as const,
+  'stroke-linejoin': 'round' as const,
+  'aria-hidden': true as const,
+};
+
+/** File mention icon (document with folded corner). */
+export function MentionFileIcon() {
+  return (
+    <svg {...MENTION_ICON_PROPS}>
+      <path d="M9 2H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6L9 2z" />
+      <polyline points="9 2 9 6 13 6" />
+    </svg>
+  );
+}
+
+/** Issue mention icon (circle with dot). */
+export function MentionIssueIcon() {
+  return (
+    <svg {...MENTION_ICON_PROPS}>
+      <circle cx="8" cy="8" r="5" />
+      <circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+/** Symbol mention icon (curly braces). */
+export function MentionSymbolIcon() {
+  return (
+    <svg {...MENTION_ICON_PROPS}>
+      <path d="M5 2C3.9 2 3 2.9 3 4v2c0 1.1-.9 2-2 2 1.1 0 2 .9 2 2v2c0 1.1.9 2 2 2" />
+      <path d="M11 2c1.1 0 2 .9 2 2v2c0 1.1.9 2 2 2-1.1 0-2 .9-2 2v2c0 1.1-.9 2-2 2" />
+    </svg>
+  );
+}
+
+/** Custom/at mention icon (@). */
+export function MentionAtIcon() {
+  return (
+    <svg {...MENTION_ICON_PROPS}>
+      <circle cx="8" cy="8" r="3" />
+      <path d="M11 8c0 2.8 2 4 4 3V7A7 7 0 1 0 8 15" />
+    </svg>
+  );
+}

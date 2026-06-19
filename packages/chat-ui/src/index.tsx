@@ -11,6 +11,7 @@ import { render } from 'solid-js/web';
 import { ChatRoot } from './ChatRoot';
 import type { EngineControls } from './ChatRoot';
 import type { ChatHighlighter } from './core/highlight/highlighter';
+import type { MentionProvider } from './core/markdown/mention-provider';
 import type { ChatTheme } from './core/theme';
 import { DEFAULT_THEME } from './core/theme';
 import type { ChatItem } from './model';
@@ -45,6 +46,11 @@ export type { ChatTheme, DensityScale } from './core/theme';
 export { buildTheme, DEFAULT_THEME } from './core/theme';
 export type { ChatHighlighter, HighlightResult, CodeToken } from './core/highlight/highlighter';
 export { createDefaultHighlighter } from './core/highlight/highlighter';
+export type {
+  MentionProvider,
+  ChatMentionMeta,
+  ChatMentionKind,
+} from './core/markdown/mention-provider';
 
 // ── Commands ──────────────────────────────────────────────────────────────────
 
@@ -119,6 +125,12 @@ export type MountChatOptions = {
    * (em-light/em-dark themes, common languages) is used.
    */
   highlighter?: ChatHighlighter;
+  /**
+   * Optional synchronous @-mention metadata resolver. When supplied, `@token`
+   * spans in user messages that resolve to metadata are rendered as composer-style
+   * pills. Must be stable for the lifetime of the mount.
+   */
+  mentionProvider?: MentionProvider;
   /**
    * When true, the active turn's user message is pinned to the top of the
    * transcript while scrolling, with a push-up transition as the next user
@@ -212,6 +224,7 @@ export function mountChat(container: HTMLElement, opts: MountChatOptions = {}): 
         onAtBottomChange={onAtBottomChange}
         controls={controls}
         highlighter={opts.highlighter}
+        mentionProvider={opts.mentionProvider}
         pinUserMessages={opts.pinUserMessages}
       />
     ),

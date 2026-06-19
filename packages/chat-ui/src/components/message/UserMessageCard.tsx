@@ -32,9 +32,9 @@ export const USER_COLLAPSED_MAX_H = 120;
 /** Max-height (px) of an expanded user message card (with internal scroll). */
 export const USER_EXPANDED_MAX_H = 360;
 /** Horizontal padding inside the user card on each side (px). */
-export const BUBBLE_PAD_X = 14;
+export const BUBBLE_PAD_X = 12;
 /** Vertical padding inside the card block stack on each side (px). */
-export const BUBBLE_PAD_Y = 8;
+export const BUBBLE_PAD_Y = 6;
 /** Gap between consecutive blocks of different tiers (px). */
 export const BLOCK_GAP = 10;
 /** Tighter gap between two consecutive prose blocks (px). */
@@ -98,7 +98,7 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx }) {
   return (
     <div
       data-user-card={props.data.id}
-      class="text-chat-fg-body border-chat-border bg-chat-bg-1 relative rounded-lg border"
+      class={`text-chat-fg-body bg-chat-user-card border-chat-user-card-border relative rounded-lg border${!isExpanded() ? ' hover:border-chat-user-card-border-hover' : ''}`}
       style={{
         height: `${clampedH()}px`,
         'overflow-y': isExpanded() ? 'auto' : 'hidden',

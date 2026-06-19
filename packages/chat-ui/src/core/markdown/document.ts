@@ -35,8 +35,17 @@ export type InlineCode = {
 export type InlineMention = {
   kind: 'mention';
   label: string;
-  /** Optional semantic tone for the chip colour. */
+  /** Optional semantic tone for the chip colour (e.g. 'math' for inline-math). */
   tone?: string;
+  /**
+   * Fields populated when a MentionProvider resolves the @-token to rich metadata.
+   * Absent for plain-text heuristic mentions (e.g. the inline-math fallback).
+   */
+  id?: string;
+  /** Short display name shown in the rendered pill. Defaults to label. */
+  name?: string;
+  /** Semantic category for the pill icon and colour. */
+  mentionKind?: 'file' | 'issue' | 'symbol' | 'custom';
 };
 
 /**

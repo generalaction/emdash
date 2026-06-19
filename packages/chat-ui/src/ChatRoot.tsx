@@ -42,6 +42,7 @@ import { createChatCaches } from './core/caches';
 import type { MeasureCtx } from './core/define';
 import type { ChatHighlighter } from './core/highlight/highlighter';
 import { genericEstimate } from './core/layout/generic-estimate';
+import type { MentionProvider } from './core/markdown/mention-provider';
 import { registerFontsReadyClear } from './core/measure/pretext-cache';
 import { ROW_GAP } from './core/metrics';
 import { StickToBottom } from './core/stick-to-bottom';
@@ -147,6 +148,12 @@ export type ChatRootProps = {
    */
   highlighter?: ChatHighlighter;
   /**
+   * Optional synchronous @-mention metadata resolver. When supplied, `@token`
+   * spans in user messages that resolve to metadata are rendered as composer-style
+   * pills. Must be stable for the lifetime of the mount (same contract as `highlighter`).
+   */
+  mentionProvider?: MentionProvider;
+  /**
    * When true, the active turn's user message is pinned to the top of the
    * transcript while scrolling, with a push-up transition as the next user
    * message enters the viewport. Defaults to false (no behavior change for
@@ -158,7 +165,7 @@ export type ChatRootProps = {
 // ── ChatRoot ──────────────────────────────────────────────────────────────────
 
 export function ChatRoot(props: ChatRootProps) {
-  const caches = createChatCaches(props.highlighter);
+  const caches = createChatCaches(props.highlighter, props.mentionProvider);
   const theme = () => props.theme ?? DEFAULT_THEME;
   const contentClass = () => props.contentClass ?? DEFAULT_CONTENT_CLASS;
   const commands = () => props.commands?.() ?? {};

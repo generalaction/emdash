@@ -42,6 +42,7 @@ import type {
   ProseVariant,
   TableBlock,
 } from './document';
+import type { MentionProvider } from './mention-provider';
 
 // ── Shared parser instance ──────────────────────────────────────────────────
 
@@ -49,9 +50,96 @@ const parser = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
 
 // ── Inline phrasing → InlineRun[] ──────────────────────────────────────────
 
+// ── @-mention scanning ──────────────────────────────────────────────────────
+
+/**
+ * Regex matching `@<token>` where token runs to the next whitespace, @, or end
+ * of string. Tokens may include word chars, dots, slashes, hyphens, and colons
+ * (covering file paths, issue refs, and symbol names).
+ *
+ * Examples matched: @src/auth/jwt.ts  @issue-42  @handleSubmit()
+ */
+const AT_TOKEN_RE = /@([\w./\-:()]+)/g;
+
+/**
+ * Split a plain-text segment on @-mentions (using the provider to validate each)
+ * and return a mixed InlineText / InlineMention run array.
+ * When no provider is supplied, the segment is returned as a single InlineText.
+ */
+function splitAtMentions(
+  text: string,
+  opts: { bold?: boolean; italic?: boolean; strike?: boolean; href?: string },
+  provider: MentionProvider | undefined
+): InlineRun[] {
+  if (!provider || !text.includes('@')) {
+    return text.length > 0
+      ? [
+          {
+            kind: 'text',
+            text,
+            bold: opts.bold,
+            italic: opts.italic,
+            strike: opts.strike,
+            href: opts.href,
+          } satisfies InlineText,
+        ]
+      : [];
+  }
+
+  const runs: InlineRun[] = [];
+  let lastIndex = 0;
+  AT_TOKEN_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = AT_TOKEN_RE.exec(text)) !== null) {
+    const token = match[1];
+    const meta = provider.resolve(token);
+    if (!meta) continue;
+
+    // Emit preceding plain text
+    if (match.index > lastIndex) {
+      const before = text.slice(lastIndex, match.index);
+      runs.push({
+        kind: 'text',
+        text: before,
+        bold: opts.bold,
+        italic: opts.italic,
+        strike: opts.strike,
+        href: opts.href,
+      } satisfies InlineText);
+    }
+
+    runs.push({
+      kind: 'mention',
+      label: meta.label,
+      id: meta.id,
+      name: meta.name,
+      mentionKind: meta.kind,
+    } satisfies InlineMention);
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Trailing plain text
+  if (lastIndex < text.length) {
+    const after = text.slice(lastIndex);
+    runs.push({
+      kind: 'text',
+      text: after,
+      bold: opts.bold,
+      italic: opts.italic,
+      strike: opts.strike,
+      href: opts.href,
+    } satisfies InlineText);
+  }
+
+  return runs;
+}
+
 function phrasingsToRuns(
   nodes: PhrasingContent[],
-  opts: { bold?: boolean; italic?: boolean; strike?: boolean; href?: string } = {}
+  opts: { bold?: boolean; italic?: boolean; strike?: boolean; href?: string } = {},
+  provider?: MentionProvider
 ): InlineRun[] {
   const runs: InlineRun[] = [];
 
@@ -64,16 +152,7 @@ function phrasingsToRuns(
         for (let i = 0; i < segments.length; i++) {
           if (i > 0) runs.push({ kind: 'break' } satisfies InlineBreak);
           const seg = segments[i];
-          if (seg.length > 0) {
-            runs.push({
-              kind: 'text',
-              text: seg,
-              bold: opts.bold,
-              italic: opts.italic,
-              strike: opts.strike,
-              href: opts.href,
-            } satisfies InlineText);
-          }
+          runs.push(...splitAtMentions(seg, opts, provider));
         }
         break;
       }
@@ -85,30 +164,42 @@ function phrasingsToRuns(
 
       case 'strong': {
         runs.push(
-          ...phrasingsToRuns((node as Parent).children as PhrasingContent[], {
-            ...opts,
-            bold: true,
-          })
+          ...phrasingsToRuns(
+            (node as Parent).children as PhrasingContent[],
+            {
+              ...opts,
+              bold: true,
+            },
+            provider
+          )
         );
         break;
       }
 
       case 'emphasis': {
         runs.push(
-          ...phrasingsToRuns((node as Parent).children as PhrasingContent[], {
-            ...opts,
-            italic: true,
-          })
+          ...phrasingsToRuns(
+            (node as Parent).children as PhrasingContent[],
+            {
+              ...opts,
+              italic: true,
+            },
+            provider
+          )
         );
         break;
       }
 
       case 'delete': {
         runs.push(
-          ...phrasingsToRuns((node as Parent).children as PhrasingContent[], {
-            ...opts,
-            strike: true,
-          })
+          ...phrasingsToRuns(
+            (node as Parent).children as PhrasingContent[],
+            {
+              ...opts,
+              strike: true,
+            },
+            provider
+          )
         );
         break;
       }
@@ -122,7 +213,11 @@ function phrasingsToRuns(
       case 'link': {
         const link = node as Link;
         runs.push(
-          ...phrasingsToRuns(link.children as PhrasingContent[], { ...opts, href: link.url })
+          ...phrasingsToRuns(
+            link.children as PhrasingContent[],
+            { ...opts, href: link.url },
+            provider
+          )
         );
         break;
       }
@@ -157,7 +252,8 @@ function blockToBlocks(
   node: BlockContent | DefinitionContent,
   messageId: string,
   counter: { n: number },
-  depth = 0
+  depth = 0,
+  provider?: MentionProvider
 ): Block[] {
   const nextId = (): BlockId => `${messageId}#${counter.n++}`;
   const blocks: Block[] = [];
@@ -165,7 +261,7 @@ function blockToBlocks(
   switch (node.type) {
     case 'paragraph': {
       const parent = node as Parent;
-      const runs = phrasingsToRuns(parent.children as PhrasingContent[]);
+      const runs = phrasingsToRuns(parent.children as PhrasingContent[], {}, provider);
       if (runs.length > 0) {
         blocks.push({
           kind: 'prose',
@@ -181,7 +277,7 @@ function blockToBlocks(
     case 'heading': {
       const h = node as Heading;
       const variant = `h${h.depth}` as ProseVariant;
-      const runs = phrasingsToRuns(h.children as PhrasingContent[]);
+      const runs = phrasingsToRuns(h.children as PhrasingContent[], {}, provider);
       if (runs.length > 0) {
         blocks.push({
           kind: 'prose',
@@ -195,7 +291,9 @@ function blockToBlocks(
 
     case 'blockquote': {
       for (const child of (node as Parent).children) {
-        blocks.push(...blockToBlocks(child as BlockContent, messageId, counter, depth + 1));
+        blocks.push(
+          ...blockToBlocks(child as BlockContent, messageId, counter, depth + 1, provider)
+        );
       }
       break;
     }
@@ -207,7 +305,11 @@ function blockToBlocks(
         // A list item may contain nested paragraphs and sub-lists.
         for (const itemChild of (item as Parent).children) {
           if (itemChild.type === 'paragraph') {
-            const runs = phrasingsToRuns((itemChild as Parent).children as PhrasingContent[]);
+            const runs = phrasingsToRuns(
+              (itemChild as Parent).children as PhrasingContent[],
+              {},
+              provider
+            );
             if (runs.length > 0) {
               blocks.push({
                 kind: 'prose',
@@ -218,7 +320,9 @@ function blockToBlocks(
               } satisfies ProseBlock);
             }
           } else {
-            blocks.push(...blockToBlocks(itemChild as BlockContent, messageId, counter, depth + 1));
+            blocks.push(
+              ...blockToBlocks(itemChild as BlockContent, messageId, counter, depth + 1, provider)
+            );
           }
         }
       }
@@ -240,7 +344,8 @@ function blockToBlocks(
       const allRows = tableNode.children.map((row) =>
         (row as TableRow).children.map((cell) => {
           const cellNode = cell as TableCell & Parent;
-          return phrasingsToRuns(cellNode.children as PhrasingContent[])
+          // Table cell text is plain: @mentions become their label text
+          return phrasingsToRuns(cellNode.children as PhrasingContent[], {}, provider)
             .map((r) => ('text' in r ? r.text : 'label' in r ? r.label : ''))
             .join('');
         })
@@ -299,8 +404,14 @@ function blockToBlocks(
  *
  * @param messageId - Stable item id used as the block-id prefix.
  * @param markdown  - Raw markdown string to parse.
+ * @param provider  - Optional @-mention resolver; when supplied, `@token` spans
+ *                    that resolve to metadata are emitted as InlineMention runs.
  */
-export function parseMarkdownToBlocks(messageId: string, markdown: string): Block[] {
+export function parseMarkdownToBlocks(
+  messageId: string,
+  markdown: string,
+  provider?: MentionProvider
+): Block[] {
   if (!markdown.trim()) return [];
 
   const tree = parser.parse(markdown) as Root;
@@ -308,7 +419,9 @@ export function parseMarkdownToBlocks(messageId: string, markdown: string): Bloc
   const blocks: Block[] = [];
 
   for (const child of tree.children) {
-    blocks.push(...blockToBlocks(child as BlockContent | DefinitionContent, messageId, counter));
+    blocks.push(
+      ...blockToBlocks(child as BlockContent | DefinitionContent, messageId, counter, 0, provider)
+    );
   }
 
   return blocks;

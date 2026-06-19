@@ -26,12 +26,17 @@ export function runsToRichItems(runs: InlineRun[], fonts: FontConfig): RichInlin
       ];
     }
     if (run.kind === 'mention') {
+      const mention = run as InlineMention;
+      // Resolved mentions (from MentionProvider) display the short name and include
+      // extra space for the leading kind icon (10px icon + 4px gap = 14px).
+      const displayText = mention.name ?? mention.label;
+      const iconWidth = mention.mentionKind ? 14 : 0;
       return [
         {
-          text: (run as InlineMention).label,
+          text: displayText,
           font: fonts.mention.font,
           break: 'never',
-          extraWidth: fonts.mentionExtraWidth,
+          extraWidth: fonts.mentionExtraWidth + iconWidth,
         },
       ];
     }

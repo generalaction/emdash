@@ -29,6 +29,12 @@
   --color-chat-bg-2: var(--chat-bg-2);
   --color-chat-bg-3: var(--chat-bg-3);
   --color-chat-border: var(--chat-border);
+
+  /* User message card surface */
+  --color-chat-user-card: var(--chat-user-card-bg);
+  --color-chat-user-card-border: var(--chat-user-card-border);
+  --color-chat-user-card-border-hover: var(--chat-user-card-border-hover);
+
   --color-chat-diff-added: var(--chat-diff-added);
   --color-chat-diff-deleted: var(--chat-diff-deleted);
   --color-chat-diff-modified: var(--chat-diff-modified);
@@ -76,6 +82,9 @@
   --chat-bg-2: #e5e4e4;
   --chat-bg-3: #dadada;
   --chat-border: #c5c4c4;
+  --chat-user-card-bg: #f1f0f0;
+  --chat-user-card-border: #c5c4c4;
+  --chat-user-card-border-hover: #b3b2b2;
   --chat-diff-added: #4f9f4f;
   --chat-diff-deleted: #d56761;
   --chat-diff-modified: #c28c00;
@@ -174,6 +183,9 @@
   --chat-bg-2: #202020;
   --chat-bg-3: #282727;
   --chat-border: #373636;
+  --chat-user-card-bg: #181818;
+  --chat-user-card-border: #373636;
+  --chat-user-card-border-hover: #525050;
   --chat-diff-added: #54a55a;
   --chat-diff-deleted: #dc6b67;
   --chat-diff-modified: #ce981d;

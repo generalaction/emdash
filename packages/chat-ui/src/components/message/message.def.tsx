@@ -4,7 +4,7 @@
  * Single self-contained unit per message. Rendering and measurement branch on role:
  *
  *   user      — bordered card (border-chat-border, bg-chat-bg-1), full column width
- *               (no inset), 14px horizontal / 8px vertical internal padding.
+ *               (no inset), 12px horizontal / 6px vertical internal padding.
  *               Collapsed max-height: USER_COLLAPSED_MAX_H (120px), clipped.
  *               Expanded max-height: USER_EXPANDED_MAX_H (360px), scrollable.
  *               Expand state driven by ctx.expandedId === item.id.
@@ -125,7 +125,7 @@ function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx }) {
   };
 
   return (
-    <div class={textClass()} style={{ height: `${totalH()}px`, position: 'relative' }}>
+    <div class={`group ${textClass()}`} style={{ height: `${totalH()}px`, position: 'relative' }}>
       <div class="sr-only">{plainText()}</div>
       <Show when={stack()}>{(s) => <BlockStackView node={s()} />}</Show>
       <Show when={props.data.role === 'assistant'}>

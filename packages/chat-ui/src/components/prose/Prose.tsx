@@ -11,16 +11,22 @@
  * pretext's width/height measurement.
  */
 
-import { For, Show } from 'solid-js';
+import { For, Match, Show, Switch } from 'solid-js';
 import type {
   BulletLayout,
   FragmentLayout,
   LineLayout,
   ProseLaidOut,
 } from '../../core/layout/layout-types';
-import type { InlineRun } from '../../core/markdown/document';
+import type { InlineMention, InlineRun } from '../../core/markdown/document';
 import { BlockFrame } from '../block-frame';
 import { useCommands } from '../CommandsContext';
+import {
+  MentionAtIcon,
+  MentionFileIcon,
+  MentionIssueIcon,
+  MentionSymbolIcon,
+} from '../primitives/icons';
 import styles from './prose.module.css';
 
 // ── Fragment ──────────────────────────────────────────────────────────────────
@@ -41,8 +47,12 @@ function fragKey(run: InlineRun, variant: string): string {
 function fragVisualClass(run: InlineRun, variant: string): string {
   if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(variant)) return '';
   if (run.kind === 'code') return 'rounded bg-[var(--chat-code-inline-bg,rgba(0,0,0,0.06))]';
-  if (run.kind === 'mention')
-    return 'rounded-full bg-[var(--chat-mention-bg,#dbeafe)] text-[var(--chat-mention-fg,#1d4ed8)]';
+  if (run.kind === 'mention') {
+    const base =
+      'rounded bg-[var(--chat-mention-bg,#dbeafe)] text-[var(--chat-mention-fg,#1d4ed8)]';
+    // Resolved mentions use a tighter border pill; plain/math mentions use rounded-full.
+    return (run as InlineMention).mentionKind ? base : `${base} rounded-full`;
+  }
   if (run.kind === 'text' && run.href) {
     return 'text-[var(--chat-link,#60a5fa)] underline decoration-[1px] underline-offset-[0.14em] cursor-pointer';
   }
@@ -89,6 +99,30 @@ function ProseFragment(props: {
       >
         {props.frag.text}
       </a>
+    );
+  }
+
+  // Resolved mention: render icon + short name inline within the chip.
+  if (props.run.kind === 'mention' && (props.run as InlineMention).mentionKind) {
+    const mention = props.run as InlineMention;
+    return (
+      <span
+        class={`${cls} inline-flex items-center gap-[3px]`}
+        style={{ left: `${props.frag.x}px` }}
+      >
+        <Switch fallback={<MentionAtIcon />}>
+          <Match when={mention.mentionKind === 'file'}>
+            <MentionFileIcon />
+          </Match>
+          <Match when={mention.mentionKind === 'issue'}>
+            <MentionIssueIcon />
+          </Match>
+          <Match when={mention.mentionKind === 'symbol'}>
+            <MentionSymbolIcon />
+          </Match>
+        </Switch>
+        <span>{mention.name ?? mention.label}</span>
+      </span>
     );
   }
 

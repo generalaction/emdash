@@ -40,6 +40,7 @@ import {
   type HighlightResult,
 } from './highlight/highlighter';
 import type { Block } from './markdown/document';
+import type { MentionProvider } from './markdown/mention-provider';
 import { parseMarkdownToBlocks } from './markdown/parse';
 
 // ── Cache key helpers ─────────────────────────────────────────────────────────
@@ -114,7 +115,10 @@ export type ChatCaches = {
 const HIGHLIGHT_CACHE_MAX = 200;
 const DIFF_CACHE_MAX = 100;
 
-export function createChatCaches(highlighter?: ChatHighlighter): ChatCaches {
+export function createChatCaches(
+  highlighter?: ChatHighlighter,
+  mentionProvider?: MentionProvider
+): ChatCaches {
   const hl = highlighter ?? createDefaultHighlighter();
   // Block parse cache — keyed by messageId.
   const blockCache = new Map<string, { text: string; blocks: Block[] }>();
@@ -136,7 +140,7 @@ export function createChatCaches(highlighter?: ChatHighlighter): ChatCaches {
     parseBlocks(id, markdown) {
       const hit = blockCache.get(id);
       if (hit && hit.text === markdown) return hit.blocks;
-      const blocks = parseMarkdownToBlocks(id, markdown);
+      const blocks = parseMarkdownToBlocks(id, markdown, mentionProvider);
       blockCache.set(id, { text: markdown, blocks });
       return blocks;
     },
