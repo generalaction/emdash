@@ -1,0 +1,28 @@
+packages/plugins/src/agents/impl/kilocode/index.ts
+  s_a6fc5c013de751::t_87d600a6caca69 49-52
+  s_a6fc5c013de751::t_b116d48498ba0e 66
+apps/emdash-desktop/src/main/core/conversations/spill-large-prompt.test.ts
+  s_a6fc5c013de751::t_9ca7caf1da142f 1-88
+apps/emdash-desktop/src/main/core/conversations/impl/local-conversation.ts
+  s_a6fc5c013de751::t_14c69de8ee96ea 19
+  s_a6fc5c013de751::t_9a9482900d7ede 142-149,154
+  s_a6fc5c013de751::t_ce4eea09d89726 253
+apps/emdash-desktop/src/main/core/conversations/spill-large-prompt.ts
+  s_a6fc5c013de751::t_2bdd4966e5e3df 1-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "b89090278595c71b82b26adf496840371d7759b9",
+  "prompts": {},
+  "sessions": {
+    "s_a6fc5c013de751": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "10535431-c725-47d4-9c73-a16452b861c5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
