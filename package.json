@@ -29,7 +29,10 @@
     "ignoredBuiltDependencies": [
       "cpu-features",
       "ssh2"
-    ]
+    ],
+    "patchedDependencies": {
+      "html-encoding-sniffer@6.0.0": "patches/html-encoding-sniffer@6.0.0.patch"
+    }
   },
   "devDependencies": {
     "unrun": "^0.3.1"

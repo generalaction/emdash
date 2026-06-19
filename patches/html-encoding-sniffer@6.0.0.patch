@@ -1,0 +1,32 @@
+diff --git a/lib/html-encoding-sniffer.js b/lib/html-encoding-sniffer.js
+index 08a92d3746ffb7da66451e407f00884df6828f99..a613a4c1887777a280afa8008ae58b2fa75640f8 100644
+--- a/lib/html-encoding-sniffer.js
++++ b/lib/html-encoding-sniffer.js
+@@ -1,5 +1,26 @@
+ "use strict";
+-const { getBOMEncoding, labelToName } = require("@exodus/bytes/encoding-lite.js");
++// Inline CJS replacements for @exodus/bytes/encoding-lite.js (ESM-only).
++// getBOMEncoding: WHATWG encoding spec §12.2.3
++function getBOMEncoding(uint8Array) {
++  if (!uint8Array || uint8Array.length < 2) return null;
++  if (uint8Array[0] === 0xEF && uint8Array[1] === 0xBB && uint8Array.length > 2 && uint8Array[2] === 0xBF) return "UTF-8";
++  if (uint8Array[0] === 0xFE && uint8Array[1] === 0xFF) return "UTF-16BE";
++  if (uint8Array[0] === 0xFF && uint8Array[1] === 0xFE) return "UTF-16LE";
++  return null;
++}
++// labelToName: normalise via Node's TextDecoder then re-capitalise per WHATWG conventions.
++function labelToName(label) {
++  if (label === null || label === undefined) return null;
++  try {
++    const enc = new TextDecoder(String(label).trim()).encoding;
++    if (!enc) return null;
++    const p = enc.slice(0, 3);
++    if (p === "utf" || p === "iso" || p === "koi" || p === "euc" || p === "ibm" || p === "gbk") return enc.toUpperCase();
++    if (enc === "big5") return "Big5";
++    if (enc === "shift_jis") return "Shift_JIS";
++    return enc;
++  } catch (_) { return null; }
++}
+ 
+ // https://html.spec.whatwg.org/#encoding-sniffing-algorithm
+ module.exports = (uint8Array, { xml = false, transportLayerEncodingLabel, defaultEncoding } = {}) => {

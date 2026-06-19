@@ -19,6 +19,15 @@ describe('ChangesListItem', () => {
 
   beforeEach(() => {
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>');
+    // jsdom@26 omits PointerEvent; add a minimal subclass so React's pointer-event
+    // feature detection and tests that dispatch PointerEvent both work correctly.
+    if (!dom.window.PointerEvent) {
+      Object.defineProperty(dom.window, 'PointerEvent', {
+        value: class PointerEvent extends dom.window.MouseEvent {},
+        writable: true,
+        configurable: true,
+      });
+    }
     vi.stubGlobal('window', dom.window);
     vi.stubGlobal('document', dom.window.document);
     vi.stubGlobal('HTMLElement', dom.window.HTMLElement);
