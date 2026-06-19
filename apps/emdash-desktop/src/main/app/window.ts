@@ -22,6 +22,7 @@ export function createMainWindow(): BrowserWindow {
     minWidth: 700,
     minHeight: 500,
     title: PRODUCT_NAME,
+    ...(process.platform !== 'darwin' ? { autoHideMenuBar: true } : {}),
     // In production, electron-builder injects the icon from the app bundle.
     ...(import.meta.env.DEV && { icon: appIcon }),
     webPreferences: {
@@ -44,6 +45,10 @@ export function createMainWindow(): BrowserWindow {
       : {}),
     show: false,
   });
+
+  if (process.platform !== 'darwin') {
+    mainWindow.setMenuBarVisibility(false);
+  }
 
   if (import.meta.env.DEV) {
     void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL!);
