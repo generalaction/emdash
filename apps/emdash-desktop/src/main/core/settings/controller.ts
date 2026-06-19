@@ -1,3 +1,4 @@
+import { markNextNativeThemeUpdateFromSettings } from '@main/app/native-theme-update-source';
 import { syncElectronThemeSource, syncMainWindowBackgroundColor } from '@main/app/window';
 import { setBrowserCorsRelaxationSettings } from '@main/core/browser/browser-profile-session';
 import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
@@ -8,6 +9,7 @@ import { appSettingsService, type AppSettings, type AppSettingsKey } from './set
 async function reconcileSettingsRuntimeState(key: AppSettingsKey): Promise<void> {
   if (key === 'theme') {
     const theme = await appSettingsService.get('theme');
+    markNextNativeThemeUpdateFromSettings();
     syncElectronThemeSource(theme);
     syncMainWindowBackgroundColor(theme);
   }

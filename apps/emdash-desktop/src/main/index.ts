@@ -7,6 +7,7 @@ import { PRODUCT_NAME } from '@shared/app-identity';
 import { githubAccountsChangedChannel } from '@shared/events/githubEvents';
 import { registerRPCRouter } from '@shared/lib/ipc/rpc';
 import { setupApplicationMenu } from './app/menu';
+import { consumeNativeThemeUpdateFromSettings } from './app/native-theme-update-source';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
 import {
   createMainWindow,
@@ -107,6 +108,8 @@ async function createMainWindowFromSettings() {
 
 function registerSystemThemeSync() {
   nativeTheme.on('updated', () => {
+    if (consumeNativeThemeUpdateFromSettings()) return;
+
     void syncWindowThemeFromSettings().catch((error: unknown) => {
       log.warn('Failed to sync window theme after system theme update:', error);
     });
