@@ -49,7 +49,7 @@ export async function removeWorktreeIfUnused(
 }
 
 /**
- * Deletes the workspace row only when no other task still references it.
+ * Deletes the workspace row and its derived file index only when no other task still references it.
  *
  * Tasks are deduplicated onto a single workspace row per resolved path (see
  * `WorkspaceBootstrapService.persistPath`), so for `no-worktree` tasks every task in a
@@ -78,28 +78,13 @@ export async function deleteWorkspaceIfUnused(
     .limit(1);
   if (sibling) return;
 
-  await db
-    .delete(workspaces)
-    .where(eq(workspaces.id, workspaceId))
-    .catch((e) => {
-      log.warn('deleteWorkspaceIfUnused: workspace row deletion failed', {
-        workspaceId,
-        error: String(e),
-      });
-    });
-}
-
-/**
- * Deletes the workspace file index when no non-archived sibling task shares the workspace.
- */
-export async function deleteIndexIfUnused(workspaceId: string): Promise<void> {
-  const siblings = await db
-    .select({ id: tasks.id })
-    .from(tasks)
-    .where(and(eq(tasks.workspaceId, workspaceId), isNull(tasks.archivedAt)))
-    .limit(1);
-
-  if (siblings.length === 0) {
+  try {
+    await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
     workspaceFileIndexService.deleteIndex(workspaceId);
+  } catch (e) {
+    log.warn('deleteWorkspaceIfUnused: workspace row deletion failed', {
+      workspaceId,
+      error: String(e),
+    });
   }
 }

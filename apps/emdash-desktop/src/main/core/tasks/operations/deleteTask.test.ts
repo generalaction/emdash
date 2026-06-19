@@ -62,18 +62,17 @@ describe('deleteTask', () => {
     mocks.getProject.mockReturnValue(undefined);
   });
 
-  it('deletes the workspace file index after deleting the last non-archived task', async () => {
+  it('preserves the workspace file index when an archived sibling still references the workspace', async () => {
     mocks.selectLimit
       .mockResolvedValueOnce([{ id: 'task-1', workspaceId: 'workspace-1' }])
       .mockResolvedValueOnce([
         { id: 'workspace-1', kind: 'worktree', branchName: null, config: null },
       ])
       .mockResolvedValueOnce([{ id: 'workspace-1', kind: 'worktree' }])
-      .mockResolvedValueOnce([{ id: 'archived-sibling' }])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce([{ id: 'archived-sibling' }]);
 
     await deleteTask('project-1', 'task-1', { deleteWorktree: false });
 
-    expect(mocks.deleteIndex).toHaveBeenCalledWith('workspace-1');
+    expect(mocks.deleteIndex).not.toHaveBeenCalled();
   });
 });
