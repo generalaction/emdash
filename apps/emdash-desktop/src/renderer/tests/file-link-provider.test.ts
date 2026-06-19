@@ -176,6 +176,28 @@ describe('file link provider', () => {
     expect(findFileLinks(buffer, 1)).toEqual([]);
   });
 
+  it('ignores bare country-code domains in prose', () => {
+    const buffer = makeBuffer([
+      new MockBufferLine('see paris.fr, hello.de, news.nl, site.ca and foo.it'),
+    ]);
+
+    expect(findFileLinks(buffer, 1)).toEqual([]);
+  });
+
+  it('links source files whose extension collides with a country-code TLD', () => {
+    const buffer = makeBuffer([new MockBufferLine('open main.rs and build.sh')]);
+
+    expect(findFileLinks(buffer, 1).map((link) => link.text)).toEqual(['main.rs', 'build.sh']);
+  });
+
+  it('links single-char extensions only with a directory, not bare', () => {
+    const bare = makeBuffer([new MockBufferLine('edit main.c and stdio.h')]);
+    expect(findFileLinks(bare, 1)).toEqual([]);
+
+    const withDir = makeBuffer([new MockBufferLine('edit src/main.c now')]);
+    expect(findFileLinks(withDir, 1).map((link) => link.text)).toEqual(['src/main.c']);
+  });
+
   it('does not link dotted directory prefixes as bare filenames', () => {
     const buffer = makeBuffer([new MockBufferLine('read docs.v2/README before editing')]);
 

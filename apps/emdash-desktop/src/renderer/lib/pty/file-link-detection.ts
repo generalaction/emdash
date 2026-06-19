@@ -4,35 +4,183 @@ import type { ILink } from '@xterm/xterm';
 // allowed because the surrounding `/` segments already make these unambiguous.
 const DIR_PATH_PATTERN = '(~/|/|\\.{1,2}/)?(?:[\\w\\-.@]+/)+[\\w\\-.@]+\\.[a-zA-Z][a-zA-Z0-9]{0,9}';
 // Bare filenames with no directory (e.g. `notes.md`). The extension must be at
-// least two characters so common prose abbreviations ("e.g", "i.e", "U.S") that
-// only have a single trailing letter are not mistaken for files.
+// least two characters so common prose abbreviations ("e.g", "i.e", "U.S", "a.m")
+// that only have a single trailing letter are not mistaken for files. This
+// deliberately excludes single-char source extensions (`.c`, `.h`, `.m`, `.s`):
+// those files are still linkable when written with a directory (`src/main.c`).
 const BARE_FILE_PATTERN = '[\\w\\-.]+\\.[a-zA-Z][a-zA-Z0-9]{1,9}(?!/)';
 // Lookbehind on `:` keeps URLs (`https://...`) with WebLinksAddon.
 const FILE_PATH_PATTERN = `(?<![\\w\\-./@:])(?:${DIR_PATH_PATTERN}|${BARE_FILE_PATTERN})\\b`;
 const URL_PROTOCOL_PATTERN = /[a-zA-Z][a-zA-Z0-9+.-]*:\/\//;
-const WEB_DOMAIN_EXTENSIONS = new Set([
-  'ai',
-  'app',
-  'biz',
-  'cloud',
-  'co',
-  'com',
-  'dev',
-  'edu',
-  'gov',
-  'info',
-  'io',
-  'me',
-  'mil',
-  'net',
-  'org',
-  'page',
-  'site',
-  'tech',
-  'to',
-  'uk',
-  'us',
-  'xyz',
+// A bare `name.ext` token is ambiguous: `notes.md` is a file but `paris.fr` is a
+// domain. Rather than chase an ever-growing blocklist of (country-code) TLDs —
+// many of which (`.rs`, `.sh`, `.pl`, `.ml`) are also real source extensions —
+// we only treat a bare token as a file when its extension is a known file type.
+// Tokens containing a `/` keep permissive matching via DIR_PATH_PATTERN, so
+// uncommon extensions stay linkable when written as a path. The trade-off is
+// conservative: an unlisted extension simply needs a path to be clickable.
+const BARE_FILE_EXTENSIONS = new Set([
+  // Source code
+  'ts',
+  'tsx',
+  'js',
+  'jsx',
+  'mjs',
+  'cjs',
+  'mts',
+  'cts',
+  'py',
+  'pyi',
+  'pyw',
+  'ipynb',
+  'rb',
+  'erb',
+  'rake',
+  'gemspec',
+  'go',
+  'rs',
+  'swift',
+  'dart',
+  'jl',
+  'zig',
+  'nim',
+  'asm',
+  'java',
+  'kt',
+  'kts',
+  'scala',
+  'groovy',
+  'clj',
+  'cljs',
+  'cljc',
+  'cpp',
+  'cxx',
+  'cc',
+  'hpp',
+  'hxx',
+  'hh',
+  'cs',
+  'php',
+  'lua',
+  'pl',
+  'pm',
+  'hs',
+  'ml',
+  'mli',
+  'ex',
+  'exs',
+  'erl',
+  'sh',
+  'bash',
+  'zsh',
+  'fish',
+  'ps1',
+  'psm1',
+  'bat',
+  'cmd',
+  'sql',
+  'prisma',
+  'vue',
+  'svelte',
+  'astro',
+  'sol',
+  'proto',
+  'graphql',
+  'gql',
+  // Config & data
+  'json',
+  'jsonc',
+  'json5',
+  'yaml',
+  'yml',
+  'toml',
+  'ini',
+  'cfg',
+  'conf',
+  'env',
+  'properties',
+  'csv',
+  'tsv',
+  'lock',
+  'gradle',
+  'plist',
+  'tf',
+  'tfvars',
+  'hcl',
+  'nix',
+  'cmake',
+  'mk',
+  'bzl',
+  // Markup, style & web
+  'html',
+  'htm',
+  'xhtml',
+  'css',
+  'scss',
+  'sass',
+  'less',
+  'styl',
+  'xml',
+  'xsl',
+  'xslt',
+  'svg',
+  // Docs
+  'md',
+  'mdx',
+  'markdown',
+  'txt',
+  'rst',
+  'adoc',
+  'tex',
+  'bib',
+  'rtf',
+  'pdf',
+  'doc',
+  'docx',
+  'ppt',
+  'pptx',
+  'xls',
+  'xlsx',
+  // Assets
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'bmp',
+  'webp',
+  'ico',
+  'tiff',
+  'tif',
+  'mp3',
+  'mp4',
+  'wav',
+  'ogg',
+  'webm',
+  'mov',
+  'avi',
+  'mkv',
+  'woff',
+  'woff2',
+  'ttf',
+  'otf',
+  'eot',
+  // Misc
+  'log',
+  'diff',
+  'patch',
+  'snap',
+  'map',
+  'db',
+  'sqlite',
+  'sqlite3',
+  'zip',
+  'tar',
+  'gz',
+  'tgz',
+  'bz2',
+  'xz',
+  'bin',
+  'dat',
 ]);
 const MAX_WRAPPED_LINE_LENGTH = 4096;
 
@@ -72,7 +220,7 @@ export function findFileLinks(buffer: BufferLike, bufferLineNumber: number): Fil
   while ((match = regex.exec(logicalLine.text)) !== null) {
     const matched = match[0];
     const startOffset = match.index;
-    if (isEmbeddedInUrl(logicalLine.text, startOffset) || isLikelyBareDomain(matched)) continue;
+    if (isEmbeddedInUrl(logicalLine.text, startOffset) || isUnsupportedBareFile(matched)) continue;
     const endOffset = startOffset + matched.length;
     const range = mapOffsetRangeToBufferRange(logicalLine, startOffset, endOffset);
     if (!range) continue;
@@ -97,10 +245,13 @@ function isEmbeddedInUrl(text: string, startCol: number): boolean {
   return URL_PROTOCOL_PATTERN.test(prefix.slice(tokenStart));
 }
 
-function isLikelyBareDomain(text: string): boolean {
+// Bare filenames (no `/`) are only linked when their extension is a known file
+// type, which keeps domains like `paris.fr` out. Paths with a separator are
+// matched permissively and skip this gate.
+function isUnsupportedBareFile(text: string): boolean {
   if (text.includes('/')) return false;
   const extension = text.slice(text.lastIndexOf('.') + 1).toLowerCase();
-  return WEB_DOMAIN_EXTENSIONS.has(extension);
+  return !BARE_FILE_EXTENSIONS.has(extension);
 }
 
 function getWrappedLogicalLine(buffer: BufferLike, bufferIndex: number): LogicalLine | null {
