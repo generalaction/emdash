@@ -26,6 +26,17 @@ const enrichHostDep = (
   hostDep: Parameters<typeof agentUpdateService.enrichHostDependency>[1]
 ) => agentUpdateService.enrichHostDependency(id, hostDep);
 
+async function ensureAgentStatusesLoaded(
+  mgr: Awaited<ReturnType<typeof getDependencyManager>>
+): Promise<void> {
+  const hasAgentSnapshot = Array.from(mgr.getAll().values()).some(
+    (state) => state.category === 'agent'
+  );
+  if (!hasAgentSnapshot) {
+    await mgr.probeCategory('agent');
+  }
+}
+
 export const agentsController = createRPCController({
   // ── Metadata ────────────────────────────────────────────────────────────────
 
@@ -43,6 +54,7 @@ export const agentsController = createRPCController({
 
   listAgentInstallationStatus: async (connectionId?: string) => {
     const mgr = await getDependencyManager(connectionId);
+    await ensureAgentStatusesLoaded(mgr);
     return Array.from(mgr.getAll().values())
       .filter((s) => s.category === 'agent')
       .map((state) => {
@@ -56,6 +68,9 @@ export const agentsController = createRPCController({
 
   getAgentInstallationStatus: async (id: string, connectionId?: string) => {
     const mgr = await getDependencyManager(connectionId);
+    if (!mgr.get(id as DependencyId)) {
+      await mgr.probe(id as DependencyId);
+    }
     const state = mgr.get(id as DependencyId);
     if (!state) return null;
     const rawHostDep = mgr.getHostDependency(id as DependencyId);

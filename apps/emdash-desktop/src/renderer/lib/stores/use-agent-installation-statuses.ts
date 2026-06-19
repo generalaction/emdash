@@ -60,7 +60,9 @@ export function useAgentInstallationStatuses(connectionId?: string) {
       (event: AgentInstallationStatus) => {
         if ((event.connectionId ?? undefined) !== connectionId) return;
         queryClient.setQueryData<AgentInstallationStatus[]>(key, (prev) => {
-          if (!prev) return prev;
+          if (!prev) return [event];
+          const found = prev.some((s) => s.id === event.id);
+          if (!found) return [...prev, event];
           return prev.map((s) => (s.id === event.id ? event : s));
         });
         // Also invalidate the full agents list to keep the combined payload consistent
