@@ -1,0 +1,73 @@
+apps/emdash-desktop/src/renderer/features/sidebar/sidebar-space.tsx
+  s_7c883d9c3ae1ea::t_58167b5867a248 27
+apps/emdash-desktop/src/renderer/features/command-palette/command-palette-modal.tsx
+  s_7c883d9c3ae1ea::t_5334668fb908f4 93
+  s_7c883d9c3ae1ea::t_c4e5c90c59bbd7 284-285,472-473,477,481
+apps/emdash-desktop/src/renderer/app/welcome.tsx
+  s_7c883d9c3ae1ea::t_37aa237a3a3f1f 145
+apps/emdash-desktop/src/renderer/features/sidebar/project-item.tsx
+  s_7c883d9c3ae1ea::t_ac219b70d2ab18 203
+apps/emdash-desktop/src/renderer/lib/ui/shortcut.tsx
+  s_7c883d9c3ae1ea::t_a5180253e96adb 28
+  s_7c883d9c3ae1ea::t_5e36ded940e186 21-26,29-32
+  s_7c883d9c3ae1ea::t_0608f70d78a69a 33
+  s_7c883d9c3ae1ea::t_6f174b03defa39 62
+  s_7c883d9c3ae1ea::t_8a0474e59e2388 68
+  s_7c883d9c3ae1ea::t_61dbf95ff9b14d 27
+apps/emdash-desktop/src/renderer/lib/components/titlebar/Titlebar.tsx
+  s_7c883d9c3ae1ea::t_7a9cc4bcf1b1ae 38
+apps/emdash-desktop/src/renderer/lib/ui/button.tsx
+  s_7c883d9c3ae1ea::t_cb3335bdec8f6a 54
+apps/emdash-desktop/src/renderer/features/projects/components/task-view/task-list.tsx
+  s_7c883d9c3ae1ea::t_4780fb3aa463af 122
+  s_7c883d9c3ae1ea::t_0fe15e98547e62 236
+apps/emdash-desktop/src/renderer/features/tasks/conversations/add-context-popover.tsx
+  s_7c883d9c3ae1ea::t_7e5adba3a62ef6 248
+  s_7c883d9c3ae1ea::t_9886d7b55d4fa5 208
+apps/emdash-desktop/src/renderer/features/tasks/terminals/terminal-drawer-sidebar.tsx
+  s_7c883d9c3ae1ea::t_fe3b15f275e000 85
+apps/emdash-desktop/src/renderer/features/tasks/view/tab-bar/tab-bar-actions.tsx
+  s_7c883d9c3ae1ea::t_773913579ebb4d 60,96
+apps/emdash-desktop/src/renderer/features/tasks/view/pane-empty-state.tsx
+  s_7c883d9c3ae1ea::t_5292b3d13e70d4 74
+  s_7c883d9c3ae1ea::t_4407c19c62df82 86
+apps/emdash-desktop/src/renderer/lib/components/nav-buttons.tsx
+  s_7c883d9c3ae1ea::t_51bbe599a4006e 40,57
+apps/emdash-desktop/src/renderer/lib/ui/action-list-item.tsx
+  s_7c883d9c3ae1ea::t_910fd06e1912d8 54
+  s_7c883d9c3ae1ea::t_e43f795f738f24 2
+  s_7c883d9c3ae1ea::t_1a1e5361e38734 27
+apps/emdash-desktop/src/renderer/features/tasks/terminals/terminal-panel.tsx
+  s_7c883d9c3ae1ea::t_0194757f9c3350 123
+apps/emdash-desktop/src/renderer/features/sidebar/projects-group-label.tsx
+  s_7c883d9c3ae1ea::t_323b4e3a9d408d 89
+apps/emdash-desktop/src/renderer/features/sidebar/sidebar-primitives.tsx
+  s_7c883d9c3ae1ea::t_a5a0bf079abcc5 93
+apps/emdash-desktop/src/renderer/lib/components/titlebar/open-in-menu.tsx
+  s_7c883d9c3ae1ea::t_72924aac452239 160
+apps/emdash-desktop/src/renderer/features/tasks/task-titlebar.tsx
+  s_7c883d9c3ae1ea::t_1c353cff2377e7 337,384,396,408
+apps/emdash-desktop/src/renderer/lib/ui/confirm-button.tsx
+  s_7c883d9c3ae1ea::t_fc27cb7b3f0584 28
+apps/emdash-desktop/src/renderer/features/sidebar/sidebar-search-trigger.tsx
+  s_7c883d9c3ae1ea::t_3cff89c3568c06 45
+apps/emdash-desktop/src/renderer/features/sidebar/left-sidebar.tsx
+  s_7c883d9c3ae1ea::t_4a3a2ab1406bd7 94
+  s_7c883d9c3ae1ea::t_bb2a49c809301a 106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "9b9508303163e7744882ae5cdd6cbcc0c0708400",
+  "prompts": {},
+  "sessions": {
+    "s_7c883d9c3ae1ea": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "4974786f-a299-4897-b1fa-200bfb56f202",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
