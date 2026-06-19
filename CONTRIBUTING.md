@@ -24,6 +24,15 @@ corepack enable
 pnpm --version
 ```
 
+### Get The Source
+
+Fork the repository on GitHub, then clone your fork:
+
+```bash
+git clone https://github.com/<you>/emdash.git
+cd emdash
+```
+
 ### Install
 
 From the repo root:
