@@ -5,6 +5,7 @@ import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useA
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
@@ -31,6 +32,8 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useCloseGuard(isSubmitting);
+
   const skipPermissions = providerId ? autoApproveDefaults.getDefault(providerId) : false;
   const titleProviderId = providerId ?? 'claude';
   const title = nextDefaultConversationTitle(
@@ -52,6 +55,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
         provider: providerId,
         title,
       });
+      setIsSubmitting(false);
       onSuccess({ conversationId: id });
     } catch {
       setError('Failed to create conversation');
