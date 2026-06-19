@@ -72,7 +72,7 @@ function formatDisplayDetail(
 }
 
 export class GitLabConnectionService {
-  private readonly GITLAB_TOKEN_SECRET_KEY = 'emdash-gitlab-token';
+  private readonly GITLAB_TOKEN_SECRET_KEY = 'rocky-gitlab-token';
 
   private client: Gitlab | null = null;
   private clientKey: string | null = null;

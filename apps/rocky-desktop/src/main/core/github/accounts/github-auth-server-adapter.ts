@@ -20,7 +20,7 @@ export class GitHubAuthServerAdapter {
 
     const result = await this.accountRegistry.upsertAccount({
       accessToken: payload.accessToken,
-      credentialSource: 'emdash_oauth',
+      credentialSource: 'rocky_oauth',
       providerAccount: {
         providerId: 'github',
         providerAccountId: payload.providerAccount.providerAccountId,

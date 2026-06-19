@@ -73,7 +73,7 @@ describe('PlaneConnectionService', () => {
     });
 
     expect(result).toEqual({ success: true, displayName: 'Ada Lovelace' });
-    expect(mockSetSecret).toHaveBeenCalledWith('emdash-plane-token', 'plane_api_token');
+    expect(mockSetSecret).toHaveBeenCalledWith('rocky-plane-token', 'plane_api_token');
     expect(kvStore.get('connection')).toEqual({
       apiBaseUrl: 'https://plane.example.com',
       workspaceSlug: 'my-team',
@@ -143,7 +143,7 @@ describe('PlaneConnectionService', () => {
     const result = await service.clearCredentials();
 
     expect(result).toEqual({ success: true });
-    expect(mockDeleteSecret).toHaveBeenCalledWith('emdash-plane-token');
+    expect(mockDeleteSecret).toHaveBeenCalledWith('rocky-plane-token');
     expect(kvStore.has('connection')).toBe(false);
   });
 });

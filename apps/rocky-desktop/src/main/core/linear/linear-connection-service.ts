@@ -5,7 +5,7 @@ import { telemetryService } from '@main/lib/telemetry';
 import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 
 export class LinearConnectionService {
-  private readonly LINEAR_TOKEN_SECRET_KEY = 'emdash-linear-token';
+  private readonly LINEAR_TOKEN_SECRET_KEY = 'rocky-linear-token';
 
   private cachedToken: string | null | undefined = undefined;
   private client: LinearClient | null = null;

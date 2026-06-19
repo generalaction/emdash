@@ -48,7 +48,7 @@ describe('TrelloConnectionService', () => {
 
       expect(result).toEqual({ success: true, displayName: 'Jan' });
       expect(mockSetSecret).toHaveBeenCalledWith(
-        'emdash-trello-credentials',
+        'rocky-trello-credentials',
         JSON.stringify({ apiKey: input.apiKey, token: input.token, boardIds: [] })
       );
     });
@@ -80,7 +80,7 @@ describe('TrelloConnectionService', () => {
 
       expect(result.success).toBe(true);
       expect(mockSetSecret).toHaveBeenCalledWith(
-        'emdash-trello-credentials',
+        'rocky-trello-credentials',
         JSON.stringify({
           apiKey: input.apiKey,
           token: input.token,
@@ -214,7 +214,7 @@ describe('TrelloConnectionService', () => {
       const result = await service.clearCredentials();
 
       expect(result).toEqual({ success: true });
-      expect(mockDeleteSecret).toHaveBeenCalledWith('emdash-trello-credentials');
+      expect(mockDeleteSecret).toHaveBeenCalledWith('rocky-trello-credentials');
     });
   });
 });

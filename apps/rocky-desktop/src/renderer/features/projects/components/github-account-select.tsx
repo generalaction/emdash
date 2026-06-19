@@ -5,7 +5,7 @@ import type { GitHubAccountSummary, GitHubCredentialSource } from '@shared/githu
 
 export const GITHUB_SOURCE_LABELS: Record<GitHubCredentialSource, string> = {
   cli: 'GitHub CLI',
-  emdash_oauth: 'OAuth',
+  rocky_oauth: 'OAuth',
   device_flow: 'Device flow',
   secure_storage: 'Saved token',
 };

@@ -87,7 +87,7 @@ describe('GitHubAuthServerAdapter', () => {
     expect(accounts[0]).toMatchObject({
       id: 'github.com:42',
       login: 'monalisa',
-      credentialSource: 'emdash_oauth',
+      credentialSource: 'rocky_oauth',
     });
     await expect(registry.resolveToken('github.com:42')).resolves.toBe('gho_monalisa');
   });
@@ -115,7 +115,7 @@ describe('GitHubAuthServerAdapter', () => {
     expect(accounts[0]).toMatchObject({
       id: 'github.com:84',
       login: 'octocat',
-      credentialSource: 'emdash_oauth',
+      credentialSource: 'rocky_oauth',
     });
     await expect(registry.resolveToken('github.com:84')).resolves.toBe('gho_octocat');
   });

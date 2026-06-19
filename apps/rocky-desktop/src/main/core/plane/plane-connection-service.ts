@@ -24,7 +24,7 @@ interface PlaneKVSchema extends Record<string, unknown> {
 
 const planeKV = new KV<PlaneKVSchema>('plane');
 const NOT_CONFIGURED_ERROR = 'Plane is not configured. Connect Plane in settings.';
-const PLANE_TOKEN_SECRET_KEY = 'emdash-plane-token';
+const PLANE_TOKEN_SECRET_KEY = 'rocky-plane-token';
 
 export type PlaneCredentials = {
   apiBaseUrl: string;

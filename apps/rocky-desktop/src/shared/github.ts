@@ -6,7 +6,7 @@ export interface GitHubUser {
   avatar_url: string;
 }
 
-export type GitHubTokenSource = 'secure_storage' | 'cli' | 'emdash_oauth' | 'device_flow' | null;
+export type GitHubTokenSource = 'secure_storage' | 'cli' | 'rocky_oauth' | 'device_flow' | null;
 
 export type GitHubCredentialSource = Exclude<GitHubTokenSource, null>;
 

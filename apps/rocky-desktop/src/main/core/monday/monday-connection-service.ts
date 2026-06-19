@@ -4,7 +4,7 @@ import { telemetryService } from '@main/lib/telemetry';
 import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 
 const MONDAY_API_URL = 'https://api.monday.com/v2';
-const CREDENTIALS_KEY = 'emdash-monday-credentials';
+const CREDENTIALS_KEY = 'rocky-monday-credentials';
 
 export const MONDAY_API_ERROR_MESSAGES = {
   AUTH_FAILED: 'Monday.com authentication failed. Check your API token.',

@@ -3,7 +3,7 @@ import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secre
 import { log } from '@main/lib/logger';
 import { type AccountSessionPersistenceError, unknownErrorMessage } from '../account-errors';
 
-const ACCOUNT_SESSION_SECRET_KEY = 'emdash-account-token';
+const ACCOUNT_SESSION_SECRET_KEY = 'rocky-account-token';
 
 export class AccountCredentialStore {
   async get(): Promise<Result<string | null, AccountSessionPersistenceError>> {

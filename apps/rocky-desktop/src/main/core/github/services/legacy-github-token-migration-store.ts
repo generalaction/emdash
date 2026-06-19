@@ -1,6 +1,6 @@
 import type { GitHubTokenSource } from '@shared/github';
 
-export const GITHUB_TOKEN_SECRET_KEY = 'emdash-github-token';
+export const GITHUB_TOKEN_SECRET_KEY = 'rocky-github-token';
 
 type LegacyTokenSource = Exclude<GitHubTokenSource, null>;
 
@@ -17,7 +17,7 @@ type LegacyTokenSourceStore = {
 function parseTokenSource(raw: unknown): LegacyTokenSource | null {
   return raw === 'cli' ||
     raw === 'secure_storage' ||
-    raw === 'emdash_oauth' ||
+    raw === 'rocky_oauth' ||
     raw === 'device_flow'
     ? raw
     : null;

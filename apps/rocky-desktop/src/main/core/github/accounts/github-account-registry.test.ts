@@ -66,7 +66,7 @@ describe('GitHubAccountRegistry', () => {
     return (
       await registry.upsertAccount({
         accessToken: `gho_${login}`,
-        credentialSource: 'emdash_oauth',
+        credentialSource: 'rocky_oauth',
         providerAccount: {
           providerId: 'github',
           providerAccountId,
@@ -81,7 +81,7 @@ describe('GitHubAccountRegistry', () => {
   it('stores OAuth account metadata separately from the account token', async () => {
     const { account } = await registry.upsertAccount({
       accessToken: 'gho_monalisa',
-      credentialSource: 'emdash_oauth',
+      credentialSource: 'rocky_oauth',
       providerAccount: {
         providerId: 'github',
         providerAccountId: '42',
@@ -99,7 +99,7 @@ describe('GitHubAccountRegistry', () => {
         host: 'github.com',
         login: 'monalisa',
         avatarUrl: 'https://avatars.githubusercontent.com/u/42',
-        credentialSource: 'emdash_oauth',
+        credentialSource: 'rocky_oauth',
         connectedAt: account.connectedAt,
         updatedAt: account.updatedAt,
       },
@@ -109,7 +109,7 @@ describe('GitHubAccountRegistry', () => {
   it('updates an existing account instead of duplicating it', async () => {
     await registry.upsertAccount({
       accessToken: 'old-token',
-      credentialSource: 'emdash_oauth',
+      credentialSource: 'rocky_oauth',
       providerAccount: {
         providerId: 'github',
         providerAccountId: '42',
@@ -121,7 +121,7 @@ describe('GitHubAccountRegistry', () => {
 
     const { account: updated } = await registry.upsertAccount({
       accessToken: 'new-token',
-      credentialSource: 'emdash_oauth',
+      credentialSource: 'rocky_oauth',
       providerAccount: {
         providerId: 'github',
         providerAccountId: '42',
@@ -144,7 +144,7 @@ describe('GitHubAccountRegistry', () => {
   it('reports whether an upsert created or updated an account', async () => {
     const created = await registry.upsertAccount({
       accessToken: 'old-token',
-      credentialSource: 'emdash_oauth',
+      credentialSource: 'rocky_oauth',
       providerAccount: {
         providerId: 'github',
         providerAccountId: '42',
@@ -156,7 +156,7 @@ describe('GitHubAccountRegistry', () => {
 
     const updated = await registry.upsertAccount({
       accessToken: 'new-token',
-      credentialSource: 'emdash_oauth',
+      credentialSource: 'rocky_oauth',
       providerAccount: {
         providerId: 'github',
         providerAccountId: '42',
@@ -174,7 +174,7 @@ describe('GitHubAccountRegistry', () => {
   it('removes account metadata and credentials together', async () => {
     const { account } = await registry.upsertAccount({
       accessToken: 'gho_monalisa',
-      credentialSource: 'emdash_oauth',
+      credentialSource: 'rocky_oauth',
       providerAccount: {
         providerId: 'github',
         providerAccountId: '42',

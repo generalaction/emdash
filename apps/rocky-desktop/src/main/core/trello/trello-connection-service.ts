@@ -5,7 +5,7 @@ import { telemetryService } from '@main/lib/telemetry';
 import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 
 const TRELLO_API_BASE_URL = 'https://api.trello.com/1';
-const CREDENTIALS_KEY = 'emdash-trello-credentials';
+const CREDENTIALS_KEY = 'rocky-trello-credentials';
 const MAX_SELECTED_TRELLO_BOARDS = 20;
 const TRELLO_REQUEST_CONCURRENCY = 5;
 

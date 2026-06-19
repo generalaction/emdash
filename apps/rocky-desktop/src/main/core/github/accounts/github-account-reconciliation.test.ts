@@ -16,7 +16,7 @@ function account(id: string, credentialSource: GitHubAccount['credentialSource']
 }
 
 class LegacyBackfill {
-  result: GitHubAccount | null = account('github.com:42', 'emdash_oauth');
+  result: GitHubAccount | null = account('github.com:42', 'rocky_oauth');
   error: Error | null = null;
 
   constructor(private readonly calls: string[]) {}

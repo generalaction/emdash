@@ -80,7 +80,7 @@ describe('GitHubApiAuthService', () => {
     return (
       await registry.upsertAccount({
         accessToken: token,
-        credentialSource: 'emdash_oauth',
+        credentialSource: 'rocky_oauth',
         providerAccount: {
           providerId: 'github',
           providerAccountId,

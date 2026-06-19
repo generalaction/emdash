@@ -78,7 +78,7 @@ describe('GitHubAccountService', () => {
     return (
       await registry.upsertAccount({
         accessToken: `token-${host}-${providerAccountId}`,
-        credentialSource: host === 'github.com' ? 'emdash_oauth' : 'cli',
+        credentialSource: host === 'github.com' ? 'rocky_oauth' : 'cli',
         providerAccount: {
           providerId: 'github',
           providerAccountId,
@@ -101,7 +101,7 @@ describe('GitHubAccountService', () => {
         host: 'github.com',
         login: 'monalisa',
         avatarUrl: 'https://github.com/avatars/42',
-        credentialSource: 'emdash_oauth',
+        credentialSource: 'rocky_oauth',
         isDefault: false,
       },
       {

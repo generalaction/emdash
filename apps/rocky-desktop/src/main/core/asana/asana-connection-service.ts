@@ -44,7 +44,7 @@ export function toAsanaErrorMessage(error: unknown, fallback: string): string {
 }
 
 export class AsanaConnectionService {
-  private readonly ASANA_TOKEN_SECRET_KEY = 'emdash-asana-token';
+  private readonly ASANA_TOKEN_SECRET_KEY = 'rocky-asana-token';
 
   private cachedToken: string | null | undefined = undefined;
   private cachedWorkspaceGid: string | null | undefined = undefined;

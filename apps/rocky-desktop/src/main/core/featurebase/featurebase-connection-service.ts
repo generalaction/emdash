@@ -35,7 +35,7 @@ function isNotConfigured(error: unknown): boolean {
 }
 
 export class FeaturebaseConnectionService {
-  private readonly FEATUREBASE_TOKEN_SECRET_KEY = 'emdash-featurebase-token';
+  private readonly FEATUREBASE_TOKEN_SECRET_KEY = 'rocky-featurebase-token';
 
   private cachedToken: string | null | undefined = undefined;
   private client: FeaturebaseClient | null = null;

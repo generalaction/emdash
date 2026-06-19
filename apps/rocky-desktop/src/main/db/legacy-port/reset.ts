@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 import { quoteIdentifier, tableExists, withForeignKeysDisabled } from './sqlite-utils';
 
-export const PRESERVED_SECRET_KEYS = ['emdash-account-token', 'emdash-github-token'] as const;
+export const PRESERVED_SECRET_KEYS = ['rocky-account-token', 'rocky-github-token'] as const;
 export const PRESERVED_KV_KEYS = ['account:profile', 'github:tokenSource'] as const;
 
 function placeholders(values: readonly string[]): string {

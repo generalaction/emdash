@@ -48,7 +48,7 @@ describe('MondayConnectionService', () => {
 
       expect(result).toEqual({ success: true, workspaceName: meResponse.data.me.account.name });
       expect(mockSetSecret).toHaveBeenCalledWith(
-        'emdash-monday-credentials',
+        'rocky-monday-credentials',
         JSON.stringify({ token: input.token, boardIds: [], boardUrls: [] })
       );
     });
@@ -71,7 +71,7 @@ describe('MondayConnectionService', () => {
 
       expect(result.success).toBe(true);
       expect(mockSetSecret).toHaveBeenCalledWith(
-        'emdash-monday-credentials',
+        'rocky-monday-credentials',
         JSON.stringify({
           token: input.token,
           boardIds: ['123456', '789012'],
@@ -100,7 +100,7 @@ describe('MondayConnectionService', () => {
 
       expect(result.success).toBe(true);
       expect(mockSetSecret).toHaveBeenCalledWith(
-        'emdash-monday-credentials',
+        'rocky-monday-credentials',
         JSON.stringify({
           token: input.token,
           boardIds: ['123456'],
@@ -209,7 +209,7 @@ describe('MondayConnectionService', () => {
       const result = await service.clearCredentials();
 
       expect(result).toEqual({ success: true });
-      expect(mockDeleteSecret).toHaveBeenCalledWith('emdash-monday-credentials');
+      expect(mockDeleteSecret).toHaveBeenCalledWith('rocky-monday-credentials');
     });
   });
 });

@@ -73,7 +73,7 @@ function formatDisplayDetail(
 }
 
 export class ForgejoConnectionService {
-  private readonly FORGEJO_TOKEN_SECRET_KEY = 'emdash-forgejo-token';
+  private readonly FORGEJO_TOKEN_SECRET_KEY = 'rocky-forgejo-token';
 
   private client: Client | null = null;
   private clientKey: string | null = null;

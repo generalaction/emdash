@@ -37,7 +37,7 @@ function encodeBasic(email: string, token: string): string {
 }
 
 export class JiraConnectionService {
-  private readonly JIRA_TOKEN_SECRET_KEY = 'emdash-jira-token';
+  private readonly JIRA_TOKEN_SECRET_KEY = 'rocky-jira-token';
 
   async saveCredentials(
     siteUrl: string,

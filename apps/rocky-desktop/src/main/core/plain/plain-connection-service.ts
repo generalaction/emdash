@@ -35,7 +35,7 @@ function isNotConfigured(error: unknown): boolean {
 }
 
 export class PlainConnectionService {
-  private readonly PLAIN_TOKEN_SECRET_KEY = 'emdash-plain-token';
+  private readonly PLAIN_TOKEN_SECRET_KEY = 'rocky-plain-token';
 
   private cachedToken: string | null | undefined = undefined;
   private client: PlainClient | null = null;
