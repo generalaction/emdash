@@ -45,6 +45,14 @@ function wrapValue(value: number, delta: number, min: number, max: number) {
   return ((value - min + delta + range) % range) + min;
 }
 
+function sanitizeTimeSegmentDraft(raw: string, max: number) {
+  const digits = raw.replace(/\D/g, '').slice(0, 2);
+  if (!digits) return '';
+  const parsed = parseInt(digits, 10);
+  if (Number.isNaN(parsed)) return '';
+  return String(Math.min(max, parsed));
+}
+
 /** Small inline <Select> styled to blend into the sentence. */
 function InlineSelect({
   value,
@@ -151,7 +159,7 @@ function TimeSegment({
       aria-label={ariaLabel}
       value={draft ?? formatTwoDigit(value)}
       onFocus={(event) => event.currentTarget.select()}
-      onChange={(event) => setDraft(event.target.value.replace(/\D/g, '').slice(0, 2))}
+      onChange={(event) => setDraft(sanitizeTimeSegmentDraft(event.target.value, max))}
       onKeyDown={handleKeyDown}
       onBlur={() => commit(draft)}
       className="w-[2ch] rounded-sm bg-transparent text-center leading-none tabular-nums outline-none focus:bg-background-quaternary-1"
@@ -240,7 +248,11 @@ export function CronPicker({ value, onChange, className }: CronPickerProps) {
         <Label>Every</Label>
 
         {/* Period selector */}
-        <InlineSelect value={period} onValueChange={handlePeriodChange}>
+        <InlineSelect
+          value={period}
+          onValueChange={handlePeriodChange}
+          renderValue={(v) => PERIOD_LABELS[v as CronPeriod] ?? v}
+        >
           {PERIOD_ORDER.map((p) => (
             <SelectItem key={p} value={p}>
               {PERIOD_LABELS[p]}
