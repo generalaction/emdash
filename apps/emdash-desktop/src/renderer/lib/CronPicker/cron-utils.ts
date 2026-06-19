@@ -26,12 +26,12 @@ export const WEEKDAY_LABELS: readonly string[] = [
 ];
 
 export const PERIOD_LABELS: Record<CronPeriod, string> = {
-  minute: 'minute',
-  hour: 'hour',
-  day: 'day',
-  week: 'week',
-  month: 'month',
-  year: 'year',
+  minute: 'Minute',
+  hour: 'Hour',
+  day: 'Day',
+  week: 'Week',
+  month: 'Month',
+  year: 'Year',
 };
 
 export const PERIOD_ORDER: readonly CronPeriod[] = [
