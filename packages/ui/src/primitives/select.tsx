@@ -45,7 +45,7 @@ function SelectTrigger({
       render={
         <TriggerButton
           size={size}
-          showChevron={false}
+          showChevron={showChevron}
           className={cn(
             'aria-invalid:border-border-destructive aria-invalid:ring-3 aria-invalid:ring-border-destructive/20',
             className,
@@ -55,9 +55,6 @@ function SelectTrigger({
       {...props}
     >
       {children}
-      {showChevron && (
-        <SelectPrimitive.Icon className="pointer-events-none shrink-0 text-foreground-passive [&_svg:not([class*='size-'])]:size-4" />
-      )}
     </SelectPrimitive.Trigger>
   );
 }

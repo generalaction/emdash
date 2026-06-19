@@ -123,7 +123,7 @@ function ThinkingRender(props: {
 
   return (
     <div
-      class="text-foreground-passive"
+      class="text-chat-fg-passive"
       style={{ position: 'relative', height: `${props.layout.height}px` }}
     >
       <Project

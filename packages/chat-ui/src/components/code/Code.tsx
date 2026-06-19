@@ -112,7 +112,7 @@ export function Code(props: CodeProps) {
         }}
         class={[
           'absolute inset-0 overflow-x-auto overflow-y-hidden rounded-lg',
-          'border border-border pl-2',
+          'border border-chat-border pl-2',
           'scrollbar-thin',
           'bg-(--shiki-light-bg,var(--chat-code-bg))',
           'emdark:bg-(--shiki-dark-bg,var(--chat-code-bg))',
@@ -128,7 +128,7 @@ export function Code(props: CodeProps) {
                 onCleanup(() => lineElsMap.delete(i()));
               }}
               class={[
-                'absolute whitespace-pre text-foreground font-normal',
+                'absolute whitespace-pre text-chat-fg font-normal',
                 'text-(length:--chat-code-size) leading-(--chat-code-lh)',
                 '[font-family:var(--type-code-font-family)]',
               ].join(' ')}

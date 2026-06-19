@@ -23,7 +23,7 @@ import { createViewState } from '../state/view-state';
 function StoryViewport(props: { height?: number; width?: number; children: JSX.Element }) {
   return (
     <div
-      class="overflow-hidden rounded-lg border border-border bg-background"
+      class="border-chat-border bg-chat-bg overflow-hidden rounded-lg border"
       style={{
         width: props.width ? `${props.width}px` : '880px',
         height: `${props.height ?? 600}px`,

@@ -79,8 +79,8 @@ function MessageRender(props: {
 
   // Role-specific text color (Lane B — no layout impact).
   const textClass = () => {
-    if (rc() === 'thought') return 'text-foreground-muted italic';
-    if (rc() === 'assistant') return 'text-foreground-body';
+    if (rc() === 'thought') return 'text-chat-fg-muted italic';
+    if (rc() === 'assistant') return 'text-chat-fg-body';
     return ''; // user: text color is in the bubble variantClass
   };
 

@@ -26,7 +26,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 
 export const controlVariants = cva(
   [
-    'group/control inline-flex shrink-0 items-center justify-center rounded-md border border-transparent',
+    'group/control inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent',
     'bg-clip-padding text-sm font-normal whitespace-nowrap',
     'transition-all outline-none select-none',
     'focus-visible:border-border-primary focus-visible:ring-3 focus-visible:ring-border-primary/30',
@@ -65,8 +65,7 @@ export const controlVariants = cva(
       size: {
         base: 'h-8 gap-1.5 px-2.5',
         sm: [
-          'h-6 gap-1 px-2 text-xs',
-          "rounded-[min(var(--radius-md),8px)]",
+          'h-6 gap-1 px-2 text-xs rounded-md',
           "[&_svg:not([class*='size-'])]:size-3",
         ].join(' '),
         link: [
@@ -83,15 +82,17 @@ export const controlVariants = cva(
       },
     },
     compoundVariants: [
-      // ghost destructive
+      // ghost destructive — uses surface-relative status tokens so it reads correctly
+      // on every elevation and adapts inside a .surface-destructive room.
       {
         variant: 'ghost',
         tone: 'destructive',
         class: [
           'text-foreground-destructive',
-          'hover:bg-background-destructive hover:text-foreground-destructive',
-          'data-[active=true]:bg-background-destructive',
-          'aria-pressed:bg-background-destructive aria-selected:bg-background-destructive',
+          'hover:bg-surface-destructive-hover hover:text-foreground-destructive',
+          'data-[active=true]:bg-surface-destructive-selected',
+          'aria-pressed:bg-surface-destructive-selected aria-selected:bg-surface-destructive-selected',
+          'data-pressed:bg-surface-destructive-selected data-popup-open:bg-surface-destructive-selected',
         ].join(' '),
       },
       // primary destructive

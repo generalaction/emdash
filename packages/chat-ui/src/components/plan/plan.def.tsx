@@ -33,6 +33,7 @@ import { HEADER_ROW_EXTRA_H } from '../../core/metrics';
 import type { ChatPlan, PlanEntryPriority, PlanEntryStatus } from '../../model';
 import { Project } from '../Project';
 import { useTheme } from '../ThemeContext';
+import { PlanHeader, PlanList } from './Plan';
 import {
   PLAN_BORDER,
   PLAN_ENTRY_GAP,
@@ -42,7 +43,6 @@ import {
   PLAN_PAD_Y,
   PLAN_WINDOW_H,
 } from './plan-metrics';
-import { PlanHeader, PlanList } from './Plan';
 
 export {
   PLAN_BORDER,
@@ -85,11 +85,7 @@ export type PlanNodeLayout = {
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
-function PlanRender(props: {
-  item: ChatPlan;
-  layout: Measured<PlanNodeLayout>;
-  ctx: RenderCtx;
-}) {
+function PlanRender(props: { item: ChatPlan; layout: Measured<PlanNodeLayout>; ctx: RenderCtx }) {
   const theme = useTheme();
   const rowH = () => theme().fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
   // Inverted collapse mode: stored "collapsed" flag means "expanded".
@@ -97,7 +93,7 @@ function PlanRender(props: {
 
   return (
     <div
-      class="rounded-lg border border-border"
+      class="border-chat-border rounded-lg border"
       style={{
         height: `${props.layout.height}px`,
         'box-sizing': 'border-box',

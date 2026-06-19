@@ -11,7 +11,7 @@
  */
 
 import { SEMANTIC_TEMPLATE } from './contract/semantic-template.js';
-import { SURFACE_LEVELS } from './contract/roles.js';
+import { SURFACE_LEVELS, SURFACE_STATUSES, STATUS_SCALE } from './contract/roles.js';
 import type { Scales, Surfaces, Polarity } from './contract/roles.js';
 
 // ── Ref resolution ────────────────────────────────────────────────────────────
@@ -74,6 +74,28 @@ function buildSurfaceVars(surfaces: Surfaces): Record<string, string> {
   return vars;
 }
 
+// ── Status surface vars (--surface-destructive, --surface-warning, etc.) ──────
+
+/**
+ * Derives tinted status surface tokens from the named palette ramps.
+ * Steps follow the Radix semantic convention:
+ *   3 = subtle background, 4 = hover, 5 = selected/active,
+ *   6 = border, 11 = readable foreground text.
+ */
+function buildStatusSurfaceVars(scales: Scales): Record<string, string> {
+  const vars: Record<string, string> = {};
+  for (const status of SURFACE_STATUSES) {
+    const scaleName = STATUS_SCALE[status];
+    const ramp = scales[scaleName];
+    vars[`--surface-${status}`] = ramp.steps[2]; // step 3
+    vars[`--surface-${status}-hover`] = ramp.steps[3]; // step 4
+    vars[`--surface-${status}-selected`] = ramp.steps[4]; // step 5
+    vars[`--surface-${status}-border`] = ramp.steps[5]; // step 6
+    vars[`--surface-${status}-foreground`] = ramp.steps[10]; // step 11
+  }
+  return vars;
+}
+
 // ── Palette vars (the --neutral-1..12 etc. ramp vars) ─────────────────────────
 
 function buildPaletteVars(scales: Scales): Record<string, string> {
@@ -107,7 +129,10 @@ export function resolveCssVars(
   // 2. Surface elevation vars (--surface-base, --surface-base-hover, etc.)
   Object.assign(vars, buildSurfaceVars(surfaces));
 
-  // 3. Semantic slot vars (--background, --foreground, etc.)
+  // 3. Status surface vars (--surface-destructive, --surface-warning, etc.)
+  Object.assign(vars, buildStatusSurfaceVars(scales));
+
+  // 4. Semantic slot vars (--background, --foreground, etc.)
   for (const [slot, ref] of Object.entries(SEMANTIC_TEMPLATE)) {
     vars[`--${slot}`] = resolveRef(ref, scales, surfaces);
   }

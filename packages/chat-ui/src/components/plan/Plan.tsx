@@ -58,7 +58,7 @@ const STATUS_GLYPH: Record<PlanEntryStatus, string> = {
 function statusColor(status: PlanEntryStatus): string {
   if (status === 'completed') return 'var(--chat-plan-done, #22c55e)';
   if (status === 'in_progress') return 'var(--chat-plan-active, #f59e0b)';
-  return 'var(--foreground-passive, currentColor)';
+  return 'var(--chat-fg-passive, currentColor)';
 }
 
 function priorityOpacity(priority: PlanEntryPriority): string {

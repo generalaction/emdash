@@ -32,8 +32,7 @@ export const InProgress: Story = {
               priority: 'high',
             },
             {
-              content:
-                'Extract duplicated utility functions into shared modules under `src/core/`',
+              content: 'Extract duplicated utility functions into shared modules under `src/core/`',
               status: 'completed',
               priority: 'high',
             },
@@ -83,7 +82,8 @@ export const AllCompleted: Story = {
               priority: 'high',
             },
             {
-              content: 'Create `plan.def.tsx` with collapsible layout and wrapped entry measurement',
+              content:
+                'Create `plan.def.tsx` with collapsible layout and wrapped entry measurement',
               status: 'completed',
               priority: 'high',
             },
@@ -168,7 +168,11 @@ export const Streaming: Story = {
         status: 'in_progress',
         priority: 'medium',
       },
-      { content: 'Wire the streaming plan_update transcript event', status: 'pending', priority: 'medium' },
+      {
+        content: 'Wire the streaming plan_update transcript event',
+        status: 'pending',
+        priority: 'medium',
+      },
       { content: 'Add tests and a Storybook example', status: 'pending', priority: 'low' },
     ];
 

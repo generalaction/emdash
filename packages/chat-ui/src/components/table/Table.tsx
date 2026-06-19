@@ -29,7 +29,7 @@ export type TableProps = {
 export function Table(props: TableProps) {
   return (
     <BlockFrame layout={props.block}>
-      <div class="box-border h-full w-full overflow-x-auto rounded-lg border border-border">
+      <div class="border-chat-border box-border h-full w-full overflow-x-auto rounded-lg border">
         <table
           class={`${styles['pchat-table']}`}
           style={{ width: `${props.block.tableWidth}px`, 'table-layout': 'fixed' }}
@@ -42,7 +42,7 @@ export function Table(props: TableProps) {
               <For each={props.block.header}>
                 {(cell) => (
                   <th
-                    class="overflow-hidden border-r border-b border-border bg-background-1 text-ellipsis whitespace-nowrap last:border-r-0"
+                    class="border-chat-border bg-chat-bg-1 overflow-hidden border-r border-b text-ellipsis whitespace-nowrap last:border-r-0"
                     title={cell}
                   >
                     {cell}
@@ -58,7 +58,7 @@ export function Table(props: TableProps) {
                   <For each={row}>
                     {(cell) => (
                       <td
-                        class={`overflow-hidden border-r border-b border-border text-ellipsis whitespace-nowrap last:border-r-0 ${i() === props.block.rows.length - 1 ? 'border-b-0' : ''}`}
+                        class={`border-chat-border overflow-hidden border-r border-b text-ellipsis whitespace-nowrap last:border-r-0 ${i() === props.block.rows.length - 1 ? 'border-b-0' : ''}`}
                         title={cell}
                       >
                         {cell}

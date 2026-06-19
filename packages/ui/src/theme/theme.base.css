@@ -6,21 +6,39 @@
 @import './effects.css';
 
 @theme inline {
+  /* ── Font families ───────────────────────────────────────────────────────── */
   --font-sans:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans',
     'Droid Sans', 'Helvetica Neue', sans-serif;
   --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, monospace;
 
-  --text-code: 13px;
-  --text-code--line-height: 1.2;
-  --text-tiny: 11px;
-  --text-tiny--line-height: 1.3;
+  /* ── Primitive type size scale ───────────────────────────────────────────── */
   --text-micro: 10px;
   --text-micro--line-height: 1.2;
+  --text-tiny: 11px;
+  --text-tiny--line-height: 1.3;
+  --text-xs: 12px;
+  --text-xs--line-height: 1.5;
+  --text-sm: 13px;
+  --text-sm--line-height: 1.5;
+  --text-base: 14px;
+  --text-base--line-height: 1.5;
+  --text-lg: 17px;
+  --text-lg--line-height: 1.5;
+  --text-xl: 20px;
+  --text-xl--line-height: 1.4;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 1.3;
 
-  --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
+  /* ── Radius scale ────────────────────────────────────────────────────────── */
+  --radius: 0.5rem;        /* anchor — change this to rescale the whole system */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1.25rem;
+  --radius-full: 9999px;
 
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
@@ -70,6 +88,82 @@
       transform: translateY(6px);
     }
   }
+}
+
+/* ── Font weight scale ────────────────────────────────────────────────────────
+ * Named weights used as design tokens. Complements the --text-* size scale.
+ * Consumed directly by CSS and via font-weight-* Tailwind utilities. */
+:root {
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+}
+
+/* ── Semantic typography role vars ───────────────────────────────────────────
+ * These are consumed by typography.css (.text-role-* classes).
+ * Each role is composed from the primitive --text-* size + --font-weight-* scales.
+ * Values are seeded from the design token numbers in build.ts (emitTokensJs). */
+:root {
+  /* Body family */
+  --type-body-font-family: var(--font-sans);
+  --type-body-font-size: var(--text-base);
+  --type-body-font-weight: var(--font-weight-normal);
+  --type-body-line-height: 20px;
+
+  --type-body-bold-font-family: var(--font-sans);
+  --type-body-bold-font-size: var(--text-base);
+  --type-body-bold-font-weight: var(--font-weight-semibold);
+  --type-body-bold-line-height: 20px;
+
+  --type-body-italic-font-family: var(--font-sans);
+  --type-body-italic-font-size: var(--text-base);
+  --type-body-italic-font-weight: var(--font-weight-normal);
+  --type-body-italic-font-style: italic;
+  --type-body-italic-line-height: 20px;
+
+  --type-body-link-font-family: var(--font-sans);
+  --type-body-link-font-size: var(--text-base);
+  --type-body-link-font-weight: var(--font-weight-normal);
+  --type-body-link-line-height: 20px;
+
+  /* Headings */
+  --type-h1-font-family: var(--font-sans);
+  --type-h1-font-size: var(--text-xl);
+  --type-h1-font-weight: var(--font-weight-semibold);
+  --type-h1-line-height: 28px;
+
+  --type-h2-font-family: var(--font-sans);
+  --type-h2-font-size: var(--text-lg);
+  --type-h2-font-weight: var(--font-weight-semibold);
+  --type-h2-line-height: 25px;
+
+  --type-h3-font-family: var(--font-sans);
+  --type-h3-font-size: var(--text-base);
+  --type-h3-font-weight: var(--font-weight-semibold);
+  --type-h3-line-height: 22px;
+
+  /* Code */
+  --type-inline-code-font-family: var(--font-mono);
+  --type-inline-code-font-size: var(--text-xs);
+  --type-inline-code-font-weight: var(--font-weight-normal);
+  --type-inline-code-line-height: 20px;
+
+  --type-code-font-family: var(--font-mono);
+  --type-code-font-size: var(--text-sm);
+  --type-code-font-weight: var(--font-weight-normal);
+  --type-code-line-height: 20px;
+
+  --type-code-lang-font-family: var(--font-sans);
+  --type-code-lang-font-size: var(--text-tiny);
+  --type-code-lang-font-weight: var(--font-weight-medium);
+  --type-code-lang-line-height: 16px;
+
+  /* Mention */
+  --type-mention-font-family: var(--font-sans);
+  --type-mention-font-size: var(--text-base);
+  --type-mention-font-weight: var(--font-weight-semibold);
+  --type-mention-line-height: 20px;
 }
 
 /* Hide xterm viewport scrollbars in embedded terminals */

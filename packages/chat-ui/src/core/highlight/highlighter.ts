@@ -1,16 +1,16 @@
 /**
- * Shiki highlighter singleton for the built-in code block renderer.
+ * Highlighter — ChatHighlighter interface + default factory.
  *
- * Uses `createHighlighterCoreSync` + `createJavaScriptRegexEngine` so there is
- * no WebAssembly dependency and no async initialisation. The highlighter is
- * constructed lazily on the first call to `computeHighlightRaw`.
+ * chat-ui defines the `ChatHighlighter` contract; consumers (emdash-desktop)
+ * can inject their own implementation through ChatRootProps / MountChatOptions.
+ * When no highlighter is provided, `createDefaultHighlighter()` is used, which
+ * wraps a bundled Shiki singleton with the chat-ui owned em-light/em-dark themes.
  *
- * This module exports only pure / stateless helpers:
- *   computeHighlightRaw  — tokenise code for a resolved language (no cache)
- *   resolveAlias         — normalise a lang string to a supported language name
- *
- * Caching (highlight LRU, peekHighlight) lives in ChatCaches (core/caches.ts)
- * so each mounted ChatRoot instance owns an isolated cache.
+ * IMPORTANT — dual-theme contract: any ChatHighlighter implementation MUST call
+ * Shiki (or equivalent) with `themes: { light, dark }, defaultColor: false` so
+ * the token htmlStyle properties carry `--shiki-light` / `--shiki-dark` vars and
+ * rootStyle carries `--shiki-light-bg` / `--shiki-dark-bg`. Code.tsx and
+ * diff.module.css consume these exact var names via `.emdark:` variant classes.
  */
 
 import bash from '@shikijs/langs/bash';
@@ -19,9 +19,9 @@ import json from '@shikijs/langs/json';
 import python from '@shikijs/langs/python';
 import typescript from '@shikijs/langs/typescript';
 import type { ThemeRegistrationRaw } from 'shiki/core';
-import { SHIKI_THEME_MAP } from '@emdash/ui/theme/shiki-themes';
 import { createHighlighterCoreSync } from 'shiki/core';
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
+import { BUNDLED_DARK_THEME, BUNDLED_LIGHT_THEME } from './bundled-themes';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -42,6 +42,21 @@ export type HighlightResult = {
   /** Per-line token arrays. Length matches the number of `\n`-split lines. */
   lines: CodeToken[][];
 };
+
+/**
+ * Syntax highlighter adapter contract owned by chat-ui.
+ *
+ * Implementations MUST emit the dual-theme CSS-var contract consumed by
+ * Code.tsx and diff.module.css:
+ *   token htmlStyle → --shiki-light / --shiki-dark
+ *   rootStyle       → --shiki-light-bg / --shiki-dark-bg
+ *
+ * Return null for unsupported / unrecognised languages (the cache handles it
+ * gracefully — the code renders un-highlighted).
+ */
+export interface ChatHighlighter {
+  highlight(code: string, lang: string | undefined): HighlightResult | null;
+}
 
 // ── Language alias map ────────────────────────────────────────────────────────
 
@@ -68,38 +83,31 @@ export function resolveAlias(lang: string | undefined): string | undefined {
   return LANG_ALIASES[lower] ?? (SUPPORTED_LANGS.has(lower) ? lower : undefined);
 }
 
-// ── Highlighter singleton ─────────────────────────────────────────────────────
+// ── Default highlighter implementation ────────────────────────────────────────
 
 type SyncHighlighter = ReturnType<typeof createHighlighterCoreSync>;
-let _highlighter: SyncHighlighter | null = null;
+let _defaultHighlighter: SyncHighlighter | null = null;
 
-function getHighlighter(): SyncHighlighter {
-  if (!_highlighter) {
-    _highlighter = createHighlighterCoreSync({
+function getDefaultShikiHighlighter(): SyncHighlighter {
+  if (!_defaultHighlighter) {
+    _defaultHighlighter = createHighlighterCoreSync({
       engine: createJavaScriptRegexEngine(),
       langs: [typescript, javascript, python, json, bash],
-      // Use generated emdash themes for consistent palette with the app chrome.
-      // Cast needed because the generated `as const` makes arrays readonly; Shiki expects mutable.
       themes: [
-        SHIKI_THEME_MAP.light as unknown as ThemeRegistrationRaw,
-        SHIKI_THEME_MAP.dark as unknown as ThemeRegistrationRaw,
+        BUNDLED_LIGHT_THEME as unknown as ThemeRegistrationRaw,
+        BUNDLED_DARK_THEME as unknown as ThemeRegistrationRaw,
       ],
     });
   }
-  return _highlighter;
+  return _defaultHighlighter;
 }
 
-// ── Token extraction ──────────────────────────────────────────────────────────
-
 /**
- * Tokenise `code` using Shiki for the given resolved language.
+ * Tokenise `code` using the bundled Shiki singleton for the given resolved language.
  * Pure — no internal cache. Caching is handled by ChatCaches in core/caches.ts.
  */
 export function computeHighlightRaw(code: string, resolvedLang: string): HighlightResult {
-  const hl = getHighlighter();
-  // Map keys 'light'/'dark' control the CSS var suffix: --shiki-light and --shiki-dark.
-  // Code.tsx and diff.module.css consume those exact vars via .emdark: variant classes.
-  // The values 'em-light'/'em-dark' are the registered theme names from SHIKI_THEME_MAP.
+  const hl = getDefaultShikiHighlighter();
   const result = hl.codeToTokens(code, {
     lang: resolvedLang,
     themes: { light: 'em-light', dark: 'em-dark' },
@@ -116,9 +124,24 @@ export function computeHighlightRaw(code: string, resolvedLang: string): Highlig
     })
   );
 
-  // When using dual themes, result.bg is already a CSS string like
-  // "--shiki-light-bg:#fff;--shiki-dark-bg:#24292e"
   const rootStyle = typeof result.bg === 'string' ? result.bg : '';
-
   return { rootStyle, lines };
+}
+
+/**
+ * Create the default ChatHighlighter backed by the bundled em-light/em-dark
+ * Shiki themes and a fixed set of common languages. Used automatically when no
+ * highlighter is injected through ChatRootProps.
+ *
+ * For the emdash desktop app, inject a custom highlighter via the prop instead
+ * so the app-singleton Shiki instance with the full language set is used.
+ */
+export function createDefaultHighlighter(): ChatHighlighter {
+  return {
+    highlight(code: string, lang: string | undefined): HighlightResult | null {
+      const resolved = resolveAlias(lang);
+      if (!resolved) return null;
+      return computeHighlightRaw(code, resolved);
+    },
+  };
 }

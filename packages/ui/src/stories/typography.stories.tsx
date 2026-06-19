@@ -12,6 +12,86 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
+// ── Primitive scale tokens ────────────────────────────────────────────────────
+
+const SIZE_TOKENS = [
+  { name: '--text-micro', size: '10px', lh: '1.2' },
+  { name: '--text-tiny', size: '11px', lh: '1.3' },
+  { name: '--text-xs', size: '12px', lh: '1.5' },
+  { name: '--text-sm', size: '13px', lh: '1.5' },
+  { name: '--text-base', size: '14px', lh: '1.5' },
+  { name: '--text-lg', size: '17px', lh: '1.5' },
+  { name: '--text-xl', size: '20px', lh: '1.4' },
+  { name: '--text-2xl', size: '24px', lh: '1.3' },
+];
+
+const WEIGHT_TOKENS = [
+  { name: '--font-weight-normal', value: 400, label: 'Normal 400' },
+  { name: '--font-weight-medium', value: 500, label: 'Medium 500' },
+  { name: '--font-weight-semibold', value: 600, label: 'Semibold 600' },
+  { name: '--font-weight-bold', value: 700, label: 'Bold 700' },
+];
+
+/** Primitive type size scale — each --text-* token. */
+export const TypeScale: Story = {
+  render: () => (
+    <div className="flex flex-col gap-2 p-4">
+      <div className="mb-4">
+        <h2 className="text-sm font-semibold text-foreground">Type size scale</h2>
+        <p className="mt-1 text-xs text-foreground-muted">
+          Primitive <code className="font-mono">--text-*</code> tokens. Semantic{' '}
+          <code className="font-mono">--type-&lt;role&gt;-font-size</code> values reference
+          these.
+        </p>
+      </div>
+      {SIZE_TOKENS.map(({ name, size, lh }) => (
+        <div key={name} className="flex items-baseline gap-4">
+          <div className="w-48 shrink-0 text-right">
+            <code className="font-mono text-xs text-foreground-passive">{name}</code>
+            <span className="ml-2 text-xs text-foreground-passive">
+              {size} / {lh}
+            </span>
+          </div>
+          <span
+            style={{ fontSize: `var(${name})`, lineHeight: `var(${name}--line-height, ${lh})` }}
+            className="text-foreground"
+          >
+            The quick brown fox jumps over the lazy dog.
+          </span>
+        </div>
+      ))}
+    </div>
+  ),
+};
+
+/** Font weight scale — each --font-weight-* token. */
+export const Weights: Story = {
+  render: () => (
+    <div className="flex flex-col gap-4 p-4">
+      <div className="mb-2">
+        <h2 className="text-sm font-semibold text-foreground">Font weight scale</h2>
+        <p className="mt-1 text-xs text-foreground-muted">
+          Primitive <code className="font-mono">--font-weight-*</code> tokens.
+        </p>
+      </div>
+      {WEIGHT_TOKENS.map(({ name, value, label }) => (
+        <div key={name} className="flex items-baseline gap-4">
+          <div className="w-48 shrink-0 text-right">
+            <code className="font-mono text-xs text-foreground-passive">{name}</code>
+            <span className="ml-2 text-xs text-foreground-passive">{value}</span>
+          </div>
+          <span
+            style={{ fontWeight: `var(${name})`, fontSize: '14px' }}
+            className="text-foreground"
+          >
+            {label}: The quick brown fox jumps over the lazy dog.
+          </span>
+        </div>
+      ))}
+    </div>
+  ),
+};
+
 // ── All roles ─────────────────────────────────────────────────────────────────
 
 const ROLES: Array<{ label: string; variant: TextVariantProps['variant']; as?: string }> = [
@@ -100,7 +180,9 @@ export const RecipeDirectUse: Story = {
 export const AllSurfaces: Story = {
   render: () => (
     <div className="grid grid-cols-5 gap-3">
-      {(['sunken', 'base', 'raised', 'overlay', 'floating'] as const).map((s) => (
+      {(
+        ['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const
+      ).map((s) => (
         <div key={s} className={`surface-${s} rounded-lg bg-surface p-4`}>
           <p className="mb-1 font-mono text-xs text-foreground-passive">.surface-{s}</p>
           <Heading level={2} className="mb-1">

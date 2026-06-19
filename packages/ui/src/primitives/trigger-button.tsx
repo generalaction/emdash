@@ -49,7 +49,7 @@ const TriggerButton = React.forwardRef<HTMLButtonElement, TriggerButtonProps>(
         {children}
         {showChevron && (
           <ChevronDownIcon
-            className="pointer-events-none shrink-0 text-foreground-passive transition-transform duration-150 aria-expanded:rotate-180"
+            className="pointer-events-none shrink-0 text-foreground-passive"
             aria-hidden
           />
         )}

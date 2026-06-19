@@ -39,6 +39,7 @@ import { Row } from './components/Row';
 import { cachedMeasure, makeResolveExpanded } from './components/row-measure';
 import { ThemeContext } from './components/ThemeContext';
 import { createChatCaches } from './core/caches';
+import type { ChatHighlighter } from './core/highlight/highlighter';
 import { genericEstimate } from './core/layout/generic-estimate';
 import { registerFontsReadyClear } from './core/measure/pretext-cache';
 import { StickToBottom } from './core/stick-to-bottom';
@@ -135,12 +136,19 @@ export type ChatRootProps = {
    * methods. mountChat passes its own holder so handle methods delegate here.
    */
   controls?: EngineControls;
+  /**
+   * Optional syntax-highlighting adapter. When omitted the bundled default
+   * (em-light/em-dark themes, common languages) is used. Inject an
+   * app-singleton highlighter from emdash-desktop for the full language set
+   * and exact design-system syntax colors.
+   */
+  highlighter?: ChatHighlighter;
 };
 
 // ── ChatRoot ──────────────────────────────────────────────────────────────────
 
 export function ChatRoot(props: ChatRootProps) {
-  const caches = createChatCaches();
+  const caches = createChatCaches(props.highlighter);
   const theme = () => props.theme ?? DEFAULT_THEME;
   const contentClass = () => props.contentClass ?? DEFAULT_CONTENT_CLASS;
   const commands = () => props.commands?.() ?? {};

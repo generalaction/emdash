@@ -13,7 +13,7 @@ import Color from 'colorjs.io';
 import { lightTheme } from './themes/light.theme.js';
 import { darkTheme } from './themes/dark.theme.js';
 import { SEMANTIC_TEMPLATE } from './contract/semantic-template.js';
-import { SURFACE_LEVELS } from './contract/roles.js';
+import { SURFACE_LEVELS, SURFACE_STATUSES } from './contract/roles.js';
 import type { ResolvedTheme } from './define-theme.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -201,7 +201,36 @@ describe('Theme generation', () => {
     }
   });
 
-  // 8. Both themes produce Shiki themes
+  // 8. Status surface vars resolve and are in P3 gamut
+  describe('Status surfaces', () => {
+    for (const theme of [lightTheme, darkTheme]) {
+      it(`${theme.id}: all status surface vars resolve to non-empty color strings`, () => {
+        for (const status of SURFACE_STATUSES) {
+          for (const variant of ['', '-hover', '-selected', '-border', '-foreground']) {
+            const cssVal = theme.cssVars[`--surface-${status}${variant}`];
+            expect(cssVal, `--surface-${status}${variant} should be defined`).toBeTruthy();
+            expect(cssVal!.length).toBeGreaterThan(0);
+          }
+        }
+      });
+
+      it(`${theme.id}: all status surface colors are in P3 gamut`, () => {
+        for (const status of SURFACE_STATUSES) {
+          for (const variant of ['', '-hover', '-selected', '-border', '-foreground']) {
+            const cssVal = theme.cssVars[`--surface-${status}${variant}`];
+            expect(cssVal).toBeTruthy();
+            const c = new Color(cssVal!);
+            expect(
+              c.inGamut('p3'),
+              `--surface-${status}${variant}: ${cssVal} should be in P3 gamut`,
+            ).toBe(true);
+          }
+        }
+      });
+    }
+  });
+
+  // 10. Both themes produce Shiki themes
   describe('Shiki theme generation', () => {
     it('light shiki theme has tokenColors', () => {
       const theme = lightTheme.shikiTheme as { tokenColors?: unknown[] };

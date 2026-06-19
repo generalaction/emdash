@@ -81,6 +81,7 @@ export {
   useComboboxAnchor,
 } from './combobox';
 export { Surface, useSurfaceLevel, type SurfaceProps } from './surface';
+export { Callout, type CalloutProps } from './callout';
 export { resolveFileIconClass } from '../lib/file-icons';
 export { controlVariants, type ControlVariantProps } from '../recipes/control';
 export { inputVariants, type InputVariantProps } from '../recipes/input';

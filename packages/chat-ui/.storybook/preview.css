@@ -1,11 +1,20 @@
 /* Devicon icon font — required for FileIcon in diff header stories */
 @import 'devicon/devicon.min.css';
 
-/* Emdash design tokens + semantic color aliases */
+/*
+ * Design system token imports — optional for Storybook.
+ *
+ * When loaded, these activate the full desktop color palette (display-p3,
+ * P3-gamut diff colors, etc.) via chat-theme.css, which re-binds --chat-*
+ * to the @emdash/ui semantic vars. Without them, the bundled :where() defaults
+ * in tokens.css provide sRGB standalone colors that are visually close.
+ *
+ * Keep these imports to demo the desktop override preset accurately in stories.
+ */
 @import '@emdash/ui/theme/theme.css';
 @import '@emdash/ui/theme/semantic.css';
 
-/* Chat-specific color bridge (--chat-* vars mapped from semantic tokens) */
+/* Chat-specific color bridge (re-binds --chat-* to design-system semantic tokens) */
 @import '../src/chat-theme.css';
 
 /*
@@ -17,33 +26,33 @@
 @import 'tw-animate-css';
 
 /*
- * Shared @theme inline bridge + @custom-variant definitions.
- * These are the single source of truth consumed by both Storybook and the lib.
+ * chat-ui owned token stylesheet + @custom-variant definitions.
+ * This is the single source of truth consumed by both Storybook and the lib.
  */
 @import '../src/tailwind.css';
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-chat-border;
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-chat-bg text-chat-fg;
   }
 
   ::selection {
-    background-color: color-mix(in srgb, var(--selection) 35%, transparent);
-    color: var(--selection-foreground);
+    background-color: color-mix(in srgb, var(--selection, #6474c4) 35%, transparent);
+    color: var(--selection-foreground, #fff);
   }
 
   ::-moz-selection {
-    background-color: color-mix(in srgb, var(--selection) 35%, transparent);
-    color: var(--selection-foreground);
+    background-color: color-mix(in srgb, var(--selection, #6474c4) 35%, transparent);
+    color: var(--selection-foreground, #fff);
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--border) transparent;
+    scrollbar-color: var(--chat-border) transparent;
   }
 
   *::-webkit-scrollbar {
@@ -56,7 +65,7 @@
   }
 
   *::-webkit-scrollbar-thumb {
-    background-color: var(--border);
+    background-color: var(--chat-border);
     border-radius: 4px;
     border: 2px solid transparent;
     background-clip: content-box;

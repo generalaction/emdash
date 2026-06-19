@@ -1,8 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React, { useState } from 'react';
-import { Surface } from '../primitives/surface';
+import { AlertCircleIcon, AlertTriangleIcon, InfoIcon } from 'lucide-react';
 import { Button } from '../primitives/button';
+import { Callout } from '../primitives/callout';
 import { Input } from '../primitives/input';
+import { Surface } from '../primitives/surface';
+import { Toggle } from '../primitives/toggle';
 import {
   Select,
   SelectContent,
@@ -10,8 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../primitives/select';
-import { SURFACE_LEVELS } from '../theme/contract/roles';
-import type { SurfaceLevelName } from '../theme/contract/roles';
+import { SURFACE_LEVELS, SURFACE_STATUSES } from '../theme/contract/roles';
+import type { SurfaceLevelName, SurfaceStatusName } from '../theme/contract/roles';
 
 const meta: Meta = {
   title: 'Theme/Surfaces',
@@ -58,237 +61,261 @@ function SurfaceCard({ level }: { level: SurfaceLevelName }) {
     >
       <p className="font-mono text-xs text-foreground-muted">.surface-{level}</p>
       <Input placeholder="Search…" />
+      <div className="flex gap-2">
+        <Button variant="ghost" size="base">
+          Ghost
+        </Button>
+        <Button variant="primary" size="base">
+          Primary
+        </Button>
+      </div>
       <Select>
-        <SelectTrigger>
-          <SelectValue placeholder="Pick option" />
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Pick one…" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="a">Option A</SelectItem>
           <SelectItem value="b">Option B</SelectItem>
         </SelectContent>
       </Select>
-      <div className="flex gap-2">
-        <Button size="sm">Confirm</Button>
-        <Button size="sm" variant="ghost">
-          Cancel
+    </Surface>
+  );
+}
+
+// ── Tabs helper ───────────────────────────────────────────────────────────────
+
+function SurfaceTabs({ level }: { level: SurfaceLevelName }) {
+  const [active, setActive] = useState('first');
+  const tabs = [
+    { id: 'first', label: 'First' },
+    { id: 'second', label: 'Second' },
+    { id: 'third', label: 'Third' },
+  ];
+  return (
+    <Surface level={level} className="flex flex-col gap-0 rounded-lg border border-border">
+      <div className="flex items-center gap-1 border-b border-border bg-surface px-1 pt-1">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            data-active={active === tab.id ? 'true' : undefined}
+            onClick={() => setActive(tab.id)}
+            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-transparent px-2.5 text-sm text-foreground-muted transition-all hover:bg-surface-hover hover:text-foreground data-[active=true]:bg-surface-selected data-[active=true]:text-foreground"
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      <Surface emphasis className="rounded-b-lg bg-surface p-4">
+        <p className="text-sm text-foreground-muted">
+          Content for <strong className="text-foreground">{active}</strong> tab on{' '}
+          <code className="font-mono text-xs">.surface-{level}</code>
+        </p>
+      </Surface>
+    </Surface>
+  );
+}
+
+// ── Button row on a surface ───────────────────────────────────────────────────
+
+function SurfaceButtons({ level }: { level: SurfaceLevelName }) {
+  return (
+    <Surface level={level} className="flex flex-col gap-2 rounded-lg border border-border p-4">
+      <p className="font-mono text-xs text-foreground-muted">.surface-{level}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="ghost">Ghost</Button>
+        <Button variant="ghost" tone="destructive">
+          Destructive
+        </Button>
+        <Button variant="primary">Primary</Button>
+        <Button variant="primary" tone="destructive">
+          Primary Destructive
         </Button>
       </div>
     </Surface>
   );
 }
 
-// ── Interactive state demos (hover / selected) ───────────────────────────────
-
-/**
- * A minimal tab strip whose hover and selected states are driven by the
- * surface vars of the nearest scope (bg-surface-hover / bg-surface-selected).
- * The active tab shows the selected state; hovering an inactive tab shows hover.
- */
-function SurfaceTabs() {
-  const tabs = ['Overview', 'Activity', 'Settings'] as const;
-  const [active, setActive] = useState<string>('Overview');
-  return (
-    <div
-      role="tablist"
-      className="inline-flex gap-1 rounded-lg border border-border bg-surface p-1"
-    >
-      {tabs.map((t) => (
-        <button
-          key={t}
-          type="button"
-          role="tab"
-          aria-selected={active === t}
-          data-active={active === t}
-          onClick={() => setActive(t)}
-          className="rounded-md px-3 py-1.5 text-sm text-foreground-muted transition-colors hover:bg-surface-hover hover:text-foreground data-[active=true]:bg-surface-selected data-[active=true]:text-foreground"
-        >
-          {t}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/** Button variants. ghost uses bg-surface-hover, so its hover state adapts
- *  to whichever surface it sits on. */
-function SurfaceButtons() {
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button size="sm" variant="primary">Primary</Button>
-      <Button size="sm" variant="ghost">Ghost</Button>
-      <Button size="link">Link</Button>
-    </div>
-  );
-}
-
 // ── Stories ───────────────────────────────────────────────────────────────────
 
-/**
- * Every elevation level (darkest → lightest) with base / hover / selected swatches.
- * Rows show that adjacent hover states are distinct from the next rung.
- */
+/** One swatch per elevation step (base / hover / selected). */
 export const Ladder: Story = {
   render: () => (
-    <div className="flex flex-col gap-6 bg-background p-8">
-      <div>
-        <h2 className="text-sm font-semibold text-foreground">Surface Ladder</h2>
-        <p className="mt-1 text-xs text-foreground-muted">
-          Ordered darkest → lightest. Each column: base (tall) / hover / selected (short).
-          Hover on a swatch for the CSS variable name.
-        </p>
-      </div>
+    <div className="space-y-4 p-6">
+      <p className="text-sm text-foreground-muted">
+        Swatches: base → hover → selected for each elevation.
+      </p>
       <div className="grid grid-cols-5 gap-4">
         {SURFACE_LEVELS.map((level) => (
           <ElevationSwatch key={level} level={level} label={level} />
         ))}
       </div>
+    </div>
+  ),
+};
+
+/** Cascade proof: surface-emphasis card on each surface. */
+export const Cascade: Story = {
+  render: () => (
+    <div className="grid grid-cols-3 gap-4 p-6">
+      {(['sunken', 'base', 'elevated'] as const).map((level) => (
+        <Surface
+          key={level}
+          level={level}
+          className="flex flex-col gap-3 rounded-xl bg-surface p-4"
+        >
+          <p className="font-mono text-xs text-foreground-muted">.surface-{level}</p>
+          <Surface emphasis className="rounded-lg bg-surface p-3">
+            <p className="text-xs text-foreground-muted">.surface-emphasis (card)</p>
+            <p className="mt-1 text-sm text-foreground">Card content adapts automatically.</p>
+          </Surface>
+        </Surface>
+      ))}
+    </div>
+  ),
+};
+
+/** Components (Input, Button, Select) on every surface level. */
+export const ComponentsOnAllSurfaces: Story = {
+  render: () => (
+    <div className="grid grid-cols-2 gap-4 p-6 lg:grid-cols-3">
+      {SURFACE_LEVELS.map((level) => (
+        <SurfaceCard key={level} level={level} />
+      ))}
+    </div>
+  ),
+};
+
+/** Tab strips demonstrating hover and selected states on each surface. */
+export const Tabs: Story = {
+  render: () => (
+    <div className="grid grid-cols-1 gap-4 p-6 lg:grid-cols-2">
+      {SURFACE_LEVELS.map((level) => (
+        <SurfaceTabs key={level} level={level} />
+      ))}
+    </div>
+  ),
+};
+
+/** Buttons demonstrating hover, selected, and destructive across every surface. */
+export const Buttons: Story = {
+  render: () => (
+    <div className="grid grid-cols-1 gap-4 p-6 lg:grid-cols-2">
+      {SURFACE_LEVELS.map((level) => (
+        <SurfaceButtons key={level} level={level} />
+      ))}
+    </div>
+  ),
+};
+
+// ── Status surfaces ────────────────────────────────────────────────────────────
+
+const STATUS_ICON: Record<SurfaceStatusName, React.ReactNode> = {
+  info: <InfoIcon />,
+  warning: <AlertTriangleIcon />,
+  destructive: <AlertCircleIcon />,
+};
+
+const STATUS_LABEL: Record<SurfaceStatusName, string> = {
+  info: 'Info',
+  warning: 'Warning',
+  destructive: 'Destructive',
+};
+
+const STATUS_MESSAGE: Record<SurfaceStatusName, string> = {
+  info: 'This is an informational message. Ghost controls inside adapt to the tinted surface.',
+  warning: 'Something needs your attention. Controls inherit the tinted hover/selected states.',
+  destructive: 'This action cannot be undone. All controls respond to the destructive surface.',
+};
+
+function StatusRoom({ status }: { status: SurfaceStatusName }) {
+  const [pressed, setPressed] = useState(false);
+  return (
+    <div className="flex flex-col gap-3">
+      <Callout status={status} icon={STATUS_ICON[status]}>
+        <strong>{STATUS_LABEL[status]}:</strong> {STATUS_MESSAGE[status]}
+      </Callout>
+      <Surface
+        status={status}
+        className="flex items-center gap-2 rounded-lg border bg-surface p-3"
+        style={{ borderColor: `var(--surface-${status}-border)` }}
+      >
+        <span className="flex-1 text-sm" style={{ color: `var(--surface-${status}-foreground)` }}>
+          Controls inside a status surface
+        </span>
+        <Toggle pressed={pressed} onPressedChange={setPressed} className="shrink-0">
+          {pressed ? 'Active' : 'Toggle'}
+        </Toggle>
+        <Button variant="ghost" tone="neutral">
+          Action
+        </Button>
+        <Button variant="ghost" tone="destructive">
+          Delete
+        </Button>
+      </Surface>
+    </div>
+  );
+}
+
+/**
+ * Status surface variants (destructive / warning / info). Each is a tinted
+ * "room" — ghost controls inside automatically pick up the tinted hover/selected
+ * states from the cascade without any per-component override.
+ */
+export const StatusSurfaces: Story = {
+  render: () => (
+    <div className="grid grid-cols-1 gap-6 p-6">
       <div>
-        <p className="text-xs text-foreground-passive">
-          Adjacency check: hover(base) should be clearly distinct from base-emphasis.
+        <p className="mb-1 text-sm font-semibold text-foreground">
+          Status surfaces — tinted rooms using the cascade
         </p>
-        <div className="mt-2 flex items-center gap-2">
-          <div
-            className="h-8 w-24 rounded border border-border text-center text-[10px] leading-8 text-foreground-muted"
-            style={{ background: 'var(--surface-base-hover)' }}
-          >
-            base hover
-          </div>
-          <span className="text-xs text-foreground-muted">vs</span>
-          <div
-            className="h-8 w-24 rounded border border-border text-center text-[10px] leading-8 text-foreground-muted"
-            style={{ background: 'var(--surface-base-emphasis)' }}
-          >
-            base-emphasis
-          </div>
+        <p className="text-xs text-foreground-muted">
+          Each status box rebinds <code className="font-mono">--surface-hover</code> and{' '}
+          <code className="font-mono">--surface-selected</code> so any ghost Button / Toggle
+          inside already hovers/selects with the correct tint.
+        </p>
+      </div>
+      {SURFACE_STATUSES.map((status) => (
+        <StatusRoom key={status} status={status} />
+      ))}
+      <div>
+        <p className="mb-3 text-sm font-medium text-foreground-muted">
+          Swatches — base / hover / selected per status
+        </p>
+        <div className="grid grid-cols-3 gap-4">
+          {SURFACE_STATUSES.map((status) => (
+            <div key={status} className="flex flex-col gap-1.5">
+              <p className="font-mono text-[10px] font-medium text-foreground">{status}</p>
+              <div
+                className="h-10 w-full rounded border"
+                style={{
+                  background: `var(--surface-${status})`,
+                  borderColor: `var(--surface-${status}-border)`,
+                }}
+                title={`--surface-${status}`}
+              />
+              <div
+                className="h-6 w-full rounded"
+                style={{ background: `var(--surface-${status}-hover)` }}
+                title={`--surface-${status}-hover`}
+              />
+              <div
+                className="h-6 w-full rounded"
+                style={{ background: `var(--surface-${status}-selected)` }}
+                title={`--surface-${status}-selected`}
+              />
+            </div>
+          ))}
         </div>
       </div>
     </div>
   ),
 };
 
-/**
- * The cascade proof — identical Card markup resolves to different colors depending
- * only on the nearest canvas scope, with no level hardcoded in the card itself.
- */
-export const Cascade: Story = {
-  render: () => (
-    <div className="flex flex-col gap-8 bg-background p-8">
-      <div>
-        <h2 className="text-sm font-semibold text-foreground">Cascade proof</h2>
-        <p className="mt-1 text-xs text-foreground-muted">
-          The two cards below use identical markup: <code className="font-mono">{'<Surface emphasis>'}</code> + <code className="font-mono">bg-surface</code>.
-          The background color resolves automatically from the nearest canvas scope.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-6">
-        {/* Canvas 1: base */}
-        <Surface level="base" className="rounded-xl border border-border bg-surface p-6">
-          <p className="mb-4 font-mono text-xs text-foreground-muted">.surface-base (canvas)</p>
-          <Surface emphasis className="rounded-lg border border-border bg-surface p-4">
-            <p className="font-mono text-xs text-foreground-muted">.surface-emphasis → base-emphasis</p>
-            <p className="mt-2 text-xs text-foreground">
-              This card auto-resolved to <code className="font-mono">--surface-base-emphasis</code>.
-            </p>
-          </Surface>
-        </Surface>
-
-        {/* Canvas 2: elevated */}
-        <Surface level="elevated" className="rounded-xl border border-border bg-surface p-6">
-          <p className="mb-4 font-mono text-xs text-foreground-muted">.surface-elevated (canvas)</p>
-          <Surface emphasis className="rounded-lg border border-border bg-surface p-4">
-            <p className="font-mono text-xs text-foreground-muted">.surface-emphasis → elevated-emphasis</p>
-            <p className="mt-2 text-xs text-foreground">
-              Same markup resolves to <code className="font-mono">--surface-elevated-emphasis</code>.
-            </p>
-          </Surface>
-        </Surface>
-      </div>
-    </div>
-  ),
-};
-
-/** UI components rendered on each surface level. */
-export const ComponentsOnAllSurfaces: Story = {
-  render: () => (
-    <div className="bg-background p-8">
-      <p className="mb-6 text-xs text-foreground-muted">
-        Components are identical in every card — only the surface level differs.
-      </p>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        {SURFACE_LEVELS.map((level) => (
-          <SurfaceCard key={level} level={level} />
-        ))}
-      </div>
-    </div>
-  ),
-};
-
-/**
- * Tabs on every surface level. Hover an inactive tab to see the hover state;
- * the active tab shows the selected state. Both adapt to the surface they sit on.
- */
-export const Tabs: Story = {
-  render: () => (
-    <div className="flex flex-col gap-4 bg-background p-8">
-      <div>
-        <h2 className="text-sm font-semibold text-foreground">Tabs — hover &amp; selected</h2>
-        <p className="mt-1 text-xs text-foreground-muted">
-          Each tab strip sits on a different surface. Hover an inactive tab for the hover state
-          (<code className="font-mono">bg-surface-hover</code>); the active tab uses the selected
-          state (<code className="font-mono">bg-surface-selected</code>).
-        </p>
-      </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {SURFACE_LEVELS.map((level) => (
-          <Surface
-            key={level}
-            level={level}
-            className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
-          >
-            <p className="font-mono text-xs text-foreground-muted">.surface-{level}</p>
-            <SurfaceTabs />
-          </Surface>
-        ))}
-      </div>
-    </div>
-  ),
-};
-
-/**
- * Buttons on every surface level. The outline and ghost variants use
- * bg-surface-hover, so hovering them shows the surface-relative hover state.
- */
-export const Buttons: Story = {
-  render: () => (
-    <div className="flex flex-col gap-4 bg-background p-8">
-      <div>
-        <h2 className="text-sm font-semibold text-foreground">Buttons — hover states</h2>
-        <p className="mt-1 text-xs text-foreground-muted">
-          Hover the outline and ghost buttons: their hover background
-          (<code className="font-mono">bg-surface-hover</code>) adapts to the surface they sit on.
-        </p>
-      </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {SURFACE_LEVELS.map((level) => (
-          <Surface
-            key={level}
-            level={level}
-            className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
-          >
-            <p className="font-mono text-xs text-foreground-muted">.surface-{level}</p>
-            <SurfaceButtons />
-          </Surface>
-        ))}
-      </div>
-    </div>
-  ),
-};
-
-/** Light and dark modes side-by-side for visual parity. */
+/** Light and dark modes side-by-side. */
 export const BothModes: Story = {
   render: () => (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen divide-x divide-border">
       <div className="emlight flex-1 space-y-6 bg-background p-6">
         <p className="text-sm font-medium text-foreground">Light mode</p>
         <div className="grid grid-cols-3 gap-3">

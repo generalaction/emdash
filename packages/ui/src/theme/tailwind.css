@@ -1,28 +1,16 @@
 /* @theme mapping — connects Tailwind utilities to the semantic CSS custom properties
- * emitted by semantic.css (Terrazzo). Import after theme.css + semantic.css. */
+ * emitted by semantic.css and theme.base.css. Import after theme.css + semantic.css. */
 
 @theme inline {
-  /* Typography — font families and text scales */
-  --font-sans: var(--typography-font-family-sans);
-  --font-mono: var(--typography-font-family-mono);
+  /* ── Font weight scale ──────────────────────────────────────────────────── */
+  --font-weight-normal: var(--font-weight-normal);
+  --font-weight-medium: var(--font-weight-medium);
+  --font-weight-semibold: var(--font-weight-semibold);
+  --font-weight-bold: var(--font-weight-bold);
 
-  --text-body: var(--typography-body-size);
-  --text-body--line-height: var(--typography-body-line-height);
-  --text-h1: var(--typography-h1-size);
-  --text-h1--line-height: var(--typography-h1-line-height);
-  --text-h2: var(--typography-h2-size);
-  --text-h2--line-height: var(--typography-h2-line-height);
-  --text-h3: var(--typography-h3-size);
-  --text-h3--line-height: var(--typography-h3-line-height);
-  --text-code: var(--typography-code-size);
-  --text-code--line-height: var(--typography-code-line-height);
-
-  /* Radius — token values replace calc() approximations */
-  --radius-sm: var(--radius-sm);
-  --radius-md: var(--radius-md);
-  --radius-lg: var(--radius-base);
-  --radius-xl: var(--radius-lg);
-  --radius-full: var(--radius-full);
+  /* ── Typography — font families ──────────────────────────────────────── */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 
   /* ── Base backgrounds ─────────────────────────────────────────── */
   --color-background: var(--background);
@@ -105,6 +93,11 @@
   /* Context-relative utilities: adapt to the nearest .surface-* ancestor.
    * bg-surface          = current surface level
    * bg-surface-emphasis = one rung above the current canvas (for cards/tabs) */
+  --color-surface-input: var(--surface-input);
+  /* Cascade-relative border and foreground utilities for status surfaces.
+   * These resolve from the rebound vars set by .surface-<status> scope classes. */
+  --color-surface-border: var(--surface-border, var(--border));
+  --color-surface-foreground: var(--surface-foreground, var(--foreground));
   --color-surface: var(--surface);
   --color-surface-hover: var(--surface-hover);
   --color-surface-selected: var(--surface-selected);
@@ -132,6 +125,30 @@
   --color-surface-elevated-emphasis: var(--surface-elevated-emphasis);
   --color-surface-elevated-emphasis-hover: var(--surface-elevated-emphasis-hover);
   --color-surface-elevated-emphasis-selected: var(--surface-elevated-emphasis-selected);
+
+  /* Status surface utilities — tinted rooms from the red / amber / blue ramps.
+   * bg-surface-<status>            = subtle background (step 3)
+   * bg-surface-<status>-hover      = hover state (step 4)
+   * bg-surface-<status>-selected   = active/selected (step 5)
+   * border-surface-<status>-border = visible border (step 6)
+   * text-surface-<status>-fg       = readable foreground text (step 11) */
+  --color-surface-destructive: var(--surface-destructive);
+  --color-surface-destructive-hover: var(--surface-destructive-hover);
+  --color-surface-destructive-selected: var(--surface-destructive-selected);
+  --color-surface-destructive-border: var(--surface-destructive-border);
+  --color-surface-destructive-foreground: var(--surface-destructive-foreground);
+
+  --color-surface-warning: var(--surface-warning);
+  --color-surface-warning-hover: var(--surface-warning-hover);
+  --color-surface-warning-selected: var(--surface-warning-selected);
+  --color-surface-warning-border: var(--surface-warning-border);
+  --color-surface-warning-foreground: var(--surface-warning-foreground);
+
+  --color-surface-info: var(--surface-info);
+  --color-surface-info-hover: var(--surface-info-hover);
+  --color-surface-info-selected: var(--surface-info-selected);
+  --color-surface-info-border: var(--surface-info-border);
+  --color-surface-info-foreground: var(--surface-info-foreground);
 
   /* Back-compat aliases — kept so existing app code resolves without edits.
    * raised → base-emphasis, overlay/floating → elevated */

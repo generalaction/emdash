@@ -32,7 +32,7 @@ export type CollapseHeaderProps = {
 export function CollapseHeader(props: CollapseHeaderProps) {
   return (
     <div
-      class="flex cursor-pointer items-center gap-1.5 text-sm text-foreground-passive select-none hover:text-foreground-muted"
+      class="text-chat-fg-passive hover:text-chat-fg-muted flex cursor-pointer items-center gap-1.5 text-sm select-none"
       style={{ height: `${props.height}px` }}
       role="button"
       aria-expanded={props.expanded ? 'true' : 'false'}

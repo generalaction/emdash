@@ -17,7 +17,7 @@ const preview: Preview = {
       const debugOn = () => globals['debug'] === 'on';
       return (
         <DebugContext.Provider value={debugOn}>
-          <div class={`${theme()} min-h-screen bg-background p-8 text-foreground`}>
+          <div class={`${theme()} bg-chat-bg text-chat-fg min-h-screen p-8`}>
             <Story />
           </div>
         </DebugContext.Provider>

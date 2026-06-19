@@ -1,10 +1,9 @@
 /**
  * Core metrics — typography, row-level layout, and font shorthand builders.
  *
- * Typography constants are derived from @emdash/ui composite type.* design tokens
- * (tokens.js) so that pretext measurement and CSS styling share a single source of
- * truth. Each role is read from the composite token object; the flat typography.*
- * primitive tokens remain in tokens.js as aliases but are no longer read directly here.
+ * Typography constants are derived from the bundled composite type.* design tokens
+ * in core/measure/default-typography.ts so that pretext measurement and CSS styling
+ * share a single source of truth without an @emdash/ui import.
  *
  * Component-private constants (bubble padding, block gap, thinking heights,
  * code block padding) live inline in each component's `.def.tsx` file.
@@ -14,20 +13,14 @@
  * separate css-vars.ts module.
  */
 
-import { tokens } from '@emdash/ui/theme/tokens.js';
+import { DEFAULT_TYPOGRAPHY, type CompositeRole } from './measure/default-typography';
 
 // ── Composite role reader ─────────────────────────────────────────────────────
 
-type CompositeRole = {
-  fontFamily: string[];
-  fontSize: { value: number; unit: string };
-  fontWeight: number;
-  lineHeight: { value: number; unit: string };
-  fontStyle?: string;
-};
-
-function role(id: keyof typeof tokens): CompositeRole {
-  return tokens[id]['.'] as unknown as CompositeRole;
+function role(id: string): CompositeRole {
+  const r = DEFAULT_TYPOGRAPHY[id];
+  if (!r) throw new Error(`metrics: unknown type role "${id}"`);
+  return r;
 }
 
 // ── Font families ────────────────────────────────────────────────────────────

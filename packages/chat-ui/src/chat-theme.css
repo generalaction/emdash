@@ -1,34 +1,67 @@
 /*
- * chat-theme.css — maps @emdash/ui semantic tokens to --chat-* color vars.
+ * chat-theme.css — desktop override preset for @emdash/chat-ui.
  *
- * Import this alongside @emdash/ui/theme/theme.css and semantic.css so the
- * chat renderer's color system adapts to the active .emlight / .emdark class.
- * Fallback values keep components legible when the theme CSS is not loaded
- * (e.g. standalone embedding without the full design system).
+ * Import this file alongside @emdash/ui/theme/theme.css and semantic.css in
+ * the host application to re-bind the --chat-* contract to the design system's
+ * semantic tokens. The :where() defaults in tokens.css have zero specificity,
+ * so these .emlight / .emdark rules always win regardless of load order.
+ *
+ * emdash-desktop already imports this at main.tsx so in-app appearance is
+ * preserved automatically.
+ *
+ * Scope: all --chat-* color vars + non-color design tokens (font-mono, radii).
+ * Typography role vars (--type-*) remain at their tokens.css defaults because
+ * they are derived from the same source of truth (tokens.js composite roles).
  */
 
-/* Shared mappings — semantic vars already resolve correctly per mode. */
 .emlight,
 .emdark {
+  /* ── Foregrounds ────────────────────────────────────────────────────────── */
   --chat-fg: var(--foreground);
-  --chat-muted: var(--foreground-muted);
+  --chat-fg-body: var(--foreground-body);
+  --chat-fg-muted: var(--foreground-muted);
+  --chat-fg-passive: var(--foreground-passive);
+
+  /* ── Backgrounds ────────────────────────────────────────────────────────── */
+  --chat-bg: var(--background);
+  --chat-bg-1: var(--background-1);
+  --chat-bg-2: var(--background-2);
+  --chat-bg-3: var(--background-3);
+
+  /* ── Border ─────────────────────────────────────────────────────────────── */
   --chat-border: var(--border);
+
+  /* ── Diff / VCS ─────────────────────────────────────────────────────────── */
+  --chat-diff-added: var(--foreground-diff-added);
+  --chat-diff-deleted: var(--foreground-diff-deleted);
+  --chat-diff-modified: var(--foreground-diff-modified);
+
+  /* ── Chat-specific semantic vars ────────────────────────────────────────── */
   --chat-link: var(--info-11);
   --chat-bubble-user: var(--background-3);
   --chat-bubble-user-fg: var(--foreground);
   --chat-mention-bg: var(--info-3);
   --chat-mention-fg: var(--info-11);
-  /* --neutral-1 is lightest gray in light mode and near-black in dark mode —
-   * an ideal code-block background in both themes. */
+  /* --neutral-1 is lightest gray in light mode and near-black in dark mode */
   --chat-code-bg: var(--neutral-1);
   --chat-table-header-bg: var(--background-1);
+
+  /* ── Non-color design tokens ─────────────────────────────────────────────── */
+  /* Mirror @emdash/ui/theme/theme.base.css so chat-ui inherits the app radius scale. */
+  --chat-font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, monospace;
+  --chat-radius-sm: 0.375rem;
+  --chat-radius-md: 0.5rem;
+  --chat-radius-lg: 0.625rem;
+  --chat-radius-xl: 0.875rem;
+  --chat-radius-full: 9999px;
 }
 
-/* Inline code chip: semi-transparent tint that reads well on both surfaces. */
+/* ── Inline code chip: semi-transparent tint ────────────────────────────────── */
 .emlight {
   --chat-code-inline-bg: rgba(0, 0, 0, 0.06);
 }
 
 .emdark {
   --chat-code-inline-bg: rgba(255, 255, 255, 0.08);
+  --chat-code-bg: var(--neutral-1);
 }

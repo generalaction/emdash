@@ -76,16 +76,16 @@ export function ResourceLink(props: ResourceLinkProps) {
 
   return (
     <div
-      class="flex items-center gap-2.5 rounded-md border border-border bg-background-2 px-3 text-sm"
+      class="border-chat-border bg-chat-bg-2 flex items-center gap-2.5 rounded-md border px-3 text-sm"
       classList={{
-        'cursor-pointer hover:bg-background-3 transition-colors': isClickable(),
+        'cursor-pointer hover:bg-chat-bg-3 transition-colors': isClickable(),
       }}
       style={{ height: '100%' }}
       onClick={isClickable() ? handleClick : undefined}
       role={isClickable() ? 'button' : undefined}
     >
       {/* Icon */}
-      <div class="shrink-0 text-foreground-muted">
+      <div class="text-chat-fg-muted shrink-0">
         <Show when={iconName()} fallback={<GenericFileIcon />}>
           <span class={iconName()!} />
         </Show>
@@ -93,15 +93,15 @@ export function ResourceLink(props: ResourceLinkProps) {
 
       {/* Main content */}
       <div class="min-w-0 flex-1">
-        <div class="flex items-center gap-2 truncate font-medium text-foreground-body">
+        <div class="text-chat-fg-body flex items-center gap-2 truncate font-medium">
           <span class="truncate">{displayName()}</span>
           <Show when={props.item.size !== undefined}>
-            <span class="shrink-0 text-xs font-normal text-foreground-muted">
+            <span class="text-chat-fg-muted shrink-0 text-xs font-normal">
               {formatSize(props.item.size!)}
             </span>
           </Show>
         </div>
-        <div class="mt-0.5 truncate text-xs text-foreground-muted">{secondary()}</div>
+        <div class="text-chat-fg-muted mt-0.5 truncate text-xs">{secondary()}</div>
       </div>
     </div>
   );

@@ -115,3 +115,22 @@ export const SURFACE_LEVELS = [
 ] as const satisfies readonly SurfaceLevelName[];
 
 export type Surfaces = Record<SurfaceLevelName, SurfaceLevel>;
+
+// ── Status surface names ───────────────────────────────────────────────────────
+
+/** Named status surfaces that produce tinted colored "rooms". */
+export type SurfaceStatusName = 'destructive' | 'warning' | 'info';
+
+/** Canonical ordered list of status surface names. */
+export const SURFACE_STATUSES = [
+  'destructive',
+  'warning',
+  'info',
+] as const satisfies readonly SurfaceStatusName[];
+
+/** Maps each status surface to the palette scale it derives its colors from. */
+export const STATUS_SCALE: Record<SurfaceStatusName, ScaleName> = {
+  destructive: 'red',
+  warning: 'amber',
+  info: 'blue',
+};

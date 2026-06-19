@@ -10,6 +10,7 @@ import { batch, createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import { ChatRoot } from './ChatRoot';
 import type { EngineControls } from './ChatRoot';
+import type { ChatHighlighter } from './core/highlight/highlighter';
 import type { ChatTheme } from './core/theme';
 import { DEFAULT_THEME } from './core/theme';
 import type { ChatItem } from './model';
@@ -42,6 +43,8 @@ export type { ViewState } from './state/view-state';
 export { generateMockTranscript } from './mock-transcript';
 export type { ChatTheme, DensityScale } from './core/theme';
 export { buildTheme, DEFAULT_THEME } from './core/theme';
+export type { ChatHighlighter, HighlightResult, CodeToken } from './core/highlight/highlighter';
+export { createDefaultHighlighter } from './core/highlight/highlighter';
 
 // ── Commands ──────────────────────────────────────────────────────────────────
 
@@ -111,6 +114,11 @@ export type MountChatOptions = {
    * "jump to latest" button.
    */
   onAtBottomChange?: (atBottom: boolean) => void;
+  /**
+   * Optional syntax-highlighting adapter. When omitted the bundled default
+   * (em-light/em-dark themes, common languages) is used.
+   */
+  highlighter?: ChatHighlighter;
 };
 
 // ── Handle ────────────────────────────────────────────────────────────────────
@@ -196,6 +204,7 @@ export function mountChat(container: HTMLElement, opts: MountChatOptions = {}): 
         onReachStart={onReachStart}
         onAtBottomChange={onAtBottomChange}
         controls={controls}
+        highlighter={opts.highlighter}
       />
     ),
     container

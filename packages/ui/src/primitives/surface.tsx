@@ -13,7 +13,7 @@
 
 import React, { createContext, useContext } from 'react';
 import { cn } from '../lib/cn';
-import type { SurfaceLevelName } from '../theme/contract/roles';
+import type { SurfaceLevelName, SurfaceStatusName } from '../theme/contract/roles';
 
 // ── Context ───────────────────────────────────────────────────────────────────
 
@@ -29,8 +29,7 @@ export function useSurfaceLevel(): SurfaceLevelName {
 export interface SurfaceProps extends React.HTMLAttributes<HTMLDivElement> {
   /**
    * Explicit elevation level. Sets the `.surface-<level>` scope class on this element.
-   * Defaults to 'base' when provided without a value.
-   * Omit entirely when using `emphasis` — the cascade handles the level.
+   * Omit entirely when using `emphasis` or `status` — the cascade handles the level.
    */
   level?: SurfaceLevelName;
   /**
@@ -38,6 +37,13 @@ export interface SurfaceProps extends React.HTMLAttributes<HTMLDivElement> {
    * above the nearest canvas scope without requiring the caller to know the level.
    */
   emphasis?: boolean;
+  /**
+   * Status tint. Applies `.surface-<status>` which rebinds the generic
+   * --surface-* cascade vars to the tinted status room. A ghost Button/Toggle/Tab
+   * inside a status surface will automatically use tinted hover/selected states.
+   * Can be combined with `level` to set both the elevation and the status tint.
+   */
+  status?: SurfaceStatusName;
   /** Element to render. Defaults to div. */
   as?: React.ElementType;
 }
@@ -45,22 +51,24 @@ export interface SurfaceProps extends React.HTMLAttributes<HTMLDivElement> {
 export function Surface({
   level,
   emphasis,
+  status,
   as: As = 'div',
   className,
   children,
   ...props
 }: SurfaceProps) {
-  const scopeClass = emphasis ? 'surface-emphasis' : level ? `surface-${level}` : undefined;
+  const elevationClass = emphasis ? 'surface-emphasis' : level ? `surface-${level}` : undefined;
+  const statusClass = status ? `surface-${status}` : undefined;
 
   // Resolve the context value so JS consumers of useSurfaceLevel() get the
-  // correct level. When using emphasis, we propagate the parent level unchanged
-  // (the CSS cascade handles the visual shift; React context is for JS use only).
+  // correct level. When using emphasis or status, we propagate the parent level
+  // unchanged (the CSS cascade handles the visual shift; React context is for JS use only).
   const parentLevel = useContext(SurfaceContext);
   const contextValue: SurfaceLevelName = level ?? parentLevel;
 
   return (
     <SurfaceContext.Provider value={contextValue}>
-      <As className={cn(scopeClass, className)} {...props}>
+      <As className={cn(elevationClass, statusClass, className)} {...props}>
         {children}
       </As>
     </SurfaceContext.Provider>

@@ -117,4 +117,6 @@ export function ChatTranscript(props: ChatTranscriptProps): React.ReactElement {
 // Re-export imperative handle types so consumers can use them from the
 // React entry point without importing from the Solid entry point.
 export type { ChatHandle, ChatCommands, ScrollToItemOptions };
+export type { ChatHighlighter, HighlightResult, CodeToken } from '../index';
+export { createDefaultHighlighter } from '../index';
 export type LoadOlderFn = (items: ChatItem[]) => void;

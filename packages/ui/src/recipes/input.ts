@@ -6,7 +6,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
  */
 export const inputVariants = cva(
   [
-    'w-full min-w-0 rounded-md border border-border bg-transparent',
+    'w-full min-w-0 rounded-md border border-border bg-surface-input',
     'text-sm text-foreground placeholder:text-foreground-passive',
     'transition-[color,box-shadow] outline-none',
     'hover:border-border-1',

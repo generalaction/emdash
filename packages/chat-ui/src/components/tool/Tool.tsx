@@ -21,7 +21,7 @@ export type ToolProps = {
 export function Tool(props: ToolProps) {
   return (
     <div
-      class="flex items-center gap-1.5 text-sm text-foreground-passive select-none"
+      class="text-chat-fg-passive flex items-center gap-1.5 text-sm select-none"
       classList={{ 'text-shimmer': props.item.status === 'running' }}
     >
       <span>{props.item.name}</span>

@@ -28,6 +28,11 @@
   --surface-emphasis: var(--surface-base-emphasis);
   --surface-emphasis-hover: var(--surface-base-emphasis-hover);
   --surface-emphasis-selected: var(--surface-base-emphasis-selected);
+
+  /* Surface-aware input fill: slightly recessed from the current surface.
+   * Defined once here; resolves against var(--surface) at the use site so
+   * it automatically adapts as the cascade rebinds --surface in scope classes. */
+  --surface-input: color-mix(in srgb, var(--surface) 94%, var(--foreground) 6%);
 }
 
 .surface-sunken {
@@ -88,6 +93,48 @@
   --surface: var(--surface-emphasis);
   --surface-hover: var(--surface-emphasis-hover);
   --surface-selected: var(--surface-emphasis-selected);
+}
+
+/* ── Status surface scopes ──────────────────────────────────────────────────
+ * Colored "rooms" derived from the red / amber / blue ramps.
+ * Generic --surface-* and --surface-emphasis-* are rebound so any ghost
+ * Button / Toggle / Tab inside a status box already hovers/selects with the
+ * correct tint — no per-component overrides needed.
+ *
+ * The emphasis vars clamp to the selected state: the status surfaces are
+ * already tinted, so we do not expose an additional elevation step. */
+
+.surface-destructive {
+  --surface: var(--surface-destructive);
+  --surface-hover: var(--surface-destructive-hover);
+  --surface-selected: var(--surface-destructive-selected);
+  --surface-emphasis: var(--surface-destructive-selected);
+  --surface-emphasis-hover: var(--surface-destructive-selected);
+  --surface-emphasis-selected: var(--surface-destructive-selected);
+  --surface-border: var(--surface-destructive-border);
+  --surface-foreground: var(--surface-destructive-foreground);
+}
+
+.surface-warning {
+  --surface: var(--surface-warning);
+  --surface-hover: var(--surface-warning-hover);
+  --surface-selected: var(--surface-warning-selected);
+  --surface-emphasis: var(--surface-warning-selected);
+  --surface-emphasis-hover: var(--surface-warning-selected);
+  --surface-emphasis-selected: var(--surface-warning-selected);
+  --surface-border: var(--surface-warning-border);
+  --surface-foreground: var(--surface-warning-foreground);
+}
+
+.surface-info {
+  --surface: var(--surface-info);
+  --surface-hover: var(--surface-info-hover);
+  --surface-selected: var(--surface-info-selected);
+  --surface-emphasis: var(--surface-info-selected);
+  --surface-emphasis-hover: var(--surface-info-selected);
+  --surface-emphasis-selected: var(--surface-info-selected);
+  --surface-border: var(--surface-info-border);
+  --surface-foreground: var(--surface-info-foreground);
 }
 
 /* ── Back-compat aliases ────────────────────────────────────────────────────

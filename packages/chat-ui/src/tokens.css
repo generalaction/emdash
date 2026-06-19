@@ -1,0 +1,235 @@
+/*
+ * tokens.css — chat-ui owned token stylesheet.
+ *
+ * Three sections:
+ *   1. @theme inline: registers the --color-chat-* palette + non-color tokens
+ *      so Tailwind utilities (text-chat-fg, bg-chat-bg, rounded-lg, font-mono…)
+ *      and opacity modifiers work natively.
+ *   2. :where() defaults: zero-specificity light + dark variable values so any
+ *      app rule (the desktop override preset in chat-theme.css) wins regardless
+ *      of load order.
+ *   3. @utility: inlined text-shimmer and fade-overlay-top/bottom from
+ *      @emdash/ui/theme/effects.css, re-pointed at --chat-* vars.
+ *
+ * Host theming model: chat-ui declares variables and ships defaults. The host
+ * owns theme switching by toggling .emlight / .emdark and/or overriding
+ * --chat-* / --type-* custom properties. chat-ui never toggles these itself.
+ */
+
+/* ── 1. @theme inline ─────────────────────────────────────────────────────── */
+
+@theme inline {
+  /* Color palette — chat-ui owned utilities */
+  --color-chat-fg: var(--chat-fg);
+  --color-chat-fg-body: var(--chat-fg-body);
+  --color-chat-fg-muted: var(--chat-fg-muted);
+  --color-chat-fg-passive: var(--chat-fg-passive);
+  --color-chat-bg: var(--chat-bg);
+  --color-chat-bg-1: var(--chat-bg-1);
+  --color-chat-bg-2: var(--chat-bg-2);
+  --color-chat-bg-3: var(--chat-bg-3);
+  --color-chat-border: var(--chat-border);
+  --color-chat-diff-added: var(--chat-diff-added);
+  --color-chat-diff-deleted: var(--chat-diff-deleted);
+  --color-chat-diff-modified: var(--chat-diff-modified);
+
+  /* Non-color tokens — also provided by @emdash/ui bridge; re-declared here
+   * so chat-ui stays functional if that bridge is not loaded (standalone use).
+   * Indirected through --chat-font-mono / --chat-radius-* so the desktop
+   * override preset can swap them without touching Tailwind internals. */
+  --font-mono: var(--chat-font-mono);
+  --radius-sm: var(--chat-radius-sm);
+  --radius-md: var(--chat-radius-md);
+  --radius-lg: var(--chat-radius-lg);
+  --radius-xl: var(--chat-radius-xl);
+  --radius-full: var(--chat-radius-full);
+
+  /* Shimmer animation — referenced by the @utility below */
+  --animate-text-shimmer: text-shimmer-move 3s linear infinite;
+
+  @keyframes text-shimmer-move {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+}
+
+/* ── 2. :where() defaults ─────────────────────────────────────────────────── */
+/*
+ * Specificity 0 so any .emlight / .emdark rule from the desktop override
+ * preset wins, regardless of stylesheet load order.
+ * sRGB approximations of the display-p3 emdash light/dark palette.
+ */
+
+:where(:root),
+:where(.emlight) {
+  /* Colors */
+  --chat-fg: #21201f;
+  --chat-fg-body: color-mix(in srgb, #616060 40%, #21201f);
+  --chat-fg-muted: #616060;
+  --chat-fg-passive: #8e8d8d;
+  --chat-bg: #fcfcfc;
+  --chat-bg-1: #f1f0f0;
+  --chat-bg-2: #e5e4e4;
+  --chat-bg-3: #dadada;
+  --chat-border: #c5c4c4;
+  --chat-diff-added: #4f9f4f;
+  --chat-diff-deleted: #d56761;
+  --chat-diff-modified: #c28c00;
+
+  /* Already-owned vars — updated defaults */
+  --chat-link: #2263a4;
+  --chat-bubble-user: #dadada;
+  --chat-bubble-user-fg: #21201f;
+  --chat-mention-bg: #dbeafe;
+  --chat-mention-fg: #1d4ed8;
+  --chat-code-bg: #fcfcfc;
+  --chat-code-inline-bg: rgba(0, 0, 0, 0.06);
+  --chat-table-header-bg: #f1f0f0;
+  --chat-plan-done: #22c55e;
+  --chat-plan-active: #f59e0b;
+
+  /* Non-color token defaults — mirror @emdash/ui/theme/theme.base.css */
+  --chat-font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, monospace;
+  --chat-radius-sm: 0.375rem;
+  --chat-radius-md: 0.5rem;
+  --chat-radius-lg: 0.625rem;
+  --chat-radius-xl: 0.875rem;
+  --chat-radius-full: 9999px;
+
+  /* Typography role vars — consumed by prose.module.css, diff.module.css, etc.
+   * These mirror @emdash/ui/theme/theme.base.css :root declarations. */
+  --font-sans-default:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans',
+    'Droid Sans', 'Helvetica Neue', sans-serif;
+
+  --type-body-font-family: var(--font-sans, var(--font-sans-default));
+  --type-body-font-size: 14px;
+  --type-body-font-weight: 400;
+  --type-body-line-height: 20px;
+
+  --type-body-bold-font-family: var(--font-sans, var(--font-sans-default));
+  --type-body-bold-font-size: 14px;
+  --type-body-bold-font-weight: 600;
+  --type-body-bold-line-height: 20px;
+
+  --type-body-italic-font-family: var(--font-sans, var(--font-sans-default));
+  --type-body-italic-font-size: 14px;
+  --type-body-italic-font-weight: 400;
+  --type-body-italic-font-style: italic;
+  --type-body-italic-line-height: 20px;
+
+  --type-body-link-font-family: var(--font-sans, var(--font-sans-default));
+  --type-body-link-font-size: 14px;
+  --type-body-link-font-weight: 400;
+  --type-body-link-line-height: 20px;
+
+  --type-h1-font-family: var(--font-sans, var(--font-sans-default));
+  --type-h1-font-size: 20px;
+  --type-h1-font-weight: 600;
+  --type-h1-line-height: 28px;
+
+  --type-h2-font-family: var(--font-sans, var(--font-sans-default));
+  --type-h2-font-size: 17px;
+  --type-h2-font-weight: 600;
+  --type-h2-line-height: 25px;
+
+  --type-h3-font-family: var(--font-sans, var(--font-sans-default));
+  --type-h3-font-size: 14px;
+  --type-h3-font-weight: 600;
+  --type-h3-line-height: 22px;
+
+  --type-inline-code-font-family: var(--chat-font-mono);
+  --type-inline-code-font-size: 12px;
+  --type-inline-code-font-weight: 400;
+  --type-inline-code-line-height: 20px;
+
+  --type-code-font-family: var(--chat-font-mono);
+  --type-code-font-size: 13px;
+  --type-code-font-weight: 400;
+  --type-code-line-height: 20px;
+
+  --type-code-lang-font-family: var(--font-sans, var(--font-sans-default));
+  --type-code-lang-font-size: 11px;
+  --type-code-lang-font-weight: 500;
+  --type-code-lang-line-height: 16px;
+
+  --type-mention-font-family: var(--font-sans, var(--font-sans-default));
+  --type-mention-font-size: 14px;
+  --type-mention-font-weight: 600;
+  --type-mention-line-height: 20px;
+}
+
+:where(.emdark) {
+  /* Colors */
+  --chat-fg: #e9e8e9;
+  --chat-fg-body: color-mix(in srgb, #b8b7b8 40%, #e9e8e9);
+  --chat-fg-muted: #b8b7b8;
+  --chat-fg-passive: #929091;
+  --chat-bg: #111111;
+  --chat-bg-1: #181818;
+  --chat-bg-2: #202020;
+  --chat-bg-3: #282727;
+  --chat-border: #373636;
+  --chat-diff-added: #54a55a;
+  --chat-diff-deleted: #dc6b67;
+  --chat-diff-modified: #ce981d;
+
+  /* Already-owned vars — dark overrides */
+  --chat-link: #7cbcff;
+  --chat-bubble-user: #282727;
+  --chat-bubble-user-fg: #e9e8e9;
+  --chat-mention-bg: #1a293a;
+  --chat-mention-fg: #7cbcff;
+  --chat-code-bg: #111111;
+  --chat-code-inline-bg: rgba(255, 255, 255, 0.08);
+  --chat-table-header-bg: #181818;
+  --chat-plan-done: #4fcca8;
+  --chat-plan-active: #dead52;
+}
+
+/* ── 3. @utility: inlined effects ─────────────────────────────────────────── */
+/*
+ * Copied from @emdash/ui/theme/effects.css and re-pointed at --chat-* vars
+ * so chat-ui is self-contained.
+ */
+
+@utility text-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--chat-fg-passive) 0%,
+    var(--chat-fg-passive) 30%,
+    var(--chat-fg-muted) 50%,
+    var(--chat-fg-passive) 70%,
+    var(--chat-fg-passive) 100%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: var(--animate-text-shimmer);
+}
+
+@utility fade-overlay-top {
+  background: linear-gradient(
+    to bottom,
+    var(--fade-color, var(--chat-bg)) 0%,
+    color-mix(in oklab, var(--fade-color, var(--chat-bg)), transparent 50%)
+      calc(var(--fade-softness, 0.4) * 100%),
+    color-mix(in oklab, var(--fade-color, var(--chat-bg)), transparent 100%) 100%
+  );
+}
+
+@utility fade-overlay-bottom {
+  background: linear-gradient(
+    to top,
+    var(--fade-color, var(--chat-bg)) 0%,
+    color-mix(in oklab, var(--fade-color, var(--chat-bg)), transparent 50%)
+      calc(var(--fade-softness, 0.4) * 100%),
+    color-mix(in oklab, var(--fade-color, var(--chat-bg)), transparent 100%) 100%
+  );
+}

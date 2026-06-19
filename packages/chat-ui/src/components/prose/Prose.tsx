@@ -134,7 +134,7 @@ function ProseLine(props: {
 function ProseBullet(props: { bullet: BulletLayout }) {
   return (
     <span
-      class={`${styles.pbullet} text-foreground-muted`}
+      class={`${styles.pbullet} text-chat-fg-muted`}
       style={{ left: `${props.bullet.x}px`, top: `${props.bullet.top}px` }}
       aria-hidden="true"
     >
@@ -146,7 +146,7 @@ function ProseBullet(props: { bullet: BulletLayout }) {
 function ProseQuoteRail(props: { left: number }) {
   return (
     <div
-      class={`${styles['pquote-rail']} rounded-full bg-border`}
+      class={`${styles['pquote-rail']} bg-chat-border rounded-full`}
       style={{ left: `${props.left}px` }}
     />
   );

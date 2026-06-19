@@ -34,8 +34,11 @@ import {
 } from '@chenglou/pretext/rich-inline';
 import { computeDiffRows } from '../components/diff/diff-lines';
 import type { DiffRow } from '../components/diff/diff-lines';
-import { computeHighlightRaw, resolveAlias } from './highlight/highlighter';
-import type { HighlightResult } from './highlight/highlighter';
+import {
+  createDefaultHighlighter,
+  type ChatHighlighter,
+  type HighlightResult,
+} from './highlight/highlighter';
 import type { Block } from './markdown/document';
 import { parseMarkdownToBlocks } from './markdown/parse';
 
@@ -111,7 +114,8 @@ export type ChatCaches = {
 const HIGHLIGHT_CACHE_MAX = 200;
 const DIFF_CACHE_MAX = 100;
 
-export function createChatCaches(): ChatCaches {
+export function createChatCaches(highlighter?: ChatHighlighter): ChatCaches {
+  const hl = highlighter ?? createDefaultHighlighter();
   // Block parse cache — keyed by messageId.
   const blockCache = new Map<string, { text: string; blocks: Block[] }>();
 
@@ -151,13 +155,12 @@ export function createChatCaches(): ChatCaches {
     },
 
     highlight(code, lang) {
-      const resolved = resolveAlias(lang);
-      if (!resolved) return null;
-      const key = `${resolved}\x00${code}`;
+      const key = `${lang ?? ''}\x00${code}`;
       const cached = lruGet(highlightCache, key);
       if (cached) return cached;
       try {
-        const result = computeHighlightRaw(code, resolved);
+        const result = hl.highlight(code, lang);
+        if (!result) return null;
         lruSet(highlightCache, key, result, HIGHLIGHT_CACHE_MAX);
         return result;
       } catch {
@@ -166,9 +169,7 @@ export function createChatCaches(): ChatCaches {
     },
 
     peekHighlight(code, lang) {
-      const resolved = resolveAlias(lang);
-      if (!resolved) return null;
-      return lruGet(highlightCache, `${resolved}\x00${code}`) ?? null;
+      return lruGet(highlightCache, `${lang ?? ''}\x00${code}`) ?? null;
     },
 
     computeDiff(oldText, newText) {

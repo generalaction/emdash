@@ -35,8 +35,8 @@ const VERB: Record<FileOpKind, string> = {
 function FileRowItem(props: { verb: string; path: string; lineH: number; onClick?: () => void }) {
   return (
     <div
-      class="flex items-center gap-1.5 text-sm text-foreground-passive"
-      classList={{ 'cursor-pointer hover:text-foreground-muted': !!props.onClick }}
+      class="text-chat-fg-passive flex items-center gap-1.5 text-sm"
+      classList={{ 'cursor-pointer hover:text-chat-fg-muted': !!props.onClick }}
       style={{ height: `${props.lineH}px` }}
       role={props.onClick ? 'button' : undefined}
       onClick={props.onClick}
@@ -69,7 +69,7 @@ export function FileOpRow(props: FileOpRowProps) {
         when={props.item.ops[0]}
         fallback={
           <span
-            class="font-mono text-sm text-foreground-passive"
+            class="text-chat-fg-passive font-mono text-sm"
             classList={{ 'text-shimmer': props.item.status === 'running' }}
           >
             {verb()}…
@@ -212,7 +212,7 @@ export function FileOperation(props: FileOperationProps) {
           when={props.item.ops[0]}
           fallback={
             <span
-              class="font-mono text-sm text-foreground-passive"
+              class="text-chat-fg-passive font-mono text-sm"
               classList={{ 'text-shimmer': props.item.status === 'running' }}
             >
               {verb()}…
@@ -232,7 +232,7 @@ export function FileOperation(props: FileOperationProps) {
     >
       <div>
         <div
-          class="flex cursor-pointer items-center gap-1.5 text-sm text-foreground-passive select-none hover:text-foreground-muted"
+          class="text-chat-fg-passive hover:text-chat-fg-muted flex cursor-pointer items-center gap-1.5 text-sm select-none"
           role="button"
           aria-expanded={expanded() ? 'true' : 'false'}
           data-collapse-id={props.item.id}

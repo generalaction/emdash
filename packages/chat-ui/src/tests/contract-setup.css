@@ -3,6 +3,9 @@
  *
  * Mirrors .storybook/preview.css so the browser contract tests run with the
  * same token values and theme classes as Storybook.
+ *
+ * The @emdash/ui imports activate the full desktop color override preset via
+ * chat-theme.css; without them, tokens.css bundled defaults still apply.
  */
 
 @import '@emdash/ui/theme/theme.css';

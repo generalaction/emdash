@@ -26,8 +26,8 @@ import styles from './diff.module.css';
 // ── Row style map ──────────────────────────────────────────────────────────────
 
 const ROW_CLASS: Record<DiffRow['type'], string> = {
-  add: 'bg-foreground-diff-added/10 border-l-[3px] border-foreground-diff-added',
-  remove: 'bg-foreground-diff-deleted/10 border-l-[3px] border-foreground-diff-deleted',
+  add: 'bg-chat-diff-added/10 border-l-[3px] border-chat-diff-added',
+  remove: 'bg-chat-diff-deleted/10 border-l-[3px] border-chat-diff-deleted',
   context: 'border-l-[3px] border-transparent',
 };
 
@@ -61,7 +61,7 @@ export function DiffHeader(props: DiffHeaderProps) {
 
   return (
     <div
-      class="hover:bg-background-3 flex cursor-pointer items-center gap-2 border-border px-2 text-xs transition-colors"
+      class="hover:bg-chat-bg-3 border-chat-border flex cursor-pointer items-center gap-2 px-2 text-xs transition-colors"
       classList={{
         'rounded-lg border': !props.hasBody,
         'rounded-t-lg border-x border-t border-b': props.hasBody,
@@ -80,15 +80,15 @@ export function DiffHeader(props: DiffHeaderProps) {
         <GenericFileIcon />
       )}
       <span
-        class="min-w-0 truncate text-sm text-foreground-muted"
+        class="text-chat-fg-muted min-w-0 truncate text-sm"
         classList={{ 'text-shimmer': running() }}
         title={props.item.path}
       >
         {name()}
       </span>
       <Show when={showStats()}>
-        <span class="shrink-0 text-sm text-foreground-diff-added">+{props.adds}</span>
-        <span class="shrink-0 text-sm text-foreground-diff-deleted">−{props.dels}</span>
+        <span class="text-chat-diff-added shrink-0 text-sm">+{props.adds}</span>
+        <span class="text-chat-diff-deleted shrink-0 text-sm">−{props.dels}</span>
       </Show>
       <span class="flex-1" />
     </div>
@@ -155,7 +155,7 @@ export function DiffLines(props: DiffLinesProps) {
   });
 
   return (
-    <div class="overflow-hidden rounded-b-lg border-x border-b border-border">
+    <div class="border-chat-border overflow-hidden rounded-b-lg border-x border-b">
       <div class={styles['pdiff__body']}>
         <For each={props.layout.previewRows}>
           {(row, i) => (
@@ -165,7 +165,7 @@ export function DiffLines(props: DiffLinesProps) {
                   lineEls.set(i(), el);
                   onCleanup(() => lineEls.delete(i()));
                 }}
-                class={`${styles['pdiff__line']} flex-1 overflow-hidden px-3 text-foreground`}
+                class={`${styles['pdiff__line']} text-chat-fg flex-1 overflow-hidden px-3`}
               >
                 {row.text}
               </span>

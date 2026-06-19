@@ -8,6 +8,7 @@ import { useAgents } from '@renderer/lib/stores/use-agents';
 import type { ModelOption } from '@shared/core/agents/agent-payload';
 import { useConversations } from '../../task-view-context';
 import { ChatEmptyState } from './chat-empty-state';
+import { desktopChatHighlighter } from './chat-highlighter';
 
 const PAD_TOP = 16;
 const PAD_BOTTOM_MARGIN = 12;
@@ -86,6 +87,7 @@ export const ChatPanel = observer(function ChatPanel({
         padBottom={composerH + PAD_BOTTOM_MARGIN}
         commands={commands}
         onReady={handleReady}
+        highlighter={desktopChatHighlighter}
       />
 
       {/* Empty / loading states overlay the transcript */}

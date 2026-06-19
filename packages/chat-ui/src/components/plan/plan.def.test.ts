@@ -47,9 +47,7 @@ function makePlan(entryCount: number, streaming = false): ChatPlan {
 describe('measurePlanH() — collapsed (capped preview)', () => {
   it('0 entries — header + listH + chrome (listH < cap)', () => {
     // listH = 2*PLAN_PAD_Y (no entries), below the cap.
-    expect(measurePlanH(makePlan(0), false)).toBe(
-      PLAN_HEADER_H + 2 * PLAN_PAD_Y + PLAN_CHROME_Y
-    );
+    expect(measurePlanH(makePlan(0), false)).toBe(PLAN_HEADER_H + 2 * PLAN_PAD_Y + PLAN_CHROME_Y);
   });
 
   it('zero-height entries stay below the cap → full listH', () => {
@@ -78,9 +76,7 @@ describe('measurePlanH() — collapsed (capped preview)', () => {
 
 describe('measurePlanH() — expanded, zero-height entries', () => {
   it('0 entries — header + 2*PLAN_PAD_Y + chrome', () => {
-    expect(measurePlanH(makePlan(0), true)).toBe(
-      PLAN_HEADER_H + 2 * PLAN_PAD_Y + PLAN_CHROME_Y
-    );
+    expect(measurePlanH(makePlan(0), true)).toBe(PLAN_HEADER_H + 2 * PLAN_PAD_Y + PLAN_CHROME_Y);
   });
 
   it('3 entries — header + 2*PLAN_ENTRY_GAP + 2*PLAN_PAD_Y + chrome', () => {
@@ -124,7 +120,9 @@ describe('planListHeight()', () => {
   });
 
   it('accumulates entry heights and gaps', () => {
-    expect(planListHeight(3, [10, 20, 30])).toBe(10 + 20 + 30 + 2 * PLAN_ENTRY_GAP + 2 * PLAN_PAD_Y);
+    expect(planListHeight(3, [10, 20, 30])).toBe(
+      10 + 20 + 30 + 2 * PLAN_ENTRY_GAP + 2 * PLAN_PAD_Y
+    );
   });
 });
 
@@ -146,7 +144,9 @@ describe('estimatePlanH()', () => {
 
   it('estimate always includes header + chrome', () => {
     for (const n of [0, 1, 3, 6]) {
-      expect(estimatePlanH(makePlan(n), true)).toBeGreaterThanOrEqual(PLAN_HEADER_H + PLAN_CHROME_Y);
+      expect(estimatePlanH(makePlan(n), true)).toBeGreaterThanOrEqual(
+        PLAN_HEADER_H + PLAN_CHROME_Y
+      );
     }
   });
 });

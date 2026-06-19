@@ -28,7 +28,7 @@ export function CopyButton(props: CopyButtonProps) {
     return (
       <button
         type="button"
-        class="absolute top-1.5 right-1.5 z-10 flex cursor-pointer items-center justify-center rounded p-0.5 text-foreground-passive opacity-0 transition-opacity select-none group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100"
+        class="text-chat-fg-passive hover:text-chat-fg absolute top-1.5 right-1.5 z-10 flex cursor-pointer items-center justify-center rounded p-0.5 opacity-0 transition-opacity select-none group-hover:opacity-100 focus-visible:opacity-100"
         aria-label={ariaLabel()}
         onClick={() => copy(props.text)}
       >
@@ -42,7 +42,7 @@ export function CopyButton(props: CopyButtonProps) {
   return (
     <button
       type="button"
-      class="flex cursor-pointer items-center gap-1 text-xs text-foreground-passive opacity-0 transition-opacity select-none group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100"
+      class="text-chat-fg-passive hover:text-chat-fg flex cursor-pointer items-center gap-1 text-xs opacity-0 transition-opacity select-none group-hover:opacity-100 focus-visible:opacity-100"
       aria-label={ariaLabel()}
       onClick={() => copy(props.text)}
     >
