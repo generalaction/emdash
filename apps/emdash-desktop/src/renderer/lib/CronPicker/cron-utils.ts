@@ -208,8 +208,3 @@ export function changePeriod(prev: CronState, period: CronPeriod): CronState {
       return { ...prev, period, monthDay: prev.monthDay, month: prev.month };
   }
 }
-
-/** Returns a padded time string like "09:05" from hour and minute numbers. */
-export function formatTime(hour: number, minute: number): string {
-  return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-}

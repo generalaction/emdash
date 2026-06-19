@@ -111,6 +111,8 @@ function TimeSegment({
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const stateRef = useRef({ value, min, max, onChange });
+  stateRef.current = { value, min, max, onChange };
 
   useEffect(() => {
     const input = inputRef.current;
@@ -119,13 +121,15 @@ function TimeSegment({
     function handleWheel(event: WheelEvent) {
       if (document.activeElement !== input) return;
       event.preventDefault();
+      const { value, min, max, onChange } = stateRef.current;
       onChange(wrapValue(value, event.deltaY < 0 ? 1 : -1, min, max));
     }
 
     // Non-passive so preventDefault works; React's onWheel is passive.
     input.addEventListener('wheel', handleWheel, { passive: false });
     return () => input.removeEventListener('wheel', handleWheel);
-  }, [value, min, max, onChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function commit(raw: string | null) {
     setDraft(null);
