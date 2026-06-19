@@ -1,0 +1,29 @@
+apps/emdash-desktop/src/renderer/utils/soundPlayer.ts
+  s_17c333bd0054a9::t_c2f2acb20d5803 19,22,172,176-182
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.ts
+  s_17c333bd0054a9::t_050c9f2dd9972e 174,176-184
+  s_17c333bd0054a9::t_c542ee878abe61 78,175,198,220
+  s_17c333bd0054a9::t_ae96cb1742d96b 185
+  s_17c333bd0054a9::t_8f73060153f9fb 228
+  s_17c333bd0054a9::t_72b538361674d9 169,197
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-manager.ts
+  s_17c333bd0054a9::t_c2f2acb20d5803 125
+apps/emdash-desktop/src/shared/core/conversations/conversationEvents.ts
+  s_17c333bd0054a9::t_8f73060153f9fb 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "285b3ec0e9812ebfc1e59fc91008d3b539e2be5a",
+  "prompts": {},
+  "sessions": {
+    "s_17c333bd0054a9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ee06d-57c2-7dd1-aae5-fc3e7a6cc1af",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
