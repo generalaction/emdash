@@ -4,12 +4,21 @@ This directory is the system of record for agent-facing repo guidance. Keep topi
 
 ## Recommended Reading Order
 
+For Rocky product work:
+1. `rocky/overview.md`
+2. `rocky/transformation-map.md`
+3. the Rocky feature spec for the area you are changing (`rocky/rocky-proxy.md`, `rocky/artifact-panel.md`, `rocky/marketplace.md`)
+4. `rocky/phases.md` for build order
+
+For infrastructure / foundation work:
 1. `quickstart.md`
 2. `architecture/overview.md`
 3. the task-specific page for the area you are changing
 
 ## Directory Layout
 
+- `rocky/`
+  - product transformation specs: what Rocky is, what changes, what to build
 - `architecture/`
   - system structure and major code ownership boundaries
 - `workflows/`

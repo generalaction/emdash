@@ -1,9 +1,16 @@
 # Project Overview
 
-Emdash is a cross-platform Electron app for orchestrating multiple AI coding agents in
-parallel, each isolated in its own Git worktree and able to run locally or over SSH.
-It combines provider-agnostic CLI agent execution, task and conversation management,
-diff review, integrations, terminal sessions, and packaging for desktop releases.
+Rocky is a cross-platform Electron desktop app for non-technical business users (finance
+professionals, knowledge workers) to run AI agents against their documents and connected
+business apps. It is built as an in-place transformation of the **emdash** codebase: the
+underlying infrastructure (PTY, git, MCP, automations, DB, notifications, parallel agents)
+is kept intact but the surface layer is reshaped for business use. The AI engine is
+**Rocky Proxy** (a sibling repo), which replaces emdash's terminal-based Claude Code
+spawning with a structured event stream. The UX north stars are Cursor's agent window and
+Claude.ai's artifact panel.
+
+**Before making changes, read `agents/rocky/overview.md` for product context and
+`agents/rocky/transformation-map.md` for a precise keep/change/remove/add mapping.**
 
 ## Repository Structure
 
@@ -338,6 +345,17 @@ pnpm run test
   See `agents/conventions/versioned-schemas.md` for the full guide.
 
 ## Further Reading
+
+### Rocky (product transformation)
+
+- [Rocky overview](agents/rocky/overview.md)
+- [Transformation map: keep / change / remove / add](agents/rocky/transformation-map.md)
+- [Rocky Proxy integration spec](agents/rocky/rocky-proxy.md)
+- [Artifact Panel spec](agents/rocky/artifact-panel.md)
+- [Marketplace spec](agents/rocky/marketplace.md)
+- [Phase breakdown](agents/rocky/phases.md)
+
+### Foundation (emdash infrastructure)
 
 - [Agent docs map](agents/README.md)
 - [Quickstart](agents/quickstart.md)
