@@ -1,10 +1,10 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import { definePlugin, registerPluginBehavior } from '@rocky/core/agents/plugins';
 import {
   buildStandardCommand,
   codexMcpAdapter,
   homebrewOption,
   npmDependency,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@rocky/core/agents/plugins/helpers';
 import { buildCodexHookConfig } from './hooks';
 import { icon } from './icon';
 

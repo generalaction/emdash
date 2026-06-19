@@ -1,9 +1,9 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import { definePlugin, registerPluginBehavior } from '@rocky/core/agents/plugins';
 import {
   buildStandardCommand,
   geminiMcpAdapter,
   npmDependency,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@rocky/core/agents/plugins/helpers';
 import { icon } from './icon';
 
 export const plugin = definePlugin(

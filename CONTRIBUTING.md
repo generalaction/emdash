@@ -80,11 +80,11 @@ pnpm run typecheck
 pnpm run test
 ```
 
-If you are already in `apps/emdash-desktop/`, `pnpm run d` is shorthand for installing
+If you are already in `apps/rocky-desktop/`, `pnpm run d` is shorthand for installing
 dependencies and starting the dev app.
 
 > **Tip:** During development, the renderer hot‑reloads. Changes to the Electron main
-> process (files in `apps/emdash-desktop/src/main`) require a restart of the dev app.
+> process (files in `apps/rocky-desktop/src/main`) require a restart of the dev app.
 
 #### Skipping native rebuilds
 
@@ -98,10 +98,10 @@ EMDASH_DISABLE_NATIVE_DB=1  # skip better-sqlite3 rebuild
 
 ## Project Overview
 
-The repo is a pnpm workspace monorepo; the Electron app lives in `apps/emdash-desktop/`. The root `package.json` provides aggregate scripts (`dev`, `build`, `test`, `lint`, `format`, `typecheck`); everything else runs from `apps/emdash-desktop/`.
+The repo is a pnpm workspace monorepo; the Electron app lives in `apps/rocky-desktop/`. The root `package.json` provides aggregate scripts (`dev`, `build`, `test`, `lint`, `format`, `typecheck`); everything else runs from `apps/rocky-desktop/`.
 
-- `apps/emdash-desktop/src/main/` – Electron main process, RPC controllers, services (Git, worktrees, PTY manager, DB, etc.)
-- `apps/emdash-desktop/src/renderer/` – React UI (Vite), organized around `app/`, `features/`, and `lib/`
+- `apps/rocky-desktop/src/main/` – Electron main process, RPC controllers, services (Git, worktrees, PTY manager, DB, etc.)
+- `apps/rocky-desktop/src/renderer/` – React UI (Vite), organized around `app/`, `features/`, and `lib/`
 - Local database – SQLite file created under the OS userData folder (see "Local DB" below)
 - Worktrees – Git worktrees are created outside your repo root in a sibling `worktrees/` folder
 - Logs – Agent terminal output and app logs are written to the OS userData folder (not inside repos)
@@ -177,7 +177,7 @@ Git and worktrees
 
 Renderer (React)
 
-- Feature UI lives under `apps/emdash-desktop/src/renderer/features/<feature>/`; shared primitives, hooks, and stores under `apps/emdash-desktop/src/renderer/lib/`.
+- Feature UI lives under `apps/rocky-desktop/src/renderer/features/<feature>/`; shared primitives, hooks, and stores under `apps/rocky-desktop/src/renderer/lib/`.
 - Agent CLIs are embedded via terminal emulation (xterm.js) - each agent runs in its own PTY.
 - Use existing UI primitives and Tailwind utility classes for consistency.
 - Aim for accessible elements (labels, `aria-*` where appropriate).
@@ -202,7 +202,7 @@ Local DB (SQLite)
 ## Release Process (maintainers)
 
 Use pnpm's built-in versioning to ensure consistency. The app version lives in
-`apps/emdash-desktop/package.json`, so run these from `apps/emdash-desktop/`:
+`apps/rocky-desktop/package.json`, so run these from `apps/rocky-desktop/`:
 
 ```bash
 # For bug fixes (0.2.9 → 0.2.10)

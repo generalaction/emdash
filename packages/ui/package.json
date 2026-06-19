@@ -1,5 +1,5 @@
 {
-  "name": "@emdash/ui",
+  "name": "@rocky/ui",
   "version": "1.0.0",
   "description": "Shared UI components and theme system for Emdash",
   "license": "Apache-2.0",
@@ -36,7 +36,7 @@
     "theme:watch": "node src/theme/watch.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/ui/src\"'",
+    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/rocky-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/ui/src\"'",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "typecheck": "tsgo --noEmit"

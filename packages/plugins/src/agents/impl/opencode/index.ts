@@ -1,10 +1,10 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import { definePlugin, registerPluginBehavior } from '@rocky/core/agents/plugins';
 import {
   buildStandardCommand,
   createFileDropPlugin,
   npmDependency,
   opencodeMcpAdapter,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@rocky/core/agents/plugins/helpers';
 import { OPENCODE_PLUGIN_CONTENT } from './plugin-file';
 
 const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';

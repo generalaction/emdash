@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
-import type { PluginFs } from '@emdash/core/agents/plugins';
-import type { CanonicalHookEvent, HookRegistration } from '@emdash/core/agents/plugins';
+import type { PluginFs } from '@rocky/core/agents/plugins';
+import type { CanonicalHookEvent, HookRegistration } from '@rocky/core/agents/plugins';
 import {
   EMDASH_MARKER,
   buildNestedEntry,
@@ -9,7 +9,7 @@ import {
   makeStdinHookCommand,
   readJsonConfig,
   writeJsonConfig,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@rocky/core/agents/plugins/helpers';
 
 export const GROK_HOOKS_PATH = '.grok/hooks/emdash.json';
 

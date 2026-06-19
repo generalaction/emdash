@@ -1,5 +1,5 @@
 {
-  "name": "@emdash/core",
+  "name": "@rocky/core",
   "version": "1.0.0",
   "description": "Transport-agnostic core runtime primitives for Emdash",
   "license": "Apache-2.0",
@@ -51,13 +51,13 @@
     "dev": "tsdown --watch",
     "build": "tsdown",
     "test": "vitest run",
-    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/core\"'",
+    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/rocky-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/core\"'",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "typecheck": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@emdash/shared": "workspace:*",
+    "@rocky/shared": "workspace:*",
     "@parcel/watcher": "^2.5.6",
     "semver": "^7.8.4",
     "smol-toml": "^1.6.0",

@@ -1,10 +1,10 @@
 # Testing And Validation
 
-All paths are relative to `apps/emdash-desktop/`.
+All paths are relative to `apps/rocky-desktop/`.
 
 ## Core Local Gate
 
-Run these before merging (from the repo root or `apps/emdash-desktop/`):
+Run these before merging (from the repo root or `apps/rocky-desktop/`):
 
 ```bash
 pnpm run format

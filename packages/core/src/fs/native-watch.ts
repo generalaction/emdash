@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import type { IDisposable } from '@emdash/shared';
+import type { IDisposable } from '@rocky/shared';
 import parcelWatcher from '@parcel/watcher';
 import type { RawFileEvent } from './types';
 

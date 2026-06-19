@@ -2,14 +2,14 @@
 
 ## TypeScript
 
-- strict mode is enabled in `apps/emdash-desktop/tsconfig.json`
+- strict mode is enabled in `apps/rocky-desktop/tsconfig.json`
 - always use explicit types, do not use `any`
 - prefer module imports at the top of the file, never use require()
-- single `tsconfig.json` (in `apps/emdash-desktop/`) for all app targets (main, preload, renderer, shared)
+- single `tsconfig.json` (in `apps/rocky-desktop/`) for all app targets (main, preload, renderer, shared)
 
 ## Renderer
 
-Paths are relative to `apps/emdash-desktop/`.
+Paths are relative to `apps/rocky-desktop/`.
 
 - functional React components and hooks
 - app shell and the modal/view registries under `src/renderer/app/`

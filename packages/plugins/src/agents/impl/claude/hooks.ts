@@ -1,9 +1,9 @@
-import type { CanonicalHookEvent } from '@emdash/core/agents/plugins';
+import type { CanonicalHookEvent } from '@rocky/core/agents/plugins';
 import {
   buildNestedJsonHookConfig,
   defaultHookEventParser,
   makeStdinHookCommand,
-} from '@emdash/core/agents/plugins/helpers';
+} from '@rocky/core/agents/plugins/helpers';
 
 export const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
 

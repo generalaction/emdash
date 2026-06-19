@@ -1,4 +1,4 @@
-import { Emitter, err, ok, type Result } from '@emdash/shared';
+import { Emitter, err, ok, type Result } from '@rocky/shared';
 import type { IExecutionContext } from '../../exec/execution-context';
 import { consoleLogger, type Logger } from '../../lib/logger';
 import type { InstallMethod, Platform } from '../capability';

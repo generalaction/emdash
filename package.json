@@ -1,9 +1,9 @@
 {
-  "name": "emdash-monorepo",
+  "name": "rocky-monorepo",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm -r --filter './packages/**' run build && pnpm -r --parallel --filter './packages/**' --filter @emdash/emdash-desktop run dev",
+    "dev": "pnpm -r --filter './packages/**' run build && pnpm -r --parallel --filter './packages/**' --filter @rocky/desktop run dev",
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
     "lint": "pnpm -r run lint",

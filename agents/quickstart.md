@@ -4,11 +4,11 @@
 
 - Node: `24.14.0` from `.nvmrc`
 - Package manager: `pnpm@10.28.2`
-- Workspace layout: pnpm monorepo; the Electron app lives in `apps/emdash-desktop/`
+- Workspace layout: pnpm monorepo; the Electron app lives in `apps/rocky-desktop/`
 
 ## Core Commands
 
-Run from `apps/emdash-desktop/` (the root `package.json` also provides `dev` and `build`
+Run from `apps/rocky-desktop/` (the root `package.json` also provides `dev` and `build`
 aggregates that delegate via `pnpm --filter`):
 
 ```bash
@@ -23,7 +23,7 @@ pnpm run reset
 
 ## Validation Commands
 
-Run from the repo root (they fan out to the workspace) or from `apps/emdash-desktop/`:
+Run from the repo root (they fan out to the workspace) or from `apps/rocky-desktop/`:
 
 ```bash
 pnpm run format

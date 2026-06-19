@@ -1,6 +1,6 @@
 # Transformation Map: emdash → Rocky
 
-All paths are relative to `apps/emdash-desktop/` unless prefixed with the repo root.
+All paths are relative to `apps/rocky-desktop/` unless prefixed with the repo root.
 
 This is the authoritative reference for what to keep, change, remove, and add when
 building Rocky from the emdash codebase. Check this before touching any file.

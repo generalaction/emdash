@@ -1,6 +1,6 @@
 # Renderer Patterns
 
-All paths are relative to `apps/emdash-desktop/`.
+All paths are relative to `apps/rocky-desktop/`.
 
 ## Modal System
 

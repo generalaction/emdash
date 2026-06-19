@@ -1,5 +1,5 @@
 /* Non-color @theme entries, keyframes, and structural CSS rules.
- * Lifted from apps/emdash-desktop/src/renderer/index.css.
+ * Lifted from apps/rocky-desktop/src/renderer/index.css.
  * Import after tailwindcss and before the color theme files. */
 
 @theme inline {

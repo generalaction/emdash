@@ -1,4 +1,4 @@
-import type { Result } from '@emdash/shared';
+import type { Result } from '@rocky/shared';
 import z from 'zod';
 import type {
   InstallMethod,

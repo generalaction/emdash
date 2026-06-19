@@ -1,5 +1,5 @@
-import type { Result } from '@emdash/shared';
-import type { IDisposable, Lease, Unsubscribe } from '@emdash/shared';
+import type { Result } from '@rocky/shared';
+import type { IDisposable, Lease, Unsubscribe } from '@rocky/shared';
 import type { LiveValue } from '../lib';
 import type {
   CloneRepositoryError,

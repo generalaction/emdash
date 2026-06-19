@@ -14,22 +14,22 @@ Claude.ai's artifact panel.
 
 ## Repository Structure
 
-This is a pnpm workspace monorepo. The Electron app lives in `apps/emdash-desktop/`
+This is a pnpm workspace monorepo. The Electron app lives in `apps/rocky-desktop/`
 (package `@emdash/emdash-desktop`). Unless prefixed otherwise, `src/...`, `drizzle/`,
 `scripts/`, `build/`, and config-file paths in this document and in `agents/` docs are
-relative to `apps/emdash-desktop/`.
+relative to `apps/rocky-desktop/`.
 
 Repo root:
 
 - `.claude/` - Local Claude agent settings for this checkout.
 - `.github/` - GitHub issue templates, reusable actions, CI, and release workflows.
 - `agents/` - Agent-facing architecture, workflow, convention, integration, and risk docs.
-- `apps/emdash-desktop/` - The Electron desktop app (everything below).
+- `apps/rocky-desktop/` - The Electron desktop app (everything below).
 - `packages/` - Reserved for future shared workspace packages (currently empty).
 - Root config files - `pnpm-workspace.yaml`, root `package.json` with aggregate scripts,
   `.nvmrc`, `.oxfmtrc.json`, `.oxlintrc.json`.
 
-Inside `apps/emdash-desktop/`:
+Inside `apps/rocky-desktop/`:
 
 - `build/` - Electron packaging assets; avoid edits unless working on packaging or signing.
 - `drizzle/` - Generated Drizzle SQL migrations and metadata.
@@ -46,7 +46,7 @@ Inside `apps/emdash-desktop/`:
 
 The repo root only has aggregate scripts (`dev`, `build`, `test`, `lint`, `format`,
 `format:check`, `typecheck`) that delegate via `pnpm --filter` / `pnpm -r`. All other
-scripts below run from `apps/emdash-desktop/`.
+scripts below run from `apps/rocky-desktop/`.
 
 Install dependencies (repo root):
 
@@ -54,7 +54,7 @@ Install dependencies (repo root):
 pnpm install
 ```
 
-Start the app (repo root via `pnpm run dev`, or in `apps/emdash-desktop/`):
+Start the app (repo root via `pnpm run dev`, or in `apps/rocky-desktop/`):
 
 ```bash
 pnpm run d
@@ -157,7 +157,7 @@ Canary releases currently publish to R2 only.
   trailing commas where valid in ES5, and sorted imports.
 - Lint with `oxlint`; config is `.oxlintrc.json` with correctness errors,
   TypeScript, React hooks, and local repo rules enabled.
-- TypeScript strict mode is enabled in `apps/emdash-desktop/tsconfig.json`, the single
+- TypeScript strict mode is enabled in `apps/rocky-desktop/tsconfig.json`, the single
   tsconfig for all app targets.
 - Avoid `any`; if a registry or boundary needs it, keep the escape local and documented.
 - Use top-level `import` statements; do not use `require()`.

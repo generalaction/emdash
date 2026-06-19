@@ -1,5 +1,5 @@
 {
-  "name": "@emdash/plugins",
+  "name": "@rocky/plugins",
   "version": "1.0.0",
   "description": "Plugin interfaces and helpers for agent providers",
   "keywords": [],
@@ -23,11 +23,11 @@
     "test:watch": "vitest",
     "format": "oxfmt --write",
     "format:check": "oxfmt --check",
-    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/plugins/src\"'",
+    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/rocky-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/plugins/src\"'",
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
-    "@emdash/core": "workspace:*",
+    "@rocky/core": "workspace:*",
     "smol-toml": "^1.6.0",
     "zod": "^4.4.3"
   },

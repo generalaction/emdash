@@ -1,5 +1,5 @@
-// Shared execution context contract used by @emdash/core/deps/runtime.
-// Intentionally duplicated in apps/emdash-desktop/src/main/core/execution-context/types.ts
+// Shared execution context contract used by @rocky/core/deps/runtime.
+// Intentionally duplicated in apps/rocky-desktop/src/main/core/execution-context/types.ts
 // for incremental migration. The two shapes must stay structurally compatible.
 export type { ExecResult } from './types';
 

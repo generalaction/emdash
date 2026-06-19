@@ -1,5 +1,5 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
-import { buildStandardCommand, cursorMcpAdapter } from '@emdash/core/agents/plugins/helpers';
+import { definePlugin, registerPluginBehavior } from '@rocky/core/agents/plugins';
+import { buildStandardCommand, cursorMcpAdapter } from '@rocky/core/agents/plugins/helpers';
 import { icon } from './icon';
 
 export const plugin = definePlugin(

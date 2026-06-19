@@ -23,7 +23,7 @@
 
 ### Tooling folder
 
-All dev and test infrastructure lives in `tooling/` inside `apps/emdash-desktop/`.
+All dev and test infrastructure lives in `tooling/` inside `apps/rocky-desktop/`.
 Nothing in `tooling/` is part of the production Electron bundle — the `@tooling`
 alias only exists in `vitest.config.ts`, not in `electron.vite.config.ts`.
 

@@ -1,4 +1,4 @@
-import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
+import { err, ok, type Result, type Unsubscribe } from '@rocky/shared';
 import type { BoundExec } from '../exec';
 import type { IFileWatchService, WatchHandle } from '../fs';
 import { realpathOrResolve } from '../fs';

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { err, ok, type Lease, type Result } from '@emdash/shared';
+import { err, ok, type Lease, type Result } from '@rocky/shared';
 import type { BoundExec } from '../exec';
 import {
   FileWatchService,

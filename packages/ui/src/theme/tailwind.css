@@ -1,6 +1,6 @@
 /* Color @theme mapping — connects Tailwind color utilities to the semantic CSS custom
  * properties emitted by theme.css (Terrazzo). Hand-authored for exact parity with the
- * inline block in apps/emdash-desktop/src/renderer/index.css. */
+ * inline block in apps/rocky-desktop/src/renderer/index.css. */
 
 @theme inline {
   --color-background: var(--background);
