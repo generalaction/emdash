@@ -251,6 +251,33 @@ describe('ensureAgentDependenciesProbed', () => {
     expect(mocks.connect).toHaveBeenCalledTimes(2);
   });
 
+  it('keeps in-flight probes deduped for a manager after cache clear', async () => {
+    const { clearDependencyManager, ensureAgentDependenciesProbed, getDependencyManager } =
+      await import('./dependency-managers');
+    mocks.connect.mockResolvedValue({});
+    const manager = await getDependencyManager('ssh-1');
+    const fakeManager = mocks.instances[1]!;
+    let resolveProbe: (() => void) | undefined;
+    fakeManager.probeCategory.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveProbe = resolve;
+      })
+    );
+
+    const first = ensureAgentDependenciesProbed(manager);
+    await Promise.resolve();
+    await Promise.resolve();
+    clearDependencyManager('ssh-1');
+    const second = ensureAgentDependenciesProbed(manager);
+
+    expect(fakeManager.probeCategory).toHaveBeenCalledTimes(1);
+
+    if (!resolveProbe) throw new Error('Probe did not start');
+    fakeManager.setAgentStates();
+    resolveProbe();
+    await Promise.all([first, second]);
+  });
+
   it('does not cache a remote manager cleared during creation', async () => {
     const { clearDependencyManager, getDependencyManager } = await import('./dependency-managers');
     let resolveConnect: ((proxy: unknown) => void) | undefined;
@@ -273,5 +300,27 @@ describe('ensureAgentDependenciesProbed', () => {
 
     expect(nextManager).not.toBe(clearedManager);
     expect(mocks.connect).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not wire desktop bridges for a remote manager cleared during creation', async () => {
+    const { clearDependencyManager, getDependencyManager } = await import('./dependency-managers');
+    let resolveConnect: ((proxy: unknown) => void) | undefined;
+    mocks.connect.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveConnect = resolve;
+      })
+    );
+
+    const pending = getDependencyManager('ssh-1');
+    await Promise.resolve();
+    clearDependencyManager('ssh-1');
+
+    if (!resolveConnect) throw new Error('Connect did not start');
+    resolveConnect({});
+    const clearedManager = await pending;
+
+    expect(clearedManager).toBe(mocks.instances[1]);
+    expect(mocks.attach).not.toHaveBeenCalledWith(clearedManager, 'ssh-1');
+    expect(clearedManager.onExecutableInvalidated.subscribe).not.toHaveBeenCalled();
   });
 });

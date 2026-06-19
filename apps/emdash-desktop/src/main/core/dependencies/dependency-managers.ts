@@ -70,6 +70,7 @@ export async function getDependencyManager(connectionId?: string): Promise<HostD
   const promise = createSshDependencyManager(connectionId)
     .then((mgr) => {
       if (sshManagerPromises.get(connectionId) === promise) {
+        wireDesktopBridges(mgr, connectionId);
         sshManagers.set(connectionId, mgr);
       }
       return mgr;
@@ -96,15 +97,10 @@ async function createSshDependencyManager(connectionId: string): Promise<HostDep
     dependencies: DEPENDENCIES,
     getDependencyDescriptor,
   });
-  wireDesktopBridges(mgr, connectionId);
   return mgr;
 }
 
 export function clearDependencyManager(connectionId: string): void {
-  const manager = sshManagers.get(connectionId);
-  if (manager) {
-    agentProbePromises.delete(manager);
-  }
   sshManagers.delete(connectionId);
   sshManagerPromises.delete(connectionId);
 }
