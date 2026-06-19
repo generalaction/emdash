@@ -36,7 +36,9 @@
   font-size: var(--chat-code-size);
   font-weight: var(--chat-code-weight);
   font-family: var(--type-code-font-family);
-  line-height: var(--chat-code-lh);
+  /* line-height is set inline from theme.fonts.code.lineHeight (the same value
+     diffDef.measure() reserves) so rendered row height cannot drift from the
+     measured height via a CSS variable. */
 }
 
 /* Shiki token color wiring (same pattern as code.module.css) */

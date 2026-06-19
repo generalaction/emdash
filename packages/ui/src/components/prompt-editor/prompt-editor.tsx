@@ -9,39 +9,79 @@
  *  - Enter to submit (when no suggestion open); Shift+Enter for hard break.
  *
  * Data sources are injected as async callbacks so the component is agnostic
- * to where mentions and commands come from.
+ * to where mentions and commands come from. Prefer `mentionProvider` over
+ * `queryMentions` for new integrations.
  */
 
 import { Placeholder } from '@tiptap/extension-placeholder';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
+import { AtSign, Braces, CircleDot, File } from 'lucide-react';
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
+import type React from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '../../lib/cn';
+import { ComboboxPopup, type ComboboxPopupHandle, type ComboboxPopupItem } from '../../primitives/combobox-popup';
 import { buildMentionExtension } from './extensions/mention';
 import { buildSlashCommandExtension } from './extensions/slash-command';
 import { buildSubmitKeymap } from './extensions/submit-keymap';
-import { serializeDoc } from './serialize';
-import {
-  SuggestionPopup,
-  type SuggestionPopupHandle,
-  type SuggestionItem,
-} from './suggestion-popup';
-import type { CommandItem, MentionItem, PromptEditorProps, PromptEditorRef } from './types';
+import { fileIconClass } from './mention-pill-helpers';
+import { serializeDoc, serializeNode } from './serialize';
+import type {
+  CommandItem,
+  MentionItem,
+  MentionKind,
+  PromptEditorProps,
+  PromptEditorRef,
+} from './types';
 
-/** Internal state tracked by each suggestion render lifecycle. */
-interface SuggestionState {
-  items: SuggestionItem[];
-  rect: DOMRect | null;
-  onSelect: (item: SuggestionItem) => void;
+// ── Icon helpers for the popup ────────────────────────────────────────────────
+
+const KIND_POPUP_ICONS: Record<MentionKind, React.ReactNode> = {
+  file: <File className="size-3.5" />,
+  issue: <CircleDot className="size-3.5" />,
+  symbol: <Braces className="size-3.5" />,
+  custom: <AtSign className="size-3.5" />,
+};
+
+function mentionToPopupItem(item: MentionItem): ComboboxPopupItem {
+  let icon: React.ReactNode = item.icon;
+  if (!icon) {
+    if (item.kind === 'file') {
+      const cls = fileIconClass(item.label);
+      icon = cls ? <i className={cn(cls, 'text-[13px] leading-none')} /> : KIND_POPUP_ICONS.file;
+    } else {
+      icon = KIND_POPUP_ICONS[item.kind] ?? KIND_POPUP_ICONS.custom;
+    }
+  }
+  return {
+    id: item.id,
+    icon,
+    label: item.name ?? item.label,
+    description: item.description ?? (item.name ? item.label : undefined),
+  };
 }
 
-const EMPTY_SUGGESTION: SuggestionState = {
-  items: [],
-  rect: null,
-  onSelect: () => {},
-};
+function commandToPopupItem(item: CommandItem): ComboboxPopupItem {
+  return {
+    id: item.id,
+    label: item.label ?? item.name,
+    description: item.description,
+  };
+}
+
+// ── Internal state tracked by each suggestion render lifecycle ────────────────
+
+interface SuggestionState<T> {
+  items: T[];
+  rect: DOMRect | null;
+  onSelect: (item: T) => void;
+}
+
+function emptySuggestion<T>(): SuggestionState<T> {
+  return { items: [], rect: null, onSelect: () => {} };
+}
 
 /**
  * Build the `render` factory required by @tiptap/suggestion.
@@ -49,9 +89,9 @@ const EMPTY_SUGGESTION: SuggestionState = {
  * `items`, `clientRect`, and the `command` callback — all of which
  * are invariant regardless of whether we're rendering mentions or commands.
  */
-function makeSuggestionRender(
-  setSuggestion: React.Dispatch<React.SetStateAction<SuggestionState>>,
-  popupRef: React.RefObject<SuggestionPopupHandle | null>
+function makeSuggestionRender<T>(
+  setSuggestion: React.Dispatch<React.SetStateAction<SuggestionState<T>>>,
+  popupRef: React.RefObject<ComboboxPopupHandle | null>
 ): () => {
   onStart?: (props: SuggestionProps<any, any>) => void;
   onUpdate?: (props: SuggestionProps<any, any>) => void;
@@ -61,20 +101,20 @@ function makeSuggestionRender(
   return () => ({
     onStart(props: SuggestionProps<any, any>) {
       setSuggestion({
-        items: props.items as SuggestionItem[],
+        items: props.items as T[],
         rect: props.clientRect?.() ?? null,
         onSelect: (item) => props.command(item),
       });
     },
     onUpdate(props: SuggestionProps<any, any>) {
       setSuggestion({
-        items: props.items as SuggestionItem[],
+        items: props.items as T[],
         rect: props.clientRect?.() ?? null,
         onSelect: (item) => props.command(item),
       });
     },
     onExit() {
-      setSuggestion(EMPTY_SUGGESTION);
+      setSuggestion(emptySuggestion());
     },
     onKeyDown({ event }: SuggestionKeyDownProps) {
       return popupRef.current?.onKeyDown(event) ?? false;
@@ -82,12 +122,15 @@ function makeSuggestionRender(
   });
 }
 
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(function PromptEditor(
   {
     placeholder = 'Message…',
     disabled = false,
     onChange,
     onSubmit,
+    mentionProvider,
     queryMentions,
     queryCommands,
     onCommand,
@@ -100,16 +143,22 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
   onSubmitRef.current = onSubmit;
   const onCommandRef = useRef(onCommand);
   onCommandRef.current = onCommand;
+  const mentionProviderRef = useRef(mentionProvider);
+  mentionProviderRef.current = mentionProvider;
   const queryMentionsRef = useRef(queryMentions);
   queryMentionsRef.current = queryMentions;
   const queryCommandsRef = useRef(queryCommands);
   queryCommandsRef.current = queryCommands;
 
   // Separate suggestion state for @ and / so they don't conflict.
-  const [mentionSuggestion, setMentionSuggestion] = useState<SuggestionState>(EMPTY_SUGGESTION);
-  const [commandSuggestion, setCommandSuggestion] = useState<SuggestionState>(EMPTY_SUGGESTION);
-  const mentionPopupRef = useRef<SuggestionPopupHandle | null>(null);
-  const commandPopupRef = useRef<SuggestionPopupHandle | null>(null);
+  const [mentionSuggestion, setMentionSuggestion] = useState<SuggestionState<MentionItem>>(
+    emptySuggestion()
+  );
+  const [commandSuggestion, setCommandSuggestion] = useState<SuggestionState<CommandItem>>(
+    emptySuggestion()
+  );
+  const mentionPopupRef = useRef<ComboboxPopupHandle | null>(null);
+  const commandPopupRef = useRef<ComboboxPopupHandle | null>(null);
 
   // We capture the editor in a stable ref so the submit handler can read the doc.
   const editorRef = useRef<ReturnType<typeof useEditor> | null>(null);
@@ -125,8 +174,13 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
   }, []);
 
   const mentionExtension = buildMentionExtension({
-    items: async ({ query }: { query: string }) => (await queryMentionsRef.current?.(query)) ?? [],
-    render: makeSuggestionRender(setMentionSuggestion, mentionPopupRef),
+    items: async ({ query }: { query: string }) => {
+      // Prefer mentionProvider over the legacy queryMentions callback.
+      const provider = mentionProviderRef.current;
+      if (provider) return provider.search(query);
+      return (await queryMentionsRef.current?.(query)) ?? [];
+    },
+    render: makeSuggestionRender<MentionItem>(setMentionSuggestion, mentionPopupRef),
     command({ editor, range, props }) {
       const item = props as unknown as MentionItem;
       editor
@@ -134,7 +188,15 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
         .focus()
         .deleteRange(range)
         .insertContentAt(range.from, [
-          { type: 'mention', attrs: { id: item.id, label: item.label, kind: item.kind } },
+          {
+            type: 'mention',
+            attrs: {
+              id: item.id,
+              label: item.label,
+              name: item.name ?? null,
+              kind: item.kind,
+            },
+          },
           { type: 'text', text: ' ' },
         ])
         .run();
@@ -145,7 +207,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     {
       items: async ({ query }: { query: string }) =>
         (await queryCommandsRef.current?.(query)) ?? [],
-      render: makeSuggestionRender(setCommandSuggestion, commandPopupRef),
+      render: makeSuggestionRender<CommandItem>(setCommandSuggestion, commandPopupRef),
     },
     (item: CommandItem) => {
       onCommandRef.current?.(item);
@@ -180,23 +242,11 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
         'data-testid': 'prompt-editor',
       },
       clipboardTextSerializer: (slice) => {
+        // Use serializeNode so mentions/commands within paragraphs are included
+        // as @label / /name even when the React NodeView renders them as complex DOM.
         const parts: string[] = [];
-        slice.content.forEach((node) => {
-          if (node.type.name === 'mention') {
-            const label =
-              (node.attrs.label as string | null) ?? (node.attrs.id as string | null) ?? '';
-            parts.push(`@${label}`);
-          } else if (node.type.name === 'slashCommand') {
-            const name =
-              (node.attrs.name as string | null) ?? (node.attrs.id as string | null) ?? '';
-            parts.push(`/${name}`);
-          } else if (node.type.name === 'hardBreak') {
-            parts.push('\n');
-          } else {
-            parts.push(node.textContent);
-          }
-        });
-        return parts.join('');
+        slice.content.forEach((node) => parts.push(serializeNode(node)));
+        return parts.join('\n').replace(/\n+$/, '');
       },
     },
     onUpdate({ editor: e }) {
@@ -222,25 +272,39 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     },
   }));
 
-  // Active suggestion = whichever is non-empty (only one at a time).
-  const activeSuggestion =
-    mentionSuggestion.items.length > 0
-      ? mentionSuggestion
-      : commandSuggestion.items.length > 0
-        ? commandSuggestion
-        : null;
-  const activePopupRef = mentionSuggestion.items.length > 0 ? mentionPopupRef : commandPopupRef;
+  // Convert suggestion items to ComboboxPopupItem shape.
+  const mentionPopupItems = mentionSuggestion.items.map(mentionToPopupItem);
+  const commandPopupItems = commandSuggestion.items.map(commandToPopupItem);
+
+  const mentionActive = mentionSuggestion.items.length > 0;
+  const commandActive = commandSuggestion.items.length > 0;
 
   return (
     <>
       <EditorContent editor={editor} className={cn('w-full', className)} aria-disabled={disabled} />
-      {activeSuggestion &&
+      {mentionActive &&
         createPortal(
-          <SuggestionPopup
-            ref={activePopupRef}
-            items={activeSuggestion.items}
-            rect={activeSuggestion.rect}
-            onSelect={activeSuggestion.onSelect}
+          <ComboboxPopup
+            ref={mentionPopupRef}
+            items={mentionPopupItems}
+            anchorRect={mentionSuggestion.rect}
+            onSelect={(popupItem) => {
+              const original = mentionSuggestion.items.find((m) => m.id === popupItem.id);
+              if (original) mentionSuggestion.onSelect(original);
+            }}
+          />,
+          document.body
+        )}
+      {commandActive &&
+        createPortal(
+          <ComboboxPopup
+            ref={commandPopupRef}
+            items={commandPopupItems}
+            anchorRect={commandSuggestion.rect}
+            onSelect={(popupItem) => {
+              const original = commandSuggestion.items.find((c) => c.id === popupItem.id);
+              if (original) commandSuggestion.onSelect(original);
+            }}
           />,
           document.body
         )}

@@ -120,7 +120,6 @@ function MessageRender(props: {
 
 export const messageDef = defineComponent<ChatMessage, MessageNodeLayout>({
   kind: 'message',
-  padY: 4,
 
   estimate(item, ctx: MeasureCtx): number {
     const lines = Math.ceil(item.text.length / 60);

@@ -6,4 +6,5 @@ export type {
   MentionKind,
   CommandItem,
   CommandBehavior,
+  ContextMentionProvider,
 } from './chat-composer';

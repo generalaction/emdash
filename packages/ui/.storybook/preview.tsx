@@ -1,7 +1,8 @@
 import type { Decorator, Preview } from '@storybook/react-vite';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ThemeProvider } from '../src/primitives/theme-provider';
 import type { ThemeId } from '../src/primitives/theme-provider';
+import { THEME_MANIFEST } from '../src/theme/theme-manifest';
 import './theme.css';
 
 const COLOR_MODES: ThemeId[] = ['light', 'dark'];
@@ -19,12 +20,29 @@ type SurfaceFamily = (typeof SURFACE_FAMILIES)[number];
 const withTheme: Decorator = (Story, context) => {
   const colorMode = (context.globals['colorMode'] as ThemeId) ?? 'light';
   const surface = (context.globals['surface'] as SurfaceFamily) ?? 'none';
+  // Fullscreen stories own their layout — don't inject padding/min-height that
+  // would stack on top of a story's own h-screen and overflow the viewport.
+  const fullscreen = context.parameters?.['layout'] === 'fullscreen';
 
   const surfaceClass = surface !== 'none' ? `surface-${surface}` : '';
   const bgClass = surface !== 'none' ? 'bg-surface' : 'bg-background';
+  const frame = fullscreen ? 'h-screen' : 'min-h-screen p-8';
+
+  // Sync the theme class to document.body so portal-rendered elements
+  // (ComboboxPopup, dropdowns, popovers, etc.) inherit the correct tokens.
+  useEffect(() => {
+    const entry = THEME_MANIFEST.find((e) => e.id === colorMode) ?? THEME_MANIFEST[0]!;
+    const cls = entry.selector.replace(/^\./, '');
+    const allClasses = THEME_MANIFEST.map((e) => e.selector.replace(/^\./, ''));
+    document.body.classList.remove(...allClasses);
+    document.body.classList.add(cls);
+    return () => {
+      document.body.classList.remove(...allClasses);
+    };
+  }, [colorMode]);
 
   return (
-    <ThemeProvider theme={colorMode} className={`min-h-screen p-8 ${bgClass} ${surfaceClass}`}>
+    <ThemeProvider theme={colorMode} className={`${frame} ${bgClass} ${surfaceClass}`}>
       <Story />
     </ThemeProvider>
   );

@@ -21,6 +21,7 @@ import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from
 import { Dynamic } from 'solid-js/web';
 import type { ChatCaches } from '../core/caches';
 import type { MeasureCtx, RenderCtx } from '../core/define';
+import { ROW_GAP, rowReservedHeight } from '../core/metrics';
 import type { ChatTheme } from '../core/theme';
 import type { Virtualizer } from '../core/virtualizer';
 import type { ChatItem } from '../model';
@@ -164,8 +165,8 @@ export function Row(props: RowProps) {
 
   const layout = createMemo(() => cachedMeasure(props.item, !!props.isActiveTurn, measureCtx()));
 
-  // Virtualizer height = content height + both padding sides.
-  const reserved = () => layout().height + 2 * padY();
+  // Virtualizer height = content + per-def padding + the uniform inter-row gap.
+  const reserved = () => rowReservedHeight(layout().height, padY());
 
   createEffect(() => {
     const delta = props.virt.setSize(props.index, reserved());
@@ -182,7 +183,9 @@ export function Row(props: RowProps) {
       style={{
         position: 'relative',
         'padding-top': `${padY()}px`,
-        'padding-bottom': `${padY()}px`,
+        // Bottom side also carries the uniform inter-row gap so the wrapper
+        // height matches the virtualizer-reserved height (see rowReservedHeight).
+        'padding-bottom': `${padY() + ROW_GAP}px`,
         'padding-left': `${insetX()}px`,
         'padding-right': `${insetX()}px`,
       }}

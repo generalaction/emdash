@@ -84,11 +84,18 @@ export { Surface, useSurfaceLevel, type SurfaceProps } from './surface';
 export {
   ThemeProvider,
   useTheme,
+  usePortalThemeClass,
   THEME_MANIFEST,
   type ThemeId,
   type ThemeProviderProps,
 } from './theme-provider';
 export { Callout, type CalloutProps } from './callout';
+export {
+  ComboboxPopup,
+  ComboboxPopupDismiss,
+  type ComboboxPopupItem,
+  type ComboboxPopupHandle,
+} from './combobox-popup';
 export { resolveFileIconClass } from '../lib/file-icons';
 export { controlVariants, type ControlVariantProps } from '../recipes/control';
 export { inputVariants, type InputVariantProps } from '../recipes/input';

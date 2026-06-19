@@ -94,7 +94,7 @@ export function ResourceLink(props: ResourceLinkProps) {
       </div>
 
       {/* title */}
-      <span class="text-chat-fg-body shrink-0 truncate font-medium">{displayName()}</span>
+      <span class="text-chat-fg-body shrink-0 truncate">{displayName()}</span>
 
       {/* path — muted secondary styling */}
       <span class="text-chat-fg-muted min-w-0 truncate text-xs">{secondary()}</span>

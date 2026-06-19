@@ -154,18 +154,24 @@ export function DiffLines(props: DiffLinesProps) {
     });
   });
 
+  // Geometry source of truth: each row is pinned to the exact line height that
+  // diffDef.measure() reserved (theme.fonts.code.lineHeight). Applied inline so
+  // the rendered height never drifts from the measured height via a CSS variable.
+  const lineH = () => props.codeLineHeight();
+
   return (
     <div class="border-chat-border overflow-hidden rounded-b-lg border-x border-b">
       <div class={styles['pdiff__body']}>
         <For each={props.layout.previewRows}>
           {(row, i) => (
-            <div class={`flex ${ROW_CLASS[row.type]}`}>
+            <div class={`flex ${ROW_CLASS[row.type]}`} style={{ height: `${lineH()}px` }}>
               <span
                 ref={(el) => {
                   lineEls.set(i(), el);
                   onCleanup(() => lineEls.delete(i()));
                 }}
                 class={`${styles['pdiff__line']} text-chat-fg flex-1 overflow-hidden px-3`}
+                style={{ 'line-height': `${lineH()}px` }}
               >
                 {row.text}
               </span>

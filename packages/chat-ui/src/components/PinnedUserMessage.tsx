@@ -4,24 +4,23 @@
  *
  * Mirrors Row.tsx geometry for user-role messages:
  *   insetX  = 0   (user messages are full-width)
- *   padY    = messageDef.padY (4 px each side)
+ *
+ * Rendered as an opaque `bg-chat-bg` container with a ROW_GAP top padding: the
+ * padding gives the message its 8px gap to the viewport top while the filled
+ * strip (and the backing behind the message) hides the rows scrolling behind it.
  *
  * Does NOT call `virt.setSize` — the overlay is outside the virtualizer tree.
  * Measurement uses `cachedMeasure` with `isActiveTurn=false` so the WeakMap
  * cache hit from the real Row is reused; no re-computation overhead.
- *
- * An opaque `bg-chat-bg` backing covers the padY gaps so scrolling content
- * does not bleed through the top and bottom edges of the overlay.
  */
 
 import type { RenderCtx } from '../core/define';
 import type { ChatTheme } from '../core/theme';
 import type { ChatMessage } from '../model';
 import type { ChatCaches } from '../core/caches';
+import { ROW_GAP } from '../core/metrics';
 import { messageDef } from './message/message.def';
 import { cachedMeasure } from './row-measure';
-
-const PAD_Y = messageDef.padY ?? 0;
 
 export function PinnedUserMessage(props: {
   item: ChatMessage;
@@ -46,13 +45,7 @@ export function PinnedUserMessage(props: {
   };
 
   return (
-    <div
-      class="bg-chat-bg"
-      style={{
-        'padding-top': `${PAD_Y}px`,
-        'padding-bottom': `${PAD_Y}px`,
-      }}
-    >
+    <div class="bg-chat-bg/80 backdrop-blur-sm" style={{ 'padding-top': `${ROW_GAP}px` }}>
       <messageDef.Render item={props.item} layout={layout()} ctx={renderCtx} />
     </div>
   );

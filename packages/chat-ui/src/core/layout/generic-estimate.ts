@@ -22,8 +22,8 @@ import type { MeasureCtx } from '../define';
 
 /**
  * Returns a coarse height estimate (content-only, px) for any ChatItem.
- * Caller adds `2 * (def.padY ?? 0)` on top, matching the pattern for all
- * explicit estimates.
+ * Caller wraps it with `rowReservedHeight(...)` (adds per-def padding and the
+ * uniform inter-row gap), matching the pattern for all explicit estimates.
  */
 export function genericEstimate(item: ChatItem, ctx: MeasureCtx): number {
   // Pull the first text-bearing field we can find on any item shape.

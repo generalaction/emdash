@@ -27,10 +27,10 @@ import {
   SelectValue,
 } from '../primitives/select';
 import { PromptEditor } from './prompt-editor/prompt-editor';
-import type { MentionItem, CommandItem, PromptEditorRef } from './prompt-editor/types';
+import type { MentionItem, CommandItem, ContextMentionProvider, PromptEditorRef } from './prompt-editor/types';
 
 export type { MentionItem, CommandItem };
-export type { MentionKind, CommandBehavior } from './prompt-editor/types';
+export type { MentionKind, CommandBehavior, ContextMentionProvider } from './prompt-editor/types';
 
 /** Minimal model descriptor the composer needs to render the model selector. */
 export interface ComposerModelOption {
@@ -49,7 +49,13 @@ export interface ChatComposerProps {
   onSubmit: (text: string) => void;
   onStop?: () => void;
   onAttach?: () => void;
-  /** Async callback returning @ mention suggestions for the given query. */
+  /**
+   * Preferred: typed provider for @ mention suggestions.
+   * When both `mentionProvider` and `queryMentions` are provided,
+   * `mentionProvider` takes precedence.
+   */
+  mentionProvider?: ContextMentionProvider;
+  /** Legacy: async callback returning @ mention suggestions for the given query. */
   queryMentions?: (query: string) => Promise<MentionItem[]>;
   /** Async callback returning / command suggestions for the given query. */
   queryCommands?: (query: string) => Promise<CommandItem[]>;
@@ -68,6 +74,7 @@ export function ChatComposer({
   onSubmit,
   onStop,
   onAttach,
+  mentionProvider,
   queryMentions,
   queryCommands,
   onCommand,
@@ -96,6 +103,7 @@ export function ChatComposer({
           }
           disabled={disabled}
           onSubmit={handleSubmit}
+          mentionProvider={mentionProvider}
           queryMentions={queryMentions}
           queryCommands={queryCommands}
           onCommand={onCommand}

@@ -4,6 +4,8 @@
  * without pulling the whole editor bundle.
  */
 
+import type { ReactNode } from 'react';
+
 // ── Mention items (@ trigger) ─────────────────────────────────────────────────
 
 export type MentionKind = 'file' | 'issue' | 'symbol' | 'custom';
@@ -11,12 +13,38 @@ export type MentionKind = 'file' | 'issue' | 'symbol' | 'custom';
 export interface MentionItem {
   /** Stable unique identifier (e.g. a file path or issue identifier). */
   id: string;
-  /** Text displayed in the popup and serialized as `@label` in the prompt. */
+  /**
+   * Serialization label — written as `@label` in clipboard / plain-text output.
+   * Typically the full path for files.
+   */
   label: string;
   /** Semantic category used for rendering (icon, chip colour, etc.). */
   kind: MentionKind;
+  /**
+   * Short display name shown inside the inline pill.
+   * Defaults to the basename of `label` when not provided.
+   */
+  name?: string;
+  /**
+   * Optional icon rendered in the suggestion popup (not in the pill — the pill
+   * derives its icon from `kind`/`label`). Pass a React element, e.g. a lucide icon.
+   */
+  icon?: ReactNode;
   /** Optional secondary description shown in the popup row. */
   description?: string;
+}
+
+// ── Context mention provider ──────────────────────────────────────────────────
+
+/**
+ * Injectable provider that the host application wires to supply @ mention
+ * suggestions. Prefer this over the lower-level `queryMentions` callback when
+ * building a typed feature — it is easier to extend (group metadata, async
+ * cancel, etc.) without breaking the component API.
+ */
+export interface ContextMentionProvider {
+  /** Return suggestions matching the given partial query string. */
+  search(query: string): Promise<MentionItem[]>;
 }
 
 // ── Command items (/ trigger) ─────────────────────────────────────────────────
@@ -55,8 +83,14 @@ export interface PromptEditorProps {
   /** Called when the user submits (Enter with no open suggestion). */
   onSubmit?: (text: string) => void;
   /**
-   * Async callback that returns @ mention suggestions for the given query.
-   * Return an empty array if no suggestions are available.
+   * Preferred: typed provider for @ mention suggestions.
+   * When both `mentionProvider` and `queryMentions` are provided,
+   * `mentionProvider` takes precedence.
+   */
+  mentionProvider?: ContextMentionProvider;
+  /**
+   * Legacy: async callback that returns @ mention suggestions.
+   * Kept for back-compat; prefer `mentionProvider` for new integrations.
    */
   queryMentions?: (query: string) => Promise<MentionItem[]>;
   /**

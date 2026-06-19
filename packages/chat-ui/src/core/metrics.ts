@@ -102,6 +102,29 @@ export const HEADER_ROW_EXTRA_H = 8;
  */
 export const ROW_H = 32;
 
+/**
+ * Uniform vertical gap (px) inserted between consecutive transcript rows.
+ *
+ * Rows are absolutely positioned via translateY at virtualizer-computed tops,
+ * so CSS `gap` does not apply — the spacing is baked into each row's reserved
+ * height (see `rowReservedHeight`) and rendered as a single bottom padding by
+ * Row.tsx. Applying it on one side only means the gap never stacks between
+ * neighbors and the first row has no leading gap (top inset is owned by padTop).
+ */
+export const ROW_GAP = 8;
+
+/**
+ * Single source of truth for a row's virtualizer-reserved height:
+ *   content height + symmetric per-def wrapper padding + the uniform row gap.
+ *
+ * Must be used by every reserved-height computation (Row.tsx and the estimate /
+ * prepend / prefetch paths in ChatRoot.tsx) so the engine's coordinate space
+ * stays consistent; any divergence causes scroll drift.
+ */
+export function rowReservedHeight(contentHeight: number, padY = 0): number {
+  return contentHeight + 2 * padY + ROW_GAP;
+}
+
 // ── CSS font shorthands ───────────────────────────────────────────────────────
 
 function fontShorthand(v: VariantTypography, fam: string): string {

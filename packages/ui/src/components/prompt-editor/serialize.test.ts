@@ -31,8 +31,8 @@ function textNode(t: string): Node {
   return makeNode('text', {}, t);
 }
 
-function mentionNode(label: string, id?: string): Node {
-  return makeNode('mention', { label: label, id: id ?? label, kind: 'file' });
+function mentionNode(label: string, id?: string, name?: string): Node {
+  return makeNode('mention', { label: label, id: id ?? label, kind: 'file', name: name ?? null });
 }
 
 function slashCommandNode(name: string): Node {
@@ -119,5 +119,13 @@ describe('serializeDoc', () => {
     const node = makeNode('mention', { label: null, id: 'some-id', kind: 'file' });
     const doc = makeDoc(paragraph(node));
     expect(serializeDoc(doc)).toBe('@some-id');
+  });
+
+  it('serializes mention with name attr as @label (full path), ignoring name', () => {
+    // The `name` attr is for display only; serialization must use the full label.
+    const doc = makeDoc(
+      paragraph(mentionNode('src/components/chat-composer.tsx', undefined, 'chat-composer.tsx'))
+    );
+    expect(serializeDoc(doc)).toBe('@src/components/chat-composer.tsx');
   });
 });

@@ -11,7 +11,12 @@
 
 import type { Node } from '@tiptap/pm/model';
 
-function serializeNode(node: Node): string {
+/**
+ * Serialize a single ProseMirror node to its plain-text representation.
+ * Exported so that `clipboardTextSerializer` (and other callers) can reuse it
+ * without going through `serializeDoc`, which expects a full document root.
+ */
+export function serializeNode(node: Node): string {
   if (node.type.name === 'mention') {
     const label = (node.attrs.label as string | null) ?? (node.attrs.id as string | null) ?? '';
     return `@${label}`;

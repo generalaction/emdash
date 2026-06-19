@@ -42,6 +42,7 @@ import { ThemeContext } from './components/ThemeContext';
 import { createChatCaches } from './core/caches';
 import type { ChatHighlighter } from './core/highlight/highlighter';
 import { genericEstimate } from './core/layout/generic-estimate';
+import { ROW_GAP, rowReservedHeight } from './core/metrics';
 import { registerFontsReadyClear } from './core/measure/pretext-cache';
 import { StickToBottom } from './core/stick-to-bottom';
 import type { ChatTheme } from './core/theme';
@@ -205,9 +206,9 @@ export function ChatRoot(props: ChatRootProps) {
         const item = getItem(props.transcript.state, i);
         if (!item) return 60;
         const def = REGISTRY[item.kind as keyof typeof REGISTRY];
-        return (
-          (def.estimate?.(item, estimateCtx) ?? genericEstimate(item, estimateCtx)) +
-          2 * (def.padY ?? 0)
+        return rowReservedHeight(
+          def.estimate?.(item, estimateCtx) ?? genericEstimate(item, estimateCtx),
+          def.padY
         );
       });
       refreshTotal();
@@ -267,12 +268,14 @@ export function ChatRoot(props: ChatRootProps) {
   //
   // The overlay lives OUTSIDE the scroll container (in a non-scrolling wrapper),
   // so it does not move with native scroll and `overlayTop` is a viewport-
-  // relative offset — NOT a canvas-Y coordinate. In steady state it is 0 (pinned
-  // flush to the viewport top); during the handoff it rides up (negative) as the
-  // next user row's viewport top crosses the overlay height. Because the
-  // steady-state value is a constant 0, normal scrolling produces no per-frame
-  // transform change, so the overlay never jitters (only the brief push-up
-  // window touches scrollTop()).
+  // relative offset — NOT a canvas-Y coordinate. `overlayTop` is the top of the
+  // background CONTAINER (which carries a ROW_GAP top padding so the message sits
+  // 8px down while the strip above it is filled, hiding rows behind it). In
+  // steady state it is 0 (container flush to the viewport top); during the
+  // handoff it rides up as the next user row approaches. Because the steady-state
+  // value is a constant 0, normal scrolling produces no per-frame transform
+  // change, so the overlay never jitters (only the brief push-up window touches
+  // scrollTop()).
   //
   // Depends on scrollTop(), padTop(), totalHeight() (for virt.top/virt.size
   // accuracy after streaming height changes), and userTurns() (on turn append).
@@ -287,14 +290,19 @@ export function ChatRoot(props: ChatRootProps) {
     const pt = padTop();
     totalHeight(); // track streaming height changes so virt.top/virt.size stay accurate
 
-    // Binary search: largest turns[i] whose real row top has scrolled above the
-    // viewport top (pin line), i.e. virt.top(turns[i]) + pt < st.
+    // The message content pin line sits ROW_GAP below the viewport top (the
+    // container's top padding), so the pinned message keeps the same 8px gap to
+    // the top edge that rows have between each other.
+    const pinLine = ROW_GAP;
+
+    // Binary search: largest turns[i] whose real row content has scrolled above
+    // the pin line, i.e. (virt.top(turns[i]) + pt) - st < pinLine.
     let lo = 0;
     let hi = turns.length - 1;
     let activePos = -1;
     while (lo <= hi) {
       const mid = (lo + hi) >> 1;
-      if (virt.top(turns[mid]) + pt < st) {
+      if (virt.top(turns[mid]) + pt < st + pinLine) {
         activePos = mid;
         lo = mid + 1;
       } else {
@@ -311,9 +319,11 @@ export function ChatRoot(props: ChatRootProps) {
     // Viewport-relative top of the next user row (Infinity when none).
     const nextUserViewportTop =
       nextUserIdx !== undefined ? virt.top(nextUserIdx) + pt - st : Infinity;
-    // Steady state: 0. Handoff: rides up so the overlay bottom meets the
-    // incoming row's top.
-    const overlayTop = Math.min(0, nextUserViewportTop - overlayH);
+    // Container top. Steady state: 0 (container flush to the viewport top, its
+    // ROW_GAP top padding placing the message at the pin line). Handoff: rides up
+    // so the container bottom meets the incoming row's top, continuous with the
+    // real row arriving at the pin line exactly when the active index advances.
+    const overlayTop = Math.min(0, nextUserViewportTop - overlayH - pinLine);
 
     return { activeUserIdx, overlayTop };
   });
@@ -414,9 +424,9 @@ export function ChatRoot(props: ChatRootProps) {
       const item = items[i];
       if (!item) return 60;
       const def = REGISTRY[item.kind as keyof typeof REGISTRY];
-      return (
-        (def.estimate?.(item, loadEstimateCtx) ?? genericEstimate(item, loadEstimateCtx)) +
-        2 * (def.padY ?? 0)
+      return rowReservedHeight(
+        def.estimate?.(item, loadEstimateCtx) ?? genericEstimate(item, loadEstimateCtx),
+        def.padY
       );
     });
 
@@ -588,7 +598,7 @@ export function ChatRoot(props: ChatRootProps) {
           };
           const measuredLayout = cachedMeasure(item, false, ctx);
           const def = REGISTRY[item.kind as keyof typeof REGISTRY];
-          const h = measuredLayout.height + 2 * (def.padY ?? 0);
+          const h = rowReservedHeight(measuredLayout.height, def.padY);
           const delta = virt.setSize(prefetchStart, h);
           if (delta !== 0) onHeightChanged(prefetchStart, delta);
           measured++;
@@ -612,7 +622,7 @@ export function ChatRoot(props: ChatRootProps) {
             };
             const measuredLayout = cachedMeasure(item, false, ctx);
             const def = REGISTRY[item.kind as keyof typeof REGISTRY];
-            const h = measuredLayout.height + 2 * (def.padY ?? 0);
+            const h = rowReservedHeight(measuredLayout.height, def.padY);
             const delta = virt.setSize(backCursor, h);
             if (delta !== 0) onHeightChanged(backCursor, delta);
             measured++;

@@ -48,6 +48,25 @@ export function useTheme(): ThemeContextValue {
   return ctx;
 }
 
+/**
+ * Returns the CSS selector class for the active theme (e.g. `"emlight"` or
+ * `"emdark"`), or an empty string when called outside a ThemeProvider.
+ *
+ * Designed for portal elements that need to inherit the theme when they render
+ * outside the ThemeProvider's wrapper element. Apply the returned class to the
+ * outermost element of the portal so theme-scoped CSS tokens resolve correctly.
+ *
+ * In the Electron desktop app the theme class is applied to
+ * `document.documentElement`, so all portals already inherit it — the empty
+ * string returned here has no effect.
+ */
+export function usePortalThemeClass(): string {
+  const ctx = useContext(ThemeContext);
+  if (!ctx) return '';
+  const entry = THEME_MANIFEST.find((e) => e.id === ctx.themeId) ?? THEME_MANIFEST[0]!;
+  return entry.selector.replace(/^\./, '');
+}
+
 export interface ThemeProviderProps {
   /**
    * Controlled theme id. When provided, the component is fully controlled —

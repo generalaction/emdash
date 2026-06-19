@@ -24,8 +24,40 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { ChatHandle } from '@emdash/chat-ui/react';
 import { ChatTranscript } from '@emdash/chat-ui/react';
 import { generateMockTranscript } from '@emdash/chat-ui';
+import { ArrowDown } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatComposer } from '../components/chat-composer';
+import type { ContextMentionProvider, MentionItem } from '../components/chat-composer';
+import { Button } from '../primitives/button';
+
+// ── Mock mention provider ─────────────────────────────────────────────────────
+
+const MOCK_FILES: MentionItem[] = [
+  { id: 'src/components/chat-composer.tsx', label: 'src/components/chat-composer.tsx', name: 'chat-composer.tsx', kind: 'file', description: 'UI' },
+  { id: 'src/components/prompt-editor/prompt-editor.tsx', label: 'src/components/prompt-editor/prompt-editor.tsx', name: 'prompt-editor.tsx', kind: 'file', description: 'UI' },
+  { id: 'src/lib/file-icons.ts', label: 'src/lib/file-icons.ts', name: 'file-icons.ts', kind: 'file' },
+  { id: 'src/primitives/combobox.tsx', label: 'src/primitives/combobox.tsx', name: 'combobox.tsx', kind: 'file' },
+  { id: 'src/primitives/button.tsx', label: 'src/primitives/button.tsx', name: 'button.tsx', kind: 'file' },
+  { id: 'package.json', label: 'package.json', name: 'package.json', kind: 'file' },
+  { id: 'README.md', label: 'README.md', name: 'README.md', kind: 'file' },
+  { id: 'issue-42', label: 'issue-42', name: 'Issue #42: Dark mode toggle', kind: 'issue', description: 'open' },
+  { id: 'handleSubmit', label: 'handleSubmit', name: 'handleSubmit()', kind: 'symbol', description: 'chat-composer.tsx' },
+];
+
+const mockMentionProvider: ContextMentionProvider = {
+  async search(query: string) {
+    await new Promise((r) => setTimeout(r, 80)); // simulate latency
+    const q = query.toLowerCase();
+    return q
+      ? MOCK_FILES.filter(
+          (f) =>
+            f.label.toLowerCase().includes(q) ||
+            (f.name ?? '').toLowerCase().includes(q) ||
+            (f.description ?? '').toLowerCase().includes(q)
+        )
+      : MOCK_FILES;
+  },
+};
 
 const PAD_TOP = 16;
 const PAD_BOTTOM_MARGIN = 12;
@@ -36,6 +68,7 @@ function LiveChatPanel() {
   const handleRef = useRef<ChatHandle | null>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const [composerH, setComposerH] = useState(0);
+  const [atBottom, setAtBottom] = useState(true);
 
   // Measure the floating composer so the transcript can reserve matching space.
   useEffect(() => {
@@ -84,15 +117,32 @@ function LiveChatPanel() {
         padTop={PAD_TOP}
         padBottom={composerH + PAD_BOTTOM_MARGIN}
         onReady={handleReady}
+        onAtBottomChange={setAtBottom}
       />
 
       {/* Floating composer — aligned to the max-w-2xl content column with no
           horizontal padding so it sits flush with user message bubble edges */}
       <div
         ref={composerRef}
-        className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-2xl bg-surface/80 pb-3 backdrop-blur-sm"
+        className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-2xl bg-surface/80 pb-2 backdrop-blur-sm"
       >
-        <ChatComposer onSubmit={handleSubmit} />
+        {/* Scroll-to-bottom affordance — floats above the composer while the
+            transcript is scrolled up past the stick threshold (48px). */}
+        {!atBottom && (
+          <div className="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full">
+            <Button
+              variant="primary"
+              size="sm"
+              icon
+              aria-label="Scroll to bottom"
+              onClick={() => handleRef.current?.scrollToBottom({ behavior: 'smooth' })}
+              className="rounded-full shadow-md"
+            >
+              <ArrowDown />
+            </Button>
+          </div>
+        )}
+        <ChatComposer onSubmit={handleSubmit} mentionProvider={mockMentionProvider} />
       </div>
     </div>
   );

@@ -14,7 +14,7 @@ export type ToolLayout = { kind: 'tool' };
 function ToolRender(props: { item: ChatToolCall; layout: Measured<ToolLayout>; ctx: RenderCtx }) {
   return (
     <div
-      class="border-chat-border flex items-center border-b"
+      class="border-chat-border flex items-center"
       style={{ height: `${props.layout.height}px` }}
     >
       <Tool item={props.item} />
