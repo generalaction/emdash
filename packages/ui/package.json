@@ -74,6 +74,7 @@
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
+    "@emdash/chat-ui": "workspace:*",
     "@storybook/addon-docs": "^10.4.6",
     "@storybook/react-vite": "^10.4.6",
     "@tailwindcss/vite": "^4.2.1",
@@ -82,6 +83,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.7.0",
     "colorjs.io": "^0.5.2",
+    "devicon": "^2.17.0",
     "oxfmt": "^0.51.0",
     "oxlint": "^1.66.0",
     "react": "^19.2.0",

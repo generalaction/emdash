@@ -9,10 +9,10 @@
  * tree built in diffDef (stack + scrollWindow + slot nodes rendered by Project).
  */
 
-import { resolveFileIconClass } from '@emdash/ui/primitives';
 import { For, Show, createEffect, onCleanup } from 'solid-js';
 import { applyTokensToElement } from '../../core/highlight/apply-tokens';
 import type { CodeToken } from '../../core/highlight/highlighter';
+import { resolveFileIconClass } from '../../lib/file-icons';
 import { basename } from '../../lib/path';
 import type { ChatDiff } from '../../model';
 import { useCaches } from '../CachesContext';
@@ -73,7 +73,7 @@ export function DiffHeader(props: DiffHeaderProps) {
       {iconClass() ? (
         <i
           class={`${iconClass()} shrink-0`}
-          style={{ 'font-size': '14px', 'line-height': '1' }}
+          style={{ 'font-size': '12px', 'line-height': '1' }}
           aria-hidden="true"
         />
       ) : (

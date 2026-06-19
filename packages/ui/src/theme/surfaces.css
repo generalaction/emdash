@@ -81,6 +81,20 @@
   --surface-emphasis-selected: var(--surface-elevated-emphasis-selected);
 }
 
+/* ── Semantic surface roles ─────────────────────────────────────────────────
+ * paper — primary content / tab background. White-ish in light mode, flat with
+ * base in dark mode. A card/tab on paper uses base-emphasis, which reads as a
+ * subtle panel that is slightly darker than white paper in light mode and a
+ * gentle lift above base in dark mode. */
+.surface-paper {
+  --surface: var(--surface-paper);
+  --surface-hover: var(--surface-paper-hover);
+  --surface-selected: var(--surface-paper-selected);
+  --surface-emphasis: var(--surface-base-emphasis);
+  --surface-emphasis-hover: var(--surface-base-emphasis-hover);
+  --surface-emphasis-selected: var(--surface-base-emphasis-selected);
+}
+
 /* A card/tab adopts its canvas's emphasis color as its own surface.
  * --surface-emphasis is intentionally NOT redeclared here: re-declaring a custom
  * property in terms of itself creates a dependency cycle (the whole cycle then

@@ -2,15 +2,9 @@
  * contract-setup.css — global CSS for the browser Vitest project.
  *
  * Mirrors .storybook/preview.css so the browser contract tests run with the
- * same token values and theme classes as Storybook.
- *
- * The @emdash/ui imports activate the full desktop color override preset via
- * chat-theme.css; without them, tokens.css bundled defaults still apply.
+ * same token values and theme classes as Storybook. Colors use chat-ui's
+ * bundled sRGB defaults from tokens.css; layout/measurement is unaffected.
  */
-
-@import '@emdash/ui/theme/theme.css';
-@import '@emdash/ui/theme/semantic.css';
-@import '../chat-theme.css';
 
 @import 'tailwindcss';
 @import 'tw-animate-css';

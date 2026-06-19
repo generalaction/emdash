@@ -14,8 +14,8 @@
 
 import Color from 'colorjs.io';
 import { SURFACE_L, STATE_LAYER_DELTA } from '../contract/targets.js';
-import type { Polarity, Ramp, SurfaceLevelName, Surfaces, SurfaceLevel } from '../contract/roles.js';
-import { SURFACE_LEVELS } from '../contract/roles.js';
+import type { Polarity, Ramp, SurfaceScopeName, Surfaces, SurfaceLevel } from '../contract/roles.js';
+import { SURFACE_SCOPES } from '../contract/roles.js';
 
 // ── Internal constants ────────────────────────────────────────────────────────
 
@@ -75,16 +75,18 @@ function buildSurfaceLevel(
 // ── Main export ───────────────────────────────────────────────────────────────
 
 /**
- * Generate the full 5-level surface elevation set from the resolved neutral ramp.
+ * Generate the full surface set (5 elevation levels + semantic roles) from the
+ * resolved neutral ramp.
  *
- * Levels are ordered darkest → lightest (sunken → elevated-emphasis) in both
- * light and dark modes. Each level has base, hover, and selected variants.
+ * Elevation levels are ordered darkest → lightest (sunken → elevated-emphasis)
+ * in both modes. Roles (e.g. `paper`) are generated the same way but sit outside
+ * the ladder. Each surface has base, hover, and selected variants.
  */
 export function generateSurfaces(neutralRamp: Ramp, polarity: Polarity): Surfaces {
   const surfaces = {} as Surfaces;
-  for (const level of SURFACE_LEVELS) {
-    const targetL = SURFACE_L[polarity][level as SurfaceLevelName];
-    surfaces[level as SurfaceLevelName] = buildSurfaceLevel(neutralRamp, targetL, polarity);
+  for (const scope of SURFACE_SCOPES) {
+    const targetL = SURFACE_L[polarity][scope as SurfaceScopeName];
+    surfaces[scope as SurfaceScopeName] = buildSurfaceLevel(neutralRamp, targetL, polarity);
   }
   return surfaces;
 }

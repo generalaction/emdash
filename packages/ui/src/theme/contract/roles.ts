@@ -114,7 +114,27 @@ export const SURFACE_LEVELS = [
   'elevated-emphasis',
 ] as const satisfies readonly SurfaceLevelName[];
 
-export type Surfaces = Record<SurfaceLevelName, SurfaceLevel>;
+/**
+ * Semantic surface roles that are generated like elevation levels (from neutral
+ * L targets) but intentionally do NOT belong to the darkest→lightest ladder.
+ *
+ * `paper` is the primary content/tab background: white-ish in light mode (like
+ * `elevated`) but flat with `base` in dark mode. Because its light/dark mappings
+ * are decoupled, it is kept out of SURFACE_LEVELS so the elevation ladder (and
+ * the swatch grids that visualize it) stays an honest monotonic ramp.
+ */
+export type SurfaceRoleName = 'paper';
+
+/** Canonical ordered list of semantic surface roles. */
+export const SURFACE_ROLES = ['paper'] as const satisfies readonly SurfaceRoleName[];
+
+/** Any scope that produces a generated neutral surface (elevation level or role). */
+export type SurfaceScopeName = SurfaceLevelName | SurfaceRoleName;
+
+/** Levels + roles together, for generators and resolvers that emit all of them. */
+export const SURFACE_SCOPES = [...SURFACE_LEVELS, ...SURFACE_ROLES] as const;
+
+export type Surfaces = Record<SurfaceScopeName, SurfaceLevel>;
 
 // ── Status surface names ───────────────────────────────────────────────────────
 

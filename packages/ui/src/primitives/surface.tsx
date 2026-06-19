@@ -13,14 +13,14 @@
 
 import React, { createContext, useContext } from 'react';
 import { cn } from '../lib/cn';
-import type { SurfaceLevelName, SurfaceStatusName } from '../theme/contract/roles';
+import type { SurfaceScopeName, SurfaceStatusName } from '../theme/contract/roles';
 
 // ── Context ───────────────────────────────────────────────────────────────────
 
-const SurfaceContext = createContext<SurfaceLevelName>('base');
+const SurfaceContext = createContext<SurfaceScopeName>('base');
 
-/** Returns the SurfaceLevelName of the nearest <Surface> ancestor. */
-export function useSurfaceLevel(): SurfaceLevelName {
+/** Returns the surface scope (elevation level or role) of the nearest <Surface> ancestor. */
+export function useSurfaceLevel(): SurfaceScopeName {
   return useContext(SurfaceContext);
 }
 
@@ -28,10 +28,11 @@ export function useSurfaceLevel(): SurfaceLevelName {
 
 export interface SurfaceProps extends React.HTMLAttributes<HTMLDivElement> {
   /**
-   * Explicit elevation level. Sets the `.surface-<level>` scope class on this element.
+   * Explicit surface scope — an elevation level (`base`, `elevated`, …) or a
+   * semantic role (`paper`). Sets the `.surface-<scope>` class on this element.
    * Omit entirely when using `emphasis` or `status` — the cascade handles the level.
    */
-  level?: SurfaceLevelName;
+  level?: SurfaceScopeName;
   /**
    * When true, applies `.surface-emphasis`, which resolves to the next level
    * above the nearest canvas scope without requiring the caller to know the level.
@@ -64,7 +65,7 @@ export function Surface({
   // correct level. When using emphasis or status, we propagate the parent level
   // unchanged (the CSS cascade handles the visual shift; React context is for JS use only).
   const parentLevel = useContext(SurfaceContext);
-  const contextValue: SurfaceLevelName = level ?? parentLevel;
+  const contextValue: SurfaceScopeName = level ?? parentLevel;
 
   return (
     <SurfaceContext.Provider value={contextValue}>

@@ -126,6 +126,11 @@
   --color-surface-elevated-emphasis-hover: var(--surface-elevated-emphasis-hover);
   --color-surface-elevated-emphasis-selected: var(--surface-elevated-emphasis-selected);
 
+  /* Semantic surface role: paper — white-ish content/tab bg in light, flat with base in dark */
+  --color-surface-paper: var(--surface-paper);
+  --color-surface-paper-hover: var(--surface-paper-hover);
+  --color-surface-paper-selected: var(--surface-paper-selected);
+
   /* Status surface utilities — tinted rooms from the red / amber / blue ramps.
    * bg-surface-<status>            = subtle background (step 3)
    * bg-surface-<status>-hover      = hover state (step 4)

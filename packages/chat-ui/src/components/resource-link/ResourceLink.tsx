@@ -12,8 +12,8 @@
  * Outer geometry (height, padding) is applied by resource-link.def.tsx Render.
  */
 
-import { resolveFileIconClass } from '@emdash/ui/primitives';
 import { Show } from 'solid-js';
+import { resolveFileIconClass } from '../../lib/file-icons';
 import type { ChatResourceLink, ResourceTarget } from '../../model';
 import { useCommands } from '../CommandsContext';
 import { GenericFileIcon } from '../primitives/icons';

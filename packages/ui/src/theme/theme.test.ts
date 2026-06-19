@@ -201,6 +201,36 @@ describe('Theme generation', () => {
     }
   });
 
+  // 7b. Surface role: paper (white-ish in light, flat with base in dark)
+  describe('Surface role: paper', () => {
+    for (const theme of [lightTheme, darkTheme]) {
+      it(`${theme.id}: paper base/hover/selected resolve and are in P3 gamut`, () => {
+        for (const variant of ['', '-hover', '-selected']) {
+          const cssVal = theme.cssVars[`--surface-paper${variant}`];
+          expect(cssVal, `--surface-paper${variant} should be defined`).toBeTruthy();
+          expect(new Color(cssVal!).inGamut('p3')).toBe(true);
+        }
+      });
+    }
+
+    it('light: paper is white-ish (L ≥ 0.97), matching elevated', () => {
+      const paper = lightTheme.cssVars['--surface-paper'];
+      const elevated = lightTheme.cssVars['--surface-elevated'];
+      const paperL = new Color(paper!).to('oklch').coords[0];
+      const elevatedL = new Color(elevated!).to('oklch').coords[0];
+      expect(paperL).toBeGreaterThanOrEqual(0.97);
+      expect(Math.abs(paperL - elevatedL)).toBeLessThan(0.01);
+    });
+
+    it('dark: paper is flat with base (same L as surface-base)', () => {
+      const paper = darkTheme.cssVars['--surface-paper'];
+      const base = darkTheme.cssVars['--surface-base'];
+      const paperL = new Color(paper!).to('oklch').coords[0];
+      const baseL = new Color(base!).to('oklch').coords[0];
+      expect(Math.abs(paperL - baseL)).toBeLessThan(0.01);
+    });
+  });
+
   // 8. Status surface vars resolve and are in P3 gamut
   describe('Status surfaces', () => {
     for (const theme of [lightTheme, darkTheme]) {

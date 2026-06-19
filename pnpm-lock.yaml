@@ -320,9 +320,6 @@ importers:
       '@chenglou/pretext':
         specifier: ^0.0.8
         version: 0.0.8
-      '@emdash/ui':
-        specifier: workspace:*
-        version: link:../ui
       '@fontsource-variable/inter':
         specifier: ^5.2.8
         version: 5.2.8
@@ -519,6 +516,9 @@ importers:
         specifier: ^2.6.0
         version: 2.6.1
     devDependencies:
+      '@emdash/chat-ui':
+        specifier: workspace:*
+        version: link:../chat-ui
       '@storybook/addon-docs':
         specifier: ^10.4.6
         version: 10.4.6(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(esbuild@0.28.1)(rollup@4.61.1)(storybook@10.4.6(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@2.8.8)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(vite@6.4.3(@types/node@20.19.42)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))(webpack@5.107.2(esbuild@0.28.1)(lightningcss@1.32.0))
@@ -543,6 +543,9 @@ importers:
       colorjs.io:
         specifier: ^0.5.2
         version: 0.5.2
+      devicon:
+        specifier: ^2.17.0
+        version: 2.17.0
       oxfmt:
         specifier: ^0.51.0
         version: 0.51.0

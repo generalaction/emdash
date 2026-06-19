@@ -14,8 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../primitives/select';
-import { SURFACE_LEVELS, SURFACE_STATUSES } from '../theme/contract/roles';
-import type { SurfaceLevelName, SurfaceStatusName } from '../theme/contract/roles';
+import { SURFACE_LEVELS, SURFACE_ROLES, SURFACE_STATUSES } from '../theme/contract/roles';
+import type { SurfaceScopeName, SurfaceStatusName } from '../theme/contract/roles';
 
 const meta: Meta = {
   title: 'Theme/Surfaces',
@@ -54,7 +54,7 @@ function ElevationSwatch({ level, label }: { level: string; label: string }) {
 
 // ── Components rendered on a surface card ─────────────────────────────────────
 
-function SurfaceCard({ level }: { level: SurfaceLevelName }) {
+function SurfaceCard({ level }: { level: SurfaceScopeName }) {
   return (
     <Surface
       level={level}
@@ -85,7 +85,7 @@ function SurfaceCard({ level }: { level: SurfaceLevelName }) {
 
 // ── Tabs helper ───────────────────────────────────────────────────────────────
 
-function SurfaceTabs({ level }: { level: SurfaceLevelName }) {
+function SurfaceTabs({ level }: { level: SurfaceScopeName }) {
   const [active, setActive] = useState('first');
   const tabs = [
     { id: 'first', label: 'First' },
@@ -119,7 +119,7 @@ function SurfaceTabs({ level }: { level: SurfaceLevelName }) {
 
 // ── Button row on a surface ───────────────────────────────────────────────────
 
-function SurfaceButtons({ level }: { level: SurfaceLevelName }) {
+function SurfaceButtons({ level }: { level: SurfaceScopeName }) {
   return (
     <Surface level={level} className="flex flex-col gap-2 rounded-lg border border-border p-4">
       <p className="font-mono text-xs text-foreground-muted">.surface-{level}</p>
@@ -309,6 +309,52 @@ export const StatusSurfaces: Story = {
           ))}
         </div>
       </div>
+    </div>
+  ),
+};
+
+// ── Paper role ─────────────────────────────────────────────────────────────────
+
+/** Renders the paper role's swatch + a tab strip that uses paper as its canvas. */
+function PaperRoom() {
+  return (
+    <div className="space-y-6 bg-background p-6">
+      <div>
+        <p className="text-sm font-semibold text-foreground">
+          Paper — primary content / tab background
+        </p>
+        <p className="mt-1 max-w-prose text-xs text-foreground-muted">
+          White-ish in light mode (matches <code className="font-mono">elevated</code>) and flat
+          with <code className="font-mono">base</code> in dark mode. Use it for the surface tabbed
+          content sits on. Cards/tabs on paper use <code className="font-mono">base-emphasis</code>.
+        </p>
+      </div>
+      <div className="grid grid-cols-[12rem_1fr] gap-6">
+        <div className="flex flex-col gap-4">
+          {SURFACE_ROLES.map((role) => (
+            <ElevationSwatch key={role} level={role} label={role} />
+          ))}
+        </div>
+        <SurfaceTabs level="paper" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The `paper` surface role. Because it is white in light but base-gray in dark,
+ * it is best understood side-by-side — the tab content reads as a white sheet in
+ * light mode and disappears into the base canvas in dark mode.
+ */
+export const Paper: Story = {
+  render: () => (
+    <div className="flex min-h-screen divide-x divide-border">
+      <ThemeProvider theme="light" className="flex-1">
+        <PaperRoom />
+      </ThemeProvider>
+      <ThemeProvider theme="dark" className="flex-1">
+        <PaperRoom />
+      </ThemeProvider>
     </div>
   ),
 };

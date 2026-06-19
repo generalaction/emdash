@@ -15,7 +15,7 @@
  * Steps 11–12 anchor the text contrast targets (~60 / ~95 Lc).
  */
 
-import type { Polarity, SurfaceLevelName } from './roles.js';
+import type { Polarity, SurfaceScopeName } from './roles.js';
 
 export type ApcaTargets = readonly [
   number, // step 1  — background, Lc≈0
@@ -84,15 +84,21 @@ export const STATE_LAYER_DELTA = {
  * reads as a subtle gray panel — slightly darker than `elevated` but never
  * darker than `base`. So light mode is intentionally non-monotonic by name.
  *
+ * Surface roles (not part of the ladder):
+ *   paper — primary content/tab background. White-ish in light (matches
+ *   `elevated`), flat with `base` in dark. Light/dark are deliberately
+ *   decoupled, which is why it lives outside SURFACE_LEVELS.
+ *
  * Tune these values in Storybook after running theme:build.
  */
-export const SURFACE_L: Record<Polarity, Record<SurfaceLevelName, number>> = {
+export const SURFACE_L: Record<Polarity, Record<SurfaceScopeName, number>> = {
   light: {
     'sunken': 0.928,
     'base': 0.965,
     'base-emphasis': 0.982,
     'elevated': 0.993,
     'elevated-emphasis': 0.973,
+    'paper': 0.993,
   },
   dark: {
     'sunken': 0.155,
@@ -100,6 +106,7 @@ export const SURFACE_L: Record<Polarity, Record<SurfaceLevelName, number>> = {
     'base-emphasis': 0.235,
     'elevated': 0.265,
     'elevated-emphasis': 0.305,
+    'paper': 0.195,
   },
 };
 

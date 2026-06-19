@@ -2,22 +2,6 @@
 @import 'devicon/devicon.min.css';
 
 /*
- * Design system token imports — optional for Storybook.
- *
- * When loaded, these activate the full desktop color palette (display-p3,
- * P3-gamut diff colors, etc.) via chat-theme.css, which re-binds --chat-*
- * to the @emdash/ui semantic vars. Without them, the bundled :where() defaults
- * in tokens.css provide sRGB standalone colors that are visually close.
- *
- * Keep these imports to demo the desktop override preset accurately in stories.
- */
-@import '@emdash/ui/theme/theme.css';
-@import '@emdash/ui/theme/semantic.css';
-
-/* Chat-specific color bridge (re-binds --chat-* to design-system semantic tokens) */
-@import '../src/chat-theme.css';
-
-/*
  * Full Tailwind (including preflight/base) — acceptable here because Storybook
  * is a standalone app, not the host desktop renderer. The host renderer has its
  * own Tailwind + preflight; the lib build ships utilities only (no preflight).
