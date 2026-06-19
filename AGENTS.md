@@ -19,6 +19,10 @@ Repo root:
 - `agents/` - Agent-facing architecture, workflow, convention, integration, and risk docs.
 - `apps/emdash-desktop/` - The Electron desktop app (everything below).
 - `packages/` - Shared workspace packages: core runtime, shared primitives, UI, and plugins.
+  - `packages/core/` - Transport-agnostic core runtime primitives.
+  - `packages/shared/` - Shared workspace primitives.
+  - `packages/ui/` - Shared UI components and theme system.
+  - `packages/plugins/` - Plugin interfaces and helpers.
 - Root config files - `pnpm-workspace.yaml`, root `package.json` with aggregate scripts,
   `.nvmrc`, `.oxfmtrc.json`, `.oxlintrc.json`.
 
@@ -37,9 +41,9 @@ Inside `apps/emdash-desktop/`:
 
 ## Build & Development Commands
 
-The repo root only has aggregate scripts (`dev`, `build`, `test`, `lint`, `format`,
-`format:check`, `typecheck`) that delegate via `pnpm --filter` / `pnpm -r`. All other
-scripts below run from `apps/emdash-desktop/`.
+The repo root has aggregate scripts (`dev`, `build`, `test`, `lint`, `format`,
+`format:check`, `typecheck`) that fan out through the pnpm workspace. App-specific
+commands run from `apps/emdash-desktop/`.
 
 Install dependencies (repo root):
 
@@ -47,11 +51,19 @@ Install dependencies (repo root):
 pnpm install
 ```
 
-Start the app (repo root via `pnpm run dev`, or in `apps/emdash-desktop/`):
+Start the full workspace dev setup from the repo root. This builds `packages/**`
+once, then runs package watch builds and the Electron app in parallel:
 
 ```bash
-pnpm run d
 pnpm run dev
+```
+
+Start only the Electron app from `apps/emdash-desktop/`:
+
+```bash
+cd apps/emdash-desktop
+pnpm run dev
+pnpm run d
 ```
 
 Run main-process or renderer-only dev watches:
@@ -68,10 +80,23 @@ pnpm run dev:debug
 ```
 
 Use an isolated development database for schema or migration work by pointing
-`EMDASH_DB_FILE` at a scratch path, and reset the dev databases with:
+`EMDASH_DB_FILE` at a scratch path. From the repo root this starts the full workspace
+dev setup:
 
 ```bash
 EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev
+```
+
+From `apps/emdash-desktop/`, this starts only the Electron app:
+
+```bash
+cd apps/emdash-desktop
+EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev
+```
+
+Reset the dev databases from `apps/emdash-desktop/`:
+
+```bash
 pnpm run db:reset
 ```
 
