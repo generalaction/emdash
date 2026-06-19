@@ -75,6 +75,7 @@ async function handleSessionEvent(
 
 class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHookServiceHooks> {
   private server = new HookServer();
+  private readonly observedStatuses = new Map<string, AgentStatus>();
   private readonly _hooks = new HookCore<AgentHookServiceHooks>((name, e) =>
     log.error(`AgentHookService: ${String(name)} hook error`, e)
   );
@@ -165,10 +166,22 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
     );
 
     // Persist agent status to DB and emit simplified IPC for renderer.
-    this.on('agent:event', async (event) => {
+    this.on('agent:event', async (event, appFocused) => {
       const status = deriveAgentStatus(event);
       if (!status) return;
       const seen = status === 'idle' || status === 'working' ? 1 : 0;
+
+      const previousObservedStatus = this.observedStatuses.get(event.conversationId);
+      this.observedStatuses.set(event.conversationId, status);
+      const [current] =
+        previousObservedStatus === undefined
+          ? await db
+              .select({ agentStatus: conversations.agentStatus })
+              .from(conversations)
+              .where(eq(conversations.id, event.conversationId))
+              .limit(1)
+          : [];
+      const previousStatus = previousObservedStatus ?? current?.agentStatus;
 
       await db
         .update(conversations)
@@ -181,7 +194,8 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
         projectId: event.projectId,
         status,
         seen: seen === 1,
-        soundEvent: determineSoundEvent(event, status),
+        appFocused,
+        soundEvent: previousStatus === status ? undefined : determineSoundEvent(event, status),
       });
     });
 
@@ -203,6 +217,7 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
             .update(conversations)
             .set({ agentStatus: 'idle', agentStatusSeen: 1 })
             .where(eq(conversations.id, conversationId));
+          this.observedStatuses.set(conversationId, 'idle');
 
           events.emit(conversationAgentStatusChangedChannel, {
             conversationId,
@@ -210,6 +225,7 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
             projectId: row.projectId,
             status: 'idle',
             seen: true,
+            appFocused: isAppFocused(),
             soundEvent: undefined,
           });
         } catch (error) {
