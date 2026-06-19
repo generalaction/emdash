@@ -13,6 +13,12 @@ export async function resolveDroppedFile(file: File): Promise<string | null> {
   }
   if (file.size > MAX_DROPPED_BLOB_BYTES) {
     log.warn('Dropped file is too large to persist', { size: file.size, name: file.name });
+    if (isHeicLike) {
+      toast.error('HEIC image is too large', {
+        description: 'Use an image under 50 MB or convert it to PNG manually.',
+        duration: 5000,
+      });
+    }
     return null;
   }
 
