@@ -1,4 +1,4 @@
-import type { Result } from '@shared/lib/result';
+import type { Result } from '@emdash/shared';
 import type { CreateProjectError } from '@shared/projects';
 
 interface BaseModeData {

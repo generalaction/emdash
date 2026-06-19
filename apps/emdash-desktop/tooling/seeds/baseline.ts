@@ -1,4 +1,4 @@
-import type { GitBranchRef } from '@emdash/shared/git';
+import type { GitBranchRef } from '@emdash/core/git';
 import { toStoredBranch } from '@main/core/tasks/stored-branch';
 import type { AppDb } from '@main/db/client';
 import { conversations, projectRemotes, projects, projectSettings, tasks } from '@main/db/schema';

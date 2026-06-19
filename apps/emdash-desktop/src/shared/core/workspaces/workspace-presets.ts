@@ -1,4 +1,4 @@
-import type { GitBranchRef } from '@emdash/shared/git';
+import type { GitBranchRef } from '@emdash/core/git';
 import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 
 // ---------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-import type { GitChangeStatus, GitObjectRef } from '@emdash/shared/git';
+import type { GitChangeStatus, GitObjectRef } from '@emdash/core/git';
 import type { BrowserSessionSnapshot } from '@shared/browser';
 
 export type TabViewSnapshot = {

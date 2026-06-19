@@ -1,9 +1,9 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
   createFileDropPlugin,
   npmDependency,
-} from '@emdash/shared/agents/plugins/helpers';
+} from '@emdash/core/agents/plugins/helpers';
 import { icon } from './icon';
 import { KILOCODE_PLUGIN_CONTENT } from './plugin-file';
 

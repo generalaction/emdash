@@ -1,5 +1,5 @@
+import type { DependencyId } from '@emdash/core/deps/runtime';
 import { pluginRegistry } from '@emdash/plugins/agents';
-import type { DependencyId } from '@emdash/shared/deps/runtime';
 import { localDependencyManager } from '@main/core/dependencies/dependency-managers';
 import { log } from '@main/lib/logger';
 import type { McpProvidersResponse, McpServer } from '@shared/core/mcp/types';

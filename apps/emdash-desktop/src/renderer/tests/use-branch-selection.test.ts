@@ -1,4 +1,4 @@
-import type { GitBranchRef } from '@emdash/shared/git';
+import type { GitBranchRef } from '@emdash/core/git';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@renderer/features/settings/use-app-settings-key', () => ({

@@ -1,11 +1,11 @@
-import type { IGitRepository, IGitRuntime } from '@emdash/shared/git';
-import { gitErrorMessage } from '@emdash/shared/git';
+import type { IGitRepository, IGitRuntime } from '@emdash/core/git';
+import { gitErrorMessage } from '@emdash/core/git';
+import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@main/lib/logger';
 import {
   remoteNameFromQualifiedRef,
   resolveBaseRefFromRemoteDefault,
 } from '@shared/core/git/utils';
-import { err, ok, type Result } from '@shared/lib/result';
 import type { CreateProjectError } from '@shared/projects';
 
 export async function resolveProjectBaseRef(

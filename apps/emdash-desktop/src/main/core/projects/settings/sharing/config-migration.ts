@@ -1,10 +1,10 @@
+import { err, type Result } from '@emdash/shared';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
 import type {
   MigrateProjectConfigRequest,
   ProjectConfigMigration,
 } from '@shared/core/project-settings/project-settings';
-import { err, type Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import type { ProjectProvider } from '../../project-provider';
 import { codexConfigMigrator } from './codex-config-migration';

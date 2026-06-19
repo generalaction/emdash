@@ -1,10 +1,10 @@
-import type { InstallMethod } from '@emdash/shared/deps';
+import type { InstallMethod } from '@emdash/core/deps';
 import type {
   DependencyId,
   DependencyProbeOptions,
   HostDependencySelection,
   InstallOverride,
-} from '@emdash/shared/deps/runtime';
+} from '@emdash/core/deps/runtime';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/core/app-settings';
 import { createRPCController } from '@shared/lib/ipc/rpc';

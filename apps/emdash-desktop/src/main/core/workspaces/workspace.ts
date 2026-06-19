@@ -1,4 +1,4 @@
-import type { IGitWorktree } from '@emdash/shared/git';
+import type { IGitWorktree } from '@emdash/core/git';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
 import type { GitRepositoryService } from '@main/core/git/repository/service';

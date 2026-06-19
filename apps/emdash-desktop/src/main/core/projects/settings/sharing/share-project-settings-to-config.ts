@@ -1,6 +1,6 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@main/lib/logger';
 import type { WriteProjectConfigRequest } from '@shared/core/project-settings/project-settings';
-import { err, ok, type Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import type { ProjectProvider } from '../../project-provider';
 import {

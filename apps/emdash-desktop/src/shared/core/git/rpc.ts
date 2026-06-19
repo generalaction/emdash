@@ -3,8 +3,8 @@ import type {
   GitRepoSnapshot,
   GitSequences,
   GitWorktreeSnapshot,
-} from '@emdash/shared/git';
-import type { Result } from '@shared/lib/result';
+} from '@emdash/core/git';
+import type { Result } from '@emdash/shared';
 
 export type GitRepositoryNotFoundError = { type: 'not_found' };
 export type GitRepositoryGitError = { type: 'git_error'; message: string };

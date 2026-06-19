@@ -10,6 +10,15 @@ const ptyMock = vi.hoisted(() => ({
   exitHandlers: [] as Array<(info: PtyExitInfo) => void>,
 }));
 
+const previewServerServiceMock = vi.hoisted(() => ({
+  registerDetectedTarget: vi.fn(),
+  handleTerminalSourceClosed: vi.fn(),
+}));
+
+const terminalUrlDetectorMock = vi.hoisted(() => ({
+  wireTerminalUrlDetector: vi.fn(),
+}));
+
 vi.mock('@main/core/pty/local-pty', () => ({
   spawnLocalPty: vi.fn(() => ({
     write: vi.fn(),
@@ -29,8 +38,12 @@ vi.mock('@main/core/pty/pty-session-registry', () => ({
   },
 }));
 
-vi.mock('../dev-server-watcher', () => ({
-  wireTerminalDevServerWatcher: vi.fn(),
+vi.mock('@main/core/preview-servers/preview-server-service-instance', () => ({
+  previewServerService: previewServerServiceMock,
+}));
+
+vi.mock('@main/core/preview-servers/terminal-url-detector', () => ({
+  wireTerminalUrlDetector: terminalUrlDetectorMock.wireTerminalUrlDetector,
 }));
 
 vi.mock('@main/core/pty/terminal-color-scheme', () => ({
@@ -55,6 +68,10 @@ const ctx = {
 describe('LocalTerminalProvider', () => {
   beforeEach(() => {
     ptyMock.exitHandlers.length = 0;
+    terminalUrlDetectorMock.wireTerminalUrlDetector.mockClear();
+    previewServerServiceMock.registerDetectedTarget.mockClear();
+    previewServerServiceMock.registerDetectedTarget.mockResolvedValue(undefined);
+    previewServerServiceMock.handleTerminalSourceClosed.mockClear();
     vi.mocked(ptySessionRegistry.register).mockClear();
   });
 
@@ -99,5 +116,38 @@ describe('LocalTerminalProvider', () => {
     expect(
       (provider as unknown as { shellProfiles: Map<string, unknown> }).shellProfiles.has(sessionId)
     ).toBe(false);
+  });
+
+  it('registers detected preview URLs against the workspace scope', async () => {
+    const provider = new LocalTerminalProvider({
+      projectId: terminal.projectId,
+      workspaceId: 'workspace-1',
+      scopeId: terminal.taskId,
+      taskPath: '/repo',
+      ctx,
+    });
+
+    await provider.spawnTerminal(terminal);
+
+    const detectorOptions = terminalUrlDetectorMock.wireTerminalUrlDetector.mock.calls[0]?.[0];
+    expect(detectorOptions).toMatchObject({ probeLocalPorts: true });
+
+    detectorOptions.onDetected({
+      protocol: 'http:',
+      host: 'localhost',
+      port: 5173,
+      urlPath: '/',
+    });
+
+    expect(previewServerServiceMock.registerDetectedTarget).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      transport: 'local',
+      source: { kind: 'terminal-output', terminalId: 'terminal-1' },
+      protocol: 'http:',
+      host: 'localhost',
+      port: 5173,
+      urlPath: '/',
+    });
   });
 });

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { computeBaseRef } from '@emdash/shared/git';
+import { computeBaseRef } from '@emdash/core/git';
 import { describe, expect, it } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';

@@ -1,6 +1,6 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import type { AgentCommand, CommandContext } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import type { AgentCommand, CommandContext } from '@emdash/core/agents/plugins';
+import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
 import { addKimiHooksToConfigText, buildKimiHookConfig } from './hooks';
 
 function injectKimiHooksIntoInlineConfig(args: string[]): string[] {

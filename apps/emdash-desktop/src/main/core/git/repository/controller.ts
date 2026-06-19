@@ -1,7 +1,7 @@
+import { err, ok } from '@emdash/shared';
 import { telemetryService } from '@main/lib/telemetry';
 import type { GitRepositorySnapshotResult } from '@shared/core/git/rpc';
 import { createRPCController } from '@shared/lib/ipc/rpc';
-import { err, ok } from '@shared/lib/result';
 import { projectManager } from '../../projects/project-manager';
 import { providerRepositoryService } from '../../repository/provider-repository-service';
 import { workspaceRegistry } from '../../workspaces/workspace-registry';

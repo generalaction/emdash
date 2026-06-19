@@ -1,4 +1,4 @@
-import type { GitRemote } from '@emdash/shared/git';
+import type { GitRemote } from '@emdash/core/git';
 import { and, eq, notInArray } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { projectRemotes } from '@main/db/schema';

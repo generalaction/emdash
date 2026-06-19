@@ -1,4 +1,4 @@
-import type { GitChange, GitStatusData, GitStatusModel } from '@emdash/shared/git';
+import type { GitChange, GitStatusData, GitStatusModel } from '@emdash/core/git';
 
 export const stageFilesOptimistically = applyToOk(stageFiles);
 export const stageAllOptimistically = applyToOk(stageAll);

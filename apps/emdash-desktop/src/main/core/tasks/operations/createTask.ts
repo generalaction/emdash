@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { err, ok, type Result } from '@emdash/shared';
 import { eq, sql } from 'drizzle-orm';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
@@ -15,7 +16,6 @@ import type {
   CreateTaskSuccess,
   TaskLifecycleStatus,
 } from '@shared/core/tasks/tasks';
-import { err, ok, type Result } from '@shared/lib/result';
 import { mapTaskRowToTask } from '../utils/utils';
 
 type ConvInsert = typeof conversations.$inferInsert;

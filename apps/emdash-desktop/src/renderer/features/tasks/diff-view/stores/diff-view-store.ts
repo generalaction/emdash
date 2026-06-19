@@ -1,4 +1,4 @@
-import type { GitObjectRef } from '@emdash/shared/git';
+import type { GitObjectRef } from '@emdash/core/git';
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
 import { ChangesViewStore } from '@renderer/features/tasks/diff-view/stores/changes-view-store';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';

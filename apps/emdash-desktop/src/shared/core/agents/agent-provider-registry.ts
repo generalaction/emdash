@@ -153,7 +153,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'grok',
     autoApproveFlag: '--always-approve',
-    useKeystrokeInjection: true,
+    initialPromptFlag: '',
     resumeFlag: '-r',
     sessionIdFlag: '-r',
     sessionIdOnResumeOnly: true,

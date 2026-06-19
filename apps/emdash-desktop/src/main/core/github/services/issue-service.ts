@@ -1,6 +1,6 @@
+import { err, ok, type Result } from '@emdash/shared';
 import type { Octokit } from '@octokit/rest';
 import type { IssueListError } from '@shared/issue-providers';
-import { err, ok, type Result } from '@shared/lib/result';
 import type { RepositoryRef } from '@shared/repository-ref';
 import type { GitHubApiAuthError } from './github-api-auth-errors';
 import type { GitHubApiAuthContext } from './github-api-auth-service';

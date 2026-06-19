@@ -3,7 +3,8 @@ import {
   type GitHeadModel,
   type GitStatusModel,
   type GitWorktreeSnapshot,
-} from '@emdash/shared/git';
+} from '@emdash/core/git';
+import { err, ok, type Result } from '@emdash/shared';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
 import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
@@ -17,7 +18,6 @@ import {
 } from '@renderer/lib/stores/live';
 import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
 import type { GitWorktreeMutationResult, GitWorktreeSnapshotError } from '@shared/core/git/rpc';
-import { err, ok, type Result } from '@shared/lib/result';
 import {
   commitOptimistically,
   discardAllOptimistically,

@@ -54,6 +54,7 @@ const ICON_PATHS = {
   pycharm: 'pycharm.svg',
   rubymine: 'rubymine.svg',
   rustrover: 'rustrover.svg',
+  athas: 'athas.svg',
   kiro: 'kiro.png',
   antigravity: 'antigravity.png',
 } as const;
@@ -377,6 +378,33 @@ const _OPEN_IN_APPS = {
       win32: {
         openCommands: ['zed {{path}}'],
         checkCommands: ['zed'],
+      },
+    },
+  },
+  athas: {
+    id: 'athas',
+    label: 'Athas',
+    iconPath: ICON_PATHS.athas,
+    autoInstall: true,
+    supportsRemote: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v athas >/dev/null 2>&1 && athas {{path}}',
+          'open -n -b com.code.athas --args {{path}}',
+          'open -n -a "Athas" {{path}}',
+        ],
+        checkCommands: ['athas'],
+        bundleIds: ['com.code.athas'],
+        appNames: ['Athas'],
+      },
+      win32: {
+        openCommands: ['athas "{{path_raw}}"'],
+        checkCommands: ['athas'],
+      },
+      linux: {
+        openCommands: ['athas {{path}}'],
+        checkCommands: ['athas'],
       },
     },
   },

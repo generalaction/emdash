@@ -3,7 +3,7 @@ import {
   classifyCloneRepositoryError,
   gitErrorMessage,
   TooManyFilesChangedError,
-} from '@emdash/shared/git';
+} from '@emdash/core/git';
 import type {
   CloneRepositoryError,
   CommitError,
@@ -14,7 +14,7 @@ import type {
   GitCommandError,
   PullError,
   PushError,
-} from '@emdash/shared/git';
+} from '@emdash/core/git';
 import type {
   CreateBranchOptions,
   EnsureRepositoryError,
@@ -32,27 +32,20 @@ import type {
   IGitRuntime,
   IGitWorktree,
   SubscribedSnapshot,
-} from '@emdash/shared/git';
-import type { ImageReadResult } from '@emdash/shared/git';
-import type { DiffTarget } from '@emdash/shared/git';
-import type { CommitFile, GitLogResult } from '@emdash/shared/git';
-import type { GitRefsModel, GitRemote, GitRemotesModel } from '@emdash/shared/git';
-import type { GitHeadModel } from '@emdash/shared/git';
+} from '@emdash/core/git';
+import type { ImageReadResult } from '@emdash/core/git';
+import type { DiffTarget } from '@emdash/core/git';
+import type { CommitFile, GitLogResult } from '@emdash/core/git';
+import type { GitRefsModel, GitRemote, GitRemotesModel } from '@emdash/core/git';
+import type { GitHeadModel } from '@emdash/core/git';
 import type {
   GitChange,
   GitStatusFingerprint,
   GitStatusModel,
   GitStatusUntrackedMode,
-} from '@emdash/shared/git';
-import {
-  err,
-  LiveModel,
-  ok,
-  ResourceMap,
-  type Lease,
-  type Result,
-  type Unsubscribe,
-} from '@emdash/shared/lib';
+} from '@emdash/core/git';
+import { LiveModel, ResourceMap } from '@emdash/core/lib';
+import { err, ok, type Lease, type Result, type Unsubscribe } from '@emdash/shared';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { GitService } from '@main/core/git/legacy/git-service';

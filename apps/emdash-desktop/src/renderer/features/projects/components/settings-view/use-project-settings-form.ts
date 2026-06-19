@@ -1,4 +1,5 @@
-import type { GitRemote } from '@emdash/shared/git';
+import type { GitRemote } from '@emdash/core/git';
+import { err, type Result } from '@emdash/shared';
 import { useCallback, useMemo, useState } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useModalContext } from '@renderer/lib/modal/modal-provider';
@@ -14,7 +15,6 @@ import {
   type ShareableProjectSettingsWriteField,
   type WriteProjectConfigRequest,
 } from '@shared/core/project-settings/project-settings';
-import { err, type Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import type { ProjectSettingsSaveStatus } from './project-settings-footer';
 import {

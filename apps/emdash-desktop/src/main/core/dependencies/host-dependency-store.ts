@@ -1,5 +1,5 @@
-import type { DependencyId, HostDependencySelection } from '@emdash/shared/deps/runtime';
-import { normalizeSelection } from '@emdash/shared/deps/runtime';
+import type { DependencyId, HostDependencySelection } from '@emdash/core/deps/runtime';
+import { normalizeSelection } from '@emdash/core/deps/runtime';
 import { eq } from 'drizzle-orm';
 import { mergeDependencySelection } from '@main/core/ssh/config/connection-metadata';
 import { db } from '@main/db/client';

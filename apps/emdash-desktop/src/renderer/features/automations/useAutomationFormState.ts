@@ -1,4 +1,4 @@
-import type { GitBranchRef } from '@emdash/shared/git';
+import type { GitBranchRef } from '@emdash/core/git';
 import { useMemo, useState } from 'react';
 import { DEFAULT_CRON_STATE, toCron } from '@renderer/lib/CronPicker/cron-utils';
 import { isValidProviderId } from '@shared/core/agents/agent-provider-registry';

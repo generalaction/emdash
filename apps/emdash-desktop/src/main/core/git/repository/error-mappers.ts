@@ -4,7 +4,7 @@ import type {
   FetchError as SharedFetchError,
   FetchPrForReviewError as SharedFetchPrForReviewError,
   PushError as SharedPushError,
-} from '@emdash/shared/git';
+} from '@emdash/core/git';
 import type {
   CreateBranchError,
   DeleteBranchError,

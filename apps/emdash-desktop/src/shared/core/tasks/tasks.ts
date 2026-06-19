@@ -1,4 +1,4 @@
-import type { GitBranchRef } from '@emdash/shared/git';
+import type { GitBranchRef } from '@emdash/core/git';
 import z from 'zod';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import type { CreateBranchError, FetchPrForReviewError, PushError } from '@shared/core/git/types';

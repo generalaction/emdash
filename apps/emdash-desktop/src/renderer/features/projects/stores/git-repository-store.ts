@@ -6,7 +6,8 @@ import type {
   GitRemotesModel,
   LocalBranch,
   RemoteBranch,
-} from '@emdash/shared/git';
+} from '@emdash/core/git';
+import { err, ok, type Result } from '@emdash/shared';
 import { computed, makeObservable, reaction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
 import { bindMirror, coalesce, ModelMirror, type MirrorBinding } from '@renderer/lib/stores/live';
@@ -19,7 +20,6 @@ import {
   resolveConfiguredRemotes,
   resolveDefaultBranch,
 } from '@shared/core/git/utils';
-import { err, ok, type Result } from '@shared/lib/result';
 import type { ProviderRepository, ProviderRepositoryResult } from '@shared/provider-repository';
 import { parseRepositoryRef } from '@shared/repository-ref';
 import type { ProjectSettingsStore } from './project-settings-store';

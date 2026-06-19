@@ -1,4 +1,4 @@
-import type { GitRemote } from '@emdash/shared/git';
+import type { GitRemote } from '@emdash/core/git';
 import { SelectContent, SelectItem } from '@renderer/lib/ui/select';
 
 type RemoteSelectContentProps = {

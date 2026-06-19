@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { GitRemote } from '@emdash/shared/git';
+import type { GitRemote } from '@emdash/core/git';
+import { ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import { ok } from '@shared/lib/result';
 import type { ProjectSettingsProvider } from '../settings/provider';
 import { LocalWorktreeHost } from './hosts/local-worktree-host';
 import type { WorktreeHost } from './hosts/worktree-host';

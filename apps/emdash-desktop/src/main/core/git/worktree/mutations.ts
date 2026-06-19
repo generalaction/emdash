@@ -1,8 +1,8 @@
+import { err, ok } from '@emdash/shared';
 import { resolveWorkspace } from '@main/core/projects/utils';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import type { GitWorktreeMutationResult } from '@shared/core/git/rpc';
-import { err, ok } from '@shared/lib/result';
 
 type WorktreeMutationScope = 'single' | 'multiple';
 

@@ -1,5 +1,6 @@
-import { GitRuntime } from '@emdash/shared/git';
-import { ResourceMap, type Lease } from '@emdash/shared/lib';
+import { GitRuntime } from '@emdash/core/git';
+import { ResourceMap } from '@emdash/core/lib';
+import type { Lease } from '@emdash/shared';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { log } from '@main/lib/logger';
 import { ConstantHealthSource } from './health';

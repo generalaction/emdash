@@ -1,11 +1,11 @@
 import crypto from 'node:crypto';
+import { ok } from '@emdash/shared';
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectProvider } from '@main/core/projects/project-provider';
 import { projects, tasks, workspaces } from '@main/db/schema';
 import type { Task } from '@shared/core/tasks/tasks';
-import { ok } from '@shared/lib/result';
 import { WorkspaceBootstrapService } from './workspace-bootstrap-service';
 import { computeWorkspaceKey } from './workspace-key';
 

@@ -1,5 +1,5 @@
+import type { Result } from '@emdash/shared';
 import type { ProjectSettings } from '@shared/core/project-settings/project-settings';
-import type { Result } from '@shared/lib/result';
 import { normalizeRepositoryHost, parseRepositoryRef } from '@shared/repository-ref';
 import type { GitHubAccount, GitHubAccountRegistry } from '../accounts/github-account-registry';
 

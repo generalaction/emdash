@@ -18,11 +18,12 @@ import {
   type LocalBranch,
   type MergeBaseRange,
   type RemoteBranch,
-} from '@emdash/shared/git';
+} from '@emdash/core/git';
+import { err, ok, type Result } from '@emdash/shared';
+import type { IDisposable } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GIT_EXECUTABLE } from '@main/core/utils/exec';
-import type { IDisposable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import {
   DEFAULT_REMOTE_NAME,
@@ -38,7 +39,6 @@ import {
   type PushError,
 } from '@shared/core/git/types';
 import { toRangeString, toRefString } from '@shared/core/git/utils';
-import { err, ok, type Result } from '@shared/lib/result';
 import { parseRepositoryRef } from '@shared/repository-ref';
 import {
   mapStatus,
@@ -48,7 +48,7 @@ import {
 } from './git-service-utils';
 
 // Legacy Git service retained for the SSH adapter while SSH projects still execute
-// Git through the main process. New Git code should use `@emdash/shared/git`.
+// Git through the main process. New Git code should use `@emdash/core/git`.
 
 const MAX_IMAGE_BLOB_BYTES = 10 * 1024 * 1024;
 const STATUS_FINGERPRINT_TIMEOUT_MS: Record<GitStatusUntrackedMode, number> = {
@@ -122,7 +122,7 @@ export type HeadInfo =
   | { kind: 'unborn'; name: string };
 
 /**
- * @deprecated Use `@emdash/shared/git` (`IGitRuntime`/`GitRuntime`) for new Git code.
+ * @deprecated Use `@emdash/core/git` (`IGitRuntime`/`GitRuntime`) for new Git code.
  * This service is retained only for the legacy SSH adapter until SSH projects are
  * migrated onto the shared Git runtime.
  */

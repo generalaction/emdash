@@ -1,3 +1,4 @@
+import type { IDisposable, IInitializable } from '@emdash/shared';
 import { eq } from 'drizzle-orm';
 import { githubRepositoryResolver } from '@main/core/github/services/github-repository-resolver';
 import {
@@ -10,7 +11,6 @@ import { taskSessionManager } from '@main/core/tasks/task-session-manager';
 import { db } from '@main/db/client';
 import { projectRemotes } from '@main/db/schema';
 import { events } from '@main/lib/events';
-import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import { prSyncProgressChannel } from '@shared/core/pull-requests/prEvents';
 import { parseRepositoryRef } from '@shared/repository-ref';

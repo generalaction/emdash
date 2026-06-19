@@ -1,4 +1,4 @@
-import type { GitChange } from '@emdash/shared/git';
+import type { GitChange } from '@emdash/core/git';
 import { Minus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { toast } from 'sonner';

@@ -1,4 +1,4 @@
-import type { LiveValue } from '@emdash/shared/lib';
+import type { LiveValue } from '@emdash/core/lib';
 import { makeObservable, observable, runInAction } from 'mobx';
 
 type Waiter = {

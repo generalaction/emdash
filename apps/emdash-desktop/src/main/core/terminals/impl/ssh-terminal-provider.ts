@@ -1,4 +1,6 @@
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
+import { wireTerminalUrlDetector } from '@main/core/preview-servers/terminal-url-detector';
 import { isUnexpectedPtyExit } from '@main/core/pty/exit-classification';
 import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry, type PtySessionMetadata } from '@main/core/pty/pty-session-registry';
@@ -21,7 +23,6 @@ import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import type { GeneralSessionConfig } from '@shared/core/terminals/general-session';
 import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
 import type { Terminal } from '@shared/core/terminals/terminals';
-import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -43,6 +44,7 @@ export class SshTerminalProvider implements TerminalProvider {
   private respawnCounts = new Map<string, number>();
   private terminals = new Map<string, Terminal>();
   private readonly projectId: string;
+  private readonly workspaceId: string;
   private readonly scopeId: string;
   private readonly taskPath: string;
   private readonly taskEnvVars: Record<string, string>;
@@ -55,6 +57,7 @@ export class SshTerminalProvider implements TerminalProvider {
 
   constructor({
     projectId,
+    workspaceId,
     scopeId,
     taskPath,
     taskEnvVars = {},
@@ -65,6 +68,7 @@ export class SshTerminalProvider implements TerminalProvider {
     connectionId,
   }: {
     projectId: string;
+    workspaceId?: string;
     scopeId: string;
     taskPath: string;
     taskEnvVars?: Record<string, string>;
@@ -75,6 +79,7 @@ export class SshTerminalProvider implements TerminalProvider {
     connectionId: string;
   }) {
     this.projectId = projectId;
+    this.workspaceId = workspaceId ?? scopeId;
     this.scopeId = scopeId;
     this.taskPath = taskPath;
     this.taskEnvVars = taskEnvVars;
@@ -196,11 +201,40 @@ export class SshTerminalProvider implements TerminalProvider {
     const pty = result.data;
 
     if (policy.watchDevServer) {
-      wireTerminalDevServerWatcher({
+      wireTerminalUrlDetector({
         pty,
-        scopeId: this.scopeId,
-        terminalId: terminal.id,
-        probe: false,
+        probeLocalPorts: false,
+        onDetected: (server) => {
+          void previewServerService
+            .registerDetectedTarget({
+              projectId: this.projectId,
+              workspaceId: this.workspaceId,
+              connectionId: this.connectionId,
+              transport: 'ssh',
+              proxy: this.proxy,
+              source: { kind: 'terminal-output', terminalId: terminal.id },
+              protocol: server.protocol,
+              port: server.port,
+              urlPath: server.urlPath,
+            })
+            .catch((error) => {
+              log.warn('SshTerminalProvider: preview target registration failed', {
+                terminalId: terminal.id,
+                connectionId: this.connectionId,
+                error: String(error),
+              });
+            });
+        },
+        onSourceClosed: (event) =>
+          previewServerService.handleTerminalSourceClosed({
+            projectId: this.projectId,
+            workspaceId: this.workspaceId,
+            terminalId: terminal.id,
+            transport: 'ssh',
+            connectionId: this.connectionId,
+            reason: event.reason,
+            server: 'server' in event ? event.server : undefined,
+          }),
       });
     }
 

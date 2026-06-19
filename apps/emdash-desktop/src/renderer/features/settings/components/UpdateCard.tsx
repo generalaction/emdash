@@ -4,7 +4,6 @@ import React from 'react';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
-import { formatBytes } from '@renderer/utils/formatBytes';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { SettingRow } from './SettingRow';
 
@@ -12,9 +11,6 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
   const update = appState.update;
   const downloadProgress =
     update.state.status === 'downloading' ? update.state.progress : undefined;
-  const hasByteProgress =
-    downloadProgress !== undefined &&
-    ((downloadProgress.total ?? 0) > 0 || (downloadProgress.transferred ?? 0) > 0);
 
   const versionTitle = (
     <div className="flex items-center gap-2">
@@ -55,19 +51,11 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
       />
 
       {update.state.status === 'downloading' && downloadProgress && (
-        <div className="space-y-2">
-          <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
-            <div
-              className="bg-primary h-full transition-all duration-300 ease-out"
-              style={{ width: `${downloadProgress.percent || 0}%` }}
-            />
-          </div>
-          {hasByteProgress && (
-            <p className="text-muted-foreground text-xs">
-              {formatBytes(downloadProgress.transferred || 0)} /{' '}
-              {formatBytes(downloadProgress.total || 0)}
-            </p>
-          )}
+        <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
+          <div
+            className="bg-primary h-full transition-all duration-300 ease-out"
+            style={{ width: `${downloadProgress.percent || 0}%` }}
+          />
         </div>
       )}
     </div>

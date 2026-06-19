@@ -45,8 +45,8 @@ import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { AutomationRunPill } from './components/automation-run-pill';
-import { DevServerPills } from './components/dev-server-pills';
 import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
+import { PreviewServerPills } from './components/preview-servers/preview-server-pills';
 import { type SidebarTab } from './types';
 import { useGitActions } from './use-git-actions';
 
@@ -311,7 +311,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
       }
       rightSlot={
         <div className="flex items-center gap-2">
-          <DevServerPills projectId={projectId} taskId={taskId} />
+          <PreviewServerPills />
           <OpenInMenu
             path={workspace.path}
             className="h-7 bg-transparent"

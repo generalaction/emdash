@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { err, ok } from '@emdash/shared';
 import { sql } from 'drizzle-orm';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { projectEvents } from '@main/core/projects/project-events';
@@ -8,7 +9,6 @@ import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-co
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import { err, ok } from '@shared/lib/result';
 import type { CreateProjectResult, ProjectPathStatus } from '@shared/projects';
 import { ensureProjectRepository } from './create-project-utils';
 import { ensureRepositoryWorkspace } from './ensure-repository-workspace';

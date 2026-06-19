@@ -1,5 +1,5 @@
-import type { CanonicalHookEvent } from '@emdash/shared/agents/plugins';
-import { defaultHookEventParser } from '@emdash/shared/agents/plugins/helpers';
+import type { CanonicalHookEvent } from '@emdash/core/agents/plugins';
+import { defaultHookEventParser } from '@emdash/core/agents/plugins/helpers';
 import { eq } from 'drizzle-orm';
 import { getPlugin } from '@main/core/agents/plugin-registry';
 import { db } from '@main/db/client';

@@ -16,8 +16,13 @@ import {
   type BrowserDataClearKind,
 } from '@shared/browser';
 import type { AppSettings } from '@shared/core/app-settings';
+import { tabNavigationShortcutChannel } from '@shared/events/appEvents';
 import { browserLinkCopiedChannel, browserOpenInNewTabChannel } from '@shared/events/browserEvents';
-import { APP_SHORTCUTS, resolveDefaultHotkey } from '@shared/shortcuts';
+import {
+  APP_SHORTCUTS,
+  getElectronTabNavigationDirection,
+  resolveDefaultHotkey,
+} from '@shared/shortcuts';
 import { isGoogleAuthUrl, userAgentForBrowserUrl } from './browser-user-agent';
 
 type RegisteredBrowserSession = {
@@ -211,6 +216,19 @@ export class BrowserWebContentsRegistry {
     });
 
     webContents.on('before-input-event', (event, input) => {
+      const tabNavigationDirection = getElectronTabNavigationDirection(input);
+      if (tabNavigationDirection) {
+        const browserId = this.browserIdByWebContentsId.get(webContents.id);
+        if (browserId) {
+          event.preventDefault();
+          events.emit(tabNavigationShortcutChannel, {
+            source: { kind: 'browser', browserId },
+            direction: tabNavigationDirection,
+          });
+          return;
+        }
+      }
+
       if (!isCopyBrowserUrlShortcut(input, this.copyBrowserUrlShortcut)) return;
 
       const normalized = normalizeBrowserUrl(webContents.getURL(), { allowSearchQueries: false });

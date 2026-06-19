@@ -1,8 +1,8 @@
+import type { IInitializable } from '@emdash/shared';
 import { eq } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { KV } from '@main/db/kv';
 import { appSettings } from '@main/db/schema';
-import type { IInitializable } from '@main/lib/lifecycle';
 import {
   DEFAULT_PROMPT_LIBRARY,
   PROMPT_LIBRARY_SEED_VERSION,

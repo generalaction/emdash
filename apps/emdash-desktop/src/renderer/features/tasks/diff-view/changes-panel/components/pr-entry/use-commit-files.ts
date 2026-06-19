@@ -1,4 +1,4 @@
-import type { GitChange } from '@emdash/shared/git';
+import type { GitChange } from '@emdash/core/git';
 import { useQuery } from '@tanstack/react-query';
 import { rpc } from '@renderer/lib/ipc';
 
