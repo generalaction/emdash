@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 
-export type ExternalLinkChoice = 'emdash-browser' | 'external-browser';
+export type ExternalLinkChoice = 'rocky-browser' | 'external-browser';
 
 export type ExternalLinkChoiceDialogArgs = {
   url: string;
@@ -42,7 +42,7 @@ export function ExternalLinkChoiceDialog({
           className="w-full"
           variant="outline"
           disabled={!canOpenInEmdashBrowser}
-          onClick={() => onSuccess('emdash-browser')}
+          onClick={() => onSuccess('rocky-browser')}
         >
           <Globe className="size-4" />
           Open in Rocky

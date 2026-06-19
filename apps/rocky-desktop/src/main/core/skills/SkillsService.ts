@@ -13,9 +13,9 @@ import {
 import bundledCatalog from './bundled-catalog.json';
 
 const SKILLS_ROOT = path.join(os.homedir(), '.agentskills');
-const EMDASH_META = path.join(SKILLS_ROOT, '.emdash');
-const CATALOG_INDEX_PATH = path.join(EMDASH_META, 'catalog-index.json');
-const SKILLSH_INSTALLS_PATH = path.join(EMDASH_META, 'skillssh-installs.json');
+const ROCKY_META = path.join(SKILLS_ROOT, '.rocky');
+const CATALOG_INDEX_PATH = path.join(ROCKY_META, 'catalog-index.json');
+const SKILLSH_INSTALLS_PATH = path.join(ROCKY_META, 'skillssh-installs.json');
 
 /**
  * Persisted Skills.SH provenance, keyed by local install directory name.
@@ -107,7 +107,7 @@ export class SkillsService {
 
   async initialize(): Promise<void> {
     await fs.promises.mkdir(SKILLS_ROOT, { recursive: true });
-    await fs.promises.mkdir(EMDASH_META, { recursive: true });
+    await fs.promises.mkdir(ROCKY_META, { recursive: true });
   }
 
   async getCatalogIndex(): Promise<CatalogIndex> {
@@ -736,7 +736,7 @@ export class SkillsService {
   ): Promise<void> {
     const installs = await this.readSkillShInstalls();
     installs[installName] = record;
-    await fs.promises.mkdir(EMDASH_META, { recursive: true });
+    await fs.promises.mkdir(ROCKY_META, { recursive: true });
     await fs.promises.writeFile(SKILLSH_INSTALLS_PATH, JSON.stringify(installs, null, 2));
   }
 

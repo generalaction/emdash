@@ -15,7 +15,7 @@ interface HtmlRendererProps {
   filePath: string;
 }
 
-const LINK_INTERCEPT_MESSAGE_TYPE = 'emdash-html-link';
+const LINK_INTERCEPT_MESSAGE_TYPE = 'rocky-html-link';
 
 const LINK_INTERCEPT_SCRIPT = `
 (function(){

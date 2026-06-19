@@ -155,7 +155,7 @@ function flushAndExit() {
 }
 
 export function registerRendererLogHandler(ipcMain: Electron.IpcMain) {
-  ipcMain.on('emdash:renderer-log', (event, payload: unknown) => {
+  ipcMain.on('rocky:renderer-log', (event, payload: unknown) => {
     if (!isTrustedRendererSender(event.senderFrame)) return;
     if (!isWithinPayloadLimit(payload)) return;
     const parsed = parseRendererLog(payload);

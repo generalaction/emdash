@@ -15,7 +15,7 @@ import {
   updateProgressEvent,
 } from '@shared/events/updateEvents';
 
-const LAST_NOTIFIED_KEY = 'emdash:update:lastNotified';
+const LAST_NOTIFIED_KEY = 'rocky:update:lastNotified';
 const SNOOZE_HOURS = 6;
 
 type DownloadProgress = {

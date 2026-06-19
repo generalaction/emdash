@@ -9,13 +9,13 @@ import {
 
 describe('browser webview security helpers', () => {
   it('recognizes only Emdash browser partitions', () => {
-    expect(isBrowserPartition('persist:emdash-browser-profile')).toBe(true);
+    expect(isBrowserPartition('persist:rocky-browser-profile')).toBe(true);
     expect(isBrowserPartition('persist:default')).toBe(false);
     expect(isBrowserPartition('temporary')).toBe(false);
   });
 
   it('requires registered browser partitions for webview attachment', () => {
-    const partition = 'persist:emdash-browser-project-workspace-task-browser';
+    const partition = 'persist:rocky-browser-project-workspace-task-browser';
 
     expect(
       validateBrowserWebviewAttach({ partition, src: 'https://example.com' }, new Set([partition]))
@@ -35,7 +35,7 @@ describe('browser webview security helpers', () => {
   });
 
   it('blocks unsupported initial webview URLs', () => {
-    const partition = 'persist:emdash-browser-project-workspace-task-browser';
+    const partition = 'persist:rocky-browser-project-workspace-task-browser';
 
     expect(
       validateBrowserWebviewAttach({ partition, src: 'javascript:alert(1)' }, new Set([partition]))
@@ -82,13 +82,13 @@ describe('browser webview security helpers', () => {
   it('strips untrusted webview attach params', () => {
     const params = {
       preload: '/tmp/untrusted.js',
-      partition: 'persist:emdash-browser-project-workspace-task-browser',
+      partition: 'persist:rocky-browser-project-workspace-task-browser',
     };
 
     stripBrowserWebviewParams(params);
 
     expect(params).toEqual({
-      partition: 'persist:emdash-browser-project-workspace-task-browser',
+      partition: 'persist:rocky-browser-project-workspace-task-browser',
     });
   });
 });

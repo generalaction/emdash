@@ -91,7 +91,7 @@ function activeBrowserTab() {
       workspaceId: 'workspace-1',
       taskId: 'task-1',
       profileId: 'default',
-      partition: 'persist:emdash-browser-profile',
+      partition: 'persist:rocky-browser-profile',
       currentUrl: 'example.com',
       title: 'Example',
       isLoading: false,

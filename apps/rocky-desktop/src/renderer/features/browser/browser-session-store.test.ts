@@ -15,7 +15,7 @@ describe('BrowserSessionStore', () => {
 
     expect(session.currentUrl).toBe('http://localhost:5173/');
     expect(session.profileId).toBe('default');
-    expect(session.partition).toBe('persist:emdash-browser-profile');
+    expect(session.partition).toBe('persist:rocky-browser-profile');
     expect(store.getSession('browser-1')).toEqual(session);
   });
 
@@ -79,7 +79,7 @@ describe('BrowserSessionStore', () => {
 
     expect(store.getSession('browser-1')).toMatchObject({
       profileId: 'work',
-      partition: 'persist:emdash-browser-profile-work',
+      partition: 'persist:rocky-browser-profile-work',
       currentUrl: 'https://example.com/',
       isLoading: false,
       loadError: undefined,
@@ -107,7 +107,7 @@ describe('BrowserSessionStore', () => {
 
     expect(store.getSession('browser-1')).toMatchObject({
       profileId: 'default',
-      partition: 'persist:emdash-browser-profile',
+      partition: 'persist:rocky-browser-profile',
     });
   });
 
@@ -135,7 +135,7 @@ describe('BrowserSessionStore', () => {
 
     expect(store.getSession('browser-1')).toMatchObject({
       profileId: 'personal',
-      partition: 'persist:emdash-browser-profile-personal',
+      partition: 'persist:rocky-browser-profile-personal',
     });
   });
 
@@ -160,7 +160,7 @@ describe('BrowserSessionStore', () => {
 
     expect(switched).toMatchObject({
       profileId: 'work',
-      partition: 'persist:emdash-browser-profile-work',
+      partition: 'persist:rocky-browser-profile-work',
       currentUrl: 'https://example.com/',
       isLoading: false,
       loadError: undefined,
@@ -180,13 +180,13 @@ describe('BrowserSessionStore', () => {
     store.setSessionProfile('browser-1', 'isolated-per-task');
     expect(store.getSession('browser-1')).toMatchObject({
       profileId: 'isolated-per-task',
-      partition: 'persist:emdash-browser-isolated-project-1-workspace-1-task-1',
+      partition: 'persist:rocky-browser-isolated-project-1-workspace-1-task-1',
     });
 
     store.setSessionProfile('browser-1', 'default');
     expect(store.getSession('browser-1')).toMatchObject({
       profileId: 'default',
-      partition: 'persist:emdash-browser-profile',
+      partition: 'persist:rocky-browser-profile',
     });
   });
 
@@ -223,7 +223,7 @@ describe('BrowserSessionStore', () => {
 
     expect(store.getSession('browser-1')).toMatchObject({
       profileId: 'personal',
-      partition: 'persist:emdash-browser-profile-personal',
+      partition: 'persist:rocky-browser-profile-personal',
     });
   });
 

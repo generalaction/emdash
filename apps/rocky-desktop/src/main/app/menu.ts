@@ -10,7 +10,7 @@ import {
   menuRedoChannel,
   menuUndoChannel,
 } from '@shared/events/appEvents';
-import { EMDASH_DOCS_URL, EMDASH_ISSUES_NEW_URL, EMDASH_RELEASES_URL } from '@shared/urls';
+import { ROCKY_DOCS_URL, ROCKY_ISSUES_NEW_URL, ROCKY_RELEASES_URL } from '@shared/urls';
 import { getMainWindow } from './window';
 
 function copyInstallationId(): void {
@@ -162,13 +162,13 @@ export function setupApplicationMenu(): void {
         {
           label: 'Docs',
           click: () => {
-            void shell.openExternal(EMDASH_DOCS_URL);
+            void shell.openExternal(ROCKY_DOCS_URL);
           },
         },
         {
           label: 'Changelog',
           click: () => {
-            void shell.openExternal(EMDASH_RELEASES_URL);
+            void shell.openExternal(ROCKY_RELEASES_URL);
           },
         },
         { type: 'separator' as const },
@@ -178,7 +178,7 @@ export function setupApplicationMenu(): void {
             {
               label: 'Report Issue\u2026',
               click: () => {
-                void shell.openExternal(EMDASH_ISSUES_NEW_URL);
+                void shell.openExternal(ROCKY_ISSUES_NEW_URL);
               },
             },
             {

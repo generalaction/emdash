@@ -1,4 +1,4 @@
-export const BROWSER_PARTITION_PREFIX = 'persist:emdash-browser';
+export const BROWSER_PARTITION_PREFIX = 'persist:rocky-browser';
 
 export const DEFAULT_BROWSER_PROFILE_ID = 'default';
 export const BROWSER_ISOLATED_PROFILE_ID = 'isolated-per-task';

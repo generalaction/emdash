@@ -18,7 +18,7 @@ import {
   githubAuthSuccessChannel,
 } from '@shared/events/githubEvents';
 import type { GitHubUser } from '@shared/github';
-import { EMDASH_ISSUES_URL } from '@shared/urls';
+import { ROCKY_ISSUES_URL } from '@shared/urls';
 
 export type GithubDeviceFlowModalArgs = {
   onError?: (error: string) => void;
@@ -332,7 +332,7 @@ export function GithubDeviceFlowModal({ onSuccess, onClose, onError }: GithubDev
               </div>
               <button
                 type="button"
-                onClick={() => rpc.app.openExternal(EMDASH_ISSUES_URL)}
+                onClick={() => rpc.app.openExternal(ROCKY_ISSUES_URL)}
                 className="shrink-0 underline-offset-3 hover:text-foreground hover:underline focus:text-foreground focus:underline focus:outline-none"
               >
                 Having trouble?

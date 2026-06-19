@@ -42,7 +42,7 @@ export const ThemeContext = createContext<ThemeContextType | undefined>(undefine
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { value: themeValue, isLoading, update } = useAppSettingsKey('theme');
-  const [, setCachedTheme] = useLocalStorage<Theme>('emdash-theme', null);
+  const [, setCachedTheme] = useLocalStorage<Theme>('rocky-theme', null);
 
   const systemTheme = useSyncExternalStore(subscribeToSystemTheme, getSystemTheme);
 

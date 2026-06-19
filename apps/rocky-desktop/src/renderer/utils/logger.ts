@@ -7,6 +7,6 @@ export const log = createLogger({
       input: entry.input.map(serializeLogValue),
       source: entry.source,
     };
-    window.electronAPI?.eventSend('emdash:renderer-log', safe);
+    window.electronAPI?.eventSend('rocky:renderer-log', safe);
   },
 });

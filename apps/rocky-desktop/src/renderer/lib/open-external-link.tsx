@@ -19,7 +19,7 @@ export function confirmOpenExternalLink(url: string, onError?: (error: unknown) 
     url: normalizedUrl,
     canOpenInEmdashBrowser: taskView !== undefined,
     onSuccess: (choice) => {
-      if (choice === 'emdash-browser') {
+      if (choice === 'rocky-browser') {
         taskView?.tabGroupManager.openBrowser(normalizedUrl);
         taskView?.setFocusedRegion('main');
         return;

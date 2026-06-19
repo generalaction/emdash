@@ -25,7 +25,7 @@ vi.mock('@main/lib/events', () => ({
   },
 }));
 
-const PROFILE_PARTITION = 'persist:emdash-browser-profile';
+const PROFILE_PARTITION = 'persist:rocky-browser-profile';
 
 type FakeWebContents = WebContents & {
   windowOpenHandler: Parameters<WebContents['setWindowOpenHandler']>[0] | null;
@@ -129,7 +129,7 @@ describe('BrowserWebContentsRegistry', () => {
     registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
     registry.registerSession({
       browserId: 'browser-2',
-      partition: 'persist:emdash-browser-profile-work',
+      partition: 'persist:rocky-browser-profile-work',
     });
 
     const attached = fakeWebContents(PROFILE_PARTITION);
@@ -253,7 +253,7 @@ describe('BrowserWebContentsRegistry', () => {
     await expect(registry.clearProfileStorage('work')).resolves.toBe(true);
     await expect(registry.clearProfileStorage('isolated-per-task')).resolves.toBe(false);
 
-    const profileSession = sessionsByPartition.get('persist:emdash-browser-profile-work') as
+    const profileSession = sessionsByPartition.get('persist:rocky-browser-profile-work') as
       | { clearData: ReturnType<typeof vi.fn> }
       | undefined;
     expect(profileSession?.clearData).toHaveBeenCalled();

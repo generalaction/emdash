@@ -13,7 +13,7 @@ export function getDraggedFilePaths(dataTransfer: DataTransfer): string[] {
  * with this MIME type. Custom types must be lowercase; browsers lowercase
  * `DataTransfer.types`.
  */
-export const WORKSPACE_FILE_DRAG_TYPE = 'application/x-emdash-workspace-file';
+export const WORKSPACE_FILE_DRAG_TYPE = 'application/x-rocky-workspace-file';
 
 export type DraggedWorkspaceFile = {
   workspaceId: string;

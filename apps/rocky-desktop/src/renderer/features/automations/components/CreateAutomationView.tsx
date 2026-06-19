@@ -22,7 +22,7 @@ import { AutomationSettingsFields } from './AutomationSettingsFields';
 import { AutomationTemplateRail } from './AutomationTemplateRail';
 import { SheetHeader } from './sheet-header';
 
-const TEMPLATE_SECTION_COLLAPSED_KEY = 'emdash-automation-template-section-collapsed';
+const TEMPLATE_SECTION_COLLAPSED_KEY = 'rocky-automation-template-section-collapsed';
 
 export interface CreateAutomationViewProps {
   onClose: () => void;
