@@ -66,7 +66,7 @@ function GeneralSettingsPage() {
 function AccountSettingsPage() {
   return (
     <div className="space-y-8">
-      <PageHeader sticky title="Account" description="Manage your Emdash account." />
+      <PageHeader sticky title="Account" description="Manage your Rocky account." />
       <AccountTab />
     </div>
   );

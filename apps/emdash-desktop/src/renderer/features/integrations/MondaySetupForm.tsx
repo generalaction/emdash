@@ -37,7 +37,7 @@ function MondaySetupForm({ onSuccess, onClose }: SetupFormProps) {
           <span className="font-medium">
             monday.com {'>'} Admin {'>'} API
           </span>
-          . Add board URLs to choose exactly which boards Emdash searches; otherwise it checks the
+          . Add board URLs to choose exactly which boards Rocky searches; otherwise it checks the
           first 20 accessible boards.
         </p>
       </div>

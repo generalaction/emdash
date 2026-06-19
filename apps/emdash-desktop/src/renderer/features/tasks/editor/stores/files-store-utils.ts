@@ -41,7 +41,7 @@ const EXCLUDED_NAMES = new Set([
   '.windsurf',
   'worktrees',
   '.worktrees',
-  '.emdash',
+  '.rocky',
   'node_modules',
 ]);
 

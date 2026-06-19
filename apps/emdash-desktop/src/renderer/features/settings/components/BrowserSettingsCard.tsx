@@ -141,7 +141,7 @@ export function BrowserSettingsCard() {
 
       <SettingRow
         title="Disable CORS for localhost"
-        description="Allows pages opened from localhost in Emdash browser tabs to call APIs that do not send matching CORS headers."
+        description="Allows pages opened from localhost in Rocky browser tabs to call APIs that do not send matching CORS headers."
         control={
           <Switch
             checked={browserSettings?.relaxCorsForLocalhost ?? false}

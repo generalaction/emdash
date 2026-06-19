@@ -105,7 +105,7 @@ export function GitHubAccountRows({ accounts }: { accounts: GitHubAccountSummary
   };
 
   const confirmRemove = async (account: GitHubAccountSummary) => {
-    let description = 'This removes the saved GitHub token from Emdash.';
+    let description = 'This removes the saved GitHub token from Rocky.';
     try {
       const count = await rpc.projects.countProjectsUsingGithubAccount(account.accountId);
       if (count > 0) {

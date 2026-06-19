@@ -45,7 +45,7 @@ export function ExternalLinkChoiceDialog({
           onClick={() => onSuccess('emdash-browser')}
         >
           <Globe className="size-4" />
-          Open in Emdash
+          Open in Rocky
         </Button>
         <Button className="w-full" variant="default" onClick={() => onSuccess('external-browser')}>
           <ExternalLink className="size-4" />

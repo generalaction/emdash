@@ -498,7 +498,7 @@ export function AddSshConnModal({
                     <FieldLegend variant="label" className="mb-0 flex w-fit items-center gap-1.5">
                       Authentication
                       <FieldInfoTooltip label="Authentication">
-                        Choose how Emdash authenticates to the remote server. SSH config entries can
+                        Choose how Rocky authenticates to the remote server. SSH config entries can
                         preselect the best option.
                       </FieldInfoTooltip>
                     </FieldLegend>

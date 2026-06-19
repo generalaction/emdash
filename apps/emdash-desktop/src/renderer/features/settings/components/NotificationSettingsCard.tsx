@@ -216,7 +216,7 @@ const NotificationSettingsCard: React.FC = () => {
 
         <SettingRow
           title="OS notifications"
-          description="Show system banners when agents need attention or finish (while Emdash is unfocused)."
+          description="Show system banners when agents need attention or finish (while Rocky is unfocused)."
           control={
             <>
               <ResetToDefaultButton

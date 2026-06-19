@@ -52,7 +52,7 @@ const RepositorySettingsCard: React.FC = () => {
           />
           <ResetToDefaultButton
             visible={isProjectFieldOverridden('branchPrefix')}
-            defaultLabel="emdash"
+            defaultLabel="rocky"
             onReset={() => resetProjectField('branchPrefix')}
             disabled={projectBusy}
           />
@@ -103,7 +103,7 @@ const RepositorySettingsCard: React.FC = () => {
       />
       <SettingRow
         title="Auto-update .gitignore"
-        description="When Emdash writes CLI hook configs, also add their paths to .gitignore."
+        description="When Rocky writes CLI hook configs, also add their paths to .gitignore."
         control={
           <>
             <ResetToDefaultButton

@@ -95,7 +95,7 @@ export const PreviewServerPill = observer(function PreviewServerPill({
           }}
         >
           <Globe className="size-3.5" />
-          Open in Emdash Browser
+          Open in Rocky Browser
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={!canOpen}

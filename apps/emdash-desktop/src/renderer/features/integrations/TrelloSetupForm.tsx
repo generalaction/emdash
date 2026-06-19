@@ -43,7 +43,7 @@ function TrelloSetupForm({ onSuccess, onClose }: SetupFormProps) {
         <p className="text-muted-foreground text-xs">
           Create a Power-Up at <span className="font-medium">trello.com/power-ups/admin</span> to
           get an API key, then generate a token from the API key page. Add board URLs to choose
-          exactly which boards Emdash searches; otherwise it checks the first 20 open boards.
+          exactly which boards Rocky searches; otherwise it checks the first 20 open boards.
         </p>
       </div>
     </SetupFormShell>

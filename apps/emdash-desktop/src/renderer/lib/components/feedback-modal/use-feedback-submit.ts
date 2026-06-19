@@ -61,7 +61,7 @@ export function buildFeedbackContent({
 
   const trimmedAppVersion = appVersion?.trim();
   if (trimmedAppVersion) {
-    metadataLines.push(`Emdash Version: ${trimmedAppVersion}`);
+    metadataLines.push(`Rocky Version: ${trimmedAppVersion}`);
   }
 
   if (includeDiagnosticLogs) {

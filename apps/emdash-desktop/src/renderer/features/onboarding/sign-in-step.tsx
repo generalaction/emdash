@@ -82,7 +82,7 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
         <div className="flex flex-col items-center justify-center gap-2">
           <h1 className="text-center text-xl">Connect GitHub</h1>
           <p className="text-md text-center text-foreground-muted">
-            Emdash uses GitHub for git operations, pull requests and issues.
+            Rocky uses GitHub for git operations, pull requests and issues.
           </p>
         </div>
       </div>
