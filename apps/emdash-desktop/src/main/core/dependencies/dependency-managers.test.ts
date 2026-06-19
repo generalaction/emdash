@@ -131,8 +131,8 @@ describe('ensureAgentDependenciesProbed', () => {
     });
     fakeManager.probeCategory.mockReturnValue(probe);
 
-    const first = ensureAgentDependenciesProbed(manager, undefined);
-    const second = ensureAgentDependenciesProbed(manager, undefined);
+    const first = ensureAgentDependenciesProbed(manager);
+    const second = ensureAgentDependenciesProbed(manager);
     await Promise.resolve();
     await Promise.resolve();
 
@@ -151,8 +151,8 @@ describe('ensureAgentDependenciesProbed', () => {
     const manager = await getDependencyManager();
     const fakeManager = mocks.instances[0]!;
 
-    await ensureAgentDependenciesProbed(manager, undefined);
-    await ensureAgentDependenciesProbed(manager, undefined);
+    await ensureAgentDependenciesProbed(manager);
+    await ensureAgentDependenciesProbed(manager);
 
     expect(fakeManager.probeCategory).toHaveBeenCalledTimes(1);
   });
@@ -169,9 +169,109 @@ describe('ensureAgentDependenciesProbed', () => {
     const remoteManager = await getDependencyManager('ssh-1');
     expect(remoteManager.probeCategory).not.toHaveBeenCalled();
 
-    await ensureAgentDependenciesProbed(remoteManager, 'ssh-1');
+    await ensureAgentDependenciesProbed(remoteManager);
 
     expect(remoteManager.probeCategory).toHaveBeenCalledWith('agent', { refreshShellEnv: true });
     await expect(getDependencyManager('ssh-1')).resolves.toBe(remoteManager);
+  });
+
+  it('deduplicates concurrent remote manager creation', async () => {
+    const { getDependencyManager } = await import('./dependency-managers');
+    let resolveConnect: ((proxy: unknown) => void) | undefined;
+    mocks.connect.mockReturnValue(
+      new Promise((resolve) => {
+        resolveConnect = resolve;
+      })
+    );
+
+    const first = getDependencyManager('ssh-1');
+    const second = getDependencyManager('ssh-1');
+    await Promise.resolve();
+
+    expect(mocks.connect).toHaveBeenCalledTimes(1);
+
+    if (!resolveConnect) throw new Error('Connect did not start');
+    resolveConnect({});
+
+    const [firstManager, secondManager] = await Promise.all([first, second]);
+    expect(firstManager).toBe(secondManager);
+    expect(firstManager).toBe(mocks.instances[1]);
+    expect(mocks.instances).toHaveLength(2);
+  });
+
+  it('does not share in-flight probes across manager instances', async () => {
+    const { clearDependencyManager, ensureAgentDependenciesProbed, getDependencyManager } =
+      await import('./dependency-managers');
+    mocks.connect.mockResolvedValue({});
+
+    const firstManager = await getDependencyManager('ssh-1');
+    const firstFakeManager = mocks.instances[1]!;
+    clearDependencyManager('ssh-1');
+    const secondManager = await getDependencyManager('ssh-1');
+    const secondFakeManager = mocks.instances[2]!;
+
+    let resolveFirstProbe: (() => void) | undefined;
+    let resolveSecondProbe: (() => void) | undefined;
+    firstFakeManager.probeCategory.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveFirstProbe = resolve;
+      })
+    );
+    secondFakeManager.probeCategory.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveSecondProbe = resolve;
+      })
+    );
+
+    const firstProbe = ensureAgentDependenciesProbed(firstManager);
+    const secondProbe = ensureAgentDependenciesProbed(secondManager);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(firstFakeManager.probeCategory).toHaveBeenCalledTimes(1);
+    expect(secondFakeManager.probeCategory).toHaveBeenCalledTimes(1);
+
+    if (!resolveFirstProbe || !resolveSecondProbe) throw new Error('Probes did not start');
+    firstFakeManager.setAgentStates();
+    secondFakeManager.setAgentStates();
+    resolveFirstProbe();
+    resolveSecondProbe();
+    await Promise.all([firstProbe, secondProbe]);
+  });
+
+  it('clears cached remote managers explicitly', async () => {
+    const { clearDependencyManager, getDependencyManager } = await import('./dependency-managers');
+    mocks.connect.mockResolvedValue({});
+
+    const first = await getDependencyManager('ssh-1');
+    clearDependencyManager('ssh-1');
+    const second = await getDependencyManager('ssh-1');
+
+    expect(second).not.toBe(first);
+    expect(mocks.connect).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not cache a remote manager cleared during creation', async () => {
+    const { clearDependencyManager, getDependencyManager } = await import('./dependency-managers');
+    let resolveConnect: ((proxy: unknown) => void) | undefined;
+    mocks.connect.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveConnect = resolve;
+      })
+    );
+
+    const pending = getDependencyManager('ssh-1');
+    await Promise.resolve();
+    clearDependencyManager('ssh-1');
+
+    if (!resolveConnect) throw new Error('Connect did not start');
+    resolveConnect({});
+    const clearedManager = await pending;
+
+    mocks.connect.mockResolvedValue({});
+    const nextManager = await getDependencyManager('ssh-1');
+
+    expect(nextManager).not.toBe(clearedManager);
+    expect(mocks.connect).toHaveBeenCalledTimes(2);
   });
 });

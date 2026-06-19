@@ -44,7 +44,8 @@ export const localDependencyManager = new HostDependencyManager(new LocalExecuti
 wireDesktopBridges(localDependencyManager, undefined);
 
 const sshManagers = new Map<string, HostDependencyManager>();
-const agentProbePromises = new Map<string, Promise<void>>();
+const sshManagerPromises = new Map<string, Promise<HostDependencyManager>>();
+const agentProbePromises = new WeakMap<HostDependencyManager, Promise<void>>();
 
 /** Resolve the OS platform of a remote machine via a lightweight `uname -s` probe. */
 async function resolveRemotePlatform(ctx: IExecutionContext): Promise<Platform> {
@@ -60,44 +61,69 @@ async function resolveRemotePlatform(ctx: IExecutionContext): Promise<Platform> 
 
 export async function getDependencyManager(connectionId?: string): Promise<HostDependencyManager> {
   if (!connectionId) return localDependencyManager;
-  let mgr = sshManagers.get(connectionId);
-  if (!mgr) {
-    const proxy = await sshConnectionManager.connect(connectionId);
-    const sshCtx = new SshExecutionContext(proxy);
-    const platform = await resolveRemotePlatform(sshCtx);
-    mgr = new HostDependencyManager(sshCtx, {
-      runInstallCommand: createSshInstallCommandRunner(proxy),
-      connectionId,
-      platform,
-      getSelection: (depId) => hostDependencyStore.getSelection(connectionId, depId),
-      logger: log,
-      dependencies: DEPENDENCIES,
-      getDependencyDescriptor,
+  const existing = sshManagers.get(connectionId);
+  if (existing) return existing;
+
+  const pending = sshManagerPromises.get(connectionId);
+  if (pending) return pending;
+
+  const promise = createSshDependencyManager(connectionId)
+    .then((mgr) => {
+      if (sshManagerPromises.get(connectionId) === promise) {
+        sshManagers.set(connectionId, mgr);
+      }
+      return mgr;
+    })
+    .finally(() => {
+      if (sshManagerPromises.get(connectionId) === promise) {
+        sshManagerPromises.delete(connectionId);
+      }
     });
-    wireDesktopBridges(mgr, connectionId);
-    sshManagers.set(connectionId, mgr);
-  }
+  sshManagerPromises.set(connectionId, promise);
+  return promise;
+}
+
+async function createSshDependencyManager(connectionId: string): Promise<HostDependencyManager> {
+  const proxy = await sshConnectionManager.connect(connectionId);
+  const sshCtx = new SshExecutionContext(proxy);
+  const platform = await resolveRemotePlatform(sshCtx);
+  const mgr = new HostDependencyManager(sshCtx, {
+    runInstallCommand: createSshInstallCommandRunner(proxy),
+    connectionId,
+    platform,
+    getSelection: (depId) => hostDependencyStore.getSelection(connectionId, depId),
+    logger: log,
+    dependencies: DEPENDENCIES,
+    getDependencyDescriptor,
+  });
+  wireDesktopBridges(mgr, connectionId);
   return mgr;
+}
+
+export function clearDependencyManager(connectionId: string): void {
+  const manager = sshManagers.get(connectionId);
+  if (manager) {
+    agentProbePromises.delete(manager);
+  }
+  sshManagers.delete(connectionId);
+  sshManagerPromises.delete(connectionId);
 }
 
 export async function ensureAgentDependenciesProbed(
   manager: HostDependencyManager,
-  connectionId: string | undefined,
   options: DependencyProbeOptions = { refreshShellEnv: true }
 ): Promise<void> {
-  const hostKey = connectionId ?? 'local';
-
   if (AGENT_DEPENDENCIES.every((dependency) => manager.get(dependency.id) !== undefined)) return;
 
-  const existing = agentProbePromises.get(hostKey);
+  const existing = agentProbePromises.get(manager);
   if (existing) {
     await existing;
     return;
   }
 
   const promise = manager.probeCategory('agent', options).finally(() => {
-    agentProbePromises.delete(hostKey);
+    agentProbePromises.delete(manager);
   });
-  agentProbePromises.set(hostKey, promise);
+  agentProbePromises.set(manager, promise);
   await promise;
 }

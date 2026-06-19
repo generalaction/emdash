@@ -105,7 +105,7 @@ describe('agentsController agent status manager', () => {
 
     const result = await agentsController.listAgentInstallationStatus('ssh-1');
 
-    expect(mocks.ensureAgentDependenciesProbed).toHaveBeenCalledWith(manager, 'ssh-1');
+    expect(mocks.ensureAgentDependenciesProbed).toHaveBeenCalledWith(manager);
     expect(mocks.getDependencyManager).toHaveBeenCalledWith('ssh-1');
     expect(mocks.getDependencyManager.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.ensureAgentDependenciesProbed.mock.invocationCallOrder[0]
@@ -130,7 +130,7 @@ describe('agentsController agent status manager', () => {
 
     const result = await agentsController.getAgentInstallationStatus('codex', 'ssh-1');
 
-    expect(mocks.ensureAgentDependenciesProbed).toHaveBeenCalledWith(manager, 'ssh-1');
+    expect(mocks.ensureAgentDependenciesProbed).toHaveBeenCalledWith(manager);
     expect(mocks.getDependencyManager).toHaveBeenCalledWith('ssh-1');
     expect(mocks.getDependencyManager.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.ensureAgentDependenciesProbed.mock.invocationCallOrder[0]
