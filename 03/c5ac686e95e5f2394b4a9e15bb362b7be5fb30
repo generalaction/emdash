@@ -1,0 +1,34 @@
+apps/emdash-desktop/src/renderer/lib/pty/file-link-detection.ts
+  s_0e3a13c763d80c::t_45f37756b4e751 3-8,11
+  s_fc7c6cf2e09a5a::t_0a7b6b7c79a662 9,13-36,75,100-103
+  s_0e3a13c763d80c::t_b754d03299e93c 63
+  s_0e3a13c763d80c::t_c7614fbe86e8b3 64
+apps/emdash-desktop/src/renderer/tests/file-link-provider.test.ts
+  s_fc7c6cf2e09a5a::t_2b942394724f30 135,167-180
+  s_0e3a13c763d80c::t_6ca51c38554f7e 134,136-166,181-184
+  s_0e3a13c763d80c::t_d588257be468d3 96-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "03c5ac686e95e5f2394b4a9e15bb362b7be5fb30",
+  "prompts": {},
+  "sessions": {
+    "s_0e3a13c763d80c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "95ac4b34-b90e-4494-8039-eb63cdbb72c7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_fc7c6cf2e09a5a": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019edf2e-7ba0-79cd-968b-b82fdd9e63d2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
