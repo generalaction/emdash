@@ -587,6 +587,32 @@ describe('GitWorktree', () => {
     }
   });
 
+  it('reverts selected files staged for deletion without deleting the working copy', async () => {
+    const repo = await makeRepo();
+    const runtime = new GitRuntime();
+
+    try {
+      const lease = await runtime.openWorktree(repo);
+      const worktree = lease.value;
+
+      await execFileAsync('git', ['rm', '--cached', 'tracked.txt'], { cwd: repo });
+
+      const sequences = await worktree.revert(['tracked.txt']);
+
+      expect(sequences.status).toBeGreaterThanOrEqual(1);
+      await expect(readFile(path.join(repo, 'tracked.txt'), 'utf8')).resolves.toBe('before\n');
+      await expect(worktree.getStatus()).resolves.toMatchObject({
+        kind: 'ok',
+        staged: [],
+        unstaged: [],
+      });
+
+      lease.release();
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it('refreshes staged status when the index blob changes but summary fields stay equal', async () => {
     const repo = await makeRepo();
     const runtime = new GitRuntime();
