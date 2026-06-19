@@ -508,7 +508,12 @@ describe('GitWorktree', () => {
         staged: [],
         unstaged: expect.arrayContaining([
           expect.objectContaining({ path: 'tracked.txt', status: 'modified' }),
-          expect.objectContaining({ path: 'untracked.txt', status: 'added' }),
+          expect.objectContaining({
+            path: 'untracked.txt',
+            status: 'added',
+            additions: 1,
+            deletions: 0,
+          }),
           expect.objectContaining({ path: 'to-delete.txt', status: 'deleted' }),
         ]),
       });
