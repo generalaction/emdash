@@ -5,7 +5,10 @@ import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-se
 import { getPlugin } from '@main/core/agents/plugin-registry';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
-import { spillLargePrompt } from '@main/core/conversations/spill-large-prompt';
+import {
+  type SpillLargePromptResult,
+  spillLargePrompt,
+} from '@main/core/conversations/spill-large-prompt';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { localDependencyManager } from '@main/core/dependencies/dependency-managers';
 import { hostDependencyStore } from '@main/core/dependencies/host-dependency-store';
@@ -112,6 +115,7 @@ export class LocalConversationProvider implements ConversationProvider {
     });
     if (!spawnToken) return;
 
+    let spill: SpillLargePromptResult | undefined;
     try {
       await workspaceTrustService.maybeAutoTrustLocal({
         providerId: conversation.providerId,
@@ -142,10 +146,10 @@ export class LocalConversationProvider implements ConversationProvider {
       // Very large prompts (e.g. a full Linear issue + activity context) can blow
       // past OS argument limits and crash the underlying CLI. Spill them to a temp
       // markdown file and hand the agent a short pointer message instead (ENG-1546).
-      const effectiveInitialPrompt =
-        !agentSession.isResuming && initialPrompt
-          ? await spillLargePrompt(initialPrompt)
-          : initialPrompt;
+      if (!agentSession.isResuming && initialPrompt) {
+        spill = await spillLargePrompt(initialPrompt);
+      }
+      const effectiveInitialPrompt = spill?.prompt ?? initialPrompt;
 
       const agentCommand = plugin.behavior.prompt!.buildCommand({
         cli: executableCli,
@@ -204,6 +208,8 @@ export class LocalConversationProvider implements ConversationProvider {
       });
 
       pty.onExit((info) => {
+        // The spilled context file is only needed while this process runs.
+        void spill?.cleanup();
         const decision = this.supervisor.handleExit(sessionId, pty);
         if (decision.kind === 'stale') return;
         const replacementSize = ptySessionRegistry.getLastSize(sessionId) ?? spawnSize;
@@ -260,6 +266,8 @@ export class LocalConversationProvider implements ConversationProvider {
         conversation_id: conversation.id,
       });
     } catch (error) {
+      // No PTY was created (or its onExit never fired), so clean up the temp file here.
+      void spill?.cleanup();
       this.supervisor.failSpawn(sessionId, spawnToken);
       throw error;
     }

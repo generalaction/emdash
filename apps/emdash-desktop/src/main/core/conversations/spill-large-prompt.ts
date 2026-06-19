@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { log } from '@main/lib/logger';
@@ -32,13 +32,24 @@ export type SpillLargePromptDeps = {
   maxChars?: number;
   createTempDir?: () => Promise<string>;
   writeContextFile?: (filePath: string, contents: string) => Promise<void>;
+  removeTempDir?: (dir: string) => Promise<void>;
   onError?: (error: unknown, promptLength: number) => void;
 };
+
+export type SpillLargePromptResult = {
+  /** Either the original prompt or a short pointer message to the spilled file. */
+  prompt: string;
+  /** Removes the temp file once the session no longer needs it (no-op if not spilled). */
+  cleanup: () => Promise<void>;
+};
+
+const noopCleanup = (): Promise<void> => Promise.resolve();
 
 const defaultDeps: Required<SpillLargePromptDeps> = {
   maxChars: MAX_INLINE_PROMPT_CHARS,
   createTempDir: () => mkdtemp(join(tmpdir(), TEMP_DIR_PREFIX)),
   writeContextFile: (filePath, contents) => writeFile(filePath, contents, 'utf8'),
+  removeTempDir: (dir) => rm(dir, { recursive: true, force: true }),
   onError: (error, promptLength) =>
     log.warn('Failed to spill large prompt to file; passing it inline instead', {
       error: String(error),
@@ -49,23 +60,33 @@ const defaultDeps: Required<SpillLargePromptDeps> = {
 /**
  * If `prompt` is larger than the configured threshold, write it to a temporary
  * markdown file and return a short pointer message instructing the agent to read
- * that file. Otherwise (or if writing fails) return the prompt unchanged.
+ * that file, plus a `cleanup` that deletes the temp dir once the session ends.
+ * Otherwise (or if writing fails) return the prompt unchanged with a no-op cleanup.
  */
 export async function spillLargePrompt(
   prompt: string,
   deps: SpillLargePromptDeps = {}
-): Promise<string> {
-  const { maxChars, createTempDir, writeContextFile, onError } = { ...defaultDeps, ...deps };
+): Promise<SpillLargePromptResult> {
+  const { maxChars, createTempDir, writeContextFile, removeTempDir, onError } = {
+    ...defaultDeps,
+    ...deps,
+  };
 
-  if (prompt.length <= maxChars) return prompt;
+  if (prompt.length <= maxChars) return { prompt, cleanup: noopCleanup };
 
+  let dir: string | undefined;
   try {
-    const dir = await createTempDir();
+    dir = await createTempDir();
     const filePath = join(dir, CONTEXT_FILE_NAME);
     await writeContextFile(filePath, prompt);
-    return buildPromptPointerMessage(filePath);
+    const createdDir = dir;
+    return {
+      prompt: buildPromptPointerMessage(filePath),
+      cleanup: () => removeTempDir(createdDir),
+    };
   } catch (error) {
+    if (dir) await removeTempDir(dir).catch(() => {});
     onError(error, prompt.length);
-    return prompt;
+    return { prompt, cleanup: noopCleanup };
   }
 }
