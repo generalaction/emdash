@@ -1,0 +1,22 @@
+apps/emdash-desktop/src/renderer/utils/soundPlayer.ts
+  s_feb6d6df071fa8::t_cf53894edc7e18 24-31,186
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.ts
+  s_feb6d6df071fa8::t_cf53894edc7e18 79,124-128,130-133,173-174,251-254
+  s_feb6d6df071fa8::t_e4a6444dcc4c31 134-141,143-161,163-171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "fc1ed4e4a39f0bf60e32cbf729e5ff4f38721bd8",
+  "prompts": {},
+  "sessions": {
+    "s_feb6d6df071fa8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ee0ba-aaac-7300-9a0e-cb1f60e6493f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
