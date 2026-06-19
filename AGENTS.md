@@ -18,7 +18,7 @@ Repo root:
 - `.github/` - GitHub issue templates, reusable actions, CI, and release workflows.
 - `agents/` - Agent-facing architecture, workflow, convention, integration, and risk docs.
 - `apps/emdash-desktop/` - The Electron desktop app (everything below).
-- `packages/` - Reserved for future shared workspace packages (currently empty).
+- `packages/` - Shared workspace packages: core runtime, shared primitives, UI, and plugins.
 - Root config files - `pnpm-workspace.yaml`, root `package.json` with aggregate scripts,
   `.nvmrc`, `.oxfmtrc.json`, `.oxlintrc.json`.
 
