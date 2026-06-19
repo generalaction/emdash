@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React, { useEffect, useRef } from 'react';
 import { ThemeProvider } from '../primitives/theme-provider';
-import { SEMANTIC_VARS } from '../theme/contract/contract.generated';
+import { SEMANTIC_VARS } from './contract/contract.generated';
 
 // ── Sections ──────────────────────────────────────────────────────────────────
 //

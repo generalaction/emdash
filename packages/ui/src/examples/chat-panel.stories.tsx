@@ -232,7 +232,7 @@ function LiveChatPanel() {
 // ── Story meta ────────────────────────────────────────────────────────────────
 
 const meta: Meta = {
-  title: 'Composed/ChatPanel',
+  title: 'Examples/ChatPanel',
   parameters: {
     // Fill the preview pane so the panel can use full height.
     layout: 'fullscreen',

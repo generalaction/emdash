@@ -1,5 +1,5 @@
 /**
- * ComboboxPopover — searchable combobox-in-popover primitive
+ * ComboboxPopover — searchable combobox-in-popover component
  *
  * Stories demonstrate:
  *  - Basic flat list with in-popover search
@@ -10,7 +10,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Bot, Cpu, Zap } from 'lucide-react';
 import React, { useState } from 'react';
-import { ComboboxPopover } from '../primitives/combobox-popover';
+import { ComboboxPopover } from './combobox-popover';
 
 // ── Shared data ───────────────────────────────────────────────────────────────
 
@@ -137,7 +137,7 @@ function ModelDetailCard({ item }: { item: ModelItem }) {
 // ── Meta ──────────────────────────────────────────────────────────────────────
 
 const meta: Meta = {
-  title: 'Primitives/ComboboxPopover',
+  title: 'Components/ComboboxPopover',
   parameters: { layout: 'centered' },
 };
 export default meta;

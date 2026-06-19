@@ -22,6 +22,10 @@
       "types": "./dist/components.d.mts",
       "default": "./dist/components.mjs"
     },
+    "./patterns": {
+      "types": "./dist/patterns.d.mts",
+      "default": "./dist/patterns.mjs"
+    },
     "./theme/tokens.css": "./src/theme/tokens.css",
     "./theme/theme.css": "./src/theme/theme.css",
     "./theme/tailwind.css": "./src/theme/tailwind.css",

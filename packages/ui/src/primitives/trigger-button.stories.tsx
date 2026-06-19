@@ -1,23 +1,23 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
-import { TriggerButton } from '../primitives/trigger-button';
+import { TriggerButton } from './trigger-button';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '../primitives/select';
+} from './select';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '../primitives/dropdown-menu';
-import { Surface } from '../primitives/surface';
+} from './dropdown-menu';
+import { Surface } from './surface';
 
 const meta: Meta = {
-  title: 'Components/TriggerButton',
+  title: 'Primitives/TriggerButton',
   parameters: { layout: 'centered' },
 };
 

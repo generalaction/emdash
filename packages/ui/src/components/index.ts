@@ -10,3 +10,4 @@ export type {
   ContextMentionProvider,
 } from './chat-composer';
 export { ConfirmationDialog, type ConfirmationDialogProps } from './confirmation-dialog';
+export { ComboboxPopover, type ComboboxPopoverProps } from './combobox-popover';

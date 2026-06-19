@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React, { useEffect, useRef, useState } from 'react';
 import { ThemeProvider } from '../primitives/theme-provider';
-import { SCALE_NAMES, STEPS } from '../theme/contract/roles';
+import { SCALE_NAMES, STEPS } from './contract/roles';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

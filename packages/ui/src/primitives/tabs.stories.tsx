@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
-import { Tabs, TabsList, TabsPanel, TabsTab } from '../primitives/tabs';
-import { Surface } from '../primitives/surface';
+import { Tabs, TabsList, TabsPanel, TabsTab } from './tabs';
+import { Surface } from './surface';
 
 const meta: Meta = {
-  title: 'Components/Tabs',
+  title: 'Primitives/Tabs',
   parameters: { layout: 'centered' },
 };
 

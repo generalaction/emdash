@@ -122,7 +122,6 @@ export {
   type HoverCardRowProps,
   type HoverCardProps,
 } from './hover-card';
-export { ComboboxPopover, type ComboboxPopoverProps } from './combobox-popover';
 export { resolveFileIconClass } from '../lib/file-icons';
 export { controlVariants, type ControlVariantProps } from '../recipes/control';
 export { inputVariants, type InputVariantProps } from '../recipes/input';

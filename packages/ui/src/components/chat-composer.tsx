@@ -21,7 +21,7 @@ import { ArrowUp, Paperclip, Square, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { cn } from '../lib/cn';
 import { Button } from '../primitives/button';
-import { ComboboxPopover } from '../primitives/combobox-popover';
+import { ComboboxPopover } from './combobox-popover';
 import { PromptEditor } from './prompt-editor/prompt-editor';
 import type {
   CommandItem,

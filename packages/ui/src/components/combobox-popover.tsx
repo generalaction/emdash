@@ -26,8 +26,8 @@ import {
   ComboboxItem,
   ComboboxList,
   ComboboxTrigger,
-} from './combobox';
-import { HoverCard, isEventInsideInteractiveLayer, useHoverCard } from './hover-card';
+} from '../primitives/combobox';
+import { HoverCard, isEventInsideInteractiveLayer, useHoverCard } from '../primitives/hover-card';
 
 // ── Public types ──────────────────────────────────────────────────────────────
 

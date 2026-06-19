@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { PlusIcon, SearchIcon, TrashIcon } from 'lucide-react';
 import React from 'react';
-import { Button } from '../primitives/button';
-import { Surface } from '../primitives/surface';
+import { Button } from './button';
+import { Surface } from './surface';
 
 const meta: Meta<typeof Button> = {
-  title: 'Components/Button',
+  title: 'Primitives/Button',
   component: Button,
   parameters: { layout: 'centered' },
   argTypes: {

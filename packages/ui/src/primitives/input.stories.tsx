@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
-import { Input } from '../primitives/input';
+import { Input } from './input';
 
 const meta: Meta<typeof Input> = {
-  title: 'Components/Input',
+  title: 'Primitives/Input',
   component: Input,
   parameters: { layout: 'centered' },
   argTypes: {

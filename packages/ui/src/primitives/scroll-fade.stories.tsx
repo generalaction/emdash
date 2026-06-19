@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
-import { ThemeProvider } from '../primitives/theme-provider';
-import { ScrollFade } from '../primitives/scroll-fade';
+import { ThemeProvider } from './theme-provider';
+import { ScrollFade } from './scroll-fade';
 
 const meta: Meta<typeof ScrollFade> = {
-  title: 'Theme/ScrollFade',
+  title: 'Primitives/ScrollFade',
   component: ScrollFade,
   parameters: { layout: 'padded' },
 };

@@ -18,7 +18,7 @@ import { SURFACE_LEVELS, SURFACE_ROLES, SURFACE_STATUSES } from '../theme/contra
 import type { SurfaceScopeName, SurfaceStatusName } from '../theme/contract/roles';
 
 const meta: Meta = {
-  title: 'Theme/Surfaces',
+  title: 'Examples/Surface Cascade',
   parameters: { layout: 'fullscreen' },
 };
 

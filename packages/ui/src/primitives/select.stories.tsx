@@ -9,10 +9,10 @@ import {
   SelectSeparator,
   SelectTrigger,
   SelectValue,
-} from '../primitives/select';
+} from './select';
 
 const meta: Meta = {
-  title: 'Components/Select',
+  title: 'Primitives/Select',
   parameters: { layout: 'centered' },
 };
 

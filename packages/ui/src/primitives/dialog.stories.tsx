@@ -3,14 +3,14 @@
  *
  * Stories demonstrate:
  *  - Default composition (header + body + footer)
- *  - All size options (xs | sm | md | lg) matching the desktop app
+ *  - All size options (xs | sm | md | lg | xl) matching the desktop app
  *  - A confirmation-style dialog
  *  - A scrollable long-body dialog
  */
 
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
-import { Button } from '../primitives/button';
+import { Button } from './button';
 import {
   Dialog,
   DialogBody,
@@ -21,10 +21,10 @@ import {
   DialogTitle,
   DialogTrigger,
   type DialogSize,
-} from '../primitives/dialog';
+} from './dialog';
 
 const meta: Meta = {
-  title: 'Components/Dialog',
+  title: 'Primitives/Dialog',
   parameters: { layout: 'centered' },
 };
 export default meta;

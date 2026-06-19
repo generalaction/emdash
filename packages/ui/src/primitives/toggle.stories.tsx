@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon, BoldIcon, ItalicIcon } from 'lucide-react';
 import React from 'react';
-import { Toggle, ToggleGroup, ToggleGroupItem } from '../primitives/toggle';
-import { Surface } from '../primitives/surface';
+import { Toggle, ToggleGroup, ToggleGroupItem } from './toggle';
+import { Surface } from './surface';
 
 const meta: Meta = {
-  title: 'Components/Toggle',
+  title: 'Primitives/Toggle',
   parameters: { layout: 'centered' },
 };
 

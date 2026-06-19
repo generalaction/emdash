@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     primitives: 'src/primitives/index.ts',
     components: 'src/components/index.ts',
+    patterns: 'src/patterns/index.ts',
     'recipes/control': 'src/recipes/control.ts',
     'recipes/input': 'src/recipes/input.ts',
   },
