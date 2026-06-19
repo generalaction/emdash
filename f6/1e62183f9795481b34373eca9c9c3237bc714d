@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/renderer/tests/file-link-provider.test.ts
+  s_0e3a13c763d80c::t_80d66f639cf8be 237-271
+apps/emdash-desktop/src/renderer/lib/pty/file-link-provider.ts
+  s_0e3a13c763d80c::t_1a73337558eabf 98
+  s_0e3a13c763d80c::t_debf6765db5120 87-90
+  s_0e3a13c763d80c::t_d0bdd325a28ba4 14,27-29,31-34,42,44,51,59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "f61e62183f9795481b34373eca9c9c3237bc714d",
+  "prompts": {},
+  "sessions": {
+    "s_0e3a13c763d80c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "95ac4b34-b90e-4494-8039-eb63cdbb72c7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
