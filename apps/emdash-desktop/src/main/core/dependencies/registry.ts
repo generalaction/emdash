@@ -68,6 +68,9 @@ function buildAgentDependencies(): DependencyDescriptor[] {
 }
 
 export const DEPENDENCIES: DependencyDescriptor[] = buildAgentDependencies();
+export const AGENT_DEPENDENCIES = DEPENDENCIES.filter(
+  (dependency) => dependency.category === 'agent'
+);
 
 export function getDependencyDescriptor(id: string): DependencyDescriptor | undefined {
   return DEPENDENCIES.find((d) => d.id === id);
