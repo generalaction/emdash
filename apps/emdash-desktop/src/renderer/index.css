@@ -681,7 +681,6 @@
     /* Semi-transparent so the selection layer beneath stays visible (ENG-1248). */
     --monaco-inserted-text-bg: color(display-p3 0.145 0.282 0.176 / 0.45);
     --monaco-inserted-line-bg: color(display-p3 0.106 0.165 0.118 / 0.55);
-    --monaco-inserted-text-border: color(display-p3 0.145 0.282 0.176 / 0.65);
     --monaco-removed-text-bg: color(display-p3 0.38 0.086 0.137 / 0.45);
     --monaco-removed-line-bg: color(display-p3 0.231 0.071 0.098 / 0.55);
     --monaco-removed-text-border: color(display-p3 0.38 0.086 0.137 / 0.65);
