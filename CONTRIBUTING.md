@@ -4,24 +4,72 @@ Thanks for your interest in contributing! We favor small, focused PRs and clear 
 
 ## Quick Start
 
-Prerequisites
+### Prerequisites
 
-- **Node.js 24.0.0+ (recommended: 24.14.0)**, **pnpm 10.28.0+**, and Git
+**All platforms**
+
+- **Node.js 24.0.0+ (recommended: 24.14.0)** and **pnpm 10.28.0+**
+- **Git**
 - Optional (recommended for end‑to‑end testing):
-  - GitHub CLI (`brew install gh`; then `gh auth login`)
+  - GitHub CLI (`brew install gh` on macOS, `winget install GitHub.cli` on Windows; then `gh auth login`)
   - At least one supported coding agent CLI (see docs for list)
 
-Setup
+**macOS**
+
+No extra setup needed. Use [nvm](https://github.com/nvm-sh/nvm) to manage Node versions:
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash
+nvm install 24.14.0
+```
+
+Or install via Homebrew: `brew install node@24 pnpm`
+
+**Windows**
+
+The app uses two native Node modules (`better-sqlite3` and `node-pty`) that must be compiled from source. You need a C++ build toolchain before running `pnpm install`.
+
+1. **Install Visual Studio 2022 Build Tools** with the "Desktop development with C++" workload.
+   The fastest way is via `winget`:
+   ```powershell
+   winget install Microsoft.VisualStudio.2022.BuildTools `
+     --override "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --quiet"
+   ```
+   Alternatively, download the [VS Build Tools installer](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+   and check "Desktop development with C++" during setup.
+
+2. **Install Node.js 24.14.0** via [nvm-windows](https://github.com/coreybutler/nvm-windows) (recommended)
+   or the [official installer](https://nodejs.org/):
+   ```powershell
+   # With nvm-windows:
+   nvm install 24.14.0
+   nvm use 24.14.0
+   ```
+
+3. **Install pnpm** (in an elevated PowerShell if needed):
+   ```powershell
+   npm install -g pnpm@10.28.2
+   ```
+
+4. Use **PowerShell** or **Git Bash** for all commands below — avoid `cmd.exe`.
+
+> **Troubleshooting native builds on Windows:** If `pnpm install` fails with a node-gyp
+> error, confirm that `node --version` shows 24.x and that `where msbuild` finds an
+> MSBuild from the 2022 Build Tools. Run `npm config set msvs_version 2022` if node-gyp
+> picks up an older toolchain.
+
+### Setup
 
 ```bash
 # Fork this repo, then clone your fork
 git clone https://github.com/<you>/emdash.git
 cd emdash
 
-# Use the correct Node.js version (if using nvm)
+# Use the correct Node.js version (if using nvm / nvm-windows)
 nvm use
 
 # Install dependencies and run the dev server from the repo root
+# This also compiles better-sqlite3 and node-pty for Electron automatically.
 pnpm install
 pnpm run dev
 
@@ -35,7 +83,18 @@ pnpm run test
 If you are already in `apps/emdash-desktop/`, `pnpm run d` is shorthand for installing
 dependencies and starting the dev app.
 
-Tip: During development, the renderer hot‑reloads. Changes to the Electron main process (files in `apps/emdash-desktop/src/main`) require a restart of the dev app.
+> **Tip:** During development, the renderer hot‑reloads. Changes to the Electron main
+> process (files in `apps/emdash-desktop/src/main`) require a restart of the dev app.
+
+#### Skipping native rebuilds
+
+Set these environment variables to skip compiling native modules (useful if you are only
+working on the renderer or running in CI without a C++ toolchain):
+
+```bash
+EMDASH_DISABLE_PTY=1        # skip node-pty rebuild
+EMDASH_DISABLE_NATIVE_DB=1  # skip better-sqlite3 rebuild
+```
 
 ## Project Overview
 
