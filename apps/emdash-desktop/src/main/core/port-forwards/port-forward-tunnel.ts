@@ -9,6 +9,17 @@ const LOCAL_BIND_HOST = '127.0.0.1';
 // `127.0.0.1` misses it. Try both loopback families per connection, in order,
 // and forward through whichever one the remote accepts.
 const REMOTE_TARGET_HOSTS = ['127.0.0.1', '::1'] as const;
+// ssh2 attaches the SSH channel-open failure reason code (RFC 4254) to the
+// error surfaced from `forwardOut`. `SSH_OPEN_CONNECT_FAILED` means the remote
+// could not connect to the requested destination (e.g. that loopback family is
+// not listening), which is the only case worth retrying on the other family.
+// Other reasons (administratively prohibited, resource shortage, a dropped
+// session) would not be fixed by a retry.
+const SSH_OPEN_CONNECT_FAILED = 2;
+
+function isConnectFailure(error: Error): boolean {
+  return (error as { reason?: number }).reason === SSH_OPEN_CONNECT_FAILED;
+}
 
 export type PortForwardTunnel = {
   localPort: number;
@@ -90,6 +101,8 @@ function forwardSocket(socket: net.Socket, options: OpenPortForwardTunnelOptions
     return;
   }
 
+  let firstError: Error | undefined;
+
   const tryTargetHost = (index: number): void => {
     const remoteHost = REMOTE_TARGET_HOSTS[index];
     client.forwardOut(
@@ -99,21 +112,25 @@ function forwardSocket(socket: net.Socket, options: OpenPortForwardTunnelOptions
       options.remotePort,
       (error: Error | undefined, channel: ClientChannel) => {
         if (error) {
-          // The remote refused this loopback family (e.g. an IPv6-only dev
-          // server rejects the IPv4 target). Fall back to the next candidate
-          // before surfacing the failure.
-          if (index + 1 < REMOTE_TARGET_HOSTS.length) {
+          firstError = firstError ?? error;
+          // Only fall back to the next loopback family when the remote could
+          // not connect to this one (e.g. an IPv6-only dev server refuses the
+          // IPv4 target). Any other failure would not be fixed by a retry, so
+          // surface it instead of masking it behind a second dial.
+          if (index + 1 < REMOTE_TARGET_HOSTS.length && isConnectFailure(error)) {
             tryTargetHost(index + 1);
             return;
           }
-          options.onConnectionError?.(error);
+          // Report the first failure so the primary target's cause is preserved
+          // when every candidate fails.
+          options.onConnectionError?.(firstError);
           socket.destroy();
           return;
         }
 
         socket.on('error', () => channel.destroy());
-        channel.on('error', (error: Error) => {
-          options.onConnectionError?.(error);
+        channel.on('error', (channelError: Error) => {
+          options.onConnectionError?.(channelError);
           socket.destroy();
         });
         socket.pipe(channel).pipe(socket);
