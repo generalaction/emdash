@@ -119,6 +119,13 @@ export type MountChatOptions = {
    * (em-light/em-dark themes, common languages) is used.
    */
   highlighter?: ChatHighlighter;
+  /**
+   * When true, the active turn's user message is pinned to the top of the
+   * transcript while scrolling, with a push-up transition as the next user
+   * message enters the viewport. Defaults to false (no behavior change for
+   * existing consumers).
+   */
+  pinUserMessages?: boolean;
 };
 
 // ── Handle ────────────────────────────────────────────────────────────────────
@@ -205,6 +212,7 @@ export function mountChat(container: HTMLElement, opts: MountChatOptions = {}): 
         onAtBottomChange={onAtBottomChange}
         controls={controls}
         highlighter={opts.highlighter}
+        pinUserMessages={opts.pinUserMessages}
       />
     ),
     container

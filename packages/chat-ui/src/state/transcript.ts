@@ -178,6 +178,26 @@ export function getItem(state: TranscriptState, i: number): ChatItem | undefined
   return state.activeTurn?.[i - cl];
 }
 
+/**
+ * Returns the absolute indices of all user-role message items in the committed
+ * tier, in ascending order. Used by ChatRoot to determine which user turn is
+ * currently active for the pinned-header overlay.
+ *
+ * User messages are always in the committed tier: the `turn_done` event flushes
+ * them before any assistant activeTurn content is appended, so this is stable
+ * during assistant streaming.
+ */
+export function collectUserTurnIndices(state: TranscriptState): number[] {
+  const result: number[] = [];
+  for (let i = 0; i < state.committed.length; i++) {
+    const item = state.committed[i];
+    if (item.kind === 'message' && item.role === 'user') {
+      result.push(i);
+    }
+  }
+  return result;
+}
+
 /** All items as a readonly array (allocates — use getItem for reactive per-index access). */
 export function allItems(state: TranscriptState): readonly ChatItem[] {
   if (!state.activeTurn || state.activeTurn.length === 0) return state.committed;

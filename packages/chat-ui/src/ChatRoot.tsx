@@ -34,6 +34,7 @@ import {
 import { CachesContext } from './components/CachesContext';
 import { CommandsContext } from './components/CommandsContext';
 import { DebugContext } from './components/debug-context';
+import { PinnedUserMessage } from './components/PinnedUserMessage';
 import { REGISTRY } from './components/registry';
 import { Row } from './components/Row';
 import { cachedMeasure, makeResolveExpanded } from './components/row-measure';
@@ -47,8 +48,8 @@ import type { ChatTheme } from './core/theme';
 import { DEFAULT_THEME } from './core/theme';
 import { Virtualizer } from './core/virtualizer';
 import type { ChatCommands, ScrollToItemOptions } from './index';
-import type { ChatItem } from './model';
-import { getItem, itemCount } from './state/transcript';
+import type { ChatItem, ChatMessage } from './model';
+import { collectUserTurnIndices, getItem, itemCount } from './state/transcript';
 import type { TranscriptApi } from './state/transcript';
 import type { ViewState } from './state/view-state';
 import './chat.module.css';
@@ -143,6 +144,13 @@ export type ChatRootProps = {
    * and exact design-system syntax colors.
    */
   highlighter?: ChatHighlighter;
+  /**
+   * When true, the active turn's user message is pinned to the top of the
+   * transcript while scrolling, with a push-up transition as the next user
+   * message enters the viewport. Defaults to false (no behavior change for
+   * existing consumers).
+   */
+  pinUserMessages?: boolean;
 };
 
 // ── ChatRoot ──────────────────────────────────────────────────────────────────
@@ -247,6 +255,67 @@ export function ChatRoot(props: ChatRootProps) {
       arr.push(i);
     }
     return arr;
+  });
+
+  // ── Pinned user-message overlay ───────────────────────────────────────────
+
+  // Absolute indices of committed user-message rows, recomputed only when the
+  // committed tier grows (user turn appended) — not on every assistant chunk.
+  const userTurns = createMemo(() => collectUserTurnIndices(props.transcript.state));
+
+  // The active pin state: which user message to overlay, and its overlayTop.
+  //
+  // The overlay lives OUTSIDE the scroll container (in a non-scrolling wrapper),
+  // so it does not move with native scroll and `overlayTop` is a viewport-
+  // relative offset — NOT a canvas-Y coordinate. In steady state it is 0 (pinned
+  // flush to the viewport top); during the handoff it rides up (negative) as the
+  // next user row's viewport top crosses the overlay height. Because the
+  // steady-state value is a constant 0, normal scrolling produces no per-frame
+  // transform change, so the overlay never jitters (only the brief push-up
+  // window touches scrollTop()).
+  //
+  // Depends on scrollTop(), padTop(), totalHeight() (for virt.top/virt.size
+  // accuracy after streaming height changes), and userTurns() (on turn append).
+  //
+  // Returns null when pinUserMessages is false or no active turn exists.
+  const pinState = createMemo(() => {
+    if (!props.pinUserMessages) return null;
+    const turns = userTurns();
+    if (turns.length === 0) return null;
+
+    const st = scrollTop();
+    const pt = padTop();
+    totalHeight(); // track streaming height changes so virt.top/virt.size stay accurate
+
+    // Binary search: largest turns[i] whose real row top has scrolled above the
+    // viewport top (pin line), i.e. virt.top(turns[i]) + pt < st.
+    let lo = 0;
+    let hi = turns.length - 1;
+    let activePos = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (virt.top(turns[mid]) + pt < st) {
+        activePos = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+
+    if (activePos < 0) return null; // no user message has scrolled above the pin line
+
+    const activeUserIdx = turns[activePos];
+    const nextUserIdx = turns[activePos + 1]; // undefined when this is the last turn
+    const overlayH = virt.size(activeUserIdx);
+
+    // Viewport-relative top of the next user row (Infinity when none).
+    const nextUserViewportTop =
+      nextUserIdx !== undefined ? virt.top(nextUserIdx) + pt - st : Infinity;
+    // Steady state: 0. Handoff: rides up so the overlay bottom meets the
+    // incoming row's top.
+    const overlayTop = Math.min(0, nextUserViewportTop - overlayH);
+
+    return { activeUserIdx, overlayTop };
   });
 
   // ── Row top positions ─────────────────────────────────────────────────────
@@ -632,56 +701,86 @@ export function ChatRoot(props: ChatRootProps) {
       <ThemeContext.Provider value={theme}>
         <CachesContext.Provider value={caches}>
           <CommandsContext.Provider value={commands}>
-            <div
-              ref={(el) => {
-                scrollEl = el;
-              }}
-              data-chat-scroll
-              class={`relative h-full w-full overflow-x-hidden overflow-y-auto${props.class ? ` ${props.class}` : ''}`}
-            >
+            {/* Non-scrolling positioned wrapper. Hosts the scroll container and
+                the pinned overlay as siblings so the overlay is unaffected by
+                native scroll (no per-frame counter-translation → no jitter).
+                overflow-hidden clips the overlay as it rides up during handoff. */}
+            <div class="relative h-full w-full overflow-hidden">
               <div
                 ref={(el) => {
-                  canvasEl = el;
+                  scrollEl = el;
                 }}
-                data-chat-canvas
-                class={`relative ${contentClass()}`}
-                style={{ height: `${totalHeight() + padTop() + padBottom()}px` }}
+                data-chat-scroll
+                class={`relative h-full w-full overflow-x-hidden overflow-y-auto${props.class ? ` ${props.class}` : ''}`}
               >
-                <For each={visibleIndexes()}>
-                  {(rowIndex) => {
-                    const rowTop = createMemo(() => {
-                      totalHeight();
-                      return virt.top(rowIndex) + padTop();
-                    });
-
-                    const item = createMemo(() => getItem(props.transcript.state, rowIndex));
-                    const committedCount = () => props.transcript.state.committed.length;
-                    const isActiveTurn = () => rowIndex >= committedCount();
-
-                    return (
-                      <Show when={item()}>
-                        <div
-                          class="absolute top-0 left-0 w-full will-change-transform [contain:layout_paint_style]"
-                          style={{ transform: `translateY(${rowTop()}px)` }}
-                          data-index={String(rowIndex)}
-                        >
-                          <Row
-                            item={item()!}
-                            index={rowIndex}
-                            rowWidth={containerWidth()}
-                            theme={theme()}
-                            viewState={props.viewState}
-                            virt={virt}
-                            onHeightChanged={onHeightChanged}
-                            isActiveTurn={isActiveTurn()}
-                            caches={caches}
-                          />
-                        </div>
-                      </Show>
-                    );
+                <div
+                  ref={(el) => {
+                    canvasEl = el;
                   }}
-                </For>
+                  data-chat-canvas
+                  class={`relative ${contentClass()}`}
+                  style={{ height: `${totalHeight() + padTop() + padBottom()}px` }}
+                >
+                  <For each={visibleIndexes()}>
+                    {(rowIndex) => {
+                      const rowTop = createMemo(() => {
+                        totalHeight();
+                        return virt.top(rowIndex) + padTop();
+                      });
+
+                      const item = createMemo(() => getItem(props.transcript.state, rowIndex));
+                      const committedCount = () => props.transcript.state.committed.length;
+                      const isActiveTurn = () => rowIndex >= committedCount();
+
+                      return (
+                        <Show when={item()}>
+                          <div
+                            class="absolute top-0 left-0 w-full will-change-transform [contain:layout_paint_style]"
+                            style={{ transform: `translateY(${rowTop()}px)` }}
+                            data-index={String(rowIndex)}
+                          >
+                            <Row
+                              item={item()!}
+                              index={rowIndex}
+                              rowWidth={containerWidth()}
+                              theme={theme()}
+                              viewState={props.viewState}
+                              virt={virt}
+                              onHeightChanged={onHeightChanged}
+                              isActiveTurn={isActiveTurn()}
+                              caches={caches}
+                            />
+                          </div>
+                        </Show>
+                      );
+                    }}
+                  </For>
+                </div>
               </div>
+              {/* Pinned user-message overlay — sibling of the scroller, so it is
+                  NOT moved by native scroll. `overlayTop` is a viewport-relative
+                  offset (0 in steady state). Centered to the same content column
+                  as the canvas via contentClass(). `aria-hidden` avoids double
+                  screen-reader announcement; `pointer-events-none` lets clicks
+                  fall through to the real virtualized row. */}
+              <Show when={pinState()}>
+                {(state) => (
+                  <div
+                    class={`pointer-events-none absolute inset-x-0 top-0 z-10 will-change-transform ${contentClass()}`}
+                    aria-hidden="true"
+                    style={{ transform: `translateY(${state().overlayTop}px)` }}
+                  >
+                    <PinnedUserMessage
+                      item={
+                        getItem(props.transcript.state, state().activeUserIdx) as ChatMessage
+                      }
+                      rowWidth={containerWidth()}
+                      theme={theme()}
+                      caches={caches}
+                    />
+                  </div>
+                )}
+              </Show>
             </div>
           </CommandsContext.Provider>
         </CachesContext.Provider>

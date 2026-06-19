@@ -80,6 +80,7 @@ function LiveChatPanel() {
       <ChatTranscript
         className="absolute inset-0"
         stickToBottom
+        pinUserMessages
         padTop={PAD_TOP}
         padBottom={composerH + PAD_BOTTOM_MARGIN}
         onReady={handleReady}

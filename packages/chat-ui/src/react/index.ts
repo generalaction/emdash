@@ -11,6 +11,11 @@
  *
  * commands / onReachStart / onAtBottomChange are also pushed reactively so
  * inline callbacks do not go stale after React re-renders.
+ *
+ * Other MountChatOptions (stickToBottom, pinUserMessages, highlighter, …)
+ * are mount-time only: they flow through the ...mountOpts spread and take
+ * effect on the initial mountChat call; changing them after mount has no
+ * effect without remounting.
  */
 
 import { createElement, useEffect, useRef } from 'react';
