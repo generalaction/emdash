@@ -1,7 +1,7 @@
 import type { WebContents } from 'electron';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { events } from '@main/lib/events';
-import { tabNavigationShortcutChannel } from '@shared/events/appEvents';
+import { browserAppShortcutChannel, tabNavigationShortcutChannel } from '@shared/events/appEvents';
 import { BrowserWebContentsRegistry } from './browser-webcontents-registry';
 
 const sessionsByPartition = new Map<string, object>();
@@ -43,6 +43,7 @@ function fakeWebContents(partition: string = PROFILE_PARTITION): FakeWebContents
     windowOpenHandler: null as FakeWebContents['windowOpenHandler'],
     close: vi.fn(),
     isDestroyed: () => false,
+    getURL: () => 'https://example.com',
     getUserAgent: () => 'base-ua',
     setUserAgent: vi.fn(),
     openDevTools: vi.fn(),
@@ -245,6 +246,54 @@ describe('BrowserWebContentsRegistry', () => {
       source: { kind: 'browser', browserId: 'browser-1' },
       direction: 'previous',
     });
+  });
+
+  it('emits app shortcuts from focused browser webContents', () => {
+    const registry = new BrowserWebContentsRegistry();
+    registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
+
+    const webContents = fakeWebContents();
+    registry.handleWebviewAttached(webContents);
+    registry.bindWebContents('browser-1', webContents);
+
+    const keyEvent = { preventDefault: vi.fn() };
+    webContents.emitEvent('before-input-event', keyEvent, {
+      type: 'keyDown',
+      key: 'K',
+      control: false,
+      shift: false,
+      alt: false,
+      meta: true,
+    });
+
+    expect(keyEvent.preventDefault).toHaveBeenCalled();
+    expect(events.emit).toHaveBeenCalledWith(browserAppShortcutChannel, {
+      source: { kind: 'browser', browserId: 'browser-1' },
+      shortcutKey: 'commandPalette',
+    });
+  });
+
+  it('does not emit disabled app shortcuts from focused browser webContents', () => {
+    const registry = new BrowserWebContentsRegistry();
+    registry.setKeyboardSettings({ commandPalette: null });
+    registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
+
+    const webContents = fakeWebContents();
+    registry.handleWebviewAttached(webContents);
+    registry.bindWebContents('browser-1', webContents);
+
+    const keyEvent = { preventDefault: vi.fn() };
+    webContents.emitEvent('before-input-event', keyEvent, {
+      type: 'keyDown',
+      key: 'K',
+      control: false,
+      shift: false,
+      alt: false,
+      meta: true,
+    });
+
+    expect(keyEvent.preventDefault).not.toHaveBeenCalled();
+    expect(events.emit).not.toHaveBeenCalledWith(browserAppShortcutChannel, expect.anything());
   });
 
   it('clears storage for a named profile without requiring an open browser', async () => {
