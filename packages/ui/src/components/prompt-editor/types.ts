@@ -71,6 +71,8 @@ export interface PromptEditorRef {
   clear(): void;
   /** Read the current serialized plain text. */
   getText(): string;
+  /** Imperatively insert a mention node at the current cursor position. */
+  insertMention(item: MentionItem): void;
 }
 
 export interface PromptEditorProps {

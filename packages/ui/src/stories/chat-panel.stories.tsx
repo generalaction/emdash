@@ -27,8 +27,21 @@ import { generateMockTranscript } from '@emdash/chat-ui';
 import { ArrowDown } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChatComposer } from '../components/chat-composer';
-import type { ContextMentionProvider, MentionItem } from '../components/chat-composer';
+import type {
+  ComposerAttachment,
+  ComposerModelOption,
+  ContextMentionProvider,
+  MentionItem,
+} from '../components/chat-composer';
+import type { PromptEditorRef } from '../components/prompt-editor/types';
 import { Button } from '../primitives/button';
+
+// ── Small coloured data URLs used as seeded image attachment previews ─────────
+
+const RED_1PX =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==';
+const BLUE_1PX =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 // ── Mock mention provider ─────────────────────────────────────────────────────
 
@@ -43,6 +56,41 @@ const MOCK_FILES: MentionItem[] = [
   { id: 'issue-42', label: 'issue-42', name: 'Issue #42: Dark mode toggle', kind: 'issue', description: 'open' },
   { id: 'handleSubmit', label: 'handleSubmit', name: 'handleSubmit()', kind: 'symbol', description: 'chat-composer.tsx' },
 ];
+
+// ── Mock model options ────────────────────────────────────────────────────────
+
+const MOCK_MODELS: Record<string, ComposerModelOption> = {
+  'claude-opus-4': {
+    name: 'Claude Opus 4',
+    description: 'Most capable model for complex reasoning and nuanced tasks.',
+    modelFeatures: { contextWindowSize: 200_000, speed: 0.4, intelligence: 1.0 },
+  },
+  'claude-sonnet-4-5': {
+    name: 'Claude Sonnet 4.5',
+    description: 'Excellent balance of speed and intelligence for everyday tasks.',
+    modelFeatures: { contextWindowSize: 200_000, speed: 0.75, intelligence: 0.85 },
+  },
+  'claude-haiku-4': {
+    name: 'Claude Haiku 4',
+    description: 'Fast and efficient, great for high-volume straightforward tasks.',
+    modelFeatures: { contextWindowSize: 200_000, speed: 0.95, intelligence: 0.65 },
+  },
+  'gpt-4o': {
+    name: 'GPT-4o',
+    description: 'OpenAI flagship multimodal model.',
+    modelFeatures: { contextWindowSize: 128_000, speed: 0.7, intelligence: 0.9 },
+  },
+  'gpt-4o-mini': {
+    name: 'GPT-4o Mini',
+    description: 'Lightweight, cost-efficient GPT-4o variant.',
+    modelFeatures: { contextWindowSize: 128_000, speed: 0.9, intelligence: 0.7 },
+  },
+  'gemini-2.5-pro': {
+    name: 'Gemini 2.5 Pro',
+    description: "Google's most capable model with a 1M context window.",
+    modelFeatures: { contextWindowSize: 1_000_000, speed: 0.6, intelligence: 0.95 },
+  },
+};
 
 const mockMentionProvider: ContextMentionProvider = {
   async search(query: string) {
@@ -64,11 +112,21 @@ const PAD_BOTTOM_MARGIN = 12;
 
 // ── Inner panel component ─────────────────────────────────────────────────────
 
+// Seeded mock image attachments — use tiny data URLs so no network request
+// is needed and the 32x32 preview row is visible in Storybook by default.
+const SEED_ATTACHMENTS: ComposerAttachment[] = [
+  { id: 'mock-img-1', name: 'screenshot.png', kind: 'image', previewUrl: RED_1PX },
+  { id: 'mock-img-2', name: 'diagram.png', kind: 'image', previewUrl: BLUE_1PX },
+];
+
 function LiveChatPanel() {
   const handleRef = useRef<ChatHandle | null>(null);
   const composerRef = useRef<HTMLDivElement>(null);
+  const editorApiRef = useRef<PromptEditorRef | null>(null);
   const [composerH, setComposerH] = useState(0);
   const [atBottom, setAtBottom] = useState(true);
+  const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
+  const [attachments, setAttachments] = useState<ComposerAttachment[]>(SEED_ATTACHMENTS);
 
   // Measure the floating composer so the transcript can reserve matching space.
   useEffect(() => {
@@ -85,6 +143,19 @@ function LiveChatPanel() {
   const handleReady = useCallback((handle: ChatHandle) => {
     handleRef.current = handle;
     handle.transcript.seed(generateMockTranscript(40, 1));
+  }, []);
+
+  // Mock onFilesDropped: insert non-image dropped files as path mentions.
+  const handleFilesDropped = useCallback((files: File[]) => {
+    const nonImages = files.filter((f) => !f.type.startsWith('image/'));
+    nonImages.forEach((f) => {
+      editorApiRef.current?.insertMention({
+        id: f.name,
+        label: f.name,
+        name: f.name,
+        kind: 'file',
+      });
+    });
   }, []);
 
   const handleSubmit = useCallback((text: string) => {
@@ -142,7 +213,17 @@ function LiveChatPanel() {
             </Button>
           </div>
         )}
-        <ChatComposer onSubmit={handleSubmit} mentionProvider={mockMentionProvider} />
+        <ChatComposer
+          onSubmit={handleSubmit}
+          mentionProvider={mockMentionProvider}
+          modelOptions={MOCK_MODELS}
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
+          attachments={attachments}
+          onAttachmentsChange={setAttachments}
+          onFilesDropped={handleFilesDropped}
+          editorApiRef={editorApiRef}
+        />
       </div>
     </div>
   );

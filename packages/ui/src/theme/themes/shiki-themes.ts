@@ -8,15 +8,15 @@ export const lightShikiTheme = {
   "colors": {
     "editor.background": "#fcfcfc",
     "editor.foreground": "#222122",
-    "editor.selectionBackground": "#9cc8fa40",
+    "editor.selectionBackground": "#93c9ff40",
     "editor.lineHighlightBackground": "#f1f1f1",
     "editorCursor.foreground": "#222122",
-    "editor.findMatchBackground": "#9cc8fa60",
-    "editor.findMatchHighlightBackground": "#9cc8fa30",
-    "editorLineNumber.foreground": "#8e8d8d",
+    "editor.findMatchBackground": "#93c9ff60",
+    "editor.findMatchHighlightBackground": "#93c9ff30",
+    "editorLineNumber.foreground": "#8f8d8d",
     "editorLineNumber.activeForeground": "#222122",
     "editorIndentGuide.background": "#cfcfcf",
-    "editorBracketMatch.background": "#c9dcf3",
+    "editorBracketMatch.background": "#c5ddf8",
     "editorBracketMatch.border": "#99d2ff",
     "scrollbarSlider.background": "#c5c4c460",
     "scrollbarSlider.hoverBackground": "#cfcece80"
@@ -29,7 +29,7 @@ export const lightShikiTheme = {
         "string.comment"
       ],
       "settings": {
-        "foreground": "#8e8d8d",
+        "foreground": "#8f8d8d",
         "fontStyle": "italic"
       }
     },
@@ -45,7 +45,7 @@ export const lightShikiTheme = {
         "keyword.other.package"
       ],
       "settings": {
-        "foreground": "#9d4241"
+        "foreground": "#a73739"
       }
     },
     {
@@ -57,7 +57,7 @@ export const lightShikiTheme = {
         "punctuation.definition.string"
       ],
       "settings": {
-        "foreground": "#2263a4"
+        "foreground": "#005fae"
       }
     },
     {
@@ -68,7 +68,7 @@ export const lightShikiTheme = {
         "constant.other"
       ],
       "settings": {
-        "foreground": "#2263a4"
+        "foreground": "#005fae"
       }
     },
     {
@@ -79,7 +79,7 @@ export const lightShikiTheme = {
         "variable.function"
       ],
       "settings": {
-        "foreground": "#006f51"
+        "foreground": "#00724f"
       }
     },
     {
@@ -93,7 +93,7 @@ export const lightShikiTheme = {
         "support.type"
       ],
       "settings": {
-        "foreground": "#7e5100"
+        "foreground": "#805000"
       }
     },
     {
@@ -137,7 +137,7 @@ export const lightShikiTheme = {
         "punctuation.definition.tag"
       ],
       "settings": {
-        "foreground": "#1f6e30"
+        "foreground": "#006f20"
       }
     },
     {
@@ -146,7 +146,7 @@ export const lightShikiTheme = {
         "meta.attribute"
       ],
       "settings": {
-        "foreground": "#2263a4"
+        "foreground": "#005fae"
       }
     },
     {
@@ -156,7 +156,7 @@ export const lightShikiTheme = {
         "constant.other.character-class.regexp"
       ],
       "settings": {
-        "foreground": "#2263a4"
+        "foreground": "#005fae"
       }
     }
   ],
@@ -168,17 +168,17 @@ export const darkShikiTheme = {
   "type": "dark",
   "colors": {
     "editor.background": "#111111",
-    "editor.foreground": "#e9e9e9",
-    "editor.selectionBackground": "#10396240",
+    "editor.foreground": "#eae9e9",
+    "editor.selectionBackground": "#04386840",
     "editor.lineHighlightBackground": "#181818",
-    "editorCursor.foreground": "#e9e9e9",
-    "editor.findMatchBackground": "#10396260",
-    "editor.findMatchHighlightBackground": "#10396230",
+    "editorCursor.foreground": "#eae9e9",
+    "editor.findMatchBackground": "#04386860",
+    "editor.findMatchHighlightBackground": "#04386830",
     "editorLineNumber.foreground": "#929091",
-    "editorLineNumber.activeForeground": "#e9e9e9",
+    "editorLineNumber.activeForeground": "#eae9e9",
     "editorIndentGuide.background": "#302f30",
-    "editorBracketMatch.background": "#1a293a",
-    "editorBracketMatch.border": "#25619e",
+    "editorBracketMatch.background": "#17293c",
+    "editorBracketMatch.border": "#1560a7",
     "scrollbarSlider.background": "#38383860",
     "scrollbarSlider.hoverBackground": "#62616180"
   },
@@ -206,7 +206,7 @@ export const darkShikiTheme = {
         "keyword.other.package"
       ],
       "settings": {
-        "foreground": "#ff9c98"
+        "foreground": "#ff9692"
       }
     },
     {
@@ -218,7 +218,7 @@ export const darkShikiTheme = {
         "punctuation.definition.string"
       ],
       "settings": {
-        "foreground": "#7cbcff"
+        "foreground": "#71bcff"
       }
     },
     {
@@ -229,7 +229,7 @@ export const darkShikiTheme = {
         "constant.other"
       ],
       "settings": {
-        "foreground": "#7cbcff"
+        "foreground": "#71bcff"
       }
     },
     {
@@ -240,7 +240,7 @@ export const darkShikiTheme = {
         "variable.function"
       ],
       "settings": {
-        "foreground": "#4fcca8"
+        "foreground": "#2dcfa7"
       }
     },
     {
@@ -254,7 +254,7 @@ export const darkShikiTheme = {
         "support.type"
       ],
       "settings": {
-        "foreground": "#dead52"
+        "foreground": "#e3ab39"
       }
     },
     {
@@ -265,7 +265,7 @@ export const darkShikiTheme = {
         "meta.definition.variable"
       ],
       "settings": {
-        "foreground": "#e9e9e9"
+        "foreground": "#eae9e9"
       }
     },
     {
@@ -276,7 +276,7 @@ export const darkShikiTheme = {
         "meta.object-literal.key"
       ],
       "settings": {
-        "foreground": "#b8b7b8"
+        "foreground": "#b9b7b8"
       }
     },
     {
@@ -288,7 +288,7 @@ export const darkShikiTheme = {
         "punctuation"
       ],
       "settings": {
-        "foreground": "#a09f9f"
+        "foreground": "#a19f9f"
       }
     },
     {
@@ -298,7 +298,7 @@ export const darkShikiTheme = {
         "punctuation.definition.tag"
       ],
       "settings": {
-        "foreground": "#7dc986"
+        "foreground": "#71cb7d"
       }
     },
     {
@@ -307,7 +307,7 @@ export const darkShikiTheme = {
         "meta.attribute"
       ],
       "settings": {
-        "foreground": "#7cbcff"
+        "foreground": "#71bcff"
       }
     },
     {
@@ -317,7 +317,7 @@ export const darkShikiTheme = {
         "constant.other.character-class.regexp"
       ],
       "settings": {
-        "foreground": "#7cbcff"
+        "foreground": "#71bcff"
       }
     }
   ],

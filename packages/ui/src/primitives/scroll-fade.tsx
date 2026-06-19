@@ -3,9 +3,17 @@ import { cn } from '../lib/cn';
 
 export type ScrollFadeAxis = 'y' | 'x' | 'both';
 
+export type ScrollFadeEdge = 'top' | 'bottom' | 'left' | 'right';
+
 export type ScrollFadeProps = {
   /** Which axis to fade. Defaults to 'y'. */
   axis?: ScrollFadeAxis;
+  /**
+   * Restrict the rendered fades to specific edges. When omitted, all edges for
+   * the chosen `axis` render (y → top + bottom, x → left + right, both → all).
+   * Example: `edges={['top']}` shows only the top fade when scrolled down.
+   */
+  edges?: ScrollFadeEdge[];
   /**
    * Override the fade gradient size. Accepts any CSS length string ('32px', '2rem')
    * or a number interpreted as pixels. Defaults to the fade.size token (24px).
@@ -43,7 +51,7 @@ export type ScrollFadeProps = {
  * </ScrollFade>
  */
 const ScrollFade = React.forwardRef<HTMLDivElement, ScrollFadeProps>(function ScrollFade(
-  { axis = 'y', size, fadeColor, className, viewportClassName, style, children },
+  { axis = 'y', edges, size, fadeColor, className, viewportClassName, style, children },
   ref
 ) {
   const fadeSize = size === undefined ? undefined : typeof size === 'number' ? `${size}px` : size;
@@ -54,18 +62,21 @@ const ScrollFade = React.forwardRef<HTMLDivElement, ScrollFadeProps>(function Sc
     ...(fadeColor ? ({ '--fade-color': fadeColor } as React.CSSProperties) : {}),
   };
 
-  const showY = axis === 'y' || axis === 'both';
-  const showX = axis === 'x' || axis === 'both';
+  // Default the rendered edges from the axis, then allow an explicit override.
+  const defaultEdges: ScrollFadeEdge[] =
+    axis === 'x' ? ['left', 'right'] : axis === 'both' ? ['top', 'bottom', 'left', 'right'] : ['top', 'bottom'];
+  const activeEdges = edges ?? defaultEdges;
+  const showEdge = (edge: ScrollFadeEdge) => activeEdges.includes(edge);
 
   return (
     <div className={cn('scroll-fade', className)} style={wrapperStyle}>
       <div ref={ref} className={cn('scroll-fade__viewport h-full w-full', viewportClassName)}>
         {children}
       </div>
-      {showY && <div className="scroll-fade__top" aria-hidden="true" />}
-      {showY && <div className="scroll-fade__bottom" aria-hidden="true" />}
-      {showX && <div className="scroll-fade__left" aria-hidden="true" />}
-      {showX && <div className="scroll-fade__right" aria-hidden="true" />}
+      {showEdge('top') && <div className="scroll-fade__top" aria-hidden="true" />}
+      {showEdge('bottom') && <div className="scroll-fade__bottom" aria-hidden="true" />}
+      {showEdge('left') && <div className="scroll-fade__left" aria-hidden="true" />}
+      {showEdge('right') && <div className="scroll-fade__right" aria-hidden="true" />}
     </div>
   );
 });

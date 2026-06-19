@@ -2,250 +2,236 @@
 // Shape-compatible with Terrazzo output for backward compat with metrics.ts.
 export const tokens = {
   'color.neutral.1': {
-    '.': { colorSpace: 'display-p3', channels: [0.9883, 0.9881, 0.9881], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9884, 0.988, 0.9881], alpha: 1 },
   },
   'color.neutral.2': {
-    '.': { colorSpace: 'display-p3', channels: [0.9436, 0.9432, 0.9433], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9437, 0.9432, 0.9433], alpha: 1 },
   },
   'color.neutral.3': {
-    '.': { colorSpace: 'display-p3', channels: [0.8995, 0.8987, 0.8989], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.8996, 0.8987, 0.8989], alpha: 1 },
   },
   'color.neutral.4': {
-    '.': { colorSpace: 'display-p3', channels: [0.8558, 0.8546, 0.8549], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.8559, 0.8545, 0.8549], alpha: 1 },
   },
   'color.neutral.5': {
-    '.': { colorSpace: 'display-p3', channels: [0.8126, 0.8108, 0.8113], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.8129, 0.8107, 0.8113], alpha: 1 },
   },
   'color.neutral.6': {
-    '.': { colorSpace: 'display-p3', channels: [0.7701, 0.7674, 0.7681], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.7704, 0.7672, 0.7681], alpha: 1 },
   },
   'color.neutral.7': {
-    '.': { colorSpace: 'display-p3', channels: [0.8105, 0.8069, 0.8079], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.8111, 0.8067, 0.8078], alpha: 1 },
   },
   'color.neutral.8': {
-    '.': { colorSpace: 'display-p3', channels: [0.7326, 0.7282, 0.7294], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.7332, 0.728, 0.7294], alpha: 1 },
   },
   'color.neutral.9': {
-    '.': { colorSpace: 'display-p3', channels: [0.5577, 0.5527, 0.554], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.5584, 0.5524, 0.554], alpha: 1 },
   },
   'color.neutral.10': {
-    '.': { colorSpace: 'display-p3', channels: [0.5163, 0.5115, 0.5128], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.5169, 0.5112, 0.5128], alpha: 1 },
   },
   'color.neutral.11': {
-    '.': { colorSpace: 'display-p3', channels: [0.3823, 0.3789, 0.3798], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.3827, 0.3787, 0.3797], alpha: 1 },
   },
   'color.neutral.12': {
-    '.': { colorSpace: 'display-p3', channels: [0.1327, 0.1309, 0.1314], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.133, 0.1308, 0.1314], alpha: 1 },
   },
   'color.accent.1': {
-    '.': { colorSpace: 'display-p3', channels: [0.973, 0.9954, 0.9858], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9699, 0.9969, 0.9853], alpha: 1 },
   },
   'color.accent.2': {
-    '.': { colorSpace: 'display-p3', channels: [0.9191, 0.9548, 0.9396], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9142, 0.9571, 0.9388], alpha: 1 },
   },
   'color.accent.3': {
-    '.': { colorSpace: 'display-p3', channels: [0.8565, 0.9187, 0.8924], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.8478, 0.9225, 0.891], alpha: 1 },
   },
   'color.accent.4': {
-    '.': { colorSpace: 'display-p3', channels: [0.7878, 0.8853, 0.8447], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.7737, 0.8912, 0.8426], alpha: 1 },
   },
   'color.accent.5': {
-    '.': { colorSpace: 'display-p3', channels: [0.7057, 0.857, 0.7956], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.6825, 0.8656, 0.7924], alpha: 1 },
   },
   'color.accent.6': {
-    '.': { colorSpace: 'display-p3', channels: [0.6074, 0.8331, 0.7452], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.5694, 0.845, 0.7405], alpha: 1 },
   },
   'color.accent.7': {
-    '.': { colorSpace: 'display-p3', channels: [0.5568, 0.8749, 0.7567], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.4863, 0.8803, 0.7404], alpha: 1 },
   },
-  'color.accent.8': { '.': { colorSpace: 'display-p3', channels: [0.4036, 0.8, 0.663], alpha: 1 } },
-  'color.accent.9': { '.': { colorSpace: 'display-p3', channels: [0, 0.631, 0.4781], alpha: 1 } },
-  'color.accent.10': { '.': { colorSpace: 'display-p3', channels: [0, 0.584, 0.4397], alpha: 1 } },
-  'color.accent.11': {
-    '.': { colorSpace: 'display-p3', channels: [0.0278, 0.428, 0.3247], alpha: 1 },
+  'color.accent.8': {
+    '.': { colorSpace: 'display-p3', channels: [0.295, 0.8073, 0.6458], alpha: 1 },
   },
-  'color.accent.12': { '.': { colorSpace: 'display-p3', channels: [0, 0.1392, 0.0874], alpha: 1 } },
+  'color.accent.9': { '.': { colorSpace: 'display-p3', channels: [0, 0.6298, 0.4648], alpha: 1 } },
+  'color.accent.10': { '.': { colorSpace: 'display-p3', channels: [0, 0.5868, 0.4314], alpha: 1 } },
+  'color.accent.11': { '.': { colorSpace: 'display-p3', channels: [0, 0.4402, 0.3185], alpha: 1 } },
+  'color.accent.12': { '.': { colorSpace: 'display-p3', channels: [0, 0.1411, 0.0863], alpha: 1 } },
   'color.green.1': {
-    '.': { colorSpace: 'display-p3', channels: [0.9783, 0.9944, 0.9771], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9763, 0.9957, 0.9749], alpha: 1 },
   },
   'color.green.2': {
-    '.': { colorSpace: 'display-p3', channels: [0.9277, 0.9533, 0.9258], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9245, 0.9552, 0.9223], alpha: 1 },
   },
   'color.green.3': {
-    '.': { colorSpace: 'display-p3', channels: [0.8716, 0.916, 0.8684], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.8661, 0.9194, 0.8623], alpha: 1 },
   },
   'color.green.4': {
-    '.': { colorSpace: 'display-p3', channels: [0.812, 0.8812, 0.8072], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.8032, 0.8863, 0.7975], alpha: 1 },
   },
   'color.green.5': {
-    '.': { colorSpace: 'display-p3', channels: [0.7446, 0.8508, 0.7378], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.7306, 0.8582, 0.7227], alpha: 1 },
   },
   'color.green.6': {
-    '.': { colorSpace: 'display-p3', channels: [0.6687, 0.8241, 0.6598], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.647, 0.8343, 0.6371], alpha: 1 },
   },
   'color.green.7': {
-    '.': { colorSpace: 'display-p3', channels: [0.6487, 0.8629, 0.6382], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.617, 0.8761, 0.606], alpha: 1 },
   },
   'color.green.8': {
-    '.': { colorSpace: 'display-p3', channels: [0.5393, 0.796, 0.5294], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.4883, 0.8007, 0.4798], alpha: 1 },
   },
   'color.green.9': {
-    '.': { colorSpace: 'display-p3', channels: [0.313, 0.6248, 0.3106], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.2354, 0.6301, 0.2441], alpha: 1 },
   },
   'color.green.10': {
-    '.': { colorSpace: 'display-p3', channels: [0.2778, 0.5738, 0.2763], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.2121, 0.5879, 0.2213], alpha: 1 },
   },
   'color.green.11': {
-    '.': { colorSpace: 'display-p3', channels: [0.2187, 0.4262, 0.2158], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.1674, 0.4275, 0.1705], alpha: 1 },
   },
-  'color.green.12': {
-    '.': { colorSpace: 'display-p3', channels: [0.0201, 0.1337, 0.0231], alpha: 1 },
-  },
-  'color.red.1': { '.': { colorSpace: 'display-p3', channels: [1, 0.9814, 0.9786], alpha: 1 } },
+  'color.green.12': { '.': { colorSpace: 'display-p3', channels: [0, 0.1385, 0.0067], alpha: 1 } },
+  'color.red.1': { '.': { colorSpace: 'display-p3', channels: [1, 0.9801, 0.9767], alpha: 1 } },
   'color.red.2': {
-    '.': { colorSpace: 'display-p3', channels: [0.9714, 0.9326, 0.9282], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9769, 0.9304, 0.9252], alpha: 1 },
   },
   'color.red.3': {
-    '.': { colorSpace: 'display-p3', channels: [0.9471, 0.8801, 0.8727], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9565, 0.8762, 0.8674], alpha: 1 },
   },
-  'color.red.4': { '.': { colorSpace: 'display-p3', channels: [0.9288, 0.8251, 0.814], alpha: 1 } },
+  'color.red.4': { '.': { colorSpace: 'display-p3', channels: [0.943, 0.8189, 0.8057], alpha: 1 } },
   'color.red.5': {
-    '.': { colorSpace: 'display-p3', channels: [0.9221, 0.7645, 0.7484], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9429, 0.7543, 0.7357], alpha: 1 },
   },
-  'color.red.6': { '.': { colorSpace: 'display-p3', channels: [0.9251, 0.6972, 0.676], alpha: 1 } },
-  'color.red.7': { '.': { colorSpace: 'display-p3', channels: [1, 0.7165, 0.6902], alpha: 1 } },
-  'color.red.8': { '.': { colorSpace: 'display-p3', channels: [0.9887, 0.618, 0.5915], alpha: 1 } },
+  'color.red.6': {
+    '.': { colorSpace: 'display-p3', channels: [0.9539, 0.6809, 0.6571], alpha: 1 },
+  },
+  'color.red.7': { '.': { colorSpace: 'display-p3', channels: [1, 0.7165, 0.6896], alpha: 1 } },
+  'color.red.8': { '.': { colorSpace: 'display-p3', channels: [1, 0.5904, 0.564], alpha: 1 } },
   'color.red.9': {
-    '.': { colorSpace: 'display-p3', channels: [0.8394, 0.4028, 0.3867], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.8915, 0.3562, 0.3506], alpha: 1 },
   },
   'color.red.10': {
-    '.': { colorSpace: 'display-p3', channels: [0.7883, 0.3739, 0.3591], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.8326, 0.3245, 0.3205], alpha: 1 },
   },
   'color.red.11': {
-    '.': { colorSpace: 'display-p3', channels: [0.5723, 0.2798, 0.2671], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.6041, 0.2471, 0.2402], alpha: 1 },
   },
-  'color.red.12': {
-    '.': { colorSpace: 'display-p3', channels: [0.192, 0.0359, 0.0384], alpha: 1 },
-  },
+  'color.red.12': { '.': { colorSpace: 'display-p3', channels: [0.1732, 0, 0.0073], alpha: 1 } },
   'color.amber.1': {
-    '.': { colorSpace: 'display-p3', channels: [0.9979, 0.9872, 0.9663], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9998, 0.987, 0.9619], alpha: 1 },
   },
   'color.amber.2': {
-    '.': { colorSpace: 'display-p3', channels: [0.9588, 0.9418, 0.9086], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9618, 0.9415, 0.9016], alpha: 1 },
   },
   'color.amber.3': {
-    '.': { colorSpace: 'display-p3', channels: [0.9256, 0.8961, 0.8384], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9309, 0.8954, 0.8262], alpha: 1 },
   },
   'color.amber.4': {
-    '.': { colorSpace: 'display-p3', channels: [0.8963, 0.8501, 0.76], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9045, 0.8488, 0.7405], alpha: 1 },
   },
   'color.amber.5': {
-    '.': { colorSpace: 'display-p3', channels: [0.8743, 0.8028, 0.6639], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.8866, 0.8004, 0.6329], alpha: 1 },
   },
   'color.amber.6': {
-    '.': { colorSpace: 'display-p3', channels: [0.859, 0.7535, 0.5479], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.8767, 0.7489, 0.4987], alpha: 1 },
   },
   'color.amber.7': {
-    '.': { colorSpace: 'display-p3', channels: [0.9318, 0.785, 0.4958], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9556, 0.7776, 0.4195], alpha: 1 },
   },
   'color.amber.8': {
-    '.': { colorSpace: 'display-p3', channels: [0.8747, 0.6982, 0.3372], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9024, 0.6876, 0.2115], alpha: 1 },
   },
-  'color.amber.9': { '.': { colorSpace: 'display-p3', channels: [0.7624, 0.5489, 0], alpha: 1 } },
-  'color.amber.10': { '.': { colorSpace: 'display-p3', channels: [0.6942, 0.4923, 0], alpha: 1 } },
-  'color.amber.11': { '.': { colorSpace: 'display-p3', channels: [0.4681, 0.3272, 0], alpha: 1 } },
-  'color.amber.12': { '.': { colorSpace: 'display-p3', channels: [0.1545, 0.0858, 0], alpha: 1 } },
-  'color.blue.1': { '.': { colorSpace: 'display-p3', channels: [0.9761, 0.9901, 1], alpha: 1 } },
+  'color.amber.9': { '.': { colorSpace: 'display-p3', channels: [0.7717, 0.5443, 0], alpha: 1 } },
+  'color.amber.10': { '.': { colorSpace: 'display-p3', channels: [0.7046, 0.4943, 0], alpha: 1 } },
+  'color.amber.11': { '.': { colorSpace: 'display-p3', channels: [0.4753, 0.3235, 0], alpha: 1 } },
+  'color.amber.12': { '.': { colorSpace: 'display-p3', channels: [0.1546, 0.0858, 0], alpha: 1 } },
+  'color.blue.1': { '.': { colorSpace: 'display-p3', channels: [0.9737, 0.9904, 1], alpha: 1 } },
   'color.blue.2': {
-    '.': { colorSpace: 'display-p3', channels: [0.9242, 0.9463, 0.9767], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9203, 0.9469, 0.9833], alpha: 1 },
   },
   'color.blue.3': {
-    '.': { colorSpace: 'display-p3', channels: [0.8655, 0.9039, 0.9565], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.8587, 0.9048, 0.9679], alpha: 1 },
   },
   'color.blue.4': {
-    '.': { colorSpace: 'display-p3', channels: [0.8025, 0.8622, 0.9441], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.7917, 0.8633, 0.9617], alpha: 1 },
   },
-  'color.blue.5': { '.': { colorSpace: 'display-p3', channels: [0.73, 0.8213, 0.9469], alpha: 1 } },
-  'color.blue.6': {
-    '.': { colorSpace: 'display-p3', channels: [0.6474, 0.7802, 0.9639], alpha: 1 },
+  'color.blue.5': {
+    '.': { colorSpace: 'display-p3', channels: [0.713, 0.8225, 0.9734], alpha: 1 },
   },
+  'color.blue.6': { '.': { colorSpace: 'display-p3', channels: [0.6213, 0.7809, 1], alpha: 1 } },
   'color.blue.7': { '.': { colorSpace: 'display-p3', channels: [0.6473, 0.8163, 1], alpha: 1 } },
-  'color.blue.8': { '.': { colorSpace: 'display-p3', channels: [0.5185, 0.7358, 1], alpha: 1 } },
+  'color.blue.8': { '.': { colorSpace: 'display-p3', channels: [0.5093, 0.7354, 1], alpha: 1 } },
   'color.blue.9': {
-    '.': { colorSpace: 'display-p3', channels: [0.2889, 0.5504, 0.9098], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.2096, 0.5412, 0.9803], alpha: 1 },
   },
   'color.blue.10': {
-    '.': { colorSpace: 'display-p3', channels: [0.2651, 0.5134, 0.8544], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.1778, 0.4947, 0.9108], alpha: 1 },
   },
   'color.blue.11': {
-    '.': { colorSpace: 'display-p3', channels: [0.2076, 0.382, 0.623], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.1493, 0.3675, 0.6607], alpha: 1 },
   },
-  'color.blue.12': {
-    '.': { colorSpace: 'display-p3', channels: [0.0096, 0.0988, 0.2261], alpha: 1 },
-  },
-  'color.orange.1': { '.': { colorSpace: 'display-p3', channels: [1, 0.9841, 0.9696], alpha: 1 } },
+  'color.blue.12': { '.': { colorSpace: 'display-p3', channels: [0, 0.0933, 0.2504], alpha: 1 } },
+  'color.orange.1': { '.': { colorSpace: 'display-p3', channels: [1, 0.9833, 0.9659], alpha: 1 } },
   'color.orange.2': {
-    '.': { colorSpace: 'display-p3', channels: [0.9675, 0.9369, 0.9139], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9723, 0.9355, 0.9079], alpha: 1 },
   },
   'color.orange.3': {
-    '.': { colorSpace: 'display-p3', channels: [0.9405, 0.8875, 0.8476], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9486, 0.885, 0.8372], alpha: 1 },
   },
   'color.orange.4': {
-    '.': { colorSpace: 'display-p3', channels: [0.9189, 0.8366, 0.7745], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9313, 0.8326, 0.7581], alpha: 1 },
   },
   'color.orange.5': {
-    '.': { colorSpace: 'display-p3', channels: [0.9077, 0.7819, 0.6869], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9261, 0.7752, 0.661], alpha: 1 },
   },
   'color.orange.6': {
-    '.': { colorSpace: 'display-p3', channels: [0.9056, 0.7227, 0.5836], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9313, 0.7116, 0.5437], alpha: 1 },
   },
-  'color.orange.7': {
-    '.': { colorSpace: 'display-p3', channels: [0.9987, 0.7469, 0.5537], alpha: 1 },
-  },
+  'color.orange.7': { '.': { colorSpace: 'display-p3', channels: [1, 0.7349, 0.4995], alpha: 1 } },
   'color.orange.8': {
-    '.': { colorSpace: 'display-p3', channels: [0.9552, 0.6556, 0.421], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9944, 0.6326, 0.3396], alpha: 1 },
   },
-  'color.orange.9': {
-    '.': { colorSpace: 'display-p3', channels: [0.8051, 0.451, 0.1248], alpha: 1 },
-  },
-  'color.orange.10': {
-    '.': { colorSpace: 'display-p3', channels: [0.7505, 0.4149, 0.0994], alpha: 1 },
-  },
-  'color.orange.11': {
-    '.': { colorSpace: 'display-p3', channels: [0.5523, 0.3148, 0.1087], alpha: 1 },
-  },
-  'color.orange.12': { '.': { colorSpace: 'display-p3', channels: [0.183, 0.0574, 0], alpha: 1 } },
-  'color.purple.1': { '.': { colorSpace: 'display-p3', channels: [0.9916, 0.9836, 1], alpha: 1 } },
+  'color.orange.9': { '.': { colorSpace: 'display-p3', channels: [0.8532, 0.4201, 0], alpha: 1 } },
+  'color.orange.10': { '.': { colorSpace: 'display-p3', channels: [0.791, 0.3805, 0], alpha: 1 } },
+  'color.orange.11': { '.': { colorSpace: 'display-p3', channels: [0.5815, 0.2921, 0], alpha: 1 } },
+  'color.orange.12': { '.': { colorSpace: 'display-p3', channels: [0.1896, 0.0496, 0], alpha: 1 } },
+  'color.purple.1': { '.': { colorSpace: 'display-p3', channels: [0.9923, 0.9827, 1], alpha: 1 } },
   'color.purple.2': {
-    '.': { colorSpace: 'display-p3', channels: [0.9488, 0.9361, 0.9707], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9499, 0.9347, 0.9761], alpha: 1 },
   },
   'color.purple.3': {
-    '.': { colorSpace: 'display-p3', channels: [0.9084, 0.8863, 0.9461], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.9103, 0.8836, 0.9555], alpha: 1 },
   },
   'color.purple.4': {
-    '.': { colorSpace: 'display-p3', channels: [0.8698, 0.8348, 0.928], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.8727, 0.8306, 0.9425], alpha: 1 },
   },
   'color.purple.5': {
-    '.': { colorSpace: 'display-p3', channels: [0.8341, 0.7796, 0.9225], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.8388, 0.7726, 0.9443], alpha: 1 },
   },
   'color.purple.6': {
-    '.': { colorSpace: 'display-p3', channels: [0.8016, 0.7199, 0.9286], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.8084, 0.7086, 0.9599], alpha: 1 },
   },
-  'color.purple.7': { '.': { colorSpace: 'display-p3', channels: [0.8641, 0.7487, 1], alpha: 1 } },
-  'color.purple.8': {
-    '.': { colorSpace: 'display-p3', channels: [0.7944, 0.6528, 0.997], alpha: 1 },
-  },
+  'color.purple.7': { '.': { colorSpace: 'display-p3', channels: [0.8711, 0.7503, 1], alpha: 1 } },
+  'color.purple.8': { '.': { colorSpace: 'display-p3', channels: [0.8142, 0.6433, 1], alpha: 1 } },
   'color.purple.9': {
-    '.': { colorSpace: 'display-p3', channels: [0.6378, 0.4595, 0.8694], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.6563, 0.4301, 0.9321], alpha: 1 },
   },
   'color.purple.10': {
-    '.': { colorSpace: 'display-p3', channels: [0.5929, 0.4234, 0.812], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.606, 0.3905, 0.8665], alpha: 1 },
   },
   'color.purple.11': {
-    '.': { colorSpace: 'display-p3', channels: [0.4322, 0.3139, 0.5881], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.4502, 0.3009, 0.6365], alpha: 1 },
   },
   'color.purple.12': {
-    '.': { colorSpace: 'display-p3', channels: [0.1547, 0.0883, 0.2357], alpha: 1 },
+    '.': { colorSpace: 'display-p3', channels: [0.1596, 0.0737, 0.2559], alpha: 1 },
   },
   'type.body': {
     '.': {

@@ -10,7 +10,12 @@ export {
 } from './tabs';
 export { TriggerButton, type TriggerButtonProps } from './trigger-button';
 export { Field, FieldLabel, FieldDescription, FieldError } from './field';
-export { ScrollFade, type ScrollFadeAxis, type ScrollFadeProps } from './scroll-fade';
+export {
+  ScrollFade,
+  type ScrollFadeAxis,
+  type ScrollFadeEdge,
+  type ScrollFadeProps,
+} from './scroll-fade';
 export { Text, type TextProps } from './typography/Text';
 export { Heading, type HeadingProps } from './typography/Heading';
 export { textVariants, type TextVariantProps } from './typography/typography.variants';
@@ -45,6 +50,19 @@ export {
   PopoverTitle,
   PopoverTrigger,
 } from './popover';
+export {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogBody,
+  DialogFooter,
+  DialogHeader,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+  DialogTrigger,
+  type DialogSize,
+} from './dialog';
 export {
   DropdownMenu,
   DropdownMenuPortal,
@@ -96,6 +114,15 @@ export {
   type ComboboxPopupItem,
   type ComboboxPopupHandle,
 } from './combobox-popup';
+export {
+  useHoverCard,
+  HoverCard,
+  isEventInsideInteractiveLayer,
+  type HoverCardController,
+  type HoverCardRowProps,
+  type HoverCardProps,
+} from './hover-card';
+export { ComboboxPopover, type ComboboxPopoverProps } from './combobox-popover';
 export { resolveFileIconClass } from '../lib/file-icons';
 export { controlVariants, type ControlVariantProps } from '../recipes/control';
 export { inputVariants, type InputVariantProps } from '../recipes/input';

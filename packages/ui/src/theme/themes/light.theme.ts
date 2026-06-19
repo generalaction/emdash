@@ -28,7 +28,7 @@ export const lightTheme = defineTheme({
   },
 
   contrast: 'normal',
-  chroma: 1.0,
+  chroma: 1.15,
   background: { lightness: 0.991 },
   gamut: 'p3',
 

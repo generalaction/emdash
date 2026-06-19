@@ -13,7 +13,6 @@
  * `queryMentions` for new integrations.
  */
 
-import { Placeholder } from '@tiptap/extension-placeholder';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
@@ -151,6 +150,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
   queryCommandsRef.current = queryCommands;
 
   // Separate suggestion state for @ and / so they don't conflict.
+  const [isEmpty, setIsEmpty] = useState(true);
   const [mentionSuggestion, setMentionSuggestion] = useState<SuggestionState<MentionItem>>(
     emptySuggestion()
   );
@@ -228,7 +228,6 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
         listItem: false,
         horizontalRule: false,
       }),
-      Placeholder.configure({ placeholder }),
       mentionExtension,
       slashExtension,
       submitKeymap,
@@ -250,6 +249,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
       },
     },
     onUpdate({ editor: e }) {
+      setIsEmpty(e.isEmpty);
       const text = serializeDoc(e.state.doc);
       onChange?.(text);
     },
@@ -270,6 +270,19 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
       if (!editor) return '';
       return serializeDoc(editor.state.doc);
     },
+    insertMention(item) {
+      editor
+        ?.chain()
+        .focus()
+        .insertContent([
+          {
+            type: 'mention',
+            attrs: { id: item.id, label: item.label, name: item.name ?? null, kind: item.kind },
+          },
+          { type: 'text', text: ' ' },
+        ])
+        .run();
+    },
   }));
 
   // Convert suggestion items to ComboboxPopupItem shape.
@@ -281,7 +294,18 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
 
   return (
     <>
-      <EditorContent editor={editor} className={cn('w-full', className)} aria-disabled={disabled} />
+      <div className={cn('relative w-full', className)}>
+        <EditorContent editor={editor} className="w-full" aria-disabled={disabled} />
+        {isEmpty && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute top-0 left-0 text-sm select-none"
+            style={{ color: 'var(--foreground-passive)' }}
+          >
+            {placeholder}
+          </span>
+        )}
+      </div>
       {mentionActive &&
         createPortal(
           <ComboboxPopup
