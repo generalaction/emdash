@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/lib/pty/terminal-image-injection.ts
+  s_f05dbf8a8c329d::t_5eef96c002dd80 10-11,18-25,33-37,39-42,47-50,52
+  s_f05dbf8a8c329d::t_da9a32770fe484 38,51
+  s_f05dbf8a8c329d::t_a3211f20ad8148 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "2477189fa4f45854375803b0af6b3f4d45699d89",
+  "prompts": {},
+  "sessions": {
+    "s_f05dbf8a8c329d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ee008-0748-7a00-a6e3-4d06c31e13e7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
