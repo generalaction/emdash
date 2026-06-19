@@ -5,6 +5,7 @@ import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-se
 import { getPlugin } from '@main/core/agents/plugin-registry';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
+import { spillLargePrompt } from '@main/core/conversations/spill-large-prompt';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { localDependencyManager } from '@main/core/dependencies/dependency-managers';
 import { hostDependencyStore } from '@main/core/dependencies/host-dependency-store';
@@ -16,7 +17,6 @@ import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/pty-spawn-platform';
 import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
-import { spillLargePrompt } from '@main/core/conversations/spill-large-prompt';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { events } from '@main/lib/events';

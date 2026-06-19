@@ -29,13 +29,9 @@ export function buildPromptPointerMessage(filePath: string): string {
 }
 
 export type SpillLargePromptDeps = {
-  /** Threshold above which the prompt is written to a file. */
   maxChars?: number;
-  /** Creates a unique temporary directory and returns its absolute path. */
   createTempDir?: () => Promise<string>;
-  /** Writes the prompt contents to the given absolute file path. */
   writeContextFile?: (filePath: string, contents: string) => Promise<void>;
-  /** Reports a failure to spill so we can fall back to passing the prompt inline. */
   onError?: (error: unknown, promptLength: number) => void;
 };
 
