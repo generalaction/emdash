@@ -30,5 +30,8 @@
       "cpu-features",
       "ssh2"
     ]
+  },
+  "devDependencies": {
+    "unrun": "^0.3.1"
   }
 }

@@ -6,7 +6,11 @@ settings:
 
 importers:
 
-  .: {}
+  .:
+    devDependencies:
+      unrun:
+        specifier: ^0.3.1
+        version: 0.3.1
 
   apps/rocky-desktop:
     dependencies:
@@ -338,7 +342,7 @@ importers:
         version: 7.0.0-dev.20260609.1
       tsdown:
         specifier: ^0.22.2
-        version: 0.22.2(@typescript/native-preview@7.0.0-dev.20260609.1)(typescript@6.0.3)
+        version: 0.22.2(@typescript/native-preview@7.0.0-dev.20260609.1)(typescript@6.0.3)(unrun@0.3.1)
       vitest:
         specifier: ^4.1.0
         version: 4.1.8(@types/node@20.19.42)(@vitest/browser-playwright@4.1.8)(@vitest/browser-preview@4.1.8)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@6.4.3(@types/node@20.19.42)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0))
@@ -366,7 +370,7 @@ importers:
         version: 1.69.0(oxlint-tsgolint@0.23.0)
       tsdown:
         specifier: ^0.22.2
-        version: 0.22.2(@typescript/native-preview@7.0.0-dev.20260609.1)(typescript@6.0.3)
+        version: 0.22.2(@typescript/native-preview@7.0.0-dev.20260609.1)(typescript@6.0.3)(unrun@0.3.1)
       vitest:
         specifier: ^3.1.4
         version: 3.2.6(@types/debug@4.1.13)(@types/node@24.13.1)(jiti@2.7.0)(jsdom@29.1.1(@noble/hashes@2.2.0))(lightningcss@1.32.0)(yaml@2.9.0)
@@ -381,7 +385,7 @@ importers:
         version: 7.0.0-dev.20260609.1
       tsdown:
         specifier: ^0.22.2
-        version: 0.22.2(@typescript/native-preview@7.0.0-dev.20260609.1)(typescript@6.0.3)
+        version: 0.22.2(@typescript/native-preview@7.0.0-dev.20260609.1)(typescript@6.0.3)(unrun@0.3.1)
       vitest:
         specifier: ^4.1.0
         version: 4.1.8(@types/node@20.19.42)(@vitest/browser-playwright@4.1.8)(@vitest/browser-preview@4.1.8)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@6.4.3(@types/node@20.19.42)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0))
@@ -454,7 +458,7 @@ importers:
         version: 4.3.0
       tsdown:
         specifier: ^0.22.2
-        version: 0.22.2(@typescript/native-preview@7.0.0-dev.20260609.1)(typescript@6.0.3)
+        version: 0.22.2(@typescript/native-preview@7.0.0-dev.20260609.1)(typescript@6.0.3)(unrun@0.3.1)
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0
@@ -5811,6 +5815,16 @@ packages:
   unplugin@1.16.1:
     resolution: {integrity: sha512-4/u/j4FrCKdi17jaxuJA0jClGxB1AvU2hw/IuayPc4ay1XGaJs/rbb4v5WKwAjNifjmXK9PIFyuPiaK8azyR9w==}
     engines: {node: '>=14.0.0'}
+
+  unrun@0.3.1:
+    resolution: {integrity: sha512-onIck/oNnCaytwths1ZVp1LK2Gq2hPoyFhiHebObuUXqR3S0uHuLLaBK8K6mRRgV7Ptip8AnNvaUsgzwWwBZuA==}
+    engines: {node: ^22.13.0 || >=24.0.0}
+    hasBin: true
+    peerDependencies:
+      synckit: ^0.11.11
+    peerDependenciesMeta:
+      synckit:
+        optional: true
 
   unzipper@0.12.3:
     resolution: {integrity: sha512-PZ8hTS+AqcGxsaQntl3IRBw65QrBI6lxzqDEL7IAo/XCEqRTKGfOX56Vea5TH9SZczRVxuzk1re04z/YjuYCJA==}
@@ -11499,7 +11513,7 @@ snapshots:
       minimist: 1.2.8
       strip-bom: 3.0.0
 
-  tsdown@0.22.2(@typescript/native-preview@7.0.0-dev.20260609.1)(typescript@6.0.3):
+  tsdown@0.22.2(@typescript/native-preview@7.0.0-dev.20260609.1)(typescript@6.0.3)(unrun@0.3.1):
     dependencies:
       ansis: 4.3.1
       cac: 7.0.0
@@ -11518,6 +11532,7 @@ snapshots:
       unconfig-core: 7.5.0
     optionalDependencies:
       typescript: 6.0.3
+      unrun: 0.3.1
     transitivePeerDependencies:
       - '@ts-macro/tsc'
       - '@typescript/native-preview'
@@ -11611,6 +11626,10 @@ snapshots:
     dependencies:
       acorn: 8.17.0
       webpack-virtual-modules: 0.6.2
+
+  unrun@0.3.1:
+    dependencies:
+      rolldown: 1.1.0
 
   unzipper@0.12.3:
     dependencies:
