@@ -403,6 +403,8 @@ function getBrowserShortcuts(
 ): Map<ShortcutSettingsKey, ParsedShortcut> {
   const shortcuts = new Map<ShortcutSettingsKey, ParsedShortcut>();
   for (const shortcutKey of Object.keys(APP_SHORTCUTS) as ShortcutSettingsKey[]) {
+    if (shortcutKey === 'closeModal') continue;
+
     const configured = keyboard?.[shortcutKey];
     if (configured === null) continue;
 

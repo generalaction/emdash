@@ -296,6 +296,28 @@ describe('BrowserWebContentsRegistry', () => {
     expect(events.emit).not.toHaveBeenCalledWith(browserAppShortcutChannel, expect.anything());
   });
 
+  it('does not consume Escape in focused browser webContents', () => {
+    const registry = new BrowserWebContentsRegistry();
+    registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
+
+    const webContents = fakeWebContents();
+    registry.handleWebviewAttached(webContents);
+    registry.bindWebContents('browser-1', webContents);
+
+    const keyEvent = { preventDefault: vi.fn() };
+    webContents.emitEvent('before-input-event', keyEvent, {
+      type: 'keyDown',
+      key: 'Escape',
+      control: false,
+      shift: false,
+      alt: false,
+      meta: false,
+    });
+
+    expect(keyEvent.preventDefault).not.toHaveBeenCalled();
+    expect(events.emit).not.toHaveBeenCalledWith(browserAppShortcutChannel, expect.anything());
+  });
+
   it('clears storage for a named profile without requiring an open browser', async () => {
     const registry = new BrowserWebContentsRegistry();
 
