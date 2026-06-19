@@ -76,8 +76,8 @@ export const DEFAULT_TYPOGRAPHY: Record<string, CompositeRole> = {
   },
   'type.mention': {
     fontFamily: SANS,
-    fontSize: px(14),
-    fontWeight: 400,
+    fontSize: px(12),
+    fontWeight: 500,
     lineHeight: px(20),
   },
   'type.code': {

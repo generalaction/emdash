@@ -34,6 +34,7 @@ import type {
   ContextMentionProvider,
   MentionItem,
 } from '../components/chat-composer';
+import { basename, fileIconClass } from '../components/prompt-editor/mention-pill-helpers';
 import type { PromptEditorRef } from '../components/prompt-editor/types';
 import { Button } from '../primitives/button';
 
@@ -102,7 +103,16 @@ const chatMentionProvider: MentionProvider = {
   resolve(token: string) {
     const match = MOCK_FILES.find((f) => f.label === token || f.name === token);
     if (!match) return null;
-    return { id: match.id, label: match.label, name: match.name, kind: match.kind };
+    // Supply the same devicon class the ChatComposer MentionPill uses for files,
+    // so the transcript pill renders the exact same icon.
+    const iconClass = match.kind === 'file' ? (fileIconClass(match.label) ?? undefined) : undefined;
+    return {
+      id: match.id,
+      label: match.label,
+      name: match.name ?? basename(match.label),
+      kind: match.kind,
+      iconClass,
+    };
   },
 };
 
@@ -170,6 +180,8 @@ function LiveChatPanel({ notice }: { notice?: ComposerNotice | null }) {
       '5. Write unit tests covering success, expiry, and tampered-token cases.',
       '6. Update the OpenAPI spec to document the Authorization header.',
       '7. Add `POST /auth/refresh` to renew access tokens without re-login.',
+      '',
+      'Start in @src/components/prompt-editor/prompt-editor.tsx and update @package.json.',
       '',
       'Preserve backward compatibility for existing sessions during the migration period.',
     ].join('\n');

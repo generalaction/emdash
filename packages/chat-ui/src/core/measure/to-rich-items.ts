@@ -28,9 +28,9 @@ export function runsToRichItems(runs: InlineRun[], fonts: FontConfig): RichInlin
     if (run.kind === 'mention') {
       const mention = run as InlineMention;
       // Resolved mentions (from MentionProvider) display the short name and include
-      // extra space for the leading kind icon (10px icon + 4px gap = 14px).
+      // extra space for the leading icon container (size-3.5 = 14px + gap-1 = 4px).
       const displayText = mention.name ?? mention.label;
-      const iconWidth = mention.mentionKind ? 14 : 0;
+      const iconWidth = mention.mentionKind ? 18 : 0;
       return [
         {
           text: displayText,

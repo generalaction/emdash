@@ -112,6 +112,13 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx }) {
     >
       <div class="sr-only">{plainText()}</div>
       <Show when={stack()}>{(s) => <BlockStackView node={s()} />}</Show>
+      {/* Fade-out overlay shown only when the card is collapsed and content overflows. */}
+      <Show when={!isExpanded() && isOverflowing()}>
+        <div
+          class="fade-overlay-bottom pointer-events-none absolute right-0 bottom-0 left-0 h-8 rounded-b-lg"
+          style={{ '--fade-color': 'var(--chat-user-card-bg)' }}
+        />
+      </Show>
     </div>
   );
 }

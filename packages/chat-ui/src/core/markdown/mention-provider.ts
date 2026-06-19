@@ -25,6 +25,13 @@ export interface ChatMentionMeta {
   name?: string;
   /** Semantic category for icon and chip color. */
   kind: ChatMentionKind;
+  /**
+   * Optional CSS class for the pill icon (e.g. a devicon class like
+   * `devicon-react-original colored`). When supplied it is rendered as an
+   * `<i class={iconClass}>` to match a host icon set exactly; otherwise the
+   * built-in kind SVG is used.
+   */
+  iconClass?: string;
 }
 
 /**

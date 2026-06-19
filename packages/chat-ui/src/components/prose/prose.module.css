@@ -106,11 +106,19 @@
 
 /* Mention chip — font metrics and padding feed pretext measurement. */
 /* bg, color, border-radius moved to Tailwind in Prose.tsx. */
+/*
+ * font-size / font-weight are hardcoded (12px / 500) to match text-xs font-medium
+ * in the ChatComposer MentionPill, and to stay in lock-step with the bundled
+ * measurement source (core/measure/default-typography.ts `type.mention`). They are
+ * intentionally NOT read from --type-mention-* because the host app (@emdash/ui)
+ * rebinds --type-mention-font-size to --text-base (14px), which would desync the
+ * rendered size from the 12px width measurement and clip the chip.
+ */
 .pf--mention {
-  font-size: var(--type-mention-font-size);
-  font-weight: var(--type-mention-font-weight);
+  font-size: 12px;
+  font-weight: 500;
   font-family: var(--type-mention-font-family);
-  padding: 0 var(--chat-mention-pad-x);
+  padding: 2px var(--chat-mention-pad-x);
 }
 
 /* ── Decorations ──────────────────────────────────────────────────────────── */

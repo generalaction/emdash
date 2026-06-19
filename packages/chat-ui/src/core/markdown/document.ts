@@ -46,6 +46,8 @@ export type InlineMention = {
   name?: string;
   /** Semantic category for the pill icon and colour. */
   mentionKind?: 'file' | 'issue' | 'symbol' | 'custom';
+  /** Optional host icon CSS class (e.g. a devicon class) rendered as `<i>`. */
+  iconClass?: string;
 };
 
 /**

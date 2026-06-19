@@ -70,7 +70,9 @@ export const CODE_LANG: VariantTypography = toVariant(role('type.code-lang'));
 // ── Inline chrome ────────────────────────────────────────────────────────────
 
 export const INLINE_CODE_EXTRA_WIDTH = 12;
-export const MENTION_EXTRA_WIDTH = 14;
+// 8 → 4px horizontal padding each side (--chat-mention-pad-x), matching the
+// ChatComposer MentionPill's px-1.
+export const MENTION_EXTRA_WIDTH = 8;
 
 // ── List / blockquote ────────────────────────────────────────────────────────
 

@@ -43,6 +43,18 @@
   --chat-user-card-border: var(--border);
   --chat-user-card-border-hover: var(--border-1);
 
+  /* ── Context-mention pill ────────────────────────────────────────────────── */
+  /* Mirror the ChatComposer MentionPill (bg-surface-hover, text-foreground,
+   * ring-foreground/10). Bind to a CONCRETE elevation token rather than the
+   * scope-relative --surface-hover indirection: the chat root sits outside any
+   * .surface-* scope, so --surface-hover falls back to the base value (white in
+   * dark mode). --surface-base-emphasis-hover is one rung above the user-card
+   * surface (--surface-base-emphasis), so the chip stays visible on the card
+   * and on the paper transcript background in both themes. */
+  --chat-mention-chip-bg: var(--surface-base-emphasis-hover);
+  --chat-mention-chip-fg: var(--foreground);
+  --chat-mention-chip-ring: color-mix(in srgb, var(--foreground) 10%, transparent);
+
   /* ── Diff / VCS ─────────────────────────────────────────────────────────── */
   --chat-diff-added: var(--foreground-diff-added);
   --chat-diff-deleted: var(--foreground-diff-deleted);

@@ -115,6 +115,7 @@ function splitAtMentions(
       id: meta.id,
       name: meta.name,
       mentionKind: meta.kind,
+      iconClass: meta.iconClass,
     } satisfies InlineMention);
 
     lastIndex = match.index + match[0].length;

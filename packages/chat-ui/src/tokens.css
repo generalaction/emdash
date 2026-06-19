@@ -35,6 +35,11 @@
   --color-chat-user-card-border: var(--chat-user-card-border);
   --color-chat-user-card-border-hover: var(--chat-user-card-border-hover);
 
+  /* Resolved context-mention pill (matches the ChatComposer mention pill) */
+  --color-chat-mention-chip: var(--chat-mention-chip-bg);
+  --color-chat-mention-chip-fg: var(--chat-mention-chip-fg);
+  --color-chat-mention-chip-ring: var(--chat-mention-chip-ring);
+
   --color-chat-diff-added: var(--chat-diff-added);
   --color-chat-diff-deleted: var(--chat-diff-deleted);
   --color-chat-diff-modified: var(--chat-diff-modified);
@@ -85,6 +90,9 @@
   --chat-user-card-bg: #f1f0f0;
   --chat-user-card-border: #c5c4c4;
   --chat-user-card-border-hover: #b3b2b2;
+  --chat-mention-chip-bg: #e7e6e6;
+  --chat-mention-chip-fg: #21201f;
+  --chat-mention-chip-ring: rgba(0, 0, 0, 0.1);
   --chat-diff-added: #4f9f4f;
   --chat-diff-deleted: #d56761;
   --chat-diff-modified: #c28c00;
@@ -167,8 +175,11 @@
   --type-code-lang-line-height: 16px;
 
   --type-mention-font-family: var(--font-sans, var(--font-sans-default));
-  --type-mention-font-size: 14px;
-  --type-mention-font-weight: 600;
+  /* 12px / 500 mirrors the ChatComposer MentionPill (text-xs font-medium); the
+   * rendered size is hardcoded in prose.module.css .pf--mention to avoid host
+   * --type-mention-font-size overrides desyncing it from measurement. */
+  --type-mention-font-size: 12px;
+  --type-mention-font-weight: 500;
   --type-mention-line-height: 20px;
 }
 
@@ -186,6 +197,9 @@
   --chat-user-card-bg: #181818;
   --chat-user-card-border: #373636;
   --chat-user-card-border-hover: #525050;
+  --chat-mention-chip-bg: #2a2929;
+  --chat-mention-chip-fg: #e6e6e6;
+  --chat-mention-chip-ring: rgba(255, 255, 255, 0.1);
   --chat-diff-added: #54a55a;
   --chat-diff-deleted: #dc6b67;
   --chat-diff-modified: #ce981d;

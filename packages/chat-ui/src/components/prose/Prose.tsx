@@ -48,10 +48,12 @@ function fragVisualClass(run: InlineRun, variant: string): string {
   if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(variant)) return '';
   if (run.kind === 'code') return 'rounded bg-[var(--chat-code-inline-bg,rgba(0,0,0,0.06))]';
   if (run.kind === 'mention') {
-    const base =
-      'rounded bg-[var(--chat-mention-bg,#dbeafe)] text-[var(--chat-mention-fg,#1d4ed8)]';
-    // Resolved mentions use a tighter border pill; plain/math mentions use rounded-full.
-    return (run as InlineMention).mentionKind ? base : `${base} rounded-full`;
+    // Resolved context mentions mirror the ChatComposer pill: a neutral chip
+    // with a hairline ring. Plain/math mentions keep the rounded-full blue tint.
+    if ((run as InlineMention).mentionKind) {
+      return 'rounded-sm bg-chat-mention-chip text-chat-mention-chip-fg ring-1 ring-chat-mention-chip-ring';
+    }
+    return 'rounded-full bg-[var(--chat-mention-bg,#dbeafe)] text-[var(--chat-mention-fg,#1d4ed8)]';
   }
   if (run.kind === 'text' && run.href) {
     return 'text-[var(--chat-link,#60a5fa)] underline decoration-[1px] underline-offset-[0.14em] cursor-pointer';
@@ -102,25 +104,41 @@ function ProseFragment(props: {
     );
   }
 
-  // Resolved mention: render icon + short name inline within the chip.
+  // Resolved mention: render icon + short name inline within the chip, matching
+  // the ChatComposer MentionPill layout ([icon] [name] in one row).
   if (props.run.kind === 'mention' && (props.run as InlineMention).mentionKind) {
     const mention = props.run as InlineMention;
     return (
       <span
-        class={`${cls} inline-flex items-center gap-[3px]`}
-        style={{ left: `${props.frag.x}px` }}
+        class={`${cls} gap-1`}
+        // `.pf` declares display:inline-block; force inline-flex via inline style
+        // so the icon and label share a single centered row.
+        style={{
+          left: `${props.frag.x}px`,
+          display: 'inline-flex',
+          'align-items': 'center',
+        }}
       >
-        <Switch fallback={<MentionAtIcon />}>
-          <Match when={mention.mentionKind === 'file'}>
-            <MentionFileIcon />
-          </Match>
-          <Match when={mention.mentionKind === 'issue'}>
-            <MentionIssueIcon />
-          </Match>
-          <Match when={mention.mentionKind === 'symbol'}>
-            <MentionSymbolIcon />
-          </Match>
-        </Switch>
+        <span class="flex size-3.5 shrink-0 items-center justify-center">
+          <Show
+            when={mention.iconClass}
+            fallback={
+              <Switch fallback={<MentionAtIcon />}>
+                <Match when={mention.mentionKind === 'file'}>
+                  <MentionFileIcon />
+                </Match>
+                <Match when={mention.mentionKind === 'issue'}>
+                  <MentionIssueIcon />
+                </Match>
+                <Match when={mention.mentionKind === 'symbol'}>
+                  <MentionSymbolIcon />
+                </Match>
+              </Switch>
+            }
+          >
+            {(ic) => <i class={`${ic()} text-[12px] leading-none`} />}
+          </Show>
+        </span>
         <span>{mention.name ?? mention.label}</span>
       </span>
     );
