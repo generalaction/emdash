@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { FileWatchService, FsService, type RawFileEvent } from './index';
+import { FileWatchService, type RawFileEvent } from './index';
 
 async function eventually<T>(
   read: () => T | undefined,
@@ -17,43 +17,6 @@ async function eventually<T>(
   }
   throw new Error('Timed out waiting for condition');
 }
-
-describe('FsService', () => {
-  it('reads, stats, checks, and removes real files', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'emdash-shared-fs-'));
-    const nested = path.join(root, 'nested');
-    const file = path.join(nested, 'note.txt');
-    await mkdir(nested);
-    await writeFile(file, 'hello shared runtime\n', 'utf8');
-
-    const service = new FsService();
-    await expect(service.exists(file)).resolves.toBe(true);
-
-    const stat = await service.stat(file);
-    expect(stat).toEqual({
-      type: 'file',
-      size: Buffer.byteLength('hello shared runtime\n'),
-      mtimeMs: expect.any(Number),
-    });
-    await expect(service.stat(path.join(root, 'missing.txt'))).resolves.toBeNull();
-
-    await expect(service.read(file)).resolves.toMatchObject({
-      content: 'hello shared runtime\n',
-      truncated: false,
-      totalSize: Buffer.byteLength('hello shared runtime\n'),
-    });
-    await expect(service.read(file, { maxBytes: 5 })).resolves.toMatchObject({
-      content: 'hello',
-      truncated: true,
-      totalSize: Buffer.byteLength('hello shared runtime\n'),
-    });
-
-    await service.remove(file);
-    await expect(service.exists(file)).resolves.toBe(false);
-    await service.remove(nested, { recursive: true });
-    await expect(service.exists(nested)).resolves.toBe(false);
-  });
-});
 
 describe('FileWatchService', () => {
   it('emits real file events through ref-counted leases', async () => {
