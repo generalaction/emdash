@@ -26,14 +26,28 @@ const enrichHostDep = (
   hostDep: Parameters<typeof agentUpdateService.enrichHostDependency>[1]
 ) => agentUpdateService.enrichHostDependency(id, hostDep);
 
-async function ensureAgentStatusesLoaded(
-  mgr: Awaited<ReturnType<typeof getDependencyManager>>
-): Promise<void> {
-  const hasAgentSnapshot = Array.from(mgr.getAll().values()).some(
-    (state) => state.category === 'agent'
-  );
-  if (!hasAgentSnapshot) {
-    await mgr.probeCategory('agent');
+type DependencyManager = Awaited<ReturnType<typeof getDependencyManager>>;
+
+const loadedAgentStatusManagers = new WeakSet<DependencyManager>();
+const loadingAgentStatusManagers = new WeakMap<DependencyManager, Promise<void>>();
+
+async function ensureAgentStatusesLoaded(mgr: DependencyManager): Promise<void> {
+  if (loadedAgentStatusManagers.has(mgr)) return;
+
+  const loading = loadingAgentStatusManagers.get(mgr);
+  if (loading) {
+    await loading;
+    return;
+  }
+
+  const probe = mgr.probeCategory('agent').then(() => {
+    loadedAgentStatusManagers.add(mgr);
+  });
+  loadingAgentStatusManagers.set(mgr, probe);
+  try {
+    await probe;
+  } finally {
+    loadingAgentStatusManagers.delete(mgr);
   }
 }
 
