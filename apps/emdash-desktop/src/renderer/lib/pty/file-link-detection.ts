@@ -12,13 +12,10 @@ const BARE_FILE_PATTERN = '[\\w\\-.]+\\.[a-zA-Z][a-zA-Z0-9]{1,9}(?!/)';
 // Lookbehind on `:` keeps URLs (`https://...`) with WebLinksAddon.
 const FILE_PATH_PATTERN = `(?<![\\w\\-./@:])(?:${DIR_PATH_PATTERN}|${BARE_FILE_PATTERN})\\b`;
 const URL_PROTOCOL_PATTERN = /[a-zA-Z][a-zA-Z0-9+.-]*:\/\//;
-// A bare `name.ext` token is ambiguous: `notes.md` is a file but `paris.fr` is a
-// domain. Rather than chase an ever-growing blocklist of (country-code) TLDs —
-// many of which (`.rs`, `.sh`, `.pl`, `.ml`) are also real source extensions —
-// we only treat a bare token as a file when its extension is a known file type.
-// Tokens containing a `/` keep permissive matching via DIR_PATH_PATTERN, so
-// uncommon extensions stay linkable when written as a path. The trade-off is
-// conservative: an unlisted extension simply needs a path to be clickable.
+// A bare `name.ext` is ambiguous: `notes.md` is a file, `paris.fr` a domain.
+// Allowlisting known file extensions is more robust than blocklisting TLDs (many
+// ccTLDs like `.rs`/`.sh` are also real source extensions). Paths with a `/` skip
+// this gate, so uncommon extensions stay linkable when written as a path.
 const BARE_FILE_EXTENSIONS = new Set([
   // Source code
   'ts',
@@ -245,9 +242,6 @@ function isEmbeddedInUrl(text: string, startCol: number): boolean {
   return URL_PROTOCOL_PATTERN.test(prefix.slice(tokenStart));
 }
 
-// Bare filenames (no `/`) are only linked when their extension is a known file
-// type, which keeps domains like `paris.fr` out. Paths with a separator are
-// matched permissively and skip this gate.
 function isUnsupportedBareFile(text: string): boolean {
   if (text.includes('/')) return false;
   const extension = text.slice(text.lastIndexOf('.') + 1).toLowerCase();
