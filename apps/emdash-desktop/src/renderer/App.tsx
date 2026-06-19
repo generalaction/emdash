@@ -63,8 +63,11 @@ function AppContent() {
   }, [view, stepsNeeded.length]);
 
   const renderContent = () => {
+    // Linux runs frameless (`frame: false`), so every branch — including the
+    // pre-resolution loading window — must mount the overlay to keep window
+    // controls and a drag region available.
     if (isLoading || (view === 'onboarding' && frozenSteps === null)) {
-      return null;
+      return <FramelessTitlebarOverlay />;
     }
     if (view === 'onboarding' && stepsNeeded.length > 0) {
       return (
@@ -74,17 +77,18 @@ function AppContent() {
         </>
       );
     }
-    return (
-      <>
-        <Workspace />
-        {view === 'welcome' && (
-          <>
-            <WelcomeScreen onGetStarted={() => window.location.reload()} />
-            <FramelessTitlebarOverlay />
-          </>
-        )}
-      </>
-    );
+    // The welcome splash is an opaque full-screen overlay, so the Workspace
+    // would be fully hidden behind it; render it standalone to avoid mounting a
+    // second, hidden WindowControls (the Workspace Titlebar's) underneath.
+    if (view === 'welcome') {
+      return (
+        <>
+          <WelcomeScreen onGetStarted={() => window.location.reload()} />
+          <FramelessTitlebarOverlay />
+        </>
+      );
+    }
+    return <Workspace />;
   };
 
   return (
