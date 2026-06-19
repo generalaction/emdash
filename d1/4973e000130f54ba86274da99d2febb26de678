@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/main/core/agents/controller.ts
+  s_33b392853a1d31::t_24d89f807afc89 29-39,57,71-73
+apps/emdash-desktop/src/renderer/lib/stores/use-agent-installation-statuses.ts
+  s_33b392853a1d31::t_8a94e7e832f8e3 63-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "d14973e000130f54ba86274da99d2febb26de678",
+  "prompts": {},
+  "sessions": {
+    "s_33b392853a1d31": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ee00a-ce7e-7a72-8890-976b54f7dafc",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
