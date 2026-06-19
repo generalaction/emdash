@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/lib/CronPicker/CronPicker.tsx
+  s_efbfcd433804da::t_9a0ba57279c529 48-55,162,251-255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "e4feeac3461f438a249aac5837baa9a9a82033e9",
+  "prompts": {},
+  "sessions": {
+    "s_efbfcd433804da": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019edbab-5f39-7752-850f-47cc71605baf",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
