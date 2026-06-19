@@ -8,7 +8,7 @@ import { githubAccountsChangedChannel } from '@shared/events/githubEvents';
 import { registerRPCRouter } from '@shared/lib/ipc/rpc';
 import { setupApplicationMenu } from './app/menu';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
-import { createMainWindow } from './app/window';
+import { createMainWindow, syncElectronThemeSource } from './app/window';
 import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
 import { agentHookService } from './core/agent-hooks/agent-hook-service';
@@ -134,6 +134,7 @@ void app.whenReady().then(async () => {
   automationsService.start();
   appService.initialize();
   await appSettingsService.initialize();
+  syncElectronThemeSource();
   browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
   setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
   await promptLibraryService.initialize();

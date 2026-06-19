@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, nativeTheme } from 'electron';
 import appIcon from '@/assets/images/emdash/emdash_logo.png?asset';
 import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
 import {
@@ -7,11 +7,13 @@ import {
   stripBrowserWebviewParams,
   validateBrowserWebviewAttach,
 } from '@main/core/browser/webview-security';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { registerExternalLinkHandlers } from '@main/utils/externalLinks';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { APP_ORIGIN } from './protocol';
+import { getElectronThemeSource, getWindowBackgroundColor } from './window-theme';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -22,6 +24,10 @@ export function createMainWindow(): BrowserWindow {
     minWidth: 700,
     minHeight: 500,
     title: PRODUCT_NAME,
+    backgroundColor: getWindowBackgroundColor(
+      appSettingsService.getCached('theme'),
+      nativeTheme.shouldUseDarkColors
+    ),
     // In production, electron-builder injects the icon from the app bundle.
     ...(import.meta.env.DEV && { icon: appIcon }),
     webPreferences: {
@@ -84,6 +90,18 @@ export function createMainWindow(): BrowserWindow {
 export function getMainWindow(): BrowserWindow | null {
   return mainWindow;
 }
+
+export function syncMainWindowBackgroundColor(): void {
+  mainWindow?.setBackgroundColor(
+    getWindowBackgroundColor(appSettingsService.getCached('theme'), nativeTheme.shouldUseDarkColors)
+  );
+}
+
+export function syncElectronThemeSource(): void {
+  nativeTheme.themeSource = getElectronThemeSource(appSettingsService.getCached('theme'));
+}
+
+nativeTheme.on('updated', syncMainWindowBackgroundColor);
 
 function registerBrowserWebviewHandlers(win: BrowserWindow): void {
   win.webContents.on('will-attach-webview', (event, webPreferences, params) => {

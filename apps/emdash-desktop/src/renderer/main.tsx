@@ -46,6 +46,7 @@ async function bootstrap() {
     rpc.viewState.get('sidebar'),
     rpc.viewState.getAll(),
     appState.projects.load(),
+    prefetchAppSettingsKey('theme'),
     prefetchAppSettingsKey('interface'),
     prefetchAppSettingsKey('browser'),
   ]);

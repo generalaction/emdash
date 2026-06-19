@@ -1,3 +1,4 @@
+import { syncElectronThemeSource, syncMainWindowBackgroundColor } from '@main/app/window';
 import { setBrowserCorsRelaxationSettings } from '@main/core/browser/browser-profile-session';
 import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
 import { reconcileResourceSampler } from '@main/core/resource-monitor/resource-sampler';
@@ -5,6 +6,11 @@ import { createRPCController } from '@shared/lib/ipc/rpc';
 import { appSettingsService, type AppSettings, type AppSettingsKey } from './settings-service';
 
 async function reconcileSettingsRuntimeState(key: AppSettingsKey): Promise<void> {
+  if (key === 'theme') {
+    await appSettingsService.get('theme');
+    syncElectronThemeSource();
+    syncMainWindowBackgroundColor();
+  }
   if (key === 'resourceMonitor') await reconcileResourceSampler();
   if (key === 'keyboard') {
     // Re-read the effective settings so runtime state observes service-side defaults or merges.

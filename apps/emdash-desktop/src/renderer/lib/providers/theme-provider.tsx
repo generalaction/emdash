@@ -42,17 +42,16 @@ export const ThemeContext = createContext<ThemeContextType | undefined>(undefine
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { value: themeValue, isLoading, update } = useAppSettingsKey('theme');
-  const [, setCachedTheme] = useLocalStorage<Theme>('emdash-theme', null);
+  const [cachedTheme, setCachedTheme] = useLocalStorage<Theme>('emdash-theme', null);
 
   const systemTheme = useSyncExternalStore(subscribeToSystemTheme, getSystemTheme);
 
-  const theme: Theme = themeValue ?? null;
+  const theme: Theme = themeValue === undefined ? cachedTheme : themeValue;
   const effectiveTheme: EffectiveTheme = theme ?? systemTheme;
 
   useLayoutEffect(() => {
-    if (isLoading) return;
     applyTheme(effectiveTheme);
-  }, [effectiveTheme, isLoading]);
+  }, [effectiveTheme]);
 
   useEffect(() => {
     if (isLoading) return;
