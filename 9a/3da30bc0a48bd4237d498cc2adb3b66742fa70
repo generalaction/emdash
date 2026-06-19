@@ -1,0 +1,46 @@
+apps/emdash-desktop/src/renderer/App.tsx
+  s_f1757538ddca80::t_284a158491d279 3
+  s_f1757538ddca80::t_8f0f529e374040 88
+apps/emdash-desktop/src/renderer/app/app-menu-events.tsx
+  s_f1757538ddca80::t_ce3d27917fd667 67-69,76
+  s_f1757538ddca80::t_8242977213b964 7
+apps/emdash-desktop/src/renderer/lib/notifications/agent-status-toast.tsx
+  s_f1757538ddca80::t_a984b71de3dbe9 1-60,62-93
+  s_f1757538ddca80::t_8242977213b964 61
+apps/emdash-desktop/src/main/core/agent-hooks/notification.ts
+  s_f1757538ddca80::t_7439683991e9e1 44
+apps/emdash-desktop/src/main/core/settings/schema.ts
+  s_f1757538ddca80::t_3b232da91f3f0a 32
+apps/emdash-desktop/src/renderer/lib/notifications/focus-task.ts
+  s_f1757538ddca80::t_064a9ad81eb8c5 1-32
+apps/emdash-desktop/src/renderer/app/agent-notifications.tsx
+  s_f1757538ddca80::t_1882f67518ff15 1-57
+apps/emdash-desktop/src/shared/core/conversations/conversationEvents.ts
+  s_f1757538ddca80::t_c4f925cf1c8d74 23-26
+apps/emdash-desktop/src/main/core/settings/settings-registry.ts
+  s_f1757538ddca80::t_76beea3d276358 40
+apps/emdash-desktop/src/renderer/features/settings/components/NotificationSettingsCard.tsx
+  s_f1757538ddca80::t_8f8867955ced73 237-256
+  s_f1757538ddca80::t_283a412f53fb8e 73
+apps/emdash-desktop/src/renderer/utils/soundPlayer.ts
+  s_f1757538ddca80::t_f82de0dd98c7bf 12
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.ts
+  s_f1757538ddca80::t_f8dff2d0d4ac6b 27
+  s_f1757538ddca80::t_065e1fe9d27186 172,179-182,189-191
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "9a3da30bc0a48bd4237d498cc2adb3b66742fa70",
+  "prompts": {},
+  "sessions": {
+    "s_f1757538ddca80": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "69f8fd0e-d829-4206-acd4-fb2a98114440",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
