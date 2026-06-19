@@ -185,11 +185,11 @@ Renderer (React)
 Local DB (SQLite)
 
 - Development location (Electron `app.getPath('userData')`; dev builds use a `rocky-dev` folder):
-  - macOS: `~/Library/Application Support/rocky-dev/emdash4.db`
-  - Linux: `~/.config/rocky-dev/emdash4.db`
-  - Windows: `%APPDATA%\rocky-dev\emdash4.db`
+  - macOS: `~/Library/Application Support/rocky-dev/rocky.db`
+  - Linux: `~/.config/rocky-dev/rocky.db`
+  - Windows: `%APPDATA%\rocky-dev\rocky.db`
 - Override the path with the `EMDASH_DB_FILE` environment variable for isolated/scratch databases.
-- Reset: quit the app and run `pnpm --filter @emdash/emdash-desktop run db:reset` from the repo root, or delete the dev database file and relaunch (the schema is recreated).
+- Reset: quit the app and run `pnpm --filter @rocky/desktop run db:reset` from the repo root, or delete the dev database file and relaunch (the schema is recreated).
 
 ## Issue Reports and Feature Requests
 

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
-import { CURRENT_DB_FILENAME, PREVIOUS_DB_FILENAME } from './default-path';
+import { CURRENT_DB_FILENAME } from './default-path';
 
 function quoteSqliteString(value: string): string {
   return `'${value.split("'").join("''")}'`;
@@ -36,17 +36,5 @@ function clearCopiedAppSecrets(databasePath: string): void {
 
 export function resolveDefaultDatabasePath(userDataPath: string): string {
   fs.mkdirSync(userDataPath, { recursive: true });
-
-  const currentPath = join(userDataPath, CURRENT_DB_FILENAME);
-  if (fs.existsSync(currentPath)) {
-    return currentPath;
-  }
-
-  const previousPath = join(userDataPath, PREVIOUS_DB_FILENAME);
-  if (fs.existsSync(previousPath)) {
-    copySqliteDatabase(previousPath, currentPath);
-    clearCopiedAppSecrets(currentPath);
-  }
-
-  return currentPath;
+  return join(userDataPath, CURRENT_DB_FILENAME);
 }

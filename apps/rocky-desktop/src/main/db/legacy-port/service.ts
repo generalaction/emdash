@@ -139,7 +139,7 @@ export async function runLegacyPort(
     if (hasBetaDatabaseFile(userDataPath)) {
       importBetaDatabaseIntoDestination(appTarget.sqlite, betaPath);
     } else {
-      log.warn('legacy-port: v1-beta source selected but emdash3.db was not found', { betaPath });
+      log.warn('legacy-port: v1-beta source selected but rocky.db was not found', { betaPath });
     }
   }
 
@@ -183,7 +183,7 @@ export async function runLegacyPort(
         if (shouldCopyBeta) {
           copyAttachedBetaDatabaseIntoDestination(appTarget.sqlite);
         } else {
-          log.warn('legacy-port: v1-beta source selected but emdash3.db was not found', {
+          log.warn('legacy-port: v1-beta source selected but rocky.db was not found', {
             betaPath,
           });
         }

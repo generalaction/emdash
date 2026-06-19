@@ -1,14 +1,13 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { USER_DATA_DIR_NAME } from '@shared/app-identity';
 
-export const PREVIOUS_DB_FILENAME = 'emdash3.db';
-export const CURRENT_DB_FILENAME = 'emdash4.db';
-const USER_DATA_DIR_NAME = 'emdash';
+export const CURRENT_DB_FILENAME = 'rocky.db';
 
 /**
  * Returns the platform-specific default userData directory without requiring
- * the Electron `app` module. This is pinned to the shared `emdash` directory
- * regardless of product identity.
+ * the Electron `app` module. Imports USER_DATA_DIR_NAME from app-identity so
+ * the drizzle-kit CLI resolves the same directory as the running app.
  *
  * Pass this result as `userDataPath` to `resolveDatabasePath()` when running
  * outside of Electron (e.g. drizzle-kit CLI).

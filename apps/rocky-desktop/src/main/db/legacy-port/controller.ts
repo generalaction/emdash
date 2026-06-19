@@ -3,7 +3,7 @@ import { count } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { app } from 'electron';
 import { db } from '@main/db/client';
-import { PREVIOUS_DB_FILENAME } from '@main/db/default-path';
+import { CURRENT_DB_FILENAME } from '@main/db/default-path';
 import * as schema from '@main/db/schema';
 import { projects, tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -42,7 +42,7 @@ export const legacyPortController = createRPCController({
     const hasLegacyDb = hasLegacyDatabaseFile(userDataPath);
     const hasBetaDb = hasBetaDatabaseFile(userDataPath);
     const legacyPath = resolveLegacyDatabasePath(userDataPath);
-    const betaPath = join(userDataPath, PREVIOUS_DB_FILENAME);
+    const betaPath = join(userDataPath, CURRENT_DB_FILENAME);
     let legacyDb;
     let betaSqlite;
     try {

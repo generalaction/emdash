@@ -31,7 +31,7 @@ describe('manual legacy port verification', () => {
     const runsDir = process.env.PORT_RUNS_DIR
       ? path.resolve(process.env.PORT_RUNS_DIR)
       : path.join(repoRoot, 'testRuns');
-    const appDbPath = path.join(runsDir, 'emdash3.db');
+    const appDbPath = path.join(runsDir, 'rocky.db');
     const legacyDbPath = path.join(runsDir, 'emdash.db');
 
     if (!fs.existsSync(appDbPath) || !fs.existsSync(legacyDbPath)) {
