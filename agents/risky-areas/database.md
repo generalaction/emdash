@@ -16,7 +16,7 @@
 ## Current Behavior
 
 - database path is resolved by main-process db path helpers
-- `EMDASH_DB_FILE` overrides the default location
+- `ROCKY_DB_FILE` overrides the default location
 - database initialization happens in `src/main/db/initialize.ts`
 
 ## Development Workflow
@@ -41,12 +41,12 @@ tooling/
 
 ### Isolated dev database
 
-Point `EMDASH_DB_FILE` at a scratch path instead of using the default database
+Point `ROCKY_DB_FILE` at a scratch path instead of using the default database
 when working on migrations, so schema experiments cannot corrupt your real app
 data. `pnpm run db:reset` wipes the default dev databases.
 
 ```bash
-EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev   # start app with isolated dev database
+ROCKY_DB_FILE=/tmp/rocky-scratch.db pnpm run dev   # start app with isolated dev database
 pnpm run db:reset                                    # wipe the dev databases and start fresh
 ```
 
@@ -69,7 +69,7 @@ installed under `tooling/node-deps/` (compiled for system Node). The app's
 
 ### Migration authoring checklist
 
-1. **Isolate your dev DB**: run the app with `EMDASH_DB_FILE` pointing at a scratch path
+1. **Isolate your dev DB**: run the app with `ROCKY_DB_FILE` pointing at a scratch path
    so you're not working against your personal emdash database
 
 2. **Snapshot the pre-migration baseline**:

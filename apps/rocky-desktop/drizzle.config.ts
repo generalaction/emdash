@@ -3,7 +3,7 @@ import { defineConfig } from 'drizzle-kit';
 import { defaultDbFilePath, resolveDefaultUserDataPath } from './src/main/db/default-path';
 
 function resolveDbUrl(): string {
-  const explicit = process.env.EMDASH_DB_FILE?.trim();
+  const explicit = process.env.ROCKY_DB_FILE?.trim();
   if (explicit) {
     return resolve(explicit);
   }

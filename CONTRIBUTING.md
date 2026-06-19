@@ -92,8 +92,8 @@ Set these environment variables to skip compiling native modules (useful if you 
 working on the renderer or running in CI without a C++ toolchain):
 
 ```bash
-EMDASH_DISABLE_PTY=1        # skip node-pty rebuild
-EMDASH_DISABLE_NATIVE_DB=1  # skip better-sqlite3 rebuild
+ROCKY_DISABLE_PTY=1        # skip node-pty rebuild
+ROCKY_DISABLE_NATIVE_DB=1  # skip better-sqlite3 rebuild
 ```
 
 ## Project Overview
@@ -188,7 +188,7 @@ Local DB (SQLite)
   - macOS: `~/Library/Application Support/rocky-dev/rocky.db`
   - Linux: `~/.config/rocky-dev/rocky.db`
   - Windows: `%APPDATA%\rocky-dev\rocky.db`
-- Override the path with the `EMDASH_DB_FILE` environment variable for isolated/scratch databases.
+- Override the path with the `ROCKY_DB_FILE` environment variable for isolated/scratch databases.
 - Reset: quit the app and run `pnpm --filter @rocky/desktop run db:reset` from the repo root, or delete the dev database file and relaunch (the schema is recreated).
 
 ## Issue Reports and Feature Requests

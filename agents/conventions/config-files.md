@@ -19,7 +19,7 @@ In `apps/rocky-desktop/`:
 - `drizzle.config.ts`
 - `flake.nix`
 
-Per-project (user repos): `.emdash.json`
+Per-project (user repos): `.rocky.json`
 
 ## Repo Rules
 

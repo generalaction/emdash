@@ -8,7 +8,7 @@ export interface ResolveDatabasePathOptions {
 }
 
 export function resolveDatabasePath(options: ResolveDatabasePathOptions = {}): string {
-  const explicitDbFile = process.env.EMDASH_DB_FILE?.trim();
+  const explicitDbFile = process.env.ROCKY_DB_FILE?.trim();
   if (explicitDbFile) {
     return resolve(explicitDbFile);
   }

@@ -10,7 +10,7 @@ import type { SshConnectionRow } from '@main/db/schema';
 
 describe('SshConnectionManager', () => {
   it('cleans up a proxied transport when disconnecting during handshake', async () => {
-    process.env.EMDASH_DB_FILE = join(
+    process.env.ROCKY_DB_FILE = join(
       await mkdtemp(join(tmpdir(), 'emdash-ssh-manager-')),
       'test.db'
     );

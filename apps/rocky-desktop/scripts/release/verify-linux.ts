@@ -5,7 +5,7 @@ import { fail, info } from './lib/log.ts';
 
 const DEFAULT_MAX_GLIBC = '2.35';
 const RELEASE_DIR = 'release';
-const maxGlibc = process.env.EMDASH_MAX_GLIBC ?? DEFAULT_MAX_GLIBC;
+const maxGlibc = process.env.ROCKY_MAX_GLIBC ?? DEFAULT_MAX_GLIBC;
 
 interface GlibcSymbol {
   file: string;

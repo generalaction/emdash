@@ -15,7 +15,7 @@ Claude.ai's artifact panel.
 ## Repository Structure
 
 This is a pnpm workspace monorepo. The Electron app lives in `apps/rocky-desktop/`
-(package `@emdash/emdash-desktop`). Unless prefixed otherwise, `src/...`, `drizzle/`,
+(package `@rocky/desktop`). Unless prefixed otherwise, `src/...`, `drizzle/`,
 `scripts/`, `build/`, and config-file paths in this document and in `agents/` docs are
 relative to `apps/rocky-desktop/`.
 
@@ -75,10 +75,10 @@ pnpm run dev:debug
 ```
 
 Use an isolated development database for schema or migration work by pointing
-`EMDASH_DB_FILE` at a scratch path, and reset the dev databases with:
+`ROCKY_DB_FILE` at a scratch path, and reset the dev databases with:
 
 ```bash
-EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev
+ROCKY_DB_FILE=/tmp/emdash-scratch.db pnpm run dev
 pnpm run db:reset
 ```
 
@@ -325,14 +325,14 @@ pnpm run test
   `src/main/core/mcp/utils/`, `src/shared/mcp/`, and `src/renderer/features/mcp/`.
 - Skills types and validation live under `src/shared/skills/`; skills UI and service
   code live in `src/renderer/features/skills/` and `src/main/core/skills/`.
-- Worktree runtime settings can be supplied through `.emdash.json`:
+- Worktree runtime settings can be supplied through `.rocky.json`:
   `preservePatterns`, `scripts.setup`, `scripts.run`, `scripts.teardown`, and
   `shellSetup`.
 - Project settings such as `worktreeDirectory`, `defaultBranch`, `baseRemote`,
-  `pushRemote`, `tmux`, and `workspaceProvider` are DB-backed, not `.emdash.json`.
+  `pushRemote`, `tmux`, and `workspaceProvider` are DB-backed, not `.rocky.json`.
 - Optional environment variables:
-  `TELEMETRY_ENABLED`, `EMDASH_DB_FILE`, `EMDASH_DISABLE_NATIVE_DB`,
-  `EMDASH_DISABLE_CLONE_CACHE`, `EMDASH_DISABLE_PTY`, `CODEX_SANDBOX_MODE`, and
+  `TELEMETRY_ENABLED`, `ROCKY_DB_FILE`, `ROCKY_DISABLE_NATIVE_DB`,
+  ``, `ROCKY_DISABLE_PTY`, `CODEX_SANDBOX_MODE`, and
   `CODEX_APPROVAL_POLICY`.
 - Build-time telemetry configuration may use `VITE_POSTHOG_KEY` and
   `VITE_POSTHOG_HOST`; release workflows pass PostHog secrets through GitHub Actions.
