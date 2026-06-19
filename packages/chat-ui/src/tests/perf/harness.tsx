@@ -18,13 +18,14 @@
  *   record()    — structured console.table log for diffing across runs.
  */
 
-import { createSignal } from 'solid-js';
+import { For, createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import { ChatRoot } from '../../ChatRoot';
 import { CachesContext } from '../../components/CachesContext';
-import { REGISTRY } from '../../components/registry';
 import { ThemeContext } from '../../components/ThemeContext';
+import { UNIT_REGISTRY, SEGMENTERS } from '../../components/unit-registry';
 import { createChatCaches } from '../../core/caches';
+import type { MeasureCtx, RenderCtx } from '../../core/define';
 import { DEFAULT_THEME } from '../../core/theme';
 import type { ChatItem } from '../../model';
 import { createTranscript } from '../../state/transcript';
@@ -155,24 +156,29 @@ export function mountTranscript(
 export function mountRows(items: ChatItem[]): Mounted {
   const width = 640;
   const caches = createChatCaches();
-  const ctx = {
+  const segCtx = { caches, expanded: (_id: string) => false };
+  const measureCtx: MeasureCtx = {
     theme: DEFAULT_THEME,
     width,
     isCollapsed: (_id: string) => false,
     expanded: (_id: string) => false,
     caches,
   };
-  const renderCtx = { viewState: { isCollapsed: (_id: string) => false } };
+  const renderCtx: RenderCtx = {
+    viewState: { isCollapsed: (_id: string) => false },
+    measureCtx: () => measureCtx,
+  };
 
   const host = document.createElement('div');
   host.style.width = `${width}px`;
   host.style.position = 'relative';
   document.body.appendChild(host);
 
-  // Pre-measure all items.
-  const measured = items.map((item) => {
-    const def = REGISTRY[item.kind as keyof typeof REGISTRY];
-    return { item, layout: def.measure(item, ctx) };
+  // Segment each item into units using SEGMENTERS.
+  const allUnits = items.flatMap((item) => {
+    const segmenter = SEGMENTERS[item.kind];
+    // oxlint-disable-next-line typescript/no-explicit-any -- segmenter typed at its own boundary
+    return segmenter ? segmenter.segment(item as any, segCtx) : [];
   });
 
   const dispose = render(
@@ -180,12 +186,13 @@ export function mountRows(items: ChatItem[]): Mounted {
       <ThemeContext.Provider value={() => DEFAULT_THEME}>
         <CachesContext.Provider value={caches}>
           <div>
-            {measured.map(({ item, layout }) => {
-              const def = REGISTRY[item.kind as keyof typeof REGISTRY];
-              // oxlint-disable-next-line typescript/no-explicit-any -- def.Render typed at its own boundary
-              const Comp = def.Render as (p: any) => any;
-              return <Comp key={item.id} item={item} layout={layout} ctx={renderCtx} />;
-            })}
+            <For each={allUnits}>
+              {(u) => {
+                const def = UNIT_REGISTRY[u.kind];
+                if (!def) return null;
+                return <def.Render data={u.data} ctx={renderCtx} />;
+              }}
+            </For>
           </div>
         </CachesContext.Provider>
       </ThemeContext.Provider>

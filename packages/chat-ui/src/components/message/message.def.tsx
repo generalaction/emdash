@@ -1,40 +1,38 @@
 /**
- * messageDef — ComponentDef for ChatMessage rows.
+ * messageUnitDef — native UnitDef for ChatMessage rows.
  *
- * measure: builds a role-specific compose Measured tree and stores it in the
- *          layout payload so MessageRender can walk it via Project.
+ * Single self-contained unit: measure returns a total height (number),
+ * and Render lays out the block stack internally via BlockStackView.
  *
- *   user:       bubble(blockStack, { padX, variantClass: bg+radius })
- *               Full row width (no shrink-wrap); Row.tsx gives users insetX=0
- *               so they span edge-to-edge. BUBBLE_PAD_X keeps text off the edge.
- *   assistant:  stack([ blockStack, slot('message:footer', MESSAGE_FOOTER_H) ])
- *               Row.tsx applies a 16px inset so measure receives narrowed width.
- *   thought:    blockStack  (text color applied in the Render shell)
+ * All message states map to exactly one unit (kind='message', key='self'):
+ *   streaming   — block stack grows each tick; activeTurn bypasses segmentCache.
+ *   empty       — fallback height = one line + padY overhead.
+ *   finalized   — full block stack + optional copy-button footer (assistant).
  *
- * MessageRender is a thin shell that applies flex alignment, the a11y mirror,
- * and the role-specific text color, then delegates entirely to Project.
+ * Chrome (role-specific visual treatment applied by UnitRow via GroupChrome):
+ *   All roles share COMPOSITE_CHROME (insetX=ROW_INSET_X, no bg/border).
+ *   Role differentiation (text color, italic for thought) is done inside Render.
  *
- * Per-block subtree memoization is handled by layoutBlockStack (block-stack.ts):
- * measureBlockCached (WeakMap by Block identity) makes streaming rows cheap —
- * only the last growing block re-measures each tick.
+ * Padding:
+ *   BUBBLE_PAD_Y is baked into layoutBlockStack's padY option.
+ *   No bubble background or border — user messages are plain-padded rows.
  */
 
-import type { Component } from 'solid-js';
-import { Show } from 'solid-js';
-import { SLOT_NAMES, bubble, slot, stack } from '../../core/compose';
-import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
+import { Show, createMemo } from 'solid-js';
+import type { StackLayout } from '../../core/compose';
+import type { MeasureCtx, Measured, RenderCtx } from '../../core/define';
 import { layoutBlockStack } from '../../core/layout/block-stack';
 import { blockPlainText } from '../../core/markdown/plain-text';
-import type { ChatMessage, ChatRole } from '../../model';
-import { useCaches } from '../CachesContext';
+import { defineUnit } from '../../core/units';
+import type { ChatMessage } from '../../model';
+import { BlockStackView } from '../primitives/BlockStackView';
 import { CopyButton } from '../primitives/CopyButton';
-import { Project, renderBlockLeaf } from '../Project';
 
-// ── Message layout constants ──────────────────────────────────────────────────
+// ── Layout constants (re-exported for PinnedUserMessage and tests) ───────────
 
-/** Horizontal padding inside the user message bubble on each side (px). */
+/** Horizontal inset on each side for all message roles (px). Replaces per-role bubble padding. */
 export const BUBBLE_PAD_X = 14;
-/** Vertical padding inside the message bubble block stack on each side (px). */
+/** Vertical padding inside the block stack on each side (px). */
 export const BUBBLE_PAD_Y = 8;
 /** Gap between consecutive blocks of different tiers in the block stack (px). */
 export const BLOCK_GAP = 10;
@@ -43,156 +41,91 @@ export const PROSE_GAP = 4;
 /** Reserved height for the assistant message footer (copy button row, px). */
 export const MESSAGE_FOOTER_H = 24;
 
-// ── Layout type ───────────────────────────────────────────────────────────────
+// ── Shared stack opts ────────────────────────────────────────────────────────
 
-export type MessageNodeLayout = {
-  kind: 'message';
-  /**
-   * The role-specific compose subtree produced by measure().
-   * Project walks this to render the message content.
-   */
-  // oxlint-disable-next-line typescript/no-explicit-any -- compose tree; type varies by role
-  tree: Measured<any>;
-};
+const STACK_OPTS = { padY: BUBBLE_PAD_Y, blockGap: BLOCK_GAP, proseGap: PROSE_GAP };
 
-// ── Role helpers ──────────────────────────────────────────────────────────────
+// ── measure ───────────────────────────────────────────────────────────────────
 
-function roleClass(role: ChatRole): string {
-  if (role === 'user') return 'user';
-  if (role === 'thought') return 'thought';
-  return 'assistant';
+function measureMessage(item: ChatMessage, ctx: MeasureCtx): number {
+  const blocks = ctx.caches.parseBlocks(item.id, item.text);
+  const footer = item.role === 'assistant' ? MESSAGE_FOOTER_H : 0;
+  if (blocks.length === 0) {
+    return ctx.theme.fonts.body.lineHeight + 2 * BUBBLE_PAD_Y + footer;
+  }
+  const stackMeasured = layoutBlockStack(blocks, ctx, {
+    ...STACK_OPTS,
+    isCollapsed: ctx.isCollapsed,
+  });
+  return stackMeasured.height + footer;
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
-function MessageRender(props: {
-  item: ChatMessage;
-  layout: Measured<MessageNodeLayout>;
-  ctx: RenderCtx;
-}) {
-  const item = props.item;
-  const caches = useCaches();
-  const rc = () => roleClass(item.role);
-  const blocks = () => caches.parseBlocks(item.id, item.text);
+function MessageUnitRender(props: { data: ChatMessage; ctx: RenderCtx }) {
+  const mCtx = () => props.ctx.measureCtx?.();
 
-  const plainText = () => blocks().map(blockPlainText).join('\n\n');
+  const stack = createMemo<Measured<StackLayout> | null>(() => {
+    const ctx = mCtx();
+    if (!ctx) return null;
+    const blocks = ctx.caches.parseBlocks(props.data.id, props.data.text);
+    if (blocks.length === 0) return null;
+    return layoutBlockStack(blocks, ctx, { ...STACK_OPTS, isCollapsed: ctx.isCollapsed });
+  });
 
-  // Role-specific text color (Lane B — no layout impact).
+  const totalH = createMemo(() => {
+    const ctx = mCtx();
+    if (!ctx) return props.data.role === 'assistant' ? MESSAGE_FOOTER_H : 0;
+    return measureMessage(props.data, ctx);
+  });
+
   const textClass = () => {
-    if (rc() === 'thought') return 'text-chat-fg-muted italic';
-    if (rc() === 'assistant') return 'text-chat-fg-body';
-    return ''; // user: text color is in the bubble variantClass
+    if (props.data.role === 'thought') return 'text-chat-fg-muted italic';
+    if (props.data.role === 'assistant') return 'text-chat-fg-body';
+    return 'text-chat-fg-body';
+  };
+
+  const plainText = () => {
+    const ctx = mCtx();
+    if (!ctx) return props.data.text;
+    return ctx.caches.parseBlocks(props.data.id, props.data.text).map(blockPlainText).join('\n\n');
   };
 
   return (
-    <div
-      style={{ height: `${props.layout.height}px` }}
-      class={`group flex flex-col ${rc() === 'user' ? 'items-end' : 'items-start'} ${textClass()}`}
-    >
-      {/* a11y visually-hidden mirror — sr-only is position:absolute, no height impact */}
-      <div class="sr-only" aria-label={item.text}>
-        {plainText()}
-      </div>
-      {/* Compose tree: Project walks the Measured tree for this role */}
-      <Project
-        node={props.layout.layout.tree}
-        slots={{
-          [SLOT_NAMES.MESSAGE_FOOTER]: () => (
-            <div
-              class="flex items-center"
-              style={{ height: `${MESSAGE_FOOTER_H}px` }}
-              aria-hidden={item.streaming ? 'true' : undefined}
-            >
-              <Show when={!item.streaming}>
-                <CopyButton text={item.text} variant="inline" label="Copy message" />
-              </Show>
-            </div>
-          ),
-        }}
-      >
-        {renderBlockLeaf}
-      </Project>
+    <div class={textClass()} style={{ height: `${totalH()}px`, position: 'relative' }}>
+      {/* a11y visually-hidden mirror */}
+      <div class="sr-only">{plainText()}</div>
+      <Show when={stack()}>{(s) => <BlockStackView node={s()} />}</Show>
+      <Show when={props.data.role === 'assistant'}>
+        <div
+          class="flex items-center"
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: `${MESSAGE_FOOTER_H}px`,
+          }}
+          aria-hidden={props.data.streaming ? 'true' : undefined}
+        >
+          <Show when={!props.data.streaming}>
+            <CopyButton text={props.data.text} variant="inline" label="Copy message" />
+          </Show>
+        </div>
+      </Show>
     </div>
   );
 }
 
-// ── ComponentDef ──────────────────────────────────────────────────────────────
+// ── UnitDef ───────────────────────────────────────────────────────────────────
 
-export const messageDef = defineComponent<ChatMessage, MessageNodeLayout>({
+export const messageUnitDef = defineUnit<ChatMessage>({
   kind: 'message',
-
-  estimate(item, ctx: MeasureCtx): number {
-    const lines = Math.ceil(item.text.length / 60);
-    const lineH = ctx.theme.fonts.body.lineHeight;
+  estimate(item, ctx): number {
+    const lines = Math.max(1, Math.ceil(item.text.length / 60));
     const footer = item.role === 'assistant' ? MESSAGE_FOOTER_H : 0;
-    return lineH * Math.max(1, lines) + 2 * BUBBLE_PAD_Y + footer;
+    return lines * ctx.theme.fonts.body.lineHeight + 2 * BUBBLE_PAD_Y + footer;
   },
-
-  measure(item, ctx: MeasureCtx): Measured<MessageNodeLayout> {
-    const blocks = ctx.caches.parseBlocks(item.id, item.text);
-    const isAssistant = item.role === 'assistant';
-
-    const blockStackOpts = {
-      padY: BUBBLE_PAD_Y,
-      blockGap: BLOCK_GAP,
-      proseGap: PROSE_GAP,
-      isCollapsed: ctx.isCollapsed,
-    };
-
-    // ── Empty-blocks fallback ────────────────────────────────────────────────
-    if (blocks.length === 0) {
-      const emptyLineH = ctx.theme.fonts.body.lineHeight;
-      const emptyH = emptyLineH + 2 * BUBBLE_PAD_Y + (isAssistant ? MESSAGE_FOOTER_H : 0);
-      // An empty stack with the correct height so Project still renders a container.
-      const emptyTree: Measured<{ kind: 'stack'; placed: [] }> = {
-        height: emptyH,
-        width: 0,
-        layout: { kind: 'stack', placed: [] },
-      };
-      return { height: emptyH, width: 0, layout: { kind: 'message', tree: emptyTree } };
-    }
-
-    // ── User bubble ──────────────────────────────────────────────────────────
-    // Full row width (Row.tsx gives user rows insetX=0). The bubble takes an
-    // explicit full width so the flex `items-end` shell does not shrink-wrap it;
-    // BUBBLE_PAD_X (with border-box sizing) keeps text off the tinted edge.
-    if (item.role === 'user') {
-      const innerWidth = Math.max(1, ctx.width - 2 * BUBBLE_PAD_X);
-      const blockStack = layoutBlockStack(blocks, { ...ctx, width: innerWidth }, blockStackOpts);
-      const tree = bubble(blockStack, {
-        padX: BUBBLE_PAD_X,
-        variantClass: 'bg-[var(--chat-bubble-user)] text-[var(--chat-bubble-user-fg)] rounded-lg border border-chat-border',
-        width: ctx.width,
-      });
-      return { height: tree.height, width: tree.width, layout: { kind: 'message', tree } };
-    }
-
-    // ── Assistant / thought ──────────────────────────────────────────────────
-    const blockStack = layoutBlockStack(blocks, ctx, blockStackOpts);
-    if (!isAssistant) {
-      // thought: blockStack directly, text color applied in shell
-      return {
-        height: blockStack.height,
-        width: blockStack.width,
-        layout: { kind: 'message', tree: blockStack },
-      };
-    }
-
-    // assistant: stack([ blockStack, footer slot ])
-    const footerSlot = slot(SLOT_NAMES.MESSAGE_FOOTER, MESSAGE_FOOTER_H);
-    const tree = stack(
-      [
-        { id: `${item.id}:blocks`, measured: blockStack },
-        { id: `${item.id}:footer`, measured: footerSlot },
-      ],
-      { gap: 0 }
-    );
-    return { height: tree.height, width: tree.width, layout: { kind: 'message', tree } };
-  },
-
-  Render: MessageRender as Component<{
-    item: ChatMessage;
-    layout: Measured<MessageNodeLayout>;
-    ctx: RenderCtx;
-  }>,
+  measure: measureMessage,
+  Render: MessageUnitRender,
 });

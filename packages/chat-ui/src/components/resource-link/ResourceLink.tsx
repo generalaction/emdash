@@ -80,7 +80,8 @@ export function ResourceLink(props: ResourceLinkProps) {
     <div
       class="flex items-center gap-2 text-sm"
       classList={{
-        'cursor-pointer hover:text-chat-fg transition-colors flex items-center gap-2 p-2 rounded-lg border border-chat-border w-full hover:bg-chat-bg-2': isClickable(),
+        'cursor-pointer hover:text-chat-fg transition-colors flex items-center gap-2 p-2 rounded-lg border border-chat-border w-full hover:bg-chat-bg-2':
+          isClickable(),
       }}
       style={{ height: '100%' }}
       onClick={isClickable() ? handleClick : undefined}

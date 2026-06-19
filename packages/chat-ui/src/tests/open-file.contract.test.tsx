@@ -10,11 +10,12 @@ import { render } from 'solid-js/web';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CachesContext } from '../components/CachesContext';
 import { CommandsContext } from '../components/CommandsContext';
-import { diffDef } from '../components/diff/diff.def';
+import { diffUnitDef } from '../components/diff/diff.def';
 import { diffFixtures } from '../components/diff/diff.fixtures';
 import { FileOperation } from '../components/file-op/FileOperation';
 import { ThemeContext } from '../components/ThemeContext';
 import { createChatCaches } from '../core/caches';
+import type { RenderCtx } from '../core/define';
 import { DEFAULT_THEME } from '../core/theme';
 import type { ChatCommands } from '../index';
 import { makeContractCtx } from './contract';
@@ -58,17 +59,19 @@ afterEach(() => {
 
 // ── Diff header ───────────────────────────────────────────────────────────────
 
-const renderCtx = { viewState: { isCollapsed: () => false } };
-
 describe('Diff header: onOpenFile', () => {
   it('fires with correct payload when clicking the header', async () => {
     const item = diffFixtures[0];
-    const measured = diffDef.measure(item, ctx);
+    const measureCtx = ctx;
+    const renderCtx: RenderCtx = {
+      viewState: { isCollapsed: () => false },
+      measureCtx: () => measureCtx,
+    };
     const onOpenFile = vi.fn();
 
     const { dispose } = mountWithCommands(
       () => ({ onOpenFile }),
-      () => <diffDef.Render item={item} layout={measured} ctx={renderCtx} />
+      () => <diffUnitDef.Render data={item} ctx={renderCtx} />
     );
 
     await new Promise<void>((r) => requestAnimationFrame(() => r()));
@@ -89,11 +92,15 @@ describe('Diff header: onOpenFile', () => {
 
   it('does not throw when no onOpenFile is provided', async () => {
     const item = diffFixtures[0];
-    const measured = diffDef.measure(item, ctx);
+    const measureCtx = ctx;
+    const renderCtx: RenderCtx = {
+      viewState: { isCollapsed: () => false },
+      measureCtx: () => measureCtx,
+    };
 
     const { dispose } = mountWithCommands(
       () => ({}),
-      () => <diffDef.Render item={item} layout={measured} ctx={renderCtx} />
+      () => <diffUnitDef.Render data={item} ctx={renderCtx} />
     );
 
     await new Promise<void>((r) => requestAnimationFrame(() => r()));

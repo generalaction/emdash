@@ -87,3 +87,17 @@ export type TableLaidOut = {
 };
 
 export type BlockLaidOut = ProseLaidOut | CodeLaidOut | TableLaidOut;
+
+// ── Block leaf layout (produced by block-stack.ts) ────────────────────────────
+//
+// Extended leaf layout types that carry a back-reference to the source Block.
+// Produced by `measureBlockCached` in `core/layout/block-stack.ts`.
+// Used by `renderBlockLeaf` and `BlockStackView` to render without a lookup.
+
+import type { Block, CodeBlock, ProseBlock } from '../markdown/document';
+
+export type ProseLeafLayout = ProseLaidOut & { raw: ProseBlock };
+export type CodeLeafLayout = CodeLaidOut & { raw: CodeBlock };
+export type TableLeafLayout = TableLaidOut & { raw: Block };
+
+export type BlockLeafLayout = ProseLeafLayout | CodeLeafLayout | TableLeafLayout;

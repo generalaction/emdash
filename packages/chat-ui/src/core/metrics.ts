@@ -103,6 +103,18 @@ export const HEADER_ROW_EXTRA_H = 8;
 export const ROW_H = 32;
 
 /**
+ * Horizontal inset (px) applied to both sides of non-user-message rows.
+ *
+ * User messages have insetX = 0 (full width bubble).
+ * All other rows (assistant, thought, tool, diff, …) get this inset so
+ * their content is visually distinguished from the bubble.
+ *
+ * Width-affecting: must be subtracted before handing width to measure() so
+ * that block heights are computed at the correct (narrower) width.
+ */
+export const ROW_INSET_X = 16;
+
+/**
  * Uniform vertical gap (px) inserted between consecutive transcript rows.
  *
  * Rows are absolutely positioned via translateY at virtualizer-computed tops,

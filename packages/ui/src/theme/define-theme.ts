@@ -26,6 +26,7 @@ import type {
   ScaleName,
   Scales,
   Surfaces,
+  SurfaceScopeName,
   SyntaxRole,
 } from './contract/roles.js';
 
@@ -64,6 +65,15 @@ export interface ThemeInput {
   chroma?: number;
   /** OKLCH L of the background (step 1). Low values = OLED/dark. */
   background?: { lightness?: number };
+  /**
+   * Per-scope OKLCH L overrides for the surface elevation ladder. Each entry
+   * replaces the shared default in SURFACE_L (contract/targets.ts) for this
+   * theme only; missing scopes fall back to the polarity default. Use this for
+   * imported palettes whose surface lightness intent diverges from the default
+   * ladder (e.g. Solarized's cream paper at base3 rather than near-white).
+   * Tint (hue/chroma) still comes from the neutral ramp's step 1.
+   */
+  surfaceLightness?: Partial<Record<SurfaceScopeName, number>>;
 
   // ── Generation tuning ─────────────────────────────────────────────────────
   /**
@@ -202,7 +212,7 @@ export function defineTheme(input: ThemeInput): ResolvedTheme {
   }
 
   // 2. Generate surfaces from the neutral ramp
-  const surfaces = generateSurfaces(scales.neutral, polarity);
+  const surfaces = generateSurfaces(scales.neutral, polarity, input.surfaceLightness);
 
   // 3. Resolve CSS vars from the semantic template (done in resolve.ts, called here)
   const cssVars = resolveCssVars(scales, surfaces, polarity);

@@ -1,33 +1,26 @@
 /**
- * thinkingDef — ComponentDef for ChatThinking rows.
+ * thinkingUnitDef — native UnitDef for ChatThinking rows.
  *
- * estimate: O(1) character-count heuristic.
- * measure:  builds a compose Measured tree and stores it in ThinkingLayout.tree.
+ * Single self-contained unit: measure returns a total height (number),
+ * and Render lays out ThinkingHeader + optional body/preview internally.
  *
- *   done + not expanded:   collapsible({ headerSlot, expanded: false })
- *   active + not expanded: stack([ slot(header), scrollWindow(blockStack, WINDOW_H, { overlay, autoScroll }) ])
- *   expanded:              stack([ slot(header), blockStack ])
- *
- * Collapse semantics are inverted: the stored "collapsed" bool means
- * "expanded" — default absent/false → preview (active) or header-only (done).
- *
- * The expanded/active branch is now chosen once in measure() via ctx.expanded,
- * so Render cannot diverge from measure (fixes the old ctx.viewState split).
- *
- * ThinkingRender is a thin shell that supplies the 'thinking:header' slot
- * (ThinkingHeader component) and delegates entirely to Project.
+ * Collapse semantics are inverted: stored "collapsed" flag means "expanded".
+ *   done + not expanded:   header only
+ *   active + not expanded: header + PreviewWindow (auto-scrolls to bottom)
+ *   expanded:              header + full block stack
  */
 
-import { createEffect, createSignal, onCleanup } from 'solid-js';
-import { SLOT_NAMES, collapsible, scrollWindow, slot, stack } from '../../core/compose';
-import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
+import { Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
+import type { MeasureCtx, RenderCtx } from '../../core/define';
 import { layoutBlockStack } from '../../core/layout/block-stack';
 import type { Block } from '../../core/markdown/document';
 import { flattenBlockHeadings } from '../../core/markdown/parse';
 import { HEADER_ROW_EXTRA_H } from '../../core/metrics';
+import { defineUnit } from '../../core/units';
 import type { ChatThinking } from '../../model';
+import { BlockStackView } from '../primitives/BlockStackView';
 import { CollapseHeader } from '../primitives/CollapseHeader';
-import { Project, renderBlockLeaf } from '../Project';
+import { PreviewWindow } from '../primitives/PreviewWindow';
 import { useTheme } from '../ThemeContext';
 
 // ── Module constants ─────────────────────────────────────────────────────────
@@ -43,7 +36,7 @@ function thinkingHeaderH(ctx: MeasureCtx): number {
   return ctx.theme.fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
 }
 
-function layoutThinkingBody(blocks: Block[], ctx: MeasureCtx): Measured {
+function layoutThinkingBody(blocks: Block[], ctx: MeasureCtx) {
   const { blockGap, proseGap } = ctx.theme.density;
   return layoutBlockStack(blocks, ctx, {
     padY: THINKING_PAD_Y,
@@ -52,19 +45,7 @@ function layoutThinkingBody(blocks: Block[], ctx: MeasureCtx): Measured {
   });
 }
 
-// ── Layout type ───────────────────────────────────────────────────────────────
-
-export type ThinkingLayout = {
-  kind: 'thinking';
-  /**
-   * The compose subtree produced by measure().  Varies by expanded/active state.
-   * Project walks this in ThinkingRender.
-   */
-  // oxlint-disable-next-line typescript/no-explicit-any -- compose tree; structure varies by state
-  tree: Measured<any>;
-};
-
-// ── ThinkingHeader (slot component) ───────────────────────────────────────────
+// ── ThinkingHeader ────────────────────────────────────────────────────────────
 
 function ThinkingHeader(props: { item: ChatThinking; expanded: boolean; headerH: number }) {
   const startElapsed = Math.floor((Date.now() - props.item.startedAt) / 1000);
@@ -108,46 +89,78 @@ function ThinkingHeader(props: { item: ChatThinking; expanded: boolean; headerH:
   );
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
+// ── Native UnitDef ────────────────────────────────────────────────────────────
 
-function ThinkingRender(props: {
-  item: ChatThinking;
-  layout: Measured<ThinkingLayout>;
-  ctx: RenderCtx;
-}) {
+function thinkingMeasure(item: ChatThinking, ctx: MeasureCtx): number {
+  const headerH = thinkingHeaderH(ctx);
+  const isExpanded = ctx.expanded(item.id);
+
+  if (!isExpanded && item.status !== 'thinking') return headerH;
+
+  const blocks = flattenBlockHeadings(ctx.caches.parseBlocks(item.id, item.text ?? ''));
+  const body = layoutThinkingBody(blocks, ctx);
+
+  if (!isExpanded) return headerH + THINKING_WINDOW_H;
+  return headerH + body.height;
+}
+
+function ThinkingUnitRender(props: { data: ChatThinking; ctx: RenderCtx }) {
   const theme = useTheme();
+  const mCtx = () => props.ctx.measureCtx?.();
+  // Inverted semantics: stored "collapsed" bool = "expanded".
+  const isExpanded = () => props.ctx.viewState.isCollapsed(props.data.id);
+
   const headerH = () => theme().fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
 
-  // Inverted semantics: stored "collapsed" flag is treated as "expanded".
-  const expanded = () => props.ctx.viewState.isCollapsed(props.item.id);
+  const body = createMemo(() => {
+    const ctx = mCtx();
+    if (!ctx) return null;
+    const blocks = flattenBlockHeadings(
+      ctx.caches.parseBlocks(props.data.id, props.data.text ?? '')
+    );
+    return layoutThinkingBody(blocks, ctx);
+  });
+
+  const totalH = createMemo(() => {
+    const ctx = mCtx();
+    if (!ctx) return headerH();
+    return thinkingMeasure(props.data, ctx);
+  });
+
+  const showBody = () => isExpanded() || props.data.status === 'thinking';
+  const bodyH = () => body()?.height ?? 0;
 
   return (
-    <div
-      class="text-chat-fg-passive"
-      style={{ position: 'relative', height: `${props.layout.height}px` }}
-    >
-      <Project
-        node={props.layout.layout.tree}
-        slots={{
-          [SLOT_NAMES.THINKING_HEADER]: () => (
-            <ThinkingHeader item={props.item} expanded={expanded()} headerH={headerH()} />
-          ),
-        }}
-      >
-        {renderBlockLeaf}
-      </Project>
+    <div class="text-chat-fg-passive" style={{ height: `${totalH()}px` }}>
+      <ThinkingHeader item={props.data} expanded={isExpanded()} headerH={headerH()} />
+      <Show when={showBody()}>
+        <Show
+          when={isExpanded()}
+          fallback={
+            // Collapsed + active: scrollable preview window auto-scrolling to bottom.
+            <PreviewWindow
+              height={THINKING_WINDOW_H}
+              maxH={THINKING_WINDOW_H}
+              overlay="fade-top"
+              autoScrollBottom={props.data.status === 'thinking'}
+              contentHeight={() => bodyH()}
+            >
+              <Show when={body()}>{(b) => <BlockStackView node={b()} />}</Show>
+            </PreviewWindow>
+          }
+        >
+          {/* Expanded: full body */}
+          <Show when={body()}>{(b) => <BlockStackView node={b()} />}</Show>
+        </Show>
+      </Show>
     </div>
   );
 }
 
-// ── ComponentDef ──────────────────────────────────────────────────────────────
-
-export const thinkingDef = defineComponent<ChatThinking, ThinkingLayout>({
+export const thinkingUnitDef = defineUnit<ChatThinking>({
   kind: 'thinking',
 
-  collapse: { mode: 'inverted', default: false },
-
-  estimate(item, ctx: MeasureCtx): number {
+  estimate(item, ctx): number {
     const headerH = thinkingHeaderH(ctx);
     const isExpanded = ctx.expanded(item.id);
 
@@ -160,41 +173,7 @@ export const thinkingDef = defineComponent<ChatThinking, ThinkingLayout>({
     return headerH + 2 * THINKING_PAD_Y + lines * ctx.theme.fonts.body.lineHeight;
   },
 
-  measure(item, ctx: MeasureCtx): Measured<ThinkingLayout> {
-    const headerH = thinkingHeaderH(ctx);
-    const isExpanded = ctx.expanded(item.id);
-    const headerSlot = SLOT_NAMES.THINKING_HEADER;
+  measure: thinkingMeasure,
 
-    // ── Done + not expanded: header only ─────────────────────────────────────
-    if (!isExpanded && item.status !== 'thinking') {
-      const tree = collapsible({ headerH, headerSlot, expanded: false });
-      return { height: tree.height, width: ctx.width, layout: { kind: 'thinking', tree } };
-    }
-
-    // ── Active + not expanded: header + scrollWindow preview ─────────────────
-    if (!isExpanded) {
-      const blocks = flattenBlockHeadings(ctx.caches.parseBlocks(item.id, item.text ?? ''));
-      const body = layoutThinkingBody(blocks, ctx);
-      const preview = scrollWindow(body, THINKING_WINDOW_H, {
-        overlay: 'fade-top',
-        autoScrollBottom: true,
-      });
-      const tree = stack(
-        [
-          { id: `${item.id}:header`, measured: slot(headerSlot, headerH) },
-          { id: `${item.id}:preview`, measured: preview },
-        ],
-        { gap: 0 }
-      );
-      return { height: tree.height, width: ctx.width, layout: { kind: 'thinking', tree } };
-    }
-
-    // ── Expanded: header + full body ─────────────────────────────────────────
-    const blocks = flattenBlockHeadings(ctx.caches.parseBlocks(item.id, item.text ?? ''));
-    const body = layoutThinkingBody(blocks, ctx);
-    const tree = collapsible({ headerH, headerSlot, expanded: true, body });
-    return { height: tree.height, width: ctx.width, layout: { kind: 'thinking', tree } };
-  },
-
-  Render: ThinkingRender,
+  Render: ThinkingUnitRender,
 });

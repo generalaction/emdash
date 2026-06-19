@@ -1,46 +1,28 @@
 /**
- * executeDef — ComponentDef for ChatExecute rows.
+ * executeUnitDef — native UnitDef for ChatExecute rows.
  *
  * Fixed height of EXEC_ROW_H (28px). No collapse state.
  */
 
-import { defineComponent, type Measured, type RenderCtx } from '../../core/define';
+import { defineUnit } from '../../core/units';
 import type { ChatExecute } from '../../model';
 import { Execute } from './Execute';
 
 /** Fixed row height for execute rows (px). */
-const EXEC_ROW_H = 28;
+export const EXEC_ROW_H = 28;
 
-export type ExecuteLayout = { kind: 'execute' };
-
-function ExecuteRender(props: {
-  item: ChatExecute;
-  layout: Measured<ExecuteLayout>;
-  ctx: RenderCtx;
-}) {
-  return (
-    <div
-      style={{
-        height: `${props.layout.height}px`,
-        display: 'flex',
-        'align-items': 'center',
-      }}
-    >
-      <Execute item={props.item} />
-    </div>
-  );
-}
-
-export const executeDef = defineComponent<ChatExecute, ExecuteLayout>({
+export const executeUnitDef = defineUnit<ChatExecute>({
   kind: 'execute',
 
-  measure(_item, ctx): Measured<ExecuteLayout> {
-    return {
-      height: EXEC_ROW_H,
-      width: ctx.width,
-      layout: { kind: 'execute' },
-    };
+  measure(): number {
+    return EXEC_ROW_H;
   },
 
-  Render: ExecuteRender,
+  Render(props) {
+    return (
+      <div style={{ height: `${EXEC_ROW_H}px`, display: 'flex', 'align-items': 'center' }}>
+        <Execute item={props.data} />
+      </div>
+    );
+  },
 });

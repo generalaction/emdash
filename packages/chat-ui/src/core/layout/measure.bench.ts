@@ -7,16 +7,16 @@
  * Scenarios:
  *   - caches.parseBlocks: markdown parse + caching on representative bodies
  *   - layoutBlockStack:   full block layout over cached blocks
- *   - def.measure (message): row-level measure over a 2 000-item transcript
+ *   - unitDef.measure (message blocks): block-level measure over a 2 000-item transcript
  */
 
 import { bench, describe } from 'vitest';
-import { REGISTRY } from '../../components/registry';
+import { messageUnitDef } from '../../components/message/message.def';
 import { generateMockTranscript } from '../../mock-transcript';
 import type { ChatMessage } from '../../model';
 import { createChatCaches } from '../caches';
 import { DEFAULT_THEME } from '../theme';
-import { layoutBlockStack } from './block-stack';
+import { layoutBlockStack, measureBlockCached } from './block-stack';
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -78,32 +78,33 @@ describe('layoutBlockStack', () => {
   });
 });
 
-describe('def.measure (message)', () => {
-  const messageDef = REGISTRY['message'];
-
-  bench('measure 100 message rows', () => {
-    const items = MESSAGE_ITEMS.slice(0, 100);
-    for (const item of items) {
-      messageDef.measure(item, MEASURE_CTX);
+describe('messageUnitDef.measure', () => {
+  bench('measure 100 message rows (cold cache)', () => {
+    const cold = createChatCaches();
+    const coldCtx = { ...MEASURE_CTX, caches: cold };
+    for (const item of MESSAGE_ITEMS.slice(0, 100)) {
+      messageUnitDef.measure(item, coldCtx);
     }
   });
 
-  bench('measure all message rows (cached)', () => {
+  bench('measure all message rows (warm blockMemo)', () => {
     for (const item of MESSAGE_ITEMS) {
-      messageDef.measure(item, MEASURE_CTX);
+      messageUnitDef.measure(item, MEASURE_CTX);
     }
   });
 });
 
-describe('def.measure (thinking)', () => {
-  const thinkingDef = REGISTRY['thinking'];
-  const thinkingItems = TRANSCRIPT.filter((x) => x.kind === 'thinking');
+describe('measureBlockCached (individual blocks)', () => {
+  // Pre-parse blocks so we isolate the layout cost from parse cost.
+  const parsedBodies = REPRESENTATIVE_BODIES.map((body, i) =>
+    CACHES.parseBlocks(`bench-block-${i}`, body)
+  );
 
-  if (thinkingItems.length > 0) {
-    bench('measure all thinking rows (cached)', () => {
-      for (const item of thinkingItems) {
-        thinkingDef.measure(item, MEASURE_CTX);
+  bench('measure all blocks in 5 representative bodies', () => {
+    for (const blocks of parsedBodies) {
+      for (const block of blocks) {
+        measureBlockCached(block, MEASURE_CTX);
       }
-    });
-  }
+    }
+  });
 });

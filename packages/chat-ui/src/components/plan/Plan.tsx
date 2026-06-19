@@ -17,8 +17,8 @@
 
 import { For } from 'solid-js';
 import type { ChatPlan, PlanEntryPriority, PlanEntryStatus } from '../../model';
+import { BlockStackView } from '../primitives/BlockStackView';
 import { CollapseHeader } from '../primitives/CollapseHeader';
-import { Project, renderBlockLeaf } from '../Project';
 import type { PlanEntryLaid } from './plan.def';
 
 // ── PlanHeader ────────────────────────────────────────────────────────────────
@@ -109,14 +109,8 @@ export function PlanList(props: PlanListProps) {
               {STATUS_GLYPH[entry.status]}
             </div>
             {/* Entry body: measured block stack */}
-            <div
-              style={{
-                position: 'relative',
-                flex: '1',
-                height: `${entry.measured.height}px`,
-              }}
-            >
-              <Project node={entry.measured}>{renderBlockLeaf}</Project>
+            <div style={{ flex: '1' }}>
+              <BlockStackView node={entry.measured} />
             </div>
           </div>
         )}

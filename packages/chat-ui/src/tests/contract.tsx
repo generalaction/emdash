@@ -2,14 +2,14 @@
  * contract — shared harness for browser measurement contract tests.
  *
  * Each contract test mounts the real Render component in a fixed-width
- * container and asserts that def.measure(item, ctx).height equals the
- * element's actual offsetHeight.
+ * container and asserts that def.measure(data, ctx) equals the element's
+ * actual offsetHeight.
  *
  * Usage:
- *   import { makeContractCtx, renderAndMeasure } from '../tests/contract';
+ *   import { makeContractCtx, renderAndMeasureUnit } from '../tests/contract';
  *
  *   const ctx = makeContractCtx({ width: 640 });
- *   const { computed, dom } = await renderAndMeasure(def, item, ctx);
+ *   const { computed, dom } = await renderAndMeasureUnit(def, item, ctx);
  *   expect(computed).toBe(dom);
  *
  * Notes:
@@ -27,15 +27,16 @@ import { afterEach } from 'vitest';
 import { CachesContext } from '../components/CachesContext';
 import { ThemeContext } from '../components/ThemeContext';
 import { createChatCaches } from '../core/caches';
-import type { ComponentDef, MeasureCtx, Measured, RenderCtx } from '../core/define';
+import type { MeasureCtx, RenderCtx } from '../core/define';
 import type { ChatTheme } from '../core/theme';
 import { DEFAULT_THEME } from '../core/theme';
+import type { UnitDef } from '../core/units';
 
 export type ContractCtx = MeasureCtx;
 
 /**
  * Build a MeasureCtx for contract tests.
- * Defaults: theme = DEFAULT_THEME, width = 640, no collapsed items, no measured map.
+ * Defaults: theme = DEFAULT_THEME, width = 640, no collapsed items.
  */
 export function makeContractCtx(opts: {
   width?: number;
@@ -52,27 +53,36 @@ export function makeContractCtx(opts: {
   };
 }
 
-const makeRenderCtx = (): RenderCtx => ({
-  viewState: { isCollapsed: () => false },
-});
-
 /**
- * Mount `def.Render` in a fixed-width div, wait one rAF for layout, then
- * return both the computed height (from def.measure) and the actual DOM height.
+ * Mount a native `UnitDef.Render` in a fixed-width container, wait one rAF,
+ * then return both the computed height (from `def.measure`) and the actual DOM height.
+ *
+ * The `renderCtx` supplied to the Render has:
+ *   - `viewState.isCollapsed` = `ctx.isCollapsed` (matches the Lane A inputs)
+ *   - `measureCtx` = `() => measureCtx` (so native Renders can access theme/width/caches)
+ *
+ * Note: `expanded(id) = isCollapsed(id)` mirrors the native UnitRow path, where
+ * inverted-mode composites (thinking / plan / file-op) treat isCollapsed=true as
+ * "expanded".
  */
-export async function renderAndMeasure<TNode, L>(
-  def: ComponentDef<TNode, L>,
-  item: TNode,
+export async function renderAndMeasureUnit<D>(
+  def: UnitDef<D>,
+  data: D,
   ctx: ContractCtx
-): Promise<{ computed: number; dom: number; layout: Measured<L> }> {
-  const layout = def.measure(item, ctx);
-  const renderCtx = makeRenderCtx();
-  const theme = ctx.theme;
+): Promise<{ computed: number; dom: number }> {
+  // Mirror the native UnitRow path: expanded(id) = isCollapsed(id).
+  const measureCtx: MeasureCtx = {
+    ...ctx,
+    expanded: ctx.isCollapsed,
+  };
+  const computed = def.measure(data, measureCtx);
+  const renderCtx: RenderCtx = {
+    viewState: { isCollapsed: ctx.isCollapsed },
+    measureCtx: () => measureCtx,
+  };
 
   const host = document.createElement('div');
   host.style.width = `${ctx.width}px`;
-  host.style.position = 'relative';
-  host.style.isolation = 'isolate';
   document.body.appendChild(host);
 
   let dispose: (() => void) | undefined;
@@ -83,21 +93,19 @@ export async function renderAndMeasure<TNode, L>(
     const caches = ctx.caches;
     dispose = render(
       () => (
-        <ThemeContext.Provider value={() => theme}>
+        <ThemeContext.Provider value={() => ctx.theme}>
           <CachesContext.Provider value={caches}>
-            <Comp item={item} layout={layout} ctx={renderCtx} />
+            <Comp data={data} ctx={renderCtx} />
           </CachesContext.Provider>
         </ThemeContext.Provider>
       ),
       host
     );
 
-    // Wait one rAF for the browser to compute layout.
     await new Promise<void>((r) => requestAnimationFrame(() => r()));
 
-    // Measure the first child element, which is what Render components output.
     const child = host.firstElementChild as HTMLElement | null;
-    return { computed: layout.height, dom: child?.offsetHeight ?? 0, layout };
+    return { computed, dom: child?.offsetHeight ?? 0 };
   } finally {
     dispose?.();
     document.body.removeChild(host);

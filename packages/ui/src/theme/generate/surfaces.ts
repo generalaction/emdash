@@ -81,12 +81,22 @@ function buildSurfaceLevel(
  * Elevation levels are ordered darkest → lightest (sunken → elevated-emphasis)
  * in both modes. Roles (e.g. `paper`) are generated the same way but sit outside
  * the ladder. Each surface has base, hover, and selected variants.
+ *
+ * `lightnessOverrides` lets a theme replace the shared SURFACE_L target for one
+ * or more scopes (e.g. Solarized's cream `paper` at base3 instead of the default
+ * near-white). Missing scopes fall back to the polarity default. The tint
+ * (hue/chroma) always comes from the neutral ramp, regardless of overrides.
  */
-export function generateSurfaces(neutralRamp: Ramp, polarity: Polarity): Surfaces {
+export function generateSurfaces(
+  neutralRamp: Ramp,
+  polarity: Polarity,
+  lightnessOverrides?: Partial<Record<SurfaceScopeName, number>>,
+): Surfaces {
   const surfaces = {} as Surfaces;
   for (const scope of SURFACE_SCOPES) {
-    const targetL = SURFACE_L[polarity][scope as SurfaceScopeName];
-    surfaces[scope as SurfaceScopeName] = buildSurfaceLevel(neutralRamp, targetL, polarity);
+    const name = scope as SurfaceScopeName;
+    const targetL = lightnessOverrides?.[name] ?? SURFACE_L[polarity][name];
+    surfaces[name] = buildSurfaceLevel(neutralRamp, targetL, polarity);
   }
   return surfaces;
 }

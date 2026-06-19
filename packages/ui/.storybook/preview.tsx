@@ -5,7 +5,7 @@ import type { ThemeId } from '../src/primitives/theme-provider';
 import { THEME_MANIFEST } from '../src/theme/theme-manifest';
 import './theme.css';
 
-const COLOR_MODES: ThemeId[] = ['light', 'dark'];
+const COLOR_MODES: ThemeId[] = ['light', 'dark', 'solarized-light', 'solarized-dark'];
 
 const SURFACE_FAMILIES = [
   'none',
@@ -59,6 +59,8 @@ const preview: Preview = {
         items: [
           { value: 'light', title: 'Light', icon: 'sun' },
           { value: 'dark', title: 'Dark', icon: 'moon' },
+          { value: 'solarized-light', title: 'Solarized Light', icon: 'sun' },
+          { value: 'solarized-dark', title: 'Solarized Dark', icon: 'moon' },
         ],
         dynamicTitle: true,
       },

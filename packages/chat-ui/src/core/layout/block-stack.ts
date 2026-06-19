@@ -28,21 +28,30 @@
  */
 
 import { layoutCode } from '../../components/code/layout';
-import type { BlockLeafLayout } from '../../components/Project';
 import { layoutProse } from '../../components/prose/layout';
 import { layoutTable } from '../../components/table/layout';
 import { stack } from '../compose';
 import type { StackLayout } from '../compose';
 import type { Measured, MeasureCtx } from '../define';
 import type { Block, CodeBlock, ProseBlock, TableBlock } from '../markdown/document';
+import type { BlockLeafLayout } from './layout-types';
 import type { CodeLaidOut, ProseLaidOut, TableLaidOut } from './layout-types';
 
 // ── Per-block memo ────────────────────────────────────────────────────────────
 
 const blockMemo = new WeakMap<Block, { fingerprint: string; result: Measured<BlockLeafLayout> }>();
 
-function measureBlockCached(block: Block, ctx: MeasureCtx): Measured<BlockLeafLayout> {
-  const fingerprint = `${ctx.theme.version}|${ctx.width}|${ctx.isCollapsed(block.id)}`;
+/**
+ * Measure a single block with WeakMap-keyed caching.
+ *
+ * Exported so that native UnitDef implementations (proseUnit, codeUnit,
+ * tableUnit) can use the same memo both in `measure()` (returns height) and
+ * in `Render` (returns full `BlockLeafLayout` for `Prose`/`Code`/`Table`).
+ * The second Render call is always a cache hit because UnitRow's measure
+ * memo ran first.
+ */
+export function measureBlockCached(block: Block, ctx: MeasureCtx): Measured<BlockLeafLayout> {
+  const fingerprint = `${ctx.measureEpoch ?? 0}|${ctx.theme.version}|${ctx.width}|${ctx.isCollapsed(block.id)}`;
   const cached = blockMemo.get(block);
   if (cached?.fingerprint === fingerprint) return cached.result;
 

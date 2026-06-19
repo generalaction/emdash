@@ -35,22 +35,23 @@ import { CachesContext } from './components/CachesContext';
 import { CommandsContext } from './components/CommandsContext';
 import { DebugContext } from './components/debug-context';
 import { PinnedUserMessage } from './components/PinnedUserMessage';
-import { REGISTRY } from './components/registry';
-import { Row } from './components/Row';
-import { cachedMeasure, makeResolveExpanded } from './components/row-measure';
 import { ThemeContext } from './components/ThemeContext';
+import { SEGMENTERS, UNIT_REGISTRY } from './components/unit-registry';
+import { UnitRow } from './components/UnitRow';
 import { createChatCaches } from './core/caches';
+import type { MeasureCtx } from './core/define';
 import type { ChatHighlighter } from './core/highlight/highlighter';
 import { genericEstimate } from './core/layout/generic-estimate';
-import { ROW_GAP, rowReservedHeight } from './core/metrics';
 import { registerFontsReadyClear } from './core/measure/pretext-cache';
+import { ROW_GAP } from './core/metrics';
 import { StickToBottom } from './core/stick-to-bottom';
 import type { ChatTheme } from './core/theme';
 import { DEFAULT_THEME } from './core/theme';
+import { unitReservedHeight } from './core/units';
 import { Virtualizer } from './core/virtualizer';
 import type { ChatCommands, ScrollToItemOptions } from './index';
 import type { ChatItem, ChatMessage } from './model';
-import { collectUserTurnIndices, getItem, itemCount } from './state/transcript';
+import { flatten, collectUserTurnUnits, getUnit } from './state/flatten';
 import type { TranscriptApi } from './state/transcript';
 import type { ViewState } from './state/view-state';
 import './chat.module.css';
@@ -184,15 +185,39 @@ export function ChatRoot(props: ChatRootProps) {
   const [scrollVelocity, setScrollVelocity] = createSignal(0);
   const [viewHeight, setViewHeight] = createSignal(600);
   const [containerWidth, setContainerWidth] = createSignal(0);
+  // Monotonically-increasing counter bumped after fonts load. Including this in
+  // blockMemo fingerprints forces a cache miss even when theme.version and width
+  // are unchanged, clearing any fallback-font geometry that was measured before
+  // Inter/JetBrains loaded.
+  const [measureEpoch, setMeasureEpoch] = createSignal(0);
 
   const refreshTotal = () => {
     setTotalHeight(virt.total());
   };
 
+  // ── Flat unit array ───────────────────────────────────────────────────────
+  //
+  // Recomputed when the transcript state changes (committed tier grows or
+  // activeTurn mutates). The segment cache in flatten.ts makes re-runs O(activeTurn)
+  // for committed items. Unit ids are stable across streaming ticks for committed
+  // items so the <For> keeps existing UnitRow instances mounted.
+
+  const segmentCtx = createMemo(() => ({
+    caches,
+    expanded: (_id: string) => false, // collapse state queried per-unit in UnitRow
+  }));
+
+  const units = createMemo(() => flatten(props.transcript.state, segmentCtx(), SEGMENTERS));
+
   // ── Count sync effect ─────────────────────────────────────────────────────
+  //
+  // Now driven by the flat units array instead of itemCount/getItem.
+  // The estimate path mirrors the old logic: for legacy units (Phase 0, all
+  // units), unit.data is the ChatItem, so we look up REGISTRY as before.
+  // For native units (Phase 1+), UNIT_REGISTRY is consulted.
 
   createEffect(() => {
-    const n = itemCount(props.transcript.state);
+    const us = units();
     const t = theme();
     untrack(() => {
       const estimateCtx = {
@@ -201,15 +226,16 @@ export function ChatRoot(props: ChatRootProps) {
         isCollapsed: () => false,
         expanded: () => false,
         caches,
+        measureEpoch: measureEpoch(),
       };
-      virt.setCount(n, (i) => {
-        const item = getItem(props.transcript.state, i);
-        if (!item) return 60;
-        const def = REGISTRY[item.kind as keyof typeof REGISTRY];
-        return rowReservedHeight(
-          def.estimate?.(item, estimateCtx) ?? genericEstimate(item, estimateCtx),
-          def.padY
-        );
+      virt.setCount(us.length, (i) => {
+        const u = us[i];
+        if (!u) return 60;
+        const unitDef = UNIT_REGISTRY[u.kind];
+        const contentH =
+          unitDef?.estimate?.(u.data, estimateCtx) ??
+          genericEstimate(u.data as unknown as ChatItem, estimateCtx);
+        return unitReservedHeight(u, contentH);
       });
       refreshTotal();
       if (props.stickToBottom !== false) sticky?.schedule();
@@ -248,7 +274,7 @@ export function ChatRoot(props: ChatRootProps) {
 
   const visibleIndexes = createMemo(() => {
     totalHeight();
-    const n = itemCount(props.transcript.state);
+    const n = units().length;
     const { start, end } = visibleRange();
     const visEnd = Math.min(end, n - 1);
     const arr: number[] = [];
@@ -260,9 +286,9 @@ export function ChatRoot(props: ChatRootProps) {
 
   // ── Pinned user-message overlay ───────────────────────────────────────────
 
-  // Absolute indices of committed user-message rows, recomputed only when the
-  // committed tier grows (user turn appended) — not on every assistant chunk.
-  const userTurns = createMemo(() => collectUserTurnIndices(props.transcript.state));
+  // Absolute unit indices of the first unit of each committed user-message group.
+  // Recomputed when committed tier grows or units changes (turn appended / message split).
+  const userTurns = createMemo(() => collectUserTurnUnits(props.transcript.state, units()));
 
   // The active pin state: which user message to overlay, and its overlayTop.
   //
@@ -312,9 +338,20 @@ export function ChatRoot(props: ChatRootProps) {
 
     if (activePos < 0) return null; // no user message has scrolled above the pin line
 
-    const activeUserIdx = turns[activePos];
-    const nextUserIdx = turns[activePos + 1]; // undefined when this is the last turn
-    const overlayH = virt.size(activeUserIdx);
+    const activeUserIdx = turns[activePos]; // unit index
+    const nextUserIdx = turns[activePos + 1]; // unit index; undefined when last turn
+    // Sum the heights of all units in the active user's group for the overlay height.
+    // For Phase 0 this is always exactly one unit; Phase 1 sums per-block units.
+    let overlayH = 0;
+    const activeUnit = getUnit(units(), activeUserIdx);
+    if (activeUnit) {
+      const activeItemId = activeUnit.itemId;
+      for (let ui = activeUserIdx; ui < units().length; ui++) {
+        const u = getUnit(units(), ui);
+        if (!u || u.itemId !== activeItemId) break;
+        overlayH += virt.size(ui);
+      }
+    }
 
     // Viewport-relative top of the next user row (Infinity when none).
     const nextUserViewportTop =
@@ -366,8 +403,27 @@ export function ChatRoot(props: ChatRootProps) {
   const doScrollToItem = (id: string, opts?: ScrollToItemOptions) => {
     const el = scrollEl;
     if (!el) return;
-    const idx = props.transcript.findIndexById(id);
-    if (idx < 0) return;
+
+    // Map from itemId to the first unit index for that item.
+    const us = units();
+    let unitIdx = -1;
+    for (let i = 0; i < us.length; i++) {
+      if (us[i].itemId === id) {
+        unitIdx = i;
+        break;
+      }
+    }
+    if (unitIdx < 0) return;
+
+    // Compute the total height of all units belonging to this item (for center/end align).
+    let itemTotalH = 0;
+    for (let i = unitIdx; i < us.length; i++) {
+      if (us[i].itemId !== id) break;
+      itemTotalH += virt.size(i);
+    }
+
+    const idx = unitIdx;
+    const rowH = itemTotalH;
 
     const align = opts?.align ?? 'start';
     const extraOffset = opts?.offset ?? 0;
@@ -375,7 +431,6 @@ export function ChatRoot(props: ChatRootProps) {
 
     const computeTarget = () => {
       const rowTop = virt.top(idx) + padTop();
-      const rowH = virt.size(idx);
       const vh = el.clientHeight;
       let target: number;
       if (align === 'center') {
@@ -400,19 +455,21 @@ export function ChatRoot(props: ChatRootProps) {
     }
   };
 
-  const doLoadOlder = (items: ChatItem[]) => {
+  const doLoadOlder = (items: Parameters<typeof props.transcript.prependHistory>[0]) => {
     const el = scrollEl;
     if (!el || items.length === 0) return;
 
     const t = theme();
 
-    // Capture anchor: the first fully-visible row and its offset from scrollTop.
-    const anchorIdx = virt.findIndex(Math.max(0, el.scrollTop - padTop()));
-    const anchorId = getItem(props.transcript.state, anchorIdx)?.id;
-    const anchorOffset = el.scrollTop - (virt.top(anchorIdx) + padTop());
+    // Capture anchor: the first visible unit index and its offset from scrollTop.
+    const anchorUnitIdx = virt.findIndex(Math.max(0, el.scrollTop - padTop()));
+    const anchorId = getUnit(units(), anchorUnitIdx)?.itemId;
+    const anchorOffset = el.scrollTop - (virt.top(anchorUnitIdx) + padTop());
 
-    // Grow the virtualizer at the front with estimated heights.
-    const loadEstimateCtx = {
+    // Estimate heights for the prepended units.
+    // Since we don't have the segmented units yet (transcript not yet updated),
+    // we estimate one unit per item using the item-level estimate.
+    const loadEstimateCtx: MeasureCtx = {
       theme: t,
       width: containerWidth(),
       isCollapsed: () => false,
@@ -422,23 +479,31 @@ export function ChatRoot(props: ChatRootProps) {
     const count = items.length;
     virt.prepend(count, (i) => {
       const item = items[i];
-      if (!item) return 60;
-      const def = REGISTRY[item.kind as keyof typeof REGISTRY];
-      return rowReservedHeight(
-        def.estimate?.(item, loadEstimateCtx) ?? genericEstimate(item, loadEstimateCtx),
-        def.padY
-      );
+      if (!item) return ROW_GAP + 60;
+      const unitDef = UNIT_REGISTRY[item.kind];
+      const contentH =
+        unitDef?.estimate?.(item, loadEstimateCtx) ?? genericEstimate(item, loadEstimateCtx);
+      // Solo unit estimate (no chrome padY for composites; user messages have padY handled)
+      return ROW_GAP + contentH;
     });
 
-    // Update the transcript store (triggers the count-sync effect).
+    // Update the transcript store (triggers the count-sync effect and re-flattens).
     props.transcript.prependHistory(items);
     refreshTotal();
 
-    // Restore scroll position so the previously-visible row stays in view.
+    // Restore scroll position so the previously-visible unit stays in view.
     if (anchorId !== undefined) {
-      const newIdx = props.transcript.findIndexById(anchorId);
-      if (newIdx >= 0) {
-        const newTop = virt.top(newIdx) + padTop() + anchorOffset;
+      // Find the new unit index for the anchor item after prepend.
+      const newUs = units();
+      let newUnitIdx = -1;
+      for (let i = 0; i < newUs.length; i++) {
+        if (newUs[i].itemId === anchorId) {
+          newUnitIdx = i;
+          break;
+        }
+      }
+      if (newUnitIdx >= 0) {
+        const newTop = virt.top(newUnitIdx) + padTop() + anchorOffset;
         programmaticScroll = true;
         el.scrollTop = newTop;
         setScrollTop(newTop);
@@ -562,10 +627,11 @@ export function ChatRoot(props: ChatRootProps) {
       prefetchIdleId = null;
 
       const { start: visStart, end: visEnd } = visibleRange();
-      const n = itemCount(props.transcript.state);
+      const us = units();
+      const n = us.length;
       if (n === 0) return;
 
-      // Determine the window to prefetch: rows beyond the current visible+overscan
+      // Determine the window to prefetch: units beyond the current visible+overscan
       // range, ahead in scroll direction + a shorter tail behind.
       const ahead = Math.min(visEnd + PREFETCH_AHEAD, n - 1);
       const behind = Math.max(visStart - PREFETCH_BEHIND, 0);
@@ -581,28 +647,35 @@ export function ChatRoot(props: ChatRootProps) {
 
       let measured = 0;
 
+      // Helper: prefetch one unit at absolute index ui.
+      const prefetchUnit = (ui: number): void => {
+        const u = us[ui];
+        if (!u) return;
+        const unitDef = UNIT_REGISTRY[u.kind];
+        if (!unitDef) return;
+        const c = u.chrome;
+        const unitInsetX = c?.insetX ?? 0;
+        const ctx: MeasureCtx = {
+          theme: t,
+          width: Math.max(0, w - 2 * unitInsetX),
+          isCollapsed: (id: string) => props.viewState.isCollapsed(id),
+          expanded: (id: string) => props.viewState.isCollapsed(id),
+          caches,
+          measureEpoch: measureEpoch(),
+        };
+        const contentH = unitDef.measure(u.data, ctx);
+        const h = unitReservedHeight(u, contentH);
+        const delta = virt.setSize(ui, h);
+        if (delta !== 0) onHeightChanged(ui, delta);
+      };
+
       // Forward pass: visEnd+1 .. ahead
       while (
         prefetchStart <= prefetchEnd &&
         deadline.timeRemaining() >= PREFETCH_MIN_REMAINING_MS
       ) {
-        const item = getItem(props.transcript.state, prefetchStart);
-        if (item) {
-          const resolveExpanded = makeResolveExpanded(item, props.viewState);
-          const ctx = {
-            theme: t,
-            width: w,
-            isCollapsed: (id: string) => props.viewState.isCollapsed(id),
-            expanded: resolveExpanded,
-            caches,
-          };
-          const measuredLayout = cachedMeasure(item, false, ctx);
-          const def = REGISTRY[item.kind as keyof typeof REGISTRY];
-          const h = rowReservedHeight(measuredLayout.height, def.padY);
-          const delta = virt.setSize(prefetchStart, h);
-          if (delta !== 0) onHeightChanged(prefetchStart, delta);
-          measured++;
-        }
+        prefetchUnit(prefetchStart);
+        measured++;
         prefetchStart++;
       }
 
@@ -610,23 +683,8 @@ export function ChatRoot(props: ChatRootProps) {
       if (prefetchStart > prefetchEnd) {
         let backCursor = visStart - 1;
         while (backCursor >= behind && deadline.timeRemaining() >= PREFETCH_MIN_REMAINING_MS) {
-          const item = getItem(props.transcript.state, backCursor);
-          if (item) {
-            const resolveExpanded = makeResolveExpanded(item, props.viewState);
-            const ctx = {
-              theme: t,
-              width: w,
-              isCollapsed: (id: string) => props.viewState.isCollapsed(id),
-              expanded: resolveExpanded,
-              caches,
-            };
-            const measuredLayout = cachedMeasure(item, false, ctx);
-            const def = REGISTRY[item.kind as keyof typeof REGISTRY];
-            const h = rowReservedHeight(measuredLayout.height, def.padY);
-            const delta = virt.setSize(backCursor, h);
-            if (delta !== 0) onHeightChanged(backCursor, delta);
-            measured++;
-          }
+          prefetchUnit(backCursor);
+          measured++;
           backCursor--;
         }
       }
@@ -689,6 +747,9 @@ export function ChatRoot(props: ChatRootProps) {
 
     registerFontsReadyClear(() => {
       caches.clearTextMeasure();
+      // Bump epoch so blockMemo fingerprints mismatch on next measure,
+      // clearing any fallback-font geometry cached before fonts loaded.
+      setMeasureEpoch((e) => e + 1);
       refreshTotal();
     });
 
@@ -702,6 +763,16 @@ export function ChatRoot(props: ChatRootProps) {
     });
 
     onCleanup(() => caches.clear());
+  });
+
+  // ── Active-turn id set (hoisted) ──────────────────────────────────────────
+  //
+  // Computed once per transcript.state update and reused by every visible
+  // UnitRow instead of being recreated inside each <For> iteration.
+  const activeTurnItemIds = createMemo(() => {
+    const active = props.transcript.state.activeTurn;
+    if (!active) return new Set<string>();
+    return new Set(active.map((i) => i.id));
   });
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -732,26 +803,28 @@ export function ChatRoot(props: ChatRootProps) {
                   style={{ height: `${totalHeight() + padTop() + padBottom()}px` }}
                 >
                   <For each={visibleIndexes()}>
-                    {(rowIndex) => {
-                      const rowTop = createMemo(() => {
+                    {(unitIndex) => {
+                      const unitTop = createMemo(() => {
                         totalHeight();
-                        return virt.top(rowIndex) + padTop();
+                        return virt.top(unitIndex) + padTop();
                       });
 
-                      const item = createMemo(() => getItem(props.transcript.state, rowIndex));
-                      const committedCount = () => props.transcript.state.committed.length;
-                      const isActiveTurn = () => rowIndex >= committedCount();
+                      const u = createMemo(() => getUnit(units(), unitIndex));
+                      const isActiveTurn = () => {
+                        const unit = u();
+                        return unit ? activeTurnItemIds().has(unit.itemId) : false;
+                      };
 
                       return (
-                        <Show when={item()}>
+                        <Show when={u()}>
                           <div
                             class="absolute top-0 left-0 w-full will-change-transform [contain:layout_paint_style]"
-                            style={{ transform: `translateY(${rowTop()}px)` }}
-                            data-index={String(rowIndex)}
+                            style={{ transform: `translateY(${unitTop()}px)` }}
+                            data-index={String(unitIndex)}
                           >
-                            <Row
-                              item={item()!}
-                              index={rowIndex}
+                            <UnitRow
+                              unit={u()!}
+                              index={unitIndex}
                               rowWidth={containerWidth()}
                               theme={theme()}
                               viewState={props.viewState}
@@ -759,6 +832,7 @@ export function ChatRoot(props: ChatRootProps) {
                               onHeightChanged={onHeightChanged}
                               isActiveTurn={isActiveTurn()}
                               caches={caches}
+                              measureEpoch={measureEpoch()}
                             />
                           </div>
                         </Show>
@@ -782,7 +856,14 @@ export function ChatRoot(props: ChatRootProps) {
                   >
                     <PinnedUserMessage
                       item={
-                        getItem(props.transcript.state, state().activeUserIdx) as ChatMessage
+                        (() => {
+                          const unit = getUnit(units(), state().activeUserIdx);
+                          if (!unit) return undefined;
+                          // Find the ChatMessage for this itemId in committed.
+                          return props.transcript.state.committed.find(
+                            (i) => i.id === unit.itemId
+                          ) as ChatMessage | undefined;
+                        })()!
                       }
                       rowWidth={containerWidth()}
                       theme={theme()}

@@ -1,142 +1,26 @@
 /**
- * fileOpDef — ComponentDef for ChatFileOpToolCall rows.
+ * fileOpUnitDef — native UnitDef for ChatFileOpToolCall rows.
  *
- * measure: builds a branch-specific compose Measured tree (single-source of truth
- *          for geometry) and stores it in FileOpNodeLayout.tree.
+ * Single self-contained unit: measure returns a total height (number),
+ * and Render lays out the file-op components directly.
  *
- *   single file:              slot('file-op:row', rowH)
- *   multi, expanded:          collapsible({ header, expanded:true, body:slot(list) })
- *   multi, collapsed+running: stack([ slot(header), scrollWindow(slot(preview)) ])
- *   multi, collapsed+settled: collapsible({ header, expanded:false })
- *
- * FileOpRender provides slot components and delegates to Project.
- * ProjectWindow (via scrollWindow) replaces the bespoke FileOpPreview auto-scroll.
- *
- * Constants FILEOP_PAD_Y and FILEOP_WINDOW_H are the single source of truth;
- * FileOperation.tsx imports them instead of re-declaring.
- *
- * Collapse semantics are inverted: stored "collapsed" bool means "expanded"
- * (same convention as thinking rows).
+ * Collapse semantics are inverted: stored "collapsed" bool means "expanded".
+ *   single file:              FileOpRow (fixed ROW_H)
+ *   multi, expanded:          FileOpHeader + FileOpList
+ *   multi, collapsed+running: FileOpHeader + PreviewWindow
+ *   multi, collapsed+settled: FileOpHeader only
  */
 
-import { SLOT_NAMES, collapsible, scrollWindow, slot, stack } from '../../core/compose';
-import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
+import { Show, createMemo } from 'solid-js';
+import type { MeasureCtx, RenderCtx } from '../../core/define';
 import { ROW_H } from '../../core/metrics';
+import { defineUnit } from '../../core/units';
 import type { ChatFileOpToolCall } from '../../model';
-import { Project } from '../Project';
+import { PreviewWindow } from '../primitives/PreviewWindow';
 import { FILEOP_PAD_Y, FILEOP_WINDOW_H } from './file-op-metrics';
 import { FileOpRow, FileOpHeader, FileOpList, FileOpPreviewBody } from './FileOperation';
 
 export { FILEOP_PAD_Y, FILEOP_WINDOW_H };
-
-// ── Layout type ───────────────────────────────────────────────────────────────
-
-export type FileOpNodeLayout = {
-  kind: 'file-op';
-  /**
-   * Branch-specific compose subtree produced by measure().
-   * Project walks this in FileOpRender.
-   */
-  // oxlint-disable-next-line typescript/no-explicit-any -- compose tree; varies by state
-  tree: Measured<any>;
-};
-
-// ── Render ────────────────────────────────────────────────────────────────────
-
-function FileOpRender(props: {
-  item: ChatFileOpToolCall;
-  layout: Measured<FileOpNodeLayout>;
-  ctx: RenderCtx;
-}) {
-  const rowH = () => ROW_H;
-  const lineH = () => ROW_H;
-  // Inverted: stored "collapsed" bool means "expanded".
-  const expanded = () => props.ctx.viewState.isCollapsed(props.item.id);
-
-  return (
-    <div style={{ height: `${props.layout.height}px` }}>
-      <Project
-        node={props.layout.layout.tree}
-        slots={{
-          [SLOT_NAMES.FILE_OP_ROW]: () => (
-            <FileOpRow item={props.item} rowH={rowH()} lineH={lineH()} />
-          ),
-          [SLOT_NAMES.FILE_OP_HEADER]: () => (
-            <FileOpHeader item={props.item} expanded={expanded()} rowH={rowH()} />
-          ),
-          [SLOT_NAMES.FILE_OP_LIST]: () => (
-            <FileOpList item={props.item} lineH={lineH()} padY={FILEOP_PAD_Y} />
-          ),
-          [SLOT_NAMES.FILE_OP_PREVIEW]: () => (
-            <FileOpPreviewBody item={props.item} lineH={lineH()} padY={FILEOP_PAD_Y} />
-          ),
-        }}
-      />
-    </div>
-  );
-}
-
-// ── ComponentDef ──────────────────────────────────────────────────────────────
-
-export const fileOpDef = defineComponent<ChatFileOpToolCall, FileOpNodeLayout>({
-  kind: 'file-op',
-
-  collapse: { mode: 'inverted', default: false },
-
-  estimate(item, ctx: MeasureCtx): number {
-    return measureFileOpH(item, ctx);
-  },
-
-  measure(item, ctx: MeasureCtx): Measured<FileOpNodeLayout> {
-    const rowH = ROW_H;
-    const lineH = ROW_H;
-    const isExpanded = ctx.expanded(item.id);
-    const headerSlot = SLOT_NAMES.FILE_OP_HEADER;
-
-    // ── Single file ───────────────────────────────────────────────────────────
-    if (item.ops.length <= 1) {
-      const tree = slot(SLOT_NAMES.FILE_OP_ROW, rowH);
-      return { height: tree.height, width: ctx.width, layout: { kind: 'file-op', tree } };
-    }
-
-    // ── Multi, expanded ───────────────────────────────────────────────────────
-    if (isExpanded) {
-      const listH = item.ops.length * lineH + 2 * FILEOP_PAD_Y;
-      const tree = collapsible({
-        headerH: rowH,
-        headerSlot,
-        expanded: true,
-        body: slot(SLOT_NAMES.FILE_OP_LIST, listH),
-      });
-      return { height: tree.height, width: ctx.width, layout: { kind: 'file-op', tree } };
-    }
-
-    // ── Multi, collapsed + running: header + scrollWindow preview ─────────────
-    if (item.status === 'running') {
-      const preview = scrollWindow(
-        slot(SLOT_NAMES.FILE_OP_PREVIEW, FILEOP_WINDOW_H),
-        FILEOP_WINDOW_H,
-        { overlay: 'fade-top', autoScrollBottom: true }
-      );
-      const tree = stack(
-        [
-          { id: `${item.id}:header`, measured: slot(headerSlot, rowH) },
-          { id: `${item.id}:preview`, measured: preview },
-        ],
-        { gap: 0 }
-      );
-      return { height: tree.height, width: ctx.width, layout: { kind: 'file-op', tree } };
-    }
-
-    // ── Multi, collapsed + settled: header only ───────────────────────────────
-    const tree = collapsible({ headerH: rowH, headerSlot, expanded: false });
-    return { height: tree.height, width: ctx.width, layout: { kind: 'file-op', tree } };
-  },
-
-  Render: FileOpRender,
-});
-
-// ── Internal height formula (estimate mirror) ─────────────────────────────────
 
 function measureFileOpH(item: ChatFileOpToolCall, ctx: MeasureCtx): number {
   const rowH = ROW_H;
@@ -144,10 +28,64 @@ function measureFileOpH(item: ChatFileOpToolCall, ctx: MeasureCtx): number {
   const isExpanded = ctx.expanded(item.id);
 
   if (item.ops.length <= 1) return rowH;
-
   if (isExpanded) return rowH + item.ops.length * lineH + 2 * FILEOP_PAD_Y;
-
   if (item.status === 'running') return rowH + FILEOP_WINDOW_H;
-
   return rowH;
 }
+
+function FileOpUnitRender(props: { data: ChatFileOpToolCall; ctx: RenderCtx }) {
+  const rowH = ROW_H;
+  const lineH = ROW_H;
+  // Inverted semantics: stored "collapsed" bool = "expanded".
+  const isExpanded = () => props.ctx.viewState.isCollapsed(props.data.id);
+
+  const totalH = createMemo(() => {
+    const item = props.data;
+    if (item.ops.length <= 1) return rowH;
+    if (isExpanded()) return rowH + item.ops.length * lineH + 2 * FILEOP_PAD_Y;
+    if (item.status === 'running') return rowH + FILEOP_WINDOW_H;
+    return rowH;
+  });
+
+  return (
+    <div style={{ height: `${totalH()}px` }}>
+      <Show
+        when={props.data.ops.length > 1}
+        fallback={
+          // Single-file row
+          <FileOpRow item={props.data} rowH={rowH} lineH={lineH} />
+        }
+      >
+        <FileOpHeader item={props.data} expanded={isExpanded()} rowH={rowH} />
+        <Show when={isExpanded()}>
+          <FileOpList item={props.data} lineH={lineH} padY={FILEOP_PAD_Y} />
+        </Show>
+        <Show when={!isExpanded() && props.data.status === 'running'}>
+          <PreviewWindow
+            height={FILEOP_WINDOW_H}
+            maxH={FILEOP_WINDOW_H}
+            overlay="fade-top"
+            autoScrollBottom
+            contentHeight={() => props.data.ops.length}
+          >
+            <FileOpPreviewBody item={props.data} lineH={lineH} padY={FILEOP_PAD_Y} />
+          </PreviewWindow>
+        </Show>
+      </Show>
+    </div>
+  );
+}
+
+export const fileOpUnitDef = defineUnit<ChatFileOpToolCall>({
+  kind: 'file-op',
+
+  estimate(item, ctx): number {
+    return measureFileOpH(item, ctx);
+  },
+
+  measure(item, ctx): number {
+    return measureFileOpH(item, ctx);
+  },
+
+  Render: FileOpUnitRender,
+});

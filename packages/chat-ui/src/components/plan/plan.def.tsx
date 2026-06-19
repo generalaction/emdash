@@ -1,37 +1,22 @@
 /**
- * planDef — ComponentDef for ChatPlan rows.
+ * planUnitDef — native UnitDef for ChatPlan rows.
  *
- * Renders a bordered, collapsible agent task list (collapsed by default).
+ * Single self-contained unit: measure returns a total height (number),
+ * and Render computes entries and heights from measureCtx and renders
+ * PlanHeader + PreviewWindow/PlanList directly.
  *
- * Layout tree (inside a bordered, padded card):
- *   expanded:   collapsible({ header, expanded:true, body:slot('plan:list', listH) })
- *   collapsed:  stack([ slot('plan:header'), scrollWindow(slot('plan:list', listH), PLAN_WINDOW_H) ])
- *
- * Collapsed always shows a capped preview window (max PLAN_WINDOW_H); while the
- * plan is `streaming` the window auto-scrolls to the newest task. Clicking the
- * header expands to the full untruncated list.
- *
- * Each entry's `content` is measured as wrapped markdown text via
- * layoutBlockStack + caches.parseBlocks, reusing the same per-block memo
- * (blockMemo WeakMap) used by message rows.
- *
- * Collapse semantics use inverted mode (same as thinking/file-op): the stored
- * "collapsed" view-state flag actually means "expanded", so the plan starts
- * collapsed (no flag) and expands on click.
- *
- * The card border + padding are applied by PlanRender's outer div with
- * box-sizing:border-box; the chrome height (2*PLAN_OUTER_PAD_Y + 2*PLAN_BORDER)
- * is added to the measured total so the virtualizer reserves the right space.
+ * Collapse semantics use inverted mode: the stored "collapsed" view-state flag
+ * means "expanded", so the plan starts collapsed (no flag) and expands on click.
  */
 
-import type { Component } from 'solid-js';
-import { SLOT_NAMES, collapsible, scrollWindow, slot, stack } from '../../core/compose';
+import { Show, createMemo } from 'solid-js';
 import type { StackLayout } from '../../core/compose';
-import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
+import { type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import { layoutBlockStack } from '../../core/layout/block-stack';
 import { ROW_H } from '../../core/metrics';
+import { defineUnit } from '../../core/units';
 import type { ChatPlan, PlanEntryPriority, PlanEntryStatus } from '../../model';
-import { Project } from '../Project';
+import { PreviewWindow } from '../primitives/PreviewWindow';
 import { PlanHeader, PlanList } from './Plan';
 import {
   PLAN_BORDER,
@@ -66,62 +51,7 @@ export type PlanEntryLaid = {
   priority: PlanEntryPriority;
 };
 
-export type PlanNodeLayout = {
-  kind: 'plan';
-  /**
-   * Branch-specific compose subtree produced by measure().
-   * Project walks this in PlanRender.
-   */
-  // oxlint-disable-next-line typescript/no-explicit-any -- compose tree; varies by state
-  tree: Measured<any>;
-  /**
-   * Per-entry measured results. Always populated (both collapsed preview and
-   * expanded list render them). PlanList reads these to render each entry at
-   * its exact measured height.
-   */
-  entries: PlanEntryLaid[];
-};
-
-// ── Render ────────────────────────────────────────────────────────────────────
-
-function PlanRender(props: { item: ChatPlan; layout: Measured<PlanNodeLayout>; ctx: RenderCtx }) {
-  const rowH = () => ROW_H;
-  // Inverted collapse mode: stored "collapsed" flag means "expanded".
-  const expanded = () => props.ctx.viewState.isCollapsed(props.item.id);
-
-  return (
-    <div
-      class="border-chat-border rounded-lg border"
-      style={{
-        height: `${props.layout.height}px`,
-        'box-sizing': 'border-box',
-        'padding-top': `${PLAN_OUTER_PAD_Y}px`,
-        'padding-bottom': `${PLAN_OUTER_PAD_Y}px`,
-        'padding-left': `${PLAN_PAD_X}px`,
-        'padding-right': `${PLAN_PAD_X}px`,
-      }}
-    >
-      <Project
-        node={props.layout.layout.tree}
-        slots={{
-          [SLOT_NAMES.PLAN_HEADER]: () => (
-            <PlanHeader item={props.item} expanded={expanded()} rowH={rowH()} />
-          ),
-          [SLOT_NAMES.PLAN_LIST]: () => (
-            <PlanList
-              entries={props.layout.layout.entries}
-              padY={PLAN_PAD_Y}
-              entryGap={PLAN_ENTRY_GAP}
-              indent={PLAN_ENTRY_INDENT}
-            />
-          ),
-        }}
-      />
-    </div>
-  );
-}
-
-// ── ComponentDef ──────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Lay out each entry's content into a measured block stack. */
 function measureEntries(item: ChatPlan, ctx: MeasureCtx): PlanEntryLaid[] {
@@ -143,17 +73,94 @@ function listHeight(entries: PlanEntryLaid[]): number {
   return totalEntryH + gaps + 2 * PLAN_PAD_Y;
 }
 
-export const planDef = defineComponent<ChatPlan, PlanNodeLayout>({
+// ── Native UnitDef (Phase 2) ───────────────────────────────────────────────────
+//
+// Self-contained: measure returns a number; Render computes entries and heights
+// from measureCtx and renders PlanHeader + PreviewWindow/PlanList directly
+// without Project slots.
+
+function planMeasure(item: ChatPlan, ctx: MeasureCtx): number {
+  const headerH = ROW_H;
+  const isExpanded = ctx.expanded(item.id);
+  const entries = measureEntries(item, ctx);
+  const listH = listHeight(entries);
+  const bodyH = isExpanded ? listH : Math.min(listH, PLAN_WINDOW_H);
+  return headerH + bodyH + CHROME_Y;
+}
+
+function PlanUnitRender(props: { data: ChatPlan; ctx: RenderCtx }) {
+  const mCtx = () => props.ctx.measureCtx?.();
+  // Inverted semantics: stored "collapsed" bool = "expanded".
+  const isExpanded = () => props.ctx.viewState.isCollapsed(props.data.id);
+
+  const entries = createMemo(() => {
+    const ctx = mCtx();
+    if (!ctx) return [];
+    return measureEntries(props.data, ctx);
+  });
+
+  const listH = createMemo(() => listHeight(entries()));
+  const bodyH = createMemo(() => (isExpanded() ? listH() : Math.min(listH(), PLAN_WINDOW_H)));
+
+  const totalH = createMemo(() => {
+    const ctx = mCtx();
+    if (!ctx) return ROW_H + CHROME_Y;
+    return planMeasure(props.data, ctx);
+  });
+
+  const autoScroll = () => !!props.data.streaming;
+
+  return (
+    <div
+      class="border-chat-border rounded-lg border"
+      style={{
+        height: `${totalH()}px`,
+        'box-sizing': 'border-box',
+        'padding-top': `${PLAN_OUTER_PAD_Y}px`,
+        'padding-bottom': `${PLAN_OUTER_PAD_Y}px`,
+        'padding-left': `${PLAN_PAD_X}px`,
+        'padding-right': `${PLAN_PAD_X}px`,
+      }}
+    >
+      <PlanHeader item={props.data} expanded={isExpanded()} rowH={ROW_H} />
+      <Show
+        when={isExpanded()}
+        fallback={
+          // Collapsed: capped preview window
+          <PreviewWindow
+            height={bodyH()}
+            maxH={PLAN_WINDOW_H}
+            overlay="fade-top"
+            autoScrollBottom={autoScroll()}
+            contentHeight={() => listH()}
+          >
+            <PlanList
+              entries={entries()}
+              padY={PLAN_PAD_Y}
+              entryGap={PLAN_ENTRY_GAP}
+              indent={PLAN_ENTRY_INDENT}
+            />
+          </PreviewWindow>
+        }
+      >
+        {/* Expanded: full untruncated list */}
+        <PlanList
+          entries={entries()}
+          padY={PLAN_PAD_Y}
+          entryGap={PLAN_ENTRY_GAP}
+          indent={PLAN_ENTRY_INDENT}
+        />
+      </Show>
+    </div>
+  );
+}
+
+export const planUnitDef = defineUnit<ChatPlan>({
   kind: 'plan',
 
-  // Inverted mode: ctx.expanded(id) = isCollapsed(id) (stored flag means "expanded").
-  // Default false → plan starts collapsed (capped preview), expands on click.
-  collapse: { mode: 'inverted', default: false },
-
-  estimate(item, ctx: MeasureCtx): number {
+  estimate(item, ctx): number {
     const headerH = ROW_H;
     const isExpanded = ctx.expanded(item.id);
-    // ~2 wrapped lines per entry as a heuristic for off-screen rows.
     const lineH = ctx.theme.fonts.body.lineHeight;
     const entryH = 2 * lineH;
     const gaps = item.entries.length > 1 ? (item.entries.length - 1) * PLAN_ENTRY_GAP : 0;
@@ -162,47 +169,7 @@ export const planDef = defineComponent<ChatPlan, PlanNodeLayout>({
     return headerH + bodyH + CHROME_Y;
   },
 
-  measure(item, ctx: MeasureCtx): Measured<PlanNodeLayout> {
-    const headerH = ROW_H;
-    const isExpanded = ctx.expanded(item.id);
-    const headerSlot = SLOT_NAMES.PLAN_HEADER;
+  measure: planMeasure,
 
-    const entries = measureEntries(item, ctx);
-    const listH = listHeight(entries);
-
-    // ── Expanded: full untruncated list ───────────────────────────────────────
-    if (isExpanded) {
-      const body = slot(SLOT_NAMES.PLAN_LIST, listH);
-      const tree = collapsible({ headerH, headerSlot, expanded: true, body });
-      return {
-        height: tree.height + CHROME_Y,
-        width: ctx.width,
-        layout: { kind: 'plan', tree, entries },
-      };
-    }
-
-    // ── Collapsed: header + capped preview window ──────────────────────────────
-    const preview = scrollWindow(slot(SLOT_NAMES.PLAN_LIST, listH), PLAN_WINDOW_H, {
-      overlay: 'fade-top',
-      autoScrollBottom: !!item.streaming,
-    });
-    const tree = stack(
-      [
-        { id: `${item.id}:header`, measured: slot(headerSlot, headerH) },
-        { id: `${item.id}:preview`, measured: preview },
-      ],
-      { gap: 0 }
-    );
-    return {
-      height: tree.height + CHROME_Y,
-      width: ctx.width,
-      layout: { kind: 'plan', tree, entries },
-    };
-  },
-
-  Render: PlanRender as Component<{
-    item: ChatPlan;
-    layout: Measured<PlanNodeLayout>;
-    ctx: RenderCtx;
-  }>,
+  Render: PlanUnitRender,
 });
