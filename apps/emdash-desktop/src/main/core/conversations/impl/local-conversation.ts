@@ -16,6 +16,7 @@ import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/pty-spawn-platform';
 import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { spillLargePrompt } from '@main/core/conversations/spill-large-prompt';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { events } from '@main/lib/events';
@@ -138,11 +139,19 @@ export class LocalConversationProvider implements ConversationProvider {
         cachedStatePath,
       });
 
+      // Very large prompts (e.g. a full Linear issue + activity context) can blow
+      // past OS argument limits and crash the underlying CLI. Spill them to a temp
+      // markdown file and hand the agent a short pointer message instead (ENG-1546).
+      const effectiveInitialPrompt =
+        !agentSession.isResuming && initialPrompt
+          ? await spillLargePrompt(initialPrompt)
+          : initialPrompt;
+
       const agentCommand = plugin.behavior.prompt!.buildCommand({
         cli: executableCli,
         extraArgs: parseExtraArgs(providerConfig?.extraArgs),
         autoApprove: conversation.autoApprove ?? false,
-        initialPrompt: agentSession.isResuming ? undefined : initialPrompt,
+        initialPrompt: agentSession.isResuming ? undefined : effectiveInitialPrompt,
         sessionId: agentSession.sessionId,
         providerSessionId: conversation.providerSessionId ?? undefined,
         isResuming: agentSession.isResuming,
@@ -241,7 +250,7 @@ export class LocalConversationProvider implements ConversationProvider {
       scheduleInitialPromptInjection({
         pty,
         conversation,
-        initialPrompt,
+        initialPrompt: effectiveInitialPrompt,
         isResuming: agentSession.isResuming,
       });
       telemetryService.capture('agent_run_started', {

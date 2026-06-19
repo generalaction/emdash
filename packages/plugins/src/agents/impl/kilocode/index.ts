@@ -46,7 +46,10 @@ export const plugin = definePlugin(
     },
     prompt: {
       kind: 'argv',
-      flag: '',
+      // `kilo <positional>` is interpreted as the project directory and gets
+      // realpath()'d, which throws ENAMETOOLONG on large prompts (ENG-1546).
+      // The interactive TUI accepts the initial prompt via `--prompt` instead.
+      flag: '--prompt',
     },
     sessions: {
       kind: 'resumable',
@@ -60,7 +63,7 @@ export const provider = registerPluginBehavior(plugin, {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
         autoApproveFlag: '--auto',
-        initialPromptFlag: '',
+        initialPromptFlag: '--prompt',
         resumeFlag: '--continue',
       }),
   },
