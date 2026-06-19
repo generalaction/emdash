@@ -30,27 +30,15 @@ Or install via Homebrew: `brew install node@24 pnpm`
 The app uses two native Node modules (`better-sqlite3` and `node-pty`) that must be compiled from source. You need a C++ build toolchain before running `pnpm install`.
 
 1. **Install Visual Studio 2022 Build Tools** with the "Desktop development with C++" workload.
-   The fastest way is via `winget`:
-   ```powershell
-   winget install Microsoft.VisualStudio.2022.BuildTools `
-     --override "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --quiet"
-   ```
+  The fastest way is via `winget`:
    Alternatively, download the [VS Build Tools installer](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
    and check "Desktop development with C++" during setup.
-
 2. **Install Node.js 24.14.0** via [nvm-windows](https://github.com/coreybutler/nvm-windows) (recommended)
-   or the [official installer](https://nodejs.org/):
-   ```powershell
-   # With nvm-windows:
-   nvm install 24.14.0
-   nvm use 24.14.0
-   ```
-
+  or the [official installer](https://nodejs.org/):
 3. **Install pnpm** (in an elevated PowerShell if needed):
-   ```powershell
+  ```powershell
    npm install -g pnpm@10.28.2
-   ```
-
+  ```
 4. Use **PowerShell** or **Git Bash** for all commands below — avoid `cmd.exe`.
 
 > **Troubleshooting native builds on Windows:** If `pnpm install` fails with a node-gyp
@@ -114,13 +102,13 @@ The repo is a pnpm workspace monorepo; the Electron app lives in `apps/emdash-de
  git checkout -b feat/<short-slug>
 ```
 
-2. Make changes and keep PRs small and focused
+1. Make changes and keep PRs small and focused
 
 - Prefer a series of small PRs over one large one.
 - Include UI screenshots/GIFs when modifying the interface.
 - Update docs (README or inline help) when behavior changes.
 
-3. Run checks locally
+1. Run checks locally
 
 ```
 pnpm run format     # Format code with oxfmt (required)
@@ -131,7 +119,7 @@ pnpm run test       # Vitest test suite
 
 There are no pre-commit hooks; run the full local gate above before opening or merging a PR. CI enforces `format:check`, `typecheck`, and `lint` when you open a PR.
 
-4. Commit using Conventional Commits
+1. Commit using Conventional Commits
 
 - `feat:` – new user‑facing capability
 - `fix:` – bug fix
@@ -145,7 +133,7 @@ fix(opencode): change initialPromptFlag from -p to --prompt for TUI
 feat(docs): add changelog tab with GitHub releases integration
 ```
 
-5. Open a Pull Request
+1. Open a Pull Request
 
 - Describe the change, rationale, and testing steps.
 - Link related Issues.
@@ -228,16 +216,20 @@ Then push the commit and tag. Production release builds are dispatched from GitH
 The release pipeline is split across these GitHub Actions workflows:
 
 **Production Release** (`.github/workflows/release-prod.yml`):
+
 1. Builds Linux, Windows, and macOS packages
 2. Signs Windows builds when Azure Trusted Signing secrets are configured
 3. Signs, verifies, notarizes, and staples macOS DMGs and ZIPs
 4. Publishes artifacts to GitHub Releases (primary update feed) and Cloudflare R2 (fallback)
 
 **Linux/Nix Build** (`.github/workflows/nix-build.yml`):
+
 1. Computes the correct dependency hash from `pnpm-lock.yaml`
 2. Builds the x86_64-linux package via Nix flake
 3. Pushes build artifacts to Cachix and uploads the Nix artifact when available
 
 **Canary Release** (`.github/workflows/release-canary.yml`):
+
 1. Builds Linux, Windows, and macOS packages with the canary config
 2. Publishes artifacts to the `v1-canary` R2 channel
+
