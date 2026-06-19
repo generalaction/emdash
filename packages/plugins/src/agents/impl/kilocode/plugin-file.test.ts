@@ -1,4 +1,4 @@
-import type { PluginFs } from '@emdash/shared/agents/plugins';
+import type { PluginFs } from '@emdash/core/agents/plugins';
 import { describe, expect, it } from 'vitest';
 import { provider } from './index';
 
