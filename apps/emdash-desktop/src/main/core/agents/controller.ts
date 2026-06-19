@@ -10,7 +10,10 @@ import type { ProviderCustomConfig } from '@shared/core/app-settings';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { clearResolvedPathCache } from '../conversations/impl/resolve-agent-executable';
 import { agentUpdateService } from '../dependencies/agent-update-service';
-import { getDependencyManager } from '../dependencies/dependency-managers';
+import {
+  ensureAgentDependenciesProbed,
+  getDependencyManager,
+} from '../dependencies/dependency-managers';
 import { hostDependencyStore } from '../dependencies/host-dependency-store';
 import { providerOverrideSettings } from '../settings/provider-settings-service';
 import {
@@ -31,11 +34,13 @@ export const agentsController = createRPCController({
 
   list: async (connectionId?: string) => {
     const mgr = await getDependencyManager(connectionId);
+    if (connectionId) await ensureAgentDependenciesProbed(mgr);
     return buildAgentPayloads(mgr.platform, mgr, enrichHostDep);
   },
 
   get: async (id: string, connectionId?: string) => {
     const mgr = await getDependencyManager(connectionId);
+    if (connectionId) await ensureAgentDependenciesProbed(mgr);
     return buildAgentPayload(id, mgr.platform, mgr, enrichHostDep);
   },
 
@@ -43,6 +48,7 @@ export const agentsController = createRPCController({
 
   listAgentInstallationStatus: async (connectionId?: string) => {
     const mgr = await getDependencyManager(connectionId);
+    if (connectionId) await ensureAgentDependenciesProbed(mgr);
     return Array.from(mgr.getAll().values())
       .filter((s) => s.category === 'agent')
       .map((state) => {
@@ -56,6 +62,7 @@ export const agentsController = createRPCController({
 
   getAgentInstallationStatus: async (id: string, connectionId?: string) => {
     const mgr = await getDependencyManager(connectionId);
+    if (connectionId) await ensureAgentDependenciesProbed(mgr);
     const state = mgr.get(id as DependencyId);
     if (!state) return null;
     const rawHostDep = mgr.getHostDependency(id as DependencyId);

@@ -26,12 +26,12 @@ export const WEEKDAY_LABELS: readonly string[] = [
 ];
 
 export const PERIOD_LABELS: Record<CronPeriod, string> = {
-  minute: 'minute',
-  hour: 'hour',
-  day: 'day',
-  week: 'week',
-  month: 'month',
-  year: 'year',
+  minute: 'Minute',
+  hour: 'Hour',
+  day: 'Day',
+  week: 'Week',
+  month: 'Month',
+  year: 'Year',
 };
 
 export const PERIOD_ORDER: readonly CronPeriod[] = [
@@ -207,9 +207,4 @@ export function changePeriod(prev: CronState, period: CronPeriod): CronState {
     case 'year':
       return { ...prev, period, monthDay: prev.monthDay, month: prev.month };
   }
-}
-
-/** Returns a padded time string like "09:05" from hour and minute numbers. */
-export function formatTime(hour: number, minute: number): string {
-  return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
 }
