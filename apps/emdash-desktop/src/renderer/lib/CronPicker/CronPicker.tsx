@@ -1,4 +1,4 @@
-import { type ChangeEvent, useMemo } from 'react';
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from '@renderer/lib/ui/input';
 import {
   Select,
@@ -11,7 +11,6 @@ import { cn } from '@renderer/utils/utils';
 import {
   changePeriod,
   DEFAULT_CRON_STATE,
-  formatTime,
   MONTH_LABELS,
   ordinal,
   parseCron,
@@ -34,6 +33,24 @@ function useCronState(value: string): { state: CronState; parseError: boolean } 
     if (parsed) return { state: parsed, parseError: false };
     return { state: DEFAULT_CRON_STATE, parseError: true };
   }, [value]);
+}
+
+function formatTwoDigit(value: number) {
+  return value.toString().padStart(2, '0');
+}
+
+/** Wraps a value by `delta` within the inclusive range [min, max]. */
+function wrapValue(value: number, delta: number, min: number, max: number) {
+  const range = max - min + 1;
+  return ((value - min + delta + range) % range) + min;
+}
+
+function sanitizeTimeSegmentDraft(raw: string, max: number) {
+  const digits = raw.replace(/\D/g, '').slice(0, 2);
+  if (!digits) return '';
+  const parsed = parseInt(digits, 10);
+  if (Number.isNaN(parsed)) return '';
+  return String(Math.min(max, parsed));
 }
 
 /** Small inline <Select> styled to blend into the sentence. */
@@ -74,6 +91,115 @@ function InlineSelect({
   );
 }
 
+/**
+ * A single editable time segment (hour or minute). Type a number, or adjust with
+ * ArrowUp/ArrowDown and the mouse wheel (the wheel only adjusts while focused, so it
+ * never hijacks page scroll). Arrow/wheel wrap within [min, max]; typed values clamp.
+ */
+function TimeSegment({
+  value,
+  min,
+  max,
+  ariaLabel,
+  onChange,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  ariaLabel: string;
+  onChange: (next: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const stateRef = useRef({ value, min, max, onChange });
+  stateRef.current = { value, min, max, onChange };
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+
+    function handleWheel(event: WheelEvent) {
+      if (document.activeElement !== input) return;
+      event.preventDefault();
+      const { value, min, max, onChange } = stateRef.current;
+      onChange(wrapValue(value, event.deltaY < 0 ? 1 : -1, min, max));
+    }
+
+    // Non-passive so preventDefault works; React's onWheel is passive.
+    input.addEventListener('wheel', handleWheel, { passive: false });
+    return () => input.removeEventListener('wheel', handleWheel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function commit(raw: string | null) {
+    setDraft(null);
+    if (!raw) return;
+    const parsed = parseInt(raw, 10);
+    if (Number.isNaN(parsed)) return;
+    onChange(Math.max(min, Math.min(max, parsed)));
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setDraft(null);
+      onChange(wrapValue(value, 1, min, max));
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setDraft(null);
+      onChange(wrapValue(value, -1, min, max));
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      commit(draft);
+      inputRef.current?.blur();
+    }
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      inputMode="numeric"
+      aria-label={ariaLabel}
+      value={draft ?? formatTwoDigit(value)}
+      onFocus={(event) => event.currentTarget.select()}
+      onChange={(event) => setDraft(sanitizeTimeSegmentDraft(event.target.value, max))}
+      onKeyDown={handleKeyDown}
+      onBlur={() => commit(draft)}
+      className="w-[2ch] rounded-sm bg-transparent text-center leading-none tabular-nums outline-none focus:bg-background-quaternary-1"
+    />
+  );
+}
+
+function TimePicker({
+  hour,
+  minute,
+  onChange,
+}: {
+  hour: number;
+  minute: number;
+  onChange: (next: { hour: number; minute: number }) => void;
+}) {
+  return (
+    <div className="inline-flex h-7 items-center gap-0.5 rounded-md border border-border/60 px-1.5 text-sm leading-none font-medium text-foreground tabular-nums transition-colors focus-within:border-border-primary">
+      <TimeSegment
+        value={hour}
+        min={0}
+        max={23}
+        ariaLabel="Hour"
+        onChange={(nextHour) => onChange({ hour: nextHour, minute })}
+      />
+      <span className="text-foreground-passive">:</span>
+      <TimeSegment
+        value={minute}
+        min={0}
+        max={59}
+        ariaLabel="Minute"
+        onChange={(nextMinute) => onChange({ hour, minute: nextMinute })}
+      />
+    </div>
+  );
+}
 /** Thin text label between selectors. */
 function Label({ children }: { children: React.ReactNode }) {
   return <span className="text-sm text-foreground-passive">{children}</span>;
@@ -102,13 +228,8 @@ export function CronPicker({ value, onChange, className }: CronPickerProps) {
     emit({ ...state, monthDay: parseInt(v, 10) });
   }
 
-  function handleTimeChange(e: ChangeEvent<HTMLInputElement>) {
-    const [rawH, rawM] = e.target.value.split(':');
-    if (!rawH || !rawM) return;
-    const hour = Math.max(0, Math.min(23, parseInt(rawH, 10)));
-    const minute = Math.max(0, Math.min(59, parseInt(rawM, 10)));
-    if (Number.isNaN(hour) || Number.isNaN(minute)) return;
-    emit({ ...state, hour, minute });
+  function handleTimeChange(next: { hour: number; minute: number }) {
+    emit({ ...state, hour: next.hour, minute: next.minute });
   }
 
   function handleMinuteChange(e: ChangeEvent<HTMLInputElement>) {
@@ -131,7 +252,11 @@ export function CronPicker({ value, onChange, className }: CronPickerProps) {
         <Label>Every</Label>
 
         {/* Period selector */}
-        <InlineSelect value={period} onValueChange={handlePeriodChange}>
+        <InlineSelect
+          value={period}
+          onValueChange={handlePeriodChange}
+          renderValue={(v) => PERIOD_LABELS[v as CronPeriod] ?? v}
+        >
           {PERIOD_ORDER.map((p) => (
             <SelectItem key={p} value={p}>
               {PERIOD_LABELS[p]}
@@ -193,16 +318,11 @@ export function CronPicker({ value, onChange, className }: CronPickerProps) {
           </>
         )}
 
-        {/* Day / Week / Month / Year: time input */}
+        {/* Day / Week / Month / Year: time picker */}
         {showTime && (
           <>
             <Label>at</Label>
-            <Input
-              type="time"
-              value={formatTime(hour, minute)}
-              onChange={handleTimeChange}
-              className="h-7 w-[110px] px-2 text-sm"
-            />
+            <TimePicker hour={hour} minute={minute} onChange={handleTimeChange} />
           </>
         )}
 
