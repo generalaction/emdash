@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/lib/ui/panel-tabs.tsx
+  s_efbfcd433804da::t_815cb02c3526a1 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "c91dcc54f2780667b17b8b009ed70ca5323e6c03",
+  "prompts": {},
+  "sessions": {
+    "s_efbfcd433804da": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019edbab-5f39-7752-850f-47cc71605baf",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
