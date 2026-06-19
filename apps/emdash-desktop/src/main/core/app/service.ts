@@ -235,6 +235,28 @@ class AppService implements IInitializable, IDisposable {
     app.quit();
   }
 
+  minimizeWindow(): void {
+    getMainWindow()?.minimize();
+  }
+
+  toggleMaximizeWindow(): void {
+    const win = getMainWindow();
+    if (!win) return;
+    if (win.isMaximized()) {
+      win.unmaximize();
+    } else {
+      win.maximize();
+    }
+  }
+
+  closeWindow(): void {
+    getMainWindow()?.close();
+  }
+
+  isWindowMaximized(): boolean {
+    return getMainWindow()?.isMaximized() ?? false;
+  }
+
   async openIn(args: {
     app: OpenInAppId;
     path: string;
