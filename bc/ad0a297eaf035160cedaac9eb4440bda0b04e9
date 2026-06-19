@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_2996b92de9a197::t_fd2c472a742fc6 406-407
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.test.ts
+  s_2996b92de9a197::t_077de0fecb8b92 299-320
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "bcad0a297eaf035160cedaac9eb4440bda0b04e9",
+  "prompts": {},
+  "sessions": {
+    "s_2996b92de9a197": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ede4c-101d-7631-8bf2-1e64d5d1d221",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
