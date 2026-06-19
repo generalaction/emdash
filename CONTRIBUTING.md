@@ -1,4 +1,4 @@
-# Contributing to Emdash
+# Contributing to Rocky
 
 Thanks for your interest in contributing! We favor small, focused PRs and clear intent over big bangs. This guide explains how to get set up, the workflow we use, and a few project‑specific conventions.
 
@@ -62,8 +62,8 @@ The app uses two native Node modules (`better-sqlite3` and `node-pty`) that must
 
 ```bash
 # Fork this repo, then clone your fork
-git clone https://github.com/<you>/emdash.git
-cd emdash
+git clone https://github.com/<you>/rocky.git
+cd rocky
 
 # Use the correct Node.js version (if using nvm / nvm-windows)
 nvm use
@@ -184,10 +184,10 @@ Renderer (React)
 
 Local DB (SQLite)
 
-- Development location (Electron `app.getPath('userData')`; dev builds use an `emdash-dev` folder):
-  - macOS: `~/Library/Application Support/emdash-dev/emdash4.db`
-  - Linux: `~/.config/emdash-dev/emdash4.db`
-  - Windows: `%APPDATA%\emdash-dev\emdash4.db`
+- Development location (Electron `app.getPath('userData')`; dev builds use a `rocky-dev` folder):
+  - macOS: `~/Library/Application Support/rocky-dev/emdash4.db`
+  - Linux: `~/.config/rocky-dev/emdash4.db`
+  - Windows: `%APPDATA%\rocky-dev\emdash4.db`
 - Override the path with the `EMDASH_DB_FILE` environment variable for isolated/scratch databases.
 - Reset: quit the app and run `pnpm --filter @emdash/emdash-desktop run db:reset` from the repo root, or delete the dev database file and relaunch (the schema is recreated).
 
