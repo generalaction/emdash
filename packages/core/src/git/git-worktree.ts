@@ -371,7 +371,11 @@ export class GitWorktree implements IGitWorktree {
 
   async revert(paths: string[]): Promise<GitSequences> {
     if (paths.length === 0) return {};
-    await this.exec.exec(['checkout', 'HEAD', '--', ...paths]);
+    const indexedPaths = await this.getIndexedPaths(paths);
+    if (indexedPaths.length > 0) {
+      await this.exec.exec(['checkout', '--', ...indexedPaths]);
+    }
+    await this.exec.exec(['clean', '-fd', '--', ...paths]);
     return this.refreshStatus();
   }
 
@@ -492,6 +496,11 @@ export class GitWorktree implements IGitWorktree {
       }
     );
     if (parser.tooManyFiles) throw new TooManyFilesChangedError();
+  }
+
+  private async getIndexedPaths(paths: string[]): Promise<string[]> {
+    const { stdout } = await this.exec.exec(['ls-files', '-z', '--', ...paths]);
+    return [...new Set(stdout.split('\0').filter(Boolean))];
   }
 
   private async buildStatus(
