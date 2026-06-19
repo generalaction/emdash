@@ -1,0 +1,25 @@
+packages/core/src/agents/plugins/helpers/hooks.ts
+  s_de55f910011dfa::t_c08f8ba85b86e9 61-62
+  s_de55f910011dfa::t_204270e08e3880 55-58,60,63
+packages/plugins/src/agents/impl/grok/hooks.ts
+  s_de55f910011dfa::t_204270e08e3880 8,31
+packages/core/src/agents/plugins/helpers/hooks.test.ts
+  s_de55f910011dfa::t_204270e08e3880 1-25,27-32,34-35,39-40
+  s_de55f910011dfa::t_c08f8ba85b86e9 26,33,36-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "5aac638bd585b9e3e555c255de0e99354e65161c",
+  "prompts": {},
+  "sessions": {
+    "s_de55f910011dfa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ee007-5c9b-7682-8fbf-ff6d5e3be671",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
