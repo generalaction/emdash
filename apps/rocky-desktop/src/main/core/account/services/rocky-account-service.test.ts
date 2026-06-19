@@ -1,6 +1,6 @@
 import { err, ok, type Result } from '@rocky/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { EmdashAccountService } from './emdash-account-service';
+import { RockyAccountService } from './rocky-account-service';
 
 const mockCredGet = vi.fn();
 const mockCredSet = vi.fn();
@@ -66,8 +66,8 @@ function unwrapError<T, E>(result: Result<T, E>): E {
   return result.error;
 }
 
-describe('EmdashAccountService', () => {
-  let service: EmdashAccountService;
+describe('RockyAccountService', () => {
+  let service: RockyAccountService;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -79,7 +79,7 @@ describe('EmdashAccountService', () => {
     mockFetch.mockReset();
     mockExecuteOAuthFlow.mockReset();
     mockDispatch.mockResolvedValue(undefined);
-    service = new EmdashAccountService();
+    service = new RockyAccountService();
   });
 
   describe('getSession()', () => {

@@ -10,7 +10,7 @@ import { setupApplicationMenu } from './app/menu';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
 import { createMainWindow } from './app/window';
 import { providerTokenRegistry } from './core/account/provider-token-registry';
-import { emdashAccountService } from './core/account/services/emdash-account-service';
+import { rockyAccountService } from './core/account/services/rocky-account-service';
 import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { automationsService } from './core/automations/automations-service';
@@ -122,10 +122,10 @@ void app.whenReady().then(async () => {
     log.warn('telemetry init failed:', e);
   }
 
-  emdashAccountService.on('accountChanged', (username, userId, email) => {
+  rockyAccountService.on('accountChanged', (username, userId, email) => {
     void telemetryService.identify(username, userId, email);
   });
-  emdashAccountService.on('accountCleared', () => {
+  rockyAccountService.on('accountCleared', () => {
     telemetryService.clearIdentity();
   });
 
@@ -142,7 +142,7 @@ void app.whenReady().then(async () => {
     log.error('Failed to start agent event service:', e);
   });
 
-  emdashAccountService
+  rockyAccountService
     .initialize()
     .then((result) => {
       if (!result.success) {

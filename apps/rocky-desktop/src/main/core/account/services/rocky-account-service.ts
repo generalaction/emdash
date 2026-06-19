@@ -29,9 +29,9 @@ type AccountServiceHooks = {
   accountCleared: () => void | Promise<void>;
 };
 
-export class EmdashAccountService implements Hookable<AccountServiceHooks> {
+export class RockyAccountService implements Hookable<AccountServiceHooks> {
   private readonly _hooks = new HookCore<AccountServiceHooks>((name, e) =>
-    log.error(`EmdashAccountService: ${String(name)} hook error`, e)
+    log.error(`RockyAccountService: ${String(name)} hook error`, e)
   );
 
   constructor(
@@ -181,4 +181,4 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
   }
 }
 
-export const emdashAccountService = new EmdashAccountService();
+export const rockyAccountService = new RockyAccountService();
