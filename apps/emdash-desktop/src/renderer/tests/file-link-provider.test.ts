@@ -234,6 +234,41 @@ describe('file link provider', () => {
     expect(decorations).toEqual({ pointerCursor: false, underline: false });
   });
 
+  it('repaints the hovered link when the modifier toggles without mouse movement', () => {
+    const tracker = new ActivationModifierTracker(true);
+    const decorations = tracker.decorations();
+    let refreshes = 0;
+
+    tracker.hover(decorations, { metaKey: false, ctrlKey: false }, () => {
+      refreshes += 1;
+    });
+    expect(refreshes).toBe(0);
+
+    tracker.update({ metaKey: true, ctrlKey: false });
+    expect(refreshes).toBe(1);
+
+    tracker.update({ metaKey: false, ctrlKey: false });
+    expect(refreshes).toBe(2);
+
+    // No change in pressed state must not trigger redundant repaints.
+    tracker.update({ metaKey: false, ctrlKey: false });
+    expect(refreshes).toBe(2);
+  });
+
+  it('stops repainting once the pointer leaves the link', () => {
+    const tracker = new ActivationModifierTracker(true);
+    const decorations = tracker.decorations();
+    let refreshes = 0;
+
+    tracker.hover(decorations, { metaKey: false, ctrlKey: false }, () => {
+      refreshes += 1;
+    });
+    tracker.leave(decorations);
+
+    tracker.update({ metaKey: true, ctrlKey: false });
+    expect(refreshes).toBe(0);
+  });
+
   it('only opens links when the activation modifier is pressed', () => {
     const openedFiles: string[] = [];
     const openedExternal: string[] = [];
