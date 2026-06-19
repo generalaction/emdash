@@ -1,9 +1,39 @@
 import type { ILink } from '@xterm/xterm';
 
+// Paths containing at least one directory separator. Any extension length is
+// allowed because the surrounding `/` segments already make these unambiguous.
+const DIR_PATH_PATTERN = '(~/|/|\\.{1,2}/)?(?:[\\w\\-.@]+/)+[\\w\\-.@]+\\.[a-zA-Z][a-zA-Z0-9]{0,9}';
+// Bare filenames with no directory (e.g. `notes.md`). The extension must be at
+// least two characters so common prose abbreviations ("e.g", "i.e", "U.S") that
+// only have a single trailing letter are not mistaken for files.
+const BARE_FILE_PATTERN = '[\\w\\-.]+\\.[a-zA-Z][a-zA-Z0-9]{1,9}(?!/)';
 // Lookbehind on `:` keeps URLs (`https://...`) with WebLinksAddon.
-const FILE_PATH_PATTERN =
-  '(?<![\\w\\-./@:])(~/|/|\\.{1,2}/)?(?:[\\w\\-.@]+/)+[\\w\\-.@]+\\.[a-zA-Z][a-zA-Z0-9]{0,9}\\b';
+const FILE_PATH_PATTERN = `(?<![\\w\\-./@:])(?:${DIR_PATH_PATTERN}|${BARE_FILE_PATTERN})\\b`;
 const URL_PROTOCOL_PATTERN = /[a-zA-Z][a-zA-Z0-9+.-]*:\/\//;
+const WEB_DOMAIN_EXTENSIONS = new Set([
+  'ai',
+  'app',
+  'biz',
+  'cloud',
+  'co',
+  'com',
+  'dev',
+  'edu',
+  'gov',
+  'info',
+  'io',
+  'me',
+  'mil',
+  'net',
+  'org',
+  'page',
+  'site',
+  'tech',
+  'to',
+  'uk',
+  'us',
+  'xyz',
+]);
 const MAX_WRAPPED_LINE_LENGTH = 4096;
 
 export type BufferLineLike = {
@@ -30,7 +60,8 @@ type LogicalLine = {
 
 export function findFileLinks(buffer: BufferLike, bufferLineNumber: number): FileLinkMatch[] {
   const logicalLine = getWrappedLogicalLine(buffer, bufferLineNumber - 1);
-  if (!logicalLine || !logicalLine.text || logicalLine.text.indexOf('/') === -1) {
+  // Every file reference has an extension dot; bail cheaply when there's none.
+  if (!logicalLine || !logicalLine.text || logicalLine.text.indexOf('.') === -1) {
     return [];
   }
 
@@ -41,7 +72,7 @@ export function findFileLinks(buffer: BufferLike, bufferLineNumber: number): Fil
   while ((match = regex.exec(logicalLine.text)) !== null) {
     const matched = match[0];
     const startOffset = match.index;
-    if (isEmbeddedInUrl(logicalLine.text, startOffset)) continue;
+    if (isEmbeddedInUrl(logicalLine.text, startOffset) || isLikelyBareDomain(matched)) continue;
     const endOffset = startOffset + matched.length;
     const range = mapOffsetRangeToBufferRange(logicalLine, startOffset, endOffset);
     if (!range) continue;
@@ -64,6 +95,12 @@ function isEmbeddedInUrl(text: string, startCol: number): boolean {
   const prefix = text.slice(0, startCol);
   const tokenStart = Math.max(prefix.lastIndexOf(' '), prefix.lastIndexOf('\t'), -1) + 1;
   return URL_PROTOCOL_PATTERN.test(prefix.slice(tokenStart));
+}
+
+function isLikelyBareDomain(text: string): boolean {
+  if (text.includes('/')) return false;
+  const extension = text.slice(text.lastIndexOf('.') + 1).toLowerCase();
+  return WEB_DOMAIN_EXTENSIONS.has(extension);
 }
 
 function getWrappedLogicalLine(buffer: BufferLike, bufferIndex: number): LogicalLine | null {

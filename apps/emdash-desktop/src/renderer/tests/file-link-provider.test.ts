@@ -93,7 +93,11 @@ describe('file link provider', () => {
       new MockBufferLine('  baz.ts'),
     ]);
 
-    expect(findFileLinks(buffer, 3)).toEqual([]);
+    // The bare filename is linked on its own, but it must not be joined backward
+    // into the preceding `src/foo/bar/` fragment.
+    const links = findFileLinks(buffer, 3);
+    expect(links).toHaveLength(1);
+    expect(links[0]?.text).toBe('baz.ts');
   });
 
   it('classifies absolute and home-relative paths as external', () => {
@@ -123,6 +127,57 @@ describe('file link provider', () => {
 
   it('keeps URL paths delegated to the web links addon', () => {
     const buffer = makeBuffer([new MockBufferLine('see https://example.com/src/file.ts')]);
+
+    expect(findFileLinks(buffer, 1)).toEqual([]);
+  });
+
+  it('detects bare filenames without a directory prefix', () => {
+    const buffer = makeBuffer([new MockBufferLine('UZH_Silicon_Valley_Attendees_LinkedIn.md')]);
+
+    expect(findFileLinks(buffer, 1)).toEqual([
+      {
+        range: {
+          start: { x: 1, y: 1 },
+          end: { x: 40, y: 1 },
+        },
+        text: 'UZH_Silicon_Valley_Attendees_LinkedIn.md',
+        isExternal: false,
+      },
+    ]);
+  });
+
+  it('detects a bare filename embedded in a sentence', () => {
+    const buffer = makeBuffer([new MockBufferLine('I updated package.json for you')]);
+
+    const links = findFileLinks(buffer, 1);
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({ text: 'package.json', isExternal: false });
+  });
+
+  it('ignores prose abbreviations with single-letter extensions', () => {
+    const buffer = makeBuffer([
+      new MockBufferLine('e.g. update it, i.e. the file, etc. and the U.S. office'),
+    ]);
+
+    expect(findFileLinks(buffer, 1)).toEqual([]);
+  });
+
+  it('ignores version numbers without a file extension', () => {
+    const buffer = makeBuffer([new MockBufferLine('upgrade to v1.2.3 today')]);
+
+    expect(findFileLinks(buffer, 1)).toEqual([]);
+  });
+
+  it('ignores bare domains and email addresses', () => {
+    const buffer = makeBuffer([
+      new MockBufferLine('visit example.com or github.com/org/repo, email jane@example.com'),
+    ]);
+
+    expect(findFileLinks(buffer, 1)).toEqual([]);
+  });
+
+  it('does not link dotted directory prefixes as bare filenames', () => {
+    const buffer = makeBuffer([new MockBufferLine('read docs.v2/README before editing')]);
 
     expect(findFileLinks(buffer, 1)).toEqual([]);
   });
