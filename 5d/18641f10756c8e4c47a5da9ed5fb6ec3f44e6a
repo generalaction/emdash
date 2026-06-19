@@ -1,0 +1,41 @@
+apps/emdash-desktop/src/renderer/lib/providers/theme-provider.tsx
+  s_8738d058d5da58::t_9bac3fa2d2f3f3 44
+  s_8738d058d5da58::t_8974fc7f16361a 13
+apps/emdash-desktop/src/main/index.ts
+  s_8738d058d5da58::t_b75abb2d639b5b 11-15
+  s_8738d058d5da58::t_d37050aedaa935 4,93-115,118-120,166-167,202
+apps/emdash-desktop/src/main/app/window.ts
+  s_8738d058d5da58::t_16364c71d50a01 14,20,27,91-92,95-96
+apps/emdash-desktop/src/shared/core/theme.test.ts
+  s_8738d058d5da58::t_856ee561fba35b 1-14
+apps/emdash-desktop/src/main/core/pty/terminal-color-scheme.test.ts
+  s_8738d058d5da58::t_4c685c07f11ecd 19
+apps/emdash-desktop/src/shared/core/theme.ts
+  s_8738d058d5da58::t_0f7b269a6b3dcc 1-8
+apps/emdash-desktop/src/main/app/window-theme.ts
+  s_8738d058d5da58::t_f8a9e810bcb9e5 2,10
+apps/emdash-desktop/src/main/core/pty/terminal-color-scheme.ts
+  s_8738d058d5da58::t_398ae1c63afe97 4
+apps/emdash-desktop/src/main/app/window-theme.test.ts
+  s_8738d058d5da58::t_8bdba47d41a33c 2
+apps/emdash-desktop/src/main/core/settings/controller.ts
+  s_8738d058d5da58::t_a43d4fa462010a 10-12
+apps/emdash-desktop/src/renderer/features/settings/app-settings-client.ts
+  s_8738d058d5da58::t_d588290deade74 18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "5d18641f10756c8e4c47a5da9ed5fb6ec3f44e6a",
+  "prompts": {},
+  "sessions": {
+    "s_8738d058d5da58": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019edfaa-65e7-7f87-b633-030281d1b6e7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
