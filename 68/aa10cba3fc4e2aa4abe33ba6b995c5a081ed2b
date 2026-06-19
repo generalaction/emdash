@@ -1,0 +1,32 @@
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.test.ts
+  s_2996b92de9a197::t_eefce6a11e535f 4,46,251-296
+apps/emdash-desktop/src/shared/events/appEvents.ts
+  s_2996b92de9a197::t_761c82e1803cb1 3,28-31
+apps/emdash-desktop/src/renderer/lib/components/browser-app-shortcut-events.tsx
+  s_2996b92de9a197::t_c2a440cc0bdc2f 2
+  s_2996b92de9a197::t_6a147bfb47169b 1,3-4,6-7,10-66,70-97,99-102
+  s_2996b92de9a197::t_737cb9e701f58d 5
+  s_2996b92de9a197::t_25e8147d8c7de9 8-9,67-69,98
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_2996b92de9a197::t_9d8d7c177d08f3 233-245
+  s_2996b92de9a197::t_4646b5d4e767d2 19,25,56,75
+  s_2996b92de9a197::t_4add56d60374cf 393-426,428,431-447
+apps/emdash-desktop/src/renderer/app/workspace.tsx
+  s_2996b92de9a197::t_84f1d32f5c0a18 4,22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "68aa10cba3fc4e2aa4abe33ba6b995c5a081ed2b",
+  "prompts": {},
+  "sessions": {
+    "s_2996b92de9a197": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ede4c-101d-7631-8bf2-1e64d5d1d221",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
