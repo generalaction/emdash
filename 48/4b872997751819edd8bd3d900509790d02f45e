@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/main/index.ts
+  s_85609097930a0a::t_143ca23939ee15 10,111-112
+apps/emdash-desktop/src/main/core/settings/controller.ts
+  s_85609097930a0a::t_40a68585ed2c33 1,12
+apps/emdash-desktop/src/main/app/native-theme-update-source.ts
+  s_85609097930a0a::t_b1543e9807daef 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "484b872997751819edd8bd3d900509790d02f45e",
+  "prompts": {},
+  "sessions": {
+    "s_85609097930a0a": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ee13a-5d04-7ec8-aaf1-0e84b9637654",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
