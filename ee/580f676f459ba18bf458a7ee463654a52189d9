@@ -1,0 +1,24 @@
+packages/plugins/src/agents/impl/freebuff/index.ts
+  s_a6fc5c013de751::t_12cecd4506c10d 34-36
+  s_a6fc5c013de751::t_56ac64fabb43fd 47
+packages/plugins/src/agents/impl/jules/index.ts
+  s_a6fc5c013de751::t_dede9407d8707c 49-51
+packages/plugins/src/agents/impl/prompt-delivery.test.ts
+  s_a6fc5c013de751::t_9add8bec7e6811 1-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "ee580f676f459ba18bf458a7ee463654a52189d9",
+  "prompts": {},
+  "sessions": {
+    "s_a6fc5c013de751": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "10535431-c725-47d4-9c73-a16452b861c5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
