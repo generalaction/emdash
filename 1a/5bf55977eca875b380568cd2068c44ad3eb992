@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/lib/CronPicker/CronPicker.tsx
+  s_3ce0c7f5f13cc0::t_1858610ab502bd 114-115,124,131-132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "1a5bf55977eca875b380568cd2068c44ad3eb992",
+  "prompts": {},
+  "sessions": {
+    "s_3ce0c7f5f13cc0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019edf9b-e425-7842-ada5-e94f938be0b5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
