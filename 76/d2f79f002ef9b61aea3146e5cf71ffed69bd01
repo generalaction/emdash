@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tasks/conversations/create-conversation-modal.tsx
+  s_7097915a27b4fb::t_192d16cd0d2976 8,35-36,58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "76d2f79f002ef9b61aea3146e5cf71ffed69bd01",
+  "prompts": {},
+  "sessions": {
+    "s_7097915a27b4fb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019edfad-1e2c-76f1-8099-f2a58383ab20",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
