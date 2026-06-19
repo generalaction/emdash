@@ -19,6 +19,9 @@ export interface CredentialKey {
   required: boolean;
 }
 
+/** Raw server entry as stored in agent config files (used by catalog UI). */
+export type RawServerEntry = Record<string, unknown>;
+
 /** Display metadata for a catalog server */
 export interface McpCatalogEntry {
   key: string;
@@ -28,24 +31,6 @@ export interface McpCatalogEntry {
   defaultConfig: RawServerEntry;
   credentialKeys: CredentialKey[];
 }
-
-/** Raw server entry as stored in agent config files */
-export type RawServerEntry = Record<string, unknown>;
-
-/** Map of server name → raw config */
-export type ServerMap = Record<string, RawServerEntry>;
-
-/** Agent MCP config metadata — how to navigate each agent's config file */
-export interface AgentMcpMeta {
-  agentId: string;
-  configPath: string;
-  serversPath: string[];
-  template: Record<string, unknown>;
-  isToml: boolean;
-  adapter: AdapterType;
-}
-
-export type AdapterType = 'passthrough' | 'gemini' | 'cursor' | 'codex' | 'opencode' | 'copilot';
 
 export interface McpLoadAllResponse {
   installed: McpServer[];

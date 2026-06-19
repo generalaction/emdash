@@ -1,8 +1,10 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useDevServers } from '@renderer/features/tasks/task-view-context';
-import { rpc } from '@renderer/lib/ipc';
+import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
+import { usePreviewServers } from '@renderer/features/tasks/task-view-context';
+import { events, rpc } from '@renderer/lib/ipc';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
+import { tabNavigationShortcutChannel } from '@shared/events/appEvents';
 import { browserControlsRegistry } from './browser-controls-registry';
 import { decideBrowserReload } from './browser-navigation-controls';
 import { browserSessionStore } from './browser-session-store';
@@ -17,9 +19,16 @@ import {
 
 const WEBVIEW_ALLOW_POPUPS_ATTRIBUTE = 'true' as unknown as boolean;
 
-export const BrowserPane = observer(function BrowserPane({ browserId }: { browserId: string }) {
+export const BrowserPane = observer(function BrowserPane({
+  browserId,
+  visible,
+}: {
+  browserId: string;
+  visible: boolean;
+}) {
   const session = browserSessionStore.getSession(browserId);
-  const devServers = useDevServers();
+  const { tabManager } = useTabGroupContext();
+  const previewServers = usePreviewServers();
   const webviewRef = useRef<BrowserWebviewElement | null>(null);
   const focusUrlRef = useRef<() => void>(() => {});
   const pendingUrlRef = useRef<string | null>(null);
@@ -69,14 +78,31 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
     return () => {
       disposed = true;
       setIsRegistered(false);
-      void rpc.browser.setActiveBrowser(null);
     };
   }, [sessionBrowserId, sessionPartition]);
 
   useEffect(() => {
-    if (!sessionBrowserId || adapter === null) return;
+    return () => {
+      void rpc.browser.setActiveBrowser(null);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!visible || !sessionBrowserId || adapter === null) return;
     void rpc.browser.setActiveBrowser(sessionBrowserId);
-  }, [adapter, sessionBrowserId]);
+  }, [adapter, sessionBrowserId, visible]);
+
+  useEffect(() => {
+    if (!visible || !sessionBrowserId) return;
+    return events.on(tabNavigationShortcutChannel, (event) => {
+      if (event.source.kind !== 'browser' || event.source.browserId !== sessionBrowserId) return;
+      if (event.direction === 'next') {
+        tabManager.setNextTabActive();
+      } else {
+        tabManager.setPreviousTabActive();
+      }
+    });
+  }, [sessionBrowserId, tabManager, visible]);
 
   const webviewProps = useMemo(() => {
     if (!webviewMount) return null;
@@ -182,9 +208,14 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
     if (!sessionBrowserId || !webviewElement) return;
     return bindBrowserWebviewEvents(sessionBrowserId, webviewElement, {
       onDomReady: () => {
-        if (webviewRef.current === webviewElement) {
-          setAdapter(createBrowserWebviewAdapter(webviewElement));
-        }
+        if (webviewRef.current !== webviewElement) return;
+        // Browsers can share profile partitions, so the main process cannot infer
+        // which browser a webview belongs to; bind it explicitly.
+        void rpc.browser.bindWebContents({
+          browserId: sessionBrowserId,
+          webContentsId: webviewElement.getWebContentsId(),
+        });
+        setAdapter(createBrowserWebviewAdapter(webviewElement));
       },
     });
   }, [sessionBrowserId, webviewElement]);
@@ -230,10 +261,10 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
       />
       <div className="emlight min-h-0 flex-1 bg-background">
         {showStartPage ? (
-          <BrowserStartPage devServerUrls={devServers.urls} onOpenUrl={navigateTo} />
+          <BrowserStartPage devServerUrls={previewServers.urls} onOpenUrl={navigateTo} />
         ) : webviewProps && isRegistered ? (
           <webview
-            key={`${webviewMount?.browserId ?? 'browser'}:${webviewMount?.revision ?? 0}`}
+            key={`${webviewMount?.browserId ?? 'browser'}:${webviewMount?.partition ?? 'partition'}:${webviewMount?.revision ?? 0}`}
             ref={attachWebview}
             {...webviewProps}
             className="h-full w-full bg-background"

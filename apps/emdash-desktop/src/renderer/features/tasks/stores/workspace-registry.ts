@@ -1,5 +1,5 @@
 import { observable } from 'mobx';
-import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
+import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
 import type { WorkspaceResolution } from '@shared/core/workspaces/workspaces';
 import { WorkspaceStore } from './workspace';
 
@@ -29,8 +29,7 @@ export class WorkspaceRegistryStore {
     projectId: string,
     workspaceId: string,
     path: string,
-    settingsStore: ProjectSettingsStore,
-    baseRef: string,
+    gitRepository: GitRepositoryStore,
     sshConnectionId?: string
   ): WorkspaceStore {
     const key = makeKey(projectId, workspaceId);
@@ -40,14 +39,7 @@ export class WorkspaceRegistryStore {
       return existing.store;
     }
 
-    const store = new WorkspaceStore(
-      projectId,
-      workspaceId,
-      path,
-      settingsStore,
-      baseRef,
-      sshConnectionId
-    );
+    const store = new WorkspaceStore(projectId, workspaceId, path, gitRepository, sshConnectionId);
     this.entries.set(key, { store, refCount: 1, activated: false });
     return store;
   }

@@ -1,4 +1,4 @@
-import type { Branch } from '@shared/core/git/git';
+import type { GitBranchRef } from '@emdash/core/git';
 import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 
 // ---------------------------------------------------------------------------
@@ -78,7 +78,7 @@ export const WORKSPACE_PRESETS: WorkspacePresetMeta[] = [
 
 export type PresetContext = {
   /** Default branch of the project repository. */
-  defaultBranch?: Branch;
+  defaultBranch?: GitBranchRef;
   /** Current HEAD branch name on the project. */
   currentBranch?: string;
   /** Linked PR, required for checkout-pr and pr-new-branch presets. */
@@ -103,7 +103,7 @@ export type PresetOverrides = {
   /** New branch name (new-worktree, pr-new-branch). */
   branchName?: string;
   /** Source branch to branch from or check out (new-worktree). */
-  fromBranch?: Branch;
+  fromBranch?: GitBranchRef;
   /** Whether to push the branch to remote after creation. */
   pushBranch?: boolean;
   /** Task-specific branch created on top of the PR head (pr-new-branch). */

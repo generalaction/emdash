@@ -1,6 +1,6 @@
+import type { GitChange } from '@emdash/core/git';
 import { useQuery } from '@tanstack/react-query';
 import { rpc } from '@renderer/lib/ipc';
-import type { GitChange } from '@shared/core/git/git';
 
 export const commitFilesQueryKey = (projectId: string, workspaceId: string, commitHash: string) =>
   [projectId, workspaceId, 'commit-files', commitHash] as const;
@@ -14,7 +14,11 @@ export function useCommitFiles(
   return useQuery({
     queryKey: commitFilesQueryKey(projectId, workspaceId, commitHash),
     queryFn: async (): Promise<GitChange[]> => {
-      const result = await rpc.workspace.git.getCommitFiles(projectId, workspaceId, commitHash);
+      const result = await rpc.workspace.gitWorktree.getCommitFiles(
+        projectId,
+        workspaceId,
+        commitHash
+      );
       if (!result.success) throw new Error('Failed to load commit files');
       return result.data.files;
     },

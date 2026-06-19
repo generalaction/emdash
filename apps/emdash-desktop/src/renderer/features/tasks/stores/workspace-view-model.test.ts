@@ -23,40 +23,18 @@ vi.mock('@renderer/lib/ipc', () => ({
     viewState: {
       save: vi.fn(),
     },
-    repository: {
-      getLocalBranches: vi.fn().mockResolvedValue({
-        isUnborn: false,
-        currentBranch: 'main',
-        localBranches: [],
-      }),
-      getRemoteBranches: vi.fn().mockResolvedValue({
-        remoteBranches: [],
-        remotes: [],
-      }),
+    gitRepository: {
+      getDefaultBranch: vi
+        .fn()
+        .mockResolvedValue({ success: true, data: { defaultBranch: 'main' } }),
       resolveProviderRepository: vi.fn().mockResolvedValue({ success: false }),
     },
     workspace: {
+      gitWorktree: {},
       fs: {
         listFiles: vi.fn().mockResolvedValue({ success: true, data: [] }),
         watchSetPaths: vi.fn().mockResolvedValue(undefined),
         watchStop: vi.fn().mockResolvedValue(undefined),
-      },
-      git: {
-        getFullStatus: vi.fn().mockResolvedValue({
-          success: true,
-          data: {
-            currentBranch: 'main',
-            headKind: 'branch',
-            unstaged: [],
-            staged: [],
-            untracked: [],
-            conflicts: [],
-            totalAdded: 0,
-            totalDeleted: 0,
-            ahead: 0,
-            behind: 0,
-          },
-        }),
       },
     },
   },
@@ -227,6 +205,67 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
   it('does not auto-create a terminal when stale restored tabs are empty but terminal records load', async () => {
     const terminals = makeTerminalManager({ terminalIds: ['terminal-1'], isLoaded: false });
     terminalRegistryEntries().set('task-1', terminals);
+    workspaceRegistry.acquire('project-1', 'workspace-1', '/tmp/emdash-test-workspace', {
+      settings: {},
+    } as never);
+
+    const viewModel = makeProvisionedViewModel();
+    viewModel.restoreSnapshot({
+      focusedRegion: 'bottom',
+      isTerminalDrawerOpen: true,
+      terminals: {
+        tabOrder: [],
+        activeTabId: undefined,
+      },
+    });
+
+    viewModel.initialize();
+
+    runInAction(() => {
+      terminals.isLoaded = true;
+    });
+    await Promise.resolve();
+
+    expect(terminals.createDefaultTerminal).not.toHaveBeenCalled();
+
+    viewModel.dispose();
+  });
+
+  it('closes a restored empty terminal drawer after terminal state is loaded', async () => {
+    const terminals = makeTerminalManager({ terminalIds: [], isLoaded: true });
+    terminalRegistryEntries().set('task-1', terminals);
+    workspaceRegistry.acquire(
+      'project-1',
+      'workspace-1',
+      '/tmp/emdash-test-workspace',
+      { settings: {} } as never,
+      'main'
+    );
+
+    const viewModel = makeProvisionedViewModel();
+    viewModel.restoreSnapshot({
+      focusedRegion: 'bottom',
+      isTerminalDrawerOpen: true,
+      terminals: {
+        tabOrder: [],
+        activeTabId: undefined,
+      },
+    });
+
+    viewModel.initialize();
+    await Promise.resolve();
+
+    expect(terminals.createDefaultTerminal).not.toHaveBeenCalled();
+    expect(viewModel.isTerminalDrawerOpen).toBe(false);
+    expect(viewModel.focusedRegion).toBe('main');
+    expect(viewModel.terminalDrawerActiveItem).toBeUndefined();
+
+    viewModel.dispose();
+  });
+
+  it('closes a restored empty terminal drawer when empty terminal state finishes loading', async () => {
+    const terminals = makeTerminalManager({ terminalIds: [], isLoaded: false });
+    terminalRegistryEntries().set('task-1', terminals);
     workspaceRegistry.acquire(
       'project-1',
       'workspace-1',
@@ -253,6 +292,44 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
     await Promise.resolve();
 
     expect(terminals.createDefaultTerminal).not.toHaveBeenCalled();
+    expect(viewModel.isTerminalDrawerOpen).toBe(false);
+    expect(viewModel.focusedRegion).toBe('main');
+    expect(viewModel.terminalDrawerActiveItem).toBeUndefined();
+
+    viewModel.dispose();
+  });
+
+  it('closes the terminal drawer after the user closes the last terminal', async () => {
+    const terminals = makeTerminalManager({ terminalIds: ['terminal-1'], isLoaded: true });
+    terminalRegistryEntries().set('task-1', terminals);
+    workspaceRegistry.acquire(
+      'project-1',
+      'workspace-1',
+      '/tmp/emdash-test-workspace',
+      { settings: {} } as never,
+      'main'
+    );
+
+    const viewModel = makeProvisionedViewModel();
+    viewModel.restoreSnapshot({
+      focusedRegion: 'bottom',
+      isTerminalDrawerOpen: true,
+      terminals: {
+        tabOrder: ['terminal-1'],
+        activeTabId: 'terminal-1',
+      },
+    });
+
+    viewModel.initialize();
+
+    runInAction(() => {
+      terminals.terminals.delete('terminal-1');
+    });
+    await Promise.resolve();
+
+    expect(terminals.createDefaultTerminal).not.toHaveBeenCalled();
+    expect(viewModel.isTerminalDrawerOpen).toBe(false);
+    expect(viewModel.focusedRegion).toBe('main');
 
     viewModel.dispose();
   });
@@ -336,13 +413,9 @@ describe('WorkspaceViewModel default conversation tab', () => {
   });
 
   it('does not reopen a closed initial conversation if provision finishes during the next create flow', async () => {
-    workspaceRegistry.acquire(
-      'project-1',
-      'workspace-1',
-      '/tmp/emdash-test-workspace',
-      { settings: {} } as never,
-      'main'
-    );
+    workspaceRegistry.acquire('project-1', 'workspace-1', '/tmp/emdash-test-workspace', {
+      settings: {},
+    } as never);
     const conversations = conversationRegistry.acquire('task-1', 'project-1', []);
     vi.spyOn(conversations, 'hydrateConversation').mockResolvedValue();
     vi.spyOn(conversations, 'dehydrateConversation').mockResolvedValue();

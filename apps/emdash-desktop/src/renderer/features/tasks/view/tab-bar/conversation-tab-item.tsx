@@ -1,14 +1,13 @@
 import { Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useRef, useState } from 'react';
-import AgentLogo from '@renderer/lib/components/agent-logo';
+import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
-import { agentConfig } from '@renderer/utils/agentConfig';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
 import { AgentStatusIndicator } from '../../components/agent-status-indicator';
 import { formatConversationTitleForDisplay } from '../../conversations/conversation-title-utils';
@@ -33,7 +32,6 @@ export const ConversationTabItem = observer(function ConversationTabItem({
   const [isEditing, setIsEditing] = useState(false);
   const committedRef = useRef(false);
 
-  const config = agentConfig[tab.store.data.providerId];
   const title = formatConversationTitleForDisplay(tab.store.data.providerId, tab.store.data.title);
   const rawTitle = tab.store.data.title ?? '';
   const renameInputWidth = `${Math.min(Math.max(rawTitle.length || title.length, 8), 24)}ch`;
@@ -75,16 +73,7 @@ export const ConversationTabItem = observer(function ConversationTabItem({
           onDoubleClick={handleDoubleClick}
           onClose={onClose}
         >
-          {config ? (
-            <AgentLogo
-              logo={config.logo}
-              logoDark={config.logoDark}
-              alt={config.alt}
-              isSvg={config.isSvg}
-              invertInDark={config.invertInDark}
-              className="size-4 shrink-0"
-            />
-          ) : null}
+          <AgentIcon id={tab.store.data.providerId} size={16} />
           {isEditing ? (
             <input
               ref={handleRenameInputRef}
@@ -135,19 +124,11 @@ export const ConversationTabDragPreview = observer(function ConversationTabDragP
 }: {
   tab: ResolvedConversationTab;
 }) {
-  const config = agentConfig[tab.store.data.providerId];
   const label = formatConversationTitleForDisplay(tab.store.data.providerId, tab.store.data.title);
   return (
     <TabDragPreviewShell>
-      {config ? (
-        <AgentLogo
-          logo={config.logo}
-          logoDark={config.logoDark}
-          alt={config.alt}
-          isSvg={config.isSvg}
-          invertInDark={config.invertInDark}
-          className="size-4 shrink-0"
-        />
+      {tab.store.data.providerId ? (
+        <AgentIcon id={tab.store.data.providerId} size={16} className="shrink-0" />
       ) : null}
       <span className="max-w-[200px] truncate">{label}</span>
     </TabDragPreviewShell>

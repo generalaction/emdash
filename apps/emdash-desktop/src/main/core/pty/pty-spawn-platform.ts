@@ -66,6 +66,7 @@ function getSetupWrapperArgs(intent: PtySpawnIntent): string[] {
       return ['-c'];
     case 'windows-cmd':
     case 'powershell':
+    case 'wsl':
       return intent.shellProfile.commandArgs;
   }
 }
@@ -213,7 +214,7 @@ function windowsShellLineSpawn({
   return {
     command: shell,
     args:
-      shellProfile?.family === 'powershell'
+      shellProfile?.family === 'powershell' || shellProfile?.family === 'wsl'
         ? [...commandArgs, commandLine]
         : [...commandArgs, wrapCmdExeCommandLine(commandLine)],
     cwd,
@@ -272,6 +273,16 @@ function resolveWindowsSpawn(
   }
 
   const { command, args } = intent.command;
+  if (intent.shellProfile?.family === 'wsl') {
+    return windowsShellLineSpawn({
+      commandLine: argvToPosixShellLine(intent, command, args),
+      cwd: intent.cwd,
+      env,
+      shellProfile: intent.shellProfile,
+      warnings,
+    });
+  }
+
   const resolvedCommand =
     resolveWindowsCommandPath({
       command,
@@ -371,7 +382,8 @@ function resolvePosixSpawn(intent: PtySpawnIntent, env: NodeJS.ProcessEnv): Reso
 
   if (
     intent.shellProfile?.family === 'powershell' ||
-    intent.shellProfile?.family === 'windows-cmd'
+    intent.shellProfile?.family === 'windows-cmd' ||
+    intent.shellProfile?.family === 'wsl'
   ) {
     throw new Error(
       `Cannot run POSIX shell-wrapped commands through ${intent.shellProfile.resolvedShellId}`

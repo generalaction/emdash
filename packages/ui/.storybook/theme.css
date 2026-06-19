@@ -1,0 +1,16 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* @emdash/ui theme — palette ramps + surface tokens */
+@import '../src/theme/theme.css';
+/* semantic aliases (.emlight / .emdark) */
+@import '../src/theme/semantic.css';
+/* Tailwind color @theme mapping */
+@import '../src/theme/tailwind.css';
+/* non-color @theme + structural CSS */
+@import '../src/theme/theme.base.css';
+/* surface scope classes */
+@import '../src/theme/surfaces.css';
+
+/* Enable Tailwind to scan and generate utilities for all component source */
+@source '../src/components';

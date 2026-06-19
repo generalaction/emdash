@@ -30,15 +30,22 @@ step(`Looking for draft release with tag ${tag} (channel: ${channel})`);
 const { data: releases } = await octokit.rest.repos.listReleases({
   owner: OWNER,
   repo: REPO,
-  per_page: 30,
+  per_page: 100,
 });
 
-const draft = releases.find((r) => r.tag_name === tag && r.draft);
-if (!draft) {
+const drafts = releases.filter((r) => r.tag_name === tag && r.draft);
+if (drafts.length === 0) {
   const summary = releases.map((r) => r.tag_name + '(draft=' + String(r.draft) + ')').join(', ');
   warn(`Available releases: ${summary}`);
   fail(`No draft release found for tag ${tag}`);
 }
+if (drafts.length > 1) {
+  const ids = drafts.map((r) => String(r.id)).join(', ');
+  fail(
+    `Multiple draft releases found for tag ${tag} (ids: ${ids}); prepare-release should have prevented this. Clean them up before retrying.`
+  );
+}
+const draft = drafts[0];
 
 step(`Publishing release ${tag} (id: ${draft.id}, prerelease: ${isCanary})`);
 await octokit.rest.repos.updateRelease({

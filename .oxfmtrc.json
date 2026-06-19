@@ -19,6 +19,7 @@
     "**/build",
     "**/.turbo",
     "**/out",
+    "**/storybook-static",
     "**/.env*",
     "**/pnpm-lock.yaml",
     "**/yarn.lock",

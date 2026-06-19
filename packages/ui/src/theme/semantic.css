@@ -1,0 +1,234 @@
+/* Semantic color token aliases for .emlight / .emdark.
+ * These map the semantic names used by components to the palette ramps
+ * emitted by theme.css (Terrazzo). Import after theme.css. */
+
+@layer base {
+  .emlight {
+    --background: white;
+    --background-1: var(--neutral-2);
+    --background-2: var(--neutral-3);
+    --background-3: var(--neutral-4);
+
+    --foreground: var(--neutral-12);
+    --foreground-inverse: white;
+    --foreground-muted: var(--neutral-11);
+    --foreground-passive: var(--neutral-8);
+
+    --background-secondary: var(--background-1);
+    --background-secondary-1: var(--background);
+    --background-secondary-2: var(--background-3);
+    --background-secondary-3: var(--neutral-6);
+
+    --foreground-secondary: var(--neutral-12);
+    --foreground-secondary-muted: var(--neutral-11);
+    --foreground-secondary-passive: var(--neutral-8);
+
+    --background-tertiary: var(--neutral-3);
+    --background-tertiary-1: var(--neutral-4);
+    --background-tertiary-2: var(--neutral-5);
+    --background-tertiary-3: var(--neutral-6);
+
+    --foreground-tertiary: var(--neutral-12);
+    --foreground-tertiary-muted: var(--neutral-11);
+    --foreground-tertiary-passive: var(--neutral-8);
+
+    --background-quaternary: var(--background);
+    --background-quaternary-1: var(--background-1);
+    --background-quaternary-2: var(--background-2);
+
+    --background-destructive: var(--red-2);
+    --foreground-destructive: var(--red-11);
+
+    --background-neutral: var(--neutral-12);
+    --foreground-neutral: var(--neutral-1);
+
+    --primary-button-background: var(--jade-12);
+    --primary-button-background-hover: var(--jade-11);
+    --primary-button-foreground: var(--jade-2);
+    --primary-button-border: transparent;
+
+    --border: var(--neutral-5);
+    --border-1: var(--neutral-8);
+    --border-2: var(--neutral-9);
+    --border-destructive: var(--red-8);
+    --border-primary: var(--neutral-9);
+
+    --ring: hsl(0 0% 3.9%);
+    --radius: 0.5rem;
+
+    --selection: var(--blue-6);
+    --selection-foreground: var(--blue-12);
+
+    --status-in-progress: var(--amber-11);
+    --status-in-review: var(--green-10);
+    --status-done: var(--neutral-9);
+    --status-todo: var(--neutral-9);
+    --status-cancelled: var(--neutral-9);
+
+    --monaco-bg: var(--background);
+    --monaco-fg: var(--foreground);
+    --monaco-error-fg: var(--foreground-destructive);
+    --monaco-line-highlight: var(--background-2);
+    --monaco-line-number: var(--foreground-passive);
+    --monaco-gutter: var(--monaco-bg);
+    --monaco-inserted-text-bg: color(display-p3 0.063 0.725 0.506 / 0.251);
+    --monaco-inserted-line-bg: color(display-p3 0.925 0.992 0.961 / 0.502);
+    --monaco-removed-text-bg: color(display-p3 0.957 0.247 0.369 / 0.251);
+    --monaco-removed-line-bg: color(display-p3 1 0.945 0.949 / 0.502);
+    --monaco-unchanged-region-bg: color(display-p3 0.886 0.91 0.941);
+    --monaco-diff-diagonal-fill: var(--background-2);
+    --monaco-selection-bg: var(--selection);
+    --monaco-selection-fg: var(--selection-foreground);
+    --monaco-inactive-selection-bg: color-mix(in srgb, var(--selection) 15.3%, transparent);
+
+    --xterm-bg: var(--background);
+    --xterm-fg: var(--foreground);
+    --xterm-cursor: var(--foreground);
+    --xterm-cursor-accent: var(--foreground-inverse);
+    --xterm-selection-bg: color(display-p3 0.004 0.502 0.984 / 0.212);
+    --xterm-selection-fg: var(--blue-12);
+
+    --foreground-diff-added: var(--green-9);
+    --foreground-diff-modified: var(--amber-9);
+    --foreground-diff-deleted: var(--red-9);
+
+    --foreground-success: var(--green-9);
+    --background-success: var(--green-3);
+    --background-success-hover: var(--green-4);
+    --border-success: var(--green-7);
+
+    --foreground-error: var(--red-9);
+    --background-error: var(--red-3);
+    --background-error-hover: var(--red-4);
+
+    --foreground-warning: var(--amber-11);
+    --background-warning: var(--amber-3);
+    --background-warning-hover: var(--amber-4);
+    --border-warning: var(--amber-7);
+
+    --foreground-info: var(--blue-9);
+    --background-info: var(--blue-3);
+    --background-info-hover: var(--blue-4);
+    --border-info: var(--blue-7);
+
+    --foreground-conflict: var(--orange-9);
+    --foreground-merged: var(--purple-9);
+  }
+
+  .emdark {
+    --background: var(--neutral-1);
+    --background-1: var(--neutral-2);
+    --background-2: var(--neutral-3);
+    --background-3: var(--neutral-4);
+
+    --foreground: var(--neutral-12);
+    --foreground-inverse: var(--neutral-1);
+    --foreground-muted: var(--neutral-11);
+    --foreground-passive: var(--neutral-9);
+
+    --background-secondary: var(--background);
+    --background-secondary-1: var(--background-1);
+    --background-secondary-2: var(--background-2);
+    --background-secondary-3: var(--background-3);
+
+    --foreground-secondary: var(--foreground);
+    --foreground-secondary-muted: var(--foreground-muted);
+    --foreground-secondary-passive: var(--foreground-passive);
+
+    --background-tertiary: var(--background);
+    --background-tertiary-1: var(--background-1);
+    --background-tertiary-2: var(--background-2);
+    --background-tertiary-3: var(--background-3);
+
+    --foreground-tertiary: var(--foreground);
+    --foreground-tertiary-muted: var(--foreground-muted);
+    --foreground-tertiary-passive: var(--foreground-passive);
+
+    --background-quaternary: var(--background-1);
+    --background-quaternary-1: var(--background-2);
+    --background-quaternary-2: var(--background-3);
+
+    --background-destructive: var(--red-3);
+    --background-destructive-1: color(display-p3 0.25 0.102 0.122);
+    --foreground-destructive: var(--red-9);
+    --foreground-destructive-muted: color(display-p3 0.661 0.263 0.26);
+
+    --background-neutral: var(--neutral-12);
+    --foreground-neutral: var(--neutral-1);
+
+    --primary-button-background: var(--jade-4);
+    --primary-button-background-hover: var(--jade-5);
+    --primary-button-foreground: var(--jade-12);
+    --primary-button-border: var(--jade-7);
+
+    --border: var(--neutral-6);
+    --border-1: var(--neutral-7);
+    --border-2: var(--neutral-8);
+    --border-destructive: var(--red-8);
+    --border-primary: var(--neutral-10);
+
+    --ring: hsl(0 0% 3.9%);
+    --radius: 0.5rem;
+
+    --selection: var(--blue-9);
+    --selection-foreground: var(--blue-12);
+
+    --status-in-progress: var(--amber-11);
+    --status-in-review: var(--green-10);
+    --status-done: var(--neutral-10);
+    --status-todo: var(--neutral-10);
+    --status-cancelled: var(--neutral-10);
+
+    --monaco-bg: var(--background-1);
+    --monaco-fg: var(--foreground-muted);
+    --monaco-error-fg: color(display-p3 1 0.592 0.49);
+    --monaco-line-highlight: var(--neutral-5);
+    --monaco-line-number: color(display-p3 0.227 0.227 0.227);
+    --monaco-gutter: var(--monaco-bg);
+    --monaco-inserted-text-bg: color(display-p3 0.145 0.282 0.176 / 0.45);
+    --monaco-inserted-line-bg: color(display-p3 0.106 0.165 0.118 / 0.55);
+    --monaco-inserted-text-border: color(display-p3 0.145 0.282 0.176 / 0.65);
+    --monaco-removed-text-bg: color(display-p3 0.38 0.086 0.137 / 0.45);
+    --monaco-removed-line-bg: color(display-p3 0.231 0.071 0.098 / 0.55);
+    --monaco-removed-text-border: color(display-p3 0.38 0.086 0.137 / 0.65);
+    --monaco-unchanged-region-bg: color(display-p3 0.165 0.165 0.165);
+    --monaco-diff-border: color(display-p3 0.227 0.227 0.227);
+    --monaco-diff-diagonal-fill: color(display-p3 0.165 0.165 0.165);
+    --monaco-selection-bg: color(display-p3 0.3 0.52 0.82 / 0.7);
+    --monaco-selection-fg: color(display-p3 0.95 0.96 0.98);
+    --monaco-inactive-selection-bg: color(display-p3 0.3 0.52 0.82 / 0.35);
+
+    --xterm-bg: var(--background-1);
+    --xterm-fg: var(--foreground);
+    --xterm-cursor: var(--foreground);
+    --xterm-cursor-accent: var(--foreground-inverse);
+    --xterm-selection-bg: color(display-p3 0.224 0.557 1 / 0.475);
+    --xterm-selection-fg: var(--blue-11);
+
+    --foreground-diff-added: var(--green-10);
+    --foreground-diff-modified: var(--amber-9);
+    --foreground-diff-deleted: var(--red-9);
+
+    --foreground-success: var(--green-9);
+    --background-success: var(--green-3);
+    --background-success-hover: var(--green-4);
+    --border-success: var(--green-7);
+
+    --foreground-error: var(--red-9);
+    --background-error: var(--red-3);
+    --background-error-hover: var(--red-4);
+
+    --foreground-warning: var(--amber-11);
+    --background-warning: var(--amber-3);
+    --background-warning-hover: var(--amber-4);
+    --border-warning: var(--amber-7);
+
+    --foreground-info: var(--blue-9);
+    --background-info: var(--blue-3);
+    --background-info-hover: var(--blue-4);
+    --border-info: var(--blue-7);
+
+    --foreground-conflict: var(--orange-9);
+    --foreground-merged: var(--purple-9);
+  }
+}

@@ -1,3 +1,4 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import {
@@ -23,7 +24,6 @@ import type {
   RenameTaskSuccess,
   Task,
 } from '@shared/core/tasks/tasks';
-import { err, ok, type Result } from '@shared/lib/result';
 import { archiveTask } from './operations/archiveTask';
 import { createTask } from './operations/createTask';
 import { deleteTask } from './operations/deleteTask';

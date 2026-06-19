@@ -1,0 +1,112 @@
+/* Color @theme mapping — connects Tailwind color utilities to the semantic CSS custom
+ * properties emitted by theme.css (Terrazzo). Hand-authored for exact parity with the
+ * inline block in apps/emdash-desktop/src/renderer/index.css. */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-background-1: var(--background-1);
+  --color-background-2: var(--background-2);
+  --color-background-3: var(--background-3);
+
+  --color-foreground: var(--foreground);
+  --color-foreground-inverse: var(--foreground-inverse);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-foreground-passive: var(--foreground-passive);
+
+  --color-background-secondary: var(--background-secondary);
+  --color-background-secondary-1: var(--background-secondary-1);
+  --color-background-secondary-2: var(--background-secondary-2);
+  --color-background-secondary-3: var(--background-secondary-3);
+
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-secondary-muted: var(--foreground-secondary-muted);
+  --color-foreground-secondary-passive: var(--foreground-secondary-passive);
+
+  --color-background-tertiary: var(--background-tertiary);
+  --color-background-tertiary-1: var(--background-tertiary-1);
+  --color-background-tertiary-2: var(--background-tertiary-2);
+  --color-background-tertiary-3: var(--background-tertiary-3);
+
+  --color-foreground-tertiary: var(--foreground-tertiary);
+  --color-foreground-tertiary-muted: var(--foreground-tertiary-muted);
+  --color-foreground-tertiary-passive: var(--foreground-tertiary-passive);
+
+  --color-background-destructive: var(--background-destructive);
+  --color-foreground-destructive: var(--foreground-destructive);
+
+  --color-background-quaternary: var(--background-quaternary);
+  --color-background-quaternary-1: var(--background-quaternary-1);
+  --color-background-quaternary-2: var(--background-quaternary-2);
+
+  --color-background-neutral: var(--background-neutral);
+  --color-foreground-neutral: var(--foreground-neutral);
+
+  --color-primary-button-background: var(--primary-button-background);
+  --color-primary-button-background-hover: var(--primary-button-background-hover);
+  --color-primary-button-foreground: var(--primary-button-foreground);
+  --color-primary-button-border: var(--primary-button-border);
+
+  --color-foreground-diff-added: var(--foreground-diff-added);
+  --color-foreground-diff-modified: var(--foreground-diff-modified);
+  --color-foreground-diff-deleted: var(--foreground-diff-deleted);
+
+  --color-selection-foreground: var(--selection-foreground);
+  --color-selection-background: var(--selection-background);
+
+  --color-border: var(--border);
+  --color-border-1: var(--border-1);
+  --color-border-2: var(--border-2);
+  --color-border-destructive: var(--border-destructive);
+  --color-border-primary: var(--border-primary);
+
+  --color-status-in-progress: var(--status-in-progress);
+  --color-status-in-review: var(--status-in-review);
+  --color-status-done: var(--status-done);
+  --color-status-todo: var(--status-todo);
+  --color-status-cancelled: var(--status-cancelled);
+
+  --color-foreground-success: var(--foreground-success);
+  --color-background-success: var(--background-success);
+  --color-background-success-hover: var(--background-success-hover);
+  --color-border-success: var(--border-success);
+
+  --color-foreground-error: var(--foreground-error);
+  --color-background-error: var(--background-error);
+  --color-background-error-hover: var(--background-error-hover);
+
+  --color-foreground-warning: var(--foreground-warning);
+  --color-background-warning: var(--background-warning);
+  --color-background-warning-hover: var(--background-warning-hover);
+  --color-border-warning: var(--border-warning);
+
+  --color-foreground-info: var(--foreground-info);
+  --color-background-info: var(--background-info);
+  --color-background-info-hover: var(--background-info-hover);
+  --color-border-info: var(--border-info);
+
+  --color-foreground-conflict: var(--foreground-conflict);
+  --color-foreground-merged: var(--foreground-merged);
+
+  /* Surface system — bg-surface / bg-surface-hover / bg-surface-selected adapt to the
+   * nearest .surface-* ancestor. Direct elevation utilities (bg-surface-raised etc.)
+   * target a specific level regardless of context. */
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-selected: var(--surface-selected);
+  /* Direct elevation access */
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-sunken-hover: var(--surface-sunken-hover);
+  --color-surface-sunken-selected: var(--surface-sunken-selected);
+  --color-surface-base: var(--surface-base);
+  --color-surface-base-hover: var(--surface-base-hover);
+  --color-surface-base-selected: var(--surface-base-selected);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-raised-hover: var(--surface-raised-hover);
+  --color-surface-raised-selected: var(--surface-raised-selected);
+  --color-surface-overlay: var(--surface-overlay);
+  --color-surface-overlay-hover: var(--surface-overlay-hover);
+  --color-surface-overlay-selected: var(--surface-overlay-selected);
+  --color-surface-floating: var(--surface-floating);
+  --color-surface-floating-hover: var(--surface-floating-hover);
+  --color-surface-floating-selected: var(--surface-floating-selected);
+}

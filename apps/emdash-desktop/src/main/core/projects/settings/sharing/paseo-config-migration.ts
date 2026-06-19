@@ -1,3 +1,4 @@
+import { err, ok, type Result } from '@emdash/shared';
 import z from 'zod';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
@@ -8,7 +9,6 @@ import {
   type ShareableProjectSettingsWriteField,
 } from '@shared/core/project-settings/project-settings';
 import { mergeShareableProjectSettings } from '@shared/core/project-settings/project-settings-fields';
-import { err, ok, type Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import type { ProjectProvider } from '../../project-provider';
 import { parseJsonObject } from '../project-settings-json';

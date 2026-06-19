@@ -1,23 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BROWSER_DEFAULT_ZOOM_FACTOR,
-  BROWSER_ZOOM_FACTORS,
-  canZoomIn,
-  canZoomOut,
+  BROWSER_PROFILE_PARTITION,
+  BROWSER_ISOLATED_PROFILE_ID,
   createBrowserSessionSnapshot,
-  deriveBrowserPartition,
-  formatBrowserZoomPercent,
-  isBrowserDataClearKind,
-  isDefaultBrowserZoomFactor,
+  makeIsolatedBrowserPartition,
   makeBrowserSessionIdentity,
-  nextBrowserZoomFactor,
-  normalizeBrowserZoomFactor,
+  normalizeBrowserProfileSelection,
   normalizeBrowserUrl,
-  previousBrowserZoomFactor,
 } from './browser';
-
-const MIN_ZOOM = BROWSER_ZOOM_FACTORS[0];
-const MAX_ZOOM = BROWSER_ZOOM_FACTORS[BROWSER_ZOOM_FACTORS.length - 1];
 
 describe('normalizeBrowserUrl', () => {
   it('defaults localhost-like inputs to http', () => {
@@ -99,8 +89,19 @@ describe('normalizeBrowserUrl', () => {
   });
 });
 
+describe('browser profile selection', () => {
+  it('falls back to the first available profile when default was deleted', () => {
+    expect(
+      normalizeBrowserProfileSelection('missing', [
+        { id: 'personal', name: 'Personal' },
+        { id: 'work', name: 'Work' },
+      ])
+    ).toBe('personal');
+  });
+});
+
 describe('browser session identity', () => {
-  it('derives sanitized persistent partitions from stable identity', () => {
+  it('assigns the default persistent profile partition to new sessions', () => {
     const identity = makeBrowserSessionIdentity({
       browserId: 'Browser One',
       projectId: 'Project/One',
@@ -108,9 +109,33 @@ describe('browser session identity', () => {
       taskId: 'Task One',
     });
 
-    expect(deriveBrowserPartition(identity)).toBe(
-      'persist:emdash-browser-project-one-workspace-one-task-one-browser-one'
+    expect(BROWSER_PROFILE_PARTITION).toBe('persist:emdash-browser-profile');
+    expect(createBrowserSessionSnapshot({ identity, now: 100 }).partition).toBe(
+      BROWSER_PROFILE_PARTITION
     );
+  });
+
+  it('can assign an isolated persistent task partition', () => {
+    const identity = makeBrowserSessionIdentity({
+      browserId: 'Browser One',
+      projectId: 'Project/One',
+      workspaceId: 'Workspace.One',
+      taskId: 'Task One',
+    });
+
+    expect(makeIsolatedBrowserPartition(identity)).toBe(
+      'persist:emdash-browser-isolated-Project_One-Workspace_One-Task_One'
+    );
+    expect(
+      createBrowserSessionSnapshot({
+        identity,
+        profileId: BROWSER_ISOLATED_PROFILE_ID,
+        now: 100,
+      })
+    ).toMatchObject({
+      profileId: BROWSER_ISOLATED_PROFILE_ID,
+      partition: 'persist:emdash-browser-isolated-Project_One-Workspace_One-Task_One',
+    });
   });
 
   it('creates safe snapshots with normalized URLs', () => {
@@ -130,7 +155,6 @@ describe('browser session identity', () => {
     ).toMatchObject({
       browserId: 'browser-1',
       currentUrl: 'about:blank',
-      zoomFactor: 1,
       createdAt: 100,
       updatedAt: 100,
     });
@@ -153,59 +177,5 @@ describe('browser session identity', () => {
     ).toMatchObject({
       currentUrl: 'https://intranet/',
     });
-  });
-});
-
-describe('browser data clearing', () => {
-  it('validates supported clear kinds', () => {
-    expect(isBrowserDataClearKind('storage')).toBe(true);
-    expect(isBrowserDataClearKind('cookies')).toBe(true);
-    expect(isBrowserDataClearKind('cache')).toBe(true);
-    expect(isBrowserDataClearKind('everything')).toBe(false);
-  });
-});
-
-describe('browser zoom', () => {
-  it('normalizes missing and invalid factors to the default', () => {
-    expect(normalizeBrowserZoomFactor(undefined)).toBe(BROWSER_DEFAULT_ZOOM_FACTOR);
-    expect(normalizeBrowserZoomFactor(Number.NaN)).toBe(BROWSER_DEFAULT_ZOOM_FACTOR);
-    expect(normalizeBrowserZoomFactor(Number.POSITIVE_INFINITY)).toBe(BROWSER_DEFAULT_ZOOM_FACTOR);
-  });
-
-  it('clamps factors to the supported range', () => {
-    expect(normalizeBrowserZoomFactor(0.01)).toBe(MIN_ZOOM);
-    expect(normalizeBrowserZoomFactor(50)).toBe(MAX_ZOOM);
-    expect(normalizeBrowserZoomFactor(1.5)).toBe(1.5);
-  });
-
-  it('steps to the next and previous preset factor', () => {
-    expect(nextBrowserZoomFactor(1)).toBe(1.1);
-    expect(previousBrowserZoomFactor(1)).toBe(0.9);
-    expect(nextBrowserZoomFactor(BROWSER_DEFAULT_ZOOM_FACTOR)).toBe(1.1);
-    expect(previousBrowserZoomFactor(BROWSER_DEFAULT_ZOOM_FACTOR)).toBe(0.9);
-  });
-
-  it('snaps off-preset factors to the nearest preset in the step direction', () => {
-    expect(nextBrowserZoomFactor(1.05)).toBe(1.1);
-    expect(previousBrowserZoomFactor(1.05)).toBe(1);
-  });
-
-  it('saturates at the range boundaries', () => {
-    expect(nextBrowserZoomFactor(MAX_ZOOM)).toBe(MAX_ZOOM);
-    expect(previousBrowserZoomFactor(MIN_ZOOM)).toBe(MIN_ZOOM);
-    expect(canZoomIn(MAX_ZOOM)).toBe(false);
-    expect(canZoomOut(MIN_ZOOM)).toBe(false);
-    expect(canZoomIn(1)).toBe(true);
-    expect(canZoomOut(1)).toBe(true);
-  });
-
-  it('detects the default factor', () => {
-    expect(isDefaultBrowserZoomFactor(1)).toBe(true);
-    expect(isDefaultBrowserZoomFactor(1.25)).toBe(false);
-  });
-
-  it('formats factors as rounded percentages', () => {
-    expect(formatBrowserZoomPercent(0.33)).toBe('33%');
-    expect(formatBrowserZoomPercent(2.5)).toBe('250%');
   });
 });

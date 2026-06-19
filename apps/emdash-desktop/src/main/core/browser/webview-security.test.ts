@@ -9,7 +9,7 @@ import {
 
 describe('browser webview security helpers', () => {
   it('recognizes only Emdash browser partitions', () => {
-    expect(isBrowserPartition('persist:emdash-browser-project-workspace-task-browser')).toBe(true);
+    expect(isBrowserPartition('persist:emdash-browser-profile')).toBe(true);
     expect(isBrowserPartition('persist:default')).toBe(false);
     expect(isBrowserPartition('temporary')).toBe(false);
   });

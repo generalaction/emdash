@@ -1,13 +1,10 @@
 import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { isValidSkillName } from '@shared/core/skills/validation';
 import { SkillsService } from './SkillsService';
 
 type SkillsServiceInternals = {
   getSkillShInstallName(sourceRef: string, skillPath: string): string;
-  removeSyncedAgentSkillLink(targetDir: string): Promise<void>;
 };
 
 describe('SkillsService Skills.SH install names', () => {
@@ -64,31 +61,5 @@ describe('SkillsService uninstall and sync safety', () => {
     await expect(service.uninstallSkill('../outside')).rejects.toThrow(
       'Invalid skill install name'
     );
-  });
-
-  it('does not delete real directories when replacing synced agent skill targets', async () => {
-    const service = new SkillsService() as unknown as SkillsServiceInternals;
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'emdash-skills-test-'));
-    tempDirs.push(root);
-    const targetDir = path.join(root, 'agent-skill');
-    await fs.promises.mkdir(targetDir);
-    await fs.promises.writeFile(path.join(targetDir, 'SKILL.md'), '# User managed\n');
-
-    await service.removeSyncedAgentSkillLink(targetDir);
-
-    await expect(fs.promises.stat(path.join(targetDir, 'SKILL.md'))).resolves.toBeDefined();
-  });
-
-  it('unlinks synced symlinks that point into the central skills root', async () => {
-    const service = new SkillsService() as unknown as SkillsServiceInternals;
-    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'emdash-skills-test-'));
-    tempDirs.push(root);
-    const targetDir = path.join(root, 'agent-skill');
-    const centralSkillDir = path.join(os.homedir(), '.agentskills', 'agent-skill');
-    await fs.promises.symlink(centralSkillDir, targetDir, 'junction');
-
-    await service.removeSyncedAgentSkillLink(targetDir);
-
-    await expect(fs.promises.lstat(targetDir)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });

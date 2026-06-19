@@ -87,6 +87,12 @@ const config: Configuration = {
     perMachine: false,
   },
   npmRebuild: false,
+  // Encrypt Chromium's on-disk cookie store (in-app browser logins) with OS-level
+  // keys, like Chrome does. One-way: never disable once shipped or existing
+  // cookie stores become unreadable.
+  electronFuses: {
+    enableCookieEncryption: true,
+  },
 };
 
 export default config;

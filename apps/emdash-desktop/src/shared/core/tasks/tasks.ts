@@ -1,11 +1,7 @@
+import type { GitBranchRef } from '@emdash/core/git';
 import z from 'zod';
 import type { Conversation } from '@shared/core/conversations/conversations';
-import type {
-  Branch,
-  CreateBranchError,
-  FetchPrForReviewError,
-  PushError,
-} from '@shared/core/git/git';
+import type { CreateBranchError, FetchPrForReviewError, PushError } from '@shared/core/git/types';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 import type { TaskConfig } from '@shared/core/tasks/task-config';
@@ -22,7 +18,7 @@ import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 export type GitSetup =
   | { kind: 'none' }
   | { kind: 'use-branch'; branchName: string }
-  | { kind: 'create-branch'; branchName: string; fromBranch: Branch; pushBranch?: boolean }
+  | { kind: 'create-branch'; branchName: string; fromBranch: GitBranchRef; pushBranch?: boolean }
   | {
       kind: 'pr-branch';
       prNumber: number;
@@ -131,6 +127,7 @@ export type ProvisionTaskResult = {
 
 export type ProvisionWorkspaceError =
   | { type: 'no-intent' }
+  | { type: 'missing-workspace' }
   | { type: 'setup-failed'; stepKind: string; stepErrorType: string; message?: string };
 
 export type DeleteTaskOptions = {

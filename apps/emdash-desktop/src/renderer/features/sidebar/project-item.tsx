@@ -18,7 +18,7 @@ import {
 } from '@renderer/features/projects/stores/project';
 import {
   getProjectStore,
-  getRepositoryStore,
+  getGitRepositoryStore,
   projectViewKind,
 } from '@renderer/features/projects/stores/project-selectors';
 import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
@@ -69,7 +69,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const project = getProjectStore(projectId);
 
   const prefetchRepository = useCallback(() => {
-    const repo = getRepositoryStore(projectId);
+    const repo = getGitRepositoryStore(projectId);
     void repo?.localData.load();
     void repo?.remoteData.load();
   }, [projectId]);

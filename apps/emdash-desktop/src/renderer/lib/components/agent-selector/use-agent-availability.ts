@@ -1,9 +1,7 @@
 import { useMemo } from 'react';
-import { useToast } from '@renderer/lib/hooks/use-toast';
-import { appState } from '@renderer/lib/stores/app-state';
-import { agentConfig } from '@renderer/utils/agentConfig';
+import { useAgentInstallationStatuses } from '@renderer/lib/stores/use-agent-installation-statuses';
+import { useAgents } from '@renderer/lib/stores/use-agents';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
-import { getAgentInstallErrorMessage } from './agent-install';
 import { buildAgentGroups, getAssumedInstalledAgents } from './agent-selector-options';
 
 export function useAgentAvailability({
@@ -13,11 +11,23 @@ export function useAgentAvailability({
   connectionId?: string;
   value: AgentProviderId | null;
 }) {
-  const dependencyResource = connectionId
-    ? appState.dependencies.getRemote(connectionId)
-    : appState.dependencies.local;
-  const dependencyData = dependencyResource.data;
-  const { toast } = useToast();
+  const { data: agents } = useAgents();
+  const { data: statuses, install, isInstalling } = useAgentInstallationStatuses(connectionId);
+
+  const agentNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of agents ?? []) map.set(a.id, a.name);
+    return map;
+  }, [agents]);
+
+  const dependencyData = useMemo(() => {
+    if (!statuses) return null;
+    const result: Record<string, { status: string; category: string }> = {};
+    for (const s of statuses) {
+      result[s.id] = { status: s.status, category: 'agent' };
+    }
+    return result;
+  }, [statuses]);
 
   const installedAgents = useMemo(
     () =>
@@ -35,26 +45,19 @@ export function useAgentAvailability({
   );
 
   const installingAgents = new Set<AgentProviderId>();
-  for (const id of Object.keys(agentConfig) as AgentProviderId[]) {
-    if (appState.dependencies.isInstalling(id, connectionId)) {
-      installingAgents.add(id);
-    }
-  }
-  const groups = buildAgentGroups(installedAgents, assumedInstalledAgents, installingAgents);
+
+  const getName = (id: AgentProviderId) => agentNameMap.get(id) ?? id;
+  const groups = buildAgentGroups(
+    installedAgents,
+    assumedInstalledAgents,
+    installingAgents,
+    getName
+  );
 
   async function installAgent(agentId: AgentProviderId): Promise<void> {
-    if (appState.dependencies.isInstalling(agentId, connectionId)) return;
-    const result = await appState.dependencies.install(agentId, connectionId);
-    if (!result.success) {
-      toast({
-        title: 'Install failed',
-        description: getAgentInstallErrorMessage(result.error),
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    toast({ title: 'Agent installed', description: `${agentConfig[agentId].name} is ready.` });
+    return new Promise((resolve) => {
+      install({ id: agentId }, { onSettled: () => resolve() });
+    });
   }
 
   return {
@@ -62,5 +65,6 @@ export function useAgentAvailability({
     dependencyData,
     installingAgents,
     installAgent,
+    isInstalling,
   };
 }

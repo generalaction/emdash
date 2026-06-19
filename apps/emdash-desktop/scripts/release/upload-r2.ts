@@ -3,7 +3,7 @@ import { basename } from 'node:path';
 import { parseArgs } from 'node:util';
 import { S3mini } from 's3mini';
 import { findBlockmaps, findInstallers, findManifests } from './lib/artifacts.ts';
-import { r2Endpoint, requireEnv } from './lib/config.ts';
+import { RELEASE_DIR, UPDATE_CHANNEL, r2Endpoint, requireEnv } from './lib/config.ts';
 import { fail, info, step } from './lib/log.ts';
 
 const { values } = parseArgs({
@@ -21,15 +21,16 @@ const s3 = new S3mini({
   region: 'auto',
 });
 
-const files = [
-  ...findManifests(values.channel),
-  ...findInstallers(values.prefix),
-  ...findBlockmaps(),
-];
-
-if (files.length === 0) {
-  fail('No artifacts found to upload');
+const resolvedChannel = values.channel ?? UPDATE_CHANNEL;
+const manifests = findManifests(resolvedChannel);
+if (manifests.length === 0) {
+  fail(
+    `No update manifests found for channel "${resolvedChannel}" in ${RELEASE_DIR}/. ` +
+      `Expected files matching ${resolvedChannel}*.yml — ensure duplicateChannelManifests ran before this step.`
+  );
 }
+
+const files = [...manifests, ...findInstallers(values.prefix), ...findBlockmaps()];
 
 step(`Uploading ${files.length} artifact(s) to R2`);
 
