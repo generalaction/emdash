@@ -18,6 +18,14 @@
 import { Paperclip, Send, Square } from 'lucide-react';
 import { useRef } from 'react';
 import { cn } from '../lib/cn';
+import { Button } from '../primitives/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../primitives/select';
 import { PromptEditor } from './prompt-editor/prompt-editor';
 import type { MentionItem, CommandItem, PromptEditorRef } from './prompt-editor/types';
 
@@ -70,21 +78,22 @@ export function ChatComposer({
   const handleSubmit = (text: string) => {
     if (!text.trim() || disabled || !canSubmit) return;
     onSubmit(text);
-    // Editor clears itself after submit (clearContent is called inside PromptEditor).
   };
 
   return (
     <div
       className={cn(
-        'flex flex-col gap-0 rounded-xl border border-border bg-background-1',
-        className
+        'surface-elevated flex flex-col gap-0 rounded-xl border border-border bg-surface',
+        className,
       )}
     >
       {/* Editor area */}
       <div className="max-h-[200px] overflow-y-auto px-3 pt-3 pb-1">
         <PromptEditor
           ref={editorRef}
-          placeholder={disabled ? 'Session closed' : !canSubmit ? 'Waiting for agent…' : 'Message…'}
+          placeholder={
+            disabled ? 'Session closed' : !canSubmit ? 'Waiting for agent…' : 'Message…'
+          }
           disabled={disabled}
           onSubmit={handleSubmit}
           queryMentions={queryMentions}
@@ -98,23 +107,23 @@ export function ChatComposer({
         {/* Left: model selector */}
         <div className="flex items-center gap-1.5">
           {modelOptions ? (
-            <>
-              <span className="text-xs text-foreground-muted">Model:</span>
-              <select
-                className="rounded border border-border bg-background-2 px-2 py-0.5 text-xs text-foreground focus:outline-none disabled:opacity-50"
+              <Select
                 value={selectedModel}
-                onChange={(e) => onModelChange?.(e.target.value)}
+                onValueChange={(v) => v !== null && onModelChange?.(v)}
                 disabled={disabled}
               >
+              <SelectTrigger size="sm" className="max-w-[180px]">
+                <SelectValue placeholder="Model…" />
+              </SelectTrigger>
+              <SelectContent>
                 {Object.entries(modelOptions).map(([id, opt]) => (
-                  <option key={id} value={id} title={opt.description}>
+                  <SelectItem key={id} value={id} title={opt.description}>
                     {opt.name}
-                  </option>
+                  </SelectItem>
                 ))}
-              </select>
-            </>
+              </SelectContent>
+            </Select>
           ) : (
-            // Reserve height even when no model selector is shown.
             <span />
           )}
         </div>
@@ -122,41 +131,43 @@ export function ChatComposer({
         {/* Right: attach + send/stop */}
         <div className="flex items-center gap-1">
           {onAttach && (
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
+              icon
               onClick={onAttach}
               disabled={disabled}
               aria-label="Add attachment"
-              className="flex size-7 items-center justify-center rounded-lg text-foreground-muted hover:bg-background-3 hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
             >
-              <Paperclip className="size-3.5" />
-            </button>
+              <Paperclip />
+            </Button>
           )}
 
           {isWorking ? (
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              tone="destructive"
+              size="sm"
               onClick={onStop}
               aria-label="Stop generation"
-              className="flex h-7 items-center justify-center gap-1 rounded-lg bg-red-500 px-2.5 text-xs font-medium text-white hover:bg-red-600"
             >
               <Square className="size-3 fill-current" />
               Stop
-            </button>
+            </Button>
           ) : (
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => {
                 const text = editorRef.current?.getText() ?? '';
                 handleSubmit(text);
               }}
               disabled={disabled || !canSubmit}
               aria-label="Send message"
-              className="flex h-7 items-center justify-center gap-1 rounded-lg bg-primary-button-background px-2.5 text-xs font-medium text-primary-button-foreground hover:bg-primary-button-background-hover disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <Send className="size-3" />
+              <Send />
               Send
-            </button>
+            </Button>
           )}
         </div>
       </div>

@@ -102,7 +102,7 @@ export const SuggestionPopup = forwardRef<SuggestionPopupHandle, SuggestionPopup
         style={style}
         className={cn(
           'z-50 min-w-[220px] max-w-[340px] overflow-hidden rounded-md',
-          'bg-surface-floating text-foreground shadow-sm ring-1 ring-foreground/10',
+          'bg-surface-elevated text-foreground shadow-sm ring-1 ring-foreground/10',
           'animate-in fade-in-0 zoom-in-95'
         )}
       >
@@ -121,8 +121,8 @@ export const SuggestionPopup = forwardRef<SuggestionPopupHandle, SuggestionPopup
                 'relative flex w-full cursor-default select-none items-center gap-2',
                 'rounded-sm py-1.5 pl-2 pr-8 text-sm outline-hidden',
                 index === selectedIndex
-                  ? 'bg-surface-floating-hover text-foreground'
-                  : 'text-foreground hover:bg-surface-floating-hover'
+                  ? 'bg-surface-elevated-hover text-foreground'
+                  : 'text-foreground hover:bg-surface-elevated-hover'
               )}
             >
               <span className="flex-1 truncate">{getDisplayLabel(item)}</span>

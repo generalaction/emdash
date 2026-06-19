@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React, { useEffect, useRef, useState } from 'react';
+import { ThemeProvider } from '../primitives/theme-provider';
 import { SCALE_NAMES, STEPS } from '../theme/contract/roles';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -155,18 +156,18 @@ export const Palette: Story = {
 export const BothModes: Story = {
   render: () => (
     <div className="flex min-h-screen">
-      <div className="emlight flex-1">
+      <ThemeProvider defaultTheme="light" className="flex-1">
         <div className="border-b border-border bg-background px-6 py-3 text-sm font-medium text-foreground">
           Light
         </div>
         <PaletteGrid />
-      </div>
-      <div className="emdark flex-1">
+      </ThemeProvider>
+      <ThemeProvider defaultTheme="dark" className="flex-1">
         <div className="border-b border-border bg-background px-6 py-3 text-sm font-medium text-foreground">
           Dark
         </div>
         <PaletteGrid />
-      </div>
+      </ThemeProvider>
     </div>
   ),
 };

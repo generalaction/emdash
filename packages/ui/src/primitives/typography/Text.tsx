@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { cn, textVariants, type TextVariantProps } from './typography.variants';
+import { cn } from '../../lib/cn';
+import { textVariants, type TextVariantProps } from './typography.variants';
 
 type AsProp<C extends React.ElementType> = { as?: C };
 

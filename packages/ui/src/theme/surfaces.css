@@ -2,10 +2,10 @@
  * to the appropriate elevation tokens, enabling components to be surface-agnostic.
  *
  * Elevation hierarchy (darkest → lightest in BOTH modes):
- *   surface-sunken          — sidebar, structural chrome (darkest)
- *   surface-base            — primary canvas (task list, settings)
- *   surface-base-emphasis   — cards/tabs on base
- *   surface-elevated        — main tab content, dialogs, popovers, dropdowns
+ *   surface-sunken            — sidebar, structural chrome (darkest)
+ *   surface-base              — primary canvas (task list, settings)
+ *   surface-base-emphasis     — cards/tabs on base
+ *   surface-elevated          — main tab content, dialogs, popovers, dropdowns
  *   surface-elevated-emphasis — cards/tabs on elevated (lightest)
  *
  * Cascade mechanism:
@@ -15,10 +15,7 @@
  *     a Card using bg-surface renders the right color with no level knowledge.
  *   - A Card only needs: class="surface-emphasis bg-surface" — no level knowledge.
  *   - Deeper nesting (card-in-card) clamps to the same emphasis level. There are
- *     only two real "rooms" (base, elevated), so a single step is sufficient.
- *
- * Back-compat aliases: old .surface-raised, .surface-overlay, .surface-floating
- * continue to work so existing app code needs no edits. */
+ *     only two real "rooms" (base, elevated), so a single step is sufficient. */
 
 /* Default: base elevation when no scope class is applied */
 :root {
@@ -137,25 +134,3 @@
   --surface-foreground: var(--surface-info-foreground);
 }
 
-/* ── Back-compat aliases ────────────────────────────────────────────────────
- * Keep existing app code (.surface-raised, .surface-overlay, .surface-floating)
- * working without requiring immediate migration. */
-
-.surface-raised {
-  --surface: var(--surface-base-emphasis);
-  --surface-hover: var(--surface-base-emphasis-hover);
-  --surface-selected: var(--surface-base-emphasis-selected);
-  --surface-emphasis: var(--surface-elevated);
-  --surface-emphasis-hover: var(--surface-elevated-hover);
-  --surface-emphasis-selected: var(--surface-elevated-selected);
-}
-
-.surface-overlay,
-.surface-floating {
-  --surface: var(--surface-elevated);
-  --surface-hover: var(--surface-elevated-hover);
-  --surface-selected: var(--surface-elevated-selected);
-  --surface-emphasis: var(--surface-elevated-emphasis);
-  --surface-emphasis-hover: var(--surface-elevated-emphasis-hover);
-  --surface-emphasis-selected: var(--surface-elevated-emphasis-selected);
-}

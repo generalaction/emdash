@@ -150,17 +150,4 @@
   --color-surface-info-border: var(--surface-info-border);
   --color-surface-info-foreground: var(--surface-info-foreground);
 
-  /* Back-compat aliases — kept so existing app code resolves without edits.
-   * raised → base-emphasis, overlay/floating → elevated */
-  --color-surface-raised: var(--surface-base-emphasis);
-  --color-surface-raised-hover: var(--surface-base-emphasis-hover);
-  --color-surface-raised-selected: var(--surface-base-emphasis-selected);
-
-  --color-surface-overlay: var(--surface-elevated);
-  --color-surface-overlay-hover: var(--surface-elevated-hover);
-  --color-surface-overlay-selected: var(--surface-elevated-selected);
-
-  --color-surface-floating: var(--surface-elevated);
-  --color-surface-floating-hover: var(--surface-elevated-hover);
-  --color-surface-floating-selected: var(--surface-elevated-selected);
 }

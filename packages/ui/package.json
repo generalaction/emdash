@@ -22,6 +22,7 @@
       "types": "./dist/components.d.mts",
       "default": "./dist/components.mjs"
     },
+    "./theme/tokens.css": "./src/theme/tokens.css",
     "./theme/theme.css": "./src/theme/theme.css",
     "./theme/tailwind.css": "./src/theme/tailwind.css",
     "./theme/base.css": "./src/theme/theme.base.css",
@@ -33,6 +34,10 @@
     "./recipes/control": {
       "types": "./dist/recipes/control.d.mts",
       "default": "./dist/recipes/control.mjs"
+    },
+    "./recipes/input": {
+      "types": "./dist/recipes/input.d.mts",
+      "default": "./dist/recipes/input.mjs"
     },
     "./theme/tokens.js": "./src/theme/tokens.js",
     "./theme/tokens.d.ts": "./src/theme/tokens.d.ts",

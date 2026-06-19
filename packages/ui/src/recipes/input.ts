@@ -1,8 +1,12 @@
 import { cva, type VariantProps } from 'class-variance-authority';
 
 /**
- * Shared visual tokens for all text-entry surfaces: Input, Textarea, InputGroup.
- * bg-transparent lets inputs inherit whatever surface they sit on.
+ * inputVariants — shared CVA recipe for all text-entry surfaces: Input, Textarea, InputGroup.
+ *
+ * Uses bg-surface-input so the input fill is slightly recessed from the current surface,
+ * automatically adapting as the surface cascade rebinds --surface in scope classes.
+ *
+ * Framework-neutral: import from @emdash/ui/recipes/input in Solid/plain-JS.
  */
 export const inputVariants = cva(
   [

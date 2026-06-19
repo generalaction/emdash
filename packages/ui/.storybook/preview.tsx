@@ -1,29 +1,32 @@
 import type { Decorator, Preview } from '@storybook/react-vite';
-import React, { useEffect } from 'react';
+import React from 'react';
+import { ThemeProvider } from '../src/primitives/theme-provider';
+import type { ThemeId } from '../src/primitives/theme-provider';
 import './theme.css';
 
-const COLOR_MODES = ['emlight', 'emdark'] as const;
-type ColorMode = (typeof COLOR_MODES)[number];
+const COLOR_MODES: ThemeId[] = ['light', 'dark'];
 
-const SURFACE_FAMILIES = ['none', 'sunken', 'base', 'raised', 'overlay', 'floating'] as const;
+const SURFACE_FAMILIES = [
+  'none',
+  'sunken',
+  'base',
+  'base-emphasis',
+  'elevated',
+  'elevated-emphasis',
+] as const;
 type SurfaceFamily = (typeof SURFACE_FAMILIES)[number];
 
 const withTheme: Decorator = (Story, context) => {
-  const colorMode = (context.globals['colorMode'] as ColorMode) ?? 'emlight';
+  const colorMode = (context.globals['colorMode'] as ThemeId) ?? 'light';
   const surface = (context.globals['surface'] as SurfaceFamily) ?? 'none';
 
-  useEffect(() => {
-    document.documentElement.classList.remove(...COLOR_MODES);
-    document.documentElement.classList.add(colorMode);
-  }, [colorMode]);
-
   const surfaceClass = surface !== 'none' ? `surface-${surface}` : '';
-  const bgClass = surface !== 'none' ? `bg-surface` : 'bg-background';
+  const bgClass = surface !== 'none' ? 'bg-surface' : 'bg-background';
 
   return (
-    <div className={`min-h-screen p-8 ${bgClass} ${surfaceClass}`}>
+    <ThemeProvider theme={colorMode} className={`min-h-screen p-8 ${bgClass} ${surfaceClass}`}>
       <Story />
-    </div>
+    </ThemeProvider>
   );
 };
 
@@ -36,8 +39,8 @@ const preview: Preview = {
         title: 'Color mode',
         icon: 'circlehollow',
         items: [
-          { value: 'emlight', title: 'Light', icon: 'sun' },
-          { value: 'emdark', title: 'Dark', icon: 'moon' },
+          { value: 'light', title: 'Light', icon: 'sun' },
+          { value: 'dark', title: 'Dark', icon: 'moon' },
         ],
         dynamicTitle: true,
       },
@@ -53,7 +56,7 @@ const preview: Preview = {
     },
   },
   initialGlobals: {
-    colorMode: 'emlight',
+    colorMode: 'light',
     surface: 'none',
   },
   parameters: {

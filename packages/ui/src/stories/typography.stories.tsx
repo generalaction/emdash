@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
+import { ThemeProvider } from '../primitives/theme-provider';
 import { Heading } from '../primitives/typography/Heading';
 import { Text } from '../primitives/typography/Text';
 import { textVariants, type TextVariantProps } from '../primitives/typography/typography.variants';
@@ -204,7 +205,7 @@ export const AllSurfaces: Story = {
 export const BothModes: Story = {
   render: () => (
     <div className="flex min-h-screen divide-x divide-border">
-      <div className="emlight flex-1 bg-background p-8">
+      <ThemeProvider defaultTheme="light" className="flex-1 bg-background p-8">
         <Heading level={1} className="mb-2">
           Light mode
         </Heading>
@@ -214,8 +215,8 @@ export const BothModes: Story = {
         <Text as="p" variant="body" tone="muted">
           Muted body text
         </Text>
-      </div>
-      <div className="emdark flex-1 bg-background p-8">
+      </ThemeProvider>
+      <ThemeProvider defaultTheme="dark" className="flex-1 bg-background p-8">
         <Heading level={1} className="mb-2">
           Dark mode
         </Heading>
@@ -225,7 +226,7 @@ export const BothModes: Story = {
         <Text as="p" variant="body" tone="muted">
           Muted body text
         </Text>
-      </div>
+      </ThemeProvider>
     </div>
   ),
 };

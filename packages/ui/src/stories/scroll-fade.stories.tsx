@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
+import { ThemeProvider } from '../primitives/theme-provider';
 import { ScrollFade } from '../primitives/scroll-fade';
 
 const meta: Meta<typeof ScrollFade> = {
@@ -30,7 +31,7 @@ function HorizontalItems({ n = 20 }: { n?: number }) {
   return (
     <div className="flex gap-3 whitespace-nowrap">
       {Array.from({ length: n }, (_, i) => (
-        <div key={i} className="rounded border border-border bg-surface-raised px-3 py-1 text-sm">
+        <div key={i} className="rounded border border-border bg-surface-base-emphasis px-3 py-1 text-sm">
           Item {i + 1}
         </div>
       ))}
@@ -156,22 +157,22 @@ export const AllSurfaces: Story = {
 export const BothModes: Story = {
   render: () => (
     <div className="flex min-h-screen divide-x divide-border">
-      <div className="emlight flex-1 bg-background p-8">
+      <ThemeProvider defaultTheme="light" className="flex-1 bg-background p-8">
         <p className="mb-4 text-sm font-medium text-foreground">Light mode</p>
         <ScrollFade className="h-48 w-80 rounded border border-border bg-surface">
           <div className="flex flex-col gap-3 p-4">
             <Paragraph n={8} />
           </div>
         </ScrollFade>
-      </div>
-      <div className="emdark flex-1 bg-background p-8">
+      </ThemeProvider>
+      <ThemeProvider defaultTheme="dark" className="flex-1 bg-background p-8">
         <p className="mb-4 text-sm font-medium text-foreground">Dark mode</p>
         <ScrollFade className="h-48 w-80 rounded border border-border bg-surface">
           <div className="flex flex-col gap-3 p-4">
             <Paragraph n={8} />
           </div>
         </ScrollFade>
-      </div>
+      </ThemeProvider>
     </div>
   ),
 };

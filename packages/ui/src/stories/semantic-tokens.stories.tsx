@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React, { useEffect, useRef } from 'react';
+import { ThemeProvider } from '../primitives/theme-provider';
 import { SEMANTIC_VARS } from '../theme/contract/contract.generated';
 
 // ── Sections ──────────────────────────────────────────────────────────────────
@@ -265,18 +266,18 @@ export const SemanticTokens: Story = {
 export const BothModes: Story = {
   render: () => (
     <div className="flex min-h-screen">
-      <div className="emlight flex-1 overflow-auto">
+      <ThemeProvider defaultTheme="light" className="flex-1 overflow-auto">
         <div className="border-b border-border bg-background px-6 py-3 text-sm font-medium text-foreground">
           Light
         </div>
         <SemanticTokenGrid />
-      </div>
-      <div className="emdark flex-1 overflow-auto">
+      </ThemeProvider>
+      <ThemeProvider defaultTheme="dark" className="flex-1 overflow-auto">
         <div className="border-b border-border bg-background px-6 py-3 text-sm font-medium text-foreground">
           Dark
         </div>
         <SemanticTokenGrid />
-      </div>
+      </ThemeProvider>
     </div>
   ),
 };

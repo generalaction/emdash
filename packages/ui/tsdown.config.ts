@@ -5,6 +5,7 @@ export default defineConfig({
     primitives: 'src/primitives/index.ts',
     components: 'src/components/index.ts',
     'recipes/control': 'src/recipes/control.ts',
+    'recipes/input': 'src/recipes/input.ts',
   },
   format: ['esm'],
   dts: true,

@@ -5,6 +5,7 @@ import { Button } from '../primitives/button';
 import { Callout } from '../primitives/callout';
 import { Input } from '../primitives/input';
 import { Surface } from '../primitives/surface';
+import { ThemeProvider } from '../primitives/theme-provider';
 import { Toggle } from '../primitives/toggle';
 import {
   Select,
@@ -316,7 +317,7 @@ export const StatusSurfaces: Story = {
 export const BothModes: Story = {
   render: () => (
     <div className="flex min-h-screen divide-x divide-border">
-      <div className="emlight flex-1 space-y-6 bg-background p-6">
+      <ThemeProvider defaultTheme="light" className="flex-1 space-y-6 bg-background p-6">
         <p className="text-sm font-medium text-foreground">Light mode</p>
         <div className="grid grid-cols-3 gap-3">
           {SURFACE_LEVELS.map((level) => (
@@ -328,8 +329,8 @@ export const BothModes: Story = {
             <SurfaceCard key={level} level={level} />
           ))}
         </div>
-      </div>
-      <div className="emdark flex-1 space-y-6 bg-background p-6">
+      </ThemeProvider>
+      <ThemeProvider defaultTheme="dark" className="flex-1 space-y-6 bg-background p-6">
         <p className="text-sm font-medium text-foreground">Dark mode</p>
         <div className="grid grid-cols-3 gap-3">
           {SURFACE_LEVELS.map((level) => (
@@ -341,7 +342,7 @@ export const BothModes: Story = {
             <SurfaceCard key={level} level={level} />
           ))}
         </div>
-      </div>
+      </ThemeProvider>
     </div>
   ),
 };

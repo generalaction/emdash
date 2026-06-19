@@ -1,7 +1,4 @@
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '../../lib/cn';
-
-export { cn };
 
 /**
  * textVariants — CVA recipe mapping semantic prose roles to typography.css classes.
