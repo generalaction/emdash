@@ -7,9 +7,9 @@ import { appSettingsService, type AppSettings, type AppSettingsKey } from './set
 
 async function reconcileSettingsRuntimeState(key: AppSettingsKey): Promise<void> {
   if (key === 'theme') {
-    await appSettingsService.get('theme');
-    syncElectronThemeSource();
-    syncMainWindowBackgroundColor();
+    const theme = await appSettingsService.get('theme');
+    syncElectronThemeSource(theme);
+    syncMainWindowBackgroundColor(theme);
   }
   if (key === 'resourceMonitor') await reconcileResourceSampler();
   if (key === 'keyboard') {

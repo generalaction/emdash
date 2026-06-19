@@ -10,8 +10,7 @@ import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
 import { applyThemeToAll } from '@renderer/lib/pty/pty';
 import { getNextTheme } from '@renderer/lib/theme/theme-toggle-model';
 import type { Theme } from '@shared/core/app-settings';
-
-type EffectiveTheme = 'emlight' | 'emdark';
+import type { EffectiveTheme } from '@shared/core/theme';
 
 function getSystemTheme(): EffectiveTheme {
   if (typeof window === 'undefined') return 'emlight';
@@ -42,6 +41,7 @@ export const ThemeContext = createContext<ThemeContextType | undefined>(undefine
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { value: themeValue, isLoading, update } = useAppSettingsKey('theme');
+  // LocalStorage is only a first-paint cache; settings remain authoritative once loaded.
   const [cachedTheme, setCachedTheme] = useLocalStorage<Theme>('emdash-theme', null);
 
   const systemTheme = useSyncExternalStore(subscribeToSystemTheme, getSystemTheme);

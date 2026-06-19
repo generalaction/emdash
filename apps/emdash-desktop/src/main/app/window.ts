@@ -7,27 +7,24 @@ import {
   stripBrowserWebviewParams,
   validateBrowserWebviewAttach,
 } from '@main/core/browser/webview-security';
-import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { registerExternalLinkHandlers } from '@main/utils/externalLinks';
 import { PRODUCT_NAME } from '@shared/app-identity';
+import type { Theme } from '@shared/core/app-settings';
 import { APP_ORIGIN } from './protocol';
 import { getElectronThemeSource, getWindowBackgroundColor } from './window-theme';
 
 let mainWindow: BrowserWindow | null = null;
 
-export function createMainWindow(): BrowserWindow {
+export function createMainWindow(theme: Theme): BrowserWindow {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 700,
     minHeight: 500,
     title: PRODUCT_NAME,
-    backgroundColor: getWindowBackgroundColor(
-      appSettingsService.getCached('theme'),
-      nativeTheme.shouldUseDarkColors
-    ),
+    backgroundColor: getWindowBackgroundColor(theme, nativeTheme.shouldUseDarkColors),
     // In production, electron-builder injects the icon from the app bundle.
     ...(import.meta.env.DEV && { icon: appIcon }),
     webPreferences: {
@@ -91,17 +88,13 @@ export function getMainWindow(): BrowserWindow | null {
   return mainWindow;
 }
 
-export function syncMainWindowBackgroundColor(): void {
-  mainWindow?.setBackgroundColor(
-    getWindowBackgroundColor(appSettingsService.getCached('theme'), nativeTheme.shouldUseDarkColors)
-  );
+export function syncMainWindowBackgroundColor(theme: Theme): void {
+  mainWindow?.setBackgroundColor(getWindowBackgroundColor(theme, nativeTheme.shouldUseDarkColors));
 }
 
-export function syncElectronThemeSource(): void {
-  nativeTheme.themeSource = getElectronThemeSource(appSettingsService.getCached('theme'));
+export function syncElectronThemeSource(theme: Theme): void {
+  nativeTheme.themeSource = getElectronThemeSource(theme);
 }
-
-nativeTheme.on('updated', syncMainWindowBackgroundColor);
 
 function registerBrowserWebviewHandlers(win: BrowserWindow): void {
   win.webContents.on('will-attach-webview', (event, webPreferences, params) => {

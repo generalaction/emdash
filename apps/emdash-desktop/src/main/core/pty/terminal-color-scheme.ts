@@ -1,14 +1,7 @@
 import { nativeTheme } from 'electron';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
-import type { Theme } from '@shared/core/app-settings';
-
-type EffectiveTheme = 'emlight' | 'emdark';
-
-export function resolveEffectiveTheme(theme: Theme, shouldUseDarkColors: boolean): EffectiveTheme {
-  if (theme === 'emlight' || theme === 'emdark') return theme;
-  return shouldUseDarkColors ? 'emdark' : 'emlight';
-}
+import { resolveEffectiveTheme } from '@shared/core/theme';
 
 /**
  * Returns { COLORFGBG } for the current app theme, using the rxvt/konsole

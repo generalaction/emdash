@@ -1,14 +1,18 @@
 import './app/configure-app-identity';
 import { join } from 'node:path';
 import { config as dotenvConfig } from 'dotenv';
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme } from 'electron';
 import dockIcon from '@/assets/images/emdash/icon-dock.png?asset';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { githubAccountsChangedChannel } from '@shared/events/githubEvents';
 import { registerRPCRouter } from '@shared/lib/ipc/rpc';
 import { setupApplicationMenu } from './app/menu';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
-import { createMainWindow, syncElectronThemeSource } from './app/window';
+import {
+  createMainWindow,
+  syncElectronThemeSource,
+  syncMainWindowBackgroundColor,
+} from './app/window';
 import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
 import { agentHookService } from './core/agent-hooks/agent-hook-service';
@@ -86,9 +90,34 @@ app.on('window-all-closed', () => {
   }
 });
 
+async function getCurrentTheme() {
+  return appSettingsService.get('theme');
+}
+
+async function syncWindowThemeFromSettings() {
+  const theme = await getCurrentTheme();
+  syncElectronThemeSource(theme);
+  syncMainWindowBackgroundColor(theme);
+  return theme;
+}
+
+async function createMainWindowFromSettings() {
+  createMainWindow(await getCurrentTheme());
+}
+
+function registerSystemThemeSync() {
+  nativeTheme.on('updated', () => {
+    void syncWindowThemeFromSettings().catch((error: unknown) => {
+      log.warn('Failed to sync window theme after system theme update:', error);
+    });
+  });
+}
+
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createMainWindow();
+    void createMainWindowFromSettings().catch((error: unknown) => {
+      log.warn('Failed to create main window from settings:', error);
+    });
   }
 });
 
@@ -134,7 +163,8 @@ void app.whenReady().then(async () => {
   automationsService.start();
   appService.initialize();
   await appSettingsService.initialize();
-  syncElectronThemeSource();
+  const theme = await syncWindowThemeFromSettings();
+  registerSystemThemeSync();
   browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
   setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
   await promptLibraryService.initialize();
@@ -169,7 +199,7 @@ void app.whenReady().then(async () => {
 
   setupAppProtocol(join(app.getAppPath(), 'out', 'renderer'));
   setupApplicationMenu();
-  createMainWindow();
+  createMainWindow(theme);
 
   githubAccountReconciliationService
     .reconcileAtStartup()

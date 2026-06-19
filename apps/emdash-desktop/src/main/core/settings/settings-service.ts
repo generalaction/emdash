@@ -56,11 +56,6 @@ export class SettingsStore implements IInitializable {
     return value;
   }
 
-  getCached<K extends AppSettingsKey>(key: K): AppSettings[K] {
-    if (key in this.cache) return this.cache[key] as AppSettings[K];
-    return getDefaultForKey(key);
-  }
-
   async getWithMeta<K extends AppSettingsKey>(
     key: K
   ): Promise<{

@@ -16,24 +16,7 @@ vi.mock('@main/lib/logger', () => ({
 
 import { nativeTheme } from 'electron';
 import { appSettingsService } from '@main/core/settings/settings-service';
-import { getTerminalColorEnv, resolveEffectiveTheme } from './terminal-color-scheme';
-
-describe('resolveEffectiveTheme', () => {
-  it('returns emlight when theme is explicitly emlight', () => {
-    expect(resolveEffectiveTheme('emlight', true)).toBe('emlight');
-    expect(resolveEffectiveTheme('emlight', false)).toBe('emlight');
-  });
-
-  it('returns emdark when theme is explicitly emdark', () => {
-    expect(resolveEffectiveTheme('emdark', true)).toBe('emdark');
-    expect(resolveEffectiveTheme('emdark', false)).toBe('emdark');
-  });
-
-  it('follows shouldUseDarkColors when theme is null (system)', () => {
-    expect(resolveEffectiveTheme(null, true)).toBe('emdark');
-    expect(resolveEffectiveTheme(null, false)).toBe('emlight');
-  });
-});
+import { getTerminalColorEnv } from './terminal-color-scheme';
 
 describe('getTerminalColorEnv', () => {
   beforeEach(() => {
