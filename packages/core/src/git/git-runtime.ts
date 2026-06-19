@@ -1,13 +1,7 @@
 import path from 'node:path';
 import { err, ok, type Lease, type Result } from '@emdash/shared';
 import type { BoundExec } from '../exec';
-import {
-  FileWatchService,
-  FsService,
-  realpathOrResolve,
-  type IFileWatchService,
-  type IFsService,
-} from '../fs';
+import { FileWatchService, realpathOrResolve, type IFileWatchService } from '../fs';
 import { KeyedMutex, ResourceMap } from '../lib';
 import { classifyCloneRepositoryError, gitErrorMessage } from './errors';
 import type { CloneRepositoryError } from './errors';
@@ -38,7 +32,6 @@ type GitIdentity = {
 };
 
 export type GitRuntimeOptions = {
-  fs?: IFsService;
   /**
    * File-watch service to use. Injected services are disposed by the injector;
    * when omitted, the runtime creates and disposes its own service.
@@ -55,7 +48,6 @@ export class GitRuntime implements IGitRuntime {
   private readonly worktrees: ResourceMap<WorktreeResource>;
   private readonly mutex: KeyedMutex;
   private readonly exec: BoundExec;
-  private readonly fs: IFsService;
   private readonly watcher: IFileWatchService;
   private readonly ownsWatcher: boolean;
   private readonly onError: GitOnError;
@@ -65,7 +57,6 @@ export class GitRuntime implements IGitRuntime {
     this.onError = options.onError ?? (() => {});
     this.ownsWatcher = !options.watcher;
     this.watcher = options.watcher ?? new FileWatchService({ onError: this.onError });
-    this.fs = options.fs ?? new FsService();
     this.mutex = new KeyedMutex();
     this.exec =
       options.exec ??
@@ -167,7 +158,6 @@ export class GitRuntime implements IGitRuntime {
           gitDir: identity.gitDir,
           repository: repositoryLease.value,
           exec: this.exec.withCwd(identity.topLevel),
-          fs: this.fs,
           watcher: this.watcher,
           onError: this.onError,
         });

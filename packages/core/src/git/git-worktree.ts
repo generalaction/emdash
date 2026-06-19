@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import { ExecError, type BoundExec } from '../exec';
-import type { IFileWatchService, IFsService, WatchHandle } from '../fs';
+import type { IFileWatchService, WatchHandle } from '../fs';
 import { LiveModel } from '../lib';
 import {
   classifyCommitError,
@@ -13,6 +13,7 @@ import {
   type PullError,
   type PushError,
 } from './errors';
+import { countFileLines } from './file-line-count';
 import type { GitOnError, GitRepository } from './git-repository';
 import type { ImageReadResult } from './models/diff';
 import { toRangeString, toRefString, type DiffTarget } from './models/diff-target';
@@ -68,8 +69,6 @@ export type GitWorktreeOptions = {
   gitDir: string;
   repository: GitRepository;
   exec: BoundExec;
-  fs: IFsService;
-  /** Injected file-watch service; disposed by the injector, not this class. */
   watcher: IFileWatchService;
   onError?: GitOnError;
 };
@@ -79,7 +78,6 @@ export class GitWorktree implements IGitWorktree {
   readonly gitDir: string;
   readonly repository: GitRepository;
   private readonly exec: BoundExec;
-  private readonly fs: IFsService;
   private readonly statusModel: LiveModel<GitStatusModel>;
   private readonly headModel: LiveModel<GitHeadModel>;
   private readonly worktreeWatch: WatchHandle;
@@ -90,7 +88,6 @@ export class GitWorktree implements IGitWorktree {
     this.gitDir = options.gitDir;
     this.repository = options.repository;
     this.exec = options.exec;
-    this.fs = options.fs;
     const onError = options.onError ?? (() => {});
 
     this.statusModel = new LiveModel<GitStatusModel>({
@@ -561,10 +558,10 @@ export class GitWorktree implements IGitWorktree {
       const deletions = unstagedNumstat.get(filePath)?.deletions ?? 0;
       if (additions === 0 && deletions === 0 && isUntracked) {
         try {
-          const result = await this.fs.read(path.join(this.worktree, filePath), {
+          const result = await countFileLines(path.join(this.worktree, filePath), {
             maxBytes: MAX_DIFF_CONTENT_BYTES,
           });
-          if (!result.truncated) additions = (result.content.match(/\n/g) ?? []).length;
+          if (!result.truncated) additions = result.lines;
         } catch {}
       }
 
