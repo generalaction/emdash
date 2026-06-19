@@ -159,7 +159,7 @@ export function ProjectConfigImportModal({
               <label className="flex items-center gap-3 rounded-md text-sm">
                 <RadioGroupItem value="shared" className="translate-y-px" />
                 <span className="flex min-w-0 flex-row gap-1.5">
-                  <p>.emdash.json</p>
+                  <p>.rocky.json</p>
                   <p className="text-foreground-muted">– commit to share with team</p>
                 </span>
               </label>

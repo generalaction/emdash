@@ -440,7 +440,7 @@ export class WorktreeService {
         dot: true,
       });
       for (const relPath of matches) {
-        if (relPath === '.emdash.json' || (await this.isTrackedSourcePath(relPath))) continue;
+        if (relPath === '.rocky.json' || (await this.isTrackedSourcePath(relPath))) continue;
         const src = this.host.pathApi.join(this.repoPath, relPath);
         const stat = await this.host.statAbsolute(src).catch(() => null);
         if (!stat || stat.type !== 'file') continue;

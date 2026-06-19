@@ -67,7 +67,7 @@ describe('config migration', () => {
     ]);
   });
 
-  it('writes Conductor settings into .emdash.json', async () => {
+  it('writes Conductor settings into .rocky.json', async () => {
     const fs = createFs({
       'conductor.json': JSON.stringify({
         scripts: {
@@ -91,7 +91,7 @@ describe('config migration', () => {
     );
 
     expect(result.success).toBe(true);
-    expect(JSON.parse(fs.content('.emdash.json') ?? '{}')).toEqual({
+    expect(JSON.parse(fs.content('.rocky.json') ?? '{}')).toEqual({
       scripts: {
         setup: 'pnpm install',
         run: 'pnpm dev',
@@ -140,7 +140,7 @@ describe('config migration', () => {
     );
 
     expect(result.success).toBe(true);
-    expect(JSON.parse(fs.content('.emdash.json') ?? '{}')).toEqual({
+    expect(JSON.parse(fs.content('.rocky.json') ?? '{}')).toEqual({
       scripts: {
         setup: 'pnpm install',
       },
@@ -209,7 +209,7 @@ describe('config migration', () => {
     ]);
   });
 
-  it('writes Superset settings into .emdash.json', async () => {
+  it('writes Superset settings into .rocky.json', async () => {
     const fs = createFs({
       '.superset/config.json': JSON.stringify({
         setup: ['bun install', 'cp "$SUPERSET_ROOT_PATH/.env" .env'],
@@ -230,7 +230,7 @@ describe('config migration', () => {
     );
 
     expect(result.success).toBe(true);
-    expect(JSON.parse(fs.content('.emdash.json') ?? '{}')).toEqual({
+    expect(JSON.parse(fs.content('.rocky.json') ?? '{}')).toEqual({
       scripts: {
         setup: 'bun install\ncp "$SUPERSET_ROOT_PATH/.env" .env',
         run: './.superset/run.sh',
@@ -335,7 +335,7 @@ describe('config migration', () => {
     ]);
   });
 
-  it('writes Paseo settings into .emdash.json', async () => {
+  it('writes Paseo settings into .rocky.json', async () => {
     const fs = createFs({
       'paseo.json': JSON.stringify({
         worktree: {
@@ -361,7 +361,7 @@ describe('config migration', () => {
     );
 
     expect(result.success).toBe(true);
-    expect(JSON.parse(fs.content('.emdash.json') ?? '{}')).toEqual({
+    expect(JSON.parse(fs.content('.rocky.json') ?? '{}')).toEqual({
       scripts: {
         setup: 'npm ci',
         teardown: 'rm -rf .cache',
@@ -468,7 +468,7 @@ describe('config migration', () => {
     ]);
   });
 
-  it('writes Codex local environment settings into .emdash.json', async () => {
+  it('writes Codex local environment settings into .rocky.json', async () => {
     const fs = createFs({
       '.codex/environments/environment.toml': `
         [setup]
@@ -495,7 +495,7 @@ describe('config migration', () => {
     );
 
     expect(result.success).toBe(true);
-    expect(JSON.parse(fs.content('.emdash.json') ?? '{}')).toEqual({
+    expect(JSON.parse(fs.content('.rocky.json') ?? '{}')).toEqual({
       scripts: {
         setup: 'npm ci',
         teardown: 'rm -rf .cache',
@@ -587,14 +587,14 @@ describe('config migration', () => {
     });
   });
 
-  it('does not import when .emdash.json already exists', async () => {
+  it('does not import when .rocky.json already exists', async () => {
     const fs = createFs({
       'conductor.json': JSON.stringify({
         scripts: {
           run: 'pnpm dev',
         },
       }),
-      '.emdash.json': JSON.stringify({ scripts: { run: 'pnpm dev' } }),
+      '.rocky.json': JSON.stringify({ scripts: { run: 'pnpm dev' } }),
     });
 
     const result = await migrateProjectConfigFromProvider({ fs } as never, {
@@ -607,7 +607,7 @@ describe('config migration', () => {
       success: false,
       error: {
         type: 'write-config-failed',
-        message: '.emdash.json already exists.',
+        message: '.rocky.json already exists.',
       },
     });
     expect(fs.write).not.toHaveBeenCalled();

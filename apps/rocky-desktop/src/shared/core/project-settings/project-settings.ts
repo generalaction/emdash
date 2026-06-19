@@ -1,6 +1,6 @@
 import z from 'zod';
 
-export const PROJECT_CONFIG_FILE = '.emdash.json';
+export const PROJECT_CONFIG_FILE = '.rocky.json';
 
 export const DEFAULT_PRESERVE_PATTERNS = [
   '.env',

@@ -101,7 +101,7 @@ const WATCH_IGNORED_NAMES = [
   '.terraform',
   '.serverless',
   'worktrees',
-  '.emdash',
+  '.rocky',
   '.conductor',
   '.cursor',
   '.claude',
@@ -629,7 +629,7 @@ export class LocalFileSystem implements FileSystemProvider {
         return { success: false, error: 'Unsupported attachment type' };
       }
 
-      const destDir = join(this.projectPath, '.emdash', subdir ?? 'attachments');
+      const destDir = join(this.projectPath, '.rocky', subdir ?? 'attachments');
       await fs.mkdir(destDir, { recursive: true });
 
       const baseName = basename(srcPath);

@@ -100,7 +100,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
     fs.writeFileSync(
-      path.join(projectPath, '.emdash.json'),
+      path.join(projectPath, '.rocky.json'),
       JSON.stringify({ shellSetup: 'nvm use' })
     );
 
@@ -115,7 +115,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
     fs.writeFileSync(
-      path.join(projectPath, '.emdash.json'),
+      path.join(projectPath, '.rocky.json'),
       JSON.stringify({ preservePatterns: ['.env.shared'] })
     );
 
@@ -128,7 +128,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
     fs.writeFileSync(
-      path.join(projectPath, '.emdash.json'),
+      path.join(projectPath, '.rocky.json'),
       JSON.stringify({
         preservePatterns: ['.env.local'],
         shellSetup: 'nvm use',
@@ -159,7 +159,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
     fs.writeFileSync(
-      path.join(projectPath, '.emdash.json'),
+      path.join(projectPath, '.rocky.json'),
       JSON.stringify({
         shellSetup: 'nvm use',
         scripts: {
@@ -203,7 +203,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
     fs.writeFileSync(
-      path.join(projectPath, '.emdash.json'),
+      path.join(projectPath, '.rocky.json'),
       JSON.stringify({
         shellSetup: 'nvm use',
         scripts: {
@@ -550,7 +550,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       '/remote/repo',
       undefined
     );
-    await expect(provider.getWorktreeDirectory()).resolves.toBe('/remote/repo/.emdash/worktrees');
+    await expect(provider.getWorktreeDirectory()).resolves.toBe('/remote/repo/.rocky/worktrees');
   });
 
   it('rejects tilde worktreeDirectory for ssh projects', async () => {
@@ -596,7 +596,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       '/remote/repo',
       undefined
     );
-    await expect(provider.getWorktreeDirectory()).resolves.toBe('/remote/repo/.emdash/worktrees');
+    await expect(provider.getWorktreeDirectory()).resolves.toBe('/remote/repo/.rocky/worktrees');
   });
 
   it('expands and caches ssh home for tilde worktreeDirectory values', async () => {

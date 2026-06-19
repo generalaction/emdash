@@ -45,7 +45,7 @@ export function ProjectSettingsFooter({
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom" align="end">
-            Writes selected settings to .emdash.json. Commit that file to share these defaults with
+            Writes selected settings to .rocky.json. Commit that file to share these defaults with
             your team.
           </TooltipContent>
         </Tooltip>

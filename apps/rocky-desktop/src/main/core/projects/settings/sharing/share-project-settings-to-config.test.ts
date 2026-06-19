@@ -43,7 +43,7 @@ describe('shareProjectSettingsToConfig', () => {
     mocks.listForProject.mockReturnValue([]);
   });
 
-  it('writes selected shareable project settings to .emdash.json', async () => {
+  it('writes selected shareable project settings to .rocky.json', async () => {
     const write = vi.fn().mockResolvedValue({ success: true, bytesWritten: 100 });
     const patch = vi.fn().mockResolvedValue({ success: true });
     const project = {
@@ -78,7 +78,7 @@ describe('shareProjectSettingsToConfig', () => {
 
     expect(result.success).toBe(true);
     expect(write).toHaveBeenCalledWith(
-      '.emdash.json',
+      '.rocky.json',
       `${JSON.stringify(
         {
           preservePatterns: ['.env', '.env.local'],
@@ -160,7 +160,7 @@ describe('shareProjectSettingsToConfig', () => {
     });
   });
 
-  it('only clears fields that were actually written to .emdash.json', async () => {
+  it('only clears fields that were actually written to .rocky.json', async () => {
     const write = vi.fn().mockResolvedValue({ success: true, bytesWritten: 100 });
     const patch = vi.fn().mockResolvedValue({ success: true });
     const project = {
@@ -190,7 +190,7 @@ describe('shareProjectSettingsToConfig', () => {
 
     expect(result.success).toBe(true);
     expect(write).toHaveBeenCalledWith(
-      '.emdash.json',
+      '.rocky.json',
       `${JSON.stringify({ preservePatterns: ['.env.local'] }, null, 2)}\n`
     );
     expect(patch).toHaveBeenCalledWith({
@@ -268,13 +268,13 @@ describe('shareProjectSettingsToConfig', () => {
       success: false,
       error: {
         type: 'write-config-failed',
-        message: 'Wrote .emdash.json, but failed to clear shared project settings.',
+        message: 'Wrote .rocky.json, but failed to clear shared project settings.',
       },
     });
     expect(write).toHaveBeenCalledTimes(1);
   });
 
-  it('returns the read/parse failure when existing .emdash.json cannot be parsed', async () => {
+  it('returns the read/parse failure when existing .rocky.json cannot be parsed', async () => {
     const project = {
       fs: {
         exists: vi.fn().mockResolvedValue(true),
@@ -305,7 +305,7 @@ describe('shareProjectSettingsToConfig', () => {
     if (result.error.type !== 'write-config-failed') {
       throw new Error(`Unexpected error type: ${result.error.type}`);
     }
-    expect(result.error.message).toContain('Could not read existing .emdash.json');
+    expect(result.error.message).toContain('Could not read existing .rocky.json');
   });
 
   it('returns target resolution failures instead of rejecting the RPC', async () => {
@@ -406,7 +406,7 @@ describe('shareProjectSettingsToConfig', () => {
     mocks.workspaceGet.mockImplementation((workspaceId: string) => {
       if (workspaceId === 'root-workspace') return { path: '/repo', fs: projectRootFs };
       if (workspaceId === 'worktree-workspace') {
-        return { path: '/repo/.emdash/worktrees/task-two', fs: worktreeFs };
+        return { path: '/repo/.rocky/worktrees/task-two', fs: worktreeFs };
       }
       return undefined;
     });
@@ -449,7 +449,7 @@ describe('shareProjectSettingsToConfig', () => {
         type: 'task',
         taskId: 'task-2',
         label: 'Task Two',
-        path: '/repo/.emdash/worktrees/task-two',
+        path: '/repo/.rocky/worktrees/task-two',
       },
     ]);
     expect(findBranchAnywhere).not.toHaveBeenCalled();
@@ -457,7 +457,7 @@ describe('shareProjectSettingsToConfig', () => {
       { label: 'Repo Name', path: '/repo', value: 'root setup' },
       {
         label: 'Task Two',
-        path: '/repo/.emdash/worktrees/task-two',
+        path: '/repo/.rocky/worktrees/task-two',
         value: 'worktree setup',
       },
     ]);
@@ -491,7 +491,7 @@ describe('shareProjectSettingsToConfig', () => {
     expect(findBranchAnywhere).not.toHaveBeenCalled();
   });
 
-  it('detects workspace setting overrides from .emdash.json files', async () => {
+  it('detects workspace setting overrides from .rocky.json files', async () => {
     const project = {
       projectId: 'project-1',
       repoPath: '/repo',

@@ -50,7 +50,7 @@ export async function execute(
         dot: true,
       });
       for (const relPath of matches) {
-        if (relPath === '.emdash.json' || (await isTrackedSourcePath(relPath, ctx))) continue;
+        if (relPath === '.rocky.json' || (await isTrackedSourcePath(relPath, ctx))) continue;
         const src = ctx.host.pathApi.join(ctx.repoPath, relPath);
         const stat = await ctx.host.statAbsolute(src).catch(() => null);
         if (!stat || stat.type !== 'file') continue;

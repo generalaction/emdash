@@ -30,7 +30,7 @@ const CRAWL_IGNORED_DIRS = new Set([
   '.terraform',
   '.serverless',
   'worktrees',
-  '.emdash',
+  '.rocky',
   '.conductor',
   '.cursor',
   '.claude',

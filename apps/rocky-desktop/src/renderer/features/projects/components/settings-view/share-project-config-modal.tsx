@@ -136,7 +136,7 @@ export function ShareProjectConfigModal({
       <DialogContentArea className="pt-0">
         <FieldGroup>
           <p className="text-sm text-foreground-muted">
-            This writes the selected settings to .emdash.json in the chosen working directory.
+            This writes the selected settings to .rocky.json in the chosen working directory.
             Commit that file so teammates get the same project defaults after pulling.
           </p>
           <Field>
@@ -206,8 +206,8 @@ export function ShareProjectConfigModal({
             {status === 'writing'
               ? 'Writing...'
               : status === 'written'
-                ? 'Wrote .emdash.json'
-                : 'Write .emdash.json'}
+                ? 'Wrote .rocky.json'
+                : 'Write .rocky.json'}
           </span>
         </ConfirmButton>
       </DialogFooter>

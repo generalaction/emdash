@@ -110,7 +110,7 @@ describe('LifecycleScriptsStore', () => {
     watchStop.mockClear();
   });
 
-  it('uses stable script IDs and reconciles command changes from .emdash.json watch events', async () => {
+  it('uses stable script IDs and reconciles command changes from .rocky.json watch events', async () => {
     getSettings
       .mockResolvedValueOnce({ scripts: { run: 'pnpm dev' } })
       .mockResolvedValueOnce({ scripts: { run: 'pnpm start' } });
@@ -131,7 +131,7 @@ describe('LifecycleScriptsStore', () => {
     eventHandlers.get(`${fsWatchEventChannel.name}.`)?.({
       projectId: 'project-1',
       workspaceId: 'workspace-1',
-      events: [{ type: 'modify', entryType: 'file', path: '.emdash.json' }],
+      events: [{ type: 'modify', entryType: 'file', path: '.rocky.json' }],
     });
 
     await expect.poll(() => store.tabs[0]?.data.command).toBe('pnpm start');
