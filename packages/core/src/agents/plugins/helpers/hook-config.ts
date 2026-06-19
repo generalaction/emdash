@@ -1,7 +1,7 @@
 import * as toml from 'smol-toml';
 import type { PluginFs } from '../../runtime/fs';
 import type { HookRegistration } from '../capabilities/hooks';
-import { EMDASH_MARKER, filterUserHooks } from './hooks';
+import { ROCKY_MARKER, filterUserHooks } from './hooks';
 
 export type { HookCommandOptions } from './hooks';
 
@@ -99,12 +99,12 @@ export function buildFlatTomlHookConfig(
   const getHookEntries = (config: Record<string, unknown>) =>
     Array.isArray(config.hooks) ? (config.hooks as Record<string, unknown>[]) : [];
   const hasEmdashHook = (config: Record<string, unknown>) =>
-    getHookEntries(config).some((entry) => stringifyEntry(entry).includes(EMDASH_MARKER));
+    getHookEntries(config).some((entry) => stringifyEntry(entry).includes(ROCKY_MARKER));
 
   return {
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readTomlConfig(fs, configPath);
-      return hasEmdashHook(config) ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
+      return hasEmdashHook(config) ? [{ event: 'rocky', command: ROCKY_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readTomlConfig(fs, configPath);
@@ -143,9 +143,9 @@ export function buildNestedJsonHookConfig(configPath: string, hookSpecs: HookSpe
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
       const installed = hookSpecs.some(({ hookKey }) => {
         const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+        return entries.some((e) => JSON.stringify(e).includes(ROCKY_MARKER));
       });
-      return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
+      return installed ? [{ event: 'rocky', command: ROCKY_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, configPath);
@@ -170,7 +170,7 @@ export function buildNestedJsonHookConfig(configPath: string, hookSpecs: HookSpe
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
       return hookSpecs.some(({ hookKey }) => {
         const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+        return entries.some((e) => JSON.stringify(e).includes(ROCKY_MARKER));
       });
     },
   };
@@ -193,9 +193,9 @@ export function buildFlatJsonHookConfig(
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
       const installed = hookSpecs.some(({ hookKey }) => {
         const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+        return entries.some((e) => JSON.stringify(e).includes(ROCKY_MARKER));
       });
-      return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
+      return installed ? [{ event: 'rocky', command: ROCKY_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, configPath);
@@ -220,7 +220,7 @@ export function buildFlatJsonHookConfig(
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
       return hookSpecs.some(({ hookKey }) => {
         const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+        return entries.some((e) => JSON.stringify(e).includes(ROCKY_MARKER));
       });
     },
   };
@@ -241,9 +241,9 @@ export function buildMinimalJsonHookConfig(
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
       const installed = hookSpecs.some(({ hookKey }) => {
         const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+        return entries.some((e) => JSON.stringify(e).includes(ROCKY_MARKER));
       });
-      return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
+      return installed ? [{ event: 'rocky', command: ROCKY_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, configPath);
@@ -268,7 +268,7 @@ export function buildMinimalJsonHookConfig(
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
       return hookSpecs.some(({ hookKey }) => {
         const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+        return entries.some((e) => JSON.stringify(e).includes(ROCKY_MARKER));
       });
     },
   };

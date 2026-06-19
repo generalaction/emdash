@@ -2,7 +2,7 @@ import { Buffer } from 'node:buffer';
 import type { PluginFs } from '@rocky/core/agents/plugins';
 import type { CanonicalHookEvent, HookRegistration } from '@rocky/core/agents/plugins';
 import {
-  EMDASH_MARKER,
+  ROCKY_MARKER,
   buildNestedEntry,
   defaultHookEventParser,
   filterUserHooks,
@@ -17,28 +17,28 @@ function makeGrokSessionStartCommand(): string {
   if (process.platform === 'win32') {
     const script = [
       "$ErrorActionPreference = 'SilentlyContinue'",
-      'if (-not $env:EMDASH_HOOK_PORT -or -not $env:EMDASH_HOOK_TOKEN -or -not $env:EMDASH_PTY_ID) { exit 0 }',
+      'if (-not $env:ROCKY_HOOK_PORT -or -not $env:ROCKY_HOOK_TOKEN -or -not $env:ROCKY_PTY_ID) { exit 0 }',
       '$payload = @{ session_id = $env:GROK_SESSION_ID } | ConvertTo-Json -Compress',
       'try { Invoke-WebRequest -UseBasicParsing -Method POST ' +
-        "-Uri ('http://127.0.0.1:' + $env:EMDASH_HOOK_PORT + '/hook') " +
+        "-Uri ('http://127.0.0.1:' + $env:ROCKY_HOOK_PORT + '/hook') " +
         '-Headers @{ ' +
         "'Content-Type' = 'application/json'; " +
-        "'X-Emdash-Token' = $env:EMDASH_HOOK_TOKEN; " +
-        "'X-Emdash-Pty-Id' = $env:EMDASH_PTY_ID; " +
-        "'X-Emdash-Event-Type' = 'session' " +
+        "'X-Rocky-Token' = $env:ROCKY_HOOK_TOKEN; " +
+        "'X-Rocky-Pty-Id' = $env:ROCKY_PTY_ID; " +
+        "'X-Rocky-Event-Type' = 'session' " +
         '} -Body $payload | Out-Null } catch { exit 0 }',
     ].join('; ');
     const encoded = Buffer.from(script, 'utf16le').toString('base64');
-    return `cmd.exe /d /c "echo EMDASH_HOOK_PORT >NUL & powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encoded}"`;
+    return `cmd.exe /d /c "echo ROCKY_HOOK_PORT >NUL & powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encoded}"`;
   }
   return (
     'curl -sf -X POST ' +
     '-H "Content-Type: application/json" ' +
-    '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
-    '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
-    '-H "X-Emdash-Event-Type: session" ' +
+    '-H "X-Rocky-Token: $ROCKY_HOOK_TOKEN" ' +
+    '-H "X-Rocky-Pty-Id: $ROCKY_PTY_ID" ' +
+    '-H "X-Rocky-Event-Type: session" ' +
     `--data-binary '{"session_id":"'"$GROK_SESSION_ID"'"}' ` +
-    '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true'
+    '"http://127.0.0.1:$ROCKY_HOOK_PORT/hook" || true'
   );
 }
 
@@ -79,9 +79,9 @@ export function buildGrokHookConfig() {
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
       const installed = specs.some(({ hookKey }) => {
         const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+        return entries.some((e) => JSON.stringify(e).includes(ROCKY_MARKER));
       });
-      return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
+      return installed ? [{ event: 'rocky', command: ROCKY_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, GROK_HOOKS_PATH);
@@ -109,7 +109,7 @@ export function buildGrokHookConfig() {
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
       return specs.some(({ hookKey }) => {
         const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+        return entries.some((e) => JSON.stringify(e).includes(ROCKY_MARKER));
       });
     },
     parseHookEvent: parseGrokHookEvent,

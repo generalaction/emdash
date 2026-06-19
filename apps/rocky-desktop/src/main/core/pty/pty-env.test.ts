@@ -162,16 +162,16 @@ describe('buildAgentEnv provider env forwarding', () => {
       providerVars: {
         ANTHROPIC_BASE_URL: 'https://example.test',
         EDITOR: 'vim',
-        EMDASH_HOOK_PORT: '9999',
-        EMDASH_PTY_ID: 'wrong',
-        EMDASH_HOOK_TOKEN: 'wrong-token',
+        ROCKY_HOOK_PORT: '9999',
+        ROCKY_PTY_ID: 'wrong',
+        ROCKY_HOOK_TOKEN: 'wrong-token',
       },
     });
 
     expect(env.ANTHROPIC_BASE_URL).toBe('https://example.test');
     expect(env.EDITOR).toBe('vim');
-    expect(env.EMDASH_HOOK_PORT).toBe('1234');
-    expect(env.EMDASH_PTY_ID).toBe('claude:conv-1');
-    expect(env.EMDASH_HOOK_TOKEN).toBe('real-token');
+    expect(env.ROCKY_HOOK_PORT).toBe('1234');
+    expect(env.ROCKY_PTY_ID).toBe('claude:conv-1');
+    expect(env.ROCKY_HOOK_TOKEN).toBe('real-token');
   });
 });

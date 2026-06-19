@@ -1,7 +1,7 @@
 import type { PluginFs } from '@rocky/core/agents/plugins';
 import type { HookRegistration } from '@rocky/core/agents/plugins';
 import {
-  EMDASH_MARKER,
+  ROCKY_MARKER,
   buildFlatEntry,
   filterUserHooks,
   makeNotificationHookCommand,
@@ -23,9 +23,9 @@ export function buildCopilotHookConfig() {
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
       const installed = ['agentStop', 'sessionStart', 'permissionRequest'].some((k) => {
         const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+        return entries.some((e) => JSON.stringify(e).includes(ROCKY_MARKER));
       });
-      return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
+      return installed ? [{ event: 'rocky', command: ROCKY_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, COPILOT_HOOKS_PATH);
@@ -66,7 +66,7 @@ export function buildCopilotHookConfig() {
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
       return ['agentStop', 'sessionStart', 'permissionRequest'].some((k) => {
         const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+        return entries.some((e) => JSON.stringify(e).includes(ROCKY_MARKER));
       });
     },
   };

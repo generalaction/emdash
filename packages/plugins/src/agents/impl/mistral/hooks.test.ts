@@ -31,7 +31,7 @@ describe('buildMistralHookConfig', () => {
       [MISTRAL_HOOKS_PATH]: `[[hooks]]
 name = "emdash-post-agent-turn"
 type = "post_agent_turn"
-command = "curl http://127.0.0.1:$EMDASH_HOOK_PORT/hook"
+command = "curl http://127.0.0.1:$ROCKY_HOOK_PORT/hook"
 `,
     });
     const hooks = buildMistralHookConfig();

@@ -1,7 +1,7 @@
 import type { PluginFs } from '@rocky/core/agents/plugins';
 import type { HookRegistration } from '@rocky/core/agents/plugins';
 import {
-  EMDASH_MARKER,
+  ROCKY_MARKER,
   filterUserHooks,
   makeStdinHookCommand,
 } from '@rocky/core/agents/plugins/helpers';
@@ -78,8 +78,8 @@ export function buildKimiHookConfig() {
         try {
           const config = parseTOML(content) as Record<string, unknown>;
           const hooks = Array.isArray(config.hooks) ? config.hooks : [];
-          if (hooks.some((e) => JSON.stringify(e).includes(EMDASH_MARKER))) {
-            return [{ event: 'emdash', command: EMDASH_MARKER }];
+          if (hooks.some((e) => JSON.stringify(e).includes(ROCKY_MARKER))) {
+            return [{ event: 'rocky', command: ROCKY_MARKER }];
           }
         } catch {
           /* skip */
@@ -114,7 +114,7 @@ export function buildKimiHookConfig() {
         try {
           const config = parseTOML(content) as Record<string, unknown>;
           const hooks = Array.isArray(config.hooks) ? config.hooks : [];
-          if (hooks.some((e) => JSON.stringify(e).includes(EMDASH_MARKER))) return true;
+          if (hooks.some((e) => JSON.stringify(e).includes(ROCKY_MARKER))) return true;
         } catch {
           /* skip */
         }

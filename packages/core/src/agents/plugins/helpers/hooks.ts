@@ -4,12 +4,12 @@ export type HookCommandOptions = {
   platform?: NodeJS.Platform;
 };
 
-export const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
+export const ROCKY_MARKER = 'ROCKY_HOOK_PORT';
 
 /** Filter out emdash-managed entries from a hook array. */
 export function filterUserHooks<T>(entries: T[], stringify?: (entry: T) => string): T[] {
   const toStr = stringify ?? JSON.stringify;
-  return entries.filter((entry) => !toStr(entry).includes(EMDASH_MARKER));
+  return entries.filter((entry) => !toStr(entry).includes(ROCKY_MARKER));
 }
 
 // ── Internal helpers ────────────────────────────────────────────────────────
@@ -26,11 +26,11 @@ function makePosixHookPostCommand(eventType: string, payload: HookPostPayload): 
   return (
     'curl -sf -X POST ' +
     '-H "Content-Type: application/json" ' +
-    '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
-    '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
-    `-H "X-Emdash-Event-Type: ${eventType}" ` +
+    '-H "X-Rocky-Token: $ROCKY_HOOK_TOKEN" ' +
+    '-H "X-Rocky-Pty-Id: $ROCKY_PTY_ID" ' +
+    `-H "X-Rocky-Event-Type: ${eventType}" ` +
     payloadPart +
-    '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true'
+    '"http://127.0.0.1:$ROCKY_HOOK_PORT/hook" || true'
   );
 }
 
@@ -41,19 +41,19 @@ function makeWindowsHookPostCommand(eventType: string, payload: HookPostPayload)
       : `$payload = ${quotePowerShellString(JSON.stringify((payload as { json: Record<string, string> }).json))}`;
   const script = [
     "$ErrorActionPreference = 'SilentlyContinue'",
-    'if (-not $env:EMDASH_HOOK_PORT -or -not $env:EMDASH_HOOK_TOKEN -or -not $env:EMDASH_PTY_ID) { exit 0 }',
+    'if (-not $env:ROCKY_HOOK_PORT -or -not $env:ROCKY_HOOK_TOKEN -or -not $env:ROCKY_PTY_ID) { exit 0 }',
     bodyLine,
     'try { Invoke-WebRequest -UseBasicParsing -Method POST ' +
-      "-Uri ('http://127.0.0.1:' + $env:EMDASH_HOOK_PORT + '/hook') " +
+      "-Uri ('http://127.0.0.1:' + $env:ROCKY_HOOK_PORT + '/hook') " +
       '-Headers @{ ' +
       "'Content-Type' = 'application/json'; " +
-      "'X-Emdash-Token' = $env:EMDASH_HOOK_TOKEN; " +
-      "'X-Emdash-Pty-Id' = $env:EMDASH_PTY_ID; " +
-      `'X-Emdash-Event-Type' = '${eventType}' ` +
+      "'X-Rocky-Token' = $env:ROCKY_HOOK_TOKEN; " +
+      "'X-Rocky-Pty-Id' = $env:ROCKY_PTY_ID; " +
+      `'X-Rocky-Event-Type' = '${eventType}' ` +
       '} -Body $payload | Out-Null } catch { exit 0 }',
   ].join('; ');
   const encoded = Buffer.from(script, 'utf16le').toString('base64');
-  return `cmd.exe /d /c "echo EMDASH_HOOK_PORT >NUL & powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encoded}"`;
+  return `cmd.exe /d /c "echo ROCKY_HOOK_PORT >NUL & powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encoded}"`;
 }
 
 /** Post an event with an arbitrary payload, platform-aware. */

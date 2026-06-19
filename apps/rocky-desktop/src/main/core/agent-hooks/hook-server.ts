@@ -25,7 +25,7 @@ export class HookServer {
         res.end();
         return;
       }
-      if (req.headers['x-emdash-token'] !== this.token) {
+      if (req.headers['x-rocky-token'] !== this.token) {
         log.warn('HookServer: rejected request with invalid token');
         res.writeHead(403);
         res.end();
@@ -41,8 +41,8 @@ export class HookServer {
       });
 
       req.on('end', () => {
-        const ptyId = String(req.headers['x-emdash-pty-id'] || '');
-        const type = String(req.headers['x-emdash-event-type'] || '');
+        const ptyId = String(req.headers['x-rocky-pty-id'] || '');
+        const type = String(req.headers['x-rocky-event-type'] || '');
         if (!ptyId || !type) {
           log.warn('HookServer: malformed request — missing ptyId or type headers');
           res.writeHead(400);

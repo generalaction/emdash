@@ -1,7 +1,7 @@
 import type { PluginFs } from '@rocky/core/agents/plugins';
 import type { CanonicalHookEvent, HookRegistration } from '@rocky/core/agents/plugins';
 import {
-  EMDASH_MARKER,
+  ROCKY_MARKER,
   buildNestedEntry,
   defaultHookEventParser,
   filterUserHooks,
@@ -20,11 +20,11 @@ const LEGACY_CODEX_NOTIFY_COMMAND = [
   '-c',
   'curl -sf -X POST ' +
     "-H 'Content-Type: application/json' " +
-    '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
-    '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
-    '-H "X-Emdash-Event-Type: notification" ' +
+    '-H "X-Rocky-Token: $ROCKY_HOOK_TOKEN" ' +
+    '-H "X-Rocky-Pty-Id: $ROCKY_PTY_ID" ' +
+    '-H "X-Rocky-Event-Type: notification" ' +
     '-d "$1" ' +
-    '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true',
+    '"http://127.0.0.1:$ROCKY_HOOK_PORT/hook" || true',
   '_',
 ];
 
@@ -104,9 +104,9 @@ export function buildCodexHookConfig() {
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
       const installed = ['Stop', 'PermissionRequest', 'SessionStart'].some((k) => {
         const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+        return entries.some((e) => JSON.stringify(e).includes(ROCKY_MARKER));
       });
-      return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
+      return installed ? [{ event: 'rocky', command: ROCKY_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, CODEX_HOOKS_PATH);
@@ -139,7 +139,7 @@ export function buildCodexHookConfig() {
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
       return ['Stop', 'PermissionRequest', 'SessionStart'].some((k) => {
         const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+        return entries.some((e) => JSON.stringify(e).includes(ROCKY_MARKER));
       });
     },
     parseHookEvent: parseCodexHookEvent,

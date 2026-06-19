@@ -4,9 +4,9 @@ export const OPENCODE_PLUGIN_CONTENT = `\
 
 export const EmdashNotifications = async () => ({
   event: async ({ event }) => {
-    const port = process.env.EMDASH_HOOK_PORT;
-    const token = process.env.EMDASH_HOOK_TOKEN;
-    const ptyId = process.env.EMDASH_PTY_ID;
+    const port = process.env.ROCKY_HOOK_PORT;
+    const token = process.env.ROCKY_HOOK_TOKEN;
+    const ptyId = process.env.ROCKY_PTY_ID;
     if (!port || !token || !ptyId) return;
 
     const sessionId = getOpenCodeSessionId(event);
@@ -27,9 +27,9 @@ async function postToEmdash({ port, token, ptyId, type, body }) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Emdash-Token': token,
-        'X-Emdash-Pty-Id': ptyId,
-        'X-Emdash-Event-Type': type,
+        'X-Rocky-Token': token,
+        'X-Rocky-Pty-Id': ptyId,
+        'X-Rocky-Event-Type': type,
       },
       body: JSON.stringify(body),
     });
