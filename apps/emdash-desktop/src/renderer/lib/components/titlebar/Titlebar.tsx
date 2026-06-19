@@ -35,7 +35,7 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
                   </TooltipTrigger>
                   <TooltipContent>
                     Toggle left sidebar
-                    <BoundShortcut settingsKey="toggleLeftSidebar" variant="badge" />
+                    <BoundShortcut settingsKey="toggleLeftSidebar" variant="keycaps" />
                   </TooltipContent>
                 </Tooltip>
                 <NavButtons />
