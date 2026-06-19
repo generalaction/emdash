@@ -1,5 +1,5 @@
-import { err, ok } from '@rocky/shared';
 import type { Octokit } from '@octokit/rest';
+import { err, ok } from '@rocky/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { issueService } from './issue-service';
 import { getOctokit } from './octokit-provider';

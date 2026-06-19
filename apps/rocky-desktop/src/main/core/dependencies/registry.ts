@@ -1,9 +1,5 @@
 import type { CLIAgentPluginProvider } from '@rocky/core/agents/plugins';
-import type {
-  DependencyDescriptor,
-  DependencyStatus,
-  ProbeResult,
-} from '@rocky/core/deps/runtime';
+import type { DependencyDescriptor, DependencyStatus, ProbeResult } from '@rocky/core/deps/runtime';
 import { pluginRegistry } from '@rocky/plugins/agents';
 
 /**

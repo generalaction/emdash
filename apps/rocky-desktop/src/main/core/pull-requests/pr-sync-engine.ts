@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { err, ok, type Result } from '@rocky/shared';
 import type { Octokit } from '@octokit/rest';
+import { err, ok, type Result } from '@rocky/shared';
 import { and, eq, inArray, lt, ne } from 'drizzle-orm';
 import type { GitHubApiAuthError } from '@main/core/github/services/github-api-auth-errors';
 import type { GitHubApiAuthContext } from '@main/core/github/services/github-api-auth-service';

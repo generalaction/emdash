@@ -1,5 +1,5 @@
-import { err, ok, type Result } from '@rocky/shared';
 import type { Octokit } from '@octokit/rest';
+import { err, ok, type Result } from '@rocky/shared';
 import type { IssueListError } from '@shared/issue-providers';
 import type { RepositoryRef } from '@shared/repository-ref';
 import type { GitHubApiAuthError } from './github-api-auth-errors';

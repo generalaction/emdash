@@ -14,7 +14,7 @@ describe('buildFeedbackContent', () => {
     expect(content).toContain('Great app');
     expect(content).toContain('Contact: person@example.com');
     expect(content).toContain('GitHub: Octo Cat (@octocat)');
-    expect(content).toContain('Emdash Version: 1.2.3');
+    expect(content).toContain('Rocky Version: 1.2.3');
   });
 
   it('notes diagnostic logs when user opts in', () => {

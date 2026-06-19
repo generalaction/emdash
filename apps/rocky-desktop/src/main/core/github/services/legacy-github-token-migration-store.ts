@@ -15,10 +15,7 @@ type LegacyTokenSourceStore = {
 };
 
 function parseTokenSource(raw: unknown): LegacyTokenSource | null {
-  return raw === 'cli' ||
-    raw === 'secure_storage' ||
-    raw === 'rocky_oauth' ||
-    raw === 'device_flow'
+  return raw === 'cli' || raw === 'secure_storage' || raw === 'rocky_oauth' || raw === 'device_flow'
     ? raw
     : null;
 }

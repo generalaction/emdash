@@ -19,21 +19,6 @@ export function copySqliteDatabase(sourcePath: string, destinationPath: string):
   }
 }
 
-function clearCopiedAppSecrets(databasePath: string): void {
-  const copied = new Database(databasePath, { fileMustExist: true });
-  try {
-    copied.pragma('busy_timeout = 5000');
-    const hasAppSecretsTable = copied
-      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1")
-      .get('app_secrets');
-    if (hasAppSecretsTable) {
-      copied.exec('DELETE FROM app_secrets');
-    }
-  } finally {
-    copied.close();
-  }
-}
-
 export function resolveDefaultDatabasePath(userDataPath: string): string {
   fs.mkdirSync(userDataPath, { recursive: true });
   return join(userDataPath, CURRENT_DB_FILENAME);
