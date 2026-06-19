@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import { ExecError, type BoundExec } from '../exec';
@@ -14,6 +13,7 @@ import {
   type PullError,
   type PushError,
 } from './errors';
+import { countFileLines } from './file-line-count';
 import type { GitOnError, GitRepository } from './git-repository';
 import type { ImageReadResult } from './models/diff';
 import { toRangeString, toRefString, type DiffTarget } from './models/diff-target';
@@ -63,12 +63,6 @@ const IMAGE_MIME_BY_EXT: Record<string, string> = {
 };
 
 type Numstat = Map<string, { additions: number; deletions: number }>;
-
-type FileReadResult = {
-  content: string;
-  truncated: boolean;
-  totalSize: number;
-};
 
 export type GitWorktreeOptions = {
   worktree: string;
@@ -529,10 +523,10 @@ export class GitWorktree implements IGitWorktree {
       const deletions = unstagedNumstat.get(filePath)?.deletions ?? 0;
       if (additions === 0 && deletions === 0 && isUntracked) {
         try {
-          const result = await readFile(path.join(this.worktree, filePath), {
+          const result = await countFileLines(path.join(this.worktree, filePath), {
             maxBytes: MAX_DIFF_CONTENT_BYTES,
           });
-          if (!result.truncated) additions = (result.content.match(/\n/g) ?? []).length;
+          if (!result.truncated) additions = result.lines;
         } catch {}
       }
 
@@ -643,37 +637,6 @@ function parseNumstat(stdout: string): Numstat {
     map.set(filePath, current);
   }
   return map;
-}
-
-async function readFile(
-  filePath: string,
-  options: { maxBytes?: number } = {}
-): Promise<FileReadResult> {
-  const stat = await fs.stat(filePath);
-  const maxBytes = options.maxBytes;
-  if (maxBytes === undefined) {
-    const content = await fs.readFile(filePath, 'utf8');
-    return {
-      content,
-      truncated: false,
-      totalSize: stat.size,
-    };
-  }
-
-  const handle = await fs.open(filePath, 'r');
-  try {
-    const buffer = Buffer.alloc(maxBytes + 1);
-    const { bytesRead } = await handle.read(buffer, 0, maxBytes + 1, 0);
-    const truncated = bytesRead > maxBytes;
-    const slice = buffer.subarray(0, truncated ? maxBytes : bytesRead);
-    return {
-      content: slice.toString('utf8'),
-      truncated,
-      totalSize: stat.size,
-    };
-  } finally {
-    await handle.close();
-  }
 }
 
 function resolveDiffTarget(base: DiffTarget): { cached: boolean; ref: string } {

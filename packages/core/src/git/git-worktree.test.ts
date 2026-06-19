@@ -536,6 +536,32 @@ describe('GitWorktree', () => {
     }
   });
 
+  it('counts untracked file additions without a trailing newline', async () => {
+    const repo = await makeRepo();
+    const runtime = new GitRuntime();
+
+    try {
+      const lease = await runtime.openWorktree(repo);
+      await writeFile(path.join(repo, 'untracked.txt'), 'new', 'utf8');
+
+      await expect(lease.value.getStatus()).resolves.toMatchObject({
+        kind: 'ok',
+        unstaged: expect.arrayContaining([
+          expect.objectContaining({
+            path: 'untracked.txt',
+            status: 'added',
+            additions: 1,
+            deletions: 0,
+          }),
+        ]),
+      });
+
+      lease.release();
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it('refreshes staged status when the index blob changes but summary fields stay equal', async () => {
     const repo = await makeRepo();
     const runtime = new GitRuntime();
