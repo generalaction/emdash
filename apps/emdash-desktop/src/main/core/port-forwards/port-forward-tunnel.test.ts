@@ -71,6 +71,40 @@ function makeRejectingProxy(error: Error) {
   };
 }
 
+function makeFamilyAwareProxy(reachableHost: string) {
+  const calls: Array<{ remoteHost: string; remotePort: number }> = [];
+
+  return {
+    calls,
+    proxy: {
+      get isConnected() {
+        return true;
+      },
+      get client() {
+        return {
+          forwardOut(
+            _sourceHost: string,
+            _sourcePort: number,
+            remoteHost: string,
+            remotePort: number,
+            callback: (error: Error | undefined, channel: ClientChannel) => void
+          ) {
+            calls.push({ remoteHost, remotePort });
+            if (remoteHost === reachableHost) {
+              callback(undefined, new EchoChannel() as unknown as ClientChannel);
+              return;
+            }
+            callback(
+              new Error('(SSH) Channel open failure: Connection refused'),
+              undefined as unknown as ClientChannel
+            );
+          },
+        } as SshClientProxy['client'];
+      },
+    } satisfies Pick<SshClientProxy, 'client' | 'isConnected'>,
+  };
+}
+
 function listen(server: net.Server): Promise<number> {
   return new Promise((resolve, reject) => {
     server.once('error', reject);
@@ -169,6 +203,25 @@ describe('openPortForwardTunnel', () => {
     try {
       expect(tunnel.localPort).not.toBe(busyPort);
       await expect(roundTrip(tunnel.localPort, 'ok')).resolves.toBe('remote:ok');
+    } finally {
+      await tunnel.close();
+    }
+  });
+
+  it('falls back to the IPv6 loopback when the IPv4 target refuses', async () => {
+    const { proxy, calls } = makeFamilyAwareProxy('::1');
+
+    const tunnel = await openPortForwardTunnel({
+      proxy,
+      remotePort: 5173,
+    });
+
+    try {
+      await expect(roundTrip(tunnel.localPort, 'ping')).resolves.toBe('remote:ping');
+      expect(calls).toEqual([
+        { remoteHost: '127.0.0.1', remotePort: 5173 },
+        { remoteHost: '::1', remotePort: 5173 },
+      ]);
     } finally {
       await tunnel.close();
     }

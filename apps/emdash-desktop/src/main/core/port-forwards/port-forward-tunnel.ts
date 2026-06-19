@@ -3,7 +3,12 @@ import type { ClientChannel } from 'ssh2';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 
 const LOCAL_BIND_HOST = '127.0.0.1';
-const REMOTE_TARGET_HOST = '127.0.0.1';
+// A dev server may bind to the IPv4 loopback, the IPv6 loopback, or both. A
+// process started on the default `localhost` host resolves to `::1` first on
+// Node >= 17, so it often listens only on `[::1]`. Dialing a single hardcoded
+// `127.0.0.1` misses it. Try both loopback families per connection, in order,
+// and forward through whichever one the remote accepts.
+const REMOTE_TARGET_HOSTS = ['127.0.0.1', '::1'] as const;
 
 export type PortForwardTunnel = {
   localPort: number;
@@ -85,26 +90,38 @@ function forwardSocket(socket: net.Socket, options: OpenPortForwardTunnelOptions
     return;
   }
 
-  client.forwardOut(
-    LOCAL_BIND_HOST,
-    0,
-    REMOTE_TARGET_HOST,
-    options.remotePort,
-    (error: Error | undefined, channel: ClientChannel) => {
-      if (error) {
-        options.onConnectionError?.(error);
-        socket.destroy();
-        return;
-      }
+  const tryTargetHost = (index: number): void => {
+    const remoteHost = REMOTE_TARGET_HOSTS[index];
+    client.forwardOut(
+      LOCAL_BIND_HOST,
+      0,
+      remoteHost,
+      options.remotePort,
+      (error: Error | undefined, channel: ClientChannel) => {
+        if (error) {
+          // The remote refused this loopback family (e.g. an IPv6-only dev
+          // server rejects the IPv4 target). Fall back to the next candidate
+          // before surfacing the failure.
+          if (index + 1 < REMOTE_TARGET_HOSTS.length) {
+            tryTargetHost(index + 1);
+            return;
+          }
+          options.onConnectionError?.(error);
+          socket.destroy();
+          return;
+        }
 
-      socket.on('error', () => channel.destroy());
-      channel.on('error', (error: Error) => {
-        options.onConnectionError?.(error);
-        socket.destroy();
-      });
-      socket.pipe(channel).pipe(socket);
-    }
-  );
+        socket.on('error', () => channel.destroy());
+        channel.on('error', (error: Error) => {
+          options.onConnectionError?.(error);
+          socket.destroy();
+        });
+        socket.pipe(channel).pipe(socket);
+      }
+    );
+  };
+
+  tryTargetHost(0);
 }
 
 function closeServer(server: net.Server): Promise<void> {
