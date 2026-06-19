@@ -276,10 +276,11 @@ From the repo root:
 EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev
 ```
 
-From `apps/emdash-desktop/`, the same environment variable applies to the
-app-only dev command:
+For app-only development, change into `apps/emdash-desktop/` first so this starts
+only `electron-vite dev`:
 
 ```bash
+cd apps/emdash-desktop
 EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev
 ```
 
