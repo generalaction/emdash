@@ -1,5 +1,5 @@
 import type { Platform } from '@emdash/core/deps';
-import { HostDependencyManager } from '@emdash/core/deps/runtime';
+import { HostDependencyManager, type DependencyProbeOptions } from '@emdash/core/deps/runtime';
 import { clearResolvedPathCache } from '@main/core/conversations/impl/resolve-agent-executable';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
@@ -11,7 +11,7 @@ import { log } from '@main/lib/logger';
 import { agentUpdateService } from './agent-update-service';
 import { hostDependencyStore } from './host-dependency-store';
 import { createLocalInstallCommandRunner, createSshInstallCommandRunner } from './install-runner';
-import { DEPENDENCIES, getDependencyDescriptor } from './registry';
+import { DEPENDENCIES, AGENT_DEPENDENCIES, getDependencyDescriptor } from './registry';
 
 async function resolveLocalInstallShellProfile() {
   const { defaultShell } = await appSettingsService.get('terminal');
@@ -44,6 +44,7 @@ export const localDependencyManager = new HostDependencyManager(new LocalExecuti
 wireDesktopBridges(localDependencyManager, undefined);
 
 const sshManagers = new Map<string, HostDependencyManager>();
+const agentProbePromises = new Map<string, Promise<void>>();
 
 /** Resolve the OS platform of a remote machine via a lightweight `uname -s` probe. */
 async function resolveRemotePlatform(ctx: IExecutionContext): Promise<Platform> {
@@ -77,4 +78,26 @@ export async function getDependencyManager(connectionId?: string): Promise<HostD
     sshManagers.set(connectionId, mgr);
   }
   return mgr;
+}
+
+export async function ensureAgentDependenciesProbed(
+  manager: HostDependencyManager,
+  connectionId: string | undefined,
+  options: DependencyProbeOptions = { refreshShellEnv: true }
+): Promise<void> {
+  const hostKey = connectionId ?? 'local';
+
+  if (AGENT_DEPENDENCIES.every((dependency) => manager.get(dependency.id) !== undefined)) return;
+
+  const existing = agentProbePromises.get(hostKey);
+  if (existing) {
+    await existing;
+    return;
+  }
+
+  const promise = manager.probeCategory('agent', options).finally(() => {
+    agentProbePromises.delete(hostKey);
+  });
+  agentProbePromises.set(hostKey, promise);
+  await promise;
 }
