@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/lib/pty/file-link-detection.ts
+  s_0e3a13c763d80c::t_73b2a8a714c8f1 15-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "15f87da50532845984ef23861ac820dd1b1c1e31",
+  "prompts": {},
+  "sessions": {
+    "s_0e3a13c763d80c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "95ac4b34-b90e-4494-8039-eb63cdbb72c7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
