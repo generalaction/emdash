@@ -1,3 +1,4 @@
+import { clearDependencyManager } from '@main/core/dependencies/dependency-managers';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import { runtimeManager } from '@main/core/runtime/runtime-manager';
@@ -104,9 +105,11 @@ export async function provisionBYOITask(
           await ctx.exec('/bin/sh', ['-c', cmd]).catch((e) => {
             log.warn(`${logPrefix}: terminate command failed`, { error: String(e) });
           });
+          clearDependencyManager(connectionId);
           await sshConnectionManager.disconnect(connectionId);
         },
         onDetach: async () => {
+          clearDependencyManager(connectionId);
           await sshConnectionManager.disconnect(connectionId);
         },
       },
