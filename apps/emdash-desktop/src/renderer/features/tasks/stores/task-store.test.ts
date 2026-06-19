@@ -101,7 +101,7 @@ describe('TaskStore frontend runtime lifecycle', () => {
     const task = makeTask();
     const store = createUnprovisionedTask(task);
 
-    store.transitionToProvisioned(task, '/tmp/workspace-1', 'workspace-1', {} as never, 'main');
+    store.transitionToProvisioned(task, '/tmp/workspace-1', 'workspace-1', {} as never);
     const viewModel = mocks.viewModels[0];
     const draftComments = mocks.draftComments[0];
 
@@ -126,7 +126,7 @@ describe('TaskStore frontend runtime lifecycle', () => {
     store.transitionToDryUnprovisioned(task);
     expect(store.viewModel).toBeNull();
 
-    store.transitionToProvisioned(task, '/tmp/workspace-1', 'workspace-1', {} as never, 'main');
+    store.transitionToProvisioned(task, '/tmp/workspace-1', 'workspace-1', {} as never);
 
     expect(mocks.viewModels).toHaveLength(2);
     expect(store.viewModel).toBe(mocks.viewModels[1]);

@@ -1,6 +1,5 @@
 import { ProjectManagerStore } from '@renderer/features/projects/stores/project-manager';
 import { SidebarStore } from '@renderer/features/sidebar/sidebar-store';
-import { DependenciesStore } from './dependencies-store';
 import { NavigationHistoryStore } from './navigation-history-store';
 import { NavigationStore } from './navigation-store';
 import { ResourceMonitorStore } from './resource-monitor-store';
@@ -15,7 +14,6 @@ class AppState {
   readonly snapshots: SnapshotRegistry;
   readonly history: NavigationHistoryStore;
   readonly navigation: NavigationStore;
-  readonly dependencies: DependenciesStore;
   readonly sshConnections: SshConnectionStore;
   readonly resourceMonitor: ResourceMonitorStore;
 
@@ -26,15 +24,15 @@ class AppState {
     this.sidebar = new SidebarStore(this.projects);
     this.history = new NavigationHistoryStore();
     this.navigation = new NavigationStore();
-    this.dependencies = new DependenciesStore();
     this.sshConnections = new SshConnectionStore({
-      onConnectionReady: (connectionId) =>
-        void this.dependencies.refreshAgents(connectionId, { refreshShellEnv: false }),
+      onConnectionReady: (_connectionId) => {
+        // Agent installation statuses for SSH connections are fetched on-demand
+        // via the useAgentInstallationStatuses hook. No explicit refresh needed here.
+      },
     });
     this.resourceMonitor = new ResourceMonitorStore();
     snapshotRegistry.register('navigation', () => this.navigation.snapshot);
     snapshotRegistry.register('sidebar', () => this.sidebar.snapshot);
-    this.dependencies.start();
     this.sshConnections.start();
   }
 }

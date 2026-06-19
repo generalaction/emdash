@@ -7,6 +7,7 @@ import 'katex/dist/katex.min.css';
 import { setupAppCommandProvider } from '@renderer/lib/commands/app-commands';
 import { setupViewCommandProvider } from '@renderer/lib/commands/registry';
 import { wireCommitHistoryInvalidation } from '@renderer/lib/commit-history-invalidation';
+import { wireExternalLinkRequests } from '@renderer/lib/external-link-requests';
 import { rpc } from '@renderer/lib/ipc';
 import { wireModelRegistryInvalidation } from '@renderer/lib/monaco/invalidation-bridges';
 import { codeEditorPool } from '@renderer/lib/monaco/monaco-code-pool';
@@ -26,6 +27,7 @@ async function bootstrap() {
   wireModelRegistryInvalidation(modelRegistry);
   wirePrCacheInvalidation();
   wireCommitHistoryInvalidation();
+  wireExternalLinkRequests();
 
   appState.update.start();
   initSoundPlayer();
@@ -45,6 +47,7 @@ async function bootstrap() {
     rpc.viewState.getAll(),
     appState.projects.load(),
     prefetchAppSettingsKey('interface'),
+    prefetchAppSettingsKey('browser'),
   ]);
 
   viewStateCache.populate(allViewState as Record<string, unknown>);

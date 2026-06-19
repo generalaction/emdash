@@ -1,4 +1,4 @@
-import type { FetchError, PushError } from '@shared/core/git/git';
+import type { FetchError, PushError } from '@shared/core/git/types';
 
 type PushLikeError = PushError | { type: string; message?: string };
 
@@ -7,6 +7,12 @@ export function extractErrorMessage(error: unknown): string {
     return String((error as { message: unknown }).message);
   }
   return 'Unknown error';
+}
+
+export function formatErrorType(error: unknown): string {
+  return error && typeof error === 'object' && 'type' in error
+    ? String((error as { type: unknown }).type)
+    : String(error);
 }
 
 export function splitPath(filePath: string) {

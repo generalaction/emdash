@@ -4,8 +4,7 @@ import * as https from 'node:https';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { log } from '@main/lib/logger';
-import { agentTargets, skillScanPaths } from '@shared/core/skills/agentTargets';
-import type { CatalogIndex, CatalogSkill, DetectedAgent } from '@shared/core/skills/types';
+import type { CatalogIndex, CatalogSkill } from '@shared/core/skills/types';
 import {
   generateSkillMd,
   isValidSkillName,
@@ -184,8 +183,7 @@ export class SkillsService {
     const skills: CatalogSkill[] = [];
     const skillShInstalls = await this.readPrunedSkillShInstalls();
 
-    // Scan all known skill directories (central + agent-specific)
-    const dirsToScan = [SKILLS_ROOT, ...skillScanPaths];
+    const dirsToScan = [SKILLS_ROOT];
 
     for (const dir of dirsToScan) {
       let entries: fs.Dirent[];
@@ -355,9 +353,6 @@ export class SkillsService {
       await fs.promises.rename(tmpDir, skillDir);
       finalDirCreated = true;
 
-      // Sync to agents
-      await this.syncToAgents(installName);
-
       // Persist Skills.SH provenance so the installed skill keeps its source + icon
       if (skill.source === 'skillssh' && skill.sourceRef && skill.catalogSkillId) {
         await this.writeSkillShInstall(installName, {
@@ -398,10 +393,6 @@ export class SkillsService {
     if (!this.isPathInsideSkillsRoot(skillDir)) {
       throw new Error(`Invalid skill install path for "${installName}"`);
     }
-
-    // Remove agent symlinks first. Never delete real directories from agent config paths —
-    // those may be user-managed skills that Emdash only discovered.
-    await this.unsyncFromAgents(installName);
 
     try {
       const stat = await fs.promises.lstat(skillDir);
@@ -452,9 +443,6 @@ export class SkillsService {
 
     await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), skillContent);
 
-    // Sync to agents
-    await this.syncToAgents(name);
-
     // Invalidate cache
     this.catalogCache = null;
 
@@ -469,73 +457,6 @@ export class SkillsService {
       localPath: skillDir,
       skillMdContent: skillContent,
     };
-  }
-
-  async syncToAgents(skillId: string): Promise<void> {
-    const skillDir = path.join(SKILLS_ROOT, skillId);
-    for (const target of agentTargets) {
-      try {
-        // Only sync if the agent's config dir exists (agent is installed)
-        await fs.promises.access(target.configDir);
-        const targetDir = target.getSkillDir(skillId);
-        const parentDir = path.dirname(targetDir);
-        await fs.promises.mkdir(parentDir, { recursive: true });
-
-        await this.removeSyncedAgentSkillLink(targetDir);
-
-        await fs.promises.symlink(skillDir, targetDir, 'junction');
-      } catch (err) {
-        // Agent not installed — expected; log unexpected failures
-        const code = (err as NodeJS.ErrnoException).code;
-        if (code !== 'ENOENT') {
-          log.warn(`Failed to sync skill "${skillId}" to ${target.name}:`, err);
-        }
-      }
-    }
-  }
-
-  async unsyncFromAgents(skillId: string): Promise<void> {
-    const syncPaths = [
-      ...agentTargets.map((target) => target.getSkillDir(skillId)),
-      ...skillScanPaths.map((scanPath) => path.join(scanPath, skillId)),
-    ];
-
-    for (const targetDir of new Set(syncPaths)) {
-      try {
-        const stat = await fs.promises.lstat(targetDir);
-        if (stat.isSymbolicLink()) {
-          // Only remove symlinks that point into our central skills root.
-          const linkTarget = await fs.promises.readlink(targetDir);
-          const resolved = path.resolve(path.dirname(targetDir), linkTarget);
-          if (this.isPathInsideSkillsRoot(resolved)) {
-            await fs.promises.unlink(targetDir);
-          }
-        }
-        // Never rm -rf real directories in agent config — they may be user-managed.
-      } catch {
-        // Doesn't exist or can't remove — skip
-      }
-    }
-  }
-
-  async getDetectedAgents(): Promise<DetectedAgent[]> {
-    const agents: DetectedAgent[] = [];
-    for (const target of agentTargets) {
-      let installed = false;
-      try {
-        await fs.promises.access(target.configDir);
-        installed = true;
-      } catch {
-        // Not installed
-      }
-      agents.push({
-        id: target.id,
-        name: target.name,
-        configDir: target.configDir,
-        installed,
-      });
-    }
-    return agents;
   }
 
   async searchSkillSh(query: string): Promise<CatalogSkill[]> {
@@ -859,22 +780,6 @@ export class SkillsService {
     const [owner, repo] = sourceRef.split('/');
     const installName = `skillssh-${owner}-${repo}-${this.normalizeSkillShSkillId(catalogSkillId)}`;
     return isValidSkillName(installName) ? installName : null;
-  }
-
-  private async removeSyncedAgentSkillLink(targetDir: string): Promise<void> {
-    try {
-      const stat = await fs.promises.lstat(targetDir);
-      if (!stat.isSymbolicLink()) return;
-
-      const linkTarget = await fs.promises.readlink(targetDir);
-      const resolved = path.resolve(path.dirname(targetDir), linkTarget);
-      if (this.isPathInsideSkillsRoot(resolved)) {
-        await fs.promises.unlink(targetDir);
-      }
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code !== 'ENOENT') throw error;
-    }
   }
 
   private toSkillNameSlug(value: string): string {

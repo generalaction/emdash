@@ -22,6 +22,17 @@ const pwshProfile = {
   commandArgs: ['-NoLogo', '-Command'],
 } satisfies ResolvedShellProfile;
 
+const wslProfile = {
+  id: 'wsl',
+  resolvedShellId: 'wsl',
+  resolvedFromSystem: false,
+  executable: 'C:\\Windows\\System32\\wsl.exe',
+  available: true,
+  family: 'wsl',
+  interactiveArgs: [],
+  commandArgs: ['--exec', 'sh', '-lc'],
+} satisfies ResolvedShellProfile;
+
 function posixShellProfile({
   shell,
   family = 'posix',
@@ -60,6 +71,21 @@ describe('resolveLocalPtySpawn - Windows', () => {
 
     expect(result).toEqual({
       command: 'C:\\Windows\\System32\\cmd.exe',
+      args: [],
+      cwd: 'C:\\repo',
+      warnings: [],
+    });
+  });
+
+  it('uses selected WSL profiles for interactive shells without POSIX flags', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'win32',
+      env: winEnv,
+      intent: { kind: 'interactive-shell', cwd: 'C:\\repo', shellProfile: wslProfile },
+    });
+
+    expect(result).toEqual({
+      command: 'C:\\Windows\\System32\\wsl.exe',
       args: [],
       cwd: 'C:\\repo',
       warnings: [],
@@ -291,6 +317,26 @@ describe('resolveLocalPtySpawn - Windows', () => {
     expect(result).toEqual({
       command: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
       args: ['-NoLogo', '-Command', 'pnpm run dev'],
+      cwd: 'C:\\repo',
+      warnings: [],
+    });
+  });
+
+  it('runs argv commands through selected WSL shells', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'win32',
+      env: winEnv,
+      intent: {
+        kind: 'run-command',
+        cwd: 'C:\\repo',
+        shellProfile: wslProfile,
+        command: { kind: 'argv', command: 'node', args: ['script name.js'] },
+      },
+    });
+
+    expect(result).toEqual({
+      command: 'C:\\Windows\\System32\\wsl.exe',
+      args: ['--exec', 'sh', '-lc', "node 'script name.js'"],
       cwd: 'C:\\repo',
       warnings: [],
     });

@@ -11,7 +11,22 @@ import { SshConversationProvider } from './ssh-conversation';
 
 const spawnLocalPty = vi.hoisted(() => vi.fn());
 const openSsh2Pty = vi.hoisted(() => vi.fn());
-const hookConfigWriteForProvider = vi.hoisted(() => vi.fn(async () => false));
+const buildCommandMock = vi.hoisted(() =>
+  vi.fn((_ctx: Record<string, unknown>) => ({
+    command: 'agent',
+    args: [] as string[],
+    env: {} as Record<string, string>,
+  }))
+);
+const installPluginMock = vi.hoisted(() => vi.fn(async () => []));
+const writeHooksMock = vi.hoisted(() => vi.fn(async () => []));
+
+vi.mock('@main/core/dependencies/host-dependency-store', () => ({
+  hostDependencyStore: {
+    getSelection: vi.fn().mockResolvedValue(null),
+    setSelection: vi.fn().mockResolvedValue(undefined),
+  },
+}));
 
 vi.mock('@main/core/agent-hooks/agent-hook-service', () => ({
   agentHookService: {
@@ -20,17 +35,51 @@ vi.mock('@main/core/agent-hooks/agent-hook-service', () => ({
   },
 }));
 
-vi.mock('@main/core/agent-hooks/claude-trust-service', () => ({
-  claudeTrustService: {
+vi.mock('@main/core/agent-hooks/workspace-trust-service', () => ({
+  workspaceTrustService: {
     maybeAutoTrustLocal: vi.fn(),
     maybeAutoTrustSsh: vi.fn(),
   },
 }));
 
-vi.mock('@main/core/agent-hooks/hook-config', () => ({
-  HookConfigWriter: class {
-    writeForProvider = hookConfigWriteForProvider;
-  },
+vi.mock('@main/core/agents/plugin-registry', () => ({
+  getPlugin: vi.fn((id: string) => ({
+    metadata: { id },
+    capabilities: {
+      hostDependency: { binaryNames: [id] },
+      hooks:
+        id === 'opencode'
+          ? { kind: 'plugin', scope: 'workspace', supportedEvents: [] }
+          : { kind: 'none' },
+      prompt: { kind: 'argv', flag: '' },
+    },
+    behavior: {
+      prompt: { buildCommand: buildCommandMock },
+      hooks: {
+        writeHooks: writeHooksMock,
+        deleteHooks: vi.fn(),
+        readHooks: vi.fn(),
+        getHooksInstalled: vi.fn(),
+      },
+      plugins: {
+        installPlugin: installPluginMock,
+        uninstallPlugin: vi.fn(),
+        isPluginInstalled: vi.fn(),
+        getPluginVersion: vi.fn(),
+        getPluginPath: vi.fn(),
+      },
+    },
+  })),
+}));
+
+vi.mock('@main/core/agents/plugin-fs', () => ({
+  createPluginFs: vi.fn(() => ({
+    read: vi.fn(async () => null),
+    write: vi.fn(async () => {}),
+    delete: vi.fn(async () => {}),
+    exists: vi.fn(async () => false),
+    list: vi.fn(async () => []),
+  })),
 }));
 
 vi.mock('@main/core/pty/local-pty', () => ({
@@ -45,16 +94,8 @@ vi.mock('@main/core/pty/ssh2-pty', () => ({
   openSsh2Pty,
 }));
 
-vi.mock('./agent-command', () => ({
-  buildAgentSessionCommand: vi.fn(() => ({ command: 'agent', args: [] })),
-}));
-
 vi.mock('./keystroke-injection', () => ({
   scheduleInitialPromptInjection: vi.fn(),
-}));
-
-vi.mock('./provider-env', () => ({
-  resolveProviderEnv: vi.fn(() => ({})),
 }));
 
 vi.mock('@main/lib/events', () => ({
@@ -74,6 +115,20 @@ vi.mock('@main/core/settings/provider-settings-service', () => ({
   providerOverrideSettings: {
     getItem: vi.fn(async () => undefined),
   },
+}));
+
+vi.mock('@main/core/dependencies/dependency-managers', () => ({
+  localDependencyManager: {
+    get: vi.fn(() => undefined),
+  },
+  getDependencyManager: vi.fn(async () => ({
+    get: vi.fn(() => undefined),
+  })),
+}));
+
+vi.mock('./resolve-agent-executable', () => ({
+  resolveAgentExecutable: vi.fn(async ({ binaryName }: { binaryName: string }) => binaryName),
+  clearResolvedPathCache: vi.fn(),
 }));
 
 vi.mock('@main/core/settings/settings-service', () => ({
@@ -98,7 +153,6 @@ vi.mock('@main/core/settings/settings-service', () => ({
 const { events } = await import('@main/lib/events');
 const { agentHookService } = await import('@main/core/agent-hooks/agent-hook-service');
 const { appSettingsService } = await import('@main/core/settings/settings-service');
-const { buildAgentSessionCommand } = await import('./agent-command');
 
 type RespawnState = {
   knownSessionIds: Set<string>;
@@ -194,13 +248,16 @@ describe('conversation provider respawn state', () => {
     vi.useRealTimers();
     spawnLocalPty.mockReset();
     openSsh2Pty.mockReset();
-    hookConfigWriteForProvider.mockReset();
-    hookConfigWriteForProvider.mockResolvedValue(false);
+    buildCommandMock.mockReset();
+    buildCommandMock.mockReturnValue({ command: 'agent', args: [], env: {} });
+    installPluginMock.mockReset();
+    installPluginMock.mockResolvedValue([]);
+    writeHooksMock.mockReset();
+    writeHooksMock.mockResolvedValue([]);
     mockSettings();
     vi.mocked(events.emit).mockClear();
     vi.mocked(agentHookService.getPort).mockReturnValue(0);
     vi.mocked(agentHookService.getToken).mockReturnValue('token');
-    vi.mocked(buildAgentSessionCommand).mockClear();
     ptySessionRegistry.unregister('project-1:task-1:conversation-1');
   });
 
@@ -282,16 +339,15 @@ describe('conversation provider respawn state', () => {
   });
 
   it('prepares OpenCode hooks when hook config is available', async () => {
-    hookConfigWriteForProvider.mockResolvedValue(true);
-    vi.mocked(agentHookService.getPort).mockReturnValue(1234);
     const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
     spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
     const item = { ...conversation(), providerId: 'opencode' as const };
 
     await localProvider().startSession(item);
 
-    expect(hookConfigWriteForProvider).toHaveBeenCalledWith('opencode', {
-      writeGitIgnoreEntries: true,
+    expect(installPluginMock).toHaveBeenCalledWith(expect.anything(), {
+      kind: 'workspace',
+      path: '/tmp/task-1',
     });
   });
 
@@ -314,7 +370,7 @@ describe('conversation provider respawn state', () => {
       await vi.advanceTimersByTimeAsync(500);
 
       expect(spawnLocalPty).toHaveBeenCalledTimes(2);
-      expect(buildAgentSessionCommand).toHaveBeenLastCalledWith(
+      expect(buildCommandMock).toHaveBeenLastCalledWith(
         expect.objectContaining({ isResuming: false })
       );
     } finally {
@@ -373,7 +429,7 @@ describe('conversation provider respawn state', () => {
       await vi.advanceTimersByTimeAsync(500);
 
       expect(spawnLocalPty).toHaveBeenCalledTimes(3);
-      expect(buildAgentSessionCommand).toHaveBeenLastCalledWith(
+      expect(buildCommandMock).toHaveBeenLastCalledWith(
         expect.objectContaining({ isResuming: true })
       );
     } finally {
@@ -400,7 +456,7 @@ describe('conversation provider respawn state', () => {
       await vi.advanceTimersByTimeAsync(500);
 
       expect(openSsh2Pty).toHaveBeenCalledTimes(2);
-      expect(buildAgentSessionCommand).toHaveBeenLastCalledWith(
+      expect(buildCommandMock).toHaveBeenLastCalledWith(
         expect.objectContaining({ isResuming: false })
       );
     } finally {
@@ -516,9 +572,11 @@ describe('conversation provider respawn state', () => {
       }
 
       expect(spawnLocalPty).toHaveBeenCalledTimes(3);
-      expect(
-        vi.mocked(buildAgentSessionCommand).mock.calls.map(([args]) => args.isResuming)
-      ).toEqual([false, true, false]);
+      expect(buildCommandMock.mock.calls.map(([args]) => args.isResuming)).toEqual([
+        false,
+        true,
+        false,
+      ]);
     } finally {
       vi.useRealTimers();
     }
@@ -544,9 +602,11 @@ describe('conversation provider respawn state', () => {
       }
 
       expect(openSsh2Pty).toHaveBeenCalledTimes(3);
-      expect(
-        vi.mocked(buildAgentSessionCommand).mock.calls.map(([args]) => args.isResuming)
-      ).toEqual([false, true, false]);
+      expect(buildCommandMock.mock.calls.map(([args]) => args.isResuming)).toEqual([
+        false,
+        true,
+        false,
+      ]);
     } finally {
       vi.useRealTimers();
     }
@@ -719,9 +779,12 @@ describe('conversation provider respawn state', () => {
 
       expect(proxy.refreshRemoteShellProfile).toHaveBeenCalledTimes(1);
       expect(openSsh2Pty).toHaveBeenCalledTimes(4);
-      expect(
-        vi.mocked(buildAgentSessionCommand).mock.calls.map(([args]) => args.isResuming)
-      ).toEqual([true, false, false, true]);
+      expect(buildCommandMock.mock.calls.map(([args]) => args.isResuming)).toEqual([
+        true,
+        false,
+        false,
+        true,
+      ]);
     } finally {
       vi.useRealTimers();
     }

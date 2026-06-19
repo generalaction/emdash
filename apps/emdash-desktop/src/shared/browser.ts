@@ -1,5 +1,21 @@
 export const BROWSER_PARTITION_PREFIX = 'persist:emdash-browser';
 
+export const DEFAULT_BROWSER_PROFILE_ID = 'default';
+export const BROWSER_ISOLATED_PROFILE_ID = 'isolated-per-task';
+
+export type BrowserProfile = {
+  id: string;
+  name: string;
+};
+
+export const DEFAULT_BROWSER_PROFILES: BrowserProfile[] = [
+  { id: DEFAULT_BROWSER_PROFILE_ID, name: 'Default' },
+];
+
+export type BrowserProfileSelection = string;
+
+export const BROWSER_PROFILE_PARTITION = `${BROWSER_PARTITION_PREFIX}-profile`;
+
 export type BrowserNavigationProtocol = 'about:' | 'file:' | 'http:' | 'https:';
 
 export type BrowserUrlNormalizeResult =
@@ -31,6 +47,7 @@ export type BrowserLoadError = {
 };
 
 export type BrowserSessionSnapshot = BrowserSessionIdentity & {
+  profileId: BrowserProfileSelection;
   partition: string;
   currentUrl: string;
   title: string;
@@ -176,28 +193,72 @@ export function makeBrowserSessionIdentity(input: {
   };
 }
 
-export function deriveBrowserPartition(identity: BrowserSessionIdentity): string {
+export function browserProfilePartition(profileId: string): string {
+  if (profileId === DEFAULT_BROWSER_PROFILE_ID) return BROWSER_PROFILE_PARTITION;
+  return `${BROWSER_PARTITION_PREFIX}-profile-${profileId}`;
+}
+
+export function makeIsolatedBrowserPartition(identity: BrowserSessionIdentity): string {
   return [
     BROWSER_PARTITION_PREFIX,
-    sanitizePartitionPart(identity.projectId),
-    sanitizePartitionPart(identity.workspaceId),
-    sanitizePartitionPart(identity.taskId),
-    sanitizePartitionPart(identity.browserId),
+    'isolated',
+    partitionComponent(identity.projectId),
+    partitionComponent(identity.workspaceId),
+    partitionComponent(identity.taskId),
   ].join('-');
+}
+
+export function browserPartitionForProfile(
+  identity: BrowserSessionIdentity,
+  profileId: BrowserProfileSelection
+): string {
+  if (profileId === BROWSER_ISOLATED_PROFILE_ID) return makeIsolatedBrowserPartition(identity);
+  return browserProfilePartition(profileId);
+}
+
+export function isNamedBrowserProfileId(value: string): boolean {
+  return value !== BROWSER_ISOLATED_PROFILE_ID && /^[a-z0-9][a-z0-9-]{0,63}$/.test(value);
+}
+
+export function normalizeBrowserProfileSelection(
+  profileId: string | undefined,
+  profiles?: readonly BrowserProfile[]
+): BrowserProfileSelection {
+  if (profileId === BROWSER_ISOLATED_PROFILE_ID) {
+    return profileId;
+  }
+  if (profileId && isNamedBrowserProfileId(profileId)) {
+    if (!profiles || profiles.some((profile) => profile.id === profileId)) return profileId;
+  }
+  return (
+    profiles?.find((profile) => isNamedBrowserProfileId(profile.id))?.id ??
+    DEFAULT_BROWSER_PROFILE_ID
+  );
+}
+
+export function browserProfileLabel(
+  profileId: string,
+  profiles: readonly BrowserProfile[]
+): string {
+  if (profileId === BROWSER_ISOLATED_PROFILE_ID) return 'Isolated per task';
+  return profiles.find((profile) => profile.id === profileId)?.name ?? profileId;
 }
 
 export function createBrowserSessionSnapshot(input: {
   identity: BrowserSessionIdentity;
+  profileId?: BrowserProfileSelection;
   currentUrl?: string;
   now?: number;
 }): BrowserSessionSnapshot {
   const now = input.now ?? Date.now();
+  const profileId = normalizeBrowserProfileSelection(input.profileId);
   const normalized = normalizeBrowserUrl(input.currentUrl ?? BROWSER_DEFAULT_URL, {
     allowSearchQueries: false,
   });
   return {
     ...input.identity,
-    partition: deriveBrowserPartition(input.identity),
+    profileId,
+    partition: browserPartitionForProfile(input.identity, profileId),
     currentUrl: normalized.ok ? normalized.url : BROWSER_DEFAULT_URL,
     title: '',
     isLoading: false,
@@ -207,6 +268,14 @@ export function createBrowserSessionSnapshot(input: {
     createdAt: now,
     updatedAt: now,
   };
+}
+
+function partitionComponent(value: string): string {
+  const safe = value
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return safe || 'unknown';
 }
 
 function browserSearchUrl(query: string): string {
@@ -264,14 +333,4 @@ function isLocalhostLike(input: string): boolean {
     hostLike.endsWith('.localhost') ||
     hostLike.includes('.localhost:')
   );
-}
-
-function sanitizePartitionPart(value: string): string {
-  const sanitized = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-  return sanitized.length > 0 ? sanitized : 'unknown';
 }

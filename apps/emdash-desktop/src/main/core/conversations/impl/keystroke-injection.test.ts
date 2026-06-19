@@ -112,6 +112,20 @@ describe('scheduleInitialPromptInjection', () => {
     expect(write).not.toHaveBeenCalled();
   });
 
+  it('does nothing for Grok because its initial prompt is passed as a positional arg', () => {
+    const { pty, write, emitData } = makePty();
+    scheduleInitialPromptInjection({
+      pty,
+      conversation: makeConversation('grok'),
+      initialPrompt: 'Fix the bug',
+      isResuming: false,
+    });
+
+    emitData('ready');
+    vi.advanceTimersByTime(20_000);
+    expect(write).not.toHaveBeenCalled();
+  });
+
   it('does nothing for providers without keystroke injection', () => {
     const { pty, write, emitData } = makePty();
     scheduleInitialPromptInjection({

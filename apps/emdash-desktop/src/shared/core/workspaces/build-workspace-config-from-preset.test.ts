@@ -1,12 +1,12 @@
+import type { GitBranchRef } from '@emdash/core/git';
 import { describe, expect, it } from 'vitest';
-import type { Branch } from '@shared/core/git/git';
 import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 import { buildWorkspaceConfigFromPreset } from './build-workspace-config-from-preset';
 import type { PresetContext } from './workspace-presets';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
-const mainBranch: Branch = { type: 'local', branch: 'main' };
+const mainBranch: GitBranchRef = { type: 'local', branch: 'main' };
 
 function makePR(
   overrides: Partial<
@@ -64,7 +64,7 @@ describe('new-worktree preset', () => {
   });
 
   it('uses overrides.fromBranch when provided', () => {
-    const remote: Branch = {
+    const remote: GitBranchRef = {
       type: 'remote',
       branch: 'develop',
       remote: { name: 'origin', url: 'u' },

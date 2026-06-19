@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@shared/lib/result';
+import { err, ok, type Result } from '@emdash/shared';
 
 export type LifecycleStatus<E> =
   | { status: 'ready' | 'bootstrapping' | 'not-started' }

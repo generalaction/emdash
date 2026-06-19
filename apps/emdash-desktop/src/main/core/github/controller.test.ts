@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { githubAuthErrorChannel, githubAuthSuccessChannel } from '@shared/events/githubEvents';
 
 const mocks = vi.hoisted(() => ({
+  cloneProjectRepository: vi.fn(),
   emit: vi.fn(),
+  initializeProjectRepository: vi.fn(),
   listAccounts: vi.fn(),
   logError: vi.fn(),
   startDeviceFlow: vi.fn(),
@@ -30,13 +32,9 @@ vi.mock('@main/core/github/services/repo-service', () => ({
   repoService: {},
 }));
 
-vi.mock('@main/core/ssh/lifecycle/production-ssh-connection-manager', () => ({
-  sshConnectionManager: {},
-}));
-
-vi.mock('@main/core/git/impl/git-repo-utils', () => ({
-  cloneRepository: vi.fn(),
-  initializeNewProject: vi.fn(),
+vi.mock('@main/core/projects/operations/git-repository-setup', () => ({
+  cloneProjectRepository: mocks.cloneProjectRepository,
+  initializeProjectRepository: mocks.initializeProjectRepository,
 }));
 
 vi.mock('@main/lib/events', () => ({
@@ -163,5 +161,46 @@ describe('githubController auth', () => {
       message: 'Failed to register GitHub account',
     });
     expect(mocks.telemetryCapture).not.toHaveBeenCalled();
+  });
+});
+
+describe('githubController git runtime operations', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  it('delegates repository clones to the project setup operation', async () => {
+    mocks.cloneProjectRepository.mockResolvedValue({ success: true });
+
+    const { githubController } = await import('./controller');
+
+    await expect(
+      githubController.cloneRepository('https://github.com/acme/repo.git', '/work/repo')
+    ).resolves.toEqual({ success: true });
+    expect(mocks.cloneProjectRepository).toHaveBeenCalledWith({
+      repositoryUrl: 'https://github.com/acme/repo.git',
+      targetPath: '/work/repo',
+      connectionId: undefined,
+    });
+  });
+
+  it('delegates project initialization to the project setup operation', async () => {
+    mocks.initializeProjectRepository.mockResolvedValue({ success: true });
+
+    const { githubController } = await import('./controller');
+
+    await expect(
+      githubController.initializeProject({
+        targetPath: '/work/repo',
+        name: 'Repo',
+        description: 'Description',
+      })
+    ).resolves.toEqual({ success: true });
+    expect(mocks.initializeProjectRepository).toHaveBeenCalledWith({
+      targetPath: '/work/repo',
+      name: 'Repo',
+      description: 'Description',
+    });
   });
 });

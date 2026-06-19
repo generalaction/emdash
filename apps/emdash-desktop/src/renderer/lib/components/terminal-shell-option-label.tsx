@@ -9,6 +9,7 @@ const SHELL_DEVICON_CLASS: Partial<Record<string, string>> = {
   cmd: 'devicon-windows11-plain',
   powershell: 'devicon-powershell-plain',
   pwsh: 'devicon-powershell-plain',
+  wsl: 'devicon-linux-plain',
   zsh: 'devicon-zsh-plain',
 };
 
@@ -54,7 +55,7 @@ export function TerminalShellOptionLabel({
 }) {
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2">
-      <TerminalShellIcon shell={entry.label} />
+      <TerminalShellIcon shell={entry.id === 'system' ? entry.label : entry.id} />
       <span className="truncate">{entry.label}</span>
       {showSystemBadge && entry.isSystemDefault ? (
         <Badge className="text-foreground-muted">system</Badge>

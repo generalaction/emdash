@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@shared/lib/result';
+import { err, ok, type Result } from '@emdash/shared';
 import { normalizeRepositoryHost } from '@shared/repository-ref';
 import type { GitHubAccount } from '../accounts/github-account-registry';
 import {

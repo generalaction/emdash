@@ -322,8 +322,12 @@ export const AddProjectModal = observer(function AddProjectModal({
       }
 
       void result.completion
-        .then(() => {
-          void maybeShowProjectConfigImportPrompt(result.projectId);
+        .then((completion) => {
+          if (completion.success) {
+            void maybeShowProjectConfigImportPrompt(result.projectId);
+            return;
+          }
+          log.error(completion.error);
         })
         .catch((error) => {
           log.error(error);

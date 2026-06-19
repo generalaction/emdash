@@ -6,6 +6,7 @@ import {
   type BrowserDataClearKind,
   type BrowserSessionSnapshot,
 } from '@shared/browser';
+import type { BrowserWebviewAdapter } from './browser-webview-types';
 
 export function openBrowserUrlExternally(url: string): void {
   if (!canOpenBrowserUrlExternally(url)) return;
@@ -60,16 +61,16 @@ export function clearBrowserData(
 
 export function confirmClearBrowserStorage(
   session: BrowserSessionSnapshot,
-  onSuccess: () => void
+  adapter: BrowserWebviewAdapter | null,
+  profileLabel = 'this browser profile'
 ): void {
   showModal('confirmActionModal', {
     title: 'Clear browser storage?',
-    description:
-      'This clears cookies, local storage, IndexedDB, and cache for this browser session only.',
+    description: `This clears cookies, local storage, IndexedDB, and cache for ${profileLabel}. Browser tabs using the same storage boundary will be signed out.`,
     confirmLabel: 'Clear Storage',
     variant: 'destructive',
     onSuccess: () => {
-      void clearBrowserData(session, 'storage', onSuccess);
+      void clearBrowserData(session, 'storage', () => adapter?.reload());
     },
   });
 }

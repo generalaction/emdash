@@ -76,9 +76,13 @@ describe('GitHubAuthServerAdapter', () => {
       },
     };
 
-    await adapter.storeOAuthToken(payload);
+    const result = await adapter.storeOAuthToken(payload);
 
     const accounts = await registry.listAccounts();
+    expect(result).toMatchObject({
+      providerAccountStatus: 'created',
+      providerAccount: payload.providerAccount,
+    });
     expect(accounts).toHaveLength(1);
     expect(accounts[0]).toMatchObject({
       id: 'github.com:42',
@@ -100,9 +104,13 @@ describe('GitHubAuthServerAdapter', () => {
       },
     };
 
-    await adapter.storeOAuthToken(payload);
+    const result = await adapter.storeOAuthToken(payload);
 
     const accounts = await registry.listAccounts();
+    expect(result).toMatchObject({
+      providerAccountStatus: 'created',
+      providerAccount: payload.providerAccount,
+    });
     expect(accounts).toHaveLength(1);
     expect(accounts[0]).toMatchObject({
       id: 'github.com:84',
@@ -116,5 +124,30 @@ describe('GitHubAuthServerAdapter', () => {
     await adapter.storeOAuthToken({ accessToken: 'gho_legacy' });
 
     await expect(registry.listAccounts()).resolves.toEqual([]);
+  });
+
+  it('reports updated when the OAuth account already exists', async () => {
+    const payload: ProviderTokenPayload = {
+      accessToken: 'gho_monalisa',
+      providerAccount: {
+        providerId: 'github',
+        providerAccountId: '42',
+        host: 'github.com',
+        login: 'monalisa',
+        avatarUrl: 'https://avatars.githubusercontent.com/u/42',
+      },
+    };
+
+    await adapter.storeOAuthToken(payload);
+    const result = await adapter.storeOAuthToken({
+      ...payload,
+      accessToken: 'gho_refreshed',
+    });
+
+    expect(result).toMatchObject({
+      providerAccountStatus: 'updated',
+      providerAccount: payload.providerAccount,
+    });
+    await expect(registry.resolveToken('github.com:42')).resolves.toBe('gho_refreshed');
   });
 });

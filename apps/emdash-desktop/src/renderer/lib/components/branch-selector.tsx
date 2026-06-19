@@ -1,3 +1,4 @@
+import type { GitBranchRef, GitRemote } from '@emdash/core/git';
 import { GitBranch, RefreshCw } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { Badge } from '@renderer/lib/ui/badge';
@@ -15,7 +16,6 @@ import { InputGroupButton } from '@renderer/lib/ui/input-group';
 import { Select, SelectTrigger } from '@renderer/lib/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
-import { type Branch, type Remote } from '@shared/core/git/git';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import {
   filterBranchesForPicker,
@@ -29,15 +29,15 @@ type BranchSelectorTab = 'local' | 'remote';
 export { getBranchLabel, type BranchLabelRemoteMode } from './branch-selector-utils';
 
 interface BranchSelectorProps {
-  branches: Branch[];
-  value?: Branch;
-  onValueChange: (value: Branch) => void;
+  branches: GitBranchRef[];
+  value?: GitBranchRef;
+  onValueChange: (value: GitBranchRef) => void;
   remoteOnly?: boolean;
   branchLabelRemote?: BranchLabelRemoteMode;
   trigger?: React.ReactNode;
   onRefresh?: () => void;
   isRefreshing?: boolean;
-  remotes?: Remote[];
+  remotes?: GitRemote[];
   selectedRemoteName?: string;
 }
 

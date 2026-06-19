@@ -142,7 +142,7 @@ export function useLatestAutomationRun(automationId: string) {
       if (id !== automationId) return;
       queryClient.setQueryData(key, run);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [automationId, queryClient]);
 
   return useQuery({

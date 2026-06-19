@@ -15,6 +15,7 @@ export type BrowserWebviewElement = HTMLElement & {
   canGoForward(): boolean;
   getURL(): string;
   getTitle(): string;
+  getWebContentsId(): number;
   goBack(): void;
   goForward(): void;
   reload(): void;

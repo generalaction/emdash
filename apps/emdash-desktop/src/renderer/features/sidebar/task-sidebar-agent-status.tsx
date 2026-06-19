@@ -2,11 +2,7 @@ import { observer } from 'mobx-react-lite';
 import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
 import { CLISpinner } from '@renderer/features/tasks/components/cliSpinner';
 import { taskAgentStatus } from '@renderer/features/tasks/stores/task-selectors';
-import {
-  isUnprovisioned,
-  isUnregistered,
-  type TaskStore,
-} from '@renderer/features/tasks/stores/task-store';
+import { type TaskStore } from '@renderer/features/tasks/stores/task-store';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { sidebarStore } from '@renderer/lib/stores/app-state';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
@@ -31,10 +27,7 @@ export const TaskSidebarTrailingSlot = observer(function TaskSidebarTrailingSlot
   task: TaskStore;
   showTimestamp: boolean;
 }) {
-  const isBootstrapping =
-    isUnregistered(task) ||
-    (isUnprovisioned(task) && (task.phase === 'provision' || task.phase === 'provision-error'));
-  const delayedIsBootstrapping = useDelayedBoolean(isBootstrapping, 500);
+  const delayedIsBootstrapping = useDelayedBoolean(task.isBootstrapping, 500);
 
   if (delayedIsBootstrapping) {
     return (

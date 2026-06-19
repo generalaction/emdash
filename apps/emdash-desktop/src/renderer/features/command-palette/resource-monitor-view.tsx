@@ -2,9 +2,8 @@ import { Activity, ArrowLeft, Check, Copy, Folder, GitBranch, Terminal, X } from
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
-import AgentLogo from '@renderer/lib/components/agent-logo';
+import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { rpc } from '@renderer/lib/ipc';
-import { agentMeta } from '@renderer/lib/providers/meta';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatBytes } from '@renderer/utils/formatBytes';
@@ -162,7 +161,6 @@ function TaskRow({ task }: { task: TaskBucket }) {
 
 function AgentRow({ entry }: { entry: Entry }) {
   const norm = appState.resourceMonitor.normalizedCpu(entry);
-  const meta = entry.providerId ? agentMeta[entry.providerId] : undefined;
   const label = entryLabel(entry);
   const [armed, setArmed] = useState(false);
 
@@ -171,18 +169,9 @@ function AgentRow({ entry }: { entry: Entry }) {
       className="group/agent flex items-center gap-2 rounded-md px-2 py-1 hover:bg-background-2"
       title={entry.sessionId}
     >
-      {meta?.icon ? (
-        <span className="flex size-4 shrink-0 items-center justify-center">
-          <AgentLogo
-            logo={meta.icon}
-            logoDark={meta.iconDark}
-            alt={meta.label ?? meta.alt ?? ''}
-            isSvg={meta.isSvg}
-            invertInDark={meta.invertInDark}
-            className="h-3.5 w-3.5"
-          />
-        </span>
-      ) : isLifecycleScriptEntry(entry) || !entry.providerId ? (
+      {entry.providerId ? (
+        <AgentIcon id={entry.providerId} size={14} className="size-4" />
+      ) : isLifecycleScriptEntry(entry) ? (
         <span className="flex size-4 shrink-0 items-center justify-center">
           <Terminal size={12} className="text-foreground/40" />
         </span>

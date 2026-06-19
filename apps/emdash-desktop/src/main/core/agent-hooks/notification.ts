@@ -34,9 +34,6 @@ function getNotificationBody(event: AgentEvent): string | null {
   if (event.type === 'notification') {
     const { notificationType } = event.payload;
     if (!notificationType) return null;
-    if (event.providerId === 'codex' && notificationType === 'idle_prompt') {
-      return 'Your agent has finished working';
-    }
     if (isAttentionNotification(notificationType)) {
       return 'Your agent is waiting for input';
     }

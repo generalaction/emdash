@@ -1,3 +1,4 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
 import type { IssueProvider } from '@main/core/issues/issue-provider';
 import type { LinkedIssue } from '@shared/core/linked-issue';
@@ -6,7 +7,6 @@ import {
   type IssueListError,
   type IssueListResult,
 } from '@shared/issue-providers';
-import { err, ok, type Result } from '@shared/lib/result';
 import type { RepositoryRef } from '@shared/repository-ref';
 import { githubAccountRegistry } from './accounts/github-account-registry-instance';
 import type { GitHubApiAuthContext } from './services/github-api-auth-service';

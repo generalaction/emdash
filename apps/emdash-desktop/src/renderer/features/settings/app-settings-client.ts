@@ -15,7 +15,7 @@ export function appSettingsMetaQueryKey<K extends AppSettingsKey>(key: K) {
 }
 
 const appSettingsGcTime = <K extends AppSettingsKey>(key: K) =>
-  key === 'interface' ? Infinity : undefined;
+  key === 'interface' || key === 'browser' ? Infinity : undefined;
 
 const appSettingsAllQueryKey = ['appSettings', 'all'] as const;
 

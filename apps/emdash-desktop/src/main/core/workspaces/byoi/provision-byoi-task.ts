@@ -1,11 +1,16 @@
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
+import { runtimeManager } from '@main/core/runtime/runtime-manager';
+import type { MachineRef } from '@main/core/runtime/types';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { buildTaskFromWorkspace, emitTaskProvisionProgress } from '@main/core/tasks/task-builder';
 import { resolveBYOISshConnectConfig } from '@main/core/workspaces/byoi/byoi-ssh-connect-config';
 import { parseProvisionOutput } from '@main/core/workspaces/byoi/provision-output';
 import type { WorkspaceBootstrapResult } from '@main/core/workspaces/workspace-bootstrap-service';
-import { createWorkspaceFactory } from '@main/core/workspaces/workspace-factory';
+import {
+  createWorkspaceFactory,
+  type WorkspaceType,
+} from '@main/core/workspaces/workspace-factory';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
@@ -74,36 +79,38 @@ export async function provisionBYOITask(
 
   const workDir = output.worktreePath ?? projectPath;
   const { workspaceId } = params;
+  const workspaceType: WorkspaceType = { kind: 'ssh', proxy, connectionId };
+  const workspaceMachine: MachineRef = { kind: 'ssh', connectionId };
 
   const workspace = await workspaceRegistry.acquire(
     workspaceId,
     projectId,
-    createWorkspaceFactory(
-      workspaceId,
-      { kind: 'ssh', proxy, connectionId },
-      {
-        task,
-        workDir,
-        projectId,
-        projectPath,
-        settings,
-        logPrefix,
-        extraHooks: {
-          onDestroy: async () => {
-            const cmd = output.id
-              ? `REMOTE_WORKSPACE_ID=${quoteShellArg(output.id)} ${wpConfig.terminateCommand}`
-              : wpConfig.terminateCommand;
-            await ctx.exec('/bin/sh', ['-c', cmd]).catch((e) => {
-              log.warn(`${logPrefix}: terminate command failed`, { error: String(e) });
-            });
-            await sshConnectionManager.disconnect(connectionId);
-          },
-          onDetach: async () => {
-            await sshConnectionManager.disconnect(connectionId);
-          },
+    createWorkspaceFactory(workspaceId, workspaceType, {
+      task,
+      workDir,
+      projectId,
+      projectPath,
+      workspaceRuntime: {
+        machine: workspaceMachine,
+        manager: runtimeManager,
+      },
+      settings,
+      logPrefix,
+      extraHooks: {
+        onDestroy: async () => {
+          const cmd = output.id
+            ? `REMOTE_WORKSPACE_ID=${quoteShellArg(output.id)} ${wpConfig.terminateCommand}`
+            : wpConfig.terminateCommand;
+          await ctx.exec('/bin/sh', ['-c', cmd]).catch((e) => {
+            log.warn(`${logPrefix}: terminate command failed`, { error: String(e) });
+          });
+          await sshConnectionManager.disconnect(connectionId);
         },
-      }
-    )
+        onDetach: async () => {
+          await sshConnectionManager.disconnect(connectionId);
+        },
+      },
+    })
   );
 
   let provisionSucceeded = false;
@@ -117,7 +124,7 @@ export async function provisionBYOITask(
     const { taskProvider } = await buildTaskFromWorkspace(
       task,
       workspace,
-      { kind: 'ssh', proxy, connectionId },
+      workspaceType,
       projectId,
       projectPath,
       settings

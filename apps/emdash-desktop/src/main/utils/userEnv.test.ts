@@ -3,16 +3,27 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const execSyncMock = vi.fn();
+const spawnSyncMock = vi.fn();
 
 vi.mock('node:child_process', () => ({
-  execSync: execSyncMock,
+  spawnSync: spawnSyncMock,
 }));
 
 const { ensureUserBinDirsInPath, ensureWindowsNpmGlobalBinInPath, resolveUserEnv } =
   await import('./userEnv');
 
 const originalPath = process.env.PATH;
+
+function mockShellCapture(stdout: string): void {
+  spawnSyncMock.mockImplementationOnce(() => {
+    return {
+      error: undefined,
+      status: 0,
+      stderr: '',
+      stdout,
+    };
+  });
+}
 
 afterEach(() => {
   process.env.PATH = originalPath;
@@ -69,8 +80,8 @@ describe('resolveUserEnv (AppImage env scrub)', () => {
   > = {};
 
   beforeEach(() => {
-    execSyncMock.mockReset();
-    execSyncMock.mockReturnValue('');
+    spawnSyncMock.mockReset();
+    mockShellCapture('');
     for (const key of [...SCRUBBED_KEYS, ...PATH_LIKE_KEYS]) {
       savedEnv[key] = process.env[key];
     }
@@ -84,7 +95,8 @@ describe('resolveUserEnv (AppImage env scrub)', () => {
   });
 
   it('strips AppImage runtime vars and /tmp/.mount_* path entries from the probe shell env and final PATH', async () => {
-    execSyncMock.mockReturnValue('PATH=/usr/local/bin:/usr/bin\n');
+    spawnSyncMock.mockReset();
+    mockShellCapture('PATH=/usr/local/bin:/usr/bin\n');
     process.env.APPIMAGE = '/home/user/emdash.AppImage';
     process.env.APPDIR = '/tmp/.mount_emdashTest';
     process.env.ARGV0 = '/home/user/emdash.AppImage';
@@ -97,9 +109,17 @@ describe('resolveUserEnv (AppImage env scrub)', () => {
 
     await resolveUserEnv();
 
-    expect(execSyncMock).toHaveBeenCalledTimes(1);
-    const opts = execSyncMock.mock.calls[0]?.[1] as { env?: NodeJS.ProcessEnv } | undefined;
+    expect(spawnSyncMock).toHaveBeenCalledTimes(1);
+    const opts = spawnSyncMock.mock.calls[0]?.[2] as
+      | {
+          detached?: boolean;
+          env?: NodeJS.ProcessEnv;
+          stdio?: unknown;
+        }
+      | undefined;
     expect(opts?.env).toBeDefined();
+    expect(opts?.detached).toBe(true);
+    expect(opts?.stdio).toEqual(['ignore', 'pipe', 'pipe']);
     const probeEnv = opts!.env!;
     for (const key of SCRUBBED_KEYS) {
       expect(probeEnv[key]).toBeUndefined();
