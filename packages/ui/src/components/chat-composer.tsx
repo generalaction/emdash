@@ -17,7 +17,7 @@
  *     absolute paths and insert them as path mentions via the editorApiRef.
  */
 
-import { ArrowUp, Paperclip, Square, X } from 'lucide-react';
+import { ArrowUp, CircleAlert, Paperclip, Square, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { cn } from '../lib/cn';
 import { Button } from '../primitives/button';
@@ -32,6 +32,49 @@ import type {
 
 export type { MentionItem, CommandItem };
 export type { MentionKind, CommandBehavior, ContextMentionProvider } from './prompt-editor/types';
+
+// ── Session-state notice ──────────────────────────────────────────────────────
+
+export type ComposerNoticeVariant = 'error' | 'warning' | 'info';
+
+export interface ComposerNotice {
+  variant: ComposerNoticeVariant;
+  title?: string;
+  message: string;
+  /** When provided, renders a dismiss button. */
+  onDismiss?: () => void;
+}
+
+/**
+ * Map an ACP stop reason to a composer notice. Returns null for reasons that
+ * are not user-facing errors (end_turn, cancelled, unknown). Accepts a plain
+ * string so callers can forward the ACP StopReason without this package
+ * importing the ACP SDK.
+ */
+export function stopReasonNotice(reason: string): ComposerNotice | null {
+  switch (reason) {
+    case 'max_turn_requests':
+      return {
+        variant: 'error',
+        title: 'Turn limit reached',
+        message: 'The agent hit the maximum number of turn requests. Send a new message to continue.',
+      };
+    case 'max_tokens':
+      return {
+        variant: 'error',
+        title: 'Response truncated',
+        message: 'The response was cut off after reaching the maximum token limit.',
+      };
+    case 'refusal':
+      return {
+        variant: 'error',
+        title: 'Request refused',
+        message: 'The agent declined to continue with this request.',
+      };
+    default:
+      return null;
+  }
+}
 
 // ── Attachment types ──────────────────────────────────────────────────────────
 
@@ -107,6 +150,8 @@ export interface ChatComposerProps {
   queryCommands?: (query: string) => Promise<CommandItem[]>;
   /** Called when a / command with behavior='execute' is selected. */
   onCommand?: (item: CommandItem) => void;
+  /** Session-state notice shown flush above the input (e.g. ACP stop reasons). */
+  notice?: ComposerNotice | null;
   className?: string;
 }
 
@@ -190,6 +235,53 @@ function formatContextWindow(tokens: number): string {
   return `${tokens} tokens`;
 }
 
+// ── Notice band ───────────────────────────────────────────────────────────────
+
+const NOTICE_CLASSES: Record<ComposerNoticeVariant, { container: string; icon: string }> = {
+  error: {
+    container:
+      'bg-surface-destructive border-surface-destructive-border text-surface-destructive-foreground',
+    icon: 'text-surface-destructive-foreground',
+  },
+  warning: {
+    container:
+      'bg-surface-warning border-surface-warning-border text-surface-warning-foreground',
+    icon: 'text-surface-warning-foreground',
+  },
+  info: {
+    container: 'bg-surface-info border-surface-info-border text-surface-info-foreground',
+    icon: 'text-surface-info-foreground',
+  },
+};
+
+function NoticeBand({ notice }: { notice: ComposerNotice }) {
+  const cls = NOTICE_CLASSES[notice.variant];
+  return (
+    <div
+      className={cn(
+        'flex items-start gap-2 rounded-t-xl border border-b-0 px-3 py-2 text-xs',
+        cls.container,
+      )}
+    >
+      <CircleAlert className={cn('mt-0.5 size-3.5 shrink-0', cls.icon)} />
+      <div className="flex-1">
+        {notice.title && <p className="font-medium leading-snug">{notice.title}</p>}
+        <p className={cn('leading-snug', notice.title && 'mt-0.5 opacity-80')}>{notice.message}</p>
+      </div>
+      {notice.onDismiss && (
+        <button
+          type="button"
+          aria-label="Dismiss notice"
+          onClick={notice.onDismiss}
+          className="ml-1 shrink-0 opacity-70 transition-opacity hover:opacity-100"
+        >
+          <X className="size-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function ChatComposer({
@@ -210,6 +302,7 @@ export function ChatComposer({
   queryMentions,
   queryCommands,
   onCommand,
+  notice,
   className,
 }: ChatComposerProps) {
   const editorRef = useRef<PromptEditorRef | null>(null);
@@ -286,19 +379,21 @@ export function ChatComposer({
     : [];
 
   return (
-    <div
-      className={cn(
-        'bg-surface-base-emphasis flex flex-col gap-0 rounded-xl border transition-colors',
-        dragActive
-          ? 'border-border-1 ring-1 ring-border-1'
-          : 'border-border hover:border-border-1 focus-within:border-border-1 focus-within:ring-1 focus-within:ring-border-1',
-        className,
-      )}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
-      {/* Image attachment previews */}
+    <div className={cn('flex flex-col', className)}>
+      {notice && <NoticeBand notice={notice} />}
+      <div
+        className={cn(
+          'bg-surface-base-emphasis flex flex-col gap-0 border transition-colors',
+          notice ? 'rounded-b-xl' : 'rounded-xl',
+          dragActive
+            ? 'border-border-1 ring-1 ring-border-1'
+            : 'border-border hover:border-border-1 focus-within:border-border-1 focus-within:ring-1 focus-within:ring-border-1',
+        )}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {/* Image attachment previews */}
       {imageAttachments.length > 0 && (
         <div className="flex flex-wrap gap-2 px-3 pt-3">
           {imageAttachments.map((att) => (
@@ -419,6 +514,7 @@ export function ChatComposer({
             </Button>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

@@ -156,6 +156,11 @@ export type UnitRowProps = {
    * forcing a re-measure with correct font metrics.
    */
   measureEpoch?: number;
+  /**
+   * Id of the single currently-expanded user message card (from ChatRoot).
+   * Threaded into MeasureCtx so user card measure re-runs when expand toggles.
+   */
+  expandedId?: string | null;
 };
 
 // ── UnitRow ───────────────────────────────────────────────────────────────────
@@ -176,6 +181,7 @@ export function UnitRow(props: UnitRowProps) {
     expanded: (id) => props.viewState.isCollapsed(id),
     caches: props.caches,
     measureEpoch: props.measureEpoch,
+    expandedId: props.expandedId,
   });
 
   const renderCtx: RenderCtx = {

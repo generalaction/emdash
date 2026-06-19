@@ -1,8 +1,10 @@
-export { ChatComposer } from './chat-composer';
+export { ChatComposer, stopReasonNotice } from './chat-composer';
 export type {
   ChatComposerProps,
   ComposerAttachment,
   ComposerModelOption,
+  ComposerNotice,
+  ComposerNoticeVariant,
   MentionItem,
   MentionKind,
   CommandItem,

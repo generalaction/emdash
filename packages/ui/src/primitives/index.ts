@@ -64,6 +64,18 @@ export {
   type DialogSize,
 } from './dialog';
 export {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetBody,
+  SheetFooter,
+  SheetHeader,
+  SheetPortal,
+  SheetTitle,
+  SheetTrigger,
+  type SheetSide,
+} from './sheet';
+export {
   DropdownMenu,
   DropdownMenuPortal,
   DropdownMenuTrigger,

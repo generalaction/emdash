@@ -18,7 +18,7 @@
 import { ROW_INSET_X } from '../core/metrics';
 import type { GroupChrome, ItemSegmenter, UnitDef } from '../core/units';
 import { unit } from '../core/units';
-import type { ChatItem } from '../model';
+import type { ChatItem, ChatMessage } from '../model';
 import { diffUnitDef } from './diff/diff.def';
 import { executeUnitDef } from './execute/execute.def';
 import { fileOpUnitDef } from './file-op/file-op.def';
@@ -46,6 +46,32 @@ function nativePassthrough(kind: ChatItem['kind'], chrome?: GroupChrome): ItemSe
 /** Chrome shared by all non-user-message composite rows (matches legacy Row.tsx inset). */
 const COMPOSITE_CHROME: GroupChrome = { insetX: ROW_INSET_X };
 
+/**
+ * User message chrome: full column width (no inset). The card border/padding/bg
+ * are handled internally by UserMessageCard, so chrome carries only insetX=0.
+ */
+const USER_CHROME: GroupChrome = { insetX: 0 };
+
+/**
+ * Role-aware message segmenter.
+ *
+ * Each message becomes exactly one unit with key='self'. The chrome is set
+ * per-unit (not on the segmenter) so flatten.ts does not overwrite it with a
+ * single shared value — user messages get USER_CHROME (full width), all others
+ * get COMPOSITE_CHROME (insetX=ROW_INSET_X).
+ */
+const messageSegmenter: ItemSegmenter<ChatMessage> = {
+  kind: 'message',
+  // No top-level chrome: we set u.chrome per-unit in segment() below so
+  // flatten's chrome-copy pass (which only fires when seg.chrome is truthy)
+  // cannot overwrite the per-role value we assigned.
+  segment: (item) => {
+    const u = unit('message', item, item, { key: 'self' });
+    u.chrome = item.role === 'user' ? USER_CHROME : COMPOSITE_CHROME;
+    return [u];
+  },
+};
+
 // ── SEGMENTERS ────────────────────────────────────────────────────────────────
 
 /**
@@ -58,7 +84,7 @@ const COMPOSITE_CHROME: GroupChrome = { insetX: ROW_INSET_X };
  */
 // oxlint-disable-next-line typescript/no-explicit-any -- registry boundary
 export const SEGMENTERS: Record<string, ItemSegmenter<any>> = {
-  message: nativePassthrough('message', COMPOSITE_CHROME),
+  message: messageSegmenter,
   tool: nativePassthrough('tool', COMPOSITE_CHROME),
   thinking: nativePassthrough('thinking', COMPOSITE_CHROME),
   'file-op': nativePassthrough('file-op', COMPOSITE_CHROME),

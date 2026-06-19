@@ -1,21 +1,26 @@
 /**
  * messageUnitDef — native UnitDef for ChatMessage rows.
  *
- * Single self-contained unit: measure returns a total height (number),
- * and Render lays out the block stack internally via BlockStackView.
+ * Single self-contained unit per message. Rendering and measurement branch on role:
  *
- * All message states map to exactly one unit (kind='message', key='self'):
- *   streaming   — block stack grows each tick; activeTurn bypasses segmentCache.
- *   empty       — fallback height = one line + padY overhead.
- *   finalized   — full block stack + optional copy-button footer (assistant).
+ *   user      — bordered card (border-chat-border, bg-chat-bg-1), full column width
+ *               (no inset), 14px horizontal / 8px vertical internal padding.
+ *               Collapsed max-height: USER_COLLAPSED_MAX_H (120px), clipped.
+ *               Expanded max-height: USER_EXPANDED_MAX_H (360px), scrollable.
+ *               Expand state driven by ctx.expandedId === item.id.
+ *               Rendered via UserMessageCard (shared with PinnedUserMessage).
  *
- * Chrome (role-specific visual treatment applied by UnitRow via GroupChrome):
- *   All roles share COMPOSITE_CHROME (insetX=ROW_INSET_X, no bg/border).
- *   Role differentiation (text color, italic for thought) is done inside Render.
+ *   assistant — plain inset row (chrome: COMPOSITE_CHROME via unit-registry),
+ *               block stack + MESSAGE_FOOTER_H copy-button row.
  *
- * Padding:
- *   BUBBLE_PAD_Y is baked into layoutBlockStack's padY option.
- *   No bubble background or border — user messages are plain-padded rows.
+ *   thought   — same inset row, muted italic text, no footer.
+ *
+ * All states (streaming/empty/finalized) map to one stable unit (key='self').
+ *
+ * Layout constants (USER_CARD_BORDER, BUBBLE_PAD_X, BUBBLE_PAD_Y, BLOCK_GAP,
+ * PROSE_GAP, USER_COLLAPSED_MAX_H, USER_EXPANDED_MAX_H) live in UserMessageCard.tsx
+ * so that file is self-contained and PinnedUserMessage can import from it directly
+ * without creating a circular dependency.
  */
 
 import { Show, createMemo } from 'solid-js';
@@ -27,17 +32,28 @@ import { defineUnit } from '../../core/units';
 import type { ChatMessage } from '../../model';
 import { BlockStackView } from '../primitives/BlockStackView';
 import { CopyButton } from '../primitives/CopyButton';
+import {
+  BLOCK_GAP,
+  BUBBLE_PAD_Y,
+  PROSE_GAP,
+  USER_CARD_BORDER,
+  USER_COLLAPSED_MAX_H,
+  USER_EXPANDED_MAX_H,
+  UserMessageCard,
+  userInnerWidth,
+} from './UserMessageCard';
 
-// ── Layout constants (re-exported for PinnedUserMessage and tests) ───────────
+// ── Re-export constants for external consumers (PinnedUserMessage, tests) ─────
+export {
+  BLOCK_GAP,
+  BUBBLE_PAD_X,
+  BUBBLE_PAD_Y,
+  PROSE_GAP,
+  USER_CARD_BORDER,
+  USER_COLLAPSED_MAX_H,
+  USER_EXPANDED_MAX_H,
+} from './UserMessageCard';
 
-/** Horizontal inset on each side for all message roles (px). Replaces per-role bubble padding. */
-export const BUBBLE_PAD_X = 14;
-/** Vertical padding inside the block stack on each side (px). */
-export const BUBBLE_PAD_Y = 8;
-/** Gap between consecutive blocks of different tiers in the block stack (px). */
-export const BLOCK_GAP = 10;
-/** Tighter gap between two consecutive prose blocks (px). */
-export const PROSE_GAP = 4;
 /** Reserved height for the assistant message footer (copy button row, px). */
 export const MESSAGE_FOOTER_H = 24;
 
@@ -47,22 +63,42 @@ const STACK_OPTS = { padY: BUBBLE_PAD_Y, blockGap: BLOCK_GAP, proseGap: PROSE_GA
 
 // ── measure ───────────────────────────────────────────────────────────────────
 
-function measureMessage(item: ChatMessage, ctx: MeasureCtx): number {
+export function measureMessage(item: ChatMessage, ctx: MeasureCtx): number {
   const blocks = ctx.caches.parseBlocks(item.id, item.text);
+
+  if (item.role === 'user') {
+    const innerW = userInnerWidth(ctx.width);
+    const innerCtx = { ...ctx, width: innerW };
+    if (blocks.length === 0) {
+      const fallback = ctx.theme.fonts.body.lineHeight + 2 * BUBBLE_PAD_Y + 2 * USER_CARD_BORDER;
+      return Math.min(
+        fallback,
+        ctx.expandedId === item.id ? USER_EXPANDED_MAX_H : USER_COLLAPSED_MAX_H
+      );
+    }
+    const stack = layoutBlockStack(blocks, innerCtx, {
+      ...STACK_OPTS,
+      isCollapsed: ctx.isCollapsed,
+    });
+    const contentH = stack.height + 2 * BUBBLE_PAD_Y + 2 * USER_CARD_BORDER;
+    return Math.min(
+      contentH,
+      ctx.expandedId === item.id ? USER_EXPANDED_MAX_H : USER_COLLAPSED_MAX_H
+    );
+  }
+
+  // assistant / thought
   const footer = item.role === 'assistant' ? MESSAGE_FOOTER_H : 0;
   if (blocks.length === 0) {
     return ctx.theme.fonts.body.lineHeight + 2 * BUBBLE_PAD_Y + footer;
   }
-  const stackMeasured = layoutBlockStack(blocks, ctx, {
-    ...STACK_OPTS,
-    isCollapsed: ctx.isCollapsed,
-  });
-  return stackMeasured.height + footer;
+  const stack = layoutBlockStack(blocks, ctx, { ...STACK_OPTS, isCollapsed: ctx.isCollapsed });
+  return stack.height + footer;
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
+// ── Assistant / thought render ────────────────────────────────────────────────
 
-function MessageUnitRender(props: { data: ChatMessage; ctx: RenderCtx }) {
+function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx }) {
   const mCtx = () => props.ctx.measureCtx?.();
 
   const stack = createMemo<Measured<StackLayout> | null>(() => {
@@ -79,11 +115,8 @@ function MessageUnitRender(props: { data: ChatMessage; ctx: RenderCtx }) {
     return measureMessage(props.data, ctx);
   });
 
-  const textClass = () => {
-    if (props.data.role === 'thought') return 'text-chat-fg-muted italic';
-    if (props.data.role === 'assistant') return 'text-chat-fg-body';
-    return 'text-chat-fg-body';
-  };
+  const textClass = () =>
+    props.data.role === 'thought' ? 'text-chat-fg-muted italic' : 'text-chat-fg-body';
 
   const plainText = () => {
     const ctx = mCtx();
@@ -93,7 +126,6 @@ function MessageUnitRender(props: { data: ChatMessage; ctx: RenderCtx }) {
 
   return (
     <div class={textClass()} style={{ height: `${totalH()}px`, position: 'relative' }}>
-      {/* a11y visually-hidden mirror */}
       <div class="sr-only">{plainText()}</div>
       <Show when={stack()}>{(s) => <BlockStackView node={s()} />}</Show>
       <Show when={props.data.role === 'assistant'}>
@@ -117,11 +149,25 @@ function MessageUnitRender(props: { data: ChatMessage; ctx: RenderCtx }) {
   );
 }
 
+// ── MessageUnitRender ─────────────────────────────────────────────────────────
+
+function MessageUnitRender(props: { data: ChatMessage; ctx: RenderCtx }) {
+  if (props.data.role === 'user') {
+    return <UserMessageCard data={props.data} ctx={props.ctx} />;
+  }
+  return <AssistantRender data={props.data} ctx={props.ctx} />;
+}
+
 // ── UnitDef ───────────────────────────────────────────────────────────────────
 
 export const messageUnitDef = defineUnit<ChatMessage>({
   kind: 'message',
   estimate(item, ctx): number {
+    if (item.role === 'user') {
+      const lines = Math.max(1, Math.ceil(item.text.length / 60));
+      const est = lines * ctx.theme.fonts.body.lineHeight + 2 * BUBBLE_PAD_Y + 2 * USER_CARD_BORDER;
+      return Math.min(est, ctx.expandedId === item.id ? USER_EXPANDED_MAX_H : USER_COLLAPSED_MAX_H);
+    }
     const lines = Math.max(1, Math.ceil(item.text.length / 60));
     const footer = item.role === 'assistant' ? MESSAGE_FOOTER_H : 0;
     return lines * ctx.theme.fonts.body.lineHeight + 2 * BUBBLE_PAD_Y + footer;

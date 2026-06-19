@@ -43,6 +43,7 @@ export function makeContractCtx(opts: {
   theme?: ChatTheme;
   isCollapsed?: (id: string) => boolean;
   expanded?: (id: string) => boolean;
+  expandedId?: string | null;
 }): ContractCtx {
   return {
     theme: opts.theme ?? DEFAULT_THEME,
@@ -50,6 +51,7 @@ export function makeContractCtx(opts: {
     isCollapsed: opts.isCollapsed ?? (() => false),
     expanded: opts.expanded ?? (() => false),
     caches: createChatCaches(),
+    expandedId: opts.expandedId,
   };
 }
 

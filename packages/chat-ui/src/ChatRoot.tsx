@@ -177,6 +177,7 @@ export function ChatRoot(props: ChatRootProps) {
 
   let scrollEl: HTMLDivElement | undefined;
   let canvasEl: HTMLDivElement | undefined;
+  let outerEl: HTMLDivElement | undefined;
   const virt = new Virtualizer();
   let sticky: StickToBottom | null = null;
 
@@ -190,6 +191,12 @@ export function ChatRoot(props: ChatRootProps) {
   // are unchanged, clearing any fallback-font geometry that was measured before
   // Inter/JetBrains loaded.
   const [measureEpoch, setMeasureEpoch] = createSignal(0);
+
+  // Id of the single currently-expanded user message card. Only one card can be
+  // expanded at a time (setting a new id replaces the old one). Persists across
+  // scroll; cleared only on outside-click. Threaded into MeasureCtx so the
+  // virtualizer re-measures the affected unit when expand toggles.
+  const [expandedUserId, setExpandedUserId] = createSignal<string | null>(null);
 
   const refreshTotal = () => {
     setTotalHeight(virt.total());
@@ -227,6 +234,7 @@ export function ChatRoot(props: ChatRootProps) {
         expanded: () => false,
         caches,
         measureEpoch: measureEpoch(),
+        expandedId: expandedUserId(),
       };
       virt.setCount(us.length, (i) => {
         const u = us[i];
@@ -662,6 +670,7 @@ export function ChatRoot(props: ChatRootProps) {
           expanded: (id: string) => props.viewState.isCollapsed(id),
           caches,
           measureEpoch: measureEpoch(),
+          expandedId: expandedUserId(),
         };
         const contentH = unitDef.measure(u.data, ctx);
         const h = unitReservedHeight(u, contentH);
@@ -737,13 +746,37 @@ export function ChatRoot(props: ChatRootProps) {
     }
 
     const onClick = (e: Event) => {
-      const target = (e.target as HTMLElement).closest('[data-collapse-id]') as HTMLElement | null;
-      if (target?.dataset.collapseId) {
-        props.viewState.toggleCollapsed(target.dataset.collapseId);
+      const t = e.target as HTMLElement;
+
+      // (a) User message card — expand on click; already-expanded cards are
+      //     no-ops so the user can scroll and select text inside them.
+      const userCard = t.closest('[data-user-card]') as HTMLElement | null;
+      if (userCard?.dataset.userCard) {
+        const id = userCard.dataset.userCard;
+        if (expandedUserId() !== id) {
+          setExpandedUserId(id);
+        }
+        return;
+      }
+
+      // (b) Collapsible composite rows (thinking, file-op, …).
+      const collapseTarget = t.closest('[data-collapse-id]') as HTMLElement | null;
+      if (collapseTarget?.dataset.collapseId) {
+        props.viewState.toggleCollapsed(collapseTarget.dataset.collapseId);
+        return;
+      }
+
+      // (c) Click outside any card → collapse the expanded user message.
+      if (expandedUserId() !== null) {
+        setExpandedUserId(null);
       }
     };
-    el.addEventListener('click', onClick);
-    onCleanup(() => el.removeEventListener('click', onClick));
+    // Attach to the outer wrapper (not the scroll element) so clicks on the
+    // sticky pinned card overlay — which is a sibling of the scroll container —
+    // are also caught by the same handler.
+    const clickTarget = outerEl ?? el;
+    clickTarget.addEventListener('click', onClick);
+    onCleanup(() => clickTarget.removeEventListener('click', onClick));
 
     registerFontsReadyClear(() => {
       caches.clearTextMeasure();
@@ -786,7 +819,12 @@ export function ChatRoot(props: ChatRootProps) {
                 the pinned overlay as siblings so the overlay is unaffected by
                 native scroll (no per-frame counter-translation → no jitter).
                 overflow-hidden clips the overlay as it rides up during handoff. */}
-            <div class="relative h-full w-full overflow-hidden">
+            <div
+              ref={(el) => {
+                outerEl = el;
+              }}
+              class="relative h-full w-full overflow-hidden"
+            >
               <div
                 ref={(el) => {
                   scrollEl = el;
@@ -833,6 +871,7 @@ export function ChatRoot(props: ChatRootProps) {
                               isActiveTurn={isActiveTurn()}
                               caches={caches}
                               measureEpoch={measureEpoch()}
+                              expandedId={expandedUserId()}
                             />
                           </div>
                         </Show>
@@ -868,6 +907,7 @@ export function ChatRoot(props: ChatRootProps) {
                       rowWidth={containerWidth()}
                       theme={theme()}
                       caches={caches}
+                      expandedId={expandedUserId}
                     />
                   </div>
                 )}

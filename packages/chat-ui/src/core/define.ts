@@ -14,6 +14,7 @@
  *   • `ctx.theme.version`  — theme version token
  *   • `ctx.expanded(id)`   — resolved collapse state for collapsible defs
  *   • `ctx.measureEpoch`   — bumped after font load to invalidate blockMemo
+ *   • `ctx.expandedId`     — id of the single expanded user message card
  *
  * Lane B — presentational / ephemeral state. These must NEVER enter `measure`
  * or any height fingerprint because they do not affect height:
@@ -57,6 +58,10 @@ export type Measured<L = unknown> = {
  *                  `blockMemo` cache misses even when theme.version/width are
  *                  unchanged. This clears fallback-font geometry and prevents
  *                  `contain: paint` from clipping under-measured content.
+ * `expandedId`  — optional id of the single currently-expanded user message card.
+ *                 When `expandedId === item.id` the card is measured at the
+ *                 expanded max-height; all other user messages use the collapsed
+ *                 max-height. Only affects user-role message units.
  */
 export type MeasureCtx = {
   theme: ChatTheme;
@@ -65,6 +70,7 @@ export type MeasureCtx = {
   expanded: (id: string) => boolean;
   caches: ChatCaches;
   measureEpoch?: number;
+  expandedId?: string | null;
 };
 
 /**

@@ -26,10 +26,11 @@ import { ChatTranscript } from '@emdash/chat-ui/react';
 import { generateMockTranscript } from '@emdash/chat-ui';
 import { ArrowDown } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ChatComposer } from '../components/chat-composer';
+import { ChatComposer, stopReasonNotice } from '../components/chat-composer';
 import type {
   ComposerAttachment,
   ComposerModelOption,
+  ComposerNotice,
   ContextMentionProvider,
   MentionItem,
 } from '../components/chat-composer';
@@ -119,7 +120,7 @@ const SEED_ATTACHMENTS: ComposerAttachment[] = [
   { id: 'mock-img-2', name: 'diagram.png', kind: 'image', previewUrl: BLUE_1PX },
 ];
 
-function LiveChatPanel() {
+function LiveChatPanel({ notice }: { notice?: ComposerNotice | null }) {
   const handleRef = useRef<ChatHandle | null>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const editorApiRef = useRef<PromptEditorRef | null>(null);
@@ -223,6 +224,7 @@ function LiveChatPanel() {
           onAttachmentsChange={setAttachments}
           onFilesDropped={handleFilesDropped}
           editorApiRef={editorApiRef}
+          notice={notice}
         />
       </div>
     </div>
@@ -252,6 +254,39 @@ export const Live: Story = {
     <div className="flex h-screen items-stretch p-6">
       <div className="flex-1">
         <LiveChatPanel />
+      </div>
+    </div>
+  ),
+};
+
+/** ACP stop reason: max_turn_requests — notice band with turn-limit error. */
+export const MaxTurnRequests: Story = {
+  render: () => (
+    <div className="flex h-screen items-stretch p-6">
+      <div className="flex-1">
+        <LiveChatPanel notice={stopReasonNotice('max_turn_requests')} />
+      </div>
+    </div>
+  ),
+};
+
+/** ACP stop reason: refusal — notice band with agent refusal error. */
+export const Refusal: Story = {
+  render: () => (
+    <div className="flex h-screen items-stretch p-6">
+      <div className="flex-1">
+        <LiveChatPanel notice={stopReasonNotice('refusal')} />
+      </div>
+    </div>
+  ),
+};
+
+/** ACP stop reason: max_tokens — notice band with response truncation error. */
+export const MaxTokens: Story = {
+  render: () => (
+    <div className="flex h-screen items-stretch p-6">
+      <div className="flex-1">
+        <LiveChatPanel notice={stopReasonNotice('max_tokens')} />
       </div>
     </div>
   ),

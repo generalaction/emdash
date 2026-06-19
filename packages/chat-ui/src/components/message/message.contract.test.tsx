@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import type { ChatMessage } from '../../model';
 import { makeContractCtx, renderAndMeasureUnit } from '../../tests/contract';
 import { messageUnitDef } from './message.def';
+import { USER_COLLAPSED_MAX_H, USER_EXPANDED_MAX_H } from './UserMessageCard';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -114,6 +115,47 @@ describe('empty message', () => {
   it('has non-zero measure height (fallback to line height)', () => {
     const h = messageUnitDef.measure(EMPTY, ctx);
     expect(h).toBeGreaterThan(0);
+  });
+});
+
+// ── User message card: collapsed / expanded max-height clamp ─────────────────
+//
+// A user message with enough text to exceed USER_COLLAPSED_MAX_H must be
+// clamped to that value when ctx.expandedId is absent, and to
+// USER_EXPANDED_MAX_H when ctx.expandedId equals the message id.
+// A short message that fits within the collapsed max-height is not clamped.
+
+const USER_LONG: ChatMessage = {
+  kind: 'message',
+  id: 'user-long',
+  role: 'user',
+  // ~30 lines of text — well above the 120px collapsed limit.
+  text: Array.from({ length: 30 }, (_, i) => `Line ${i + 1}: some content here.`).join('\n\n'),
+};
+
+describe('user message card max-height clamp', () => {
+  it('collapses to USER_COLLAPSED_MAX_H when content overflows and not expanded', () => {
+    const h = messageUnitDef.measure(USER_LONG, ctx);
+    expect(h).toBe(USER_COLLAPSED_MAX_H);
+  });
+
+  it('expands to at most USER_EXPANDED_MAX_H when expandedId matches', () => {
+    const expandedCtx = makeContractCtx({ width: 640, expandedId: USER_LONG.id });
+    const h = messageUnitDef.measure(USER_LONG, expandedCtx);
+    expect(h).toBeLessThanOrEqual(USER_EXPANDED_MAX_H);
+    expect(h).toBeGreaterThan(USER_COLLAPSED_MAX_H);
+  });
+
+  it('short user message is not clamped (measures below collapsed max)', () => {
+    const h = messageUnitDef.measure(USER_SHORT, ctx);
+    expect(h).toBeLessThanOrEqual(USER_COLLAPSED_MAX_H);
+    expect(h).toBeGreaterThan(0);
+  });
+
+  it('expanding a different id does not affect this message', () => {
+    const otherCtx = makeContractCtx({ width: 640, expandedId: 'some-other-id' });
+    const h = messageUnitDef.measure(USER_LONG, otherCtx);
+    expect(h).toBe(USER_COLLAPSED_MAX_H);
   });
 });
 
