@@ -162,7 +162,7 @@ export const messageDef = defineComponent<ChatMessage, MessageNodeLayout>({
       const blockStack = layoutBlockStack(blocks, { ...ctx, width: innerWidth }, blockStackOpts);
       const tree = bubble(blockStack, {
         padX: BUBBLE_PAD_X,
-        variantClass: 'bg-[var(--chat-bubble-user)] text-[var(--chat-bubble-user-fg)] rounded-lg',
+        variantClass: 'bg-[var(--chat-bubble-user)] text-[var(--chat-bubble-user-fg)] rounded-lg border border-chat-border',
         width: ctx.width,
       });
       return { height: tree.height, width: tree.width, layout: { kind: 'message', tree } };

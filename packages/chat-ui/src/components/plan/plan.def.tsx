@@ -29,10 +29,9 @@ import { SLOT_NAMES, collapsible, scrollWindow, slot, stack } from '../../core/c
 import type { StackLayout } from '../../core/compose';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import { layoutBlockStack } from '../../core/layout/block-stack';
-import { HEADER_ROW_EXTRA_H } from '../../core/metrics';
+import { ROW_H } from '../../core/metrics';
 import type { ChatPlan, PlanEntryPriority, PlanEntryStatus } from '../../model';
 import { Project } from '../Project';
-import { useTheme } from '../ThemeContext';
 import { PlanHeader, PlanList } from './Plan';
 import {
   PLAN_BORDER,
@@ -86,8 +85,7 @@ export type PlanNodeLayout = {
 // ── Render ────────────────────────────────────────────────────────────────────
 
 function PlanRender(props: { item: ChatPlan; layout: Measured<PlanNodeLayout>; ctx: RenderCtx }) {
-  const theme = useTheme();
-  const rowH = () => theme().fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
+  const rowH = () => ROW_H;
   // Inverted collapse mode: stored "collapsed" flag means "expanded".
   const expanded = () => props.ctx.viewState.isCollapsed(props.item.id);
 
@@ -153,7 +151,7 @@ export const planDef = defineComponent<ChatPlan, PlanNodeLayout>({
   collapse: { mode: 'inverted', default: false },
 
   estimate(item, ctx: MeasureCtx): number {
-    const headerH = ctx.theme.fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
+    const headerH = ROW_H;
     const isExpanded = ctx.expanded(item.id);
     // ~2 wrapped lines per entry as a heuristic for off-screen rows.
     const lineH = ctx.theme.fonts.body.lineHeight;
@@ -165,7 +163,7 @@ export const planDef = defineComponent<ChatPlan, PlanNodeLayout>({
   },
 
   measure(item, ctx: MeasureCtx): Measured<PlanNodeLayout> {
-    const headerH = ctx.theme.fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
+    const headerH = ROW_H;
     const isExpanded = ctx.expanded(item.id);
     const headerSlot = SLOT_NAMES.PLAN_HEADER;
 

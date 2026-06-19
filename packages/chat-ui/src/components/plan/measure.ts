@@ -18,7 +18,7 @@
  */
 
 import { DEFAULT_FONT_CONFIG } from '../../core/measure/fonts';
-import { HEADER_ROW_EXTRA_H } from '../../core/metrics';
+import { ROW_H } from '../../core/metrics';
 import type { ChatPlan } from '../../model';
 import {
   PLAN_BORDER,
@@ -30,7 +30,7 @@ import {
 
 export { PLAN_PAD_Y, PLAN_ENTRY_GAP, PLAN_BORDER, PLAN_OUTER_PAD_Y, PLAN_WINDOW_H };
 
-export const PLAN_HEADER_H = DEFAULT_FONT_CONFIG.body.lineHeight + HEADER_ROW_EXTRA_H;
+export const PLAN_HEADER_H = ROW_H;
 export const PLAN_LINE_H = DEFAULT_FONT_CONFIG.body.lineHeight;
 
 /** Card border + outer padding contributed to the total height. */

@@ -21,10 +21,9 @@
 
 import { SLOT_NAMES, collapsible, scrollWindow, slot, stack } from '../../core/compose';
 import { defineComponent, type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
-import { HEADER_ROW_EXTRA_H } from '../../core/metrics';
+import { ROW_H } from '../../core/metrics';
 import type { ChatFileOpToolCall } from '../../model';
 import { Project } from '../Project';
-import { useTheme } from '../ThemeContext';
 import { FILEOP_PAD_Y, FILEOP_WINDOW_H } from './file-op-metrics';
 import { FileOpRow, FileOpHeader, FileOpList, FileOpPreviewBody } from './FileOperation';
 
@@ -49,9 +48,8 @@ function FileOpRender(props: {
   layout: Measured<FileOpNodeLayout>;
   ctx: RenderCtx;
 }) {
-  const theme = useTheme();
-  const rowH = () => theme().fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
-  const lineH = () => theme().fonts.body.lineHeight;
+  const rowH = () => ROW_H;
+  const lineH = () => ROW_H;
   // Inverted: stored "collapsed" bool means "expanded".
   const expanded = () => props.ctx.viewState.isCollapsed(props.item.id);
 
@@ -90,8 +88,8 @@ export const fileOpDef = defineComponent<ChatFileOpToolCall, FileOpNodeLayout>({
   },
 
   measure(item, ctx: MeasureCtx): Measured<FileOpNodeLayout> {
-    const rowH = ctx.theme.fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
-    const lineH = ctx.theme.fonts.body.lineHeight;
+    const rowH = ROW_H;
+    const lineH = ROW_H;
     const isExpanded = ctx.expanded(item.id);
     const headerSlot = SLOT_NAMES.FILE_OP_HEADER;
 
@@ -141,8 +139,8 @@ export const fileOpDef = defineComponent<ChatFileOpToolCall, FileOpNodeLayout>({
 // ── Internal height formula (estimate mirror) ─────────────────────────────────
 
 function measureFileOpH(item: ChatFileOpToolCall, ctx: MeasureCtx): number {
-  const rowH = ctx.theme.fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
-  const lineH = ctx.theme.fonts.body.lineHeight;
+  const rowH = ROW_H;
+  const lineH = ROW_H;
   const isExpanded = ctx.expanded(item.id);
 
   if (item.ops.length <= 1) return rowH;

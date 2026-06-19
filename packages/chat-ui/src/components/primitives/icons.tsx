@@ -51,8 +51,8 @@ export function IconCheck() {
 export function GenericFileIcon() {
   return (
     <svg
-      width="14"
-      height="14"
+      width="12"
+      height="12"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"

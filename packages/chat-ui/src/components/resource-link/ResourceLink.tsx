@@ -1,15 +1,17 @@
 /**
- * ResourceLink — card renderer for ChatResourceLink rows.
+ * ResourceLink — single-line renderer for ChatResourceLink rows.
  *
- * Layout (fixed 2-line card):
- *   Line 1: file icon · title (or name) · optional size badge
- *   Line 2: secondary label derived from target (path / host / "custom resource")
+ * Layout (fixed single-line row, no background):
+ *   [resource || fileIcon] title path
+ *
+ * The icon is the file-type devicon when resolvable, else a generic resource
+ * glyph. Title and path sit inline; the path keeps the muted secondary styling.
  *
  * Click: workspace-file targets open in the editor via onOpenFile.
  *        external targets follow the URI in a new tab.
  *        opaque targets do nothing (URI is shown for copy).
  *
- * Outer geometry (height, padding) is applied by resource-link.def.tsx Render.
+ * Outer geometry (height) is applied by resource-link.def.tsx Render.
  */
 
 import { Show } from 'solid-js';
@@ -76,33 +78,33 @@ export function ResourceLink(props: ResourceLinkProps) {
 
   return (
     <div
-      class="border-chat-border bg-chat-bg-2 flex items-center gap-2.5 rounded-md border px-3 text-sm"
+      class="flex items-center gap-2 text-sm"
       classList={{
-        'cursor-pointer hover:bg-chat-bg-3 transition-colors': isClickable(),
+        'cursor-pointer hover:text-chat-fg transition-colors flex items-center gap-2 p-2 rounded-lg border border-chat-border w-full hover:bg-chat-bg-2': isClickable(),
       }}
       style={{ height: '100%' }}
       onClick={isClickable() ? handleClick : undefined}
       role={isClickable() ? 'button' : undefined}
     >
-      {/* Icon */}
+      {/* [resource || fileIcon] */}
       <div class="text-chat-fg-muted shrink-0">
         <Show when={iconName()} fallback={<GenericFileIcon />}>
           <span class={iconName()!} />
         </Show>
       </div>
 
-      {/* Main content */}
-      <div class="min-w-0 flex-1">
-        <div class="text-chat-fg-body flex items-center gap-2 truncate font-medium">
-          <span class="truncate">{displayName()}</span>
-          <Show when={props.item.size !== undefined}>
-            <span class="text-chat-fg-muted shrink-0 text-xs font-normal">
-              {formatSize(props.item.size!)}
-            </span>
-          </Show>
-        </div>
-        <div class="text-chat-fg-muted mt-0.5 truncate text-xs">{secondary()}</div>
-      </div>
+      {/* title */}
+      <span class="text-chat-fg-body shrink-0 truncate font-medium">{displayName()}</span>
+
+      {/* path — muted secondary styling */}
+      <span class="text-chat-fg-muted min-w-0 truncate text-xs">{secondary()}</span>
+
+      {/* optional size badge */}
+      <Show when={props.item.size !== undefined}>
+        <span class="text-chat-fg-muted shrink-0 text-xs font-normal">
+          {formatSize(props.item.size!)}
+        </span>
+      </Show>
     </div>
   );
 }

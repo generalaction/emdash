@@ -96,6 +96,12 @@ export const USER_BUBBLE_MAX_WIDTH_PCT = 85;
  */
 export const HEADER_ROW_EXTRA_H = 8;
 
+/**
+ * Standard single-line row height (px) shared by tool, file-op, plan header,
+ * diff header, and resource-link rows so they all align to the same rhythm.
+ */
+export const ROW_H = 32;
+
 // ── CSS font shorthands ───────────────────────────────────────────────────────
 
 function fontShorthand(v: VariantTypography, fam: string): string {

@@ -1,25 +1,16 @@
 /**
  * resourceLinkDef — ComponentDef for ChatResourceLink rows.
  *
- * Fixed 2-line card height: 2 × body line-height + vertical padding.
- * No collapse state; no estimate override (genericEstimate is fine —
- * every row is the same fixed height).
+ * Fixed single-line row height (ROW_H). No collapse state; no estimate override
+ * (genericEstimate is fine — every row is the same fixed height).
  */
 
 import { defineComponent, type Measured, type RenderCtx } from '../../core/define';
-import { HEADER_ROW_EXTRA_H } from '../../core/metrics';
+import { ROW_H } from '../../core/metrics';
 import type { ChatResourceLink } from '../../model';
 import { ResourceLink } from './ResourceLink';
 
 export type ResourceLinkLayout = { kind: 'resource-link' };
-
-/** Vertical padding inside the card on each side (px). */
-const RESOURCE_LINK_PAD_Y = 6;
-
-function resourceLinkHeight(lineH: number): number {
-  // Two content lines: primary (title/name) + secondary (path/host/scheme).
-  return 2 * lineH + RESOURCE_LINK_PAD_Y * 2 + HEADER_ROW_EXTRA_H;
-}
 
 function ResourceLinkRender(props: {
   item: ChatResourceLink;
@@ -37,8 +28,7 @@ export const resourceLinkDef = defineComponent<ChatResourceLink, ResourceLinkLay
   kind: 'resource-link',
 
   measure(_item, ctx): Measured<ResourceLinkLayout> {
-    const height = resourceLinkHeight(ctx.theme.fonts.body.lineHeight);
-    return { height, width: ctx.width, layout: { kind: 'resource-link' } };
+    return { height: ROW_H, width: ctx.width, layout: { kind: 'resource-link' } };
   },
 
   Render: ResourceLinkRender,

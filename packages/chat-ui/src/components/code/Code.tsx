@@ -99,9 +99,9 @@ export function Code(props: CodeProps) {
        * the frame box, preserving the reserved height arithmetic. Having no
        * .pblock class means overflow-x-auto wins without any specificity tie.
        *
-       * bg-[var(...)] references the same --shiki-light-bg / --chat-code-bg
-       * vars that Shiki writes at runtime so the background transitions smoothly
-       * from the pre-highlight fallback to the theme colour.
+       * Background is transparent so the block inherits the chat background;
+       * Shiki still writes --shiki-light-bg / --shiki-dark-bg onto the wrapper
+       * but they are intentionally unused (no bg-* class references them).
        *
        * [&_span] targets the imperatively-created token <span>s from
        * apply-tokens.ts, which have no Tailwind class of their own.
@@ -114,8 +114,7 @@ export function Code(props: CodeProps) {
           'absolute inset-0 overflow-x-auto overflow-y-hidden rounded-lg',
           'border border-chat-border pl-2',
           'scrollbar-thin',
-          'bg-(--shiki-light-bg,var(--chat-code-bg))',
-          'emdark:bg-(--shiki-dark-bg,var(--chat-code-bg))',
+          'bg-transparent',
           '[&_span]:text-(--shiki-light)',
           'emdark:[&_span]:text-(--shiki-dark)',
         ].join(' ')}

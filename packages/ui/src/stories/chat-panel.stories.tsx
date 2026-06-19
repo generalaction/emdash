@@ -75,7 +75,7 @@ function LiveChatPanel() {
   }, []);
 
   return (
-    <div className="surface-base relative h-full overflow-hidden rounded-xl border border-border bg-surface">
+    <div className="surface-paper relative h-full overflow-hidden rounded-xl border border-border bg-surface">
       {/* Full-bleed transcript — reserves canvas space for the floating composer */}
       <ChatTranscript
         className="absolute inset-0"
