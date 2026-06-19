@@ -1,0 +1,32 @@
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.ts
+  s_05eaf5d4b03e28::t_4e402089e59cf2 67
+packages/plugins/src/agents/impl/kilocode/index.ts
+  s_05eaf5d4b03e28::t_a451beb1e5458c 49-50,63
+  s_05eaf5d4b03e28::t_4d42df36930c9f 2-6,8-11,29-31,45-46,64-68,71-75
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_05eaf5d4b03e28::t_a451beb1e5458c 458
+  s_05eaf5d4b03e28::t_4d42df36930c9f 459-462,466,695
+packages/plugins/src/agents/impl/index.test.ts
+  s_05eaf5d4b03e28::t_a451beb1e5458c 167
+  s_05eaf5d4b03e28::t_4d42df36930c9f 170-184
+apps/emdash-desktop/src/main/core/dependencies/dependency-managers.ts
+  s_05eaf5d4b03e28::t_4e402089e59cf2 2,32
+packages/plugins/src/agents/impl/kilocode/plugin-file.ts
+  s_05eaf5d4b03e28::t_4d42df36930c9f 1-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "54394c722026b0df3594655efe29127383d38110",
+  "prompts": {},
+  "sessions": {
+    "s_05eaf5d4b03e28": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eda4a-84e2-79d1-af35-62d77ab8ee58",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
