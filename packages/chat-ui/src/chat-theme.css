@@ -23,7 +23,13 @@
   --chat-fg-passive: var(--foreground-passive);
 
   /* ── Backgrounds ────────────────────────────────────────────────────────── */
-  --chat-bg: var(--background);
+  /* Bind to the concrete --surface-paper token (not the --surface indirection):
+   * --surface is declared once at :root as var(--surface-base) and is NOT
+   * re-declared by .emdark, so it stays frozen at the light :root value and
+   * breaks in dark mode. --surface-paper IS redefined per-theme under
+   * .emlight/.emdark, and matches the ChatComposer's bg-surface (which resolves
+   * to --surface-paper inside the panel's .surface-paper scope). */
+  --chat-bg: var(--surface-paper);
   --chat-bg-1: var(--background-1);
   --chat-bg-2: var(--background-2);
   --chat-bg-3: var(--background-3);

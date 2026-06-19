@@ -1,20 +1,3 @@
-/**
- * ChatComposer
- *
- * The prompt input shell for the chat panel. Layout:
- *
- *   ┌────────────────────────────────────────────────────┐
- *   │ [TipTap editor — auto-grows, max 200px, scrolls]   │
- *   ├────────────────────────────────────────────────────┤
- *   │ [Model selector]          [Attach?] [Stop | Send]  │
- *   └────────────────────────────────────────────────────┘
- *
- * Delegates input state and submit/cancel to the caller via props.
- * The PromptEditor component is data-source-agnostic; queryMentions /
- * queryCommands are passed in as props so the host application can wire
- * real context-search sources without touching this package.
- */
-
 import { Paperclip, Send, Square } from 'lucide-react';
 import { useRef } from 'react';
 import { cn } from '../lib/cn';
@@ -90,7 +73,7 @@ export function ChatComposer({
   return (
     <div
       className={cn(
-        'surface-elevated flex flex-col gap-0 rounded-xl border border-border bg-surface',
+        'bg-surface flex flex-col gap-0 rounded-xl border border-border hover:border-border-1 focus-within:border-border-1 focus-within:ring-1 focus-within:ring-border-1',
         className,
       )}
     >

@@ -45,8 +45,12 @@ export function PinnedUserMessage(props: {
   };
 
   return (
-    <div class="bg-chat-bg/80 backdrop-blur-sm" style={{ 'padding-top': `${ROW_GAP}px` }}>
-      <messageDef.Render item={props.item} layout={layout()} ctx={renderCtx} />
-    </div>
+    <>
+      <div class="bg-chat-bg/80 backdrop-blur-sm" style={{ 'padding-top': `${ROW_GAP}px` }}>
+        <messageDef.Render item={props.item} layout={layout()} ctx={renderCtx} />
+      </div>
+      {/* 16px scroll fade: signals that rows scroll beneath the pinned message. */}
+      <div class="fade-overlay-top h-4" aria-hidden="true" />
+    </>
   );
 }
