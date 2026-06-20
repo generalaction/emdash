@@ -1,0 +1,35 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-bookmark-bar.tsx
+  s_ae48c80fce9ebe::t_b8ddf55b5b3d5c 70,95
+  s_6c6ec4643c0345::t_26b8ce4a56dc7e 113
+  s_6c6ec4643c0345::t_3e2e7925cfb92a 33
+  s_6c6ec4643c0345::t_f78d8ef4a3edde 3
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_6c6ec4643c0345::t_5a528b9f96ad71 161-171
+  s_6c6ec4643c0345::t_3cc0f3a40ebbf9 7
+  s_6c6ec4643c0345::t_5a91b93dfffb33 283
+  s_6c6ec4643c0345::t_52deebe675f814 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "c87294e8f372ce728de505d7c34170d197c5dc5a",
+  "prompts": {},
+  "sessions": {
+    "s_6c6ec4643c0345": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7a7f432a-cec7-4dc9-8f1a-41aa01619f4b",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_ae48c80fce9ebe": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ee3c5-878d-79ad-b7cf-4a3e002fa218",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
