@@ -150,7 +150,7 @@ export function BrowserSettingsCard() {
         description="Display quick-access bookmarks below the browser toolbar."
         control={
           <Switch
-            checked={browserSettings?.showBookmarkBar ?? false}
+            checked={browserSettings?.showBookmarkBar ?? true}
             disabled={disabled}
             onCheckedChange={(next) => update({ showBookmarkBar: next })}
           />

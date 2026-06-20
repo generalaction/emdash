@@ -48,7 +48,7 @@ export const BrowserPane = observer(function BrowserPane({
   const sessionBrowserId = session?.browserId;
   const sessionPartition = session?.partition;
   const showStartPage = session?.currentUrl === 'about:blank' && !session.isLoading;
-  const showBookmarkBar = browserSettings?.showBookmarkBar ?? false;
+  const showBookmarkBar = browserSettings?.showBookmarkBar ?? true;
   const bookmarks = browserSettings?.bookmarks ?? [];
 
   useEffect(() => {
@@ -265,16 +265,15 @@ export const BrowserPane = observer(function BrowserPane({
           focusUrlRef.current = focus;
         }}
       />
-      {showBookmarkBar && (
-        <BrowserBookmarkBar
-          bookmarks={bookmarks}
-          onOpenUrl={navigateTo}
-          onReorder={(next) => updateBrowserSettings({ bookmarks: next })}
-          onRemove={(bookmarkId) =>
-            updateBrowserSettings({ bookmarks: removeBrowserBookmark(bookmarks, bookmarkId) })
-          }
-        />
-      )}
+      <BrowserBookmarkBar
+        visible={showBookmarkBar}
+        bookmarks={bookmarks}
+        onOpenUrl={navigateTo}
+        onReorder={(next) => updateBrowserSettings({ bookmarks: next })}
+        onRemove={(bookmarkId) =>
+          updateBrowserSettings({ bookmarks: removeBrowserBookmark(bookmarks, bookmarkId) })
+        }
+      />
       <div className="emlight min-h-0 flex-1 bg-background">
         {showStartPage ? (
           <BrowserStartPage devServerUrls={previewServers.urls} onOpenUrl={navigateTo} />
