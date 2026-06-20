@@ -7,9 +7,8 @@ import { log } from '@renderer/utils/logger';
 import type { AppSettings } from '@shared/core/app-settings';
 import { ptyDataChannel, ptyExitChannel } from '@shared/core/pty/ptyEvents';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/core/terminals/terminal-settings';
-import { appPasteChannel, textContextMenuActionChannel } from '@shared/events/appEvents';
+import { appPasteChannel, terminalContextMenuActionChannel } from '@shared/events/appEvents';
 import { getDomTabNavigationDirection } from '@shared/shortcuts';
-import { findFileLinks } from './file-link-detection';
 import { usePaneSizingContext } from './pane-sizing-context';
 import type { FrontendPty, SessionTheme } from './pty';
 import { measureDimensions } from './pty-dimensions';
@@ -23,21 +22,9 @@ import {
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
 } from './pty-keybindings';
+import { getTerminalContextLink } from './terminal-context-link';
 import { buildTerminalFontFamily } from './terminal-font';
-
-// xterm's proposed API and internal fields are not in the public TypeScript
-// types. Both code paths are necessary: the proposed `dimensions` API works in
-// xterm 5.x, while xterm 6.x exposes cell metrics only via `_core`.
-interface XtermCellDimensions {
-  css: { cell: { width: number; height: number } };
-}
-interface XtermInternals {
-  dimensions?: XtermCellDimensions;
-  _core?: {
-    _renderService?: { dimensions?: XtermCellDimensions };
-    renderService?: { dimensions?: XtermCellDimensions };
-  };
-}
+import { getCellMetrics } from './xterm-cell-metrics';
 
 const PTY_RESIZE_DEBOUNCE_MS = 120;
 const MIN_TERMINAL_COLS = 2;
@@ -46,76 +33,16 @@ const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
 const LAST_SELECTION_COPY_GRACE_MS = 2_000;
-const URL_PATTERN = /https?:\/\/[^\s"'<>`]+/gi;
 
 function dispatchTerminalTabNavigationHotkey(event: KeyboardEvent): boolean {
   if (!getDomTabNavigationDirection(event)) return false;
   return dispatchMatchingHotkeys(event, { dispatch: 'first' });
 }
 
-function getCellMetrics(terminal: Terminal): { width: number; height: number } | null {
-  const t = terminal as unknown as XtermInternals;
-  // Proposed API (xterm 5.x). Undefined on the public Terminal in xterm 6.x.
-  const dims = t.dimensions;
-  if (dims && dims.css.cell.width !== 0 && dims.css.cell.height !== 0) {
-    return { width: dims.css.cell.width, height: dims.css.cell.height };
-  }
-  // xterm 6.x: the public Terminal delegates to `_core` (the internal Terminal instance).
-  // FitAddon receives this same internal object via addon.activate(terminal).
-  const coreDims = t._core?._renderService?.dimensions ?? t._core?.renderService?.dimensions;
-  if (coreDims?.css?.cell?.width && coreDims.css.cell.height) {
-    return { width: coreDims.css.cell.width, height: coreDims.css.cell.height };
-  }
-  return null;
-}
-
 function getRecentSelection(selection: { text: string; capturedAt: number } | null): string {
   if (!selection) return '';
   if (Date.now() - selection.capturedAt > LAST_SELECTION_COPY_GRACE_MS) return '';
   return selection.text;
-}
-
-function getTerminalContextLink(terminal: Terminal, event: MouseEvent): string | null {
-  const cell = getCellMetrics(terminal);
-  const element = (terminal as unknown as { element?: HTMLElement }).element;
-  if (!cell || !element) return null;
-
-  const rect = element.getBoundingClientRect();
-  const row = Math.floor((event.clientY - rect.top) / cell.height);
-  const column = Math.floor((event.clientX - rect.left) / cell.width) + 1;
-  if (row < 0 || row >= terminal.rows || column < 1 || column > terminal.cols) return null;
-
-  const buffer = terminal.buffer.active;
-  const bufferLineNumber = buffer.viewportY + row + 1;
-  const fileLink = findFileLinks(buffer, bufferLineNumber).find((link) =>
-    rangeContainsColumn(link.range, bufferLineNumber, column)
-  );
-  if (fileLink) return fileLink.text;
-
-  const line = buffer.getLine(bufferLineNumber - 1)?.translateToString(true);
-  if (!line) return null;
-  for (const match of line.matchAll(URL_PATTERN)) {
-    const text = trimLinkText(match[0]);
-    const start = (match.index ?? 0) + 1;
-    const end = start + text.length;
-    if (column >= start && column <= end) return text;
-  }
-  return null;
-}
-
-function rangeContainsColumn(
-  range: ReturnType<typeof findFileLinks>[number]['range'],
-  bufferLineNumber: number,
-  column: number
-): boolean {
-  if (bufferLineNumber < range.start.y || bufferLineNumber > range.end.y) return false;
-  const startColumn = bufferLineNumber === range.start.y ? range.start.x : 1;
-  const endColumn = bufferLineNumber === range.end.y ? range.end.x : Number.POSITIVE_INFINITY;
-  return column >= startColumn && column <= endColumn;
-}
-
-function trimLinkText(text: string): string {
-  return text.replace(/[),.;:!?]+$/, '');
 }
 
 function createContextMenuRequestId(): string {
@@ -647,7 +574,7 @@ export function usePty(
         const selectionText =
           terminal.getSelection() || getRecentSelection(lastSelectionRef.current);
         const linkText = getTerminalContextLink(terminal, event);
-        void rpc.app.showTextContextMenu({
+        void rpc.app.showTerminalContextMenu({
           requestId,
           selectionText,
           linkText,
@@ -655,26 +582,29 @@ export function usePty(
           y: event.clientY,
         });
       };
-      const offTextContextMenuAction = events.on(textContextMenuActionChannel, (payload) => {
-        if (payload.requestId !== contextMenuRequestIdRef.current) return;
-        contextMenuRequestIdRef.current = null;
+      const offTerminalContextMenuAction = events.on(
+        terminalContextMenuActionChannel,
+        (payload) => {
+          if (payload.requestId !== contextMenuRequestIdRef.current) return;
+          contextMenuRequestIdRef.current = null;
 
-        if (payload.action === 'paste') {
-          pasteFromClipboard();
-          return;
+          if (payload.action === 'paste') {
+            pasteFromClipboard();
+            return;
+          }
+          if (payload.action === 'select-all') {
+            terminal.selectAll();
+            return;
+          }
+          if (payload.action === 'clear') {
+            frontendPty.clear();
+          }
         }
-        if (payload.action === 'select-all') {
-          terminal.selectAll();
-          return;
-        }
-        if (payload.action === 'clear') {
-          frontendPty.clear();
-        }
-      });
+      );
       frontendPty.ownedContainer.addEventListener('mousedown', handleContextMenuMouseDown, true);
       frontendPty.ownedContainer.addEventListener('contextmenu', handleContextMenu);
       cleanups.push(() => {
-        offTextContextMenuAction();
+        offTerminalContextMenuAction();
         contextMenuRequestIdRef.current = null;
         frontendPty.ownedContainer.removeEventListener(
           'mousedown',

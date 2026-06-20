@@ -20,8 +20,8 @@ import {
   appPasteChannel,
   appRedoChannel,
   appUndoChannel,
-  textContextMenuActionChannel,
-  type TextContextMenuAction,
+  terminalContextMenuActionChannel,
+  type TerminalContextMenuAction,
 } from '@shared/events/appEvents';
 import {
   getAppById,
@@ -237,7 +237,7 @@ class AppService implements IInitializable, IDisposable {
     clipboard.writeText(text);
   }
 
-  showTextContextMenu(args: {
+  showTerminalContextMenu(args: {
     requestId: string;
     selectionText?: string | null;
     linkText?: string | null;
@@ -251,8 +251,8 @@ class AppService implements IInitializable, IDisposable {
     const linkText = args.linkText?.trim() ?? '';
     const hasSelection = selectionText.length > 0;
     const hasLink = linkText.length > 0;
-    const emitAction = (action: TextContextMenuAction) => {
-      events.emit(textContextMenuActionChannel, { requestId: args.requestId, action });
+    const emitAction = (action: TerminalContextMenuAction) => {
+      events.emit(terminalContextMenuActionChannel, { requestId: args.requestId, action });
     };
     const template: Electron.MenuItemConstructorOptions[] = [
       {

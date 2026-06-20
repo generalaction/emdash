@@ -7,12 +7,12 @@ export const appUndoChannel = defineEvent<void>('app:undo');
 export const appRedoChannel = defineEvent<void>('app:redo');
 export const appPasteChannel = defineEvent<void>('app:paste');
 
-export type TextContextMenuAction = 'paste' | 'select-all' | 'clear';
+export type TerminalContextMenuAction = 'paste' | 'select-all' | 'clear';
 
-export const textContextMenuActionChannel = defineEvent<{
+export const terminalContextMenuActionChannel = defineEvent<{
   requestId: string;
-  action: TextContextMenuAction;
-}>('text-context-menu:action');
+  action: TerminalContextMenuAction;
+}>('terminal-context-menu:action');
 
 // Menu events (main → renderer, no payload)
 export const menuOpenSettingsChannel = defineEvent<void>('menu:open-settings');

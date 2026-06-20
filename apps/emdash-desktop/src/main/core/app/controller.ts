@@ -41,7 +41,7 @@ export const appController = createRPCController({
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
-  showTextContextMenu: async (args: {
+  showTerminalContextMenu: async (args: {
     requestId: string;
     selectionText?: string | null;
     linkText?: string | null;
@@ -49,7 +49,7 @@ export const appController = createRPCController({
     y: number;
   }) => {
     try {
-      appService.showTextContextMenu(args);
+      appService.showTerminalContextMenu(args);
       return { success: true };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };

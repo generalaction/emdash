@@ -116,13 +116,13 @@ describe('AppService.openIn', () => {
   });
 });
 
-describe('AppService.showTextContextMenu', () => {
+describe('AppService.showTerminalContextMenu', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('copies the exact selected terminal text without trimming whitespace', () => {
-    appService.showTextContextMenu({
+    appService.showTerminalContextMenu({
       requestId: 'request-1',
       selectionText: '  indented value\n',
       x: 10,
@@ -139,7 +139,7 @@ describe('AppService.showTextContextMenu', () => {
   });
 
   it('allows copying whitespace-only selections', () => {
-    appService.showTextContextMenu({
+    appService.showTerminalContextMenu({
       requestId: 'request-1',
       selectionText: '   ',
       x: 10,
