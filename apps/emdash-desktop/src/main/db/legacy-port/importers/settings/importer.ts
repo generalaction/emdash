@@ -167,7 +167,7 @@ export async function portLegacySettings(
       }
     }
 
-    if (autoApproveByDefault !== null) {
+    if (autoApproveByDefault === true) {
       try {
         await settingsStore.update(
           'agentAutoApproveDefaults',

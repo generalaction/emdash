@@ -271,7 +271,7 @@ describe('portLegacySettings', () => {
       settingsStore: createSettingsStoreStub(appSqlite),
     });
 
-    expect(summary.imported).toEqual(['agentAutoApproveDefaults']);
+    expect(summary.imported).toEqual([]);
     expect(readRawSetting(appSqlite, 'agentAutoApproveDefaults')).toBeNull();
   });
 
