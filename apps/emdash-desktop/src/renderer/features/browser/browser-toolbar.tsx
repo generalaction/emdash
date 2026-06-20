@@ -60,6 +60,7 @@ import {
   findBrowserBookmarkForUrl,
   isBrowserBookmarkableUrl,
   toggleBrowserBookmarkForSession,
+  type BrowserBookmark,
 } from '@shared/browser-bookmarks';
 import {
   buildBrowserUrlSuggestions,
@@ -81,7 +82,7 @@ import type { BrowserWebviewAdapter } from './browser-webview-types';
 // Selection is conveyed by the checkmark alone (matching SelectItem); the base
 // radio item pins a background on the checked row and mutes unchecked rows.
 const PROFILE_RADIO_ITEM_CLASS = 'text-foreground data-checked:bg-transparent';
-const EMPTY_BOOKMARKS = [];
+const EMPTY_BOOKMARKS: readonly BrowserBookmark[] = [];
 
 export function BrowserToolbar({
   session,

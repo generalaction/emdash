@@ -29,7 +29,7 @@ async function resolveLocalInstallShellProfile() {
 function wireDesktopBridges(manager: HostDependencyManager, connectionId?: string): void {
   // AgentUpdateService owns the enriched event emission (adds latestVersion/updateAvailable)
   agentUpdateService.attach(manager, connectionId);
-  manager.onExecutableInvalidated.subscribe(({ id }) => {
+  manager.onExecutableInvalidated.subscribe(({ id }: { id: string }) => {
     clearResolvedPathCache(id, connectionId);
   });
 }
