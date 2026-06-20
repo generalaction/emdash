@@ -106,10 +106,19 @@ export const browserProfileIdSchema = z
   .regex(/^[a-z0-9][a-z0-9-]{0,63}$/)
   .refine((value) => value !== BROWSER_ISOLATED_PROFILE_ID);
 
+export const browserBookmarkSchema = z.object({
+  id: z.string().uuid(),
+  url: z.string().url(),
+  title: z.string().trim().min(1).max(120),
+  faviconUrl: z.string().url().optional(),
+});
+
 export const browserSettingsSchema = z
   .object({
     defaultProfileId: z.union([browserProfileIdSchema, z.literal(BROWSER_ISOLATED_PROFILE_ID)]),
     relaxCorsForLocalhost: z.boolean(),
+    showBookmarkBar: z.boolean(),
+    bookmarks: z.array(browserBookmarkSchema),
     profiles: z
       .array(
         z.object({

@@ -10,6 +10,7 @@ import {
   RefreshCw,
   RotateCcw,
   Square,
+  Star,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
@@ -29,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from '@renderer/lib/ui/dropdown-menu';
 import { Input } from '@renderer/lib/ui/input';
+import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import {
@@ -46,6 +48,11 @@ import {
   previousBrowserZoomFactor,
   type BrowserSessionSnapshot,
 } from '@shared/browser';
+import {
+  findBrowserBookmarkForUrl,
+  isBrowserBookmarkableUrl,
+  toggleBrowserBookmarkForSession,
+} from '@shared/browser-bookmarks';
 import { browserSessionStore } from './browser-session-store';
 import {
   canOpenBrowserUrlExternally,
@@ -89,10 +96,14 @@ export function BrowserToolbar({
   const [failedFaviconUrl, setFailedFaviconUrl] = useState<string | null>(null);
   const [screenshotSpin, triggerScreenshotSpin] = useTransientFlag(300);
   const urlInputRef = useRef<HTMLInputElement | null>(null);
-  const { value: browserSettings } = useAppSettingsKey('browser');
+  const { value: browserSettings, update: updateBrowserSettings } = useAppSettingsKey('browser');
   const { navigate: navigateToView } = useNavigate();
   const profiles = browserSettings?.profiles ?? DEFAULT_BROWSER_PROFILES;
+  const bookmarks = browserSettings?.bookmarks ?? [];
+  const showBookmarkBar = browserSettings?.showBookmarkBar ?? false;
   const profileLabel = browserProfileLabel(session.profileId, profiles);
+  const isCurrentPageBookmarked = Boolean(findBrowserBookmarkForUrl(bookmarks, session.currentUrl));
+  const canBookmarkCurrentPage = isBrowserBookmarkableUrl(session.currentUrl);
   const faviconUrl =
     session.faviconUrl && session.faviconUrl !== failedFaviconUrl ? session.faviconUrl : null;
 
@@ -155,6 +166,15 @@ export function BrowserToolbar({
   const takeScreenshot = () => {
     triggerScreenshotSpin();
     void captureBrowserScreenshot(session);
+  };
+
+  const toggleCurrentPageBookmark = () => {
+    const next = toggleBrowserBookmarkForSession(bookmarks, {
+      currentUrl: session.currentUrl,
+      title: session.title,
+      faviconUrl: session.faviconUrl,
+    });
+    updateBrowserSettings({ bookmarks: next.bookmarks });
   };
 
   const canOpenExternal = canOpenBrowserUrlExternally(session.currentUrl);
@@ -223,6 +243,15 @@ export function BrowserToolbar({
         )}
       </form>
       <ToolbarIconButton
+        label={isCurrentPageBookmarked ? 'Remove bookmark' : 'Bookmark this page'}
+        disabled={!canBookmarkCurrentPage}
+        onClick={toggleCurrentPageBookmark}
+      >
+        <Star
+          className={cn('size-4', isCurrentPageBookmarked && 'fill-current text-foreground-info')}
+        />
+      </ToolbarIconButton>
+      <ToolbarIconButton
         label="Copy screenshot"
         disabled={session.currentUrl === BROWSER_DEFAULT_URL || session.isLoading}
         onClick={takeScreenshot}
@@ -288,6 +317,15 @@ export function BrowserToolbar({
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
+          <DropdownMenuSeparator />
+          <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-sm">
+            <span>Show bookmark bar</span>
+            <Switch
+              size="sm"
+              checked={showBookmarkBar}
+              onCheckedChange={(next) => updateBrowserSettings({ showBookmarkBar: next })}
+            />
+          </div>
           <DropdownMenuSeparator />
           <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-sm">
             <span>Zoom</span>
