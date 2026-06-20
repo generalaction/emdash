@@ -173,8 +173,8 @@ export function BrowserSettingsCard() {
         <div className="flex flex-col gap-1">
           <div className="text-sm text-foreground">Bookmarks</div>
           <div className="text-xs text-foreground-passive">
-            Quick-access links shown in the browser bookmark bar. Add bookmarks from the star
-            button in a browser tab.
+            Quick-access links shown in the browser bookmark bar. Add bookmarks from the star button
+            in a browser tab.
           </div>
         </div>
 

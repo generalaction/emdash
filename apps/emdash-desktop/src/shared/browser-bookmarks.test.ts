@@ -120,10 +120,7 @@ describe('browser bookmarks', () => {
     });
     const bookmarks = [first!, second!];
 
-    expect(reorderBrowserBookmarksToMatch(bookmarks, [second!, first!])).toEqual([
-      second,
-      first,
-    ]);
+    expect(reorderBrowserBookmarksToMatch(bookmarks, [second!, first!])).toEqual([second, first]);
     expect(reorderBrowserBookmarksToMatch(bookmarks, [first!, second!, first!])).toEqual(bookmarks);
   });
 });
