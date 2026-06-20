@@ -23,6 +23,7 @@ import type { ViewState } from './state/view-state';
 export type {
   ChatItem,
   ChatMessage,
+  ChatImageAttachment,
   ChatToolCall,
   ChatThinking,
   ChatFileOpToolCall,

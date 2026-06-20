@@ -9,6 +9,20 @@ export type ToolStatus = 'running' | 'done' | 'error';
 
 export type ThinkingStatus = 'thinking' | 'done';
 
+/**
+ * An image attachment shown as a thumbnail at the top of a user message bubble.
+ *
+ * `dataUrl` carries the inline image for display; when it is absent (the source
+ * content could not be resolved, e.g. on reload when the agent did not replay
+ * the bytes) the renderer shows a neutral fallback tile instead.
+ */
+export type ChatImageAttachment = {
+  id: string;
+  name: string;
+  /** Data URL for inline display; absent when content can't be resolved -> fallback tile. */
+  dataUrl?: string;
+};
+
 export type ChatMessage = {
   kind: 'message';
   id: string;
@@ -17,6 +31,8 @@ export type ChatMessage = {
   text: string;
   /** True while the agent is still writing to this message. */
   streaming?: boolean;
+  /** Image attachments rendered as a thumbnail strip above the text (user messages). */
+  attachments?: ChatImageAttachment[];
 };
 
 export type ChatToolCall = {

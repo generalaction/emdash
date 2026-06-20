@@ -9,6 +9,7 @@
 
 import type { RichInlineItem } from '@chenglou/pretext/rich-inline';
 import type { InlineCode, InlineMention, InlineRun, InlineText } from '../markdown/document';
+import { MENTION_ICON_GAP, MENTION_ICON_W } from '../metrics';
 import type { FontConfig } from './fonts';
 
 export function runsToRichItems(runs: InlineRun[], fonts: FontConfig): RichInlineItem[] {
@@ -27,10 +28,11 @@ export function runsToRichItems(runs: InlineRun[], fonts: FontConfig): RichInlin
     }
     if (run.kind === 'mention') {
       const mention = run as InlineMention;
-      // Resolved mentions (from MentionProvider) display the short name and include
-      // extra space for the leading icon container (size-3.5 = 14px + gap-1 = 4px).
+      // Resolved mentions display the short name and include extra space for the
+      // leading icon container. MENTION_ICON_W + MENTION_ICON_GAP must equal the
+      // px values used in Prose.tsx so rendering and measurement stay in sync.
       const displayText = mention.name ?? mention.label;
-      const iconWidth = mention.mentionKind ? 18 : 0;
+      const iconWidth = mention.mentionKind ? MENTION_ICON_W + MENTION_ICON_GAP : 0;
       return [
         {
           text: displayText,

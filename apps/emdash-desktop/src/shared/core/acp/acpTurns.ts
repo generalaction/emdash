@@ -9,6 +9,16 @@
 
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 
+/**
+ * An image to include in a prompt, sent to the agent as an ACP `image` content
+ * block. `data` is raw base64 (no `data:` URL prefix); `mimeType` is the image
+ * media type (e.g. `image/png`).
+ */
+export interface AcpPromptImage {
+  data: string;
+  mimeType: string;
+}
+
 /** Final state of a turn once it leaves the active slot. */
 export type TurnStatus = 'active' | 'complete' | 'error' | 'cancelled';
 

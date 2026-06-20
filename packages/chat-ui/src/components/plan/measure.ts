@@ -7,7 +7,7 @@
  * have a numeric value at import time.
  *
  * Total height = headerH + bodyH + CHROME_Y, where:
- *   - CHROME_Y = 2*PLAN_OUTER_PAD_Y + 2*PLAN_BORDER (card border + outer padding)
+ *   - CHROME_Y = 3*PLAN_BORDER (top border + header separator + bottom border)
  *   - bodyH (expanded)  = listH
  *   - bodyH (collapsed) = min(listH, PLAN_WINDOW_H)  (capped preview window)
  *   - listH = sum(entryHeights) + (n-1)*PLAN_ENTRY_GAP + 2*PLAN_PAD_Y
@@ -33,8 +33,8 @@ export { PLAN_PAD_Y, PLAN_ENTRY_GAP, PLAN_BORDER, PLAN_OUTER_PAD_Y, PLAN_WINDOW_
 export const PLAN_HEADER_H = ROW_H;
 export const PLAN_LINE_H = DEFAULT_FONT_CONFIG.body.lineHeight;
 
-/** Card border + outer padding contributed to the total height. */
-export const PLAN_CHROME_Y = 2 * PLAN_OUTER_PAD_Y + 2 * PLAN_BORDER;
+/** Card border: top border + header separator + bottom border. */
+export const PLAN_CHROME_Y = 3 * PLAN_BORDER;
 
 /** Inner list height: entry heights + inter-entry gaps + list padding. */
 export function planListHeight(entryCount: number, entryHeights: number[] = []): number {

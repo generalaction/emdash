@@ -33,6 +33,7 @@ import type { ChatMessage } from '../../model';
 import { BlockStackView } from '../primitives/BlockStackView';
 import { CopyButton } from '../primitives/CopyButton';
 import {
+  attachmentsStripHeight,
   BLOCK_GAP,
   BUBBLE_PAD_Y,
   PROSE_GAP,
@@ -69,8 +70,10 @@ export function measureMessage(item: ChatMessage, ctx: MeasureCtx): number {
   if (item.role === 'user') {
     const innerW = userInnerWidth(ctx.width);
     const innerCtx = { ...ctx, width: innerW };
+    const attachH = attachmentsStripHeight(item.attachments?.length ?? 0, innerW);
     if (blocks.length === 0) {
-      const fallback = ctx.theme.fonts.body.lineHeight + 2 * BUBBLE_PAD_Y + 2 * USER_CARD_BORDER;
+      const fallback =
+        attachH + ctx.theme.fonts.body.lineHeight + 2 * BUBBLE_PAD_Y + 2 * USER_CARD_BORDER;
       return Math.min(
         fallback,
         ctx.expandedId === item.id ? USER_EXPANDED_MAX_H : USER_COLLAPSED_MAX_H
@@ -80,7 +83,7 @@ export function measureMessage(item: ChatMessage, ctx: MeasureCtx): number {
       ...STACK_OPTS,
       isCollapsed: ctx.isCollapsed,
     });
-    const contentH = stack.height + 2 * BUBBLE_PAD_Y + 2 * USER_CARD_BORDER;
+    const contentH = attachH + stack.height + 2 * BUBBLE_PAD_Y + 2 * USER_CARD_BORDER;
     return Math.min(
       contentH,
       ctx.expandedId === item.id ? USER_EXPANDED_MAX_H : USER_COLLAPSED_MAX_H
@@ -165,7 +168,12 @@ export const messageUnitDef = defineUnit<ChatMessage>({
   estimate(item, ctx): number {
     if (item.role === 'user') {
       const lines = Math.max(1, Math.ceil(item.text.length / 60));
-      const est = lines * ctx.theme.fonts.body.lineHeight + 2 * BUBBLE_PAD_Y + 2 * USER_CARD_BORDER;
+      const attachH = attachmentsStripHeight(
+        item.attachments?.length ?? 0,
+        userInnerWidth(ctx.width)
+      );
+      const est =
+        attachH + lines * ctx.theme.fonts.body.lineHeight + 2 * BUBBLE_PAD_Y + 2 * USER_CARD_BORDER;
       return Math.min(est, ctx.expandedId === item.id ? USER_EXPANDED_MAX_H : USER_COLLAPSED_MAX_H);
     }
     const lines = Math.max(1, Math.ceil(item.text.length / 60));

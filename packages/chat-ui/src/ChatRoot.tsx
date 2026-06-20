@@ -545,25 +545,18 @@ export function ChatRoot(props: ChatRootProps) {
     // expected). Groups:
     //   Typography — feed pretext measurement; keep until CSS modules migrate to --type-* vars.
     //   Inline code / mention chrome — feed pretext extra-width accounting.
-    //   Code block geometry — feed Code.tsx visual chrome (padding, border).
-    //   Island geometry — caps the max-height of fixed-size island blocks.
+    // Emit only the density-derived geometry vars that CSS modules actually read.
+    // Typography (font-size, font-weight, line-height) is now handled by the
+    // private --chat-type-* vars in tokens.css — no host override, no runtime emit.
+    // Mention geometry (icon width, gap, padding) is baked as px literals in
+    // prose.module.css and Prose.tsx via the MENTION_* constants.
     const t = theme();
     const d = t.density;
-    // Extract font-size px value from CSS shorthand "weight size family".
-    const codeSizePx = t.fonts.code.font.match(/(\d+(?:\.\d+)?)px/)?.[1] ?? '13';
     const cssVars: Record<string, string> = {
-      // Typography (--type-code-* equivalents that CSS modules reference as --chat-code-*)
-      '--chat-code-size': `${codeSizePx}px`,
-      '--chat-code-lh': `${t.fonts.code.lineHeight}px`,
-      '--chat-code-weight': '400',
-      // Inline code / mention chrome (feed pretext extra-width accounting)
+      // Inline code chip padding (density-driven; consumed by prose.module.css +
+      // execute.module.css .pf--inline-code / .pexec__cmd).
       '--chat-ic-pad-x': `${d.inlineCodePadX}px`,
       '--chat-ic-pad-y': `${d.inlineCodePadY}px`,
-      '--chat-mention-pad-x': `${Math.round(t.fonts.mentionExtraWidth / 2)}px`,
-      // Code block geometry (visual chrome — border, padding; matches code.def.tsx constants)
-      '--chat-code-border': '1px',
-      '--chat-code-pad-x': '8px',
-      '--chat-code-pad-y': '8px',
     };
     for (const [k, v] of Object.entries(cssVars)) {
       el.style.setProperty(k, v);

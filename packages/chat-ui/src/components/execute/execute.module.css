@@ -13,9 +13,9 @@
  * bg and border-radius live in Tailwind (Execute.tsx).
  */
 .pexec__cmd {
-  font-size: var(--type-inline-code-font-size);
-  font-weight: var(--type-inline-code-font-weight);
-  font-family: var(--type-inline-code-font-family);
+  font-size: var(--chat-type-inline-code-font-size);
+  font-weight: var(--chat-type-inline-code-font-weight);
+  font-family: var(--chat-type-inline-code-font-family);
   padding: var(--chat-ic-pad-y) var(--chat-ic-pad-x);
   display: inline-block;
   max-width: 150px;

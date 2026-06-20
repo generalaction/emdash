@@ -15,13 +15,14 @@
  * by the single expandedUserId signal in ChatRoot).
  */
 
-import { Show, createMemo } from 'solid-js';
+import { For, Show, createMemo } from 'solid-js';
 import type { StackLayout } from '../../core/compose';
 import type { Measured, RenderCtx } from '../../core/define';
 import { layoutBlockStack } from '../../core/layout/block-stack';
 import { blockPlainText } from '../../core/markdown/plain-text';
 import type { ChatMessage } from '../../model';
 import { BlockStackView } from '../primitives/BlockStackView';
+import { ImageOffIcon } from '../primitives/icons';
 
 // ── Layout constants (imported by message.def.tsx — keep in sync) ────────────
 
@@ -39,6 +40,26 @@ export const BUBBLE_PAD_Y = 6;
 export const BLOCK_GAP = 10;
 /** Tighter gap between two consecutive prose blocks (px). */
 export const PROSE_GAP = 4;
+
+// ── Attachment strip geometry (imported by message.def.tsx — keep in sync) ────
+
+/** Square thumbnail size (px) for an image attachment tile. */
+export const ATTACH_THUMB = 32;
+/** Gap (px) between attachment tiles and below the strip. */
+export const ATTACH_GAP = 8;
+
+/**
+ * Height (px) reserved for the attachment thumbnail strip, including the bottom
+ * gap that separates it from the message text. Returns 0 when there are no
+ * attachments. Must agree with the rendered `flex flex-wrap gap-2 pb-2` markup
+ * so the virtualizer reserves the exact height the strip occupies.
+ */
+export function attachmentsStripHeight(count: number, innerW: number): number {
+  if (count <= 0) return 0;
+  const perRow = Math.max(1, Math.floor((innerW + ATTACH_GAP) / (ATTACH_THUMB + ATTACH_GAP)));
+  const rows = Math.ceil(count / perRow);
+  return rows * ATTACH_THUMB + (rows - 1) * ATTACH_GAP + ATTACH_GAP; // + bottom gap
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -72,13 +93,17 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx }) {
   const fullContentH = createMemo(() => {
     const ctx = mCtx();
     if (!ctx) return USER_COLLAPSED_MAX_H;
+    const innerW = userInnerWidth(ctx.width);
+    const attachH = attachmentsStripHeight(props.data.attachments?.length ?? 0, innerW);
     const blocks = ctx.caches.parseBlocks(props.data.id, props.data.text);
     if (blocks.length === 0) {
-      return ctx.theme.fonts.body.lineHeight + 2 * BUBBLE_PAD_Y + 2 * USER_CARD_BORDER;
+      return (
+        attachH + ctx.theme.fonts.body.lineHeight + 2 * BUBBLE_PAD_Y + 2 * USER_CARD_BORDER
+      );
     }
-    const innerCtx = { ...ctx, width: userInnerWidth(ctx.width) };
+    const innerCtx = { ...ctx, width: innerW };
     const s = layoutBlockStack(blocks, innerCtx, { ...STACK_OPTS, isCollapsed: ctx.isCollapsed });
-    return s.height + 2 * BUBBLE_PAD_Y + 2 * USER_CARD_BORDER;
+    return attachH + s.height + 2 * BUBBLE_PAD_Y + 2 * USER_CARD_BORDER;
   });
 
   const isExpanded = () => mCtx()?.expandedId === props.data.id;
@@ -111,6 +136,33 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx }) {
       }}
     >
       <div class="sr-only">{plainText()}</div>
+      {/* Image attachment thumbnail strip — mirrors the composer preview minus
+          the remove button. Height reserved by attachmentsStripHeight(). */}
+      <Show when={props.data.attachments?.length}>
+        <div class="flex flex-wrap gap-2 pb-2">
+          <For each={props.data.attachments}>
+            {(att) => (
+              <Show
+                when={att.dataUrl}
+                fallback={
+                  <div
+                    title={att.name}
+                    class="ring-chat-border bg-chat-bg-2 text-chat-fg-muted grid size-8 place-items-center rounded-md ring-1"
+                  >
+                    <ImageOffIcon />
+                  </div>
+                }
+              >
+                <img
+                  src={att.dataUrl}
+                  alt={att.name}
+                  class="ring-chat-border size-8 rounded-md object-cover ring-1"
+                />
+              </Show>
+            )}
+          </For>
+        </div>
+      </Show>
       <Show when={stack()}>{(s) => <BlockStackView node={s()} />}</Show>
       {/* Fade-out overlay shown only when the card is collapsed and content overflows. */}
       <Show when={!isExpanded() && isOverflowing()}>

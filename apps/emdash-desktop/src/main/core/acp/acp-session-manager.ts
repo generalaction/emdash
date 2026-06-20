@@ -35,6 +35,7 @@ import {
   acpTurnCommittedChannel,
 } from '@shared/core/acp/acpEvents';
 import type {
+  AcpPromptImage,
   AcpTurn,
   ChatHistory,
   SessionLifecycle,
@@ -243,9 +244,9 @@ class AcpSessionManager {
     }
   }
 
-  async prompt(conversationId: string, text: string): Promise<void> {
+  async prompt(conversationId: string, text: string, images?: AcpPromptImage[]): Promise<void> {
     const { pool, conv } = this.resolveConversation(conversationId);
-    await this.sendPromptInternal(pool, conv, text);
+    await this.sendPromptInternal(pool, conv, text, images);
   }
 
   async cancel(conversationId: string): Promise<void> {
@@ -686,7 +687,8 @@ class AcpSessionManager {
   private async sendPromptInternal(
     pool: AcpPool,
     conv: AcpConversation,
-    text: string
+    text: string,
+    images?: AcpPromptImage[]
   ): Promise<void> {
     if (!conv.acpSessionId) return;
     this.openTurn(conv, 'live');
@@ -695,7 +697,15 @@ class AcpSessionManager {
     try {
       const res: PromptResponse = await pool.connection.prompt({
         sessionId: conv.acpSessionId,
-        prompt: [{ type: 'text', text }],
+        prompt: [
+          ...(images ?? []).map((img) => ({
+            type: 'image' as const,
+            data: img.data,
+            mimeType: img.mimeType,
+          })),
+          // Omit an empty text block for image-only prompts.
+          ...(text ? [{ type: 'text' as const, text }] : []),
+        ],
       });
       this.closeTurn(conv, this.statusFromStopReason(res.stopReason));
       this.emitAgentEvent(conv, 'stop');

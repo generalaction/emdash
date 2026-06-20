@@ -19,6 +19,7 @@ import type {
   ProseLaidOut,
 } from '../../core/layout/layout-types';
 import type { InlineMention, InlineRun } from '../../core/markdown/document';
+import { MENTION_ICON_GAP, MENTION_ICON_W } from '../../core/metrics';
 import { BlockFrame } from '../block-frame';
 import { useCommands } from '../CommandsContext';
 import {
@@ -104,22 +105,34 @@ function ProseFragment(props: {
     );
   }
 
-  // Resolved mention: render icon + short name inline within the chip, matching
-  // the ChatComposer MentionPill layout ([icon] [name] in one row).
+  // Resolved mention: render icon + short name inline within the chip.
+  // Geometry is fully px-driven from the MENTION_ICON_* constants so it
+  // exactly matches the extraWidth reserved by to-rich-items.ts.
   if (props.run.kind === 'mention' && (props.run as InlineMention).mentionKind) {
     const mention = props.run as InlineMention;
     return (
       <span
-        class={`${cls} gap-1`}
-        // `.pf` declares display:inline-block; force inline-flex via inline style
-        // so the icon and label share a single centered row.
+        class={cls}
         style={{
           left: `${props.frag.x}px`,
           display: 'inline-flex',
           'align-items': 'center',
+          gap: `${MENTION_ICON_GAP}px`,
         }}
       >
-        <span class="flex size-3.5 shrink-0 items-center justify-center">
+        {/* Fixed-px box with overflow:hidden so a devicon glyph cannot spill
+            past the reserved MENTION_ICON_W and cause adjacent text overlap. */}
+        <span
+          style={{
+            display: 'flex',
+            width: `${MENTION_ICON_W}px`,
+            height: `${MENTION_ICON_W}px`,
+            'flex-shrink': '0',
+            'align-items': 'center',
+            'justify-content': 'center',
+            overflow: 'hidden',
+          }}
+        >
           <Show
             when={mention.iconClass}
             fallback={
@@ -136,7 +149,7 @@ function ProseFragment(props: {
               </Switch>
             }
           >
-            {(ic) => <i class={`${ic()} text-[12px] leading-none`} />}
+            {(ic) => <i class={`${ic()} leading-none`} style={{ 'font-size': '12px' }} />}
           </Show>
         </span>
         <span>{mention.name ?? mention.label}</span>

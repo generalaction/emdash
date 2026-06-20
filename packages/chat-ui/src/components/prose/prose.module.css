@@ -42,83 +42,83 @@
 /* Variant-specific fonts — driven by @emdash/ui --type-* role tokens. */
 /* font-size, font-family, font-weight all affect pretext measurement — keep var-driven. */
 .pf--body {
-  font-size: var(--type-body-font-size);
-  font-weight: var(--type-body-font-weight);
-  font-family: var(--type-body-font-family);
+  font-size: var(--chat-type-body-font-size);
+  font-weight: var(--chat-type-body-font-weight);
+  font-family: var(--chat-type-body-font-family);
 }
 
 .pf--bold {
-  font-size: var(--type-body-font-size);
-  font-weight: var(--type-body-bold-font-weight);
-  font-family: var(--type-body-font-family);
+  font-size: var(--chat-type-body-font-size);
+  font-weight: var(--chat-type-body-bold-font-weight);
+  font-family: var(--chat-type-body-font-family);
 }
 
 .pf--italic {
-  font-size: var(--type-body-font-size);
-  font-weight: var(--type-body-font-weight);
+  font-size: var(--chat-type-body-font-size);
+  font-weight: var(--chat-type-body-font-weight);
   font-style: italic;
-  font-family: var(--type-body-font-family);
+  font-family: var(--chat-type-body-font-family);
 }
 
 .pf--bold-italic {
-  font-size: var(--type-body-font-size);
-  font-weight: var(--type-body-bold-font-weight);
+  font-size: var(--chat-type-body-font-size);
+  font-weight: var(--chat-type-body-bold-font-weight);
   font-style: italic;
-  font-family: var(--type-body-font-family);
+  font-family: var(--chat-type-body-font-family);
 }
 
 .pf--link {
-  font-size: var(--type-body-font-size);
-  font-weight: var(--type-body-link-font-weight);
-  font-family: var(--type-body-font-family);
+  font-size: var(--chat-type-body-font-size);
+  font-weight: var(--chat-type-body-link-font-weight);
+  font-family: var(--chat-type-body-font-family);
   /* color, text-decoration, cursor — moved to Tailwind in Prose.tsx */
 }
 
 .pf--h1 {
-  font-size: var(--type-h1-font-size);
-  font-weight: var(--type-h1-font-weight);
-  font-family: var(--type-h1-font-family);
+  font-size: var(--chat-type-h1-font-size);
+  font-weight: var(--chat-type-h1-font-weight);
+  font-family: var(--chat-type-h1-font-family);
 }
 
 .pf--h2 {
-  font-size: var(--type-h2-font-size);
-  font-weight: var(--type-h2-font-weight);
-  font-family: var(--type-h2-font-family);
+  font-size: var(--chat-type-h2-font-size);
+  font-weight: var(--chat-type-h2-font-weight);
+  font-family: var(--chat-type-h2-font-family);
 }
 
 .pf--h3,
 .pf--h4,
 .pf--h5,
 .pf--h6 {
-  font-size: var(--type-h3-font-size);
-  font-weight: var(--type-h3-font-weight);
-  font-family: var(--type-h3-font-family);
+  font-size: var(--chat-type-h3-font-size);
+  font-weight: var(--chat-type-h3-font-weight);
+  font-family: var(--chat-type-h3-font-family);
 }
 
 /* Inline code chip — font metrics and padding feed pretext measurement. */
 /* bg and border-radius moved to Tailwind in Prose.tsx. */
 .pf--inline-code {
-  font-size: var(--type-inline-code-font-size);
-  font-weight: var(--type-inline-code-font-weight);
-  font-family: var(--type-inline-code-font-family);
+  font-size: var(--chat-type-inline-code-font-size);
+  font-weight: var(--chat-type-inline-code-font-weight);
+  font-family: var(--chat-type-inline-code-font-family);
   padding: var(--chat-ic-pad-y) var(--chat-ic-pad-x);
 }
 
 /* Mention chip — font metrics and padding feed pretext measurement. */
 /* bg, color, border-radius moved to Tailwind in Prose.tsx. */
 /*
- * font-size / font-weight are hardcoded (12px / 500) to match text-xs font-medium
- * in the ChatComposer MentionPill, and to stay in lock-step with the bundled
- * measurement source (core/measure/default-typography.ts `type.mention`). They are
- * intentionally NOT read from --type-mention-* because the host app (@emdash/ui)
- * rebinds --type-mention-font-size to --text-base (14px), which would desync the
- * rendered size from the 12px width measurement and clip the chip.
+ * font-size (12px) / font-weight (500) / padding (2px 4px) are hardcoded
+ * literals, not CSS vars. They mirror the constants in core/metrics.ts:
+ *   MENTION_PAD_Y=2, MENTION_PAD_X=4, MENTION_EXTRA_WIDTH=2*MENTION_PAD_X=8.
+ * font-family follows the body font so the rendered text uses the same face
+ * as the measurement source (core/metrics.ts MENTION_FONT is built from
+ * SANS_FAMILY, identical to the body font).
  */
 .pf--mention {
   font-size: 12px;
   font-weight: 500;
-  font-family: var(--type-mention-font-family);
-  padding: 2px var(--chat-mention-pad-x);
+  font-family: var(--chat-type-body-font-family);
+  padding: 2px 4px;
 }
 
 /* ── Decorations ──────────────────────────────────────────────────────────── */
@@ -130,8 +130,8 @@
   justify-content: center;
   /* Center the glyph box on its (x, top) anchor — both axes. */
   transform: translate(-50%, -50%);
-  font-size: var(--type-body-font-size);
-  font-family: var(--type-body-font-family);
+  font-size: var(--chat-type-body-font-size);
+  font-family: var(--chat-type-body-font-family);
   line-height: 1;
   /* color moved to Tailwind in Prose.tsx */
 }

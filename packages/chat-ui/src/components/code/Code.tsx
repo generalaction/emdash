@@ -128,8 +128,8 @@ export function Code(props: CodeProps) {
               }}
               class={[
                 'absolute whitespace-pre text-chat-fg font-normal',
-                'text-(length:--chat-code-size) leading-(--chat-code-lh)',
-                '[font-family:var(--type-code-font-family)]',
+                'text-(length:--chat-type-code-font-size) leading-(--chat-type-code-line-height)',
+                '[font-family:var(--chat-type-code-font-family)]',
               ].join(' ')}
               style={{ top: `${line.top}px` }}
             >

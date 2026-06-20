@@ -15,6 +15,7 @@ import type {
   ChatDiff,
   ChatExecute,
   ChatFileOpToolCall,
+  ChatImageAttachment,
   ChatItem,
   ChatMessage,
   ChatPlan,
@@ -37,8 +38,19 @@ export type TranscriptState = {
 // ── Event union ───────────────────────────────────────────────────────────────
 
 export type TranscriptEvent =
-  /** A text chunk for a message (user or assistant). Delta — appended. */
-  | { type: 'message_chunk'; id: string; role: ChatRole; text: string }
+  /**
+   * A text chunk for a message (user or assistant). Delta — `text` is appended.
+   * `attachments`, when present, are appended to the message's attachment list
+   * (so an image block can attach to an already-created text bubble, e.g. on
+   * replay where text and image blocks arrive as separate chunks).
+   */
+  | {
+      type: 'message_chunk';
+      id: string;
+      role: ChatRole;
+      text: string;
+      attachments?: ChatImageAttachment[];
+    }
   /** A new tool call has started. */
   | { type: 'tool_start'; id: string; name: string; inputSummary?: string }
   /** An existing tool call was updated (status, name, or summary). */
@@ -280,6 +292,9 @@ export function createTranscript(): TranscriptApi {
               );
               if (existing) {
                 existing.text += event.text;
+                if (event.attachments && event.attachments.length > 0) {
+                  existing.attachments = [...(existing.attachments ?? []), ...event.attachments];
+                }
               } else {
                 s.activeTurn.push({
                   kind: 'message',
@@ -287,6 +302,7 @@ export function createTranscript(): TranscriptApi {
                   role: event.role,
                   text: event.text,
                   streaming: true,
+                  attachments: event.attachments,
                 } satisfies ChatMessage);
               }
               break;

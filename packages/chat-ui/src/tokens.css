@@ -66,6 +66,15 @@
       background-position: -200% 0;
     }
   }
+
+  /* Spinner rotation — referenced by the plan-spinner @utility below */
+  --animate-plan-spin: plan-spin 1s linear infinite;
+
+  @keyframes plan-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
 }
 
 /* ── 2. :where() defaults ─────────────────────────────────────────────────── */
@@ -117,70 +126,76 @@
   --chat-radius-xl: 0.875rem;
   --chat-radius-full: 9999px;
 
-  /* Typography role vars — consumed by prose.module.css, diff.module.css, etc.
-   * These mirror @emdash/ui/theme/theme.base.css :root declarations. */
+  /* Private typography vars — consumed by prose.module.css, diff.module.css, etc.
+   *
+   * Prefixed --chat-type-* (NOT --type-*) so the host app can NEVER accidentally
+   * override them. @emdash/ui declares identically-named --type-* vars at :root
+   * with higher specificity than our :where() block, which desyncs rendering from
+   * the bundled measurement constants in core/measure/default-typography.ts.
+   *
+   * Rule: font-family tracks the host (var(--font-sans)/var(--chat-font-mono));
+   *       font-size, font-weight, and line-height are chat-owned literals that MUST
+   *       mirror default-typography.ts. Update both places when changing a scale.
+   */
   --font-sans-default:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans',
     'Droid Sans', 'Helvetica Neue', sans-serif;
 
-  --type-body-font-family: var(--font-sans, var(--font-sans-default));
-  --type-body-font-size: 14px;
-  --type-body-font-weight: 400;
-  --type-body-line-height: 20px;
+  --chat-type-body-font-family: var(--font-sans, var(--font-sans-default));
+  --chat-type-body-font-size: 14px;
+  --chat-type-body-font-weight: 400;
+  --chat-type-body-line-height: 20px;
 
-  --type-body-bold-font-family: var(--font-sans, var(--font-sans-default));
-  --type-body-bold-font-size: 14px;
-  --type-body-bold-font-weight: 600;
-  --type-body-bold-line-height: 20px;
+  --chat-type-body-bold-font-family: var(--font-sans, var(--font-sans-default));
+  --chat-type-body-bold-font-size: 14px;
+  --chat-type-body-bold-font-weight: 600;
+  --chat-type-body-bold-line-height: 20px;
 
-  --type-body-italic-font-family: var(--font-sans, var(--font-sans-default));
-  --type-body-italic-font-size: 14px;
-  --type-body-italic-font-weight: 400;
-  --type-body-italic-font-style: italic;
-  --type-body-italic-line-height: 20px;
+  --chat-type-body-italic-font-family: var(--font-sans, var(--font-sans-default));
+  --chat-type-body-italic-font-size: 14px;
+  --chat-type-body-italic-font-weight: 400;
+  --chat-type-body-italic-font-style: italic;
+  --chat-type-body-italic-line-height: 20px;
 
-  --type-body-link-font-family: var(--font-sans, var(--font-sans-default));
-  --type-body-link-font-size: 14px;
-  --type-body-link-font-weight: 400;
-  --type-body-link-line-height: 20px;
+  --chat-type-body-link-font-family: var(--font-sans, var(--font-sans-default));
+  --chat-type-body-link-font-size: 14px;
+  --chat-type-body-link-font-weight: 400;
+  --chat-type-body-link-line-height: 20px;
 
-  --type-h1-font-family: var(--font-sans, var(--font-sans-default));
-  --type-h1-font-size: 20px;
-  --type-h1-font-weight: 600;
-  --type-h1-line-height: 28px;
+  --chat-type-h1-font-family: var(--font-sans, var(--font-sans-default));
+  --chat-type-h1-font-size: 20px;
+  --chat-type-h1-font-weight: 600;
+  --chat-type-h1-line-height: 28px;
 
-  --type-h2-font-family: var(--font-sans, var(--font-sans-default));
-  --type-h2-font-size: 17px;
-  --type-h2-font-weight: 600;
-  --type-h2-line-height: 25px;
+  --chat-type-h2-font-family: var(--font-sans, var(--font-sans-default));
+  --chat-type-h2-font-size: 17px;
+  --chat-type-h2-font-weight: 600;
+  --chat-type-h2-line-height: 25px;
 
-  --type-h3-font-family: var(--font-sans, var(--font-sans-default));
-  --type-h3-font-size: 14px;
-  --type-h3-font-weight: 600;
-  --type-h3-line-height: 22px;
+  --chat-type-h3-font-family: var(--font-sans, var(--font-sans-default));
+  --chat-type-h3-font-size: 14px;
+  --chat-type-h3-font-weight: 600;
+  --chat-type-h3-line-height: 22px;
 
-  --type-inline-code-font-family: var(--chat-font-mono);
-  --type-inline-code-font-size: 12px;
-  --type-inline-code-font-weight: 400;
-  --type-inline-code-line-height: 20px;
+  --chat-type-inline-code-font-family: var(--chat-font-mono);
+  --chat-type-inline-code-font-size: 12px;
+  --chat-type-inline-code-font-weight: 400;
+  --chat-type-inline-code-line-height: 20px;
 
-  --type-code-font-family: var(--chat-font-mono);
-  --type-code-font-size: 13px;
-  --type-code-font-weight: 400;
-  --type-code-line-height: 20px;
+  --chat-type-code-font-family: var(--chat-font-mono);
+  --chat-type-code-font-size: 13px;
+  --chat-type-code-font-weight: 400;
+  --chat-type-code-line-height: 20px;
 
-  --type-code-lang-font-family: var(--font-sans, var(--font-sans-default));
-  --type-code-lang-font-size: 11px;
-  --type-code-lang-font-weight: 500;
-  --type-code-lang-line-height: 16px;
+  --chat-type-code-lang-font-family: var(--font-sans, var(--font-sans-default));
+  --chat-type-code-lang-font-size: 11px;
+  --chat-type-code-lang-font-weight: 500;
+  --chat-type-code-lang-line-height: 16px;
 
-  --type-mention-font-family: var(--font-sans, var(--font-sans-default));
-  /* 12px / 500 mirrors the ChatComposer MentionPill (text-xs font-medium); the
-   * rendered size is hardcoded in prose.module.css .pf--mention to avoid host
-   * --type-mention-font-size overrides desyncing it from measurement. */
-  --type-mention-font-size: 12px;
-  --type-mention-font-weight: 500;
-  --type-mention-line-height: 20px;
+  /* Mention chip uses body font-family, 12px/500 (mirrors MENTION_FONT in metrics.ts).
+   * Size/weight are intentionally NOT exposed here — they are baked into
+   * prose.module.css .pf--mention as literals to prevent host overrides. */
+  --chat-type-mention-font-family: var(--font-sans, var(--font-sans-default));
 }
 
 :where(.emdark) {
@@ -258,4 +273,12 @@
       calc(var(--fade-softness, 0.4) * 100%),
     color-mix(in oklab, var(--fade-color, var(--chat-bg)), transparent 100%) 100%
   );
+}
+
+/* Continuous rotation for the in-progress plan-entry spinner segment.
+ * transform-origin is centered on the SVG's own box so the arc orbits the circle. */
+@utility plan-spinner {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: var(--animate-plan-spin);
 }

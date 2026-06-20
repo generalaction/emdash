@@ -84,8 +84,35 @@ export interface ComposerAttachment {
   /** Absolute or relative path — populated by the host for file-kind attachments. */
   path?: string;
   kind: 'image' | 'file';
-  /** Blob object URL for image attachments — caller must not revoke while in use. */
+  /**
+   * Image source for the preview `<img>`. A `data:` URL for dropped images
+   * (so the bytes can be forwarded to the agent); needs no `revokeObjectURL`.
+   */
   previewUrl?: string;
+  /** MIME type of the image (e.g. `image/png`) — used when sending to the agent. */
+  mimeType?: string;
+}
+
+/**
+ * Read a dropped image file into a `ComposerAttachment` with a `data:` URL
+ * preview. On read failure the attachment is still created (without
+ * `previewUrl`) so the host shows a fallback tile rather than dropping it.
+ */
+function readImageAttachment(file: File): Promise<ComposerAttachment> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () =>
+      resolve({
+        id: crypto.randomUUID(),
+        name: file.name,
+        kind: 'image',
+        previewUrl: typeof reader.result === 'string' ? reader.result : undefined,
+        mimeType: file.type,
+      });
+    reader.onerror = () =>
+      resolve({ id: crypto.randomUUID(), name: file.name, kind: 'image', mimeType: file.type });
+    reader.readAsDataURL(file);
+  });
 }
 
 // ── Model option types ────────────────────────────────────────────────────────
@@ -323,7 +350,9 @@ export function ChatComposer({
   }, []);
 
   const handleSubmit = (text: string) => {
-    if (!text.trim() || disabled || !canSubmit) return;
+    // Allow image-only sends: a message with attachments but no text is valid.
+    const hasImages = attachments.some((a) => a.kind === 'image');
+    if ((!text.trim() && !hasImages) || disabled || !canSubmit) return;
     onSubmit(text);
   };
 
@@ -348,13 +377,10 @@ export function ChatComposer({
 
     const imageFiles = files.filter((f) => f.type.startsWith('image/'));
     if (imageFiles.length > 0 && onAttachmentsChange) {
-      const newAttachments: ComposerAttachment[] = imageFiles.map((f) => ({
-        id: crypto.randomUUID(),
-        name: f.name,
-        kind: 'image',
-        previewUrl: URL.createObjectURL(f),
-      }));
-      onAttachmentsChange([...attachments, ...newAttachments]);
+      const base = attachments;
+      void Promise.all(imageFiles.map(readImageAttachment)).then((newAttachments) => {
+        onAttachmentsChange([...base, ...newAttachments]);
+      });
     }
 
     onFilesDropped?.(files);

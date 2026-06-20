@@ -204,25 +204,40 @@ function LiveChatPanel({ notice }: { notice?: ComposerNotice | null }) {
     });
   }, []);
 
-  const handleSubmit = useCallback((text: string) => {
-    const api = handleRef.current?.transcript;
-    if (!api) return;
+  const handleSubmit = useCallback(
+    (text: string) => {
+      const api = handleRef.current?.transcript;
+      if (!api) return;
 
-    // Append the user's message as a committed turn.
-    const userId = crypto.randomUUID();
-    api.dispatch({ type: 'message_chunk', id: userId, role: 'user', text });
-    api.dispatch({ type: 'turn_done' });
+      // Carry any staged image attachments onto the user bubble, then clear them.
+      const atts = attachments
+        .filter((a) => a.kind === 'image')
+        .map((a) => ({ id: a.id, name: a.name, dataUrl: a.previewUrl }));
 
-    // Echo a short canned assistant response so both roles are visible.
-    const assistantId = crypto.randomUUID();
-    api.dispatch({
-      type: 'message_chunk',
-      id: assistantId,
-      role: 'assistant',
-      text: `Got it! You said: *${text}*`,
-    });
-    api.dispatch({ type: 'turn_done' });
-  }, []);
+      // Append the user's message as a committed turn.
+      const userId = crypto.randomUUID();
+      api.dispatch({
+        type: 'message_chunk',
+        id: userId,
+        role: 'user',
+        text,
+        attachments: atts.length > 0 ? atts : undefined,
+      });
+      api.dispatch({ type: 'turn_done' });
+      setAttachments([]);
+
+      // Echo a short canned assistant response so both roles are visible.
+      const assistantId = crypto.randomUUID();
+      api.dispatch({
+        type: 'message_chunk',
+        id: assistantId,
+        role: 'assistant',
+        text: text ? `Got it! You said: *${text}*` : 'Got it — received your image!',
+      });
+      api.dispatch({ type: 'turn_done' });
+    },
+    [attachments]
+  );
 
   return (
     <div className="surface-paper relative h-full overflow-hidden rounded-xl border border-border bg-surface">

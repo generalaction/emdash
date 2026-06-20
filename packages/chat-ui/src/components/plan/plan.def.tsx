@@ -22,7 +22,8 @@ import {
   PLAN_BORDER,
   PLAN_ENTRY_GAP,
   PLAN_ENTRY_INDENT,
-  PLAN_OUTER_PAD_Y,
+  PLAN_ICON_BOX,
+  PLAN_ICON_GAP,
   PLAN_PAD_X,
   PLAN_PAD_Y,
   PLAN_WINDOW_H,
@@ -32,14 +33,18 @@ export {
   PLAN_BORDER,
   PLAN_ENTRY_GAP,
   PLAN_ENTRY_INDENT,
-  PLAN_OUTER_PAD_Y,
+  PLAN_ICON_BOX,
+  PLAN_ICON_GAP,
   PLAN_PAD_X,
   PLAN_PAD_Y,
   PLAN_WINDOW_H,
 };
 
 /** Total horizontal + vertical chrome added by the card border + outer padding. */
-const CHROME_Y = 2 * PLAN_OUTER_PAD_Y + 2 * PLAN_BORDER;
+// Vertical: top border (PLAN_BORDER) + header separator (PLAN_BORDER) + bottom border (PLAN_BORDER).
+// The outer wrapper no longer has vertical padding; PLAN_OUTER_PAD_Y now only applies
+// to the body content via PLAN_PAD_Y.
+const CHROME_Y = 3 * PLAN_BORDER;
 const CHROME_X = 2 * PLAN_PAD_X + 2 * PLAN_BORDER;
 
 // ── Layout type ───────────────────────────────────────────────────────────────
@@ -112,25 +117,30 @@ function PlanUnitRender(props: { data: ChatPlan; ctx: RenderCtx }) {
 
   return (
     <div
-      class="border-chat-border rounded-lg border"
-      style={{
-        height: `${totalH()}px`,
-        'box-sizing': 'border-box',
-        'padding-top': `${PLAN_OUTER_PAD_Y}px`,
-        'padding-bottom': `${PLAN_OUTER_PAD_Y}px`,
-        'padding-left': `${PLAN_PAD_X}px`,
-        'padding-right': `${PLAN_PAD_X}px`,
-      }}
+      class="border-chat-border rounded-lg border overflow-hidden"
+      style={{ height: `${totalH()}px`, 'box-sizing': 'border-box' }}
     >
       <PlanHeader item={props.data} expanded={isExpanded()} rowH={ROW_H} />
-      <Show
-        when={isExpanded()}
-        fallback={
-          // Collapsed: capped preview window
+      {/* Body wrapper carries the horizontal padding so content is not flush with the card border. */}
+      <div style={{ 'padding-left': `${PLAN_PAD_X}px`, 'padding-right': `${PLAN_PAD_X}px` }}>
+        <Show
+          when={!isExpanded()}
+          fallback={
+            // Expanded: full untruncated list
+            <PlanList
+              entries={entries()}
+              padY={PLAN_PAD_Y}
+              entryGap={PLAN_ENTRY_GAP}
+              iconBox={PLAN_ICON_BOX}
+              iconGap={PLAN_ICON_GAP}
+            />
+          }
+        >
+          {/* Collapsed: wrap the same list in a capped preview window */}
           <PreviewWindow
             height={bodyH()}
             maxH={PLAN_WINDOW_H}
-            overlay="fade-top"
+            overlay="fade-bottom"
             autoScrollBottom={autoScroll()}
             contentHeight={() => listH()}
           >
@@ -138,19 +148,12 @@ function PlanUnitRender(props: { data: ChatPlan; ctx: RenderCtx }) {
               entries={entries()}
               padY={PLAN_PAD_Y}
               entryGap={PLAN_ENTRY_GAP}
-              indent={PLAN_ENTRY_INDENT}
+              iconBox={PLAN_ICON_BOX}
+              iconGap={PLAN_ICON_GAP}
             />
           </PreviewWindow>
-        }
-      >
-        {/* Expanded: full untruncated list */}
-        <PlanList
-          entries={entries()}
-          padY={PLAN_PAD_Y}
-          entryGap={PLAN_ENTRY_GAP}
-          indent={PLAN_ENTRY_INDENT}
-        />
-      </Show>
+        </Show>
+      </div>
     </div>
   );
 }

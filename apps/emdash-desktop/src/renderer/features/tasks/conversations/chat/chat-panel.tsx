@@ -1,6 +1,6 @@
 import type { ChatCommands, ChatHandle } from '@emdash/chat-ui';
 import { ChatTranscript } from '@emdash/chat-ui/react';
-import { ChatComposer } from '@emdash/ui/components';
+import { ChatComposer, type ComposerAttachment } from '@emdash/ui/components';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { openFileInTaskEditor } from '@renderer/features/tasks/stores/open-file-in-file-editor';
@@ -57,9 +57,12 @@ export const ChatPanel = observer(function ChatPanel({
     };
   }, [projectId, taskId, store]);
 
+  const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
+
   const handleSubmit = (text: string) => {
     store.setInput(text);
-    store.sendPrompt();
+    store.sendPrompt(attachments);
+    setAttachments([]);
   };
 
   // Measure the floating composer height so we can reserve matching canvas space.
@@ -111,6 +114,8 @@ export const ChatPanel = observer(function ChatPanel({
           onModelChange={(id) => store.setModel(id)}
           onSubmit={handleSubmit}
           onStop={() => store.cancel()}
+          attachments={attachments}
+          onAttachmentsChange={setAttachments}
         />
       </div>
     </div>

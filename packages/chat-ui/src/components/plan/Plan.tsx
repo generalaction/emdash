@@ -6,19 +6,21 @@
  *   is streaming or any entry is in_progress.
  *   Uses data-collapse-id for ChatRoot click-delegation (toggle handled for free).
  *
- * PlanList: expanded body rendering each entry as a status-glyph gutter +
+ * PlanList: expanded body rendering each entry as a status-icon gutter +
  *   measured block stack. Each entry's pre-measured Measured<StackLayout> is
  *   rendered through <Project>{renderBlockLeaf}</Project> so prose wraps exactly
  *   at the geometry computed by measure().
  *
- * Status glyphs: ○ pending / ◐ in_progress / ● completed.
+ * Status icons (14x14 SVG, centered in a 20px line-height box):
+ *   pending → dotted circle / in_progress → spinner ring + center dot /
+ *   completed → circle with check.
  * Priority tints: high → amber, medium → default, low → muted.
  */
 
-import { For } from 'solid-js';
+import { Match, Switch, For } from 'solid-js';
 import type { ChatPlan, PlanEntryPriority, PlanEntryStatus } from '../../model';
 import { BlockStackView } from '../primitives/BlockStackView';
-import { CollapseHeader } from '../primitives/CollapseHeader';
+import { PlanCompletedIcon, PlanInProgressIcon, PlanPendingIcon } from '../primitives/icons';
 import type { PlanEntryLaid } from './plan.def';
 
 // ── PlanHeader ────────────────────────────────────────────────────────────────
@@ -36,24 +38,28 @@ export function PlanHeader(props: PlanHeaderProps) {
     !!props.item.streaming || props.item.entries.some((e) => e.status === 'in_progress');
 
   return (
-    <CollapseHeader
-      id={props.item.id}
-      expanded={props.expanded}
-      active={active()}
-      height={props.rowH}
+    <div
+      class="hover:bg-chat-bg-3 border-chat-border text-chat-fg-muted flex cursor-pointer items-center gap-1.5 border-b px-2 text-sm transition-colors select-none"
+      style={{ height: `${props.rowH}px` }}
+      role="button"
+      aria-expanded={props.expanded ? 'true' : 'false'}
+      data-collapse-id={props.item.id}
     >
-      Plan {done()} out of {total()} Tasks done
-    </CollapseHeader>
+      <span classList={{ 'text-shimmer': active() }}>
+        Plan {done()} out of {total()} Tasks done
+      </span>
+      <span
+        class="inline-block text-[10px] transition-transform duration-150 ease-out"
+        classList={{ 'rotate-90': props.expanded }}
+        aria-hidden="true"
+      >
+        ›
+      </span>
+    </div>
   );
 }
 
 // ── Status glyph helpers ──────────────────────────────────────────────────────
-
-const STATUS_GLYPH: Record<PlanEntryStatus, string> = {
-  pending: '○',
-  in_progress: '◐',
-  completed: '●',
-};
 
 function statusColor(status: PlanEntryStatus): string {
   if (status === 'completed') return 'var(--chat-plan-done, #22c55e)';
@@ -72,7 +78,10 @@ export type PlanListProps = {
   entries: PlanEntryLaid[];
   padY: number;
   entryGap: number;
-  indent: number;
+  /** Width (px) of the status-icon box. */
+  iconBox: number;
+  /** Horizontal gap (px) between the status icon and the entry text. */
+  iconGap: number;
 };
 
 export function PlanList(props: PlanListProps) {
@@ -89,24 +98,36 @@ export function PlanList(props: PlanListProps) {
             style={{
               display: 'flex',
               'align-items': 'flex-start',
+              'column-gap': `${props.iconGap}px`,
               'margin-top': i() > 0 ? `${props.entryGap}px` : '0',
               opacity: priorityOpacity(entry.priority),
             }}
           >
-            {/* Status glyph gutter */}
+            {/* Status icon gutter: 14x14 icon centered in a 20px (line-height) box. */}
             <div
               style={{
-                width: `${props.indent}px`,
+                width: `${props.iconBox}px`,
+                height: '20px',
                 'flex-shrink': '0',
-                'padding-top': '2px',
-                'font-size': '10px',
-                'line-height': '1',
+                display: 'flex',
+                'align-items': 'center',
+                'justify-content': 'center',
                 color: statusColor(entry.status),
                 'user-select': 'none',
               }}
               aria-label={entry.status.replace('_', ' ')}
             >
-              {STATUS_GLYPH[entry.status]}
+              <Switch>
+                <Match when={entry.status === 'completed'}>
+                  <PlanCompletedIcon />
+                </Match>
+                <Match when={entry.status === 'in_progress'}>
+                  <PlanInProgressIcon />
+                </Match>
+                <Match when={entry.status === 'pending'}>
+                  <PlanPendingIcon />
+                </Match>
+              </Switch>
             </div>
             {/* Entry body: measured block stack */}
             <div style={{ flex: '1' }}>

@@ -8,8 +8,14 @@
 /** Vertical padding (px) inside the expanded entry list, applied top and bottom. */
 export const PLAN_PAD_Y = 6;
 
-/** Width (px) of the fixed status-glyph gutter to the left of each entry body. */
-export const PLAN_ENTRY_INDENT = 20;
+/** Width (px) of the status-icon box to the left of each entry body (matches the 14px icon). */
+export const PLAN_ICON_BOX = 14;
+
+/** Horizontal gap (px) between the status icon and the entry text. */
+export const PLAN_ICON_GAP = 8;
+
+/** Total horizontal inset (px) consumed left of the entry body: icon box + gap. */
+export const PLAN_ENTRY_INDENT = PLAN_ICON_BOX + PLAN_ICON_GAP;
 
 /** Vertical gap (px) between consecutive plan entries. */
 export const PLAN_ENTRY_GAP = 4;
@@ -18,7 +24,7 @@ export const PLAN_ENTRY_GAP = 4;
 export const PLAN_BORDER = 1;
 
 /** Horizontal padding (px) inside the plan card border, each side. */
-export const PLAN_PAD_X = 12;
+export const PLAN_PAD_X = 8;
 
 /** Vertical padding (px) inside the plan card border, top and bottom. */
 export const PLAN_OUTER_PAD_Y = 6;

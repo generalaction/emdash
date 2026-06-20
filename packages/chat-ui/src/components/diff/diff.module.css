@@ -6,26 +6,17 @@
  * Diff.tsx. Only rules that cannot be expressed cleanly in Tailwind remain here.
  */
 
-/* ── Header ───────────────────────────────────────────────────────────────── */
-
-.pdiff__header {
-  height: var(--chat-diff-header-h);
-}
-
 /* ── Body ─────────────────────────────────────────────────────────────────── */
 
 .pdiff__body {
   position: relative;
 }
 
-/* Bottom fade overlay — shown when the preview window truncates the diff.
-   Fades the card surface up to transparent so the cut-off line reads as
-   "there is more below". Height is driven by --chat-diff-fade-h. */
+/* Bottom fade overlay — height is set via inline style in Diff.tsx. */
 .pdiff__fade {
   position: absolute;
   inset-inline: 0;
   bottom: 0;
-  height: var(--chat-diff-fade-h);
   pointer-events: none;
 }
 
@@ -33,9 +24,9 @@
 
 .pdiff__line {
   white-space: pre;
-  font-size: var(--chat-code-size);
-  font-weight: var(--chat-code-weight);
-  font-family: var(--type-code-font-family);
+  font-size: var(--chat-type-code-font-size);
+  font-weight: var(--chat-type-code-font-weight);
+  font-family: var(--chat-type-code-font-family);
   /* line-height is set inline from theme.fonts.code.lineHeight (the same value
      diffDef.measure() reserves) so rendered row height cannot drift from the
      measured height via a CSS variable. */

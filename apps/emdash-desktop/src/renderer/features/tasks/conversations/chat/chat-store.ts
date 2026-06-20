@@ -3,6 +3,7 @@ import type {
   ChatDiff,
   ChatExecute,
   ChatFileOpToolCall,
+  ChatImageAttachment,
   ChatItem as UiChatItem,
   ChatResourceLink,
   FileOpKind,
@@ -10,6 +11,7 @@ import type {
   ToolStatus,
   TranscriptApi,
 } from '@emdash/chat-ui';
+import type { ComposerAttachment } from '@emdash/ui/components';
 import { action, makeObservable, observable } from 'mobx';
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import {
@@ -24,6 +26,7 @@ import {
   acpSessionUpdateChannel,
   acpTurnCommittedChannel,
 } from '@shared/core/acp/acpEvents';
+import type { AcpPromptImage } from '@shared/core/acp/acpTurns';
 
 export type ChatMessageRole = 'user' | 'assistant' | 'thought';
 
@@ -36,6 +39,8 @@ export type ChatMessageItem = {
   role: ChatMessageRole;
   text: string;
   streaming: boolean;
+  /** Image attachments (user messages) shown as a thumbnail strip. */
+  attachments?: ChatImageAttachment[];
 };
 
 /** A generic tool call line. */
@@ -188,9 +193,17 @@ function toChatUiItems(items: ChatItem[]): UiChatItem[] {
         role: item.role,
         text: item.text,
         streaming: item.streaming,
+        attachments: item.attachments,
       },
     ];
   });
+}
+
+/** Strip the `data:<mime>;base64,` prefix from a data URL, yielding raw base64. */
+function base64FromDataUrl(dataUrl: string | undefined): string {
+  if (!dataUrl) return '';
+  const comma = dataUrl.indexOf(',');
+  return comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
 }
 
 const FILE_OP_KINDS = new Set<string>(['read', 'delete', 'move']);
@@ -423,11 +436,19 @@ export class ChatStore {
     this.input = value;
   }
 
-  sendPrompt(): void {
+  sendPrompt(attachments?: ComposerAttachment[]): void {
     const text = this.input.trim();
-    if (!text || this.isWorking) return;
+    const imageAtts = (attachments ?? []).filter((a) => a.kind === 'image');
+    // Allow image-only sends: a prompt with images but no text is valid.
+    if ((!text && imageAtts.length === 0) || this.isWorking) return;
     this.input = '';
     this.isWorking = true;
+    // Optimistic previews use the same data URL the composer already holds.
+    const uiAttachments: ChatImageAttachment[] = imageAtts.map((a) => ({
+      id: a.id,
+      name: a.name,
+      dataUrl: a.previewUrl,
+    }));
 
     // Optimistically add user message
     const userId = `user-${Date.now()}`;
@@ -437,12 +458,24 @@ export class ChatStore {
       role: 'user',
       text,
       streaming: false,
+      attachments: uiAttachments.length > 0 ? uiAttachments : undefined,
     });
-    this._transcript?.dispatch({ type: 'message_chunk', role: 'user', id: userId, text });
+    this._transcript?.dispatch({
+      type: 'message_chunk',
+      role: 'user',
+      id: userId,
+      text,
+      attachments: uiAttachments.length > 0 ? uiAttachments : undefined,
+    });
     this._transcript?.dispatch({ type: 'turn_done' });
 
+    // Forward image bytes as ACP image blocks (drop any without resolvable data).
+    const images: AcpPromptImage[] = imageAtts
+      .map((a) => ({ data: base64FromDataUrl(a.previewUrl), mimeType: a.mimeType ?? '' }))
+      .filter((i) => i.data !== '' && i.mimeType !== '');
+
     void rpc.acp
-      .prompt(this._conversationId, text)
+      .prompt(this._conversationId, text, images.length > 0 ? images : undefined)
       .then(
         action(() => {
           // isWorking is now driven by acpSessionStateChannel; this is just a fallback
@@ -559,6 +592,53 @@ export class ChatStore {
     role: 'user' | 'assistant',
     chunk: { messageId?: string | null; content: { type: string; text?: string } }
   ): void {
+    // Intercept image content blocks — attach a thumbnail to the user message
+    // bubble for this messageId. Only user images are rendered; an unresolved
+    // payload (no data) yields an attachment without a dataUrl -> fallback tile.
+    if (chunk.content.type === 'image') {
+      if (role !== 'user') return;
+      const ic = chunk.content as { data?: string; mimeType?: string };
+      const messageId = chunk.messageId ?? undefined;
+      const dataUrl = ic.data ? `data:${ic.mimeType ?? 'image/png'};base64,${ic.data}` : undefined;
+
+      // Resolve (or create) the user bubble this image belongs to, mirroring the
+      // text merge logic so an image and the surrounding text share one bubble.
+      let target: ChatMessageItem;
+      if (messageId) {
+        const baseKey = `user:${messageId}`;
+        const segCount = this._segmentCountMap.get(baseKey) ?? 0;
+        const streamKey = segCount > 0 ? `${baseKey}:${segCount}` : baseKey;
+        const existing = this._streamKeyMap.get(streamKey);
+        if (existing) {
+          target = existing;
+        } else {
+          target = this._pushMessage('user', '');
+          this._streamKeyMap.set(streamKey, target);
+        }
+      } else {
+        const last = this.items.at(-1);
+        target =
+          last && last.kind === 'message' && last.role === 'user' && last.streaming
+            ? last
+            : this._pushMessage('user', '');
+      }
+
+      const attachment: ChatImageAttachment = {
+        id: `${target.id}:img:${target.attachments?.length ?? 0}`,
+        name: 'Image',
+        dataUrl,
+      };
+      target.attachments = [...(target.attachments ?? []), attachment];
+      this._transcript?.dispatch({
+        type: 'message_chunk',
+        role: 'user',
+        id: target.id,
+        text: '',
+        attachments: [attachment],
+      });
+      return;
+    }
+
     // Intercept resource_link content blocks — emit a standalone row and bump the
     // segment counter so subsequent text for the same messageId starts a new bubble.
     if (chunk.content.type === 'resource_link') {

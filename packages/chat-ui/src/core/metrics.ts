@@ -70,9 +70,16 @@ export const CODE_LANG: VariantTypography = toVariant(role('type.code-lang'));
 // ── Inline chrome ────────────────────────────────────────────────────────────
 
 export const INLINE_CODE_EXTRA_WIDTH = 12;
-// 8 → 4px horizontal padding each side (--chat-mention-pad-x), matching the
-// ChatComposer MentionPill's px-1.
-export const MENTION_EXTRA_WIDTH = 8;
+
+// Mention chip geometry — each value is used by BOTH the measurement pass
+// (to-rich-items.ts) and the renderer (Prose.tsx) so they can never drift.
+//   MENTION_EXTRA_WIDTH = 2 * MENTION_PAD_X
+//   resolved-mention extraWidth = MENTION_EXTRA_WIDTH + MENTION_ICON_W + MENTION_ICON_GAP
+export const MENTION_PAD_X = 4;
+export const MENTION_PAD_Y = 2;
+export const MENTION_ICON_W = 14;
+export const MENTION_ICON_GAP = 4;
+export const MENTION_EXTRA_WIDTH = 2 * MENTION_PAD_X; // 8
 
 // ── List / blockquote ────────────────────────────────────────────────────────
 
