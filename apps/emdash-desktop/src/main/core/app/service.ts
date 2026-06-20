@@ -247,7 +247,7 @@ class AppService implements IInitializable, IDisposable {
     if (!args.requestId || typeof args.requestId !== 'string') {
       throw new Error('Invalid context menu request');
     }
-    const selectionText = args.selectionText?.trim() ?? '';
+    const selectionText = args.selectionText ?? '';
     const linkText = args.linkText?.trim() ?? '';
     const hasSelection = selectionText.length > 0;
     const hasLink = linkText.length > 0;
