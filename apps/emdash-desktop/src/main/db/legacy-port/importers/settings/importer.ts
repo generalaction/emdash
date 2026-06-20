@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type Database from 'better-sqlite3';
 import { getDefaultForKey } from '@main/core/settings/settings-registry';
 import { isPlainObject, mergeDeep } from '@main/core/settings/utils';
+import { buildGlobalAutoApproveDefaults } from '@shared/core/agents/agent-auto-approve-defaults';
 import { isValidProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { AppSettings, AppSettingsKey } from '@shared/core/app-settings';
 import { tableExists } from '../../sqlite-utils';
@@ -153,10 +154,6 @@ export async function portLegacySettings(
       patch.autoGenerateName = autoGenerateName;
       summary.imported.push('tasks.autoGenerateName');
     }
-    if (autoApproveByDefault !== null) {
-      patch.autoApproveByDefault = autoApproveByDefault;
-      summary.imported.push('tasks.autoApproveByDefault');
-    }
     if (autoTrustWorktrees !== null) {
       patch.autoTrustWorktrees = autoTrustWorktrees;
       summary.imported.push('tasks.autoTrustWorktrees');
@@ -167,6 +164,18 @@ export async function portLegacySettings(
         await updateObjectSetting(settingsStore, 'tasks', patch);
       } catch {
         summary.skipped.push('tasks:validation-failed');
+      }
+    }
+
+    if (autoApproveByDefault !== null) {
+      try {
+        await settingsStore.update(
+          'agentAutoApproveDefaults',
+          buildGlobalAutoApproveDefaults(autoApproveByDefault)
+        );
+        summary.imported.push('agentAutoApproveDefaults');
+      } catch {
+        summary.skipped.push('agentAutoApproveDefaults:validation-failed');
       }
     }
   }

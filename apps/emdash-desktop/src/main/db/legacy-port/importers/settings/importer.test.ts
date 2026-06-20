@@ -6,6 +6,7 @@ import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import { getDefaultForKey } from '@main/core/settings/settings-registry';
 import { computeDelta, isPlainObject, mergeDeep } from '@main/core/settings/utils';
+import { buildGlobalAutoApproveDefaults } from '@shared/core/agents/agent-auto-approve-defaults';
 import type { AppSettings, AppSettingsKey } from '@shared/core/app-settings';
 import type { PromptLibraryPrompt } from '@shared/prompt-library';
 import { createDrizzleClient } from '../../../drizzleClient';
@@ -190,8 +191,8 @@ describe('portLegacySettings', () => {
       'project.branchPrefix',
       'project.pushOnCreate',
       'tasks.autoGenerateName',
-      'tasks.autoApproveByDefault',
       'tasks.autoTrustWorktrees',
+      'agentAutoApproveDefaults',
       'notifications.enabled',
       'notifications.sound',
       'notifications.osNotifications',
@@ -210,9 +211,11 @@ describe('portLegacySettings', () => {
 
     expect(readRawSetting(appSqlite, 'tasks')).toEqual({
       autoGenerateName: false,
-      autoApproveByDefault: true,
       autoTrustWorktrees: false,
     });
+    expect(readRawSetting(appSqlite, 'agentAutoApproveDefaults')).toEqual(
+      buildGlobalAutoApproveDefaults(true)
+    );
     expect(readRawSetting(appSqlite, 'notifications')).toEqual({
       enabled: false,
       sound: false,

@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popove
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import { providerSupportsAutoApprove } from '@shared/core/agents/agent-auto-approve-defaults';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
@@ -92,6 +93,9 @@ export function InitialConversationField({
   }, [includeIssueContextByDefault, linkedIssue?.identifier, linkedIssue?.provider]);
 
   const autoApprove = state.provider ? autoApproveDefaults.getDefault(state.provider) : false;
+  const showAutoApproveToggle = state.provider
+    ? providerSupportsAutoApprove(state.provider)
+    : false;
 
   const handleToggleAutoApprove = () => {
     if (!state.provider) return;
@@ -138,21 +142,23 @@ export function InitialConversationField({
                 </Button>
               )}
             />
-            <Tooltip>
-              <TooltipTrigger>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={handleToggleAutoApprove}
-                  disabled={!state.provider}
-                  data-active={autoApprove || undefined}
-                  className="transition-colors data-active:bg-background-destructive data-active:text-foreground-destructive"
-                >
-                  <CheckCheckIcon className="size-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Auto approve</TooltipContent>
-            </Tooltip>
+            {showAutoApproveToggle ? (
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={handleToggleAutoApprove}
+                    disabled={!state.provider}
+                    data-active={autoApprove || undefined}
+                    className="transition-colors data-active:bg-background-destructive data-active:text-foreground-destructive"
+                  >
+                    <CheckCheckIcon className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Auto approve</TooltipContent>
+              </Tooltip>
+            ) : null}
           </div>
         </div>
 
