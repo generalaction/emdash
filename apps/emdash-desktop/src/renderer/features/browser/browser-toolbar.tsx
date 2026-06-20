@@ -81,6 +81,7 @@ import type { BrowserWebviewAdapter } from './browser-webview-types';
 // Selection is conveyed by the checkmark alone (matching SelectItem); the base
 // radio item pins a background on the checked row and mutes unchecked rows.
 const PROFILE_RADIO_ITEM_CLASS = 'text-foreground data-checked:bg-transparent';
+const EMPTY_BOOKMARKS = [];
 
 export function BrowserToolbar({
   session,
@@ -112,10 +113,11 @@ export function BrowserToolbar({
   const [failedFaviconUrl, setFailedFaviconUrl] = useState<string | null>(null);
   const [screenshotSpin, triggerScreenshotSpin] = useTransientFlag(300);
   const urlInputRef = useRef<HTMLInputElement | null>(null);
+  const urlInputBlurTimerRef = useRef<number | null>(null);
   const { value: browserSettings, update: updateBrowserSettings } = useAppSettingsKey('browser');
   const { navigate: navigateToView } = useNavigate();
   const profiles = browserSettings?.profiles ?? DEFAULT_BROWSER_PROFILES;
-  const bookmarks = browserSettings?.bookmarks ?? [];
+  const bookmarks = browserSettings?.bookmarks ?? EMPTY_BOOKMARKS;
   const urlSuggestions = useMemo(
     () => buildBrowserUrlSuggestions(urlText, bookmarks),
     [bookmarks, urlText]
@@ -156,6 +158,20 @@ export function BrowserToolbar({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [autoFocusUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (urlInputBlurTimerRef.current !== null) {
+        window.clearTimeout(urlInputBlurTimerRef.current);
+      }
+    };
+  }, []);
+
+  const clearUrlInputBlurTimer = () => {
+    if (urlInputBlurTimerRef.current === null) return;
+    window.clearTimeout(urlInputBlurTimerRef.current);
+    urlInputBlurTimerRef.current = null;
+  };
 
   const navigate = () => {
     navigateTo(urlText);
@@ -295,11 +311,16 @@ export function BrowserToolbar({
               if (urlError) setUrlError(null);
             }}
             onFocus={(event) => {
+              clearUrlInputBlurTimer();
               setUrlInputFocused(true);
               event.currentTarget.select();
             }}
             onBlur={() => {
-              window.setTimeout(() => setUrlInputFocused(false), 0);
+              clearUrlInputBlurTimer();
+              urlInputBlurTimerRef.current = window.setTimeout(() => {
+                urlInputBlurTimerRef.current = null;
+                setUrlInputFocused(false);
+              }, 0);
             }}
             onKeyDown={handleUrlInputKeyDown}
             className={cn(

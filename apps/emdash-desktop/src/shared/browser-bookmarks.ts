@@ -56,13 +56,7 @@ export function browserBookmarkDisplayTitle(bookmark: BrowserBookmark): string {
 }
 
 export function browserBookmarkFaviconUrl(bookmark: BrowserBookmark): string | null {
-  if (bookmark.faviconUrl) return bookmark.faviconUrl;
-  try {
-    const parsed = new URL(bookmark.url);
-    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(parsed.hostname)}&sz=32`;
-  } catch {
-    return null;
-  }
+  return bookmark.faviconUrl ?? null;
 }
 
 export function createBrowserBookmark(input: {

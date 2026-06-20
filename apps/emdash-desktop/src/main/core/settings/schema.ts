@@ -101,6 +101,8 @@ export const changesViewModeSchema = z.object({
 
 export const browserPreviewSettingsSchema = z.object({ enabled: z.boolean() });
 
+export const BROWSER_BOOKMARKS_MAX = 500;
+
 export const browserProfileIdSchema = z
   .string()
   .regex(/^[a-z0-9][a-z0-9-]{0,63}$/)
@@ -118,7 +120,7 @@ export const browserSettingsSchema = z
     defaultProfileId: z.union([browserProfileIdSchema, z.literal(BROWSER_ISOLATED_PROFILE_ID)]),
     relaxCorsForLocalhost: z.boolean(),
     showBookmarkBar: z.boolean(),
-    bookmarks: z.array(browserBookmarkSchema),
+    bookmarks: z.array(browserBookmarkSchema).max(BROWSER_BOOKMARKS_MAX),
     profiles: z
       .array(
         z.object({

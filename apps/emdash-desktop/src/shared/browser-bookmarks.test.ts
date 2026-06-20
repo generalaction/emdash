@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  browserBookmarkFaviconUrl,
   browserBookmarkUrlsMatch,
   createBrowserBookmark,
   findBrowserBookmarkForUrl,
@@ -31,6 +32,23 @@ describe('browser bookmarks', () => {
   it('rejects non-navigable urls for bookmarks', () => {
     expect(isBrowserBookmarkableUrl('about:blank')).toBe(false);
     expect(isBrowserBookmarkableUrl('https://example.com')).toBe(true);
+  });
+
+  it('uses only stored bookmark favicons', () => {
+    const bookmark = createBrowserBookmark({
+      id: '11111111-1111-4111-8111-111111111111',
+      url: 'https://example.com',
+      title: 'Example',
+    });
+    const withFavicon = createBrowserBookmark({
+      id: '22222222-2222-4222-8222-222222222222',
+      url: 'https://github.com',
+      title: 'GitHub',
+      faviconUrl: 'https://github.com/favicon.ico',
+    });
+
+    expect(browserBookmarkFaviconUrl(bookmark!)).toBeNull();
+    expect(browserBookmarkFaviconUrl(withFavicon!)).toBe('https://github.com/favicon.ico');
   });
 
   it('upserts bookmarks by url', () => {
