@@ -1,0 +1,30 @@
+apps/emdash-desktop/src/main/core/settings/schema.test.ts
+  s_1102398b12121e::t_6de14aba3dfd3b 28
+  s_1102398b12121e::t_3a14b1f3bd12db 1,3-4,6-27,29-32
+  s_1102398b12121e::t_3d8ee61b69b0e0 2,5
+apps/emdash-desktop/src/shared/browser-bookmarks.ts
+  s_1102398b12121e::t_4b664e21529dfe 59
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_1102398b12121e::t_1db2d77178884e 116,162-175,314,319-323
+  s_1102398b12121e::t_046fb12b43c29d 84,120
+apps/emdash-desktop/src/shared/browser-bookmarks.test.ts
+  s_1102398b12121e::t_7a303ca2e88a8e 3,37-51
+apps/emdash-desktop/src/main/core/settings/schema.ts
+  s_1102398b12121e::t_481c132cc6c48c 104-105,123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "08a274120aa990672715d696cfa4ab37dcfecd31",
+  "prompts": {},
+  "sessions": {
+    "s_1102398b12121e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ee53b-d089-7e23-850b-ed842983bf3a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
