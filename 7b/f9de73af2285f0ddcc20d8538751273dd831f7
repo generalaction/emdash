@@ -1,0 +1,36 @@
+apps/emdash-desktop/src/renderer/lib/pty/use-pty.ts
+  s_ff2b5a6cda51cf::t_397c66d9e06fc3 10,25,27,577
+  s_ff2b5a6cda51cf::t_37d8772c74234d 607
+  s_ff2b5a6cda51cf::t_d3d8d9ed515b4a 585-601,603
+apps/emdash-desktop/src/renderer/tests/terminal-context-link.test.ts
+  s_ff2b5a6cda51cf::t_397c66d9e06fc3 1-43
+apps/emdash-desktop/src/main/core/app/service.ts
+  s_ff2b5a6cda51cf::t_397c66d9e06fc3 23-24,240,254-255
+apps/emdash-desktop/src/renderer/lib/pty/xterm-cell-metrics.ts
+  s_ff2b5a6cda51cf::t_397c66d9e06fc3 1-30
+apps/emdash-desktop/src/main/core/app/controller.ts
+  s_ff2b5a6cda51cf::t_397c66d9e06fc3 44,52
+apps/emdash-desktop/src/renderer/lib/pty/terminal-context-link.ts
+  s_ff2b5a6cda51cf::t_397c66d9e06fc3 1-38,40-58
+  s_ff2b5a6cda51cf::t_9c93f55fcd06c2 39
+apps/emdash-desktop/src/shared/events/appEvents.ts
+  s_ff2b5a6cda51cf::t_397c66d9e06fc3 10,12,14-15
+apps/emdash-desktop/src/main/core/app/service.test.ts
+  s_ff2b5a6cda51cf::t_a7ad42ba53bb40 119,125,142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "7bf9de73af2285f0ddcc20d8538751273dd831f7",
+  "prompts": {},
+  "sessions": {
+    "s_ff2b5a6cda51cf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ee62a-8024-7a40-8be7-7fd673f72301",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
