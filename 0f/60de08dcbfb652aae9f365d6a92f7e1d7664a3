@@ -1,0 +1,28 @@
+apps/emdash-desktop/src/shared/core/agents/agent-auto-approve-defaults.ts
+  s_98cf7787c91a00::t_c184f7d1c1292e 9,26-29,33-38,42,46-47,49
+  s_98cf7787c91a00::t_7f61e1d8c54eb7 30-32
+apps/emdash-desktop/src/renderer/features/tasks/hooks/useAgentAutoApproveDefaults.ts
+  s_98cf7787c91a00::t_ac295198ba3bb4 5,15,22
+apps/emdash-desktop/src/main/db/legacy-port/importers/settings/importer.test.ts
+  s_98cf7787c91a00::t_55b5bc5272e183 255-277
+apps/emdash-desktop/src/shared/core/agents/agent-auto-approve-defaults.test.ts
+  s_98cf7787c91a00::t_aaf539374e2452 5,21,25-28,33-35
+apps/emdash-desktop/src/renderer/features/settings/components/TaskSettingsRows.tsx
+  s_98cf7787c91a00::t_d94a9dc0269110 11-18,42,47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "0f60de08dcbfb652aae9f365d6a92f7e1d7664a3",
+  "prompts": {},
+  "sessions": {
+    "s_98cf7787c91a00": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ee5e2-0885-7755-b5c7-8d6b2f29705a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
