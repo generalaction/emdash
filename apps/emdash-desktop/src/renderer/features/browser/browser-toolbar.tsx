@@ -12,7 +12,15 @@ import {
   Square,
   Star,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
@@ -53,6 +61,10 @@ import {
   isBrowserBookmarkableUrl,
   toggleBrowserBookmarkForSession,
 } from '@shared/browser-bookmarks';
+import {
+  buildBrowserUrlSuggestions,
+  browserUrlSuggestionTarget,
+} from '@shared/browser-url-suggestions';
 import { browserSessionStore } from './browser-session-store';
 import {
   canOpenBrowserUrlExternally,
@@ -62,6 +74,7 @@ import {
   openBrowserUrlExternally,
 } from './browser-toolbar-actions';
 import { browserUrlInputText } from './browser-url-input';
+import { BrowserUrlSuggestionsPanel } from './browser-url-suggestions-panel';
 import type { BrowserWebviewAdapter } from './browser-webview-types';
 
 // Selection is conveyed by the checkmark alone (matching SelectItem); the base
@@ -93,6 +106,8 @@ export function BrowserToolbar({
 }) {
   const [urlText, setUrlText] = useState(browserUrlInputText(session.currentUrl));
   const [urlError, setUrlError] = useState<string | null>(null);
+  const [urlInputFocused, setUrlInputFocused] = useState(false);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [failedFaviconUrl, setFailedFaviconUrl] = useState<string | null>(null);
   const [screenshotSpin, triggerScreenshotSpin] = useTransientFlag(300);
   const urlInputRef = useRef<HTMLInputElement | null>(null);
@@ -100,6 +115,11 @@ export function BrowserToolbar({
   const { navigate: navigateToView } = useNavigate();
   const profiles = browserSettings?.profiles ?? DEFAULT_BROWSER_PROFILES;
   const bookmarks = browserSettings?.bookmarks ?? [];
+  const urlSuggestions = useMemo(
+    () => buildBrowserUrlSuggestions(urlText, bookmarks),
+    [bookmarks, urlText]
+  );
+  const showUrlSuggestions = urlInputFocused && urlSuggestions.length > 0;
   const showBookmarkBar = browserSettings?.showBookmarkBar ?? false;
   const profileLabel = browserProfileLabel(session.profileId, profiles);
   const isCurrentPageBookmarked = Boolean(findBrowserBookmarkForUrl(bookmarks, session.currentUrl));
@@ -109,7 +129,12 @@ export function BrowserToolbar({
 
   useEffect(() => {
     setUrlText(browserUrlInputText(session.currentUrl));
+    setActiveSuggestionIndex(-1);
   }, [session.currentUrl]);
+
+  useEffect(() => {
+    setActiveSuggestionIndex(-1);
+  }, [urlText]);
 
   useEffect(() => {
     setFailedFaviconUrl(null);
@@ -143,7 +168,49 @@ export function BrowserToolbar({
     }
     setUrlError(null);
     setUrlText(normalized.url);
+    setActiveSuggestionIndex(-1);
+    setUrlInputFocused(false);
     onNavigate?.(normalized.url);
+  };
+
+  const selectSuggestion = (index: number) => {
+    const suggestion = urlSuggestions[index];
+    if (!suggestion) return;
+    navigateTo(browserUrlSuggestionTarget(suggestion));
+  };
+
+  const handleUrlInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (!showUrlSuggestions) return;
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveSuggestionIndex((current) => {
+        const next = current + 1;
+        return next >= urlSuggestions.length ? 0 : next;
+      });
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveSuggestionIndex((current) => {
+        if (current <= 0) return urlSuggestions.length - 1;
+        return current - 1;
+      });
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setActiveSuggestionIndex(-1);
+      setUrlInputFocused(false);
+      return;
+    }
+
+    if (event.key === 'Enter' && activeSuggestionIndex >= 0) {
+      event.preventDefault();
+      selectSuggestion(activeSuggestionIndex);
+    }
   };
 
   const openExternal = () => {
@@ -225,15 +292,40 @@ export function BrowserToolbar({
               setUrlText(event.target.value);
               if (urlError) setUrlError(null);
             }}
-            onFocus={(event) => event.currentTarget.select()}
+            onFocus={(event) => {
+              setUrlInputFocused(true);
+              event.currentTarget.select();
+            }}
+            onBlur={() => {
+              window.setTimeout(() => setUrlInputFocused(false), 0);
+            }}
+            onKeyDown={handleUrlInputKeyDown}
             className="h-7 truncate border-0 pr-8 pl-7 text-sm shadow-none hover:border-0 focus-visible:border-0 focus-visible:ring-0"
             aria-label="Browser URL"
+            aria-expanded={showUrlSuggestions}
+            aria-controls={showUrlSuggestions ? 'browser-url-suggestions' : undefined}
+            aria-activedescendant={
+              showUrlSuggestions && activeSuggestionIndex >= 0
+                ? `browser-url-suggestion-${activeSuggestionIndex}`
+                : undefined
+            }
+            aria-autocomplete="list"
             placeholder="Search or enter URL"
             spellCheck={false}
             autoCapitalize="none"
           />
           {session.isLoading && (
             <Loader2 className="pointer-events-none absolute top-1/2 right-2 size-3.5 -translate-y-1/2 animate-spin text-foreground-muted" />
+          )}
+          {showUrlSuggestions && (
+            <div id="browser-url-suggestions">
+              <BrowserUrlSuggestionsPanel
+                suggestions={urlSuggestions}
+                activeIndex={activeSuggestionIndex}
+                onSelect={(suggestion) => navigateTo(browserUrlSuggestionTarget(suggestion))}
+                onHover={setActiveSuggestionIndex}
+              />
+            </div>
           )}
         </div>
         {urlError && (
