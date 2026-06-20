@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildGlobalAutoApproveDefaults,
   getAgentAutoApproveDefault,
+  getGlobalAutoApproveState,
   isGlobalAutoApproveEnabled,
   providerSupportsAutoApprove,
   resolveAgentAutoApprove,
@@ -17,12 +18,21 @@ describe('agent-auto-approve-defaults', () => {
     const enabled = buildGlobalAutoApproveDefaults(true);
     expect(getAgentAutoApproveDefault(enabled, 'claude')).toBe(true);
     expect(getAgentAutoApproveDefault(enabled, 'jules')).toBe(false);
+    expect(getGlobalAutoApproveState(enabled)).toBe('all');
     expect(isGlobalAutoApproveEnabled(enabled)).toBe(true);
   });
 
-  it('treats empty defaults as global auto-approve disabled', () => {
+  it('uses the empty canonical default when global auto-approve is disabled', () => {
+    expect(buildGlobalAutoApproveDefaults(false)).toEqual({});
+    expect(getGlobalAutoApproveState(undefined)).toBe('none');
+    expect(getGlobalAutoApproveState({})).toBe('none');
     expect(isGlobalAutoApproveEnabled(undefined)).toBe(false);
     expect(isGlobalAutoApproveEnabled({})).toBe(false);
+  });
+
+  it('distinguishes partial auto-approve defaults from globally enabled', () => {
+    expect(getGlobalAutoApproveState({ claude: true })).toBe('partial');
+    expect(isGlobalAutoApproveEnabled({ claude: true })).toBe(false);
   });
 
   it('resolves explicit auto-approve over stored defaults', () => {

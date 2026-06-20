@@ -6,6 +6,7 @@ import {
 } from './agent-provider-registry';
 
 export type AgentAutoApproveDefaults = Partial<Record<AgentProviderId, boolean>>;
+export type GlobalAutoApproveState = 'none' | 'partial' | 'all';
 
 export function providerSupportsAutoApprove(providerId: AgentProviderId): boolean {
   const provider = getProvider(providerId);
@@ -22,17 +23,30 @@ export function getAutoApproveCapableProviderLabels(): string[] {
     .sort((a, b) => a.localeCompare(b));
 }
 
+export function getGlobalAutoApproveState(
+  defaults: AgentAutoApproveDefaults | undefined
+): GlobalAutoApproveState {
+  const capableProviderIds = getAutoApproveCapableProviderIds();
+  const enabledCount = capableProviderIds.filter((id) =>
+    getAgentAutoApproveDefault(defaults, id)
+  ).length;
+
+  if (enabledCount === 0) return 'none';
+  if (enabledCount === capableProviderIds.length) return 'all';
+  return 'partial';
+}
+
 export function isGlobalAutoApproveEnabled(
   defaults: AgentAutoApproveDefaults | undefined
 ): boolean {
-  const capableProviderIds = getAutoApproveCapableProviderIds();
-  if (capableProviderIds.length === 0) return false;
-  return capableProviderIds.every((id) => getAgentAutoApproveDefault(defaults, id));
+  return getGlobalAutoApproveState(defaults) === 'all';
 }
 
 export function buildGlobalAutoApproveDefaults(enabled: boolean): AgentAutoApproveDefaults {
+  if (!enabled) return {};
+
   return Object.fromEntries(
-    getAutoApproveCapableProviderIds().map((id) => [id, enabled])
+    getAutoApproveCapableProviderIds().map((id) => [id, true])
   ) as AgentAutoApproveDefaults;
 }
 

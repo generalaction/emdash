@@ -252,6 +252,29 @@ describe('portLegacySettings', () => {
     expect(readRawSetting(appSqlite, 'browserPreview')).toBe(null);
   });
 
+  it('keeps legacy disabled auto-approve on the canonical default', async () => {
+    const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-settings-port-disabled-'));
+    tempDirs.push(userDataDir);
+
+    fs.writeFileSync(
+      path.join(userDataDir, 'settings.json'),
+      JSON.stringify({ tasks: { autoApproveByDefault: false } }),
+      'utf8'
+    );
+
+    const { appSqlite, appDb } = createSettingsDb();
+    openDbs.push(appSqlite);
+
+    const summary = await portLegacySettings(userDataDir, {
+      appDb,
+      appSqlite,
+      settingsStore: createSettingsStoreStub(appSqlite),
+    });
+
+    expect(summary.imported).toEqual(['agentAutoApproveDefaults']);
+    expect(readRawSetting(appSqlite, 'agentAutoApproveDefaults')).toBeNull();
+  });
+
   it('skips when settings.json is missing or invalid', async () => {
     const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-settings-port-missing-'));
     tempDirs.push(userDataDir);
