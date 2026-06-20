@@ -1,0 +1,39 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-url-input.test.ts
+  s_c09ea1d3470471::t_f8b7dd7d730f56 2,13-45
+apps/emdash-desktop/src/renderer/features/browser/browser-url-display.tsx
+  s_c09ea1d3470471::t_b3ee46ff9edab6 1-12,16-19
+  s_ae48c80fce9ebe::t_5d72c074966138 13-15
+apps/emdash-desktop/src/renderer/features/browser/browser-url-input.ts
+  s_c09ea1d3470471::t_6bbe3b4af14cbb 12
+  s_c09ea1d3470471::t_e0c2cce187a542 6-11,13-23
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_c09ea1d3470471::t_45c8406d398982 283,288,305,307-308,322-329,331
+  s_c09ea1d3470471::t_0a6aad9c8e847f 76
+  s_c09ea1d3470471::t_67c2da1106a4e0 306
+  s_ae48c80fce9ebe::t_5d72c074966138 278
+  s_c09ea1d3470471::t_2f80dbc2d82494 250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "10d41d1b762478378142fe632e4713747accd65e",
+  "prompts": {},
+  "sessions": {
+    "s_ae48c80fce9ebe": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ee3c5-878d-79ad-b7cf-4a3e002fa218",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_c09ea1d3470471": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "45dbc606-b5cc-4181-88b7-72e67a84c87a",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
