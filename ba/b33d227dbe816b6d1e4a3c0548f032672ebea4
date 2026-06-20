@@ -1,0 +1,26 @@
+apps/emdash-desktop/src/renderer/features/settings/components/BrowserSettingsCard.tsx
+  s_6c6ec4643c0345::t_8e491886397de7 153
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_6c6ec4643c0345::t_417ba8cbc9afb6 244
+  s_6c6ec4643c0345::t_8c1aefdc6ae630 123
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_6c6ec4643c0345::t_6a73537bb3b993 52
+apps/emdash-desktop/src/main/core/settings/settings-registry.ts
+  s_6c6ec4643c0345::t_c9e09e523e2206 70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "bab33d227dbe816b6d1e4a3c0548f032672ebea4",
+  "prompts": {},
+  "sessions": {
+    "s_6c6ec4643c0345": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7a7f432a-cec7-4dc9-8f1a-41aa01619f4b",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
