@@ -6,6 +6,8 @@ import {
   isBrowserBookmarkableUrl,
   normalizeBrowserBookmarkUrl,
   removeBrowserBookmark,
+  reorderBrowserBookmarks,
+  reorderBrowserBookmarksToMatch,
   toggleBrowserBookmarkForSession,
   upsertBrowserBookmark,
 } from './browser-bookmarks';
@@ -78,5 +80,50 @@ describe('browser bookmarks', () => {
     const bookmarks = bookmark ? [bookmark] : [];
     expect(findBrowserBookmarkForUrl(bookmarks, 'https://github.com/')?.id).toBe(bookmark?.id);
     expect(removeBrowserBookmark(bookmarks, bookmark!.id)).toEqual([]);
+  });
+
+  it('reorders bookmarks by index', () => {
+    const first = createBrowserBookmark({
+      id: '11111111-1111-4111-8111-111111111111',
+      url: 'https://example.com',
+      title: 'Example',
+    });
+    const second = createBrowserBookmark({
+      id: '22222222-2222-4222-8222-222222222222',
+      url: 'https://github.com',
+      title: 'GitHub',
+    });
+    const third = createBrowserBookmark({
+      id: '33333333-3333-4333-8333-333333333333',
+      url: 'https://google.com',
+      title: 'Google',
+    });
+    const bookmarks = [first!, second!, third!];
+
+    expect(reorderBrowserBookmarks(bookmarks, 0, 2).map((bookmark) => bookmark.id)).toEqual([
+      second!.id,
+      third!.id,
+      first!.id,
+    ]);
+  });
+
+  it('accepts only valid reorder results', () => {
+    const first = createBrowserBookmark({
+      id: '11111111-1111-4111-8111-111111111111',
+      url: 'https://example.com',
+      title: 'Example',
+    });
+    const second = createBrowserBookmark({
+      id: '22222222-2222-4222-8222-222222222222',
+      url: 'https://github.com',
+      title: 'GitHub',
+    });
+    const bookmarks = [first!, second!];
+
+    expect(reorderBrowserBookmarksToMatch(bookmarks, [second!, first!])).toEqual([
+      second,
+      first,
+    ]);
+    expect(reorderBrowserBookmarksToMatch(bookmarks, [first!, second!, first!])).toEqual(bookmarks);
   });
 });

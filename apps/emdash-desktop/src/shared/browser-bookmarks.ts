@@ -120,6 +120,33 @@ export function removeBrowserBookmark(
   return bookmarks.filter((bookmark) => bookmark.id !== bookmarkId);
 }
 
+export function reorderBrowserBookmarks(
+  bookmarks: readonly BrowserBookmark[],
+  fromIndex: number,
+  toIndex: number
+): BrowserBookmark[] {
+  if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return [...bookmarks];
+  if (fromIndex >= bookmarks.length || toIndex >= bookmarks.length) return [...bookmarks];
+
+  const next = [...bookmarks];
+  const [moved] = next.splice(fromIndex, 1);
+  if (!moved) return [...bookmarks];
+  next.splice(toIndex, 0, moved);
+  return next;
+}
+
+export function reorderBrowserBookmarksToMatch(
+  bookmarks: readonly BrowserBookmark[],
+  orderedBookmarks: readonly BrowserBookmark[]
+): BrowserBookmark[] {
+  if (bookmarks.length !== orderedBookmarks.length) return [...bookmarks];
+  const bookmarkIds = new Set(bookmarks.map((bookmark) => bookmark.id));
+  if (orderedBookmarks.some((bookmark) => !bookmarkIds.has(bookmark.id))) {
+    return [...bookmarks];
+  }
+  return [...orderedBookmarks];
+}
+
 export function toggleBrowserBookmarkForSession(
   bookmarks: readonly BrowserBookmark[],
   input: { currentUrl: string; title: string; faviconUrl?: string }

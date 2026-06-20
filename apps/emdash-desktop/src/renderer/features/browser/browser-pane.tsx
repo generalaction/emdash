@@ -5,6 +5,7 @@ import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-cont
 import { usePreviewServers } from '@renderer/features/tasks/task-view-context';
 import { events, rpc } from '@renderer/lib/ipc';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
+import { removeBrowserBookmark } from '@shared/browser-bookmarks';
 import { tabNavigationShortcutChannel } from '@shared/events/appEvents';
 import { BrowserBookmarkBar } from './browser-bookmark-bar';
 import { browserControlsRegistry } from './browser-controls-registry';
@@ -29,7 +30,7 @@ export const BrowserPane = observer(function BrowserPane({
   visible: boolean;
 }) {
   const session = browserSessionStore.getSession(browserId);
-  const { value: browserSettings } = useAppSettingsKey('browser');
+  const { value: browserSettings, update: updateBrowserSettings } = useAppSettingsKey('browser');
   const { tabManager } = useTabGroupContext();
   const previewServers = usePreviewServers();
   const webviewRef = useRef<BrowserWebviewElement | null>(null);
@@ -265,7 +266,14 @@ export const BrowserPane = observer(function BrowserPane({
         }}
       />
       {showBookmarkBar && (
-        <BrowserBookmarkBar bookmarks={bookmarks} onOpenUrl={navigateTo} />
+        <BrowserBookmarkBar
+          bookmarks={bookmarks}
+          onOpenUrl={navigateTo}
+          onReorder={(next) => updateBrowserSettings({ bookmarks: next })}
+          onRemove={(bookmarkId) =>
+            updateBrowserSettings({ bookmarks: removeBrowserBookmark(bookmarks, bookmarkId) })
+          }
+        />
       )}
       <div className="emlight min-h-0 flex-1 bg-background">
         {showStartPage ? (
