@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/settings/components/BrowserSettingsCard.tsx
+  s_ae48c80fce9ebe::t_42d95074adbde1 176-177
+apps/emdash-desktop/src/shared/browser-bookmarks.test.ts
+  s_ae48c80fce9ebe::t_42d95074adbde1 123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "e61fde2da827f0962c9c53f7f1f01e438785dd61",
+  "prompts": {},
+  "sessions": {
+    "s_ae48c80fce9ebe": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ee3c5-878d-79ad-b7cf-4a3e002fa218",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
