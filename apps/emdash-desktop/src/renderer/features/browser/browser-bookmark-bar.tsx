@@ -1,6 +1,6 @@
 import { Globe, Trash2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { ReorderList } from '@renderer/lib/components/reorder-list';
 import {
   ContextMenu,
@@ -18,6 +18,8 @@ import {
 } from '@shared/browser-bookmarks';
 
 const BOOKMARK_BAR_HEIGHT_PX = 32;
+const HIDDEN_SCROLLBAR_CLASS =
+  'overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden';
 
 export function BrowserBookmarkBar({
   visible,
@@ -32,7 +34,10 @@ export function BrowserBookmarkBar({
   onReorder: (bookmarks: BrowserBookmark[]) => void;
   onRemove: (bookmarkId: string) => void;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
   const shouldShow = visible && bookmarks.length > 0;
+
+  useHorizontalWheelScroll(scrollRef, shouldShow);
 
   const handleReorder = (orderedBookmarks: BrowserBookmark[]) => {
     onReorder(reorderBrowserBookmarksToMatch(bookmarks, orderedBookmarks));
@@ -50,27 +55,54 @@ export function BrowserBookmarkBar({
           className="overflow-hidden"
         >
           <div className="flex h-8 shrink-0 border-b border-border bg-background-secondary-1 px-2">
-            <ReorderList
-              items={[...bookmarks]}
-              onReorder={handleReorder}
-              axis="x"
-              className="flex h-full w-full items-center gap-1 overflow-x-auto"
-              itemClassName="list-none flex shrink-0"
-              getKey={(bookmark) => bookmark.id}
-            >
-              {(bookmark) => (
-                <BrowserBookmarkItem
-                  bookmark={bookmark}
-                  onOpenUrl={() => onOpenUrl(bookmark.url)}
-                  onRemove={() => onRemove(bookmark.id)}
-                />
-              )}
-            </ReorderList>
+            <div ref={scrollRef} className={cn('h-full w-full', HIDDEN_SCROLLBAR_CLASS)}>
+              <ReorderList
+                items={[...bookmarks]}
+                onReorder={handleReorder}
+                axis="x"
+                className="flex h-full w-max min-w-full items-center gap-1"
+                itemClassName="list-none flex shrink-0"
+                getKey={(bookmark) => bookmark.id}
+              >
+                {(bookmark) => (
+                  <BrowserBookmarkItem
+                    bookmark={bookmark}
+                    onOpenUrl={() => onOpenUrl(bookmark.url)}
+                    onRemove={() => onRemove(bookmark.id)}
+                  />
+                )}
+              </ReorderList>
+            </div>
           </div>
         </motion.div>
       )}
     </AnimatePresence>
   );
+}
+
+function useHorizontalWheelScroll<T extends HTMLElement>(
+  ref: RefObject<T | null>,
+  enabled: boolean
+): void {
+  useEffect(() => {
+    if (!enabled) return;
+    const element = ref.current;
+    if (!element) return;
+
+    const onWheel = (event: WheelEvent) => {
+      if (element.scrollWidth <= element.clientWidth) return;
+
+      const delta =
+        Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      if (delta === 0) return;
+
+      event.preventDefault();
+      element.scrollLeft += delta;
+    };
+
+    element.addEventListener('wheel', onWheel, { passive: false });
+    return () => element.removeEventListener('wheel', onWheel);
+  }, [enabled, ref]);
 }
 
 function BrowserBookmarkItem({
