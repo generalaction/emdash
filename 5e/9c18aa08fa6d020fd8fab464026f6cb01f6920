@@ -1,0 +1,30 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-bookmark-bar.tsx
+  s_6c6ec4643c0345::t_f507f0d83fb07b 20-21,23,29,35,42-72
+  s_6c6ec4643c0345::t_427d85386b203f 2
+apps/emdash-desktop/src/renderer/features/settings/components/BrowserSettingsCard.tsx
+  s_6c6ec4643c0345::t_383f8f215718d1 153
+apps/emdash-desktop/src/main/core/settings/settings-registry.ts
+  s_6c6ec4643c0345::t_c5f57a043a295a 70
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_6c6ec4643c0345::t_02648fcbf40996 51
+  s_6c6ec4643c0345::t_dc047e67b1eb4c 268-276
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_6c6ec4643c0345::t_ec57bf2ee23c71 244-247
+  s_6c6ec4643c0345::t_54ea8bf1cdf716 123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "5e9c18aa08fa6d020fd8fab464026f6cb01f6920",
+  "prompts": {},
+  "sessions": {
+    "s_6c6ec4643c0345": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7a7f432a-cec7-4dc9-8f1a-41aa01619f4b",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
