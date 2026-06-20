@@ -16,6 +16,14 @@ class EchoChannel extends Transform {
   }
 }
 
+// ssh2 attaches the RFC 4254 channel-open failure reason code to forwardOut
+// errors. 2 is SSH_OPEN_CONNECT_FAILED (the destination could not be reached).
+function channelOpenError(message: string, reason: number): Error {
+  const error = new Error(message);
+  (error as { reason?: number }).reason = reason;
+  return error;
+}
+
 function makeProxy() {
   const calls: Array<{
     sourceHost: string;
@@ -64,6 +72,70 @@ function makeRejectingProxy(error: Error) {
             callback: (error: Error | undefined, channel: ClientChannel) => void
           ) {
             callback(error, undefined as unknown as ClientChannel);
+          },
+        } as SshClientProxy['client'];
+      },
+    } satisfies Pick<SshClientProxy, 'client' | 'isConnected'>,
+  };
+}
+
+function makeFamilyAwareProxy(reachableHost: string) {
+  const calls: Array<{ remoteHost: string; remotePort: number }> = [];
+
+  return {
+    calls,
+    proxy: {
+      get isConnected() {
+        return true;
+      },
+      get client() {
+        return {
+          forwardOut(
+            _sourceHost: string,
+            _sourcePort: number,
+            remoteHost: string,
+            remotePort: number,
+            callback: (error: Error | undefined, channel: ClientChannel) => void
+          ) {
+            calls.push({ remoteHost, remotePort });
+            if (remoteHost === reachableHost) {
+              callback(undefined, new EchoChannel() as unknown as ClientChannel);
+              return;
+            }
+            callback(
+              channelOpenError('(SSH) Channel open failure: Connection refused', 2),
+              undefined as unknown as ClientChannel
+            );
+          },
+        } as SshClientProxy['client'];
+      },
+    } satisfies Pick<SshClientProxy, 'client' | 'isConnected'>,
+  };
+}
+
+function makePerHostFailingProxy(errors: Record<string, Error>) {
+  const calls: Array<{ remoteHost: string; remotePort: number }> = [];
+
+  return {
+    calls,
+    proxy: {
+      get isConnected() {
+        return true;
+      },
+      get client() {
+        return {
+          forwardOut(
+            _sourceHost: string,
+            _sourcePort: number,
+            remoteHost: string,
+            remotePort: number,
+            callback: (error: Error | undefined, channel: ClientChannel) => void
+          ) {
+            calls.push({ remoteHost, remotePort });
+            callback(
+              errors[remoteHost] ?? channelOpenError('(SSH) Channel open failure: unexpected', 2),
+              undefined as unknown as ClientChannel
+            );
           },
         } as SshClientProxy['client'];
       },
@@ -174,8 +246,79 @@ describe('openPortForwardTunnel', () => {
     }
   });
 
+  it('falls back to the IPv6 loopback when the IPv4 target refuses', async () => {
+    const { proxy, calls } = makeFamilyAwareProxy('::1');
+
+    const tunnel = await openPortForwardTunnel({
+      proxy,
+      remotePort: 5173,
+    });
+
+    try {
+      await expect(roundTrip(tunnel.localPort, 'ping')).resolves.toBe('remote:ping');
+      expect(calls).toEqual([
+        { remoteHost: '127.0.0.1', remotePort: 5173 },
+        { remoteHost: '::1', remotePort: 5173 },
+      ]);
+    } finally {
+      await tunnel.close();
+    }
+  });
+
+  it('does not fall back to the other family when the remote rejects for a non-connect reason', async () => {
+    // Administratively prohibited (reason 1) is not a connect failure, so
+    // retrying the other loopback family is pointless and would mask the cause.
+    const { proxy, calls } = makePerHostFailingProxy({
+      '127.0.0.1': channelOpenError('(SSH) Channel open failure: administratively prohibited', 1),
+    });
+    const connectionErrors: string[] = [];
+
+    const tunnel = await openPortForwardTunnel({
+      proxy,
+      remotePort: 5173,
+      onConnectionError: (error) => connectionErrors.push(error.message),
+    });
+
+    try {
+      await connectUntilClosed(tunnel.localPort);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(calls).toEqual([{ remoteHost: '127.0.0.1', remotePort: 5173 }]);
+      expect(connectionErrors).toEqual(['(SSH) Channel open failure: administratively prohibited']);
+    } finally {
+      await tunnel.close();
+    }
+  });
+
+  it('surfaces the first error when every loopback family fails to connect', async () => {
+    const { proxy, calls } = makePerHostFailingProxy({
+      '127.0.0.1': channelOpenError('(SSH) Channel open failure: Connection refused [ipv4]', 2),
+      '::1': channelOpenError('(SSH) Channel open failure: Connection refused [ipv6]', 2),
+    });
+    const connectionErrors: string[] = [];
+
+    const tunnel = await openPortForwardTunnel({
+      proxy,
+      remotePort: 5173,
+      onConnectionError: (error) => connectionErrors.push(error.message),
+    });
+
+    try {
+      await connectUntilClosed(tunnel.localPort);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(calls).toEqual([
+        { remoteHost: '127.0.0.1', remotePort: 5173 },
+        { remoteHost: '::1', remotePort: 5173 },
+      ]);
+      expect(connectionErrors).toEqual(['(SSH) Channel open failure: Connection refused [ipv4]']);
+    } finally {
+      await tunnel.close();
+    }
+  });
+
   it('closes local sockets without an uncaught exception when the remote port refuses connections', async () => {
-    const error = new Error('(SSH) Channel open failure: Connection refused');
+    const error = channelOpenError('(SSH) Channel open failure: Connection refused', 2);
     const { proxy } = makeRejectingProxy(error);
     const connectionErrors: string[] = [];
     const uncaughtErrors: string[] = [];
