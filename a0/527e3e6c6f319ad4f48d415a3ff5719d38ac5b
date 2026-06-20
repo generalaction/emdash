@@ -1,0 +1,64 @@
+apps/emdash-desktop/src/renderer/features/settings/components/SettingsPage.tsx
+  s_efe23381151ccf::t_cacab4d62ad94d 57
+  s_efe23381151ccf::t_6151417f2273eb 18
+apps/emdash-desktop/src/renderer/features/tasks/hooks/useAgentAutoApproveDefaults.ts
+  s_efe23381151ccf::t_c7e2fe0fd486a0 2-6,19-20,24-31
+  s_efe23381151ccf::t_3ba02a1a333d23 10-12
+apps/emdash-desktop/src/renderer/features/tasks/conversations/create-conversation-modal.tsx
+  s_d6ae8ea6727b7f::t_648bab895b4853 95-97
+  s_efe23381151ccf::t_194731748fc9ec 17
+  s_efe23381151ccf::t_08bbb43ba072e2 36
+  s_efe23381151ccf::t_78b3ede4452ccc 90-94,98-105
+apps/emdash-desktop/src/main/db/legacy-port/importers/settings/importer.test.ts
+  s_efe23381151ccf::t_2c0a5bb49c4893 9
+  s_019bd7d579e3ca::t_55c204c1425060 195
+  s_efe23381151ccf::t_eed4c9b7fb6444 216-218
+apps/emdash-desktop/src/renderer/features/tasks/conversations/initial-conversation-section.tsx
+  s_efe23381151ccf::t_3e19056455d689 96-98
+  s_efe23381151ccf::t_00c3f257261029 145-161
+  s_efe23381151ccf::t_db41a843d937e6 13
+apps/emdash-desktop/src/shared/core/agents/agent-auto-approve-defaults.test.ts
+  s_efe23381151ccf::t_83d3d16bf37485 1-33
+apps/emdash-desktop/src/shared/core/agents/agent-auto-approve-defaults.ts
+  s_efe23381151ccf::t_989bbf4a967723 1-6,15-37
+apps/emdash-desktop/src/renderer/features/settings/components/TaskSettingsRows.tsx
+  s_efe23381151ccf::t_df05aa9d98051a 4
+  s_efe23381151ccf::t_c7160ccec931a6 32-36,39-57
+  s_efe23381151ccf::t_4c10b67a6ebf81 38
+  s_efe23381151ccf::t_d9ccbed7f82dea 37
+apps/emdash-desktop/src/main/db/legacy-port/importers/settings/importer.ts
+  s_efe23381151ccf::t_f7d29fe23faa0e 6
+  s_efe23381151ccf::t_3cc11ed35e1993 169-178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "a0527e3e6c6f319ad4f48d415a3ff5719d38ac5b",
+  "prompts": {},
+  "sessions": {
+    "s_019bd7d579e3ca": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ee5e2-0a36-7580-93f3-e4f94508928a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_d6ae8ea6727b7f": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ee5e7-4a03-77c1-a008-697856a37491",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_efe23381151ccf": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1a0cd791-1a06-4579-9524-c0ca398f8ad2",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
