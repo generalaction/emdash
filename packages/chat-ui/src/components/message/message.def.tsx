@@ -4,23 +4,21 @@
  * Single self-contained unit per message. Rendering and measurement branch on role:
  *
  *   user      — bordered card (border-chat-border, bg-chat-bg-1), full column width
- *               (no inset), 12px horizontal / 6px vertical internal padding.
- *               Collapsed max-height: USER_COLLAPSED_MAX_H (120px), clipped.
- *               Expanded max-height: USER_EXPANDED_MAX_H (360px), scrollable.
+ *               (no inset), bubblePadX horizontal / bubblePadY vertical internal padding.
+ *               Collapsed max-height: vars.collapsedMaxH (120px), clipped.
+ *               Expanded max-height: vars.expandedMaxH (360px), scrollable.
  *               Expand state driven by ctx.expandedId === item.id.
  *               Rendered via UserMessageCard (shared with PinnedUserMessage).
  *
  *   assistant — plain inset row (chrome: COMPOSITE_CHROME via unit-registry),
- *               block stack + MESSAGE_FOOTER_H copy-button row.
+ *               block stack + vars.footerH copy-button row.
  *
  *   thought   — same inset row, muted italic text, no footer.
  *
  * All states (streaming/empty/finalized) map to one stable unit (key='self').
  *
- * Layout constants (USER_CARD_BORDER, BUBBLE_PAD_X, BUBBLE_PAD_Y, BLOCK_GAP,
- * PROSE_GAP, USER_COLLAPSED_MAX_H, USER_EXPANDED_MAX_H) live in UserMessageCard.tsx
- * so that file is self-contained and PinnedUserMessage can import from it directly
- * without creating a circular dependency.
+ * All layout constants are declared in `messageUnitDef.vars` (MESSAGE_VARS).
+ * UserMessageCard.tsx also holds module-level defaults for backward compatibility.
  */
 
 import { Show, createMemo } from 'solid-js';
@@ -33,19 +31,8 @@ import type { ChatMessage } from '../../model';
 import { BlockStackView } from '../primitives/BlockStackView';
 import { CopyButton } from '../primitives/CopyButton';
 import {
-  attachmentsStripHeight,
-  BLOCK_GAP,
-  BUBBLE_PAD_Y,
-  PROSE_GAP,
-  USER_CARD_BORDER,
-  USER_COLLAPSED_MAX_H,
-  USER_EXPANDED_MAX_H,
-  UserMessageCard,
-  userInnerWidth,
-} from './UserMessageCard';
-
-// ── Re-export constants for external consumers (PinnedUserMessage, tests) ─────
-export {
+  ATTACH_GAP,
+  ATTACH_THUMB,
   BLOCK_GAP,
   BUBBLE_PAD_X,
   BUBBLE_PAD_Y,
@@ -53,69 +40,89 @@ export {
   USER_CARD_BORDER,
   USER_COLLAPSED_MAX_H,
   USER_EXPANDED_MAX_H,
+  type MessageVars,
+  UserMessageCard,
+  userInnerWidth,
 } from './UserMessageCard';
 
-/** Reserved height for the assistant message footer (copy button row, px). */
-export const MESSAGE_FOOTER_H = 24;
+// ── vars ──────────────────────────────────────────────────────────────────────
 
-// ── Shared stack opts ────────────────────────────────────────────────────────
+const MESSAGE_VARS: MessageVars = {
+  cardBorder: USER_CARD_BORDER,
+  collapsedMaxH: USER_COLLAPSED_MAX_H,
+  expandedMaxH: USER_EXPANDED_MAX_H,
+  bubblePadX: BUBBLE_PAD_X,
+  bubblePadY: BUBBLE_PAD_Y,
+  blockGap: BLOCK_GAP,
+  proseGap: PROSE_GAP,
+  attachThumb: ATTACH_THUMB,
+  attachGap: ATTACH_GAP,
+  footerH: 24,
+};
 
-const STACK_OPTS = { padY: BUBBLE_PAD_Y, blockGap: BLOCK_GAP, proseGap: PROSE_GAP };
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-// ── measure ───────────────────────────────────────────────────────────────────
+/** Height of the attachment thumbnail strip, or 0 if no attachments. */
+function attachH(count: number, innerW: number, vars: MessageVars): number {
+  if (count <= 0) return 0;
+  const { attachThumb: thumb, attachGap: gap } = vars;
+  const perRow = Math.max(1, Math.floor((innerW + gap) / (thumb + gap)));
+  const rows = Math.ceil(count / perRow);
+  return rows * thumb + (rows - 1) * gap + gap; // + bottom gap
+}
 
-export function measureMessage(item: ChatMessage, ctx: MeasureCtx): number {
+// ── Measure ───────────────────────────────────────────────────────────────────
+
+export function measureMessage(item: ChatMessage, ctx: MeasureCtx, vars: MessageVars): number {
+  const { bubblePadY: padY, cardBorder: border, collapsedMaxH, expandedMaxH } = vars;
+  const stackOpts = { padY, blockGap: vars.blockGap, proseGap: vars.proseGap };
   const blocks = ctx.caches.parseBlocks(item.id, item.text);
 
   if (item.role === 'user') {
-    const innerW = userInnerWidth(ctx.width);
-    const innerCtx = { ...ctx, width: innerW };
-    const attachH = attachmentsStripHeight(item.attachments?.length ?? 0, innerW);
+    const innerW = userInnerWidth(ctx.width, vars);
+    const aH = attachH(item.attachments?.length ?? 0, innerW, vars);
     if (blocks.length === 0) {
-      const fallback =
-        attachH + ctx.theme.fonts.body.lineHeight + 2 * BUBBLE_PAD_Y + 2 * USER_CARD_BORDER;
-      return Math.min(
-        fallback,
-        ctx.expandedId === item.id ? USER_EXPANDED_MAX_H : USER_COLLAPSED_MAX_H
-      );
+      const fallback = aH + ctx.theme.fonts.body.lineHeight + 2 * padY + 2 * border;
+      return Math.min(fallback, ctx.expandedId === item.id ? expandedMaxH : collapsedMaxH);
     }
-    const stack = layoutBlockStack(blocks, innerCtx, {
-      ...STACK_OPTS,
-      isCollapsed: ctx.isCollapsed,
-    });
-    const contentH = attachH + stack.height + 2 * BUBBLE_PAD_Y + 2 * USER_CARD_BORDER;
-    return Math.min(
-      contentH,
-      ctx.expandedId === item.id ? USER_EXPANDED_MAX_H : USER_COLLAPSED_MAX_H
-    );
+    const innerCtx = { ...ctx, width: innerW };
+    const stack = layoutBlockStack(blocks, innerCtx, { ...stackOpts, isCollapsed: ctx.isCollapsed });
+    const contentH = aH + stack.height + 2 * padY + 2 * border;
+    return Math.min(contentH, ctx.expandedId === item.id ? expandedMaxH : collapsedMaxH);
   }
 
   // assistant / thought
-  const footer = item.role === 'assistant' ? MESSAGE_FOOTER_H : 0;
+  const footer = item.role === 'assistant' ? vars.footerH : 0;
   if (blocks.length === 0) {
-    return ctx.theme.fonts.body.lineHeight + 2 * BUBBLE_PAD_Y + footer;
+    return ctx.theme.fonts.body.lineHeight + 2 * padY + footer;
   }
-  const stack = layoutBlockStack(blocks, ctx, { ...STACK_OPTS, isCollapsed: ctx.isCollapsed });
+  const stack = layoutBlockStack(blocks, ctx, { ...stackOpts, isCollapsed: ctx.isCollapsed });
   return stack.height + footer;
 }
 
 // ── Assistant / thought render ────────────────────────────────────────────────
 
-function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx }) {
+function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx; vars: MessageVars }) {
   const mCtx = () => props.ctx.measureCtx?.();
+
+  const stackOpts = () => ({
+    padY: props.vars.bubblePadY,
+    blockGap: props.vars.blockGap,
+    proseGap: props.vars.proseGap,
+  });
 
   const stack = createMemo<Measured<StackLayout> | null>(() => {
     const ctx = mCtx();
     if (!ctx) return null;
     const blocks = ctx.caches.parseBlocks(props.data.id, props.data.text);
     if (blocks.length === 0) return null;
-    return layoutBlockStack(blocks, ctx, { ...STACK_OPTS, isCollapsed: ctx.isCollapsed });
+    return layoutBlockStack(blocks, ctx, { ...stackOpts(), isCollapsed: ctx.isCollapsed });
   });
 
   const totalH = createMemo(() => {
     const ctx = mCtx();
-    if (!ctx) return props.data.role === 'assistant' ? MESSAGE_FOOTER_H : 0;
-    return measureMessage(props.data, ctx);
+    if (!ctx) return props.data.role === 'assistant' ? props.vars.footerH : 0;
+    return measureMessage(props.data, ctx, props.vars);
   });
 
   const textClass = () =>
@@ -139,7 +146,7 @@ function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx }) {
             bottom: 0,
             left: 0,
             right: 0,
-            height: `${MESSAGE_FOOTER_H}px`,
+            height: `${props.vars.footerH}px`,
           }}
           aria-hidden={props.data.streaming ? 'true' : undefined}
         >
@@ -154,32 +161,37 @@ function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx }) {
 
 // ── MessageUnitRender ─────────────────────────────────────────────────────────
 
-function MessageUnitRender(props: { data: ChatMessage; ctx: RenderCtx }) {
+function MessageUnitRender(props: { data: ChatMessage; ctx: RenderCtx; vars: MessageVars }) {
   if (props.data.role === 'user') {
-    return <UserMessageCard data={props.data} ctx={props.ctx} />;
+    return <UserMessageCard data={props.data} ctx={props.ctx} vars={props.vars} />;
   }
-  return <AssistantRender data={props.data} ctx={props.ctx} />;
+  return <AssistantRender data={props.data} ctx={props.ctx} vars={props.vars} />;
 }
 
 // ── UnitDef ───────────────────────────────────────────────────────────────────
 
-export const messageUnitDef = defineUnit<ChatMessage>({
+export const messageUnitDef = defineUnit<ChatMessage, MessageVars>({
   kind: 'message',
-  estimate(item, ctx): number {
+  vars: MESSAGE_VARS,
+
+  estimate(item, ctx, vars): number {
     if (item.role === 'user') {
+      const innerW = userInnerWidth(ctx.width, vars);
       const lines = Math.max(1, Math.ceil(item.text.length / 60));
-      const attachH = attachmentsStripHeight(
-        item.attachments?.length ?? 0,
-        userInnerWidth(ctx.width)
-      );
+      const aH = attachH(item.attachments?.length ?? 0, innerW, vars);
       const est =
-        attachH + lines * ctx.theme.fonts.body.lineHeight + 2 * BUBBLE_PAD_Y + 2 * USER_CARD_BORDER;
-      return Math.min(est, ctx.expandedId === item.id ? USER_EXPANDED_MAX_H : USER_COLLAPSED_MAX_H);
+        aH + lines * ctx.theme.fonts.body.lineHeight + 2 * vars.bubblePadY + 2 * vars.cardBorder;
+      return Math.min(
+        est,
+        ctx.expandedId === item.id ? vars.expandedMaxH : vars.collapsedMaxH
+      );
     }
     const lines = Math.max(1, Math.ceil(item.text.length / 60));
-    const footer = item.role === 'assistant' ? MESSAGE_FOOTER_H : 0;
-    return lines * ctx.theme.fonts.body.lineHeight + 2 * BUBBLE_PAD_Y + footer;
+    const footer = item.role === 'assistant' ? vars.footerH : 0;
+    return lines * ctx.theme.fonts.body.lineHeight + 2 * vars.bubblePadY + footer;
   },
+
   measure: measureMessage,
+
   Render: MessageUnitRender,
 });

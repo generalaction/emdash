@@ -192,7 +192,7 @@ export function UnitRow(props: UnitRowProps) {
   const contentH = createMemo(() => {
     const d = def();
     if (!d) return 0;
-    return d.measure(props.unit.data, measureCtx());
+    return d.measure(props.unit.data, measureCtx(), d.vars ?? {});
   });
 
   const reserved = createMemo(() => unitReservedHeight(props.unit, contentH()));
@@ -226,7 +226,7 @@ export function UnitRow(props: UnitRowProps) {
                 'padding-right': `${c ? (c.insetX ?? 0) : 0}px`,
               }}
             >
-              <Dynamic component={d().Render} data={props.unit.data} ctx={renderCtx} />
+              <Dynamic component={d().Render} data={props.unit.data} ctx={renderCtx} vars={d().vars ?? {}} />
             </div>
           );
         }}

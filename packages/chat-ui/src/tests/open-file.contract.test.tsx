@@ -71,7 +71,7 @@ describe('Diff header: onOpenFile', () => {
 
     const { dispose } = mountWithCommands(
       () => ({ onOpenFile }),
-      () => <diffUnitDef.Render data={item} ctx={renderCtx} />
+      () => <diffUnitDef.Render data={item} ctx={renderCtx} vars={diffUnitDef.vars!} />
     );
 
     await new Promise<void>((r) => requestAnimationFrame(() => r()));
@@ -100,7 +100,7 @@ describe('Diff header: onOpenFile', () => {
 
     const { dispose } = mountWithCommands(
       () => ({}),
-      () => <diffUnitDef.Render data={item} ctx={renderCtx} />
+      () => <diffUnitDef.Render data={item} ctx={renderCtx} vars={diffUnitDef.vars!} />
     );
 
     await new Promise<void>((r) => requestAnimationFrame(() => r()));

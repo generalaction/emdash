@@ -76,7 +76,7 @@ describe('thinkingUnitDef expands body on viewState toggle', () => {
     });
 
     const { host, dispose } = mountTest(() => (
-      <thinkingUnitDef.Render data={item} ctx={renderCtx()} />
+      <thinkingUnitDef.Render data={item} ctx={renderCtx()} vars={thinkingUnitDef.vars!} />
     ));
 
     await raf();
@@ -120,7 +120,7 @@ describe('fileOpUnitDef expands list on viewState toggle', () => {
     });
 
     const { host, dispose } = mountTest(() => (
-      <fileOpUnitDef.Render data={item} ctx={renderCtx()} />
+      <fileOpUnitDef.Render data={item} ctx={renderCtx()} vars={fileOpUnitDef.vars!} />
     ));
 
     await raf();

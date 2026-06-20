@@ -103,7 +103,7 @@ export const SEGMENTERS: Record<string, ItemSegmenter<any>> = {
  * Composite item unit defs also handle their own internal layout.
  */
 // oxlint-disable-next-line typescript/no-explicit-any -- registry boundary
-export const UNIT_REGISTRY: Record<string, UnitDef<any>> = {
+export const UNIT_REGISTRY: Record<string, UnitDef<any, any>> = {
   // Message unit (single unit per message, renders block stack internally)
   message: messageUnitDef,
   // Composite item units (single-unit per ChatItem kind)

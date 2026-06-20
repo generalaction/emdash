@@ -3,8 +3,9 @@
  *
  * No pretext / DOM / Solid imports. Testable in the node Vitest project.
  *
- * PLAN_HEADER_H and PLAN_LINE_H are derived from DEFAULT_FONT_CONFIG so tests
- * have a numeric value at import time.
+ * Constants match those in `planUnitDef.vars` (plan.def.tsx). Both define the
+ * same values so the geometry stays consistent between test arithmetic and the
+ * live measure function.
  *
  * Total height = headerH + bodyH + CHROME_Y, where:
  *   - CHROME_Y = 3*PLAN_BORDER (top border + header separator + bottom border)
@@ -20,21 +21,49 @@
 import { DEFAULT_FONT_CONFIG } from '../../core/measure/fonts';
 import { ROW_H } from '../../core/metrics';
 import type { ChatPlan } from '../../model';
-import {
-  PLAN_BORDER,
-  PLAN_ENTRY_GAP,
-  PLAN_OUTER_PAD_Y,
-  PLAN_PAD_Y,
-  PLAN_WINDOW_H,
-} from './plan-metrics';
 
-export { PLAN_PAD_Y, PLAN_ENTRY_GAP, PLAN_BORDER, PLAN_OUTER_PAD_Y, PLAN_WINDOW_H };
+// ── Constants (mirrors planUnitDef.vars) ─────────────────────────────────────
+
+/** Vertical padding (px) inside the expanded entry list, applied top and bottom. */
+export const PLAN_PAD_Y = 6;
+
+/** Width (px) of the status-icon box to the left of each entry body (matches the 14px icon). */
+export const PLAN_ICON_BOX = 14;
+
+/** Horizontal gap (px) between the status icon and the entry text. */
+export const PLAN_ICON_GAP = 8;
+
+/** Total horizontal inset (px) consumed left of the entry body: icon box + gap. */
+export const PLAN_ENTRY_INDENT = PLAN_ICON_BOX + PLAN_ICON_GAP;
+
+/** Vertical gap (px) between consecutive plan entries. */
+export const PLAN_ENTRY_GAP = 4;
+
+/** Border width (px) of the plan card. Matches the rendered `border` class. */
+export const PLAN_BORDER = 1;
+
+/** Horizontal padding (px) inside the plan card border, each side. */
+export const PLAN_PAD_X = 8;
+
+/** Vertical padding (px) inside the plan card border, top and bottom. */
+export const PLAN_OUTER_PAD_Y = 6;
+
+/**
+ * Maximum height (px) of the collapsed preview window. When collapsed, the
+ * entry list is clipped to this height and (while streaming) auto-scrolls to
+ * the bottom so newly-added tasks stay visible.
+ */
+export const PLAN_WINDOW_H = 96;
+
+// ── Derived constants ─────────────────────────────────────────────────────────
 
 export const PLAN_HEADER_H = ROW_H;
 export const PLAN_LINE_H = DEFAULT_FONT_CONFIG.body.lineHeight;
 
 /** Card border: top border + header separator + bottom border. */
 export const PLAN_CHROME_Y = 3 * PLAN_BORDER;
+
+// ── Pure arithmetic helpers ───────────────────────────────────────────────────
 
 /** Inner list height: entry heights + inter-entry gaps + list padding. */
 export function planListHeight(entryCount: number, entryHeights: number[] = []): number {

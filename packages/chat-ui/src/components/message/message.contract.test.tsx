@@ -83,8 +83,8 @@ describe('messageUnitDef.measure is stable (same ctx → same result)', () => {
 
   for (const item of fixtures) {
     it(`role=${item.role} id=${item.id}`, () => {
-      const h1 = messageUnitDef.measure(item, ctx);
-      const h2 = messageUnitDef.measure(item, ctx);
+      const h1 = messageUnitDef.measure(item, ctx, messageUnitDef.vars!);
+      const h2 = messageUnitDef.measure(item, ctx, messageUnitDef.vars!);
       expect(h1).toBe(h2);
       expect(h1).toBeGreaterThan(0);
     });
@@ -98,7 +98,7 @@ describe('messageUnitDef.measure is stable (same ctx → same result)', () => {
 
 describe('streaming message', () => {
   it('has non-zero measure height', () => {
-    const h = messageUnitDef.measure(STREAMING, ctx);
+    const h = messageUnitDef.measure(STREAMING, ctx, messageUnitDef.vars!);
     expect(h).toBeGreaterThan(0);
   });
 
@@ -113,7 +113,7 @@ describe('streaming message', () => {
 
 describe('empty message', () => {
   it('has non-zero measure height (fallback to line height)', () => {
-    const h = messageUnitDef.measure(EMPTY, ctx);
+    const h = messageUnitDef.measure(EMPTY, ctx, messageUnitDef.vars!);
     expect(h).toBeGreaterThan(0);
   });
 });
@@ -135,26 +135,26 @@ const USER_LONG: ChatMessage = {
 
 describe('user message card max-height clamp', () => {
   it('collapses to USER_COLLAPSED_MAX_H when content overflows and not expanded', () => {
-    const h = messageUnitDef.measure(USER_LONG, ctx);
+    const h = messageUnitDef.measure(USER_LONG, ctx, messageUnitDef.vars!);
     expect(h).toBe(USER_COLLAPSED_MAX_H);
   });
 
   it('expands to at most USER_EXPANDED_MAX_H when expandedId matches', () => {
     const expandedCtx = makeContractCtx({ width: 640, expandedId: USER_LONG.id });
-    const h = messageUnitDef.measure(USER_LONG, expandedCtx);
+    const h = messageUnitDef.measure(USER_LONG, expandedCtx, messageUnitDef.vars!);
     expect(h).toBeLessThanOrEqual(USER_EXPANDED_MAX_H);
     expect(h).toBeGreaterThan(USER_COLLAPSED_MAX_H);
   });
 
   it('short user message is not clamped (measures below collapsed max)', () => {
-    const h = messageUnitDef.measure(USER_SHORT, ctx);
+    const h = messageUnitDef.measure(USER_SHORT, ctx, messageUnitDef.vars!);
     expect(h).toBeLessThanOrEqual(USER_COLLAPSED_MAX_H);
     expect(h).toBeGreaterThan(0);
   });
 
   it('expanding a different id does not affect this message', () => {
     const otherCtx = makeContractCtx({ width: 640, expandedId: 'some-other-id' });
-    const h = messageUnitDef.measure(USER_LONG, otherCtx);
+    const h = messageUnitDef.measure(USER_LONG, otherCtx, messageUnitDef.vars!);
     expect(h).toBe(USER_COLLAPSED_MAX_H);
   });
 });

@@ -83,13 +83,13 @@ describe('messageUnitDef.measure', () => {
     const cold = createChatCaches();
     const coldCtx = { ...MEASURE_CTX, caches: cold };
     for (const item of MESSAGE_ITEMS.slice(0, 100)) {
-      messageUnitDef.measure(item, coldCtx);
+      messageUnitDef.measure(item, coldCtx, messageUnitDef.vars!);
     }
   });
 
   bench('measure all message rows (warm blockMemo)', () => {
     for (const item of MESSAGE_ITEMS) {
-      messageUnitDef.measure(item, MEASURE_CTX);
+      messageUnitDef.measure(item, MEASURE_CTX, messageUnitDef.vars!);
     }
   });
 });

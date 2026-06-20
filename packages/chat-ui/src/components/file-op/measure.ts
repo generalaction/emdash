@@ -1,26 +1,25 @@
 /**
- * measureFileOp — height function for ChatFileOpToolCall rows.
+ * measureFileOp — pure height function for ChatFileOpToolCall rows.
  *
- * Pure arithmetic, no pretext / DOM.
+ * Constants are now declared in `fileOpUnitDef.vars` (single source of truth).
+ * This module exists for node-environment unit tests; it mirrors the logic
+ * in `file-op.def.tsx` without importing JSX dependencies.
  *
  * Collapse semantics are inverted:
  *   isExpanded(id) maps to viewState.isCollapsed(id).
  *   Default absent/false → not expanded.
- *
- * FILEOP_PAD_Y and FILEOP_WINDOW_H come from file-op-metrics.ts (single source
- * of truth shared with the compose-tree def).
- * FILEOP_ROW_H and FILEOP_LINE_H both resolve to the shared ROW_H so the header
- * and every per-file row align to the same single-line rhythm.
  */
 
-import { ROW_H } from '../../core/metrics';
 import type { ChatFileOpToolCall } from '../../model';
-import { FILEOP_PAD_Y, FILEOP_WINDOW_H } from './file-op-metrics';
 
-export { FILEOP_PAD_Y, FILEOP_WINDOW_H };
-
-export const FILEOP_ROW_H = ROW_H;
-export const FILEOP_LINE_H = ROW_H;
+/** Mirrors fileOpUnitDef.vars.rowH (32px). */
+export const FILEOP_ROW_H = 32;
+/** Mirrors fileOpUnitDef.vars.rowH for per-file lines (same as header). */
+export const FILEOP_LINE_H = 32;
+/** Mirrors fileOpUnitDef.vars.padY (6px). */
+export const FILEOP_PAD_Y = 6;
+/** Mirrors fileOpUnitDef.vars.windowH (72px). */
+export const FILEOP_WINDOW_H = 72;
 
 export function measureFileOp(
   item: ChatFileOpToolCall,

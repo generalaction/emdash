@@ -127,17 +127,22 @@ export type SegmentCtx = {
  * Definition of one leaf unit kind.
  *
  * `kind`     — matches the `RenderUnit.kind` dispatch key in UNIT_REGISTRY.
+ * `vars`     — typed numeric geometry constants declared once on the def and
+ *              threaded into `measure`, `estimate`, and `Render`. Defs that
+ *              have not yet been migrated to the Box algebra omit this field.
  * `estimate` — O(1) height heuristic for off-screen units at setCount/prepend.
  *              Falls back to `genericEstimate` when omitted.
  * `measure`  — exact height (px); called only for visible units.
  *              Returns a number — no Measured<L> tree.
- * `Render`   — Solid component; receives `data` (the unit payload) and `ctx`.
+ * `Render`   — Solid component; receives `data` (the unit payload), `ctx`,
+ *              and `vars` (the def's typed geometry constants).
  */
-export type UnitDef<D> = {
+export type UnitDef<D, V extends Record<string, number> = {}> = {
   kind: string;
-  estimate?(data: D, ctx: MeasureCtx): number;
-  measure(data: D, ctx: MeasureCtx): number;
-  Render: Component<{ data: D; ctx: RenderCtx }>;
+  vars?: V;
+  estimate?(data: D, ctx: MeasureCtx, vars: V): number;
+  measure(data: D, ctx: MeasureCtx, vars: V): number;
+  Render: Component<{ data: D; ctx: RenderCtx; vars: V }>;
 };
 
 // ── ItemSegmenter ─────────────────────────────────────────────────────────────
@@ -161,7 +166,7 @@ export type ItemSegmenter<T extends ChatItem> = {
 // ── Factories ─────────────────────────────────────────────────────────────────
 
 /** Identity factory for UnitDef — enables TypeScript inference. */
-export function defineUnit<D>(def: UnitDef<D>): UnitDef<D> {
+export function defineUnit<D, V extends Record<string, number> = {}>(def: UnitDef<D, V>): UnitDef<D, V> {
   return def;
 }
 

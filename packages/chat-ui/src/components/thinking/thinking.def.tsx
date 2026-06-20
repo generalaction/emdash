@@ -8,6 +8,9 @@
  *   done + not expanded:   header only
  *   active + not expanded: header + PreviewWindow (auto-scrolls to bottom)
  *   expanded:              header + full block stack
+ *
+ * Geometry constants are declared in `vars` — the single source of truth for
+ * thinking row geometry.
  */
 
 import { Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
@@ -23,12 +26,19 @@ import { CollapseHeader } from '../primitives/CollapseHeader';
 import { PreviewWindow } from '../primitives/PreviewWindow';
 import { useTheme } from '../ThemeContext';
 
-// ── Module constants ─────────────────────────────────────────────────────────
+// ── vars type ─────────────────────────────────────────────────────────────────
 
-/** Vertical padding (px) inside the expanded thinking body block stack. */
-const THINKING_PAD_Y = 8;
-/** Preview window height (px) during active thinking. */
-const THINKING_WINDOW_H = 72;
+export type ThinkingVars = {
+  /** Vertical padding (px) inside the expanded thinking body block stack. */
+  padY: number;
+  /** Preview window height (px) during active thinking. */
+  windowH: number;
+};
+
+const THINKING_VARS: ThinkingVars = {
+  padY: 8,
+  windowH: 72,
+};
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -36,13 +46,9 @@ function thinkingHeaderH(ctx: MeasureCtx): number {
   return ctx.theme.fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
 }
 
-function layoutThinkingBody(blocks: Block[], ctx: MeasureCtx) {
+function layoutThinkingBody(blocks: Block[], ctx: MeasureCtx, padY: number) {
   const { blockGap, proseGap } = ctx.theme.density;
-  return layoutBlockStack(blocks, ctx, {
-    padY: THINKING_PAD_Y,
-    blockGap,
-    proseGap,
-  });
+  return layoutBlockStack(blocks, ctx, { padY, blockGap, proseGap });
 }
 
 // ── ThinkingHeader ────────────────────────────────────────────────────────────
@@ -89,22 +95,24 @@ function ThinkingHeader(props: { item: ChatThinking; expanded: boolean; headerH:
   );
 }
 
-// ── Native UnitDef ────────────────────────────────────────────────────────────
+// ── Measure ───────────────────────────────────────────────────────────────────
 
-function thinkingMeasure(item: ChatThinking, ctx: MeasureCtx): number {
+function thinkingMeasure(item: ChatThinking, ctx: MeasureCtx, vars: ThinkingVars): number {
   const headerH = thinkingHeaderH(ctx);
   const isExpanded = ctx.expanded(item.id);
 
   if (!isExpanded && item.status !== 'thinking') return headerH;
 
   const blocks = flattenBlockHeadings(ctx.caches.parseBlocks(item.id, item.text ?? ''));
-  const body = layoutThinkingBody(blocks, ctx);
+  const body = layoutThinkingBody(blocks, ctx, vars.padY);
 
-  if (!isExpanded) return headerH + THINKING_WINDOW_H;
+  if (!isExpanded) return headerH + vars.windowH;
   return headerH + body.height;
 }
 
-function ThinkingUnitRender(props: { data: ChatThinking; ctx: RenderCtx }) {
+// ── Render ────────────────────────────────────────────────────────────────────
+
+function ThinkingUnitRender(props: { data: ChatThinking; ctx: RenderCtx; vars: ThinkingVars }) {
   const theme = useTheme();
   const mCtx = () => props.ctx.measureCtx?.();
   // Inverted semantics: stored "collapsed" bool = "expanded".
@@ -118,13 +126,13 @@ function ThinkingUnitRender(props: { data: ChatThinking; ctx: RenderCtx }) {
     const blocks = flattenBlockHeadings(
       ctx.caches.parseBlocks(props.data.id, props.data.text ?? '')
     );
-    return layoutThinkingBody(blocks, ctx);
+    return layoutThinkingBody(blocks, ctx, props.vars.padY);
   });
 
   const totalH = createMemo(() => {
     const ctx = mCtx();
     if (!ctx) return headerH();
-    return thinkingMeasure(props.data, ctx);
+    return thinkingMeasure(props.data, ctx, props.vars);
   });
 
   const showBody = () => isExpanded() || props.data.status === 'thinking';
@@ -139,8 +147,8 @@ function ThinkingUnitRender(props: { data: ChatThinking; ctx: RenderCtx }) {
           fallback={
             // Collapsed + active: scrollable preview window auto-scrolling to bottom.
             <PreviewWindow
-              height={THINKING_WINDOW_H}
-              maxH={THINKING_WINDOW_H}
+              height={props.vars.windowH}
+              maxH={props.vars.windowH}
               overlay="fade-top"
               autoScrollBottom={props.data.status === 'thinking'}
               contentHeight={() => bodyH()}
@@ -157,20 +165,23 @@ function ThinkingUnitRender(props: { data: ChatThinking; ctx: RenderCtx }) {
   );
 }
 
-export const thinkingUnitDef = defineUnit<ChatThinking>({
-  kind: 'thinking',
+// ── UnitDef ───────────────────────────────────────────────────────────────────
 
-  estimate(item, ctx): number {
+export const thinkingUnitDef = defineUnit<ChatThinking, ThinkingVars>({
+  kind: 'thinking',
+  vars: THINKING_VARS,
+
+  estimate(item, ctx, vars): number {
     const headerH = thinkingHeaderH(ctx);
     const isExpanded = ctx.expanded(item.id);
 
     if (!isExpanded) {
-      if (item.status === 'thinking') return headerH + THINKING_WINDOW_H;
+      if (item.status === 'thinking') return headerH + vars.windowH;
       return headerH;
     }
 
     const lines = Math.max(1, Math.ceil((item.text?.length ?? 0) / 60));
-    return headerH + 2 * THINKING_PAD_Y + lines * ctx.theme.fonts.body.lineHeight;
+    return headerH + 2 * vars.padY + lines * ctx.theme.fonts.body.lineHeight;
   },
 
   measure: thinkingMeasure,

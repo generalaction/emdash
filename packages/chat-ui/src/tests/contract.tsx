@@ -68,7 +68,7 @@ export function makeContractCtx(opts: {
  * "expanded".
  */
 export async function renderAndMeasureUnit<D>(
-  def: UnitDef<D>,
+  def: UnitDef<D, any>,
   data: D,
   ctx: ContractCtx
 ): Promise<{ computed: number; dom: number }> {
@@ -77,7 +77,7 @@ export async function renderAndMeasureUnit<D>(
     ...ctx,
     expanded: ctx.isCollapsed,
   };
-  const computed = def.measure(data, measureCtx);
+  const computed = def.measure(data, measureCtx, def.vars ?? {});
   const renderCtx: RenderCtx = {
     viewState: { isCollapsed: ctx.isCollapsed },
     measureCtx: () => measureCtx,
@@ -97,7 +97,7 @@ export async function renderAndMeasureUnit<D>(
       () => (
         <ThemeContext.Provider value={() => ctx.theme}>
           <CachesContext.Provider value={caches}>
-            <Comp data={data} ctx={renderCtx} />
+            <Comp data={data} ctx={renderCtx} vars={def.vars ?? {}} />
           </CachesContext.Provider>
         </ThemeContext.Provider>
       ),

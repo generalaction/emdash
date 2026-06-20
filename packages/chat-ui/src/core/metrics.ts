@@ -6,8 +6,7 @@
  * share a single source of truth without an @emdash/ui import.
  *
  * Component-private constants (bubble padding, block gap, thinking heights,
- * code block padding) live inline in each component's `.def.tsx` file.
- * The only standalone component metrics file is `components/file-op/file-op-metrics.ts`.
+ * code block padding, file-op geometry) live inline in each component's `.def.tsx` file.
  *
  * CSS variables are applied inline in `ChatRoot.tsx` `onMount`; there is no
  * separate css-vars.ts module.

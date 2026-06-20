@@ -248,7 +248,7 @@ export function ChatRoot(props: ChatRootProps) {
         if (!u) return 60;
         const unitDef = UNIT_REGISTRY[u.kind];
         const contentH =
-          unitDef?.estimate?.(u.data, estimateCtx) ??
+          unitDef?.estimate?.(u.data, estimateCtx, unitDef.vars ?? {}) ??
           genericEstimate(u.data as unknown as ChatItem, estimateCtx);
         return unitReservedHeight(u, contentH);
       });
@@ -497,7 +497,7 @@ export function ChatRoot(props: ChatRootProps) {
       if (!item) return ROW_GAP + 60;
       const unitDef = UNIT_REGISTRY[item.kind];
       const contentH =
-        unitDef?.estimate?.(item, loadEstimateCtx) ?? genericEstimate(item, loadEstimateCtx);
+        unitDef?.estimate?.(item, loadEstimateCtx, unitDef.vars ?? {}) ?? genericEstimate(item, loadEstimateCtx);
       // Solo unit estimate (no chrome padY for composites; user messages have padY handled)
       return ROW_GAP + contentH;
     });
@@ -672,7 +672,7 @@ export function ChatRoot(props: ChatRootProps) {
           measureEpoch: measureEpoch(),
           expandedId: expandedUserId(),
         };
-        const contentH = unitDef.measure(u.data, ctx);
+        const contentH = unitDef.measure(u.data, ctx, unitDef.vars ?? {});
         const h = unitReservedHeight(u, contentH);
         const delta = virt.setSize(ui, h);
         if (delta !== 0) onHeightChanged(ui, delta);

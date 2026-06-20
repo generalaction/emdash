@@ -190,7 +190,7 @@ export function mountRows(items: ChatItem[]): Mounted {
               {(u) => {
                 const def = UNIT_REGISTRY[u.kind];
                 if (!def) return null;
-                return <def.Render data={u.data} ctx={renderCtx} />;
+                return <def.Render data={u.data} ctx={renderCtx} vars={def.vars ?? {}} />;
               }}
             </For>
           </div>
