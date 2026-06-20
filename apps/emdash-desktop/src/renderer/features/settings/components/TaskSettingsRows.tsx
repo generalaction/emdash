@@ -8,14 +8,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@rende
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 
-function getAutoApproveDescription(state: 'none' | 'partial' | 'all') {
-  if (state === 'partial') {
-    return 'Skips permission prompts for supported agents when creating new tasks. Enabled for some agents; reset to turn all off or switch on to enable all supported agents.';
-  }
-
-  return 'Skips permission prompts for supported agents when creating new tasks.';
-}
-
 function InfoTooltip({ label, content }: { label: string; content: React.ReactNode }) {
   return (
     <TooltipProvider delay={150}>
@@ -39,12 +31,11 @@ function InfoTooltip({ label, content }: { label: string; content: React.ReactNo
 
 export const AutoApproveByDefaultRow: React.FC = () => {
   const autoApproveDefaults = useAgentAutoApproveDefaults();
-  const { globalAutoApproveState } = autoApproveDefaults;
 
   return (
     <SettingRow
       title="Auto-approve by default"
-      description={getAutoApproveDescription(globalAutoApproveState)}
+      description="Skips permission prompts for supported agents when creating new tasks."
       control={
         <>
           <ResetToDefaultButton
