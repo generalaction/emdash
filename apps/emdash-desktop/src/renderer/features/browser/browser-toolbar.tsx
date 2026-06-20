@@ -73,6 +73,7 @@ import {
   confirmClearBrowserStorage,
   openBrowserUrlExternally,
 } from './browser-toolbar-actions';
+import { BrowserUrlDisplay } from './browser-url-display';
 import { browserUrlInputText } from './browser-url-input';
 import { BrowserUrlSuggestionsPanel } from './browser-url-suggestions-panel';
 import type { BrowserWebviewAdapter } from './browser-webview-types';
@@ -246,6 +247,7 @@ export function BrowserToolbar({
 
   const canOpenExternal = canOpenBrowserUrlExternally(session.currentUrl);
   const zoomFactor = session.zoomFactor;
+  const showStyledUrlDisplay = !urlInputFocused && urlText.length > 0;
 
   return (
     <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border bg-background-secondary-1 px-2">
@@ -273,17 +275,17 @@ export function BrowserToolbar({
           navigate();
         }}
       >
-        <div className="relative">
+        <div className="group/url relative w-full rounded-md focus-within:bg-background-quaternary-1 hover:bg-background-quaternary-1">
           {faviconUrl ? (
             <img
               src={faviconUrl}
               alt=""
-              className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 rounded-sm"
+              className="pointer-events-none absolute top-1/2 left-2 z-10 size-3.5 -translate-y-1/2 rounded-sm"
               draggable={false}
               onError={() => setFailedFaviconUrl(faviconUrl)}
             />
           ) : (
-            <Globe className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-foreground-muted" />
+            <Globe className="pointer-events-none absolute top-1/2 left-2 z-10 size-3.5 -translate-y-1/2 text-foreground-muted" />
           )}
           <Input
             ref={urlInputRef}
@@ -300,7 +302,10 @@ export function BrowserToolbar({
               window.setTimeout(() => setUrlInputFocused(false), 0);
             }}
             onKeyDown={handleUrlInputKeyDown}
-            className="h-7 truncate border-0 pr-8 pl-7 text-sm shadow-none hover:border-0 focus-visible:border-0 focus-visible:ring-0"
+            className={cn(
+              'h-7 w-full truncate rounded-md border-0 bg-transparent pr-8 pl-7 text-sm shadow-none hover:border-0 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent',
+              showStyledUrlDisplay && 'text-transparent caret-foreground'
+            )}
             aria-label="Browser URL"
             aria-expanded={showUrlSuggestions}
             aria-controls={showUrlSuggestions ? 'browser-url-suggestions' : undefined}
@@ -314,8 +319,16 @@ export function BrowserToolbar({
             spellCheck={false}
             autoCapitalize="none"
           />
+          {showStyledUrlDisplay && (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 flex items-center truncate pr-8 pl-7 text-sm"
+            >
+              <BrowserUrlDisplay text={urlText} />
+            </div>
+          )}
           {session.isLoading && (
-            <Loader2 className="pointer-events-none absolute top-1/2 right-2 size-3.5 -translate-y-1/2 animate-spin text-foreground-muted" />
+            <Loader2 className="pointer-events-none absolute top-1/2 right-2 z-10 size-3.5 -translate-y-1/2 animate-spin text-foreground-muted" />
           )}
           {showUrlSuggestions && (
             <div id="browser-url-suggestions">
