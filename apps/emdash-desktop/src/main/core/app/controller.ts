@@ -42,6 +42,7 @@ export const appController = createRPCController({
     }
   },
   showTextContextMenu: async (args: {
+    requestId: string;
     selectionText?: string | null;
     linkText?: string | null;
     x: number;

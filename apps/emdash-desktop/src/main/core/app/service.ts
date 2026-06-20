@@ -16,7 +16,13 @@ import {
   buildRemoteSshCommand,
   buildRemoteTerminalExecArgs,
 } from '@main/utils/remoteOpenIn';
-import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
+import {
+  appPasteChannel,
+  appRedoChannel,
+  appUndoChannel,
+  textContextMenuActionChannel,
+  type TextContextMenuAction,
+} from '@shared/events/appEvents';
 import {
   getAppById,
   getResolvedLabel,
@@ -232,30 +238,52 @@ class AppService implements IInitializable, IDisposable {
   }
 
   showTextContextMenu(args: {
+    requestId: string;
     selectionText?: string | null;
     linkText?: string | null;
     x: number;
     y: number;
   }): void {
+    if (!args.requestId || typeof args.requestId !== 'string') {
+      throw new Error('Invalid context menu request');
+    }
     const selectionText = args.selectionText?.trim() ?? '';
     const linkText = args.linkText?.trim() ?? '';
     const hasSelection = selectionText.length > 0;
     const hasLink = linkText.length > 0;
+    const emitAction = (action: TextContextMenuAction) => {
+      events.emit(textContextMenuActionChannel, { requestId: args.requestId, action });
+    };
     const template: Electron.MenuItemConstructorOptions[] = [
       {
         label: 'Copy',
+        accelerator: 'CmdOrCtrl+C',
         enabled: hasSelection,
         click: () => clipboard.writeText(selectionText),
       },
       ...(hasLink
         ? [
-            { type: 'separator' as const },
             {
               label: 'Copy Link',
               click: () => clipboard.writeText(linkText),
             },
           ]
         : []),
+      {
+        label: 'Paste',
+        accelerator: 'CmdOrCtrl+V',
+        click: () => emitAction('paste'),
+      },
+      { type: 'separator' },
+      {
+        label: 'Select All',
+        accelerator: 'CmdOrCtrl+A',
+        click: () => emitAction('select-all'),
+      },
+      {
+        label: 'Clear',
+        click: () => emitAction('clear'),
+      },
     ];
 
     Menu.buildFromTemplate(template).popup({

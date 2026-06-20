@@ -7,7 +7,7 @@ import { log } from '@renderer/utils/logger';
 import type { AppSettings } from '@shared/core/app-settings';
 import { ptyDataChannel, ptyExitChannel } from '@shared/core/pty/ptyEvents';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/core/terminals/terminal-settings';
-import { appPasteChannel } from '@shared/events/appEvents';
+import { appPasteChannel, textContextMenuActionChannel } from '@shared/events/appEvents';
 import { getDomTabNavigationDirection } from '@shared/shortcuts';
 import { findFileLinks } from './file-link-detection';
 import { usePaneSizingContext } from './pane-sizing-context';
@@ -116,6 +116,12 @@ function rangeContainsColumn(
 
 function trimLinkText(text: string): string {
   return text.replace(/[),.;:!?]+$/, '');
+}
+
+function createContextMenuRequestId(): string {
+  return typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random()}`;
 }
 
 export interface UsePtyOptions {
@@ -234,6 +240,7 @@ export function usePty(
   // Auto-copy on selection
   const autoCopyOnSelectionRef = useRef(false);
   const lastSelectionRef = useRef<{ text: string; capturedAt: number } | null>(null);
+  const contextMenuRequestIdRef = useRef<string | null>(null);
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -635,19 +642,40 @@ export function usePty(
         event.preventDefault();
         event.stopPropagation();
 
+        const requestId = createContextMenuRequestId();
+        contextMenuRequestIdRef.current = requestId;
         const selectionText =
           terminal.getSelection() || getRecentSelection(lastSelectionRef.current);
         const linkText = getTerminalContextLink(terminal, event);
         void rpc.app.showTextContextMenu({
+          requestId,
           selectionText,
           linkText,
           x: event.clientX,
           y: event.clientY,
         });
       };
+      const offTextContextMenuAction = events.on(textContextMenuActionChannel, (payload) => {
+        if (payload.requestId !== contextMenuRequestIdRef.current) return;
+        contextMenuRequestIdRef.current = null;
+
+        if (payload.action === 'paste') {
+          pasteFromClipboard();
+          return;
+        }
+        if (payload.action === 'select-all') {
+          terminal.selectAll();
+          return;
+        }
+        if (payload.action === 'clear') {
+          frontendPty.clear();
+        }
+      });
       frontendPty.ownedContainer.addEventListener('mousedown', handleContextMenuMouseDown, true);
       frontendPty.ownedContainer.addEventListener('contextmenu', handleContextMenu);
       cleanups.push(() => {
+        offTextContextMenuAction();
+        contextMenuRequestIdRef.current = null;
         frontendPty.ownedContainer.removeEventListener(
           'mousedown',
           handleContextMenuMouseDown,
