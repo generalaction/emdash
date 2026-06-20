@@ -20,10 +20,12 @@ import { For, createEffect, onCleanup } from 'solid-js';
 import { applyTokenLines } from '../../core/highlight/apply-tokens';
 import type { CodeLaidOut } from '../../core/layout/layout-types';
 import type { CodeBlock } from '../../core/markdown/document';
+import { group } from '../primitives/copy-button.css';
 import { BlockFrame } from '../block-frame';
 import { useCaches } from '../CachesContext';
 import { cancelIdle, scheduleIdle } from '../dom-utils';
 import { CopyButton } from '../primitives/CopyButton';
+import { codeLine, codeWrapper } from './code.css';
 
 export type CodeProps = {
   block: CodeLaidOut;
@@ -87,7 +89,7 @@ export function Code(props: CodeProps) {
   });
 
   return (
-    <BlockFrame layout={props.block} class="group">
+    <BlockFrame layout={props.block} class={group}>
       {/*
        * Pinned copy button — sibling of the scroll container so it stays
        * fixed at top-right regardless of horizontal scroll position.
@@ -95,29 +97,19 @@ export function Code(props: CodeProps) {
       <CopyButton text={props.rawBlock.code} variant="overlay" label="Copy code" />
 
       {/*
-       * Scroll + card container. `absolute inset-0` makes its border-box equal
+       * Scroll + card container. absolute inset:0 makes its border-box equal
        * the frame box, preserving the reserved height arithmetic. Having no
        * .pblock class means overflow-x-auto wins without any specificity tie.
        *
-       * Background is transparent so the block inherits the chat background;
-       * Shiki still writes --shiki-light-bg / --shiki-dark-bg onto the wrapper
-       * but they are intentionally unused (no bg-* class references them).
-       *
-       * [&_span] targets the imperatively-created token <span>s from
-       * apply-tokens.ts, which have no Tailwind class of their own.
+       * Background is transparent so the block inherits the chat background.
+       * Shiki writes --shiki-light-bg / --shiki-dark-bg onto wrapperEl as
+       * inline custom properties; token spans get their color from code.css.ts.
        */}
       <div
         ref={(el) => {
           wrapperEl = el;
         }}
-        class={[
-          'absolute inset-0 overflow-x-auto overflow-y-hidden rounded-lg',
-          'border border-chat-border pl-2',
-          'scrollbar-thin',
-          'bg-transparent',
-          '[&_span]:text-(--shiki-light)',
-          'emdark:[&_span]:text-(--shiki-dark)',
-        ].join(' ')}
+        class={codeWrapper}
       >
         <For each={props.block.lines}>
           {(line, i) => (
@@ -126,11 +118,7 @@ export function Code(props: CodeProps) {
                 lineElsMap.set(i(), el);
                 onCleanup(() => lineElsMap.delete(i()));
               }}
-              class={[
-                'absolute whitespace-pre text-chat-fg font-normal',
-                'text-(length:--chat-type-code-font-size) leading-(--chat-type-code-line-height)',
-                '[font-family:var(--chat-type-code-font-family)]',
-              ].join(' ')}
+              class={codeLine}
               style={{ top: `${line.top}px` }}
             >
               {line.text}

@@ -23,6 +23,7 @@ import { ROW_GAP } from '../core/metrics';
 import type { ChatTheme } from '../core/theme';
 import type { ChatMessage } from '../model';
 import { messageUnitDef } from './message/message.def';
+import { pinnedBackdrop, pinnedScrollFade } from './message/user-message.css';
 import { UserMessageCard } from './message/UserMessageCard';
 
 export function PinnedUserMessage(props: {
@@ -48,14 +49,11 @@ export function PinnedUserMessage(props: {
 
   return (
     <>
-      <div
-        class="bg-chat-bg/80 pointer-events-auto backdrop-blur-sm"
-        style={{ 'padding-top': `${ROW_GAP}px` }}
-      >
+      <div class={pinnedBackdrop} style={{ 'padding-top': `${ROW_GAP}px` }}>
         <UserMessageCard data={props.item} ctx={renderCtx} vars={messageUnitDef.vars!} />
       </div>
       {/* 16px scroll fade: signals that rows scroll beneath the pinned message. */}
-      <div class="fade-overlay-top pointer-events-none h-4" aria-hidden="true" />
+      <div class={pinnedScrollFade} aria-hidden="true" />
     </>
   );
 }

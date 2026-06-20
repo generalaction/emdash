@@ -5,7 +5,7 @@
  * Returns a ChatHandle with the store API and a dispose() function.
  */
 
-import './tailwind.css';
+import './styles/global.css';
 import { batch, createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import { ChatRoot } from './ChatRoot';

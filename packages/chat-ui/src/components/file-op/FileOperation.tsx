@@ -18,8 +18,18 @@
 import { For, Show, createEffect } from 'solid-js';
 import { basename } from '../../lib/path';
 import type { ChatFileOpToolCall, FileOpKind } from '../../model';
+import { textShimmer } from '../../styles/effects.css';
 import { useCommands } from '../CommandsContext';
 import { CollapseHeader } from '../primitives/CollapseHeader';
+import {
+  chevronSm,
+  chevronSmExpanded,
+  fileOpHeader,
+  fileRowItem,
+  fileRowItemClickable,
+  monoRunning,
+  singleOpRow,
+} from './file-op.css';
 
 // ── Verb map ──────────────────────────────────────────────────────────────────
 
@@ -35,8 +45,7 @@ const VERB: Record<FileOpKind, string> = {
 function FileRowItem(props: { verb: string; path: string; lineH: number; onClick?: () => void }) {
   return (
     <div
-      class="text-chat-fg-passive flex items-center gap-1.5 text-sm"
-      classList={{ 'cursor-pointer hover:text-chat-fg-muted': !!props.onClick }}
+      class={`${fileRowItem}${props.onClick ? ` ${fileRowItemClickable}` : ''}`}
       style={{ height: `${props.lineH}px` }}
       role={props.onClick ? 'button' : undefined}
       onClick={props.onClick}
@@ -64,14 +73,11 @@ export function FileOpRow(props: FileOpRowProps) {
   };
 
   return (
-    <div class="flex items-center" style={{ height: `${props.rowH}px` }}>
+    <div class={singleOpRow} style={{ height: `${props.rowH}px` }}>
       <Show
         when={props.item.ops[0]}
         fallback={
-          <span
-            class="text-chat-fg-passive font-mono text-sm"
-            classList={{ 'text-shimmer': props.item.status === 'running' }}
-          >
+          <span class={monoRunning} classList={{ [textShimmer]: props.item.status === 'running' }}>
             {verb()}…
           </span>
         }
@@ -211,10 +217,7 @@ export function FileOperation(props: FileOperationProps) {
         <Show
           when={props.item.ops[0]}
           fallback={
-            <span
-              class="text-chat-fg-passive font-mono text-sm"
-              classList={{ 'text-shimmer': props.item.status === 'running' }}
-            >
+            <span class={monoRunning} classList={{ [textShimmer]: props.item.status === 'running' }}>
               {verb()}…
             </span>
           }
@@ -232,17 +235,17 @@ export function FileOperation(props: FileOperationProps) {
     >
       <div>
         <div
-          class="text-chat-fg-passive hover:text-chat-fg-muted flex cursor-pointer items-center gap-1.5 text-sm select-none"
+          class={fileOpHeader}
           role="button"
           aria-expanded={expanded() ? 'true' : 'false'}
           data-collapse-id={props.item.id}
         >
-          <span classList={{ 'text-shimmer': props.item.status === 'running' }}>
+          <span classList={{ [textShimmer]: props.item.status === 'running' }}>
             {verb()} {props.item.ops.length} files
           </span>
           <span
-            class="inline-block text-[10px] transition-transform duration-150 ease-out"
-            classList={{ 'rotate-90': expanded() }}
+            class={chevronSm}
+            classList={{ [chevronSmExpanded]: expanded() }}
             aria-hidden="true"
           >
             ›

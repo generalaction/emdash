@@ -9,6 +9,7 @@
  */
 
 import { Show } from 'solid-js';
+import { copyButtonInline, copyButtonOverlay } from './copy-button.css';
 import { IconCheck, IconCopy } from './icons';
 import { createClipboard } from './use-clipboard';
 
@@ -28,7 +29,7 @@ export function CopyButton(props: CopyButtonProps) {
     return (
       <button
         type="button"
-        class="text-chat-fg-passive hover:text-chat-fg absolute top-1.5 right-1.5 z-10 flex cursor-pointer items-center justify-center rounded p-0.5 opacity-0 transition-opacity select-none group-hover:opacity-100 focus-visible:opacity-100"
+        class={copyButtonOverlay}
         aria-label={ariaLabel()}
         onClick={() => copy(props.text)}
       >
@@ -42,7 +43,7 @@ export function CopyButton(props: CopyButtonProps) {
   return (
     <button
       type="button"
-      class="text-chat-fg-passive hover:text-chat-fg flex cursor-pointer items-center gap-1 text-xs opacity-0 transition-opacity select-none group-hover:opacity-100 focus-visible:opacity-100"
+      class={copyButtonInline}
       aria-label={ariaLabel()}
       onClick={() => copy(props.text)}
     >

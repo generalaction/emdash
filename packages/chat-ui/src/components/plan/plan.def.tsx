@@ -20,6 +20,7 @@ import { ROW_H } from '../../core/metrics';
 import { defineUnit } from '../../core/units';
 import type { ChatPlan, PlanEntryPriority, PlanEntryStatus } from '../../model';
 import { PreviewWindow } from '../primitives/PreviewWindow';
+import { planCard } from './plan.css';
 import { PlanHeader, PlanList } from './Plan';
 
 // ── vars type ─────────────────────────────────────────────────────────────────
@@ -137,7 +138,7 @@ function PlanUnitRender(props: { data: ChatPlan; ctx: RenderCtx; vars: PlanVars 
 
   return (
     <div
-      class="border-chat-border rounded-lg border overflow-hidden"
+      class={planCard}
       style={{ height: `${totalH()}px`, 'box-sizing': 'border-box' }}
     >
       <PlanHeader item={props.data} expanded={isExpanded()} rowH={props.vars.rowH} />

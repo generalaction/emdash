@@ -19,6 +19,7 @@ import { resolveFileIconClass } from '../../lib/file-icons';
 import type { ChatResourceLink, ResourceTarget } from '../../model';
 import { useCommands } from '../CommandsContext';
 import { GenericFileIcon } from '../primitives/icons';
+import { iconWrap, pathText, rowClickable, rowStatic, sizeText, titleText } from './resource-link.css';
 
 // ── Secondary label ─────────────────────────────────────────────────────────
 
@@ -78,33 +79,20 @@ export function ResourceLink(props: ResourceLinkProps) {
 
   return (
     <div
-      class="flex items-center gap-2 text-sm"
-      classList={{
-        'cursor-pointer hover:text-chat-fg transition-colors flex items-center gap-2 p-2 rounded-lg border border-chat-border w-full hover:bg-chat-bg-2':
-          isClickable(),
-      }}
+      class={isClickable() ? rowClickable : rowStatic}
       style={{ height: '100%' }}
       onClick={isClickable() ? handleClick : undefined}
       role={isClickable() ? 'button' : undefined}
     >
-      {/* [resource || fileIcon] */}
-      <div class="text-chat-fg-muted shrink-0">
+      <div class={iconWrap}>
         <Show when={iconName()} fallback={<GenericFileIcon />}>
           <span class={iconName()!} />
         </Show>
       </div>
-
-      {/* title */}
-      <span class="text-chat-fg-body shrink-0 truncate">{displayName()}</span>
-
-      {/* path — muted secondary styling */}
-      <span class="text-chat-fg-muted min-w-0 truncate text-xs">{secondary()}</span>
-
-      {/* optional size badge */}
+      <span class={titleText}>{displayName()}</span>
+      <span class={pathText}>{secondary()}</span>
       <Show when={props.item.size !== undefined}>
-        <span class="text-chat-fg-muted shrink-0 text-xs font-normal">
-          {formatSize(props.item.size!)}
-        </span>
+        <span class={sizeText}>{formatSize(props.item.size!)}</span>
       </Show>
     </div>
   );

@@ -19,17 +19,21 @@ import { useCaches } from '../CachesContext';
 import { useCommands } from '../CommandsContext';
 import { cancelIdle, scheduleIdle } from '../dom-utils';
 import { GenericFileIcon } from '../primitives/icons';
-import type { DiffRow } from './diff-lines';
 import type { DiffLayout } from './diff.def';
-import styles from './diff.module.css';
-
-// ── Row style map ──────────────────────────────────────────────────────────────
-
-const ROW_CLASS: Record<DiffRow['type'], string> = {
-  add: 'bg-chat-diff-added/10 border-l-[3px] border-chat-diff-added',
-  remove: 'bg-chat-diff-deleted/10 border-l-[3px] border-chat-diff-deleted',
-  context: 'border-l-[3px] border-transparent',
-};
+import { pdiffBody, pdiffLine } from './diff.css';
+import {
+  diffAddsCount,
+  diffBodyCard,
+  diffDelsCount,
+  diffFileName,
+  diffHeaderBase,
+  diffHeaderSolo,
+  diffHeaderWithBody,
+  diffLineContent,
+  diffRowClasses,
+  diffSpacer,
+  textShimmer,
+} from './diff-visual.css';
 
 // ── DiffHeader ────────────────────────────────────────────────────────────────
 
@@ -61,11 +65,7 @@ export function DiffHeader(props: DiffHeaderProps) {
 
   return (
     <div
-      class="hover:bg-chat-bg-3 border-chat-border flex cursor-pointer items-center gap-2 px-2 text-xs transition-colors"
-      classList={{
-        'rounded-lg border': !props.hasBody,
-        'rounded-t-lg border-x border-t border-b': props.hasBody,
-      }}
+      class={`${diffHeaderBase} ${props.hasBody ? diffHeaderWithBody : diffHeaderSolo}`}
       style={{ height: `${props.headerH}px` }}
       role="button"
       onClick={handleClick}
@@ -80,17 +80,17 @@ export function DiffHeader(props: DiffHeaderProps) {
         <GenericFileIcon />
       )}
       <span
-        class="text-chat-fg-muted min-w-0 truncate text-sm"
-        classList={{ 'text-shimmer': running() }}
+        class={diffFileName}
+        classList={{ [textShimmer]: running() }}
         title={props.item.path}
       >
         {name()}
       </span>
       <Show when={showStats()}>
-        <span class="text-chat-diff-added shrink-0 text-sm">+{props.adds}</span>
-        <span class="text-chat-diff-deleted shrink-0 text-sm">−{props.dels}</span>
+        <span class={diffAddsCount}>+{props.adds}</span>
+        <span class={diffDelsCount}>−{props.dels}</span>
       </Show>
-      <span class="flex-1" />
+      <span class={diffSpacer} />
     </div>
   );
 }
@@ -160,17 +160,17 @@ export function DiffLines(props: DiffLinesProps) {
   const lineH = () => props.codeLineHeight();
 
   return (
-    <div class="border-chat-border overflow-hidden rounded-b-lg border-x border-b">
-      <div class={styles['pdiff__body']}>
+    <div class={diffBodyCard}>
+      <div class={pdiffBody}>
         <For each={props.layout.previewRows}>
           {(row, i) => (
-            <div class={`flex ${ROW_CLASS[row.type]}`} style={{ height: `${lineH()}px` }}>
+            <div class={diffRowClasses[row.type]} style={{ height: `${lineH()}px` }}>
               <span
                 ref={(el) => {
                   lineEls.set(i(), el);
                   onCleanup(() => lineEls.delete(i()));
                 }}
-                class={`${styles['pdiff__line']} text-chat-fg flex-1 overflow-hidden px-3`}
+                class={`${pdiffLine} ${diffLineContent}`}
                 style={{ 'line-height': `${lineH()}px` }}
               >
                 {row.text}

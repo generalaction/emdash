@@ -14,6 +14,8 @@
  */
 
 import type { JSX } from 'solid-js';
+import { textShimmer } from '../../styles/effects.css';
+import { chevron, chevronExpanded, collapseHeader } from './collapse-header.css';
 
 export type CollapseHeaderProps = {
   /** The item id wired to data-collapse-id for ChatRoot delegation. */
@@ -32,16 +34,16 @@ export type CollapseHeaderProps = {
 export function CollapseHeader(props: CollapseHeaderProps) {
   return (
     <div
-      class="text-chat-fg-passive hover:text-chat-fg-muted flex cursor-pointer items-center gap-1.5 text-sm select-none"
+      class={collapseHeader}
       style={{ height: `${props.height}px` }}
       role="button"
       aria-expanded={props.expanded ? 'true' : 'false'}
       data-collapse-id={props.id}
     >
-      <span classList={{ 'text-shimmer': !!props.active }}>{props.children}</span>
+      <span classList={{ [textShimmer]: !!props.active }}>{props.children}</span>
       <span
-        class="inline-block text-[10px] transition-transform duration-150 ease-out"
-        classList={{ 'rotate-90': props.expanded }}
+        class={chevron}
+        classList={{ [chevronExpanded]: props.expanded }}
         aria-hidden="true"
       >
         ›

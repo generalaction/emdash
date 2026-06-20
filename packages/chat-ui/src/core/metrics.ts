@@ -12,6 +12,13 @@
  * separate css-vars.ts module.
  */
 
+import {
+  CHIP_DEFAULTS,
+  INLINE_CODE_EXTRA_WIDTH as _IC_EXTRA_WIDTH,
+  MENTION_EXTRA_WIDTH as _M_EXTRA_WIDTH,
+  MONO_FAMILY_CSS,
+  SANS_FAMILY_CSS,
+} from './tokens';
 import { DEFAULT_TYPOGRAPHY, type CompositeRole } from './measure/default-typography';
 
 // ── Composite role reader ─────────────────────────────────────────────────────
@@ -24,11 +31,8 @@ function role(id: string): CompositeRole {
 
 // ── Font families ────────────────────────────────────────────────────────────
 
-const _bodySans = role('type.body');
-const _codeMono = role('type.code');
-
-export const SANS_FAMILY = _bodySans.fontFamily.join(', ');
-export const MONO_FAMILY = _codeMono.fontFamily.join(', ');
+export const SANS_FAMILY = SANS_FAMILY_CSS;
+export const MONO_FAMILY = MONO_FAMILY_CSS;
 
 // ── Per-variant typography ───────────────────────────────────────────────────
 
@@ -68,17 +72,18 @@ export const CODE_LANG: VariantTypography = toVariant(role('type.code-lang'));
 
 // ── Inline chrome ────────────────────────────────────────────────────────────
 
-export const INLINE_CODE_EXTRA_WIDTH = 12;
+// Sourced from core/tokens.ts so CSS (--chat-ic-pad-x/y) and JS always agree.
+export const INLINE_CODE_EXTRA_WIDTH = _IC_EXTRA_WIDTH;
 
 // Mention chip geometry — each value is used by BOTH the measurement pass
 // (to-rich-items.ts) and the renderer (Prose.tsx) so they can never drift.
 //   MENTION_EXTRA_WIDTH = 2 * MENTION_PAD_X
 //   resolved-mention extraWidth = MENTION_EXTRA_WIDTH + MENTION_ICON_W + MENTION_ICON_GAP
-export const MENTION_PAD_X = 4;
-export const MENTION_PAD_Y = 2;
-export const MENTION_ICON_W = 14;
-export const MENTION_ICON_GAP = 4;
-export const MENTION_EXTRA_WIDTH = 2 * MENTION_PAD_X; // 8
+export const MENTION_PAD_X = CHIP_DEFAULTS.mentionPadX;
+export const MENTION_PAD_Y = CHIP_DEFAULTS.mentionPadY;
+export const MENTION_ICON_W = CHIP_DEFAULTS.mentionIconW;
+export const MENTION_ICON_GAP = CHIP_DEFAULTS.mentionIconGap;
+export const MENTION_EXTRA_WIDTH = _M_EXTRA_WIDTH;
 
 // ── List / blockquote ────────────────────────────────────────────────────────
 

@@ -21,6 +21,7 @@ import { Match, Switch, For } from 'solid-js';
 import type { ChatPlan, PlanEntryPriority, PlanEntryStatus } from '../../model';
 import { BlockStackView } from '../primitives/BlockStackView';
 import { PlanCompletedIcon, PlanInProgressIcon, PlanPendingIcon } from '../primitives/icons';
+import { chevronPlan, chevronPlanExpanded, planHeader, textShimmer } from './plan.css';
 import type { PlanEntryLaid } from './plan.def';
 
 // ── PlanHeader ────────────────────────────────────────────────────────────────
@@ -39,18 +40,18 @@ export function PlanHeader(props: PlanHeaderProps) {
 
   return (
     <div
-      class="hover:bg-chat-bg-3 border-chat-border text-chat-fg-muted flex cursor-pointer items-center gap-1.5 border-b px-2 text-sm transition-colors select-none"
+      class={planHeader}
       style={{ height: `${props.rowH}px` }}
       role="button"
       aria-expanded={props.expanded ? 'true' : 'false'}
       data-collapse-id={props.item.id}
     >
-      <span classList={{ 'text-shimmer': active() }}>
+      <span classList={{ [textShimmer]: active() }}>
         Plan {done()} out of {total()} Tasks done
       </span>
       <span
-        class="inline-block text-[10px] transition-transform duration-150 ease-out"
-        classList={{ 'rotate-90': props.expanded }}
+        class={chevronPlan}
+        classList={{ [chevronPlanExpanded]: props.expanded }}
         aria-hidden="true"
       >
         ›

@@ -9,6 +9,7 @@
 import { ROW_H } from '../../core/metrics';
 import { defineUnit } from '../../core/units';
 import type { ChatToolCall } from '../../model';
+import { sx } from '../../styles/sprinkles.css';
 import { Tool } from './Tool';
 
 export const toolUnitDef = defineUnit<ChatToolCall, { rowH: number }>({
@@ -22,7 +23,10 @@ export const toolUnitDef = defineUnit<ChatToolCall, { rowH: number }>({
   Render(props) {
     const rowH = () => props.vars?.rowH ?? ROW_H;
     return (
-      <div class="border-chat-border flex items-center" style={{ height: `${rowH()}px` }}>
+      <div
+        class={sx({ display: 'flex', alignItems: 'center', borderColor: 'border' })}
+        style={{ height: `${rowH()}px` }}
+      >
         <Tool item={props.data} />
       </div>
     );

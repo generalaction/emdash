@@ -23,6 +23,15 @@ import { blockPlainText } from '../../core/markdown/plain-text';
 import type { ChatMessage } from '../../model';
 import { BlockStackView } from '../primitives/BlockStackView';
 import { ImageOffIcon } from '../primitives/icons';
+import {
+  attachmentStrip,
+  attachPlaceholder,
+  attachThumb,
+  cardBase,
+  cardFadeOverlay,
+  cardHoverBorder,
+  srOnly,
+} from './user-message.css';
 
 // ── MessageVars type ──────────────────────────────────────────────────────────
 
@@ -158,7 +167,7 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
   return (
     <div
       data-user-card={props.data.id}
-      class={`text-chat-fg-body bg-chat-user-card border-chat-user-card-border relative rounded-lg border${!isExpanded() ? ' hover:border-chat-user-card-border-hover' : ''}`}
+      class={`${cardBase}${!isExpanded() ? ` ${cardHoverBorder}` : ''}`}
       style={{
         height: `${clampedH()}px`,
         'overflow-y': isExpanded() ? 'auto' : 'hidden',
@@ -170,40 +179,30 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
         'box-sizing': 'border-box',
       }}
     >
-      <div class="sr-only">{plainText()}</div>
-      {/* Image attachment thumbnail strip — mirrors the composer preview minus
-          the remove button. Height reserved by the attachment strip arithmetic. */}
+      <div class={srOnly}>{plainText()}</div>
       <Show when={props.data.attachments?.length}>
-        <div class="flex flex-wrap gap-2 pb-2">
+        <div class={attachmentStrip}>
           <For each={props.data.attachments}>
             {(att) => (
               <Show
                 when={att.dataUrl}
                 fallback={
-                  <div
-                    title={att.name}
-                    class="ring-chat-border bg-chat-bg-2 text-chat-fg-muted grid size-8 place-items-center rounded-md ring-1"
-                  >
+                  <div title={att.name} class={attachPlaceholder}>
                     <ImageOffIcon />
                   </div>
                 }
               >
-                <img
-                  src={att.dataUrl}
-                  alt={att.name}
-                  class="ring-chat-border size-8 rounded-md object-cover ring-1"
-                />
+                <img src={att.dataUrl} alt={att.name} class={attachThumb} />
               </Show>
             )}
           </For>
         </div>
       </Show>
       <Show when={stack()}>{(s) => <BlockStackView node={s()} />}</Show>
-      {/* Fade-out overlay shown only when the card is collapsed and content overflows. */}
       <Show when={!isExpanded() && isOverflowing()}>
         <div
-          class="fade-overlay-bottom pointer-events-none absolute right-0 bottom-0 left-0 h-8 rounded-b-lg"
-          style={{ '--fade-color': 'var(--chat-user-card-bg)' }}
+          class={cardFadeOverlay}
+          style={{ '--fade-color': 'var(--chat-user-card-bg)' } as Record<string, string>}
         />
       </Show>
     </div>

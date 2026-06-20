@@ -32,41 +32,15 @@ import type { Virtualizer } from '../core/virtualizer';
 import type { ViewState } from '../state/view-state';
 import { useDebug } from './debug-context';
 import { UNIT_REGISTRY } from './unit-registry';
+import {
+  debugLabel,
+  debugMismatch,
+  debugMismatchText,
+  debugOk,
+  debugOverlay,
+} from './unit-row.css';
 
 // ── GroupChrome helpers ───────────────────────────────────────────────────────
-
-/**
- * Resolve the Tailwind classes for the group chrome wrapper div.
- *
- * Background applies to all units. Border + rounded corners are split by
- * groupRole so a multi-block group looks like one continuous rounded card:
- *   solo   — full border + full rounding
- *   first  — top+sides border, top rounding
- *   middle — sides border only
- *   last   — bottom+sides border, bottom rounding
- */
-function chromeClass(chrome: GroupChrome, role: RenderUnit['groupRole']): string {
-  const parts: string[] = [];
-  if (chrome.background) parts.push(chrome.background);
-  if (chrome.borderColor) {
-    const color = chrome.borderColor;
-    switch (role) {
-      case 'solo':
-        parts.push(`border ${color} rounded-lg`);
-        break;
-      case 'first':
-        parts.push(`border-t border-l border-r ${color} rounded-t-lg`);
-        break;
-      case 'middle':
-        parts.push(`border-l border-r ${color}`);
-        break;
-      case 'last':
-        parts.push(`border-b border-l border-r ${color} rounded-b-lg`);
-        break;
-    }
-  }
-  return parts.join(' ');
-}
 
 /**
  * Returns top padding for a unit with chrome:
@@ -115,18 +89,14 @@ function UnitDebugOverlay(props: { reserved: number; rowEl: () => HTMLElement | 
 
   return (
     <div
-      class="pointer-events-none absolute inset-x-0 top-0 outline outline-1 outline-dashed"
+      class={`${debugOverlay} ${mismatch() ? debugMismatch : debugOk}`}
       style={{ height: `${props.reserved}px` }}
-      classList={{
-        'outline-red-500/80': mismatch(),
-        'outline-emerald-400/50': !mismatch(),
-      }}
     >
-      <span class="absolute top-0 left-0 bg-black/70 px-1 text-[9px] leading-tight text-white">
+      <span class={debugLabel}>
         unit · reserved={props.reserved}
         <Show when={mismatch()}>
           {' '}
-          <span class="text-red-400">
+          <span class={debugMismatchText}>
             ⚠ actual={actualH()} (+{actualH() - props.reserved})
           </span>
         </Show>
@@ -214,7 +184,6 @@ export function UnitRow(props: UnitRowProps) {
           const c = chrome();
           return (
             <div
-              class={c ? chromeClass(c, props.unit.groupRole) : undefined}
               style={{
                 'padding-top': `${c ? chromePadTop(c, props.unit) : props.unit.gapBefore}px`,
                 'padding-bottom': c

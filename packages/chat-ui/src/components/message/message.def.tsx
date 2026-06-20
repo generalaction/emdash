@@ -30,6 +30,7 @@ import { defineUnit } from '../../core/units';
 import type { ChatMessage } from '../../model';
 import { BlockStackView } from '../primitives/BlockStackView';
 import { CopyButton } from '../primitives/CopyButton';
+import { assistantOuter, assistantText, footerRow, srOnly, thoughtText } from './message.css';
 import {
   ATTACH_GAP,
   ATTACH_THUMB,
@@ -125,8 +126,7 @@ function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx; vars: Messa
     return measureMessage(props.data, ctx, props.vars);
   });
 
-  const textClass = () =>
-    props.data.role === 'thought' ? 'text-chat-fg-muted italic' : 'text-chat-fg-body';
+  const textClass = () => (props.data.role === 'thought' ? thoughtText : assistantText);
 
   const plainText = () => {
     const ctx = mCtx();
@@ -135,19 +135,16 @@ function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx; vars: Messa
   };
 
   return (
-    <div class={`group ${textClass()}`} style={{ height: `${totalH()}px`, position: 'relative' }}>
-      <div class="sr-only">{plainText()}</div>
+    <div
+      class={`${assistantOuter} ${textClass()}`}
+      style={{ height: `${totalH()}px` }}
+    >
+      <div class={srOnly}>{plainText()}</div>
       <Show when={stack()}>{(s) => <BlockStackView node={s()} />}</Show>
       <Show when={props.data.role === 'assistant'}>
         <div
-          class="flex items-center"
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: `${props.vars.footerH}px`,
-          }}
+          class={footerRow}
+          style={{ height: `${props.vars.footerH}px` }}
           aria-hidden={props.data.streaming ? 'true' : undefined}
         >
           <Show when={!props.data.streaming}>

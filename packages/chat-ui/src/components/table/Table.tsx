@@ -20,7 +20,8 @@
 import { For } from 'solid-js';
 import type { TableLaidOut } from '../../core/layout/layout-types';
 import { BlockFrame } from '../block-frame';
-import styles from './table.module.css';
+import { pchatTable } from './table.css';
+import { tableScroll, tdCell, tdCellLastRow, thCell } from './table-visual.css';
 
 export type TableProps = {
   block: TableLaidOut;
@@ -29,9 +30,9 @@ export type TableProps = {
 export function Table(props: TableProps) {
   return (
     <BlockFrame layout={props.block}>
-      <div class="border-chat-border box-border h-full w-full overflow-x-auto rounded-lg border">
+      <div class={tableScroll}>
         <table
-          class={`${styles['pchat-table']}`}
+          class={pchatTable}
           style={{ width: `${props.block.tableWidth}px`, 'table-layout': 'fixed' }}
         >
           <colgroup>
@@ -41,10 +42,7 @@ export function Table(props: TableProps) {
             <tr>
               <For each={props.block.header}>
                 {(cell) => (
-                  <th
-                    class="border-chat-border bg-chat-bg-1 overflow-hidden border-r border-b text-ellipsis whitespace-nowrap last:border-r-0"
-                    title={cell}
-                  >
+                  <th class={thCell} title={cell}>
                     {cell}
                   </th>
                 )}
@@ -58,7 +56,7 @@ export function Table(props: TableProps) {
                   <For each={row}>
                     {(cell) => (
                       <td
-                        class={`border-chat-border overflow-hidden border-r border-b text-ellipsis whitespace-nowrap last:border-r-0 ${i() === props.block.rows.length - 1 ? 'border-b-0' : ''}`}
+                        class={`${tdCell}${i() === props.block.rows.length - 1 ? ` ${tdCellLastRow}` : ''}`}
                         title={cell}
                       >
                         {cell}

@@ -1,5 +1,8 @@
 import type { Preview } from 'storybook-solidjs-vite';
 import { DebugContext } from '../src/components/debug-context';
+import { storyDecorator } from '../src/styles/storybook.css';
+import '../src/chat-fonts.css';
+import '../src/styles/global.css';
 import './preview.css';
 
 const preview: Preview = {
@@ -17,7 +20,7 @@ const preview: Preview = {
       const debugOn = () => globals['debug'] === 'on';
       return (
         <DebugContext.Provider value={debugOn}>
-          <div class={`${theme()} bg-chat-bg text-chat-fg min-h-screen p-8`}>
+          <div class={`${theme()} ${storyDecorator}`}>
             <Story />
           </div>
         </DebugContext.Provider>

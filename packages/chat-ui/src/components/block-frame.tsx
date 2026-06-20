@@ -18,7 +18,14 @@
 
 import { Show, createSignal, onMount, type JSX, onCleanup } from 'solid-js';
 import { useDebug } from './debug-context';
-import styles from './block-frame.module.css';
+import {
+  debugLabel,
+  debugMismatch,
+  debugMismatchText,
+  debugOk,
+  debugOverlay,
+  pblock,
+} from './block-frame.css';
 
 // ── Debug overlay ─────────────────────────────────────────────────────────────
 
@@ -51,20 +58,12 @@ function DebugOverlay(props: DebugOverlayProps) {
   });
 
   return (
-    <div
-      class="pointer-events-none absolute inset-0 outline outline-1 outline-dashed"
-      classList={{
-        'outline-red-500': mismatch(),
-        'outline-sky-400/60': !mismatch(),
-      }}
-    >
-      <span class="absolute top-0 right-0 bg-black/70 px-1 text-[10px] leading-tight text-white">
+    <div class={`${debugOverlay} ${mismatch() ? debugMismatch : debugOk}`}>
+      <span class={debugLabel}>
         {props.id ? `${props.id} · ` : ''}h={props.reservedHeight}
         <Show when={mismatch()}>
           {' '}
-          <span class="text-red-400">
-            ⚠ actual={actualH()} (+{actualH() - props.reservedHeight})
-          </span>
+          <span class={debugMismatchText}>⚠ actual={actualH()} (+{actualH() - props.reservedHeight})</span>
         </Show>
       </span>
     </div>
@@ -99,7 +98,7 @@ export function BlockFrame(props: BlockFrameProps) {
         props.ref?.(e);
       }}
       data-block-id={blockId}
-      class={`${styles.pblock}${props.class ? ` ${props.class}` : ''}`}
+      class={`${pblock}${props.class ? ` ${props.class}` : ''}`}
       style={{
         top: `${props.layout.top}px`,
         height: `${props.layout.height}px`,

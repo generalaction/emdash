@@ -13,6 +13,7 @@
 
 import { Show } from 'solid-js';
 import type { ChatToolCall } from '../../model';
+import { textShimmer, toolRow, toolSummary } from './tool.css';
 
 export type ToolProps = {
   item: ChatToolCall;
@@ -20,15 +21,10 @@ export type ToolProps = {
 
 export function Tool(props: ToolProps) {
   return (
-    <div
-      class="text-chat-fg-passive flex items-center gap-1.5 text-sm select-none"
-      classList={{ 'text-shimmer': props.item.status === 'running' }}
-    >
+    <div class={toolRow} classList={{ [textShimmer]: props.item.status === 'running' }}>
       <span>{props.item.name}</span>
       <Show when={props.item.inputSummary}>
-        <span class="overflow-hidden text-ellipsis whitespace-nowrap opacity-75">
-          {props.item.inputSummary}
-        </span>
+        <span class={toolSummary}>{props.item.inputSummary}</span>
       </Show>
     </div>
   );

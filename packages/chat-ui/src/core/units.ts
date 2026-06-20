@@ -87,19 +87,11 @@ export type RenderUnit<D = unknown> = {
  * `insetX`      — horizontal padding (px) subtracted from the available width
  *                 before measure(); also applied as left/right padding in the
  *                 rendered row wrapper so the content is visually inset.
- * `background`  — Tailwind/CSS class string applied to the full-width wrapper
- *                 div behind each unit in the group (e.g. bubble color).
- * `borderColor` — Tailwind border-color utility class (e.g. 'border-chat-border').
- *                 When present, UnitRow renders role-appropriate directional
- *                 borders: solo = all sides, first = top+sides, middle = sides,
- *                 last = bottom+sides.  Rounded corners follow the same roles.
  * `padY`        — vertical padding (px) added inside the wrapper for the
  *                 first unit (top) and last unit (bottom) of the group.
  */
 export type GroupChrome = {
   insetX?: number;
-  background?: string;
-  borderColor?: string;
   padY?: number;
 };
 

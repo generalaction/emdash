@@ -1,10 +1,7 @@
 /*
- * Chat engine base styles.
+ * Chat engine font imports.
  *
  * Font imports must be here so they are requested before any measurement runs.
- *
- * The scroll container, centered content canvas, and absolutely-positioned rows
- * are styled with Tailwind utilities directly in ChatRoot.tsx.
  */
 
 @import '@fontsource-variable/inter/index.css';

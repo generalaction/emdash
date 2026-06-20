@@ -1,18 +1,12 @@
-import tailwindcss from '@tailwindcss/vite';
+import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
 import { playwright } from '@vitest/browser-playwright';
 import solid from 'vite-plugin-solid';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  plugins: [tailwindcss(), solid()],
-  css: {
-    modules: {
-      // Keep the original kebab class names (e.g. 'pchat-transcript') as keys in
-      // addition to camelCase aliases. Components look classes up by their kebab
-      // names (styles['pchat-row']); 'camelCaseOnly' would strip those keys and
-      // every chat class would render as the string "undefined".
-      localsConvention: 'camelCase',
-    },
+  plugins: [vanillaExtractPlugin(), solid()],
+  optimizeDeps: {
+    include: ['@vanilla-extract/sprinkles/createRuntimeSprinkles'],
   },
   test: {
     projects: [

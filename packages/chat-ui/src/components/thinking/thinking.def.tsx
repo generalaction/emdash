@@ -21,6 +21,7 @@ import { flattenBlockHeadings } from '../../core/markdown/parse';
 import { HEADER_ROW_EXTRA_H } from '../../core/metrics';
 import { defineUnit } from '../../core/units';
 import type { ChatThinking } from '../../model';
+import { sx } from '../../styles/sprinkles.css';
 import { BlockStackView } from '../primitives/BlockStackView';
 import { CollapseHeader } from '../primitives/CollapseHeader';
 import { PreviewWindow } from '../primitives/PreviewWindow';
@@ -139,7 +140,7 @@ function ThinkingUnitRender(props: { data: ChatThinking; ctx: RenderCtx; vars: T
   const bodyH = () => body()?.height ?? 0;
 
   return (
-    <div class="text-chat-fg-passive" style={{ height: `${totalH()}px` }}>
+    <div class={sx({ color: 'fgPassive' })} style={{ height: `${totalH()}px` }}>
       <ThinkingHeader item={props.data} expanded={isExpanded()} headerH={headerH()} />
       <Show when={showBody()}>
         <Show

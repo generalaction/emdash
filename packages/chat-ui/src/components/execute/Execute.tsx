@@ -14,7 +14,9 @@
  */
 
 import type { ChatExecute } from '../../model';
-import styles from './execute.module.css';
+import { textShimmer } from '../../styles/effects.css';
+import { sx } from '../../styles/sprinkles.css';
+import { pexecCmd } from './execute.css';
 
 export type ExecuteProps = {
   item: ChatExecute;
@@ -25,12 +27,12 @@ export function Execute(props: ExecuteProps) {
 
   return (
     <div
-      class="text-chat-fg-passive flex items-center gap-1.5 text-sm select-none"
-      classList={{ 'text-shimmer': props.item.status === 'running' }}
+      class={sx({ display: 'flex', alignItems: 'center', gap: '1.5', color: 'fgPassive', userSelect: 'none', fontSize: 'sm' })}
+      classList={{ [textShimmer]: props.item.status === 'running' }}
     >
       <span>Execute</span>
       <span
-        class={`${styles['pexec__cmd']} rounded bg-[var(--chat-code-inline-bg,rgba(0,0,0,0.06))]`}
+        class={`${pexecCmd} ${sx({ borderRadius: '4', background: 'codeInlineBg' })}`}
         title={props.item.command || undefined}
       >
         {command()}

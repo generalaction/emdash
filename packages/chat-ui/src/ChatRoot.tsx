@@ -55,12 +55,20 @@ import type { ChatItem, ChatMessage } from './model';
 import { flatten, collectUserTurnUnits, getUnit } from './state/flatten';
 import type { TranscriptApi } from './state/transcript';
 import type { ViewState } from './state/view-state';
-import './chat.module.css';
+import './chat-fonts.css';
+import {
+  canvas,
+  defaultContentClass,
+  outerClip,
+  pinnedOverlay,
+  scrollContainer,
+  unitRowWrapper,
+} from './chat-root.css';
 
 // Centered content column. The scroll container stays full width (so the
 // scrollbar sits at the viewport edge) while rows are measured and laid out
 // against this capped, centered canvas — matching the desktop composer width.
-const DEFAULT_CONTENT_CLASS = 'mx-auto w-full max-w-2xl';
+const DEFAULT_CONTENT_CLASS = defaultContentClass;
 
 // Symmetric overscan used when idle or velocity unknown
 const OVERSCAN_BASE = 4;
@@ -823,21 +831,21 @@ export function ChatRoot(props: ChatRootProps) {
               ref={(el) => {
                 outerEl = el;
               }}
-              class="relative h-full w-full overflow-hidden"
+              class={outerClip}
             >
               <div
                 ref={(el) => {
                   scrollEl = el;
                 }}
                 data-chat-scroll
-                class={`relative h-full w-full overflow-x-hidden overflow-y-auto${props.class ? ` ${props.class}` : ''}`}
+                class={`${scrollContainer}${props.class ? ` ${props.class}` : ''}`}
               >
                 <div
                   ref={(el) => {
                     canvasEl = el;
                   }}
                   data-chat-canvas
-                  class={`relative ${contentClass()}`}
+                  class={`${canvas} ${contentClass()}`}
                   style={{ height: `${totalHeight() + padTop() + padBottom()}px` }}
                 >
                   <For each={visibleIndexes()}>
@@ -856,7 +864,7 @@ export function ChatRoot(props: ChatRootProps) {
                       return (
                         <Show when={u()}>
                           <div
-                            class="absolute top-0 left-0 w-full will-change-transform [contain:layout_paint_style]"
+                            class={unitRowWrapper}
                             style={{ transform: `translateY(${unitTop()}px)` }}
                             data-index={String(unitIndex)}
                           >
@@ -889,7 +897,7 @@ export function ChatRoot(props: ChatRootProps) {
               <Show when={pinState()}>
                 {(state) => (
                   <div
-                    class={`pointer-events-none absolute inset-x-0 top-0 z-10 will-change-transform ${contentClass()}`}
+                    class={`${pinnedOverlay} ${contentClass()}`}
                     aria-hidden="true"
                     style={{ transform: `translateY(${state().overlayTop}px)` }}
                   >

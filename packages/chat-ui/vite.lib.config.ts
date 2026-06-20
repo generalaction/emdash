@@ -1,32 +1,18 @@
 import { resolve } from 'node:path';
-import tailwindcss from '@tailwindcss/vite';
+import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
 import solid from 'vite-plugin-solid';
 
 export default defineConfig({
   plugins: [
-    tailwindcss(),
+    vanillaExtractPlugin(),
     solid(),
     dts({
       rollupTypes: true,
       tsconfigPath: './tsconfig.json',
     }),
   ],
-  css: {
-    modules: {
-      // Keep the original kebab class names (e.g. 'pchat-transcript') as keys in
-      // addition to camelCase aliases. Components look classes up by their kebab
-      // names (styles['pchat-row']); 'camelCaseOnly' would strip those keys and
-      // every chat class would render as the string "undefined".
-      localsConvention: 'camelCase',
-      // Pin a deterministic scoped-name format so the JS interop object and the
-      // emitted style.css always use the same class names. Without this, Vite's
-      // library-mode build can produce a trailing `_<line>` suffix in the CSS
-      // output that the JS references lack, causing every CSS-module rule to miss.
-      generateScopedName: '[name]__[local]__[hash:base64:5]',
-    },
-  },
   build: {
     lib: {
       entry: {

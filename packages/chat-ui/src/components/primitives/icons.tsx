@@ -5,6 +5,9 @@
  * Import only what you need; tree-shaking keeps unused icons out of the bundle.
  */
 
+import { planSpinner } from '../../styles/effects.css';
+import { genericFileIcon } from './icons.css';
+
 /** Clipboard / copy icon (two overlapping rectangles). */
 export function IconCopy() {
   return (
@@ -60,7 +63,7 @@ export function GenericFileIcon() {
       stroke-linecap="round"
       stroke-linejoin="round"
       aria-hidden="true"
-      class="text-chat-fg-muted shrink-0"
+      class={genericFileIcon}
     >
       <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
       <polyline points="14 2 14 8 20 8" />
@@ -186,7 +189,7 @@ export function PlanInProgressIcon() {
     <svg {...PLAN_ICON_PROPS}>
       <circle cx="7" cy="7" r="6" opacity="0.3" />
       <circle
-        class="plan-spinner"
+        class={planSpinner}
         cx="7"
         cy="7"
         r="6"

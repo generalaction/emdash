@@ -22,6 +22,7 @@
 
 import type { JSX } from 'solid-js';
 import { useTheme } from '../ThemeContext';
+import { inlineCodeChipVisual } from './shrink-wrap.css';
 
 // ── Core primitive ─────────────────────────────────────────────────────────────
 
@@ -109,7 +110,7 @@ export function InlineCodeChip(props: { children: JSX.Element }) {
       padY={d().inlineCodePadY}
       radius={4}
       display="inline-block"
-      class="rounded bg-[var(--chat-code-inline-bg,rgba(0,0,0,0.06))]"
+      class={inlineCodeChipVisual}
     >
       {props.children}
     </ShrinkWrap>

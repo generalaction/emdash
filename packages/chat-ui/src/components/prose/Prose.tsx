@@ -28,7 +28,8 @@ import {
   MentionIssueIcon,
   MentionSymbolIcon,
 } from '../primitives/icons';
-import styles from './prose.module.css';
+import { pf, pfVariants, pline, pbullet, pquoteRail } from './prose.css';
+import { bulletColor, linkFragment, mentionChip, mentionPlain, inlineCodeChip, quoteRailBar } from './prose-visual.css';
 
 // ── Fragment ──────────────────────────────────────────────────────────────────
 
@@ -47,18 +48,14 @@ function fragKey(run: InlineRun, variant: string): string {
 
 function fragVisualClass(run: InlineRun, variant: string): string {
   if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(variant)) return '';
-  if (run.kind === 'code') return 'rounded bg-[var(--chat-code-inline-bg,rgba(0,0,0,0.06))]';
+  if (run.kind === 'code') return inlineCodeChip;
   if (run.kind === 'mention') {
     // Resolved context mentions mirror the ChatComposer pill: a neutral chip
     // with a hairline ring. Plain/math mentions keep the rounded-full blue tint.
-    if ((run as InlineMention).mentionKind) {
-      return 'rounded-sm bg-chat-mention-chip text-chat-mention-chip-fg ring-1 ring-chat-mention-chip-ring';
-    }
-    return 'rounded-full bg-[var(--chat-mention-bg,#dbeafe)] text-[var(--chat-mention-fg,#1d4ed8)]';
+    if ((run as InlineMention).mentionKind) return mentionChip;
+    return mentionPlain;
   }
-  if (run.kind === 'text' && run.href) {
-    return 'text-[var(--chat-link,#60a5fa)] underline decoration-[1px] underline-offset-[0.14em] cursor-pointer';
-  }
+  if (run.kind === 'text' && run.href) return linkFragment;
   return '';
 }
 
@@ -70,7 +67,7 @@ function ProseFragment(props: {
 }) {
   const commands = useCommands();
   const key = fragKey(props.run, props.variant);
-  const moduleCls = `${styles.pf} ${styles[key] ?? ''}`.trim();
+  const moduleCls = [pf, pfVariants[key]].filter(Boolean).join(' ');
   const visualCls = fragVisualClass(props.run, props.variant);
   const cls = visualCls ? `${moduleCls} ${visualCls}` : moduleCls;
 
@@ -175,7 +172,7 @@ function ProseLine(props: {
 }) {
   return (
     <div
-      class={styles.pline}
+      class={pline}
       style={{
         top: `${props.line.top}px`,
         left: `${props.line.left}px`,
@@ -199,7 +196,7 @@ function ProseLine(props: {
 function ProseBullet(props: { bullet: BulletLayout }) {
   return (
     <span
-      class={`${styles.pbullet} text-chat-fg-muted`}
+      class={`${pbullet} ${bulletColor}`}
       style={{ left: `${props.bullet.x}px`, top: `${props.bullet.top}px` }}
       aria-hidden="true"
     >
@@ -211,7 +208,7 @@ function ProseBullet(props: { bullet: BulletLayout }) {
 function ProseQuoteRail(props: { left: number }) {
   return (
     <div
-      class={`${styles['pquote-rail']} bg-chat-border rounded-full`}
+      class={`${pquoteRail} ${quoteRailBar}`}
       style={{ left: `${props.left}px` }}
     />
   );

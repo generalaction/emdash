@@ -14,6 +14,7 @@ import type { ChatItem } from '../model';
 import { createTranscript } from '../state/transcript';
 import type { TranscriptApi } from '../state/transcript';
 import { createViewState } from '../state/view-state';
+import { storyViewport } from './chat-host.css';
 
 /**
  * Viewport box for stories. Only sizes the scroll viewport — the centered
@@ -23,7 +24,7 @@ import { createViewState } from '../state/view-state';
 function StoryViewport(props: { height?: number; width?: number; children: JSX.Element }) {
   return (
     <div
-      class="border-chat-border bg-chat-bg overflow-hidden rounded-lg border"
+      class={storyViewport}
       style={{
         width: props.width ? `${props.width}px` : '880px',
         height: `${props.height ?? 600}px`,

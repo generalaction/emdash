@@ -11,6 +11,8 @@
 
 import { Show, createEffect, onCleanup } from 'solid-js';
 import type { JSX } from 'solid-js';
+import { fadeOverlayBottom, fadeOverlayTop } from '../../styles/effects.css';
+import { overlayBottom, overlayTop } from './preview-window.css';
 
 export type PreviewWindowProps = {
   /** Outer container height (px). */
@@ -57,11 +59,7 @@ export function PreviewWindow(props: PreviewWindowProps): JSX.Element {
     >
       <Show when={props.overlay}>
         <div
-          class={
-            props.overlay === 'fade-top'
-              ? 'fade-overlay-top pointer-events-none absolute inset-x-0 top-0 z-10'
-              : 'fade-overlay-bottom pointer-events-none absolute inset-x-0 bottom-0 z-10'
-          }
+          class={props.overlay === 'fade-top' ? `${fadeOverlayTop} ${overlayTop}` : `${fadeOverlayBottom} ${overlayBottom}`}
           style={{ height: '28px' }}
           aria-hidden="true"
         />
