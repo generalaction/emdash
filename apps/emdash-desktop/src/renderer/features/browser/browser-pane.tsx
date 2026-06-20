@@ -1,9 +1,10 @@
 import { observer } from 'mobx-react-lite';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
 import { usePreviewServers } from '@renderer/features/tasks/task-view-context';
 import { events, rpc } from '@renderer/lib/ipc';
+import { isActivationModifierPressed } from '@renderer/lib/pty/file-link-provider';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
 import { removeBrowserBookmark } from '@shared/browser-bookmarks';
 import { tabNavigationShortcutChannel } from '@shared/events/appEvents';
@@ -157,6 +158,17 @@ export const BrowserPane = observer(function BrowserPane({
     [loadUrl]
   );
 
+  const openBookmarkUrl = useCallback(
+    (url: string, event: MouseEvent) => {
+      if (isActivationModifierPressed(event)) {
+        tabManager.openBrowser(url);
+        return;
+      }
+      navigateTo(url);
+    },
+    [navigateTo, tabManager]
+  );
+
   const goBack = useCallback(() => {
     if (!adapter?.canGoBack()) return;
     adapter.goBack();
@@ -268,7 +280,7 @@ export const BrowserPane = observer(function BrowserPane({
       <BrowserBookmarkBar
         visible={showBookmarkBar}
         bookmarks={bookmarks}
-        onOpenUrl={navigateTo}
+        onOpenUrl={openBookmarkUrl}
         onReorder={(next) => updateBrowserSettings({ bookmarks: next })}
         onRemove={(bookmarkId) =>
           updateBrowserSettings({ bookmarks: removeBrowserBookmark(bookmarks, bookmarkId) })

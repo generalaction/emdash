@@ -1,6 +1,6 @@
 import { Globe, Trash2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type RefObject } from 'react';
 import { ReorderList } from '@renderer/lib/components/reorder-list';
 import {
   ContextMenu,
@@ -30,7 +30,7 @@ export function BrowserBookmarkBar({
 }: {
   visible: boolean;
   bookmarks: readonly BrowserBookmark[];
-  onOpenUrl: (url: string) => void;
+  onOpenUrl: (url: string, event: MouseEvent) => void;
   onReorder: (bookmarks: BrowserBookmark[]) => void;
   onRemove: (bookmarkId: string) => void;
 }) {
@@ -67,7 +67,7 @@ export function BrowserBookmarkBar({
                 {(bookmark) => (
                   <BrowserBookmarkItem
                     bookmark={bookmark}
-                    onOpenUrl={() => onOpenUrl(bookmark.url)}
+                    onOpenUrl={(event) => onOpenUrl(bookmark.url, event)}
                     onRemove={() => onRemove(bookmark.id)}
                   />
                 )}
@@ -92,8 +92,7 @@ function useHorizontalWheelScroll<T extends HTMLElement>(
     const onWheel = (event: WheelEvent) => {
       if (element.scrollWidth <= element.clientWidth) return;
 
-      const delta =
-        Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
       if (delta === 0) return;
 
       event.preventDefault();
@@ -111,7 +110,7 @@ function BrowserBookmarkItem({
   onRemove,
 }: {
   bookmark: BrowserBookmark;
-  onOpenUrl: () => void;
+  onOpenUrl: (event: MouseEvent<HTMLButtonElement>) => void;
   onRemove: () => void;
 }) {
   const [failedFaviconUrl, setFailedFaviconUrl] = useState<string | null>(null);
