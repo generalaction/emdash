@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/shared/core/agents/agent-auto-approve-defaults.test.ts
+  s_98cf7787c91a00::t_15312760e7f436 29
+apps/emdash-desktop/src/renderer/features/settings/components/TaskSettingsRows.tsx
+  s_98cf7787c91a00::t_de11c0de10a017 38
+apps/emdash-desktop/src/shared/core/agents/agent-auto-approve-defaults.ts
+  s_98cf7787c91a00::t_8923279b941a20 28-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "881917d004cbdfdbaad720e9c661c8ff8a1db1db",
+  "prompts": {},
+  "sessions": {
+    "s_98cf7787c91a00": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ee5e2-0885-7755-b5c7-8d6b2f29705a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
