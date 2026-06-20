@@ -1,0 +1,48 @@
+apps/emdash-desktop/src/shared/browser-bookmarks.test.ts
+  s_6c6ec4643c0345::t_23a48e11bb3f26 1-82
+apps/emdash-desktop/src/renderer/features/settings/components/BrowserSettingsCard.tsx
+  s_6c6ec4643c0345::t_20f2fe913eac33 57
+  s_6c6ec4643c0345::t_392b0c214688b0 174-198
+  s_6c6ec4643c0345::t_c156098a22fbff 35-39
+  s_6c6ec4643c0345::t_d47487caebca60 357-385
+  s_6c6ec4643c0345::t_9040443df544f4 149-159
+apps/emdash-desktop/src/shared/browser-bookmarks.ts
+  s_6c6ec4643c0345::t_f231c54ad6c678 1-144
+apps/emdash-desktop/src/renderer/features/browser/browser-bookmark-bar.tsx
+  s_6c6ec4643c0345::t_0230284efc5e04 3-4
+  s_6c6ec4643c0345::t_d6033fc447e023 1-2,5-73
+apps/emdash-desktop/src/main/core/settings/settings-registry.ts
+  s_6c6ec4643c0345::t_1f9470fc650178 70-71
+apps/emdash-desktop/src/main/core/settings/schema.ts
+  s_6c6ec4643c0345::t_cfff6b02046caf 109-115,120-121
+apps/emdash-desktop/src/renderer/features/browser/browser-toolbar.tsx
+  s_6c6ec4643c0345::t_76d6205be9b03a 13
+  s_6c6ec4643c0345::t_7a4c5ba617b5cd 246-253
+  s_6c6ec4643c0345::t_dba5bb486a2d39 33
+  s_6c6ec4643c0345::t_5fa89be64892aa 51-55
+  s_6c6ec4643c0345::t_19c128379fdedf 322-329
+  s_6c6ec4643c0345::t_66fa1df41109cf 171-179
+  s_6c6ec4643c0345::t_7e037eb9a947b3 99,102-103,105-106
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_6c6ec4643c0345::t_e379bcd55dbfd0 50-51
+  s_6c6ec4643c0345::t_3bf97c4e3ca605 32
+  s_6c6ec4643c0345::t_5664861c1f548a 9
+  s_6c6ec4643c0345::t_2762eeff2e3435 267-269
+  s_6c6ec4643c0345::t_0b844230906103 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "80340610be693ff1804ed7f8c2b32e7363019432",
+  "prompts": {},
+  "sessions": {
+    "s_6c6ec4643c0345": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7a7f432a-cec7-4dc9-8f1a-41aa01619f4b",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
