@@ -49,7 +49,7 @@ export const BrowserPane = observer(function BrowserPane({
   const sessionBrowserId = session?.browserId;
   const sessionPartition = session?.partition;
   const showStartPage = session?.currentUrl === 'about:blank' && !session.isLoading;
-  const showBookmarkBar = browserSettings?.showBookmarkBar ?? true;
+  const showBookmarkBar = browserSettings?.showBookmarkBar ?? false;
   const bookmarks = browserSettings?.bookmarks ?? [];
 
   useEffect(() => {

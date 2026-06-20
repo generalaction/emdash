@@ -67,7 +67,7 @@ export const SETTINGS_DEFAULTS = {
   browser: {
     defaultProfileId: DEFAULT_BROWSER_PROFILE_ID,
     relaxCorsForLocalhost: false,
-    showBookmarkBar: true,
+    showBookmarkBar: false,
     bookmarks: [],
     profiles: DEFAULT_BROWSER_PROFILES,
   },

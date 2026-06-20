@@ -120,7 +120,7 @@ export function BrowserToolbar({
     [bookmarks, urlText]
   );
   const showUrlSuggestions = urlInputFocused && urlSuggestions.length > 0;
-  const showBookmarkBar = browserSettings?.showBookmarkBar ?? true;
+  const showBookmarkBar = browserSettings?.showBookmarkBar ?? false;
   const profileLabel = browserProfileLabel(session.profileId, profiles);
   const isCurrentPageBookmarked = Boolean(findBrowserBookmarkForUrl(bookmarks, session.currentUrl));
   const canBookmarkCurrentPage = isBrowserBookmarkableUrl(session.currentUrl);
@@ -241,10 +241,7 @@ export function BrowserToolbar({
       title: session.title,
       faviconUrl: session.faviconUrl,
     });
-    updateBrowserSettings({
-      bookmarks: next.bookmarks,
-      ...(next.bookmarked ? { showBookmarkBar: true } : {}),
-    });
+    updateBrowserSettings({ bookmarks: next.bookmarks });
   };
 
   const canOpenExternal = canOpenBrowserUrlExternally(session.currentUrl);
