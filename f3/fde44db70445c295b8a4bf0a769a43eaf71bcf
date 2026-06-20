@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/main/db/legacy-port/importers/settings/importer.ts
+  s_2a1afa2c411c6d::t_b8158194c8d688 170
+apps/emdash-desktop/src/renderer/features/settings/use-app-settings-key.tsx
+  s_2a1afa2c411c6d::t_31e7e3aeeea4db 78
+apps/emdash-desktop/src/main/db/legacy-port/importers/settings/importer.test.ts
+  s_2a1afa2c411c6d::t_161810dd7692a4 274
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "f3fde44db70445c295b8a4bf0a769a43eaf71bcf",
+  "prompts": {},
+  "sessions": {
+    "s_2a1afa2c411c6d": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ee600-8412-7825-8e45-828d23934382",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
