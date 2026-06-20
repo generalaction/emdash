@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-bookmark-bar.tsx
+  s_6c6ec4643c0345::t_f1b9ca4e94ae31 22
+  s_6c6ec4643c0345::t_35b3b650795360 21
+  s_6c6ec4643c0345::t_c4bf5b2c905abc 37,40
+  s_6c6ec4643c0345::t_4257b9dbf860c4 58-75
+  s_6c6ec4643c0345::t_d284b70f9bff28 83-107
+  s_6c6ec4643c0345::t_a2c97c4711fc39 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "9ddd27ffc650da399a9681002ca458eab8a2778a",
+  "prompts": {},
+  "sessions": {
+    "s_6c6ec4643c0345": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7a7f432a-cec7-4dc9-8f1a-41aa01619f4b",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
