@@ -5,6 +5,7 @@ let activationModifierListenersAttached = false;
 
 type LinkDecorations = NonNullable<ILink['decorations']>;
 type ActivationModifierEvent = Pick<MouseEvent, 'ctrlKey' | 'metaKey'>;
+type LinkActivationEvent = Pick<MouseEvent, 'button'>;
 type NavigatorWithUserAgentData = Navigator & {
   userAgentData?: { platform?: string };
 };
@@ -87,6 +88,7 @@ export class FileLinkProvider implements ILinkProvider {
         this.tracker.leave(link.decorations ?? decorations);
       },
       activate: (event, linkText) => {
+        if (!isPrimaryMouseButton(event)) return;
         if (!this.tracker.isPressed(event)) return;
         if (match.isExternal) {
           this.onOpenExternal(linkText);
@@ -137,6 +139,10 @@ export function isActivationModifierPressed(
   isMac = isMacPlatform()
 ): boolean {
   return isMac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+}
+
+export function isPrimaryMouseButton(event: LinkActivationEvent): boolean {
+  return event.button === undefined || event.button === 0;
 }
 
 function isMacPlatform(): boolean {
