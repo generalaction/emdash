@@ -254,12 +254,14 @@ export class MonacoModelRegistry {
     const existing = this.modelMap.get(diskUri);
 
     if (existing?.type === 'disk') {
+      const wasEvictionPending = existing.refs === 0;
       existing.refs += 1;
       const timer = this.evictionTimers.get(diskUri);
       if (timer !== undefined) {
         clearTimeout(timer);
         this.evictionTimers.delete(diskUri);
       }
+      if (wasEvictionPending) await this.invalidateModel(diskUri);
       return uri;
     }
 
@@ -331,12 +333,14 @@ export class MonacoModelRegistry {
     const existing = this.modelMap.get(gitUri);
 
     if (existing?.type === 'git') {
+      const wasEvictionPending = existing.refs === 0;
       existing.refs += 1;
       const timer = this.evictionTimers.get(gitUri);
       if (timer !== undefined) {
         clearTimeout(timer);
         this.evictionTimers.delete(gitUri);
       }
+      if (wasEvictionPending) await this.invalidateModel(gitUri);
       return uri;
     }
 
