@@ -98,7 +98,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
               <div className="flex items-center gap-2">
                 <Switch
                   checked={skipPermissions}
-                  disabled={!providerId || taskSettings.loading}
+                  disabled={!providerId || taskSettings.loading || taskSettings.saving}
                   onCheckedChange={setAutoApproveOverride}
                 />
                 <FieldLabel>Auto-approve permissions</FieldLabel>
