@@ -1,0 +1,22 @@
+apps/emdash-desktop/src/renderer/features/projects/stores/project-manager.ts
+  s_e8cf43dfe5f5a4::t_3a02a657a053a1 35,53,55-56,58-59,381-403
+apps/emdash-desktop/src/renderer/features/projects/stores/project-manager.test.ts
+  s_e8cf43dfe5f5a4::t_a2f42b59fedf4b 2,17-18,50-53,81-95,123-124,302-314
+  s_e8cf43dfe5f5a4::t_b41b311e6d2203 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "86d1d2cf4ffcec176375b51e12db2988ca5f2b50",
+  "prompts": {},
+  "sessions": {
+    "s_e8cf43dfe5f5a4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eea18-3d3e-7aa1-8b24-e1d1230b938a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
