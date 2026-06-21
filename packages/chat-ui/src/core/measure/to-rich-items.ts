@@ -9,7 +9,7 @@
 
 import type { RichInlineItem } from '@chenglou/pretext/rich-inline';
 import type { InlineCode, InlineMention, InlineRun, InlineText } from '../markdown/document';
-import { MENTION_ICON_GAP, MENTION_ICON_W } from '../../components/prose/metrics';
+import { MENTION_ICON_GAP, MENTION_ICON_W } from '../../components/rows/markdown/prose/metrics';
 import type { FontConfig } from './fonts';
 
 export function runsToRichItems(runs: InlineRun[], fonts: FontConfig): RichInlineItem[] {

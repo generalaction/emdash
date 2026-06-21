@@ -24,8 +24,8 @@
 import { type JSX } from 'solid-js';
 import { render } from 'solid-js/web';
 import { afterEach } from 'vitest';
-import { CachesContext } from '../components/CachesContext';
-import { ThemeContext } from '../components/ThemeContext';
+import { CachesContext } from '../components/contexts/CachesContext';
+import { ThemeContext } from '../components/contexts/ThemeContext';
 import { createChatCaches } from '../core/caches';
 import type { MeasureCtx, RenderCtx } from '../core/define';
 import type { ChatTheme } from '../core/theme';

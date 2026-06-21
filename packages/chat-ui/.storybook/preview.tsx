@@ -1,5 +1,5 @@
 import type { Preview } from 'storybook-solidjs-vite';
-import { DebugContext } from '../src/components/debug-context';
+import { DebugContext } from '../src/components/contexts/debug-context';
 import { storyDecorator } from '../src/styles/storybook.css';
 import '../src/chat-fonts.css';
 import '../src/styles/global.css';

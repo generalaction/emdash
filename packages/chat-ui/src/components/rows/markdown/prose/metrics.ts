@@ -1,0 +1,10 @@
+export {
+  LIST_INDENT,
+  LIST_BULLET_GAP,
+  BLOCKQUOTE_INDENT,
+  MENTION_PAD_X,
+  MENTION_PAD_Y,
+  MENTION_ICON_W,
+  MENTION_ICON_GAP,
+  MENTION_EXTRA_WIDTH,
+} from '../../../../core/metrics';

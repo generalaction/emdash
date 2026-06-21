@@ -11,7 +11,7 @@
  */
 
 import { bench, describe } from 'vitest';
-import { messageUnitDef } from '../../components/message/message.def';
+import { messageUnitDef } from '../../components/rows/message/message.def';
 import { generateMockTranscript } from '../../mock-transcript';
 import type { ChatMessage } from '../../model';
 import { createChatCaches } from '../caches';

@@ -21,7 +21,7 @@
  */
 
 import type { JSX } from 'solid-js';
-import { useTheme } from '../ThemeContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { inlineCodeChipVisual } from './shrink-wrap.css';
 
 // ── Core primitive ─────────────────────────────────────────────────────────────

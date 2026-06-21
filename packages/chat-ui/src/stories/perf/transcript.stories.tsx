@@ -18,7 +18,7 @@ import { DEFAULT_THEME } from '../../core/theme';
 import { generateMockTranscript } from '../../mock-transcript';
 import { createTranscript } from '../../state/transcript';
 import { createViewState } from '../../state/view-state';
-import { resetRowCreations, runPerfSweep } from '../perf-instrument';
+import { resetRowCreations, runPerfSweep } from '../_harness/perf-instrument';
 
 const meta: Meta = {
   title: 'Perf/Transcript',

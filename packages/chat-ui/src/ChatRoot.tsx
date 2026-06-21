@@ -31,13 +31,13 @@ import {
   untrack,
   useContext,
 } from 'solid-js';
-import { CachesContext } from './components/CachesContext';
-import { CommandsContext } from './components/CommandsContext';
-import { DebugContext } from './components/debug-context';
-import { PinnedUserMessage } from './components/PinnedUserMessage';
-import { ThemeContext } from './components/ThemeContext';
-import { SEGMENTERS, UNIT_REGISTRY } from './components/unit-registry';
-import { UnitRow } from './components/UnitRow';
+import { CachesContext } from './components/contexts/CachesContext';
+import { CommandsContext } from './components/contexts/CommandsContext';
+import { DebugContext } from './components/contexts/debug-context';
+import { PinnedUserMessage } from './components/rows/message/PinnedUserMessage';
+import { ThemeContext } from './components/contexts/ThemeContext';
+import { SEGMENTERS, UNIT_REGISTRY } from './components/engine/unit-registry';
+import { UnitRow } from './components/engine/UnitRow';
 import { createChatCaches } from './core/caches';
 import type { MeasureCtx } from './core/define';
 import type { ChatHighlighter } from './core/highlight/highlighter';

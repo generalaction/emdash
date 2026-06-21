@@ -1,0 +1,95 @@
+import { assignInlineVars } from '@vanilla-extract/dynamic';
+import { Show, createMemo } from 'solid-js';
+import type { MeasureCtx, RenderCtx } from '../../../../core/define';
+import { defineUnit } from '../../../../core/units';
+import type { ChatFileOpToolCall } from '../../../../model';
+import { pxTokens } from '../../../../styles/px-tokens';
+import { PreviewWindow } from '../../../primitives/PreviewWindow';
+import { FileOpRow, FileOpHeader, FileOpList, FileOpPreviewBody } from './FileOperation';
+import { fileOpCardVars, type FileOpStyleVars } from './file-op-vars.css';
+import { FILEOP_VARS } from './metrics';
+
+export type FileOpVars = {
+  /** Measure-only: fixed row height for header and per-file lines. */
+  rowH: number;
+  /** Style-relevant: vertical padding inside the file list. Consumed by fileOpCardVars. */
+  padY: number;
+  /** Measure-only: scrollable preview window height while running. */
+  windowH: number;
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function measureFileOpH(item: ChatFileOpToolCall, ctx: MeasureCtx, vars: FileOpVars): number {
+  const { rowH, padY, windowH } = vars;
+  const isExpanded = ctx.expanded(item.id);
+
+  if (item.ops.length <= 1) return rowH;
+  if (isExpanded) return rowH + item.ops.length * rowH + 2 * padY;
+  if (item.status === 'running') return rowH + windowH;
+  return rowH;
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+
+function FileOpUnitRender(props: { data: ChatFileOpToolCall; ctx: RenderCtx; vars: FileOpVars }) {
+  const rowH = () => props.vars.rowH;
+  const padY = () => props.vars.padY;
+  const windowH = () => props.vars.windowH;
+
+  // Inverted semantics: stored "collapsed" bool = "expanded".
+  const isExpanded = () => props.ctx.viewState.isCollapsed(props.data.id);
+
+  const totalH = createMemo(() => {
+    const item = props.data;
+    const v = props.vars;
+    if (item.ops.length <= 1) return v.rowH;
+    if (isExpanded()) return v.rowH + item.ops.length * v.rowH + 2 * v.padY;
+    if (item.status === 'running') return v.rowH + v.windowH;
+    return v.rowH;
+  });
+
+  const styleVars = (): FileOpStyleVars => ({ padY: props.vars.padY });
+
+  return (
+    <div style={{ ...assignInlineVars(fileOpCardVars, pxTokens(styleVars())), height: `${totalH()}px` }}>
+      <Show
+        when={props.data.ops.length > 1}
+        fallback={<FileOpRow item={props.data} rowH={rowH()} lineH={rowH()} />}
+      >
+        <FileOpHeader item={props.data} expanded={isExpanded()} rowH={rowH()} />
+        <Show when={isExpanded()}>
+          <FileOpList item={props.data} lineH={rowH()} padY={padY()} />
+        </Show>
+        <Show when={!isExpanded() && props.data.status === 'running'}>
+          <PreviewWindow
+            height={windowH()}
+            maxH={windowH()}
+            overlay="fade-top"
+            autoScrollBottom
+            contentHeight={() => props.data.ops.length}
+          >
+            <FileOpPreviewBody item={props.data} lineH={rowH()} padY={padY()} />
+          </PreviewWindow>
+        </Show>
+      </Show>
+    </div>
+  );
+}
+
+// ── UnitDef ───────────────────────────────────────────────────────────────────
+
+export const fileOpUnitDef = defineUnit<ChatFileOpToolCall, FileOpVars>({
+  kind: 'file-op',
+  vars: FILEOP_VARS,
+
+  estimate(item, ctx, vars): number {
+    return measureFileOpH(item, ctx, vars);
+  },
+
+  measure(item, ctx, vars): number {
+    return measureFileOpH(item, ctx, vars);
+  },
+
+  Render: FileOpUnitRender,
+});

@@ -27,9 +27,9 @@
  * it without a separate block lookup.
  */
 
-import { layoutCode } from '../../components/code/layout';
-import { layoutProse } from '../../components/prose/layout';
-import { layoutTable } from '../../components/table/layout';
+import { layoutCode } from '../../components/rows/markdown/code/layout';
+import { layoutProse } from '../../components/rows/markdown/prose/layout';
+import { layoutTable } from '../../components/rows/markdown/table/layout';
 import { stack } from '../compose';
 import type { StackLayout } from '../compose';
 import type { Measured, MeasureCtx } from '../define';

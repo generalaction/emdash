@@ -4,7 +4,7 @@
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import { generateMockTranscript } from '../../mock-transcript';
-import { ChatHost } from '../chat-host';
+import { ChatHost } from '../_harness/chat-host';
 
 const meta: Meta = {
   title: 'Examples/Large',

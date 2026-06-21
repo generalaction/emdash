@@ -296,10 +296,12 @@ function NoticeBand({ notice }: { notice: ComposerNotice }) {
         cls.container,
       )}
     >
-      <CircleAlert className={cn('mt-0.5 size-3.5 shrink-0', cls.icon)} />
       <div className="flex-1">
-        {notice.title && <p className="font-medium leading-snug">{notice.title}</p>}
-        <p className={cn('leading-snug', notice.title && 'mt-0.5 opacity-80')}>{notice.message}</p>
+        <div className="flex items-center gap-1.5">
+          <CircleAlert className={cn('size-3.5 shrink-0', cls.icon)} />
+          {notice.title && <p className="text-sm leading-snug">{notice.title}</p>}
+        </div>
+        <p className={cn('leading-snug', notice.title && 'mt-1 opacity-80')}>{notice.message}</p>
       </div>
       {notice.onDismiss && (
         <button
@@ -341,6 +343,13 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const editorRef = useRef<PromptEditorRef | null>(null);
   const [dragActive, setDragActive] = useState(false);
+
+  // Retain the last notice so its content stays rendered while the band
+  // collapses out, letting the exit transition play before unmount.
+  const [retainedNotice, setRetainedNotice] = useState<ComposerNotice | null>(notice ?? null);
+  useEffect(() => {
+    if (notice) setRetainedNotice(notice);
+  }, [notice]);
 
   // Revoke object URLs for image attachments on unmount to avoid leaks.
   useEffect(() => {
@@ -413,7 +422,19 @@ export function ChatComposer({
 
   return (
     <div className={cn('flex flex-col', className)}>
-      {notice && <NoticeBand notice={notice} />}
+      {/* Notice band — height + opacity animate on enter/exit via the
+          grid-rows 0fr↔1fr technique so add/remove transitions are smooth. */}
+      <div
+        className={cn(
+          'grid transition-all duration-200 ease-out',
+          notice ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+        )}
+        aria-hidden={!notice}
+      >
+        <div className="overflow-hidden">
+          {retainedNotice && <NoticeBand notice={retainedNotice} />}
+        </div>
+      </div>
       <div
         className={cn(
           'bg-surface-base-emphasis flex flex-col gap-0 border transition-colors',

@@ -18,9 +18,9 @@ import type {
   ProseLeafLayout,
   TableLeafLayout,
 } from '../../core/layout/layout-types';
-import { Code } from '../code/Code';
-import { Prose } from '../prose/Prose';
-import { Table } from '../table/Table';
+import { Code } from '../rows/markdown/code/Code';
+import { Prose } from '../rows/markdown/prose/Prose';
+import { Table } from '../rows/markdown/table/Table';
 
 function BlockLeafRender(props: { node: Measured<BlockLeafLayout> }) {
   const layout = props.node.layout;

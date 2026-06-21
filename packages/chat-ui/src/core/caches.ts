@@ -32,8 +32,8 @@ import {
   type RichInlineItem,
   prepareRichInline as rawPrepareRichInline,
 } from '@chenglou/pretext/rich-inline';
-import { computeDiffRows } from '../components/diff/diff-lines';
-import type { DiffRow } from '../components/diff/diff-lines';
+import { computeDiffRows } from '../components/rows/tools/diff/diff-lines';
+import type { DiffRow } from '../components/rows/tools/diff/diff-lines';
 import {
   createDefaultHighlighter,
   type ChatHighlighter,

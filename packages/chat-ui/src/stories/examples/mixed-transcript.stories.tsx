@@ -4,7 +4,7 @@
  */
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
-import { ChatHost } from '../chat-host';
+import { ChatHost } from '../_harness/chat-host';
 
 const meta: Meta = {
   title: 'Examples/MixedTranscript',

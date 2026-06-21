@@ -4,8 +4,8 @@
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import type { ChatPlanEntry } from '../../model';
-import { ChatHost, ChatHostExpanded, ScriptedChat } from '../chat-host';
-import type { ScriptStep } from '../chat-host';
+import { ChatHost, ChatHostExpanded, ScriptedChat } from '../_harness/chat-host';
+import type { ScriptStep } from '../_harness/chat-host';
 
 const meta: Meta = {
   title: 'Examples/Plan',
