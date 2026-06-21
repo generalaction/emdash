@@ -1,0 +1,40 @@
+apps/emdash-desktop/src/main/core/agents/controller.ts
+  s_38e698512434b3::t_0c7263fbe6fd75 93-105
+  s_38e698512434b3::t_0ac5ce575d36b3 8
+apps/emdash-desktop/src/main/core/dependencies/install-runner.test.ts
+  s_38e698512434b3::t_74b658e6f83bb0 57,61,183,191,202
+  s_38e698512434b3::t_a963856f02023e 1,14,22-23,50-56,58-60,62-64,88,141-143,146-147,157-159,162,175-178,181-182,184-190,192-201,203-216
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.ts
+  s_38e698512434b3::t_03c32afd689bab 185,197-201
+apps/emdash-desktop/src/main/core/dependencies/install-runner.ts
+  s_38e698512434b3::t_a8e52f95988ea9 103,105-113,117
+  s_38e698512434b3::t_5b9ba784247c17 1,65-97,121-126
+apps/emdash-desktop/src/main/core/agents/controller.test.ts
+  s_38e698512434b3::t_9067b628c391ca 166-186
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.test.ts
+  s_38e698512434b3::t_33f6cfa67e695d 415-463
+packages/core/src/host-dependencies/runtime/host-dependency-manager.ts
+  s_38e698512434b3::t_fb18bdcd5a70c0 52-80,789-795,821-822
+apps/emdash-desktop/src/renderer/lib/stores/use-agent-installation-statuses.ts
+  s_38e698512434b3::t_28a76a1e7ca828 30-37,116-120,124,126-131,300-307
+apps/emdash-desktop/src/renderer/features/settings/agents-page/DependencyInstallationStatusCard.tsx
+  s_38e698512434b3::t_14f43ff3c153d7 61-64
+packages/core/src/host-dependencies/runtime/host-dependency-manager.test.ts
+  s_38e698512434b3::t_7415e149527ca6 128-146,792,803-805
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "59fd335c12bb1b005b2cb3b0f4e04df2d0bd126c",
+  "prompts": {},
+  "sessions": {
+    "s_38e698512434b3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed400-4e0f-70d3-bec6-1a47a31614e6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
