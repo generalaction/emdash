@@ -150,9 +150,16 @@ export function buildNestedJsonHookConfig(configPath: string, hookSpecs: HookSpe
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, configPath);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      for (const { hookKey, command } of hookSpecs) {
+      const commandsByHookKey = new Map<string, HookSpec[]>();
+      for (const spec of hookSpecs) {
+        commandsByHookKey.set(spec.hookKey, [...(commandsByHookKey.get(spec.hookKey) ?? []), spec]);
+      }
+      for (const [hookKey, specs] of commandsByHookKey) {
         const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-        hooks[hookKey] = mergeNestedEntries(existing, command);
+        hooks[hookKey] = [
+          ...filterUserHooks(existing as Record<string, unknown>[]),
+          ...specs.map(({ command }) => buildNestedEntry(command)),
+        ];
       }
       await writeJsonConfig(fs, configPath, { ...config, hooks });
       return [configPath];

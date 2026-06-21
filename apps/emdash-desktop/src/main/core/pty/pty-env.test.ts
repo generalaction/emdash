@@ -165,6 +165,7 @@ describe('buildAgentEnv provider env forwarding', () => {
         EMDASH_HOOK_PORT: '9999',
         EMDASH_PTY_ID: 'wrong',
         EMDASH_HOOK_TOKEN: 'wrong-token',
+        EMDASH_HOOK_NONCE: 'wrong-nonce',
       },
     });
 
@@ -173,5 +174,6 @@ describe('buildAgentEnv provider env forwarding', () => {
     expect(env.EMDASH_HOOK_PORT).toBe('1234');
     expect(env.EMDASH_PTY_ID).toBe('claude:conv-1');
     expect(env.EMDASH_HOOK_TOKEN).toBe('real-token');
+    expect(env.EMDASH_HOOK_NONCE).toBe('real-token');
   });
 });

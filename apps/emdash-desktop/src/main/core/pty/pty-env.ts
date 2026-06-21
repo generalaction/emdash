@@ -158,8 +158,8 @@ export interface AgentEnvOptions {
 
   /**
    * Emdash hook server connection details.  When set, injects
-   * EMDASH_HOOK_PORT, EMDASH_PTY_ID, and EMDASH_HOOK_TOKEN so agent CLIs
-   * can call back on lifecycle events.
+   * EMDASH_HOOK_PORT, EMDASH_PTY_ID, EMDASH_HOOK_TOKEN, and
+   * EMDASH_HOOK_NONCE so agent CLIs can call back on lifecycle events.
    */
   hook?: {
     port: number;
@@ -287,6 +287,7 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
     env.EMDASH_HOOK_PORT = String(hook.port);
     env.EMDASH_PTY_ID = hook.ptyId;
     env.EMDASH_HOOK_TOKEN = hook.token;
+    env.EMDASH_HOOK_NONCE = hook.token;
   }
 
   return env;

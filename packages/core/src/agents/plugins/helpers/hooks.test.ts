@@ -11,7 +11,7 @@ describe('hook command helpers', () => {
     expect(makeStdinHookCommand('stop', { platform: 'linux' })).toBe(
       'curl -sf -X POST ' +
         '-H "Content-Type: application/json" ' +
-        '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
+        '-H "X-Emdash-Token: ${EMDASH_HOOK_NONCE:-$EMDASH_HOOK_TOKEN}" ' +
         '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
         '-H "X-Emdash-Event-Type: stop" ' +
         '-d @- ' +
