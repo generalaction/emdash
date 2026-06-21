@@ -52,8 +52,15 @@ function makeWindowsHookPostCommand(eventType: string, payload: HookPostPayload)
       `'X-Emdash-Event-Type' = '${eventType}' ` +
       '} -Body $payload | Out-Null } catch { exit 0 }',
   ].join('; ');
+  return makeWindowsPowerShellHookCommand(script);
+}
+
+export function makeWindowsPowerShellHookCommand(script: string): string {
   const encoded = Buffer.from(script, 'utf16le').toString('base64');
-  return `cmd.exe /d /c "echo EMDASH_HOOK_PORT >NUL & powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encoded}"`;
+  return (
+    `cmd.exe /d /c echo ${EMDASH_MARKER}>NUL&&` +
+    `powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encoded}`
+  );
 }
 
 /** Post an event with an arbitrary payload, platform-aware. */

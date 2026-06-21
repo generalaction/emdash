@@ -1,4 +1,3 @@
-import { Buffer } from 'node:buffer';
 import type { PluginFs } from '@emdash/core/agents/plugins';
 import type { CanonicalHookEvent, HookRegistration } from '@emdash/core/agents/plugins';
 import {
@@ -6,6 +5,7 @@ import {
   buildNestedEntry,
   defaultHookEventParser,
   filterUserHooks,
+  makeWindowsPowerShellHookCommand,
   makeStdinHookCommand,
   readJsonConfig,
   writeJsonConfig,
@@ -28,8 +28,7 @@ function makeGrokSessionStartCommand(): string {
         "'X-Emdash-Event-Type' = 'session' " +
         '} -Body $payload | Out-Null } catch { exit 0 }',
     ].join('; ');
-    const encoded = Buffer.from(script, 'utf16le').toString('base64');
-    return `cmd.exe /d /c "echo EMDASH_HOOK_PORT >NUL & powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encoded}"`;
+    return makeWindowsPowerShellHookCommand(script);
   }
   return (
     'curl -sf -X POST ' +
