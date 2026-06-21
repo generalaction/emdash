@@ -2,9 +2,9 @@ import { Match, Switch, For } from 'solid-js';
 import type { ChatPlan, PlanEntryPriority, PlanEntryStatus } from '../../../model';
 import { BlockStackView } from '../../primitives/BlockStackView';
 import { PlanCompletedIcon, PlanInProgressIcon, PlanPendingIcon } from '../../primitives/icons';
-import { chevron, planHeader, textShimmer } from './plan.css';
-import { planVars } from './plan-vars.css';
 import type { PlanEntryLaid } from './plan.def';
+import { chevron, planHeader, textShimmer } from './plan.css';
+import { planVars } from './plan.css';
 
 // ── PlanHeader ────────────────────────────────────────────────────────────────
 

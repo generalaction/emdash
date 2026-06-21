@@ -1,42 +1,15 @@
-/**
- * BlockStackView — renders a pre-measured Measured<StackLayout> block stack.
- *
- * Replaces the `<Project node={stack}>{renderBlockLeaf}</Project>` pattern
- * used by PlanList and ThinkingUnitRender. Walks the StackLayout directly and
- * dispatches each placed child to the appropriate leaf renderer (Prose/Code/Table).
- *
- * Matches the geometry produced by `layoutBlockStack`: each placed child is
- * absolutely positioned at its `top` offset within the outer div.
- */
-
 import { For } from 'solid-js';
+import { Dynamic } from 'solid-js/web';
 import type { StackLayout } from '../../core/compose';
 import type { Measured } from '../../core/define';
-import type {
-  BlockLeafLayout,
-  CodeLeafLayout,
-  ProseLeafLayout,
-  TableLeafLayout,
-} from '../../core/layout/layout-types';
-import { Code } from '../rows/markdown/code/Code';
-import { Prose } from '../rows/markdown/prose/Prose';
-import { Table } from '../rows/markdown/table/Table';
+import type { BlockLeafLayout } from '../../core/layout/layout-types';
+import { BLOCK_REGISTRY } from '../rows/markdown/block-registry';
 
 function BlockLeafRender(props: { node: Measured<BlockLeafLayout> }) {
-  const layout = props.node.layout;
-  if (layout.kind === 'prose') {
-    const l = layout as ProseLeafLayout;
-    return <Prose block={l} runs={l.raw.runs} variant={l.raw.variant} />;
-  }
-  if (layout.kind === 'code') {
-    const l = layout as CodeLeafLayout;
-    return <Code block={l} rawBlock={l.raw} />;
-  }
-  if (layout.kind === 'table') {
-    const l = layout as TableLeafLayout;
-    return <Table block={l} />;
-  }
-  return null;
+  const def = BLOCK_REGISTRY[props.node.layout.kind];
+  if (!def) return null;
+  // oxlint-disable-next-line typescript/no-explicit-any -- registry boundary
+  return <Dynamic component={def.Render} node={props.node as any} />;
 }
 
 export type BlockStackViewProps = {

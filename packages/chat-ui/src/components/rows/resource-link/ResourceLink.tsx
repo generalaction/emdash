@@ -19,7 +19,14 @@ import { resolveFileIconClass } from '../../../lib/file-icons';
 import type { ChatResourceLink, ResourceTarget } from '../../../model';
 import { useCommands } from '../../contexts/CommandsContext';
 import { GenericFileIcon } from '../../primitives/icons';
-import { iconWrap, pathText, rowClickable, rowStatic, sizeText, titleText } from './resource-link.css';
+import {
+  iconWrap,
+  pathText,
+  rowClickable,
+  rowStatic,
+  sizeText,
+  titleText,
+} from './resource-link.css';
 
 // ── Secondary label ─────────────────────────────────────────────────────────
 

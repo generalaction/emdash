@@ -194,7 +194,12 @@ export function UnitRow(props: UnitRowProps) {
                 'padding-right': `${c ? (c.insetX ?? 0) : 0}px`,
               }}
             >
-              <Dynamic component={d().Render} data={props.unit.data} ctx={renderCtx} vars={d().vars ?? {}} />
+              <Dynamic
+                component={d().Render}
+                data={props.unit.data}
+                ctx={renderCtx}
+                vars={d().vars ?? {}}
+              />
             </div>
           );
         }}

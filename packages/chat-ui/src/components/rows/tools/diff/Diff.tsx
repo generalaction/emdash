@@ -11,19 +11,20 @@ import { useCommands } from '../../../contexts/CommandsContext';
 import { cancelIdle, scheduleIdle } from '../../../engine/dom-utils';
 import { GenericFileIcon } from '../../../primitives/icons';
 import type { DiffLayout } from './diff.def';
-import { pdiffBody, pdiffLine } from './diff.css';
 import {
   diffAddsCount,
   diffBodyCard,
+  diffCardVars,
   diffDelsCount,
   diffFileName,
   diffHeader,
   diffLineContent,
   diffRowClasses,
   diffSpacer,
+  pdiffBody,
+  pdiffLine,
   textShimmer,
-} from './diff-visual.css';
-import { diffCardVars } from './diff-vars.css';
+} from './diff.css';
 
 // ── DiffHeader ────────────────────────────────────────────────────────────────
 
@@ -69,11 +70,7 @@ export function DiffHeader(props: DiffHeaderProps) {
       ) : (
         <GenericFileIcon />
       )}
-      <span
-        class={diffFileName}
-        classList={{ [textShimmer]: running() }}
-        title={props.item.path}
-      >
+      <span class={diffFileName} classList={{ [textShimmer]: running() }} title={props.item.path}>
         {name()}
       </span>
       <Show when={showStats()}>

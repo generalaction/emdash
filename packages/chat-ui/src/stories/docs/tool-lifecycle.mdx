@@ -9,12 +9,12 @@ Tool calls in emdash follow a four-state lifecycle that maps directly to the ACP
 
 ## States
 
-| Status | ACP equivalent | Description |
-|--------|---------------|-------------|
-| `pending` | `pending` | Tool call created; awaiting user permission before execution |
-| `running` | `in_progress` | Tool is actively executing (may be streaming output) |
-| `done` | `completed` | Tool completed successfully |
-| `error` | `failed` | Tool failed; error detail and retry option available |
+| Status    | ACP equivalent | Description                                                  |
+| --------- | -------------- | ------------------------------------------------------------ |
+| `pending` | `pending`      | Tool call created; awaiting user permission before execution |
+| `running` | `in_progress`  | Tool is actively executing (may be streaming output)         |
+| `done`    | `completed`    | Tool completed successfully                                  |
+| `error`   | `failed`       | Tool failed; error detail and retry option available         |
 
 ## Permission requests
 

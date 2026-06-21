@@ -1,13 +1,13 @@
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
 import type { MeasureCtx, RenderCtx } from '../../../../core/define';
+import { DEFAULT_THEME } from '../../../../core/theme';
 import { defineUnit } from '../../../../core/units';
 import type { ChatFileOpToolCall } from '../../../../model';
 import { pxTokens } from '../../../../styles/px-tokens';
 import { PreviewWindow } from '../../../primitives/PreviewWindow';
 import { FileOpRow, FileOpHeader, FileOpList, FileOpPreviewBody } from './FileOperation';
-import { fileOpCardVars, type FileOpStyleVars } from './file-op-vars.css';
-import { FILEOP_VARS } from './metrics';
+import { fileOpCardVars, fileOpHeightVar, fileOpRoot, type FileOpStyleVars } from './file-op.css';
 
 export type FileOpVars = {
   /** Measure-only: fixed row height for header and per-file lines. */
@@ -52,7 +52,13 @@ function FileOpUnitRender(props: { data: ChatFileOpToolCall; ctx: RenderCtx; var
   const styleVars = (): FileOpStyleVars => ({ padY: props.vars.padY });
 
   return (
-    <div style={{ ...assignInlineVars(fileOpCardVars, pxTokens(styleVars())), height: `${totalH()}px` }}>
+    <div
+      class={fileOpRoot}
+      style={{
+        ...assignInlineVars(fileOpCardVars, pxTokens(styleVars())),
+        [fileOpHeightVar]: `${totalH()}px`,
+      }}
+    >
       <Show
         when={props.data.ops.length > 1}
         fallback={<FileOpRow item={props.data} rowH={rowH()} lineH={rowH()} />}
@@ -81,7 +87,11 @@ function FileOpUnitRender(props: { data: ChatFileOpToolCall; ctx: RenderCtx; var
 
 export const fileOpUnitDef = defineUnit<ChatFileOpToolCall, FileOpVars>({
   kind: 'file-op',
-  vars: FILEOP_VARS,
+  vars: {
+    rowH: DEFAULT_THEME.density.rowH,
+    padY: 6,
+    windowH: 72,
+  },
 
   estimate(item, ctx, vars): number {
     return measureFileOpH(item, ctx, vars);

@@ -1,12 +1,18 @@
-/**
- * execute.css.ts — geometry-coupled styles for Execute.tsx / the command chip.
- *
- * Mirrors .pexec__cmd from execute.module.css exactly.
- * The inline-code chip font metrics and padding feed pretext measurement.
- */
-
 import { style } from '@vanilla-extract/css';
 import { vars } from '../../../../styles/theme.css';
+import { createVariableThemeContract } from '../../../../styles/variable-theme-contract.css';
+
+// ── Runtime geometry contract ─────────────────────────────────────────────────
+
+export type ExecuteStyleVars = { rowH: number };
+
+export const executeVars = createVariableThemeContract<ExecuteStyleVars>({ rowH: null });
+
+export const executeRoot = style({
+  height: executeVars.rowH,
+  display: 'flex',
+  alignItems: 'center',
+});
 
 /** Inline-code chip inside the execute row — mirrors .pf--inline-code from prose.css.ts. */
 export const pexecCmd = style({

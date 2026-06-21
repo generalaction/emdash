@@ -20,11 +20,11 @@ import { For, createEffect, onCleanup } from 'solid-js';
 import { applyTokenLines } from '../../../../core/highlight/apply-tokens';
 import type { CodeLaidOut } from '../../../../core/layout/layout-types';
 import type { CodeBlock } from '../../../../core/markdown/document';
-import { group } from '../../../primitives/copy-button.css';
-import { BlockFrame } from '../../../engine/block-frame';
 import { useCaches } from '../../../contexts/CachesContext';
+import { BlockFrame } from '../../../engine/block-frame';
 import { cancelIdle, scheduleIdle } from '../../../engine/dom-utils';
 import { CopyButton } from '../../../primitives/CopyButton';
+import { group } from '../../../primitives/copy-button.css';
 import { codeLine, codeWrapper } from './code.css';
 
 export type CodeProps = {

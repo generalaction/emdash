@@ -27,14 +27,14 @@
  */
 
 import { For, Show } from 'solid-js';
-import { Dynamic } from 'solid-js/web';
 import type { Component } from 'solid-js';
-import type { MeasureCtx, Measured, RenderCtx } from '../define';
-import { layoutBlockStack, type BlockStackOpts } from './block-stack';
-import type { Block } from '../markdown/document';
+import { Dynamic } from 'solid-js/web';
 import { BlockStackView } from '../../components/primitives/BlockStackView';
-import type { StackLayout } from '../compose';
 import { PreviewWindow } from '../../components/primitives/PreviewWindow';
+import type { StackLayout } from '../compose';
+import type { MeasureCtx, Measured, RenderCtx } from '../define';
+import type { Block } from '../markdown/document';
+import { layoutBlockStack, type BlockStackOpts } from './block-stack';
 
 // ── Box ──────────────────────────────────────────────────────────────────────
 
@@ -81,9 +81,7 @@ export function withWidthCtx(ctx: RenderCtx, w: number): RenderCtx {
  * box renders an empty div so the height is visible in the DOM for testing.
  */
 export function fixedLine(h: number, ViewComp?: Component<{ ctx: RenderCtx }>): Box {
-  const FallbackView: Component<{ ctx: RenderCtx }> = () => (
-    <div style={{ height: `${h}px` }} />
-  );
+  const FallbackView: Component<{ ctx: RenderCtx }> = () => <div style={{ height: `${h}px` }} />;
   const View = ViewComp ?? FallbackView;
   return {
     measure: () => h,
@@ -132,7 +130,10 @@ export function text(blocks: Block[], opts?: BlockStackOpts): Box {
       return layoutBlockStack(blocks, ctx, opts).height;
     },
     estimate(ctx) {
-      const totalChars = blocks.reduce((sum, b) => sum + ('text' in b && b.text ? (b.text as string).length : 40), 0);
+      const totalChars = blocks.reduce(
+        (sum, b) => sum + ('text' in b && b.text ? (b.text as string).length : 40),
+        0
+      );
       const lines = Math.max(1, Math.ceil(totalChars / 60));
       return lines * ctx.theme.fonts.body.lineHeight;
     },
@@ -277,10 +278,7 @@ export function clamp(maxH: number, opts: ClampOpts, child: Box): Box {
  * Vertically stack multiple boxes with optional gaps and padding.
  * All boxes share the same ctx width (no horizontal chrome).
  */
-export function boxStack(
-  children: Box[],
-  opts: { gap?: number; padY?: number } = {}
-): Box {
+export function boxStack(children: Box[], opts: { gap?: number; padY?: number } = {}): Box {
   const { gap = 0, padY = 0 } = opts;
   return {
     measure(ctx) {

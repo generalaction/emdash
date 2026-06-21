@@ -1,17 +1,4 @@
-/**
- * FontConfig — pretext measurement configuration.
- *
- * Contains only typography variants (font shorthand + line-height pairs) and
- * the shared indent/sizing constants needed by pretext shaping.
- *
- * Component-private geometry constants (bubble padding, block gap, code block
- * padding, thinking heights, etc.) have been moved to each component's
- * metrics.ts file and are no longer part of FontConfig.  That makes FontConfig
- * a stable, small interface that changes only when typography changes.
- */
-
 import {
-  BLOCKQUOTE_INDENT,
   BODY_BOLD_FONT,
   BODY_BOLD_ITALIC_FONT,
   BODY_FONT,
@@ -29,7 +16,6 @@ import {
   INLINE_CODE_EXTRA_WIDTH,
   INLINE_CODE_FONT,
   INLINE_CODE,
-  LIST_INDENT,
   MENTION_EXTRA_WIDTH,
   MENTION_FONT,
   MENTION,
@@ -52,11 +38,8 @@ export type FontConfig = {
   inlineCode: VariantMetrics;
   mention: VariantMetrics;
   code: VariantMetrics;
-  /** Shared indent/sizing used by pretext shaping (not by component renderers). */
   inlineCodeExtraWidth: number;
   mentionExtraWidth: number;
-  listIndent: number;
-  blockquoteIndent: number;
 };
 
 export const DEFAULT_FONT_CONFIG: FontConfig = {
@@ -73,6 +56,4 @@ export const DEFAULT_FONT_CONFIG: FontConfig = {
   code: { font: CODE_BLOCK_FONT, lineHeight: CODE_BLOCK.lineHeight },
   inlineCodeExtraWidth: INLINE_CODE_EXTRA_WIDTH,
   mentionExtraWidth: MENTION_EXTRA_WIDTH,
-  listIndent: LIST_INDENT,
-  blockquoteIndent: BLOCKQUOTE_INDENT,
 };

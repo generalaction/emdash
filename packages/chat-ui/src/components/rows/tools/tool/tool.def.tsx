@@ -1,8 +1,10 @@
+import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { DEFAULT_THEME } from '../../../../core/theme';
 import { defineUnit } from '../../../../core/units';
 import type { ChatToolCall } from '../../../../model';
-import { sx } from '../../../../styles/sprinkles.css';
+import { pxTokens } from '../../../../styles/px-tokens';
 import { Tool } from './Tool';
+import { toolRoot, toolVars } from './tool.css';
 
 export const toolUnitDef = defineUnit<ChatToolCall, { rowH: number }>({
   kind: 'tool',
@@ -14,10 +16,7 @@ export const toolUnitDef = defineUnit<ChatToolCall, { rowH: number }>({
 
   Render(props) {
     return (
-      <div
-        class={sx({ display: 'flex', alignItems: 'center', borderColor: 'border' })}
-        style={{ height: `${props.vars.rowH}px` }}
-      >
+      <div class={toolRoot} style={assignInlineVars(toolVars, pxTokens({ rowH: props.vars.rowH }))}>
         <Tool item={props.data} />
       </div>
     );

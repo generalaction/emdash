@@ -1,7 +1,10 @@
+import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { DEFAULT_THEME } from '../../../core/theme';
 import { defineUnit } from '../../../core/units';
 import type { ChatResourceLink } from '../../../model';
+import { pxTokens } from '../../../styles/px-tokens';
 import { ResourceLink } from './ResourceLink';
+import { resourceLinkRoot, resourceLinkVars } from './resource-link.css';
 
 export const resourceLinkUnitDef = defineUnit<ChatResourceLink, { rowH: number }>({
   kind: 'resource-link',
@@ -13,7 +16,10 @@ export const resourceLinkUnitDef = defineUnit<ChatResourceLink, { rowH: number }
 
   Render(props) {
     return (
-      <div style={{ height: `${props.vars.rowH}px`, display: 'flex', 'align-items': 'stretch' }}>
+      <div
+        class={resourceLinkRoot}
+        style={assignInlineVars(resourceLinkVars, pxTokens({ rowH: props.vars.rowH }))}
+      >
         <ResourceLink item={props.data} />
       </div>
     );

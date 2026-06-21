@@ -12,6 +12,7 @@
  * code block padding, file-op geometry) live inline in each component's def file.
  */
 
+import { DEFAULT_TYPOGRAPHY, type CompositeRole } from './measure/default-typography';
 import {
   CHIP_DEFAULTS,
   INLINE_CODE_EXTRA_WIDTH as _IC_EXTRA_WIDTH,
@@ -19,7 +20,6 @@ import {
   MONO_FAMILY_CSS,
   SANS_FAMILY_CSS,
 } from './tokens';
-import { DEFAULT_TYPOGRAPHY, type CompositeRole } from './measure/default-typography';
 
 // ── Composite role reader ─────────────────────────────────────────────────────
 

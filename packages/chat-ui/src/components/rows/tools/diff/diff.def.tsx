@@ -2,12 +2,12 @@ import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
 import type { MeasureCtx, RenderCtx } from '../../../../core/define';
 import { defineUnit } from '../../../../core/units';
-import { pxTokens } from '../../../../styles/px-tokens';
 import type { ChatDiff } from '../../../../model';
+import { pxTokens } from '../../../../styles/px-tokens';
 import { DiffHeader, DiffLines } from './Diff';
 import { countChanges, selectPreview, type DiffRow } from './diff-lines';
-import { diffCardVars, type DiffStyleVars } from './diff-vars.css';
 import { langFromPath } from './lang';
+import { diffCardVars, diffHeightVar, diffRoot, type DiffStyleVars } from './diff.css';
 
 export type DiffVars = {
   /** Style-relevant: consumed by diffCardVars contract. */
@@ -39,9 +39,7 @@ export type DiffLayout = {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function diffBodyH(previewRows: DiffRow[], codeLineH: number, border: number): number {
-  return previewRows.length === 0
-    ? 2 * border
-    : previewRows.length * codeLineH + 2 * border;
+  return previewRows.length === 0 ? 2 * border : previewRows.length * codeLineH + 2 * border;
 }
 
 function diffUnitH(item: ChatDiff, ctx: MeasureCtx, vars: DiffVars): number {
@@ -81,7 +79,13 @@ function DiffUnitRender(props: { data: ChatDiff; ctx: RenderCtx; vars: DiffVars 
   const styleVars = (): DiffStyleVars => ({ headerH: props.vars.headerH });
 
   return (
-    <div style={{ ...assignInlineVars(diffCardVars, pxTokens(styleVars())), height: `${totalH()}px` }}>
+    <div
+      class={diffRoot}
+      style={{
+        ...assignInlineVars(diffCardVars, pxTokens(styleVars())),
+        [diffHeightVar]: `${totalH()}px`,
+      }}
+    >
       <Show when={layout()}>
         {(l) => (
           <>

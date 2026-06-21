@@ -1,8 +1,32 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
-import { vars } from '../../../styles/theme.css';
 import { textShimmer } from '../../../styles/effects.css';
-import { planVars } from './plan-vars.css';
+import { vars } from '../../../styles/theme.css';
+import { createVariableThemeContract } from '../../../styles/variable-theme-contract.css';
+
+// ── Runtime geometry contract ─────────────────────────────────────────────────
+
+export type PlanStyleVars = {
+  height: number;
+  padX: number;
+  padY: number;
+  iconBox: number;
+  iconGap: number;
+  entryGap: number;
+  border: number;
+};
+
+export const planVars = createVariableThemeContract<PlanStyleVars>({
+  height: null,
+  padX: null,
+  padY: null,
+  iconBox: null,
+  iconGap: null,
+  entryGap: null,
+  border: null,
+});
+
+export const planRoot = style({ height: planVars.height });
 
 export const planCard = style({
   border: `1px solid ${vars.border}`,

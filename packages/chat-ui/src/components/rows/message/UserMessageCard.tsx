@@ -4,11 +4,12 @@ import type { StackLayout } from '../../../core/compose';
 import type { Measured, RenderCtx } from '../../../core/define';
 import { layoutBlockStack } from '../../../core/layout/block-stack';
 import { blockPlainText } from '../../../core/markdown/plain-text';
-import { pxTokens } from '../../../styles/px-tokens';
 import type { ChatMessage } from '../../../model';
-import { BlockStackView } from '../../primitives/BlockStackView';
+import { pxTokens } from '../../../styles/px-tokens';
 import { useCommands } from '../../contexts/CommandsContext';
+import { BlockStackView } from '../../primitives/BlockStackView';
 import { ImageOffIcon } from '../../primitives/icons';
+import { type MessageVars, userInnerWidth } from './metrics';
 import {
   attachmentStrip,
   attachPlaceholder,
@@ -16,15 +17,10 @@ import {
   attachThumbBtn,
   card,
   cardFadeOverlay,
+  cardRoot,
   cardVars,
   srOnly,
 } from './user-message.css';
-import {
-  MESSAGE_STYLE_VARS,
-  MESSAGE_VARS,
-  type MessageVars,
-  userInnerWidth,
-} from './metrics';
 
 function attachStripH(count: number, innerW: number, thumb: number, gap: number): number {
   if (count <= 0) return 0;
@@ -38,6 +34,7 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
   const mCtx = () => props.ctx.measureCtx?.();
 
   const styleVars = () => ({
+    height: clampedH(),
     userCardPadX: props.vars.userCardPadX,
     userCardPadY: props.vars.userCardPadY,
     cardBorder: props.vars.cardBorder,
@@ -73,7 +70,7 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
       props.data.attachments?.length ?? 0,
       innerW,
       props.vars.attachThumb,
-      props.vars.attachGap,
+      props.vars.attachGap
     );
     const blocks = ctx.caches.parseBlocks(props.data.id, props.data.text);
     if (blocks.length === 0) {
@@ -106,10 +103,9 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
   return (
     <div
       data-user-card={props.data.id}
-      class={card({ state: isOverflowing() && !isExpanded() ? 'overflowing' : 'static' })}
+      class={`${card({ state: isOverflowing() && !isExpanded() ? 'overflowing' : 'static' })} ${cardRoot}`}
       style={{
         ...assignInlineVars(cardVars, pxTokens(styleVars())),
-        height: `${clampedH()}px`,
         'overflow-y': isExpanded() ? 'auto' : 'hidden',
         cursor: !isExpanded() && isOverflowing() ? 'pointer' : 'default',
       }}
@@ -158,5 +154,5 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
   );
 }
 
-export { MESSAGE_VARS, MESSAGE_STYLE_VARS, userInnerWidth };
+export { userInnerWidth };
 export type { MessageVars };

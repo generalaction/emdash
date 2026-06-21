@@ -7,12 +7,12 @@ import { flattenBlockHeadings } from '../../../core/markdown/parse';
 import { defineUnit } from '../../../core/units';
 import type { ChatThinking } from '../../../model';
 import { pxTokens } from '../../../styles/px-tokens';
-import { sx } from '../../../styles/sprinkles.css';
+import { useTheme } from '../../contexts/ThemeContext';
 import { BlockStackView } from '../../primitives/BlockStackView';
 import { CollapseHeader } from '../../primitives/CollapseHeader';
 import { PreviewWindow } from '../../primitives/PreviewWindow';
-import { useTheme } from '../../contexts/ThemeContext';
-import { thinkingCardVars, type ThinkingStyleVars } from './thinking-vars.css';
+import { sx } from '../../../styles/sprinkles.css';
+import { thinkingCardVars, thinkingRoot, type ThinkingStyleVars } from './thinking.css';
 
 export type ThinkingVars = {
   /** Style-relevant: vertical padding inside the expanded body. Consumed by thinkingCardVars. */
@@ -124,12 +124,12 @@ function ThinkingUnitRender(props: { data: ChatThinking; ctx: RenderCtx; vars: T
   const showBody = () => isExpanded() || props.data.status === 'thinking';
   const bodyH = () => body()?.height ?? 0;
 
-  const styleVars = (): ThinkingStyleVars => ({ padY: props.vars.padY });
+  const styleVars = (): ThinkingStyleVars => ({ height: totalH(), padY: props.vars.padY });
 
   return (
     <div
-      class={sx({ color: 'fgPassive' })}
-      style={{ ...assignInlineVars(thinkingCardVars, pxTokens(styleVars())), height: `${totalH()}px` }}
+      class={`${sx({ color: 'fgPassive' })} ${thinkingRoot}`}
+      style={assignInlineVars(thinkingCardVars, pxTokens(styleVars()))}
     >
       <ThinkingHeader item={props.data} expanded={isExpanded()} headerH={headerH()} />
       <Show when={showBody()}>

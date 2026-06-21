@@ -27,7 +27,14 @@ export function Execute(props: ExecuteProps) {
 
   return (
     <div
-      class={sx({ display: 'flex', alignItems: 'center', gap: '1.5', color: 'fgPassive', userSelect: 'none', fontSize: 'sm' })}
+      class={sx({
+        display: 'flex',
+        alignItems: 'center',
+        gap: '1.5',
+        color: 'fgPassive',
+        userSelect: 'none',
+        fontSize: 'sm',
+      })}
       classList={{ [textShimmer]: props.item.status === 'running' }}
     >
       <span>Execute</span>

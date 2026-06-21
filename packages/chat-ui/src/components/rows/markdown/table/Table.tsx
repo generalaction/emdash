@@ -20,8 +20,8 @@
 import { For } from 'solid-js';
 import type { TableLaidOut } from '../../../../core/layout/layout-types';
 import { BlockFrame } from '../../../engine/block-frame';
-import { pchatTable } from './table.css';
 import { tableScroll, tdCell, tdCellLastRow, thCell } from './table-visual.css';
+import { pchatTable } from './table.css';
 
 export type TableProps = {
   block: TableLaidOut;

@@ -3,14 +3,13 @@ import { Show, createMemo } from 'solid-js';
 import type { StackLayout } from '../../../core/compose';
 import { type Measured, type MeasureCtx, type RenderCtx } from '../../../core/define';
 import { layoutBlockStack } from '../../../core/layout/block-stack';
+import { DEFAULT_THEME } from '../../../core/theme';
 import { defineUnit } from '../../../core/units';
 import type { ChatPlan, PlanEntryPriority, PlanEntryStatus } from '../../../model';
 import { pxTokens } from '../../../styles/px-tokens';
 import { PreviewWindow } from '../../primitives/PreviewWindow';
-import { planCard } from './plan.css';
-import { planVars, type PlanStyleVars } from './plan-vars.css';
-import { PLAN_VARS } from './metrics';
 import { PlanHeader, PlanList } from './Plan';
+import { planCard, planRoot, planVars, type PlanStyleVars } from './plan.css';
 
 // ── vars type ─────────────────────────────────────────────────────────────────
 
@@ -102,9 +101,7 @@ function PlanUnitRender(props: { data: ChatPlan; ctx: RenderCtx; vars: PlanVars 
   });
 
   const listH = createMemo(() => listHeight(entries(), props.vars));
-  const bodyH = createMemo(() =>
-    isExpanded() ? listH() : Math.min(listH(), props.vars.windowH)
-  );
+  const bodyH = createMemo(() => (isExpanded() ? listH() : Math.min(listH(), props.vars.windowH)));
 
   const totalH = createMemo(() => {
     const ctx = mCtx();
@@ -115,6 +112,7 @@ function PlanUnitRender(props: { data: ChatPlan; ctx: RenderCtx; vars: PlanVars 
   const autoScroll = () => !!props.data.streaming;
 
   const styleVars = (): PlanStyleVars => ({
+    height: totalH(),
     padX: props.vars.padX,
     padY: props.vars.padY,
     iconBox: props.vars.iconBox,
@@ -125,19 +123,15 @@ function PlanUnitRender(props: { data: ChatPlan; ctx: RenderCtx; vars: PlanVars 
 
   return (
     <div
-      class={planCard}
+      class={`${planCard} ${planRoot}`}
       style={{
         ...assignInlineVars(planVars, pxTokens(styleVars())),
-        height: `${totalH()}px`,
         'box-sizing': 'border-box',
       }}
     >
       <PlanHeader item={props.data} expanded={isExpanded()} rowH={props.vars.rowH} />
       <div style={{ 'padding-left': planVars.padX, 'padding-right': planVars.padX }}>
-        <Show
-          when={!isExpanded()}
-          fallback={<PlanList entries={entries()} />}
-        >
+        <Show when={!isExpanded()} fallback={<PlanList entries={entries()} />}>
           <PreviewWindow
             height={bodyH()}
             maxH={props.vars.windowH}
@@ -155,7 +149,16 @@ function PlanUnitRender(props: { data: ChatPlan; ctx: RenderCtx; vars: PlanVars 
 
 export const planUnitDef = defineUnit<ChatPlan, PlanVars>({
   kind: 'plan',
-  vars: PLAN_VARS,
+  vars: {
+    rowH: DEFAULT_THEME.density.rowH,
+    border: 1,
+    padX: 8,
+    padY: 6,
+    iconBox: 14,
+    iconGap: 8,
+    entryGap: 4,
+    windowH: 96,
+  },
 
   estimate(item, ctx, vars): number {
     const headerH = vars.rowH;

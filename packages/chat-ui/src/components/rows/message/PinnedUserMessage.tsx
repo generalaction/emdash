@@ -22,8 +22,8 @@ import type { MeasureCtx, RenderCtx } from '../../../core/define';
 import type { ChatTheme } from '../../../core/theme';
 import type { ChatMessage } from '../../../model';
 import { messageUnitDef } from './message.def';
-import { pinnedBackdrop, pinnedScrollFade } from './user-message.css';
 import { UserMessageCard } from './UserMessageCard';
+import { pinnedBackdrop, pinnedScrollFade } from './user-message.css';
 
 export function PinnedUserMessage(props: {
   item: ChatMessage;

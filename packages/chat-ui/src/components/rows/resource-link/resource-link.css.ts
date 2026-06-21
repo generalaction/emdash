@@ -1,5 +1,18 @@
 import { style } from '@vanilla-extract/css';
 import { vars } from '../../../styles/theme.css';
+import { createVariableThemeContract } from '../../../styles/variable-theme-contract.css';
+
+// ── Runtime geometry contract ─────────────────────────────────────────────────
+
+export type ResourceLinkStyleVars = { rowH: number };
+
+export const resourceLinkVars = createVariableThemeContract<ResourceLinkStyleVars>({ rowH: null });
+
+export const resourceLinkRoot = style({
+  height: resourceLinkVars.rowH,
+  display: 'flex',
+  alignItems: 'stretch',
+});
 
 const rowBase = style({
   display: 'flex',
@@ -30,6 +43,24 @@ export const rowClickable = style([
 ]);
 
 export const iconWrap = style({ color: vars.fgMuted, flexShrink: 0 });
-export const titleText = style({ color: vars.fgBody, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' });
-export const pathText = style({ color: vars.fgMuted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.75rem' });
-export const sizeText = style({ color: vars.fgMuted, flexShrink: 0, fontSize: '0.75rem', fontWeight: 400 });
+export const titleText = style({
+  color: vars.fgBody,
+  flexShrink: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+});
+export const pathText = style({
+  color: vars.fgMuted,
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  fontSize: '0.75rem',
+});
+export const sizeText = style({
+  color: vars.fgMuted,
+  flexShrink: 0,
+  fontSize: '0.75rem',
+  fontWeight: 400,
+});

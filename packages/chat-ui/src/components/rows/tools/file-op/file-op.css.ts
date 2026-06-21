@@ -1,7 +1,22 @@
-import { style } from '@vanilla-extract/css';
+import { createVar, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
-import { vars } from '../../../../styles/theme.css';
 import { sx } from '../../../../styles/sprinkles.css';
+import { vars } from '../../../../styles/theme.css';
+import { createVariableThemeContract } from '../../../../styles/variable-theme-contract.css';
+
+// ── Runtime geometry contract ─────────────────────────────────────────────────
+
+export type FileOpStyleVars = {
+  padY: number;
+};
+
+export const fileOpCardVars = createVariableThemeContract<FileOpStyleVars>({
+  padY: null,
+});
+
+// Root height managed separately so inner list components can set padY independently.
+export const fileOpHeightVar = createVar();
+export const fileOpRoot = style({ height: fileOpHeightVar });
 
 export const fileRow = recipe({
   base: sx({

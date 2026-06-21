@@ -1,3 +1,4 @@
+import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
 import type { StackLayout } from '../../../core/compose';
 import type { MeasureCtx, Measured, RenderCtx } from '../../../core/define';
@@ -5,10 +6,19 @@ import { layoutBlockStack } from '../../../core/layout/block-stack';
 import { blockPlainText } from '../../../core/markdown/plain-text';
 import { defineUnit } from '../../../core/units';
 import type { ChatMessage } from '../../../model';
+import { pxTokens } from '../../../styles/px-tokens';
 import { BlockStackView } from '../../primitives/BlockStackView';
 import { CopyButton } from '../../primitives/CopyButton';
-import { assistantOuter, messageText, footerRow, srOnly } from './message.css';
-import { MESSAGE_VARS, type MessageVars, UserMessageCard, userInnerWidth } from './UserMessageCard';
+import { type MessageVars, userInnerWidth } from './metrics';
+import { UserMessageCard } from './UserMessageCard';
+import {
+  assistantOuter,
+  assistantRoot,
+  assistantVars,
+  footerRow,
+  messageText,
+  srOnly,
+} from './message.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -92,10 +102,14 @@ function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx; vars: Messa
     return ctx.caches.parseBlocks(props.data.id, props.data.text).map(blockPlainText).join('\n\n');
   };
 
-  const role = () => (props.data.role === 'thought' ? 'thought' : 'assistant') as 'thought' | 'assistant';
+  const role = () =>
+    (props.data.role === 'thought' ? 'thought' : 'assistant') as 'thought' | 'assistant';
 
   return (
-    <div class={`${assistantOuter} ${messageText({ role: role() })}`} style={{ height: `${totalH()}px` }}>
+    <div
+      class={`${assistantOuter} ${messageText({ role: role() })} ${assistantRoot}`}
+      style={assignInlineVars(assistantVars, pxTokens({ height: totalH() }))}
+    >
       <div class={srOnly}>{plainText()}</div>
       <Show when={stack()}>{(s) => <BlockStackView node={s()} />}</Show>
       <Show when={props.data.role === 'assistant'}>
@@ -126,7 +140,17 @@ function MessageUnitRender(props: { data: ChatMessage; ctx: RenderCtx; vars: Mes
 
 export const messageUnitDef = defineUnit<ChatMessage, MessageVars>({
   kind: 'message',
-  vars: MESSAGE_VARS,
+  vars: {
+    cardBorder: 1,
+    collapsedMaxH: 120,
+    expandedMaxH: 360,
+    userCardPadX: 16,
+    userCardPadY: 16,
+    stackPadY: 6,
+    attachThumb: 32,
+    attachGap: 8,
+    footerH: 24,
+  },
 
   estimate(item, ctx, vars): number {
     if (item.role === 'user') {

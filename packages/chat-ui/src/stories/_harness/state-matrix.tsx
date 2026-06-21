@@ -74,10 +74,7 @@ export function ToolStateMatrix(props: ToolStateMatrixProps) {
               >
                 {row.label}
               </div>
-              <div
-                class={storyViewport}
-                style={{ width: `${width}px`, height: `${rowHeight}px` }}
-              >
+              <div class={storyViewport} style={{ width: `${width}px`, height: `${rowHeight}px` }}>
                 <ChatRoot
                   transcript={transcript}
                   viewState={viewState}

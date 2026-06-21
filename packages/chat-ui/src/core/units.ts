@@ -158,7 +158,9 @@ export type ItemSegmenter<T extends ChatItem> = {
 // ── Factories ─────────────────────────────────────────────────────────────────
 
 /** Identity factory for UnitDef — enables TypeScript inference. */
-export function defineUnit<D, V extends Record<string, number> = {}>(def: UnitDef<D, V>): UnitDef<D, V> {
+export function defineUnit<D, V extends Record<string, number> = {}>(
+  def: UnitDef<D, V>
+): UnitDef<D, V> {
   return def;
 }
 

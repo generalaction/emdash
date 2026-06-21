@@ -9,9 +9,9 @@
  */
 
 import { Show } from 'solid-js';
-import { copyButtonInline, copyButtonOverlay } from './copy-button.css';
 import { IconCheck, IconCopy } from './icons';
 import { createClipboard } from './use-clipboard';
+import { copyButtonInline, copyButtonOverlay } from './copy-button.css';
 
 export type CopyButtonProps = {
   text: string;

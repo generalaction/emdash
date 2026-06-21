@@ -140,7 +140,7 @@ export const vars = createGlobalThemeContract(
     icPadX: 'chat-ic-pad-x',
     icPadY: 'chat-ic-pad-y',
   },
-  (value) => `--${value}`,
+  (value) => `--${value}`
 );
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

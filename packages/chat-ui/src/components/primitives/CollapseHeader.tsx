@@ -41,11 +41,7 @@ export function CollapseHeader(props: CollapseHeaderProps) {
       data-collapse-id={props.id}
     >
       <span classList={{ [textShimmer]: !!props.active }}>{props.children}</span>
-      <span
-        class={chevron}
-        classList={{ [chevronExpanded]: props.expanded }}
-        aria-hidden="true"
-      >
+      <span class={chevron} classList={{ [chevronExpanded]: props.expanded }} aria-hidden="true">
         ›
       </span>
     </div>

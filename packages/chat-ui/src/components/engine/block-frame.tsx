@@ -45,7 +45,9 @@ function DebugOverlay(props: DebugOverlayProps) {
         {props.id ? `${props.id} · ` : ''}h={props.reservedHeight}
         <Show when={mismatch()}>
           {' '}
-          <span class={debugMismatchText}>⚠ actual={actualH()} (+{actualH() - props.reservedHeight})</span>
+          <span class={debugMismatchText}>
+            ⚠ actual={actualH()} (+{actualH() - props.reservedHeight})
+          </span>
         </Show>
       </span>
     </div>

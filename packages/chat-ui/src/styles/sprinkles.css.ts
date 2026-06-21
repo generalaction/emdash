@@ -221,5 +221,11 @@ const borderProps = defineProperties({
 
 // ── Combined sprinkles function ───────────────────────────────────────────────
 
-export const sx = createSprinkles(layoutProps, spacingProps, typographyProps, colorProps, borderProps);
+export const sx = createSprinkles(
+  layoutProps,
+  spacingProps,
+  typographyProps,
+  colorProps,
+  borderProps
+);
 export type Sprinkles = Parameters<typeof sx>[0];

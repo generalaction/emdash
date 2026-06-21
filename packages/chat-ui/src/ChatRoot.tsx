@@ -34,10 +34,10 @@ import {
 import { CachesContext } from './components/contexts/CachesContext';
 import { CommandsContext } from './components/contexts/CommandsContext';
 import { DebugContext } from './components/contexts/debug-context';
-import { PinnedUserMessage } from './components/rows/message/PinnedUserMessage';
 import { ThemeContext } from './components/contexts/ThemeContext';
 import { SEGMENTERS, UNIT_REGISTRY } from './components/engine/unit-registry';
 import { UnitRow } from './components/engine/UnitRow';
+import { PinnedUserMessage } from './components/rows/message/PinnedUserMessage';
 import { createChatCaches } from './core/caches';
 import type { MeasureCtx } from './core/define';
 import type { ChatHighlighter } from './core/highlight/highlighter';
@@ -504,7 +504,8 @@ export function ChatRoot(props: ChatRootProps) {
       if (!item) return DEFAULT_THEME.density.rowGap + 60;
       const unitDef = UNIT_REGISTRY[item.kind];
       const contentH =
-        unitDef?.estimate?.(item, loadEstimateCtx, unitDef.vars ?? {}) ?? genericEstimate(item, loadEstimateCtx);
+        unitDef?.estimate?.(item, loadEstimateCtx, unitDef.vars ?? {}) ??
+        genericEstimate(item, loadEstimateCtx);
       return DEFAULT_THEME.density.rowGap + contentH;
     });
 

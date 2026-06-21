@@ -2,12 +2,12 @@ import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, Show, createEffect } from 'solid-js';
 import { basename } from '../../../../lib/path';
 import type { ChatFileOpToolCall, FileOpKind } from '../../../../model';
-import { textShimmer } from '../../../../styles/effects.css';
 import { pxTokens } from '../../../../styles/px-tokens';
 import { useCommands } from '../../../contexts/CommandsContext';
 import { CollapseHeader } from '../../../primitives/CollapseHeader';
+import { textShimmer } from '../../../../styles/effects.css';
 import { chevronSm, fileOpHeader, fileRow, monoRunning, singleOpRow } from './file-op.css';
-import { fileOpCardVars } from './file-op-vars.css';
+import { fileOpCardVars } from './file-op.css';
 
 // ── Verb map ──────────────────────────────────────────────────────────────────
 
@@ -111,7 +111,12 @@ export function FileOpList(props: FileOpListProps) {
   };
 
   return (
-    <div style={{ ...assignInlineVars(fileOpCardVars, pxTokens({ padY: props.padY })), 'padding-block': fileOpCardVars.padY }}>
+    <div
+      style={{
+        ...assignInlineVars(fileOpCardVars, pxTokens({ padY: props.padY })),
+        'padding-block': fileOpCardVars.padY,
+      }}
+    >
       <For each={props.item.ops}>
         {(op) => (
           <FileRowItem
@@ -151,7 +156,12 @@ export function FileOpPreviewBody(props: FileOpPreviewBodyProps) {
       }}
       style={{ height: '100%', 'overflow-y': 'auto', 'scrollbar-gutter': 'stable' }}
     >
-      <div style={{ ...assignInlineVars(fileOpCardVars, pxTokens({ padY: props.padY })), 'padding-block': fileOpCardVars.padY }}>
+      <div
+        style={{
+          ...assignInlineVars(fileOpCardVars, pxTokens({ padY: props.padY })),
+          'padding-block': fileOpCardVars.padY,
+        }}
+      >
         <For each={props.item.ops}>
           {(op) => <FileRowItem verb={verb()} path={op.path} lineH={props.lineH} />}
         </For>
@@ -185,7 +195,10 @@ export function FileOperation(props: FileOperationProps) {
         <Show
           when={props.item.ops[0]}
           fallback={
-            <span class={monoRunning} classList={{ [textShimmer]: props.item.status === 'running' }}>
+            <span
+              class={monoRunning}
+              classList={{ [textShimmer]: props.item.status === 'running' }}
+            >
               {verb()}…
             </span>
           }

@@ -8,35 +8,35 @@ import type {
 } from '../../../../core/layout/layout-types';
 import type { InlineMention, InlineRun } from '../../../../core/markdown/document';
 import { pxTokens } from '../../../../styles/px-tokens';
-import {
-  BLOCKQUOTE_INDENT,
-  LIST_BULLET_GAP,
-  LIST_INDENT,
-  MENTION_ICON_GAP,
-  MENTION_ICON_W,
-  MENTION_PAD_X,
-  MENTION_PAD_Y,
-} from './metrics';
-import { BlockFrame } from '../../../engine/block-frame';
 import { useCommands } from '../../../contexts/CommandsContext';
+import { BlockFrame } from '../../../engine/block-frame';
 import {
   MentionAtIcon,
   MentionFileIcon,
   MentionIssueIcon,
   MentionSymbolIcon,
 } from '../../../primitives/icons';
-import { pf, pfVariants, pline, pbullet, pquoteRail } from './prose.css';
-import { bulletColor, linkFragment, mentionChip, mentionPlain, inlineCodeChip, quoteRailBar } from './prose-visual.css';
-import { proseVars } from './prose-vars.css';
+import { MENTION_ICON_GAP, MENTION_ICON_W, MENTION_PAD_X, MENTION_PAD_Y } from './metrics';
+import {
+  bulletColor,
+  inlineCodeChip,
+  linkFragment,
+  mentionChip,
+  mentionPlain,
+  pbullet,
+  pf,
+  pfVariants,
+  pline,
+  pquoteRail,
+  proseVars,
+  quoteRailBar,
+} from './prose.css';
 
 const PROSE_STYLE_VARS = pxTokens({
   mentionPadX: MENTION_PAD_X,
   mentionPadY: MENTION_PAD_Y,
   mentionIconW: MENTION_ICON_W,
   mentionIconGap: MENTION_ICON_GAP,
-  listIndent: LIST_INDENT,
-  listBulletGap: LIST_BULLET_GAP,
-  blockquoteIndent: BLOCKQUOTE_INDENT,
 });
 
 // ── Fragment ──────────────────────────────────────────────────────────────────
@@ -209,12 +209,7 @@ function ProseBullet(props: { bullet: BulletLayout }) {
 }
 
 function ProseQuoteRail(props: { left: number }) {
-  return (
-    <div
-      class={`${pquoteRail} ${quoteRailBar}`}
-      style={{ left: `${props.left}px` }}
-    />
-  );
+  return <div class={`${pquoteRail} ${quoteRailBar}`} style={{ left: `${props.left}px` }} />;
 }
 
 // ── Main component ────────────────────────────────────────────────────────────

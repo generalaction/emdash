@@ -1,7 +1,16 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { vars } from '../../../styles/theme.css';
+import { createVariableThemeContract } from '../../../styles/variable-theme-contract.css';
 import { group } from '../../primitives/copy-button.css';
+
+// ── Runtime geometry contract ─────────────────────────────────────────────────
+
+export type AssistantStyleVars = { height: number };
+
+export const assistantVars = createVariableThemeContract<AssistantStyleVars>({ height: null });
+
+export const assistantRoot = style({ height: assistantVars.height });
 
 export const messageText = recipe({
   variants: {

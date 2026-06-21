@@ -1,6 +1,9 @@
+import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { defineUnit } from '../../../../core/units';
 import type { ChatExecute } from '../../../../model';
+import { pxTokens } from '../../../../styles/px-tokens';
 import { Execute } from './Execute';
+import { executeRoot, executeVars } from './execute.css';
 
 export const executeUnitDef = defineUnit<ChatExecute, { rowH: number }>({
   kind: 'execute',
@@ -12,7 +15,10 @@ export const executeUnitDef = defineUnit<ChatExecute, { rowH: number }>({
 
   Render(props) {
     return (
-      <div style={{ height: `${props.vars.rowH}px`, display: 'flex', 'align-items': 'center' }}>
+      <div
+        class={executeRoot}
+        style={assignInlineVars(executeVars, pxTokens({ rowH: props.vars.rowH }))}
+      >
         <Execute item={props.data} />
       </div>
     );

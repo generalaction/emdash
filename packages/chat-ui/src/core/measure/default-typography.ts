@@ -21,7 +21,13 @@ function px(value: number) {
 }
 
 function toComposite(key: keyof typeof TYPE_ROLES): CompositeRole {
-  const r = TYPE_ROLES[key] as { fontFamily: string; fontSize: number; fontWeight: number; lineHeight: number; fontStyle?: string };
+  const r = TYPE_ROLES[key] as {
+    fontFamily: string;
+    fontSize: number;
+    fontWeight: number;
+    lineHeight: number;
+    fontStyle?: string;
+  };
   const family = r.fontFamily === 'mono' ? MONO_FAMILY_CSS : SANS_FAMILY_CSS;
   return {
     fontFamily: family.split(', '),

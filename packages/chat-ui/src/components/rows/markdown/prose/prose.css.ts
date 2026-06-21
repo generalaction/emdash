@@ -1,6 +1,26 @@
 import { style } from '@vanilla-extract/css';
 import { vars } from '../../../../styles/theme.css';
-import { proseVars } from './prose-vars.css';
+import { createVariableThemeContract } from '../../../../styles/variable-theme-contract.css';
+
+// ── Runtime geometry contract ─────────────────────────────────────────────────
+// Values feed both the pretext measurer (via metrics.ts) and CSS via assignInlineVars.
+// Keep in sync with MENTION_PAD_X/Y, MENTION_ICON_W/GAP in metrics.ts.
+
+export type ProseStyleVars = {
+  mentionPadX: number;
+  mentionPadY: number;
+  mentionIconW: number;
+  mentionIconGap: number;
+};
+
+export const proseVars = createVariableThemeContract<ProseStyleVars>({
+  mentionPadX: null,
+  mentionPadY: null,
+  mentionIconW: null,
+  mentionIconGap: null,
+});
+
+// ── Geometry (feeds pretext measurement — do not change without updating metrics.ts) ──
 
 /** A pre-laid-out line row. Height is set via inline style from the line-height constant. */
 export const pline = style({
@@ -52,7 +72,7 @@ export const pfLink = style({
   fontSize: vars.typeBodyFontSize,
   fontWeight: vars.typeBodyLinkFontWeight,
   fontFamily: vars.typeBodyFontFamily,
-  // color, text-decoration, cursor — applied in Prose.tsx via sprinkles
+  // color, text-decoration, cursor — applied in Prose.tsx via visual classes
 });
 
 export const pfH1 = style({
@@ -120,7 +140,7 @@ export const pbullet = style({
   fontSize: vars.typeBodyFontSize,
   fontFamily: vars.typeBodyFontFamily,
   lineHeight: 1,
-  // color — applied via sprinkles in Prose.tsx
+  // color — applied via visual class in Prose.tsx
 });
 
 export const pquoteRail = style({
@@ -128,5 +148,47 @@ export const pquoteRail = style({
   top: 0,
   bottom: 0,
   width: '3px',
-  // background and borderRadius — applied in Prose.tsx
+  // background and borderRadius — applied in Prose.tsx via visual class
 });
+
+// ── Visual (no measurement impact — color, background, decoration only) ───────
+
+export const inlineCodeChip = style({
+  borderRadius: '4px',
+  background: vars.codeInlineBg,
+});
+
+export const mentionChip = style({
+  borderRadius: vars.radiusSm,
+  background: vars.mentionChipBg,
+  color: vars.mentionChipFg,
+  boxShadow: `0 0 0 1px ${vars.mentionChipRing}`,
+});
+
+export const mentionPlain = style({
+  borderRadius: vars.radiusFull,
+  background: vars.mentionBg,
+  color: vars.mentionFg,
+});
+
+export const linkFragment = style({
+  color: vars.link,
+  textDecoration: 'underline',
+  textDecorationThickness: '1px',
+  textUnderlineOffset: '0.14em',
+  cursor: 'pointer',
+});
+
+export const bulletColor = style({ color: vars.fgMuted });
+
+export const quoteRailBar = style({
+  background: vars.border,
+  borderRadius: vars.radiusFull,
+});
+
+export const fragVisual = {
+  inlineCode: inlineCodeChip,
+  mentionChip,
+  mentionPlain,
+  link: linkFragment,
+} as const;
