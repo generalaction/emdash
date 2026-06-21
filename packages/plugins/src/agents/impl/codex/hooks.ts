@@ -14,9 +14,8 @@ import {
 } from '@emdash/core/agents/plugins/helpers';
 import * as toml from 'smol-toml';
 
-export const CODEX_HOOKS_PATH = '.codex/config.toml';
-const CODEX_LEGACY_HOOKS_PATH = '.codex/hooks.json';
-export const CODEX_CONFIG_PATH = CODEX_HOOKS_PATH;
+export const CODEX_CONFIG_PATH = '.codex/config.toml';
+export const CODEX_LEGACY_HOOKS_PATH = '.codex/hooks.json';
 
 const LEGACY_CODEX_NOTIFY_COMMAND = [
   'bash',
@@ -77,7 +76,10 @@ async function readLegacyHooks(fs: PluginFs): Promise<Record<string, unknown[]>>
   return getHooks(config);
 }
 
-async function migrateLegacyHooks(fs: PluginFs, hooks: Record<string, unknown[]>): Promise<void> {
+async function migrateLegacyHooks(
+  fs: PluginFs,
+  hooks: Record<string, unknown[]>
+): Promise<() => Promise<void>> {
   const legacyHooks = await readLegacyHooks(fs);
 
   for (const [key, entries] of Object.entries(legacyHooks)) {
@@ -90,7 +92,9 @@ async function migrateLegacyHooks(fs: PluginFs, hooks: Record<string, unknown[]>
     hooks[key] = [...filterUserHooks(existing as Record<string, unknown>[]), ...userEntries];
   }
 
-  await fs.delete(CODEX_LEGACY_HOOKS_PATH).catch(() => {});
+  return async () => {
+    await fs.delete(CODEX_LEGACY_HOOKS_PATH).catch(() => {});
+  };
 }
 
 function makeCodexSessionStartCommand(): string {
@@ -147,7 +151,7 @@ export function buildCodexHookConfig() {
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readTomlConfig(fs, CODEX_CONFIG_PATH);
       const hooks = getHooks(config);
-      await migrateLegacyHooks(fs, hooks);
+      const cleanupLegacy = await migrateLegacyHooks(fs, hooks);
 
       for (const [key, cmd] of [
         ['Stop', stopCmd],
@@ -161,6 +165,7 @@ export function buildCodexHookConfig() {
         ];
       }
       await writeTomlConfig(fs, CODEX_CONFIG_PATH, { ...config, hooks });
+      await cleanupLegacy();
       await removeLegacyCodexNotify(fs).catch(() => {});
       return [CODEX_CONFIG_PATH];
     },

@@ -1,8 +1,6 @@
 import type { PluginFs } from '@emdash/core/agents/plugins';
 import { describe, expect, it } from 'vitest';
-import { CODEX_CONFIG_PATH, buildCodexHookConfig } from './hooks';
-
-const CODEX_LEGACY_HOOKS_PATH = '.codex/hooks.json';
+import { CODEX_CONFIG_PATH, CODEX_LEGACY_HOOKS_PATH, buildCodexHookConfig } from './hooks';
 
 function createMemoryFs(initial: Record<string, string> = {}): PluginFs & {
   files: Map<string, string>;
@@ -71,6 +69,34 @@ describe('buildCodexHookConfig', () => {
     expect(config).toContain('echo user-prompt');
     expect(config).toContain('notification_type');
     expect(config).toContain('session-start');
+  });
+
+  it('keeps legacy hooks.json when writing config.toml fails', async () => {
+    const legacyHooks = JSON.stringify({
+      hooks: {
+        Stop: [
+          {
+            hooks: [{ type: 'command', command: 'echo user-stop' }],
+          },
+        ],
+      },
+    });
+    const fs = createMemoryFs({
+      [CODEX_CONFIG_PATH]: 'model = "gpt-5"\n',
+      [CODEX_LEGACY_HOOKS_PATH]: legacyHooks,
+    });
+    const write = fs.write.bind(fs);
+    fs.write = async (path, content) => {
+      if (path === CODEX_CONFIG_PATH) {
+        throw new Error('permission denied');
+      }
+      await write(path, content);
+    };
+    const hooks = buildCodexHookConfig();
+
+    await expect(hooks.writeHooks(fs, [])).rejects.toThrow('permission denied');
+
+    await expect(fs.read(CODEX_LEGACY_HOOKS_PATH)).resolves.toBe(legacyHooks);
   });
 
   it('deletes Emdash hooks from both current and legacy Codex hook config', async () => {
