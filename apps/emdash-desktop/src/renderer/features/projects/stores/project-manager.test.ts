@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LocalProject } from '@shared/projects';
-import { isUnregisteredProject } from './project';
+import type { LocalProject, SshProject } from '@shared/projects';
+import { createUnmountedProject, isUnregisteredProject } from './project';
 import { ProjectManagerStore } from './project-manager';
 
 const mocks = vi.hoisted(() => ({
@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   patchProjectSettings: vi.fn(),
   updateProjectSettings: vi.fn(),
   eventOn: vi.fn(),
+  sshConnect: vi.fn(),
+  sshStateFor: vi.fn(),
 }));
 
 vi.mock('@renderer/lib/ipc', () => ({
@@ -45,6 +47,10 @@ vi.mock('@renderer/lib/stores/app-state', () => ({
       revalidate: vi.fn(),
       viewParamsStore: {},
     },
+    sshConnections: {
+      connect: mocks.sshConnect,
+      stateFor: mocks.sshStateFor,
+    },
   },
 }));
 
@@ -65,6 +71,21 @@ function localProject(overrides: Partial<LocalProject> = {}): LocalProject {
     name: 'Project',
     path: '/project',
     baseRef: 'main',
+    repositoryWorkspaceId: null,
+    createdAt: '2026-05-28T00:00:00.000Z',
+    updatedAt: '2026-05-28T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function sshProject(overrides: Partial<SshProject> = {}): SshProject {
+  return {
+    type: 'ssh',
+    id: 'ssh-project-id',
+    name: 'SSH Project',
+    path: '/project',
+    baseRef: 'main',
+    connectionId: 'ssh-1',
     repositoryWorkspaceId: null,
     createdAt: '2026-05-28T00:00:00.000Z',
     updatedAt: '2026-05-28T00:00:00.000Z',
@@ -99,6 +120,8 @@ describe('ProjectManagerStore project creation', () => {
       success: true,
       data: { githubAccountId: 'github.com:42' },
     });
+    mocks.sshConnect.mockResolvedValue(undefined);
+    mocks.sshStateFor.mockReturnValue('disconnected');
   });
 
   it('returns an existing project without starting creation', async () => {
@@ -274,6 +297,21 @@ describe('ProjectManagerStore project creation', () => {
       githubAccountId: 'github.com:42',
     });
     expect(mocks.updateProjectSettings).not.toHaveBeenCalled();
+  });
+
+  it('retries SSH-disconnected projects when recovery is triggered', async () => {
+    const store = new ProjectManagerStore();
+    const project = sshProject();
+    store.projects.set(project.id, createUnmountedProject(project, 'idle'));
+    const projectStore = store.projects.get(project.id);
+    if (!projectStore) throw new Error('Expected project store');
+    projectStore.phase = 'error';
+    projectStore.error = project.connectionId;
+    projectStore.errorCode = 'ssh-disconnected';
+
+    store.retryDisconnectedSshProjects({ force: true });
+
+    expect(mocks.sshConnect).toHaveBeenCalledWith('ssh-1');
   });
 
   it('does not write GitHub account settings when creation did not specify one', async () => {
