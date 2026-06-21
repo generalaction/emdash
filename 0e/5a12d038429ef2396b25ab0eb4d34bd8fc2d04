@@ -1,0 +1,31 @@
+packages/plugins/src/agents/impl/cursor/hooks.ts
+  s_332a74e02205b2::t_9fcf59212c8108 26
+  s_332a74e02205b2::t_bd973780796e14 1-2,4-6,8-9,14-25,27-37,39-67
+  s_332a74e02205b2::t_152901cdbb1938 3,7,10-13,38,68
+packages/plugins/src/agents/impl/cursor/hooks.test.ts
+  s_332a74e02205b2::t_41e57fcc19cac6 15,19
+  s_332a74e02205b2::t_152901cdbb1938 1-14,16-18,20-23,25-28,35-47,51-67
+  s_332a74e02205b2::t_5297aedc04f8a3 24
+  s_332a74e02205b2::t_fcd78340d02bc3 29-34,50
+  s_332a74e02205b2::t_d987a40ceea41b 48-49
+packages/plugins/src/agents/impl/cursor/index.ts
+  s_332a74e02205b2::t_ea8762209119dd 23
+  s_332a74e02205b2::t_d987a40ceea41b 24
+  s_332a74e02205b2::t_152901cdbb1938 3,22,84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "0e5a12d038429ef2396b25ab0eb4d34bd8fc2d04",
+  "prompts": {},
+  "sessions": {
+    "s_332a74e02205b2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eeb37-a60f-7312-8b2f-0ae942eb46b7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
