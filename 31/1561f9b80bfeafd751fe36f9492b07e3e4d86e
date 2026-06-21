@@ -1,0 +1,41 @@
+packages/plugins/src/agents/impl/commandcode/hooks.ts
+  s_5f81fbc7d3fe53::t_95d5a61d4ae4e7 2
+  s_5f81fbc7d3fe53::t_c7d697a66b8650 9-12
+packages/core/src/agents/plugins/helpers/hook-config.ts
+  s_5f81fbc7d3fe53::t_b2def1f8d05ff1 153-156
+  s_5f81fbc7d3fe53::t_e9448bab4f90fd 157,159-162
+packages/core/src/agents/plugins/helpers/hooks.ts
+  s_e405ec2ada934d::t_6049e8f3c9a059 29,44-45,51
+apps/emdash-desktop/src/main/core/pty/pty-env.test.ts
+  s_e405ec2ada934d::t_d2aea4eb6f5dac 168,177
+packages/plugins/src/agents/impl/commandcode/index.test.ts
+  s_e405ec2ada934d::t_dfde775b4e4934 60
+packages/core/src/agents/plugins/helpers/hooks.test.ts
+  s_e405ec2ada934d::t_7ba38bc38f244e 14
+apps/emdash-desktop/src/main/core/pty/pty-env.ts
+  s_e405ec2ada934d::t_d232736a4c3826 161-162,290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "311561f9b80bfeafd751fe36f9492b07e3e4d86e",
+  "prompts": {},
+  "sessions": {
+    "s_5f81fbc7d3fe53": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eeb5f-ba6d-74a6-8abe-7d3cc92d0c96",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_e405ec2ada934d": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eeb7c-d4c6-7f8b-a525-7c5a27d95b95",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
