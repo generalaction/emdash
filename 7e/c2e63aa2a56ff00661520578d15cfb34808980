@@ -1,0 +1,25 @@
+packages/core/src/agents/plugins/helpers/mcp.test.ts
+  s_dd89446ac018c4::t_cf8ecb5d4b49fc 277-351
+  s_dd89446ac018c4::t_4b8fe820a18cb0 80-95
+  s_dd89446ac018c4::t_bd72ac483eb8b6 4-10
+packages/core/src/agents/plugins/helpers/mcp.ts
+  s_dd89446ac018c4::t_4061295150ec97 300-314,316-317,319,321,325-335,337-345,351-352,358-360,363
+  s_dd89446ac018c4::t_6370ff18c475e8 250-255,257
+  s_dd89446ac018c4::t_52e5df22d0c744 124-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "7ec2e63aa2a56ff00661520578d15cfb34808980",
+  "prompts": {},
+  "sessions": {
+    "s_dd89446ac018c4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12f51690-46f0-4762-a39e-01c3099bec25",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
