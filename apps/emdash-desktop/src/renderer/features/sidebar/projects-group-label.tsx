@@ -86,7 +86,7 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
           />
           <TooltipContent>
             Add Project
-            <BoundShortcut settingsKey="newProject" variant="badge" />
+            <BoundShortcut settingsKey="newProject" variant="keycaps" />
           </TooltipContent>
         </Tooltip>
       </div>

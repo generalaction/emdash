@@ -90,6 +90,7 @@ export const SidebarMenuButton = React.forwardRef<HTMLButtonElement, SidebarMenu
   ({ className, isActive, ...props }, ref) => (
     <button
       ref={ref}
+      data-slot="button"
       data-active={isActive || undefined}
       className={cn(sidebarMenuItemClass, className)}
       onMouseDown={(e) => e.preventDefault()}
