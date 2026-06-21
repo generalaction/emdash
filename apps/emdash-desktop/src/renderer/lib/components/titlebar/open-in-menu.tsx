@@ -157,7 +157,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
           <TooltipContent side="bottom">
             <div className="flex flex-col gap-1">
               <span>Open in {buttonAppLabel || 'editor'}</span>
-              <BoundShortcut settingsKey="openInEditor" variant="badge" />
+              <BoundShortcut settingsKey="openInEditor" variant="keycaps" />
             </div>
           </TooltipContent>
         </Tooltip>

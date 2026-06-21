@@ -142,7 +142,7 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
             >
               <span className="flex items-center gap-2">
                 Start shipping
-                <BoundShortcut settingsKey="confirm" />
+                <BoundShortcut settingsKey="confirm" variant="keycaps" />
               </span>
             </Button>
           </div>

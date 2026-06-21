@@ -120,7 +120,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           className="flex items-center gap-2"
         >
           New terminal
-          <BoundShortcut settingsKey="newTerminal" />
+          <BoundShortcut settingsKey="newTerminal" variant="keycaps" />
         </Button>
       }
     />
