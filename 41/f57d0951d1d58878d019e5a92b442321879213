@@ -1,0 +1,31 @@
+apps/emdash-desktop/src/renderer/features/settings/agents-page/DependencyInstallationUpdateCard.tsx
+  s_38e698512434b3::t_6ccce91f55d874 70-71
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.test.ts
+  s_38e698512434b3::t_a16d1dc3125e21 309-341
+apps/emdash-desktop/src/main/core/dependencies/latest-version-service.ts
+  s_38e698512434b3::t_f31b9366fc75ab 32-35,47,52,55,58
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.ts
+  s_38e698512434b3::t_e4d771bbe643cb 41-50,259
+  s_38e698512434b3::t_53e842f176d2f3 87-90,118,130,173,180,198,208,262
+packages/core/src/host-dependencies/runtime/host-dependency-manager.test.ts
+  s_38e698512434b3::t_52085f85f71865 103-111,770-776
+packages/core/src/host-dependencies/runtime/host-dependency-manager.ts
+  s_38e698512434b3::t_db637f52786411 773-775
+  s_38e698512434b3::t_d86a421b8e5a76 771-772
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "41f57d0951d1d58878d019e5a92b442321879213",
+  "prompts": {},
+  "sessions": {
+    "s_38e698512434b3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed400-4e0f-70d3-bec6-1a47a31614e6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
