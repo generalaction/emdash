@@ -1,0 +1,19 @@
+packages/core/src/host-dependencies/runtime/host-dependency-manager-update-races.test.ts
+  s_6921f63ea76b43::t_cbf5838bc50083 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "f1535aa7ce127f624bf1b00ee97fd203cb1555cd",
+  "prompts": {},
+  "sessions": {
+    "s_6921f63ea76b43": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eeaac-a130-798d-ac4a-bc42079ce6e3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
