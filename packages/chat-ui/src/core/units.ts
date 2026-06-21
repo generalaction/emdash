@@ -210,7 +210,7 @@ export function unit<D>(
  * Exported so ChatRoot (estimate / prefetch paths) and UnitRow can share
  * the same formula without duplicating it.
  */
-import { ROW_GAP } from './metrics';
+import { DEFAULT_THEME } from './theme';
 
 export function unitReservedHeight(unit: RenderUnit, contentH: number): number {
   const c = unit.chrome;
@@ -220,7 +220,7 @@ export function unitReservedHeight(unit: RenderUnit, contentH: number): number {
     if (role === 'first' || role === 'solo') overhead += c.padY;
     if (role === 'last' || role === 'solo') overhead += c.padY;
   }
-  const trailingGap = role === 'last' || role === 'solo' ? ROW_GAP : 0;
+  const trailingGap = role === 'last' || role === 'solo' ? DEFAULT_THEME.density.rowGap : 0;
   return unit.gapBefore + contentH + overhead + trailingGap;
 }
 

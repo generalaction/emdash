@@ -19,7 +19,6 @@
 
 import type { ChatCaches } from '../core/caches';
 import type { MeasureCtx, RenderCtx } from '../core/define';
-import { ROW_GAP } from '../core/metrics';
 import type { ChatTheme } from '../core/theme';
 import type { ChatMessage } from '../model';
 import { messageUnitDef } from './message/message.def';
@@ -49,7 +48,7 @@ export function PinnedUserMessage(props: {
 
   return (
     <>
-      <div class={pinnedBackdrop} style={{ 'padding-top': `${ROW_GAP}px` }}>
+      <div class={pinnedBackdrop} style={{ 'padding-top': `${props.theme.density.rowGap}px` }}>
         <UserMessageCard data={props.item} ctx={renderCtx} vars={messageUnitDef.vars!} />
       </div>
       {/* 16px scroll fade: signals that rows scroll beneath the pinned message. */}

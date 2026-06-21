@@ -1,42 +1,21 @@
-/**
- * fileOpUnitDef — native UnitDef for ChatFileOpToolCall rows.
- *
- * Single self-contained unit: measure returns a total height (number),
- * and Render lays out the file-op components directly.
- *
- * Collapse semantics are inverted: stored "collapsed" bool means "expanded".
- *   single file:              FileOpRow (fixed ROW_H)
- *   multi, expanded:          FileOpHeader + FileOpList
- *   multi, collapsed+running: FileOpHeader + PreviewWindow
- *   multi, collapsed+settled: FileOpHeader only
- *
- * Geometry constants are declared in `vars`. The old `file-op-metrics.ts`
- * has been deleted; its values now live in `fileOpUnitDef.vars`.
- */
-
+import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
 import type { MeasureCtx, RenderCtx } from '../../core/define';
-import { ROW_H } from '../../core/metrics';
 import { defineUnit } from '../../core/units';
 import type { ChatFileOpToolCall } from '../../model';
+import { pxTokens } from '../../styles/px-tokens';
 import { PreviewWindow } from '../primitives/PreviewWindow';
 import { FileOpRow, FileOpHeader, FileOpList, FileOpPreviewBody } from './FileOperation';
-
-// ── vars type ─────────────────────────────────────────────────────────────────
+import { fileOpCardVars, type FileOpStyleVars } from './file-op-vars.css';
+import { FILEOP_VARS } from './metrics';
 
 export type FileOpVars = {
-  /** Fixed height (px) of each row (header and per-file lines). */
+  /** Measure-only: fixed row height for header and per-file lines. */
   rowH: number;
-  /** Vertical padding (px) inside the expanded/preview file list. */
+  /** Style-relevant: vertical padding inside the file list. Consumed by fileOpCardVars. */
   padY: number;
-  /** Fixed height (px) of the scrollable preview window while running. */
+  /** Measure-only: scrollable preview window height while running. */
   windowH: number;
-};
-
-const FILEOP_VARS: FileOpVars = {
-  rowH: ROW_H,
-  padY: 6,
-  windowH: 72,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -53,32 +32,30 @@ function measureFileOpH(item: ChatFileOpToolCall, ctx: MeasureCtx, vars: FileOpV
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
-function FileOpUnitRender(props: { data: ChatFileOpToolCall; ctx: RenderCtx; vars?: FileOpVars }) {
-  const vars = () => props.vars ?? FILEOP_VARS;
-  const rowH = () => vars().rowH;
-  const padY = () => vars().padY;
-  const windowH = () => vars().windowH;
+function FileOpUnitRender(props: { data: ChatFileOpToolCall; ctx: RenderCtx; vars: FileOpVars }) {
+  const rowH = () => props.vars.rowH;
+  const padY = () => props.vars.padY;
+  const windowH = () => props.vars.windowH;
 
   // Inverted semantics: stored "collapsed" bool = "expanded".
   const isExpanded = () => props.ctx.viewState.isCollapsed(props.data.id);
 
   const totalH = createMemo(() => {
     const item = props.data;
-    const v = vars();
+    const v = props.vars;
     if (item.ops.length <= 1) return v.rowH;
     if (isExpanded()) return v.rowH + item.ops.length * v.rowH + 2 * v.padY;
     if (item.status === 'running') return v.rowH + v.windowH;
     return v.rowH;
   });
 
+  const styleVars = (): FileOpStyleVars => ({ padY: props.vars.padY });
+
   return (
-    <div style={{ height: `${totalH()}px` }}>
+    <div style={{ ...assignInlineVars(fileOpCardVars, pxTokens(styleVars())), height: `${totalH()}px` }}>
       <Show
         when={props.data.ops.length > 1}
-        fallback={
-          // Single-file row
-          <FileOpRow item={props.data} rowH={rowH()} lineH={rowH()} />
-        }
+        fallback={<FileOpRow item={props.data} rowH={rowH()} lineH={rowH()} />}
       >
         <FileOpHeader item={props.data} expanded={isExpanded()} rowH={rowH()} />
         <Show when={isExpanded()}>

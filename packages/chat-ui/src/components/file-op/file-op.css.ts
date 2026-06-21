@@ -1,19 +1,26 @@
 import { style } from '@vanilla-extract/css';
+import { recipe } from '@vanilla-extract/recipes';
 import { vars } from '../../styles/theme.css';
 import { sx } from '../../styles/sprinkles.css';
 
-export const fileRowItem = sx({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '1.5',
-  color: 'fgPassive',
-  fontSize: 'sm',
-});
-
-export const fileRowItemClickable = style({
-  cursor: 'pointer',
-  selectors: {
-    '&:hover': { color: vars.fgMuted },
+export const fileRow = recipe({
+  base: sx({
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1.5',
+    color: 'fgPassive',
+    fontSize: 'sm',
+  }),
+  variants: {
+    clickable: {
+      true: {
+        cursor: 'pointer',
+        selectors: {
+          '&:hover': { color: vars.fgMuted },
+        },
+      },
+      false: {},
+    },
   },
 });
 
@@ -42,10 +49,16 @@ export const singleOpRow = style({
   alignItems: 'center',
 });
 
-export const chevronSm = style({
-  display: 'inline-block',
-  fontSize: '10px',
-  transition: 'transform 150ms ease-out',
+export const chevronSm = recipe({
+  base: {
+    display: 'inline-block',
+    fontSize: '10px',
+    transition: 'transform 150ms ease-out',
+  },
+  variants: {
+    expanded: {
+      true: { transform: 'rotate(90deg)' },
+      false: {},
+    },
+  },
 });
-
-export const chevronSmExpanded = style({ transform: 'rotate(90deg)' });

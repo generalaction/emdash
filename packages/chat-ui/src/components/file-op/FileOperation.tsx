@@ -1,35 +1,13 @@
-/**
- * FileOperation — slot components for ChatFileOpToolCall rows.
- *
- * FileOpRow         — single-file inline row ('file-op:row' slot).
- * FileOpHeader      — multi-file collapsible header ('file-op:header' slot).
- * FileOpList        — expanded per-file list ('file-op:list' slot).
- * FileOpPreviewBody — streaming per-file list body ('file-op:preview' slot,
- *                     wrapped in ProjectWindow by fileOpDef's compose tree).
- *
- * Constants (FILEOP_PAD_Y, FILEOP_WINDOW_H) live in file-op.def.tsx and are
- * imported here to keep geometry in a single place.
- *
- * Collapse semantics are inverted (same as Thinking):
- *   stored false (default) → not expanded
- *   stored true            → expanded
- */
-
+import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, Show, createEffect } from 'solid-js';
 import { basename } from '../../lib/path';
 import type { ChatFileOpToolCall, FileOpKind } from '../../model';
 import { textShimmer } from '../../styles/effects.css';
+import { pxTokens } from '../../styles/px-tokens';
 import { useCommands } from '../CommandsContext';
 import { CollapseHeader } from '../primitives/CollapseHeader';
-import {
-  chevronSm,
-  chevronSmExpanded,
-  fileOpHeader,
-  fileRowItem,
-  fileRowItemClickable,
-  monoRunning,
-  singleOpRow,
-} from './file-op.css';
+import { chevronSm, fileOpHeader, fileRow, monoRunning, singleOpRow } from './file-op.css';
+import { fileOpCardVars } from './file-op-vars.css';
 
 // ── Verb map ──────────────────────────────────────────────────────────────────
 
@@ -45,7 +23,7 @@ const VERB: Record<FileOpKind, string> = {
 function FileRowItem(props: { verb: string; path: string; lineH: number; onClick?: () => void }) {
   return (
     <div
-      class={`${fileRowItem}${props.onClick ? ` ${fileRowItemClickable}` : ''}`}
+      class={fileRow({ clickable: !!props.onClick })}
       style={{ height: `${props.lineH}px` }}
       role={props.onClick ? 'button' : undefined}
       onClick={props.onClick}
@@ -133,7 +111,7 @@ export function FileOpList(props: FileOpListProps) {
   };
 
   return (
-    <div style={{ 'padding-block': `${props.padY}px` }}>
+    <div style={{ ...assignInlineVars(fileOpCardVars, pxTokens({ padY: props.padY })), 'padding-block': fileOpCardVars.padY }}>
       <For each={props.item.ops}>
         {(op) => (
           <FileRowItem
@@ -156,12 +134,6 @@ export type FileOpPreviewBodyProps = {
   padY: number;
 };
 
-/**
- * Renders the ops list for the active-preview state.
- * ProjectWindow (from the compose tree) handles the overflow container and fade
- * overlay. Auto-scroll is driven by item.ops.length since the slot height is
- * fixed (FILEOP_WINDOW_H) and ProjectWindow's child.height never changes.
- */
 export function FileOpPreviewBody(props: FileOpPreviewBodyProps) {
   const verb = () => VERB[props.item.op];
   let innerEl: HTMLDivElement | undefined;
@@ -179,7 +151,7 @@ export function FileOpPreviewBody(props: FileOpPreviewBodyProps) {
       }}
       style={{ height: '100%', 'overflow-y': 'auto', 'scrollbar-gutter': 'stable' }}
     >
-      <div style={{ 'padding-block': `${props.padY}px` }}>
+      <div style={{ ...assignInlineVars(fileOpCardVars, pxTokens({ padY: props.padY })), 'padding-block': fileOpCardVars.padY }}>
         <For each={props.item.ops}>
           {(op) => <FileRowItem verb={verb()} path={op.path} lineH={props.lineH} />}
         </For>
@@ -190,11 +162,7 @@ export function FileOpPreviewBody(props: FileOpPreviewBodyProps) {
 
 // ── FileOperation (legacy component kept for open-file contract test) ──────────
 
-/**
- * @deprecated Use fileOpDef.Render via Project instead.
- * Kept so open-file.contract.test.tsx can test click-delegation without
- * mounting the full Row pipeline.
- */
+/** @deprecated Use fileOpDef.Render via Project instead. Kept for open-file.contract.test.tsx. */
 export type FileOperationProps = {
   item: ChatFileOpToolCall;
   /** Inverted semantics: stored "collapsed" bool means "expanded". */
@@ -243,11 +211,7 @@ export function FileOperation(props: FileOperationProps) {
           <span classList={{ [textShimmer]: props.item.status === 'running' }}>
             {verb()} {props.item.ops.length} files
           </span>
-          <span
-            class={chevronSm}
-            classList={{ [chevronSmExpanded]: expanded() }}
-            aria-hidden="true"
-          >
+          <span class={chevronSm({ expanded: expanded() })} aria-hidden="true">
             ›
           </span>
         </div>

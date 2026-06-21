@@ -1,38 +1,23 @@
-/**
- * thinkingUnitDef — native UnitDef for ChatThinking rows.
- *
- * Single self-contained unit: measure returns a total height (number),
- * and Render lays out ThinkingHeader + optional body/preview internally.
- *
- * Collapse semantics are inverted: stored "collapsed" flag means "expanded".
- *   done + not expanded:   header only
- *   active + not expanded: header + PreviewWindow (auto-scrolls to bottom)
- *   expanded:              header + full block stack
- *
- * Geometry constants are declared in `vars` — the single source of truth for
- * thinking row geometry.
- */
-
+import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
 import type { MeasureCtx, RenderCtx } from '../../core/define';
 import { layoutBlockStack } from '../../core/layout/block-stack';
 import type { Block } from '../../core/markdown/document';
 import { flattenBlockHeadings } from '../../core/markdown/parse';
-import { HEADER_ROW_EXTRA_H } from '../../core/metrics';
 import { defineUnit } from '../../core/units';
 import type { ChatThinking } from '../../model';
+import { pxTokens } from '../../styles/px-tokens';
 import { sx } from '../../styles/sprinkles.css';
 import { BlockStackView } from '../primitives/BlockStackView';
 import { CollapseHeader } from '../primitives/CollapseHeader';
 import { PreviewWindow } from '../primitives/PreviewWindow';
 import { useTheme } from '../ThemeContext';
-
-// ── vars type ─────────────────────────────────────────────────────────────────
+import { thinkingCardVars, type ThinkingStyleVars } from './thinking-vars.css';
 
 export type ThinkingVars = {
-  /** Vertical padding (px) inside the expanded thinking body block stack. */
+  /** Style-relevant: vertical padding inside the expanded body. Consumed by thinkingCardVars. */
   padY: number;
-  /** Preview window height (px) during active thinking. */
+  /** Measure-only: preview window height during active thinking. */
   windowH: number;
 };
 
@@ -44,7 +29,7 @@ const THINKING_VARS: ThinkingVars = {
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
 function thinkingHeaderH(ctx: MeasureCtx): number {
-  return ctx.theme.fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
+  return ctx.theme.fonts.body.lineHeight + ctx.theme.density.headerRowExtraH;
 }
 
 function layoutThinkingBody(blocks: Block[], ctx: MeasureCtx, padY: number) {
@@ -119,7 +104,7 @@ function ThinkingUnitRender(props: { data: ChatThinking; ctx: RenderCtx; vars: T
   // Inverted semantics: stored "collapsed" bool = "expanded".
   const isExpanded = () => props.ctx.viewState.isCollapsed(props.data.id);
 
-  const headerH = () => theme().fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
+  const headerH = () => theme().fonts.body.lineHeight + theme().density.headerRowExtraH;
 
   const body = createMemo(() => {
     const ctx = mCtx();
@@ -139,14 +124,18 @@ function ThinkingUnitRender(props: { data: ChatThinking; ctx: RenderCtx; vars: T
   const showBody = () => isExpanded() || props.data.status === 'thinking';
   const bodyH = () => body()?.height ?? 0;
 
+  const styleVars = (): ThinkingStyleVars => ({ padY: props.vars.padY });
+
   return (
-    <div class={sx({ color: 'fgPassive' })} style={{ height: `${totalH()}px` }}>
+    <div
+      class={sx({ color: 'fgPassive' })}
+      style={{ ...assignInlineVars(thinkingCardVars, pxTokens(styleVars())), height: `${totalH()}px` }}
+    >
       <ThinkingHeader item={props.data} expanded={isExpanded()} headerH={headerH()} />
       <Show when={showBody()}>
         <Show
           when={isExpanded()}
           fallback={
-            // Collapsed + active: scrollable preview window auto-scrolling to bottom.
             <PreviewWindow
               height={props.vars.windowH}
               maxH={props.vars.windowH}
@@ -158,7 +147,6 @@ function ThinkingUnitRender(props: { data: ChatThinking; ctx: RenderCtx; vars: T
             </PreviewWindow>
           }
         >
-          {/* Expanded: full body */}
           <Show when={body()}>{(b) => <BlockStackView node={b()} />}</Show>
         </Show>
       </Show>

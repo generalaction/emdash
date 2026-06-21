@@ -24,7 +24,6 @@ import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from
 import { Dynamic } from 'solid-js/web';
 import type { ChatCaches } from '../core/caches';
 import type { MeasureCtx, RenderCtx } from '../core/define';
-import { ROW_GAP } from '../core/metrics';
 import type { ChatTheme } from '../core/theme';
 import type { GroupChrome, RenderUnit } from '../core/units';
 import { unitReservedHeight } from '../core/units';
@@ -59,11 +58,11 @@ function chromePadTop(chrome: GroupChrome, unit: RenderUnit): number {
  *   - chrome.padY for last/solo units (bottom padding inside the group)
  *   - 0 for first/middle units (next sibling unit's gapBefore provides spacing)
  */
-function chromePadBottom(chrome: GroupChrome, unit: RenderUnit): number {
+function chromePadBottom(chrome: GroupChrome, unit: RenderUnit, rowGap: number): number {
   const padY = chrome.padY ?? 0;
   const isLast = unit.groupRole === 'last' || unit.groupRole === 'solo';
   if (!isLast) return 0;
-  return ROW_GAP + padY;
+  return rowGap + padY;
 }
 
 // ── Debug overlay ─────────────────────────────────────────────────────────────
@@ -187,9 +186,9 @@ export function UnitRow(props: UnitRowProps) {
               style={{
                 'padding-top': `${c ? chromePadTop(c, props.unit) : props.unit.gapBefore}px`,
                 'padding-bottom': c
-                  ? `${chromePadBottom(c, props.unit)}px`
+                  ? `${chromePadBottom(c, props.unit, props.theme.density.rowGap)}px`
                   : props.unit.groupRole === 'last' || props.unit.groupRole === 'solo'
-                    ? `${ROW_GAP}px`
+                    ? `${props.theme.density.rowGap}px`
                     : '0px',
                 'padding-left': `${c ? (c.insetX ?? 0) : 0}px`,
                 'padding-right': `${c ? (c.insetX ?? 0) : 0}px`,

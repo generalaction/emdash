@@ -1,18 +1,6 @@
-/**
- * prose.css.ts — geometry-coupled styles for Prose.tsx.
- *
- * Rules in this file feed pretext width/height measurement and MUST produce
- * identical computed values to what the old prose.module.css emitted.
- * Run the prose contract tests after any edit here.
- *
- * Visual decoration (colors, backgrounds, cursors) lives in the component via
- * sprinkles / inline vars — nothing visual belongs here.
- */
-
 import { style } from '@vanilla-extract/css';
 import { vars } from '../../styles/theme.css';
-
-// ── Lines ─────────────────────────────────────────────────────────────────────
+import { proseVars } from './prose-vars.css';
 
 /** A pre-laid-out line row. Height is set via inline style from the line-height constant. */
 export const pline = style({
@@ -21,13 +9,9 @@ export const pline = style({
   alignItems: 'baseline',
 });
 
-// ── Fragments — base ──────────────────────────────────────────────────────────
-
 /**
- * white-space: pre   — prevents browser re-wrapping
- * line-height: 1     — keeps vertical alignment controlled entirely by geometry
- * absolute centering — top:50% + translateY(-50%) centers within the line band
- * These rules feed pretext and must NOT be changed to utility classes.
+ * white-space: pre and line-height: 1 feed pretext and must NOT be changed to utility classes.
+ * top:50% + translateY(-50%) centers each fragment within its line band.
  */
 export const pf = style({
   display: 'inline-block',
@@ -37,8 +21,6 @@ export const pf = style({
   top: '50%',
   transform: 'translateY(-50%)',
 });
-
-// ── Fragment variants ─────────────────────────────────────────────────────────
 
 export const pfBody = style({
   fontSize: vars.typeBodyFontSize,
@@ -103,30 +85,16 @@ export const pfInlineCode = style({
   paddingRight: vars.icPadX,
 });
 
-/**
- * Mention chip — font metrics and padding feed pretext measurement.
- *
- * font-size (12px) / font-weight (500) / padding (2px 4px) are hardcoded
- * literals matching core/tokens.ts CHIP_DEFAULTS so the rendered chip is
- * byte-identical to what the old prose.module.css produced.
- * font-family follows the body font (same as MENTION_FONT in metrics.ts).
- */
 export const pfMention = style({
   fontSize: '12px',
   fontWeight: 500,
   fontFamily: vars.typeBodyFontFamily,
-  paddingTop: '2px',
-  paddingBottom: '2px',
-  paddingLeft: '4px',
-  paddingRight: '4px',
+  paddingTop: proseVars.mentionPadY,
+  paddingBottom: proseVars.mentionPadY,
+  paddingLeft: proseVars.mentionPadX,
+  paddingRight: proseVars.mentionPadX,
 });
 
-// ── Lookup map for dynamic variant resolution ─────────────────────────────────
-
-/**
- * Prose.tsx resolves fragment class names dynamically via fragKey().
- * This map replaces the old `styles['pf--body']` CSS-module pattern.
- */
 export const pfVariants: Record<string, string> = {
   'pf--body': pfBody,
   'pf--bold': pfBold,
@@ -142,8 +110,6 @@ export const pfVariants: Record<string, string> = {
   'pf--inline-code': pfInlineCode,
   'pf--mention': pfMention,
 };
-
-// ── Decorations ───────────────────────────────────────────────────────────────
 
 export const pbullet = style({
   position: 'absolute',

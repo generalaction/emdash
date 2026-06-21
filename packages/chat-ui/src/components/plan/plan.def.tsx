@@ -1,26 +1,15 @@
-/**
- * planUnitDef — native UnitDef for ChatPlan rows.
- *
- * Single self-contained unit: measure returns a total height (number),
- * and Render computes entries and heights from measureCtx and renders
- * PlanHeader + PreviewWindow/PlanList directly.
- *
- * Collapse semantics use inverted mode: the stored "collapsed" view-state flag
- * means "expanded", so the plan starts collapsed (no flag) and expands on click.
- *
- * Geometry constants are declared in `vars` — the single source of truth for
- * plan row geometry. The same values are mirrored in measure.ts for node tests.
- */
-
+import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
 import type { StackLayout } from '../../core/compose';
 import { type Measured, type MeasureCtx, type RenderCtx } from '../../core/define';
 import { layoutBlockStack } from '../../core/layout/block-stack';
-import { ROW_H } from '../../core/metrics';
 import { defineUnit } from '../../core/units';
 import type { ChatPlan, PlanEntryPriority, PlanEntryStatus } from '../../model';
+import { pxTokens } from '../../styles/px-tokens';
 import { PreviewWindow } from '../primitives/PreviewWindow';
 import { planCard } from './plan.css';
+import { planVars, type PlanStyleVars } from './plan-vars.css';
+import { PLAN_VARS } from './metrics';
 import { PlanHeader, PlanList } from './Plan';
 
 // ── vars type ─────────────────────────────────────────────────────────────────
@@ -42,17 +31,6 @@ export type PlanVars = {
   entryGap: number;
   /** Maximum height (px) of the collapsed preview window. */
   windowH: number;
-};
-
-const PLAN_VARS: PlanVars = {
-  rowH: ROW_H,
-  border: 1,
-  padX: 8,
-  padY: 6,
-  iconBox: 14,
-  iconGap: 8,
-  entryGap: 4,
-  windowH: 96,
 };
 
 // ── Layout type ───────────────────────────────────────────────────────────────
@@ -136,30 +114,30 @@ function PlanUnitRender(props: { data: ChatPlan; ctx: RenderCtx; vars: PlanVars 
 
   const autoScroll = () => !!props.data.streaming;
 
+  const styleVars = (): PlanStyleVars => ({
+    padX: props.vars.padX,
+    padY: props.vars.padY,
+    iconBox: props.vars.iconBox,
+    iconGap: props.vars.iconGap,
+    entryGap: props.vars.entryGap,
+    border: props.vars.border,
+  });
+
   return (
     <div
       class={planCard}
-      style={{ height: `${totalH()}px`, 'box-sizing': 'border-box' }}
+      style={{
+        ...assignInlineVars(planVars, pxTokens(styleVars())),
+        height: `${totalH()}px`,
+        'box-sizing': 'border-box',
+      }}
     >
       <PlanHeader item={props.data} expanded={isExpanded()} rowH={props.vars.rowH} />
-      {/* Body wrapper carries the horizontal padding so content is not flush with the card border. */}
-      <div
-        style={{ 'padding-left': `${props.vars.padX}px`, 'padding-right': `${props.vars.padX}px` }}
-      >
+      <div style={{ 'padding-left': planVars.padX, 'padding-right': planVars.padX }}>
         <Show
           when={!isExpanded()}
-          fallback={
-            // Expanded: full untruncated list
-            <PlanList
-              entries={entries()}
-              padY={props.vars.padY}
-              entryGap={props.vars.entryGap}
-              iconBox={props.vars.iconBox}
-              iconGap={props.vars.iconGap}
-            />
-          }
+          fallback={<PlanList entries={entries()} />}
         >
-          {/* Collapsed: wrap the same list in a capped preview window */}
           <PreviewWindow
             height={bodyH()}
             maxH={props.vars.windowH}
@@ -167,13 +145,7 @@ function PlanUnitRender(props: { data: ChatPlan; ctx: RenderCtx; vars: PlanVars 
             autoScrollBottom={autoScroll()}
             contentHeight={() => listH()}
           >
-            <PlanList
-              entries={entries()}
-              padY={props.vars.padY}
-              entryGap={props.vars.entryGap}
-              iconBox={props.vars.iconBox}
-              iconGap={props.vars.iconGap}
-            />
+            <PlanList entries={entries()} />
           </PreviewWindow>
         </Show>
       </div>

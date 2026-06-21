@@ -14,7 +14,7 @@ import type { ChatHighlighter } from './core/highlight/highlighter';
 import type { MentionProvider } from './core/markdown/mention-provider';
 import type { ChatTheme } from './core/theme';
 import { DEFAULT_THEME } from './core/theme';
-import type { ChatItem } from './model';
+import type { ChatImageAttachment, ChatItem } from './model';
 import { createTranscript } from './state/transcript';
 import type { TranscriptApi } from './state/transcript';
 import { createViewState } from './state/view-state';

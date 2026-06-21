@@ -1,27 +1,9 @@
-/**
- * Plan — presentational components for ChatPlan rows.
- *
- * PlanHeader: collapsible header using the CollapseHeader primitive.
- *   Shows "Plan {done} out of {total} Tasks done" with a shimmer while the plan
- *   is streaming or any entry is in_progress.
- *   Uses data-collapse-id for ChatRoot click-delegation (toggle handled for free).
- *
- * PlanList: expanded body rendering each entry as a status-icon gutter +
- *   measured block stack. Each entry's pre-measured Measured<StackLayout> is
- *   rendered through <Project>{renderBlockLeaf}</Project> so prose wraps exactly
- *   at the geometry computed by measure().
- *
- * Status icons (14x14 SVG, centered in a 20px line-height box):
- *   pending → dotted circle / in_progress → spinner ring + center dot /
- *   completed → circle with check.
- * Priority tints: high → amber, medium → default, low → muted.
- */
-
 import { Match, Switch, For } from 'solid-js';
 import type { ChatPlan, PlanEntryPriority, PlanEntryStatus } from '../../model';
 import { BlockStackView } from '../primitives/BlockStackView';
 import { PlanCompletedIcon, PlanInProgressIcon, PlanPendingIcon } from '../primitives/icons';
-import { chevronPlan, chevronPlanExpanded, planHeader, textShimmer } from './plan.css';
+import { chevron, planHeader, textShimmer } from './plan.css';
+import { planVars } from './plan-vars.css';
 import type { PlanEntryLaid } from './plan.def';
 
 // ── PlanHeader ────────────────────────────────────────────────────────────────
@@ -49,11 +31,7 @@ export function PlanHeader(props: PlanHeaderProps) {
       <span classList={{ [textShimmer]: active() }}>
         Plan {done()} out of {total()} Tasks done
       </span>
-      <span
-        class={chevronPlan}
-        classList={{ [chevronPlanExpanded]: props.expanded }}
-        aria-hidden="true"
-      >
+      <span class={chevron({ expanded: props.expanded })} aria-hidden="true">
         ›
       </span>
     </div>
@@ -77,20 +55,14 @@ function priorityOpacity(priority: PlanEntryPriority): string {
 
 export type PlanListProps = {
   entries: PlanEntryLaid[];
-  padY: number;
-  entryGap: number;
-  /** Width (px) of the status-icon box. */
-  iconBox: number;
-  /** Horizontal gap (px) between the status icon and the entry text. */
-  iconGap: number;
 };
 
 export function PlanList(props: PlanListProps) {
   return (
     <div
       style={{
-        'padding-top': `${props.padY}px`,
-        'padding-bottom': `${props.padY}px`,
+        'padding-top': planVars.padY,
+        'padding-bottom': planVars.padY,
       }}
     >
       <For each={props.entries}>
@@ -99,15 +71,14 @@ export function PlanList(props: PlanListProps) {
             style={{
               display: 'flex',
               'align-items': 'flex-start',
-              'column-gap': `${props.iconGap}px`,
-              'margin-top': i() > 0 ? `${props.entryGap}px` : '0',
+              'column-gap': planVars.iconGap,
+              'margin-top': i() > 0 ? planVars.entryGap : '0',
               opacity: priorityOpacity(entry.priority),
             }}
           >
-            {/* Status icon gutter: 14x14 icon centered in a 20px (line-height) box. */}
             <div
               style={{
-                width: `${props.iconBox}px`,
+                width: planVars.iconBox,
                 height: '20px',
                 'flex-shrink': '0',
                 display: 'flex',
@@ -130,7 +101,6 @@ export function PlanList(props: PlanListProps) {
                 </Match>
               </Switch>
             </div>
-            {/* Entry body: measured block stack */}
             <div style={{ flex: '1' }}>
               <BlockStackView node={entry.measured} />
             </div>

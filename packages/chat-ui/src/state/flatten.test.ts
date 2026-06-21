@@ -13,7 +13,9 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ROW_GAP } from '../core/metrics';
+import { DEFAULT_THEME } from '../core/theme';
+
+const ROW_GAP = DEFAULT_THEME.density.rowGap;
 import { unit } from '../core/units';
 import type { ItemSegmenter } from '../core/units';
 import type { ChatItem } from '../model';

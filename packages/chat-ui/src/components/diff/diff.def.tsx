@@ -1,33 +1,22 @@
-/**
- * diffUnitDef — native UnitDef for ChatDiff rows.
- *
- * Single self-contained unit: measure returns a total height (number),
- * and Render computes the DiffLayout from measureCtx and renders
- * DiffHeader + DiffLines directly.
- *
- * Geometry constants are declared in `vars` so measure and Render share
- * a single source of truth. The old `diff/measure.ts` (which had diverged
- * constants) has been removed; `diff/measure.test.ts` is now repointed here.
- */
-
+import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
 import type { MeasureCtx, RenderCtx } from '../../core/define';
 import { defineUnit } from '../../core/units';
+import { pxTokens } from '../../styles/px-tokens';
 import type { ChatDiff } from '../../model';
 import { DiffHeader, DiffLines } from './Diff';
 import { countChanges, selectPreview, type DiffRow } from './diff-lines';
+import { diffCardVars, type DiffStyleVars } from './diff-vars.css';
 import { langFromPath } from './lang';
 
-// ── vars type ─────────────────────────────────────────────────────────────────
-
 export type DiffVars = {
-  /** Header row height (px). */
+  /** Style-relevant: consumed by diffCardVars contract. */
   headerH: number;
-  /** Maximum diff lines to include in the preview window. */
+  /** Measure-only: not in CSS contract. */
   maxLines: number;
-  /** Lines of unchanged context shown around each change hunk. */
+  /** Measure-only: not in CSS contract. */
   context: number;
-  /** Border width (px) on each side of the diff block. */
+  /** Measure-only: border width on each side of the diff block. */
   border: number;
 };
 
@@ -65,8 +54,7 @@ function diffUnitH(item: ChatDiff, ctx: MeasureCtx, vars: DiffVars): number {
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
-function DiffUnitRender(props: { data: ChatDiff; ctx: RenderCtx; vars?: DiffVars }) {
-  const vars = () => props.vars ?? DIFF_VARS;
+function DiffUnitRender(props: { data: ChatDiff; ctx: RenderCtx; vars: DiffVars }) {
   const mCtx = () => props.ctx.measureCtx?.();
 
   const layout = createMemo<DiffLayout | null>(() => {
@@ -74,7 +62,7 @@ function DiffUnitRender(props: { data: ChatDiff; ctx: RenderCtx; vars?: DiffVars
     if (!ctx) return null;
     const rows = ctx.caches.computeDiff(props.data.oldText, props.data.newText);
     const { adds, dels } = countChanges(rows);
-    const { maxLines, context } = vars();
+    const { maxLines, context } = props.vars;
     const previewRows = selectPreview(rows, maxLines, context);
     const lang = langFromPath(props.data.path);
     const truncated = previewRows.length > 0 && previewRows.at(-1) !== rows.at(-1);
@@ -83,15 +71,17 @@ function DiffUnitRender(props: { data: ChatDiff; ctx: RenderCtx; vars?: DiffVars
 
   const totalH = createMemo(() => {
     const ctx = mCtx();
-    if (!ctx) return vars().headerH;
-    return diffUnitH(props.data, ctx, vars());
+    if (!ctx) return props.vars.headerH;
+    return diffUnitH(props.data, ctx, props.vars);
   });
 
   const headerOnly = () => props.data.status === 'running' && props.data.newText.length === 0;
   const codeLineH = () => mCtx()?.theme.fonts.code.lineHeight ?? 0;
 
+  const styleVars = (): DiffStyleVars => ({ headerH: props.vars.headerH });
+
   return (
-    <div style={{ height: `${totalH()}px` }}>
+    <div style={{ ...assignInlineVars(diffCardVars, pxTokens(styleVars())), height: `${totalH()}px` }}>
       <Show when={layout()}>
         {(l) => (
           <>
@@ -99,7 +89,7 @@ function DiffUnitRender(props: { data: ChatDiff; ctx: RenderCtx; vars?: DiffVars
               item={props.data}
               adds={l().adds}
               dels={l().dels}
-              headerH={vars().headerH}
+              headerH={props.vars.headerH}
               hasBody={!headerOnly()}
             />
             <Show when={!headerOnly()}>

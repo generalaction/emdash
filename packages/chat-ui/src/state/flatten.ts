@@ -29,7 +29,7 @@
  *                                   ChatRoot for the pinned-header overlay.
  */
 
-import { ROW_GAP } from '../core/metrics';
+import { DEFAULT_THEME } from '../core/theme';
 import type { GroupChrome, RenderUnit, SegmentCtx } from '../core/units';
 import { stampGroupRoles } from '../core/units';
 import type { ChatItem } from '../model';
@@ -106,7 +106,7 @@ export function flatten(
     // Apply inter-group gap to the first unit of each group (except the very
     // first group in the transcript, which has no preceding row).
     if (out.length > 0 && group.length > 0) {
-      group[0].gapBefore = ROW_GAP;
+      group[0].gapBefore = DEFAULT_THEME.density.rowGap;
     }
 
     out.push(...group);

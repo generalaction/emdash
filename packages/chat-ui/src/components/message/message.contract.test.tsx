@@ -10,7 +10,9 @@ import { describe, expect, it } from 'vitest';
 import type { ChatMessage } from '../../model';
 import { makeContractCtx, renderAndMeasureUnit } from '../../tests/contract';
 import { messageUnitDef } from './message.def';
-import { USER_COLLAPSED_MAX_H, USER_EXPANDED_MAX_H } from './UserMessageCard';
+
+const USER_COLLAPSED_MAX_H = messageUnitDef.vars!.collapsedMaxH;
+const USER_EXPANDED_MAX_H = messageUnitDef.vars!.expandedMaxH;
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 

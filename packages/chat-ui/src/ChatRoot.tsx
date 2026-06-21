@@ -44,7 +44,6 @@ import type { ChatHighlighter } from './core/highlight/highlighter';
 import { genericEstimate } from './core/layout/generic-estimate';
 import type { MentionProvider } from './core/markdown/mention-provider';
 import { registerFontsReadyClear } from './core/measure/pretext-cache';
-import { ROW_GAP } from './core/metrics';
 import { StickToBottom } from './core/stick-to-bottom';
 import type { ChatTheme } from './core/theme';
 import { DEFAULT_THEME } from './core/theme';
@@ -342,7 +341,7 @@ export function ChatRoot(props: ChatRootProps) {
     // The message content pin line sits ROW_GAP below the viewport top (the
     // container's top padding), so the pinned message keeps the same 8px gap to
     // the top edge that rows have between each other.
-    const pinLine = ROW_GAP;
+    const pinLine = DEFAULT_THEME.density.rowGap;
 
     // Binary search: largest turns[i] whose real row content has scrolled above
     // the pin line, i.e. (virt.top(turns[i]) + pt) - st < pinLine.
@@ -502,12 +501,11 @@ export function ChatRoot(props: ChatRootProps) {
     const count = items.length;
     virt.prepend(count, (i) => {
       const item = items[i];
-      if (!item) return ROW_GAP + 60;
+      if (!item) return DEFAULT_THEME.density.rowGap + 60;
       const unitDef = UNIT_REGISTRY[item.kind];
       const contentH =
         unitDef?.estimate?.(item, loadEstimateCtx, unitDef.vars ?? {}) ?? genericEstimate(item, loadEstimateCtx);
-      // Solo unit estimate (no chrome padY for composites; user messages have padY handled)
-      return ROW_GAP + contentH;
+      return DEFAULT_THEME.density.rowGap + contentH;
     });
 
     // Update the transcript store (triggers the count-sync effect and re-flattens).

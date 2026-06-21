@@ -1,9 +1,9 @@
 /**
- * measureFileOp — pure height function for ChatFileOpToolCall rows.
+ * measureFileOp — pure height arithmetic for ChatFileOpToolCall rows.
  *
- * Constants are now declared in `fileOpUnitDef.vars` (single source of truth).
- * This module exists for node-environment unit tests; it mirrors the logic
- * in `file-op.def.tsx` without importing JSX dependencies.
+ * No DOM / Solid imports. Testable in the node Vitest project.
+ * All geometry constants come from `fileOpUnitDef.vars`; this file holds only
+ * the arithmetic so the same formulas can be exercised in the node test suite.
  *
  * Collapse semantics are inverted:
  *   isExpanded(id) maps to viewState.isCollapsed(id).
@@ -11,27 +11,20 @@
  */
 
 import type { ChatFileOpToolCall } from '../../model';
-
-/** Mirrors fileOpUnitDef.vars.rowH (32px). */
-export const FILEOP_ROW_H = 32;
-/** Mirrors fileOpUnitDef.vars.rowH for per-file lines (same as header). */
-export const FILEOP_LINE_H = 32;
-/** Mirrors fileOpUnitDef.vars.padY (6px). */
-export const FILEOP_PAD_Y = 6;
-/** Mirrors fileOpUnitDef.vars.windowH (72px). */
-export const FILEOP_WINDOW_H = 72;
+import type { FileOpVars } from './file-op.def';
 
 export function measureFileOp(
   item: ChatFileOpToolCall,
-  isExpanded: (id: string) => boolean
+  isExpanded: (id: string) => boolean,
+  vars: FileOpVars,
 ): number {
-  if (item.ops.length <= 1) return FILEOP_ROW_H;
+  if (item.ops.length <= 1) return vars.rowH;
 
   if (isExpanded(item.id)) {
-    return FILEOP_ROW_H + item.ops.length * FILEOP_LINE_H + 2 * FILEOP_PAD_Y;
+    return vars.rowH + item.ops.length * vars.rowH + 2 * vars.padY;
   }
 
-  if (item.status === 'running') return FILEOP_ROW_H + FILEOP_WINDOW_H;
+  if (item.status === 'running') return vars.rowH + vars.windowH;
 
-  return FILEOP_ROW_H;
+  return vars.rowH;
 }

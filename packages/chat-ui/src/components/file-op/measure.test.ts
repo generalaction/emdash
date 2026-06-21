@@ -4,16 +4,17 @@
 
 import { describe, expect, it } from 'vitest';
 import type { ChatFileOpToolCall } from '../../model';
-import {
-  FILEOP_LINE_H,
-  FILEOP_PAD_Y,
-  FILEOP_ROW_H,
-  FILEOP_WINDOW_H,
-  measureFileOp,
-} from './measure';
+import { FILEOP_VARS } from './metrics';
+import { measureFileOp } from './measure';
+
+const v = FILEOP_VARS;
+const FILEOP_ROW_H = v.rowH;
+const FILEOP_LINE_H = v.rowH;
+const FILEOP_PAD_Y = v.padY;
+const FILEOP_WINDOW_H = v.windowH;
 
 function makeItem(
-  overrides: Partial<ChatFileOpToolCall> & { ops?: ChatFileOpToolCall['ops'] }
+  overrides: Partial<ChatFileOpToolCall> & { ops?: ChatFileOpToolCall['ops'] },
 ): ChatFileOpToolCall {
   return {
     kind: 'file-op',
@@ -30,22 +31,24 @@ const expanded = (_id: string) => true;
 
 describe('measureFileOp()', () => {
   it('inline (0 ops, running) — FILEOP_ROW_H', () => {
-    expect(measureFileOp(makeItem({ ops: [] }), notExpanded)).toBe(FILEOP_ROW_H);
+    expect(measureFileOp(makeItem({ ops: [] }), notExpanded, v)).toBe(FILEOP_ROW_H);
   });
 
   it('inline (1 op, running) — FILEOP_ROW_H', () => {
-    expect(measureFileOp(makeItem({ ops: [{ path: '/a.ts' }] }), notExpanded)).toBe(FILEOP_ROW_H);
+    expect(measureFileOp(makeItem({ ops: [{ path: '/a.ts' }] }), notExpanded, v)).toBe(
+      FILEOP_ROW_H,
+    );
   });
 
   it('inline (1 op, done) — FILEOP_ROW_H', () => {
-    expect(measureFileOp(makeItem({ ops: [{ path: '/a.ts' }], status: 'done' }), notExpanded)).toBe(
-      FILEOP_ROW_H
-    );
+    expect(
+      measureFileOp(makeItem({ ops: [{ path: '/a.ts' }], status: 'done' }), notExpanded, v),
+    ).toBe(FILEOP_ROW_H);
   });
 
   it('multi (2 ops) collapsed + running — shows preview window', () => {
     expect(
-      measureFileOp(makeItem({ ops: [{ path: '/a.ts' }, { path: '/b.ts' }] }), notExpanded)
+      measureFileOp(makeItem({ ops: [{ path: '/a.ts' }, { path: '/b.ts' }] }), notExpanded, v),
     ).toBe(FILEOP_ROW_H + FILEOP_WINDOW_H);
   });
 
@@ -53,23 +56,25 @@ describe('measureFileOp()', () => {
     expect(
       measureFileOp(
         makeItem({ ops: [{ path: '/a.ts' }, { path: '/b.ts' }], status: 'done' }),
-        notExpanded
-      )
+        notExpanded,
+        v,
+      ),
     ).toBe(FILEOP_ROW_H);
   });
 
   it('multi (2 ops) expanded — FILEOP_ROW_H + 2×FILEOP_LINE_H + 2×FILEOP_PAD_Y', () => {
-    expect(measureFileOp(makeItem({ ops: [{ path: '/a.ts' }, { path: '/b.ts' }] }), expanded)).toBe(
-      FILEOP_ROW_H + 2 * FILEOP_LINE_H + 2 * FILEOP_PAD_Y
-    );
+    expect(
+      measureFileOp(makeItem({ ops: [{ path: '/a.ts' }, { path: '/b.ts' }] }), expanded, v),
+    ).toBe(FILEOP_ROW_H + 2 * FILEOP_LINE_H + 2 * FILEOP_PAD_Y);
   });
 
   it('multi (3 ops) expanded — scales by op count', () => {
     expect(
       measureFileOp(
         makeItem({ ops: [{ path: '/a.ts' }, { path: '/b.ts' }, { path: '/c.ts' }] }),
-        expanded
-      )
+        expanded,
+        v,
+      ),
     ).toBe(FILEOP_ROW_H + 3 * FILEOP_LINE_H + 2 * FILEOP_PAD_Y);
   });
 

@@ -1,21 +1,3 @@
-/**
- * BlockFrame — reusable absolute-position wrapper for block-level content
- * inside a message bubble.
- *
- * Block components (Code, Prose, Table) use this instead of hand-writing
- * `position: absolute; top; height; left: 0; right: 0` inline styles.
- * Placement lives here; components only describe content.
- *
- * Debug overlay: when the DebugContext is enabled, a dashed blue boundary is
- * drawn over the engine-reserved box. If the real DOM offsetHeight diverges from
- * the reserved height by more than 0.5px the outline turns red and shows both
- * values.  Uses offsetHeight (border-box) — not scrollHeight — to match the
- * border-box height formula used by reserveHeight() in the layout engine.
- *
- * data-block-id is set on each frame div so the measurement contract tests
- * can query specific blocks without relying on fragile positional selectors.
- */
-
 import { Show, createSignal, onMount, type JSX, onCleanup } from 'solid-js';
 import { useDebug } from './debug-context';
 import {
@@ -75,17 +57,11 @@ function DebugOverlay(props: DebugOverlayProps) {
 export type BlockFrameProps = {
   layout: { top: number; height: number; id?: string };
   class?: string;
+  style?: JSX.CSSProperties;
   ref?: (el: HTMLElement) => void;
   children: JSX.Element;
 };
 
-/**
- * Pure positioning wrapper.  Renders a `position: absolute` div sized and
- * placed by the pre-computed layout geometry.  The `.pblock` base class (from
- * the block-frame module) provides `position: absolute; left: 0; width: 100%;
- * box-sizing: border-box`.
- * Pass an additional `class` for block-kind-specific visual styling.
- */
 export function BlockFrame(props: BlockFrameProps) {
   const debug = useDebug(); // () => boolean — reactive accessor
   let el: HTMLElement | undefined;
@@ -100,6 +76,7 @@ export function BlockFrame(props: BlockFrameProps) {
       data-block-id={blockId}
       class={`${pblock}${props.class ? ` ${props.class}` : ''}`}
       style={{
+        ...props.style,
         top: `${props.layout.top}px`,
         height: `${props.layout.height}px`,
         left: '0',

@@ -1,14 +1,15 @@
 import { style } from '@vanilla-extract/css';
+import { recipe } from '@vanilla-extract/recipes';
 import { vars } from '../../styles/theme.css';
 import { group } from '../primitives/copy-button.css';
 
-export const assistantText = style({
-  color: vars.fgBody,
-});
-
-export const thoughtText = style({
-  color: vars.fgMuted,
-  fontStyle: 'italic',
+export const messageText = recipe({
+  variants: {
+    role: {
+      assistant: { color: vars.fgBody },
+      thought: { color: vars.fgMuted, fontStyle: 'italic' },
+    },
+  },
 });
 
 export const assistantOuter = style([group, { position: 'relative' }]);

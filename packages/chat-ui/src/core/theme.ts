@@ -1,29 +1,8 @@
-/**
- * ChatTheme — single injection interface for all external measurement inputs.
- *
- * Carries typography (`fonts`) and a minimal density scale (`density`) with
- * only the values that are *shared across multiple components* — i.e. used by
- * at least two unrelated def files or by both a def and the CSS variable shim.
- *
- * Component-internal constants (row heights, borders, paddings specific to a
- * single component) live as module consts in their respective def files.
- *
- * `version` is bumped (by the caller) whenever any value changes so the
- * identity-based node memo in the registry can detect theme invalidation.
- */
-
 import type { FontConfig } from './measure/fonts';
 import { DEFAULT_FONT_CONFIG } from './measure/fonts';
 
 // ── Density scale ─────────────────────────────────────────────────────────────
 
-/**
- * Cross-cutting density constants shared across multiple components or between
- * a component def and the CSS-variable shim in ChatRoot.
- *
- * Keep this list minimal — if a constant is only used by one component, it
- * belongs in that component's def file, not here.
- */
 export type DensityScale = {
   /** Gap between consecutive blocks of different tiers (code, table) in a block stack. */
   blockGap: number;
@@ -35,20 +14,38 @@ export type DensityScale = {
    * computed from this) and the CSS variable `--chat-ic-pad-x` emitted by ChatRoot.
    */
   inlineCodePadX: number;
-  /**
-   * Vertical padding of the inline-code chip (px).
-   * Emitted as `--chat-ic-pad-y` by ChatRoot.
-   */
+  /** Vertical padding of the inline-code chip (px). Emitted as `--chat-ic-pad-y`. */
   inlineCodePadY: number;
+  /**
+   * Uniform vertical gap (px) between consecutive transcript row groups.
+   * Applied as gapBefore on the first unit of each group by flatten().
+   * Must equal the ROW_GAP value used in UnitRow padding calculations.
+   */
+  rowGap: number;
+  /**
+   * Standard single-line row height (px) shared by tool, file-op, plan header,
+   * diff header, and resource-link rows.
+   */
+  rowH: number;
+  /**
+   * Horizontal inset (px) applied to both sides of non-user-message rows.
+   * Subtracted from rowWidth before measure() so block heights use the correct width.
+   */
+  rowInsetX: number;
+  /**
+   * Extra vertical space (px) added to the body line-height to produce the
+   * standard single-line collapsible header row height.
+   * header height = theme.fonts.body.lineHeight + headerRowExtraH
+   */
+  headerRowExtraH: number;
 };
 
 // ── ChatTheme ─────────────────────────────────────────────────────────────────
 
 export type ChatTheme = {
   /**
-   * Monotonically-increasing integer. Bump this (by cloning with a new version)
-   * whenever density or fonts change so the node memo fingerprint detects the
-   * invalidation without a deep equality check.
+   * Monotonically-increasing integer. Bump this whenever density or fonts change
+   * so the node memo fingerprint detects the invalidation without a deep equality check.
    */
   version: number;
   fonts: FontConfig;
@@ -57,18 +54,16 @@ export type ChatTheme = {
 
 // ── Builder ───────────────────────────────────────────────────────────────────
 
-/**
- * Assemble a self-consistent ChatTheme from a FontConfig.
- *
- * Density defaults are literal px values matching the historical per-component
- * metrics.ts values; they should only need changing for a full density retheme.
- */
 export function buildTheme(fonts: FontConfig = DEFAULT_FONT_CONFIG): ChatTheme {
   const density: DensityScale = {
     blockGap: 10,
     proseGap: 4,
     inlineCodePadX: 6,
     inlineCodePadY: 2,
+    rowGap: 8,
+    rowH: 32,
+    rowInsetX: 16,
+    headerRowExtraH: 8,
   };
 
   return { version: 1, fonts, density };

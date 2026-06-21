@@ -1,15 +1,15 @@
 /**
- * Core metrics — typography, row-level layout, and font shorthand builders.
+ * Core metrics — typography constants and font shorthand builders.
  *
  * Typography constants are derived from the bundled composite type.* design tokens
  * in core/measure/default-typography.ts so that pretext measurement and CSS styling
- * share a single source of truth without an @emdash/ui import.
+ * share a single source of truth.
+ *
+ * Row rhythm (rowGap, rowH, rowInsetX, headerRowExtraH) and density (blockGap,
+ * proseGap) live on ChatTheme.density (core/theme.ts) — the canonical source.
  *
  * Component-private constants (bubble padding, block gap, thinking heights,
- * code block padding, file-op geometry) live inline in each component's `.def.tsx` file.
- *
- * CSS variables are applied inline in `ChatRoot.tsx` `onMount`; there is no
- * separate css-vars.ts module.
+ * code block padding, file-op geometry) live inline in each component's def file.
  */
 
 import {
@@ -72,13 +72,10 @@ export const CODE_LANG: VariantTypography = toVariant(role('type.code-lang'));
 
 // ── Inline chrome ────────────────────────────────────────────────────────────
 
-// Sourced from core/tokens.ts so CSS (--chat-ic-pad-x/y) and JS always agree.
 export const INLINE_CODE_EXTRA_WIDTH = _IC_EXTRA_WIDTH;
 
-// Mention chip geometry — each value is used by BOTH the measurement pass
-// (to-rich-items.ts) and the renderer (Prose.tsx) so they can never drift.
-//   MENTION_EXTRA_WIDTH = 2 * MENTION_PAD_X
-//   resolved-mention extraWidth = MENTION_EXTRA_WIDTH + MENTION_ICON_W + MENTION_ICON_GAP
+// Mention chip geometry — used by BOTH the measurement pass (to-rich-items.ts)
+// and the renderer (Prose.tsx) so they can never drift.
 export const MENTION_PAD_X = CHIP_DEFAULTS.mentionPadX;
 export const MENTION_PAD_Y = CHIP_DEFAULTS.mentionPadY;
 export const MENTION_ICON_W = CHIP_DEFAULTS.mentionIconW;
@@ -92,63 +89,6 @@ export const BLOCKQUOTE_INDENT = 18;
 
 /** Horizontal gap from the bullet's center anchor to the start of list text. */
 export const LIST_BULLET_GAP = 12;
-
-// ── User bubble max-width ────────────────────────────────────────────────────
-
-export const USER_BUBBLE_MAX_WIDTH_PCT = 85;
-
-// ── Collapsible row header ────────────────────────────────────────────────────
-
-/**
- * Extra vertical space (px) added to the body line-height to produce the
- * standard single-line collapsible header row height.
- *
- * header height = theme.fonts.body.lineHeight + HEADER_ROW_EXTRA_H
- *
- * Used by thinkingDef and fileOpDef so they share the same constant.
- */
-export const HEADER_ROW_EXTRA_H = 8;
-
-/**
- * Standard single-line row height (px) shared by tool, file-op, plan header,
- * diff header, and resource-link rows so they all align to the same rhythm.
- */
-export const ROW_H = 32;
-
-/**
- * Horizontal inset (px) applied to both sides of non-user-message rows.
- *
- * User messages have insetX = 0 (full width bubble).
- * All other rows (assistant, thought, tool, diff, …) get this inset so
- * their content is visually distinguished from the bubble.
- *
- * Width-affecting: must be subtracted before handing width to measure() so
- * that block heights are computed at the correct (narrower) width.
- */
-export const ROW_INSET_X = 16;
-
-/**
- * Uniform vertical gap (px) inserted between consecutive transcript rows.
- *
- * Rows are absolutely positioned via translateY at virtualizer-computed tops,
- * so CSS `gap` does not apply — the spacing is baked into each row's reserved
- * height (see `rowReservedHeight`) and rendered as a single bottom padding by
- * Row.tsx. Applying it on one side only means the gap never stacks between
- * neighbors and the first row has no leading gap (top inset is owned by padTop).
- */
-export const ROW_GAP = 8;
-
-/**
- * Single source of truth for a row's virtualizer-reserved height:
- *   content height + symmetric per-def wrapper padding + the uniform row gap.
- *
- * Must be used by every reserved-height computation (Row.tsx and the estimate /
- * prepend / prefetch paths in ChatRoot.tsx) so the engine's coordinate space
- * stays consistent; any divergence causes scroll drift.
- */
-export function rowReservedHeight(contentHeight: number, padY = 0): number {
-  return contentHeight + 2 * padY + ROW_GAP;
-}
 
 // ── CSS font shorthands ───────────────────────────────────────────────────────
 
@@ -168,5 +108,3 @@ export const H3_FONT = fontShorthand(H3, SANS_FAMILY);
 export const INLINE_CODE_FONT = fontShorthand(INLINE_CODE, MONO_FAMILY);
 export const MENTION_FONT = fontShorthand(MENTION, SANS_FAMILY);
 export const CODE_BLOCK_FONT = fontShorthand(CODE_BLOCK, MONO_FAMILY);
-
-// ── CSS variable map ─────────────────────────────────────────────────────────

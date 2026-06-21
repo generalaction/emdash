@@ -1,36 +1,37 @@
-/**
- * diff-visual.css.ts — visual styles for Diff.tsx (header + row decoration).
- */
-
 import { style } from '@vanilla-extract/css';
+import { recipe } from '@vanilla-extract/recipes';
 import { vars } from '../../styles/theme.css';
 import { textShimmer } from '../../styles/effects.css';
+import { diffCardVars } from './diff-vars.css';
 
-// ── DiffHeader ────────────────────────────────────────────────────────────────
-
-export const diffHeaderBase = style({
-  border: `1px solid ${vars.border}`,
-  display: 'flex',
-  alignItems: 'center',
-  gap: '8px',
-  paddingLeft: '8px',
-  paddingRight: '8px',
-  cursor: 'pointer',
-  fontSize: '0.75rem',
-  transition: 'background 150ms',
-  selectors: {
-    '&:hover': { background: vars.bg3 },
+export const diffHeader = recipe({
+  base: {
+    height: diffCardVars.headerH,
+    border: `1px solid ${vars.border}`,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    paddingLeft: '8px',
+    paddingRight: '8px',
+    cursor: 'pointer',
+    fontSize: '0.75rem',
+    transition: 'background 150ms',
+    selectors: {
+      '&:hover': { background: vars.bg3 },
+    },
   },
-});
-
-export const diffHeaderSolo = style({
-  borderRadius: vars.radiusLg,
-});
-
-export const diffHeaderWithBody = style({
-  borderTopLeftRadius: vars.radiusLg,
-  borderTopRightRadius: vars.radiusLg,
-  borderBottom: 'none',
+  variants: {
+    hasBody: {
+      true: {
+        borderTopLeftRadius: vars.radiusLg,
+        borderTopRightRadius: vars.radiusLg,
+        borderBottom: 'none',
+      },
+      false: {
+        borderRadius: vars.radiusLg,
+      },
+    },
+  },
 });
 
 export const diffFileName = style({

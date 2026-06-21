@@ -1,20 +1,11 @@
-/**
- * Diff — slot components for ChatDiff rows.
- *
- * DiffHeader   — clickable file header (rendered in the 'diff:header' slot).
- * DiffLines    — diff line body with Shiki syntax highlighting
- *                (rendered in the 'diff:body' slot inside ProjectWindow).
- *
- * Both components are pure content; outer geometry is handled by the compose
- * tree built in diffDef (stack + scrollWindow + slot nodes rendered by Project).
- */
-
+import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, Show, createEffect, onCleanup } from 'solid-js';
 import { applyTokensToElement } from '../../core/highlight/apply-tokens';
 import type { CodeToken } from '../../core/highlight/highlighter';
 import { resolveFileIconClass } from '../../lib/file-icons';
 import { basename } from '../../lib/path';
 import type { ChatDiff } from '../../model';
+import { pxTokens } from '../../styles/px-tokens';
 import { useCaches } from '../CachesContext';
 import { useCommands } from '../CommandsContext';
 import { cancelIdle, scheduleIdle } from '../dom-utils';
@@ -26,14 +17,13 @@ import {
   diffBodyCard,
   diffDelsCount,
   diffFileName,
-  diffHeaderBase,
-  diffHeaderSolo,
-  diffHeaderWithBody,
+  diffHeader,
   diffLineContent,
   diffRowClasses,
   diffSpacer,
   textShimmer,
 } from './diff-visual.css';
+import { diffCardVars } from './diff-vars.css';
 
 // ── DiffHeader ────────────────────────────────────────────────────────────────
 
@@ -65,8 +55,8 @@ export function DiffHeader(props: DiffHeaderProps) {
 
   return (
     <div
-      class={`${diffHeaderBase} ${props.hasBody ? diffHeaderWithBody : diffHeaderSolo}`}
-      style={{ height: `${props.headerH}px` }}
+      class={diffHeader({ hasBody: props.hasBody })}
+      style={assignInlineVars(diffCardVars, pxTokens({ headerH: props.headerH }))}
       role="button"
       onClick={handleClick}
     >
@@ -185,10 +175,7 @@ export function DiffLines(props: DiffLinesProps) {
 
 // ── Diff (legacy combined component for contract tests) ───────────────────────
 
-/**
- * @deprecated Use diffDef.Render via Project instead.
- * Kept for backward compatibility with open-file.contract.test.tsx.
- */
+/** @deprecated Use diffDef.Render via Project instead. Kept for open-file.contract.test.tsx. */
 export type DiffProps = {
   item: ChatDiff;
   layout: DiffLayout;

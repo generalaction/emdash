@@ -1,18 +1,7 @@
-/**
- * PreviewWindow — standalone scrollable preview container.
- *
- * Extracted from ProjectWindow (Project.tsx) so native UnitDef Renders can use
- * it without the compose-tree machinery. Accepts explicit height + maxH (both px)
- * and renders children in a clipped, optionally auto-scrolling window with an
- * optional fade overlay.
- *
- * Used by thinking and plan Renders for the collapsed-active preview state.
- */
-
 import { Show, createEffect, onCleanup } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { fadeOverlayBottom, fadeOverlayTop } from '../../styles/effects.css';
-import { overlayBottom, overlayTop } from './preview-window.css';
+import { overlay } from './preview-window.css';
 
 export type PreviewWindowProps = {
   /** Outer container height (px). */
@@ -59,7 +48,7 @@ export function PreviewWindow(props: PreviewWindowProps): JSX.Element {
     >
       <Show when={props.overlay}>
         <div
-          class={props.overlay === 'fade-top' ? `${fadeOverlayTop} ${overlayTop}` : `${fadeOverlayBottom} ${overlayBottom}`}
+          class={`${props.overlay === 'fade-top' ? fadeOverlayTop : fadeOverlayBottom} ${overlay({ position: props.overlay === 'fade-top' ? 'top' : 'bottom' })}`}
           style={{ height: '28px' }}
           aria-hidden="true"
         />

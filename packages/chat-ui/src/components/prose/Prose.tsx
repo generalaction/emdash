@@ -1,16 +1,4 @@
-/**
- * Prose — Solid component rendering a ProseLaidOut block.
- *
- * Each line and fragment is positioned absolutely using pre-computed geometry
- * from the layout engine. Solid's fine-grained reactivity re-renders only the
- * lines that change when content updates (keyed <For>).
- *
- * Visual styles (colors, decorations, chip chrome) use Tailwind utilities.
- * Geometry-coupled rules (font-size, font-family, font-weight, white-space:pre,
- * line-height:1, chip padding) remain in prose.module.css because they feed
- * pretext's width/height measurement.
- */
-
+import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, Match, Show, Switch } from 'solid-js';
 import type {
   BulletLayout,
@@ -19,7 +7,16 @@ import type {
   ProseLaidOut,
 } from '../../core/layout/layout-types';
 import type { InlineMention, InlineRun } from '../../core/markdown/document';
-import { MENTION_ICON_GAP, MENTION_ICON_W } from '../../core/metrics';
+import { pxTokens } from '../../styles/px-tokens';
+import {
+  BLOCKQUOTE_INDENT,
+  LIST_BULLET_GAP,
+  LIST_INDENT,
+  MENTION_ICON_GAP,
+  MENTION_ICON_W,
+  MENTION_PAD_X,
+  MENTION_PAD_Y,
+} from './metrics';
 import { BlockFrame } from '../block-frame';
 import { useCommands } from '../CommandsContext';
 import {
@@ -30,6 +27,17 @@ import {
 } from '../primitives/icons';
 import { pf, pfVariants, pline, pbullet, pquoteRail } from './prose.css';
 import { bulletColor, linkFragment, mentionChip, mentionPlain, inlineCodeChip, quoteRailBar } from './prose-visual.css';
+import { proseVars } from './prose-vars.css';
+
+const PROSE_STYLE_VARS = pxTokens({
+  mentionPadX: MENTION_PAD_X,
+  mentionPadY: MENTION_PAD_Y,
+  mentionIconW: MENTION_ICON_W,
+  mentionIconGap: MENTION_ICON_GAP,
+  listIndent: LIST_INDENT,
+  listBulletGap: LIST_BULLET_GAP,
+  blockquoteIndent: BLOCKQUOTE_INDENT,
+});
 
 // ── Fragment ──────────────────────────────────────────────────────────────────
 
@@ -102,9 +110,6 @@ function ProseFragment(props: {
     );
   }
 
-  // Resolved mention: render icon + short name inline within the chip.
-  // Geometry is fully px-driven from the MENTION_ICON_* constants so it
-  // exactly matches the extraWidth reserved by to-rich-items.ts.
   if (props.run.kind === 'mention' && (props.run as InlineMention).mentionKind) {
     const mention = props.run as InlineMention;
     return (
@@ -114,16 +119,14 @@ function ProseFragment(props: {
           left: `${props.frag.x}px`,
           display: 'inline-flex',
           'align-items': 'center',
-          gap: `${MENTION_ICON_GAP}px`,
+          gap: proseVars.mentionIconGap,
         }}
       >
-        {/* Fixed-px box with overflow:hidden so a devicon glyph cannot spill
-            past the reserved MENTION_ICON_W and cause adjacent text overlap. */}
         <span
           style={{
             display: 'flex',
-            width: `${MENTION_ICON_W}px`,
-            height: `${MENTION_ICON_W}px`,
+            width: proseVars.mentionIconW,
+            height: proseVars.mentionIconW,
             'flex-shrink': '0',
             'align-items': 'center',
             'justify-content': 'center',
@@ -224,7 +227,7 @@ export type ProseProps = {
 
 export function Prose(props: ProseProps) {
   return (
-    <BlockFrame layout={props.block}>
+    <BlockFrame layout={props.block} style={assignInlineVars(proseVars, PROSE_STYLE_VARS)}>
       <Show when={props.block.quoteRail}>
         <ProseQuoteRail left={(props.block.lines[0]?.left ?? 18) - 10} />
       </Show>
