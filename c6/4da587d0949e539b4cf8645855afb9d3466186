@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.ts
+  s_38e698512434b3::t_60aeae5ea34119 19-20,28-39,216-221
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.test.ts
+  s_38e698512434b3::t_31c2198e7f9161 45-47,221-223,260-305
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "c64da587d0949e539b4cf8645855afb9d3466186",
+  "prompts": {},
+  "sessions": {
+    "s_38e698512434b3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed400-4e0f-70d3-bec6-1a47a31614e6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
