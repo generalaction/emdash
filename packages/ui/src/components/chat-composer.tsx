@@ -166,6 +166,12 @@ export interface ChatComposerProps {
   editorApiRef?: React.Ref<PromptEditorRef>;
 
   /**
+   * Called when the user clicks an image attachment thumbnail in the preview
+   * strip above the editor. Host can use this to open an image viewer dialog.
+   */
+  onViewImage?: (att: ComposerAttachment) => void;
+
+  /**
    * Preferred: typed provider for @ mention suggestions.
    * When both `mentionProvider` and `queryMentions` are provided,
    * `mentionProvider` takes precedence.
@@ -329,6 +335,7 @@ export function ChatComposer({
   queryMentions,
   queryCommands,
   onCommand,
+  onViewImage,
   notice,
   className,
 }: ChatComposerProps) {
@@ -424,11 +431,18 @@ export function ChatComposer({
         <div className="flex flex-wrap gap-2 px-3 pt-3">
           {imageAttachments.map((att) => (
             <div key={att.id} className="group relative size-8">
-              <img
-                src={att.previewUrl}
-                alt={att.name}
-                className="size-8 rounded-md object-cover ring-1 ring-border"
-              />
+              <button
+                type="button"
+                aria-label={`View image: ${att.name}`}
+                onClick={() => onViewImage?.(att)}
+                className="block size-8 rounded-md p-0 focus-visible:outline-2 focus-visible:outline-offset-1"
+              >
+                <img
+                  src={att.previewUrl}
+                  alt={att.name}
+                  className="size-8 rounded-md object-cover ring-1 ring-border"
+                />
+              </button>
               <button
                 type="button"
                 aria-label={`Remove ${att.name}`}

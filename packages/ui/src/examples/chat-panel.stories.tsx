@@ -307,6 +307,7 @@ function LiveChatPanel({ notice }: { notice?: ComposerNotice | null }) {
           onFilesDropped={handleFilesDropped}
           editorApiRef={editorApiRef}
           notice={notice}
+          onViewImage={(att) => setViewer({ src: att.previewUrl, alt: att.name })}
         />
       </div>
       <ImageViewerDialog
