@@ -1,0 +1,22 @@
+apps/emdash-desktop/src/main/core/conversations/impl/conversation-provider-respawn.test.ts
+  s_9c070f15357b84::t_922889a57afa30 210,220,468-474,476-485
+  s_9c070f15357b84::t_6988ec410481dc 475
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_9c070f15357b84::t_e3fe9692f96708 124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "261c02be2b6f72214873e02157035b76c1b52b61",
+  "prompts": {},
+  "sessions": {
+    "s_9c070f15357b84": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019edbe8-0f08-7661-a84a-804d5156ed57",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
