@@ -1,0 +1,31 @@
+apps/emdash-desktop/src/shared/core/mcp/transport.ts
+  s_dd89446ac018c4::t_cf636c3e05f153 1-25
+apps/emdash-desktop/src/renderer/features/mcp/components/McpCard.tsx
+  s_dd89446ac018c4::t_e631263bfe75dc 10
+  s_dd89446ac018c4::t_42d73871b81f2b 24
+apps/emdash-desktop/src/main/core/mcp/services/McpService.ts
+  s_dd89446ac018c4::t_b8e065c5d83869 81-87
+apps/emdash-desktop/src/main/core/mcp/services/McpService.test.ts
+  s_dd89446ac018c4::t_26b2c3d55ad709 267-306
+apps/emdash-desktop/src/main/core/mcp/utils/registration.ts
+  s_dd89446ac018c4::t_3e788b6f873534 2,10
+apps/emdash-desktop/src/renderer/features/mcp/components/McpModal.tsx
+  s_dd89446ac018c4::t_4a43ddda5f86c6 343
+  s_dd89446ac018c4::t_09f4244fdd6807 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "bcd20cc4447ce3c4ef76402a33f6ebf3946cc1d5",
+  "prompts": {},
+  "sessions": {
+    "s_dd89446ac018c4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12f51690-46f0-4762-a39e-01c3099bec25",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
