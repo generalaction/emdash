@@ -1,7 +1,7 @@
-import type { Measured, MeasureCtx } from '../../../../core/define';
-import type { TableLeafLayout } from '../../../../core/layout/layout-types';
-import type { TableBlock } from '../../../../core/markdown/document';
-import { defineBlock } from '../block-def';
+import { defineBlock } from '@components/rows/markdown/block-def';
+import type { Measured, MeasureCtx } from '@core/define';
+import type { TableLeafLayout } from '@core/layout/layout-types';
+import type { TableBlock } from '@core/markdown/document';
 import { layoutTable } from './layout';
 import { Table } from './Table';
 

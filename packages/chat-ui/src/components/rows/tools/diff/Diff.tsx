@@ -1,15 +1,15 @@
+import { useCaches } from '@components/contexts/CachesContext';
+import { useCommands } from '@components/contexts/CommandsContext';
+import { cancelIdle, scheduleIdle } from '@components/engine/dom-utils';
+import { GenericFileIcon } from '@components/primitives/icons';
+import { applyTokensToElement } from '@core/highlight/apply-tokens';
+import type { CodeToken } from '@core/highlight/highlighter';
+import { resolveFileIconClass } from '@lib/file-icons';
+import { basename } from '@lib/path';
+import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, Show, createEffect, onCleanup } from 'solid-js';
-import { applyTokensToElement } from '../../../../core/highlight/apply-tokens';
-import type { CodeToken } from '../../../../core/highlight/highlighter';
-import { resolveFileIconClass } from '../../../../lib/file-icons';
-import { basename } from '../../../../lib/path';
-import type { ChatDiff } from '../../../../model';
-import { pxTokens } from '../../../../styles/px-tokens';
-import { useCaches } from '../../../contexts/CachesContext';
-import { useCommands } from '../../../contexts/CommandsContext';
-import { cancelIdle, scheduleIdle } from '../../../engine/dom-utils';
-import { GenericFileIcon } from '../../../primitives/icons';
+import type { ChatDiff } from '@/model';
 import type { DiffLayout } from './diff.def';
 import {
   diffAddsCount,

@@ -94,7 +94,7 @@ export type BlockLaidOut = ProseLaidOut | CodeLaidOut | TableLaidOut;
 // Produced by `measureBlockCached` in `core/layout/block-stack.ts`.
 // Used by `renderBlockLeaf` and `BlockStackView` to render without a lookup.
 
-import type { Block, CodeBlock, ProseBlock } from '../markdown/document';
+import type { Block, CodeBlock, ProseBlock } from '@core/markdown/document';
 
 export type ProseLeafLayout = ProseLaidOut & { raw: ProseBlock };
 export type CodeLeafLayout = CodeLaidOut & { raw: CodeBlock };

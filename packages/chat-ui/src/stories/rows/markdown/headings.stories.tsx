@@ -3,8 +3,8 @@
  */
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
-import { ChatHost, ScriptedChat } from '../../_harness/chat-host';
-import { scenario, seedStep, streamMessage } from '../../_harness/streaming/scenario';
+import { ChatHost, ScriptedChat } from '@/stories/_harness/chat-host';
+import { scenario, seedStep, streamMessage } from '@/stories/_harness/streaming/scenario';
 
 const meta: Meta = {
   title: 'Rows/Markdown/Headings',

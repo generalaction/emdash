@@ -11,9 +11,9 @@
  * re-evaluated by any reactive computation that reads it.
  */
 
+import type { ChatTheme } from '@core/theme';
+import { DEFAULT_THEME } from '@core/theme';
 import { createContext, useContext } from 'solid-js';
-import type { ChatTheme } from '../../core/theme';
-import { DEFAULT_THEME } from '../../core/theme';
 
 export const ThemeContext = createContext<() => ChatTheme>(() => DEFAULT_THEME);
 

@@ -12,13 +12,13 @@
  *   7. Empty transcript produces empty array.
  */
 
+import { DEFAULT_THEME } from '@core/theme';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_THEME } from '../core/theme';
 
 const ROW_GAP = DEFAULT_THEME.density.rowGap;
-import { unit } from '../core/units';
-import type { ItemSegmenter } from '../core/units';
-import type { ChatItem } from '../model';
+import { unit } from '@core/units';
+import type { ItemSegmenter } from '@core/units';
+import type { ChatItem } from '@/model';
 import { flatten, collectUserTurnUnits, segmentCache } from './flatten';
 import { createTranscript } from './transcript';
 

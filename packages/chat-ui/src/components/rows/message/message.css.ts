@@ -1,8 +1,8 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
-import { vars } from '../../../styles/theme.css';
-import { createVariableThemeContract } from '../../../styles/variable-theme-contract.css';
-import { group } from '../../primitives/copy-button.css';
+import { group } from '@components/primitives/copy-button.css';
+import { vars } from '@styles/theme.css';
+import { createVariableThemeContract } from '@styles/variable-theme-contract.css';
 
 // ── Runtime geometry contract ─────────────────────────────────────────────────
 

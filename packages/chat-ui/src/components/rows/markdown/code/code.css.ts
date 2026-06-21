@@ -8,7 +8,7 @@
  */
 
 import { globalStyle, style } from '@vanilla-extract/css';
-import { vars } from '../../../../styles/theme.css';
+import { vars } from '@styles/theme.css';
 
 /** Scroll + card container (inner div, no .pblock so overflow-x-auto wins). */
 export const codeWrapper = style({

@@ -1,4 +1,4 @@
-import type { Block } from '../../../core/markdown/document';
+import type { Block } from '@core/markdown/document';
 import type { BlockDef } from './block-def';
 import { codeBlockDef } from './code/code.def';
 import { proseBlockDef } from './prose/prose.def';

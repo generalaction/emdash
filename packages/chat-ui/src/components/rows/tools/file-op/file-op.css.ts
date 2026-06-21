@@ -1,8 +1,8 @@
 import { createVar, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
-import { sx } from '../../../../styles/sprinkles.css';
-import { vars } from '../../../../styles/theme.css';
-import { createVariableThemeContract } from '../../../../styles/variable-theme-contract.css';
+import { sx } from '@styles/sprinkles.css';
+import { vars } from '@styles/theme.css';
+import { createVariableThemeContract } from '@styles/variable-theme-contract.css';
 
 // ── Runtime geometry contract ─────────────────────────────────────────────────
 

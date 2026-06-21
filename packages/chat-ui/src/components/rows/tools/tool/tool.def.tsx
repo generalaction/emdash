@@ -1,8 +1,8 @@
+import { DEFAULT_THEME } from '@core/theme';
+import { defineUnit } from '@core/units';
+import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
-import { DEFAULT_THEME } from '../../../../core/theme';
-import { defineUnit } from '../../../../core/units';
-import type { ChatToolCall } from '../../../../model';
-import { pxTokens } from '../../../../styles/px-tokens';
+import type { ChatToolCall } from '@/model';
 import { Tool } from './Tool';
 import { toolRoot, toolVars } from './tool.css';
 

@@ -9,10 +9,10 @@
  * TABLE_ROW_H tall because cells are single-line truncated.
  */
 
-import type { TableLaidOut } from '../../../../core/layout/layout-types';
-import { reserveHeight } from '../../../../core/layout/reserve-height';
-import type { TableBlock } from '../../../../core/markdown/document';
-import { DEFAULT_FONT_CONFIG } from '../../../../core/measure/fonts';
+import type { TableLaidOut } from '@core/layout/layout-types';
+import { reserveHeight } from '@core/layout/reserve-height';
+import type { TableBlock } from '@core/markdown/document';
+import { DEFAULT_FONT_CONFIG } from '@core/measure/fonts';
 
 const TABLE_ROW_H = DEFAULT_FONT_CONFIG.body.lineHeight + 12;
 const TABLE_BORDER = 1;

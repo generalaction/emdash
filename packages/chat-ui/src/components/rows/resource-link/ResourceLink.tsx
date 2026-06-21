@@ -14,11 +14,11 @@
  * Outer geometry (height) is applied by resource-link.def.tsx Render.
  */
 
+import { useCommands } from '@components/contexts/CommandsContext';
+import { GenericFileIcon } from '@components/primitives/icons';
+import { resolveFileIconClass } from '@lib/file-icons';
 import { Show } from 'solid-js';
-import { resolveFileIconClass } from '../../../lib/file-icons';
-import type { ChatResourceLink, ResourceTarget } from '../../../model';
-import { useCommands } from '../../contexts/CommandsContext';
-import { GenericFileIcon } from '../../primitives/icons';
+import type { ChatResourceLink, ResourceTarget } from '@/model';
 import {
   iconWrap,
   pathText,

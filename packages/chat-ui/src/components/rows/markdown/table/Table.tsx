@@ -17,9 +17,9 @@
  * engine and a parity test both enforce.
  */
 
+import { BlockFrame } from '@components/engine/block-frame';
+import type { TableLaidOut } from '@core/layout/layout-types';
 import { For } from 'solid-js';
-import type { TableLaidOut } from '../../../../core/layout/layout-types';
-import { BlockFrame } from '../../../engine/block-frame';
 import { tableScroll, tdCell, tdCellLastRow, thCell } from './table-visual.css';
 import { pchatTable } from './table.css';
 

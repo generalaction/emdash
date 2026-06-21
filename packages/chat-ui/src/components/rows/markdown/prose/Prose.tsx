@@ -1,21 +1,21 @@
-import { assignInlineVars } from '@vanilla-extract/dynamic';
-import { For, Match, Show, Switch } from 'solid-js';
-import type {
-  BulletLayout,
-  FragmentLayout,
-  LineLayout,
-  ProseLaidOut,
-} from '../../../../core/layout/layout-types';
-import type { InlineMention, InlineRun } from '../../../../core/markdown/document';
-import { pxTokens } from '../../../../styles/px-tokens';
-import { useCommands } from '../../../contexts/CommandsContext';
-import { BlockFrame } from '../../../engine/block-frame';
+import { useCommands } from '@components/contexts/CommandsContext';
+import { BlockFrame } from '@components/engine/block-frame';
 import {
   MentionAtIcon,
   MentionFileIcon,
   MentionIssueIcon,
   MentionSymbolIcon,
-} from '../../../primitives/icons';
+} from '@components/primitives/icons';
+import type {
+  BulletLayout,
+  FragmentLayout,
+  LineLayout,
+  ProseLaidOut,
+} from '@core/layout/layout-types';
+import type { InlineMention, InlineRun } from '@core/markdown/document';
+import { pxTokens } from '@styles/px-tokens';
+import { assignInlineVars } from '@vanilla-extract/dynamic';
+import { For, Match, Show, Switch } from 'solid-js';
 import { MENTION_ICON_GAP, MENTION_ICON_W, MENTION_PAD_X, MENTION_PAD_Y } from './metrics';
 import {
   bulletColor,

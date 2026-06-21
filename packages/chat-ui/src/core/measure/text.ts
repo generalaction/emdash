@@ -13,11 +13,11 @@
  *                  `ProseBlock`; used by the user-bubble hug algorithm.
  */
 
-import { layoutProse, measureProseNaturalWidth } from '../../components/rows/markdown/prose/layout';
-import type { Measured } from '../define';
-import type { ProseLaidOut } from '../layout/layout-types';
-import type { ProseBlock } from '../markdown/document';
-import type { ChatTheme } from '../theme';
+import { layoutProse, measureProseNaturalWidth } from '@components/rows/markdown/prose/layout';
+import type { Measured } from '@core/define';
+import type { ProseLaidOut } from '@core/layout/layout-types';
+import type { ProseBlock } from '@core/markdown/document';
+import type { ChatTheme } from '@core/theme';
 
 /**
  * Measure a ProseBlock at `width` pixels using the theme's FontConfig.

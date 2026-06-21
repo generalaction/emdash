@@ -19,7 +19,7 @@ import {
   MENTION_EXTRA_WIDTH,
   MENTION_FONT,
   MENTION,
-} from '../metrics';
+} from '@core/metrics';
 
 export type VariantMetrics = {
   font: string;

@@ -1,6 +1,6 @@
 import { style } from '@vanilla-extract/css';
-import { vars } from '../../../../styles/theme.css';
-import { createVariableThemeContract } from '../../../../styles/variable-theme-contract.css';
+import { vars } from '@styles/theme.css';
+import { createVariableThemeContract } from '@styles/variable-theme-contract.css';
 
 // ── Runtime geometry contract ─────────────────────────────────────────────────
 

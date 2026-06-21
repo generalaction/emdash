@@ -3,9 +3,9 @@
  */
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
-import { ChatHost, ScriptedChat } from '../../_harness/chat-host';
-import { ToolStateMatrix } from '../../_harness/state-matrix';
-import { scenario, seedStep, streamDiff } from '../../_harness/streaming/scenario';
+import { ChatHost, ScriptedChat } from '@/stories/_harness/chat-host';
+import { ToolStateMatrix } from '@/stories/_harness/state-matrix';
+import { scenario, seedStep, streamDiff } from '@/stories/_harness/streaming/scenario';
 
 const meta: Meta = {
   title: 'Rows/Tools/Diff',

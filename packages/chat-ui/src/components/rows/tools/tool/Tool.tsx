@@ -12,7 +12,7 @@
  */
 
 import { Show } from 'solid-js';
-import type { ChatToolCall } from '../../../../model';
+import type { ChatToolCall } from '@/model';
 import { textShimmer, toolRow, toolSummary } from './tool.css';
 
 export type ToolProps = {

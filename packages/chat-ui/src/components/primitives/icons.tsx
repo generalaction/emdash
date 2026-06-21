@@ -5,8 +5,8 @@
  * Import only what you need; tree-shaking keeps unused icons out of the bundle.
  */
 
-import { planSpinner } from '../../styles/effects.css';
 import { genericFileIcon } from './icons.css';
+import { planSpinner } from '@styles/effects.css';
 
 /** Clipboard / copy icon (two overlapping rectangles). */
 export function IconCopy() {

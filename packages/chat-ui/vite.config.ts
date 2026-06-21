@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
 import { playwright } from '@vitest/browser-playwright';
 import solid from 'vite-plugin-solid';
@@ -5,6 +6,16 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [vanillaExtractPlugin(), solid()],
+  resolve: {
+    alias: {
+      '@components': resolve('src/components'),
+      '@core': resolve('src/core'),
+      '@lib': resolve('src/lib'),
+      '@state': resolve('src/state'),
+      '@styles': resolve('src/styles'),
+      '@': resolve('src'),
+    },
+  },
   optimizeDeps: {
     include: ['@vanilla-extract/sprinkles/createRuntimeSprinkles'],
   },

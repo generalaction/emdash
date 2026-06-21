@@ -6,7 +6,7 @@
  */
 
 import { style } from '@vanilla-extract/css';
-import { vars } from '../../../../styles/theme.css';
+import { vars } from '@styles/theme.css';
 
 /** Scroll wrapper around the table. */
 export const tableScroll = style({

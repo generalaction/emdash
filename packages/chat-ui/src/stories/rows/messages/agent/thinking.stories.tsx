@@ -6,16 +6,16 @@
  *   after one click    → expanded:     both states show full prose body
  */
 
+import type { TranscriptApi } from '@state/transcript';
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
-import type { TranscriptApi } from '../../../../state/transcript';
-import type { ScriptStep } from '../../../_harness/chat-host';
-import { ChatHost, ScriptedChat } from '../../../_harness/chat-host';
+import type { ScriptStep } from '@/stories/_harness/chat-host';
+import { ChatHost, ScriptedChat } from '@/stories/_harness/chat-host';
 import {
   scenario,
   seedStep,
   streamMessage,
   streamThinking,
-} from '../../../_harness/streaming/scenario';
+} from '@/stories/_harness/streaming/scenario';
 
 const meta: Meta = {
   title: 'Rows/Messages/Agent/Thinking',

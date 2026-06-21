@@ -13,8 +13,8 @@
  * shared across those call sites, which is acceptable for isolated test runs.
  */
 
+import { type ChatCaches, getFallbackCaches } from '@core/caches';
 import { createContext, useContext } from 'solid-js';
-import { type ChatCaches, getFallbackCaches } from '../../core/caches';
 
 let _warnedFallback = false;
 

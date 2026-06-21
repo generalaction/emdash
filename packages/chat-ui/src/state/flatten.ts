@@ -29,10 +29,10 @@
  *                                   ChatRoot for the pinned-header overlay.
  */
 
-import { DEFAULT_THEME } from '../core/theme';
-import type { GroupChrome, RenderUnit, SegmentCtx } from '../core/units';
-import { stampGroupRoles } from '../core/units';
-import type { ChatItem } from '../model';
+import { DEFAULT_THEME } from '@core/theme';
+import type { GroupChrome, RenderUnit, SegmentCtx } from '@core/units';
+import { stampGroupRoles } from '@core/units';
+import type { ChatItem } from '@/model';
 import type { TranscriptState } from './transcript';
 
 // ── Per-item segment cache ─────────────────────────────────────────────────────

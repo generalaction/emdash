@@ -1,9 +1,9 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import type { MessageStyleVars } from './metrics';
-import { fadeOverlayBottom, fadeOverlayTop } from '../../../styles/effects.css';
-import { vars } from '../../../styles/theme.css';
-import { createVariableThemeContract } from '../../../styles/variable-theme-contract.css';
+import { fadeOverlayBottom, fadeOverlayTop } from '@styles/effects.css';
+import { vars } from '@styles/theme.css';
+import { createVariableThemeContract } from '@styles/variable-theme-contract.css';
 
 // ── Runtime geometry contract ─────────────────────────────────────────────────
 // Set per-instance via assignInlineVars in message.def.tsx.

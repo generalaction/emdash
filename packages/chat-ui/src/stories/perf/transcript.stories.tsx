@@ -11,14 +11,14 @@
  *     create/dispose per row entering/leaving the <For> window)
  */
 
+import { DEFAULT_THEME } from '@core/theme';
+import { createTranscript } from '@state/transcript';
+import { createViewState } from '@state/view-state';
 import { createEffect, createSignal, onMount } from 'solid-js';
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
-import { ChatRoot } from '../../ChatRoot';
-import { DEFAULT_THEME } from '../../core/theme';
-import { generateMockTranscript } from '../../mock-transcript';
-import { createTranscript } from '../../state/transcript';
-import { createViewState } from '../../state/view-state';
-import { resetRowCreations, runPerfSweep } from '../_harness/perf-instrument';
+import { ChatRoot } from '@/ChatRoot';
+import { generateMockTranscript } from '@/mock-transcript';
+import { resetRowCreations, runPerfSweep } from '@/stories/_harness/perf-instrument';
 
 const meta: Meta = {
   title: 'Perf/Transcript',

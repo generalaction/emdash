@@ -20,8 +20,8 @@
  * <InlineCodeChip>{children}</InlineCodeChip>
  */
 
+import { useTheme } from '@components/contexts/ThemeContext';
 import type { JSX } from 'solid-js';
-import { useTheme } from '../contexts/ThemeContext';
 import { inlineCodeChipVisual } from './shrink-wrap.css';
 
 // ── Core primitive ─────────────────────────────────────────────────────────────

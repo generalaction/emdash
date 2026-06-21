@@ -17,8 +17,8 @@
  *   - `diff`     — fixed header + capped line count via estimateDiff.
  */
 
-import type { ChatItem } from '../../model';
-import type { MeasureCtx } from '../define';
+import type { MeasureCtx } from '@core/define';
+import type { ChatItem } from '@/model';
 
 /**
  * Returns a coarse height estimate (content-only, px) for any ChatItem.

@@ -15,18 +15,18 @@
  *   3. Register the UnitDef in UNIT_REGISTRY.
  */
 
-import { DEFAULT_THEME } from '../../core/theme';
-import type { GroupChrome, ItemSegmenter, UnitDef } from '../../core/units';
-import { unit } from '../../core/units';
-import type { ChatItem, ChatMessage } from '../../model';
-import { messageUnitDef } from '../rows/message/message.def';
-import { planUnitDef } from '../rows/plan/plan.def';
-import { resourceLinkUnitDef } from '../rows/resource-link/resource-link.def';
-import { thinkingUnitDef } from '../rows/thinking/thinking.def';
-import { diffUnitDef } from '../rows/tools/diff/diff.def';
-import { executeUnitDef } from '../rows/tools/execute/execute.def';
-import { fileOpUnitDef } from '../rows/tools/file-op/file-op.def';
-import { toolUnitDef } from '../rows/tools/tool/tool.def';
+import { messageUnitDef } from '@components/rows/message/message.def';
+import { planUnitDef } from '@components/rows/plan/plan.def';
+import { resourceLinkUnitDef } from '@components/rows/resource-link/resource-link.def';
+import { thinkingUnitDef } from '@components/rows/thinking/thinking.def';
+import { diffUnitDef } from '@components/rows/tools/diff/diff.def';
+import { executeUnitDef } from '@components/rows/tools/execute/execute.def';
+import { fileOpUnitDef } from '@components/rows/tools/file-op/file-op.def';
+import { toolUnitDef } from '@components/rows/tools/tool/tool.def';
+import { DEFAULT_THEME } from '@core/theme';
+import type { GroupChrome, ItemSegmenter, UnitDef } from '@core/units';
+import { unit } from '@core/units';
+import type { ChatItem, ChatMessage } from '@/model';
 
 // ── Native single-unit segmenter for composites ───────────────────────────────
 //

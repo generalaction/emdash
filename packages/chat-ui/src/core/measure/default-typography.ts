@@ -6,7 +6,7 @@
  * the CompositeRole shape that metrics.ts / fonts.ts consume.
  */
 
-import { MONO_FAMILY_CSS, SANS_FAMILY_CSS, TYPE_ROLES } from '../tokens';
+import { MONO_FAMILY_CSS, SANS_FAMILY_CSS, TYPE_ROLES } from '@core/tokens';
 
 export type CompositeRole = {
   fontFamily: string[];

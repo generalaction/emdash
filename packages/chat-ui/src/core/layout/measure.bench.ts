@@ -10,12 +10,12 @@
  *   - unitDef.measure (message blocks): block-level measure over a 2 000-item transcript
  */
 
+import { messageUnitDef } from '@components/rows/message/message.def';
+import { createChatCaches } from '@core/caches';
+import { DEFAULT_THEME } from '@core/theme';
 import { bench, describe } from 'vitest';
-import { messageUnitDef } from '../../components/rows/message/message.def';
-import { generateMockTranscript } from '../../mock-transcript';
-import type { ChatMessage } from '../../model';
-import { createChatCaches } from '../caches';
-import { DEFAULT_THEME } from '../theme';
+import { generateMockTranscript } from '@/mock-transcript';
+import type { ChatMessage } from '@/model';
 import { layoutBlockStack, measureBlockCached } from './block-stack';
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────

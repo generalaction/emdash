@@ -1,7 +1,7 @@
-import type { Measured, MeasureCtx } from '../../../../core/define';
-import type { ProseLeafLayout } from '../../../../core/layout/layout-types';
-import type { ProseBlock } from '../../../../core/markdown/document';
-import { defineBlock } from '../block-def';
+import { defineBlock } from '@components/rows/markdown/block-def';
+import type { Measured, MeasureCtx } from '@core/define';
+import type { ProseLeafLayout } from '@core/layout/layout-types';
+import type { ProseBlock } from '@core/markdown/document';
 import { layoutProse } from './layout';
 import { Prose } from './Prose';
 

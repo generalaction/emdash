@@ -1,11 +1,11 @@
+import { PreviewWindow } from '@components/primitives/PreviewWindow';
+import type { MeasureCtx, RenderCtx } from '@core/define';
+import { DEFAULT_THEME } from '@core/theme';
+import { defineUnit } from '@core/units';
+import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
-import type { MeasureCtx, RenderCtx } from '../../../../core/define';
-import { DEFAULT_THEME } from '../../../../core/theme';
-import { defineUnit } from '../../../../core/units';
-import type { ChatFileOpToolCall } from '../../../../model';
-import { pxTokens } from '../../../../styles/px-tokens';
-import { PreviewWindow } from '../../../primitives/PreviewWindow';
+import type { ChatFileOpToolCall } from '@/model';
 import { FileOpRow, FileOpHeader, FileOpList, FileOpPreviewBody } from './FileOperation';
 import { fileOpCardVars, fileOpHeightVar, fileOpRoot, type FileOpStyleVars } from './file-op.css';
 

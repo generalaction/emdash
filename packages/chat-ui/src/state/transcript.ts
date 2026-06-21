@@ -28,7 +28,7 @@ import type {
   FileOpKind,
   ResourceTarget,
   ToolStatus,
-} from '../model';
+} from '@/model';
 
 export type TranscriptState = {
   committed: readonly ChatItem[];

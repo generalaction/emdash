@@ -1,8 +1,8 @@
-import { stack } from '../../../core/compose';
-import type { StackLayout } from '../../../core/compose';
-import type { Measured, MeasureCtx } from '../../../core/define';
-import type { BlockLeafLayout } from '../../../core/layout/layout-types';
-import type { Block, CodeBlock, ProseBlock, TableBlock } from '../../../core/markdown/document';
+import { stack } from '@core/compose';
+import type { StackLayout } from '@core/compose';
+import type { Measured, MeasureCtx } from '@core/define';
+import type { BlockLeafLayout } from '@core/layout/layout-types';
+import type { Block, CodeBlock, ProseBlock, TableBlock } from '@core/markdown/document';
 import { BLOCK_REGISTRY } from './block-registry';
 
 // ── Per-block memo ────────────────────────────────────────────────────────────

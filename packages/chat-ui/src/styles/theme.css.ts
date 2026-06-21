@@ -19,8 +19,8 @@
  *   inherits everything not explicitly overridden from this default theme.
  */
 
+import { CHIP_DEFAULTS, SANS_FAMILY_CSS, TYPE_ROLES } from '@core/tokens';
 import { createGlobalTheme, createGlobalThemeContract } from '@vanilla-extract/css';
-import { CHIP_DEFAULTS, SANS_FAMILY_CSS, TYPE_ROLES } from '../core/tokens';
 
 // ── Contract (stable public names) ────────────────────────────────────────────
 

@@ -1,14 +1,14 @@
+import { BlockStackView } from '@components/primitives/BlockStackView';
+import { CopyButton } from '@components/primitives/CopyButton';
+import type { StackLayout } from '@core/compose';
+import type { MeasureCtx, Measured, RenderCtx } from '@core/define';
+import { layoutBlockStack } from '@core/layout/block-stack';
+import { blockPlainText } from '@core/markdown/plain-text';
+import { defineUnit } from '@core/units';
+import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
-import type { StackLayout } from '../../../core/compose';
-import type { MeasureCtx, Measured, RenderCtx } from '../../../core/define';
-import { layoutBlockStack } from '../../../core/layout/block-stack';
-import { blockPlainText } from '../../../core/markdown/plain-text';
-import { defineUnit } from '../../../core/units';
-import type { ChatMessage } from '../../../model';
-import { pxTokens } from '../../../styles/px-tokens';
-import { BlockStackView } from '../../primitives/BlockStackView';
-import { CopyButton } from '../../primitives/CopyButton';
+import type { ChatMessage } from '@/model';
 import { type MessageVars, userInnerWidth } from './metrics';
 import { UserMessageCard } from './UserMessageCard';
 import {

@@ -5,4 +5,4 @@ export {
   layoutBlockStack,
   measureBlockCached,
   type BlockStackOpts,
-} from '../../components/rows/markdown/block-stack';
+} from '@components/rows/markdown/block-stack';

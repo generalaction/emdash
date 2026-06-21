@@ -1,7 +1,7 @@
 import { Show, createEffect, onCleanup } from 'solid-js';
 import type { JSX } from 'solid-js';
-import { fadeOverlayBottom, fadeOverlayTop } from '../../styles/effects.css';
 import { overlay } from './preview-window.css';
+import { fadeOverlayBottom, fadeOverlayTop } from '@styles/effects.css';
 
 export type PreviewWindowProps = {
   /** Outer container height (px). */

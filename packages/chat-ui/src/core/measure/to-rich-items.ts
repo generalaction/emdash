@@ -8,8 +8,8 @@
  */
 
 import type { RichInlineItem } from '@chenglou/pretext/rich-inline';
-import { MENTION_ICON_GAP, MENTION_ICON_W } from '../../components/rows/markdown/prose/metrics';
-import type { InlineCode, InlineMention, InlineRun, InlineText } from '../markdown/document';
+import { MENTION_ICON_GAP, MENTION_ICON_W } from '@components/rows/markdown/prose/metrics';
+import type { InlineCode, InlineMention, InlineRun, InlineText } from '@core/markdown/document';
 import type { FontConfig } from './fonts';
 
 export function runsToRichItems(runs: InlineRun[], fonts: FontConfig): RichInlineItem[] {

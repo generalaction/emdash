@@ -18,18 +18,18 @@
  *   record()    — structured console.table log for diffing across runs.
  */
 
+import { CachesContext } from '@components/contexts/CachesContext';
+import { ThemeContext } from '@components/contexts/ThemeContext';
+import { UNIT_REGISTRY, SEGMENTERS } from '@components/engine/unit-registry';
+import { createChatCaches } from '@core/caches';
+import type { MeasureCtx, RenderCtx } from '@core/define';
+import { DEFAULT_THEME } from '@core/theme';
+import { createTranscript } from '@state/transcript';
+import { createViewState } from '@state/view-state';
 import { For, createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
-import { ChatRoot } from '../../ChatRoot';
-import { CachesContext } from '../../components/contexts/CachesContext';
-import { ThemeContext } from '../../components/contexts/ThemeContext';
-import { UNIT_REGISTRY, SEGMENTERS } from '../../components/engine/unit-registry';
-import { createChatCaches } from '../../core/caches';
-import type { MeasureCtx, RenderCtx } from '../../core/define';
-import { DEFAULT_THEME } from '../../core/theme';
-import type { ChatItem } from '../../model';
-import { createTranscript } from '../../state/transcript';
-import { createViewState } from '../../state/view-state';
+import { ChatRoot } from '@/ChatRoot';
+import type { ChatItem } from '@/model';
 
 // ── Timing helpers ────────────────────────────────────────────────────────────
 

@@ -10,7 +10,7 @@
  */
 
 import { style } from '@vanilla-extract/css';
-import { vars } from '../../styles/theme.css';
+import { vars } from '@styles/theme.css';
 
 /** Apply this class to the parent container to enable group-hover reveal. */
 export const group = style({});

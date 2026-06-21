@@ -17,10 +17,10 @@
  * Does NOT call `virt.setSize` — the overlay is outside the virtualizer tree.
  */
 
-import type { ChatCaches } from '../../../core/caches';
-import type { MeasureCtx, RenderCtx } from '../../../core/define';
-import type { ChatTheme } from '../../../core/theme';
-import type { ChatMessage } from '../../../model';
+import type { ChatCaches } from '@core/caches';
+import type { MeasureCtx, RenderCtx } from '@core/define';
+import type { ChatTheme } from '@core/theme';
+import type { ChatMessage } from '@/model';
 import { messageUnitDef } from './message.def';
 import { UserMessageCard } from './UserMessageCard';
 import { pinnedBackdrop, pinnedScrollFade } from './user-message.css';

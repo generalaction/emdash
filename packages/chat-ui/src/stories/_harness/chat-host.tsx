@@ -7,13 +7,13 @@
  * pre-toggles a specific item so expanded-state stories start already opened.
  */
 
+import { DEFAULT_THEME } from '@core/theme';
+import { createTranscript } from '@state/transcript';
+import type { TranscriptApi } from '@state/transcript';
+import { createViewState } from '@state/view-state';
 import { createEffect, getOwner, onCleanup, onMount, runWithOwner, type JSX } from 'solid-js';
-import { ChatRoot } from '../../ChatRoot';
-import { DEFAULT_THEME } from '../../core/theme';
-import type { ChatItem } from '../../model';
-import { createTranscript } from '../../state/transcript';
-import type { TranscriptApi } from '../../state/transcript';
-import { createViewState } from '../../state/view-state';
+import { ChatRoot } from '@/ChatRoot';
+import type { ChatItem } from '@/model';
 import { storyViewport } from './chat-host.css';
 
 /**

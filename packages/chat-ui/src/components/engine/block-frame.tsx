@@ -1,5 +1,5 @@
+import { useDebug } from '@components/contexts/debug-context';
 import { Show, createSignal, onMount, type JSX, onCleanup } from 'solid-js';
-import { useDebug } from '../contexts/debug-context';
 import {
   debugLabel,
   debugMismatch,

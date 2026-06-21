@@ -6,12 +6,12 @@
  * Designed to accept Pending/Permission rows later as config-only additions.
  */
 
+import { DEFAULT_THEME } from '@core/theme';
+import { createTranscript } from '@state/transcript';
+import { createViewState } from '@state/view-state';
 import { For } from 'solid-js';
-import { ChatRoot } from '../../ChatRoot';
-import { DEFAULT_THEME } from '../../core/theme';
-import type { ChatItem, ToolStatus } from '../../model';
-import { createTranscript } from '../../state/transcript';
-import { createViewState } from '../../state/view-state';
+import { ChatRoot } from '@/ChatRoot';
+import type { ChatItem, ToolStatus } from '@/model';
 import { storyViewport } from './chat-host.css';
 
 export type MatrixStatus = ToolStatus;

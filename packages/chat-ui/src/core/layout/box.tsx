@@ -26,14 +26,14 @@
  * (see core/compose.ts header).
  */
 
+import { BlockStackView } from '@components/primitives/BlockStackView';
+import { PreviewWindow } from '@components/primitives/PreviewWindow';
+import type { StackLayout } from '@core/compose';
+import type { MeasureCtx, Measured, RenderCtx } from '@core/define';
+import type { Block } from '@core/markdown/document';
 import { For, Show } from 'solid-js';
 import type { Component } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
-import { BlockStackView } from '../../components/primitives/BlockStackView';
-import { PreviewWindow } from '../../components/primitives/PreviewWindow';
-import type { StackLayout } from '../compose';
-import type { MeasureCtx, Measured, RenderCtx } from '../define';
-import type { Block } from '../markdown/document';
 import { layoutBlockStack, type BlockStackOpts } from './block-stack';
 
 // ── Box ──────────────────────────────────────────────────────────────────────

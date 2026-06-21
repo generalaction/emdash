@@ -20,16 +20,16 @@
  * Debug overlay: dashed outline at reserved height; red when actual ≠ reserved.
  */
 
+import { useDebug } from '@components/contexts/debug-context';
+import type { ChatCaches } from '@core/caches';
+import type { MeasureCtx, RenderCtx } from '@core/define';
+import type { ChatTheme } from '@core/theme';
+import type { GroupChrome, RenderUnit } from '@core/units';
+import { unitReservedHeight } from '@core/units';
+import type { Virtualizer } from '@core/virtualizer';
+import type { ViewState } from '@state/view-state';
 import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
-import type { ChatCaches } from '../../core/caches';
-import type { MeasureCtx, RenderCtx } from '../../core/define';
-import type { ChatTheme } from '../../core/theme';
-import type { GroupChrome, RenderUnit } from '../../core/units';
-import { unitReservedHeight } from '../../core/units';
-import type { Virtualizer } from '../../core/virtualizer';
-import type { ViewState } from '../../state/view-state';
-import { useDebug } from '../contexts/debug-context';
 import { UNIT_REGISTRY } from './unit-registry';
 import {
   debugLabel,

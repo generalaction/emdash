@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { ChatItem } from '../model';
+import type { ChatItem } from '@/model';
 import { createTranscript } from './transcript';
 
 function msg(id: string, text = 'hi'): ChatItem {

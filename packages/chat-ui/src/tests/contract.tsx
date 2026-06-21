@@ -6,7 +6,7 @@
  * actual offsetHeight.
  *
  * Usage:
- *   import { makeContractCtx, renderAndMeasureUnit } from '../tests/contract';
+ *   import { makeContractCtx, renderAndMeasureUnit } from '@/tests/contract';
  *
  *   const ctx = makeContractCtx({ width: 640 });
  *   const { computed, dom } = await renderAndMeasureUnit(def, item, ctx);
@@ -21,16 +21,16 @@
  *     are bugs in the measurement model.
  */
 
+import { CachesContext } from '@components/contexts/CachesContext';
+import { ThemeContext } from '@components/contexts/ThemeContext';
+import { createChatCaches } from '@core/caches';
+import type { MeasureCtx, RenderCtx } from '@core/define';
+import type { ChatTheme } from '@core/theme';
+import { DEFAULT_THEME } from '@core/theme';
+import type { UnitDef } from '@core/units';
 import { type JSX } from 'solid-js';
 import { render } from 'solid-js/web';
 import { afterEach } from 'vitest';
-import { CachesContext } from '../components/contexts/CachesContext';
-import { ThemeContext } from '../components/contexts/ThemeContext';
-import { createChatCaches } from '../core/caches';
-import type { MeasureCtx, RenderCtx } from '../core/define';
-import type { ChatTheme } from '../core/theme';
-import { DEFAULT_THEME } from '../core/theme';
-import type { UnitDef } from '../core/units';
 
 export type ContractCtx = MeasureCtx;
 

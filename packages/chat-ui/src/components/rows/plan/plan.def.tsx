@@ -1,13 +1,13 @@
+import { PreviewWindow } from '@components/primitives/PreviewWindow';
+import type { StackLayout } from '@core/compose';
+import { type Measured, type MeasureCtx, type RenderCtx } from '@core/define';
+import { layoutBlockStack } from '@core/layout/block-stack';
+import { DEFAULT_THEME } from '@core/theme';
+import { defineUnit } from '@core/units';
+import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
-import type { StackLayout } from '../../../core/compose';
-import { type Measured, type MeasureCtx, type RenderCtx } from '../../../core/define';
-import { layoutBlockStack } from '../../../core/layout/block-stack';
-import { DEFAULT_THEME } from '../../../core/theme';
-import { defineUnit } from '../../../core/units';
-import type { ChatPlan, PlanEntryPriority, PlanEntryStatus } from '../../../model';
-import { pxTokens } from '../../../styles/px-tokens';
-import { PreviewWindow } from '../../primitives/PreviewWindow';
+import type { ChatPlan, PlanEntryPriority, PlanEntryStatus } from '@/model';
 import { PlanHeader, PlanList } from './Plan';
 import { planCard, planRoot, planVars, type PlanStyleVars } from './plan.css';
 

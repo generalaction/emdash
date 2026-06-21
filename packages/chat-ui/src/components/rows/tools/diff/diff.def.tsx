@@ -1,9 +1,9 @@
+import type { MeasureCtx, RenderCtx } from '@core/define';
+import { defineUnit } from '@core/units';
+import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
-import type { MeasureCtx, RenderCtx } from '../../../../core/define';
-import { defineUnit } from '../../../../core/units';
-import type { ChatDiff } from '../../../../model';
-import { pxTokens } from '../../../../styles/px-tokens';
+import type { ChatDiff } from '@/model';
 import { DiffHeader, DiffLines } from './Diff';
 import { countChanges, selectPreview, type DiffRow } from './diff-lines';
 import { langFromPath } from './lang';

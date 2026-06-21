@@ -3,7 +3,7 @@
  */
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
-import { ChatHost } from '../../_harness/chat-host';
+import { ChatHost } from '@/stories/_harness/chat-host';
 
 const meta: Meta = {
   title: 'Rows/Markdown/HorizontalRule',

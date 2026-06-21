@@ -16,16 +16,16 @@
  * onto wrapperEl (the inner div), which carries the background Tailwind class.
  */
 
+import { useCaches } from '@components/contexts/CachesContext';
+import { BlockFrame } from '@components/engine/block-frame';
+import { cancelIdle, scheduleIdle } from '@components/engine/dom-utils';
+import { CopyButton } from '@components/primitives/CopyButton';
+import { applyTokenLines } from '@core/highlight/apply-tokens';
+import type { CodeLaidOut } from '@core/layout/layout-types';
+import type { CodeBlock } from '@core/markdown/document';
 import { For, createEffect, onCleanup } from 'solid-js';
-import { applyTokenLines } from '../../../../core/highlight/apply-tokens';
-import type { CodeLaidOut } from '../../../../core/layout/layout-types';
-import type { CodeBlock } from '../../../../core/markdown/document';
-import { useCaches } from '../../../contexts/CachesContext';
-import { BlockFrame } from '../../../engine/block-frame';
-import { cancelIdle, scheduleIdle } from '../../../engine/dom-utils';
-import { CopyButton } from '../../../primitives/CopyButton';
-import { group } from '../../../primitives/copy-button.css';
 import { codeLine, codeWrapper } from './code.css';
+import { group } from '@components/primitives/copy-button.css';
 
 export type CodeProps = {
   block: CodeLaidOut;

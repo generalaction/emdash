@@ -14,8 +14,8 @@
  */
 
 import type { JSX } from 'solid-js';
-import { textShimmer } from '../../styles/effects.css';
 import { chevron, chevronExpanded, collapseHeader } from './collapse-header.css';
+import { textShimmer } from '@styles/effects.css';
 
 export type CollapseHeaderProps = {
   /** The item id wired to data-collapse-id for ChatRoot delegation. */

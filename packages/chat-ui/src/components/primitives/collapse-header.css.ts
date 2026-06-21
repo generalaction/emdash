@@ -1,6 +1,6 @@
 import { style } from '@vanilla-extract/css';
-import { sx } from '../../styles/sprinkles.css';
-import { vars } from '../../styles/theme.css';
+import { sx } from '@styles/sprinkles.css';
+import { vars } from '@styles/theme.css';
 
 export const collapseRow = sx({
   display: 'flex',

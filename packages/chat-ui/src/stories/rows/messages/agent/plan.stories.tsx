@@ -3,8 +3,8 @@
  */
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
-import type { ChatPlanEntry } from '../../../../model';
-import { ChatHost, ChatHostExpanded } from '../../../_harness/chat-host';
+import type { ChatPlanEntry } from '@/model';
+import { ChatHost, ChatHostExpanded } from '@/stories/_harness/chat-host';
 
 const meta: Meta = {
   title: 'Rows/Messages/Agent/Plan',

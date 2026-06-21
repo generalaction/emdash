@@ -1,8 +1,8 @@
+import { DEFAULT_THEME } from '@core/theme';
+import { defineUnit } from '@core/units';
+import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
-import { DEFAULT_THEME } from '../../../core/theme';
-import { defineUnit } from '../../../core/units';
-import type { ChatResourceLink } from '../../../model';
-import { pxTokens } from '../../../styles/px-tokens';
+import type { ChatResourceLink } from '@/model';
 import { ResourceLink } from './ResourceLink';
 import { resourceLinkRoot, resourceLinkVars } from './resource-link.css';
 

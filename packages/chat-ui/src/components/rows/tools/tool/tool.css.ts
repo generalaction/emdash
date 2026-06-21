@@ -1,7 +1,7 @@
 import { style } from '@vanilla-extract/css';
-import { textShimmer } from '../../../../styles/effects.css';
-import { sx } from '../../../../styles/sprinkles.css';
-import { createVariableThemeContract } from '../../../../styles/variable-theme-contract.css';
+import { textShimmer } from '@styles/effects.css';
+import { sx } from '@styles/sprinkles.css';
+import { createVariableThemeContract } from '@styles/variable-theme-contract.css';
 
 // ── Runtime geometry contract ─────────────────────────────────────────────────
 

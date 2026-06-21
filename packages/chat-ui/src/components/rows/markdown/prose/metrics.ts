@@ -6,4 +6,4 @@ export {
   MENTION_PAD_Y,
   MENTION_ICON_W,
   MENTION_ICON_GAP,
-} from '../../../../core/metrics';
+} from '@core/metrics';

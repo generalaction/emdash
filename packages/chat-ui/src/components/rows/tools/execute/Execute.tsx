@@ -13,10 +13,10 @@
  * This component only describes inner content; no height/padding CSS needed here.
  */
 
-import type { ChatExecute } from '../../../../model';
-import { textShimmer } from '../../../../styles/effects.css';
-import { sx } from '../../../../styles/sprinkles.css';
+import type { ChatExecute } from '@/model';
 import { pexecCmd } from './execute.css';
+import { textShimmer } from '@styles/effects.css';
+import { sx } from '@styles/sprinkles.css';
 
 export type ExecuteProps = {
   item: ChatExecute;

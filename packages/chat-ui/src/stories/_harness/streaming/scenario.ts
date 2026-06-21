@@ -5,9 +5,9 @@
  * No Solid imports so this module can run in the Node Vitest project.
  */
 
-import type { ChatItem, ChatRole, FileOp, FileOpKind, ToolStatus } from '../../../model';
-import type { TranscriptApi } from '../../../state/transcript';
-import type { ScriptStep } from '../chat-host';
+import type { TranscriptApi } from '@state/transcript';
+import type { ChatItem, ChatRole, FileOp, FileOpKind, ToolStatus } from '@/model';
+import type { ScriptStep } from '@/stories/_harness/chat-host';
 
 // ── Chunk splitting ───────────────────────────────────────────────────────────
 

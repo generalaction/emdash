@@ -1,14 +1,14 @@
+import { useCommands } from '@components/contexts/CommandsContext';
+import { BlockStackView } from '@components/primitives/BlockStackView';
+import { ImageOffIcon } from '@components/primitives/icons';
+import type { StackLayout } from '@core/compose';
+import type { Measured, RenderCtx } from '@core/define';
+import { layoutBlockStack } from '@core/layout/block-stack';
+import { blockPlainText } from '@core/markdown/plain-text';
+import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, Show, createMemo } from 'solid-js';
-import type { StackLayout } from '../../../core/compose';
-import type { Measured, RenderCtx } from '../../../core/define';
-import { layoutBlockStack } from '../../../core/layout/block-stack';
-import { blockPlainText } from '../../../core/markdown/plain-text';
-import type { ChatMessage } from '../../../model';
-import { pxTokens } from '../../../styles/px-tokens';
-import { useCommands } from '../../contexts/CommandsContext';
-import { BlockStackView } from '../../primitives/BlockStackView';
-import { ImageOffIcon } from '../../primitives/icons';
+import type { ChatMessage } from '@/model';
 import { type MessageVars, userInnerWidth } from './metrics';
 import {
   attachmentStrip,

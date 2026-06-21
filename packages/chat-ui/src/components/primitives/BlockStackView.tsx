@@ -1,9 +1,9 @@
+import { BLOCK_REGISTRY } from '@components/rows/markdown/block-registry';
+import type { StackLayout } from '@core/compose';
+import type { Measured } from '@core/define';
+import type { BlockLeafLayout } from '@core/layout/layout-types';
 import { For } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
-import type { StackLayout } from '../../core/compose';
-import type { Measured } from '../../core/define';
-import type { BlockLeafLayout } from '../../core/layout/layout-types';
-import { BLOCK_REGISTRY } from '../rows/markdown/block-registry';
 
 function BlockLeafRender(props: { node: Measured<BlockLeafLayout> }) {
   const def = BLOCK_REGISTRY[props.node.layout.kind];

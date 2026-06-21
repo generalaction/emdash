@@ -1,7 +1,7 @@
+import { defineUnit } from '@core/units';
+import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
-import { defineUnit } from '../../../../core/units';
-import type { ChatExecute } from '../../../../model';
-import { pxTokens } from '../../../../styles/px-tokens';
+import type { ChatExecute } from '@/model';
 import { Execute } from './Execute';
 import { executeRoot, executeVars } from './execute.css';
 

@@ -1,18 +1,18 @@
+import { useTheme } from '@components/contexts/ThemeContext';
+import { BlockStackView } from '@components/primitives/BlockStackView';
+import { CollapseHeader } from '@components/primitives/CollapseHeader';
+import { PreviewWindow } from '@components/primitives/PreviewWindow';
+import type { MeasureCtx, RenderCtx } from '@core/define';
+import { layoutBlockStack } from '@core/layout/block-stack';
+import type { Block } from '@core/markdown/document';
+import { flattenBlockHeadings } from '@core/markdown/parse';
+import { defineUnit } from '@core/units';
+import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
-import type { MeasureCtx, RenderCtx } from '../../../core/define';
-import { layoutBlockStack } from '../../../core/layout/block-stack';
-import type { Block } from '../../../core/markdown/document';
-import { flattenBlockHeadings } from '../../../core/markdown/parse';
-import { defineUnit } from '../../../core/units';
-import type { ChatThinking } from '../../../model';
-import { pxTokens } from '../../../styles/px-tokens';
-import { useTheme } from '../../contexts/ThemeContext';
-import { BlockStackView } from '../../primitives/BlockStackView';
-import { CollapseHeader } from '../../primitives/CollapseHeader';
-import { PreviewWindow } from '../../primitives/PreviewWindow';
-import { sx } from '../../../styles/sprinkles.css';
+import type { ChatThinking } from '@/model';
 import { thinkingCardVars, thinkingRoot, type ThinkingStyleVars } from './thinking.css';
+import { sx } from '@styles/sprinkles.css';
 
 export type ThinkingVars = {
   /** Style-relevant: vertical padding inside the expanded body. Consumed by thinkingCardVars. */
