@@ -207,7 +207,7 @@ function sshProvider(
   });
 }
 
-function conversation(): Conversation {
+function conversation(overrides: Partial<Conversation> = {}): Conversation {
   return {
     id: 'conversation-1',
     projectId: 'project-1',
@@ -217,6 +217,7 @@ function conversation(): Conversation {
     lastInteractedAt: null,
     providerSessionId: 'provider-session-1',
     isInitialConversation: false,
+    ...overrides,
   };
 }
 
@@ -462,6 +463,26 @@ describe('conversation provider respawn state', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('starts a remote Codex conversation fresh when no provider session id is available', async () => {
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    openSsh2Pty.mockResolvedValue({
+      success: true,
+      data: fakePty(exitHandlers),
+    });
+    const provider = sshProvider();
+    const item = conversation({ providerSessionId: undefined });
+
+    await provider.startSession(item, undefined, true);
+
+    expect(buildCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        initialPrompt: undefined,
+        isResuming: false,
+        sessionId: item.id,
+      })
+    );
   });
 
   it('emits PTY exit when a local conversation unregisters before the registry exit handler runs', async () => {
