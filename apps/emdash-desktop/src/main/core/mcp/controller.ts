@@ -1,3 +1,4 @@
+import type { CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
 import type { DependencyId } from '@emdash/core/deps/runtime';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import { localDependencyManager } from '@main/core/dependencies/dependency-managers';
@@ -7,8 +8,7 @@ import { createRPCController } from '@shared/lib/ipc/rpc';
 import { mcpService } from './services/McpService';
 
 function mapProviders(): McpProvidersResponse[] {
-  return pluginRegistry
-    .getAll()
+  return (pluginRegistry.getAll() as CLIAgentPluginProvider[])
     .filter((p) => p.capabilities.mcp.kind === 'supported')
     .map((p) => {
       const dep = localDependencyManager.get(p.metadata.id as DependencyId);

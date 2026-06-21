@@ -1,10 +1,14 @@
 import { observer } from 'mobx-react-lite';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
 import { usePreviewServers } from '@renderer/features/tasks/task-view-context';
 import { events, rpc } from '@renderer/lib/ipc';
+import { isActivationModifierPressed } from '@renderer/lib/pty/file-link-provider';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
+import { removeBrowserBookmark } from '@shared/browser-bookmarks';
 import { tabNavigationShortcutChannel } from '@shared/events/appEvents';
+import { BrowserBookmarkBar } from './browser-bookmark-bar';
 import { browserControlsRegistry } from './browser-controls-registry';
 import { decideBrowserReload } from './browser-navigation-controls';
 import { browserSessionStore } from './browser-session-store';
@@ -27,6 +31,7 @@ export const BrowserPane = observer(function BrowserPane({
   visible: boolean;
 }) {
   const session = browserSessionStore.getSession(browserId);
+  const { value: browserSettings, update: updateBrowserSettings } = useAppSettingsKey('browser');
   const { tabManager } = useTabGroupContext();
   const previewServers = usePreviewServers();
   const webviewRef = useRef<BrowserWebviewElement | null>(null);
@@ -44,6 +49,8 @@ export const BrowserPane = observer(function BrowserPane({
   const sessionBrowserId = session?.browserId;
   const sessionPartition = session?.partition;
   const showStartPage = session?.currentUrl === 'about:blank' && !session.isLoading;
+  const showBookmarkBar = browserSettings?.showBookmarkBar ?? false;
+  const bookmarks = browserSettings?.bookmarks ?? [];
 
   useEffect(() => {
     if (!sessionBrowserId || !sessionPartition || !session) {
@@ -149,6 +156,17 @@ export const BrowserPane = observer(function BrowserPane({
       return true;
     },
     [loadUrl]
+  );
+
+  const openBookmarkUrl = useCallback(
+    (url: string, event: MouseEvent) => {
+      if (isActivationModifierPressed(event)) {
+        tabManager.openBrowser(url);
+        return;
+      }
+      navigateTo(url);
+    },
+    [navigateTo, tabManager]
   );
 
   const goBack = useCallback(() => {
@@ -258,6 +276,15 @@ export const BrowserPane = observer(function BrowserPane({
         onFocusUrl={(focus) => {
           focusUrlRef.current = focus;
         }}
+      />
+      <BrowserBookmarkBar
+        visible={showBookmarkBar}
+        bookmarks={bookmarks}
+        onOpenUrl={openBookmarkUrl}
+        onReorder={(next) => updateBrowserSettings({ bookmarks: next })}
+        onRemove={(bookmarkId) =>
+          updateBrowserSettings({ bookmarks: removeBrowserBookmark(bookmarks, bookmarkId) })
+        }
       />
       <div className="emlight min-h-0 flex-1 bg-background">
         {showStartPage ? (

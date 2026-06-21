@@ -32,6 +32,11 @@ import {
   normalizeBrowserProfileSelection,
   type BrowserProfile,
 } from '@shared/browser';
+import {
+  browserBookmarkDisplayTitle,
+  removeBrowserBookmark,
+  type BrowserBookmark,
+} from '@shared/browser-bookmarks';
 import { SettingRow } from './SettingRow';
 
 export function BrowserSettingsCard() {
@@ -49,6 +54,7 @@ export function BrowserSettingsCard() {
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   const profiles = browserSettings?.profiles ?? DEFAULT_BROWSER_PROFILES;
+  const bookmarks = browserSettings?.bookmarks ?? [];
   const selectedDefault = normalizeBrowserProfileSelection(
     browserSettings?.defaultProfileId,
     profiles
@@ -140,6 +146,18 @@ export function BrowserSettingsCard() {
       />
 
       <SettingRow
+        title="Show bookmark bar"
+        description="Display quick-access bookmarks below the browser toolbar."
+        control={
+          <Switch
+            checked={browserSettings?.showBookmarkBar ?? false}
+            disabled={disabled}
+            onCheckedChange={(next) => update({ showBookmarkBar: next })}
+          />
+        }
+      />
+
+      <SettingRow
         title="Disable CORS for localhost"
         description="Allows pages opened from localhost in Emdash browser tabs to call APIs that do not send matching CORS headers."
         control={
@@ -150,6 +168,33 @@ export function BrowserSettingsCard() {
           />
         }
       />
+
+      <div className="rounded-lg border border-border/70 bg-background-secondary-1 p-3">
+        <div className="flex flex-col gap-1">
+          <div className="text-sm text-foreground">Bookmarks</div>
+          <div className="text-xs text-foreground-passive">
+            Quick-access links shown in the browser bookmark bar. Add bookmarks from the star button
+            in a browser tab.
+          </div>
+        </div>
+
+        {bookmarks.length === 0 ? (
+          <div className="mt-2 text-xs text-foreground-passive">No bookmarks yet.</div>
+        ) : (
+          <div className="mt-2 flex flex-col divide-y divide-border/40">
+            {bookmarks.map((bookmark) => (
+              <BookmarkSettingsRow
+                key={bookmark.id}
+                bookmark={bookmark}
+                disabled={disabled}
+                onRemove={() =>
+                  update({ bookmarks: removeBrowserBookmark(bookmarks, bookmark.id) })
+                }
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="rounded-lg border border-border/70 bg-background-secondary-1 p-3">
         <div className="flex flex-col gap-1">
@@ -305,6 +350,38 @@ export function BrowserSettingsCard() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function BookmarkSettingsRow({
+  bookmark,
+  disabled,
+  onRemove,
+}: {
+  bookmark: BrowserBookmark;
+  disabled: boolean;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="flex h-9 items-center gap-2">
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm text-foreground">
+          {browserBookmarkDisplayTitle(bookmark)}
+        </div>
+        <div className="truncate text-xs text-foreground-passive">{bookmark.url}</div>
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-7 shrink-0 text-foreground-muted"
+        disabled={disabled}
+        aria-label={`Remove ${browserBookmarkDisplayTitle(bookmark)} bookmark`}
+        onClick={onRemove}
+      >
+        <Trash2 className="size-4" />
+      </Button>
     </div>
   );
 }
