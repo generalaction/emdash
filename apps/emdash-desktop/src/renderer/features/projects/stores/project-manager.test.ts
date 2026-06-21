@@ -310,8 +310,27 @@ describe('ProjectManagerStore project creation', () => {
     projectStore.errorCode = 'ssh-disconnected';
 
     store.retryDisconnectedSshProjects({ force: true });
+    await Promise.resolve();
 
     expect(mocks.sshConnect).toHaveBeenCalledWith('ssh-1');
+    expect(mocks.openProject).toHaveBeenCalledWith(project.id);
+  });
+
+  it('mounts SSH-disconnected projects when the connection is already connected', () => {
+    mocks.sshStateFor.mockReturnValue('connected');
+    const store = new ProjectManagerStore();
+    const project = sshProject();
+    store.projects.set(project.id, createUnmountedProject(project, 'idle'));
+    const projectStore = store.projects.get(project.id);
+    if (!projectStore) throw new Error('Expected project store');
+    projectStore.phase = 'error';
+    projectStore.error = project.connectionId;
+    projectStore.errorCode = 'ssh-disconnected';
+
+    store.retryDisconnectedSshProjects({ force: true });
+
+    expect(mocks.sshConnect).not.toHaveBeenCalled();
+    expect(mocks.openProject).toHaveBeenCalledWith(project.id);
   });
 
   it('does not write GitHub account settings when creation did not specify one', async () => {

@@ -39,16 +39,7 @@ export class ProjectManagerStore {
 
     events.on(sshConnectionEventChannel, (event) => {
       if (event.type !== 'connected' && event.type !== 'reconnected') return;
-      for (const [projectId, store] of this.projects) {
-        if (
-          isUnmountedProject(store) &&
-          store.errorCode === 'ssh-disconnected' &&
-          store.data.type === 'ssh' &&
-          store.data.connectionId === event.connectionId
-        ) {
-          this.mountProject(projectId).catch(() => {});
-        }
-      }
+      this._mountDisconnectedSshProjects(event.connectionId);
     });
 
     globalThis.window?.addEventListener('online', () => {
@@ -398,8 +389,28 @@ export class ProjectManagerStore {
 
     for (const connectionId of connectionIds) {
       const state = appState.sshConnections.stateFor(connectionId);
-      if (state === 'connected' || state === 'connecting' || state === 'reconnecting') continue;
-      void appState.sshConnections.connect(connectionId).catch(() => {});
+      if (state === 'connected') {
+        this._mountDisconnectedSshProjects(connectionId);
+        continue;
+      }
+      if (state === 'connecting' || state === 'reconnecting') continue;
+      void appState.sshConnections
+        .connect(connectionId)
+        .then(() => this._mountDisconnectedSshProjects(connectionId))
+        .catch(() => {});
+    }
+  }
+
+  private _mountDisconnectedSshProjects(connectionId: string): void {
+    for (const [projectId, store] of this.projects) {
+      if (
+        isUnmountedProject(store) &&
+        store.errorCode === 'ssh-disconnected' &&
+        store.data.type === 'ssh' &&
+        store.data.connectionId === connectionId
+      ) {
+        this.mountProject(projectId).catch(() => {});
+      }
     }
   }
 
