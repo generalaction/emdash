@@ -1,17 +1,23 @@
 /*
- * chat-theme.css — desktop override preset for @emdash/chat-ui.
+ * chat-theme.css — host override preset for @emdash/chat-ui.
  *
- * Import this file alongside @emdash/ui/theme/theme.css and semantic.css in
- * the host application to re-bind the --chat-* contract to the design system's
- * semantic tokens. The :where() defaults in tokens.css have zero specificity,
- * so these .emlight / .emdark rules always win regardless of load order.
+ * This file is the "host override" layer that sits on top of chat-ui's built-in
+ * default theme (theme.css.ts). It rebinds the --chat-* contract variables to
+ * the emdash design-system semantic tokens so chat-ui integrates with the
+ * desktop app's visual language.
  *
- * emdash-desktop already imports this at main.tsx so in-app appearance is
- * preserved automatically.
+ * Theming model:
+ *   chat-ui default (theme.css.ts :where())   — self-contained, Inter + JetBrains Mono
+ *   └── this file (.emlight / .emdark rules)  — overrides fonts/colors for desktop
+ *       └── --chat-font-sans: var(--font-sans) — system sans (not Inter) on desktop
  *
- * Scope: all --chat-* color vars + non-color design tokens (font-mono, radii).
- * Typography role vars (--type-*) remain at their tokens.css defaults because
- * they are derived from the same source of truth (tokens.js composite roles).
+ * Import alongside @emdash/ui/theme/theme.css and semantic.css in the host app.
+ * emdash-desktop imports this at main.tsx. The specificity of .emlight / .emdark
+ * beats the :where() defaults regardless of stylesheet load order.
+ *
+ * Scope: all --chat-* color vars + --chat-font-sans + --chat-font-mono + radii.
+ * Typography size/weight vars (--chat-type-*) are unchanged — they are derived
+ * from the same tokens.ts source of truth.
  */
 
 .emlight,

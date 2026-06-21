@@ -1,15 +1,22 @@
 /**
- * theme.css.ts — VE global theme contract.
+ * theme.css.ts — VE global theme contract + chat-ui default theme.
  *
- * Produces the exact same CSS variable names that tokens.css emitted, so the
- * public theming contract (--chat-* / .emlight / .emdark in chat-theme.css) is
- * preserved untouched.
+ * CONTRACT (vars)
+ *   createGlobalThemeContract defines the stable public CSS variable names
+ *   (--chat-fg, --chat-type-body-font-size, --chat-font-sans, ...) that every
+ *   .css.ts file and host override preset depend on.
  *
- * mapFn uses the value string as the explicit var name (with -- prefix) so every
- * CSS custom property name is readable and refactor-proof in TypeScript.
+ * DEFAULT THEME (createGlobalTheme × 2)
+ *   The two createGlobalTheme calls are the chat-ui built-in default theme.
+ *   They are self-contained: font values are concrete (Inter Variable / JetBrains
+ *   Mono Variable) with no dependency on host vars like --font-sans.
+ *   Specificity is zero (:where() selectors) so any host override wins
+ *   regardless of stylesheet load order.
  *
- * Two createGlobalTheme calls reproduce the zero-specificity :where() defaults
- * from the old tokens.css §2 block — light (root + .emlight) and dark (.emdark).
+ * HOST OVERRIDE (chat-theme.css)
+ *   The optional chat-theme.css preset rebinds --chat-font-sans, colors and
+ *   radii to the emdash design-system tokens (system sans on desktop). It
+ *   inherits everything not explicitly overridden from this default theme.
  */
 
 import { createGlobalTheme, createGlobalThemeContract } from '@vanilla-extract/css';
@@ -183,7 +190,7 @@ createGlobalTheme(':where(:root), :where(.emlight)', vars, {
   planActive: '#f59e0b',
 
   // Non-color tokens
-  fontSans: `var(--font-sans, ${SANS_FAMILY_CSS})`,
+  fontSans: SANS_FAMILY_CSS,
   fontMono: "'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, monospace",
   radiusSm: '0.375rem',
   radiusMd: '0.5rem',
@@ -285,7 +292,7 @@ createGlobalTheme(':where(.emdark)', vars, {
   planActive: '#dead52',
 
   // Non-color tokens (same as light — host overrides these if needed)
-  fontSans: `var(--font-sans, ${SANS_FAMILY_CSS})`,
+  fontSans: SANS_FAMILY_CSS,
   fontMono: "'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, monospace",
   radiusSm: '0.375rem',
   radiusMd: '0.5rem',

@@ -7,6 +7,7 @@
  */
 
 import { style } from '@vanilla-extract/css';
+import { vars } from './styles/theme.css';
 
 /** Outer clip container — clips the pinned overlay during scroll handoff. */
 export const outerClip = style({
@@ -14,6 +15,10 @@ export const outerClip = style({
   height: '100%',
   width: '100%',
   overflow: 'hidden',
+  // Base font so chrome text (headers, tool/thinking/plan rows) inherits the
+  // sans font rather than the browser default. Prose/code set font-family
+  // explicitly; this only affects elements that rely on inheritance.
+  fontFamily: vars.fontSans,
 });
 
 /** Scroll container — the element ChatRoot attaches its scroll listener to. */

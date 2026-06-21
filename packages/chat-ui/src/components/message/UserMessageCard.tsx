@@ -167,7 +167,7 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
   return (
     <div
       data-user-card={props.data.id}
-      class={`${cardBase}${!isExpanded() ? ` ${cardHoverBorder}` : ''}`}
+      class={`${cardBase}${isOverflowing() && !isExpanded() ? ` ${cardHoverBorder}` : ''}`}
       style={{
         height: `${clampedH()}px`,
         'overflow-y': isExpanded() ? 'auto' : 'hidden',
