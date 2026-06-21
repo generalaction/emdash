@@ -1,0 +1,31 @@
+packages/shared/src/host-dependencies/runtime/host-dependency-manager.ts
+  s_57edbf706bdf5b::t_178fd4390458b0 250,266,277,300,330
+  s_f916db76d92094::t_8424d150b40e28 927-931
+  s_57edbf706bdf5b::t_30c016c0af1227 162-166,249,254-265,267-272,446-450,926
+packages/shared/src/host-dependencies/runtime/host-dependency-manager-update-races.test.ts
+  s_57edbf706bdf5b::t_e1541db5f68d3d 1-231
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "e6fe4625e230e8428b5c5cb33aa4bb388e1593b0",
+  "prompts": {},
+  "sessions": {
+    "s_57edbf706bdf5b": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019edbac-200a-75a9-9325-51e81e73fc9b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_f916db76d92094": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019edbac-21ba-7694-8c33-87e2aa53576d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
