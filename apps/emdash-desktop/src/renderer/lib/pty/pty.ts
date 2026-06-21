@@ -5,7 +5,7 @@ import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
 import { cssColorToHex, cssVar } from '@renderer/utils/cssVars';
 import { log } from '@renderer/utils/logger';
 import { ptyDataChannel } from '@shared/core/pty/ptyEvents';
-import { FileLinkProvider } from './file-link-provider';
+import { FileLinkProvider, isPrimaryMouseButton } from './file-link-provider';
 import { decodeOsc52ClipboardData } from './pty-clipboard';
 import { buildTerminalFontFamily } from './terminal-font';
 import { ensureXtermHost } from './xterm-host';
@@ -95,6 +95,7 @@ export class FrontendPty {
       scrollOnUserInput: false,
       linkHandler: {
         activate: (_event: MouseEvent, text: string) => {
+          if (!isPrimaryMouseButton(_event)) return;
           confirmOpenExternalLink(text, (error) => {
             log.warn('FrontendPty: failed to open external link', { text, error });
           });
@@ -107,6 +108,7 @@ export class FrontendPty {
     // which makes panel/sidebar transitions visibly flicker.
 
     const webLinksAddon = new WebLinksAddon((event, uri) => {
+      if (!isPrimaryMouseButton(event)) return;
       event.preventDefault();
       confirmOpenExternalLink(uri);
     });

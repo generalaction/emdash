@@ -2,10 +2,13 @@ import { ArrowDown, ArrowUp, GitBranch, RefreshCcw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import {
   getProjectStore,
-  getRepositoryStore,
+  getGitRepositoryStore,
   projectDisplayName,
 } from '@renderer/features/projects/stores/project-selectors';
-import { getTaskGitStore, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
+import {
+  getTaskGitWorktreeStore,
+  getTaskStore,
+} from '@renderer/features/tasks/stores/task-selectors';
 import { useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { useGitActions } from '@renderer/features/tasks/use-git-actions';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
@@ -16,12 +19,12 @@ import { getBranchTooltipText, getPublishTooltipText } from './git-status-toolti
 export const GitStatusSection = observer(function GitStatusSection() {
   const { projectId, taskId } = useTaskViewContext();
   const workspaceId = getTaskStore(projectId, taskId)?.workspaceId;
-  const git = getTaskGitStore(projectId, taskId);
+  const git = getTaskGitWorktreeStore(projectId, taskId);
   const headDisplay = git?.headDisplay ?? null;
   const headKind = git?.headKind ?? 'branch';
   const isDetached = headKind === 'detached';
   const projectName = projectDisplayName(getProjectStore(projectId)) ?? 'repository';
-  const repositoryStore = getRepositoryStore(projectId);
+  const repositoryStore = getGitRepositoryStore(projectId);
   const showAddRemoteModal = useShowModal('addRemoteModal');
 
   const {

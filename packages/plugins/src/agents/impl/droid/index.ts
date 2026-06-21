@@ -1,5 +1,5 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand, droidMcpAdapter } from '@emdash/shared/agents/plugins/helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import { buildStandardCommand, droidMcpAdapter } from '@emdash/core/agents/plugins/helpers';
 import { buildDroidHookConfig } from './hooks';
 import { icon } from './icon';
 

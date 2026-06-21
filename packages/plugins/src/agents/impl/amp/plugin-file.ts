@@ -2,12 +2,7 @@
 // This file is intentionally kept as plain TypeScript so it can be inlined at runtime
 // without a bundler asset pipeline.
 export const AMP_PLUGIN_CONTENT = `\
-// @i-know-the-amp-plugin-api-is-wip-and-very-experimental-right-now
-
-type AmpPluginAPI = {
-  on(event: 'agent.start', handler: () => unknown): void;
-  on(event: 'agent.end', handler: () => unknown): void;
-};
+import type { PluginAPI } from '@ampcode/plugin';
 
 async function notifyEmdash(eventType: 'start' | 'stop', body: Record<string, unknown> = {}) {
   const port = process.env.EMDASH_HOOK_PORT;
@@ -32,7 +27,7 @@ async function notifyEmdash(eventType: 'start' | 'stop', body: Record<string, un
   }
 }
 
-export default function (amp: AmpPluginAPI) {
+export default function (amp: PluginAPI) {
   amp.on('agent.start', async () => {
     await notifyEmdash('start');
   });

@@ -212,8 +212,7 @@ class WorkspaceFileIndexService {
           `SELECT m.workspace_id
            FROM workspace_file_index_meta m
            LEFT JOIN workspaces w ON w.id = m.workspace_id
-           LEFT JOIN tasks t ON t.workspace_id = m.workspace_id AND t.archived_at IS NULL
-           WHERE w.id IS NULL OR t.id IS NULL`
+           WHERE w.id IS NULL`
         )
         .all() as Array<{ workspace_id: string }>;
 

@@ -2411,43 +2411,7 @@
   },
   "surface": {
     "$type": "color",
-    "app": {
-      "$extensions": {
-        "mode": {
-          "light": {
-            "colorSpace": "display-p3",
-            "channels": [1, 1, 1]
-          },
-          "dark": {
-            "colorSpace": "display-p3",
-            "channels": [0.067, 0.067, 0.067]
-          }
-        }
-      },
-      "$value": {
-        "colorSpace": "display-p3",
-        "channels": [1, 1, 1]
-      }
-    },
-    "secondary": {
-      "$extensions": {
-        "mode": {
-          "light": {
-            "colorSpace": "display-p3",
-            "channels": [0.975, 0.975, 0.975]
-          },
-          "dark": {
-            "colorSpace": "display-p3",
-            "channels": [0.067, 0.067, 0.067]
-          }
-        }
-      },
-      "$value": {
-        "colorSpace": "display-p3",
-        "channels": [0.975, 0.975, 0.975]
-      }
-    },
-    "tertiary": {
+    "sunken": {
       "$extensions": {
         "mode": {
           "light": {
@@ -2465,7 +2429,61 @@
         "channels": [0.939, 0.939, 0.939]
       }
     },
-    "quaternary": {
+    "base": {
+      "$extensions": {
+        "mode": {
+          "light": {
+            "colorSpace": "display-p3",
+            "channels": [0.988, 0.988, 0.988]
+          },
+          "dark": {
+            "colorSpace": "display-p3",
+            "channels": [0.085, 0.085, 0.085]
+          }
+        }
+      },
+      "$value": {
+        "colorSpace": "display-p3",
+        "channels": [0.988, 0.988, 0.988]
+      }
+    },
+    "raised": {
+      "$extensions": {
+        "mode": {
+          "light": {
+            "colorSpace": "display-p3",
+            "channels": [0.975, 0.975, 0.975]
+          },
+          "dark": {
+            "colorSpace": "display-p3",
+            "channels": [0.11, 0.11, 0.11]
+          }
+        }
+      },
+      "$value": {
+        "colorSpace": "display-p3",
+        "channels": [0.975, 0.975, 0.975]
+      }
+    },
+    "overlay": {
+      "$extensions": {
+        "mode": {
+          "light": {
+            "colorSpace": "display-p3",
+            "channels": [0.939, 0.939, 0.939]
+          },
+          "dark": {
+            "colorSpace": "display-p3",
+            "channels": [0.145, 0.145, 0.145]
+          }
+        }
+      },
+      "$value": {
+        "colorSpace": "display-p3",
+        "channels": [0.939, 0.939, 0.939]
+      }
+    },
+    "floating": {
       "$extensions": {
         "mode": {
           "light": {
@@ -2474,7 +2492,7 @@
           },
           "dark": {
             "colorSpace": "display-p3",
-            "channels": [0.098, 0.098, 0.098]
+            "channels": [0.2, 0.2, 0.2]
           }
         }
       },
@@ -2483,79 +2501,7 @@
         "channels": [1, 1, 1]
       }
     },
-    "app-hover": {
-      "$value": {
-        "colorSpace": "display-p3",
-        "channels": [0.9475, 0.9475, 0.9475]
-      },
-      "$extensions": {
-        "mode": {
-          "light": {
-            "colorSpace": "display-p3",
-            "channels": [0.9475, 0.9475, 0.9475]
-          },
-          "dark": {
-            "colorSpace": "display-p3",
-            "channels": [0.1022, 0.1022, 0.1022]
-          }
-        }
-      }
-    },
-    "app-selected": {
-      "$value": {
-        "colorSpace": "display-p3",
-        "channels": [0.8956, 0.8956, 0.8956]
-      },
-      "$extensions": {
-        "mode": {
-          "light": {
-            "colorSpace": "display-p3",
-            "channels": [0.8956, 0.8956, 0.8956]
-          },
-          "dark": {
-            "colorSpace": "display-p3",
-            "channels": [0.139, 0.139, 0.139]
-          }
-        }
-      }
-    },
-    "secondary-hover": {
-      "$value": {
-        "colorSpace": "display-p3",
-        "channels": [0.9228, 0.9228, 0.9228]
-      },
-      "$extensions": {
-        "mode": {
-          "light": {
-            "colorSpace": "display-p3",
-            "channels": [0.9228, 0.9228, 0.9228]
-          },
-          "dark": {
-            "colorSpace": "display-p3",
-            "channels": [0.1022, 0.1022, 0.1022]
-          }
-        }
-      }
-    },
-    "secondary-selected": {
-      "$value": {
-        "colorSpace": "display-p3",
-        "channels": [0.8711, 0.8711, 0.8711]
-      },
-      "$extensions": {
-        "mode": {
-          "light": {
-            "colorSpace": "display-p3",
-            "channels": [0.8711, 0.8711, 0.8711]
-          },
-          "dark": {
-            "colorSpace": "display-p3",
-            "channels": [0.139, 0.139, 0.139]
-          }
-        }
-      }
-    },
-    "tertiary-hover": {
+    "sunken-hover": {
       "$value": {
         "colorSpace": "display-p3",
         "channels": [0.8872, 0.8872, 0.8872]
@@ -2573,7 +2519,7 @@
         }
       }
     },
-    "tertiary-selected": {
+    "sunken-selected": {
       "$value": {
         "colorSpace": "display-p3",
         "channels": [0.8359, 0.8359, 0.8359]
@@ -2591,7 +2537,115 @@
         }
       }
     },
-    "quaternary-hover": {
+    "base-hover": {
+      "$value": {
+        "colorSpace": "display-p3",
+        "channels": [0.9356, 0.9356, 0.9356]
+      },
+      "$extensions": {
+        "mode": {
+          "light": {
+            "colorSpace": "display-p3",
+            "channels": [0.9356, 0.9356, 0.9356]
+          },
+          "dark": {
+            "colorSpace": "display-p3",
+            "channels": [0.1211, 0.1211, 0.1211]
+          }
+        }
+      }
+    },
+    "base-selected": {
+      "$value": {
+        "colorSpace": "display-p3",
+        "channels": [0.8838, 0.8838, 0.8838]
+      },
+      "$extensions": {
+        "mode": {
+          "light": {
+            "colorSpace": "display-p3",
+            "channels": [0.8838, 0.8838, 0.8838]
+          },
+          "dark": {
+            "colorSpace": "display-p3",
+            "channels": [0.1587, 0.1587, 0.1587]
+          }
+        }
+      }
+    },
+    "raised-hover": {
+      "$value": {
+        "colorSpace": "display-p3",
+        "channels": [0.9228, 0.9228, 0.9228]
+      },
+      "$extensions": {
+        "mode": {
+          "light": {
+            "colorSpace": "display-p3",
+            "channels": [0.9228, 0.9228, 0.9228]
+          },
+          "dark": {
+            "colorSpace": "display-p3",
+            "channels": [0.1472, 0.1472, 0.1472]
+          }
+        }
+      }
+    },
+    "raised-selected": {
+      "$value": {
+        "colorSpace": "display-p3",
+        "channels": [0.8711, 0.8711, 0.8711]
+      },
+      "$extensions": {
+        "mode": {
+          "light": {
+            "colorSpace": "display-p3",
+            "channels": [0.8711, 0.8711, 0.8711]
+          },
+          "dark": {
+            "colorSpace": "display-p3",
+            "channels": [0.1858, 0.1858, 0.1858]
+          }
+        }
+      }
+    },
+    "overlay-hover": {
+      "$value": {
+        "colorSpace": "display-p3",
+        "channels": [0.8872, 0.8872, 0.8872]
+      },
+      "$extensions": {
+        "mode": {
+          "light": {
+            "colorSpace": "display-p3",
+            "channels": [0.8872, 0.8872, 0.8872]
+          },
+          "dark": {
+            "colorSpace": "display-p3",
+            "channels": [0.1835, 0.1835, 0.1835]
+          }
+        }
+      }
+    },
+    "overlay-selected": {
+      "$value": {
+        "colorSpace": "display-p3",
+        "channels": [0.8359, 0.8359, 0.8359]
+      },
+      "$extensions": {
+        "mode": {
+          "light": {
+            "colorSpace": "display-p3",
+            "channels": [0.8359, 0.8359, 0.8359]
+          },
+          "dark": {
+            "colorSpace": "display-p3",
+            "channels": [0.2233, 0.2233, 0.2233]
+          }
+        }
+      }
+    },
+    "floating-hover": {
       "$value": {
         "colorSpace": "display-p3",
         "channels": [0.9475, 0.9475, 0.9475]
@@ -2604,12 +2658,12 @@
           },
           "dark": {
             "colorSpace": "display-p3",
-            "channels": [0.1347, 0.1347, 0.1347]
+            "channels": [0.2403, 0.2403, 0.2403]
           }
         }
       }
     },
-    "quaternary-selected": {
+    "floating-selected": {
       "$value": {
         "colorSpace": "display-p3",
         "channels": [0.8956, 0.8956, 0.8956]
@@ -2622,7 +2676,7 @@
           },
           "dark": {
             "colorSpace": "display-p3",
-            "channels": [0.1728, 0.1728, 0.1728]
+            "channels": [0.2818, 0.2818, 0.2818]
           }
         }
       }

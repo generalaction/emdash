@@ -1,4 +1,4 @@
-import type { PluginFs } from '@emdash/shared/agents/plugins';
+import type { PluginFs } from '@emdash/core/agents/plugins';
 import { describe, expect, it } from 'vitest';
 import { COMMANDCODE_SETTINGS_PATH } from './hooks';
 import { provider } from './index';

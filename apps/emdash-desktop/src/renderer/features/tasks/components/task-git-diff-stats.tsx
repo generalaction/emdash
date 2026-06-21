@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors';
+import { getTaskGitWorktreeStore } from '@renderer/features/tasks/stores/task-selectors';
 import { isRegistered, type TaskStore } from '@renderer/features/tasks/stores/task-store';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
@@ -10,7 +10,7 @@ export function useTaskGitDiffStats(task: TaskStore): {
   visible: boolean;
 } {
   const projectId = isRegistered(task) ? task.data.projectId : undefined;
-  const git = projectId ? getTaskGitStore(projectId, task.data.id) : undefined;
+  const git = projectId ? getTaskGitWorktreeStore(projectId, task.data.id) : undefined;
   const cachedGit = isRegistered(task) ? task.data.workspaceGit : undefined;
   const linesAdded = git?.totalLinesAdded ?? cachedGit?.linesAdded ?? 0;
   const linesDeleted = git?.totalLinesDeleted ?? cachedGit?.linesDeleted ?? 0;
@@ -23,7 +23,7 @@ export function useTaskGitDiffStats(task: TaskStore): {
 
 /**
  * Working-tree line add/remove totals for a task.
- * Uses live GitStore data when the task is provisioned; falls back to the
+ * Uses live GitWorktreeStore data when the task is provisioned; falls back to the
  * cached workspaceGit snapshot (stored in SQLite) for unprovisioned tasks.
  * Renders nothing when loading, in error, or clean.
  */

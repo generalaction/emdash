@@ -1,10 +1,10 @@
 import { promises as fsPromises } from 'node:fs';
+import type { GitBranchRef } from '@emdash/core/git';
+import { err, ok, type Result } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
-import type { Branch } from '@shared/core/git/git';
-import { DEFAULT_REMOTE_NAME } from '@shared/core/git/git-utils';
-import { err, ok, type Result } from '@shared/lib/result';
+import { DEFAULT_REMOTE_NAME } from '@shared/core/git/types';
 import { getEffectiveTaskSettings } from '../settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../settings/provider';
 import type { WorktreeHost } from './hosts/worktree-host';
@@ -141,7 +141,7 @@ export class WorktreeService {
   }
 
   private async resolveSourceBaseRef(
-    sourceBranch: Branch | undefined
+    sourceBranch: GitBranchRef | undefined
   ): Promise<string | undefined> {
     if (!sourceBranch) return undefined;
 
@@ -166,7 +166,7 @@ export class WorktreeService {
     }
   }
 
-  private getBranchBaseConfigValue(sourceBranch: Branch | undefined): string | undefined {
+  private getBranchBaseConfigValue(sourceBranch: GitBranchRef | undefined): string | undefined {
     if (!sourceBranch) return undefined;
     if (sourceBranch.type === 'local') return sourceBranch.branch;
     return `${sourceBranch.remote.name}/${sourceBranch.branch}`;
@@ -224,7 +224,7 @@ export class WorktreeService {
   }
 
   async checkoutBranchWorktree(
-    sourceBranch: Branch | undefined,
+    sourceBranch: GitBranchRef | undefined,
     branchName: string,
     options: { copyPreservedFiles?: boolean } = {}
   ): Promise<Result<string, ServeWorktreeError>> {
@@ -235,7 +235,7 @@ export class WorktreeService {
   }
 
   private async doCheckoutBranchWorktree(
-    sourceBranch: Branch | undefined,
+    sourceBranch: GitBranchRef | undefined,
     branchName: string,
     options: { copyPreservedFiles?: boolean }
   ): Promise<Result<string, ServeWorktreeError>> {
@@ -305,7 +305,7 @@ export class WorktreeService {
 
   async serveBranchWorktree(
     branchName: string,
-    sourceBranch?: Branch,
+    sourceBranch?: GitBranchRef,
     copyPreservedFiles?: boolean
   ): Promise<Result<string, ServeWorktreeError>> {
     const existing = await this.getWorktree(branchName);

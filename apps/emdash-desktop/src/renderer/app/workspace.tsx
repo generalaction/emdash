@@ -1,6 +1,7 @@
 import { LeftSidebar } from '@renderer/features/sidebar/left-sidebar';
 import { CommandShortcutBinder } from '@renderer/lib/commands/command-shortcut-binder';
 import { AppKeyboardShortcuts } from '@renderer/lib/components/app-keyboard-shortcuts';
+import { BrowserAppShortcutEvents } from '@renderer/lib/components/browser-app-shortcut-events';
 import { MonacoKeyboardBridge } from '@renderer/lib/components/monaco-keyboard-bridge';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import {
@@ -18,6 +19,7 @@ export function Workspace() {
   return (
     <>
       <AppKeyboardShortcuts />
+      <BrowserAppShortcutEvents />
       <CommandShortcutBinder />
       <MonacoKeyboardBridge />
       <WorkspaceLayout

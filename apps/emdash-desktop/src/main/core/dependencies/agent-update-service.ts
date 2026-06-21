@@ -7,8 +7,8 @@ import {
   type HostDependency,
   type Installation,
   type HostDependencyManager,
-} from '@emdash/shared/deps/runtime';
-import type { Logger } from '@emdash/shared/lib';
+} from '@emdash/core/deps/runtime';
+import type { Logger } from '@emdash/core/lib';
 import semver from 'semver';
 import { events } from '@main/lib/events';
 import { agentInstallationStatusUpdatedChannel } from '@shared/events/appEvents';

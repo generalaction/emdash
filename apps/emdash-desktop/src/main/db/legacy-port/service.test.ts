@@ -63,6 +63,25 @@ function createAppDb(): Database.Database {
       automation_run_id TEXT
     );
 
+    CREATE TABLE workspaces (
+      id TEXT PRIMARY KEY,
+      key TEXT,
+      type TEXT NOT NULL,
+      data TEXT,
+      path TEXT,
+      lines_added INTEGER,
+      lines_deleted INTEGER,
+      kind TEXT,
+      location TEXT,
+      ssh_connection_id TEXT,
+      config TEXT,
+      branch_name TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE UNIQUE INDEX idx_workspaces_key ON workspaces(key) WHERE key IS NOT NULL;
+
     CREATE TABLE conversations (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -73,7 +92,9 @@ function createAppDb(): Database.Database {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       last_interacted_at TEXT,
-      is_initial_conversation INTEGER
+      is_initial_conversation INTEGER,
+      agent_status TEXT,
+      agent_status_seen INTEGER DEFAULT 1
     );
   `);
   return db;
@@ -228,6 +249,32 @@ describe('runLegacyPort', () => {
 
     expect(projectsAfterFirstRun.count).toBe(1);
     expect(tasksAfterFirstRun.count).toBe(1);
+
+    const importedTask = appDb
+      .prepare(`SELECT workspace_id FROM tasks WHERE id = ?`)
+      .get('legacy-task-1') as { workspace_id: string | null };
+    expect(importedTask.workspace_id).toBeTruthy();
+
+    const importedWorkspace = appDb
+      .prepare(`SELECT kind, location, type, branch_name, config FROM workspaces WHERE id = ?`)
+      .get(importedTask.workspace_id) as {
+      kind: string;
+      location: string;
+      type: string;
+      branch_name: string;
+      config: string;
+    };
+    expect(importedWorkspace).toMatchObject({
+      kind: 'worktree',
+      location: 'local',
+      type: 'local',
+      branch_name: 'feature/legacy-1',
+    });
+    expect(JSON.parse(importedWorkspace.config)).toEqual({
+      version: '2',
+      git: { kind: 'use-branch', branchName: 'feature/legacy-1' },
+      workspace: { kind: 'new-worktree' },
+    });
 
     const legacy = new Database(legacyPath);
     legacy

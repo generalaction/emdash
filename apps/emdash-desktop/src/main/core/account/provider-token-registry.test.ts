@@ -49,6 +49,32 @@ describe('providerTokenRegistry', () => {
     ]);
   });
 
+  it('returns handler dispatch results', async () => {
+    providerTokenRegistry.register('github', async (payload) => ({
+      providerAccountStatus: 'created',
+      providerAccount: payload.providerAccount,
+    }));
+
+    await expect(
+      providerTokenRegistry.dispatch('github', {
+        accessToken: 'ghp_token123',
+        providerAccount: {
+          providerId: 'github',
+          providerAccountId: '42',
+          host: 'github.com',
+          login: 'monalisa',
+          avatarUrl: 'https://avatars.githubusercontent.com/u/42',
+        },
+      })
+    ).resolves.toMatchObject({
+      providerAccountStatus: 'created',
+      providerAccount: {
+        providerId: 'github',
+        providerAccountId: '42',
+      },
+    });
+  });
+
   it('is a no-op when no handler is registered for the provider', async () => {
     await expect(
       providerTokenRegistry.dispatch('gitlab', { accessToken: 'token' })

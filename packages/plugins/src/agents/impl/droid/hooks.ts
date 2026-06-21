@@ -1,7 +1,7 @@
 import {
   buildNestedJsonHookConfig,
   makeStdinHookCommand,
-} from '@emdash/shared/agents/plugins/helpers';
+} from '@emdash/core/agents/plugins/helpers';
 
 export const DROID_HOOKS_PATH = '.factory/settings.json';
 

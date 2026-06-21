@@ -48,7 +48,7 @@ export function AgentStatusIndicator({
       case 'completed':
         return (
           <span
-            className={cn('rounded-full bg-foreground-success size-2', className)}
+            className={cn('rounded-full bg-foreground-info size-2', className)}
             aria-label="Agent completed"
             title="Agent completed"
           />

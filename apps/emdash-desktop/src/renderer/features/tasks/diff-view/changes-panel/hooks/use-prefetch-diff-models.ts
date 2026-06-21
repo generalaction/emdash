@@ -3,7 +3,7 @@ import { isBinaryForDiff } from '@renderer/lib/editor/fileKind';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { getLanguageFromPath } from '@renderer/utils/languageUtils';
-import { HEAD_REF, STAGED_REF, type GitRef } from '@shared/core/git/git';
+import { HEAD_REF, STAGED_REF, type GitRef } from '@shared/core/git/types';
 
 interface PrefetchEntry {
   diskUri?: string;

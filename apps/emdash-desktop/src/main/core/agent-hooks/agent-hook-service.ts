@@ -1,3 +1,4 @@
+import type { IDisposable, IInitializable } from '@emdash/shared';
 import { eq } from 'drizzle-orm';
 import { getPlugin } from '@main/core/agents/plugin-registry';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
@@ -8,7 +9,6 @@ import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
-import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { isValidProviderSessionId } from '@shared/core/agents/agent-provider-registry';

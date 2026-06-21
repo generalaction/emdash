@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { clampIssueLimit, normalizeSearchTerm, requireProjectPath } from './provider-inputs';
+import {
+  clampIssueLimit,
+  normalizeSearchTerm,
+  requireProjectPath,
+  requireRepositoryUrl,
+} from './provider-inputs';
 
 describe('clampIssueLimit', () => {
   it('uses fallback and clamps bounds', () => {
@@ -13,6 +18,15 @@ describe('requireProjectPath', () => {
   it('returns trimmed project path', () => {
     expect(requireProjectPath('  /tmp/repo  ')).toBe('/tmp/repo');
     expect(requireProjectPath('')).toBeNull();
+  });
+});
+
+describe('requireRepositoryUrl', () => {
+  it('returns trimmed repository URL', () => {
+    expect(requireRepositoryUrl('  https://gitlab.example.com/acme/repo  ')).toBe(
+      'https://gitlab.example.com/acme/repo'
+    );
+    expect(requireRepositoryUrl('')).toBeNull();
   });
 });
 

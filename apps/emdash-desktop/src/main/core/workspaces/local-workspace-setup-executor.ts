@@ -1,7 +1,7 @@
+import { err, ok } from '@emdash/shared';
 import { log } from '@main/lib/logger';
 import type { WorkspaceSetupSpec } from '@shared/core/workspaces/workspace-setup-spec';
 import type { SetupStepWarning } from '@shared/core/workspaces/workspace-setup-steps';
-import { err, ok } from '@shared/lib/result';
 import * as AddWorktreeStep from './setup-steps/add-worktree';
 import * as CopyPreservedFilesStep from './setup-steps/copy-preserved-files';
 import * as CreateLocalBranchStep from './setup-steps/create-local-branch';

@@ -3,10 +3,9 @@ import { archiveTask } from './archiveTask';
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
-  deleteIndex: vi.fn(),
-  getProject: vi.fn(),
   selectLimit: vi.fn(),
   teardownTask: vi.fn(),
+  updateSet: vi.fn(),
   updateWhere: vi.fn(),
 }));
 
@@ -20,28 +19,14 @@ vi.mock('@main/db/client', () => ({
       }),
     }),
     update: () => ({
-      set: () => ({
-        where: mocks.updateWhere,
-      }),
+      set: mocks.updateSet,
     }),
-  },
-}));
-
-vi.mock('@main/core/projects/project-manager', () => ({
-  projectManager: {
-    getProject: mocks.getProject,
   },
 }));
 
 vi.mock('@main/core/tasks/task-session-manager', () => ({
   taskSessionManager: {
     teardownTask: mocks.teardownTask,
-  },
-}));
-
-vi.mock('@main/core/search/workspace-file-index-service', () => ({
-  workspaceFileIndexService: {
-    deleteIndex: mocks.deleteIndex,
   },
 }));
 
@@ -54,47 +39,37 @@ vi.mock('@main/lib/telemetry', () => ({
 describe('archiveTask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.updateSet.mockReturnValue({ where: mocks.updateWhere });
     mocks.updateWhere.mockResolvedValue(undefined);
   });
 
-  it('waits for teardown before removing the worktree', async () => {
-    const order: string[] = [];
-    let resolveTeardown: (value: { success: true }) => void = () => {};
-    const teardownPromise = new Promise<{ success: true }>((resolve) => {
-      resolveTeardown = resolve;
+  it('archives by detaching runtime without deleting workspace assets', async () => {
+    mocks.selectLimit.mockResolvedValueOnce([
+      {
+        id: 'task-1',
+        workspaceId: 'workspace-1',
+        status: 'done',
+      },
+    ]);
+    mocks.teardownTask.mockResolvedValue({ success: true });
+
+    await archiveTask('project-1', 'task-1');
+
+    expect(mocks.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        archivedAt: expect.anything(),
+        updatedAt: expect.anything(),
+      })
+    );
+    const updatePayload = mocks.updateSet.mock.calls[0]?.[0];
+    expect(updatePayload).not.toHaveProperty('status');
+    expect(updatePayload).not.toHaveProperty('statusChangedAt');
+
+    expect(mocks.teardownTask).toHaveBeenCalledWith('task-1', 'detach');
+    expect(mocks.capture).toHaveBeenCalledWith('task_archived', {
+      project_id: 'project-1',
+      task_id: 'task-1',
     });
-    const removeTaskWorktree = vi.fn(async () => {
-      order.push('remove-worktree');
-    });
-
-    mocks.selectLimit
-      .mockResolvedValueOnce([
-        {
-          id: 'task-1',
-          workspaceId: 'workspace-1',
-        },
-      ])
-      .mockResolvedValueOnce([{ id: 'workspace-1', branchName: 'emdash/task-1' }])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([]);
-    mocks.getProject.mockReturnValue({ removeTaskWorktree });
-    mocks.updateWhere.mockImplementation(async () => {
-      order.push('archive-update');
-    });
-    mocks.teardownTask.mockImplementation(() => {
-      order.push('teardown-start');
-      return teardownPromise;
-    });
-
-    const archivePromise = archiveTask('project-1', 'task-1');
-    await vi.waitFor(() => expect(mocks.teardownTask).toHaveBeenCalledTimes(1));
-
-    expect(removeTaskWorktree).not.toHaveBeenCalled();
-
-    resolveTeardown({ success: true });
-    await archivePromise;
-
-    expect(removeTaskWorktree).toHaveBeenCalledWith('emdash/task-1');
-    expect(order).toEqual(['archive-update', 'teardown-start', 'remove-worktree']);
+    expect(mocks.selectLimit).toHaveBeenCalledTimes(1);
   });
 });

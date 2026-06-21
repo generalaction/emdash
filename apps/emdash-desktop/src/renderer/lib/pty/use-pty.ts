@@ -1,12 +1,14 @@
 import { type Terminal } from '@xterm/xterm';
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { dispatchMatchingHotkeys } from '@renderer/lib/hotkeys/dispatch-matching-hotkeys';
 import { events, rpc } from '@renderer/lib/ipc';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { log } from '@renderer/utils/logger';
 import type { AppSettings } from '@shared/core/app-settings';
 import { ptyDataChannel, ptyExitChannel } from '@shared/core/pty/ptyEvents';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/core/terminals/terminal-settings';
-import { appPasteChannel } from '@shared/events/appEvents';
+import { appPasteChannel, terminalContextMenuActionChannel } from '@shared/events/appEvents';
+import { getDomTabNavigationDirection } from '@shared/shortcuts';
 import { usePaneSizingContext } from './pane-sizing-context';
 import type { FrontendPty, SessionTheme } from './pty';
 import { measureDimensions } from './pty-dimensions';
@@ -20,21 +22,9 @@ import {
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
 } from './pty-keybindings';
+import { getTerminalContextLink } from './terminal-context-link';
 import { buildTerminalFontFamily } from './terminal-font';
-
-// xterm's proposed API and internal fields are not in the public TypeScript
-// types. Both code paths are necessary: the proposed `dimensions` API works in
-// xterm 5.x, while xterm 6.x exposes cell metrics only via `_core`.
-interface XtermCellDimensions {
-  css: { cell: { width: number; height: number } };
-}
-interface XtermInternals {
-  dimensions?: XtermCellDimensions;
-  _core?: {
-    _renderService?: { dimensions?: XtermCellDimensions };
-    renderService?: { dimensions?: XtermCellDimensions };
-  };
-}
+import { getCellMetrics } from './xterm-cell-metrics';
 
 const PTY_RESIZE_DEBOUNCE_MS = 120;
 const MIN_TERMINAL_COLS = 2;
@@ -44,26 +34,21 @@ const IS_MAC_PLATFORM =
 const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
 const LAST_SELECTION_COPY_GRACE_MS = 2_000;
 
-function getCellMetrics(terminal: Terminal): { width: number; height: number } | null {
-  const t = terminal as unknown as XtermInternals;
-  // Proposed API (xterm 5.x). Undefined on the public Terminal in xterm 6.x.
-  const dims = t.dimensions;
-  if (dims && dims.css.cell.width !== 0 && dims.css.cell.height !== 0) {
-    return { width: dims.css.cell.width, height: dims.css.cell.height };
-  }
-  // xterm 6.x: the public Terminal delegates to `_core` (the internal Terminal instance).
-  // FitAddon receives this same internal object via addon.activate(terminal).
-  const coreDims = t._core?._renderService?.dimensions ?? t._core?.renderService?.dimensions;
-  if (coreDims?.css?.cell?.width && coreDims.css.cell.height) {
-    return { width: coreDims.css.cell.width, height: coreDims.css.cell.height };
-  }
-  return null;
+function dispatchTerminalTabNavigationHotkey(event: KeyboardEvent): boolean {
+  if (!getDomTabNavigationDirection(event)) return false;
+  return dispatchMatchingHotkeys(event, { dispatch: 'first' });
 }
 
 function getRecentSelection(selection: { text: string; capturedAt: number } | null): string {
   if (!selection) return '';
   if (Date.now() - selection.capturedAt > LAST_SELECTION_COPY_GRACE_MS) return '';
   return selection.text;
+}
+
+function createContextMenuRequestId(): string {
+  return typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random()}`;
 }
 
 export interface UsePtyOptions {
@@ -182,6 +167,7 @@ export function usePty(
   // Auto-copy on selection
   const autoCopyOnSelectionRef = useRef(false);
   const lastSelectionRef = useRef<{ text: string; capturedAt: number } | null>(null);
+  const contextMenuRequestIdRef = useRef<string | null>(null);
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -433,6 +419,13 @@ export function usePty(
       terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
         if (document.querySelector('[role="dialog"]')) return false;
 
+        if (dispatchTerminalTabNavigationHotkey(event)) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          event.stopPropagation();
+          return false;
+        }
+
         if (
           shouldCopySelectionFromTerminal(
             event,
@@ -564,6 +557,61 @@ export function usePty(
       cleanups.push(() => {
         selectionDisposable.dispose();
         if (selectionDebounceTimer) clearTimeout(selectionDebounceTimer);
+      });
+
+      // ── Native context menu ────────────────────────────────────────────────
+      const handleContextMenuMouseDown = (event: MouseEvent) => {
+        if (event.button !== 2) return;
+        event.preventDefault();
+        event.stopPropagation();
+      };
+      const handleContextMenu = (event: MouseEvent) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const requestId = createContextMenuRequestId();
+        contextMenuRequestIdRef.current = requestId;
+        const selectionText =
+          terminal.getSelection() || getRecentSelection(lastSelectionRef.current);
+        const linkText = getTerminalContextLink(terminal, event);
+        void rpc.app.showTerminalContextMenu({
+          requestId,
+          selectionText,
+          linkText,
+          x: event.clientX,
+          y: event.clientY,
+        });
+      };
+      const offTerminalContextMenuAction = events.on(
+        terminalContextMenuActionChannel,
+        (payload) => {
+          if (payload.requestId !== contextMenuRequestIdRef.current) return;
+          contextMenuRequestIdRef.current = null;
+
+          if (payload.action === 'paste') {
+            pasteFromClipboard();
+            return;
+          }
+          if (payload.action === 'select-all') {
+            terminal.selectAll();
+            return;
+          }
+          if (payload.action === 'clear') {
+            frontendPty.clear();
+          }
+        }
+      );
+      frontendPty.ownedContainer.addEventListener('mousedown', handleContextMenuMouseDown, true);
+      frontendPty.ownedContainer.addEventListener('contextmenu', handleContextMenu);
+      cleanups.push(() => {
+        offTerminalContextMenuAction();
+        contextMenuRequestIdRef.current = null;
+        frontendPty.ownedContainer.removeEventListener(
+          'mousedown',
+          handleContextMenuMouseDown,
+          true
+        );
+        frontendPty.ownedContainer.removeEventListener('contextmenu', handleContextMenu);
       });
 
       // ── Paste from app menu ────────────────────────────────────────────────

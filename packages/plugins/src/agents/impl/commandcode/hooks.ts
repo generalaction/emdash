@@ -1,5 +1,5 @@
-import type { PluginFs } from '@emdash/shared/agents/plugins';
-import type { HookRegistration } from '@emdash/shared/agents/plugins';
+import type { PluginFs } from '@emdash/core/agents/plugins';
+import type { HookRegistration } from '@emdash/core/agents/plugins';
 import {
   EMDASH_MARKER,
   buildNestedEntry,
@@ -7,7 +7,7 @@ import {
   makeStdinHookCommand,
   readJsonConfig,
   writeJsonConfig,
-} from '@emdash/shared/agents/plugins/helpers';
+} from '@emdash/core/agents/plugins/helpers';
 
 export const COMMANDCODE_SETTINGS_PATH = '.commandcode/settings.json';
 

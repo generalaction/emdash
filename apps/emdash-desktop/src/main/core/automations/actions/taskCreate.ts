@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { err, ok, type Result } from '@emdash/shared';
 import { createConversation } from '@main/core/conversations/createConversation';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
@@ -19,7 +20,6 @@ import type { Automation } from '@shared/core/automations/automation';
 import type { AutomationRun } from '@shared/core/automations/automation-run';
 import type { CreateTaskParams } from '@shared/core/tasks/tasks';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
-import { err, ok, type Result } from '@shared/lib/result';
 import {
   markRunCreatingConversation,
   markRunFailed,

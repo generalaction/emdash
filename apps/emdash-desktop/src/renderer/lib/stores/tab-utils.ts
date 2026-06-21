@@ -29,15 +29,18 @@ export function reorderTabIds(state: TabOrderState, fromIndex: number, toIndex: 
 }
 
 export function setNextTabActive(state: TabOrderState): void {
-  if (!state.activeTabId) return;
-  const next = state.tabOrder[state.tabOrder.indexOf(state.activeTabId) + 1];
-  if (next) state.activeTabId = next;
+  if (!state.activeTabId || state.tabOrder.length === 0) return;
+  const activeIndex = state.tabOrder.indexOf(state.activeTabId);
+  if (activeIndex === -1) return;
+  state.activeTabId = state.tabOrder[(activeIndex + 1) % state.tabOrder.length];
 }
 
 export function setPreviousTabActive(state: TabOrderState): void {
-  if (!state.activeTabId) return;
-  const prev = state.tabOrder[state.tabOrder.indexOf(state.activeTabId) - 1];
-  if (prev) state.activeTabId = prev;
+  if (!state.activeTabId || state.tabOrder.length === 0) return;
+  const activeIndex = state.tabOrder.indexOf(state.activeTabId);
+  if (activeIndex === -1) return;
+  state.activeTabId =
+    state.tabOrder[(activeIndex - 1 + state.tabOrder.length) % state.tabOrder.length];
 }
 
 export function setTabActiveIndex(state: TabOrderState, index: number): void {

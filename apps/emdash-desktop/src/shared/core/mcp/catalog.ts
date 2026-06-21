@@ -44,7 +44,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Supabase',
     description: 'Manage databases, authentication, and storage',
-    docsUrl: 'https://supabase.com/docs/guides/getting-started/mcp',
+    docsUrl: 'https://supabase.com/docs/guides/ai-tools/mcp',
     credentialKeys: [],
   },
   vercel: {
@@ -54,34 +54,28 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Vercel',
     description: 'Analyze, debug, and manage projects and deployments',
-    docsUrl: 'https://vercel.com/docs/mcp/vercel-mcp',
+    docsUrl: 'https://vercel.com/docs/agent-resources/vercel-mcp',
     credentialKeys: [],
   },
   sentry: {
     config: {
       type: 'http',
       url: 'https://mcp.sentry.dev/mcp',
-      headers: {
-        SENTRY_ACCESS_TOKEN: 'YOUR_ACCESS_TOKEN',
-      },
     },
     name: 'Sentry',
     description: 'Search, query, and debug errors intelligently',
     docsUrl: 'https://docs.sentry.io/product/sentry-mcp/',
-    credentialKeys: [{ key: 'SENTRY_ACCESS_TOKEN', required: true }],
+    credentialKeys: [],
   },
   stripe: {
     config: {
       type: 'http',
       url: 'https://mcp.stripe.com',
-      headers: {
-        STRIPE_SECRET_KEY: 'YOUR_SECRET_KEY',
-      },
     },
     name: 'Stripe',
     description: 'Payment processing and financial infrastructure tools',
     docsUrl: 'https://docs.stripe.com/mcp',
-    credentialKeys: [{ key: 'STRIPE_SECRET_KEY', required: true }],
+    credentialKeys: [],
   },
   figma: {
     config: {
@@ -116,11 +110,12 @@ export const catalogData: Record<string, CatalogEntryDef> = {
   cloudflare: {
     config: {
       type: 'http',
-      url: 'https://bindings.mcp.cloudflare.com/mcp',
+      url: 'https://mcp.cloudflare.com/mcp',
     },
     name: 'Cloudflare Developer Platform',
     description: 'Build applications with compute, storage, and AI',
-    docsUrl: 'https://www.support.cloudflare.com/',
+    docsUrl:
+      'https://developers.cloudflare.com/agents/model-context-protocol/cloudflare/servers-for-cloudflare/',
     credentialKeys: [],
   },
   netlify: {
@@ -136,7 +131,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
   chrome_devtools: {
     config: {
       command: 'npx',
-      args: ['chrome-devtools-mcp@latest'],
+      args: ['-y', 'chrome-devtools-mcp@latest'],
     },
     name: 'Chrome DevTools',
     description: 'Browser automation, debugging and performance analysis with Chrome DevTools',
@@ -146,12 +141,12 @@ export const catalogData: Record<string, CatalogEntryDef> = {
   atlassian: {
     config: {
       type: 'http',
-      url: 'https://mcp.atlassian.com/v1/mcp',
+      url: 'https://mcp.atlassian.com/v1/mcp/authv2',
     },
     name: 'Atlassian',
     description: 'Access Jira & Confluence from Claude',
     docsUrl:
-      'https://community.atlassian.com/forums/Atlassian-Platform-articles/Using-the-Atlassian-Remote-MCP-Server-beta/ba-p/3005104',
+      'https://support.atlassian.com/atlassian-rovo-mcp-server/docs/getting-started-with-the-atlassian-remote-mcp-server/',
     credentialKeys: [],
   },
   notion: {
@@ -233,16 +228,16 @@ export const catalogData: Record<string, CatalogEntryDef> = {
   },
   exa: {
     config: {
-      command: 'npx',
-      args: ['-y', 'exa-mcp-server', 'tools=web_search_exa,get_code_context_exa'],
-      env: {
-        EXA_API_KEY: 'YOUR_API_KEY',
+      type: 'http',
+      url: 'https://mcp.exa.ai/mcp',
+      headers: {
+        'x-api-key': 'YOUR_EXA_API_KEY',
       },
     },
     name: 'Exa',
     description: 'Web search and code context retrieval powered by Exa AI',
-    docsUrl: 'https://docs.exa.ai/reference/exa-mcp',
-    credentialKeys: [{ key: 'EXA_API_KEY', required: true }],
+    docsUrl: 'https://exa.ai/docs/reference/exa-mcp',
+    credentialKeys: [{ key: 'x-api-key', required: false }],
   },
   parallel: {
     config: {
@@ -284,7 +279,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Honeycomb',
     description: 'Query and explore observability data and SLOs',
-    docsUrl: 'https://docs.honeycomb.io/troubleshoot/product-lifecycle/beta/mcp/',
+    docsUrl: 'https://docs.honeycomb.io/integrations/mcp/configuration-guide',
     credentialKeys: [],
   },
   graphos: {
@@ -304,7 +299,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Dev Manager',
     description:
-      'Launch and manage multiple dev servers in parallel with automatic port allocation',
+      'Launch and manage dev servers; requires the dev-manager daemon to be running separately',
     docsUrl: 'https://github.com/BloopAI/dev-manager-mcp',
     credentialKeys: [],
   },
@@ -325,7 +320,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Amplitude',
     description: 'Search, access, and get insights on your Amplitude data',
-    docsUrl: 'https://amplitude.com/docs/analytics/amplitude-mcp',
+    docsUrl: 'https://amplitude.com/docs/amplitude-ai/amplitude-mcp',
     credentialKeys: [],
   },
   asana: {
@@ -365,7 +360,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Jam',
     description: 'Record screen and collect automatic context for issues',
-    docsUrl: 'https://jam.dev/docs/debug-a-jam/mcp',
+    docsUrl: 'https://jam.dev/docs/jam-mcp',
     credentialKeys: [],
   },
   webflow: {
@@ -375,13 +370,13 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     },
     name: 'Webflow',
     description: 'Manage Webflow CMS, pages, assets and sites',
-    docsUrl: 'https://developers.webflow.com/mcp/v1.0.0/reference/overview',
+    docsUrl: 'https://developers.webflow.com/mcp/reference/overview',
     credentialKeys: [],
   },
   cloudinary: {
     config: {
       type: 'http',
-      url: 'https://asset-management.mcp.cloudinary.com/sse',
+      url: 'https://asset-management.mcp.cloudinary.com/mcp',
     },
     name: 'Cloudinary',
     description: 'Manage, transform and deliver your images & videos',
@@ -483,10 +478,14 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     config: {
       type: 'http',
       url: 'https://api.devrev.ai/mcp/v1',
+      headers: {
+        Authorization: 'Bearer YOUR_PAT',
+      },
     },
     name: 'DevRev',
     description: "Search and update your company's knowledge graph",
-    docsUrl: 'https://support.devrev.ai/en-US/devrev/article/ART-21859-remote-mcp-server',
-    credentialKeys: [],
+    docsUrl:
+      'https://support.devrev.ai/en-US/devrev/article/ZNqaZTsx-devrev-mcp-server-connect-your-ai-coding-assistant',
+    credentialKeys: [{ key: 'Authorization', required: false }],
   },
 };

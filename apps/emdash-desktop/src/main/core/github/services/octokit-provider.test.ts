@@ -1,5 +1,5 @@
+import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { err, ok } from '@shared/lib/result';
 import { githubApiAuthService } from './github-api-auth-service-instance';
 import { clearOctokitCache, getOctokit } from './octokit-provider';
 
