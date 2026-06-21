@@ -47,7 +47,25 @@ export const attachmentStrip = style({
   paddingBottom: '8px',
 });
 
+export const attachThumbBtn = style({
+  display: 'block',
+  padding: 0,
+  margin: 0,
+  border: 'none',
+  background: 'none',
+  cursor: 'pointer',
+  borderRadius: vars.radiusMd,
+  lineHeight: 0,
+  selectors: {
+    '&:focus-visible': {
+      outline: '2px solid currentColor',
+      outlineOffset: '2px',
+    },
+  },
+});
+
 export const attachThumb = style({
+  display: 'block',
   width: '32px',
   height: '32px',
   borderRadius: vars.radiusMd,

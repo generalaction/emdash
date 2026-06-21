@@ -21,11 +21,11 @@ import '@emdash/chat-ui/style.css';
 import '@emdash/chat-ui/chat-theme.css';
 
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import type { ChatHandle, MentionProvider } from '@emdash/chat-ui';
+import type { ChatCommands, ChatHandle, MentionProvider } from '@emdash/chat-ui';
 import { generateMockTranscript } from '@emdash/chat-ui';
 import { ChatTranscript } from '@emdash/chat-ui/react';
 import { ArrowDown } from 'lucide-react';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChatComposer, stopReasonNotice } from '../components/chat-composer';
 import type {
   ComposerAttachment,
@@ -34,6 +34,7 @@ import type {
   ContextMentionProvider,
   MentionItem,
 } from '../components/chat-composer';
+import { ImageViewerDialog } from '../components/image-viewer-dialog';
 import { basename, fileIconClass } from '../components/prompt-editor/mention-pill-helpers';
 import type { PromptEditorRef } from '../components/prompt-editor/types';
 import { Button } from '../primitives/button';
@@ -151,6 +152,7 @@ function LiveChatPanel({ notice }: { notice?: ComposerNotice | null }) {
   const [atBottom, setAtBottom] = useState(true);
   const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
   const [attachments, setAttachments] = useState<ComposerAttachment[]>(SEED_ATTACHMENTS);
+  const [viewer, setViewer] = useState<{ src?: string; alt?: string } | null>(null);
 
   // Measure the floating composer so the transcript can reserve matching space.
   useEffect(() => {
@@ -163,6 +165,13 @@ function LiveChatPanel({ notice }: { notice?: ComposerNotice | null }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  const commands = useMemo(
+    (): ChatCommands => ({
+      onViewImage: ({ attachment }) => setViewer({ src: attachment.dataUrl, alt: attachment.name }),
+    }),
+    []
+  );
 
   const handleReady = useCallback((handle: ChatHandle) => {
     handleRef.current = handle;
@@ -187,6 +196,17 @@ function LiveChatPanel({ notice }: { notice?: ComposerNotice | null }) {
     ].join('\n');
     handle.transcript.seed([
       { kind: 'message', id: longUserId, role: 'user', text: longUserText },
+      // Seeded message with image attachments — click either thumbnail to open the viewer.
+      {
+        kind: 'message',
+        id: 'seed-img-user',
+        role: 'user',
+        text: 'Here are two screenshots.',
+        attachments: [
+          { id: 'a1', name: 'screenshot.png', dataUrl: RED_1PX },
+          { id: 'a2', name: 'diagram.png', dataUrl: BLUE_1PX },
+        ],
+      },
       ...items,
     ]);
   }, []);
@@ -251,6 +271,7 @@ function LiveChatPanel({ notice }: { notice?: ComposerNotice | null }) {
         padBottom={composerH + PAD_BOTTOM_MARGIN}
         onReady={handleReady}
         onAtBottomChange={setAtBottom}
+        commands={commands}
       />
 
       {/* Floating composer — aligned to the max-w-2xl content column with no
@@ -288,6 +309,12 @@ function LiveChatPanel({ notice }: { notice?: ComposerNotice | null }) {
           notice={notice}
         />
       </div>
+      <ImageViewerDialog
+        open={!!viewer}
+        onOpenChange={(o) => !o && setViewer(null)}
+        src={viewer?.src}
+        alt={viewer?.alt}
+      />
     </div>
   );
 }

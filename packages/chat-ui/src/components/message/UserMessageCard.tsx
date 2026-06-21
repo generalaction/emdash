@@ -22,11 +22,13 @@ import { layoutBlockStack } from '../../core/layout/block-stack';
 import { blockPlainText } from '../../core/markdown/plain-text';
 import type { ChatMessage } from '../../model';
 import { BlockStackView } from '../primitives/BlockStackView';
+import { useCommands } from '../CommandsContext';
 import { ImageOffIcon } from '../primitives/icons';
 import {
   attachmentStrip,
   attachPlaceholder,
   attachThumb,
+  attachThumbBtn,
   cardBase,
   cardFadeOverlay,
   cardHoverBorder,
@@ -101,6 +103,7 @@ function attachStripH(count: number, innerW: number, thumb: number, gap: number)
 // ── Component ────────────────────────────────────────────────────────────────
 
 export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars?: MessageVars }) {
+  const commands = useCommands();
   const v = () => props.vars;
   const mCtx = () => props.ctx.measureCtx?.();
 
@@ -192,7 +195,21 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
                   </div>
                 }
               >
-                <img src={att.dataUrl} alt={att.name} class={attachThumb} />
+                <button
+                  type="button"
+                  class={attachThumbBtn}
+                  aria-label={`View image: ${att.name}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    commands().onViewImage?.({
+                      attachment: att,
+                      itemId: props.data.id,
+                      source: 'user-message',
+                    });
+                  }}
+                >
+                  <img src={att.dataUrl} alt={att.name} class={attachThumb} />
+                </button>
               </Show>
             )}
           </For>

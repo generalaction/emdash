@@ -73,6 +73,17 @@ export type ChatCommands = {
   }) => void;
 
   /**
+   * Called when the user clicks an image attachment thumbnail inside a user
+   * message bubble. `itemId` is the ChatMessage id; `source` identifies the
+   * click origin.
+   */
+  onViewImage?: (arg: {
+    attachment: ChatImageAttachment;
+    itemId: string;
+    source: 'user-message';
+  }) => void;
+
+  /**
    * Synchronously classify an `href` from a rendered markdown link.
    *
    * Returns `{ kind: 'workspace-file'; path: string }` if the href resolves to

@@ -12,4 +12,5 @@ export type {
   ContextMentionProvider,
 } from './chat-composer';
 export { ConfirmationDialog, type ConfirmationDialogProps } from './confirmation-dialog';
+export { ImageViewerDialog, type ImageViewerDialogProps } from './image-viewer-dialog';
 export { ComboboxPopover, type ComboboxPopoverProps } from './combobox-popover';
