@@ -26,12 +26,12 @@ export const SETTINGS_DEFAULTS = {
   }),
   tasks: {
     autoGenerateName: true,
+    autoApproveByDefault: false,
     autoTrustWorktrees: true,
     createBranchAndWorktree: true,
     preserveNameCapitalization: false,
     includeIssueContextByDefault: true,
   },
-  agentAutoApproveDefaults: {},
   notifications: {
     enabled: true,
     sound: true,
