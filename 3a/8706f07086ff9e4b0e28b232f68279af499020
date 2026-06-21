@@ -1,0 +1,21 @@
+packages/plugins/src/agents/impl/codex/hooks.ts
+  s_cd0101098ecc94::t_bb90b68c62360a 17-18,79-82,95-97,154,168
+packages/plugins/src/agents/impl/codex/hooks.test.ts
+  s_cd0101098ecc94::t_3c4ceeb1243e18 3,74-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "3a8706f07086ff9e4b0e28b232f68279af499020",
+  "prompts": {},
+  "sessions": {
+    "s_cd0101098ecc94": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eea24-bc73-7441-a470-b63121d84710",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
