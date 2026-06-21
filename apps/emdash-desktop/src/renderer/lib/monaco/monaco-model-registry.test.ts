@@ -6,30 +6,40 @@ const rpcState = vi.hoisted(() => ({
   indexContent: 'base' as string | null,
   refContent: 'base' as string | null,
   diskContent: 'base' as string,
+  indexSuccess: true,
+  refSuccess: true,
+  diskSuccess: true,
+  diskTruncated: false,
 }));
 
 vi.mock('@renderer/lib/ipc', () => ({
   rpc: {
     workspace: {
       gitWorktree: {
-        getFileAtIndex: vi.fn(async () => ({
-          success: true,
-          data: { content: rpcState.indexContent },
-        })),
-        getFileAtRef: vi.fn(async () => ({
-          success: true,
-          data: { content: rpcState.refContent },
-        })),
+        getFileAtIndex: vi.fn(async () =>
+          rpcState.indexSuccess
+            ? { success: true, data: { content: rpcState.indexContent } }
+            : { success: false, error: 'index failed' }
+        ),
+        getFileAtRef: vi.fn(async () =>
+          rpcState.refSuccess
+            ? { success: true, data: { content: rpcState.refContent } }
+            : { success: false, error: 'ref failed' }
+        ),
       },
       fs: {
-        readFile: vi.fn(async () => ({
-          success: true,
-          data: {
-            content: rpcState.diskContent,
-            truncated: false,
-            totalSize: rpcState.diskContent.length,
-          },
-        })),
+        readFile: vi.fn(async () =>
+          rpcState.diskSuccess
+            ? {
+                success: true,
+                data: {
+                  content: rpcState.diskContent,
+                  truncated: rpcState.diskTruncated,
+                  totalSize: rpcState.diskContent.length,
+                },
+              }
+            : { success: false, error: 'read failed' }
+        ),
       },
       editor: {
         saveBuffer: vi.fn(),
@@ -111,6 +121,10 @@ describe('MonacoModelRegistry', () => {
     rpcState.indexContent = 'base';
     rpcState.refContent = 'base';
     rpcState.diskContent = 'base';
+    rpcState.indexSuccess = true;
+    rpcState.refSuccess = true;
+    rpcState.diskSuccess = true;
+    rpcState.diskTruncated = false;
   });
 
   it('clears a staged git model when the index no longer contains the file', async () => {
@@ -253,6 +267,85 @@ describe('MonacoModelRegistry', () => {
 
       expect(registry.getDiskValue(uri)).toBe('branch-b disk');
       expect(registry.getValue(uri)).toBe('branch-b disk');
+    } finally {
+      vi.runOnlyPendingTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it('clears stale git content when a pending-eviction git model refresh fails', async () => {
+    vi.useFakeTimers();
+    try {
+      const registry = new MonacoModelRegistry();
+      registry.notifyMonacoReady(makeFakeMonaco() as never);
+
+      const projectId = 'project';
+      const workspaceId = 'workspace';
+      const root = `workspace:${workspaceId}`;
+      const filePath = 'file.ts';
+      const language = 'typescript';
+
+      rpcState.refContent = 'branch-a contents';
+      const uri = await registry.registerModel(
+        projectId,
+        workspaceId,
+        root,
+        filePath,
+        language,
+        'git',
+        HEAD_REF
+      );
+      const headUri = registry.toGitUri(uri, HEAD_REF);
+      registry.unregisterModel(headUri);
+
+      rpcState.refSuccess = false;
+      await registry.registerModel(
+        projectId,
+        workspaceId,
+        root,
+        filePath,
+        language,
+        'git',
+        HEAD_REF
+      );
+
+      expect(registry.modelStatus.get(headUri)).toBe('error');
+      expect(registry.getModelByUri(headUri)?.getValue()).toBe('');
+    } finally {
+      vi.runOnlyPendingTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it('clears stale disk content when a pending-eviction disk model refresh fails', async () => {
+    vi.useFakeTimers();
+    try {
+      const registry = new MonacoModelRegistry();
+      registry.notifyMonacoReady(makeFakeMonaco() as never);
+
+      const projectId = 'project';
+      const workspaceId = 'workspace';
+      const root = `workspace:${workspaceId}`;
+      const filePath = 'file.ts';
+      const language = 'typescript';
+
+      rpcState.diskContent = 'branch-a disk';
+      const uri = await registry.registerModel(
+        projectId,
+        workspaceId,
+        root,
+        filePath,
+        language,
+        'disk'
+      );
+      const diskUri = registry.toDiskUri(uri);
+      registry.unregisterModel(diskUri);
+
+      rpcState.diskSuccess = false;
+      await registry.registerModel(projectId, workspaceId, root, filePath, language, 'disk');
+
+      expect(registry.modelStatus.get(diskUri)).toBe('error');
+      expect(registry.getDiskValue(uri)).toBe('');
     } finally {
       vi.runOnlyPendingTimers();
       vi.useRealTimers();

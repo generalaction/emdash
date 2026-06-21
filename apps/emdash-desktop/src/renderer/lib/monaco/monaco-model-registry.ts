@@ -767,7 +767,21 @@ export class MonacoModelRegistry {
         entry.workspaceId,
         entry.filePath
       );
-      if (res.success) this.applyDiskUpdate(uri, entry, res.data.content);
+      if (!res.success || res.data.content === null) {
+        this.modelStatus.set(uri, 'error');
+        this.applyDiskUpdate(uri, entry, '');
+        return;
+      }
+      if (res.data.truncated) {
+        runInAction(() => {
+          this.modelStatus.set(uri, 'too-large');
+          this.modelTotalSizes.set(uri, res.data.totalSize);
+        });
+        this.applyDiskUpdate(uri, entry, '');
+        return;
+      }
+      this.modelStatus.set(uri, 'ready');
+      this.applyDiskUpdate(uri, entry, res.data.content);
     } else if (entry.type === 'git') {
       const res =
         entry.ref.kind === 'staged'
@@ -782,9 +796,13 @@ export class MonacoModelRegistry {
               entry.filePath,
               gitRefToString(entry.ref)
             );
-      if (res.success) {
-        entry.model.setValue(res.data.content ?? '');
+      if (!res.success) {
+        this.modelStatus.set(uri, 'error');
+        entry.model.setValue('');
+        return;
       }
+      this.modelStatus.set(uri, 'ready');
+      entry.model.setValue(res.data.content ?? '');
     }
   }
 
