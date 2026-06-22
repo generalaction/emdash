@@ -10,6 +10,7 @@ import {
 import { LiveScheduler, type LiveSchedulerRun } from './live-scheduler';
 
 export type KeyedOp<K, V> = { op: 'put'; key: K; value: V } | { op: 'del'; key: K };
+export type ScopeKey<K> = K | null;
 
 export type CollectionSnapshot<K, V> = {
   entries: Array<[K, V]>;
@@ -30,6 +31,8 @@ export type LiveCollectionOptions<K, V, E = unknown> = {
   revalidateIntervalMs?: number;
   /** Used to suppress no-op updates. */
   isEqual?: (a: V, b: V) => boolean;
+  /** Maps each value to the scope that owns it. Required for loadScope/unloadScope. */
+  scopeOf?: (value: V) => ScopeKey<K>;
   /** Receives errors returned by background recomputes. */
   onError?: (error: E) => void;
 };
@@ -44,12 +47,14 @@ export class LiveCollection<K, V, E = unknown> implements IDisposable {
   private static lastGeneration = 0;
 
   private readonly emitter = new Emitter<CollectionUpdate<K, V>>();
-  private readonly generation = LiveCollection.nextGeneration();
   private readonly isEqual: (a: V, b: V) => boolean;
   private readonly scheduler: LiveScheduler<Result<CollectionSnapshot<K, V>, E>> | null;
 
   private disposed = false;
   private entries = new Map<K, V>();
+  private generation = LiveCollection.nextGeneration();
+  private loadedScopeKeys = new Set<ScopeKey<K>>();
+  private loadingScopes = new Map<ScopeKey<K>, Promise<Result<number, E>>>();
   private sequence = 0;
 
   constructor(private readonly options: LiveCollectionOptions<K, V, E> = {}) {
@@ -169,7 +174,60 @@ export class LiveCollection<K, V, E = unknown> implements IDisposable {
   }
 
   reset(entries?: Iterable<readonly [K, V]>): number {
+    return this.resetInternal(entries);
+  }
+
+  resetWithNewGeneration(entries?: Iterable<readonly [K, V]>): number {
+    return this.resetInternal(entries, { bumpGeneration: true });
+  }
+
+  loadScope(
+    scope: ScopeKey<K>,
+    compute: () => Promise<Result<Iterable<readonly [K, V]>, E>>
+  ): Promise<Result<number, E>> {
+    this.assertNotDisposed();
+    this.assertScoped();
+    const existing = this.loadingScopes.get(scope);
+    if (existing) return existing;
+
+    const load = this.loadScopeInternal(scope, compute);
+    this.loadingScopes.set(scope, load);
+    void load.then(
+      () => {
+        if (this.loadingScopes.get(scope) === load) this.loadingScopes.delete(scope);
+      },
+      () => {
+        if (this.loadingScopes.get(scope) === load) this.loadingScopes.delete(scope);
+      }
+    );
+    return load;
+  }
+
+  isScopeLoaded(scope: ScopeKey<K>): boolean {
+    return this.loadedScopeKeys.has(scope);
+  }
+
+  loadedScopes(): Array<ScopeKey<K>> {
+    return [...this.loadedScopeKeys];
+  }
+
+  unloadScope(scope: ScopeKey<K>): number {
     if (this.disposed) return this.sequence;
+    this.assertScoped();
+    this.loadedScopeKeys.delete(scope);
+    const ops: Array<KeyedOp<K, V>> = [];
+    for (const [key, value] of this.entries) {
+      if (this.scopeOf(value) === scope) ops.push({ op: 'del', key });
+    }
+    return this.apply(ops);
+  }
+
+  private resetInternal(
+    entries?: Iterable<readonly [K, V]>,
+    options: { bumpGeneration?: boolean } = {}
+  ): number {
+    if (this.disposed) return this.sequence;
+    if (options.bumpGeneration) this.generation = LiveCollection.nextGeneration();
     this.entries = new Map(entries);
     this.scheduler?.markClean();
     const update: CollectionUpdate<K, V> = {
@@ -229,6 +287,45 @@ export class LiveCollection<K, V, E = unknown> implements IDisposable {
       }
     }
     return ops;
+  }
+
+  private async loadScopeInternal(
+    scope: ScopeKey<K>,
+    compute: () => Promise<Result<Iterable<readonly [K, V]>, E>>
+  ): Promise<Result<number, E>> {
+    const computed = await compute();
+    if (!computed.success) return err(computed.error);
+
+    const nextEntries = new Map<K, V>();
+    for (const [key, value] of computed.data) {
+      const actualScope = this.scopeOf(value);
+      if (actualScope !== scope) {
+        throw new Error('LiveCollection loadScope computed an entry outside the requested scope');
+      }
+      nextEntries.set(key, value);
+    }
+
+    const currentEntries = new Map<K, V>();
+    for (const [key, value] of this.entries) {
+      if (this.scopeOf(value) === scope) currentEntries.set(key, value);
+    }
+
+    const ops = this.diff(currentEntries, nextEntries);
+    this.loadedScopeKeys.add(scope);
+    return ok(this.apply(ops));
+  }
+
+  private scopeOf(value: V): ScopeKey<K> {
+    const scopeOf = this.options.scopeOf;
+    if (!scopeOf)
+      throw new Error('LiveCollection scopeOf option is required for scoped operations');
+    return scopeOf(value);
+  }
+
+  private assertScoped(): void {
+    if (!this.options.scopeOf) {
+      throw new Error('LiveCollection scopeOf option is required for scoped operations');
+    }
   }
 
   private snapshot(sequence = this.sequence): CollectionSnapshot<K, V> {

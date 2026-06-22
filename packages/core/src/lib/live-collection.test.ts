@@ -238,6 +238,166 @@ describe('LiveCollection', () => {
     await expect(collection.refresh()).resolves.toEqual(okSnapshot([['a', 1]], 1));
   });
 
+  it('loads one scope by diffing only entries owned by that scope', async () => {
+    type Entry = { scope: string | null; value: number };
+    const collection = new LiveCollection<string, Entry>({
+      scopeOf: (entry) => entry.scope,
+    });
+    const updates: Array<CollectionUpdate<string, Entry>> = [];
+    collection.subscribe((update) => updates.push(update));
+
+    await expect(
+      collection.loadScope('src', async () =>
+        ok([
+          ['src/a', { scope: 'src', value: 1 }],
+          ['src/b', { scope: 'src', value: 2 }],
+        ])
+      )
+    ).resolves.toEqual(ok(1));
+    await expect(
+      collection.loadScope('test', async () => ok([['test/a', { scope: 'test', value: 3 }]]))
+    ).resolves.toEqual(ok(2));
+    await expect(
+      collection.loadScope('src', async () =>
+        ok([
+          ['src/b', { scope: 'src', value: 20 }],
+          ['src/c', { scope: 'src', value: 4 }],
+        ])
+      )
+    ).resolves.toEqual(ok(3));
+
+    expect(collection.loadedScopes()).toEqual(['src', 'test']);
+    expect(collection.isScopeLoaded('src')).toBe(true);
+    expect(collection.getCached()).toEqual(
+      cachedSnapshot(
+        [
+          ['src/b', { scope: 'src', value: 20 }],
+          ['test/a', { scope: 'test', value: 3 }],
+          ['src/c', { scope: 'src', value: 4 }],
+        ],
+        3
+      )
+    );
+    expect(updates).toEqual([
+      snapshot([], 0),
+      delta(
+        [
+          { op: 'put', key: 'src/a', value: { scope: 'src', value: 1 } },
+          { op: 'put', key: 'src/b', value: { scope: 'src', value: 2 } },
+        ],
+        1
+      ),
+      delta([{ op: 'put', key: 'test/a', value: { scope: 'test', value: 3 } }], 2),
+      delta(
+        [
+          { op: 'del', key: 'src/a' },
+          { op: 'put', key: 'src/b', value: { scope: 'src', value: 20 } },
+          { op: 'put', key: 'src/c', value: { scope: 'src', value: 4 } },
+        ],
+        3
+      ),
+    ]);
+  });
+
+  it('single-flights concurrent loads for the same scope', async () => {
+    type Entry = { scope: string | null; value: number };
+    const gate = deferred<Result<Array<[string, Entry]>>>();
+    let computes = 0;
+    const collection = new LiveCollection<string, Entry>({
+      scopeOf: (entry) => entry.scope,
+    });
+
+    const first = collection.loadScope('src', () => {
+      computes += 1;
+      return gate.promise;
+    });
+    const second = collection.loadScope('src', () => {
+      computes += 1;
+      return gate.promise;
+    });
+
+    expect(computes).toBe(1);
+    gate.resolve(ok([['src/a', { scope: 'src', value: 1 }]]));
+    await expect(first).resolves.toEqual(ok(1));
+    await expect(second).resolves.toEqual(ok(1));
+
+    await expect(
+      collection.loadScope('src', async () => ok([['src/a', { scope: 'src', value: 2 }]]))
+    ).resolves.toEqual(ok(2));
+    expect(computes).toBe(1);
+  });
+
+  it('suppresses no-op scope loads and preserves equal existing values', async () => {
+    type Entry = { scope: string | null; id: number; label: string };
+    const original = { scope: 'src', id: 1, label: 'original' };
+    const equalReplacement = { scope: 'src', id: 1, label: 'replacement' };
+    const collection = new LiveCollection<string, Entry>({
+      scopeOf: (entry) => entry.scope,
+      isEqual: (a, b) => a.id === b.id,
+    });
+    const updates: Array<CollectionUpdate<string, Entry>> = [];
+    collection.subscribe((update) => updates.push(update));
+
+    await expect(
+      collection.loadScope('src', async () => ok([['src/a', original]]))
+    ).resolves.toEqual(ok(1));
+    await expect(
+      collection.loadScope('other', async () =>
+        ok([['other/a', { scope: 'other', id: 2, label: 'x' }]])
+      )
+    ).resolves.toEqual(ok(2));
+    await expect(
+      collection.loadScope('src', async () => ok([['src/a', equalReplacement]]))
+    ).resolves.toEqual(ok(2));
+
+    expect(updates).toHaveLength(3);
+    expect(collection.getCached().entries.find(([key]) => key === 'src/a')?.[1]).toBe(original);
+  });
+
+  it('does not mark a scope loaded when its compute returns an expected error', async () => {
+    type Entry = { scope: string | null; value: number };
+    const collection = new LiveCollection<string, Entry, string>({
+      scopeOf: (entry) => entry.scope,
+    });
+
+    await expect(collection.loadScope('src', async () => err('boom'))).resolves.toEqual(
+      err('boom')
+    );
+
+    expect(collection.isScopeLoaded('src')).toBe(false);
+    expect(collection.getCached()).toEqual(cachedSnapshot([], 0));
+  });
+
+  it('unloads only direct entries in the requested scope', async () => {
+    type Entry = { scope: string | null; value: number };
+    const collection = new LiveCollection<string, Entry>({
+      scopeOf: (entry) => entry.scope,
+    });
+    await collection.loadScope(null, async () => ok([['src', { scope: null, value: 1 }]]));
+    await collection.loadScope('src', async () => ok([['src/a', { scope: 'src', value: 2 }]]));
+
+    expect(collection.unloadScope(null)).toBe(3);
+
+    expect(collection.isScopeLoaded(null)).toBe(false);
+    expect(collection.isScopeLoaded('src')).toBe(true);
+    expect(collection.getCached()).toEqual(
+      cachedSnapshot([['src/a', { scope: 'src', value: 2 }]], 3)
+    );
+  });
+
+  it('can reset with a new generation for resync baselines', () => {
+    const collection = new LiveCollection<string, number>();
+    const updates: Array<CollectionUpdate<string, number>> = [];
+    collection.subscribe((update) => updates.push(update));
+    const initialGeneration = updates[0]!.generation;
+
+    expect(collection.put('a', 1)).toBe(1);
+    expect(collection.resetWithNewGeneration([['b', 2]])).toBe(2);
+
+    expect(updates[2]).toEqual(snapshot([['b', 2]], 2));
+    expect(updates[2]!.generation).toBeGreaterThan(initialGeneration);
+  });
+
   it('demand-gates invalidation until get or subscribe', async () => {
     let computes = 0;
     const collection = new LiveCollection<string, number>({
