@@ -22,14 +22,15 @@ export default defineConfig({
   build: {
     lib: {
       entry: {
-        primitives: resolve(__dirname, 'src/primitives/index.ts'),
-        components: resolve(__dirname, 'src/components/index.ts'),
-        patterns: resolve(__dirname, 'src/patterns/index.ts'),
-        'recipes/control': resolve(__dirname, 'src/recipes/control.ts'),
-        'recipes/input': resolve(__dirname, 'src/recipes/input.ts'),
+        react: resolve(__dirname, 'src/react/index.ts'),
+        'react/primitives': resolve(__dirname, 'src/react/primitives/index.ts'),
+        'react/components': resolve(__dirname, 'src/react/components/index.ts'),
+        'react/patterns': resolve(__dirname, 'src/react/patterns/index.ts'),
+        'styles/recipes/control': resolve(__dirname, 'src/styles/recipes/control.ts'),
+        'styles/recipes/input': resolve(__dirname, 'src/styles/recipes/input.ts'),
         // VE theme utilities — exports sx (Sprinkles) and vars (theme contract).
         // Importing this entry causes style.css to include the extracted VE atoms.
-        'theme/sprinkles': resolve(__dirname, 'src/theme/sprinkles.css.ts'),
+        'styles/sprinkles': resolve(__dirname, 'src/styles/sprinkles.css.ts'),
       },
       formats: ['es'],
     },

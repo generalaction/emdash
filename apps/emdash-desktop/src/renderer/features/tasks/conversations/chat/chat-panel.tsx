@@ -5,7 +5,7 @@ import {
   type ComposerAgentOption,
   type ComposerAttachment,
   type ComposerPermissionRequest,
-} from '@emdash/ui/components';
+} from '@emdash/ui/react/components';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';

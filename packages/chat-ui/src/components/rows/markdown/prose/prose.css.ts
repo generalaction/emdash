@@ -143,7 +143,6 @@ export const mentionChip = style({
   borderRadius: vars.radiusSm,
   background: vars.mentionChipBg,
   color: vars.mentionChipFg,
-  boxShadow: `0 0 0 1px ${vars.mentionChipRing}`,
 });
 
 export const mentionPlain = style({

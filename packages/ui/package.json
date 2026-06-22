@@ -9,65 +9,78 @@
   },
   "files": [
     "dist",
-    "src/theme"
+    "src/theme",
+    "src/styles"
   ],
   "type": "module",
   "sideEffects": [
     "./dist/style.css"
   ],
   "exports": {
-    "./primitives": {
-      "types": "./dist/src/primitives/index.d.ts",
-      "default": "./dist/primitives.js"
+    "./react": {
+      "types": "./dist/src/react/index.d.ts",
+      "default": "./dist/react.js"
     },
-    "./components": {
-      "types": "./dist/src/components/index.d.ts",
-      "default": "./dist/components.js"
+    "./react/primitives": {
+      "types": "./dist/src/react/primitives/index.d.ts",
+      "default": "./dist/react/primitives.js"
     },
-    "./patterns": {
-      "types": "./dist/src/patterns/index.d.ts",
-      "default": "./dist/patterns.js"
+    "./react/components": {
+      "types": "./dist/src/react/components/index.d.ts",
+      "default": "./dist/react/components.js"
+    },
+    "./react/patterns": {
+      "types": "./dist/src/react/patterns/index.d.ts",
+      "default": "./dist/react/patterns.js"
+    },
+    "./solid": {
+      "types": "./dist/src/solid/index.d.ts",
+      "default": "./dist/solid.js"
+    },
+    "./solid/components": {
+      "types": "./dist/src/solid/components/index.d.ts",
+      "default": "./dist/solid/components.js"
     },
     "./style.css": "./dist/style.css",
-    "./theme/sprinkles": {
-      "types": "./dist/src/theme/sprinkles.css.d.ts",
-      "default": "./dist/theme/sprinkles.js"
+    "./styles/sprinkles": {
+      "types": "./dist/src/styles/sprinkles.css.d.ts",
+      "default": "./dist/styles/sprinkles.js"
     },
-    "./theme/tokens.css": "./src/theme/tokens.css",
-    "./theme/theme.css": "./src/theme/theme.css",
-    "./theme/tailwind.css": "./src/theme/tailwind.css",
-    "./theme/base.css": "./src/theme/theme.base.css",
-    "./theme/semantic.css": "./src/theme/semantic.css",
-    "./theme/surfaces.css": "./src/theme/surfaces.css",
-    "./theme/effects.css": "./src/theme/effects.css",
-    "./theme/overflow-fade.css": "./src/theme/overflow-fade.css",
-    "./theme/typography.css": "./src/theme/typography.css",
-    "./recipes/control": {
-      "types": "./dist/src/recipes/control.d.ts",
-      "default": "./dist/recipes/control.js"
+    "./styles/recipes/control": {
+      "types": "./dist/src/styles/recipes/control.d.ts",
+      "default": "./dist/styles/recipes/control.js"
     },
-    "./recipes/input": {
-      "types": "./dist/src/recipes/input.d.ts",
-      "default": "./dist/recipes/input.js"
+    "./styles/recipes/input": {
+      "types": "./dist/src/styles/recipes/input.d.ts",
+      "default": "./dist/styles/recipes/input.js"
     },
-    "./theme/tokens.js": "./src/theme/tokens.js",
-    "./theme/tokens.d.ts": "./src/theme/tokens.d.ts",
+    "./styles/tokens.css": "./src/styles/tokens.css",
+    "./styles/theme.css": "./src/styles/theme.css",
+    "./styles/base.css": "./src/styles/theme.base.css",
+    "./styles/semantic.css": "./src/styles/semantic.css",
+    "./styles/effects.css": "./src/styles/effects.css",
+    "./styles/overflow-fade.css": "./src/styles/overflow-fade.css",
+    "./styles/typography.css": "./src/styles/typography.css",
+    "./theme/tokens.js": "./src/theme/core/tokens.js",
+    "./theme/tokens.d.ts": "./src/theme/core/tokens.d.ts",
     "./theme/shiki-themes": "./src/theme/themes/shiki-themes.ts",
-    "./theme/manifest": "./src/theme/theme-manifest.ts",
+    "./theme/manifest": "./src/theme/core/theme-manifest.ts",
     "./package.json": "./package.json"
   },
   "scripts": {
     "dev": "vite build --config vite.lib.config.ts --watch",
     "build": "vite build --config vite.lib.config.ts",
     "test": "vitest run",
-    "theme:build": "tsx src/theme/build.ts && oxfmt src/theme/theme.css src/theme/semantic.css src/theme/tokens.js",
-    "theme:watch": "tsx --watch src/theme/build.ts",
-    "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build",
+    "theme:build": "tsx src/theme/core/build.ts && oxfmt src/styles/theme.css src/styles/semantic.css src/theme/core/tokens.js",
+    "theme:watch": "tsx --watch src/theme/core/build.ts",
+    "storybook:react": "storybook dev -p 6006 -c .storybook-react",
+    "storybook:solid": "storybook dev -p 6007 -c .storybook-solid",
+    "build-storybook:react": "storybook build -c .storybook-react",
+    "build-storybook:solid": "storybook build -c .storybook-solid",
     "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/ui/src\"'",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.solid.json"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
@@ -101,16 +114,20 @@
     "oxlint": "^1.66.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "solid-js": "^1.9.13",
     "storybook": "^10.4.6",
+    "storybook-solidjs-vite": "10.4.0",
     "tsx": "^4.22.4",
     "typescript": "^6.0.2",
     "vite": "^7.1.11",
     "vite-plugin-dts": "5.0.2",
+    "vite-plugin-solid": "2.11.12",
     "vitest": "^4.1.0"
   },
   "peerDependencies": {
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "solid-js": "^1.9.13"
   },
   "packageManager": "pnpm@10.28.2"
 }

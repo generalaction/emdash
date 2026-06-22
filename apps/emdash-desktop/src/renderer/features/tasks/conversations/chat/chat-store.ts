@@ -11,7 +11,7 @@ import type {
   ToolStatus,
   TranscriptApi,
 } from '@emdash/chat-ui';
-import type { ComposerAttachment } from '@emdash/ui/components';
+import type { ComposerAttachment } from '@emdash/ui/react/components';
 import { action, makeObservable, observable } from 'mobx';
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import {

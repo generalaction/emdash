@@ -8,7 +8,7 @@
  *   - Background anchored at neutral.1 dark OKLCH L (~0.178)
  */
 
-import { defineTheme } from '../define-theme.js';
+import { defineTheme } from '../core/define-theme.js';
 
 export const darkTheme = defineTheme({
   id: 'dark',

@@ -3,9 +3,6 @@
 @import '@xterm/xterm/css/xterm.css';
 @import 'allotment/dist/style.css';
 
-/* Shared Tailwind bridge — maps all semantic design-token vars to Tailwind utilities.
- * Must be imported after tailwindcss so that @theme inline declarations are merged. */
-@import '@emdash/ui/theme/tailwind.css';
 
 @custom-variant dark (&:is(.dark *));
 @custom-variant dark-black (&:is(.dark-black *));
