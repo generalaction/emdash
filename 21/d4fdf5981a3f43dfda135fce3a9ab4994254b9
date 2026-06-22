@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/main/core/agent-hooks/ssh-hook-tunnel.ts
+  s_8c170cd46e9698::t_ec5bd710bfed02 24-63,67,71-84,103,119,124-136,155
+  s_8c170cd46e9698::t_52ecc34000c723 64-66,68-70
+  s_8c170cd46e9698::t_82333958e46ffb 137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "21d4fdf5981a3f43dfda135fce3a9ab4994254b9",
+  "prompts": {},
+  "sessions": {
+    "s_8c170cd46e9698": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eede3-5439-7c43-96cc-f9676b4a51fb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
