@@ -11,6 +11,7 @@ import {
 export const DROID_HOOKS_PATH = '.factory/hooks.json';
 const DROID_LEGACY_SETTINGS_PATH = '.factory/settings.json';
 const DROID_HOOK_SPECS = [
+  { hookKey: 'UserPromptSubmit', command: makeStdinHookCommand('start') },
   { hookKey: 'Notification', command: makeStdinHookCommand('notification') },
   { hookKey: 'Stop', command: makeStdinHookCommand('stop') },
   { hookKey: 'SessionStart', command: makeStdinHookCommand('session') },

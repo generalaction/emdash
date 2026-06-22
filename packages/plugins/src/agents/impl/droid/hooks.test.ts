@@ -28,9 +28,11 @@ describe('droid provider hooks', () => {
     const raw = files.get(DROID_HOOKS_PATH);
     expect(raw).toBeDefined();
     const config = JSON.parse(raw!) as Record<string, Record<string, unknown[]>>;
+    expect(config.hooks.UserPromptSubmit).toHaveLength(1);
     expect(config.hooks.Notification).toHaveLength(1);
     expect(config.hooks.Stop).toHaveLength(1);
     expect(config.hooks.SessionStart).toHaveLength(1);
+    expect(JSON.stringify(config.hooks.UserPromptSubmit)).toContain('start');
     expect(JSON.stringify(config.hooks.Notification)).toContain('notification');
     expect(JSON.stringify(config.hooks.Stop)).toContain('stop');
     expect(JSON.stringify(config.hooks.SessionStart)).toContain('session');
