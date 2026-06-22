@@ -427,6 +427,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'goose.png',
     alt: 'Goose CLI',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'kimi',

@@ -1,4 +1,5 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import { buildGooseHookConfig } from './hooks';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -16,7 +17,9 @@ export const plugin = definePlugin(
       kind: 'none',
     },
     hooks: {
-      kind: 'none',
+      kind: 'config',
+      scope: 'workspace',
+      supportedEvents: ['session', 'start', 'stop', 'tool-use', 'tool-use-failure'],
     },
     hostDependency: {
       id: 'goose',
@@ -114,4 +117,5 @@ export const provider = registerPluginBehavior(plugin, {
       return { command: ctx.cli, args, env: {} };
     },
   },
+  hooks: buildGooseHookConfig(),
 });
