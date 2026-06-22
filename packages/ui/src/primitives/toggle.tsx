@@ -3,6 +3,7 @@ import { ToggleGroup as ToggleGroupPrimitive } from '@base-ui/react/toggle-group
 import * as React from 'react';
 import { cn } from '../lib/cn';
 import { controlVariants, type ControlVariantProps } from '../recipes/control';
+import { toggleGroup as toggleGroupClass } from './toggle.css';
 
 // ── Toggle ────────────────────────────────────────────────────────────────────
 
@@ -45,7 +46,7 @@ function ToggleGroup({ className, ...props }: ToggleGroupProps) {
   return (
     <ToggleGroupPrimitive
       data-slot="toggle-group"
-      className={cn('inline-flex items-center gap-0.5 rounded-md bg-surface p-0.5', className)}
+      className={cn(toggleGroupClass, className)}
       {...props}
     />
   );

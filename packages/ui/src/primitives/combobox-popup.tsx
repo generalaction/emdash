@@ -18,6 +18,7 @@ import { XIcon } from 'lucide-react';
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '../lib/cn';
+import * as styles from './combobox-popup.css';
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -112,21 +113,14 @@ export const ComboboxPopup = React.forwardRef<ComboboxPopupHandle, ComboboxPopup
       <div
         role="listbox"
         style={style}
-        className={cn(
-          'z-50 min-w-[220px] max-w-[340px] overflow-hidden rounded-md',
-          'surface-elevated bg-surface text-foreground shadow-sm ring-1 ring-foreground/10',
-          'animate-in fade-in-0 zoom-in-95 duration-100',
-          className
-        )}
+        className={cn('surface-elevated', styles.popupRoot, className)}
       >
-        {header && (
-          <div className="border-b border-border px-2 py-1.5 text-xs text-foreground-muted">
-            {header}
-          </div>
-        )}
-        <ul ref={listRef} className="max-h-[240px] scroll-py-1 overflow-y-auto p-1">
+        {header && <div className={styles.popupHeader}>{header}</div>}
+        <ul ref={listRef} className={styles.popupList}>
           {items.length === 0 && emptyLabel ? (
-            <li className="px-2 py-1.5 text-center text-sm text-foreground-muted">{emptyLabel}</li>
+            <li className={cn(styles.popupItem, styles.popupItemDefault, 'text-center')}>
+              {emptyLabel}
+            </li>
           ) : (
             items.map((item, index) => (
               <li
@@ -140,21 +134,14 @@ export const ComboboxPopup = React.forwardRef<ComboboxPopupHandle, ComboboxPopup
                 }}
                 onMouseEnter={() => setSelectedIndex(index)}
                 className={cn(
-                  'relative flex w-full cursor-default select-none items-center gap-2',
-                  'rounded-sm py-1.5 pl-2 pr-8 text-sm outline-hidden',
-                  index === selectedIndex
-                    ? 'bg-surface-hover text-foreground'
-                    : 'text-foreground hover:bg-surface-hover'
+                  styles.popupItem,
+                  index === selectedIndex ? styles.popupItemHighlighted : styles.popupItemHover
                 )}
               >
-                {item.icon && (
-                  <span className="flex shrink-0 items-center text-[1em] [&_svg]:size-4">
-                    {item.icon}
-                  </span>
-                )}
-                <span className="flex-1 truncate">{item.label}</span>
+                {item.icon && <span className={styles.popupItemIcon}>{item.icon}</span>}
+                <span className={styles.popupItemLabel}>{item.label}</span>
                 {item.description && (
-                  <span className="truncate text-xs text-foreground-muted">{item.description}</span>
+                  <span className={styles.popupItemDescription}>{item.description}</span>
                 )}
               </li>
             ))
@@ -184,10 +171,7 @@ export function ComboboxPopupDismiss({
         e.preventDefault();
         onClick?.();
       }}
-      className={cn(
-        'inline-flex size-4 shrink-0 items-center justify-center rounded-sm opacity-50 hover:opacity-100',
-        className
-      )}
+      className={cn(styles.popupDismiss, className)}
       aria-label="Dismiss"
     >
       <XIcon className="size-3" />

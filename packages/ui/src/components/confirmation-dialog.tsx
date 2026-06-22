@@ -14,6 +14,7 @@
 
 import * as React from 'react';
 import { Button } from '../primitives/button';
+import * as styles from './confirmation-dialog.css';
 import {
   Dialog,
   DialogBody,
@@ -83,7 +84,7 @@ export function ConfirmationDialog({
         {hasBody && (
           <DialogBody>
             {typeof description === 'string' ? (
-              <p className="text-foreground-muted">{description}</p>
+              <p className={styles.description}>{description}</p>
             ) : (
               description
             )}

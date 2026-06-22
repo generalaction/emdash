@@ -17,6 +17,7 @@
 
 import type { PopoverRootChangeEventDetails } from '@base-ui/react/popover';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { hoverCardDefault } from './hover-card.css';
 import { Popover, PopoverContent } from './popover';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -242,7 +243,7 @@ export function HoverCard({
         side={side}
         align={align}
         sideOffset={sideOffset}
-        className={className ?? 'w-auto p-0 text-foreground'}
+        className={className ?? hoverCardDefault}
         onMouseEnter={popupHoverProps.onMouseEnter}
         onMouseLeave={popupHoverProps.onMouseLeave}
       >

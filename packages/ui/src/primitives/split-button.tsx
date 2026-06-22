@@ -15,6 +15,7 @@ import * as React from 'react';
 import { cn } from '../lib/cn';
 import { controlVariants, type ControlVariantProps } from '../recipes/control';
 import { Button, type ButtonProps } from './button';
+import * as styles from './split-button.css';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,18 +60,13 @@ export interface SplitButtonProps {
 // ── Tone dot ──────────────────────────────────────────────────────────────────
 
 const TONE_DOT_CLASS: Record<SplitButtonOptionTone, string> = {
-  neutral: 'bg-foreground-muted',
-  accept: 'bg-[var(--color-success,theme(colors.green.500))]',
-  reject: 'bg-foreground-destructive',
+  neutral: styles.toneDotNeutral,
+  accept: styles.toneDotAccept,
+  reject: styles.toneDotReject,
 };
 
 function ToneDot({ tone = 'neutral' }: { tone?: SplitButtonOptionTone }) {
-  return (
-    <span
-      aria-hidden
-      className={cn('inline-block size-1.5 shrink-0 rounded-full', TONE_DOT_CLASS[tone])}
-    />
-  );
+  return <span aria-hidden className={TONE_DOT_CLASS[tone]} />;
 }
 
 // ── SplitButton ───────────────────────────────────────────────────────────────
@@ -95,7 +91,7 @@ export function SplitButton({
   };
 
   return (
-    <div className={cn('inline-flex items-stretch', className)}>
+    <div className={cn(styles.splitButtonRoot, className)}>
       {/* Primary face — fires the currently selected option */}
       <Button
         variant={variant}
@@ -118,7 +114,7 @@ export function SplitButton({
           className={cn(
             controlVariants({ variant, size, tone, icon: true }),
             'rounded-l-none',
-            variant === 'primary' && 'border-l border-l-white/20'
+            variant === 'primary' && styles.chevronBorderLeft
           )}
         >
           <ChevronDownIcon />

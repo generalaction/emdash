@@ -3,6 +3,7 @@
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover';
 import * as React from 'react';
 import { cn } from '../lib/cn';
+import * as styles from './popover.css';
 
 function Popover({ ...props }: PopoverPrimitive.Root.Props) {
   return <PopoverPrimitive.Root data-slot="popover" {...props} />;
@@ -33,14 +34,11 @@ function PopoverContent({
         side={side}
         sideOffset={sideOffset}
         anchor={anchor}
-        className="isolate z-50"
+        className={styles.positioner}
       >
         <PopoverPrimitive.Popup
           data-slot="popover-content"
-          className={cn(
-            'surface-elevated z-50 flex origin-(--transform-origin) overflow-hidden flex-col gap-4 rounded-md bg-surface p-4 border text-sm text-foreground shadow-sm outline-hidden duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
-            className
-          )}
+          className={cn('surface-elevated', styles.popupContent, className)}
           {...props}
         />
       </PopoverPrimitive.Positioner>
@@ -52,7 +50,7 @@ function PopoverHeader({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="popover-header"
-      className={cn('flex flex-col gap-1 text-sm', className)}
+      className={cn(styles.popoverHeader, className)}
       {...props}
     />
   );
@@ -62,7 +60,7 @@ function PopoverTitle({ className, ...props }: PopoverPrimitive.Title.Props) {
   return (
     <PopoverPrimitive.Title
       data-slot="popover-title"
-      className={cn('font-medium', className)}
+      className={cn(styles.popoverTitle, className)}
       {...props}
     />
   );
@@ -72,7 +70,7 @@ function PopoverDescription({ className, ...props }: PopoverPrimitive.Descriptio
   return (
     <PopoverPrimitive.Description
       data-slot="popover-description"
-      className={cn('text-foreground-muted', className)}
+      className={cn(styles.popoverDescription, className)}
       {...props}
     />
   );

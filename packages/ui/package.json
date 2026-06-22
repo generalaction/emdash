@@ -12,19 +12,26 @@
     "src/theme"
   ],
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/style.css"
+  ],
   "exports": {
     "./primitives": {
-      "types": "./dist/primitives.d.mts",
-      "default": "./dist/primitives.mjs"
+      "types": "./dist/src/primitives/index.d.ts",
+      "default": "./dist/primitives.js"
     },
     "./components": {
-      "types": "./dist/components.d.mts",
-      "default": "./dist/components.mjs"
+      "types": "./dist/src/components/index.d.ts",
+      "default": "./dist/components.js"
     },
     "./patterns": {
-      "types": "./dist/patterns.d.mts",
-      "default": "./dist/patterns.mjs"
+      "types": "./dist/src/patterns/index.d.ts",
+      "default": "./dist/patterns.js"
+    },
+    "./style.css": "./dist/style.css",
+    "./theme/sprinkles": {
+      "types": "./dist/src/theme/sprinkles.css.d.ts",
+      "default": "./dist/theme/sprinkles.js"
     },
     "./theme/tokens.css": "./src/theme/tokens.css",
     "./theme/theme.css": "./src/theme/theme.css",
@@ -36,12 +43,12 @@
     "./theme/overflow-fade.css": "./src/theme/overflow-fade.css",
     "./theme/typography.css": "./src/theme/typography.css",
     "./recipes/control": {
-      "types": "./dist/recipes/control.d.mts",
-      "default": "./dist/recipes/control.mjs"
+      "types": "./dist/src/recipes/control.d.ts",
+      "default": "./dist/recipes/control.js"
     },
     "./recipes/input": {
-      "types": "./dist/recipes/input.d.mts",
-      "default": "./dist/recipes/input.mjs"
+      "types": "./dist/src/recipes/input.d.ts",
+      "default": "./dist/recipes/input.js"
     },
     "./theme/tokens.js": "./src/theme/tokens.js",
     "./theme/tokens.d.ts": "./src/theme/tokens.d.ts",
@@ -50,8 +57,8 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "dev": "tsdown --watch",
-    "build": "tsdown",
+    "dev": "vite build --config vite.lib.config.ts --watch",
+    "build": "vite build --config vite.lib.config.ts",
     "test": "vitest run",
     "theme:build": "tsx src/theme/build.ts && oxfmt src/theme/theme.css src/theme/semantic.css src/theme/tokens.js",
     "theme:watch": "tsx --watch src/theme/build.ts",
@@ -85,6 +92,11 @@
     "@types/node": "^20.19.42",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@vanilla-extract/css": "^1.20.1",
+    "@vanilla-extract/dynamic": "^2.1.5",
+    "@vanilla-extract/recipes": "^0.5.7",
+    "@vanilla-extract/sprinkles": "^1.6.5",
+    "@vanilla-extract/vite-plugin": "^5.2.2",
     "@vitejs/plugin-react": "^4.7.0",
     "colorjs.io": "^0.5.2",
     "devicon": "^2.17.0",
@@ -98,7 +110,8 @@
     "tsx": "^4.22.4",
     "tw-animate-css": "^1.4.0",
     "typescript": "^6.0.2",
-    "vite": "^6.4.1",
+    "vite": "^7.1.11",
+    "vite-plugin-dts": "5.0.2",
     "vitest": "^4.1.0"
   },
   "peerDependencies": {

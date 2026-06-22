@@ -16,6 +16,7 @@ import React from 'react';
 import { cn } from '../../lib/cn';
 import { basename, fileIconClass } from './mention-pill-helpers';
 import type { MentionKind } from './types';
+import * as styles from './mention-pill.css';
 
 // ── Kind → fallback lucide icon ───────────────────────────────────────────────
 
@@ -43,24 +44,17 @@ export function MentionPill({ node, deleteNode }: NodeViewProps) {
   const kind = ((node.attrs.kind as string | null) ?? 'custom') as MentionKind;
 
   return (
-    <NodeViewWrapper as="span" className="mention-pill-wrapper inline-block align-baseline">
-      {/* The outer span is `group` so the hover-x can be revealed via group-hover. */}
+    <NodeViewWrapper as="span" className={cn('mention-pill-wrapper', styles.pillWrapper)}>
       <span
         contentEditable={false}
-        className={cn(
-          'group relative inline-flex cursor-default select-none items-center gap-1',
-          'rounded-sm bg-surface-hover px-1 py-0.5',
-          'text-xs font-medium text-foreground',
-          'ring-1 ring-foreground/10',
-          'align-baseline'
-        )}
+        className={styles.pill}
         data-mention-id={node.attrs.id as string}
         data-mention-kind={kind}
       >
         {/* Icon area — relative so the ✕ overlay is positioned inside it */}
-        <span className="relative flex size-3.5 shrink-0 items-center justify-center">
+        <span className={styles.pillIconArea}>
           <PillIcon kind={kind} label={label} />
-          {/* Hover-x: overlaid over the icon on group-hover */}
+          {/* Hover-x: overlaid over the icon on pill-hover */}
           <button
             type="button"
             onMouseDown={(e) => {
@@ -69,17 +63,13 @@ export function MentionPill({ node, deleteNode }: NodeViewProps) {
               deleteNode();
             }}
             aria-label={`Remove @${name}`}
-            className={cn(
-              'absolute inset-0 flex items-center justify-center rounded-sm',
-              'bg-surface-hover opacity-0 transition-opacity group-hover:opacity-100',
-              'hover:bg-surface-selected'
-            )}
+            className={styles.pillRemoveBtn}
           >
             <X className="size-2.5" />
           </button>
         </span>
         {/* Display name */}
-        <span className="max-w-[200px] truncate">{name}</span>
+        <span className={styles.pillName}>{name}</span>
       </span>
     </NodeViewWrapper>
   );

@@ -19,6 +19,7 @@ import { type ComboboxRootChangeEventDetails } from '@base-ui/react/combobox';
 import { ChevronDown } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '../lib/cn';
+import * as styles from './combobox-popover.css';
 import {
   Combobox,
   ComboboxContent,
@@ -137,16 +138,10 @@ export function ComboboxPopover<T>({
     >
       <ComboboxTrigger
         disabled={disabled}
-        className={cn(
-          'flex h-7 min-w-0 items-center gap-1.5 rounded-md border border-transparent px-2 text-xs',
-          'text-foreground hover:bg-surface-hover',
-          'outline-none data-popup-open:bg-surface-hover',
-          disabled && 'cursor-not-allowed opacity-60',
-          className
-        )}
+        className={cn(styles.trigger, disabled && 'cursor-not-allowed opacity-60', className)}
       >
-        <span className="flex-1 truncate text-left">{renderTrigger(selectedItem)}</span>
-        <ChevronDown className="size-3 shrink-0 text-foreground-muted" />
+        <span className={styles.triggerLabel}>{renderTrigger(selectedItem)}</span>
+        <ChevronDown className={cn('size-3', styles.triggerChevron)} />
       </ComboboxTrigger>
 
       <ComboboxContent ref={setAnchorEl} className={cn('min-w-[180px]', contentClassName)}>

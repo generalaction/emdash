@@ -8,6 +8,7 @@
 
 import * as React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../primitives/dialog';
+import * as styles from './image-viewer-dialog.css';
 
 export interface ImageViewerDialogProps {
   open: boolean;
@@ -25,11 +26,11 @@ export function ImageViewerDialog({ open, onOpenChange, src, alt }: ImageViewerD
         <DialogHeader>
           <DialogTitle>{alt ?? 'Image'}</DialogTitle>
         </DialogHeader>
-        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4 pt-0">
+        <div className={styles.imageContainer}>
           {src ? (
-            <img src={src} alt={alt ?? 'Image'} className="max-h-full max-w-full object-contain" />
+            <img src={src} alt={alt ?? 'Image'} className={styles.image} />
           ) : (
-            <p className="text-sm text-foreground-muted">Image content unavailable.</p>
+            <p className={styles.unavailable}>Image content unavailable.</p>
           )}
         </div>
       </DialogContent>

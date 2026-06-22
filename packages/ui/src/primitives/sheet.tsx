@@ -4,6 +4,7 @@ import * as React from 'react';
 import { cn } from '../lib/cn';
 import { Button } from './button';
 import { ScrollFade } from './scroll-fade';
+import * as styles from './sheet.css';
 
 // ── Side option ───────────────────────────────────────────────────────────────
 
@@ -31,10 +32,7 @@ function SheetBackdrop({ className, ...props }: Drawer.Backdrop.Props) {
   return (
     <Drawer.Backdrop
       data-slot="sheet-backdrop"
-      className={cn(
-        'fixed inset-0 z-50 bg-black/40 duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0',
-        className
-      )}
+      className={cn(styles.backdrop, className)}
       {...props}
     />
   );
@@ -53,18 +51,7 @@ function SheetContent({
       <SheetBackdrop />
       <Drawer.Popup
         data-slot="sheet-content"
-        className={cn(
-          // Base — fixed panel, full height, flex-col; 75vw on small screens
-          'surface-base fixed inset-y-0 z-50 flex h-full w-3/4 flex-col overflow-hidden bg-surface text-sm text-foreground shadow-lg ring-1 ring-foreground/10 outline-none',
-          // Animation duration
-          'duration-200',
-          // Side-specific position, rounding, max-width cap, and slide animation.
-          // Widths match the emdash-desktop sheet: right → xl (36rem), left → md (28rem).
-          side === 'right'
-            ? 'right-0 sm:max-w-xl data-open:animate-in data-open:slide-in-from-right data-closed:animate-out data-closed:slide-out-to-right'
-            : 'left-0 sm:max-w-md data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left',
-          className
-        )}
+        className={cn('surface-base', styles.sheetContent({ side }), className)}
         {...props}
       >
         {children}
@@ -84,10 +71,10 @@ function SheetHeader({
   return (
     <div
       data-slot="sheet-header"
-      className={cn('flex shrink-0 items-start justify-between gap-2 p-4', className)}
+      className={cn(styles.sheetHeader, className)}
       {...props}
     >
-      <div className="flex min-w-0 flex-col gap-1">{children}</div>
+      <div className={styles.sheetHeaderInner}>{children}</div>
       {showCloseButton && (
         <Drawer.Close
           render={
@@ -96,7 +83,7 @@ function SheetHeader({
               size="sm"
               icon
               aria-label="Close"
-              className="-mt-1 -mr-1 shrink-0 text-foreground-muted hover:text-foreground"
+              className={cn('shrink-0', styles.closeButtonOverride)}
             />
           }
         >
@@ -111,7 +98,7 @@ function SheetTitle({ className, ...props }: Drawer.Title.Props) {
   return (
     <Drawer.Title
       data-slot="sheet-title"
-      className={cn('text-sm tracking-tight text-foreground', className)}
+      className={cn(styles.sheetTitle, className)}
       {...props}
     />
   );
@@ -131,10 +118,7 @@ function SheetBody({
       axis="y"
       edges={['top']}
       className="min-h-0 flex-1"
-      viewportClassName={cn(
-        'flex w-full flex-col gap-2 p-4 pt-0 focus-visible:outline-none',
-        className
-      )}
+      viewportClassName={cn(styles.sheetBody, className)}
       style={style}
     >
       {children}
@@ -146,10 +130,7 @@ function SheetFooter({ className, children, ...props }: React.ComponentProps<'di
   return (
     <div
       data-slot="sheet-footer"
-      className={cn(
-        'flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-surface-base-emphasis p-3 sm:flex-row sm:justify-end',
-        className
-      )}
+      className={cn(styles.sheetFooter, className)}
       {...props}
     >
       {children}

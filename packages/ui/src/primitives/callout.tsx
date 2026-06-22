@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { cn } from '../lib/cn';
 import type { SurfaceStatusName } from '../theme/contract/roles';
+import * as styles from './callout.css';
 import { Surface } from './surface';
 
 export interface CalloutProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -22,17 +23,9 @@ export interface CalloutProps extends React.HTMLAttributes<HTMLDivElement> {
  */
 export function Callout({ status, icon, className, children, ...props }: CalloutProps) {
   return (
-    <Surface
-      status={status}
-      className={cn(
-        'flex items-start gap-3 rounded-lg border px-4 py-3 text-sm',
-        'bg-surface border-surface-border text-surface-foreground',
-        className
-      )}
-      {...props}
-    >
-      {icon && <span className="mt-0.5 shrink-0 [&_svg:not([class*='size-'])]:size-4">{icon}</span>}
-      <div className="min-w-0 flex-1">{children}</div>
+    <Surface status={status} className={cn(styles.calloutRoot, className)} {...props}>
+      {icon && <span className={styles.calloutIcon}>{icon}</span>}
+      <div className={styles.calloutContent}>{children}</div>
     </Surface>
   );
 }

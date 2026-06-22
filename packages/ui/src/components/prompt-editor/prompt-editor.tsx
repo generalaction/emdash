@@ -21,6 +21,8 @@ import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from '
 import type React from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '../../lib/cn';
+import * as styles from './prompt-editor.css';
+import './chip-classes.css';
 import {
   ComboboxPopup,
   type ComboboxPopupHandle,
@@ -236,10 +238,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     ],
     editorProps: {
       attributes: {
-        class: cn(
-          'prompt-editor-content outline-none text-sm text-foreground min-h-[36px]',
-          'placeholder:text-foreground-passive'
-        ),
+        class: cn('prompt-editor-content', styles.promptEditorContentClass),
         'data-testid': 'prompt-editor',
       },
       clipboardTextSerializer: (slice) => {
@@ -296,14 +295,10 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
 
   return (
     <>
-      <div className={cn('relative w-full', className)}>
-        <EditorContent editor={editor} className="w-full" aria-disabled={disabled} />
+      <div className={cn(styles.editorWrapper, className)}>
+        <EditorContent editor={editor} className={styles.editorContent} aria-disabled={disabled} />
         {isEmpty && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute top-0 left-0 text-sm select-none"
-            style={{ color: 'var(--foreground-passive)' }}
-          >
+          <span aria-hidden className={styles.editorPlaceholder}>
             {placeholder}
           </span>
         )}

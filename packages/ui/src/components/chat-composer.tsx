@@ -20,6 +20,7 @@
 import { ArrowUp, CircleAlert, Paperclip, Square, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { cn } from '../lib/cn';
+import * as styles from './chat-composer.css';
 import { Button } from '../primitives/button';
 import {
   Combobox,
@@ -258,15 +259,11 @@ function ModelDetailCard({ item }: { item: ModelItem }) {
       modelFeatures.intelligence !== undefined);
 
   return (
-    <div className="w-56 p-3 text-sm" style={{ color: 'var(--foreground)' }}>
-      <p className="leading-tight font-medium">{name}</p>
-      {description && (
-        <p className="mt-1 text-xs leading-snug" style={{ color: 'var(--foreground-muted)' }}>
-          {description}
-        </p>
-      )}
+    <div className={styles.modelDetailCard}>
+      <p className={styles.modelDetailName}>{name}</p>
+      {description && <p className={styles.modelDetailDesc}>{description}</p>}
       {hasFeatures && (
-        <div className="mt-2 space-y-1 border-t pt-2" style={{ borderColor: 'var(--border)' }}>
+        <div className={styles.modelDetailFeatures}>
           {modelFeatures?.contextWindowSize !== undefined && (
             <ModelFeatureRow
               label="Context"
@@ -290,9 +287,9 @@ function ModelDetailCard({ item }: { item: ModelItem }) {
 
 function ModelFeatureRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3 text-xs">
-      <span style={{ color: 'var(--foreground-muted)' }}>{label}</span>
-      <span style={{ color: 'var(--foreground)' }}>{value}</span>
+    <div className={styles.modelDetailRow}>
+      <span className={styles.modelDetailLabel}>{label}</span>
+      <span className={styles.modelDetailValue}>{value}</span>
     </div>
   );
 }
@@ -300,13 +297,9 @@ function ModelFeatureRow({ label, value }: { label: string; value: React.ReactNo
 function BarMeter({ value }: { value: number }) {
   const filled = Math.round(Math.max(0, Math.min(1, value)) * 5);
   return (
-    <span className="flex items-center gap-0.5">
+    <span className={styles.barMeter}>
       {Array.from({ length: 5 }, (_, i) => (
-        <span
-          key={i}
-          className="size-1.5 rounded-full"
-          style={{ background: i < filled ? 'var(--foreground-muted)' : 'var(--border)' }}
-        />
+        <span key={i} className={i < filled ? styles.barDotFilled : styles.barDotEmpty} />
       ))}
     </span>
   );
@@ -320,44 +313,24 @@ function formatContextWindow(tokens: number): string {
 
 // ── Notice band ───────────────────────────────────────────────────────────────
 
-const NOTICE_CLASSES: Record<ComposerNoticeVariant, { container: string; icon: string }> = {
-  error: {
-    container:
-      'bg-surface-destructive border-surface-destructive-border text-surface-destructive-foreground',
-    icon: 'text-surface-destructive-foreground',
-  },
-  warning: {
-    container: 'bg-surface-warning border-surface-warning-border text-surface-warning-foreground',
-    icon: 'text-surface-warning-foreground',
-  },
-  info: {
-    container: 'bg-surface-info border-surface-info-border text-surface-info-foreground',
-    icon: 'text-surface-info-foreground',
-  },
-};
-
 function NoticeBand({ notice }: { notice: ComposerNotice }) {
-  const cls = NOTICE_CLASSES[notice.variant];
   return (
-    <div
-      className={cn(
-        'flex items-start gap-2 rounded-t-xl border border-b-0 px-3 py-2 text-xs',
-        cls.container
-      )}
-    >
-      <div className="flex-1">
-        <div className="flex items-center gap-1.5">
-          <CircleAlert className={cn('size-3.5 shrink-0', cls.icon)} />
-          {notice.title && <p className="text-sm leading-snug">{notice.title}</p>}
+    <div className={styles.noticeBand({ variant: notice.variant })}>
+      <div className={styles.noticeBandBody}>
+        <div className={styles.noticeBandHeader}>
+          <CircleAlert className="size-3.5 shrink-0" />
+          {notice.title && <p className={styles.noticeBandTitle}>{notice.title}</p>}
         </div>
-        <p className={cn('leading-snug', notice.title && 'mt-1 opacity-80')}>{notice.message}</p>
+        <p className={cn(styles.noticeBandMessage, notice.title && styles.noticeBandMessageIndented)}>
+          {notice.message}
+        </p>
       </div>
       {notice.onDismiss && (
         <button
           type="button"
           aria-label="Dismiss notice"
           onClick={notice.onDismiss}
-          className="ml-1 shrink-0 opacity-70 transition-opacity hover:opacity-100"
+          className={styles.noticeDismiss}
         >
           <X className="size-3.5" />
         </button>
@@ -448,12 +421,9 @@ function ComposerAgentSelector({
       <ComboboxTrigger
         aria-label={triggerLabel}
         title={triggerLabel}
-        className={cn(
-          'flex size-7 items-center justify-center rounded-md border border-transparent',
-          'text-foreground hover:bg-surface-hover outline-none data-popup-open:bg-surface-hover'
-        )}
+        className={styles.agentTrigger}
       >
-        {selected?.icon ?? <span className="size-4 rounded-sm bg-border" />}
+        {selected?.icon ?? <span className={styles.agentIconPlaceholder} />}
       </ComboboxTrigger>
       <ComboboxContent className="min-w-[180px]">
         <ComboboxInput showTrigger={false} placeholder="Search agents…" />
@@ -603,7 +573,7 @@ export function ChatComposer({
   const hasBand = !!(permissionRequest ?? notice);
 
   return (
-    <div className={cn('flex flex-col', className)}>
+    <div className={cn(styles.composerRoot, className)}>
       {/* Permission band — shown when the agent is awaiting user approval. */}
       {permissionRequest && onResolvePermission && (
         <PermissionBand
@@ -619,51 +589,45 @@ export function ChatComposer({
       {!permissionRequest && (
         <div
           className={cn(
-            'grid transition-all duration-200 ease-out',
-            notice ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+            styles.noticeAnimWrapper,
+            notice ? styles.noticeAnimVisible : styles.noticeAnimHidden
           )}
           aria-hidden={!notice}
         >
-          <div className="overflow-hidden">
+          <div className={styles.noticeOverflowClip}>
             {retainedNotice && <NoticeBand notice={retainedNotice} />}
           </div>
         </div>
       )}
 
       <div
-        className={cn(
-          'bg-surface-base-emphasis flex flex-col gap-0 border transition-colors',
-          hasBand ? 'rounded-b-xl' : 'rounded-xl',
-          dragActive
-            ? 'border-border-1 ring-1 ring-border-1'
-            : 'border-border hover:border-border-1 focus-within:border-border-1 focus-within:ring-1 focus-within:ring-border-1'
-        )}
+        className={styles.composerShell({ hasBand: !!hasBand, dragActive })}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
         {/* Image attachment previews */}
         {imageAttachments.length > 0 && (
-          <div className="flex flex-wrap gap-2 px-3 pt-3">
+          <div className={styles.attachmentStrip}>
             {imageAttachments.map((att) => (
-              <div key={att.id} className="group relative size-8">
+              <div key={att.id} className={styles.attachmentThumb} data-attachment-thumb>
                 <button
                   type="button"
                   aria-label={`View image: ${att.name}`}
                   onClick={() => onViewImage?.(att)}
-                  className="block size-8 rounded-md p-0 focus-visible:outline-2 focus-visible:outline-offset-1"
+                  className={styles.attachmentThumbBtn}
                 >
                   <img
                     src={att.previewUrl}
                     alt={att.name}
-                    className="size-8 rounded-md object-cover ring-1 ring-border"
+                    className={styles.attachmentThumbImg}
                   />
                 </button>
                 <button
                   type="button"
                   aria-label={`Remove ${att.name}`}
                   onClick={() => removeAttachment(att.id)}
-                  className="absolute -top-1.5 -right-1.5 grid size-4 place-items-center rounded-full bg-surface text-foreground opacity-0 ring-1 ring-border transition-opacity group-hover:opacity-100"
+                  className={styles.attachmentRemoveBtn}
                 >
                   <X className="size-2.5" />
                 </button>
@@ -673,7 +637,7 @@ export function ChatComposer({
         )}
 
         {/* Editor area */}
-        <div className="max-h-[200px] overflow-y-auto px-3 pt-3 pb-1">
+        <div className={styles.editorArea}>
           <PromptEditor
             ref={(handle) => {
               editorRef.current = handle;
@@ -698,9 +662,9 @@ export function ChatComposer({
         </div>
 
         {/* Toolbar */}
-        <div className="flex items-center justify-between px-2 pt-1 pb-2">
+        <div className={styles.toolbar}>
           {/* Left: agent + model selector */}
-          <div className="flex items-center gap-1.5">
+          <div className={styles.toolbarLeft}>
             {agentOptions && agentOptions.length > 0 && (
               <ComposerAgentSelector
                 options={agentOptions}
@@ -721,12 +685,7 @@ export function ChatComposer({
                 searchPlaceholder="Search models…"
                 contentClassName="min-w-[200px]"
                 renderTrigger={(selected) => (
-                  <span
-                    className={cn(
-                      'text-xs',
-                      selected ? 'text-foreground' : 'text-foreground-muted'
-                    )}
-                  >
+                  <span style={{ color: selected ? 'var(--foreground)' : 'var(--foreground-muted)', fontSize: 'var(--text-xs)' }}>
                     {selected?.name ?? 'Model…'}
                   </span>
                 )}
@@ -741,7 +700,7 @@ export function ChatComposer({
           </div>
 
           {/* Right: attach + send/stop */}
-          <div className="flex items-center gap-1">
+          <div className={styles.toolbarRight}>
             {onAttach && (
               <Button
                 variant="ghost"

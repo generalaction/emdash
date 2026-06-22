@@ -17,6 +17,7 @@ import * as React from 'react';
 import { cn } from '../lib/cn';
 import { SplitButton } from '../primitives/split-button';
 import type { SplitButtonOption } from '../primitives/split-button';
+import * as styles from './permission-band.css';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -85,20 +86,14 @@ export function PermissionBand({
   }, [request.requestId]);
 
   return (
-    <div
-      className={cn(
-        'flex items-center gap-3 rounded-t-xl border border-b-0 px-3 py-2',
-        'bg-surface border-border text-foreground text-xs',
-        className
-      )}
-    >
-      <ShieldAlertIcon className="size-3.5 shrink-0 text-foreground-muted" aria-hidden />
+    <div className={cn(styles.band, className)}>
+      <ShieldAlertIcon className={cn('size-3.5', styles.bandIcon)} aria-hidden />
 
       {/* Context label */}
-      <span className="flex-1 leading-snug text-foreground-muted">
-        <span className="font-medium text-foreground">Allow</span> <span>{request.title}</span>
+      <span className={styles.bandLabel}>
+        <span className={styles.bandLabelStrong}>Allow</span> <span>{request.title}</span>
         {queueCount > 1 && (
-          <span className="ml-1.5 opacity-60">
+          <span className={styles.bandCounter}>
             ({1} of {queueCount})
           </span>
         )}

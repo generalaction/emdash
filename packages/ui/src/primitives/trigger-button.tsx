@@ -2,6 +2,7 @@ import { ChevronDownIcon } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '../lib/cn';
 import { controlVariants, type ControlVariantProps } from '../recipes/control';
+import { triggerButtonExtra } from './trigger-button.css';
 
 export interface TriggerButtonProps
   extends
@@ -38,13 +39,7 @@ const TriggerButton = React.forwardRef<HTMLButtonElement, TriggerButtonProps>(
         ref={ref}
         type="button"
         data-slot="trigger-button"
-        className={cn(
-          controlVariants({ variant: 'ghost', tone, size }),
-          'w-fit justify-between gap-1.5',
-          'data-placeholder:text-foreground-passive',
-          '[&>[data-slot=trigger-value]]:line-clamp-1 [&>[data-slot=trigger-value]]:flex [&>[data-slot=trigger-value]]:items-center [&>[data-slot=trigger-value]]:gap-1.5',
-          className
-        )}
+        className={cn(controlVariants({ variant: 'ghost', tone, size }), triggerButtonExtra, className)}
         {...props}
       >
         {children}
