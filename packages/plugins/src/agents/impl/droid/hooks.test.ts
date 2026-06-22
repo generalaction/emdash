@@ -35,4 +35,32 @@ describe('droid provider hooks', () => {
     expect(JSON.stringify(config.hooks.Stop)).toContain('stop');
     expect(JSON.stringify(config.hooks.SessionStart)).toContain('session');
   });
+
+  it('migrates existing settings.json fallback hooks before creating hooks.json', async () => {
+    const userHook = {
+      hooks: [{ type: 'command', command: 'echo user-notification' }],
+    };
+    const files = new Map<string, string>([
+      [
+        '.factory/settings.json',
+        JSON.stringify({
+          hooks: {
+            Notification: [userHook],
+          },
+        }),
+      ],
+    ]);
+    const fs = createMemoryFs(files);
+
+    await provider.behavior.hooks!.writeHooks(fs, []);
+
+    const config = JSON.parse(files.get(DROID_HOOKS_PATH)!) as Record<
+      string,
+      Record<string, unknown[]>
+    >;
+    expect(config.hooks.Notification).toEqual(
+      expect.arrayContaining([userHook, expect.objectContaining({ hooks: expect.any(Array) })])
+    );
+    expect(JSON.stringify(config.hooks.Notification)).toContain('notification');
+  });
 });
