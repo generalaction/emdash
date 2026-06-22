@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { cloneProjectRepository, initializeProjectRepository } from './git-repository-setup';
+import { cloneProjectRepository, initializeProjectRepository } from './repository-setup';
 
 const mocks = vi.hoisted(() => {
   const cloneRepository = vi.fn();
