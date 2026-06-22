@@ -141,7 +141,7 @@ export class FileTree implements IFileTree {
     for (let index = 0; index < parts.length; index += 1) {
       const relPath = parts.slice(0, index + 1).join('/');
       const node = this.ids.getByPath(relPath);
-      if (!node) return ok(sequences);
+      if (!node) return err({ type: 'not-found', path: relPath });
       const shouldExpand = index < parts.length - 1 || node.type === 'directory';
       if (!shouldExpand) continue;
       if (node.type !== 'directory') {

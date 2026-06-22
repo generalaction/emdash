@@ -110,6 +110,20 @@ describe('FileTree', () => {
     tree.dispose();
   });
 
+  it('returns not-found when revealPath cannot find a loaded path component', async () => {
+    const root = await makeRoot();
+    await mkdir(path.join(root, 'src'), { recursive: true });
+
+    const tree = new FileTree({ rootPath: root, watcher: new ManualWatchService() });
+    unwrap(await tree.ready());
+
+    await expect(tree.revealPath('src/missing/file.ts')).resolves.toMatchObject({
+      success: false,
+      error: { type: 'not-found', path: 'src/missing' },
+    });
+    tree.dispose();
+  });
+
   it('does not cache a rejected ready promise after unexpected load failures', async () => {
     const root = await makeRoot();
     const tree = new FileTree({ rootPath: root, watcher: new ManualWatchService() });
