@@ -38,7 +38,7 @@ export function layoutBlockStack(
   ctx: MeasureCtx,
   opts: BlockStackOpts = {}
 ): Measured<StackLayout> {
-  const { padY = 0, blockGap = 0, proseGap, isCollapsed = () => false } = opts;
+  const { padY = 0, isCollapsed = () => false } = opts;
 
   const children: { id: string; measured: Measured<BlockLeafLayout> }[] = [];
   let visibleCount = 0;
@@ -97,18 +97,28 @@ export function layoutBlockStack(
 
   const kinds: Array<Block['kind'] | null> = blocks.map((b) => (isCollapsed(b.id) ? null : b.kind));
 
+  // Resolve each seam gap via margin-collapse: max(prev.margin.bottom, cur.margin.top).
+  // The collapse-through scan (skipping null/collapsed blocks) mirrors the old
+  // prevVisible walk and is behavior-preserving:
+  //   prose↔prose → max(proseGap, proseGap) = proseGap  (same as before)
+  //   prose↔code  → max(proseGap, blockGap) = blockGap  (same as before)
+  //   code↔code   → max(blockGap, blockGap) = blockGap  (same as before)
+  // The `proseGap`/`blockGap` opts are kept as the density source via ctx.
+  const density = ctx.theme.density;
   const gapFn = (idx: number): number => {
-    let prevVisible: Block['kind'] | null = null;
+    const curKind = kinds[idx];
+    if (curKind === null) return 0;
+    let prevKind: Block['kind'] | null = null;
     for (let j = idx - 1; j >= 0; j--) {
       if (kinds[j] !== null) {
-        prevVisible = kinds[j];
+        prevKind = kinds[j] as Block['kind'];
         break;
       }
     }
-    const curKind = kinds[idx];
-    if (prevVisible === null || curKind === null) return 0;
-    if (proseGap !== undefined && prevVisible === 'prose' && curKind === 'prose') return proseGap;
-    return blockGap;
+    if (prevKind === null) return 0;
+    const pb = BLOCK_REGISTRY[prevKind].margin?.(density).bottom ?? density.blockGap;
+    const ct = BLOCK_REGISTRY[curKind].margin?.(density).top ?? density.blockGap;
+    return Math.max(pb, ct);
   };
 
   const safegapFn = (idx: number): number => {

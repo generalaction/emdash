@@ -7,6 +7,7 @@ import { executeRoot, executeVars } from './execute.css';
 
 export const executeUnitDef = defineUnit<ChatExecute, { rowH: number }>({
   kind: 'execute',
+  margin: { top: 2, bottom: 2 },
   vars: { rowH: 28 },
 
   measure(_data, _ctx, vars): number {

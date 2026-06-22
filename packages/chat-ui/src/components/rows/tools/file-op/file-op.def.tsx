@@ -81,6 +81,7 @@ function FileOpUnitRender(props: { data: ChatFileOpToolCall; ctx: RenderCtx; var
 
 export const fileOpUnitDef = defineUnit<ChatFileOpToolCall, FileOpVars>({
   kind: 'file-op',
+  margin: { top: 2, bottom: 2 },
   vars: {
     rowH: DEFAULT_THEME.density.rowH,
     padY: 6,

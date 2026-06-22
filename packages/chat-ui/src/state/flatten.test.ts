@@ -4,7 +4,8 @@
  * Covers:
  *   1. Basic flatness: one unit per committed item (Phase 0 legacy passthrough).
  *   2. Group roles: solo / first / middle / last stamped correctly.
- *   3. Inter-group gapBefore: ROW_GAP on non-first groups, 0 on first.
+ *   3. Inter-group gapBefore: ROW_GAP on boundary seams (user<->assistant),
+ *      collapsed margin on intra-turn seams, 0 on first group.
  *   4. Identity stability: committed item → same RenderUnit[] ref on re-call
  *      (WeakMap cache hit).
  *   5. activeTurn bypass: cache not used for active-turn items.
@@ -16,8 +17,9 @@ import { DEFAULT_THEME } from '@core/theme';
 import { describe, expect, it } from 'vitest';
 
 const ROW_GAP = DEFAULT_THEME.density.rowGap;
+const TURN_GAP = DEFAULT_THEME.density.turnGap;
 import { unit } from '@core/units';
-import type { ItemSegmenter } from '@core/units';
+import type { ItemSegmenter, UnitDef } from '@core/units';
 import type { ChatItem } from '@/model';
 import { flatten, collectUserTurnUnits, segmentCache } from './flatten';
 import { createTranscript } from './transcript';
@@ -66,8 +68,23 @@ const segCtx = {
   expanded: () => false,
 };
 
-function flattenTranscript(tx: ReturnType<typeof createTranscript>) {
-  return flatten(tx.state, segCtx, STUB_SEGMENTERS);
+// Minimal unit-def stubs — only the `margin` field is consulted by flatten.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type StubUnitDefs = Record<string, Pick<UnitDef<any>, 'margin'>>;
+
+const STUB_UNIT_DEFS: StubUnitDefs = {
+  message: { margin: { top: 8, bottom: 8 } },
+  tool: { margin: { top: 2, bottom: 2 } },
+  thinking: { margin: { top: 6, bottom: 6 } },
+  'file-op': { margin: { top: 2, bottom: 2 } },
+  execute: { margin: { top: 2, bottom: 2 } },
+  diff: { margin: { top: 2, bottom: 6 } },
+  'resource-link': { margin: { top: 2, bottom: 2 } },
+  plan: { margin: { top: 8, bottom: 8 } },
+};
+
+function flattenTranscript(tx: ReturnType<typeof createTranscript>, unitDefs?: StubUnitDefs) {
+  return flatten(tx.state, segCtx, STUB_SEGMENTERS, unitDefs);
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -136,16 +153,58 @@ describe('flatten — gapBefore', () => {
   it('first unit has gapBefore = 0', () => {
     const tx = createTranscript();
     tx.seed([userMsg('a'), tool('b')]);
-    const units = flattenTranscript(tx);
+    const units = flattenTranscript(tx, STUB_UNIT_DEFS);
     expect(units[0].gapBefore).toBe(0);
   });
 
-  it('non-first units have gapBefore = ROW_GAP', () => {
+  it('user→assistant boundary seam uses rowGap', () => {
+    const tx = createTranscript();
+    tx.seed([userMsg('a'), tool('b')]);
+    const units = flattenTranscript(tx, STUB_UNIT_DEFS);
+    // user message is at index 0; tool follows at a boundary seam
+    expect(units[1].gapBefore).toBe(ROW_GAP);
+  });
+
+  it('assistant→user boundary seam uses rowGap', () => {
+    const tx = createTranscript();
+    tx.seed([assistantMsg('a'), userMsg('b')]);
+    const units = flattenTranscript(tx, STUB_UNIT_DEFS);
+    expect(units[1].gapBefore).toBe(ROW_GAP);
+  });
+
+  it('intra-turn seam collapses adjacent margins (tool→tool = max(2,2) = 2)', () => {
+    const tx = createTranscript();
+    tx.seed([userMsg('u'), tool('a'), tool('b')]);
+    const units = flattenTranscript(tx, STUB_UNIT_DEFS);
+    // units[0]=user, units[1]=tool(a) boundary, units[2]=tool(b) intra-turn
+    expect(units[2].gapBefore).toBe(2);
+  });
+
+  it('intra-turn seam collapses asymmetric margins (tool→message = max(2,8) = 8)', () => {
+    const tx = createTranscript();
+    // Seed without user message to avoid boundary seam triggering on message
+    tx.seed([tool('a'), assistantMsg('b')]);
+    const units = flattenTranscript(tx, STUB_UNIT_DEFS);
+    // tool.bottom=2, message.top=8 → max = 8
+    expect(units[1].gapBefore).toBe(8);
+  });
+
+  it('falls back to turnGap when no unitDefs provided', () => {
+    const tx = createTranscript();
+    tx.seed([tool('a'), tool('b')]);
+    // No unitDefs → fallback = density.turnGap on both sides → max(turnGap, turnGap)
+    const units = flattenTranscript(tx);
+    expect(units[1].gapBefore).toBe(TURN_GAP);
+  });
+
+  it('non-first units without unitDefs use turnGap as fallback', () => {
     const tx = createTranscript();
     tx.seed([userMsg('a'), tool('b'), tool('c')]);
     const units = flattenTranscript(tx);
+    // user→tool is a boundary seam → rowGap
     expect(units[1].gapBefore).toBe(ROW_GAP);
-    expect(units[2].gapBefore).toBe(ROW_GAP);
+    // tool→tool is intra-turn with no defs → turnGap
+    expect(units[2].gapBefore).toBe(TURN_GAP);
   });
 });
 

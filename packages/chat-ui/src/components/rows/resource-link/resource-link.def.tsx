@@ -8,6 +8,7 @@ import { resourceLinkRoot, resourceLinkVars } from './resource-link.css';
 
 export const resourceLinkUnitDef = defineUnit<ChatResourceLink, { rowH: number }>({
   kind: 'resource-link',
+  margin: { top: 2, bottom: 2 },
   vars: { rowH: DEFAULT_THEME.density.rowH },
 
   measure(_data, _ctx, vars): number {

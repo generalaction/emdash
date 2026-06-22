@@ -7,6 +7,7 @@ import { Prose } from './Prose';
 
 export const proseBlockDef = defineBlock<ProseBlock, ProseLeafLayout>({
   kind: 'prose',
+  margin: (d) => ({ top: d.proseGap, bottom: d.proseGap }),
 
   measure(block: ProseBlock, ctx: MeasureCtx): Measured<ProseLeafLayout> {
     const laid = layoutProse(

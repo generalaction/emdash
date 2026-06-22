@@ -29,10 +29,12 @@
  *                                   ChatRoot for the pinned-header overlay.
  */
 
+import { resolveSeamGap } from '@core/spacing';
 import { DEFAULT_THEME } from '@core/theme';
-import type { GroupChrome, RenderUnit, SegmentCtx } from '@core/units';
+import type { GroupChrome, Margin, RenderUnit, SegmentCtx } from '@core/units';
 import { stampGroupRoles } from '@core/units';
 import type { ChatItem } from '@/model';
+import type { ChatMessage } from '@/model';
 import type { TranscriptState } from './transcript';
 
 // ── Per-item segment cache ─────────────────────────────────────────────────────
@@ -54,7 +56,12 @@ export const segmentCache = new WeakMap<object, RenderUnit[]>();
  *
  * `SEGMENTERS` is imported lazily at call time to avoid a module cycle:
  * flatten.ts is under `state/` while SEGMENTERS lives in `components/`.
- * The caller (ChatRoot) passes the registry so this module stays pure.
+ * The caller (ChatRoot) passes both registries so this module stays pure.
+ *
+ * `unitDefs` is optional and structurally typed (only `margin` is needed)
+ * so the concrete UNIT_REGISTRY is not imported here.  When provided, each
+ * intra-turn seam is resolved via margin-collapse (max of adjacent margins).
+ * Inter-turn boundary seams (user <-> assistant) always use `rowGap`.
  */
 export function flatten(
   state: TranscriptState,
@@ -62,11 +69,14 @@ export function flatten(
   segmenters: Record<
     string,
     { segment(item: ChatItem, ctx: SegmentCtx): RenderUnit[]; chrome?: GroupChrome }
-  >
+  >,
+  unitDefs?: Record<string, { margin?: Margin }>
 ): RenderUnit[] {
   const out: RenderUnit[] = [];
   const committed = state.committed;
   const activeTurn = state.activeTurn;
+
+  let prevWasUser = false;
 
   const processItem = (item: ChatItem, isActive: boolean): void => {
     const seg = segmenters[item.kind];
@@ -103,10 +113,31 @@ export function flatten(
       }
     }
 
-    // Apply inter-group gap to the first unit of each group (except the very
-    // first group in the transcript, which has no preceding row).
-    if (out.length > 0 && group.length > 0) {
-      group[0].gapBefore = DEFAULT_THEME.density.rowGap;
+    // Resolve the inter-group gap and assign it to the first unit of each
+    // group (except the very first group in the transcript, which has no
+    // preceding row and gets gapBefore = 0).
+    //
+    // Seam classification:
+    //   user<->assistant boundary — always rowGap (uniform inter-turn spacing).
+    //   intra-turn seam           — collapsed: max(prev.margin.bottom, cur.margin.top)
+    //                               with density.turnGap as the fallback for kinds
+    //                               that do not declare a margin.
+    if (out.length > 0) {
+      const curIsUser = item.kind === 'message' && (item as ChatMessage).role === 'user';
+      if (curIsUser || prevWasUser) {
+        group[0].gapBefore = DEFAULT_THEME.density.rowGap;
+      } else {
+        const prev = out[out.length - 1];
+        group[0].gapBefore = resolveSeamGap(
+          prev.kind,
+          group[0].kind,
+          (k) => unitDefs?.[k]?.margin,
+          DEFAULT_THEME.density.turnGap
+        );
+      }
+      prevWasUser = item.kind === 'message' && (item as ChatMessage).role === 'user';
+    } else {
+      prevWasUser = item.kind === 'message' && (item as ChatMessage).role === 'user';
     }
 
     out.push(...group);

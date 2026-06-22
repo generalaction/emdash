@@ -260,7 +260,9 @@ export function ChatRoot(props: ChatRootProps) {
     expanded: (_id: string) => false, // collapse state queried per-unit in UnitRow
   }));
 
-  const units = createMemo(() => flatten(props.transcript.state, segmentCtx(), SEGMENTERS));
+  const units = createMemo(() =>
+    flatten(props.transcript.state, segmentCtx(), SEGMENTERS, UNIT_REGISTRY)
+  );
 
   // ── Count sync effect ─────────────────────────────────────────────────────
   //
@@ -847,107 +849,107 @@ export function ChatRoot(props: ChatRootProps) {
       <ThemeContext.Provider value={theme}>
         <CachesContext.Provider value={caches}>
           <CommandsContext.Provider value={commands}>
-          <TurnStateContext.Provider value={{ currentMessageId, turnStatus }}>
-            {/* Non-scrolling positioned wrapper. Hosts the scroll container and
+            <TurnStateContext.Provider value={{ currentMessageId, turnStatus }}>
+              {/* Non-scrolling positioned wrapper. Hosts the scroll container and
                 the pinned overlay as siblings so the overlay is unaffected by
                 native scroll (no per-frame counter-translation → no jitter).
                 overflow-hidden clips the overlay as it rides up during handoff. */}
-            <div
-              ref={(el) => {
-                outerEl = el;
-              }}
-              class={outerClip}
-            >
               <div
                 ref={(el) => {
-                  scrollEl = el;
+                  outerEl = el;
                 }}
-                data-chat-scroll
-                class={`${scrollContainer}${props.class ? ` ${props.class}` : ''}`}
-                style={scrollElStyle}
+                class={outerClip}
               >
                 <div
                   ref={(el) => {
-                    canvasEl = el;
+                    scrollEl = el;
                   }}
-                  data-chat-canvas
-                  class={`${canvas} ${contentClass()}`}
-                  style={{ height: `${totalHeight() + padTop() + padBottom()}px` }}
+                  data-chat-scroll
+                  class={`${scrollContainer}${props.class ? ` ${props.class}` : ''}`}
+                  style={scrollElStyle}
                 >
-                  <For each={visibleIndexes()}>
-                    {(unitIndex) => {
-                      const unitTop = createMemo(() => {
-                        totalHeight();
-                        return virt.top(unitIndex) + padTop();
-                      });
-
-                      const u = createMemo(() => getUnit(units(), unitIndex));
-                      const isActiveTurn = () => {
-                        const unit = u();
-                        return unit ? activeTurnItemIds().has(unit.itemId) : false;
-                      };
-
-                      return (
-                        <Show when={u()}>
-                          <div
-                            class={unitRowWrapper}
-                            style={{ transform: `translateY(${unitTop()}px)` }}
-                            data-index={String(unitIndex)}
-                          >
-                            <UnitRow
-                              unit={u()!}
-                              index={unitIndex}
-                              rowWidth={containerWidth()}
-                              theme={theme()}
-                              viewState={props.viewState}
-                              virt={virt}
-                              onHeightChanged={onHeightChanged}
-                              isActiveTurn={isActiveTurn()}
-                              caches={caches}
-                              measureEpoch={measureEpoch()}
-                              expandedId={expandedUserId()}
-                            />
-                          </div>
-                        </Show>
-                      );
+                  <div
+                    ref={(el) => {
+                      canvasEl = el;
                     }}
-                  </For>
+                    data-chat-canvas
+                    class={`${canvas} ${contentClass()}`}
+                    style={{ height: `${totalHeight() + padTop() + padBottom()}px` }}
+                  >
+                    <For each={visibleIndexes()}>
+                      {(unitIndex) => {
+                        const unitTop = createMemo(() => {
+                          totalHeight();
+                          return virt.top(unitIndex) + padTop();
+                        });
+
+                        const u = createMemo(() => getUnit(units(), unitIndex));
+                        const isActiveTurn = () => {
+                          const unit = u();
+                          return unit ? activeTurnItemIds().has(unit.itemId) : false;
+                        };
+
+                        return (
+                          <Show when={u()}>
+                            <div
+                              class={unitRowWrapper}
+                              style={{ transform: `translateY(${unitTop()}px)` }}
+                              data-index={String(unitIndex)}
+                            >
+                              <UnitRow
+                                unit={u()!}
+                                index={unitIndex}
+                                rowWidth={containerWidth()}
+                                theme={theme()}
+                                viewState={props.viewState}
+                                virt={virt}
+                                onHeightChanged={onHeightChanged}
+                                isActiveTurn={isActiveTurn()}
+                                caches={caches}
+                                measureEpoch={measureEpoch()}
+                                expandedId={expandedUserId()}
+                              />
+                            </div>
+                          </Show>
+                        );
+                      }}
+                    </For>
+                  </div>
                 </div>
-              </div>
-              {/* Pinned user-message overlay — sibling of the scroller, so it is
+                {/* Pinned user-message overlay — sibling of the scroller, so it is
                   NOT moved by native scroll. `overlayTop` is a viewport-relative
                   offset (0 in steady state). Centered to the same content column
                   as the canvas via contentClass(). `aria-hidden` avoids double
                   screen-reader announcement; `pointer-events-none` lets clicks
                   fall through to the real virtualized row. */}
-              <Show when={pinState()}>
-                {(state) => (
-                  <div
-                    class={`${pinnedOverlay} ${contentClass()}`}
-                    aria-hidden="true"
-                    style={{ transform: `translateY(${state().overlayTop}px)` }}
-                  >
-                    <PinnedUserMessage
-                      item={
-                        (() => {
-                          const unit = getUnit(units(), state().activeUserIdx);
-                          if (!unit) return undefined;
-                          // Find the ChatMessage for this itemId in committed.
-                          return props.transcript.state.committed.find(
-                            (i) => i.id === unit.itemId
-                          ) as ChatMessage | undefined;
-                        })()!
-                      }
-                      rowWidth={containerWidth()}
-                      theme={theme()}
-                      caches={caches}
-                      expandedId={expandedUserId}
-                    />
-                  </div>
-                )}
-              </Show>
-            </div>
-          </TurnStateContext.Provider>
+                <Show when={pinState()}>
+                  {(state) => (
+                    <div
+                      class={`${pinnedOverlay} ${contentClass()}`}
+                      aria-hidden="true"
+                      style={{ transform: `translateY(${state().overlayTop}px)` }}
+                    >
+                      <PinnedUserMessage
+                        item={
+                          (() => {
+                            const unit = getUnit(units(), state().activeUserIdx);
+                            if (!unit) return undefined;
+                            // Find the ChatMessage for this itemId in committed.
+                            return props.transcript.state.committed.find(
+                              (i) => i.id === unit.itemId
+                            ) as ChatMessage | undefined;
+                          })()!
+                        }
+                        rowWidth={containerWidth()}
+                        theme={theme()}
+                        caches={caches}
+                        expandedId={expandedUserId}
+                      />
+                    </div>
+                  )}
+                </Show>
+              </div>
+            </TurnStateContext.Provider>
           </CommandsContext.Provider>
         </CachesContext.Provider>
       </ThemeContext.Provider>

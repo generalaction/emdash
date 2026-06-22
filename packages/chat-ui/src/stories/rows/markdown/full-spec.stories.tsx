@@ -7,8 +7,8 @@
  * below captures only `src/auth/jwt.ts`, not `src/auth/jwt.ts.`.
  */
 
-import type { ChatMentionMeta, MentionProvider } from '@/index';
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
+import type { ChatMentionMeta, MentionProvider } from '@/index';
 import { ChatHost } from '@/stories/_harness/chat-host';
 
 const meta: Meta = {

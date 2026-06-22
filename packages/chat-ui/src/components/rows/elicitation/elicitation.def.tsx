@@ -15,6 +15,7 @@ import { elicitationRoot, elicitationVars } from './elicitation.css';
 
 export const elicitationUnitDef = defineUnit<ChatElicitation, { rowH: number }>({
   kind: 'elicitation',
+  margin: { top: 2, bottom: 6 },
   vars: { rowH: 44 },
 
   measure(_data, _ctx, vars): number {

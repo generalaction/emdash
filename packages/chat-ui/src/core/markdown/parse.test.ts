@@ -12,8 +12,8 @@
 
 import { describe, expect, it } from 'vitest';
 import type { InlineMention, InlineRun, InlineText, ProseBlock } from './document';
-import { parseMarkdownToBlocks } from './parse';
 import type { MentionProvider } from './mention-provider';
+import { parseMarkdownToBlocks } from './parse';
 
 // Stub provider that resolves any token it receives as a 'file' mention so
 // every matched token becomes a pill without needing a registry of known paths.

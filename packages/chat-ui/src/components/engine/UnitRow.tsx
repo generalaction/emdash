@@ -53,16 +53,18 @@ function chromePadTop(chrome: GroupChrome, unit: RenderUnit): number {
 }
 
 /**
- * Returns bottom padding for a unit with chrome:
- *   - ROW_GAP only for last/solo units (trailing slot space after the group)
- *   - chrome.padY for last/solo units (bottom padding inside the group)
- *   - 0 for first/middle units (next sibling unit's gapBefore provides spacing)
+ * Returns bottom padding for a unit with chrome.
+ *
+ * Inter-row spacing is now owned exclusively by the lower row's `gapBefore`
+ * (resolved by flatten() via margin-collapse), so this function no longer adds
+ * a trailing rowGap. The chrome's padY is also intentionally omitted on the
+ * bottom — see unitReservedHeight for the matching reservation formula.
+ *
+ * Returns 0 for all units; preserved as a named helper to make the intent
+ * explicit and to allow future per-chrome bottom adjustments.
  */
-function chromePadBottom(chrome: GroupChrome, unit: RenderUnit, rowGap: number): number {
-  const padY = chrome.padY ?? 0;
-  const isLast = unit.groupRole === 'last' || unit.groupRole === 'solo';
-  if (!isLast) return 0;
-  return rowGap + padY;
+function chromePadBottom(_chrome: GroupChrome, _unit: RenderUnit): number {
+  return 0;
 }
 
 // ── Debug overlay ─────────────────────────────────────────────────────────────
@@ -185,11 +187,7 @@ export function UnitRow(props: UnitRowProps) {
             <div
               style={{
                 'padding-top': `${c ? chromePadTop(c, props.unit) : props.unit.gapBefore}px`,
-                'padding-bottom': c
-                  ? `${chromePadBottom(c, props.unit, props.theme.density.rowGap)}px`
-                  : props.unit.groupRole === 'last' || props.unit.groupRole === 'solo'
-                    ? `${props.theme.density.rowGap}px`
-                    : '0px',
+                'padding-bottom': c ? `${chromePadBottom(c, props.unit)}px` : '0px',
                 'padding-left': `${c ? (c.insetX ?? 0) : 0}px`,
                 'padding-right': `${c ? (c.insetX ?? 0) : 0}px`,
               }}

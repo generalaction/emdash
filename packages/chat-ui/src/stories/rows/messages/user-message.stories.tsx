@@ -78,18 +78,32 @@ export const Generating: Story = {
       script={scenario(
         [
           // Seed the user message into committed first
-          seedStep([{ kind: 'message', id: 'u1', role: 'user', text: 'Can you refactor the authentication module to use JWT tokens?' }]),
+          seedStep([
+            {
+              kind: 'message',
+              id: 'u1',
+              role: 'user',
+              text: 'Can you refactor the authentication module to use JWT tokens?',
+            },
+          ]),
         ],
         [
           // Start an assistant turn so turnStatus becomes 'generating'
           {
             kind: 'call',
-            fn: (api) => api.dispatch({ type: 'message_chunk', id: 'a1', role: 'assistant', text: 'Sure! ' }),
+            fn: (api) =>
+              api.dispatch({ type: 'message_chunk', id: 'a1', role: 'assistant', text: 'Sure! ' }),
           },
           { kind: 'wait', ms: 600 },
           {
             kind: 'call',
-            fn: (api) => api.dispatch({ type: 'message_chunk', id: 'a1', role: 'assistant', text: 'I will start by replacing the session store with a JWT signing key…' }),
+            fn: (api) =>
+              api.dispatch({
+                type: 'message_chunk',
+                id: 'a1',
+                role: 'assistant',
+                text: 'I will start by replacing the session store with a JWT signing key…',
+              }),
           },
           // No turn_done — leaves the turn open so turnStatus stays 'generating'
         ]

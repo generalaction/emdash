@@ -32,6 +32,9 @@ import type { Component } from 'solid-js';
 import type { ChatItem } from '@/model';
 import type { ChatCaches } from './caches';
 import type { MeasureCtx, RenderCtx } from './define';
+import type { Margin } from './spacing';
+
+export type { Margin };
 
 // ── GroupRole ─────────────────────────────────────────────────────────────────
 
@@ -122,6 +125,11 @@ export type SegmentCtx = {
  * `vars`     — typed numeric geometry constants declared once on the def and
  *              threaded into `measure`, `estimate`, and `Render`. Defs that
  *              have not yet been migrated to the Box algebra omit this field.
+ * `margin`   — optional within-turn vertical margins (px). At each inter-group
+ *              seam `flatten()` collapses adjacent margins to max(prev.bottom,
+ *              cur.top) and assigns the result to the lower unit's `gapBefore`.
+ *              Falls back to `density.turnGap` when absent. Has no effect on
+ *              user<->assistant-turn boundary seams, which always use `rowGap`.
  * `estimate` — O(1) height heuristic for off-screen units at setCount/prepend.
  *              Falls back to `genericEstimate` when omitted.
  * `measure`  — exact height (px); called only for visible units.
@@ -132,6 +140,7 @@ export type SegmentCtx = {
 export type UnitDef<D, V extends Record<string, number> = {}> = {
   kind: string;
   vars?: V;
+  margin?: Margin;
   estimate?(data: D, ctx: MeasureCtx, vars: V): number;
   measure(data: D, ctx: MeasureCtx, vars: V): number;
   Render: Component<{ data: D; ctx: RenderCtx; vars: V }>;
@@ -204,26 +213,26 @@ export function unit<D>(
  * Compute the total virtualizer-reserved height for a native unit.
  *
  * Formula:
- *   gapBefore + contentH + chromeVerticalOverhead + trailingROWGAP
+ *   gapBefore + contentH + chromeVerticalOverhead
  *
- * `chromeVerticalOverhead` = padY on top (for first/solo) + padY on bottom
- * (for last/solo).  `trailingROWGAP` = ROW_GAP for last/solo units only.
+ * `chromeVerticalOverhead` = padY on top (for first/solo only — padY on the
+ * bottom side is intentionally omitted now that all inter-row spacing is owned
+ * exclusively by the lower row's `gapBefore`).
+ *
+ * The previously present `trailingROWGAP` term has been removed: each seam
+ * is now owned by exactly one side (the lower unit's `gapBefore`, resolved by
+ * `flatten()` via margin-collapse). UnitRow must not add any bottom padding
+ * for inter-row spacing either — only `gapBefore` top padding is rendered.
  *
  * Exported so ChatRoot (estimate / prefetch paths) and UnitRow can share
  * the same formula without duplicating it.
  */
-import { DEFAULT_THEME } from './theme';
-
 export function unitReservedHeight(unit: RenderUnit, contentH: number): number {
   const c = unit.chrome;
   const role = unit.groupRole;
   let overhead = 0;
-  if (c?.padY) {
-    if (role === 'first' || role === 'solo') overhead += c.padY;
-    if (role === 'last' || role === 'solo') overhead += c.padY;
-  }
-  const trailingGap = role === 'last' || role === 'solo' ? DEFAULT_THEME.density.rowGap : 0;
-  return unit.gapBefore + contentH + overhead + trailingGap;
+  if (c?.padY && (role === 'first' || role === 'solo')) overhead += c.padY;
+  return unit.gapBefore + contentH + overhead;
 }
 
 // ── stampGroupRoles ───────────────────────────────────────────────────────────

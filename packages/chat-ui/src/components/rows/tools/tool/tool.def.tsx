@@ -8,6 +8,7 @@ import { toolRoot, toolVars } from './tool.css';
 
 export const toolUnitDef = defineUnit<ChatToolCall, { rowH: number }>({
   kind: 'tool',
+  margin: { top: 2, bottom: 2 },
   vars: { rowH: DEFAULT_THEME.density.rowH },
 
   measure(_data, _ctx, vars): number {

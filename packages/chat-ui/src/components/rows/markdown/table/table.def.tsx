@@ -7,6 +7,7 @@ import { Table } from './Table';
 
 export const tableBlockDef = defineBlock<TableBlock, TableLeafLayout>({
   kind: 'table',
+  margin: (d) => ({ top: d.blockGap, bottom: d.blockGap }),
 
   measure(block: TableBlock, ctx: MeasureCtx): Measured<TableLeafLayout> {
     const laid = layoutTable(block, 0, ctx.width);

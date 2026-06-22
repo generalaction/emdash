@@ -130,6 +130,7 @@ function MessageUnitRender(props: { data: ChatMessage; ctx: RenderCtx; vars: Mes
 
 export const messageUnitDef = defineUnit<ChatMessage, MessageVars>({
   kind: 'message',
+  margin: { top: 8, bottom: 8 },
   vars: {
     cardBorder: 1,
     collapsedMaxH: 120,
