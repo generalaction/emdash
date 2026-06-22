@@ -25,7 +25,7 @@ import type { CodeLaidOut } from '@core/layout/layout-types';
 import type { CodeBlock } from '@core/markdown/document';
 import { For, createEffect, onCleanup } from 'solid-js';
 import { codeLine, codeWrapper } from './code.css';
-import { group } from '@components/primitives/copy-button.css';
+import { codeGroup } from '@components/primitives/copy-button.css';
 
 export type CodeProps = {
   block: CodeLaidOut;
@@ -89,7 +89,7 @@ export function Code(props: CodeProps) {
   });
 
   return (
-    <BlockFrame layout={props.block} class={group}>
+    <BlockFrame layout={props.block} class={codeGroup}>
       {/*
        * Pinned copy button — sibling of the scroll container so it stays
        * fixed at top-right regardless of horizontal scroll position.

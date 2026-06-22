@@ -1,6 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
-import { group } from '@components/primitives/copy-button.css';
+import { messageGroup } from '@components/primitives/copy-button.css';
 import { vars } from '@styles/theme.css';
 import { createVariableThemeContract } from '@styles/variable-theme-contract.css';
 
@@ -21,7 +21,7 @@ export const messageText = recipe({
   },
 });
 
-export const assistantOuter = style([group, { position: 'relative' }]);
+export const assistantOuter = style([messageGroup, { position: 'relative' }]);
 
 export const srOnly = style({
   position: 'absolute',
