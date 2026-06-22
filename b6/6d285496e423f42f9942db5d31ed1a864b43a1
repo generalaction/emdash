@@ -1,0 +1,26 @@
+apps/emdash-desktop/src/renderer/features/tasks/components/pr-selector/pr-selector.tsx
+  s_41dcbea4529085::t_fb3093b1705065 88,110
+apps/emdash-desktop/src/renderer/features/tasks/components/automation-run-pill.tsx
+  s_41dcbea4529085::t_fb3093b1705065 30,36,42-43
+apps/emdash-desktop/src/renderer/features/projects/components/add-project-modal/add-project-modal.tsx
+  s_41dcbea4529085::t_7143c195d047fd 254
+  s_41dcbea4529085::t_fb3093b1705065 241,255
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/image-diff-view.tsx
+  s_41dcbea4529085::t_fb3093b1705065 246,253,260-261
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "b66d285496e423f42f9942db5d31ed1a864b43a1",
+  "prompts": {},
+  "sessions": {
+    "s_41dcbea4529085": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef053-2801-7533-aaea-7c6ba878a612",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
