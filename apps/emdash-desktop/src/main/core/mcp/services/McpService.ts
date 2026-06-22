@@ -1,5 +1,5 @@
 import os from 'node:os';
-import type { McpServerRegistration } from '@emdash/core/agents/plugins';
+import type { CLIAgentPluginProvider, McpServerRegistration } from '@emdash/core/agents/plugins';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import { createPluginFs } from '@main/core/agents/plugin-fs';
 import { log } from '@main/lib/logger';
@@ -14,7 +14,10 @@ import {
 function getMcpProviders() {
   return pluginRegistry
     .getAll()
-    .filter((p) => p.capabilities.mcp.kind === 'supported' && p.behavior.mcp != null);
+    .filter(
+      (p: CLIAgentPluginProvider) =>
+        p.capabilities.mcp.kind === 'supported' && p.behavior.mcp != null
+    );
 }
 
 export class McpService {
@@ -151,7 +154,7 @@ export class McpService {
     }
     try {
       const regs = await provider.behavior.mcp.readServers(fs);
-      return regs.map((r) => registrationToMcpServer(r, [agentId]));
+      return regs.map((r: McpServerRegistration) => registrationToMcpServer(r, [agentId]));
     } catch (err) {
       log.warn(`Failed to read MCP config for ${agentId}:`, err);
       return [];

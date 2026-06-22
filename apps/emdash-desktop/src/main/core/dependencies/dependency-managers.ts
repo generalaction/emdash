@@ -1,5 +1,9 @@
 import type { Platform } from '@emdash/core/deps';
-import { HostDependencyManager, type DependencyProbeOptions } from '@emdash/core/deps/runtime';
+import {
+  HostDependencyManager,
+  type DependencyId,
+  type DependencyProbeOptions,
+} from '@emdash/core/deps/runtime';
 import { clearResolvedPathCache } from '@main/core/conversations/impl/resolve-agent-executable';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
@@ -29,7 +33,7 @@ async function resolveLocalInstallShellProfile() {
 function wireDesktopBridges(manager: HostDependencyManager, connectionId?: string): void {
   // AgentUpdateService owns the enriched event emission (adds latestVersion/updateAvailable)
   agentUpdateService.attach(manager, connectionId);
-  manager.onExecutableInvalidated.subscribe(({ id }) => {
+  manager.onExecutableInvalidated.subscribe(({ id }: { id: DependencyId }) => {
     clearResolvedPathCache(id, connectionId);
   });
 }

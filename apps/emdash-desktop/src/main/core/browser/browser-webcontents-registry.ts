@@ -4,6 +4,7 @@ import {
   session,
   type BrowserWindow,
   type BrowserWindowConstructorOptions,
+  type ClearDataOptions,
   type MenuItemConstructorOptions,
   type WebContents,
 } from 'electron';
@@ -47,6 +48,17 @@ const BROWSER_POPUP_WINDOW_OPTIONS: BrowserWindowConstructorOptions = {
     allowRunningInsecureContent: false,
   },
 };
+
+// Electron's type union lags Chromium's supported `clearData` values.
+const SITE_DATA_CLEAR_DATA_TYPES = [
+  'backgroundFetch',
+  'cacheStorage',
+  'fileSystems',
+  'indexedDB',
+  'localStorage',
+  'serviceWorkers',
+  'webSQL',
+] as unknown as NonNullable<ClearDataOptions['dataTypes']>;
 
 export class BrowserWebContentsRegistry {
   private readonly sessionsByBrowserId = new Map<string, RegisteredBrowserSession>();
@@ -344,15 +356,7 @@ async function clearPartitionBrowsingData(
       return;
     case 'siteData':
       await partitionSession.clearData({
-        dataTypes: [
-          'backgroundFetch',
-          'cacheStorage',
-          'fileSystems',
-          'indexedDB',
-          'localStorage',
-          'serviceWorkers',
-          'webSQL',
-        ],
+        dataTypes: SITE_DATA_CLEAR_DATA_TYPES,
       });
       return;
     case 'cache':
