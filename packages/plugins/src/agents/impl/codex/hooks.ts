@@ -20,7 +20,7 @@ const LEGACY_CODEX_NOTIFY_COMMAND = [
   '-c',
   'curl -sf -X POST ' +
     "-H 'Content-Type: application/json' " +
-    '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
+    '-H "X-Emdash-Token: $EMDASH_HOOK_NONCE" ' +
     '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
     '-H "X-Emdash-Event-Type: notification" ' +
     '-d "$1" ' +

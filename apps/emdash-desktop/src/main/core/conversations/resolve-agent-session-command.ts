@@ -1,12 +1,14 @@
 import type { Conversation } from '@shared/core/conversations/conversations';
 
-/** Droid `--resume` needs the provider-native session UUID, not the Emdash conversation id. */
+const PROVIDER_SESSION_ID_REQUIRED_FOR_RESUME = new Set(['codex', 'commandcode', 'droid']);
+
+/** Some providers need their native session id, not the Emdash conversation id, to resume. */
 export function resolveAgentSessionCommandArgs(
   conversation: Conversation,
   isResuming: boolean,
   options: { requireProviderSessionId?: boolean } = {}
 ): { sessionId: string; isResuming: boolean } {
-  if ((conversation.providerId === 'codex' || conversation.providerId === 'droid') && isResuming) {
+  if (PROVIDER_SESSION_ID_REQUIRED_FOR_RESUME.has(conversation.providerId) && isResuming) {
     if (conversation.providerSessionId) {
       return { sessionId: conversation.providerSessionId, isResuming: true };
     }
