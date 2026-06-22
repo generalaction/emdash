@@ -299,7 +299,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
       'Command Code CLI for terminal-first coding sessions that learn project and personal coding taste.',
     docUrl: 'https://commandcode.ai/docs/reference/cli',
     installCommand: 'npm install -g command-code@latest',
-    commands: ['command-code', 'cmd'],
+    commands: ['command-code', 'commandcode', 'cmdc'],
     versionArgs: ['--version'],
     cli: 'command-code',
     defaultArgs: ['--trust', '--skip-onboarding'],

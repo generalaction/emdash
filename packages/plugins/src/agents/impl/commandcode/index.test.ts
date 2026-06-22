@@ -29,6 +29,14 @@ function createMemoryFs(files = new Map<string, string>()): PluginFs {
 }
 
 describe('commandcode provider', () => {
+  it('does not use the Windows cmd shell name for dependency detection', () => {
+    expect(provider.capabilities.hostDependency.binaryNames).toEqual([
+      'command-code',
+      'commandcode',
+      'cmdc',
+    ]);
+  });
+
   it('starts a fresh session without resume flags', () => {
     const command = provider.behavior.prompt!.buildCommand(baseContext);
 

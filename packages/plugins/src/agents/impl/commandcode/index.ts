@@ -26,7 +26,7 @@ export const plugin = definePlugin(
     hostDependency: npmDependency({
       id: 'commandcode',
       package: 'command-code',
-      binaryNames: ['command-code', 'cmd'],
+      binaryNames: ['command-code', 'commandcode', 'cmdc'],
       versionSuffix: '@latest',
     }),
     mcp: {
