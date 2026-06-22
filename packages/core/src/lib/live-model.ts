@@ -1,4 +1,13 @@
-import { Emitter, isDeepEqual, type IDisposable, type Unsubscribe } from '@emdash/shared';
+import {
+  Emitter,
+  err,
+  isDeepEqual,
+  ok,
+  type IDisposable,
+  type Result,
+  type Unsubscribe,
+} from '@emdash/shared';
+import { LiveScheduler, type LiveSchedulerRun } from './live-scheduler';
 
 export type LiveValue<T> = {
   value: T;
@@ -6,17 +15,17 @@ export type LiveValue<T> = {
   sequence: number;
 };
 
-export type LiveModelOptions<T> = {
+export type LiveModelOptions<T, E = unknown> = {
   /** Compute the latest value. */
-  compute: () => Promise<T>;
+  compute: () => Promise<Result<T, E>>;
   /** Debounce window for invalidation-triggered recomputes. Defaults to 0 (next tick). */
   debounceMs?: number;
   /** While subscribed, recompute at this interval even without invalidation. */
   revalidateIntervalMs?: number;
-  /* Used to suppress no-op updates */
+  /** Used to suppress no-op updates. */
   isEqual?: (a: T, b: T) => boolean;
-  /** Receives errors from background recomputes (invalidation, revalidation). */
-  onError?: (error: unknown) => void;
+  /** Receives errors returned by background recomputes. */
+  onError?: (error: E) => void;
 };
 
 /**
@@ -31,21 +40,31 @@ export type LiveModelOptions<T> = {
  * - Stale-while-revalidate: the cached value outlives subscribers; a failed recompute keeps
  *   the last-good value, leaves the model dirty, and pushes nothing.
  */
-export class LiveModel<T> implements IDisposable {
-  private cached: LiveValue<T> | undefined;
+export class LiveModel<T, E = unknown> implements IDisposable {
   private static lastGeneration = 0;
-  private readonly generation = LiveModel.nextGeneration();
-  private sequence = 0;
-  private dirty = true;
-  private disposed = false;
-  private inFlight: Promise<LiveValue<T>> | null = null;
-  private inFlightToken: object | null = null;
-  private queued: Promise<LiveValue<T>> | null = null;
-  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private revalidateTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly emitter = new Emitter<LiveValue<T>>();
 
-  constructor(private readonly options: LiveModelOptions<T>) {}
+  private readonly emitter = new Emitter<LiveValue<T>>();
+  private readonly generation = LiveModel.nextGeneration();
+  private readonly isEqual: (a: T, b: T) => boolean;
+  private readonly scheduler: LiveScheduler<Result<LiveValue<T>, E>>;
+
+  private cached: LiveValue<T> | undefined;
+  private disposed = false;
+  private sequence = 0;
+
+  constructor(private readonly options: LiveModelOptions<T, E>) {
+    this.isEqual = options.isEqual ?? isDeepEqual;
+    this.scheduler = new LiveScheduler<Result<LiveValue<T>, E>>({
+      run: () => this.recompute(),
+      hasDemand: () => this.emitter.size > 0,
+      initialDirty: true,
+      debounceMs: options.debounceMs,
+      revalidateIntervalMs: options.revalidateIntervalMs,
+      onBackgroundResult: (result) => {
+        if (!result.success) options.onError?.(result.error);
+      },
+    });
+  }
 
   get subscriberCount(): number {
     return this.emitter.size;
@@ -55,46 +74,39 @@ export class LiveModel<T> implements IDisposable {
     return this.cached;
   }
 
-  async get(): Promise<LiveValue<T>> {
+  async get(): Promise<Result<LiveValue<T>, E>> {
     this.assertNotDisposed();
-    if (this.cached && !this.dirty) return this.cached;
-    if (this.inFlight) return this.inFlight;
-    return this.schedule();
+    if (this.cached && !this.scheduler.dirty) return ok(this.cached);
+    return this.scheduler.runDirect();
   }
 
   subscribe(cb: (update: LiveValue<T>) => void): Unsubscribe {
     this.assertNotDisposed();
     const unsubscribe = this.emitter.subscribe(cb);
-    if (this.dirty || !this.cached) {
-      this.scheduleBackground();
-    } else {
-      this.armRevalidate();
-    }
+    this.scheduler.onDemandAvailable();
     let released = false;
     return () => {
       if (released) return;
       released = true;
       unsubscribe();
-      if (this.emitter.size === 0) this.clearTimers();
+      this.scheduler.onDemandUnavailable();
     };
   }
 
-  async refresh(): Promise<LiveValue<T>> {
+  async refresh(): Promise<Result<LiveValue<T>, E>> {
     this.assertNotDisposed();
-    return this.schedule();
+    return this.scheduler.runDirect();
   }
 
   invalidate(): void {
     if (this.disposed) return;
-    this.dirty = true;
-    if (this.emitter.size === 0) return;
-    this.scheduleDebounced();
+    this.scheduler.markDirty();
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.clearTimers();
+    this.scheduler.dispose();
     this.emitter.clear();
   }
 
@@ -103,89 +115,23 @@ export class LiveModel<T> implements IDisposable {
     return LiveModel.lastGeneration;
   }
 
-  private schedule(): Promise<LiveValue<T>> {
-    if (this.inFlight) {
-      this.queued ??= this.inFlight.then(
-        () => this.runNow(),
-        () => this.runNow()
-      );
-      return this.queued;
+  private async recompute(): Promise<LiveSchedulerRun<Result<LiveValue<T>, E>>> {
+    const computed = await this.options.compute();
+    if (!computed.success) {
+      return { result: err(computed.error), completed: false };
     }
-    return this.runNow();
-  }
-
-  private runNow(): Promise<LiveValue<T>> {
-    this.queued = null;
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
+    const value = computed.data;
+    if (this.cached && this.isEqual(value, this.cached.value)) {
+      return { result: ok(this.cached), completed: true };
     }
-    const token = {};
-    this.inFlightToken = token;
-    const run = (async () => {
-      this.dirty = false;
-      let succeeded = false;
-      try {
-        const value = await this.options.compute();
-        succeeded = true;
-        if (this.cached && (this.options.isEqual ?? isDeepEqual)(value, this.cached.value)) {
-          return this.cached;
-        }
-        const update: LiveValue<T> = {
-          value,
-          generation: this.generation,
-          sequence: ++this.sequence,
-        };
-        this.cached = update;
-        if (!this.disposed) this.emitter.emit(update);
-        return update;
-      } catch (error) {
-        this.dirty = true;
-        throw error;
-      } finally {
-        if (this.inFlightToken === token) {
-          this.inFlightToken = null;
-          this.inFlight = null;
-        }
-        this.armRevalidate();
-        if (succeeded && this.dirty && !this.queued && this.emitter.size > 0) {
-          this.scheduleDebounced();
-        }
-      }
-    })();
-    this.inFlight = run;
-    return run;
-  }
-
-  private scheduleDebounced(): void {
-    if (this.debounceTimer) clearTimeout(this.debounceTimer);
-    this.debounceTimer = setTimeout(() => {
-      this.debounceTimer = null;
-      if (!this.dirty || this.disposed) return;
-      this.scheduleBackground();
-    }, this.options.debounceMs ?? 0);
-  }
-
-  private scheduleBackground(): void {
-    void this.schedule().catch((error) => this.options.onError?.(error));
-  }
-
-  private armRevalidate(): void {
-    const interval = this.options.revalidateIntervalMs;
-    if (!interval || this.disposed || this.emitter.size === 0) return;
-    if (this.revalidateTimer) clearTimeout(this.revalidateTimer);
-    this.revalidateTimer = setTimeout(() => {
-      this.revalidateTimer = null;
-      if (this.disposed || this.emitter.size === 0) return;
-      this.scheduleBackground();
-    }, interval);
-  }
-
-  private clearTimers(): void {
-    if (this.debounceTimer) clearTimeout(this.debounceTimer);
-    this.debounceTimer = null;
-    if (this.revalidateTimer) clearTimeout(this.revalidateTimer);
-    this.revalidateTimer = null;
+    const update: LiveValue<T> = {
+      value,
+      generation: this.generation,
+      sequence: ++this.sequence,
+    };
+    this.cached = update;
+    if (!this.disposed) this.emitter.emit(update);
+    return { result: ok(update), completed: true };
   }
 
   private assertNotDisposed(): void {

@@ -7,6 +7,7 @@ import {
   type Result,
   type Unsubscribe,
 } from '@emdash/shared';
+import { LiveScheduler, type LiveSchedulerRun } from './live-scheduler';
 
 export type KeyedOp<K, V> = { op: 'put'; key: K; value: V } | { op: 'del'; key: K };
 
@@ -25,12 +26,12 @@ export type LiveCollectionOptions<K, V, E = unknown> = {
   compute?: () => Promise<Result<Iterable<readonly [K, V]>, E>>;
   /** Debounce window for invalidation-triggered recomputes. Defaults to 0 (next tick). */
   debounceMs?: number;
-  /** Used to suppress no-op puts and no-op recompute diffs. */
-  isEqual?: (a: V, b: V) => boolean;
-  /** Receives errors from background recomputes (invalidation, revalidation, subscribe). */
-  onError?: (error: E) => void;
   /** While subscribed, recompute at this interval even without invalidation. */
   revalidateIntervalMs?: number;
+  /** Used to suppress no-op updates. */
+  isEqual?: (a: V, b: V) => boolean;
+  /** Receives errors returned by background recomputes. */
+  onError?: (error: E) => void;
 };
 
 /**
@@ -45,19 +46,27 @@ export class LiveCollection<K, V, E = unknown> implements IDisposable {
   private readonly emitter = new Emitter<CollectionUpdate<K, V>>();
   private readonly generation = LiveCollection.nextGeneration();
   private readonly isEqual: (a: V, b: V) => boolean;
-  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private dirty: boolean;
+  private readonly scheduler: LiveScheduler<Result<CollectionSnapshot<K, V>, E>> | null;
+
   private disposed = false;
   private entries = new Map<K, V>();
-  private inFlight: Promise<Result<CollectionSnapshot<K, V>, E>> | null = null;
-  private inFlightToken: object | null = null;
-  private queued: Promise<Result<CollectionSnapshot<K, V>, E>> | null = null;
-  private revalidateTimer: ReturnType<typeof setTimeout> | null = null;
   private sequence = 0;
 
   constructor(private readonly options: LiveCollectionOptions<K, V, E> = {}) {
-    this.dirty = Boolean(options.compute);
+    const compute = options.compute;
     this.isEqual = options.isEqual ?? isDeepEqual;
+    this.scheduler = compute
+      ? new LiveScheduler<Result<CollectionSnapshot<K, V>, E>>({
+          run: () => this.recompute(compute),
+          hasDemand: () => this.emitter.size > 0,
+          initialDirty: true,
+          debounceMs: options.debounceMs,
+          revalidateIntervalMs: options.revalidateIntervalMs,
+          onBackgroundResult: (result) => {
+            if (!result.success) options.onError?.(result.error);
+          },
+        })
+      : null;
   }
 
   get size(): number {
@@ -74,15 +83,14 @@ export class LiveCollection<K, V, E = unknown> implements IDisposable {
 
   async get(): Promise<Result<CollectionSnapshot<K, V>, E>> {
     this.assertNotDisposed();
-    if (!this.options.compute || !this.dirty) return ok(this.snapshot());
-    if (this.inFlight) return this.inFlight;
-    return this.schedule();
+    if (!this.scheduler || !this.scheduler.dirty) return ok(this.snapshot());
+    return this.scheduler.runDirect();
   }
 
   async refresh(): Promise<Result<CollectionSnapshot<K, V>, E>> {
     this.assertNotDisposed();
-    if (!this.options.compute) return ok(this.snapshot());
-    return this.schedule();
+    if (!this.scheduler) return ok(this.snapshot());
+    return this.scheduler.runDirect();
   }
 
   subscribe(cb: (update: CollectionUpdate<K, V>) => void): Unsubscribe {
@@ -94,25 +102,19 @@ export class LiveCollection<K, V, E = unknown> implements IDisposable {
       unsubscribe();
       throw error;
     }
-    if (this.options.compute && this.dirty) {
-      this.scheduleBackground();
-    } else {
-      this.armRevalidate();
-    }
+    this.scheduler?.onDemandAvailable();
     let released = false;
     return () => {
       if (released) return;
       released = true;
       unsubscribe();
-      if (this.emitter.size === 0) this.clearTimers();
+      this.scheduler?.onDemandUnavailable();
     };
   }
 
   invalidate(): void {
-    if (this.disposed || !this.options.compute) return;
-    this.dirty = true;
-    if (this.emitter.size === 0) return;
-    this.scheduleDebounced();
+    if (this.disposed) return;
+    this.scheduler?.markDirty();
   }
 
   apply(ops: Array<KeyedOp<K, V>>): number {
@@ -169,7 +171,7 @@ export class LiveCollection<K, V, E = unknown> implements IDisposable {
   reset(entries?: Iterable<readonly [K, V]>): number {
     if (this.disposed) return this.sequence;
     this.entries = new Map(entries);
-    this.dirty = false;
+    this.scheduler?.markClean();
     const update: CollectionUpdate<K, V> = {
       kind: 'snapshot',
       ...this.snapshot(++this.sequence),
@@ -181,7 +183,7 @@ export class LiveCollection<K, V, E = unknown> implements IDisposable {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.clearTimers();
+    this.scheduler?.dispose();
     this.emitter.clear();
   }
 
@@ -190,70 +192,29 @@ export class LiveCollection<K, V, E = unknown> implements IDisposable {
     return LiveCollection.lastGeneration;
   }
 
-  private schedule(): Promise<Result<CollectionSnapshot<K, V>, E>> {
-    if (!this.options.compute) return Promise.resolve(ok(this.snapshot()));
-    if (this.inFlight) {
-      this.queued ??= this.inFlight.then(
-        () => this.runNow(),
-        () => this.runNow()
-      );
-      return this.queued;
-    }
-    return this.runNow();
-  }
-
-  private runNow(): Promise<Result<CollectionSnapshot<K, V>, E>> {
-    const compute = this.options.compute;
-    if (!compute) return Promise.resolve(ok(this.snapshot()));
-
-    this.queued = null;
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
+  private async recompute(
+    compute: () => Promise<Result<Iterable<readonly [K, V]>, E>>
+  ): Promise<LiveSchedulerRun<Result<CollectionSnapshot<K, V>, E>>> {
+    const computed = await compute();
+    if (!computed.success) {
+      return { result: err(computed.error), completed: false };
     }
 
-    const token = {};
-    this.inFlightToken = token;
-    const run = (async () => {
-      this.dirty = false;
-      let succeeded = false;
-      try {
-        const computed = await compute();
-        if (!computed.success) {
-          this.dirty = true;
-          return err(computed.error);
-        }
+    const computedEntries = new Map(computed.data);
+    const effectiveOps = this.diff(this.entries, computedEntries);
+    if (effectiveOps.length === 0) {
+      return { result: ok(this.snapshot()), completed: true };
+    }
 
-        const computedEntries = new Map(computed.data);
-        succeeded = true;
-        const effectiveOps = this.diff(this.entries, computedEntries);
-        if (effectiveOps.length === 0) return ok(this.snapshot());
-
-        this.entries = computedEntries;
-        const update: CollectionUpdate<K, V> = {
-          kind: 'delta',
-          generation: this.generation,
-          ops: effectiveOps,
-          sequence: ++this.sequence,
-        };
-        if (!this.disposed) this.emitter.emit(update);
-        return ok(this.snapshot());
-      } catch (error) {
-        this.dirty = true;
-        throw error;
-      } finally {
-        if (this.inFlightToken === token) {
-          this.inFlightToken = null;
-          this.inFlight = null;
-        }
-        this.armRevalidate();
-        if (succeeded && this.dirty && !this.queued && this.emitter.size > 0) {
-          this.scheduleDebounced();
-        }
-      }
-    })();
-    this.inFlight = run;
-    return run;
+    this.entries = computedEntries;
+    const update: CollectionUpdate<K, V> = {
+      kind: 'delta',
+      generation: this.generation,
+      ops: effectiveOps,
+      sequence: ++this.sequence,
+    };
+    if (!this.disposed) this.emitter.emit(update);
+    return { result: ok(this.snapshot()), completed: true };
   }
 
   private diff(from: Map<K, V>, to: Map<K, V>): Array<KeyedOp<K, V>> {
@@ -276,45 +237,6 @@ export class LiveCollection<K, V, E = unknown> implements IDisposable {
       generation: this.generation,
       sequence,
     };
-  }
-
-  private scheduleDebounced(): void {
-    if (this.debounceTimer) clearTimeout(this.debounceTimer);
-    this.debounceTimer = setTimeout(() => {
-      this.debounceTimer = null;
-      if (!this.dirty || this.disposed) return;
-      this.scheduleBackground();
-    }, this.options.debounceMs ?? 0);
-  }
-
-  private scheduleBackground(): void {
-    void this.schedule()
-      .then((result) => {
-        if (!result.success) this.options.onError?.(result.error);
-      })
-      .catch((error) => {
-        queueMicrotask(() => {
-          throw error;
-        });
-      });
-  }
-
-  private armRevalidate(): void {
-    const interval = this.options.revalidateIntervalMs;
-    if (!interval || !this.options.compute || this.disposed || this.emitter.size === 0) return;
-    if (this.revalidateTimer) clearTimeout(this.revalidateTimer);
-    this.revalidateTimer = setTimeout(() => {
-      this.revalidateTimer = null;
-      if (this.disposed || this.emitter.size === 0) return;
-      this.scheduleBackground();
-    }, interval);
-  }
-
-  private clearTimers(): void {
-    if (this.debounceTimer) clearTimeout(this.debounceTimer);
-    this.debounceTimer = null;
-    if (this.revalidateTimer) clearTimeout(this.revalidateTimer);
-    this.revalidateTimer = null;
   }
 
   private assertNotDisposed(): void {
