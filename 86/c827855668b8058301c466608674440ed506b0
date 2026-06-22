@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/tests/browser/xterm-host.test.ts
+  s_24c063dce203fc::t_ea88c2040af0f8 69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "86c827855668b8058301c466608674440ed506b0",
+  "prompts": {},
+  "sessions": {
+    "s_24c063dce203fc": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033cm0X2TyZp48jo8IGpCb",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
