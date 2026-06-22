@@ -7,6 +7,7 @@
 @custom-variant dark-black (&:is(.dark-black *));
 @custom-variant emlight (&:is(.emlight *));
 @custom-variant emdark (&:is(.emdark *));
+@custom-variant high-contrast (&:is(.high-contrast *));
 
 @theme inline {
   --font-sans:
@@ -726,6 +727,46 @@
 
     --foreground-conflict: var(--orange-9);
     --foreground-merged: var(--purple-9);
+  }
+
+  /* ── High contrast overrides ─────────────────────────────────
+     Layered on top of the active theme (e.g. <html class="emdark high-contrast">).
+     Strengthens the lowest-contrast tokens: borders, muted/passive text, and
+     focus rings. Two-class selectors win over the single-class theme blocks. */
+  .emlight.high-contrast {
+    --foreground: black;
+    --foreground-muted: var(--neutral-12);
+    --foreground-passive: var(--neutral-11);
+
+    --foreground-secondary-muted: var(--neutral-12);
+    --foreground-secondary-passive: var(--neutral-11);
+    --foreground-tertiary-muted: var(--neutral-12);
+    --foreground-tertiary-passive: var(--neutral-11);
+
+    --border: var(--neutral-9);
+    --border-1: var(--neutral-10);
+    --border-2: var(--neutral-11);
+    --border-primary: var(--neutral-11);
+
+    --ring: black;
+  }
+
+  .emdark.high-contrast {
+    --foreground: white;
+    --foreground-muted: var(--neutral-12);
+    --foreground-passive: var(--neutral-11);
+
+    --foreground-secondary-muted: var(--neutral-12);
+    --foreground-secondary-passive: var(--neutral-11);
+    --foreground-tertiary-muted: var(--neutral-12);
+    --foreground-tertiary-passive: var(--neutral-11);
+
+    --border: var(--neutral-9);
+    --border-1: var(--neutral-10);
+    --border-2: var(--neutral-11);
+    --border-primary: var(--neutral-11);
+
+    --ring: white;
   }
 }
 

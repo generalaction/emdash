@@ -31,6 +31,11 @@ function applyTheme(effective: EffectiveTheme) {
   root.classList.add(effective);
 }
 
+function applyHighContrast(enabled: boolean) {
+  if (typeof document === 'undefined') return;
+  document.documentElement.classList.toggle('high-contrast', enabled);
+}
+
 interface ThemeContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
@@ -42,27 +47,42 @@ export const ThemeContext = createContext<ThemeContextType | undefined>(undefine
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { value: themeValue, isLoading, update } = useAppSettingsKey('theme');
+  const { value: interfaceValue, isLoading: isInterfaceLoading } = useAppSettingsKey('interface');
   const [, setCachedTheme] = useLocalStorage<Theme>('emdash-theme', null);
+  const [, setCachedHighContrast] = useLocalStorage<boolean>('emdash-high-contrast', false);
 
   const systemTheme = useSyncExternalStore(subscribeToSystemTheme, getSystemTheme);
 
   const theme: Theme = themeValue ?? null;
   const effectiveTheme: EffectiveTheme = theme ?? systemTheme;
+  const highContrast = interfaceValue?.highContrast ?? false;
 
   useLayoutEffect(() => {
     if (isLoading) return;
     applyTheme(effectiveTheme);
   }, [effectiveTheme, isLoading]);
 
+  useLayoutEffect(() => {
+    if (isInterfaceLoading) return;
+    applyHighContrast(highContrast);
+  }, [highContrast, isInterfaceLoading]);
+
   useEffect(() => {
     if (isLoading) return;
     setCachedTheme(theme);
   }, [theme, isLoading, setCachedTheme]);
 
-  // Re-apply xterm theme after CSS classes have been updated by the layout effect above.
+  useEffect(() => {
+    if (isInterfaceLoading) return;
+    setCachedHighContrast(highContrast);
+  }, [highContrast, isInterfaceLoading, setCachedHighContrast]);
+
+  // Re-apply xterm theme after CSS classes have been updated by the layout effects
+  // above. High contrast remaps tokens that feed --xterm-* (e.g. --foreground), so
+  // open terminals must be re-themed when it toggles, not only on theme changes.
   useEffect(() => {
     applyThemeToAll();
-  }, [effectiveTheme]);
+  }, [effectiveTheme, highContrast]);
 
   const setTheme = (newTheme: Theme) => {
     update(newTheme);

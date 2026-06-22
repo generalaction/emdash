@@ -1,17 +1,33 @@
 import { Monitor, Moon, Sun } from 'lucide-react';
 import React from 'react';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
+import { Switch } from '@renderer/lib/ui/switch';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import type { Theme } from '@shared/core/app-settings';
+import { SettingRow } from './SettingRow';
 
 const ThemeCard: React.FC = () => {
   const { theme, setTheme } = useTheme();
+  const {
+    value: interfaceSettings,
+    update,
+    isLoading: interfaceLoading,
+    isSaving: interfaceSaving,
+  } = useAppSettingsKey('interface');
+
+  const highContrast = interfaceSettings?.highContrast ?? false;
 
   const handleSetTheme = (next: Theme) => {
     if (theme !== next) {
       captureTelemetry('setting_changed', { setting: 'theme' });
     }
     setTheme(next);
+  };
+
+  const handleSetHighContrast = (checked: boolean) => {
+    captureTelemetry('setting_changed', { setting: 'high_contrast' });
+    update({ highContrast: checked });
   };
 
   const buttonBase =
@@ -35,7 +51,7 @@ const ThemeCard: React.FC = () => {
           aria-label="Set theme to system preference"
         >
           <Monitor className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <span className="text-centert">System</span>
+          <span className="text-center">System</span>
         </button>
         <button
           type="button"
@@ -58,6 +74,18 @@ const ThemeCard: React.FC = () => {
           <span className="text-center">Emdash Dark</span>
         </button>
       </div>
+      <SettingRow
+        title="High contrast"
+        description="Increase the contrast of borders, muted text, and focus outlines for better visibility."
+        control={
+          <Switch
+            checked={highContrast}
+            disabled={interfaceLoading || interfaceSaving}
+            onCheckedChange={handleSetHighContrast}
+            aria-label="Toggle high contrast"
+          />
+        }
+      />
     </div>
   );
 };

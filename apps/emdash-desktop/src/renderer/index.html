@@ -16,6 +16,10 @@
                 ? 'emdark'
                 : 'emlight';
           document.documentElement.classList.add(effective);
+          var hcRaw = localStorage.getItem('emdash-high-contrast');
+          if (hcRaw && JSON.parse(hcRaw) === true) {
+            document.documentElement.classList.add('high-contrast');
+          }
         } catch (_) {}
       })();
     </script>
