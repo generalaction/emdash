@@ -1,7 +1,9 @@
-import { Pencil } from 'lucide-react';
+import { ArrowRightLeft, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useRef, useState } from 'react';
+import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -31,6 +33,8 @@ export const ConversationTabItem = observer(function ConversationTabItem({
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const committedRef = useRef(false);
+  const taskView = useWorkspaceViewModel();
+  const showCreateConversationModal = useShowModal('createConversationModal');
 
   const title = formatConversationTitleForDisplay(tab.store.data.providerId, tab.store.data.title);
   const rawTitle = tab.store.data.title ?? '';
@@ -45,6 +49,18 @@ export const ConversationTabItem = observer(function ConversationTabItem({
     if (tab.isPreview) onPin();
     handleRename();
   }, [handleRename, onPin, tab.isPreview]);
+
+  const handleHandoff = useCallback(() => {
+    showCreateConversationModal({
+      projectId: tab.store.data.projectId,
+      taskId: tab.store.data.taskId,
+      handoffSourceConversationId: tab.store.data.id,
+      onSuccess: ({ conversationId }) => {
+        taskView.tabGroupManager.openConversation(conversationId);
+        taskView.setFocusedRegion('main');
+      },
+    });
+  }, [showCreateConversationModal, tab.store.data, taskView]);
 
   const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
     input?.focus();
@@ -110,6 +126,10 @@ export const ConversationTabItem = observer(function ConversationTabItem({
         </TabItemShell>
       </ContextMenuTrigger>
       <ContextMenuContent finalFocus={false}>
+        <ContextMenuItem onClick={handleHandoff}>
+          <ArrowRightLeft className="size-4" />
+          Hand off to new session
+        </ContextMenuItem>
         <ContextMenuItem onClick={handleRename}>
           <Pencil className="size-4" />
           Rename

@@ -4,6 +4,8 @@ import { getProjectSshConnectionId } from '@renderer/features/projects/stores/pr
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
+import { toast } from '@renderer/lib/hooks/use-toast';
+import { rpc } from '@renderer/lib/ipc';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -22,9 +24,11 @@ export const CreateConversationModal = observer(function CreateConversationModal
   onSuccess,
   projectId,
   taskId,
+  handoffSourceConversationId,
 }: BaseModalProps<{ conversationId: string }> & {
   projectId: string;
   taskId: string;
+  handoffSourceConversationId?: string;
 }) {
   const connectionId = getProjectSshConnectionId(projectId);
   const { providerId, setProviderOverride, createDisabled } = useEffectiveProvider(connectionId);
@@ -34,6 +38,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const [error, setError] = useState<string | null>(null);
   useCloseGuard(isSubmitting);
 
+  const isHandoff = handoffSourceConversationId !== undefined;
   const skipPermissions = providerId ? autoApproveDefaults.getDefault(providerId) : false;
   const titleProviderId = providerId ?? 'claude';
   const title = nextDefaultConversationTitle(
@@ -47,6 +52,14 @@ export const CreateConversationModal = observer(function CreateConversationModal
     setIsSubmitting(true);
     setError(null);
     try {
+      const handoff = handoffSourceConversationId
+        ? await rpc.conversations.getConversationHandoffPrompt(
+            projectId,
+            taskId,
+            handoffSourceConversationId,
+            { delivery: connectionId ? 'inline' : 'document' }
+          )
+        : null;
       await conversationMgr.createConversation({
         projectId,
         taskId,
@@ -54,17 +67,27 @@ export const CreateConversationModal = observer(function CreateConversationModal
         autoApprove: skipPermissions,
         provider: providerId,
         title,
+        initialPrompt: handoff?.prompt,
       });
       setIsSubmitting(false);
+      if (handoff && !handoff.transcriptIncluded) {
+        toast({
+          title: 'Handoff started without transcript',
+          description: 'The source session buffer was empty, so only session metadata was passed.',
+        });
+      }
       onSuccess({ conversationId: id });
     } catch {
-      setError('Failed to create conversation');
+      setError(isHandoff ? 'Failed to hand off conversation' : 'Failed to create conversation');
       setIsSubmitting(false);
     }
   }, [
     conversationMgr,
     createDisabled,
+    handoffSourceConversationId,
+    isHandoff,
     isSubmitting,
+    connectionId,
     providerId,
     title,
     onSuccess,
@@ -76,10 +99,16 @@ export const CreateConversationModal = observer(function CreateConversationModal
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Create Conversation</DialogTitle>
+        <DialogTitle>{isHandoff ? 'Hand off conversation' : 'Create Conversation'}</DialogTitle>
       </DialogHeader>
       <DialogContentArea>
         <FieldGroup>
+          {isHandoff && (
+            <p className="text-muted-foreground text-sm">
+              Start a fresh conversation and pass over the latest source session context
+              automatically.
+            </p>
+          )}
           <Field>
             <FieldLabel>Agent</FieldLabel>
             <AgentSelector
@@ -109,7 +138,13 @@ export const CreateConversationModal = observer(function CreateConversationModal
           onClick={() => void handleCreateConversation()}
           disabled={createDisabled || isSubmitting}
         >
-          {isSubmitting ? 'Creating...' : 'Create'}
+          {isSubmitting
+            ? isHandoff
+              ? 'Handing off...'
+              : 'Creating...'
+            : isHandoff
+              ? 'Hand off'
+              : 'Create'}
         </ConfirmButton>
       </DialogFooter>
     </>

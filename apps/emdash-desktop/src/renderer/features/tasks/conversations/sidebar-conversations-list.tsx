@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { ArrowRightLeft, Pencil, Plus, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useRef, useState } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
@@ -37,6 +37,7 @@ const ConversationRow = observer(function ConversationRow({
   const conversations = useConversations();
   const { tabManager, tabGroupManager } = taskView;
   const showConfirm = useShowModal('confirmActionModal');
+  const showCreateConversationModal = useShowModal('createConversationModal');
 
   const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
     input?.focus();
@@ -86,6 +87,17 @@ const ConversationRow = observer(function ConversationRow({
       variant: 'destructive',
       onSuccess: () => {
         void conversations.deleteConversation(conversationId);
+      },
+    });
+  };
+
+  const handleHandoff = () => {
+    showCreateConversationModal({
+      projectId: conversation.data.projectId,
+      taskId: conversation.data.taskId,
+      handoffSourceConversationId: conversationId,
+      onSuccess: ({ conversationId: newConversationId }) => {
+        tabGroupManager.openConversation(newConversationId);
       },
     });
   };
@@ -145,6 +157,10 @@ const ConversationRow = observer(function ConversationRow({
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent finalFocus={false}>
+        <ContextMenuItem onClick={handleHandoff}>
+          <ArrowRightLeft className="size-4" />
+          Hand off to new session
+        </ContextMenuItem>
         <ContextMenuItem onClick={handleRename}>
           <Pencil className="size-4" />
           Rename
