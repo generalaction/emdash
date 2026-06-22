@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/skills/components/SkillIconRenderer.tsx
+  s_41dcbea4529085::t_5c78843b8ea863 12-15,56
+apps/emdash-desktop/src/renderer/lib/components/agent-icon.tsx
+  s_41dcbea4529085::t_5c78843b8ea863 6-9,48-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "2770eee2bd4b6eb674158d17833bd20688074325",
+  "prompts": {},
+  "sessions": {
+    "s_41dcbea4529085": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef053-2801-7533-aaea-7c6ba878a612",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
