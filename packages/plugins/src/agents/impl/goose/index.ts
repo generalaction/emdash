@@ -1,5 +1,4 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
-import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -71,11 +70,24 @@ export const plugin = definePlugin(
 
 export const provider = registerPluginBehavior(plugin, {
   prompt: {
-    buildCommand: (ctx) =>
-      buildStandardCommand(ctx, {
-        defaultArgs: ['run', '-s'],
-        initialPromptFlag: '-t',
-        resumeFlag: '--resume',
-      }),
+    buildCommand: (ctx) => {
+      const args = ['run', '-s'];
+
+      if (ctx.sessionId) {
+        args.push('-n', ctx.sessionId);
+      }
+
+      if (ctx.isResuming) {
+        args.push('--resume');
+      } else if (ctx.initialPrompt) {
+        args.push('-t', ctx.initialPrompt);
+      }
+
+      if (ctx.extraArgs?.length) {
+        args.push(...ctx.extraArgs);
+      }
+
+      return { command: ctx.cli, args, env: {} };
+    },
   },
 });

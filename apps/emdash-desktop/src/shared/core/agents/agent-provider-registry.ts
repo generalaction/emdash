@@ -422,6 +422,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     // run subcommand with -s for interactive mode after initial prompt
     defaultArgs: ['run', '-s'],
     initialPromptFlag: '-t',
+    sessionIdFlag: '-n',
     resumeFlag: '--resume',
     icon: 'goose.png',
     alt: 'Goose CLI',
