@@ -5,7 +5,7 @@ export const KILOCODE_PLUGIN_CONTENT = `\
 export const EmdashNotifications = async () => ({
   event: async ({ event }) => {
     const port = process.env.EMDASH_HOOK_PORT;
-    const token = process.env.EMDASH_HOOK_TOKEN;
+    const token = process.env.EMDASH_HOOK_NONCE ?? process.env.EMDASH_HOOK_TOKEN;
     const ptyId = process.env.EMDASH_PTY_ID;
     if (!port || !token || !ptyId) return;
 

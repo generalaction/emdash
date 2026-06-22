@@ -1,5 +1,5 @@
 import type { PluginFs } from '@emdash/core/agents/plugins';
-import { makeStdinHookCommand } from '@emdash/core/agents/plugins/helpers';
+import { buildNestedEntry, makeStdinHookCommand } from '@emdash/core/agents/plugins/helpers';
 import { describe, expect, it } from 'vitest';
 import { COMMANDCODE_SETTINGS_PATH } from './hooks';
 import { provider } from './index';
@@ -60,11 +60,14 @@ describe('commandcode provider', () => {
     await provider.behavior.hooks!.writeHooks(fs, []);
 
     const settings = JSON.parse(files.get(COMMANDCODE_SETTINGS_PATH)!);
-    expect(settings.hooks.Stop).toHaveLength(2);
-    expect(JSON.stringify(settings.hooks.Stop)).toContain('EMDASH_HOOK_PORT');
-    expect(JSON.stringify(settings.hooks.Stop)).toContain('EMDASH_HOOK_TOKEN');
-    expect(JSON.stringify(settings.hooks.Stop)).toContain('X-Emdash-Event-Type: session');
-    expect(JSON.stringify(settings.hooks.Stop)).toContain('X-Emdash-Event-Type: stop');
+    expect(settings.hooks.Stop).toEqual([
+      buildNestedEntry(makeStdinHookCommand('session')),
+      buildNestedEntry(makeStdinHookCommand('stop')),
+    ]);
+
+    const stopHooksJson = JSON.stringify(settings.hooks.Stop);
+    expect(stopHooksJson).toContain('EMDASH_HOOK_NONCE');
+    expect(stopHooksJson).not.toContain('EMDASH_HOOK_TOKEN');
   });
 
   it('treats partial hook installs as incomplete', async () => {
