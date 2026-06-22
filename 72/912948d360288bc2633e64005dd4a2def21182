@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/main/core/agent-hooks/hook-config-service.ts
+  s_8c170cd46e9698::t_11f9991b2a5922 2,69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "72912948d360288bc2633e64005dd4a2def21182",
+  "prompts": {},
+  "sessions": {
+    "s_8c170cd46e9698": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eede3-5439-7c43-96cc-f9676b4a51fb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
