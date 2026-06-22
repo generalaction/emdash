@@ -1,0 +1,46 @@
+apps/emdash-desktop/src/main/core/pty/controller.test.ts
+  s_e6eaff8db44499::t_8e21b5f04427e6 11-14
+  s_e6eaff8db44499::t_96b9ba5388e931 15-21
+  s_e6eaff8db44499::t_6048955976c2bf 1-10,22-69
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.ts
+  s_e6eaff8db44499::t_480c9b6f2a3ae4 133-143
+apps/emdash-desktop/src/main/core/pty/controller.ts
+  s_e6eaff8db44499::t_6048955976c2bf 29
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_bce08d7b922e12::t_c0a902b242866a 125
+apps/emdash-desktop/src/main/core/conversations/impl/conversation-provider-respawn.test.ts
+  s_bce08d7b922e12::t_0457c0dfc8e930 488-497,500,511-512
+  s_8c5b78dc7b8c41::t_fe56137a20b46b 498-499,501-510
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "6c34755da4ba9e47252f8ce0afd32c645de2838f",
+  "prompts": {},
+  "sessions": {
+    "s_8c5b78dc7b8c41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef0be-d8a2-7552-a1d5-702930100048",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_bce08d7b922e12": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef0be-da0f-78c0-a48b-e9f01d92cf7f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_e6eaff8db44499": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef093-1556-7621-9501-9686d59677bd",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
