@@ -137,24 +137,30 @@ export function buildFlatTomlHookConfig(
  * Pass pre-built command strings (from `makeStdinHookCommand`, etc.) in `hookSpecs`.
  */
 export function buildNestedJsonHookConfig(configPath: string, hookSpecs: HookSpec[]) {
+  const specsByHookKey = new Map<string, HookSpec[]>();
+  for (const spec of hookSpecs) {
+    specsByHookKey.set(spec.hookKey, [...(specsByHookKey.get(spec.hookKey) ?? []), spec]);
+  }
+
+  const hasAllManagedNestedEntries = (hooks: Record<string, unknown[]>): boolean =>
+    [...specsByHookKey].every(([hookKey, specs]) => {
+      const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      const serializedEntries = entries.map((entry) => JSON.stringify(entry));
+      return specs.every(({ command }) =>
+        serializedEntries.includes(JSON.stringify(buildNestedEntry(command)))
+      );
+    });
+
   return {
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readJsonConfig(fs, configPath);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      const installed = hookSpecs.some(({ hookKey }) => {
-        const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
-      });
-      return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
+      return hasAllManagedNestedEntries(hooks) ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, configPath);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      const commandsByHookKey = new Map<string, HookSpec[]>();
-      for (const spec of hookSpecs) {
-        commandsByHookKey.set(spec.hookKey, [...(commandsByHookKey.get(spec.hookKey) ?? []), spec]);
-      }
-      for (const [hookKey, specs] of commandsByHookKey) {
+      for (const [hookKey, specs] of specsByHookKey) {
         const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
         hooks[hookKey] = [
           ...filterUserHooks(existing as Record<string, unknown>[]),
@@ -175,10 +181,7 @@ export function buildNestedJsonHookConfig(configPath: string, hookSpecs: HookSpe
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
       const config = await readJsonConfig(fs, configPath);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      return hookSpecs.some(({ hookKey }) => {
-        const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
-      });
+      return hasAllManagedNestedEntries(hooks);
     },
   };
 }

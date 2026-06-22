@@ -1,10 +1,11 @@
 import type { PluginFs } from '@emdash/core/agents/plugins';
+import { makeStdinHookCommand } from '@emdash/core/agents/plugins/helpers';
 import { describe, expect, it } from 'vitest';
 import { COMMANDCODE_SETTINGS_PATH } from './hooks';
 import { provider } from './index';
 
 const baseContext = {
-  cli: 'cmd',
+  cli: 'command-code',
   autoApprove: false,
   initialPrompt: undefined,
   sessionId: 'emdash-session-id',
@@ -13,12 +14,26 @@ const baseContext = {
   model: '',
 };
 
+function createMemoryFs(files = new Map<string, string>()): PluginFs {
+  return {
+    read: async (path) => files.get(path) ?? null,
+    write: async (path, content) => {
+      files.set(path, content);
+    },
+    delete: async (path) => {
+      files.delete(path);
+    },
+    exists: async (path) => files.has(path),
+    list: async () => [],
+  };
+}
+
 describe('commandcode provider', () => {
   it('starts a fresh session without resume flags', () => {
     const command = provider.behavior.prompt!.buildCommand(baseContext);
 
     expect(command).toEqual({
-      command: 'cmd',
+      command: 'command-code',
       args: ['--trust', '--skip-onboarding'],
       env: {},
     });
@@ -32,7 +47,7 @@ describe('commandcode provider', () => {
     });
 
     expect(command).toEqual({
-      command: 'cmd',
+      command: 'command-code',
       args: ['--trust', '--skip-onboarding', '--resume', 'command-session-id'],
       env: {},
     });
@@ -40,25 +55,36 @@ describe('commandcode provider', () => {
 
   it('installs a Stop hook that reports the Command Code session id', async () => {
     const files = new Map<string, string>();
-    const fs: PluginFs = {
-      read: async (path) => files.get(path) ?? null,
-      write: async (path, content) => {
-        files.set(path, content);
-      },
-      delete: async (path) => {
-        files.delete(path);
-      },
-      exists: async (path) => files.has(path),
-      list: async () => [],
-    };
+    const fs = createMemoryFs(files);
 
     await provider.behavior.hooks!.writeHooks(fs, []);
 
     const settings = JSON.parse(files.get(COMMANDCODE_SETTINGS_PATH)!);
     expect(settings.hooks.Stop).toHaveLength(2);
     expect(JSON.stringify(settings.hooks.Stop)).toContain('EMDASH_HOOK_PORT');
-    expect(JSON.stringify(settings.hooks.Stop)).toContain('EMDASH_HOOK_NONCE');
+    expect(JSON.stringify(settings.hooks.Stop)).toContain('EMDASH_HOOK_TOKEN');
     expect(JSON.stringify(settings.hooks.Stop)).toContain('X-Emdash-Event-Type: session');
     expect(JSON.stringify(settings.hooks.Stop)).toContain('X-Emdash-Event-Type: stop');
+  });
+
+  it('treats partial hook installs as incomplete', async () => {
+    const fs = createMemoryFs(
+      new Map([
+        [
+          COMMANDCODE_SETTINGS_PATH,
+          JSON.stringify({
+            hooks: {
+              Stop: [{ hooks: [{ type: 'command', command: makeStdinHookCommand('session') }] }],
+            },
+          }),
+        ],
+      ])
+    );
+
+    await expect(provider.behavior.hooks!.getHooksInstalled(fs)).resolves.toBe(false);
+
+    await provider.behavior.hooks!.writeHooks(fs, []);
+
+    await expect(provider.behavior.hooks!.getHooksInstalled(fs)).resolves.toBe(true);
   });
 });

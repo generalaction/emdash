@@ -26,7 +26,7 @@ function makePosixHookPostCommand(eventType: string, payload: HookPostPayload): 
   return (
     'curl -sf -X POST ' +
     '-H "Content-Type: application/json" ' +
-    '-H "X-Emdash-Token: ${EMDASH_HOOK_NONCE:-$EMDASH_HOOK_TOKEN}" ' +
+    '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
     '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
     `-H "X-Emdash-Event-Type: ${eventType}" ` +
     payloadPart +
@@ -41,14 +41,13 @@ function makeWindowsHookPostCommand(eventType: string, payload: HookPostPayload)
       : `$payload = ${quotePowerShellString(JSON.stringify((payload as { json: Record<string, string> }).json))}`;
   const script = [
     "$ErrorActionPreference = 'SilentlyContinue'",
-    '$hookToken = if ($env:EMDASH_HOOK_NONCE) { $env:EMDASH_HOOK_NONCE } else { $env:EMDASH_HOOK_TOKEN }',
-    'if (-not $env:EMDASH_HOOK_PORT -or -not $hookToken -or -not $env:EMDASH_PTY_ID) { exit 0 }',
+    'if (-not $env:EMDASH_HOOK_PORT -or -not $env:EMDASH_HOOK_TOKEN -or -not $env:EMDASH_PTY_ID) { exit 0 }',
     bodyLine,
     'try { Invoke-WebRequest -UseBasicParsing -Method POST ' +
       "-Uri ('http://127.0.0.1:' + $env:EMDASH_HOOK_PORT + '/hook') " +
       '-Headers @{ ' +
       "'Content-Type' = 'application/json'; " +
-      "'X-Emdash-Token' = $hookToken; " +
+      "'X-Emdash-Token' = $env:EMDASH_HOOK_TOKEN; " +
       "'X-Emdash-Pty-Id' = $env:EMDASH_PTY_ID; " +
       `'X-Emdash-Event-Type' = '${eventType}' ` +
       '} -Body $payload | Out-Null } catch { exit 0 }',
