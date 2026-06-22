@@ -22,6 +22,7 @@ import { mondayController } from './core/monday/controller';
 import { plainController } from './core/plain/controller';
 import { planeController } from './core/plane/controller';
 import { previewServersController } from './core/preview-servers/controller';
+import { projectSetupController } from './core/project-setup/controller';
 import { projectController } from './core/projects/controller';
 import { promptLibraryController } from './core/prompt-library/controller';
 import { ptyController } from './core/pty/controller';
@@ -69,6 +70,7 @@ export const rpcRouter = createRPCRouter({
   promptLibrary: promptLibraryController,
   skills: skillsController,
   ssh: sshController,
+  projectSetup: projectSetupController,
   projects: projectController,
   previewServers: previewServersController,
   tasks: taskController,

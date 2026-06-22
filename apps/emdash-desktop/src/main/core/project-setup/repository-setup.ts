@@ -40,11 +40,11 @@ async function createProjectFs(root: string, machine: MachineRef): Promise<FileS
 
 function cloneRepositoryErrorMessage(error: CloneRepositoryError): string {
   switch (error.type) {
-    case 'target-exists':
+    case 'target_exists':
       return `Target directory already exists and is not empty: ${error.path}`;
-    case 'auth-failed':
-    case 'remote-not-found':
-    case 'git-error':
+    case 'auth_failed':
+    case 'remote_not_found':
+    case 'git_error':
       return error.message;
   }
 }
@@ -115,7 +115,8 @@ export async function initializeProjectRepository(
   try {
     const worktreeLease = await runtimeLease.value.git.openWorktree(params.targetPath);
     try {
-      await worktreeLease.value.stage(['README.md']);
+      const stageResult = await worktreeLease.value.stage(['README.md']);
+      if (!stageResult.success) return { success: false, error: stageResult.error.message };
       const commitResult = await worktreeLease.value.commit('Initial commit');
       if (!commitResult.success) return { success: false, error: commitResult.error.message };
       return await pushInitialBranch(worktreeLease.value);

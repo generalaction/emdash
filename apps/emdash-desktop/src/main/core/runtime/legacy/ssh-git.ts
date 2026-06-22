@@ -2,6 +2,7 @@ import path from 'node:path';
 import {
   classifyCloneRepositoryError,
   gitErrorMessage,
+  toGitCommandError,
   TooManyFilesChangedError,
 } from '@emdash/core/git';
 import type {
@@ -44,23 +45,14 @@ import type {
   GitStatusModel,
   GitStatusUntrackedMode,
 } from '@emdash/core/git';
-import { LiveModel, ResourceMap, type LiveValue } from '@emdash/core/lib';
+import { LiveModel, ResourceMap } from '@emdash/core/lib';
 import { err, ok, type Lease, type Result, type Unsubscribe } from '@emdash/shared';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { GitService } from '@main/core/git/legacy/git-service';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { log } from '@main/lib/logger';
-import type {
-  CommitError as LegacyCommitError,
-  CreateBranchError as LegacyCreateBranchError,
-  DeleteBranchError as LegacyDeleteBranchError,
-  FetchError as LegacyFetchError,
-  FetchPrForReviewError as LegacyFetchPrForReviewError,
-  ImageReadResult as LegacyImageReadResult,
-  PullError as LegacyPullError,
-  PushError as LegacyPushError,
-} from '@shared/core/git/types';
+import type { ImageReadResult as LegacyImageReadResult } from '@shared/core/git/types';
 
 const STATUS_POLL_MS = 10_000;
 const UNTRACKED_STATUS_POLL_MS = 30_000;
@@ -171,7 +163,7 @@ export class LegacySshGitRuntime implements IGitRuntime {
     const inspected = await this.inspectPath(targetPath);
     if (inspected.kind === 'repository') return ok(inspected);
     return err({
-      type: 'git-error',
+      type: 'git_error',
       message: `Cloned path is not a git repository: ${targetPath}`,
     });
   }
@@ -265,16 +257,16 @@ class LegacySshGitRepository implements IGitRepository {
   }
 
   async getRefs(): Promise<GitRefsModel> {
-    return liveValue(await this.refsModel.get()).value;
+    return (await this.refsModel.get()).value;
   }
 
   async getRemotes(): Promise<GitRemotesModel> {
-    return liveValue(await this.remotesModel.get()).value;
+    return (await this.remotesModel.get()).value;
   }
 
   async getSnapshot(): Promise<GitRepoSnapshot> {
     const [refs, remotes] = await Promise.all([this.refsModel.get(), this.remotesModel.get()]);
-    return { refs: liveValue(refs), remotes: liveValue(remotes) };
+    return { refs, remotes };
   }
 
   async refresh(): Promise<GitRepoSnapshot> {
@@ -282,7 +274,7 @@ class LegacySshGitRepository implements IGitRepository {
       this.refsModel.refresh(),
       this.remotesModel.refresh(),
     ]);
-    return { refs: liveValue(refs), remotes: liveValue(remotes) };
+    return { refs, remotes };
   }
 
   subscribe(cb: (update: GitRepoUpdate) => void): Unsubscribe {
@@ -316,7 +308,7 @@ class LegacySshGitRepository implements IGitRepository {
 
   async fetch(remote?: string): Promise<Result<{ sequences: GitSequences }, FetchError>> {
     const result = await this.git.fetch(remote);
-    if (!result.success) return err(mapFetchError(result.error));
+    if (!result.success) return err(result.error);
     return ok({ sequences: { refs: await this.refreshRefs() } });
   }
 
@@ -327,7 +319,7 @@ class LegacySshGitRepository implements IGitRepository {
     try {
       await this.git.addRemote(name, url);
       const remotes = await this.remotesModel.refresh();
-      return ok({ sequences: { remotes: liveValue(remotes).sequence } });
+      return ok({ sequences: { remotes: remotes.sequence } });
     } catch (error) {
       return err(toGitCommandError(error));
     }
@@ -342,7 +334,7 @@ class LegacySshGitRepository implements IGitRepository {
       options.syncWithRemote,
       options.remote
     );
-    if (!result.success) return err(mapCreateBranchError(result.error));
+    if (!result.success) return err(result.error);
     return ok({ sequences: { refs: await this.refreshRefs() } });
   }
 
@@ -351,7 +343,7 @@ class LegacySshGitRepository implements IGitRepository {
     force?: boolean
   ): Promise<Result<{ sequences: GitSequences }, DeleteBranchError>> {
     const result = await this.git.deleteBranch(branch, force);
-    if (!result.success) return err(mapDeleteBranchError(result.error));
+    if (!result.success) return err(result.error);
     return ok({ sequences: { refs: await this.refreshRefs() } });
   }
 
@@ -366,13 +358,13 @@ class LegacySshGitRepository implements IGitRepository {
       options.isFork,
       options.configuredRemote
     );
-    if (!result.success) return err(mapFetchPrForReviewError(result.error));
+    if (!result.success) return err(result.error);
     const [refs, remotes] = await Promise.all([
       this.refsModel.refresh(),
       this.remotesModel.refresh(),
     ]);
     return ok({
-      sequences: { refs: liveValue(refs).sequence, remotes: liveValue(remotes).sequence },
+      sequences: { refs: refs.sequence, remotes: remotes.sequence },
     });
   }
 
@@ -381,7 +373,7 @@ class LegacySshGitRepository implements IGitRepository {
     remote?: string
   ): Promise<Result<{ output: string; sequences: GitSequences }, PushError>> {
     const result = await this.git.publishBranch(branchName, remote);
-    if (!result.success) return err(mapPushError(result.error));
+    if (!result.success) return err(result.error);
     return ok({ output: result.data.output, sequences: { refs: await this.refreshRefs() } });
   }
 
@@ -397,7 +389,7 @@ class LegacySshGitRepository implements IGitRepository {
   }
 
   async refreshRefs(): Promise<number> {
-    return liveValue(await this.refsModel.refresh()).sequence;
+    return (await this.refsModel.refresh()).sequence;
   }
 
   private async computeRefs(): Promise<GitRefsModel> {
@@ -441,16 +433,16 @@ class LegacySshGitWorktree implements IGitWorktree {
   }
 
   async getStatus(): Promise<GitStatusModel> {
-    return liveValue(await this.statusModel.get()).value;
+    return (await this.statusModel.get()).value;
   }
 
   async getHead(): Promise<GitHeadModel> {
-    return liveValue(await this.headModel.get()).value;
+    return (await this.headModel.get()).value;
   }
 
   async getSnapshot(): Promise<GitWorktreeSnapshot> {
     const [status, head] = await Promise.all([this.statusModel.get(), this.headModel.get()]);
-    return { status: liveValue(status), head: liveValue(head) };
+    return { status, head };
   }
 
   async refresh(): Promise<GitWorktreeSnapshot> {
@@ -458,7 +450,7 @@ class LegacySshGitWorktree implements IGitWorktree {
       this.statusModel.refresh(),
       this.headModel.refresh(),
     ]);
-    return { status: liveValue(status), head: liveValue(head) };
+    return { status, head };
   }
 
   subscribe(cb: (update: GitWorktreeUpdate) => void): Unsubscribe {
@@ -522,41 +514,65 @@ class LegacySshGitWorktree implements IGitWorktree {
     return this.git.getCommitFiles(hash) as Promise<CommitFile[]>;
   }
 
-  async stage(paths: string[]): Promise<GitSequences> {
-    await this.git.stageFiles(paths);
-    return this.refreshStatus();
+  async stage(paths: string[]): Promise<Result<GitSequences, GitCommandError>> {
+    try {
+      await this.git.stageFiles(paths);
+      return ok(await this.refreshStatus());
+    } catch (error) {
+      return err(toGitCommandError(error));
+    }
   }
 
-  async stageAll(): Promise<GitSequences> {
-    await this.git.stageAllFiles();
-    return this.refreshStatus();
+  async stageAll(): Promise<Result<GitSequences, GitCommandError>> {
+    try {
+      await this.git.stageAllFiles();
+      return ok(await this.refreshStatus());
+    } catch (error) {
+      return err(toGitCommandError(error));
+    }
   }
 
-  async unstage(paths: string[]): Promise<GitSequences> {
-    await this.git.unstageFiles(paths);
-    return this.refreshStatus();
+  async unstage(paths: string[]): Promise<Result<GitSequences, GitCommandError>> {
+    try {
+      await this.git.unstageFiles(paths);
+      return ok(await this.refreshStatus());
+    } catch (error) {
+      return err(toGitCommandError(error));
+    }
   }
 
-  async unstageAll(): Promise<GitSequences> {
-    await this.git.unstageAllFiles();
-    return this.refreshStatus();
+  async unstageAll(): Promise<Result<GitSequences, GitCommandError>> {
+    try {
+      await this.git.unstageAllFiles();
+      return ok(await this.refreshStatus());
+    } catch (error) {
+      return err(toGitCommandError(error));
+    }
   }
 
-  async revert(paths: string[]): Promise<GitSequences> {
-    await this.git.revertFiles(paths);
-    return this.refreshStatus();
+  async revert(paths: string[]): Promise<Result<GitSequences, GitCommandError>> {
+    try {
+      await this.git.revertFiles(paths);
+      return ok(await this.refreshStatus());
+    } catch (error) {
+      return err(toGitCommandError(error));
+    }
   }
 
-  async revertAll(): Promise<GitSequences> {
-    await this.git.revertAllFiles();
-    return this.refreshStatus();
+  async revertAll(): Promise<Result<GitSequences, GitCommandError>> {
+    try {
+      await this.git.revertAllFiles();
+      return ok(await this.refreshStatus());
+    } catch (error) {
+      return err(toGitCommandError(error));
+    }
   }
 
   async commit(
     message: string
   ): Promise<Result<{ hash: string; sequences: GitSequences }, CommitError>> {
     const result = await this.git.commit(message);
-    if (!result.success) return err(mapCommitError(result.error));
+    if (!result.success) return err(result.error);
     return ok({ hash: result.data.hash, sequences: await this.refreshAfterHistoryChange() });
   }
 
@@ -564,13 +580,13 @@ class LegacySshGitWorktree implements IGitWorktree {
     remote?: string
   ): Promise<Result<{ output: string; sequences: GitSequences }, PushError>> {
     const result = await this.git.push(remote);
-    if (!result.success) return err(mapPushError(result.error));
+    if (!result.success) return err(result.error);
     return ok({ output: result.data.output, sequences: await this.refreshAfterHistoryChange() });
   }
 
   async pull(): Promise<Result<{ output: string; sequences: GitSequences }, PullError>> {
     const result = await this.git.pull();
-    if (!result.success) return err(mapPullError(result.error));
+    if (!result.success) return err(result.error);
     return ok({ output: result.data.output, sequences: await this.refreshAfterHistoryChange() });
   }
 
@@ -605,7 +621,7 @@ class LegacySshGitWorktree implements IGitWorktree {
 
   private async refreshStatus(): Promise<GitSequences> {
     const value = await this.statusModel.refresh();
-    return { status: liveValue(value).sequence };
+    return { status: value.sequence };
   }
 
   private async refreshAfterHistoryChange(): Promise<GitSequences> {
@@ -614,7 +630,7 @@ class LegacySshGitWorktree implements IGitWorktree {
       this.headModel.refresh(),
       this.repository.refreshRefs(),
     ]);
-    return { status: liveValue(status).sequence, head: liveValue(head).sequence, refs };
+    return { status: status.sequence, head: head.sequence, refs };
   }
 
   private async pollStatus(untracked: GitStatusUntrackedMode): Promise<void> {
@@ -625,117 +641,6 @@ class LegacySshGitWorktree implements IGitWorktree {
     if (previous !== undefined && previous !== fingerprint.hash) {
       this.statusModel.invalidate();
     }
-  }
-}
-
-function toGitCommandError(error: unknown): GitCommandError {
-  const message = gitErrorMessage(error);
-  return { type: 'git-error', message };
-}
-
-function liveValue<T>(result: Result<LiveValue<T>, unknown>): LiveValue<T> {
-  if (!result.success) throw result.error;
-  return result.data;
-}
-
-function mapFetchError(error: LegacyFetchError): FetchError {
-  switch (error.type) {
-    case 'auth_failed':
-      return { type: 'auth-failed', message: error.message };
-    case 'remote_not_found':
-      return { type: 'remote-not-found', message: error.message };
-    case 'network_error':
-    case 'error':
-      return { type: 'git-error', message: error.message };
-    case 'no_remote':
-      return { type: 'remote-not-found', message: 'No remote configured' };
-  }
-}
-
-function mapCommitError(error: LegacyCommitError): CommitError {
-  switch (error.type) {
-    case 'empty_message':
-      return { type: 'empty-message', message: 'Commit message is empty' };
-    case 'nothing_to_commit':
-      return { type: 'nothing-to-commit', message: 'Nothing to commit' };
-    case 'hook_failed':
-    case 'error':
-      return { type: 'git-error', message: error.message };
-  }
-}
-
-function mapPushError(error: LegacyPushError): PushError {
-  switch (error.type) {
-    case 'auth_failed':
-      return { type: 'auth-failed', message: error.message };
-    case 'rejected':
-      return { type: 'rejected', message: error.message };
-    case 'no_remote':
-      return { type: 'no-upstream', message: error.message ?? 'No remote configured' };
-    case 'hook_rejected':
-    case 'network_error':
-    case 'error':
-      return { type: 'git-error', message: error.message };
-  }
-}
-
-function mapPullError(error: LegacyPullError): PullError {
-  switch (error.type) {
-    case 'auth_failed':
-      return { type: 'auth-failed', message: error.message };
-    case 'conflict':
-      return { type: 'conflict', message: error.message };
-    case 'no_upstream':
-    case 'diverged':
-    case 'network_error':
-    case 'error':
-      return { type: 'git-error', message: error.message };
-  }
-}
-
-function mapCreateBranchError(error: LegacyCreateBranchError): CreateBranchError {
-  switch (error.type) {
-    case 'already_exists':
-      return { type: 'already-exists', branch: error.name, message: 'Branch already exists' };
-    case 'invalid_base':
-      return {
-        type: 'invalid-base',
-        branch: '',
-        from: error.from,
-        message: 'Invalid branch base',
-      };
-    case 'invalid_name':
-      return { type: 'invalid-name', branch: error.name, message: 'Invalid branch name' };
-    case 'fetch_failed':
-      return {
-        type: 'fetch-failed',
-        remote: error.remote,
-        branch: error.branch,
-        error: mapFetchError(error.error),
-      };
-    case 'error':
-      return { type: 'git-error', message: error.message };
-  }
-}
-
-function mapDeleteBranchError(error: LegacyDeleteBranchError): DeleteBranchError {
-  switch (error.type) {
-    case 'not_found':
-      return { type: 'not-found', branch: error.branch, message: 'Branch not found' };
-    case 'unmerged':
-      return { type: 'not-merged', branch: error.branch, message: 'Branch is not merged' };
-    case 'is_current':
-    case 'error':
-      return { type: 'git-error', message: 'message' in error ? error.message : error.type };
-  }
-}
-
-function mapFetchPrForReviewError(error: LegacyFetchPrForReviewError): FetchPrForReviewError {
-  switch (error.type) {
-    case 'not_found':
-      return { type: 'not-found', prNumber: error.prNumber, message: 'Pull request not found' };
-    case 'error':
-      return { type: 'git-error', message: error.message };
   }
 }
 
