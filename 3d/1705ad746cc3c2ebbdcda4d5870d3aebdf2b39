@@ -1,0 +1,29 @@
+apps/emdash-desktop/src/main/core/agent-hooks/hook-config-service.ts
+  s_9a28923f9c5100::t_c17be025ede607 67-68
+  s_9a28923f9c5100::t_35673c9791e859 2,10-11,34,48,52,75,84
+apps/emdash-desktop/src/main/core/agents/plugin-fs.ts
+  s_9a28923f9c5100::t_9d737aa95596ac 2,4-5,65-94,96-97
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_9a28923f9c5100::t_c17be025ede607 1
+  s_9a28923f9c5100::t_471111d04d8bb0 3,124-127
+apps/emdash-desktop/src/main/core/conversations/impl/conversation-provider-respawn.test.ts
+  s_9a28923f9c5100::t_fc23e3f143fcca 497-510
+  s_9a28923f9c5100::t_d4298ed214a4c2 53-54,85
+  s_9a28923f9c5100::t_c17be025ede607 55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "3d1705ad746cc3c2ebbdcda4d5870d3aebdf2b39",
+  "prompts": {},
+  "sessions": {
+    "s_9a28923f9c5100": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef0dc-3817-7c41-b4e1-5f54ac55b827",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
