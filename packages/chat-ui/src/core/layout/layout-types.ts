@@ -94,10 +94,19 @@ export type BlockLaidOut = ProseLaidOut | CodeLaidOut | TableLaidOut;
 // Produced by `measureBlockCached` in `core/layout/block-stack.ts`.
 // Used by `renderBlockLeaf` and `BlockStackView` to render without a lookup.
 
-import type { Block, CodeBlock, ProseBlock } from '@core/markdown/document';
+import type { Block, CodeBlock, ProseBlock, RuleBlock } from '@core/markdown/document';
 
 export type ProseLeafLayout = ProseLaidOut & { raw: ProseBlock };
 export type CodeLeafLayout = CodeLaidOut & { raw: CodeBlock };
 export type TableLeafLayout = TableLaidOut & { raw: Block };
 
-export type BlockLeafLayout = ProseLeafLayout | CodeLeafLayout | TableLeafLayout;
+/** Layout for a horizontal rule block — a thin fixed-height separator. */
+export type RuleLeafLayout = {
+  kind: 'rule';
+  id: string;
+  top: number;
+  height: number;
+  raw: RuleBlock;
+};
+
+export type BlockLeafLayout = ProseLeafLayout | CodeLeafLayout | TableLeafLayout | RuleLeafLayout;

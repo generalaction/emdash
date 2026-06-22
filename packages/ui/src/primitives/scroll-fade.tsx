@@ -74,7 +74,7 @@ const ScrollFade = React.forwardRef<HTMLDivElement, ScrollFadeProps>(function Sc
 
   return (
     <div className={cn('scroll-fade', className)} style={wrapperStyle}>
-      <div ref={ref} className={cn('scroll-fade__viewport h-full w-full', viewportClassName)}>
+      <div ref={ref} style={{ height: '100%', width: '100%' }} className={cn('scroll-fade__viewport', viewportClassName)}>
         {children}
       </div>
       {showEdge('top') && <div className="scroll-fade__top" aria-hidden="true" />}

@@ -30,7 +30,6 @@
  */
 
 import { resolveSeamGap } from '@core/spacing';
-import { DEFAULT_THEME } from '@core/theme';
 import type { GroupChrome, Margin, RenderUnit, SegmentCtx } from '@core/units';
 import { stampGroupRoles } from '@core/units';
 import type { ChatItem, ChatMessage } from '@/model';
@@ -85,7 +84,6 @@ export function flatten(
 
   // Hoist stable per-call values so processItem allocates nothing per seam.
   const marginOf = (k: string) => unitDefs?.[k]?.margin;
-  const turnGap = DEFAULT_THEME.density.turnGap;
 
   const processItem = (item: ChatItem, isActive: boolean): void => {
     const seg = segmenters[item.kind];
@@ -126,17 +124,14 @@ export function flatten(
     // group (except the very first group in the transcript, which has no
     // preceding row and gets gapBefore = 0).
     //
-    // Every seam uses margin-collapse: max(prev.margin.bottom, cur.margin.top),
-    // falling back to density.turnGap for kinds with no declared margin.
-    // Turn boundaries (user<->assistant) resolve to 8px because the user
-    // message margin is { top: 8, bottom: 8 } and all other unit margins
-    // are <= 8, so collapse always yields 8 at a boundary.
+    // Every seam uses margin-collapse: max(prev.margin.bottom, cur.margin.top).
+    // Turn boundaries (user<->assistant) resolve via the user message margin
+    // { top: 8, bottom: 8 } collapsing with adjacent unit margins.
     if (out.length > 0) {
       group[0].gapBefore = resolveSeamGap(
         out[out.length - 1].kind,
         group[0].kind,
-        marginOf,
-        turnGap
+        marginOf
       );
     }
 

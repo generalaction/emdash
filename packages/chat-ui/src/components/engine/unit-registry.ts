@@ -23,7 +23,7 @@ import { diffUnitDef } from '@components/rows/tools/diff/diff.def';
 import { executeUnitDef } from '@components/rows/tools/execute/execute.def';
 import { fileOpUnitDef } from '@components/rows/tools/file-op/file-op.def';
 import { toolUnitDef } from '@components/rows/tools/tool/tool.def';
-import { DEFAULT_THEME } from '@core/theme';
+import { ROW_INSET_X } from './row-metrics';
 import type { GroupChrome, ItemSegmenter, UnitDef } from '@core/units';
 import { unit } from '@core/units';
 import type { ChatItem, ChatMessage } from '@/model';
@@ -44,7 +44,7 @@ function nativePassthrough(kind: ChatItem['kind'], chrome?: GroupChrome): ItemSe
 }
 
 /** Chrome shared by all non-user-message composite rows (matches legacy Row.tsx inset). */
-const COMPOSITE_CHROME: GroupChrome = { insetX: DEFAULT_THEME.density.rowInsetX };
+const COMPOSITE_CHROME: GroupChrome = { insetX: ROW_INSET_X };
 
 /**
  * User message chrome: full column width (no inset). The card border/padding/bg

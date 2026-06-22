@@ -17,6 +17,7 @@ export const trigger = style({
   selectors: {
     '&:hover': { backgroundColor: vars.surfaceHover },
     '&[data-popup-open]': { backgroundColor: vars.surfaceHover },
+    '&[data-disabled], &:disabled': { cursor: 'not-allowed', opacity: 0.6 },
   },
 });
 
@@ -30,5 +31,10 @@ export const triggerLabel = style({
 
 export const triggerChevron = style({
   flexShrink: 0,
+  width: '0.75rem',
+  height: '0.75rem',
   color: vars.foregroundMuted,
 });
+
+/** Default min-width for the combobox dropdown content. */
+export const contentMinWidth = style({ minWidth: '11.25rem' }); // 180px

@@ -2,6 +2,7 @@ import { useTheme } from '@components/contexts/ThemeContext';
 import { BlockStackView } from '@components/primitives/BlockStackView';
 import { CollapseHeader } from '@components/primitives/CollapseHeader';
 import { PreviewWindow } from '@components/primitives/PreviewWindow';
+import { HEADER_ROW_EXTRA_H } from '@components/engine/row-metrics';
 import type { MeasureCtx, RenderCtx } from '@core/define';
 import { layoutBlockStack } from '@core/layout/block-stack';
 import type { Block } from '@core/markdown/document';
@@ -29,7 +30,7 @@ const THINKING_VARS: ThinkingVars = {
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
 function thinkingHeaderH(ctx: MeasureCtx): number {
-  return ctx.theme.fonts.body.lineHeight + ctx.theme.density.headerRowExtraH;
+  return ctx.theme.fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
 }
 
 function layoutThinkingBody(blocks: Block[], ctx: MeasureCtx, padY: number) {
@@ -103,7 +104,7 @@ function ThinkingUnitRender(props: { data: ChatThinking; ctx: RenderCtx; vars: T
   // Inverted semantics: stored "collapsed" bool = "expanded".
   const isExpanded = () => props.ctx.viewState.isCollapsed(props.data.id);
 
-  const headerH = () => theme().fonts.body.lineHeight + theme().density.headerRowExtraH;
+  const headerH = () => theme().fonts.body.lineHeight + HEADER_ROW_EXTRA_H;
 
   const body = createMemo(() => {
     const ctx = mCtx();

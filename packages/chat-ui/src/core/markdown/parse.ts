@@ -40,6 +40,7 @@ import type {
   InlineText,
   ProseBlock,
   ProseVariant,
+  RuleBlock,
   TableBlock,
 } from './document';
 import type { MentionProvider } from './mention-provider';
@@ -259,7 +260,8 @@ function blockToBlocks(
   messageId: string,
   counter: { n: number },
   depth = 0,
-  provider?: MentionProvider
+  provider?: MentionProvider,
+  inQuote = false
 ): Block[] {
   const nextId = (): BlockId => `${messageId}#${counter.n++}`;
   const blocks: Block[] = [];
@@ -272,7 +274,7 @@ function blockToBlocks(
         blocks.push({
           kind: 'prose',
           id: nextId(),
-          variant: 'body',
+          variant: inQuote ? 'quote' : 'body',
           runs,
           depth,
         } satisfies ProseBlock);
@@ -298,7 +300,7 @@ function blockToBlocks(
     case 'blockquote': {
       for (const child of (node as Parent).children) {
         blocks.push(
-          ...blockToBlocks(child as BlockContent, messageId, counter, depth + 1, provider)
+          ...blockToBlocks(child as BlockContent, messageId, counter, depth + 1, provider, true)
         );
       }
       break;
@@ -367,13 +369,10 @@ function blockToBlocks(
     }
 
     case 'thematicBreak': {
-      // Horizontal rules are rendered as a prose separator line.
       blocks.push({
-        kind: 'prose',
+        kind: 'rule',
         id: nextId(),
-        variant: 'body',
-        runs: [{ kind: 'text', text: '—' }],
-      } satisfies ProseBlock);
+      } satisfies RuleBlock);
       break;
     }
 

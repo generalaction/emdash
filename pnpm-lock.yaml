@@ -506,18 +506,12 @@ importers:
       '@tiptap/suggestion':
         specifier: ^3.26.1
         version: 3.26.1(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))(@tiptap/pm@3.26.1)
-      class-variance-authority:
-        specifier: ^0.7.1
-        version: 0.7.1
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
       lucide-react:
         specifier: ^0.564.0
         version: 0.564.0(react@19.2.7)
-      tailwind-merge:
-        specifier: ^2.6.0
-        version: 2.6.1
     devDependencies:
       '@emdash/chat-ui':
         specifier: workspace:*
@@ -528,9 +522,6 @@ importers:
       '@storybook/react-vite':
         specifier: ^10.4.6
         version: 10.4.6(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rollup@4.61.1)(storybook@10.4.6(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@2.8.8)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(typescript@6.0.3)(vite@7.1.11(@types/node@20.19.42)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))(webpack@5.107.2(esbuild@0.28.1)(lightningcss@1.32.0))
-      '@tailwindcss/vite':
-        specifier: ^4.2.1
-        version: 4.3.0(vite@7.1.11(@types/node@20.19.42)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
       '@types/node':
         specifier: ^20.19.42
         version: 20.19.42
@@ -579,18 +570,9 @@ importers:
       storybook:
         specifier: ^10.4.6
         version: 10.4.6(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@2.8.8)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      tailwindcss:
-        specifier: ^4.2.1
-        version: 4.3.0
-      tsdown:
-        specifier: ^0.22.2
-        version: 0.22.2(@typescript/native-preview@7.0.0-dev.20260609.1)(oxc-resolver@11.20.0)(tsx@4.22.4)(typescript@6.0.3)
       tsx:
         specifier: ^4.22.4
         version: 4.22.4
-      tw-animate-css:
-        specifier: ^1.4.0
-        version: 1.4.0
       typescript:
         specifier: ^6.0.2
         version: 6.0.3
@@ -9627,13 +9609,6 @@ snapshots:
       '@tailwindcss/oxide': 4.3.0
       tailwindcss: 4.3.0
       vite: 6.4.3(@types/node@20.19.42)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
-
-  '@tailwindcss/vite@4.3.0(vite@7.1.11(@types/node@20.19.42)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))':
-    dependencies:
-      '@tailwindcss/node': 4.3.0
-      '@tailwindcss/oxide': 4.3.0
-      tailwindcss: 4.3.0
-      vite: 7.1.11(@types/node@20.19.42)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
 
   '@tanstack/devtools-event-client@0.4.3': {}
 

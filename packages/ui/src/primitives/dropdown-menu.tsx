@@ -105,7 +105,7 @@ function DropdownMenuSubTrigger({
       {...props}
     >
       {children}
-      <ChevronRightIcon className="ml-auto" />
+      <ChevronRightIcon style={{ marginLeft: 'auto' }} />
     </MenuPrimitive.SubmenuTrigger>
   );
 }
@@ -121,7 +121,7 @@ function DropdownMenuSubContent({
   return (
     <DropdownMenuContent
       data-slot="dropdown-menu-sub-content"
-      className={cn('w-auto min-w-[96px]', className)}
+      className={cn(styles.subContentOverride, className)}
       align={align}
       alignOffset={alignOffset}
       side={side}

@@ -103,4 +103,13 @@ export type TableBlock = {
   rows: string[][];
 };
 
-export type Block = ProseBlock | CodeBlock | TableBlock;
+/**
+ * A horizontal rule (`---`) separating sections.
+ * Height is a fixed 1px line; margins are owned by the block def.
+ */
+export type RuleBlock = {
+  kind: 'rule';
+  id: BlockId;
+};
+
+export type Block = ProseBlock | CodeBlock | TableBlock | RuleBlock;

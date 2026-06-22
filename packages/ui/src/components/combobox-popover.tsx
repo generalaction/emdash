@@ -66,6 +66,7 @@ export interface ComboboxPopoverProps<T> {
   disabled?: boolean;
   className?: string;
   contentClassName?: string;
+  contentStyle?: React.CSSProperties;
   /** Side for the detail hover card relative to the list popup. Defaults to 'right'. */
   detailSide?: 'top' | 'bottom' | 'left' | 'right';
   /** Align for the detail hover card. Defaults to 'start'. */
@@ -88,6 +89,7 @@ export function ComboboxPopover<T>({
   disabled = false,
   className,
   contentClassName,
+  contentStyle,
   detailSide = 'right',
   detailAlign = 'start',
 }: ComboboxPopoverProps<T>) {
@@ -138,22 +140,25 @@ export function ComboboxPopover<T>({
     >
       <ComboboxTrigger
         disabled={disabled}
-        className={cn(styles.trigger, disabled && 'cursor-not-allowed opacity-60', className)}
+        className={cn(styles.trigger, className)}
       >
         <span className={styles.triggerLabel}>{renderTrigger(selectedItem)}</span>
-        <ChevronDown className={cn('size-3', styles.triggerChevron)} />
+        <ChevronDown className={styles.triggerChevron} />
       </ComboboxTrigger>
 
-      <ComboboxContent ref={setAnchorEl} className={cn('min-w-[180px]', contentClassName)}>
+      <ComboboxContent
+        ref={setAnchorEl}
+        className={cn(styles.contentMinWidth, contentClassName)}
+        style={contentStyle}
+      >
         <ComboboxInput showTrigger={false} placeholder={searchPlaceholder} />
-        <ComboboxList className="p-1!">
+        <ComboboxList>
           {items.map((item) => {
             const key = itemToKey(item);
             return (
               <ComboboxItem
                 key={key}
                 value={item}
-                className="gap-2"
                 {...(renderItemDetail ? hoverCard.getRowHoverProps(key) : {})}
               >
                 {renderItem(item)}

@@ -24,25 +24,25 @@ type Story = StoryObj;
 const FILE_ITEMS: ComboboxPopupItem[] = [
   {
     id: 'src/components/chat-composer.tsx',
-    icon: <i className="devicon-react-original colored text-[13px]" />,
+    icon: <i className="devicon-react-original colored" style={{ fontSize: '13px' }} />,
     label: 'chat-composer.tsx',
     description: 'src/components',
   },
   {
     id: 'src/lib/file-icons.ts',
-    icon: <i className="devicon-typescript-plain colored text-[13px]" />,
+    icon: <i className="devicon-typescript-plain colored" style={{ fontSize: '13px' }} />,
     label: 'file-icons.ts',
     description: 'src/lib',
   },
   {
     id: 'package.json',
-    icon: <i className="devicon-npm-original-wordmark colored text-[13px]" />,
+    icon: <i className="devicon-npm-original-wordmark colored" style={{ fontSize: '13px' }} />,
     label: 'package.json',
     description: '',
   },
   {
     id: 'README.md',
-    icon: <i className="devicon-markdown-original text-[13px]" />,
+    icon: <i className="devicon-markdown-original" style={{ fontSize: '13px' }} />,
     label: 'README.md',
     description: '',
   },

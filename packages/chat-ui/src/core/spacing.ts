@@ -37,16 +37,17 @@ export const collapse = (prevBottom: number, curTop: number): number =>
  * Resolve the gap (px) at the seam between two adjacent render units.
  *
  * `marginOf` is a pure lookup — pass `(k) => unitDefs[k]?.margin` so this
- * helper stays free of concrete registry imports and the module cycle-free.
+ * helper stays free of concrete registry imports and the module remains cycle-free.
  *
- * When a kind has no declared margin the `fallback` value is used on that
- * side. Set `fallback` to `density.turnGap` for intra-turn seams.
+ * All unit defs declare margin, so `marginOf` is expected to always return a
+ * value for registered kinds.
  */
 export function resolveSeamGap(
   prevKind: string,
   curKind: string,
-  marginOf: (kind: string) => Margin | undefined,
-  fallback: number
+  marginOf: (kind: string) => Margin | undefined
 ): number {
-  return collapse(marginOf(prevKind)?.bottom ?? fallback, marginOf(curKind)?.top ?? fallback);
+  const prevBottom = marginOf(prevKind)?.bottom ?? 0;
+  const curTop = marginOf(curKind)?.top ?? 0;
+  return collapse(prevBottom, curTop);
 }

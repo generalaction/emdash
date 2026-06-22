@@ -1,18 +1,31 @@
-/* Non-color @theme entries, keyframes, and structural CSS rules.
+/* Non-color theme tokens, keyframes, and structural CSS rules.
  * Lifted from apps/emdash-desktop/src/renderer/index.css.
- * Import after tailwindcss and before the color theme files. */
+ * Import after the color theme files. */
 
 @import '@fontsource-variable/jetbrains-mono/index.css';
 @import './effects.css';
 
-@theme inline {
-  /* ── Font families ───────────────────────────────────────────────────────── */
+/* ── Mini preflight reset ─────────────────────────────────────────────────────
+ * Replaces the Tailwind preflight that was previously injected by @tailwindcss.
+ * Keeps box-sizing predictable and removes default browser margins/padding. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  line-height: inherit;
+}
+
+/* ── Font families ────────────────────────────────────────────────────────── */
+:root {
   --font-sans:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans',
     'Droid Sans', 'Helvetica Neue', sans-serif;
   --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, monospace;
 
-  /* ── Primitive type size scale ───────────────────────────────────────────── */
+  /* ── Primitive type size scale ────────────────────────────────────────── */
   --text-micro: 10px;
   --text-micro--line-height: 1.2;
   --text-tiny: 11px;
@@ -30,7 +43,7 @@
   --text-2xl: 24px;
   --text-2xl--line-height: 1.3;
 
-  /* ── Radius scale ────────────────────────────────────────────────────────── */
+  /* ── Radius scale ─────────────────────────────────────────────────────── */
   --radius: 0.5rem; /* anchor — change this to rescale the whole system */
   --radius-xs: 0.25rem;
   --radius-sm: 0.375rem;
@@ -40,59 +53,59 @@
   --radius-2xl: 1.25rem;
   --radius-full: 9999px;
 
+  /* ── Named animation shorthands ──────────────────────────────────────── */
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-panel-blur-in: panel-blur-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
   --animate-panel-blur-out: panel-blur-out 140ms ease-in;
+}
 
-  @keyframes accordion-down {
-    from {
-      height: 0;
-    }
-    to {
-      height: var(--accordion-panel-height);
-    }
+@keyframes accordion-down {
+  from {
+    height: 0;
   }
-
-  @keyframes accordion-up {
-    from {
-      height: var(--accordion-panel-height);
-    }
-    to {
-      height: 0;
-    }
+  to {
+    height: var(--accordion-panel-height);
   }
+}
 
-  @keyframes panel-blur-in {
-    from {
-      opacity: 0;
-      filter: blur(12px);
-      transform: translateY(12px);
-    }
-    to {
-      opacity: 1;
-      filter: blur(0);
-      transform: translateY(0);
-    }
+@keyframes accordion-up {
+  from {
+    height: var(--accordion-panel-height);
   }
+  to {
+    height: 0;
+  }
+}
 
-  @keyframes panel-blur-out {
-    from {
-      opacity: 1;
-      filter: blur(0);
-      transform: translateY(0);
-    }
-    to {
-      opacity: 0;
-      filter: blur(8px);
-      transform: translateY(6px);
-    }
+@keyframes panel-blur-in {
+  from {
+    opacity: 0;
+    filter: blur(12px);
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+@keyframes panel-blur-out {
+  from {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateY(6px);
   }
 }
 
 /* ── Font weight scale ────────────────────────────────────────────────────────
- * Named weights used as design tokens. Complements the --text-* size scale.
- * Consumed directly by CSS and via font-weight-* Tailwind utilities. */
+ * Named weights used as design tokens. Complements the --text-* size scale. */
 :root {
   --font-weight-normal: 400;
   --font-weight-medium: 500;
@@ -102,8 +115,7 @@
 
 /* ── Semantic typography role vars ───────────────────────────────────────────
  * These are consumed by typography.css (.text-role-* classes).
- * Each role is composed from the primitive --text-* size + --font-weight-* scales.
- * Values are seeded from the design token numbers in build.ts (emitTokensJs). */
+ * Each role is composed from the primitive --text-* size + --font-weight-* scales. */
 :root {
   /* Body family */
   --type-body-font-family: var(--font-sans);
@@ -166,6 +178,60 @@
   --type-mention-line-height: 20px;
 }
 
+/* ── Global base rules ───────────────────────────────────────────────────── */
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--selection) 35%, transparent);
+  color: var(--selection-foreground);
+}
+
+::-moz-selection {
+  background-color: color-mix(in srgb, var(--selection) 35%, transparent);
+  color: var(--selection-foreground);
+}
+
+/* Scrollbar styles for light and dark mode */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
 /* Hide xterm viewport scrollbars in embedded terminals */
 .xterm .xterm-viewport {
   background-color: transparent !important;
@@ -177,233 +243,184 @@
   height: 0 !important;
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  html,
-  body {
-    height: 100%;
-    overflow: hidden;
-  }
-  #root {
-    height: 100%;
-    overflow: hidden;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
+/* ── Logo shimmer animation ──────────────────────────────────────────────── */
 
-  ::selection {
-    background-color: color-mix(in srgb, var(--selection) 35%, transparent);
-    color: var(--selection-foreground);
-  }
+.logo-shimmer-container {
+  position: relative;
+  display: inline-block;
+  height: 2.25rem;
+}
 
-  ::-moz-selection {
-    background-color: color-mix(in srgb, var(--selection) 35%, transparent);
-    color: var(--selection-foreground);
-  }
+.logo-shimmer-image {
+  display: block;
+  height: 100%;
+  width: auto;
+}
 
-  /* Scrollbar styles for light and dark mode */
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: var(--border) transparent;
-  }
+.logo-shimmer-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
 
-  *::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
+.logo-shimmer-overlay::before {
+  content: '';
+  position: absolute;
+  inset: -20% 0;
+  width: 70%;
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.28) 30%,
+    rgba(255, 255, 255, 0.75) 50%,
+    rgba(255, 255, 255, 0.28) 70%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: skewX(-15deg) translateX(-150%);
+  animation: logo-shimmer-move 5s linear infinite;
+  will-change: transform;
+}
 
-  *::-webkit-scrollbar-track {
-    background: transparent;
-  }
+.emdark .logo-shimmer-overlay::before {
+  background: linear-gradient(
+    120deg,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.28) 30%,
+    rgba(0, 0, 0, 0.75) 50%,
+    rgba(0, 0, 0, 0.28) 70%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
 
-  *::-webkit-scrollbar-thumb {
-    background-color: var(--border);
-    border-radius: 4px;
-    border: 2px solid transparent;
-    background-clip: content-box;
+@keyframes logo-shimmer-move {
+  0% {
+    transform: skewX(-15deg) translateX(-150%);
+  }
+  50% {
+    transform: skewX(-15deg) translateX(250%);
+  }
+  100% {
+    transform: skewX(-15deg) translateX(250%);
   }
 }
 
-@layer components {
-  .logo-shimmer-container {
-    position: relative;
-    display: inline-block;
-    height: 2.25rem;
-  }
-
-  .logo-shimmer-image {
-    display: block;
-    height: 100%;
-    width: auto;
-  }
-
-  .logo-shimmer-overlay {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    overflow: hidden;
-  }
-
+@media (prefers-reduced-motion: reduce) {
   .logo-shimmer-overlay::before {
-    content: '';
-    position: absolute;
-    inset: -20% 0;
-    width: 70%;
-    background: linear-gradient(
-      120deg,
-      rgba(255, 255, 255, 0) 0%,
-      rgba(255, 255, 255, 0.28) 30%,
-      rgba(255, 255, 255, 0.75) 50%,
-      rgba(255, 255, 255, 0.28) 70%,
-      rgba(255, 255, 255, 0) 100%
-    );
-    transform: skewX(-15deg) translateX(-150%);
-    animation: logo-shimmer-move 5s linear infinite;
-    will-change: transform;
+    animation: none;
+    opacity: 0;
   }
+}
 
-  .emdark .logo-shimmer-overlay::before {
-    background: linear-gradient(
-      120deg,
-      rgba(0, 0, 0, 0) 0%,
-      rgba(0, 0, 0, 0.28) 30%,
-      rgba(0, 0, 0, 0.75) 50%,
-      rgba(0, 0, 0, 0.28) 70%,
-      rgba(0, 0, 0, 0) 100%
-    );
-  }
+/* ── Diff decorations for Monaco editor gutter and line highlights ────────── */
 
-  @keyframes logo-shimmer-move {
-    0% {
-      transform: skewX(-15deg) translateX(-150%);
-    }
-    50% {
-      transform: skewX(-15deg) translateX(250%);
-    }
-    100% {
-      transform: skewX(-15deg) translateX(250%);
-    }
-  }
+.diff-glyph-added::before,
+.diff-glyph-modified::before,
+.diff-glyph-deleted::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  width: 3px;
+  height: 100%;
+  border-radius: 1px;
+}
 
-  @media (prefers-reduced-motion: reduce) {
-    .logo-shimmer-overlay::before {
-      animation: none;
-      opacity: 0;
-    }
-  }
+.diff-glyph-added::before {
+  background-color: var(--diff-added);
+}
 
-  /* Diff decorations for Monaco editor gutter and line highlights */
-  .diff-glyph-added::before,
-  .diff-glyph-modified::before,
-  .diff-glyph-deleted::before {
-    content: '';
-    position: absolute;
-    left: 3px;
-    width: 3px;
-    height: 100%;
-    border-radius: 1px;
-  }
+.diff-glyph-modified::before {
+  background-color: var(--diff-modified);
+}
 
-  .diff-glyph-added::before {
-    background-color: var(--diff-added);
-  }
+.diff-glyph-deleted::before {
+  background-color: var(--diff-deleted);
+}
 
-  .diff-glyph-modified::before {
-    background-color: var(--diff-modified);
-  }
+.diff-glyph-added:hover::before,
+.diff-glyph-modified:hover::before,
+.diff-glyph-deleted:hover::before {
+  width: 4px;
+  left: 2px;
+  transition:
+    width 0.1s ease-in-out,
+    left 0.1s ease-in-out;
+}
 
-  .diff-glyph-deleted::before {
-    background-color: var(--diff-deleted);
-  }
+.diff-line-added {
+  background-color: var(--diff-added-bg);
+}
 
-  .diff-glyph-added:hover::before,
-  .diff-glyph-modified:hover::before,
-  .diff-glyph-deleted:hover::before {
-    width: 4px;
-    left: 2px;
-    transition:
-      width 0.1s ease-in-out,
-      left 0.1s ease-in-out;
-  }
+.diff-line-modified {
+  background-color: var(--diff-modified-bg);
+}
 
-  .diff-line-added {
-    background-color: var(--diff-added-bg);
-  }
+.diff-line-deleted {
+  background-color: var(--diff-deleted-bg);
+}
 
-  .diff-line-modified {
-    background-color: var(--diff-modified-bg);
-  }
+/* Monaco diff comment UI */
+.file-diff-view .monaco-editor .margin-view-overlays .glyph-margin {
+  width: 20px !important;
+}
 
-  .diff-line-deleted {
-    background-color: var(--diff-deleted-bg);
-  }
+.file-diff-view .monaco-editor .margin {
+  background-color: transparent !important;
+}
 
-  /* Monaco diff comment UI */
-  .file-diff-view .monaco-editor .margin-view-overlays .glyph-margin {
-    width: 20px !important;
-  }
+.file-diff-view .comment-hover-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: 1px auto;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
 
-  .file-diff-view .monaco-editor .margin {
-    background-color: transparent !important;
-  }
+.file-diff-view .comment-hover-icon::before {
+  content: '';
+  display: block;
+  width: 12px;
+  height: 12px;
+  background-color: currentColor;
+  color: var(--foreground-muted);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='12' y1='5' x2='12' y2='19'%3E%3C/line%3E%3Cline x1='5' y1='12' x2='19' y2='12'%3E%3C/line%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='12' y1='5' x2='12' y2='19'%3E%3C/line%3E%3Cline x1='5' y1='12' x2='19' y2='12'%3E%3C/line%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
 
-  .file-diff-view .comment-hover-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    margin: 1px auto;
-    border-radius: 6px;
-    border: 1px solid transparent;
-    background: transparent;
-    cursor: pointer;
-    pointer-events: auto;
-    transition:
-      background-color 0.15s ease,
-      border-color 0.15s ease;
-  }
+.file-diff-view .comment-hover-icon:hover,
+.file-diff-view .comment-hover-icon.comment-hover-icon-pinned {
+  background-color: var(--background-2);
+  border-color: var(--border);
+}
 
-  .file-diff-view .comment-hover-icon::before {
-    content: '';
-    display: block;
-    width: 12px;
-    height: 12px;
-    background-color: currentColor;
-    color: var(--foreground-muted);
-    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='12' y1='5' x2='12' y2='19'%3E%3C/line%3E%3Cline x1='5' y1='12' x2='19' y2='12'%3E%3C/line%3E%3C/svg%3E");
-    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='12' y1='5' x2='12' y2='19'%3E%3C/line%3E%3Cline x1='5' y1='12' x2='19' y2='12'%3E%3C/line%3E%3C/svg%3E");
-    -webkit-mask-size: contain;
-    mask-size: contain;
-    -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
-    -webkit-mask-position: center;
-    mask-position: center;
-  }
+.file-diff-view .comment-hover-icon:hover::before,
+.file-diff-view .comment-hover-icon.comment-hover-icon-pinned::before {
+  color: var(--foreground);
+}
 
-  .file-diff-view .comment-hover-icon:hover,
-  .file-diff-view .comment-hover-icon.comment-hover-icon-pinned {
-    background-color: var(--background-2);
-    border-color: var(--border);
-  }
+.file-diff-view .monaco-editor .glyph-margin > div {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
 
-  .file-diff-view .comment-hover-icon:hover::before,
-  .file-diff-view .comment-hover-icon.comment-hover-icon-pinned::before {
-    color: var(--foreground);
-  }
-
-  .file-diff-view .monaco-editor .glyph-margin > div {
-    border: none !important;
-    outline: none !important;
-    box-shadow: none !important;
-  }
-
-  .file-diff-view .monaco-editor .view-zones,
-  .file-diff-view .monaco-editor .view-zone,
-  .file-diff-view .comment-view-zone {
-    pointer-events: auto !important;
-  }
+.file-diff-view .monaco-editor .view-zones,
+.file-diff-view .monaco-editor .view-zone,
+.file-diff-view .comment-view-zone {
+  pointer-events: auto !important;
 }

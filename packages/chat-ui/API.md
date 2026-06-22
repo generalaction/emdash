@@ -99,7 +99,7 @@ Mounts the Solid renderer into `container` and returns a `ChatHandle`. Call
 
 | Option | Type | Description |
 | --- | --- | --- |
-| `theme` | `ChatTheme` | Typography + density. Defaults to `DEFAULT_THEME`. |
+| `theme` | `ChatTheme` | Typography + chip geometry. Defaults to `DEFAULT_THEME`. |
 | `stickToBottom` | `boolean` | Auto-scroll to bottom as content streams in. |
 | `transcript` | `TranscriptApi` | Reuse an existing transcript store; otherwise one is created. |
 | `viewState` | `ViewState` | Reuse an existing collapse store; otherwise one is created. |
@@ -392,14 +392,7 @@ Note the **inverted** semantics for `thinking` and `file-op` rows: a stored
 ## Theming
 
 ```ts
-type DensityScale = {
-  blockGap: number;       // gap between blocks of different tiers
-  proseGap: number;       // tighter gap between two prose blocks
-  inlineCodePadX: number; // inline-code chip horizontal padding (px)
-  inlineCodePadY: number; // inline-code chip vertical padding (px)
-};
-
-type ChatConfig = { fonts: FontFamilies; roles: Record<RoleName, TypeRole>; chips: ChipConfig; prose: ProseConfig; density: DensityScale };
+type ChatConfig = { fonts: FontFamilies; roles: Record<RoleName, TypeRole>; chips: ChipConfig };
 type ChatTheme = ResolvedTheme; // alias
 
 function buildChatTheme(config?: ChatConfig): ChatTheme;
@@ -415,6 +408,14 @@ because `buildChatTheme` bumps `version` to invalidate the layout cache.
 
 Colors are CSS-driven (the `--chat-*` variables in `chat-theme.css`), not part
 of `ChatTheme`.
+
+> **Breaking change (markdown rhythm refactor):** `ChatConfig.density` and
+> `ChatConfig.prose` have been removed. Block spacing is now declared directly
+> on each `BlockDef.margin` (variant-aware for prose) and row geometry constants
+> (`ROW_H`, `ROW_INSET_X`, `HEADER_ROW_EXTRA_H`) are colocated with the engine.
+> `DensityScale` and `ProseConfig` are no longer exported. If you were passing
+> custom `density`/`prose` values (previously a no-op as no host overrode them),
+> remove those fields from your `ChatConfig`.
 
 ---
 
@@ -436,7 +437,7 @@ blocks. Useful for stories, performance testing, and demos.
 
 - Values: `mountChat`, `buildChatTheme`, `DEFAULT_THEME`, `DEFAULT_CONFIG`, `generateMockTranscript`
 - Types: `MountChatOptions`, `ChatHandle`, `ChatCommands`, `ScrollToItemOptions`,
-  `ChatTheme`, `DensityScale`, `TranscriptApi`, `TranscriptEvent`, `ViewState`,
+  `ChatTheme`, `TranscriptApi`, `TranscriptEvent`, `ViewState`,
   `ChatItem`, `ChatMessage`, `ChatToolCall`, `ChatThinking`,
   `ChatFileOpToolCall`, `ChatExecute`, `ChatDiff`, `ChatRole`, `FileOpKind`,
   `FileOp`, `ToolStatus`

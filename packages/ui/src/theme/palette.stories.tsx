@@ -31,8 +31,8 @@ function StepSwatch({ scale, step }: { scale: ScaleName; step: number }) {
     <div className="flex flex-col items-center gap-1" title={`${varName}\n${resolved}`}>
       <div
         ref={ref}
-        className={`h-10 w-full rounded ${isStep9 ? 'ring-2 ring-border-primary ring-offset-1 ring-offset-background' : ''}`}
-        style={{ background: `var(${varName})` }}
+        className="h-10 w-full rounded"
+        style={{ background: `var(${varName})`, boxShadow: isStep9 ? '0 0 0 2px var(--background), 0 0 0 4px var(--border-primary)' : undefined }}
       />
       <span className="font-mono text-[9px] leading-none text-foreground-passive">{step}</span>
     </div>

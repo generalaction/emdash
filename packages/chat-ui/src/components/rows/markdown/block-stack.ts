@@ -1,39 +1,10 @@
 import { stack } from '@core/compose';
 import type { StackLayout } from '@core/compose';
-import type { DensityScale } from '@core/config';
 import type { Measured, MeasureCtx } from '@core/define';
-import type { BlockLeafLayout } from '@core/layout/layout-types';
-import type { Block, CodeBlock, ProseBlock, TableBlock } from '@core/markdown/document';
-import { resolveSeamGap } from '@core/spacing';
-import type { Margin } from '@core/spacing';
+import type { BlockLeafLayout, RuleLeafLayout } from '@core/layout/layout-types';
+import type { Block, CodeBlock, ProseBlock, RuleBlock, TableBlock } from '@core/markdown/document';
+import { collapse } from '@core/spacing';
 import { BLOCK_REGISTRY } from './block-registry';
-
-// ── Block margin table ────────────────────────────────────────────────────────
-//
-// Resolved per-kind margins, recomputed only when the theme version changes.
-// Registry-driven: iterating BLOCK_REGISTRY means adding or removing a block
-// def flows through here automatically with no edits to layoutBlockStack.
-//
-// Single-entry cache keyed by theme.version (monotonic, per buildChatTheme
-// call). The same invalidation strategy is used by measureBlockCached above.
-
-let _marginTableVersion = -1;
-let _marginTable: Record<string, Margin | undefined> = {};
-
-function resolvedBlockMargins(
-  density: DensityScale,
-  version: number
-): Record<string, Margin | undefined> {
-  if (version !== _marginTableVersion) {
-    const table: Record<string, Margin | undefined> = {};
-    for (const kind of Object.keys(BLOCK_REGISTRY)) {
-      table[kind] = BLOCK_REGISTRY[kind as Block['kind']].margin?.(density);
-    }
-    _marginTable = table;
-    _marginTableVersion = version;
-  }
-  return _marginTable;
-}
 
 // ── Per-block memo ────────────────────────────────────────────────────────────
 //
@@ -101,6 +72,15 @@ export function layoutBlockStack(
               raw: block as CodeBlock,
             };
           }
+          if (block.kind === 'rule') {
+            return {
+              kind: 'rule' as const,
+              id: block.id,
+              top: 0,
+              height: 0,
+              raw: block as RuleBlock,
+            } satisfies RuleLeafLayout;
+          }
           return {
             kind: 'table' as const,
             id: block.id,
@@ -123,39 +103,24 @@ export function layoutBlockStack(
     visibleCount++;
   }
 
-  const kinds: Array<Block['kind'] | null> = blocks.map((b) => (isCollapsed(b.id) ? null : b.kind));
-
   // Resolve each seam gap via margin-collapse: max(prev.margin.bottom, cur.margin.top).
-  // The collapse-through scan (skipping null/collapsed blocks) mirrors the old
-  // prevVisible walk and is behavior-preserving:
-  //   prose↔prose → max(proseGap, proseGap) = proseGap  (same as before)
-  //   prose↔code  → max(proseGap, blockGap) = blockGap  (same as before)
-  //   code↔code   → max(blockGap, blockGap) = blockGap  (same as before)
-  //
-  // The margin table is resolved once per theme version (not per seam) and the
-  // marginOf lookup is hoisted once per layoutBlockStack call so gapFn
-  // allocates nothing extra per seam.
-  const density = ctx.theme.density;
-  const km = resolvedBlockMargins(density, ctx.theme.version);
-  const marginOf = (k: string) => km[k];
+  // Margins are fetched per-block (not per-kind) so prose can vary by variant.
+  // All block defs declare margin — no fallback needed.
   const gapFn = (idx: number): number => {
-    const curKind = kinds[idx];
-    if (curKind === null) return 0;
-    let prevKind: Block['kind'] | null = null;
+    if (isCollapsed(blocks[idx].id)) return 0;
+    let prevBlock: Block | null = null;
     for (let j = idx - 1; j >= 0; j--) {
-      if (kinds[j] !== null) {
-        prevKind = kinds[j] as Block['kind'];
+      if (!isCollapsed(blocks[j].id)) {
+        prevBlock = blocks[j];
         break;
       }
     }
-    if (prevKind === null) return 0;
-    return resolveSeamGap(prevKind, curKind, marginOf, density.blockGap);
+    if (prevBlock === null) return 0;
+    const prev = BLOCK_REGISTRY[prevBlock.kind];
+    const cur = BLOCK_REGISTRY[blocks[idx].kind];
+    // oxlint-disable-next-line typescript/no-explicit-any -- block kind matches def at runtime
+    return collapse((prev as any).margin(prevBlock).bottom, (cur as any).margin(blocks[idx]).top);
   };
 
-  const safegapFn = (idx: number): number => {
-    if (kinds[idx] === null) return 0;
-    return gapFn(idx);
-  };
-
-  return stack(children, { padY, gap: visibleCount > 1 ? safegapFn : 0 });
+  return stack(children, { padY, gap: visibleCount > 1 ? gapFn : 0 });
 }

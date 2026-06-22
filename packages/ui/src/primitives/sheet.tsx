@@ -83,11 +83,11 @@ function SheetHeader({
               size="sm"
               icon
               aria-label="Close"
-              className={cn('shrink-0', styles.closeButtonOverride)}
+              className={styles.closeButtonOverride}
             />
           }
         >
-          <XIcon className="size-4" />
+          <XIcon style={{ width: '1rem', height: '1rem' }} />
         </Drawer.Close>
       )}
     </div>
@@ -117,9 +117,8 @@ function SheetBody({
     <ScrollFade
       axis="y"
       edges={['top']}
-      className="min-h-0 flex-1"
+      style={{ minHeight: 0, flex: '1 1 0%', ...style }}
       viewportClassName={cn(styles.sheetBody, className)}
-      style={style}
     >
       {children}
     </ScrollFade>

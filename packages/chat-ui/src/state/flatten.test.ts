@@ -13,10 +13,8 @@
  *   7. Empty transcript produces empty array.
  */
 
-import { DEFAULT_THEME } from '@core/theme';
 import { describe, expect, it } from 'vitest';
 
-const TURN_GAP = DEFAULT_THEME.density.turnGap;
 // The user message margin is the source of truth for the turn-boundary gap.
 const MSG_MARGIN_TOP = 8; // matches STUB_UNIT_DEFS['message'].margin.top
 import { unit } from '@core/units';
@@ -190,21 +188,21 @@ describe('flatten — gapBefore', () => {
     expect(units[1].gapBefore).toBe(8);
   });
 
-  it('falls back to turnGap when no unitDefs provided', () => {
+  it('defaults to 0 gap when no unitDefs provided (unknown kinds have no margin)', () => {
     const tx = createTranscript();
     tx.seed([tool('a'), tool('b')]);
-    // No unitDefs → fallback = density.turnGap on both sides → max(turnGap, turnGap)
+    // No unitDefs → both sides have no margin → max(0,0)=0
     const units = flattenTranscript(tx);
-    expect(units[1].gapBefore).toBe(TURN_GAP);
+    expect(units[1].gapBefore).toBe(0);
   });
 
-  it('all seams fall back to turnGap when no unitDefs provided', () => {
+  it('all seams default to 0 when no unitDefs provided', () => {
     const tx = createTranscript();
     tx.seed([userMsg('a'), tool('b'), tool('c')]);
     const units = flattenTranscript(tx);
-    // No unitDefs → both sides of every seam use turnGap as fallback.
-    expect(units[1].gapBefore).toBe(TURN_GAP);
-    expect(units[2].gapBefore).toBe(TURN_GAP);
+    // No unitDefs → no margins → all seams are 0
+    expect(units[1].gapBefore).toBe(0);
+    expect(units[2].gapBefore).toBe(0);
   });
 });
 

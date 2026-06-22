@@ -1,6 +1,13 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { vars } from '../theme/contract/contract.css';
 
+/** Trailing chevron icon inside TriggerButton. */
+export const triggerButtonChevron = style({
+  pointerEvents: 'none',
+  flexShrink: 0,
+  color: vars.foregroundPassive,
+});
+
 /** Extra styles applied on top of controlVariants for TriggerButton. */
 export const triggerButtonExtra = style({
   width: 'fit-content',

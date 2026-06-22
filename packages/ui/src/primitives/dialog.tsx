@@ -83,11 +83,11 @@ function DialogHeader({
               size="sm"
               icon
               aria-label="Close"
-              className={cn('shrink-0', styles.closeButtonOverride)}
+              className={styles.closeButtonOverride}
             />
           }
         >
-          <XIcon className="size-4" />
+          <XIcon style={{ width: '1rem', height: '1rem' }} />
         </DialogPrimitive.Close>
       )}
     </div>
@@ -107,9 +107,8 @@ function DialogBody({
     <ScrollFade
       axis="y"
       edges={['top']}
-      className="min-h-0"
+      style={{ minHeight: 0, ...style }}
       viewportClassName={cn(styles.body, className)}
-      style={style}
     >
       {children}
     </ScrollFade>

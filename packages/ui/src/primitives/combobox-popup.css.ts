@@ -51,6 +51,7 @@ export const popupItem = style({
 
 export const popupItemDefault = style({
   color: vars.foreground,
+  textAlign: 'center',
 });
 
 export const popupItemHighlighted = style({

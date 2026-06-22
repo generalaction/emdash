@@ -44,8 +44,8 @@ function ElevationSwatch({ level, label }: { level: string; label: string }) {
         title={`--surface-${level}-hover`}
       />
       <div
-        className={`h-6 w-full rounded ${isEmphasis ? 'ring-1 ring-border-primary ring-inset' : ''}`}
-        style={{ background: `var(--surface-${level}-selected)` }}
+        className="h-6 w-full rounded"
+        style={{ background: `var(--surface-${level}-selected)`, boxShadow: isEmphasis ? 'inset 0 0 0 1px var(--border-primary)' : undefined }}
         title={`--surface-${level}-selected`}
       />
     </div>
@@ -329,7 +329,7 @@ function PaperRoom() {
           content sits on. Cards/tabs on paper use <code className="font-mono">base-emphasis</code>.
         </p>
       </div>
-      <div className="grid grid-cols-[12rem_1fr] gap-6">
+      <div style={{ display: 'grid', gridTemplateColumns: '12rem 1fr', gap: '1.5rem' }}>
         <div className="flex flex-col gap-4">
           {SURFACE_ROLES.map((role) => (
             <ElevationSwatch key={role} level={role} label={role} />

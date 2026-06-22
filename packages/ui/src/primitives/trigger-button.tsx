@@ -2,7 +2,7 @@ import { ChevronDownIcon } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '../lib/cn';
 import { controlVariants, type ControlVariantProps } from '../recipes/control';
-import { triggerButtonExtra } from './trigger-button.css';
+import { triggerButtonChevron, triggerButtonExtra } from './trigger-button.css';
 
 export interface TriggerButtonProps
   extends
@@ -44,10 +44,7 @@ const TriggerButton = React.forwardRef<HTMLButtonElement, TriggerButtonProps>(
       >
         {children}
         {showChevron && (
-          <ChevronDownIcon
-            className="pointer-events-none shrink-0 text-foreground-passive"
-            aria-hidden
-          />
+          <ChevronDownIcon className={triggerButtonChevron} aria-hidden />
         )}
       </button>
     );

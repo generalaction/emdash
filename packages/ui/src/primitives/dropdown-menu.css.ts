@@ -173,6 +173,12 @@ export const menuSeparator = style({
   backgroundColor: vars.border,
 });
 
+/** Overrides the default anchor-width sizing for sub-menus so they size to content. */
+export const subContentOverride = style({
+  width: 'auto',
+  minWidth: '6rem', // 96px
+});
+
 export const menuShortcut = style({
   marginLeft: 'auto',
   fontSize: 'var(--text-xs)',

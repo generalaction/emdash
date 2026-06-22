@@ -49,10 +49,8 @@ export type {
   ChatConfig,
   ChipConfig,
   ChatTheme,
-  DensityScale,
   FontConfig,
   FontFamilies,
-  ProseConfig,
   ResolvedTheme,
   RoleName,
   TypeRole,
@@ -130,7 +128,7 @@ export type MountChatOptions = {
    */
   theme?: ChatTheme;
   /**
-   * Chat configuration (typography, chip geometry, prose geometry, density).
+   * Chat configuration (typography and chip geometry).
    * Derived once into a ResolvedTheme by ChatRoot. Ignored when `theme` is set.
    */
   config?: ChatConfig;

@@ -19,6 +19,8 @@ export const band = style({
 
 export const bandIcon = style({
   flexShrink: 0,
+  width: '0.875rem',
+  height: '0.875rem',
   color: vars.foregroundMuted,
 });
 

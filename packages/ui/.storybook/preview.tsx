@@ -4,6 +4,7 @@ import { ThemeProvider } from '../src/primitives/theme-provider';
 import type { ThemeId } from '../src/primitives/theme-provider';
 import { THEME_MANIFEST } from '../src/theme/theme-manifest';
 import './theme.css';
+import './stories.css';
 
 const COLOR_MODES: ThemeId[] = ['light', 'dark', 'solarized-light', 'solarized-dark'];
 
@@ -25,8 +26,9 @@ const withTheme: Decorator = (Story, context) => {
   const fullscreen = context.parameters?.['layout'] === 'fullscreen';
 
   const surfaceClass = surface !== 'none' ? `surface-${surface}` : '';
-  const bgClass = surface !== 'none' ? 'bg-surface' : 'bg-background';
-  const frame = fullscreen ? 'h-screen' : 'min-h-screen p-8';
+  const frameStyle: React.CSSProperties = fullscreen
+    ? { height: '100vh', backgroundColor: surface !== 'none' ? 'var(--surface)' : 'var(--background)' }
+    : { minHeight: '100vh', padding: '2rem', backgroundColor: surface !== 'none' ? 'var(--surface)' : 'var(--background)' };
 
   // Sync the theme class to document.body so portal-rendered elements
   // (ComboboxPopup, dropdowns, popovers, etc.) inherit the correct tokens.
@@ -42,7 +44,7 @@ const withTheme: Decorator = (Story, context) => {
   }, [colorMode]);
 
   return (
-    <ThemeProvider theme={colorMode} className={`${frame} ${bgClass} ${surfaceClass}`}>
+    <ThemeProvider theme={colorMode} className={surfaceClass} style={frameStyle}>
       <Story />
     </ThemeProvider>
   );

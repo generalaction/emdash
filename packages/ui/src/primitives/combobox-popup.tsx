@@ -118,7 +118,7 @@ export const ComboboxPopup = React.forwardRef<ComboboxPopupHandle, ComboboxPopup
         {header && <div className={styles.popupHeader}>{header}</div>}
         <ul ref={listRef} className={styles.popupList}>
           {items.length === 0 && emptyLabel ? (
-            <li className={cn(styles.popupItem, styles.popupItemDefault, 'text-center')}>
+            <li className={cn(styles.popupItem, styles.popupItemDefault)}>
               {emptyLabel}
             </li>
           ) : (
@@ -174,7 +174,7 @@ export function ComboboxPopupDismiss({
       className={cn(styles.popupDismiss, className)}
       aria-label="Dismiss"
     >
-      <XIcon className="size-3" />
+      <XIcon style={{ width: '0.75rem', height: '0.75rem' }} />
     </button>
   );
 }

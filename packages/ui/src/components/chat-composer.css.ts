@@ -266,6 +266,9 @@ export const modelDetailValue = style({ color: vars.foreground });
 
 export const barMeter = style({ display: 'flex', alignItems: 'center', gap: '0.125rem' });
 
+/** Send button override — fully rounded pill shape. */
+export const sendButtonRound = style({ borderRadius: '9999px' });
+
 export const barDotFilled = style({
   width: '0.375rem',
   height: '0.375rem',

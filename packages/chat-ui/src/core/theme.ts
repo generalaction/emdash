@@ -9,10 +9,8 @@
 export type {
   ChatConfig,
   ChipConfig,
-  DensityScale,
   FontConfig,
   FontFamilies,
-  ProseConfig,
   ResolvedTheme,
   RoleName,
   ThemeVarKey,

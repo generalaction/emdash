@@ -1,27 +1,27 @@
 /*
- * effects.css — shared, token-driven Tailwind utilities for visual effects.
+ * effects.css — shared, token-driven visual effect utilities.
  *
- * Consumed via @import '@emdash/ui/theme/effects.css' in any Tailwind build.
+ * Consumed via @import '@emdash/ui/theme/effects.css' in any CSS build.
  * Also @imported by theme.base.css so UI-package Storybook picks it up.
  */
 
-@theme {
+:root {
   --animate-text-shimmer: text-shimmer-move 3s linear infinite;
+}
 
-  @keyframes text-shimmer-move {
-    from {
-      background-position: 200% 0;
-    }
-    to {
-      background-position: -200% 0;
-    }
+@keyframes text-shimmer-move {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
   }
 }
 
 /* Sweeps a subtle band across text using a clipped animated gradient.
    Base: --foreground-passive; peak: --foreground-muted (one step below full
    contrast) so the sweep is noticeable but not attention-grabbing. */
-@utility text-shimmer {
+.text-shimmer {
   background: linear-gradient(
     90deg,
     var(--foreground-passive) 0%,
@@ -43,7 +43,7 @@
    --fade-softness (default 0.4, already defined in theme.css) to control the
    paint. oklab interpolation avoids the premultiplied-alpha gray smear that
    a plain `transparent` stop produces. Height must be set by the caller. */
-@utility fade-overlay-top {
+.fade-overlay-top {
   background: linear-gradient(
     to bottom,
     var(--fade-color, var(--background)) 0%,
@@ -56,7 +56,7 @@
 /* Static bottom-edge fade overlay — mirror of fade-overlay-top. Surface color
    sits at the bottom edge and fades up to transparent, signalling clipped
    content below. Same token contract: --fade-color and --fade-softness. */
-@utility fade-overlay-bottom {
+.fade-overlay-bottom {
   background: linear-gradient(
     to top,
     var(--fade-color, var(--background)) 0%,

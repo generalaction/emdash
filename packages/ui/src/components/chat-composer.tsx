@@ -318,7 +318,7 @@ function NoticeBand({ notice }: { notice: ComposerNotice }) {
     <div className={styles.noticeBand({ variant: notice.variant })}>
       <div className={styles.noticeBandBody}>
         <div className={styles.noticeBandHeader}>
-          <CircleAlert className="size-3.5 shrink-0" />
+          <CircleAlert style={{ width: '0.875rem', height: '0.875rem', flexShrink: 0 }} />
           {notice.title && <p className={styles.noticeBandTitle}>{notice.title}</p>}
         </div>
         <p className={cn(styles.noticeBandMessage, notice.title && styles.noticeBandMessageIndented)}>
@@ -332,7 +332,7 @@ function NoticeBand({ notice }: { notice: ComposerNotice }) {
           onClick={notice.onDismiss}
           className={styles.noticeDismiss}
         >
-          <X className="size-3.5" />
+          <X style={{ width: '0.875rem', height: '0.875rem' }} />
         </button>
       )}
     </div>
@@ -397,7 +397,7 @@ function ComposerAgentSelector({
         aria-label={triggerLabel}
         title={triggerLabel}
       >
-        {selected?.icon ?? <span className="size-4" />}
+        {selected?.icon ?? <span style={{ width: '1rem', height: '1rem' }} />}
       </Button>
     );
   }
@@ -425,7 +425,7 @@ function ComposerAgentSelector({
       >
         {selected?.icon ?? <span className={styles.agentIconPlaceholder} />}
       </ComboboxTrigger>
-      <ComboboxContent className="min-w-[180px]">
+      <ComboboxContent style={{ minWidth: '11.25rem' }}>
         <ComboboxInput showTrigger={false} placeholder="Search agents…" />
         <ComboboxList>
           {groups.map((group) =>
@@ -433,22 +433,17 @@ function ComposerAgentSelector({
               <ComboboxGroup key={group.label}>
                 <ComboboxLabel>{group.label}</ComboboxLabel>
                 {group.items.map((item) => (
-                  <ComboboxItem
-                    key={item.id}
-                    value={item}
-                    disabled={item.disabled}
-                    className="gap-2"
-                  >
-                    {item.icon && <span className="shrink-0">{item.icon}</span>}
-                    <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                  <ComboboxItem key={item.id} value={item} disabled={item.disabled}>
+                    {item.icon && <span style={{ flexShrink: 0 }}>{item.icon}</span>}
+                    <span style={{ minWidth: 0, flex: '1 1 0%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
                   </ComboboxItem>
                 ))}
               </ComboboxGroup>
             ) : (
               group.items.map((item) => (
-                <ComboboxItem key={item.id} value={item} disabled={item.disabled} className="gap-2">
-                  {item.icon && <span className="shrink-0">{item.icon}</span>}
-                  <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                <ComboboxItem key={item.id} value={item} disabled={item.disabled}>
+                  {item.icon && <span style={{ flexShrink: 0 }}>{item.icon}</span>}
+                  <span style={{ minWidth: 0, flex: '1 1 0%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
                 </ComboboxItem>
               ))
             )
@@ -629,7 +624,7 @@ export function ChatComposer({
                   onClick={() => removeAttachment(att.id)}
                   className={styles.attachmentRemoveBtn}
                 >
-                  <X className="size-2.5" />
+                  <X style={{ width: '0.625rem', height: '0.625rem' }} />
                 </button>
               </div>
             ))}
@@ -683,13 +678,13 @@ export function ChatComposer({
                 itemToLabel={(item) => item.name}
                 disabled={disabled}
                 searchPlaceholder="Search models…"
-                contentClassName="min-w-[200px]"
+                contentStyle={{ minWidth: '12.5rem' }}
                 renderTrigger={(selected) => (
                   <span style={{ color: selected ? 'var(--foreground)' : 'var(--foreground-muted)', fontSize: 'var(--text-xs)' }}>
                     {selected?.name ?? 'Model…'}
                   </span>
                 )}
-                renderItem={(item) => <span className="flex-1 truncate text-sm">{item.name}</span>}
+                renderItem={(item) => <span style={{ flex: '1 1 0%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--text-sm)' }}>{item.name}</span>}
                 renderItemDetail={(item) => <ModelDetailCard item={item} />}
                 detailSide="right"
                 detailAlign="start"
@@ -722,7 +717,7 @@ export function ChatComposer({
                 onClick={onStop}
                 aria-label="Stop generation"
               >
-                <Square className="size-3 fill-current" />
+                <Square style={{ width: '0.75rem', height: '0.75rem', fill: 'currentColor' }} />
                 Stop
               </Button>
             ) : (
@@ -730,7 +725,7 @@ export function ChatComposer({
                 variant="primary"
                 size="sm"
                 icon
-                className="rounded-full"
+                className={styles.sendButtonRound}
                 onClick={() => handleSubmit(editorRef.current?.getText() ?? '')}
                 disabled={disabled || !canSubmit}
                 aria-label="Send message"

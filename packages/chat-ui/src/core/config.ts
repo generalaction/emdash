@@ -1,6 +1,5 @@
 /**
- * config — single source of truth for chat-ui typography, chip geometry,
- * prose geometry, and density.
+ * config — single source of truth for chat-ui typography and chip geometry.
  *
  * Exports:
  *   ChatConfig     — the one object a host provides (or omits to use defaults).
@@ -15,6 +14,10 @@
  * rebind them without inline-style specificity fighting class-based overrides.
  * Only the measurement-coupled vars (--chat-type-*, --chat-ic-pad-*) are emitted
  * inline at runtime so they can be driven by the runtime config.
+ *
+ * Prose geometry (list indent, blockquote indent, etc.) and row-level metrics
+ * (row height, row inset) are fixed constants colocated with the code that owns
+ * them — see prose/geometry.ts and engine/row-metrics.ts.
  */
 
 // ── VariantMetrics + FontConfig (measurement-side types) ──────────────────────
@@ -109,48 +112,12 @@ export type ChipConfig = {
   mentionIconGap: number;
 };
 
-// ── Prose geometry ────────────────────────────────────────────────────────────
-
-export type ProseConfig = {
-  /** Horizontal indent per nesting level for list items (px). */
-  listIndent: number;
-  /** Horizontal indent per nesting level for blockquotes (px). */
-  blockquoteIndent: number;
-  /** Gap from bullet center-anchor to list item text start (px). */
-  listBulletGap: number;
-};
-
-// ── Density ───────────────────────────────────────────────────────────────────
-
-export type DensityScale = {
-  /** Gap between consecutive blocks of different tiers (code, table) in a block stack. */
-  blockGap: number;
-  /** Tighter gap between two consecutive prose blocks. */
-  proseGap: number;
-  /**
-   * Fallback gap (px) used when a unit kind has no declared margin.
-   * Applied as the collapsed intra-turn seam gap between adjacent assistant-turn items.
-   */
-  turnGap: number;
-  /** Standard single-line row height (px) for tool/plan/diff header rows. */
-  rowH: number;
-  /** Horizontal inset (px) applied to both sides of non-user-message rows. */
-  rowInsetX: number;
-  /**
-   * Extra vertical space (px) added to body line-height to produce the
-   * collapsible header row height.
-   */
-  headerRowExtraH: number;
-};
-
 // ── ChatConfig ────────────────────────────────────────────────────────────────
 
 export type ChatConfig = {
   fonts: FontFamilies;
   roles: Record<RoleName, TypeRole>;
   chips: ChipConfig;
-  prose: ProseConfig;
-  density: DensityScale;
 };
 
 // ── ResolvedTheme ─────────────────────────────────────────────────────────────
@@ -165,8 +132,6 @@ export type ResolvedTheme = {
   config: ChatConfig;
   /** Pretext measurement side: font shorthands + derived extras. */
   fonts: FontConfig;
-  density: DensityScale;
-  prose: ProseConfig;
   chips: ChipConfig;
   /**
    * Measurement-coupled CSS variable values keyed by the TypeScript contract
@@ -209,19 +174,6 @@ export const DEFAULT_CONFIG: ChatConfig = {
     mentionPadY: 2,
     mentionIconW: 14,
     mentionIconGap: 4,
-  },
-  prose: {
-    listIndent: 16,
-    blockquoteIndent: 18,
-    listBulletGap: 12,
-  },
-  density: {
-    blockGap: 10,
-    proseGap: 4,
-    turnGap: 4,
-    rowH: 32,
-    rowInsetX: 16,
-    headerRowExtraH: 8,
   },
 };
 
@@ -432,8 +384,6 @@ export function buildChatTheme(config: ChatConfig = DEFAULT_CONFIG): ResolvedThe
     version: ++_version,
     config,
     fonts: toFontConfig(config),
-    density: config.density,
-    prose: config.prose,
     chips: config.chips,
     themeVars: toThemeVars(config),
   };

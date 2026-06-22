@@ -48,7 +48,7 @@ export type Measured<L = unknown> = {
 /**
  * Read-only inputs available to every `measure` call (and optional `estimate`).
  *
- * `theme`        — full ChatTheme (fonts + density).
+ * `theme`        — full ChatTheme (fonts, chips, version).
  * `width`        — available horizontal space in px.
  * `isCollapsed`  — raw view-state collapse flag (for block-level collapse).
  * `expanded`     — engine-resolved "is expanded" for the row. For native UnitDef

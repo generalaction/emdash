@@ -119,7 +119,7 @@ function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Prop
       <SelectPrimitive.ItemIndicator
         render={<span className={styles.selectItemIndicator} />}
       >
-        <CheckIcon className="pointer-events-none" />
+        <CheckIcon style={{ pointerEvents: 'none' }} />
       </SelectPrimitive.ItemIndicator>
     </SelectPrimitive.Item>
   );

@@ -7,7 +7,7 @@ import { layoutCode } from './layout';
 
 export const codeBlockDef = defineBlock<CodeBlock, CodeLeafLayout>({
   kind: 'code',
-  margin: (d) => ({ top: d.blockGap, bottom: d.blockGap }),
+  margin: () => ({ top: 8, bottom: 8 }),
 
   measure(block: CodeBlock, ctx: MeasureCtx): Measured<CodeLeafLayout> {
     const laid = layoutCode(block, ctx.theme.fonts, 0, ctx.width);

@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { InlineMention, InlineRun, InlineText, ProseBlock } from './document';
+import type { InlineMention, InlineRun, InlineText, ProseBlock, RuleBlock } from './document';
 import type { MentionProvider } from './mention-provider';
 import { parseMarkdownToBlocks } from './parse';
 
@@ -105,5 +105,63 @@ describe('AT_TOKEN_RE standard token shapes', () => {
     const prose = blocks.find((b): b is ProseBlock => b.kind === 'prose');
     const mentions = (prose?.runs ?? []).filter((r) => r.kind === 'mention');
     expect(mentions).toHaveLength(0);
+  });
+});
+
+// ── Rule block ──────────────────────────────────────────────────────────────
+
+describe('thematicBreak → rule block', () => {
+  it('emits a rule block for ---', () => {
+    const blocks = parseMarkdownToBlocks('t', '---');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].kind).toBe('rule');
+  });
+
+  it('rule block has a stable id', () => {
+    const blocks = parseMarkdownToBlocks('t', 'before\n\n---\n\nafter');
+    const rule = blocks.find((b): b is RuleBlock => b.kind === 'rule');
+    expect(rule).toBeDefined();
+    expect(rule!.id).toMatch(/^t#/);
+  });
+
+  it('prose blocks appear before and after the rule', () => {
+    const blocks = parseMarkdownToBlocks('t', 'before\n\n---\n\nafter');
+    expect(blocks[0].kind).toBe('prose');
+    expect(blocks[1].kind).toBe('rule');
+    expect(blocks[2].kind).toBe('prose');
+  });
+
+  it('does not emit a prose block for ---', () => {
+    const blocks = parseMarkdownToBlocks('t', '---');
+    const prose = blocks.find((b) => b.kind === 'prose');
+    expect(prose).toBeUndefined();
+  });
+});
+
+// ── Blockquote → quote variant ───────────────────────────────────────────────
+
+describe('blockquote paragraphs → variant: quote', () => {
+  it('blockquote paragraph emits variant: quote', () => {
+    const blocks = parseMarkdownToBlocks('t', '> Hello world');
+    const prose = blocks.find((b): b is ProseBlock => b.kind === 'prose');
+    expect(prose?.variant).toBe('quote');
+  });
+
+  it('regular paragraph emits variant: body', () => {
+    const blocks = parseMarkdownToBlocks('t', 'Hello world');
+    const prose = blocks.find((b): b is ProseBlock => b.kind === 'prose');
+    expect(prose?.variant).toBe('body');
+  });
+
+  it('nested blockquote paragraphs also emit variant: quote', () => {
+    const blocks = parseMarkdownToBlocks('t', '> > Nested');
+    const prose = blocks.find((b): b is ProseBlock => b.kind === 'prose');
+    expect(prose?.variant).toBe('quote');
+  });
+
+  it('blockquote depth is incremented', () => {
+    const blocks = parseMarkdownToBlocks('t', '> Hello');
+    const prose = blocks.find((b): b is ProseBlock => b.kind === 'prose');
+    expect(prose?.depth).toBe(1);
   });
 });

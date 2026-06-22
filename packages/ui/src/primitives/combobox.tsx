@@ -32,7 +32,7 @@ function ComboboxClear({ className, ...props }: ComboboxPrimitive.Clear.Props) {
       className={cn(className)}
       {...props}
     >
-      <XIcon className="pointer-events-none" />
+      <XIcon style={{ pointerEvents: 'none' }} />
     </ComboboxPrimitive.Clear>
   );
 }
@@ -55,7 +55,7 @@ function ComboboxInput({
   inputRef?: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
-    <InputGroup className={cn('w-auto', styles.inputGroupNoRing, className)}>
+    <InputGroup className={cn(styles.inputGroupAutoWidth, styles.inputGroupNoRing, className)}>
       {leftAddon && <InputGroupAddon align="inline-start">{leftAddon}</InputGroupAddon>}
       <ComboboxPrimitive.Input
         render={<InputGroupInput ref={inputRef} disabled={disabled} />}
@@ -67,7 +67,7 @@ function ComboboxInput({
           <InputGroupButton
             render={<ComboboxTrigger />}
             data-slot="input-group-button"
-            className="group-has-data-[slot=combobox-clear]/input-group:hidden data-pressed:bg-transparent"
+            className={styles.triggerButtonHideIfClear}
             disabled={disabled}
           />
         )}
@@ -143,7 +143,7 @@ function ComboboxItem({
         render={<span className={styles.comboboxItemIndicator} />}
       >
         {showCheck && (
-          <CheckIcon className="pointer-events-none" absoluteStrokeWidth strokeWidth={3} />
+          <CheckIcon style={{ pointerEvents: 'none' }} absoluteStrokeWidth strokeWidth={3} />
         )}
       </ComboboxPrimitive.ItemIndicator>
     </ComboboxPrimitive.Item>
@@ -224,7 +224,7 @@ function ComboboxChip({
           className={styles.comboboxChipRemove}
           data-slot="combobox-chip-remove"
         >
-          <XIcon className="pointer-events-none" />
+          <XIcon style={{ pointerEvents: 'none' }} />
         </ComboboxPrimitive.ChipRemove>
       )}
     </ComboboxPrimitive.Chip>

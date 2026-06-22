@@ -216,3 +216,20 @@ export const inputGroupNoRing = style({
     },
   },
 });
+
+/** Widens the InputGroup to its content rather than the anchor width. */
+export const inputGroupAutoWidth = style({ width: 'auto' });
+
+/**
+ * Applied to the trigger InputGroupButton inside ComboboxInput.
+ * Hides when a sibling combobox-clear button is present; clears pressed bg.
+ */
+export const triggerButtonHideIfClear = style({
+  selectors: {
+    '&[data-pressed]': { backgroundColor: 'transparent' },
+  },
+});
+globalStyle(
+  `[data-slot="input-group"]:has([data-slot="combobox-clear"]) ${triggerButtonHideIfClear}`,
+  { display: 'none' }
+);

@@ -87,7 +87,7 @@ export function PermissionBand({
 
   return (
     <div className={cn(styles.band, className)}>
-      <ShieldAlertIcon className={cn('size-3.5', styles.bandIcon)} aria-hidden />
+      <ShieldAlertIcon className={styles.bandIcon} aria-hidden />
 
       {/* Context label */}
       <span className={styles.bandLabel}>

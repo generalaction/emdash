@@ -1,8 +1,8 @@
 import { PreviewWindow } from '@components/primitives/PreviewWindow';
+import { ROW_H } from '@components/engine/row-metrics';
 import type { StackLayout } from '@core/compose';
 import { type Measured, type MeasureCtx, type RenderCtx } from '@core/define';
 import { layoutBlockStack } from '@core/layout/block-stack';
-import { DEFAULT_THEME } from '@core/theme';
 import { defineUnit } from '@core/units';
 import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
@@ -147,7 +147,7 @@ export const planUnitDef = defineUnit<ChatPlan, PlanVars>({
   kind: 'plan',
   margin: { top: 8, bottom: 8 },
   vars: {
-    rowH: DEFAULT_THEME.density.rowH,
+    rowH: ROW_H,
     border: 1,
     padX: 8,
     padY: 6,

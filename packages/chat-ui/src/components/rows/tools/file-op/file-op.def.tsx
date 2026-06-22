@@ -1,6 +1,6 @@
 import { PreviewWindow } from '@components/primitives/PreviewWindow';
+import { ROW_H } from '@components/engine/row-metrics';
 import type { MeasureCtx, RenderCtx } from '@core/define';
-import { DEFAULT_THEME } from '@core/theme';
 import { defineUnit } from '@core/units';
 import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
@@ -83,7 +83,7 @@ export const fileOpUnitDef = defineUnit<ChatFileOpToolCall, FileOpVars>({
   kind: 'file-op',
   margin: { top: 2, bottom: 2 },
   vars: {
-    rowH: DEFAULT_THEME.density.rowH,
+    rowH: ROW_H,
     padY: 6,
     windowH: 72,
   },

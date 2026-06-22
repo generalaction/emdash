@@ -98,7 +98,7 @@ export function SplitButton({
         size={size}
         tone={tone}
         disabled={disabled}
-        className="rounded-r-none pr-2 pl-3"
+        className={styles.splitButtonFace}
         onClick={() => {
           if (selectedOption) onAction(selectedOption.id);
         }}
@@ -113,7 +113,7 @@ export function SplitButton({
           aria-label="More options"
           className={cn(
             controlVariants({ variant, size, tone, icon: true }),
-            'rounded-l-none',
+            styles.splitButtonChevronFace,
             variant === 'primary' && styles.chevronBorderLeft
           )}
         >
