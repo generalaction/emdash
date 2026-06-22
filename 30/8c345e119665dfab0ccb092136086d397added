@@ -1,0 +1,42 @@
+apps/emdash-desktop/src/shared/browser.ts
+  s_d679dc241ce60c::t_0edf45c5fef976 74-76,78-79,81-82
+  s_a8bd37fc3961b2::t_2cfdb4904f461b 77,80
+apps/emdash-desktop/src/shared/browser.test.ts
+  s_d679dc241ce60c::t_3368c1bebb5887 6
+  s_d679dc241ce60c::t_9e01818e1842ac 93-94,96-102,104-107
+  s_a8bd37fc3961b2::t_cfa63fa60fa187 95,103
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.test.ts
+  s_d679dc241ce60c::t_4dfeea5d1b5e09 332-351,353-358,369
+  s_a8bd37fc3961b2::t_58642da7ed5b31 352,359-368
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_d679dc241ce60c::t_507511dc283260 194-203
+  s_d679dc241ce60c::t_adc665a1778b64 17
+  s_d679dc241ce60c::t_aab9287f1f6cff 332-362
+apps/emdash-desktop/src/main/core/browser/controller.ts
+  s_d679dc241ce60c::t_2ece7e8af5cbcf 63-70,72-85
+  s_d679dc241ce60c::t_cd818b08a26d00 5-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "308c345e119665dfab0ccb092136086d397added",
+  "prompts": {},
+  "sessions": {
+    "s_a8bd37fc3961b2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "365a91ed-8a95-4849-9e3e-0a644d936409",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_d679dc241ce60c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dd09e693-fd89-4bad-8164-3efdc58f702e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
