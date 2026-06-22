@@ -81,19 +81,25 @@ export class FileTree implements IFileTree {
   }
 
   async ready(): Promise<Result<void, FileTreeError>> {
-    if (!this.readyPromise) {
-      this.readyPromise = (async () => {
-        try {
-          await this.watch.ready();
-        } catch (error) {
-          return err(classifyFileTreeFsError(error, ''));
-        }
-        const loaded = await this.loadDirectoryScope(null);
-        if (!loaded.success) return err(loaded.error);
-        return ok();
-      })();
-    }
-    return this.readyPromise;
+    if (this.readyPromise) return this.readyPromise;
+
+    const readyPromise = (async (): Promise<Result<void, FileTreeError>> => {
+      try {
+        await this.watch.ready();
+      } catch (error) {
+        return err(classifyFileTreeFsError(error, ''));
+      }
+      const loaded = await this.loadDirectoryScope(null);
+      if (!loaded.success) return err(loaded.error);
+      return ok<void>();
+    })().catch((error): Result<void, FileTreeError> => {
+      if (this.readyPromise === readyPromise) {
+        this.readyPromise = null;
+      }
+      throw error;
+    });
+    this.readyPromise = readyPromise;
+    return readyPromise;
   }
 
   async getSnapshot(): Promise<Result<FileTreeSnapshot, FileTreeError>> {

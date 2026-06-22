@@ -110,6 +110,30 @@ describe('FileTree', () => {
     tree.dispose();
   });
 
+  it('does not cache a rejected ready promise after unexpected load failures', async () => {
+    const root = await makeRoot();
+    const tree = new FileTree({ rootPath: root, watcher: new ManualWatchService() });
+    const patched = tree as unknown as {
+      loadDirectoryScope(scope: null): Promise<Result<unknown, unknown>>;
+    };
+    const originalLoadDirectoryScope = patched.loadDirectoryScope;
+    let calls = 0;
+    patched.loadDirectoryScope = async () => {
+      calls += 1;
+      if (calls === 1) throw new Error('boom');
+      return { success: true, data: {} };
+    };
+
+    try {
+      await expect(tree.ready()).rejects.toThrow('boom');
+      await expect(tree.ready()).resolves.toEqual({ success: true, data: undefined });
+      expect(calls).toBe(2);
+    } finally {
+      patched.loadDirectoryScope = originalLoadDirectoryScope;
+      tree.dispose();
+    }
+  });
+
   it('rejects unsafe paths before filesystem access', async () => {
     const root = await makeRoot();
     expect(resolveInsideRoot(root, '../outside').success).toBe(false);
