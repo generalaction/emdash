@@ -55,7 +55,21 @@ describe('goose provider', () => {
     });
   });
 
-  it('resumes the named session with --resume as a boolean flag', () => {
+  it('resumes the stored Goose session id', () => {
+    const command = provider.behavior.prompt!.buildCommand({
+      ...baseContext,
+      providerSessionId: 'goose-session-id',
+      isResuming: true,
+    });
+
+    expect(command).toEqual({
+      command: 'goose',
+      args: ['session', '--resume', '--session-id', 'goose-session-id'],
+      env: {},
+    });
+  });
+
+  it('starts fresh when resuming without a stored Goose session id', () => {
     const command = provider.behavior.prompt!.buildCommand({
       ...baseContext,
       isResuming: true,
@@ -63,7 +77,7 @@ describe('goose provider', () => {
 
     expect(command).toEqual({
       command: 'goose',
-      args: ['session', '--resume', '-n', 'emdash-conversation-id'],
+      args: ['session', '-n', 'emdash-conversation-id'],
       env: {},
     });
   });
