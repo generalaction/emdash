@@ -1,0 +1,33 @@
+apps/emdash-desktop/src/shared/core/mcp/types.ts
+  s_f609e1c3f73d92::t_0182eaed55c8b1 18-19
+apps/emdash-desktop/src/main/core/mcp/services/McpService.ts
+  s_f609e1c3f73d92::t_8a3923c2df9ab2 20-29,31-40,62,76-77,84,90-93,116,121-122,158,162,167,190-194
+  s_f609e1c3f73d92::t_fa37bc7fee3f63 30
+apps/emdash-desktop/src/renderer/features/mcp/components/McpView.tsx
+  s_f609e1c3f73d92::t_83fd8dfa187a65 28,30,33-35,37,112
+apps/emdash-desktop/src/renderer/features/mcp/components/McpModal.tsx
+  s_f609e1c3f73d92::t_40cb37d8126e5d 41,107,313
+apps/emdash-desktop/src/main/core/mcp/controller.ts
+  s_f609e1c3f73d92::t_575c89c633229a 49,51-54
+apps/emdash-desktop/src/main/core/mcp/services/McpService.test.ts
+  s_f609e1c3f73d92::t_f62dd475a9a429 142,159-162,363-397,419-442
+  s_f609e1c3f73d92::t_745b539a77cc6f 220
+apps/emdash-desktop/src/renderer/features/mcp/components/useMcps.ts
+  s_f609e1c3f73d92::t_7c47513fa6b08d 72-73,90-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "789a228447cc9916be8e261b46e11ab5e3732c1d",
+  "prompts": {},
+  "sessions": {
+    "s_f609e1c3f73d92": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eef66-3fe4-7aa0-9eb7-e956568696c0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
