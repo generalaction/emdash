@@ -1,0 +1,26 @@
+packages/plugins/src/agents/impl/goose/hooks.ts
+  s_5a2ea9bf23681a::t_650e13b9538cf0 1-53,57-88
+  s_5a2ea9bf23681a::t_d691f60b028f86 54-56
+packages/plugins/src/agents/impl/goose/index.test.ts
+  s_5a2ea9bf23681a::t_b0015ee631dd90 1-2,4,17-33,87-162
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_5a2ea9bf23681a::t_295caa9b36058e 430
+packages/plugins/src/agents/impl/goose/index.ts
+  s_5a2ea9bf23681a::t_3b46ae0659196e 2,20-22,120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "a045e185f5ae4bedea0fbfffda82885d2f22373b",
+  "prompts": {},
+  "sessions": {
+    "s_5a2ea9bf23681a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef0c4-3379-7e60-b81b-4be4be25f3f9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
