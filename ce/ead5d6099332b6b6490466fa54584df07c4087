@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/lib/components/issue-status-indicator.tsx
+  s_41dcbea4529085::t_b70f57590d2ea8 93-95,103-105,119-121,129-131,136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "ceead5d6099332b6b6490466fa54584df07c4087",
+  "prompts": {},
+  "sessions": {
+    "s_41dcbea4529085": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef053-2801-7533-aaea-7c6ba878a612",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
