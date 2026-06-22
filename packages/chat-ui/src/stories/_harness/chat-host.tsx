@@ -5,15 +5,19 @@
  * reactive system to feed data. ScriptedChat runs a scripted sequence of
  * TranscriptApi calls and re-runs on every story re-mount. ChatHostExpanded
  * pre-toggles a specific item so expanded-state stories start already opened.
+ *
+ * All hosts default onResolveElicitation to dispatch `elicitation_removed` so
+ * permission-request stories work interactively out of the box. Pass a custom
+ * `commands` to override this or extend other callbacks.
  */
 
 import { DEFAULT_THEME } from '@core/theme';
 import { createTranscript } from '@state/transcript';
 import type { TranscriptApi } from '@state/transcript';
 import { createViewState } from '@state/view-state';
-import { createEffect, getOwner, onCleanup, onMount, runWithOwner, type JSX } from 'solid-js';
+import { createEffect, createMemo, getOwner, onCleanup, onMount, runWithOwner, type JSX } from 'solid-js';
 import { ChatRoot } from '@/ChatRoot';
-import type { ChatItem } from '@/model';
+import type { ChatCommands, ChatItem } from '@/index';
 import { storyViewport } from './chat-host.css';
 
 /**
@@ -42,13 +46,38 @@ export type ChatHostProps = {
   width?: number;
   /** Viewport height in px (default: 600). */
   height?: number;
+  /**
+   * Command callbacks injected into the chat renderer.
+   * `onResolveElicitation` defaults to optimistic removal (dispatching
+   * `elicitation_removed`) so permission stories work interactively without
+   * extra wiring. Pass overrides here to replace specific callbacks.
+   */
+  commands?: ChatCommands;
 };
+
+/**
+ * Build a merged ChatCommands object that defaults to optimistic elicitation
+ * removal and merges caller overrides on top.
+ */
+function makeCommands(transcript: TranscriptApi, overrides?: ChatCommands): () => ChatCommands {
+  return () => ({
+    onResolveElicitation: ({ elicitationId }) => {
+      transcript.dispatch({ type: 'elicitation_removed', id: elicitationId });
+    },
+    ...overrides,
+  });
+}
 
 /**
  * Variant of ChatHost that pre-expands a specific item by id.
  * Used for stories that show the expanded state of collapsible rows.
  */
-export function ChatHostExpanded(props: { items: ChatItem[]; expandId: string; height: number }) {
+export function ChatHostExpanded(props: {
+  items: ChatItem[];
+  expandId: string;
+  height: number;
+  commands?: ChatCommands;
+}) {
   const transcript = createTranscript();
   const viewState = createViewState();
 
@@ -59,6 +88,8 @@ export function ChatHostExpanded(props: { items: ChatItem[]; expandId: string; h
   // Pre-toggle so the item starts in the expanded state.
   viewState.toggleCollapsed(props.expandId);
 
+  const commands = createMemo(() => makeCommands(transcript, props.commands)());
+
   return (
     <StoryViewport height={props.height}>
       <ChatRoot
@@ -67,6 +98,7 @@ export function ChatHostExpanded(props: { items: ChatItem[]; expandId: string; h
         theme={DEFAULT_THEME}
         stickToBottom
         pinUserMessages
+        commands={() => commands()}
       />
     </StoryViewport>
   );
@@ -84,6 +116,8 @@ export function ChatHost(props: ChatHostProps) {
     transcript.seed(props.items ?? []);
   });
 
+  const commands = createMemo(() => makeCommands(transcript, props.commands)());
+
   return (
     <StoryViewport height={props.height} width={props.width}>
       <ChatRoot
@@ -92,6 +126,7 @@ export function ChatHost(props: ChatHostProps) {
         theme={DEFAULT_THEME}
         stickToBottom
         pinUserMessages
+        commands={() => commands()}
       />
     </StoryViewport>
   );
@@ -106,7 +141,12 @@ export type ScriptStep =
   | { kind: 'call'; fn: (api: TranscriptApi) => void }
   | { kind: 'wait'; ms: number };
 
-export function ScriptedChat(props: { script: ScriptStep[]; height?: number; width?: number }) {
+export function ScriptedChat(props: {
+  script: ScriptStep[];
+  height?: number;
+  width?: number;
+  commands?: ChatCommands;
+}) {
   const transcript = createTranscript();
   const viewState = createViewState();
 
@@ -148,6 +188,8 @@ export function ScriptedChat(props: { script: ScriptStep[]; height?: number; wid
     runNext();
   });
 
+  const commands = createMemo(() => makeCommands(transcript, props.commands)());
+
   return (
     <StoryViewport height={props.height} width={props.width}>
       <ChatRoot
@@ -156,6 +198,7 @@ export function ScriptedChat(props: { script: ScriptStep[]; height?: number; wid
         theme={DEFAULT_THEME}
         stickToBottom
         pinUserMessages
+        commands={() => commands()}
       />
     </StoryViewport>
   );

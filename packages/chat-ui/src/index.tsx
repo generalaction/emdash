@@ -39,6 +39,9 @@ export type {
   FileOpKind,
   FileOp,
   ToolStatus,
+  ChatElicitation,
+  ChatElicitationOption,
+  ChatElicitationOptionTone,
 } from './model';
 export type { TranscriptApi, TranscriptEvent } from './state/transcript';
 export type { ViewState } from './state/view-state';
@@ -81,6 +84,22 @@ export type ChatCommands = {
     attachment: ChatImageAttachment;
     itemId: string;
     source: 'user-message';
+  }) => void;
+
+  /**
+   * Called when the user resolves an elicitation row (e.g. a permission
+   * request) by clicking the split-button primary action or choosing from the
+   * chevron menu. `optionId` is the chosen `ChatElicitationOption.id`; pass
+   * `null` for a programmatic cancel. `elicitationId` is the `ChatElicitation`
+   * item id; `itemId` is the same value (present for symmetry with other
+   * command callbacks). The host should: (1) dispatch `elicitation_removed` to
+   * drop the row optimistically, and (2) resolve the transport round trip using
+   * the chosen option.
+   */
+  onResolveElicitation?: (arg: {
+    elicitationId: string;
+    optionId: string | null;
+    itemId: string;
   }) => void;
 
   /**

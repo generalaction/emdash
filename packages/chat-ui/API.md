@@ -128,11 +128,33 @@ Mounts the Solid renderer into `container` and returns a `ChatHandle`. Call
 
 ```ts
 type ChatCommands = {
-  onOpenFile?: (arg: { path: string; itemId: string; source: 'diff' | 'file-op' }) => void;
+  onOpenFile?: (arg: {
+    path: string;
+    itemId: string;
+    source: 'diff' | 'file-op' | 'resource-link' | 'prose-link';
+  }) => void;
+
+  onViewImage?: (arg: {
+    attachment: ChatImageAttachment;
+    itemId: string;
+    source: 'user-message';
+  }) => void;
+
+  onResolveElicitation?: (arg: {
+    elicitationId: string;
+    optionId: string | null; // null = programmatic cancel
+    itemId: string;
+  }) => void;
+
+  classifyLink?: (href: string) => { kind: 'workspace-file'; path: string } | { kind: 'external' };
 };
 ```
 
-Invoked when the user clicks a file path in a diff header or a file-op row.
+Invoked when the user clicks interactive elements in the transcript.
+`onResolveElicitation` is called when the user accepts or rejects a permission
+request via the split-button. The host should dispatch `elicitation_removed` to
+remove the row immediately (optimistic UI) and then resolve the underlying
+transport request asynchronously.
 
 ### `ScrollToItemOptions`
 
@@ -189,13 +211,17 @@ type ChatItem =
   | ChatThinking
   | ChatFileOpToolCall
   | ChatExecute
-  | ChatDiff;
+  | ChatDiff
+  | ChatResourceLink
+  | ChatPlan
+  | ChatElicitation;
 
 type ChatRole = 'user' | 'assistant' | 'thought';
 type ToolStatus = 'running' | 'done' | 'error';
 type ThinkingStatus = 'thinking' | 'done';
 type FileOpKind = 'read' | 'edit' | 'delete' | 'move';
 type FileOp = { path: string };
+type ChatElicitationOptionTone = 'accept' | 'reject' | 'neutral';
 ```
 
 ### `ChatMessage`
@@ -284,6 +310,36 @@ type ChatDiff = {
 Renders a compact preview of the first changed region (≤12 lines, ±1 context)
 with syntax + diff highlighting. One `ChatDiff` per changed file.
 
+### `ChatElicitation`
+
+```ts
+type ChatElicitationOption = {
+  id: string;
+  label: string;
+  tone?: ChatElicitationOptionTone; // 'accept' | 'reject' | 'neutral'
+};
+
+type ChatElicitation = {
+  kind: 'elicitation';
+  id: string;
+  variant: 'permission';
+  toolCallId?: string;    // links this row to its parent tool call
+  title: string;          // pre-formatted by host, e.g. "Read a File", "Execute"
+  options: ChatElicitationOption[];
+  defaultOptionId: string;
+};
+```
+
+A bordered permission-request row rendered beneath the tool call that triggered
+it. The host passes a pre-formatted `title` string; the renderer displays
+"Requesting permission to {title}" with a split-button whose default option is
+`defaultOptionId`.
+
+The split button fires `commands.onResolveElicitation` with the chosen
+`optionId`. The host is responsible for both the transport round trip and
+dispatching `elicitation_removed` to remove the row optimistically. No `status`
+field exists — the row disappears on resolve.
+
 ---
 
 ## `TranscriptApi`
@@ -332,6 +388,8 @@ A discriminated union on `type`. Deltas (text/reasoning chunks) are appended;
 | `execute_update` | `{ id, command?, status? }` | Patch an execute call. |
 | `diff_start` | `{ id, path, oldText, newText }` | Begin a diff preview. |
 | `diff_update` | `{ id, status?, oldText?, newText? }` | Patch a diff row. |
+| `elicitation_start` | `{ id, variant, toolCallId?, title, options, defaultOptionId }` | Show a permission-request row beneath the tool call identified by `toolCallId`. |
+| `elicitation_removed` | `{ id }` | Remove a pending elicitation row (optimistic — fire immediately on user response). |
 | `turn_done` | `{}` | Finalize the active turn into `committed`. |
 
 Dispatching a content event after reasoning auto-finalizes any still-open
@@ -408,7 +466,8 @@ blocks. Useful for stories, performance testing, and demos.
   `ChatTheme`, `DensityScale`, `TranscriptApi`, `TranscriptEvent`, `ViewState`,
   `ChatItem`, `ChatMessage`, `ChatToolCall`, `ChatThinking`,
   `ChatFileOpToolCall`, `ChatExecute`, `ChatDiff`, `ChatRole`, `FileOpKind`,
-  `FileOp`, `ToolStatus`
+  `FileOp`, `ToolStatus`, `ChatElicitation`, `ChatElicitationOption`,
+  `ChatElicitationOptionTone`
 
 **`@emdash/chat-ui/react`**
 

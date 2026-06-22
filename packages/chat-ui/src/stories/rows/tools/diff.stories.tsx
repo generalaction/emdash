@@ -4,6 +4,7 @@
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import { ChatHost, ScriptedChat } from '@/stories/_harness/chat-host';
+import { permissionItem } from '@/stories/_harness/permission';
 import { ToolStateMatrix } from '@/stories/_harness/state-matrix';
 import { scenario, seedStep, streamDiff } from '@/stories/_harness/streaming/scenario';
 
@@ -183,6 +184,26 @@ export const DIFF_MAX_LINES = 12;
 export const DIFF_CONTEXT = 1;
 export const DIFF_BORDER = 1;
 export const DIFF_FADE_H = 24;`;
+
+/** Permission request beneath a running diff row (write operation pending approval). */
+export const RequestingPermission: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'diff',
+          id: 'diff-perm:src/model.ts',
+          path: 'src/model.ts',
+          oldText: OLD_TS,
+          newText: NEW_TS,
+          status: 'running',
+        },
+        permissionItem({ id: 'perm-diff', toolCallId: 'diff-perm:src/model.ts', title: 'Write a File' }),
+      ]}
+      height={200}
+    />
+  ),
+};
 
 /**
  * Full generation transition: the diff starts as a header-only shimmering card

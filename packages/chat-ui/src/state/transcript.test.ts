@@ -1,9 +1,10 @@
 /**
- * TranscriptApi — unit tests for findIndexById and prependHistory.
+ * TranscriptApi — unit tests for findIndexById, prependHistory, and
+ * elicitation_start / elicitation_removed reducer cases.
  */
 
 import { describe, expect, it } from 'vitest';
-import type { ChatItem } from '@/model';
+import type { ChatElicitation, ChatElicitationOption, ChatItem } from '@/model';
 import { createTranscript } from './transcript';
 
 function msg(id: string, text = 'hi'): ChatItem {
@@ -101,5 +102,143 @@ describe('prependHistory', () => {
     // activeTurn offset increases by 1 (the prepended item)
     expect(tx.findIndexById('streaming')).toBe(1);
     expect(tx.state.activeTurn?.length).toBe(1);
+  });
+});
+
+// ── Elicitation lifecycle ─────────────────────────────────────────────────────
+
+const STANDARD_OPTIONS: ChatElicitationOption[] = [
+  { id: 'allow-once', label: 'Allow once', tone: 'accept' },
+  { id: 'allow-always', label: 'Allow always', tone: 'accept' },
+  { id: 'reject-once', label: 'Reject once', tone: 'reject' },
+  { id: 'reject-always', label: 'Reject always', tone: 'reject' },
+];
+
+describe('elicitation_start', () => {
+  it('adds a ChatElicitation to activeTurn', () => {
+    const tx = createTranscript();
+    tx.dispatch({
+      type: 'elicitation_start',
+      id: 'perm-1',
+      variant: 'permission',
+      title: 'Read a File',
+      options: STANDARD_OPTIONS,
+      defaultOptionId: 'allow-once',
+    });
+    const at = tx.state.activeTurn;
+    expect(at).not.toBeNull();
+    expect(at!.length).toBe(1);
+    const item = at![0] as ChatElicitation;
+    expect(item.kind).toBe('elicitation');
+    expect(item.id).toBe('perm-1');
+    expect(item.variant).toBe('permission');
+    expect(item.title).toBe('Read a File');
+    expect(item.defaultOptionId).toBe('allow-once');
+    expect(item.options).toHaveLength(4);
+  });
+
+  it('is idempotent — dispatching twice does not duplicate the row', () => {
+    const tx = createTranscript();
+    const ev = {
+      type: 'elicitation_start' as const,
+      id: 'perm-1',
+      variant: 'permission' as const,
+      title: 'Execute',
+      options: STANDARD_OPTIONS,
+      defaultOptionId: 'allow-once',
+    };
+    tx.dispatch(ev);
+    tx.dispatch(ev);
+    expect(tx.state.activeTurn!.length).toBe(1);
+  });
+
+  it('associates toolCallId when provided', () => {
+    const tx = createTranscript();
+    tx.dispatch({ type: 'tool_start', id: 'tool-1', name: 'bash' });
+    tx.dispatch({
+      type: 'elicitation_start',
+      id: 'perm-1',
+      variant: 'permission',
+      toolCallId: 'tool-1',
+      title: 'Execute',
+      options: STANDARD_OPTIONS,
+      defaultOptionId: 'allow-once',
+    });
+    const perm = tx.state.activeTurn!.find((it) => it.id === 'perm-1') as ChatElicitation;
+    expect(perm.toolCallId).toBe('tool-1');
+  });
+});
+
+describe('elicitation_removed', () => {
+  it('removes the elicitation row from activeTurn', () => {
+    const tx = createTranscript();
+    tx.dispatch({
+      type: 'elicitation_start',
+      id: 'perm-1',
+      variant: 'permission',
+      title: 'Read a File',
+      options: STANDARD_OPTIONS,
+      defaultOptionId: 'allow-once',
+    });
+    expect(tx.state.activeTurn!.length).toBe(1);
+
+    tx.dispatch({ type: 'elicitation_removed', id: 'perm-1' });
+    expect(tx.state.activeTurn!.length).toBe(0);
+  });
+
+  it('is a no-op for an unknown id', () => {
+    const tx = createTranscript();
+    tx.dispatch({
+      type: 'elicitation_start',
+      id: 'perm-1',
+      variant: 'permission',
+      title: 'Execute',
+      options: STANDARD_OPTIONS,
+      defaultOptionId: 'allow-once',
+    });
+    tx.dispatch({ type: 'elicitation_removed', id: 'perm-UNKNOWN' });
+    expect(tx.state.activeTurn!.length).toBe(1);
+  });
+
+  it('is a no-op when activeTurn is null', () => {
+    const tx = createTranscript();
+    // Should not throw
+    tx.dispatch({ type: 'elicitation_removed', id: 'perm-1' });
+    expect(tx.state.activeTurn).toBeNull();
+  });
+
+  it('does not remove other items from activeTurn', () => {
+    const tx = createTranscript();
+    tx.dispatch({ type: 'tool_start', id: 'tool-1', name: 'bash' });
+    tx.dispatch({
+      type: 'elicitation_start',
+      id: 'perm-1',
+      variant: 'permission',
+      title: 'Execute',
+      options: STANDARD_OPTIONS,
+      defaultOptionId: 'allow-once',
+    });
+    expect(tx.state.activeTurn!.length).toBe(2);
+
+    tx.dispatch({ type: 'elicitation_removed', id: 'perm-1' });
+    expect(tx.state.activeTurn!.length).toBe(1);
+    expect(tx.state.activeTurn![0].id).toBe('tool-1');
+  });
+
+  it('elicitation row passes through turn_done into committed', () => {
+    const tx = createTranscript();
+    tx.dispatch({
+      type: 'elicitation_start',
+      id: 'perm-1',
+      variant: 'permission',
+      title: 'Execute',
+      options: STANDARD_OPTIONS,
+      defaultOptionId: 'allow-once',
+    });
+    tx.dispatch({ type: 'turn_done' });
+    expect(tx.state.activeTurn).toBeNull();
+    const committed = tx.state.committed.find((it) => it.id === 'perm-1') as ChatElicitation;
+    expect(committed).toBeDefined();
+    expect(committed.kind).toBe('elicitation');
   });
 });

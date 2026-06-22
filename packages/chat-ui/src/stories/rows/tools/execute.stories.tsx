@@ -4,6 +4,7 @@
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import { ChatHost, ScriptedChat } from '@/stories/_harness/chat-host';
+import { permissionItem } from '@/stories/_harness/permission';
 import { ToolStateMatrix } from '@/stories/_harness/state-matrix';
 import { scenario, seedStep, streamExecute } from '@/stories/_harness/streaming/scenario';
 
@@ -111,6 +112,25 @@ export const Error: Story = {
         },
       ]}
       height={80}
+    />
+  ),
+};
+
+/** Permission request beneath a running execute row. */
+export const RequestingPermission: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'execute',
+          id: 'ex-perm',
+          command: 'pnpm run build --filter=emdash-desktop',
+          status: 'running',
+          startedAt: Date.now() - 1200,
+        },
+        permissionItem({ id: 'perm-execute', toolCallId: 'ex-perm', title: 'Execute' }),
+      ]}
+      height={120}
     />
   ),
 };

@@ -13,6 +13,8 @@
 import { createStore, produce } from 'solid-js/store';
 import type {
   ChatDiff,
+  ChatElicitation,
+  ChatElicitationOption,
   ChatExecute,
   ChatFileOpToolCall,
   ChatImageAttachment,
@@ -147,6 +149,27 @@ export type TranscriptEvent =
   | { type: 'plan_update'; id: string; entries: ChatPlanEntry[]; streaming?: boolean }
   /** A plan row was removed (ACP `plan_removed`). */
   | { type: 'plan_removed'; id: string }
+  /**
+   * A permission-request elicitation row has appeared. Rendered beneath the
+   * tool call identified by `toolCallId`. The host pre-formats `title` (e.g.
+   * "Read a File"). `defaultOptionId` seeds the split-button selection.
+   */
+  | {
+      type: 'elicitation_start';
+      id: string;
+      variant: 'permission';
+      toolCallId?: string;
+      title: string;
+      options: ChatElicitationOption[];
+      defaultOptionId: string;
+    }
+  /**
+   * Remove a pending elicitation row (optimistic — fired immediately when the
+   * user accepts or rejects so the row disappears without waiting for the
+   * transport round trip). Only touches activeTurn; turn_done cannot fire
+   * while the agent awaits permission, so committed-tier removal is never needed.
+   */
+  | { type: 'elicitation_removed'; id: string }
   /**
    * The current turn is finished. Clears `streaming` flags, finalizes any
    * still-active thinking and execute rows, and moves activeTurn into committed.
@@ -553,6 +576,34 @@ export function createTranscript(): TranscriptApi {
               if (!s.activeTurn) break;
               s.activeTurn = s.activeTurn.filter(
                 (it) => !(it.kind === 'plan' && it.id === event.id)
+              );
+              break;
+            }
+
+            case 'elicitation_start': {
+              finalizeOpenThinking();
+              if (s.activeTurn === null) s.activeTurn = [];
+              const existingElicitation = s.activeTurn.find(
+                (it): it is ChatElicitation => it.kind === 'elicitation' && it.id === event.id
+              );
+              if (!existingElicitation) {
+                s.activeTurn.push({
+                  kind: 'elicitation',
+                  id: event.id,
+                  variant: event.variant,
+                  toolCallId: event.toolCallId,
+                  title: event.title,
+                  options: event.options,
+                  defaultOptionId: event.defaultOptionId,
+                } satisfies ChatElicitation);
+              }
+              break;
+            }
+
+            case 'elicitation_removed': {
+              if (!s.activeTurn) break;
+              s.activeTurn = s.activeTurn.filter(
+                (it) => !(it.kind === 'elicitation' && it.id === event.id)
               );
               break;
             }

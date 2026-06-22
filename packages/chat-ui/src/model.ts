@@ -215,6 +215,44 @@ export type ChatPlan = {
   streaming?: boolean;
 };
 
+/** Tone hint for a ChatElicitationOption so the renderer can pick styling. */
+export type ChatElicitationOptionTone = 'accept' | 'reject' | 'neutral';
+
+/**
+ * A single selectable option within an elicitation row.
+ *
+ * `id` is an opaque string echoed back to the host via `onResolveElicitation`.
+ * The host maps it to the transport-level identifier (e.g. ACP `optionId`).
+ */
+export type ChatElicitationOption = {
+  id: string;
+  label: string;
+  tone?: ChatElicitationOptionTone;
+};
+
+/**
+ * A permission-request row — rendered beneath the tool call that triggered it.
+ *
+ * `title` is pre-formatted by the host (e.g. "Read a File", "Execute").
+ * `toolCallId` associates the row with its parent tool item for placement.
+ * `defaultOptionId` seeds the split-button's initial selection.
+ *
+ * No `status` field: the row is removed optimistically via `elicitation_removed`
+ * on user response, so a resolved/read-only state is unnecessary.
+ */
+export type ChatElicitation = {
+  kind: 'elicitation';
+  id: string;
+  variant: 'permission';
+  /** Associates the row with the tool call that triggered the permission. */
+  toolCallId?: string;
+  /** Pre-formatted action verb, e.g. "Read a File", "Execute". */
+  title: string;
+  options: ChatElicitationOption[];
+  /** Id of the option the split-button shows by default. */
+  defaultOptionId: string;
+};
+
 export type ChatItem =
   | ChatMessage
   | ChatToolCall
@@ -223,4 +261,5 @@ export type ChatItem =
   | ChatExecute
   | ChatDiff
   | ChatResourceLink
-  | ChatPlan;
+  | ChatPlan
+  | ChatElicitation;

@@ -8,7 +8,7 @@
  */
 
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChatComposer } from './chat-composer';
 import type {
   ComposerModelOption,

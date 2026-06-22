@@ -4,6 +4,7 @@
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import { ChatHost, ChatHostExpanded, ScriptedChat } from '@/stories/_harness/chat-host';
+import { permissionItem } from '@/stories/_harness/permission';
 import { ToolStateMatrix } from '@/stories/_harness/state-matrix';
 import { scenario, seedStep, streamFileOp } from '@/stories/_harness/streaming/scenario';
 
@@ -180,6 +181,25 @@ export const Running: Story = {
         },
       ]}
       height={160}
+    />
+  ),
+};
+
+/** Permission request beneath a running file-read row. */
+export const RequestingPermission: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'file-op',
+          id: 'fo-perm',
+          op: 'read',
+          status: 'running',
+          ops: [{ path: 'packages/chat-ui/src/model.ts' }],
+        },
+        permissionItem({ id: 'perm-fileop', toolCallId: 'fo-perm', title: 'Read a File' }),
+      ]}
+      height={120}
     />
   ),
 };

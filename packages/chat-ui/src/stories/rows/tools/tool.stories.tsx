@@ -4,6 +4,7 @@
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import { ChatHost, ScriptedChat } from '@/stories/_harness/chat-host';
+import { permissionItem } from '@/stories/_harness/permission';
 import { ToolStateMatrix } from '@/stories/_harness/state-matrix';
 import { scenario, seedStep, streamTool } from '@/stories/_harness/streaming/scenario';
 
@@ -95,6 +96,25 @@ export const Error: Story = {
         },
       ]}
       height={80}
+    />
+  ),
+};
+
+/** Permission request beneath a running generic tool call. */
+export const RequestingPermission: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'tool',
+          id: 't-perm',
+          name: 'search',
+          status: 'running',
+          inputSummary: 'SolidJS virtualized list patterns',
+        },
+        permissionItem({ id: 'perm-tool', toolCallId: 't-perm', title: 'Search the Web' }),
+      ]}
+      height={120}
     />
   ),
 };
