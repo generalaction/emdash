@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/renderer/lib/providers/theme-provider.tsx
+  s_a15694d5ff2d0a::t_12011c5eb1e4b4 64-68
+  s_a15694d5ff2d0a::t_eea36309549f08 119-125,127-129
+  s_a15694d5ff2d0a::t_88115b52372bb8 57
+apps/emdash-desktop/src/renderer/features/settings/components/ThemeCard.tsx
+  s_a15694d5ff2d0a::t_690a9adf7f2ae4 12
+  s_a15694d5ff2d0a::t_12d6774370fc7d 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "eae7a9d82ba1b3f3076d711c44c05345f6aaf35b",
+  "prompts": {},
+  "sessions": {
+    "s_a15694d5ff2d0a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "629c6a1d-7dad-45e3-9de8-b66a8df76031",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
