@@ -17,7 +17,14 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['@vanilla-extract/sprinkles/createRuntimeSprinkles'],
+    // Pre-bundle the vanilla-extract runtime helpers. They are injected into
+    // compiled .css.ts output, so Vite's initial dep scan never sees them; left
+    // out, they are discovered lazily and trigger a mid-session re-optimization
+    // + reload that resets the VE compiler and causes "No CSS for file" throws.
+    include: [
+      '@vanilla-extract/sprinkles/createRuntimeSprinkles',
+      '@vanilla-extract/recipes/createRuntimeFn',
+    ],
   },
   test: {
     projects: [
