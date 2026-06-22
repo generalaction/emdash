@@ -1,0 +1,27 @@
+packages/plugins/src/agents/impl/droid/hooks.ts
+  s_b6566a7dec5f02::t_73eb24b7b38fb5 6
+packages/core/src/agents/plugins/helpers/mcp.ts
+  s_b6566a7dec5f02::t_075fbb8cac1888 364,367-368
+packages/core/src/agents/plugins/helpers/mcp.test.ts
+  s_b6566a7dec5f02::t_0af9453b715702 224
+  s_b6566a7dec5f02::t_9cad30fac38655 4,199-223,225
+packages/plugins/src/agents/impl/droid/hooks.test.ts
+  s_b6566a7dec5f02::t_b18e2a24f26172 1-30,37-38
+  s_b6566a7dec5f02::t_722b4d6ad75ede 31-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "9940b8715ad43bee33296f14b7d83f16e5a352ce",
+  "prompts": {},
+  "sessions": {
+    "s_b6566a7dec5f02": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef092-f5d5-7ea1-beb8-8c8e4c38da44",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
