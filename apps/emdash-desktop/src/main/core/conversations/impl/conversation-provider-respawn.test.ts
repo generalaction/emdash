@@ -465,7 +465,7 @@ describe('conversation provider respawn state', () => {
     }
   });
 
-  it('starts a remote Codex conversation fresh when no provider session id is available', async () => {
+  it('keeps remote Codex resume enabled when no provider session id is available', async () => {
     const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
     openSsh2Pty.mockResolvedValue({
       success: true,
@@ -479,7 +479,7 @@ describe('conversation provider respawn state', () => {
     expect(buildCommandMock).toHaveBeenCalledWith(
       expect.objectContaining({
         initialPrompt: undefined,
-        isResuming: false,
+        isResuming: true,
         sessionId: item.id,
       })
     );

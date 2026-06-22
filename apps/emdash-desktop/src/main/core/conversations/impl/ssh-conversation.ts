@@ -121,7 +121,9 @@ export class SshConversationProvider implements ConversationProvider {
       });
 
       const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
-      const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming);
+      const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming, {
+        requireProviderSessionId: false,
+      });
       const plugin = getPlugin(conversation.providerId);
 
       const binaryName =
