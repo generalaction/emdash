@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-manager.test.ts
+  s_770d5bf9f14025::t_8493ca6d0997af 2,10-22,63,76-111,113-114
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-manager.ts
+  s_770d5bf9f14025::t_83302797cb17b6 171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "481d03cb0f49f95a56fd6d5fa6e83014d7b4f9c0",
+  "prompts": {},
+  "sessions": {
+    "s_770d5bf9f14025": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef024-ccd6-7e80-be39-946b0bde141b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
