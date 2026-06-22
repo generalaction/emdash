@@ -1,0 +1,20 @@
+apps/emdash-desktop/src/main/core/conversations/impl/local-conversation.ts
+  s_8c170cd46e9698::t_55b37db9e40b03 183
+  s_8c170cd46e9698::t_0f7e6093a0fc74 127,193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "718666da6981a8244d9c758bb89ae7158917ee76",
+  "prompts": {},
+  "sessions": {
+    "s_8c170cd46e9698": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eede3-5439-7c43-96cc-f9676b4a51fb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
