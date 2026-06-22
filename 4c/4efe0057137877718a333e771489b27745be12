@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_5a2ea9bf23681a::t_9f317634bc0e3f 425
+packages/plugins/src/agents/impl/goose/index.ts
+  s_5a2ea9bf23681a::t_8575c35337cfe9 73-91
+packages/plugins/src/agents/impl/goose/index.test.ts
+  s_5a2ea9bf23681a::t_7bfd7f6d1693e3 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "4c4efe0057137877718a333e771489b27745be12",
+  "prompts": {},
+  "sessions": {
+    "s_5a2ea9bf23681a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef0c4-3379-7e60-b81b-4be4be25f3f9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
