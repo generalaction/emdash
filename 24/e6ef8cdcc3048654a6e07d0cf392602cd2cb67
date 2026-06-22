@@ -1,0 +1,28 @@
+apps/emdash-desktop/src/shared/core/mcp/catalog.ts
+  s_eebcc2149451aa::t_c7e53e71e01406 216
+  s_8628f36a024c23::t_3c2aab417863b1 226
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "24e6ef8cdcc3048654a6e07d0cf392602cd2cb67",
+  "prompts": {},
+  "sessions": {
+    "s_8628f36a024c23": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eef55-45a2-7b33-8746-3dd80a0adc23",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_eebcc2149451aa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "968cd0c0-fa95-4151-8696-e49042473dcc",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
