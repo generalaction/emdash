@@ -1,0 +1,27 @@
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.ts
+  s_5a2ea9bf23681a::t_e29701a7f5eb9e 3
+packages/plugins/src/agents/impl/goose/index.ts
+  s_5a2ea9bf23681a::t_e14d223c0de653 78,80-81
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_5a2ea9bf23681a::t_e95ac90e1125c0 425
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_5a2ea9bf23681a::t_b7af08cc8f58c8 138,155-160
+packages/plugins/src/agents/impl/goose/index.test.ts
+  s_5a2ea9bf23681a::t_bc279f71a750a2 58,66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "ae4bd15d5c4d5a63df26c4b98f54b5a58b5f940c",
+  "prompts": {},
+  "sessions": {
+    "s_5a2ea9bf23681a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef0c4-3379-7e60-b81b-4be4be25f3f9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
