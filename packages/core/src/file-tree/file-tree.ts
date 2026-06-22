@@ -1,0 +1,292 @@
+import path from 'node:path';
+import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
+import type { IFileWatchService, RawFileEvent, WatchHandle } from '../fs';
+import { LiveCollection, type KeyedOp } from '../lib';
+import { classifyFileTreeFsError, type FileTreeError, type FileTreeOnError } from './errors';
+import { watchIgnoreGlobs } from './ignores';
+import { listChildren } from './list';
+import type { FileNode, NodeId } from './models/tree';
+import { NodeIdAssigner } from './node-id';
+import { resolveInsideRoot } from './paths';
+import type {
+  FileTreeSequences,
+  FileTreeSnapshot,
+  FileTreeUpdate,
+  IFileTree,
+  SubscribedSnapshot,
+} from './types';
+import { classifyFileTreeWatchEvents } from './watch/classifier';
+
+const WATCH_DEBOUNCE_MS = 100;
+const REVALIDATE_INTERVAL_MS = 5 * 60_000;
+
+export type FileTreeOptions = {
+  rootPath: string;
+  watcher: IFileWatchService;
+  watchDebounceMs?: number;
+  revalidateIntervalMs?: number;
+  onError?: FileTreeOnError;
+};
+
+export class FileTree implements IFileTree {
+  readonly rootPath: string;
+  private readonly collection = new LiveCollection<NodeId, FileNode, FileTreeError>({
+    scopeOf: (node) => node.parentId,
+  });
+  private readonly ids = new NodeIdAssigner();
+  private readonly onError: FileTreeOnError;
+  private readonly revalidateTimer: ReturnType<typeof setInterval> | null;
+  private readonly watch: WatchHandle;
+  private readonly scopeLoads = new Map<
+    NodeId | null,
+    Promise<Result<FileTreeSequences, FileTreeError>>
+  >();
+  private disposed = false;
+  private readyPromise: Promise<Result<void, FileTreeError>> | null = null;
+
+  constructor(options: FileTreeOptions) {
+    this.rootPath = path.resolve(options.rootPath);
+    this.onError = options.onError ?? (() => {});
+    this.watch = options.watcher.watch(
+      this.rootPath,
+      (events) => {
+        void this.applyWatchEvents(events).catch((error) =>
+          this.onError(`file-tree watch ${this.rootPath}`, error)
+        );
+      },
+      {
+        debounceMs: options.watchDebounceMs ?? WATCH_DEBOUNCE_MS,
+        ignore: watchIgnoreGlobs(),
+        onResync: () => {
+          void this.resync().catch((error) =>
+            this.onError(`file-tree resync ${this.rootPath}`, error)
+          );
+        },
+      }
+    );
+    const interval = options.revalidateIntervalMs ?? REVALIDATE_INTERVAL_MS;
+    this.revalidateTimer =
+      interval > 0
+        ? setInterval(() => {
+            if (this.collection.subscriberCount === 0) return;
+            void this.refreshLoadedScopes().then(
+              (result) => {
+                if (!result.success)
+                  this.onError(`file-tree refresh ${this.rootPath}`, result.error);
+              },
+              (error) => this.onError(`file-tree refresh ${this.rootPath}`, error)
+            );
+          }, interval)
+        : null;
+  }
+
+  async ready(): Promise<Result<void, FileTreeError>> {
+    if (!this.readyPromise) {
+      this.readyPromise = (async () => {
+        try {
+          await this.watch.ready();
+        } catch (error) {
+          return err(classifyFileTreeFsError(error, ''));
+        }
+        const loaded = await this.loadDirectoryScope(null);
+        if (!loaded.success) return err(loaded.error);
+        return ok();
+      })();
+    }
+    return this.readyPromise;
+  }
+
+  async getSnapshot(): Promise<Result<FileTreeSnapshot, FileTreeError>> {
+    const ready = await this.ready();
+    if (!ready.success) return err(ready.error);
+    return ok(this.collection.getCached());
+  }
+
+  subscribe(cb: (update: FileTreeUpdate) => void): Unsubscribe {
+    return this.collection.subscribe(cb);
+  }
+
+  async subscribeWithSnapshot(
+    cb: (update: FileTreeUpdate) => void
+  ): Promise<Result<SubscribedSnapshot<FileTreeSnapshot>, FileTreeError>> {
+    const unsubscribe = this.subscribe(cb);
+    const snapshot = await this.getSnapshot();
+    if (!snapshot.success) {
+      unsubscribe();
+      return err(snapshot.error);
+    }
+    return ok({ snapshot: snapshot.data, unsubscribe });
+  }
+
+  async expandDir(dirId: NodeId | null): Promise<Result<FileTreeSequences, FileTreeError>> {
+    const ready = await this.ready();
+    if (!ready.success) return err(ready.error);
+    return this.loadDirectoryScope(dirId);
+  }
+
+  async revealPath(pathToReveal: string): Promise<Result<FileTreeSequences, FileTreeError>> {
+    const ready = await this.ready();
+    if (!ready.success) return err(ready.error);
+    const normalized = resolveInsideRoot(this.rootPath, pathToReveal);
+    if (!normalized.success) return normalized;
+
+    const parts = normalized.data.relPath.split('/').filter(Boolean);
+    let sequences: FileTreeSequences = {};
+    for (let index = 0; index < parts.length; index += 1) {
+      const relPath = parts.slice(0, index + 1).join('/');
+      const node = this.ids.getByPath(relPath);
+      if (!node) return ok(sequences);
+      const shouldExpand = index < parts.length - 1 || node.type === 'directory';
+      if (!shouldExpand) continue;
+      if (node.type !== 'directory') {
+        return err({ type: 'not-directory', id: node.id, path: node.path });
+      }
+      const expanded = await this.loadDirectoryScope(node.id);
+      if (!expanded.success) return expanded;
+      sequences = mergeSequences(sequences, expanded.data);
+    }
+    return ok(sequences);
+  }
+
+  async refresh(): Promise<Result<FileTreeSnapshot, FileTreeError>> {
+    const refreshed = await this.refreshLoadedScopes();
+    if (!refreshed.success) return err(refreshed.error);
+    return ok(this.collection.getCached());
+  }
+
+  private async refreshLoadedScopes(): Promise<Result<FileTreeSequences, FileTreeError>> {
+    const scopes = this.collection.loadedScopes();
+    let sequences: FileTreeSequences = {};
+    for (const scope of scopes) {
+      if (scope !== null && !this.ids.get(scope)) continue;
+      const refreshed = await this.loadDirectoryScope(scope);
+      if (!refreshed.success) {
+        const recovered = this.recoverMissingLoadedScope(scope, refreshed.error);
+        if (!recovered.success) return err(recovered.error);
+        sequences = mergeSequences(sequences, recovered.data);
+        continue;
+      }
+      sequences = mergeSequences(sequences, refreshed.data);
+    }
+    return ok(sequences);
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    if (this.revalidateTimer) clearInterval(this.revalidateTimer);
+    this.watch.release();
+    this.collection.dispose();
+  }
+
+  private async loadDirectoryScope(
+    scope: NodeId | null
+  ): Promise<Result<FileTreeSequences, FileTreeError>> {
+    const existing = this.scopeLoads.get(scope);
+    if (existing) return existing;
+
+    const loading = this.loadDirectoryScopeInternal(scope);
+    this.scopeLoads.set(scope, loading);
+    void loading.finally(() => {
+      if (this.scopeLoads.get(scope) === loading) this.scopeLoads.delete(scope);
+    });
+    return loading;
+  }
+
+  private async loadDirectoryScopeInternal(
+    scope: NodeId | null
+  ): Promise<Result<FileTreeSequences, FileTreeError>> {
+    const dirNode = scope === null ? null : this.ids.get(scope);
+    if (scope !== null && !dirNode) return err({ type: 'not-found', id: scope });
+    if (dirNode && dirNode.type !== 'directory') {
+      return err({ type: 'not-directory', id: dirNode.id, path: dirNode.path });
+    }
+
+    const dirPath = dirNode?.path ?? '';
+    const listed = await listChildren(this.rootPath, dirPath);
+    if (!listed.success) return listed;
+
+    const listedPaths = new Set(listed.data.map((entry) => entry.path));
+    let sequence = this.removeMissingChildren(scope, listedPaths);
+
+    const nodes = listed.data.map((entry) =>
+      this.ids.upsert(entry, scope, this.ids.getByPath(entry.path)?.childrenLoaded)
+    );
+    const loaded = await this.collection.loadScope(scope, async () =>
+      ok(nodes.map((node) => [node.id, node] as const))
+    );
+    if (!loaded.success) return loaded;
+    sequence = Math.max(sequence, loaded.data);
+
+    if (dirNode && !dirNode.childrenLoaded) {
+      const updated = { ...dirNode, childrenLoaded: true };
+      this.ids.setNode(updated);
+      sequence = Math.max(sequence, this.collection.put(updated.id, updated));
+    }
+
+    return ok(sequence === 0 ? {} : { tree: sequence });
+  }
+
+  private removeMissingChildren(parentId: NodeId | null, listedPaths: Set<string>): number {
+    const missing = this.ids
+      .childrenOf(parentId)
+      .filter((node) => !listedPaths.has(node.path))
+      .map((node) => node.id);
+    return this.removeSubtrees(missing);
+  }
+
+  private removeSubtrees(rootIds: NodeId[]): number {
+    const ops: Array<KeyedOp<NodeId, FileNode>> = [];
+    const removedScopes: NodeId[] = [];
+    for (const rootId of rootIds) {
+      const removed = this.ids.removeSubtree(rootId);
+      for (const node of removed) {
+        ops.push({ op: 'del', key: node.id });
+        if (node.type === 'directory') removedScopes.push(node.id);
+      }
+    }
+
+    let sequence = this.collection.apply(ops);
+    for (const scope of removedScopes)
+      sequence = Math.max(sequence, this.collection.unloadScope(scope));
+    return sequence;
+  }
+
+  private recoverMissingLoadedScope(
+    scope: NodeId | null,
+    error: FileTreeError
+  ): Result<FileTreeSequences, FileTreeError> {
+    if (scope === null || (error.type !== 'not-found' && error.type !== 'not-directory')) {
+      return err(error);
+    }
+
+    const sequence = this.removeSubtrees([scope]);
+    return ok(sequence === 0 ? {} : { tree: sequence });
+  }
+
+  private async applyWatchEvents(events: RawFileEvent[]): Promise<void> {
+    if (this.disposed) return;
+    const classification = await classifyFileTreeWatchEvents(events, {
+      rootPath: this.rootPath,
+      ids: this.ids,
+      isScopeLoaded: (scope) => this.collection.isScopeLoaded(scope),
+    });
+    this.collection.apply(classification.ops);
+    for (const scope of classification.unloadedScopes) this.collection.unloadScope(scope);
+  }
+
+  private async resync(): Promise<void> {
+    const refreshed = await this.refreshLoadedScopes();
+    if (!refreshed.success) {
+      this.onError(`file-tree resync ${this.rootPath}`, refreshed.error);
+      return;
+    }
+    this.collection.resetWithNewGeneration(
+      this.ids.entries().map((node) => [node.id, node] as const)
+    );
+  }
+}
+
+function mergeSequences(left: FileTreeSequences, right: FileTreeSequences): FileTreeSequences {
+  return { tree: Math.max(left.tree ?? 0, right.tree ?? 0) || undefined };
+}
