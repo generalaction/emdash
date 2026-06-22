@@ -122,7 +122,7 @@ export class ConversationManagerStore implements IDisposable {
       });
 
       if (payload.soundEvent) {
-        soundPlayer.play(payload.soundEvent, true);
+        soundPlayer.play(payload.soundEvent, payload.appFocused, payload.conversationId);
       }
     });
   }
