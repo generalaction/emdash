@@ -127,8 +127,6 @@ export type DensityScale = {
   blockGap: number;
   /** Tighter gap between two consecutive prose blocks. */
   proseGap: number;
-  /** Uniform vertical gap (px) between consecutive transcript row groups (user<->assistant boundary). */
-  rowGap: number;
   /**
    * Fallback gap (px) used when a unit kind has no declared margin.
    * Applied as the collapsed intra-turn seam gap between adjacent assistant-turn items.
@@ -220,7 +218,6 @@ export const DEFAULT_CONFIG: ChatConfig = {
   density: {
     blockGap: 10,
     proseGap: 4,
-    rowGap: 8,
     turnGap: 4,
     rowH: 32,
     rowInsetX: 16,

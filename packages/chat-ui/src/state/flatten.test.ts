@@ -4,8 +4,8 @@
  * Covers:
  *   1. Basic flatness: one unit per committed item (Phase 0 legacy passthrough).
  *   2. Group roles: solo / first / middle / last stamped correctly.
- *   3. Inter-group gapBefore: ROW_GAP on boundary seams (user<->assistant),
- *      collapsed margin on intra-turn seams, 0 on first group.
+ *   3. Inter-group gapBefore: margin-collapse on every seam (including turn
+ *      boundaries, which resolve to the message margin), 0 on first group.
  *   4. Identity stability: committed item → same RenderUnit[] ref on re-call
  *      (WeakMap cache hit).
  *   5. activeTurn bypass: cache not used for active-turn items.
@@ -16,8 +16,9 @@
 import { DEFAULT_THEME } from '@core/theme';
 import { describe, expect, it } from 'vitest';
 
-const ROW_GAP = DEFAULT_THEME.density.rowGap;
 const TURN_GAP = DEFAULT_THEME.density.turnGap;
+// The user message margin is the source of truth for the turn-boundary gap.
+const MSG_MARGIN_TOP = 8; // matches STUB_UNIT_DEFS['message'].margin.top
 import { unit } from '@core/units';
 import type { ItemSegmenter, UnitDef } from '@core/units';
 import type { ChatItem } from '@/model';
@@ -157,19 +158,20 @@ describe('flatten — gapBefore', () => {
     expect(units[0].gapBefore).toBe(0);
   });
 
-  it('user→assistant boundary seam uses rowGap', () => {
+  it('user→assistant boundary seam collapses to the message margin (max(8,2)=8)', () => {
     const tx = createTranscript();
     tx.seed([userMsg('a'), tool('b')]);
     const units = flattenTranscript(tx, STUB_UNIT_DEFS);
-    // user message is at index 0; tool follows at a boundary seam
-    expect(units[1].gapBefore).toBe(ROW_GAP);
+    // user.bottom=8, tool.top=2 → max = 8
+    expect(units[1].gapBefore).toBe(MSG_MARGIN_TOP);
   });
 
-  it('assistant→user boundary seam uses rowGap', () => {
+  it('assistant→user boundary seam collapses to the message margin (max(8,8)=8)', () => {
     const tx = createTranscript();
     tx.seed([assistantMsg('a'), userMsg('b')]);
     const units = flattenTranscript(tx, STUB_UNIT_DEFS);
-    expect(units[1].gapBefore).toBe(ROW_GAP);
+    // assistant.bottom=8, user.top=8 → max = 8
+    expect(units[1].gapBefore).toBe(MSG_MARGIN_TOP);
   });
 
   it('intra-turn seam collapses adjacent margins (tool→tool = max(2,2) = 2)', () => {
@@ -182,7 +184,6 @@ describe('flatten — gapBefore', () => {
 
   it('intra-turn seam collapses asymmetric margins (tool→message = max(2,8) = 8)', () => {
     const tx = createTranscript();
-    // Seed without user message to avoid boundary seam triggering on message
     tx.seed([tool('a'), assistantMsg('b')]);
     const units = flattenTranscript(tx, STUB_UNIT_DEFS);
     // tool.bottom=2, message.top=8 → max = 8
@@ -197,13 +198,12 @@ describe('flatten — gapBefore', () => {
     expect(units[1].gapBefore).toBe(TURN_GAP);
   });
 
-  it('non-first units without unitDefs use turnGap as fallback', () => {
+  it('all seams fall back to turnGap when no unitDefs provided', () => {
     const tx = createTranscript();
     tx.seed([userMsg('a'), tool('b'), tool('c')]);
     const units = flattenTranscript(tx);
-    // user→tool is a boundary seam → rowGap
-    expect(units[1].gapBefore).toBe(ROW_GAP);
-    // tool→tool is intra-turn with no defs → turnGap
+    // No unitDefs → both sides of every seam use turnGap as fallback.
+    expect(units[1].gapBefore).toBe(TURN_GAP);
     expect(units[2].gapBefore).toBe(TURN_GAP);
   });
 });

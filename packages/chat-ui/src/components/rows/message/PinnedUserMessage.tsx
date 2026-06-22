@@ -3,8 +3,9 @@
  * as the pinned-header overlay in ChatRoot when `pinUserMessages` is enabled.
  *
  * Layout:
- *   • `bg-chat-bg/80 backdrop-blur-sm` blurred strip at the top with 8px top
- *     padding (ROW_GAP) so the card starts at the same pin-line as inline rows.
+ *   • `bg-chat-bg/80 backdrop-blur-sm` blurred strip at the top with padding
+ *     equal to the user message's margin.top so the card starts at the same
+ *     pin-line as inline rows.
  *   • `UserMessageCard` rendered directly — same card as the inline virtualized
  *     row, sharing the same expandedId so expand state is mirrored between the
  *     two. `pointer-events-auto` on the card makes clicks reach the outer
@@ -48,7 +49,7 @@ export function PinnedUserMessage(props: {
 
   return (
     <>
-      <div class={pinnedBackdrop} style={{ 'padding-top': `${props.theme.density.rowGap}px` }}>
+      <div class={pinnedBackdrop} style={{ 'padding-top': `${messageUnitDef.margin?.top ?? 8}px` }}>
         <UserMessageCard data={props.item} ctx={renderCtx} vars={messageUnitDef.vars!} />
       </div>
       {/* 16px scroll fade: signals that rows scroll beneath the pinned message. */}

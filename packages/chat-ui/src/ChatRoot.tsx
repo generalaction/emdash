@@ -49,7 +49,6 @@ import type { MentionProvider } from './core/markdown/mention-provider';
 import { registerFontsReadyClear } from './core/measure/pretext-cache';
 import { StickToBottom } from './core/stick-to-bottom';
 import type { ChatTheme } from './core/theme';
-import { DEFAULT_THEME } from './core/theme';
 import { unitReservedHeight } from './core/units';
 import { Virtualizer } from './core/virtualizer';
 import type { ChatCommands, ScrollToItemOptions } from './index';
@@ -188,7 +187,7 @@ export function ChatRoot(props: ChatRootProps) {
   const caches = createChatCaches(props.highlighter, props.mentionProvider);
   // Resolve theme once at creation time (non-reactive by design: theme changes
   // require a remount). Prefer the explicit `theme` prop for back-compat, then
-  // derive from `config`, then fall back to DEFAULT_THEME.
+  // build from `config`, falling back to DEFAULT_CONFIG.
   const resolved: ChatTheme = props.theme ?? buildChatTheme(props.config ?? DEFAULT_CONFIG);
 
   // Measurement-coupled CSS vars applied as a static inline style on the scroll
@@ -263,6 +262,11 @@ export function ChatRoot(props: ChatRootProps) {
   const units = createMemo(() =>
     flatten(props.transcript.state, segmentCtx(), SEGMENTERS, UNIT_REGISTRY)
   );
+
+  // Leading gap of a user message row — used by the pin overlay to keep the
+  // pinned copy vertically aligned with the real row. Reads the message def's
+  // margin.top so it stays in sync if the message margin changes.
+  const userTopGap = UNIT_REGISTRY.message?.margin?.top ?? 8;
 
   // ── Count sync effect ─────────────────────────────────────────────────────
   //
@@ -372,10 +376,9 @@ export function ChatRoot(props: ChatRootProps) {
     const pt = padTop();
     totalHeight(); // track streaming height changes so virt.top/virt.size stay accurate
 
-    // The message content pin line sits ROW_GAP below the viewport top (the
-    // container's top padding), so the pinned message keeps the same 8px gap to
-    // the top edge that rows have between each other.
-    const pinLine = DEFAULT_THEME.density.rowGap;
+    // The message content pin line sits one user-message top-gap below the
+    // viewport top so the pinned copy aligns exactly with a real row.
+    const pinLine = userTopGap;
 
     // Binary search: largest turns[i] whose real row content has scrolled above
     // the pin line, i.e. (virt.top(turns[i]) + pt) - st < pinLine.
@@ -535,12 +538,12 @@ export function ChatRoot(props: ChatRootProps) {
     const count = items.length;
     virt.prepend(count, (i) => {
       const item = items[i];
-      if (!item) return DEFAULT_THEME.density.rowGap + 60;
+      if (!item) return userTopGap + 60;
       const unitDef = UNIT_REGISTRY[item.kind];
       const contentH =
         unitDef?.estimate?.(item, loadEstimateCtx, unitDef.vars ?? {}) ??
         genericEstimate(item, loadEstimateCtx);
-      return DEFAULT_THEME.density.rowGap + contentH;
+      return userTopGap + contentH;
     });
 
     // Update the transcript store (triggers the count-sync effect and re-flattens).

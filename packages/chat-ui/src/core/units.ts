@@ -62,10 +62,11 @@ export type GroupRole = 'solo' | 'first' | 'middle' | 'last';
  * `data`      — segment payload; typed per-kind in each UnitDef.
  * `groupRole` — stamped by flatten(); used by UnitRow for chrome.
  * `gapBefore` — space reserved above this unit inside its virtualizer slot.
- *               flatten() resolves each inter-group seam via margin-collapse
+ *               flatten() resolves every inter-group seam via margin-collapse
  *               (max of adjacent UnitDef margins, falling back to turnGap) and
- *               stamps the result here. User<->assistant boundary seams always
- *               use rowGap. The first group in the transcript gets 0.
+ *               stamps the result here. Turn boundaries resolve to 8px because
+ *               the user message margin (8/8) is >= all other unit margins.
+ *               The first group in the transcript gets 0.
  * `chrome`    — optional group chrome carried from the ItemSegmenter, stamped
  *               by flatten(); undefined for solo legacy units.
  */
@@ -124,11 +125,11 @@ export type SegmentCtx = {
  * `vars`     — typed numeric geometry constants declared once on the def and
  *              threaded into `measure`, `estimate`, and `Render`. Defs that
  *              have not yet been migrated to the Box algebra omit this field.
- * `margin`   — optional within-turn vertical margins (px). At each inter-group
- *              seam `flatten()` collapses adjacent margins to max(prev.bottom,
+ * `margin`   — optional vertical margins (px). At every inter-group seam
+ *              `flatten()` collapses adjacent margins to max(prev.bottom,
  *              cur.top) and assigns the result to the lower unit's `gapBefore`.
- *              Falls back to `density.turnGap` when absent. Has no effect on
- *              user<->assistant-turn boundary seams, which always use `rowGap`.
+ *              Falls back to `density.turnGap` when absent. Turn boundaries
+ *              resolve to 8px via the user message's margin (top: 8, bottom: 8).
  * `estimate` — O(1) height heuristic for off-screen units at setCount/prepend.
  *              Falls back to `genericEstimate` when omitted.
  * `measure`  — exact height (px); called only for visible units.

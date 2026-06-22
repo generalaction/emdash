@@ -65,9 +65,10 @@ export const segmentCache = new WeakMap<object, RenderUnit[]>();
  * The caller (ChatRoot) passes both registries so this module stays pure.
  *
  * `unitDefs` is optional and structurally typed (only `margin` is needed)
- * so the concrete UNIT_REGISTRY is not imported here.  When provided, each
- * intra-turn seam is resolved via margin-collapse (max of adjacent margins).
- * Inter-turn boundary seams (user <-> assistant) always use `rowGap`.
+ * so the concrete UNIT_REGISTRY is not imported here.  Every seam (including
+ * turn boundaries) is resolved via margin-collapse (max of adjacent margins).
+ * The uniform turn-boundary gap falls out of the user message's margin (top:8,
+ * bottom:8) being >= every other unit's margin, so no special-case is needed.
  */
 export function flatten(
   state: TranscriptState,
@@ -82,7 +83,9 @@ export function flatten(
   const committed = state.committed;
   const activeTurn = state.activeTurn;
 
-  let prevWasUser = false;
+  // Hoist stable per-call values so processItem allocates nothing per seam.
+  const marginOf = (k: string) => unitDefs?.[k]?.margin;
+  const turnGap = DEFAULT_THEME.density.turnGap;
 
   const processItem = (item: ChatItem, isActive: boolean): void => {
     const seg = segmenters[item.kind];
@@ -123,24 +126,19 @@ export function flatten(
     // group (except the very first group in the transcript, which has no
     // preceding row and gets gapBefore = 0).
     //
-    // Seam classification:
-    //   user<->assistant boundary — always rowGap (uniform inter-turn spacing).
-    //   intra-turn seam           — collapsed: max(prev.margin.bottom, cur.margin.top)
-    //                               with density.turnGap as the fallback for kinds
-    //                               that do not declare a margin.
-    const curIsUser = itemIsUser(item);
+    // Every seam uses margin-collapse: max(prev.margin.bottom, cur.margin.top),
+    // falling back to density.turnGap for kinds with no declared margin.
+    // Turn boundaries (user<->assistant) resolve to 8px because the user
+    // message margin is { top: 8, bottom: 8 } and all other unit margins
+    // are <= 8, so collapse always yields 8 at a boundary.
     if (out.length > 0) {
-      group[0].gapBefore =
-        curIsUser || prevWasUser
-          ? DEFAULT_THEME.density.rowGap
-          : resolveSeamGap(
-              out[out.length - 1].kind,
-              group[0].kind,
-              (k) => unitDefs?.[k]?.margin,
-              DEFAULT_THEME.density.turnGap
-            );
+      group[0].gapBefore = resolveSeamGap(
+        out[out.length - 1].kind,
+        group[0].kind,
+        marginOf,
+        turnGap
+      );
     }
-    prevWasUser = curIsUser;
 
     out.push(...group);
   };
