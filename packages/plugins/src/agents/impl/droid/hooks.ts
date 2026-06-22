@@ -3,7 +3,7 @@ import {
   makeStdinHookCommand,
 } from '@emdash/core/agents/plugins/helpers';
 
-export const DROID_HOOKS_PATH = '.factory/settings.json';
+export const DROID_HOOKS_PATH = '.factory/hooks.json';
 
 export function buildDroidHookConfig() {
   return buildNestedJsonHookConfig(DROID_HOOKS_PATH, [
