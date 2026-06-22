@@ -1,0 +1,27 @@
+apps/emdash-desktop/src/renderer/features/projects/stores/project-manager.ts
+  s_e8cf43dfe5f5a4::t_ddd9fee80e2d6a 396,398
+apps/emdash-desktop/src/renderer/lib/stores/ssh-connection-store.test.ts
+  s_e8cf43dfe5f5a4::t_da261dc3029c34 97-114
+apps/emdash-desktop/src/renderer/features/sidebar/project-item.tsx
+  s_e8cf43dfe5f5a4::t_4fb6c8730f8dbc 16,43,102-107,171
+apps/emdash-desktop/src/renderer/features/projects/stores/project-manager.test.ts
+  s_e8cf43dfe5f5a4::t_b3d681e20c3331 315
+apps/emdash-desktop/src/renderer/lib/stores/ssh-connection-store.ts
+  s_e8cf43dfe5f5a4::t_e60557e44e9d78 152,154-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "4e46714f05abd8b960cd9411b8617ed21f0c8d03",
+  "prompts": {},
+  "sessions": {
+    "s_e8cf43dfe5f5a4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eea18-3d3e-7aa1-8b24-e1d1230b938a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
