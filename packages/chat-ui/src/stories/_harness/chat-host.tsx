@@ -25,7 +25,7 @@ import {
   type JSX,
 } from 'solid-js';
 import { ChatRoot } from '@/ChatRoot';
-import type { ChatCommands, ChatItem } from '@/index';
+import type { ChatCommands, ChatItem, MentionProvider } from '@/index';
 import { storyViewport } from './chat-host.css';
 
 /**
@@ -61,6 +61,8 @@ export type ChatHostProps = {
    * extra wiring. Pass overrides here to replace specific callbacks.
    */
   commands?: ChatCommands;
+  /** Optional mention provider — when supplied, @-token text renders as pills. */
+  mentionProvider?: MentionProvider;
 };
 
 /**
@@ -135,6 +137,7 @@ export function ChatHost(props: ChatHostProps) {
         stickToBottom
         pinUserMessages
         commands={() => commands()}
+        mentionProvider={props.mentionProvider}
       />
     </StoryViewport>
   );

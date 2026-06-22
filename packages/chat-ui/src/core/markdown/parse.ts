@@ -54,12 +54,17 @@ const parser = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
 
 /**
  * Regex matching `@<token>` where token runs to the next whitespace, @, or end
- * of string. Tokens may include word chars, dots, slashes, hyphens, and colons
- * (covering file paths, issue refs, and symbol names).
+ * of string. Tokens may include word chars, dots, slashes, hyphens, colons,
+ * and parens (covering file paths, issue refs, and symbol names).
  *
- * Examples matched: @src/auth/jwt.ts  @issue-42  @handleSubmit()
+ * Dots are consumed only when followed by another token char, so a trailing
+ * sentence-final dot is not absorbed: `@hello.ts.` captures `hello.ts`.
+ * Internal dots (`src/auth/jwt.ts`) and leading/dotfile dots (`.gitignore`)
+ * are preserved.
+ *
+ * Examples matched: @src/auth/jwt.ts  @issue-42  @handleSubmit()  @.gitignore
  */
-const AT_TOKEN_RE = /@([\w./\-:()]+)/g;
+const AT_TOKEN_RE = /@((?:[\w/\-:()]|\.(?=[\w/\-:()]))+)/g;
 
 /**
  * Split a plain-text segment on @-mentions (using the provider to validate each)
