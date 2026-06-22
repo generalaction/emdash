@@ -1,0 +1,32 @@
+apps/emdash-desktop/src/renderer/features/automations/use-automations.ts
+  s_41dcbea4529085::t_8ad9ccd5f79f09 26,77
+apps/emdash-desktop/src/renderer/lib/stores/use-agent-installation-statuses.ts
+  s_41dcbea4529085::t_5bd968f2efd17d 49,155
+apps/emdash-desktop/src/renderer/features/projects/components/pr-view/usePullRequests.ts
+  s_41dcbea4529085::t_7a9c1fbb7e09a3 42-70,93
+  s_41dcbea4529085::t_5bd968f2efd17d 72,88-92
+apps/emdash-desktop/src/renderer/lib/stores/use-agent-settings.ts
+  s_41dcbea4529085::t_5bd968f2efd17d 20,51-52
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-project-git-context.ts
+  s_41dcbea4529085::t_8ad9ccd5f79f09 27
+apps/emdash-desktop/src/renderer/features/projects/components/pr-view/usePrViewState.ts
+  s_41dcbea4529085::t_839f04b9d2bad5 19,32,116,152-154
+apps/emdash-desktop/src/renderer/lib/hooks/useGithubRepositoryOwners.ts
+  s_41dcbea4529085::t_839f04b9d2bad5 18,26-27,29,34-37,48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "3f4dc1c712cba53e361704939ae5d4f1ab7f4393",
+  "prompts": {},
+  "sessions": {
+    "s_41dcbea4529085": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef053-2801-7533-aaea-7c6ba878a612",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
