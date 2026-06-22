@@ -21,4 +21,24 @@ describe('buildStandardCommand', () => {
 
     expect(result.args).toEqual(['resume', '--last']);
   });
+
+  it('splits multi-word resume flags before appending the session id', () => {
+    const result = buildStandardCommand(
+      {
+        cli: 'amp',
+        autoApprove: false,
+        providerSessionId: 'T-thread-1',
+        sessionId: 'conversation-1',
+        isResuming: true,
+        model: '',
+      },
+      {
+        resumeFlag: 'threads continue',
+        sessionIdFlag: 'threads continue',
+        sessionIdOnResumeOnly: true,
+      }
+    );
+
+    expect(result.args).toEqual(['threads', 'continue', 'T-thread-1']);
+  });
 });

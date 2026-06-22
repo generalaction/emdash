@@ -280,13 +280,16 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     description:
       'Amp Code CLI for agentic coding sessions against your repository from the terminal.',
     docUrl: 'https://ampcode.com/manual#install',
-    installCommand: 'npm install -g @sourcegraph/amp@latest',
+    installCommand: 'npm install -g @ampcode/cli@latest',
     commands: ['amp'],
     versionArgs: ['--version'],
     cli: 'amp',
     autoApproveFlag: '--dangerously-allow-all',
     initialPromptFlag: '',
     initialPromptViaStdinPipe: true,
+    resumeFlag: 'threads continue',
+    sessionIdFlag: 'threads continue',
+    sessionIdOnResumeOnly: true,
     icon: 'ampcode.svg',
     alt: 'Amp CLI',
     terminalOnly: true,
@@ -692,6 +695,7 @@ export function isValidProviderId(value: unknown): value is AgentProviderId {
 }
 
 export function isValidProviderSessionId(providerId: string, providerSessionId: string): boolean {
+  if (providerId === 'amp') return providerSessionId.startsWith('T-');
   if (providerId === 'opencode') return providerSessionId.startsWith('ses');
   return true;
 }
