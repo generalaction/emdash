@@ -312,7 +312,7 @@ describe('ProjectManagerStore project creation', () => {
     store.retryDisconnectedSshProjects({ force: true });
     await Promise.resolve();
 
-    expect(mocks.sshConnect).toHaveBeenCalledWith('ssh-1');
+    expect(mocks.sshConnect).toHaveBeenCalledWith('ssh-1', { force: true });
     expect(mocks.openProject).toHaveBeenCalledWith(project.id);
   });
 

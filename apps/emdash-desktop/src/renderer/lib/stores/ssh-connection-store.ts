@@ -149,9 +149,13 @@ export class SshConnectionStore {
     return this.healthStates[connectionId] ?? { status: 'ok' };
   }
 
-  async connect(connectionId: string): Promise<void> {
+  async connect(connectionId: string, options: { force?: boolean } = {}): Promise<void> {
     const state = this.stateFor(connectionId);
-    if (state === 'connected' || state === 'connecting' || state === 'reconnecting') {
+    if (
+      state === 'connected' ||
+      state === 'connecting' ||
+      (!options.force && state === 'reconnecting')
+    ) {
       return;
     }
     await rpc.ssh.connect(connectionId);

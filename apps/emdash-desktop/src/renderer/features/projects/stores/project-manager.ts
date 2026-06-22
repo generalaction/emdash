@@ -393,9 +393,9 @@ export class ProjectManagerStore {
         this._mountDisconnectedSshProjects(connectionId);
         continue;
       }
-      if (state === 'connecting' || state === 'reconnecting') continue;
+      if (state === 'connecting') continue;
       void appState.sshConnections
-        .connect(connectionId)
+        .connect(connectionId, { force: true })
         .then(() => this._mountDisconnectedSshProjects(connectionId))
         .catch(() => {});
     }
