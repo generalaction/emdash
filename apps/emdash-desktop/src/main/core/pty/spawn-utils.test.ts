@@ -57,6 +57,21 @@ const bashRemoteProfile: ResolvedShellProfile = {
   remotePathLookup: true,
 };
 
+const fishSystemProfile: ResolvedShellProfile = {
+  id: 'target-default',
+  resolvedShellId: 'fish',
+  resolvedFromSystem: true,
+  executable: '/usr/local/bin/fish',
+  available: true,
+  family: 'posix',
+  interactiveArgs: ['-il'],
+  commandArgs: ['-lc'],
+  envCaptureArgs: ['-ilc'],
+  capturedEnv: {
+    PATH: '/usr/local/bin:/usr/bin',
+  },
+};
+
 const tcshRemoteProfile: ResolvedShellProfile = {
   id: 'tcsh',
   resolvedShellId: 'tcsh',
@@ -160,6 +175,14 @@ describe('resolveSshCommand', () => {
 
     expect(result).toBe(
       `'/bin/zsh' -lc 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; cd "/workspace" && exec /bin/zsh -il'`
+    );
+  });
+
+  it('launches remote fish system terminals through a sh setup wrapper', () => {
+    const result = resolveSshCommand('general', makeGeneralConfig(), undefined, fishSystemProfile);
+
+    expect(result).toBe(
+      `'/bin/sh' -c 'export PATH='\\''/usr/local/bin:/usr/bin'\\''; cd "/workspace" && exec /usr/local/bin/fish -il'`
     );
   });
 

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import { ExecError, type BoundExec } from '../exec';
-import type { IFileWatchService, IFsService, WatchHandle } from '../fs';
+import type { IFileWatchService, WatchHandle } from '../fs';
 import { LiveModel } from '../lib';
 import {
   classifyCommitError,
@@ -13,6 +13,7 @@ import {
   type PullError,
   type PushError,
 } from './errors';
+import { countFileLines } from './file-line-count';
 import type { GitOnError, GitRepository } from './git-repository';
 import type { ImageReadResult } from './models/diff';
 import { toRangeString, toRefString, type DiffTarget } from './models/diff-target';
@@ -68,8 +69,6 @@ export type GitWorktreeOptions = {
   gitDir: string;
   repository: GitRepository;
   exec: BoundExec;
-  fs: IFsService;
-  /** Injected file-watch service; disposed by the injector, not this class. */
   watcher: IFileWatchService;
   onError?: GitOnError;
 };
@@ -79,7 +78,6 @@ export class GitWorktree implements IGitWorktree {
   readonly gitDir: string;
   readonly repository: GitRepository;
   private readonly exec: BoundExec;
-  private readonly fs: IFsService;
   private readonly statusModel: LiveModel<GitStatusModel>;
   private readonly headModel: LiveModel<GitHeadModel>;
   private readonly worktreeWatch: WatchHandle;
@@ -90,7 +88,6 @@ export class GitWorktree implements IGitWorktree {
     this.gitDir = options.gitDir;
     this.repository = options.repository;
     this.exec = options.exec;
-    this.fs = options.fs;
     const onError = options.onError ?? (() => {});
 
     this.statusModel = new LiveModel<GitStatusModel>({
@@ -371,7 +368,21 @@ export class GitWorktree implements IGitWorktree {
 
   async revert(paths: string[]): Promise<GitSequences> {
     if (paths.length === 0) return {};
-    await this.exec.exec(['checkout', 'HEAD', '--', ...paths]);
+    const indexedPaths = await this.getIndexedPaths(paths);
+    const headPaths = await this.getHeadPaths(paths);
+    const indexedPathSet = new Set(indexedPaths);
+    const headOnlyPaths = headPaths.filter((filePath) => !indexedPathSet.has(filePath));
+    if (indexedPaths.length > 0) {
+      await this.exec.exec(['checkout', '--', ...indexedPaths]);
+    }
+    if (headOnlyPaths.length > 0) {
+      await this.exec.exec(['checkout', 'HEAD', '--', ...headOnlyPaths]);
+    }
+    const trackedPathSet = new Set([...indexedPaths, ...headPaths]);
+    const untrackedPaths = paths.filter((filePath) => !trackedPathSet.has(filePath));
+    if (untrackedPaths.length > 0) {
+      await this.exec.exec(['clean', '-fd', '--', ...untrackedPaths]);
+    }
     return this.refreshStatus();
   }
 
@@ -494,6 +505,27 @@ export class GitWorktree implements IGitWorktree {
     if (parser.tooManyFiles) throw new TooManyFilesChangedError();
   }
 
+  private async getIndexedPaths(paths: string[]): Promise<string[]> {
+    const { stdout } = await this.exec.exec(['ls-files', '-z', '--', ...paths]);
+    return [...new Set(stdout.split('\0').filter(Boolean))];
+  }
+
+  private async getHeadPaths(paths: string[]): Promise<string[]> {
+    try {
+      const { stdout } = await this.exec.exec([
+        'ls-tree',
+        '-z',
+        '--name-only',
+        'HEAD',
+        '--',
+        ...paths,
+      ]);
+      return [...new Set(stdout.split('\0').filter(Boolean))];
+    } catch {
+      return [];
+    }
+  }
+
   private async buildStatus(
     entries: FileStatus[],
     stagedNumstat: Numstat,
@@ -526,10 +558,10 @@ export class GitWorktree implements IGitWorktree {
       const deletions = unstagedNumstat.get(filePath)?.deletions ?? 0;
       if (additions === 0 && deletions === 0 && isUntracked) {
         try {
-          const result = await this.fs.read(path.join(this.worktree, filePath), {
+          const result = await countFileLines(path.join(this.worktree, filePath), {
             maxBytes: MAX_DIFF_CONTENT_BYTES,
           });
-          if (!result.truncated) additions = (result.content.match(/\n/g) ?? []).length;
+          if (!result.truncated) additions = result.lines;
         } catch {}
       }
 

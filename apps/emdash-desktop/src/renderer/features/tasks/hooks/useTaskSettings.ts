@@ -2,6 +2,7 @@ import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-
 
 export interface TaskSettingsModel {
   autoGenerateName: boolean;
+  autoApproveByDefault: boolean;
   autoTrustWorktrees: boolean;
   createBranchAndWorktree: boolean;
   preserveNameCapitalization: boolean;
@@ -11,17 +12,20 @@ export interface TaskSettingsModel {
   isFieldOverridden: (
     field:
       | 'autoGenerateName'
+      | 'autoApproveByDefault'
       | 'autoTrustWorktrees'
       | 'createBranchAndWorktree'
       | 'preserveNameCapitalization'
       | 'includeIssueContextByDefault'
   ) => boolean;
   updateAutoGenerateName: (next: boolean) => void;
+  updateAutoApproveByDefault: (next: boolean) => void;
   updateAutoTrustWorktrees: (next: boolean) => void;
   updateCreateBranchAndWorktree: (next: boolean) => void;
   updatePreserveNameCapitalization: (next: boolean) => void;
   updateIncludeIssueContextByDefault: (next: boolean) => void;
   resetAutoGenerateName: () => void;
+  resetAutoApproveByDefault: () => void;
   resetAutoTrustWorktrees: () => void;
   resetCreateBranchAndWorktree: () => void;
   resetPreserveNameCapitalization: () => void;
@@ -40,6 +44,7 @@ export function useTaskSettings(): TaskSettingsModel {
 
   return {
     autoGenerateName: tasks?.autoGenerateName ?? false,
+    autoApproveByDefault: tasks?.autoApproveByDefault ?? false,
     autoTrustWorktrees: tasks?.autoTrustWorktrees ?? false,
     createBranchAndWorktree: tasks?.createBranchAndWorktree ?? true,
     preserveNameCapitalization: tasks?.preserveNameCapitalization ?? false,
@@ -48,11 +53,13 @@ export function useTaskSettings(): TaskSettingsModel {
     saving,
     isFieldOverridden,
     updateAutoGenerateName: (next) => update({ autoGenerateName: next }),
+    updateAutoApproveByDefault: (next) => update({ autoApproveByDefault: next }),
     updateAutoTrustWorktrees: (next) => update({ autoTrustWorktrees: next }),
     updateCreateBranchAndWorktree: (next) => update({ createBranchAndWorktree: next }),
     updatePreserveNameCapitalization: (next) => update({ preserveNameCapitalization: next }),
     updateIncludeIssueContextByDefault: (next) => update({ includeIssueContextByDefault: next }),
     resetAutoGenerateName: () => resetField('autoGenerateName'),
+    resetAutoApproveByDefault: () => resetField('autoApproveByDefault'),
     resetAutoTrustWorktrees: () => resetField('autoTrustWorktrees'),
     resetCreateBranchAndWorktree: () => resetField('createBranchAndWorktree'),
     resetPreserveNameCapitalization: () => resetField('preserveNameCapitalization'),

@@ -1,11 +1,18 @@
 import type { AgentInstallationStatus } from '@shared/core/agents/agent-payload';
 import { defineEvent } from '@shared/lib/ipc/events';
-import type { TabNavigationDirection } from '@shared/shortcuts';
+import type { ShortcutSettingsKey, TabNavigationDirection } from '@shared/shortcuts';
 
 // App editing actions (renderer → main, no payload)
 export const appUndoChannel = defineEvent<void>('app:undo');
 export const appRedoChannel = defineEvent<void>('app:redo');
 export const appPasteChannel = defineEvent<void>('app:paste');
+
+export type TerminalContextMenuAction = 'paste' | 'select-all' | 'clear';
+
+export const terminalContextMenuActionChannel = defineEvent<{
+  requestId: string;
+  action: TerminalContextMenuAction;
+}>('terminal-context-menu:action');
 
 // Menu events (main → renderer, no payload)
 export const menuOpenSettingsChannel = defineEvent<void>('menu:open-settings');
@@ -29,6 +36,11 @@ export const tabNavigationShortcutChannel = defineEvent<{
   source: { kind: 'browser'; browserId: string };
   direction: TabNavigationDirection;
 }>('tab-navigation:shortcut');
+
+export const browserAppShortcutChannel = defineEvent<{
+  source: { kind: 'browser'; browserId: string };
+  shortcutKey: ShortcutSettingsKey;
+}>('browser:app-shortcut');
 
 export const notificationFocusTaskChannel = defineEvent<{
   projectId: string;

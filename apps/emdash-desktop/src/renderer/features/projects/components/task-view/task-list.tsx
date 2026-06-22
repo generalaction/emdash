@@ -119,7 +119,7 @@ function SelectionBar({
         )}
         <Button variant="destructive" size="sm" onClick={onDelete}>
           <Trash2 className="size-3.5" />
-          Delete <BoundShortcut settingsKey="deleteSelectedTasks" />
+          Delete <BoundShortcut settingsKey="deleteSelectedTasks" variant="keycaps" />
         </Button>
         <Button variant="ghost" size="icon-xs" onClick={onClear} aria-label="Clear selection">
           <X className="size-3.5" />
@@ -233,7 +233,7 @@ export const TaskList = observer(function TaskList() {
               className="flex-1"
             />
             <Button onClick={() => showCreateTaskModal({ projectId })}>
-              Create Task <BoundShortcut settingsKey="newTask" />
+              Create Task <BoundShortcut settingsKey="newTask" variant="keycaps" />
             </Button>
           </div>
         </div>

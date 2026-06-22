@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LocalProject } from '@shared/projects';
-import { isUnregisteredProject } from './project';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { LocalProject, SshProject } from '@shared/projects';
+import { createUnmountedProject, isUnregisteredProject } from './project';
 import { ProjectManagerStore } from './project-manager';
 
 const mocks = vi.hoisted(() => ({
@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   patchProjectSettings: vi.fn(),
   updateProjectSettings: vi.fn(),
   eventOn: vi.fn(),
+  sshConnect: vi.fn(),
+  sshStateFor: vi.fn(),
 }));
 
 vi.mock('@renderer/lib/ipc', () => ({
@@ -45,6 +47,10 @@ vi.mock('@renderer/lib/stores/app-state', () => ({
       revalidate: vi.fn(),
       viewParamsStore: {},
     },
+    sshConnections: {
+      connect: mocks.sshConnect,
+      stateFor: mocks.sshStateFor,
+    },
   },
 }));
 
@@ -72,13 +78,33 @@ function localProject(overrides: Partial<LocalProject> = {}): LocalProject {
   };
 }
 
+function sshProject(overrides: Partial<SshProject> = {}): SshProject {
+  return {
+    type: 'ssh',
+    id: 'ssh-project-id',
+    name: 'SSH Project',
+    path: '/project',
+    baseRef: 'main',
+    connectionId: 'ssh-1',
+    repositoryWorkspaceId: null,
+    createdAt: '2026-05-28T00:00:00.000Z',
+    updatedAt: '2026-05-28T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
 function okProject(project: LocalProject) {
   return { success: true as const, data: project };
 }
 
 describe('ProjectManagerStore project creation', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.eventOn.mockReturnValue(vi.fn());
     mocks.inspectProjectPath.mockResolvedValue({ isDirectory: true, isGitRepo: true });
     mocks.createProject.mockResolvedValue(okProject(localProject()));
     mocks.openProject.mockReturnValue(new Promise(() => {}));
@@ -99,6 +125,8 @@ describe('ProjectManagerStore project creation', () => {
       success: true,
       data: { githubAccountId: 'github.com:42' },
     });
+    mocks.sshConnect.mockResolvedValue(undefined);
+    mocks.sshStateFor.mockReturnValue('disconnected');
   });
 
   it('returns an existing project without starting creation', async () => {
@@ -274,6 +302,75 @@ describe('ProjectManagerStore project creation', () => {
       githubAccountId: 'github.com:42',
     });
     expect(mocks.updateProjectSettings).not.toHaveBeenCalled();
+  });
+
+  it('removes window and SSH event listeners on dispose', () => {
+    const disposeSshEvent = vi.fn();
+    mocks.eventOn.mockReturnValueOnce(disposeSshEvent);
+    const addEventListener = vi.fn();
+    const removeEventListener = vi.fn();
+    vi.stubGlobal('window', { addEventListener, removeEventListener });
+    const store = new ProjectManagerStore();
+
+    store.dispose();
+    store.dispose();
+
+    expect(disposeSshEvent).toHaveBeenCalledTimes(1);
+    expect(removeEventListener).toHaveBeenCalledWith('online', expect.any(Function));
+    expect(removeEventListener).toHaveBeenCalledWith('focus', expect.any(Function));
+    expect(addEventListener).toHaveBeenCalledWith('online', expect.any(Function));
+    expect(addEventListener).toHaveBeenCalledWith('focus', expect.any(Function));
+  });
+
+  it('retries SSH-disconnected projects without mounting before the connection is ready', async () => {
+    const store = new ProjectManagerStore();
+    const project = sshProject();
+    store.projects.set(project.id, createUnmountedProject(project, 'idle'));
+    const projectStore = store.projects.get(project.id);
+    if (!projectStore) throw new Error('Expected project store');
+    projectStore.phase = 'error';
+    projectStore.error = project.connectionId;
+    projectStore.errorCode = 'ssh-disconnected';
+
+    store.retryDisconnectedSshProjects({ force: true });
+    await Promise.resolve();
+
+    expect(mocks.sshConnect).toHaveBeenCalledWith('ssh-1', { force: true });
+    expect(mocks.openProject).not.toHaveBeenCalled();
+  });
+
+  it('mounts SSH-disconnected projects after a successful reconnect event', () => {
+    const store = new ProjectManagerStore();
+    const project = sshProject();
+    store.projects.set(project.id, createUnmountedProject(project, 'idle'));
+    const projectStore = store.projects.get(project.id);
+    if (!projectStore) throw new Error('Expected project store');
+    projectStore.phase = 'error';
+    projectStore.error = project.connectionId;
+    projectStore.errorCode = 'ssh-disconnected';
+
+    const handler = mocks.eventOn.mock.calls[0]?.[1];
+    if (!handler) throw new Error('Expected SSH event subscription');
+    handler({ type: 'connected', connectionId: 'ssh-1' });
+
+    expect(mocks.openProject).toHaveBeenCalledWith(project.id);
+  });
+
+  it('mounts SSH-disconnected projects when the connection is already connected', () => {
+    mocks.sshStateFor.mockReturnValue('connected');
+    const store = new ProjectManagerStore();
+    const project = sshProject();
+    store.projects.set(project.id, createUnmountedProject(project, 'idle'));
+    const projectStore = store.projects.get(project.id);
+    if (!projectStore) throw new Error('Expected project store');
+    projectStore.phase = 'error';
+    projectStore.error = project.connectionId;
+    projectStore.errorCode = 'ssh-disconnected';
+
+    store.retryDisconnectedSshProjects({ force: true });
+
+    expect(mocks.sshConnect).not.toHaveBeenCalled();
+    expect(mocks.openProject).toHaveBeenCalledWith(project.id);
   });
 
   it('does not write GitHub account settings when creation did not specify one', async () => {

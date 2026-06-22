@@ -1,4 +1,18 @@
-# Project Overview
+# AGENTS.md
+
+This is the root agent guide for Emdash. Treat it as the agent-facing companion to
+`README.md` and `CONTRIBUTING.md`: keep it focused on the commands, conventions,
+architecture facts, and safety rules coding agents need while editing this repository.
+
+When working in this repo:
+
+- Start with this file for repo-wide context and required commands.
+- Load only the relevant `agents/` topic page for the area you are changing.
+- Prefer updating the smallest applicable `agents/` page over expanding this file.
+- If nested `AGENTS.md` files are added later, the closest file to the edited path wins.
+- Explicit instructions from the user or maintainer override this file.
+
+## Project Overview
 
 Emdash is a cross-platform Electron app for orchestrating multiple AI coding agents in
 parallel, each isolated in its own Git worktree and able to run locally or over SSH.
@@ -44,6 +58,8 @@ Inside `apps/emdash-desktop/`:
 The repo root has aggregate scripts (`dev`, `build`, `test`, `lint`, `format`,
 `format:check`, `typecheck`) that fan out through the pnpm workspace. App-specific
 commands run from `apps/emdash-desktop/`.
+
+Use Node `24.14.0` from `.nvmrc` and `pnpm@10.28.2`.
 
 Install dependencies (repo root):
 

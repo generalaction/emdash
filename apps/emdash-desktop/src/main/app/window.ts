@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { BrowserWindow, nativeTheme } from 'electron';
-import appIcon from '@/assets/images/emdash/emdash_logo.png?asset';
+import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
 import {
   hardenBrowserWebviewPreferences,
@@ -28,7 +28,7 @@ export function createMainWindow(theme: Theme): BrowserWindow {
     title: PRODUCT_NAME,
     backgroundColor: getWindowBackgroundColor(theme, nativeTheme.shouldUseDarkColors),
     // In production, electron-builder injects the icon from the app bundle.
-    ...(import.meta.env.DEV && { icon: appIcon }),
+    ...(import.meta.env.DEV && { icon: devIcon }),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

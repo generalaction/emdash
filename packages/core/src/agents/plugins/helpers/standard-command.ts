@@ -101,7 +101,7 @@ export function buildStandardCommand(ctx: CommandContext, spec: StandardCommandS
         // Use emdash UUID
         args.push(spec.resumeFlag, ctx.sessionId!);
       } else if (spec.resumeWithoutSessionFlag) {
-        args.push(spec.resumeWithoutSessionFlag);
+        args.push(...splitFlag(spec.resumeWithoutSessionFlag));
       } else {
         args.push(spec.resumeFlag);
       }

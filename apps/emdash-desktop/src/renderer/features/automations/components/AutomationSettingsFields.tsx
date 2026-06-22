@@ -79,6 +79,7 @@ export function AutomationSettingsFields({
                       onPromptBlur={onPromptBlur}
                       textareaClassName="min-h-40"
                       placeholder="Add a prompt to the automation..."
+                      showAutoApproveToggle={false}
                     />
                   ),
                 },

@@ -24,7 +24,7 @@ export function SidebarSpace() {
         </TooltipTrigger>
         <TooltipContent>
           Toggle left sidebar
-          <BoundShortcut settingsKey="toggleLeftSidebar" variant="badge" />
+          <BoundShortcut settingsKey="toggleLeftSidebar" variant="keycaps" />
         </TooltipContent>
       </Tooltip>
     </div>
