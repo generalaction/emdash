@@ -44,7 +44,7 @@ import type {
   GitStatusModel,
   GitStatusUntrackedMode,
 } from '@emdash/core/git';
-import { LiveModel, ResourceMap } from '@emdash/core/lib';
+import { LiveModel, ResourceMap, type LiveValue } from '@emdash/core/lib';
 import { err, ok, type Lease, type Result, type Unsubscribe } from '@emdash/shared';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
@@ -251,11 +251,11 @@ class LegacySshGitRepository implements IGitRepository {
     this.gitCommonDir = gitCommonDir;
     this.objectStoreDir = `${gitCommonDir}/objects`;
     this.refsModel = new LiveModel<GitRefsModel>({
-      compute: () => this.computeRefs(),
+      compute: async () => ok(await this.computeRefs()),
       onError: (error) => log.warn('LegacySshGitRepository: refs refresh failed', { error }),
     });
     this.remotesModel = new LiveModel<GitRemotesModel>({
-      compute: () => this.computeRemotes(),
+      compute: async () => ok(await this.computeRemotes()),
       onError: (error) => log.warn('LegacySshGitRepository: remotes refresh failed', { error }),
     });
     this.timers = [
@@ -265,16 +265,16 @@ class LegacySshGitRepository implements IGitRepository {
   }
 
   async getRefs(): Promise<GitRefsModel> {
-    return (await this.refsModel.get()).value;
+    return liveValue(await this.refsModel.get()).value;
   }
 
   async getRemotes(): Promise<GitRemotesModel> {
-    return (await this.remotesModel.get()).value;
+    return liveValue(await this.remotesModel.get()).value;
   }
 
   async getSnapshot(): Promise<GitRepoSnapshot> {
     const [refs, remotes] = await Promise.all([this.refsModel.get(), this.remotesModel.get()]);
-    return { refs, remotes };
+    return { refs: liveValue(refs), remotes: liveValue(remotes) };
   }
 
   async refresh(): Promise<GitRepoSnapshot> {
@@ -282,7 +282,7 @@ class LegacySshGitRepository implements IGitRepository {
       this.refsModel.refresh(),
       this.remotesModel.refresh(),
     ]);
-    return { refs, remotes };
+    return { refs: liveValue(refs), remotes: liveValue(remotes) };
   }
 
   subscribe(cb: (update: GitRepoUpdate) => void): Unsubscribe {
@@ -327,7 +327,7 @@ class LegacySshGitRepository implements IGitRepository {
     try {
       await this.git.addRemote(name, url);
       const remotes = await this.remotesModel.refresh();
-      return ok({ sequences: { remotes: remotes.sequence } });
+      return ok({ sequences: { remotes: liveValue(remotes).sequence } });
     } catch (error) {
       return err(toGitCommandError(error));
     }
@@ -371,7 +371,9 @@ class LegacySshGitRepository implements IGitRepository {
       this.refsModel.refresh(),
       this.remotesModel.refresh(),
     ]);
-    return ok({ sequences: { refs: refs.sequence, remotes: remotes.sequence } });
+    return ok({
+      sequences: { refs: liveValue(refs).sequence, remotes: liveValue(remotes).sequence },
+    });
   }
 
   async publishBranch(
@@ -395,7 +397,7 @@ class LegacySshGitRepository implements IGitRepository {
   }
 
   async refreshRefs(): Promise<number> {
-    return (await this.refsModel.refresh()).sequence;
+    return liveValue(await this.refsModel.refresh()).sequence;
   }
 
   private async computeRefs(): Promise<GitRefsModel> {
@@ -424,11 +426,11 @@ class LegacySshGitWorktree implements IGitWorktree {
     this.worktree = worktreePath;
     this.repository = repository;
     this.statusModel = new LiveModel<GitStatusModel>({
-      compute: () => this.computeStatus(),
+      compute: async () => ok(await this.computeStatus()),
       onError: (error) => log.warn('LegacySshGitWorktree: status refresh failed', { error }),
     });
     this.headModel = new LiveModel<GitHeadModel>({
-      compute: () => this.computeHead(),
+      compute: async () => ok(await this.computeHead()),
       onError: (error) => log.warn('LegacySshGitWorktree: head refresh failed', { error }),
     });
     this.timers = [
@@ -439,16 +441,16 @@ class LegacySshGitWorktree implements IGitWorktree {
   }
 
   async getStatus(): Promise<GitStatusModel> {
-    return (await this.statusModel.get()).value;
+    return liveValue(await this.statusModel.get()).value;
   }
 
   async getHead(): Promise<GitHeadModel> {
-    return (await this.headModel.get()).value;
+    return liveValue(await this.headModel.get()).value;
   }
 
   async getSnapshot(): Promise<GitWorktreeSnapshot> {
     const [status, head] = await Promise.all([this.statusModel.get(), this.headModel.get()]);
-    return { status, head };
+    return { status: liveValue(status), head: liveValue(head) };
   }
 
   async refresh(): Promise<GitWorktreeSnapshot> {
@@ -456,7 +458,7 @@ class LegacySshGitWorktree implements IGitWorktree {
       this.statusModel.refresh(),
       this.headModel.refresh(),
     ]);
-    return { status, head };
+    return { status: liveValue(status), head: liveValue(head) };
   }
 
   subscribe(cb: (update: GitWorktreeUpdate) => void): Unsubscribe {
@@ -603,7 +605,7 @@ class LegacySshGitWorktree implements IGitWorktree {
 
   private async refreshStatus(): Promise<GitSequences> {
     const value = await this.statusModel.refresh();
-    return { status: value.sequence };
+    return { status: liveValue(value).sequence };
   }
 
   private async refreshAfterHistoryChange(): Promise<GitSequences> {
@@ -612,7 +614,7 @@ class LegacySshGitWorktree implements IGitWorktree {
       this.headModel.refresh(),
       this.repository.refreshRefs(),
     ]);
-    return { status: status.sequence, head: head.sequence, refs };
+    return { status: liveValue(status).sequence, head: liveValue(head).sequence, refs };
   }
 
   private async pollStatus(untracked: GitStatusUntrackedMode): Promise<void> {
@@ -629,6 +631,11 @@ class LegacySshGitWorktree implements IGitWorktree {
 function toGitCommandError(error: unknown): GitCommandError {
   const message = gitErrorMessage(error);
   return { type: 'git-error', message };
+}
+
+function liveValue<T>(result: Result<LiveValue<T>, unknown>): LiveValue<T> {
+  if (!result.success) throw result.error;
+  return result.data;
 }
 
 function mapFetchError(error: LegacyFetchError): FetchError {

@@ -2,7 +2,7 @@ import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import type { BoundExec } from '../exec';
 import type { IFileWatchService, WatchHandle } from '../fs';
 import { realpathOrResolve } from '../fs';
-import { LiveModel } from '../lib';
+import { LiveModel, type LiveValue } from '../lib';
 import type { KeyedMutex } from '../lib';
 import { CatFileBatch } from './cat-file-batch';
 import {
@@ -78,13 +78,13 @@ export class GitRepository implements IGitRepository {
     this.onError = options.onError ?? (() => {});
 
     this.refsModel = new LiveModel<GitRefsModel>({
-      compute: () => this.computeRefs(),
+      compute: async () => ok(await this.computeRefs()),
       debounceMs: WATCH_DEBOUNCE_MS,
       revalidateIntervalMs: REVALIDATE_INTERVAL_MS,
       onError: (error) => this.onError(`refs ${this.gitCommonDir}`, error),
     });
     this.remotesModel = new LiveModel<GitRemotesModel>({
-      compute: () => this.computeRemotes(),
+      compute: async () => ok(await this.computeRemotes()),
       debounceMs: WATCH_DEBOUNCE_MS,
       revalidateIntervalMs: REVALIDATE_INTERVAL_MS,
       onError: (error) => this.onError(`remotes ${this.gitCommonDir}`, error),
@@ -118,16 +118,16 @@ export class GitRepository implements IGitRepository {
   }
 
   async getRefs(): Promise<GitRefsModel> {
-    return (await this.refsModel.get()).value;
+    return liveValue(await this.refsModel.get()).value;
   }
 
   async getRemotes(): Promise<GitRemotesModel> {
-    return (await this.remotesModel.get()).value;
+    return liveValue(await this.remotesModel.get()).value;
   }
 
   async getSnapshot(): Promise<GitRepoSnapshot> {
     const [refs, remotes] = await Promise.all([this.refsModel.get(), this.remotesModel.get()]);
-    return { refs, remotes };
+    return { refs: liveValue(refs), remotes: liveValue(remotes) };
   }
 
   async getDefaultBranch(remote = 'origin'): Promise<string> {
@@ -208,11 +208,11 @@ export class GitRepository implements IGitRepository {
       this.refsModel.refresh(),
       this.remotesModel.refresh(),
     ]);
-    return { refs, remotes };
+    return { refs: liveValue(refs), remotes: liveValue(remotes) };
   }
 
   async refreshRefs(): Promise<number> {
-    return (await this.refsModel.refresh()).sequence;
+    return liveValue(await this.refsModel.refresh()).sequence;
   }
 
   async fetch(remote?: string): Promise<Result<{ sequences: GitSequences }, FetchError>> {
@@ -234,7 +234,7 @@ export class GitRepository implements IGitRepository {
     try {
       await this.exec.exec(['remote', 'add', name, url]);
       const remotes = await this.remotesModel.refresh();
-      return ok({ sequences: { remotes: remotes.sequence } });
+      return ok({ sequences: { remotes: liveValue(remotes).sequence } });
     } catch (error) {
       return err(toGitCommandError(error));
     }
@@ -311,7 +311,9 @@ export class GitRepository implements IGitRepository {
           this.refsModel.refresh(),
           this.remotesModel.refresh(),
         ]);
-        return ok({ sequences: { refs: refs.sequence, remotes: remotes2.sequence } });
+        return ok({
+          sequences: { refs: liveValue(refs).sequence, remotes: liveValue(remotes2).sequence },
+        });
       }
 
       const remote = options.configuredRemote ?? 'origin';
@@ -471,4 +473,9 @@ function parseDivergence(upstreamTrack: string): { ahead: number; behind: number
     ahead: ahead ? Number.parseInt(ahead, 10) : 0,
     behind: behind ? Number.parseInt(behind, 10) : 0,
   };
+}
+
+function liveValue<T>(result: Result<LiveValue<T>, unknown>): LiveValue<T> {
+  if (!result.success) throw result.error;
+  return result.data;
 }
