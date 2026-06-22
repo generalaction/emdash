@@ -1,5 +1,6 @@
 import type { IDisposable, IInitializable } from '@emdash/shared';
 import { eq } from 'drizzle-orm';
+import { getPlugin } from '@main/core/agents/plugin-registry';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
 import { saveProviderSessionId } from '@main/core/conversations/save-provider-session-id';
 import { setProviderSessionId } from '@main/core/conversations/set-provider-session-id';
@@ -48,6 +49,11 @@ function determineSoundEvent(
   if (status === 'awaiting-input') return 'needs_attention';
   if (status === 'completed' && event.type === 'stop') return 'task_complete';
   return undefined;
+}
+
+function providerHasNativeStartHook(providerId: string): boolean {
+  const hooks = getPlugin(providerId).capabilities.hooks;
+  return hooks.kind !== 'none' && hooks.supportedEvents.includes('start');
 }
 
 async function handleSessionEvent(
@@ -130,17 +136,19 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
       conversationEvents.on(
         'conversation:input-submitted',
         ({ projectId, taskId, conversationId, providerId }) => {
-          const agentEvent: AgentEvent = {
-            type: 'start',
-            source: 'input',
-            providerId,
-            projectId,
-            taskId,
-            conversationId,
-            timestamp: Date.now(),
-            payload: {},
-          };
-          this.emitAgentEvent(agentEvent, isAppFocused());
+          if (!providerHasNativeStartHook(providerId)) {
+            const agentEvent: AgentEvent = {
+              type: 'start',
+              source: 'input',
+              providerId,
+              projectId,
+              taskId,
+              conversationId,
+              timestamp: Date.now(),
+              payload: {},
+            };
+            this.emitAgentEvent(agentEvent, isAppFocused());
+          }
 
           telemetryService.capture('agent_run_started', {
             provider: providerId,

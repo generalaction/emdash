@@ -52,6 +52,21 @@ function hasAllManagedEntries(hooks: Record<string, unknown[]>): boolean {
   });
 }
 
+async function removeManagedHooks(
+  fs: PluginFs,
+  path: string,
+  options: { skipMissing?: boolean } = {}
+): Promise<void> {
+  if (options.skipMissing && !(await fs.exists(path))) return;
+
+  const config = await readJsonConfig(fs, path);
+  const hooks = getHooks(config);
+  for (const key of Object.keys(hooks)) {
+    hooks[key] = filterUserHooks(hooks[key] as Record<string, unknown>[]);
+  }
+  await writeJsonConfig(fs, path, { ...config, hooks });
+}
+
 export function buildDroidHookConfig() {
   return {
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
@@ -77,12 +92,8 @@ export function buildDroidHookConfig() {
       return [DROID_HOOKS_PATH];
     },
     async deleteHooks(fs: PluginFs): Promise<void> {
-      const config = await readJsonConfig(fs, DROID_HOOKS_PATH);
-      const hooks = getHooks(config);
-      for (const key of Object.keys(hooks)) {
-        hooks[key] = filterUserHooks(hooks[key] as Record<string, unknown>[]);
-      }
-      await writeJsonConfig(fs, DROID_HOOKS_PATH, { ...config, hooks });
+      await removeManagedHooks(fs, DROID_HOOKS_PATH);
+      await removeManagedHooks(fs, DROID_LEGACY_SETTINGS_PATH, { skipMissing: true });
     },
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
       const config = await readJsonConfig(fs, DROID_HOOKS_PATH);

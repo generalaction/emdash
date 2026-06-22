@@ -65,4 +65,52 @@ describe('droid provider hooks', () => {
     );
     expect(JSON.stringify(config.hooks.Notification)).toContain('notification');
   });
+
+  it('removes managed hooks from hooks.json and legacy settings.json', async () => {
+    const userHook = {
+      hooks: [{ type: 'command', command: 'echo user-notification' }],
+    };
+    const fs = createMemoryFs(
+      new Map<string, string>([
+        [
+          DROID_HOOKS_PATH,
+          JSON.stringify({
+            hooks: {
+              Notification: [userHook],
+            },
+          }),
+        ],
+        [
+          '.factory/settings.json',
+          JSON.stringify({
+            hooks: {
+              UserPromptSubmit: [
+                userHook,
+                {
+                  hooks: [{ type: 'command', command: 'echo EMDASH_HOOK_PORT && echo stale' }],
+                },
+              ],
+            },
+          }),
+        ],
+      ])
+    );
+
+    await provider.behavior.hooks!.writeHooks(fs, []);
+    await provider.behavior.hooks!.deleteHooks(fs);
+
+    const hooksConfig = JSON.parse((await fs.read(DROID_HOOKS_PATH))!) as Record<
+      string,
+      Record<string, unknown[]>
+    >;
+    const settingsConfig = JSON.parse((await fs.read('.factory/settings.json'))!) as Record<
+      string,
+      Record<string, unknown[]>
+    >;
+
+    expect(hooksConfig.hooks.Notification).toEqual([userHook]);
+    expect(JSON.stringify(hooksConfig)).not.toContain('EMDASH_HOOK_PORT');
+    expect(settingsConfig.hooks.UserPromptSubmit).toEqual([userHook]);
+    expect(JSON.stringify(settingsConfig)).not.toContain('EMDASH_HOOK_PORT');
+  });
 });
