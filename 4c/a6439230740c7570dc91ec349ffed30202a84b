@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/main/core/agents/plugin-fs.ts
+  s_aea524c6fdf649::t_f8f55f6fb48163 2,4,64-105,107,109-110
+  s_aea524c6fdf649::t_c191972c1b0b17 106
+apps/emdash-desktop/src/main/core/agent-hooks/hook-config-service.ts
+  s_aea524c6fdf649::t_52e5f5ae0a5e2e 9,11-16,56,62,72-75,82,89,98
+  s_aea524c6fdf649::t_977f2b4c3d2dcc 2,4,54-55,60-61,81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "4ca6439230740c7570dc91ec349ffed30202a84b",
+  "prompts": {},
+  "sessions": {
+    "s_aea524c6fdf649": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eedc9-27a0-7f53-9716-2499ff5efd03",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
