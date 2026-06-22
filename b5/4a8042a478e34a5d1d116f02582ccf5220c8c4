@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/main/core/agent-hooks/session-hook-tokens.ts
+  s_8c170cd46e9698::t_130d6532056d5c 1-25
+apps/emdash-desktop/src/main/core/conversations/impl/local-conversation.ts
+  s_8c170cd46e9698::t_130d6532056d5c 4-7,46,119,183,277,305,341
+  s_8c170cd46e9698::t_cc3d88e6832dfa 209,214,241,268
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_8c170cd46e9698::t_cc3d88e6832dfa 3-6,49,127,193,255,261,321,351,375,404,441
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "b54a8042a478e34a5d1d116f02582ccf5220c8c4",
+  "prompts": {},
+  "sessions": {
+    "s_8c170cd46e9698": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eede3-5439-7c43-96cc-f9676b4a51fb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
