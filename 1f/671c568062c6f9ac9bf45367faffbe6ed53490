@@ -1,0 +1,38 @@
+apps/emdash-desktop/src/renderer/lib/providers/theme-provider.tsx
+  s_a15694d5ff2d0a::t_14df7c66b11fc6 52
+  s_a15694d5ff2d0a::t_62dc86baf12aa7 75-79
+  s_a15694d5ff2d0a::t_c8aded83002898 50,58,65-68
+  s_a15694d5ff2d0a::t_d27d2faab919d5 80-82,85
+  s_a15694d5ff2d0a::t_025ad2c66758d1 34-38
+apps/emdash-desktop/src/main/core/settings/settings-registry.ts
+  s_a15694d5ff2d0a::t_c68531b6d001e1 63
+apps/emdash-desktop/src/renderer/index.html
+  s_a15694d5ff2d0a::t_491a28d9ecf9a9 19-22
+apps/emdash-desktop/src/renderer/features/settings/components/ThemeCard.tsx
+  s_a15694d5ff2d0a::t_4f153ac78d723a 3,5,8,12-19,28-30
+  s_a15694d5ff2d0a::t_f43030eb1ed599 54
+  s_a15694d5ff2d0a::t_abd1382af0e840 77-88
+apps/emdash-desktop/src/shared/telemetry.ts
+  s_a15694d5ff2d0a::t_808893804ed398 36-41
+apps/emdash-desktop/src/main/core/settings/schema.ts
+  s_a15694d5ff2d0a::t_b5f5d6f4bdbc6f 91
+apps/emdash-desktop/src/renderer/index.css
+  s_a15694d5ff2d0a::t_40cd8964442acc 10
+  s_a15694d5ff2d0a::t_be2d2eedb56c4c 731-770
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "1f671c568062c6f9ac9bf45367faffbe6ed53490",
+  "prompts": {},
+  "sessions": {
+    "s_a15694d5ff2d0a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "629c6a1d-7dad-45e3-9de8-b66a8df76031",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
