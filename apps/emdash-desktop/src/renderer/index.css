@@ -729,15 +729,7 @@
     --foreground-merged: var(--purple-9);
   }
 
-  /* ── High contrast overrides ─────────────────────────────────
-     Layered on top of the active theme (e.g. <html class="emdark high-contrast">).
-     Strengthens the lowest-contrast tokens: borders, muted/passive text, focus
-     rings, and the semantic state/status/diff/selection colors. Foregrounds move
-     to the Radix step-11 "accessible text" ramp; backgrounds stay tinted so text
-     pops without becoming garish. Two-class selectors win over the single-class
-     theme blocks. */
-  .emlight.high-contrast {
-    --foreground: black;
+  .high-contrast {
     --foreground-muted: var(--neutral-12);
     --foreground-passive: var(--neutral-11);
 
@@ -751,9 +743,6 @@
     --border-2: var(--neutral-11);
     --border-primary: var(--neutral-11);
 
-    --ring: black;
-
-    /* State / indicator colors */
     --foreground-success: var(--green-11);
     --border-success: var(--green-9);
     --foreground-error: var(--red-11);
@@ -766,73 +755,32 @@
     --foreground-conflict: var(--orange-11);
     --foreground-merged: var(--purple-11);
 
-    /* Diff foregrounds */
     --foreground-diff-added: var(--green-11);
     --foreground-diff-modified: var(--amber-11);
     --foreground-diff-deleted: var(--red-11);
 
-    /* Status dots */
     --status-in-progress: var(--amber-11);
     --status-in-review: var(--green-11);
     --status-done: var(--neutral-11);
     --status-todo: var(--neutral-11);
     --status-cancelled: var(--neutral-11);
 
-    /* Text selection */
-    --selection: var(--blue-7);
     --selection-foreground: var(--blue-12);
+  }
 
-    /* Primary button edge definition */
+  .emlight.high-contrast {
+    --foreground: black;
+    --ring: black;
+    --selection: var(--blue-7);
+
     --primary-button-border: var(--neutral-12);
   }
 
   .emdark.high-contrast {
     --foreground: white;
-    --foreground-muted: var(--neutral-12);
-    --foreground-passive: var(--neutral-11);
-
-    --foreground-secondary-muted: var(--neutral-12);
-    --foreground-secondary-passive: var(--neutral-11);
-    --foreground-tertiary-muted: var(--neutral-12);
-    --foreground-tertiary-passive: var(--neutral-11);
-
-    --border: var(--neutral-9);
-    --border-1: var(--neutral-10);
-    --border-2: var(--neutral-11);
-    --border-primary: var(--neutral-11);
-
     --ring: white;
-
-    /* State / indicator colors */
-    --foreground-success: var(--green-11);
-    --border-success: var(--green-9);
-    --foreground-error: var(--red-11);
-    --foreground-warning: var(--amber-11);
-    --border-warning: var(--amber-9);
-    --foreground-info: var(--blue-11);
-    --border-info: var(--blue-9);
-    --foreground-destructive: var(--red-11);
-    --border-destructive: var(--red-9);
-    --foreground-conflict: var(--orange-11);
-    --foreground-merged: var(--purple-11);
-
-    /* Diff foregrounds */
-    --foreground-diff-added: var(--green-11);
-    --foreground-diff-modified: var(--amber-11);
-    --foreground-diff-deleted: var(--red-11);
-
-    /* Status dots */
-    --status-in-progress: var(--amber-11);
-    --status-in-review: var(--green-11);
-    --status-done: var(--neutral-11);
-    --status-todo: var(--neutral-11);
-    --status-cancelled: var(--neutral-11);
-
-    /* Text selection */
     --selection: var(--blue-10);
-    --selection-foreground: var(--blue-12);
 
-    /* Primary button edge definition */
     --primary-button-border: var(--jade-8);
   }
 }

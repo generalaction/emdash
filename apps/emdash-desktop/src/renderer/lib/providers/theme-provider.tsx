@@ -52,7 +52,6 @@ interface ThemeContextType {
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
   effectiveTheme: EffectiveTheme;
-  /** Resolved high-contrast state (explicit preference, or the OS setting when unset). */
   highContrast: boolean;
   setHighContrast: (enabled: boolean) => void;
 }
@@ -65,6 +64,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     value: interfaceValue,
     isLoading: isInterfaceLoading,
     update: updateInterface,
+    resetField: resetInterfaceField,
   } = useAppSettingsKey('interface');
   const [, setCachedTheme] = useLocalStorage<Theme>('emdash-theme', null);
   const [, setCachedHighContrast] = useLocalStorage<boolean | null>('emdash-high-contrast', null);
@@ -100,9 +100,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setCachedHighContrast(highContrastPreference);
   }, [highContrastPreference, isInterfaceLoading, setCachedHighContrast]);
 
-  // Re-apply xterm theme after CSS classes have been updated by the layout effects
-  // above. High contrast remaps tokens that feed --xterm-* (e.g. --foreground), so
-  // open terminals must be re-themed when it toggles, not only on theme changes.
+  // High contrast remaps tokens that feed --xterm-*.
   useEffect(() => {
     applyThemeToAll();
   }, [effectiveTheme, highContrast]);
@@ -117,10 +115,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   };
 
   const setHighContrast = (enabled: boolean) => {
-    // Collapse to "follow system" (null) when the choice already matches the OS
-    // preference, so the override / reset-to-default affordance only appears on a
-    // genuine divergence from the system setting.
-    updateInterface({ highContrast: enabled === systemPrefersContrast ? null : enabled });
+    if (enabled === systemPrefersContrast) {
+      resetInterfaceField('highContrast');
+      return;
+    }
+
+    updateInterface({ highContrast: enabled });
   };
 
   return (
