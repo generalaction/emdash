@@ -60,7 +60,7 @@ export const SETTINGS_DEFAULTS = {
     showLeftSidebarTimestamps: true,
     confirmTabClose: false,
     hideContextBar: false,
-    highContrast: false,
+    highContrast: null,
   },
   browserPreview: {
     enabled: true,

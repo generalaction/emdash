@@ -24,6 +24,17 @@ function subscribeToSystemTheme(onChange: () => void) {
   return () => mq.removeEventListener('change', onChange);
 }
 
+function getSystemPrefersContrast(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(prefers-contrast: more)').matches;
+}
+
+function subscribeToSystemContrast(onChange: () => void) {
+  const mq = window.matchMedia('(prefers-contrast: more)');
+  mq.addEventListener('change', onChange);
+  return () => mq.removeEventListener('change', onChange);
+}
+
 function applyTheme(effective: EffectiveTheme) {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
@@ -41,6 +52,8 @@ interface ThemeContextType {
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
   effectiveTheme: EffectiveTheme;
+  /** Resolved high-contrast state (explicit preference, or the OS setting when unset). */
+  highContrast: boolean;
 }
 
 export const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -49,13 +62,18 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const { value: themeValue, isLoading, update } = useAppSettingsKey('theme');
   const { value: interfaceValue, isLoading: isInterfaceLoading } = useAppSettingsKey('interface');
   const [, setCachedTheme] = useLocalStorage<Theme>('emdash-theme', null);
-  const [, setCachedHighContrast] = useLocalStorage<boolean>('emdash-high-contrast', false);
+  const [, setCachedHighContrast] = useLocalStorage<boolean | null>('emdash-high-contrast', null);
 
   const systemTheme = useSyncExternalStore(subscribeToSystemTheme, getSystemTheme);
+  const systemPrefersContrast = useSyncExternalStore(
+    subscribeToSystemContrast,
+    getSystemPrefersContrast
+  );
 
   const theme: Theme = themeValue ?? null;
   const effectiveTheme: EffectiveTheme = theme ?? systemTheme;
-  const highContrast = interfaceValue?.highContrast ?? false;
+  const highContrastPreference = interfaceValue?.highContrast ?? null;
+  const highContrast = highContrastPreference ?? systemPrefersContrast;
 
   useLayoutEffect(() => {
     if (isLoading) return;
@@ -74,8 +92,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (isInterfaceLoading) return;
-    setCachedHighContrast(highContrast);
-  }, [highContrast, isInterfaceLoading, setCachedHighContrast]);
+    setCachedHighContrast(highContrastPreference);
+  }, [highContrastPreference, isInterfaceLoading, setCachedHighContrast]);
 
   // Re-apply xterm theme after CSS classes have been updated by the layout effects
   // above. High contrast remaps tokens that feed --xterm-* (e.g. --foreground), so
@@ -94,7 +112,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme, effectiveTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme, effectiveTheme, highContrast }}>
       {children}
     </ThemeContext.Provider>
   );

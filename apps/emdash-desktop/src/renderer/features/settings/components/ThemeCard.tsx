@@ -5,18 +5,18 @@ import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { Switch } from '@renderer/lib/ui/switch';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import type { Theme } from '@shared/core/app-settings';
+import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 
 const ThemeCard: React.FC = () => {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, highContrast } = useTheme();
   const {
-    value: interfaceSettings,
     update,
     isLoading: interfaceLoading,
     isSaving: interfaceSaving,
+    isFieldOverridden,
+    resetField,
   } = useAppSettingsKey('interface');
-
-  const highContrast = interfaceSettings?.highContrast ?? false;
 
   const handleSetTheme = (next: Theme) => {
     if (theme !== next) {
@@ -76,14 +76,22 @@ const ThemeCard: React.FC = () => {
       </div>
       <SettingRow
         title="High contrast"
-        description="Increase the contrast of borders, muted text, and focus outlines for better visibility."
+        description="Boost the contrast of borders, text, status colors, and focus outlines. Follows your system setting until you change it."
         control={
-          <Switch
-            checked={highContrast}
-            disabled={interfaceLoading || interfaceSaving}
-            onCheckedChange={handleSetHighContrast}
-            aria-label="Toggle high contrast"
-          />
+          <>
+            <ResetToDefaultButton
+              visible={isFieldOverridden('highContrast')}
+              defaultLabel="follow system"
+              onReset={() => resetField('highContrast')}
+              disabled={interfaceLoading || interfaceSaving}
+            />
+            <Switch
+              checked={highContrast}
+              disabled={interfaceLoading || interfaceSaving}
+              onCheckedChange={handleSetHighContrast}
+              aria-label="Toggle high contrast"
+            />
+          </>
         }
       />
     </div>

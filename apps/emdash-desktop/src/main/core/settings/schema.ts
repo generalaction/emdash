@@ -88,7 +88,8 @@ export const interfaceSettingsSchema = z.object({
   showLeftSidebarTimestamps: z.boolean(),
   confirmTabClose: z.boolean(),
   hideContextBar: z.boolean(),
-  highContrast: z.boolean(),
+  // null = follow the OS `prefers-contrast` setting; true/false = explicit override.
+  highContrast: z.boolean().nullable(),
 });
 
 export const changesViewModeSchema = z.object({

@@ -17,7 +17,12 @@
                 : 'emlight';
           document.documentElement.classList.add(effective);
           var hcRaw = localStorage.getItem('emdash-high-contrast');
-          if (hcRaw && JSON.parse(hcRaw) === true) {
+          var hcPref = hcRaw ? JSON.parse(hcRaw) : null;
+          var hcEffective =
+            hcPref === true || hcPref === false
+              ? hcPref
+              : window.matchMedia('(prefers-contrast: more)').matches;
+          if (hcEffective) {
             document.documentElement.classList.add('high-contrast');
           }
         } catch (_) {}
