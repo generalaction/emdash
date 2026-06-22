@@ -89,6 +89,7 @@ export function buildDroidHookConfig() {
       }
 
       await writeJsonConfig(fs, DROID_HOOKS_PATH, { ...config, hooks });
+      await removeManagedHooks(fs, DROID_LEGACY_SETTINGS_PATH, { skipMissing: true });
       return [DROID_HOOKS_PATH];
     },
     async deleteHooks(fs: PluginFs): Promise<void> {

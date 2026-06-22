@@ -66,6 +66,37 @@ describe('droid provider hooks', () => {
     expect(JSON.stringify(config.hooks.Notification)).toContain('notification');
   });
 
+  it('removes migrated managed hooks from legacy settings.json when writing hooks.json', async () => {
+    const userHook = {
+      hooks: [{ type: 'command', command: 'echo user-notification' }],
+    };
+    const files = new Map<string, string>([
+      [
+        '.factory/settings.json',
+        JSON.stringify({
+          hooks: {
+            Notification: [
+              userHook,
+              {
+                hooks: [{ type: 'command', command: 'echo EMDASH_HOOK_PORT && echo stale' }],
+              },
+            ],
+          },
+        }),
+      ],
+    ]);
+    const fs = createMemoryFs(files);
+
+    await provider.behavior.hooks!.writeHooks(fs, []);
+
+    const settingsConfig = JSON.parse(files.get('.factory/settings.json')!) as Record<
+      string,
+      Record<string, unknown[]>
+    >;
+    expect(settingsConfig.hooks.Notification).toEqual([userHook]);
+    expect(JSON.stringify(settingsConfig)).not.toContain('EMDASH_HOOK_PORT');
+  });
+
   it('removes managed hooks from hooks.json and legacy settings.json', async () => {
     const userHook = {
       hooks: [{ type: 'command', command: 'echo user-notification' }],
