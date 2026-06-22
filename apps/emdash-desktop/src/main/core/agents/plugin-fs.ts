@@ -1,6 +1,8 @@
 import { promises as fs } from 'node:fs';
-import { dirname, join, resolve, sep } from 'node:path';
+import { dirname, join, posix, resolve, sep } from 'node:path';
 import type { PluginFs } from '@emdash/core/agents/plugins';
+import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 
 /**
  * Create a CLIAgentPluginFs scoped to a given root directory.
@@ -54,6 +56,41 @@ export function createPluginFs(root: string): PluginFs {
     async list(path: string): Promise<string[]> {
       try {
         return await fs.readdir(resolveSafe(path));
+      } catch {
+        return [];
+      }
+    },
+  };
+}
+
+export function createSshPluginFs(proxy: SshClientProxy, root: string): PluginFs {
+  const remoteFs = new SshFileSystem(proxy, root);
+
+  return {
+    async read(path: string): Promise<string | null> {
+      try {
+        return (await remoteFs.read(path)).content;
+      } catch {
+        return null;
+      }
+    },
+
+    async write(path: string, content: string): Promise<void> {
+      await remoteFs.write(path, content);
+    },
+
+    async delete(path: string): Promise<void> {
+      await remoteFs.remove(path);
+    },
+
+    async exists(path: string): Promise<boolean> {
+      return remoteFs.exists(path);
+    },
+
+    async list(path: string): Promise<string[]> {
+      try {
+        const result = await remoteFs.list(path, { includeHidden: true });
+        return result.entries.map((entry) => posix.basename(entry.path));
       } catch {
         return [];
       }

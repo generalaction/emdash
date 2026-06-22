@@ -1,4 +1,5 @@
 import { homedir } from 'node:os';
+import type { PluginFs } from '@emdash/core/agents/plugins';
 import { createPluginFs } from '@main/core/agents/plugin-fs';
 import { getPlugin } from '@main/core/agents/plugin-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
@@ -6,9 +7,8 @@ import { log } from '@main/lib/logger';
 
 const GITIGNORE_PATH = '.gitignore';
 
-async function ensureGitIgnoreEntries(taskPath: string, entries: string[]): Promise<void> {
-  const wsFs = createPluginFs(taskPath);
-  const existing = (await wsFs.read(GITIGNORE_PATH)) ?? '';
+async function ensureGitIgnoreEntries(fs: PluginFs, entries: string[]): Promise<void> {
+  const existing = (await fs.read(GITIGNORE_PATH)) ?? '';
   const existingLines = existing
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -31,7 +31,7 @@ async function ensureGitIgnoreEntries(taskPath: string, entries: string[]): Prom
   const content = existing.replace(/\s*$/, '');
   const next =
     content.length > 0 ? `${content}\n${missing.join('\n')}\n` : `${missing.join('\n')}\n`;
-  await wsFs.write(GITIGNORE_PATH, next);
+  await fs.write(GITIGNORE_PATH, next);
 }
 
 /**
@@ -45,9 +45,11 @@ async function ensureGitIgnoreEntries(taskPath: string, entries: string[]): Prom
 export async function ensureHooksInstalled({
   providerId,
   taskPath,
+  workspaceFs,
 }: {
   providerId: string;
   taskPath: string;
+  workspaceFs?: PluginFs;
 }): Promise<boolean> {
   try {
     const localProjectSettings = await appSettingsService.get('localProject');
@@ -62,15 +64,15 @@ export async function ensureHooksInstalled({
 
     if (hooksKind === 'config' && plugin.behavior.hooks) {
       const scope = hooksDescriptor.scope;
-      const root = scope === 'global' ? homedir() : taskPath;
-      const fs = createPluginFs(root);
+      const fs =
+        scope === 'global' ? createPluginFs(homedir()) : (workspaceFs ?? createPluginFs(taskPath));
       const paths = await plugin.behavior.hooks.writeHooks(fs, []);
       // For global-scope hooks the paths are relative to homedir; don't add
       // them to the workspace .gitignore (they live in the user's home).
       writtenPaths = scope === 'global' ? [] : paths;
       hooksAvailable = true;
     } else if (hooksKind === 'plugin' && plugin.behavior.plugins) {
-      const fs = createPluginFs(taskPath);
+      const fs = workspaceFs ?? createPluginFs(taskPath);
       writtenPaths = await plugin.behavior.plugins.installPlugin(fs, {
         kind: 'workspace',
         path: taskPath,
@@ -79,7 +81,7 @@ export async function ensureHooksInstalled({
     }
 
     if (writeGitIgnoreEntries && writtenPaths.length > 0) {
-      await ensureGitIgnoreEntries(taskPath, writtenPaths);
+      await ensureGitIgnoreEntries(workspaceFs ?? createPluginFs(taskPath), writtenPaths);
     }
 
     return hooksAvailable;
