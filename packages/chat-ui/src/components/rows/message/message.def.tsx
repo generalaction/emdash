@@ -9,7 +9,7 @@ import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
 import type { ChatMessage } from '@/model';
-import { type MessageVars, userInnerWidth } from './metrics';
+import { attachStripHeight, type MessageVars, userInnerWidth } from './metrics';
 import { UserMessageCard } from './UserMessageCard';
 import {
   assistantOuter,
@@ -20,16 +20,6 @@ import {
   srOnly,
 } from './message.css';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function attachH(count: number, innerW: number, vars: MessageVars): number {
-  if (count <= 0) return 0;
-  const { attachThumb: thumb, attachGap: gap } = vars;
-  const perRow = Math.max(1, Math.floor((innerW + gap) / (thumb + gap)));
-  const rows = Math.ceil(count / perRow);
-  return rows * thumb + (rows - 1) * gap + gap;
-}
-
 // ── Measure ───────────────────────────────────────────────────────────────────
 
 export function measureMessage(item: ChatMessage, ctx: MeasureCtx, vars: MessageVars): number {
@@ -39,7 +29,7 @@ export function measureMessage(item: ChatMessage, ctx: MeasureCtx, vars: Message
 
   if (item.role === 'user') {
     const innerW = userInnerWidth(ctx.width, vars);
-    const aH = attachH(item.attachments?.length ?? 0, innerW, vars);
+    const aH = attachStripHeight(item.attachments?.length ?? 0, innerW, vars);
     if (blocks.length === 0) {
       const fallback = aH + ctx.theme.fonts.body.lineHeight + 2 * userCardPadY + 2 * cardBorder;
       return Math.min(fallback, ctx.expandedId === item.id ? expandedMaxH : collapsedMaxH);
@@ -156,7 +146,7 @@ export const messageUnitDef = defineUnit<ChatMessage, MessageVars>({
     if (item.role === 'user') {
       const innerW = userInnerWidth(ctx.width, vars);
       const lines = Math.max(1, Math.ceil(item.text.length / 60));
-      const aH = attachH(item.attachments?.length ?? 0, innerW, vars);
+      const aH = attachStripHeight(item.attachments?.length ?? 0, innerW, vars);
       const est =
         aH +
         lines * ctx.theme.fonts.body.lineHeight +

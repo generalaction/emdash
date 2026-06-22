@@ -425,20 +425,19 @@ type DensityScale = {
   inlineCodePadY: number; // inline-code chip vertical padding (px)
 };
 
-type ChatTheme = {
-  version: number;        // bump on any change so the layout memo invalidates
-  fonts: FontConfig;
-  density: DensityScale;
-};
+type ChatConfig = { fonts: FontFamilies; roles: Record<RoleName, TypeRole>; chips: ChipConfig; prose: ProseConfig; density: DensityScale };
+type ChatTheme = ResolvedTheme; // alias
 
-function buildTheme(fonts?: FontConfig): ChatTheme;
+function buildChatTheme(config?: ChatConfig): ChatTheme;
 const DEFAULT_THEME: ChatTheme;
+const DEFAULT_CONFIG: ChatConfig;
 ```
 
-`ChatTheme` is the single injection point for measurement inputs (typography +
-shared density). Build a custom theme with `buildTheme(fonts)` and pass it via
-`MountChatOptions.theme`. Always bump `version` when cloning a theme with
-changed values so the renderer's identity-based layout cache invalidates.
+`ChatTheme` (alias for `ResolvedTheme`) is the resolved output of `buildChatTheme`.
+Build a custom theme with `buildChatTheme(config)` and pass it via
+`MountChatOptions.theme`, or pass a `ChatConfig` directly via `MountChatOptions.config`
+and let `ChatRoot` resolve it. Always create a fresh `ResolvedTheme` (not a clone)
+because `buildChatTheme` bumps `version` to invalidate the layout cache.
 
 Colors are CSS-driven (the `--chat-*` variables in `chat-theme.css`), not part
 of `ChatTheme`.
@@ -461,7 +460,7 @@ blocks. Useful for stories, performance testing, and demos.
 
 **`@emdash/chat-ui`**
 
-- Values: `mountChat`, `buildTheme`, `DEFAULT_THEME`, `generateMockTranscript`
+- Values: `mountChat`, `buildChatTheme`, `DEFAULT_THEME`, `DEFAULT_CONFIG`, `generateMockTranscript`
 - Types: `MountChatOptions`, `ChatHandle`, `ChatCommands`, `ScrollToItemOptions`,
   `ChatTheme`, `DensityScale`, `TranscriptApi`, `TranscriptEvent`, `ViewState`,
   `ChatItem`, `ChatMessage`, `ChatToolCall`, `ChatThinking`,

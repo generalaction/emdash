@@ -9,7 +9,8 @@ import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, Show, createMemo } from 'solid-js';
 import type { ChatMessage } from '@/model';
-import { type MessageVars, userInnerWidth } from './metrics';
+import { attachStripHeight, type MessageVars, userInnerWidth } from './metrics';
+import { srOnly } from './message.css';
 import {
   attachmentStrip,
   attachPlaceholder,
@@ -19,15 +20,7 @@ import {
   cardFadeOverlay,
   cardRoot,
   cardVars,
-  srOnly,
 } from './user-message.css';
-
-function attachStripH(count: number, innerW: number, thumb: number, gap: number): number {
-  if (count <= 0) return 0;
-  const perRow = Math.max(1, Math.floor((innerW + gap) / (thumb + gap)));
-  const rows = Math.ceil(count / perRow);
-  return rows * thumb + (rows - 1) * gap + gap;
-}
 
 export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars: MessageVars }) {
   const commands = useCommands();
@@ -66,12 +59,7 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
     const ctx = mCtx();
     if (!ctx) return props.vars.collapsedMaxH;
     const innerW = userInnerWidth(ctx.width, props.vars);
-    const aH = attachStripH(
-      props.data.attachments?.length ?? 0,
-      innerW,
-      props.vars.attachThumb,
-      props.vars.attachGap
-    );
+    const aH = attachStripHeight(props.data.attachments?.length ?? 0, innerW, props.vars);
     const blocks = ctx.caches.parseBlocks(props.data.id, props.data.text);
     if (blocks.length === 0) {
       return (
@@ -145,10 +133,7 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
       </Show>
       <Show when={stack()}>{(s) => <BlockStackView node={s()} />}</Show>
       <Show when={!isExpanded() && isOverflowing()}>
-        <div
-          class={cardFadeOverlay}
-          style={{ '--fade-color': 'var(--chat-user-card-bg)' } as Record<string, string>}
-        />
+        <div class={cardFadeOverlay} />
       </Show>
     </div>
   );

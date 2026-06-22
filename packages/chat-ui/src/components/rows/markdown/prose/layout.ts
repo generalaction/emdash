@@ -50,10 +50,7 @@ function lineHeightForVariant(variant: ProseBlock['variant'], fonts: FontConfig)
   }
 }
 
-function proseIndent(
-  block: ProseBlock,
-  prose: ProseConfig
-): { indent: number; textLeft: number } {
+function proseIndent(block: ProseBlock, prose: ProseConfig): { indent: number; textLeft: number } {
   const depth = block.depth ?? 0;
   const isListItem = block.variant === 'list-item';
   const isQuote = block.variant === 'quote';

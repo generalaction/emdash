@@ -7,7 +7,7 @@ import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
 import type { ChatFileOpToolCall } from '@/model';
 import { FileOpRow, FileOpHeader, FileOpList, FileOpPreviewBody } from './FileOperation';
-import { fileOpCardVars, fileOpHeightVar, fileOpRoot, type FileOpStyleVars } from './file-op.css';
+import { fileOpCardVars, fileOpRoot, type FileOpStyleVars } from './file-op.css';
 
 export type FileOpVars = {
   /** Measure-only: fixed row height for header and per-file lines. */
@@ -49,16 +49,10 @@ function FileOpUnitRender(props: { data: ChatFileOpToolCall; ctx: RenderCtx; var
     return v.rowH;
   });
 
-  const styleVars = (): FileOpStyleVars => ({ padY: props.vars.padY });
+  const styleVars = (): FileOpStyleVars => ({ height: totalH(), padY: props.vars.padY });
 
   return (
-    <div
-      class={fileOpRoot}
-      style={{
-        ...assignInlineVars(fileOpCardVars, pxTokens(styleVars())),
-        [fileOpHeightVar]: `${totalH()}px`,
-      }}
-    >
+    <div class={fileOpRoot} style={assignInlineVars(fileOpCardVars, pxTokens(styleVars()))}>
       <Show
         when={props.data.ops.length > 1}
         fallback={<FileOpRow item={props.data} rowH={rowH()} lineH={rowH()} />}

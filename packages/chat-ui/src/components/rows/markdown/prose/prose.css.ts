@@ -1,25 +1,5 @@
 import { style } from '@vanilla-extract/css';
 import { vars } from '@styles/theme.css';
-import { createVariableThemeContract } from '@styles/variable-theme-contract.css';
-
-// ── Runtime geometry contract ─────────────────────────────────────────────────
-// Values fed from ChipConfig (theme.chips) via assignInlineVars in Prose.tsx.
-// The same values are stored in FontConfig.mentionIconW/mentionIconGap so the
-// measurement side and renderer never drift.
-
-export type ProseStyleVars = {
-  mentionPadX: number;
-  mentionPadY: number;
-  mentionIconW: number;
-  mentionIconGap: number;
-};
-
-export const proseVars = createVariableThemeContract<ProseStyleVars>({
-  mentionPadX: null,
-  mentionPadY: null,
-  mentionIconW: null,
-  mentionIconGap: null,
-});
 
 // ── Geometry (feeds pretext measurement — do not change without updating metrics.ts) ──
 
@@ -107,13 +87,13 @@ export const pfInlineCode = style({
 });
 
 export const pfMention = style({
-  fontSize: '12px',
-  fontWeight: 500,
-  fontFamily: vars.typeBodyFontFamily,
-  paddingTop: proseVars.mentionPadY,
-  paddingBottom: proseVars.mentionPadY,
-  paddingLeft: proseVars.mentionPadX,
-  paddingRight: proseVars.mentionPadX,
+  fontSize: vars.typeMentionFontSize,
+  fontWeight: vars.typeMentionFontWeight,
+  fontFamily: vars.typeMentionFontFamily,
+  paddingTop: vars.mentionPadY,
+  paddingBottom: vars.mentionPadY,
+  paddingLeft: vars.mentionPadX,
+  paddingRight: vars.mentionPadX,
 });
 
 export const pfVariants: Record<string, string> = {
@@ -186,10 +166,3 @@ export const quoteRailBar = style({
   background: vars.border,
   borderRadius: vars.radiusFull,
 });
-
-export const fragVisual = {
-  inlineCode: inlineCodeChip,
-  mentionChip,
-  mentionPlain,
-  link: linkFragment,
-} as const;

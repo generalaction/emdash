@@ -6,7 +6,6 @@ import { applyTokensToElement } from '@core/highlight/apply-tokens';
 import type { CodeToken } from '@core/highlight/highlighter';
 import { resolveFileIconClass } from '@lib/file-icons';
 import { basename } from '@lib/path';
-import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, Show, createEffect, onCleanup } from 'solid-js';
 import type { ChatDiff } from '@/model';
@@ -57,7 +56,7 @@ export function DiffHeader(props: DiffHeaderProps) {
   return (
     <div
       class={diffHeader({ hasBody: props.hasBody })}
-      style={assignInlineVars(diffCardVars, pxTokens({ headerH: props.headerH }))}
+      style={assignInlineVars({ [diffCardVars.headerH]: `${props.headerH}px` })}
       role="button"
       onClick={handleClick}
     >

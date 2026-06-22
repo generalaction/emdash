@@ -59,7 +59,7 @@ export type {
   RoleName,
   TypeRole,
 } from './core/theme';
-export { buildChatTheme, buildTheme, DEFAULT_CONFIG, DEFAULT_THEME } from './core/theme';
+export { buildChatTheme, DEFAULT_CONFIG, DEFAULT_THEME } from './core/theme';
 export type { ChatHighlighter, HighlightResult, CodeToken } from './core/highlight/highlighter';
 export { createDefaultHighlighter } from './core/highlight/highlighter';
 export type {

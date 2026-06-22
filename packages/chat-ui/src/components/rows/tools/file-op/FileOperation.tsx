@@ -1,7 +1,6 @@
 import { useCommands } from '@components/contexts/CommandsContext';
 import { CollapseHeader } from '@components/primitives/CollapseHeader';
 import { basename } from '@lib/path';
-import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, Show, createEffect } from 'solid-js';
 import type { ChatFileOpToolCall, FileOpKind } from '@/model';
@@ -113,7 +112,7 @@ export function FileOpList(props: FileOpListProps) {
   return (
     <div
       style={{
-        ...assignInlineVars(fileOpCardVars, pxTokens({ padY: props.padY })),
+        ...assignInlineVars({ [fileOpCardVars.padY]: `${props.padY}px` }),
         'padding-block': fileOpCardVars.padY,
       }}
     >
@@ -158,7 +157,7 @@ export function FileOpPreviewBody(props: FileOpPreviewBodyProps) {
     >
       <div
         style={{
-          ...assignInlineVars(fileOpCardVars, pxTokens({ padY: props.padY })),
+          ...assignInlineVars({ [fileOpCardVars.padY]: `${props.padY}px` }),
           'padding-block': fileOpCardVars.padY,
         }}
       >

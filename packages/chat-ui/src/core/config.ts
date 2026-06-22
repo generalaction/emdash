@@ -166,12 +166,12 @@ export type ResolvedTheme = {
   prose: ProseConfig;
   chips: ChipConfig;
   /**
-   * CSS custom property values for the measurement-coupled --chat-type-* and
-   * --chat-ic-pad-* vars. Keyed by raw CSS property names.
-   * Applied inline at the scroll-container root by ChatRoot.onMount.
-   * Colors, radii, and font-family vars are excluded (they stay CSS-class-themed).
+   * Measurement-coupled CSS variable values keyed by the TypeScript contract
+   * key names (ThemeVarKey). Applied inline at the scroll-container root by
+   * ChatRoot via `assignInlineVars`. Colors, radii, and font-family vars are
+   * excluded — they stay CSS-class-themed so host overrides keep working.
    */
-  cssVars: Record<string, string>;
+  themeVars: Record<ThemeVarKey, string>;
 };
 
 // ── DEFAULT_CONFIG ────────────────────────────────────────────────────────────
@@ -269,16 +269,78 @@ export function toFontConfig(config: ChatConfig): FontConfig {
   };
 }
 
+// ── ThemeVarKey ───────────────────────────────────────────────────────────────
+
 /**
- * Map a ChatConfig to the measurement-coupled CSS custom property values
- * (--chat-type-* and --chat-ic-pad-*). Does NOT include color, radii, or
- * font-family vars — those remain CSS-class-themed.
+ * Keys in the global `vars` contract that are driven by runtime ChatConfig
+ * (typography metrics + chip padding). Must stay in sync with the `vars`
+ * contract shape in styles/theme.css.ts — TypeScript enforces this in ChatRoot
+ * via `vars[k as ThemeVarKey]` lookups.
  *
- * Returns raw CSS custom property names as keys so ChatRoot can emit them
- * via el.style.setProperty. The :where() defaults in theme.css.ts derive
- * their values from DEFAULT_CONFIG using the same property name keys.
+ * Colors, radii, and font-family vars are excluded: they stay CSS-class-themed.
  */
-export function toCssVars(config: ChatConfig): Record<string, string> {
+export type ThemeVarKey =
+  | 'typeBodyFontFamily'
+  | 'typeBodyFontSize'
+  | 'typeBodyFontWeight'
+  | 'typeBodyLineHeight'
+  | 'typeBodyBoldFontFamily'
+  | 'typeBodyBoldFontSize'
+  | 'typeBodyBoldFontWeight'
+  | 'typeBodyBoldLineHeight'
+  | 'typeBodyItalicFontFamily'
+  | 'typeBodyItalicFontSize'
+  | 'typeBodyItalicFontWeight'
+  | 'typeBodyItalicFontStyle'
+  | 'typeBodyItalicLineHeight'
+  | 'typeBodyLinkFontFamily'
+  | 'typeBodyLinkFontSize'
+  | 'typeBodyLinkFontWeight'
+  | 'typeBodyLinkLineHeight'
+  | 'typeH1FontFamily'
+  | 'typeH1FontSize'
+  | 'typeH1FontWeight'
+  | 'typeH1LineHeight'
+  | 'typeH2FontFamily'
+  | 'typeH2FontSize'
+  | 'typeH2FontWeight'
+  | 'typeH2LineHeight'
+  | 'typeH3FontFamily'
+  | 'typeH3FontSize'
+  | 'typeH3FontWeight'
+  | 'typeH3LineHeight'
+  | 'typeInlineCodeFontFamily'
+  | 'typeInlineCodeFontSize'
+  | 'typeInlineCodeFontWeight'
+  | 'typeInlineCodeLineHeight'
+  | 'typeCodeFontFamily'
+  | 'typeCodeFontSize'
+  | 'typeCodeFontWeight'
+  | 'typeCodeLineHeight'
+  | 'typeCodeLangFontFamily'
+  | 'typeCodeLangFontSize'
+  | 'typeCodeLangFontWeight'
+  | 'typeCodeLangLineHeight'
+  | 'typeMentionFontFamily'
+  | 'typeMentionFontSize'
+  | 'typeMentionFontWeight'
+  | 'icPadX'
+  | 'icPadY'
+  | 'mentionPadX'
+  | 'mentionPadY';
+
+/**
+ * Map a ChatConfig to the measurement-coupled CSS contract values
+ * (typography + chip padding). Keys are the TypeScript contract key names from
+ * the `vars` object in styles/theme.css.ts so ChatRoot can apply them via
+ * `assignInlineVars` with a compile-time link to the contract. Colors, radii,
+ * and font-family vars are excluded — they stay CSS-class-themed.
+ *
+ * Font-family values reference the global CSS vars (var(--chat-font-sans) etc.)
+ * so the host can override families via --chat-font-sans / --chat-font-mono
+ * without re-running buildChatTheme.
+ */
+export function toThemeVars(config: ChatConfig): Record<ThemeVarKey, string> {
   const r = config.roles;
   const c = config.chips;
 
@@ -286,69 +348,70 @@ export function toCssVars(config: ChatConfig): Record<string, string> {
     return `${n}px`;
   }
 
-  // Font-family values reference the global CSS vars so the host can override
-  // the families via --chat-font-sans / --chat-font-mono without re-running
-  // buildChatTheme. These vars are handled in the :where() / class-override
-  // layer, so we only emit the family values as references here.
-  const sansFamilyVar = 'var(--chat-font-sans)';
-  const monoFamilyVar = 'var(--chat-font-mono)';
+  const sans = 'var(--chat-font-sans)';
+  const mono = 'var(--chat-font-mono)';
 
   return {
-    '--chat-type-body-font-family': sansFamilyVar,
-    '--chat-type-body-font-size': px(r.body.size),
-    '--chat-type-body-font-weight': String(r.body.weight),
-    '--chat-type-body-line-height': px(r.body.lineHeight),
+    typeBodyFontFamily: sans,
+    typeBodyFontSize: px(r.body.size),
+    typeBodyFontWeight: String(r.body.weight),
+    typeBodyLineHeight: px(r.body.lineHeight),
 
-    '--chat-type-body-bold-font-family': sansFamilyVar,
-    '--chat-type-body-bold-font-size': px(r['body-bold'].size),
-    '--chat-type-body-bold-font-weight': String(r['body-bold'].weight),
-    '--chat-type-body-bold-line-height': px(r['body-bold'].lineHeight),
+    typeBodyBoldFontFamily: sans,
+    typeBodyBoldFontSize: px(r['body-bold'].size),
+    typeBodyBoldFontWeight: String(r['body-bold'].weight),
+    typeBodyBoldLineHeight: px(r['body-bold'].lineHeight),
 
-    '--chat-type-body-italic-font-family': sansFamilyVar,
-    '--chat-type-body-italic-font-size': px(r['body-italic'].size),
-    '--chat-type-body-italic-font-weight': String(r['body-italic'].weight),
-    '--chat-type-body-italic-font-style': r['body-italic'].style ?? 'normal',
-    '--chat-type-body-italic-line-height': px(r['body-italic'].lineHeight),
+    typeBodyItalicFontFamily: sans,
+    typeBodyItalicFontSize: px(r['body-italic'].size),
+    typeBodyItalicFontWeight: String(r['body-italic'].weight),
+    typeBodyItalicFontStyle: r['body-italic'].style ?? 'normal',
+    typeBodyItalicLineHeight: px(r['body-italic'].lineHeight),
 
-    '--chat-type-body-link-font-family': sansFamilyVar,
-    '--chat-type-body-link-font-size': px(r['body-link'].size),
-    '--chat-type-body-link-font-weight': String(r['body-link'].weight),
-    '--chat-type-body-link-line-height': px(r['body-link'].lineHeight),
+    typeBodyLinkFontFamily: sans,
+    typeBodyLinkFontSize: px(r['body-link'].size),
+    typeBodyLinkFontWeight: String(r['body-link'].weight),
+    typeBodyLinkLineHeight: px(r['body-link'].lineHeight),
 
-    '--chat-type-h1-font-family': sansFamilyVar,
-    '--chat-type-h1-font-size': px(r.h1.size),
-    '--chat-type-h1-font-weight': String(r.h1.weight),
-    '--chat-type-h1-line-height': px(r.h1.lineHeight),
+    typeH1FontFamily: sans,
+    typeH1FontSize: px(r.h1.size),
+    typeH1FontWeight: String(r.h1.weight),
+    typeH1LineHeight: px(r.h1.lineHeight),
 
-    '--chat-type-h2-font-family': sansFamilyVar,
-    '--chat-type-h2-font-size': px(r.h2.size),
-    '--chat-type-h2-font-weight': String(r.h2.weight),
-    '--chat-type-h2-line-height': px(r.h2.lineHeight),
+    typeH2FontFamily: sans,
+    typeH2FontSize: px(r.h2.size),
+    typeH2FontWeight: String(r.h2.weight),
+    typeH2LineHeight: px(r.h2.lineHeight),
 
-    '--chat-type-h3-font-family': sansFamilyVar,
-    '--chat-type-h3-font-size': px(r.h3.size),
-    '--chat-type-h3-font-weight': String(r.h3.weight),
-    '--chat-type-h3-line-height': px(r.h3.lineHeight),
+    typeH3FontFamily: sans,
+    typeH3FontSize: px(r.h3.size),
+    typeH3FontWeight: String(r.h3.weight),
+    typeH3LineHeight: px(r.h3.lineHeight),
 
-    '--chat-type-inline-code-font-family': monoFamilyVar,
-    '--chat-type-inline-code-font-size': px(r['inline-code'].size),
-    '--chat-type-inline-code-font-weight': String(r['inline-code'].weight),
-    '--chat-type-inline-code-line-height': px(r['inline-code'].lineHeight),
+    typeInlineCodeFontFamily: mono,
+    typeInlineCodeFontSize: px(r['inline-code'].size),
+    typeInlineCodeFontWeight: String(r['inline-code'].weight),
+    typeInlineCodeLineHeight: px(r['inline-code'].lineHeight),
 
-    '--chat-type-code-font-family': monoFamilyVar,
-    '--chat-type-code-font-size': px(r.code.size),
-    '--chat-type-code-font-weight': String(r.code.weight),
-    '--chat-type-code-line-height': px(r.code.lineHeight),
+    typeCodeFontFamily: mono,
+    typeCodeFontSize: px(r.code.size),
+    typeCodeFontWeight: String(r.code.weight),
+    typeCodeLineHeight: px(r.code.lineHeight),
 
-    '--chat-type-code-lang-font-family': sansFamilyVar,
-    '--chat-type-code-lang-font-size': px(r['code-lang'].size),
-    '--chat-type-code-lang-font-weight': String(r['code-lang'].weight),
-    '--chat-type-code-lang-line-height': px(r['code-lang'].lineHeight),
+    typeCodeLangFontFamily: sans,
+    typeCodeLangFontSize: px(r['code-lang'].size),
+    typeCodeLangFontWeight: String(r['code-lang'].weight),
+    typeCodeLangLineHeight: px(r['code-lang'].lineHeight),
 
-    '--chat-type-mention-font-family': sansFamilyVar,
+    typeMentionFontFamily: sans,
+    typeMentionFontSize: px(r.mention.size),
+    typeMentionFontWeight: String(r.mention.weight),
 
-    '--chat-ic-pad-x': px(c.inlineCodePadX),
-    '--chat-ic-pad-y': px(c.inlineCodePadY),
+    icPadX: px(c.inlineCodePadX),
+    icPadY: px(c.inlineCodePadY),
+
+    mentionPadX: px(c.mentionPadX),
+    mentionPadY: px(c.mentionPadY),
   };
 }
 
@@ -369,6 +432,6 @@ export function buildChatTheme(config: ChatConfig = DEFAULT_CONFIG): ResolvedThe
     density: config.density,
     prose: config.prose,
     chips: config.chips,
-    cssVars: toCssVars(config),
+    themeVars: toThemeVars(config),
   };
 }

@@ -11,8 +11,8 @@
  */
 
 import type { RichInlineItem } from '@chenglou/pretext/rich-inline';
-import type { InlineCode, InlineMention, InlineRun, InlineText } from '@core/markdown/document';
 import type { FontConfig } from '@core/config';
+import type { InlineCode, InlineMention, InlineRun, InlineText } from '@core/markdown/document';
 
 export function runsToRichItems(runs: InlineRun[], fonts: FontConfig): RichInlineItem[] {
   return runs.flatMap((run): RichInlineItem[] => {

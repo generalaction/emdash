@@ -39,14 +39,14 @@ import { SEGMENTERS, UNIT_REGISTRY } from './components/engine/unit-registry';
 import { UnitRow } from './components/engine/UnitRow';
 import { PinnedUserMessage } from './components/rows/message/PinnedUserMessage';
 import { createChatCaches } from './core/caches';
+import type { ChatConfig, ThemeVarKey } from './core/config';
+import { DEFAULT_CONFIG, buildChatTheme } from './core/config';
 import type { MeasureCtx } from './core/define';
 import type { ChatHighlighter } from './core/highlight/highlighter';
 import { genericEstimate } from './core/layout/generic-estimate';
 import type { MentionProvider } from './core/markdown/mention-provider';
 import { registerFontsReadyClear } from './core/measure/pretext-cache';
 import { StickToBottom } from './core/stick-to-bottom';
-import type { ChatConfig } from './core/config';
-import { DEFAULT_CONFIG, buildChatTheme } from './core/config';
 import type { ChatTheme } from './core/theme';
 import { DEFAULT_THEME } from './core/theme';
 import { unitReservedHeight } from './core/units';
@@ -56,7 +56,6 @@ import type { ChatItem, ChatMessage } from './model';
 import { flatten, collectUserTurnUnits, getUnit } from './state/flatten';
 import type { TranscriptApi } from './state/transcript';
 import type { ViewState } from './state/view-state';
-import './chat-fonts.css';
 import {
   canvas,
   defaultContentClass,
@@ -65,6 +64,8 @@ import {
   scrollContainer,
   unitRowWrapper,
 } from './chat-root.css';
+import './chat-fonts.css';
+import { vars } from './styles/theme.css';
 
 // Centered content column. The scroll container stays full width (so the
 // scrollbar sits at the viewport edge) while rows are measured and laid out
@@ -188,6 +189,21 @@ export function ChatRoot(props: ChatRootProps) {
   // require a remount). Prefer the explicit `theme` prop for back-compat, then
   // derive from `config`, then fall back to DEFAULT_THEME.
   const resolved: ChatTheme = props.theme ?? buildChatTheme(props.config ?? DEFAULT_CONFIG);
+
+  // Measurement-coupled CSS vars applied as a static inline style on the scroll
+  // container. The vars[k] lookup is the compile-time gate: TypeScript errors if
+  // ThemeVarKey contains a key not present in the vars contract. VE var refs are
+  // "var(--xxx)" — slice(4,-1) extracts "--xxx" as the CSS custom property name.
+  // Set once per mount — theme changes require a full remount by design.
+  const scrollElStyle = (() => {
+    const tv = resolved.themeVars;
+    const style: Record<string, string> = {};
+    for (const k of Object.keys(tv) as ThemeVarKey[]) {
+      const ref = String(vars[k as keyof typeof vars]);
+      style[ref.startsWith('var(') ? ref.slice(4, -1) : ref] = tv[k];
+    }
+    return style;
+  })();
   const theme = () => resolved;
   const contentClass = () => props.contentClass ?? DEFAULT_CONTENT_CLASS;
   const commands = () => props.commands?.() ?? {};
@@ -562,16 +578,6 @@ export function ChatRoot(props: ChatRootProps) {
       props.controls.loadOlder = doLoadOlder;
     }
 
-    // Emit measurement-coupled CSS vars from the resolved theme.
-    // These are the non-color, non-family vars (--chat-type-*, --chat-ic-pad-*)
-    // that must match the measurement side exactly for the measure===offsetHeight
-    // invariant to hold. Colors/radii/font-family remain CSS-class-themed so
-    // host overrides via .emlight/.emdark keep working.
-    // Set once on mount — theme changes require a full remount.
-    for (const [k, v] of Object.entries(resolved.cssVars)) {
-      el.style.setProperty(k, v);
-    }
-
     let rafId: number | null = null;
     let lastScrollTop = 0;
     let atBottom = sticky.isStuck();
@@ -841,6 +847,7 @@ export function ChatRoot(props: ChatRootProps) {
                 }}
                 data-chat-scroll
                 class={`${scrollContainer}${props.class ? ` ${props.class}` : ''}`}
+                style={scrollElStyle}
               >
                 <div
                   ref={(el) => {

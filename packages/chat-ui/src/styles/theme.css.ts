@@ -21,7 +21,7 @@
  *   inherits everything not explicitly overridden from this default theme.
  */
 
-import { DEFAULT_CONFIG } from '@core/config';
+import { DEFAULT_CONFIG, toThemeVars } from '@core/config';
 import { createGlobalTheme, createGlobalThemeContract } from '@vanilla-extract/css';
 
 // ── Contract (stable public names) ────────────────────────────────────────────
@@ -134,39 +134,46 @@ export const vars = createGlobalThemeContract(
     typeCodeLangFontWeight: 'chat-type-code-lang-font-weight',
     typeCodeLangLineHeight: 'chat-type-code-lang-line-height',
 
-    // Mention chip — family only (size/weight baked as literals in prose.css.ts
-    // to prevent host override, matching the comment in the old tokens.css).
+    // Mention chip typography (size/weight emitted at runtime like all other roles).
     typeMentionFontFamily: 'chat-type-mention-font-family',
+    typeMentionFontSize: 'chat-type-mention-font-size',
+    typeMentionFontWeight: 'chat-type-mention-font-weight',
 
-    // ── Density (runtime-settable by ChatRoot) ─────────────────────────────────
+    // ── Chip padding (runtime-settable by ChatRoot) ────────────────────────────
     icPadX: 'chat-ic-pad-x',
     icPadY: 'chat-ic-pad-y',
+    mentionPadX: 'chat-mention-pad-x',
+    mentionPadY: 'chat-mention-pad-y',
   },
   (value) => `--${value}`
 );
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Shared non-color tokens ────────────────────────────────────────────────────
+//
+// Typography metrics and chip padding derive from DEFAULT_CONFIG via toThemeVars
+// (same source of truth as buildChatTheme) so build-time defaults and runtime
+// inline-var emission can never drift from each other. Both createGlobalTheme
+// blocks spread these; each block then only lists its own color palette.
+//
+// Font-family and radius tokens are static across themes, so they live here too.
+// The vars contract keys match the ThemeVarKey union in config.ts exactly —
+// TypeScript enforces this in ChatRoot via vars[k as ThemeVarKey] lookups.
 
-// CSS font-family values — family follows the host --font-sans / --chat-font-mono
-// just like the old tokens.css, so host custom fonts apply here too.
-const SANS_VAR = vars.fontSans;
-const MONO_VAR = vars.fontMono;
-
-function pxStr(n: number) {
-  return `${n}px`;
-}
-
-// Derive typography + chip values from DEFAULT_CONFIG (shared source of truth
-// with buildChatTheme / toCssVars so build-time defaults and runtime emission
-// can never drift from each other).
-const r = DEFAULT_CONFIG.roles;
-const c = DEFAULT_CONFIG.chips;
+const NON_COLOR_VARS = {
+  fontSans: ['Inter Variable', 'sans-serif'].join(', '),
+  fontMono: "'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, monospace",
+  radiusSm: '0.375rem',
+  radiusMd: '0.5rem',
+  radiusLg: '0.625rem',
+  radiusXl: '0.875rem',
+  radiusFull: '9999px',
+  // Typography + chip padding — all derived from DEFAULT_CONFIG.
+  ...toThemeVars(DEFAULT_CONFIG),
+};
 
 // ── Light theme ────────────────────────────────────────────────────────────────
-// Selector mirrors the old :where(:root), :where(.emlight) block exactly.
 
 createGlobalTheme(':where(:root), :where(.emlight)', vars, {
-  // Colors
   fg: '#21201f',
   fgBody: 'color-mix(in srgb, #616060 40%, #21201f)',
   fgMuted: '#616060',
@@ -185,7 +192,6 @@ createGlobalTheme(':where(:root), :where(.emlight)', vars, {
   diffAdded: '#4f9f4f',
   diffDeleted: '#d56761',
   diffModified: '#c28c00',
-
   link: '#2263a4',
   bubbleUser: '#dadada',
   bubbleUserFg: '#21201f',
@@ -196,82 +202,13 @@ createGlobalTheme(':where(:root), :where(.emlight)', vars, {
   tableHeaderBg: '#f1f0f0',
   planDone: '#22c55e',
   planActive: '#f59e0b',
-
-  // Non-color tokens
-  fontSans: ['Inter Variable', 'sans-serif'].join(', '),
-  fontMono: "'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, monospace",
-  radiusSm: '0.375rem',
-  radiusMd: '0.5rem',
-  radiusLg: '0.625rem',
-  radiusXl: '0.875rem',
-  radiusFull: '9999px',
-
-  // Typography — derived from DEFAULT_CONFIG.roles so values always match the
-  // runtime buildChatTheme output and the measure===offsetHeight invariant holds.
-  typeBodyFontFamily: SANS_VAR,
-  typeBodyFontSize: pxStr(r.body.size),
-  typeBodyFontWeight: String(r.body.weight),
-  typeBodyLineHeight: pxStr(r.body.lineHeight),
-
-  typeBodyBoldFontFamily: SANS_VAR,
-  typeBodyBoldFontSize: pxStr(r['body-bold'].size),
-  typeBodyBoldFontWeight: String(r['body-bold'].weight),
-  typeBodyBoldLineHeight: pxStr(r['body-bold'].lineHeight),
-
-  typeBodyItalicFontFamily: SANS_VAR,
-  typeBodyItalicFontSize: pxStr(r['body-italic'].size),
-  typeBodyItalicFontWeight: String(r['body-italic'].weight),
-  typeBodyItalicFontStyle: r['body-italic'].style ?? 'normal',
-  typeBodyItalicLineHeight: pxStr(r['body-italic'].lineHeight),
-
-  typeBodyLinkFontFamily: SANS_VAR,
-  typeBodyLinkFontSize: pxStr(r['body-link'].size),
-  typeBodyLinkFontWeight: String(r['body-link'].weight),
-  typeBodyLinkLineHeight: pxStr(r['body-link'].lineHeight),
-
-  typeH1FontFamily: SANS_VAR,
-  typeH1FontSize: pxStr(r.h1.size),
-  typeH1FontWeight: String(r.h1.weight),
-  typeH1LineHeight: pxStr(r.h1.lineHeight),
-
-  typeH2FontFamily: SANS_VAR,
-  typeH2FontSize: pxStr(r.h2.size),
-  typeH2FontWeight: String(r.h2.weight),
-  typeH2LineHeight: pxStr(r.h2.lineHeight),
-
-  typeH3FontFamily: SANS_VAR,
-  typeH3FontSize: pxStr(r.h3.size),
-  typeH3FontWeight: String(r.h3.weight),
-  typeH3LineHeight: pxStr(r.h3.lineHeight),
-
-  typeInlineCodeFontFamily: MONO_VAR,
-  typeInlineCodeFontSize: pxStr(r['inline-code'].size),
-  typeInlineCodeFontWeight: String(r['inline-code'].weight),
-  typeInlineCodeLineHeight: pxStr(r['inline-code'].lineHeight),
-
-  typeCodeFontFamily: MONO_VAR,
-  typeCodeFontSize: pxStr(r.code.size),
-  typeCodeFontWeight: String(r.code.weight),
-  typeCodeLineHeight: pxStr(r.code.lineHeight),
-
-  typeCodeLangFontFamily: SANS_VAR,
-  typeCodeLangFontSize: pxStr(r['code-lang'].size),
-  typeCodeLangFontWeight: String(r['code-lang'].weight),
-  typeCodeLangLineHeight: pxStr(r['code-lang'].lineHeight),
-
-  typeMentionFontFamily: SANS_VAR,
-
-  // Chip padding — derived from DEFAULT_CONFIG.chips
-  icPadX: pxStr(c.inlineCodePadX),
-  icPadY: pxStr(c.inlineCodePadY),
+  ...NON_COLOR_VARS,
 });
 
 // ── Dark theme ─────────────────────────────────────────────────────────────────
-// Only color overrides — typography and chip geometry are identical in both
-// themes so there is no need to repeat them here.
+// Only colors differ from light — typography and geometry are theme-independent.
 
 createGlobalTheme(':where(.emdark)', vars, {
-  // Colors
   fg: '#e9e8e9',
   fgBody: 'color-mix(in srgb, #b8b7b8 40%, #e9e8e9)',
   fgMuted: '#b8b7b8',
@@ -290,7 +227,6 @@ createGlobalTheme(':where(.emdark)', vars, {
   diffAdded: '#54a55a',
   diffDeleted: '#dc6b67',
   diffModified: '#ce981d',
-
   link: '#7cbcff',
   bubbleUser: '#282727',
   bubbleUserFg: '#e9e8e9',
@@ -301,71 +237,5 @@ createGlobalTheme(':where(.emdark)', vars, {
   tableHeaderBg: '#181818',
   planDone: '#4fcca8',
   planActive: '#dead52',
-
-  // Non-color tokens (same as light — host overrides these if needed)
-  fontSans: ['Inter Variable', 'sans-serif'].join(', '),
-  fontMono: "'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, monospace",
-  radiusSm: '0.375rem',
-  radiusMd: '0.5rem',
-  radiusLg: '0.625rem',
-  radiusXl: '0.875rem',
-  radiusFull: '9999px',
-
-  // Typography — same values as light (font metrics are theme-independent).
-  typeBodyFontFamily: SANS_VAR,
-  typeBodyFontSize: pxStr(r.body.size),
-  typeBodyFontWeight: String(r.body.weight),
-  typeBodyLineHeight: pxStr(r.body.lineHeight),
-
-  typeBodyBoldFontFamily: SANS_VAR,
-  typeBodyBoldFontSize: pxStr(r['body-bold'].size),
-  typeBodyBoldFontWeight: String(r['body-bold'].weight),
-  typeBodyBoldLineHeight: pxStr(r['body-bold'].lineHeight),
-
-  typeBodyItalicFontFamily: SANS_VAR,
-  typeBodyItalicFontSize: pxStr(r['body-italic'].size),
-  typeBodyItalicFontWeight: String(r['body-italic'].weight),
-  typeBodyItalicFontStyle: r['body-italic'].style ?? 'normal',
-  typeBodyItalicLineHeight: pxStr(r['body-italic'].lineHeight),
-
-  typeBodyLinkFontFamily: SANS_VAR,
-  typeBodyLinkFontSize: pxStr(r['body-link'].size),
-  typeBodyLinkFontWeight: String(r['body-link'].weight),
-  typeBodyLinkLineHeight: pxStr(r['body-link'].lineHeight),
-
-  typeH1FontFamily: SANS_VAR,
-  typeH1FontSize: pxStr(r.h1.size),
-  typeH1FontWeight: String(r.h1.weight),
-  typeH1LineHeight: pxStr(r.h1.lineHeight),
-
-  typeH2FontFamily: SANS_VAR,
-  typeH2FontSize: pxStr(r.h2.size),
-  typeH2FontWeight: String(r.h2.weight),
-  typeH2LineHeight: pxStr(r.h2.lineHeight),
-
-  typeH3FontFamily: SANS_VAR,
-  typeH3FontSize: pxStr(r.h3.size),
-  typeH3FontWeight: String(r.h3.weight),
-  typeH3LineHeight: pxStr(r.h3.lineHeight),
-
-  typeInlineCodeFontFamily: MONO_VAR,
-  typeInlineCodeFontSize: pxStr(r['inline-code'].size),
-  typeInlineCodeFontWeight: String(r['inline-code'].weight),
-  typeInlineCodeLineHeight: pxStr(r['inline-code'].lineHeight),
-
-  typeCodeFontFamily: MONO_VAR,
-  typeCodeFontSize: pxStr(r.code.size),
-  typeCodeFontWeight: String(r.code.weight),
-  typeCodeLineHeight: pxStr(r.code.lineHeight),
-
-  typeCodeLangFontFamily: SANS_VAR,
-  typeCodeLangFontSize: pxStr(r['code-lang'].size),
-  typeCodeLangFontWeight: String(r['code-lang'].weight),
-  typeCodeLangLineHeight: pxStr(r['code-lang'].lineHeight),
-
-  typeMentionFontFamily: SANS_VAR,
-
-  // Chip padding
-  icPadX: pxStr(c.inlineCodePadX),
-  icPadY: pxStr(c.inlineCodePadY),
+  ...NON_COLOR_VARS,
 });

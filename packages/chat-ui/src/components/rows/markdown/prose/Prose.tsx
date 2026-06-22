@@ -14,8 +14,6 @@ import type {
   ProseLaidOut,
 } from '@core/layout/layout-types';
 import type { InlineMention, InlineRun } from '@core/markdown/document';
-import { pxTokens } from '@styles/px-tokens';
-import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, Match, Show, Switch } from 'solid-js';
 import {
   bulletColor,
@@ -28,7 +26,6 @@ import {
   pfVariants,
   pline,
   pquoteRail,
-  proseVars,
   quoteRailBar,
 } from './prose.css';
 
@@ -67,6 +64,7 @@ function ProseFragment(props: {
   blockId: string;
 }) {
   const commands = useCommands();
+  const chips = useTheme()().chips;
   const key = fragKey(props.run, props.variant);
   const moduleCls = [pf, pfVariants[key]].filter(Boolean).join(' ');
   const visualCls = fragVisualClass(props.run, props.variant);
@@ -112,14 +110,14 @@ function ProseFragment(props: {
           left: `${props.frag.x}px`,
           display: 'inline-flex',
           'align-items': 'center',
-          gap: proseVars.mentionIconGap,
+          gap: `${chips.mentionIconGap}px`,
         }}
       >
         <span
           style={{
             display: 'flex',
-            width: proseVars.mentionIconW,
-            height: proseVars.mentionIconW,
+            width: `${chips.mentionIconW}px`,
+            height: `${chips.mentionIconW}px`,
             'flex-shrink': '0',
             'align-items': 'center',
             'justify-content': 'center',
@@ -214,19 +212,8 @@ export type ProseProps = {
 };
 
 export function Prose(props: ProseProps) {
-  const theme = useTheme();
-  const proseStyleVars = () => {
-    const chips = theme().chips;
-    return pxTokens({
-      mentionPadX: chips.mentionPadX,
-      mentionPadY: chips.mentionPadY,
-      mentionIconW: chips.mentionIconW,
-      mentionIconGap: chips.mentionIconGap,
-    });
-  };
-
   return (
-    <BlockFrame layout={props.block} style={assignInlineVars(proseVars, proseStyleVars())}>
+    <BlockFrame layout={props.block}>
       <Show when={props.block.quoteRail}>
         <ProseQuoteRail left={(props.block.lines[0]?.left ?? 18) - 10} />
       </Show>

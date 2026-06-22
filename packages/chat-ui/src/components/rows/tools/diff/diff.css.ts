@@ -1,4 +1,4 @@
-import { createVar, globalStyle, style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { textShimmer } from '@styles/effects.css';
 import { vars } from '@styles/theme.css';
@@ -7,17 +7,16 @@ import { createVariableThemeContract } from '@styles/variable-theme-contract.css
 // ── Runtime geometry contract ─────────────────────────────────────────────────
 
 export type DiffStyleVars = {
+  height: number;
   headerH: number;
 };
 
 export const diffCardVars = createVariableThemeContract<DiffStyleVars>({
+  height: null,
   headerH: null,
 });
 
-// Root height is managed via a separate var so inner components (DiffHeader)
-// can set headerH independently without providing the outer container height.
-export const diffHeightVar = createVar();
-export const diffRoot = style({ height: diffHeightVar });
+export const diffRoot = style({ height: diffCardVars.height });
 
 // ── DiffHeader ────────────────────────────────────────────────────────────────
 

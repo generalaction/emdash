@@ -7,7 +7,7 @@ import type { ChatDiff } from '@/model';
 import { DiffHeader, DiffLines } from './Diff';
 import { countChanges, selectPreview, type DiffRow } from './diff-lines';
 import { langFromPath } from './lang';
-import { diffCardVars, diffHeightVar, diffRoot, type DiffStyleVars } from './diff.css';
+import { diffCardVars, diffRoot, type DiffStyleVars } from './diff.css';
 
 export type DiffVars = {
   /** Style-relevant: consumed by diffCardVars contract. */
@@ -76,16 +76,10 @@ function DiffUnitRender(props: { data: ChatDiff; ctx: RenderCtx; vars: DiffVars 
   const headerOnly = () => props.data.status === 'running' && props.data.newText.length === 0;
   const codeLineH = () => mCtx()?.theme.fonts.code.lineHeight ?? 0;
 
-  const styleVars = (): DiffStyleVars => ({ headerH: props.vars.headerH });
+  const styleVars = (): DiffStyleVars => ({ height: totalH(), headerH: props.vars.headerH });
 
   return (
-    <div
-      class={diffRoot}
-      style={{
-        ...assignInlineVars(diffCardVars, pxTokens(styleVars())),
-        [diffHeightVar]: `${totalH()}px`,
-      }}
-    >
+    <div class={diffRoot} style={assignInlineVars(diffCardVars, pxTokens(styleVars()))}>
       <Show when={layout()}>
         {(l) => (
           <>
