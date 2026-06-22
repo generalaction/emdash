@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, stat, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { and, eq } from 'drizzle-orm';
@@ -12,6 +12,7 @@ import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 const MAX_TRANSCRIPT_CHARS = 60_000;
 const MAX_EXTRACTED_ITEMS = 20;
 const HANDOFF_DIR = 'emdash-handoffs';
+const HANDOFF_DOCUMENT_TTL_MS = 60 * 60 * 1000;
 
 const SECRET_REDACTIONS: Array<[RegExp, string]> = [
   [/-----BEGIN[^-\n]{1,40}-----[\s\S]+?-----END[^-\n]{1,40}-----/g, '[REDACTED_PEM_BLOCK]'],
@@ -141,12 +142,48 @@ function redactSecrets(value: string): string {
   );
 }
 
+function escapeMarkdownFenceContent(value: string): string {
+  return value.replace(/`{3,}/g, (match) => match.replace(/`/g, '\\`'));
+}
+
+function sanitizeInlineMarkdown(value: string): string {
+  return value.replace(/[\r\n]+/g, ' ');
+}
+
+async function cleanupOldHandoffDocuments(dir: string): Promise<void> {
+  const expiresBefore = Date.now() - HANDOFF_DOCUMENT_TTL_MS;
+  const entries = await readdir(dir, { withFileTypes: true });
+
+  await Promise.all(
+    entries.map(async (entry) => {
+      if (!entry.isFile() || !entry.name.startsWith('handoff-') || !entry.name.endsWith('.md'))
+        return;
+
+      const path = join(dir, entry.name);
+      const fileStat = await stat(path);
+      if (fileStat.mtimeMs >= expiresBefore) return;
+
+      await unlink(path);
+    })
+  );
+}
+
+function scheduleHandoffDocumentCleanup(path: string): void {
+  const timer = setTimeout(() => {
+    void unlink(path).catch(() => {});
+  }, HANDOFF_DOCUMENT_TTL_MS);
+
+  timer.unref?.();
+}
+
 async function writeHandoffDocument(content: string): Promise<string> {
   const dir = join(tmpdir(), HANDOFF_DIR);
   await mkdir(dir, { recursive: true, mode: 0o700 });
+  await cleanupOldHandoffDocuments(dir).catch(() => {});
 
   const path = join(dir, `handoff-${Date.now()}-${randomUUID()}.md`);
   await writeFile(path, content, { encoding: 'utf8', mode: 0o600 });
+  scheduleHandoffDocumentCleanup(path);
   return path;
 }
 
@@ -188,7 +225,7 @@ Continue the same task in a fresh agent session without asking the user to resta
 ## Source session
 
 - Agent: ${providerName}
-- Conversation title: ${row.title}
+- Conversation title: ${sanitizeInlineMarkdown(row.title)}
 - Conversation id: ${row.id}
 - Project id: ${projectId}
 - Task id: ${taskId}
@@ -210,7 +247,11 @@ ${formatBullets(commands, 'No commands were detected automatically.')}
 
 ## Cleaned latest terminal transcript
 
-${transcriptIncluded ? `\`\`\`text\n${transcript}\n\`\`\`` : 'No terminal transcript was available from the source session buffer.'}
+${
+  transcriptIncluded
+    ? `\`\`\`text\n${escapeMarkdownFenceContent(transcript)}\n\`\`\``
+    : 'No terminal transcript was available from the source session buffer.'
+}
 `;
 
   if (options.delivery === 'inline') {
