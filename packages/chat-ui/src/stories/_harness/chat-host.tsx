@@ -6,8 +6,7 @@
  * TranscriptApi calls and re-runs on every story re-mount. ChatHostExpanded
  * pre-toggles a specific item so expanded-state stories start already opened.
  *
- * All hosts default onResolveElicitation to dispatch `elicitation_removed` and
- * onStop to dispatch `turn_cancelled` so permission-request and stop-button
+ * All hosts default onStop to dispatch `turn_cancelled` so stop-button
  * stories work interactively out of the box. Pass a custom `commands` to
  * override or extend any callback.
  */
@@ -57,9 +56,7 @@ export type ChatHostProps = {
   height?: number;
   /**
    * Command callbacks injected into the chat renderer.
-   * `onResolveElicitation` defaults to optimistic removal (dispatching
-   * `elicitation_removed`) so permission stories work interactively without
-   * extra wiring. Pass overrides here to replace specific callbacks.
+   * Pass overrides here to replace or extend specific callbacks.
    */
   commands?: ChatCommands;
   /** Optional mention provider — when supplied, @-token text renders as pills. */
@@ -68,16 +65,12 @@ export type ChatHostProps = {
 
 /**
  * Build a merged ChatCommands object that defaults to:
- *  - optimistic elicitation removal (dispatch `elicitation_removed` on resolve)
  *  - optimistic stop (dispatch `turn_cancelled` on stop)
- * so permission-request and stop-button stories work interactively out of the
- * box. Caller-supplied overrides replace any of these defaults.
+ * so stop-button stories work interactively out of the box.
+ * Caller-supplied overrides replace any of these defaults.
  */
 function makeCommands(transcript: TranscriptApi, overrides?: ChatCommands): () => ChatCommands {
   return () => ({
-    onResolveElicitation: ({ elicitationId }) => {
-      transcript.dispatch({ type: 'elicitation_removed', id: elicitationId });
-    },
     onStop: () => {
       transcript.dispatch({ type: 'turn_cancelled' });
     },

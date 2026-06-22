@@ -1,0 +1,137 @@
+/**
+ * SplitButton — a two-part button composed of a primary action face and a
+ * chevron that opens a dropdown listing all available options.
+ *
+ * Left face: fires onAction with the currently-selected option id.
+ * Right chevron: opens a DropdownMenu so the user can change the selection
+ * before committing (selecting an item fires onAction immediately).
+ *
+ * Built on Button + DropdownMenu so Base UI handles portaling, outside-click,
+ * Escape, and positioning with no manual listeners required.
+ */
+
+import { ChevronDownIcon } from 'lucide-react';
+import * as React from 'react';
+import { cn } from '../lib/cn';
+import { controlVariants, type ControlVariantProps } from '../recipes/control';
+import { Button, type ButtonProps } from './button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './dropdown-menu';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export type SplitButtonOptionTone = 'neutral' | 'accept' | 'reject';
+
+export type SplitButtonOption = {
+  id: string;
+  label: string;
+  /**
+   * Visual tone hint rendered as a small color dot before the label.
+   * Defaults to 'neutral' when omitted.
+   */
+  tone?: SplitButtonOptionTone;
+};
+
+export interface SplitButtonProps {
+  options: SplitButtonOption[];
+  /**
+   * Id of the currently selected option shown on the primary face.
+   * Falls back to the first option when omitted or not found.
+   */
+  selectedId?: string;
+  onSelectedChange?: (id: string) => void;
+  /**
+   * Fires with the id of the chosen option.
+   * Called on primary-face click (current selection) and on menu item click.
+   */
+  onAction: (id: string) => void;
+  disabled?: boolean;
+  size?: ButtonProps['size'];
+  variant?: ButtonProps['variant'];
+  tone?: ControlVariantProps['tone'];
+  className?: string;
+}
+
+// ── Tone dot ──────────────────────────────────────────────────────────────────
+
+const TONE_DOT_CLASS: Record<SplitButtonOptionTone, string> = {
+  neutral: 'bg-foreground-muted',
+  accept: 'bg-[var(--color-success,theme(colors.green.500))]',
+  reject: 'bg-foreground-destructive',
+};
+
+function ToneDot({ tone = 'neutral' }: { tone?: SplitButtonOptionTone }) {
+  return (
+    <span
+      aria-hidden
+      className={cn('inline-block size-1.5 shrink-0 rounded-full', TONE_DOT_CLASS[tone])}
+    />
+  );
+}
+
+// ── SplitButton ───────────────────────────────────────────────────────────────
+
+export function SplitButton({
+  options,
+  selectedId,
+  onSelectedChange,
+  onAction,
+  disabled = false,
+  size = 'sm',
+  variant = 'primary',
+  tone = 'neutral',
+  className,
+}: SplitButtonProps) {
+  const selectedOption =
+    (selectedId ? options.find((o) => o.id === selectedId) : undefined) ?? options[0];
+
+  const handleMenuSelect = (option: SplitButtonOption) => {
+    onSelectedChange?.(option.id);
+    onAction(option.id);
+  };
+
+  return (
+    <div className={cn('inline-flex items-stretch', className)}>
+      {/* Primary face — fires the currently selected option */}
+      <Button
+        variant={variant}
+        size={size}
+        tone={tone}
+        disabled={disabled}
+        className="rounded-r-none pr-2 pl-3"
+        onClick={() => {
+          if (selectedOption) onAction(selectedOption.id);
+        }}
+      >
+        {selectedOption?.label ?? ''}
+      </Button>
+
+      {/* Chevron trigger — opens the option menu */}
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          disabled={disabled}
+          aria-label="More options"
+          className={cn(
+            controlVariants({ variant, size, tone, icon: true }),
+            'rounded-l-none',
+            variant === 'primary' && 'border-l border-l-white/20'
+          )}
+        >
+          <ChevronDownIcon />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" sideOffset={4}>
+          {options.map((option) => (
+            <DropdownMenuItem key={option.id} onClick={() => handleMenuSelect(option)}>
+              <ToneDot tone={option.tone} />
+              {option.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}

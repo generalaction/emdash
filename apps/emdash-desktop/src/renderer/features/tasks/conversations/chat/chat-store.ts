@@ -21,11 +21,14 @@ import {
 import { events, rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import {
+  acpPermissionRequestChannel,
+  acpPermissionResolvedChannel,
   acpSessionClosedChannel,
   acpSessionStateChannel,
   acpSessionUpdateChannel,
   acpTurnCommittedChannel,
 } from '@shared/core/acp/acpEvents';
+import type { AcpPermissionRequest } from '@shared/core/acp/acpPermissions';
 import type { AcpPromptImage } from '@shared/core/acp/acpTurns';
 
 export type ChatMessageRole = 'user' | 'assistant' | 'thought';
@@ -232,6 +235,8 @@ function extractPaths(
   return Array.from(paths, (path) => ({ path }));
 }
 
+export type { AcpPermissionRequest };
+
 export class ChatStore {
   /**
    * Ordered transcript kept as source-of-truth for hydrating the chat-ui
@@ -244,6 +249,12 @@ export class ChatStore {
   isReady = false;
   input = '';
   selectedModel = 'default';
+  /**
+   * FIFO queue of pending permission requests. The head entry is what the
+   * composer's permission band shows. Persisted by the main process so
+   * a renderer reload rehydrates from getSessionState.
+   */
+  permissionQueue: AcpPermissionRequest[] = [];
 
   private readonly _conversationId: string;
   private readonly _projectId: string;
@@ -302,10 +313,12 @@ export class ChatStore {
       isReady: observable,
       input: observable,
       selectedModel: observable,
+      permissionQueue: observable,
       setInput: action,
       sendPrompt: action,
       cancel: action,
       setModel: action,
+      resolvePermission: action,
     });
 
     // Live update deltas — only the active turn streams.
@@ -361,7 +374,33 @@ export class ChatStore {
           if (payload.conversationId !== this._conversationId) return;
           this.isWorking = false;
           this.isClosed = true;
+          this.permissionQueue = [];
           this._finalizeStreaming();
+        })
+      )
+    );
+
+    // A new permission request arrived — append to the FIFO queue (dedupe).
+    this._unsubs.push(
+      events.on(
+        acpPermissionRequestChannel,
+        action((payload) => {
+          if (payload.conversationId !== this._conversationId) return;
+          const already = this.permissionQueue.some((p) => p.requestId === payload.requestId);
+          if (!already) this.permissionQueue.push(payload);
+        })
+      )
+    );
+
+    // A permission request was resolved — remove it from the queue (idempotent).
+    this._unsubs.push(
+      events.on(
+        acpPermissionResolvedChannel,
+        action((payload) => {
+          if (payload.conversationId !== this._conversationId) return;
+          this.permissionQueue = this.permissionQueue.filter(
+            (p) => p.requestId !== payload.requestId
+          );
         })
       )
     );
@@ -400,6 +439,13 @@ export class ChatStore {
           if (state.model && state.model !== 'default') {
             this.selectedModel = state.model;
           }
+
+          // 4. Rehydrate permission queue, deduping against live events that
+          //    raced in during the async fetch (same requestId already pushed).
+          for (const req of state.pendingPermissions) {
+            const already = this.permissionQueue.some((p) => p.requestId === req.requestId);
+            if (!already) this.permissionQueue.push(req);
+          }
         })
       )
       .catch((err) => {
@@ -425,6 +471,11 @@ export class ChatStore {
 
   get hasItems(): boolean {
     return this.items.length > 0;
+  }
+
+  /** The head of the permission queue — the request currently shown in the band. */
+  get activePermission(): AcpPermissionRequest | null {
+    return this.permissionQueue[0] ?? null;
   }
 
   /**
@@ -500,6 +551,19 @@ export class ChatStore {
   cancel(): void {
     this._cancelRequested = true;
     void rpc.acp.cancel(this._conversationId);
+  }
+
+  /**
+   * Resolve the head permission request with the user's chosen optionId.
+   * Pass null to cancel. Optimistically removes the entry from the queue;
+   * the main process will emit acpPermissionResolvedChannel which also removes
+   * it (idempotent on both sides).
+   */
+  resolvePermission(optionId: string | null): void {
+    const head = this.permissionQueue[0];
+    if (!head) return;
+    this.permissionQueue = this.permissionQueue.slice(1);
+    void rpc.acp.resolvePermission(this._conversationId, head.requestId, optionId);
   }
 
   setModel(modelId: string): void {

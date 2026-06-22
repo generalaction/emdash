@@ -29,11 +29,14 @@ import { updateConversationModel } from '@main/core/conversations/updateConversa
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import {
+  acpPermissionRequestChannel,
+  acpPermissionResolvedChannel,
   acpSessionClosedChannel,
   acpSessionStateChannel,
   acpSessionUpdateChannel,
   acpTurnCommittedChannel,
 } from '@shared/core/acp/acpEvents';
+import type { AcpPermissionRequest } from '@shared/core/acp/acpPermissions';
 import type {
   AcpPromptImage,
   AcpTurn,
@@ -70,6 +73,12 @@ interface AcpConversation {
   nextSeq: number;
   /** Coarse session lifecycle state. */
   lifecycle: SessionLifecycle;
+  /**
+   * Serializable FIFO queue of pending permission requests. Persisted in
+   * main-process memory so a renderer reload can rehydrate the queue via
+   * getSessionState without losing pending decisions.
+   */
+  pendingPermissions: AcpPermissionRequest[];
 }
 
 /**
@@ -106,6 +115,13 @@ class AcpSessionManager {
    * lookup from the public controller API without scanning pools.
    */
   private conversationIndex = new Map<string, { poolKey: string; acpSessionId: string | null }>();
+
+  /**
+   * Non-serializable resolver callbacks for pending permission requests,
+   * keyed by requestId. Kept separate from AcpConversation.pendingPermissions
+   * (which is serializable) because Promise callbacks cannot cross IPC.
+   */
+  private permissionResolvers = new Map<string, (r: RequestPermissionResponse) => void>();
 
   // -------------------------------------------------------------------------
   // Public API (keyed by conversationId — unchanged from callers' perspective)
@@ -152,6 +168,7 @@ class AcpSessionManager {
       activeTurnId: null,
       nextSeq: 0,
       lifecycle: 'starting',
+      pendingPermissions: [],
     };
 
     pool.conversations.set(conversationId, conv);
@@ -266,6 +283,39 @@ class AcpSessionManager {
     }
   }
 
+  /**
+   * Resolve a pending permission request with the user's chosen optionId.
+   * Pass null to cancel (sends `{ outcome: 'cancelled' }` to the agent).
+   * Idempotent: a no-op if the requestId has already been resolved.
+   */
+  resolvePermission(conversationId: string, requestId: string, optionId: string | null): void {
+    const conv = this.resolveConv(conversationId);
+    const resolver = this.permissionResolvers.get(requestId);
+
+    if (!resolver) {
+      log.warn('AcpSessionManager: resolvePermission for unknown requestId', {
+        conversationId,
+        requestId,
+      });
+      return;
+    }
+
+    // Remove from the serializable list.
+    if (conv) {
+      conv.pendingPermissions = conv.pendingPermissions.filter((p) => p.requestId !== requestId);
+    }
+
+    this.permissionResolvers.delete(requestId);
+
+    resolver(
+      optionId
+        ? { outcome: { outcome: 'selected', optionId } }
+        : { outcome: { outcome: 'cancelled' } }
+    );
+
+    events.emit(acpPermissionResolvedChannel, { conversationId, requestId });
+  }
+
   stop(conversationId: string): void {
     const entry = this.conversationIndex.get(conversationId);
     if (!entry) return;
@@ -286,6 +336,11 @@ class AcpSessionManager {
 
     pool.conversations.delete(conversationId);
     this.conversationIndex.delete(conversationId);
+
+    // Drain pending permissions so the renderer clears the band.
+    if (conv) {
+      this.drainPendingPermissions(conv);
+    }
 
     // Tearing down this conversation's session is a session exit; mirror the PTY
     // path so a stuck 'working' status (e.g. tab closed mid-turn) is reset to idle.
@@ -345,7 +400,8 @@ class AcpSessionManager {
    */
   getSessionState(conversationId: string): SessionState {
     const conv = this.resolveConv(conversationId);
-    if (!conv) return { lifecycle: 'closed', activeTurn: null, model: null };
+    if (!conv)
+      return { lifecycle: 'closed', activeTurn: null, model: null, pendingPermissions: [] };
     const activeTurn = conv.activeTurnId
       ? (conv.turns.find((t) => t.id === conv.activeTurnId) ?? null)
       : null;
@@ -353,6 +409,7 @@ class AcpSessionManager {
       lifecycle: conv.lifecycle,
       activeTurn: activeTurn ? structuredClone(activeTurn) : null,
       model: conv.pendingModel,
+      pendingPermissions: structuredClone(conv.pendingPermissions),
     };
   }
 
@@ -491,6 +548,11 @@ class AcpSessionManager {
       if (conv.activeTurnId) {
         this.closeTurnInternal(conv, 'error');
       }
+
+      // Drain any pending permission requests so the agent subprocess is not
+      // left blocked and the renderer clears the permission band.
+      this.drainPendingPermissions(conv);
+
       conv.lifecycle = 'closed';
       this.emitState(conv);
 
@@ -556,26 +618,45 @@ class AcpSessionManager {
         events.emit(acpSessionUpdateChannel, { conversationId, turnId: turn.id, update, seq });
       },
 
-      requestPermission: async (
-        params: RequestPermissionRequest
-      ): Promise<RequestPermissionResponse> => {
+      requestPermission: (params: RequestPermissionRequest): Promise<RequestPermissionResponse> => {
         const conversationId = pool.sessionToConversation.get(params.sessionId);
-        const allowOption =
-          params.options.find((o) => o.kind === 'allow_once' || o.kind === 'allow_always') ??
-          params.options[0];
+        const conv = conversationId ? pool.conversations.get(conversationId) : undefined;
 
-        log.debug('AcpSessionManager: auto-approving permission request', {
+        if (!conv || !conversationId) {
+          log.warn('AcpSessionManager: requestPermission for unknown session', {
+            sessionId: params.sessionId,
+          });
+          // Auto-cancel if we cannot route the request.
+          return Promise.resolve({ outcome: { outcome: 'cancelled' } });
+        }
+
+        const requestId = crypto.randomUUID();
+        const payload: AcpPermissionRequest = {
           conversationId,
+          requestId,
           toolCallId: params.toolCall?.toolCallId,
-          chosen: allowOption?.name,
+          title: params.toolCall?.title ?? 'Unknown',
+          toolKind: params.toolCall?.kind ?? undefined,
+          options: params.options.map((o) => ({
+            optionId: o.optionId,
+            name: o.name,
+            kind: o.kind,
+          })),
+        };
+
+        conv.pendingPermissions.push(payload);
+
+        log.debug('AcpSessionManager: requesting user permission', {
+          conversationId,
+          requestId,
+          title: payload.title,
         });
 
-        return {
-          outcome: {
-            outcome: 'selected',
-            optionId: allowOption?.optionId ?? params.options[0]?.optionId ?? '',
-          },
-        };
+        events.emit(acpPermissionRequestChannel, payload);
+
+        return new Promise<RequestPermissionResponse>((resolve) => {
+          this.permissionResolvers.set(requestId, resolve);
+        });
       },
 
       readTextFile: async (params: ReadTextFileRequest): Promise<ReadTextFileResponse> => {
@@ -662,6 +743,26 @@ class AcpSessionManager {
   // -------------------------------------------------------------------------
   // Internal helpers
   // -------------------------------------------------------------------------
+
+  /**
+   * Cancel all pending permission requests for a conversation, resolving each
+   * with `{ outcome: 'cancelled' }` and emitting `acpPermissionResolvedChannel`
+   * so the renderer clears the permission band. Called on session close/stop.
+   */
+  private drainPendingPermissions(conv: AcpConversation): void {
+    for (const pending of conv.pendingPermissions) {
+      const resolver = this.permissionResolvers.get(pending.requestId);
+      if (resolver) {
+        this.permissionResolvers.delete(pending.requestId);
+        resolver({ outcome: { outcome: 'cancelled' } });
+      }
+      events.emit(acpPermissionResolvedChannel, {
+        conversationId: conv.conversationId,
+        requestId: pending.requestId,
+      });
+    }
+    conv.pendingPermissions = [];
+  }
 
   /** Look up an AcpConversation without throwing — returns null if not found. */
   private resolveConv(conversationId: string): AcpConversation | null {

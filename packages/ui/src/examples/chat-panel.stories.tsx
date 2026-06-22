@@ -34,6 +34,7 @@ import type {
   MentionItem,
 } from '../components/chat-composer';
 import { ImageViewerDialog } from '../components/image-viewer-dialog';
+import type { ComposerPermissionRequest } from '../components/permission-band';
 import { basename, fileIconClass } from '../components/prompt-editor/mention-pill-helpers';
 import type { PromptEditorRef } from '../components/prompt-editor/types';
 import { Button } from '../primitives/button';
@@ -182,7 +183,15 @@ const SEED_ATTACHMENTS: ComposerAttachment[] = [
   { id: 'mock-img-2', name: 'diagram.png', kind: 'image', previewUrl: BLUE_1PX },
 ];
 
-function LiveChatPanel({ notice }: { notice?: ComposerNotice | null }) {
+function LiveChatPanel({
+  notice,
+  permissionRequest,
+  permissionQueueCount,
+}: {
+  notice?: ComposerNotice | null;
+  permissionRequest?: ComposerPermissionRequest | null;
+  permissionQueueCount?: number;
+}) {
   const handleRef = useRef<ChatHandle | null>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const editorApiRef = useRef<PromptEditorRef | null>(null);
@@ -345,6 +354,12 @@ function LiveChatPanel({ notice }: { notice?: ComposerNotice | null }) {
           onFilesDropped={handleFilesDropped}
           editorApiRef={editorApiRef}
           notice={notice}
+          permissionRequest={permissionRequest}
+          permissionQueueCount={permissionQueueCount}
+          onResolvePermission={(optionId) => {
+            // In Storybook: just log the resolved choice.
+            console.log('Permission resolved:', optionId);
+          }}
           onViewImage={(att) => setViewer({ src: att.previewUrl, alt: att.name })}
         />
       </div>
@@ -414,6 +429,60 @@ export const MaxTokens: Story = {
     <div className="flex h-screen items-stretch p-6">
       <div className="flex-1">
         <LiveChatPanel notice={stopReasonNotice('max_tokens')} />
+      </div>
+    </div>
+  ),
+};
+
+const MOCK_PERMISSION: ComposerPermissionRequest = {
+  requestId: 'req-1',
+  title: 'Read a File',
+  options: [
+    { optionId: 'allow-once', name: 'Allow once', kind: 'allow_once' },
+    { optionId: 'allow-always', name: 'Allow always', kind: 'allow_always' },
+    { optionId: 'reject-once', name: 'Reject once', kind: 'reject_once' },
+    { optionId: 'reject-always', name: 'Reject always', kind: 'reject_always' },
+  ],
+};
+
+/** Single pending permission request — "Allow Read a File?" band above the composer. */
+export const PermissionSingle: Story = {
+  render: () => (
+    <div className="flex h-screen items-stretch p-6">
+      <div className="flex-1">
+        <LiveChatPanel permissionRequest={MOCK_PERMISSION} permissionQueueCount={1} />
+      </div>
+    </div>
+  ),
+};
+
+/** Two queued permission requests — "1 of 2" counter visible. */
+export const PermissionQueued: Story = {
+  render: () => (
+    <div className="flex h-screen items-stretch p-6">
+      <div className="flex-1">
+        <LiveChatPanel permissionRequest={MOCK_PERMISSION} permissionQueueCount={2} />
+      </div>
+    </div>
+  ),
+};
+
+/** Execute permission variant — shows "Allow Execute?" */
+export const PermissionExecute: Story = {
+  render: () => (
+    <div className="flex h-screen items-stretch p-6">
+      <div className="flex-1">
+        <LiveChatPanel
+          permissionRequest={{
+            requestId: 'req-exec',
+            title: 'Execute',
+            options: [
+              { optionId: 'allow-once', name: 'Allow once', kind: 'allow_once' },
+              { optionId: 'reject-once', name: 'Reject', kind: 'reject_once' },
+            ],
+          }}
+          permissionQueueCount={1}
+        />
       </div>
     </div>
   ),

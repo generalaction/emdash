@@ -4,7 +4,6 @@
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import { ChatHost, ScriptedChat } from '@/stories/_harness/chat-host';
-import { permissionItem } from '@/stories/_harness/permission';
 import { ToolStateMatrix } from '@/stories/_harness/state-matrix';
 import { scenario, seedStep, streamDiff } from '@/stories/_harness/streaming/scenario';
 
@@ -198,11 +197,6 @@ export const RequestingPermission: Story = {
           newText: NEW_TS,
           status: 'running',
         },
-        permissionItem({
-          id: 'perm-diff',
-          toolCallId: 'diff-perm:src/model.ts',
-          title: 'Write a File',
-        }),
       ]}
       height={200}
     />

@@ -4,6 +4,7 @@ import {
   ChatComposer,
   type ComposerAgentOption,
   type ComposerAttachment,
+  type ComposerPermissionRequest,
 } from '@emdash/ui/components';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -94,6 +95,21 @@ export const ChatPanel = observer(function ChatPanel({
     setAttachments([]);
   };
 
+  // Map AcpPermissionRequest → ComposerPermissionRequest (same shape, typed separately
+  // so @emdash/ui has no direct dependency on the desktop shared types).
+  const activePermission = store.activePermission;
+  const composerPermissionRequest: ComposerPermissionRequest | null = activePermission
+    ? {
+        requestId: activePermission.requestId,
+        title: activePermission.title,
+        options: activePermission.options.map((o) => ({
+          optionId: o.optionId,
+          name: o.name,
+          kind: o.kind,
+        })),
+      }
+    : null;
+
   // Measure the floating composer height so we can reserve matching canvas space.
   const composerRef = useRef<HTMLDivElement>(null);
   const [composerH, setComposerH] = useState(0);
@@ -151,6 +167,9 @@ export const ChatPanel = observer(function ChatPanel({
           onStop={() => store.cancel()}
           attachments={attachments}
           onAttachmentsChange={setAttachments}
+          permissionRequest={composerPermissionRequest}
+          permissionQueueCount={store.permissionQueue.length}
+          onResolvePermission={(optionId) => store.resolvePermission(optionId)}
         />
       </div>
     </div>

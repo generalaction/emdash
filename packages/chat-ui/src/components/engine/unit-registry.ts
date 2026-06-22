@@ -15,7 +15,6 @@
  *   3. Register the UnitDef in UNIT_REGISTRY.
  */
 
-import { elicitationUnitDef } from '@components/rows/elicitation/elicitation.def';
 import { messageUnitDef } from '@components/rows/message/message.def';
 import { planUnitDef } from '@components/rows/plan/plan.def';
 import { resourceLinkUnitDef } from '@components/rows/resource-link/resource-link.def';
@@ -93,7 +92,6 @@ export const SEGMENTERS: Record<string, ItemSegmenter<any>> = {
   diff: nativePassthrough('diff', COMPOSITE_CHROME),
   'resource-link': nativePassthrough('resource-link', COMPOSITE_CHROME),
   plan: nativePassthrough('plan', COMPOSITE_CHROME),
-  elicitation: nativePassthrough('elicitation', COMPOSITE_CHROME),
 };
 
 // ── UNIT_REGISTRY ─────────────────────────────────────────────────────────────
@@ -110,7 +108,6 @@ export const UNIT_REGISTRY: Record<string, UnitDef<any, any>> = {
   message: messageUnitDef,
   // Composite item units (single-unit per ChatItem kind)
   diff: diffUnitDef,
-  elicitation: elicitationUnitDef,
   plan: planUnitDef,
   thinking: thinkingUnitDef,
   'file-op': fileOpUnitDef,

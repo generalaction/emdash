@@ -8,6 +8,7 @@
  */
 
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
+import type { AcpPermissionRequest } from './acpPermissions';
 
 /**
  * An image to include in a prompt, sent to the agent as an ACP `image` content
@@ -70,4 +71,10 @@ export interface SessionState {
   activeTurn: AcpTurn | null;
   /** Currently selected model (null if none configured). */
   model: string | null;
+  /**
+   * FIFO queue of pending permission requests awaiting user resolution.
+   * Persisted in main-process memory so a renderer reload can rehydrate the
+   * queue from this bootstrap response and show the permission band again.
+   */
+  pendingPermissions: AcpPermissionRequest[];
 }

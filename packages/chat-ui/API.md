@@ -143,12 +143,6 @@ type ChatCommands = {
   /** Called when the user clicks the stop button on the current user message. */
   onStop?: (arg: { itemId: string }) => void;
 
-  onResolveElicitation?: (arg: {
-    elicitationId: string;
-    optionId: string | null; // null = programmatic cancel
-    itemId: string;
-  }) => void;
-
   classifyLink?: (href: string) => { kind: 'workspace-file'; path: string } | { kind: 'external' };
 };
 ```
@@ -159,11 +153,6 @@ Invoked when the user clicks interactive elements in the transcript.
 over the current user message while the agent is generating. The host should
 cancel the in-progress agent turn and then dispatch `turn_cancelled` so
 chat-ui removes the stop button and updates `turnStatus`.
-
-`onResolveElicitation` is called when the user accepts or rejects a permission
-request via the split-button. The host should dispatch `elicitation_removed` to
-remove the row immediately (optimistic UI) and then resolve the underlying
-transport request asynchronously.
 
 ### `ScrollToItemOptions`
 
@@ -222,15 +211,13 @@ type ChatItem =
   | ChatExecute
   | ChatDiff
   | ChatResourceLink
-  | ChatPlan
-  | ChatElicitation;
+  | ChatPlan;
 
 type ChatRole = 'user' | 'assistant' | 'thought';
 type ToolStatus = 'running' | 'done' | 'error';
 type ThinkingStatus = 'thinking' | 'done';
 type FileOpKind = 'read' | 'edit' | 'delete' | 'move';
 type FileOp = { path: string };
-type ChatElicitationOptionTone = 'accept' | 'reject' | 'neutral';
 
 /**
  * Global turn lifecycle status. Tracks only the latest turn.
@@ -328,36 +315,6 @@ type ChatDiff = {
 Renders a compact preview of the first changed region (≤12 lines, ±1 context)
 with syntax + diff highlighting. One `ChatDiff` per changed file.
 
-### `ChatElicitation`
-
-```ts
-type ChatElicitationOption = {
-  id: string;
-  label: string;
-  tone?: ChatElicitationOptionTone; // 'accept' | 'reject' | 'neutral'
-};
-
-type ChatElicitation = {
-  kind: 'elicitation';
-  id: string;
-  variant: 'permission';
-  toolCallId?: string;    // links this row to its parent tool call
-  title: string;          // pre-formatted by host, e.g. "Read a File", "Execute"
-  options: ChatElicitationOption[];
-  defaultOptionId: string;
-};
-```
-
-A bordered permission-request row rendered beneath the tool call that triggered
-it. The host passes a pre-formatted `title` string; the renderer displays
-"Requesting permission to {title}" with a split-button whose default option is
-`defaultOptionId`.
-
-The split button fires `commands.onResolveElicitation` with the chosen
-`optionId`. The host is responsible for both the transport round trip and
-dispatching `elicitation_removed` to remove the row optimistically. No `status`
-field exists — the row disappears on resolve.
-
 ---
 
 ## `TranscriptApi`
@@ -406,8 +363,6 @@ A discriminated union on `type`. Deltas (text/reasoning chunks) are appended;
 | `execute_update` | `{ id, command?, status? }` | Patch an execute call. |
 | `diff_start` | `{ id, path, oldText, newText }` | Begin a diff preview. |
 | `diff_update` | `{ id, status?, oldText?, newText? }` | Patch a diff row. |
-| `elicitation_start` | `{ id, variant, toolCallId?, title, options, defaultOptionId }` | Show a permission-request row beneath the tool call identified by `toolCallId`. |
-| `elicitation_removed` | `{ id }` | Remove a pending elicitation row (optimistic — fire immediately on user response). |
 | `turn_done` | `{}` | Finalize the active turn into `committed`. Sets `turnStatus` to `'done'`. |
 | `turn_cancelled` | `{}` | Finalize the active turn into `committed` (same as `turn_done`), but sets `turnStatus` to `'cancelled'`. Dispatch instead of `turn_done` when the user cancels generation so the stop button is removed correctly. |
 
@@ -484,8 +439,7 @@ blocks. Useful for stories, performance testing, and demos.
   `ChatTheme`, `DensityScale`, `TranscriptApi`, `TranscriptEvent`, `ViewState`,
   `ChatItem`, `ChatMessage`, `ChatToolCall`, `ChatThinking`,
   `ChatFileOpToolCall`, `ChatExecute`, `ChatDiff`, `ChatRole`, `FileOpKind`,
-  `FileOp`, `ToolStatus`, `ChatElicitation`, `ChatElicitationOption`,
-  `ChatElicitationOptionTone`
+  `FileOp`, `ToolStatus`
 
 **`@emdash/chat-ui/react`**
 

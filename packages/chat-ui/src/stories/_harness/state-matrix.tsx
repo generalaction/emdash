@@ -21,10 +21,7 @@ export type MatrixRow = {
   status: MatrixStatus;
 };
 
-/**
- * Default rows displayed in the matrix.
- * Pending / permission rows will be added here once the lifecycle feature lands.
- */
+/** Default rows displayed in the matrix. */
 const DEFAULT_MATRIX_ROWS: MatrixRow[] = [
   { label: 'Running', status: 'running' },
   { label: 'Done', status: 'done' },

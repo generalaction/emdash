@@ -1,5 +1,6 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import { defineEvent } from '@shared/lib/ipc/events';
+import type { AcpPermissionRequest } from './acpPermissions';
 import type { AcpTurn, SessionLifecycle } from './acpTurns';
 
 /**
@@ -42,3 +43,20 @@ export const acpTurnCommittedChannel = defineEvent<{
   conversationId: string;
   turn: AcpTurn;
 }>('acp:turn-committed');
+
+/**
+ * Emitted when an ACP agent requests user permission to execute a tool call.
+ * The renderer should add this to its FIFO permission queue and show the band.
+ */
+export const acpPermissionRequestChannel =
+  defineEvent<AcpPermissionRequest>('acp:permission-request');
+
+/**
+ * Emitted when a pending permission request has been resolved (either by the
+ * user's choice or by a session close/cancel draining the queue).
+ * The renderer should remove the matching requestId from its queue.
+ */
+export const acpPermissionResolvedChannel = defineEvent<{
+  conversationId: string;
+  requestId: string;
+}>('acp:permission-resolved');

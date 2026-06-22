@@ -606,3 +606,221 @@ describe('AcpSessionManager – turn model', () => {
     expect(history).toEqual({ turns: [], complete: true });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Permission requests
+// ---------------------------------------------------------------------------
+
+describe('AcpSessionManager – permission requests', () => {
+  beforeEach(() => {
+    capturedHandlerFactory = null;
+    mockConnection.initialize = vi.fn().mockResolvedValue({ protocolVersion: 1 });
+    mockConnection.newSession = vi.fn().mockResolvedValue({ sessionId: 'session-perm' });
+    mockConnection.prompt = vi.fn().mockReturnValue(new Promise(() => {})); // never resolves
+    mockConnection.closed = new Promise<void>(() => {});
+    (spawn as Mock).mockReturnValue(mockChild);
+  });
+
+  const makePermissionParams = (sessionId: string, requestId = 'tool-1') => ({
+    sessionId,
+    toolCall: {
+      toolCallId: requestId,
+      title: 'Read a File',
+      kind: 'read',
+    },
+    options: [
+      { optionId: 'allow-once', name: 'Allow once', kind: 'allow_once' },
+      { optionId: 'allow-always', name: 'Allow always', kind: 'allow_always' },
+      { optionId: 'reject-once', name: 'Reject once', kind: 'reject_once' },
+    ],
+  });
+
+  it('requestPermission emits the request event and returns a pending promise', async () => {
+    const { events } = await import('@main/lib/events');
+    const { acpPermissionRequestChannel } = await import('@shared/core/acp/acpEvents');
+    (events.emit as Mock).mockReset();
+
+    const manager = new AcpSessionManager();
+    await manager.start(makeConversation({ conversationId: 'conv-perm' }), 'ws-1', '/tmp');
+    expect(capturedHandlerFactory).not.toBeNull();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = capturedHandlerFactory!(null) as any;
+
+    let settled = false;
+    const permPromise = handler.requestPermission(makePermissionParams('session-perm')).then(() => {
+      settled = true;
+    });
+
+    // Promise should still be pending.
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    const emitCalls = (events.emit as Mock).mock.calls.filter(
+      (args: unknown[]) => args[0] === acpPermissionRequestChannel
+    );
+    expect(emitCalls).toHaveLength(1);
+    expect(emitCalls[0][1]).toMatchObject({
+      conversationId: 'conv-perm',
+      title: 'Read a File',
+      toolKind: 'read',
+    });
+    expect(typeof emitCalls[0][1].requestId).toBe('string');
+
+    // The request should appear in getSessionState.
+    const state = manager.getSessionState('conv-perm');
+    expect(state.pendingPermissions).toHaveLength(1);
+    expect(state.pendingPermissions[0].title).toBe('Read a File');
+
+    // Prevent unhandled rejection.
+    const requestId = emitCalls[0][1].requestId as string;
+    manager.resolvePermission('conv-perm', requestId, 'allow-once');
+    await permPromise;
+  });
+
+  it('resolvePermission fulfils the promise with the chosen optionId', async () => {
+    const { events } = await import('@main/lib/events');
+    const { acpPermissionRequestChannel, acpPermissionResolvedChannel } =
+      await import('@shared/core/acp/acpEvents');
+    (events.emit as Mock).mockReset();
+
+    const manager = new AcpSessionManager();
+    await manager.start(makeConversation({ conversationId: 'conv-resolve' }), 'ws-1', '/tmp');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = capturedHandlerFactory!(null) as any;
+
+    const resultPromise: Promise<{ outcome: { outcome: string; optionId?: string } }> =
+      handler.requestPermission(makePermissionParams('session-perm'));
+
+    const requestId = (events.emit as Mock).mock.calls.find(
+      (args: unknown[]) => args[0] === acpPermissionRequestChannel
+    )![1].requestId as string;
+
+    manager.resolvePermission('conv-resolve', requestId, 'allow-once');
+
+    const result = await resultPromise;
+    expect(result.outcome).toEqual({ outcome: 'selected', optionId: 'allow-once' });
+
+    // Resolved channel emitted.
+    const resolvedCalls = (events.emit as Mock).mock.calls.filter(
+      (args: unknown[]) => args[0] === acpPermissionResolvedChannel
+    );
+    expect(resolvedCalls).toHaveLength(1);
+    expect(resolvedCalls[0][1]).toMatchObject({ conversationId: 'conv-resolve', requestId });
+
+    // Queue cleared from session state.
+    expect(manager.getSessionState('conv-resolve').pendingPermissions).toHaveLength(0);
+  });
+
+  it('resolvePermission with null sends outcome:cancelled', async () => {
+    const { events } = await import('@main/lib/events');
+    const { acpPermissionRequestChannel } = await import('@shared/core/acp/acpEvents');
+    (events.emit as Mock).mockReset();
+
+    const manager = new AcpSessionManager();
+    await manager.start(makeConversation({ conversationId: 'conv-cancel' }), 'ws-1', '/tmp');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = capturedHandlerFactory!(null) as any;
+
+    const resultPromise: Promise<{ outcome: { outcome: string } }> = handler.requestPermission(
+      makePermissionParams('session-perm')
+    );
+
+    const requestId = (events.emit as Mock).mock.calls.find(
+      (args: unknown[]) => args[0] === acpPermissionRequestChannel
+    )![1].requestId as string;
+
+    manager.resolvePermission('conv-cancel', requestId, null);
+    const result = await resultPromise;
+    expect(result.outcome).toEqual({ outcome: 'cancelled' });
+  });
+
+  it('resolvePermission is idempotent: second call is a no-op', async () => {
+    const { events } = await import('@main/lib/events');
+    const { acpPermissionRequestChannel, acpPermissionResolvedChannel } =
+      await import('@shared/core/acp/acpEvents');
+    (events.emit as Mock).mockReset();
+
+    const manager = new AcpSessionManager();
+    await manager.start(makeConversation({ conversationId: 'conv-idem' }), 'ws-1', '/tmp');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = capturedHandlerFactory!(null) as any;
+
+    const resultPromise = handler.requestPermission(makePermissionParams('session-perm'));
+    const requestId = (events.emit as Mock).mock.calls.find(
+      (args: unknown[]) => args[0] === acpPermissionRequestChannel
+    )![1].requestId as string;
+
+    manager.resolvePermission('conv-idem', requestId, 'allow-once');
+    await resultPromise;
+
+    (events.emit as Mock).mockReset();
+    // Second call: no-op (resolver already deleted).
+    manager.resolvePermission('conv-idem', requestId, 'allow-once');
+    const resolvedCalls = (events.emit as Mock).mock.calls.filter(
+      (args: unknown[]) => args[0] === acpPermissionResolvedChannel
+    );
+    expect(resolvedCalls).toHaveLength(0);
+  });
+
+  it('stop() drains pending permissions with cancelled outcome', async () => {
+    const { events } = await import('@main/lib/events');
+    const { acpPermissionRequestChannel, acpPermissionResolvedChannel } =
+      await import('@shared/core/acp/acpEvents');
+    (events.emit as Mock).mockReset();
+
+    const manager = new AcpSessionManager();
+    await manager.start(makeConversation({ conversationId: 'conv-stop' }), 'ws-1', '/tmp');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = capturedHandlerFactory!(null) as any;
+
+    const resultPromise: Promise<{ outcome: { outcome: string } }> = handler.requestPermission(
+      makePermissionParams('session-perm')
+    );
+
+    const requestId = (events.emit as Mock).mock.calls.find(
+      (args: unknown[]) => args[0] === acpPermissionRequestChannel
+    )![1].requestId as string;
+
+    // stop() should drain and cancel pending permissions.
+    manager.stop('conv-stop');
+
+    const result = await resultPromise;
+    expect(result.outcome).toEqual({ outcome: 'cancelled' });
+
+    const resolvedCalls = (events.emit as Mock).mock.calls.filter(
+      (args: unknown[]) => args[0] === acpPermissionResolvedChannel
+    );
+    expect(
+      resolvedCalls.some(
+        (args: unknown[]) => (args[1] as { requestId: string }).requestId === requestId
+      )
+    ).toBe(true);
+  });
+
+  it('getSessionState includes pendingPermissions for reload rehydration', async () => {
+    const { events } = await import('@main/lib/events');
+    const { acpPermissionRequestChannel } = await import('@shared/core/acp/acpEvents');
+    (events.emit as Mock).mockReset();
+
+    const manager = new AcpSessionManager();
+    await manager.start(makeConversation({ conversationId: 'conv-rehydrate' }), 'ws-1', '/tmp');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = capturedHandlerFactory!(null) as any;
+
+    // Enqueue two requests.
+    const p1 = handler.requestPermission(makePermissionParams('session-perm', 'tool-1'));
+    const p2 = handler.requestPermission(makePermissionParams('session-perm', 'tool-2'));
+
+    const state = manager.getSessionState('conv-rehydrate');
+    expect(state.pendingPermissions).toHaveLength(2);
+
+    // Clean up.
+    const calls = (events.emit as Mock).mock.calls.filter(
+      (args: unknown[]) => args[0] === acpPermissionRequestChannel
+    );
+    const [id1, id2] = calls.map((args: unknown[]) => (args[1] as { requestId: string }).requestId);
+    manager.resolvePermission('conv-rehydrate', id1, 'allow-once');
+    manager.resolvePermission('conv-rehydrate', id2, 'allow-once');
+    await Promise.all([p1, p2]);
+  });
+});

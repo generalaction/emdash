@@ -32,6 +32,8 @@ import {
   ComboboxTrigger,
 } from '../primitives/combobox';
 import { ComboboxPopover } from './combobox-popover';
+import { PermissionBand } from './permission-band';
+import type { ComposerPermissionRequest } from './permission-band';
 import { PromptEditor } from './prompt-editor/prompt-editor';
 import type {
   CommandItem,
@@ -223,6 +225,16 @@ export interface ChatComposerProps {
   onCommand?: (item: CommandItem) => void;
   /** Session-state notice shown flush above the input (e.g. ACP stop reasons). */
   notice?: ComposerNotice | null;
+  /**
+   * Pending ACP permission request to show in the band above the input.
+   * When present, the notice band is replaced by the permission band.
+   * Pass null/undefined when no request is pending.
+   */
+  permissionRequest?: ComposerPermissionRequest | null;
+  /** Total number of queued permission requests. Drives the "1 of N" counter. */
+  permissionQueueCount?: number;
+  /** Called with the chosen optionId when the user resolves a permission request. */
+  onResolvePermission?: (optionId: string | null) => void;
   className?: string;
 }
 
@@ -503,6 +515,9 @@ export function ChatComposer({
   onCommand,
   onViewImage,
   notice,
+  permissionRequest,
+  permissionQueueCount = 1,
+  onResolvePermission,
   className,
 }: ChatComposerProps) {
   const editorRef = useRef<PromptEditorRef | null>(null);
@@ -584,25 +599,41 @@ export function ChatComposer({
     ? Object.entries(modelOptions).map(([id, opt]) => ({ id, ...opt }))
     : [];
 
+  // The permission band takes priority over the notice band.
+  const hasBand = !!(permissionRequest ?? notice);
+
   return (
     <div className={cn('flex flex-col', className)}>
+      {/* Permission band — shown when the agent is awaiting user approval. */}
+      {permissionRequest && onResolvePermission && (
+        <PermissionBand
+          request={permissionRequest}
+          queueCount={permissionQueueCount}
+          onResolve={onResolvePermission}
+        />
+      )}
+
       {/* Notice band — height + opacity animate on enter/exit via the
-          grid-rows 0fr↔1fr technique so add/remove transitions are smooth. */}
-      <div
-        className={cn(
-          'grid transition-all duration-200 ease-out',
-          notice ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-        )}
-        aria-hidden={!notice}
-      >
-        <div className="overflow-hidden">
-          {retainedNotice && <NoticeBand notice={retainedNotice} />}
+          grid-rows 0fr↔1fr technique so add/remove transitions are smooth.
+          Hidden when the permission band is active. */}
+      {!permissionRequest && (
+        <div
+          className={cn(
+            'grid transition-all duration-200 ease-out',
+            notice ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+          )}
+          aria-hidden={!notice}
+        >
+          <div className="overflow-hidden">
+            {retainedNotice && <NoticeBand notice={retainedNotice} />}
+          </div>
         </div>
-      </div>
+      )}
+
       <div
         className={cn(
           'bg-surface-base-emphasis flex flex-col gap-0 border transition-colors',
-          notice ? 'rounded-b-xl' : 'rounded-xl',
+          hasBand ? 'rounded-b-xl' : 'rounded-xl',
           dragActive
             ? 'border-border-1 ring-1 ring-border-1'
             : 'border-border hover:border-border-1 focus-within:border-border-1 focus-within:ring-1 focus-within:ring-border-1'

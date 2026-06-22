@@ -6,14 +6,7 @@
  */
 
 import type { TranscriptApi } from '@state/transcript';
-import type {
-  ChatElicitationOption,
-  ChatItem,
-  ChatRole,
-  FileOp,
-  FileOpKind,
-  ToolStatus,
-} from '@/model';
+import type { ChatItem, ChatRole, FileOp, FileOpKind, ToolStatus } from '@/model';
 import type { ScriptStep } from '@/stories/_harness/chat-host';
 
 // ── Chunk splitting ───────────────────────────────────────────────────────────
@@ -288,61 +281,6 @@ export type ToolUpdateStep = {
   name?: string;
   inputSummary?: string;
 };
-
-/**
- * Produce steps that simulate a permission-request elicitation row appearing
- * after a running tool call.
- *
- * Emits a `tool_start` synchronously, then after `delayMs` emits
- * `elicitation_start` so the permission row appears beneath the tool row.
- * The host harness default will dispatch `elicitation_removed` on resolve.
- */
-export function streamElicitation(opts: {
-  toolId: string;
-  toolName: string;
-  elicitationId: string;
-  title: string;
-  options?: ChatElicitationOption[];
-  defaultOptionId?: string;
-  /** Delay before the elicitation appears in ms (default: 600). */
-  delayMs?: number;
-}): ScriptStep[] {
-  const {
-    toolId,
-    toolName,
-    elicitationId,
-    title,
-    options = [
-      { id: 'allow-once', label: 'Allow once', tone: 'accept' as const },
-      { id: 'allow-always', label: 'Allow always', tone: 'accept' as const },
-      { id: 'reject-once', label: 'Reject once', tone: 'reject' as const },
-      { id: 'reject-always', label: 'Reject always', tone: 'reject' as const },
-    ],
-    defaultOptionId = 'allow-once',
-    delayMs = 600,
-  } = opts;
-
-  return [
-    {
-      kind: 'call',
-      fn: (api: TranscriptApi) => api.dispatch({ type: 'tool_start', id: toolId, name: toolName }),
-    },
-    { kind: 'wait', ms: delayMs },
-    {
-      kind: 'call',
-      fn: (api: TranscriptApi) =>
-        api.dispatch({
-          type: 'elicitation_start',
-          id: elicitationId,
-          variant: 'permission',
-          toolCallId: toolId,
-          title,
-          options,
-          defaultOptionId,
-        }),
-    },
-  ];
-}
 
 /**
  * Produce steps that simulate a tool call: start immediately (synchronous),

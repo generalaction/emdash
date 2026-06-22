@@ -26,10 +26,20 @@ function getSessionState(conversationId: string): Promise<SessionState> {
   return Promise.resolve(acpSessionManager.getSessionState(conversationId));
 }
 
+function resolvePermission(
+  conversationId: string,
+  requestId: string,
+  optionId: string | null
+): Promise<void> {
+  acpSessionManager.resolvePermission(conversationId, requestId, optionId);
+  return Promise.resolve();
+}
+
 export const acpController = createRPCController({
   prompt,
   cancel,
   setModel,
   getChatHistory,
   getSessionState,
+  resolvePermission,
 });

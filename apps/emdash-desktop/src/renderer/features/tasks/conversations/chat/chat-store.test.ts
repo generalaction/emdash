@@ -149,7 +149,12 @@ describe('ChatStore – bootstrap via getChatHistory + getSessionState', () => {
       ],
       complete: true,
     };
-    const state: SessionState = { lifecycle: 'ready', activeTurn: null, model: null };
+    const state: SessionState = {
+      lifecycle: 'ready',
+      activeTurn: null,
+      model: null,
+      pendingPermissions: [],
+    };
 
     rpcMock.acp.getChatHistory.mockResolvedValue(history);
     rpcMock.acp.getSessionState.mockResolvedValue(state);
@@ -183,6 +188,7 @@ describe('ChatStore – bootstrap via getChatHistory + getSessionState', () => {
         updates: [{ seq: 0, update: msgUpdate }],
       }),
       model: null,
+      pendingPermissions: [],
     };
 
     rpcMock.acp.getChatHistory.mockResolvedValue(history);
@@ -219,6 +225,7 @@ describe('ChatStore – bootstrap via getChatHistory + getSessionState', () => {
       lifecycle: 'working',
       activeTurn: makeActiveTurn({ updates: [{ seq: 0, update: msgUpdate }] }),
       model: null,
+      pendingPermissions: [],
     };
 
     rpcMock.acp.getChatHistory.mockReturnValue(historyPromise);
@@ -249,7 +256,12 @@ describe('ChatStore – bootstrap via getChatHistory + getSessionState', () => {
 
   it('applies live updates with seq > lastSeq after history is loaded', async () => {
     const history: ChatHistory = { turns: [], complete: true };
-    const state: SessionState = { lifecycle: 'ready', activeTurn: null, model: null };
+    const state: SessionState = {
+      lifecycle: 'ready',
+      activeTurn: null,
+      model: null,
+      pendingPermissions: [],
+    };
 
     rpcMock.acp.getChatHistory.mockResolvedValue(history);
     rpcMock.acp.getSessionState.mockResolvedValue(state);
@@ -301,6 +313,7 @@ describe('ChatStore – event channel subscriptions', () => {
       lifecycle: 'ready',
       activeTurn: null,
       model: null,
+      pendingPermissions: [],
     });
 
     const store = new ChatStore('conv-1', 'proj-1', 'task-1');
@@ -349,6 +362,7 @@ describe('ChatStore – event channel subscriptions', () => {
         updates: [{ seq: 0, update: msgUpdate }],
       }),
       model: null,
+      pendingPermissions: [],
     };
 
     rpc_.acp.getChatHistory.mockResolvedValue(history);
@@ -379,6 +393,7 @@ describe('ChatStore – event channel subscriptions', () => {
       lifecycle: 'ready',
       activeTurn: null,
       model: null,
+      pendingPermissions: [],
     });
 
     const store = new ChatStore('conv-1', 'proj-1', 'task-1');

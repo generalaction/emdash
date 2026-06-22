@@ -4,7 +4,6 @@
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import { ChatHost, ScriptedChat } from '@/stories/_harness/chat-host';
-import { permissionItem } from '@/stories/_harness/permission';
 import { ToolStateMatrix } from '@/stories/_harness/state-matrix';
 import { scenario, seedStep, streamExecute } from '@/stories/_harness/streaming/scenario';
 
@@ -128,7 +127,6 @@ export const RequestingPermission: Story = {
           status: 'running',
           startedAt: Date.now() - 1200,
         },
-        permissionItem({ id: 'perm-execute', toolCallId: 'ex-perm', title: 'Execute' }),
       ]}
       height={120}
     />

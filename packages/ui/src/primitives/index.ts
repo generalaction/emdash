@@ -133,6 +133,12 @@ export {
   type HoverCardRowProps,
   type HoverCardProps,
 } from './hover-card';
+export {
+  SplitButton,
+  type SplitButtonProps,
+  type SplitButtonOption,
+  type SplitButtonOptionTone,
+} from './split-button';
 export { resolveFileIconClass } from '../lib/file-icons';
 export { controlVariants, type ControlVariantProps } from '../recipes/control';
 export { inputVariants, type InputVariantProps } from '../recipes/input';
