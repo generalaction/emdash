@@ -33,21 +33,31 @@ export class ProjectManagerStore {
   private _projectMountPromises = new Map<string, Promise<void>>();
   private _loadPromise: Promise<void> | null = null;
   private _lastSshRecoveryAttemptAt = 0;
+  private _disposeSshConnectionEvent: (() => void) | null = null;
+  private readonly _handleOnline = (): void => {
+    this.retryDisconnectedSshProjects({ force: true });
+  };
+  private readonly _handleFocus = (): void => {
+    this.retryDisconnectedSshProjects();
+  };
 
   constructor() {
     makeObservable(this, { projects: observable, pendingCreationIds: observable });
 
-    events.on(sshConnectionEventChannel, (event) => {
+    this._disposeSshConnectionEvent = events.on(sshConnectionEventChannel, (event) => {
       if (event.type !== 'connected' && event.type !== 'reconnected') return;
       this._mountDisconnectedSshProjects(event.connectionId);
     });
 
-    globalThis.window?.addEventListener('online', () => {
-      this.retryDisconnectedSshProjects({ force: true });
-    });
-    globalThis.window?.addEventListener('focus', () => {
-      this.retryDisconnectedSshProjects();
-    });
+    globalThis.window?.addEventListener('online', this._handleOnline);
+    globalThis.window?.addEventListener('focus', this._handleFocus);
+  }
+
+  dispose(): void {
+    this._disposeSshConnectionEvent?.();
+    this._disposeSshConnectionEvent = null;
+    globalThis.window?.removeEventListener('online', this._handleOnline);
+    globalThis.window?.removeEventListener('focus', this._handleFocus);
   }
 
   load(): Promise<void> {
@@ -396,7 +406,11 @@ export class ProjectManagerStore {
       if (state === 'connecting') continue;
       void appState.sshConnections
         .connect(connectionId, { force: true })
-        .then(() => this._mountDisconnectedSshProjects(connectionId))
+        .then(() => {
+          if (appState.sshConnections.stateFor(connectionId) === 'connected') {
+            this._mountDisconnectedSshProjects(connectionId);
+          }
+        })
         .catch(() => {});
     }
   }
