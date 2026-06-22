@@ -71,17 +71,41 @@ export const plugin = definePlugin(
 export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) => {
+      if (ctx.isResuming) {
+        const args = ['session', '--resume'];
+
+        if (ctx.sessionId) {
+          args.push('-n', ctx.sessionId);
+        }
+
+        if (ctx.extraArgs?.length) {
+          args.push(...ctx.extraArgs);
+        }
+
+        return { command: ctx.cli, args, env: {} };
+      }
+
+      if (!ctx.initialPrompt?.trim()) {
+        const args = ['session'];
+
+        if (ctx.sessionId) {
+          args.push('-n', ctx.sessionId);
+        }
+
+        if (ctx.extraArgs?.length) {
+          args.push(...ctx.extraArgs);
+        }
+
+        return { command: ctx.cli, args, env: {} };
+      }
+
       const args = ['run', '-s'];
 
       if (ctx.sessionId) {
         args.push('-n', ctx.sessionId);
       }
 
-      if (ctx.isResuming) {
-        args.push('--resume');
-      } else if (ctx.initialPrompt) {
-        args.push('-t', ctx.initialPrompt);
-      }
+      args.push('-t', ctx.initialPrompt);
 
       if (ctx.extraArgs?.length) {
         args.push(...ctx.extraArgs);

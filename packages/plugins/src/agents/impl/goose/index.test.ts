@@ -12,6 +12,16 @@ const baseContext = {
 };
 
 describe('goose provider', () => {
+  it('starts an empty named interactive session without using run', () => {
+    const command = provider.behavior.prompt!.buildCommand(baseContext);
+
+    expect(command).toEqual({
+      command: 'goose',
+      args: ['session', '-n', 'emdash-conversation-id'],
+      env: {},
+    });
+  });
+
   it('starts a named interactive run with the initial prompt', () => {
     const command = provider.behavior.prompt!.buildCommand({
       ...baseContext,
@@ -25,7 +35,7 @@ describe('goose provider', () => {
     });
   });
 
-  it('resumes the named run with --resume as a boolean flag', () => {
+  it('resumes the named session with --resume as a boolean flag', () => {
     const command = provider.behavior.prompt!.buildCommand({
       ...baseContext,
       isResuming: true,
@@ -33,7 +43,7 @@ describe('goose provider', () => {
 
     expect(command).toEqual({
       command: 'goose',
-      args: ['run', '-s', '-n', 'emdash-conversation-id', '--resume'],
+      args: ['session', '--resume', '-n', 'emdash-conversation-id'],
       env: {},
     });
   });
