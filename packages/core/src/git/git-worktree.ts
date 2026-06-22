@@ -3,7 +3,7 @@ import path from 'node:path';
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import { ExecError, type BoundExec } from '../exec';
 import type { IFileWatchService, WatchHandle } from '../fs';
-import { LiveModel } from '../lib';
+import { LiveModel, type LiveValue } from '../lib';
 import {
   classifyCommitError,
   classifyPullError,
@@ -91,13 +91,13 @@ export class GitWorktree implements IGitWorktree {
     const onError = options.onError ?? (() => {});
 
     this.statusModel = new LiveModel<GitStatusModel>({
-      compute: () => this.computeStatus(),
+      compute: async () => ok(await this.computeStatus()),
       debounceMs: WATCH_DEBOUNCE_MS,
       revalidateIntervalMs: REVALIDATE_INTERVAL_MS,
       onError: (error) => onError(`status ${this.worktree}`, error),
     });
     this.headModel = new LiveModel<GitHeadModel>({
-      compute: () => this.computeHead(),
+      compute: async () => ok(await this.computeHead()),
       debounceMs: WATCH_DEBOUNCE_MS,
       revalidateIntervalMs: REVALIDATE_INTERVAL_MS,
       onError: (error) => onError(`head ${this.worktree}`, error),
@@ -139,16 +139,16 @@ export class GitWorktree implements IGitWorktree {
   }
 
   async getStatus(): Promise<GitStatusModel> {
-    return (await this.statusModel.get()).value;
+    return liveValue(await this.statusModel.get()).value;
   }
 
   async getHead(): Promise<GitHeadModel> {
-    return (await this.headModel.get()).value;
+    return liveValue(await this.headModel.get()).value;
   }
 
   async getSnapshot(): Promise<GitWorktreeSnapshot> {
     const [status, head] = await Promise.all([this.statusModel.get(), this.headModel.get()]);
-    return { status, head };
+    return { status: liveValue(status), head: liveValue(head) };
   }
 
   async getStatusFingerprint(untracked: GitStatusUntrackedMode): Promise<GitStatusFingerprint> {
@@ -339,7 +339,7 @@ export class GitWorktree implements IGitWorktree {
       this.statusModel.refresh(),
       this.headModel.refresh(),
     ]);
-    return { status, head };
+    return { status: liveValue(status), head: liveValue(head) };
   }
 
   async stage(paths: string[]): Promise<GitSequences> {
@@ -482,7 +482,7 @@ export class GitWorktree implements IGitWorktree {
 
   private async refreshStatus(): Promise<GitSequences> {
     const status = await this.statusModel.refresh();
-    return { status: status.sequence };
+    return { status: liveValue(status).sequence };
   }
 
   private async refreshAfterHistoryChange(): Promise<GitSequences> {
@@ -491,7 +491,7 @@ export class GitWorktree implements IGitWorktree {
       this.headModel.refresh(),
       this.repository.refreshRefs(),
     ]);
-    return { status: status.sequence, head: head.sequence, refs };
+    return { status: liveValue(status).sequence, head: liveValue(head).sequence, refs };
   }
 
   private async runStatusZ(parser: StatusParser): Promise<void> {
@@ -698,4 +698,9 @@ function imageMimeForPath(filePath: string): string | null {
 function looksLikeLfsPointer(buffer: Buffer): boolean {
   if (buffer.length > 1024) return false;
   return buffer.subarray(0, LFS_POINTER_PREFIX.length).equals(LFS_POINTER_PREFIX);
+}
+
+function liveValue<T>(result: Result<LiveValue<T>, unknown>): LiveValue<T> {
+  if (!result.success) throw result.error;
+  return result.data;
 }
