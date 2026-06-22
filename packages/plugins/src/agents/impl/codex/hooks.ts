@@ -1,5 +1,5 @@
-import type { PluginFs } from '@emdash/shared/agents/plugins';
-import type { CanonicalHookEvent, HookRegistration } from '@emdash/shared/agents/plugins';
+import type { PluginFs } from '@emdash/core/agents/plugins';
+import type { CanonicalHookEvent, HookRegistration } from '@emdash/core/agents/plugins';
 import {
   EMDASH_MARKER,
   buildNestedEntry,
@@ -8,19 +8,21 @@ import {
   makeHookPostCommand,
   makeNotificationHookCommand,
   readJsonConfig,
+  readTomlConfig,
   writeJsonConfig,
-} from '@emdash/shared/agents/plugins/helpers';
+  writeTomlConfig,
+} from '@emdash/core/agents/plugins/helpers';
 import * as toml from 'smol-toml';
 
-export const CODEX_HOOKS_PATH = '.codex/hooks.json';
-const CODEX_CONFIG_PATH = '.codex/config.toml';
+export const CODEX_CONFIG_PATH = '.codex/config.toml';
+export const CODEX_LEGACY_HOOKS_PATH = '.codex/hooks.json';
 
 const LEGACY_CODEX_NOTIFY_COMMAND = [
   'bash',
   '-c',
   'curl -sf -X POST ' +
     "-H 'Content-Type: application/json' " +
-    '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
+    '-H "X-Emdash-Token: $EMDASH_HOOK_NONCE" ' +
     '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
     '-H "X-Emdash-Event-Type: notification" ' +
     '-d "$1" ' +
@@ -56,6 +58,43 @@ async function removeLegacyCodexNotify(fs: PluginFs): Promise<void> {
 
   delete config.notify;
   await fs.write(CODEX_CONFIG_PATH, toml.stringify(config));
+}
+
+function getHooks(config: Record<string, unknown>): Record<string, unknown[]> {
+  return (config.hooks ?? {}) as Record<string, unknown[]>;
+}
+
+function hasCodexEmdashHooks(hooks: Record<string, unknown[]>): boolean {
+  return ['Stop', 'PermissionRequest', 'SessionStart'].some((k) => {
+    const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
+    return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+  });
+}
+
+async function readLegacyHooks(fs: PluginFs): Promise<Record<string, unknown[]>> {
+  const config = await readJsonConfig(fs, CODEX_LEGACY_HOOKS_PATH);
+  return getHooks(config);
+}
+
+async function migrateLegacyHooks(
+  fs: PluginFs,
+  hooks: Record<string, unknown[]>
+): Promise<() => Promise<void>> {
+  const legacyHooks = await readLegacyHooks(fs);
+
+  for (const [key, entries] of Object.entries(legacyHooks)) {
+    if (!Array.isArray(entries)) continue;
+
+    const userEntries = filterUserHooks(entries as Record<string, unknown>[]);
+    if (!userEntries.length) continue;
+
+    const existing = Array.isArray(hooks[key]) ? hooks[key] : [];
+    hooks[key] = [...filterUserHooks(existing as Record<string, unknown>[]), ...userEntries];
+  }
+
+  return async () => {
+    await fs.delete(CODEX_LEGACY_HOOKS_PATH).catch(() => {});
+  };
 }
 
 function makeCodexSessionStartCommand(): string {
@@ -100,17 +139,20 @@ export function buildCodexHookConfig() {
 
   return {
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
-      const config = await readJsonConfig(fs, CODEX_HOOKS_PATH);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      const installed = ['Stop', 'PermissionRequest', 'SessionStart'].some((k) => {
-        const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
-      });
-      return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
+      const config = await readTomlConfig(fs, CODEX_CONFIG_PATH);
+      if (hasCodexEmdashHooks(getHooks(config))) {
+        return [{ event: 'emdash', command: EMDASH_MARKER }];
+      }
+
+      return hasCodexEmdashHooks(await readLegacyHooks(fs))
+        ? [{ event: 'emdash', command: EMDASH_MARKER }]
+        : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
-      const config = await readJsonConfig(fs, CODEX_HOOKS_PATH);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+      const config = await readTomlConfig(fs, CODEX_CONFIG_PATH);
+      const hooks = getHooks(config);
+      const cleanupLegacy = await migrateLegacyHooks(fs, hooks);
+
       for (const [key, cmd] of [
         ['Stop', stopCmd],
         ['PermissionRequest', permCmd],
@@ -122,25 +164,35 @@ export function buildCodexHookConfig() {
           buildNestedEntry(cmd),
         ];
       }
-      await writeJsonConfig(fs, CODEX_HOOKS_PATH, { ...config, hooks });
+      await writeTomlConfig(fs, CODEX_CONFIG_PATH, { ...config, hooks });
+      await cleanupLegacy();
       await removeLegacyCodexNotify(fs).catch(() => {});
-      return [CODEX_HOOKS_PATH];
+      return [CODEX_CONFIG_PATH];
     },
     async deleteHooks(fs: PluginFs): Promise<void> {
-      const config = await readJsonConfig(fs, CODEX_HOOKS_PATH);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+      const config = await readTomlConfig(fs, CODEX_CONFIG_PATH);
+      const hooks = getHooks(config);
       for (const key of Object.keys(hooks)) {
         hooks[key] = filterUserHooks(hooks[key] as Record<string, unknown>[]);
       }
-      await writeJsonConfig(fs, CODEX_HOOKS_PATH, { ...config, hooks });
+      await writeTomlConfig(fs, CODEX_CONFIG_PATH, { ...config, hooks });
+
+      const legacyConfig = await readJsonConfig(fs, CODEX_LEGACY_HOOKS_PATH);
+      const legacyHooks = getHooks(legacyConfig);
+      for (const key of Object.keys(legacyHooks)) {
+        legacyHooks[key] = filterUserHooks(legacyHooks[key] as Record<string, unknown>[]);
+      }
+      if (Object.values(legacyHooks).some((entries) => Array.isArray(entries) && entries.length)) {
+        await writeJsonConfig(fs, CODEX_LEGACY_HOOKS_PATH, { ...legacyConfig, hooks: legacyHooks });
+      } else {
+        await fs.delete(CODEX_LEGACY_HOOKS_PATH).catch(() => {});
+      }
     },
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
-      const config = await readJsonConfig(fs, CODEX_HOOKS_PATH);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      return ['Stop', 'PermissionRequest', 'SessionStart'].some((k) => {
-        const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
-      });
+      const config = await readTomlConfig(fs, CODEX_CONFIG_PATH);
+      return (
+        hasCodexEmdashHooks(getHooks(config)) || hasCodexEmdashHooks(await readLegacyHooks(fs))
+      );
     },
     parseHookEvent: parseCodexHookEvent,
   };

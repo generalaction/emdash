@@ -1,12 +1,13 @@
 import { useDroppable } from '@dnd-kit/core';
 import { observer } from 'mobx-react-lite';
-import { useRef } from 'react';
+import { useEffect } from 'react';
 import { BrowserPane } from '@renderer/features/browser/browser-pane';
+import { rpc } from '@renderer/lib/ipc';
 import { ShowHide } from '@renderer/lib/ui/show-hide';
-import { ChatPanel } from '../conversations/chat/chat-panel';
 import { ConversationsPanel } from '../conversations/conversations-panel';
 import { DiffView } from '../diff-view/main-panel/diff-view';
 import { useTabGroupContext } from '../tabs/tab-group-context';
+import type { ResolvedBrowserTab } from '../tabs/tab-manager-store';
 import { PaneEmptyState } from './pane-empty-state';
 import { resolvePaneRenderer } from './pane-renderer';
 import { FileRenderer } from './renderers/file-renderer';
@@ -20,19 +21,15 @@ export const PaneContent = observer(function PaneContent() {
   });
 
   const paneRenderer = resolvePaneRenderer(paneTabManager);
+  const browserTabs = paneTabManager.resolvedTabs.filter(
+    (tab): tab is ResolvedBrowserTab => tab.kind === 'browser'
+  );
+  const activeBrowserId = paneRenderer?.kind === 'browser' ? paneRenderer.browserId : null;
 
-  // Chat tabs are kept alive using visibility-based stacking so that:
-  // 1. Each conversation gets its own ChatPanel instance, keyed by conversationId,
-  //    ensuring the transcript is bound to the correct ChatStore on mount.
-  // 2. Switching tabs toggles visibility (not display), preserving scroll position
-  //    and the virtualizer's scroll signal — no desync, no flicker, no re-seed.
-  // activatedSet tracks which chats have been viewed at least once (lazy mount).
-  // Must be called unconditionally (Rules of Hooks) before any early return.
-  const chatTabs = paneTabManager.resolvedTabs.filter((t) => t.kind === 'chat');
-  const activatedSetRef = useRef<Set<string>>(new Set());
-  for (const t of chatTabs) {
-    if (t.isActive) activatedSetRef.current.add(t.conversationId);
-  }
+  useEffect(() => {
+    if (activeBrowserId !== null) return;
+    void rpc.browser.setActiveBrowser(null);
+  }, [activeBrowserId]);
 
   if (!paneRenderer) {
     return <PaneEmptyState />;
@@ -48,24 +45,14 @@ export const PaneContent = observer(function PaneContent() {
         <ShowHide visible={paneRenderer.kind === 'pty-agent'}>
           <ConversationsPanel />
         </ShowHide>
-
-        {/* Chat pane pool — one ChatPanel per opened chat tab, visibility-toggled */}
-        {chatTabs
-          .filter((t) => activatedSetRef.current.has(t.conversationId))
-          .map((t) => (
-            <div
-              key={t.conversationId}
-              className="absolute inset-0"
-              style={{
-                visibility: t.isActive ? 'visible' : 'hidden',
-                zIndex: t.isActive ? 1 : 0,
-              }}
-            >
-              <ChatPanel conversationId={t.conversationId} />
-            </div>
-          ))}
-
-        {paneRenderer.kind === 'browser' && <BrowserPane browserId={paneRenderer.browserId} />}
+        {browserTabs.map((tab) => {
+          const visible = activeBrowserId === tab.browserId;
+          return (
+            <ShowHide key={tab.browserId} visible={visible}>
+              <BrowserPane browserId={tab.browserId} visible={visible} />
+            </ShowHide>
+          );
+        })}
         {paneRenderer.kind === 'file' && <FileRenderer tab={paneRenderer.tab} />}
         {paneRenderer.kind === 'file-diff' && <DiffView tab={paneRenderer.tab} />}
       </div>

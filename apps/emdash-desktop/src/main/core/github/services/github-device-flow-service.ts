@@ -77,7 +77,7 @@ export class GitHubDeviceFlowService {
         return { success: false, error: message };
       }
 
-      const account = await this.deps.accountRegistry.upsertAccount({
+      const { account } = await this.deps.accountRegistry.upsertAccount({
         accessToken: token,
         credentialSource: 'device_flow',
         providerAccount: {

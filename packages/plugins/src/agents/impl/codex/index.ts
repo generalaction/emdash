@@ -1,10 +1,10 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
   codexMcpAdapter,
   homebrewOption,
   npmDependency,
-} from '@emdash/shared/agents/plugins/helpers';
+} from '@emdash/core/agents/plugins/helpers';
 import { buildCodexHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -17,9 +17,6 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/openai/codex',
   },
   {
-    acp: {
-      kind: 'none',
-    },
     autoApprove: {
       kind: 'supported',
     },

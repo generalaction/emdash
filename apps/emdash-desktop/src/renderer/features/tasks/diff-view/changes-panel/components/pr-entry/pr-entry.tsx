@@ -1,6 +1,6 @@
-import { ExternalLink } from 'lucide-react';
+import { Check, Copy, ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useState } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import {
   useTaskViewContext,
   useWorkspaceViewModel,
@@ -12,6 +12,7 @@ import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { getPrNumber, type PullRequest } from '@shared/core/pull-requests/pull-requests';
 import { PrChecksList } from './checks-list';
@@ -54,6 +55,28 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
   const [isMerging, setIsMerging] = useState(false);
   const [isMarkingReady, setIsMarkingReady] = useState(false);
   const [bypassRequirements, setBypassRequirements] = useState(false);
+  const [justCopied, setJustCopied] = useState(false);
+
+  useEffect(() => {
+    if (!justCopied) return;
+    const timer = window.setTimeout(() => setJustCopied(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [justCopied]);
+
+  const handleCopyPrUrl = async (e: MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(pr.url);
+      setJustCopied(true);
+      toast({ title: 'PR URL copied' });
+    } catch {
+      toast({
+        title: 'Copy failed',
+        description: 'The PR URL could not be copied to the clipboard.',
+        variant: 'destructive',
+      });
+    }
+  };
   if (!diffView) return null;
   const tab = diffView.effectivePrTab;
   const isOpen = pr.status === 'open';
@@ -105,9 +128,9 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col border-t border-border')}>
       <div className="flex w-full flex-col gap-2 p-2.5">
-        <div className="flex items-center justify-between gap-2">
+        <div className="group/header flex items-center justify-between gap-2">
           <button
-            className="group relative flex min-w-0 items-center gap-2"
+            className="group relative flex min-w-0 flex-1 items-center gap-2"
             onClick={() => rpc.app.openExternal(pr.url)}
           >
             <StatusIcon className="size-4" pr={pr} />
@@ -117,6 +140,24 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
               <ExternalLink className="size-3.5 text-foreground-muted" />
             </span>
           </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label={justCopied ? 'PR URL copied' : 'Copy PR URL'}
+                  onClick={handleCopyPrUrl}
+                  className={cn(
+                    'flex shrink-0 items-center justify-center rounded p-1 text-foreground-muted outline-none transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 group-hover/header:opacity-100',
+                    justCopied ? 'opacity-100' : 'opacity-0'
+                  )}
+                >
+                  {justCopied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                </button>
+              }
+            />
+            <TooltipContent>{justCopied ? 'Copied!' : 'Copy PR URL'}</TooltipContent>
+          </Tooltip>
         </div>
         <PrMergeLine pr={pr} />
       </div>

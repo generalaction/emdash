@@ -8,10 +8,11 @@ import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import type { ProjectProvider } from '../../projects/project-provider';
 
 /**
- * Removes the worktree when no remaining sibling tasks share the same workspace.
+ * Removes the worktree for destructive task deletion when no remaining sibling task shares the
+ * same workspace.
  *
- * `excludeArchived = true`  — only non-archived siblings block removal (use for archiveTask).
- * `excludeArchived = false` — any remaining sibling blocks removal (use for deleteTask).
+ * `excludeArchived = false` means any remaining sibling blocks removal. Archive intentionally
+ * preserves workspace assets and does not call this helper.
  *
  * Returns `true` if the worktree was removed (no siblings found), `false` otherwise.
  */
@@ -48,7 +49,7 @@ export async function removeWorktreeIfUnused(
 }
 
 /**
- * Deletes the workspace row only when no other task still references it.
+ * Deletes the workspace row and its derived file index only when no other task still references it.
  *
  * Tasks are deduplicated onto a single workspace row per resolved path (see
  * `WorkspaceBootstrapService.persistPath`), so for `no-worktree` tasks every task in a
@@ -77,28 +78,13 @@ export async function deleteWorkspaceIfUnused(
     .limit(1);
   if (sibling) return;
 
-  await db
-    .delete(workspaces)
-    .where(eq(workspaces.id, workspaceId))
-    .catch((e) => {
-      log.warn('deleteWorkspaceIfUnused: workspace row deletion failed', {
-        workspaceId,
-        error: String(e),
-      });
-    });
-}
-
-/**
- * Deletes the workspace file index when no non-archived sibling task shares the workspace.
- */
-export async function deleteIndexIfUnused(workspaceId: string): Promise<void> {
-  const siblings = await db
-    .select({ id: tasks.id })
-    .from(tasks)
-    .where(and(eq(tasks.workspaceId, workspaceId), isNull(tasks.archivedAt)))
-    .limit(1);
-
-  if (siblings.length === 0) {
+  try {
+    await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
     workspaceFileIndexService.deleteIndex(workspaceId);
+  } catch (e) {
+    log.warn('deleteWorkspaceIfUnused: workspace row deletion failed', {
+      workspaceId,
+      error: String(e),
+    });
   }
 }

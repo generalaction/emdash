@@ -1,9 +1,9 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
   createFileDropPlugin,
   npmDependency,
-} from '@emdash/shared/agents/plugins/helpers';
+} from '@emdash/core/agents/plugins/helpers';
 import { PI_EXTENSION_CONTENT } from './plugin-file';
 
 const PI_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
@@ -18,9 +18,6 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/earendil-works/pi/tree/main/packages/coding-agent',
   },
   {
-    acp: {
-      kind: 'none',
-    },
     autoApprove: {
       kind: 'none',
     },

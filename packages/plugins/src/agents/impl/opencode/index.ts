@@ -1,10 +1,10 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
   createFileDropPlugin,
   npmDependency,
   opencodeMcpAdapter,
-} from '@emdash/shared/agents/plugins/helpers';
+} from '@emdash/core/agents/plugins/helpers';
 import { OPENCODE_PLUGIN_CONTENT } from './plugin-file';
 
 const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
@@ -20,9 +20,6 @@ export const plugin = definePlugin(
     websiteUrl: 'https://opencode.ai/docs/cli/',
   },
   {
-    acp: {
-      kind: 'none',
-    },
     autoApprove: {
       kind: 'supported',
     },

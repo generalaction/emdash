@@ -20,7 +20,7 @@ export async function saveProviderSessionId(
 
   const [row] = await db
     .select({
-      sessionId: conversations.sessionId,
+      config: conversations.config,
       projectId: conversations.projectId,
       taskId: conversations.taskId,
     })
@@ -29,11 +29,13 @@ export async function saveProviderSessionId(
     .limit(1);
 
   if (!row) return;
-  if (row.sessionId === providerSessionId) return;
+
+  const config = row.config ?? {};
+  if (config.providerSessionId === providerSessionId) return;
 
   await db
     .update(conversations)
-    .set({ sessionId: providerSessionId, updatedAt: new Date().toISOString() })
+    .set({ config: { ...config, providerSessionId }, updatedAt: new Date().toISOString() })
     .where(eq(conversations.id, conversationId));
 
   events.emit(conversationChangedChannel, {

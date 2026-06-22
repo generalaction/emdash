@@ -1,5 +1,5 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand, npmDependency } from '@emdash/shared/agents/plugins/helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import { buildStandardCommand, npmDependency } from '@emdash/core/agents/plugins/helpers';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -11,9 +11,6 @@ export const plugin = definePlugin(
     websiteUrl: 'https://jules.google/docs/cli/reference/',
   },
   {
-    acp: {
-      kind: 'none',
-    },
     autoApprove: {
       kind: 'none',
     },

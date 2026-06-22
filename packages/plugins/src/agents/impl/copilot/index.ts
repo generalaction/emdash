@@ -1,9 +1,9 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
   copilotMcpAdapter,
   npmDependency,
-} from '@emdash/shared/agents/plugins/helpers';
+} from '@emdash/core/agents/plugins/helpers';
 import { buildCopilotHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -16,9 +16,6 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli',
   },
   {
-    acp: {
-      kind: 'none',
-    },
     autoApprove: {
       kind: 'supported',
     },

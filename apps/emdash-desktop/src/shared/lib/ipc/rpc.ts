@@ -23,7 +23,7 @@ export function createRPCRouter<T extends RouterMap>(routers: T): T {
 }
 
 // Recursively walks the handler tree and registers every leaf function with
-// ipcMain at its full dot-joined path (e.g. "git.commit", "workspace.git.commit").
+// ipcMain at its full dot-joined path (e.g. "git.commit", "git.worktree.commit").
 function registerHandlers(ipcMain: IpcMain, prefix: string, value: unknown): void {
   if (typeof value === 'function') {
     ipcMain.handle(prefix, (_event, ...args: unknown[]) =>
@@ -43,8 +43,8 @@ export function registerRPCRouter(router: RouterMap, ipcMain: IpcMain): void {
 }
 
 // Recursively maps every leaf function to its async client equivalent.
-// Non-function values recurse, so both 2-level (rpc.repository.fetch) and
-// 3-level (rpc.workspace.git.commit) shapes are handled by a single type.
+// Non-function values recurse, so both 2-level (rpc.gitRepository.fetch) and
+// 3-level (rpc.workspace.gitWorktree.commit) shapes are handled by a single type.
 type IpcClient<R> = {
   [K in keyof R]: R[K] extends (...args: infer A) => infer Ret
     ? (...args: A) => Promise<Awaited<Ret>>

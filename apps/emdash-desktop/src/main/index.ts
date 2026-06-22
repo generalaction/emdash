@@ -2,7 +2,7 @@ import './app/configure-app-identity';
 import { join } from 'node:path';
 import { config as dotenvConfig } from 'dotenv';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
-import dockIcon from '@/assets/images/emdash/icon-dock.png?asset';
+import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { githubAccountsChangedChannel } from '@shared/events/githubEvents';
 import { registerRPCRouter } from '@shared/lib/ipc/rpc';
@@ -15,11 +15,10 @@ import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { automationsService } from './core/automations/automations-service';
 import { cleanupLegacyBrowserPartitions } from './core/browser/browser-partition-cleanup';
+import { setBrowserCorsRelaxationSettings } from './core/browser/browser-profile-session';
 import { browserWebContentsRegistry } from './core/browser/browser-webcontents-registry';
-import { resetStuckWorkingStatuses } from './core/conversations/resetStuckWorkingStatuses';
 import { localDependencyManager } from './core/dependencies/dependency-managers';
 import { editorBufferService } from './core/editor/editor-buffer-service';
-import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubAccountReconciliationService } from './core/github/accounts/github-account-reconciliation-instance';
 import { githubAccountRegistry } from './core/github/accounts/github-account-registry-instance';
 import { GitHubAuthServerAdapter } from './core/github/accounts/github-auth-server-adapter';
@@ -75,7 +74,7 @@ if (!import.meta.env.DEV && !app.requestSingleInstanceLock()) {
 
 if (import.meta.env.DEV) {
   try {
-    app.dock?.setIcon(dockIcon);
+    app.dock?.setIcon(devIcon);
   } catch (err) {
     log.warn('Failed to set dock icon:', err);
   }
@@ -98,14 +97,6 @@ void app.whenReady().then(async () => {
 
   try {
     await initializeDatabase();
-    try {
-      const reset = await resetStuckWorkingStatuses();
-      if (reset > 0) {
-        log.info(`Reset ${reset} stale 'working' conversation status(es) on startup`);
-      }
-    } catch (e: unknown) {
-      log.warn("conversations: failed to reset stale 'working' statuses", { error: e });
-    }
     searchService.initialize();
     workspaceFileIndexService.initialize();
     void editorBufferService.pruneStale();
@@ -138,22 +129,29 @@ void app.whenReady().then(async () => {
     telemetryService.clearIdentity();
   });
 
-  gitWatcherRegistry.initialize();
   projectSettingsService.initialize();
   prSyncScheduler.initialize();
   automationsService.start();
   appService.initialize();
   await appSettingsService.initialize();
   browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
+  setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
   await promptLibraryService.initialize();
 
   agentHookService.initialize().catch((e) => {
     log.error('Failed to start agent event service:', e);
   });
 
-  emdashAccountService.loadSessionToken().catch((e) => {
-    log.warn('Failed to load account session token:', e);
-  });
+  emdashAccountService
+    .initialize()
+    .then((result) => {
+      if (!result.success) {
+        log.warn('Failed to load account session token:', result.error);
+      }
+    })
+    .catch((e: unknown) => {
+      log.warn('Account session initialization threw unexpectedly:', e);
+    });
 
   const githubAuthServerAdapter = new GitHubAuthServerAdapter(githubAccountRegistry);
   providerTokenRegistry.register('github', (payload) =>
@@ -164,7 +162,7 @@ void app.whenReady().then(async () => {
 
   void reconcileResourceSampler();
 
-  localDependencyManager.probeAll().catch((e) => {
+  localDependencyManager.probeAll().catch((e: unknown) => {
     log.error('Failed to probe dependencies:', e);
   });
 
@@ -199,7 +197,6 @@ app.on('before-quit', (event) => {
     stopResourceSampler();
     updateService.dispose();
     prSyncScheduler.dispose();
-    void gitWatcherRegistry.dispose();
     void projectManager.dispose().catch((e) => {
       log.error('Failed to shutdown project manager:', e);
     });

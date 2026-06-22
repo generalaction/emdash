@@ -1,3 +1,4 @@
+import type { GitBranchRef, GitRemote } from '@emdash/core/git';
 import { GitBranch, RefreshCw } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { Badge } from '@renderer/lib/ui/badge';
@@ -15,7 +16,6 @@ import { InputGroupButton } from '@renderer/lib/ui/input-group';
 import { Select, SelectTrigger } from '@renderer/lib/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
-import { type Branch, type Remote } from '@shared/core/git/git';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import {
   filterBranchesForPicker,
@@ -29,15 +29,15 @@ type BranchSelectorTab = 'local' | 'remote';
 export { getBranchLabel, type BranchLabelRemoteMode } from './branch-selector-utils';
 
 interface BranchSelectorProps {
-  branches: Branch[];
-  value?: Branch;
-  onValueChange: (value: Branch) => void;
+  branches: GitBranchRef[];
+  value?: GitBranchRef;
+  onValueChange: (value: GitBranchRef) => void;
   remoteOnly?: boolean;
   branchLabelRemote?: BranchLabelRemoteMode;
   trigger?: React.ReactNode;
   onRefresh?: () => void;
   isRefreshing?: boolean;
-  remotes?: Remote[];
+  remotes?: GitRemote[];
   selectedRemoteName?: string;
 }
 
@@ -161,20 +161,20 @@ export function BranchSelector({
           >
             <ToggleGroupItem
               value="local"
-              className="group flex flex-1 items-center gap-1 hover:bg-background-1 data-pressed:bg-background-2"
+              className="group flex flex-1 items-center gap-1 hover:bg-background-quaternary-1 data-pressed:bg-background-quaternary-2"
               disabled={localCount === 0}
             >
               Local
               <Badge
                 variant="secondary"
-                className="shrink-0 bg-background-2 transition-colors group-data-pressed:bg-background-3 hover:bg-background-1"
+                className="group-data-pressed:bg-background-quaternary-3 shrink-0 bg-background-2 transition-colors hover:bg-background-quaternary-1"
               >
                 {localCount}
               </Badge>
             </ToggleGroupItem>
             <ToggleGroupItem
               value="remote"
-              className="group flex flex-1 items-center gap-1 hover:bg-background-1 data-pressed:bg-background-2"
+              className="group flex flex-1 items-center gap-1 hover:bg-background-quaternary-1 data-pressed:bg-background-quaternary-2"
               disabled={remoteCount === 0}
             >
               Remote
@@ -244,7 +244,7 @@ export function BranchSelector({
                 });
               }}
             >
-              <SelectTrigger className="h-7 w-full rounded-none border-0 bg-transparent px-3 text-sm shadow-none hover:bg-background-1 focus-visible:ring-0">
+              <SelectTrigger className="h-7 w-full rounded-none border-0 bg-transparent px-3 text-sm shadow-none hover:bg-background-quaternary-1 focus-visible:ring-0">
                 <span className="min-w-0 flex-1 truncate text-left text-foreground-muted">
                   {activeRemoteName}
                 </span>

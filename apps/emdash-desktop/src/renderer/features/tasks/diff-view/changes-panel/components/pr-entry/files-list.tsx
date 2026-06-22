@@ -1,3 +1,4 @@
+import type { GitChange } from '@emdash/core/git';
 import { observer } from 'mobx-react-lite';
 import { usePrefetchDiffModels } from '@renderer/features/tasks/diff-view/changes-panel/hooks/use-prefetch-diff-models';
 import {
@@ -5,7 +6,7 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
-import { commitRef, refsEqual, type GitChange } from '@shared/core/git/git';
+import { commitRef, refsEqual } from '@shared/core/git/utils';
 import { getPrNumber, type PullRequest } from '@shared/core/pull-requests/pull-requests';
 import { useChangesViewMode } from '../../hooks/use-changes-view-mode';
 import { ChangesListOrTree } from '../changes-list-or-tree';

@@ -1,5 +1,5 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
 import { buildMistralHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -12,9 +12,6 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/mistralai/mistral-vibe',
   },
   {
-    acp: {
-      kind: 'none',
-    },
     autoApprove: {
       kind: 'supported',
     },

@@ -388,7 +388,6 @@ export const conversations = sqliteTable(
     sessionId: text('session_id'),
     agentStatus: text('agent_status'),
     agentStatusSeen: integer('agent_status_seen').default(1),
-    type: text('type'),
   },
   (table) => ({
     taskIdIdx: index('idx_conversations_task_id').on(table.taskId),
@@ -417,6 +416,26 @@ export const terminals = sqliteTable(
   },
   (table) => ({
     taskIdIdx: index('idx_terminals_task_id').on(table.taskId),
+  })
+);
+
+export const messages = sqliteTable(
+  'messages',
+  {
+    id: text('id').primaryKey(),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    content: text('content').notNull(),
+    sender: text('sender').notNull(),
+    timestamp: text('timestamp')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    metadata: text('metadata'),
+  },
+  (table) => ({
+    conversationIdIdx: index('idx_messages_conversation_id').on(table.conversationId),
+    timestampIdx: index('idx_messages_timestamp').on(table.timestamp),
   })
 );
 
@@ -475,6 +494,7 @@ export type ProjectSettingsInsert = typeof projectSettings.$inferInsert;
 export type TaskRow = typeof tasks.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;
 export type TerminalRow = typeof terminals.$inferSelect;
+export type MessageRow = typeof messages.$inferSelect;
 export type EditorBufferRow = typeof editorBuffers.$inferSelect;
 export type EditorBufferInsert = typeof editorBuffers.$inferInsert;
 export type KvRow = typeof kv.$inferSelect;

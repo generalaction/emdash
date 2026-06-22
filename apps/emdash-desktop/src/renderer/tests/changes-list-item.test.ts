@@ -1,9 +1,9 @@
+import type { GitChange } from '@emdash/core/git';
 import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChangesListItem } from '@renderer/features/tasks/diff-view/changes-panel/components/changes-list-item';
-import type { GitChange } from '@shared/core/git/git';
 
 const change: GitChange = {
   path: 'src/example.ts',

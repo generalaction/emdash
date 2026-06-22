@@ -1,5 +1,5 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -12,9 +12,6 @@ export const plugin = definePlugin(
       'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
   },
   {
-    acp: {
-      kind: 'none',
-    },
     autoApprove: {
       kind: 'supported',
     },

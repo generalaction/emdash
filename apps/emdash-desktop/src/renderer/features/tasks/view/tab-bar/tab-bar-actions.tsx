@@ -49,7 +49,7 @@ export const TabBarActions = observer(function TabBarActions() {
               showCreateConversationModal({
                 projectId,
                 taskId,
-                onSuccess: ({ conversationId }) => tabManager.openConversationAuto(conversationId),
+                onSuccess: ({ conversationId }) => tabManager.openConversation(conversationId),
               })
             }
           >
@@ -57,7 +57,7 @@ export const TabBarActions = observer(function TabBarActions() {
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          New Conversations <BoundShortcut settingsKey="newConversation" variant="badge" />
+          New Conversations <BoundShortcut settingsKey="newConversation" variant="keycaps" />
         </TooltipContent>
       </Tooltip>
       <Tooltip>
@@ -93,7 +93,7 @@ export const TabBarActions = observer(function TabBarActions() {
             {canSplit ? (
               <span className="flex items-center gap-2">
                 Move active tab to a new pane
-                <BoundShortcut settingsKey="splitPane" variant="badge" />
+                <BoundShortcut settingsKey="splitPane" variant="keycaps" />
               </span>
             ) : (
               'Open at least 2 tabs to split this pane'

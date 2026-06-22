@@ -1,3 +1,4 @@
+import type { GitChangeStatus, GitObjectRef } from '@emdash/core/git';
 import { action, autorun, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { browserDiagnosticsStore } from '@renderer/features/browser/browser-diagnostics-store';
 import { browserSessionStore } from '@renderer/features/browser/browser-session-store';
@@ -23,8 +24,7 @@ import {
 } from '@renderer/lib/stores/tab-utils';
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
 import { normalizeBrowserProfileSelection, type BrowserSessionSnapshot } from '@shared/browser';
-import type { ConversationType } from '@shared/core/conversations/conversations';
-import { refsEqual, type GitChangeStatus, type GitObjectRef } from '@shared/core/git/git';
+import { refsEqual } from '@shared/core/git/utils';
 import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
 
@@ -75,34 +75,7 @@ export class BrowserTabEntry {
   }
 }
 
-export class ChatTabEntry {
-  readonly kind = 'chat' as const;
-  readonly tabId: string;
-  conversationId: string;
-  isPreview: boolean;
-
-  constructor(conversationId: string, isPreview: boolean, tabId?: string) {
-    this.tabId = tabId ?? crypto.randomUUID();
-    this.conversationId = conversationId;
-    this.isPreview = isPreview;
-    makeObservable(this, {
-      conversationId: observable,
-      isPreview: observable,
-      pin: action,
-    });
-  }
-
-  pin(): void {
-    this.isPreview = false;
-  }
-}
-
-export type TabEntry =
-  | FileTabStore
-  | DiffTabStore
-  | ConversationTabEntry
-  | BrowserTabEntry
-  | ChatTabEntry;
+export type TabEntry = FileTabStore | DiffTabStore | ConversationTabEntry | BrowserTabEntry;
 
 function optionalRefsEqual(left: GitObjectRef | undefined, right: GitObjectRef | undefined) {
   if (left === undefined || right === undefined) return left === right;
@@ -159,18 +132,8 @@ export type ResolvedDiffTab = {
   isActive: boolean;
 };
 
-export type ResolvedChatTab = {
-  kind: 'chat';
-  tabId: string;
-  conversationId: string;
-  store: ConversationStore;
-  isPreview: boolean;
-  isActive: boolean;
-};
-
 export type ResolvedTab =
   | ResolvedConversationTab
-  | ResolvedChatTab
   | ResolvedFileTab
   | ResolvedBrowserTab
   | ResolvedDiffTab;
@@ -236,10 +199,6 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       snapshot: computed,
       openConversation: action,
       openConversationPreview: action,
-      openChat: action,
-      openChatPreview: action,
-      openConversationAuto: action,
-      openConversationAutoPreview: action,
       openFile: action,
       openExternalFile: action,
       openFilePreview: action,
@@ -273,10 +232,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           const idSet = new Set(ids);
           const toRemove: string[] = [];
           for (const [tabId, entry] of this.entries) {
-            if (
-              (entry.kind === 'conversation' || entry.kind === 'chat') &&
-              !idSet.has(entry.conversationId)
-            ) {
+            if (entry.kind === 'conversation' && !idSet.has(entry.conversationId)) {
               toRemove.push(tabId);
             }
           }
@@ -288,10 +244,9 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     );
 
     // Mark conversation as seen when it becomes the active tab in the focused pane.
-    // Uses activeConversationStore so both pty-agent and chat tabs clear their indicator.
     this.disposers.push(
       autorun(() => {
-        const conv = this.activeConversationStore;
+        const conv = this.activeConversation;
         if (this.isFocused && conv && !conv.seen) {
           conv.markSeen();
         }
@@ -353,17 +308,6 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     return desc?.kind === 'conversation' ? desc.conversationId : undefined;
   }
 
-  /**
-   * The ConversationStore for the active tab, regardless of whether it is a
-   * pty-agent `'conversation'` tab or a `'chat'` tab. Used for notification
-   * mark-seen so both tab kinds clear their indicator on activation.
-   */
-  get activeConversationStore(): ConversationStore | undefined {
-    const desc = this.activeDescriptor;
-    if (!desc || (desc.kind !== 'conversation' && desc.kind !== 'chat')) return undefined;
-    return this._getConversations()?.conversations.get(desc.conversationId);
-  }
-
   get activeFileEntry(): FileTabStore | undefined {
     const desc = this.activeDescriptor;
     return desc?.kind === 'file' ? desc : undefined;
@@ -416,18 +360,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       const entry = this.entries.get(id);
       if (!entry) continue;
 
-      if (entry.kind === 'chat') {
-        const store = this._getConversations()?.conversations.get(entry.conversationId);
-        if (!store) continue;
-        result.push({
-          kind: 'chat',
-          tabId: entry.tabId,
-          conversationId: entry.conversationId,
-          store,
-          isPreview: entry.isPreview,
-          isActive: effectiveActiveId === entry.tabId,
-        });
-      } else if (entry.kind === 'conversation') {
+      if (entry.kind === 'conversation') {
         const store = this._getConversations()?.conversations.get(entry.conversationId);
         if (!store) continue;
         result.push({
@@ -490,20 +423,9 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     for (const id of this.tabOrder) {
       const entry = this.entries.get(id);
       if (!entry) continue;
-      if (entry.kind === 'chat') {
+      if (entry.kind === 'conversation') {
         tabs.push({
-          kind: 'chat',
-          tabId: entry.tabId,
-          conversationId: entry.conversationId,
-          isPreview: entry.isPreview,
-        });
-      } else if (entry.kind === 'conversation') {
-        // Migrate stale PTY entries that are actually ACP conversations so the
-        // next restore picks them up as chat tabs without the user having to
-        // manually close and reopen each tab.
-        const conversationType = this._conversationType(entry.conversationId);
-        tabs.push({
-          kind: conversationType === 'acp' ? 'chat' : 'conversation',
+          kind: 'conversation',
           tabId: entry.tabId,
           conversationId: entry.conversationId,
           isPreview: entry.isPreview,
@@ -562,49 +484,6 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     this.entries.set(entry.tabId, entry);
     addTabId(this, entry.tabId);
     this.activeTabId = entry.tabId;
-  }
-
-  openChat(conversationId: string): void {
-    const existing = this._findChatEntry(conversationId);
-    if (existing) {
-      existing.isPreview = false;
-      this.activeTabId = existing.tabId;
-      return;
-    }
-    const entry = new ChatTabEntry(conversationId, false);
-    this.entries.set(entry.tabId, entry);
-    addTabId(this, entry.tabId);
-    this.activeTabId = entry.tabId;
-  }
-
-  openChatPreview(conversationId: string): void {
-    const existing = this._findChatEntry(conversationId);
-    if (existing) {
-      this.activeTabId = existing.tabId;
-      return;
-    }
-    const previewEntry = this._findChatPreviewEntry();
-    if (previewEntry) {
-      previewEntry.conversationId = conversationId;
-      this.activeTabId = previewEntry.tabId;
-      return;
-    }
-    const entry = new ChatTabEntry(conversationId, true);
-    this.entries.set(entry.tabId, entry);
-    addTabId(this, entry.tabId);
-    this.activeTabId = entry.tabId;
-  }
-
-  /** Opens the correct tab kind (chat or PTY terminal) based on conversation type. */
-  openConversationAuto(conversationId: string): void {
-    if (this._conversationType(conversationId) === 'acp') this.openChat(conversationId);
-    else this.openConversation(conversationId);
-  }
-
-  /** Opens a preview tab for the correct kind based on conversation type. */
-  openConversationAutoPreview(conversationId: string): void {
-    if (this._conversationType(conversationId) === 'acp') this.openChatPreview(conversationId);
-    else this.openConversationPreview(conversationId);
   }
 
   openConversationPreview(conversationId: string): void {
@@ -895,10 +774,6 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     return this._findConversationEntry(conversationId) !== undefined;
   }
 
-  hasChatTab(conversationId: string): boolean {
-    return this._findChatEntry(conversationId) !== undefined;
-  }
-
   // ---------------------------------------------------------------------------
   // Snapshot
   // ---------------------------------------------------------------------------
@@ -909,25 +784,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       this.entries.clear();
       this.tabOrder = [];
       for (const t of snapshot.tabs) {
-        if (t.kind === 'chat') {
-          const entry = new ChatTabEntry(t.conversationId, t.isPreview, t.tabId);
+        if (t.kind === 'conversation') {
+          const entry = new ConversationTabEntry(t.conversationId, t.isPreview, t.tabId);
           this.entries.set(entry.tabId, entry);
           this.tabOrder.push(entry.tabId);
-        } else if (t.kind === 'conversation') {
-          // Migration: old snapshots saved ACP conversations as 'conversation'.
-          // Preloaded conversation data is available at restore time, so upgrade
-          // any ACP entries to ChatTabEntry so ChatPanel mounts instead of the
-          // PTY ConversationsPanel.
-          const conversationType = this._conversationType(t.conversationId);
-          if (conversationType === 'acp') {
-            const entry = new ChatTabEntry(t.conversationId, t.isPreview, t.tabId);
-            this.entries.set(entry.tabId, entry);
-            this.tabOrder.push(entry.tabId);
-          } else {
-            const entry = new ConversationTabEntry(t.conversationId, t.isPreview, t.tabId);
-            this.entries.set(entry.tabId, entry);
-            this.tabOrder.push(entry.tabId);
-          }
         } else if (t.kind === 'browser') {
           browserSessionStore.restoreSession(
             t.session,
@@ -975,7 +835,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     if (!conversations) return;
     for (const [id, store] of conversations.conversations) {
       if (store.isInitialConversation) {
-        this.openConversationAuto(id);
+        this.openConversation(id);
         return;
       }
     }
@@ -1018,34 +878,12 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     return undefined;
   }
 
-  private _findChatEntry(conversationId: string): ChatTabEntry | undefined {
-    for (const id of this.tabOrder) {
-      const entry = this.entries.get(id);
-      if (entry?.kind === 'chat' && entry.conversationId === conversationId) {
-        return entry;
-      }
-    }
-    return undefined;
-  }
-
   private _findConversationPreviewEntry(): ConversationTabEntry | undefined {
     for (const id of this.tabOrder) {
       const entry = this.entries.get(id);
       if (entry?.kind === 'conversation' && entry.isPreview) return entry;
     }
     return undefined;
-  }
-
-  private _findChatPreviewEntry(): ChatTabEntry | undefined {
-    for (const id of this.tabOrder) {
-      const entry = this.entries.get(id);
-      if (entry?.kind === 'chat' && entry.isPreview) return entry;
-    }
-    return undefined;
-  }
-
-  private _conversationType(conversationId: string): ConversationType | undefined {
-    return this._getConversations()?.conversations.get(conversationId)?.data.type;
   }
 
   private _findFileEntryByPath(path: string): FileTabStore | undefined {
@@ -1117,8 +955,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
 
   private _getConversationIdForTab(id: string): string | undefined {
     const entry = this.entries.get(id);
-    if (entry?.kind === 'conversation' || entry?.kind === 'chat') return entry.conversationId;
-    return undefined;
+    return entry?.kind === 'conversation' ? entry.conversationId : undefined;
   }
 
   private _markConversationSeen(conversationId: string): void {

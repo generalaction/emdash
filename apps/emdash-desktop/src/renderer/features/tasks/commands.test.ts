@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   closeActiveTabWithConfirm: vi.fn(),
   focusUrl: vi.fn(),
   getRegisteredTaskData: vi.fn(),
-  getTaskGitStore: vi.fn(),
+  getTaskGitWorktreeStore: vi.fn(),
   getTaskStore: vi.fn(),
   getTaskView: vi.fn(),
   goBack: vi.fn(),
@@ -16,7 +16,10 @@ const mocks = vi.hoisted(() => ({
   reload: vi.fn(),
   showModal: vi.fn(),
   toast: vi.fn(),
-  visibleTaskIdsForProject: vi.fn(),
+  visibleTaskEntries: [
+    { projectId: 'project-1', taskId: 'task-1' },
+    { projectId: 'project-1', taskId: 'task-2' },
+  ],
   writeText: vi.fn(() => Promise.resolve()),
 }));
 
@@ -37,7 +40,7 @@ vi.mock('@renderer/features/browser/browser-controls-registry', () => ({
 
 vi.mock('@renderer/features/tasks/stores/task-selectors', () => ({
   getRegisteredTaskData: mocks.getRegisteredTaskData,
-  getTaskGitStore: mocks.getTaskGitStore,
+  getTaskGitWorktreeStore: mocks.getTaskGitWorktreeStore,
   getTaskStore: mocks.getTaskStore,
   getTaskView: mocks.getTaskView,
 }));
@@ -69,7 +72,9 @@ vi.mock('@renderer/lib/stores/app-state', () => ({
     },
   },
   sidebarStore: {
-    visibleTaskIdsForProject: mocks.visibleTaskIdsForProject,
+    get visibleTaskEntries() {
+      return mocks.visibleTaskEntries;
+    },
   },
 }));
 
@@ -128,8 +133,11 @@ describe('createTaskCommandProvider', () => {
         setTabActiveIndex: vi.fn(),
       },
     });
-    mocks.visibleTaskIdsForProject.mockReturnValue(['task-1', 'task-2']);
-    mocks.getTaskGitStore.mockReturnValue(undefined);
+    mocks.visibleTaskEntries = [
+      { projectId: 'project-1', taskId: 'task-1' },
+      { projectId: 'project-1', taskId: 'task-2' },
+    ];
+    mocks.getTaskGitWorktreeStore.mockReturnValue(undefined);
     mocks.getRegisteredTaskData.mockReturnValue({
       id: 'task-1',
       isPinned: false,
@@ -281,5 +289,41 @@ describe('createTaskCommandProvider', () => {
     expect(taskView.openNewTerminal).toHaveBeenCalledTimes(1);
     expect(taskView.openNewTerminal).toHaveBeenCalledWith();
     expect(taskView.setTerminalDrawerOpen).not.toHaveBeenCalled();
+  });
+
+  it('navigates to the next visible task across project boundaries', () => {
+    mocks.visibleTaskEntries = [
+      { projectId: 'project-1', taskId: 'task-1' },
+      { projectId: 'project-2', taskId: 'task-2' },
+    ];
+    const provider = createTaskCommandProvider('project-1', 'task-1');
+
+    const command = provider.getCommands().find((candidate) => candidate.id === 'task.nextTask');
+
+    expect(command?.enabled).toBe(true);
+    command?.execute();
+
+    expect(mocks.navigate).toHaveBeenCalledWith('task', {
+      projectId: 'project-2',
+      taskId: 'task-2',
+    });
+  });
+
+  it('navigates to the previous visible task across project boundaries', () => {
+    mocks.visibleTaskEntries = [
+      { projectId: 'project-1', taskId: 'task-1' },
+      { projectId: 'project-2', taskId: 'task-2' },
+    ];
+    const provider = createTaskCommandProvider('project-2', 'task-2');
+
+    const command = provider.getCommands().find((candidate) => candidate.id === 'task.prevTask');
+
+    expect(command?.enabled).toBe(true);
+    command?.execute();
+
+    expect(mocks.navigate).toHaveBeenCalledWith('task', {
+      projectId: 'project-1',
+      taskId: 'task-1',
+    });
   });
 });

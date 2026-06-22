@@ -4,7 +4,7 @@ import { useConfirmDeleteProject } from '@renderer/features/projects/hooks/use-c
 import {
   asMounted,
   getProjectStore,
-  getRepositoryStore,
+  getGitRepositoryStore,
   projectDisplayName,
   projectViewKind,
 } from '@renderer/features/projects/stores/project-selectors';
@@ -32,7 +32,7 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
   const displayName = projectDisplayName(store) ?? 'this project';
   const confirmDeleteProject = useConfirmDeleteProject();
 
-  const repo = getRepositoryStore(projectId);
+  const repo = getGitRepositoryStore(projectId);
   const baseRemote = repo?.baseRemote;
   const remoteUrl = baseRemote?.url;
   const repositoryUrl = repo?.canonicalRepositoryUrl;

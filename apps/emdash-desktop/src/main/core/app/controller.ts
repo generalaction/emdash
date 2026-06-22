@@ -41,6 +41,20 @@ export const appController = createRPCController({
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
+  showTerminalContextMenu: async (args: {
+    requestId: string;
+    selectionText?: string | null;
+    linkText?: string | null;
+    x: number;
+    y: number;
+  }) => {
+    try {
+      appService.showTerminalContextMenu(args);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
   quit: () => {
     try {
       appService.quit();
@@ -79,6 +93,19 @@ export const appController = createRPCController({
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
+  minimizeWindow: () => {
+    appService.minimizeWindow();
+    return { success: true };
+  },
+  toggleMaximizeWindow: () => {
+    appService.toggleMaximizeWindow();
+    return { success: true };
+  },
+  closeWindow: () => {
+    appService.closeWindow();
+    return { success: true };
+  },
+  isWindowMaximized: () => appService.isWindowMaximized(),
   getAppVersion: () => appService.getCachedAppVersion(),
   getElectronVersion: () => process.versions.electron,
   getPlatform: () => process.platform,

@@ -1,6 +1,6 @@
 import os from 'node:os';
+import type { McpServerRegistration } from '@emdash/core/agents/plugins';
 import { pluginRegistry } from '@emdash/plugins/agents';
-import type { McpServerRegistration } from '@emdash/shared/agents/plugins';
 import { createPluginFs } from '@main/core/agents/plugin-fs';
 import { log } from '@main/lib/logger';
 import type { McpLoadAllResponse, McpServer } from '@shared/core/mcp/types';
@@ -42,7 +42,7 @@ export class McpService {
 
       for (const provider of providers) {
         const agentId = provider.metadata.id;
-        let regs;
+        let regs: McpServerRegistration[];
         try {
           regs = await provider.behavior.mcp!.readServers(fs);
         } catch (err) {
@@ -150,7 +150,7 @@ export class McpService {
       return [];
     }
     try {
-      const regs = await provider.behavior.mcp.readServers(fs);
+      const regs: McpServerRegistration[] = await provider.behavior.mcp.readServers(fs);
       return regs.map((r) => registrationToMcpServer(r, [agentId]));
     } catch (err) {
       log.warn(`Failed to read MCP config for ${agentId}:`, err);

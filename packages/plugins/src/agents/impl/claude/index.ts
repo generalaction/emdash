@@ -1,19 +1,11 @@
-import { createRequire } from 'node:module';
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
   homebrewOption,
   passthroughMcpAdapter,
-} from '@emdash/shared/agents/plugins/helpers';
+} from '@emdash/core/agents/plugins/helpers';
 import { buildClaudeHookConfig } from './hooks';
 import { icon } from './icon';
-
-const require = createRequire(import.meta.url);
-
-function resolveClaudeAcpEntry(): string {
-  // Resolves to the installed @agentclientprotocol/claude-agent-acp CLI entry point.
-  return require.resolve('@agentclientprotocol/claude-agent-acp/dist/index.js');
-}
 
 export const plugin = definePlugin(
   {
@@ -24,9 +16,6 @@ export const plugin = definePlugin(
     websiteUrl: 'https://code.claude.com/docs/en/quickstart',
   },
   {
-    acp: {
-      kind: 'supported',
-    },
     autoApprove: {
       kind: 'supported',
     },
@@ -88,28 +77,7 @@ export const plugin = definePlugin(
       supportedTransports: ['stdio', 'http'],
     },
     models: {
-      kind: 'selectable',
-      modelOptions: {
-        default: {
-          name: 'Default',
-          description: 'Use the model configured in your Claude settings',
-        },
-        sonnet: {
-          name: 'Claude Sonnet',
-          description: 'Balanced performance and speed',
-          modelFeatures: { intelligence: 4, speed: 4 },
-        },
-        opus: {
-          name: 'Claude Opus',
-          description: 'Most capable model for complex tasks',
-          modelFeatures: { intelligence: 5, speed: 2 },
-        },
-        haiku: {
-          name: 'Claude Haiku',
-          description: 'Fast and compact model for simpler tasks',
-          modelFeatures: { intelligence: 3, speed: 5 },
-        },
-      },
+      kind: 'none',
     },
     plugins: {
       kind: 'none',
@@ -126,15 +94,6 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
-  acp: {
-    buildSpawn: (ctx) => ({
-      command: process.execPath,
-      args: [resolveClaudeAcpEntry()],
-      // process.execPath is the Electron binary; ELECTRON_RUN_AS_NODE makes it
-      // run the adapter as a plain Node script instead of booting a new app.
-      env: { ...ctx.env, ELECTRON_RUN_AS_NODE: '1' },
-    }),
-  },
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {

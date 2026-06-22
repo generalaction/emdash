@@ -55,7 +55,6 @@ describe('ConversationManagerStore session hydration', () => {
         title: 'Conversation 1',
         lastInteractedAt: null,
         isInitialConversation: false,
-        type: 'pty' as const,
       },
     ]);
 

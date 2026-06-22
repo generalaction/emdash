@@ -52,7 +52,7 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
   );
 
   return (
-    <div className="relative h-full overflow-y-auto bg-background">
+    <div className="relative h-full overflow-y-auto bg-background-secondary-1">
       {tab?.isExternal ? null : (
         <ToggleGroup
           value={['markdown']}

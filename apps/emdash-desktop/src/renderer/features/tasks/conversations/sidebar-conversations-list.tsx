@@ -74,7 +74,7 @@ const ConversationRow = observer(function ConversationRow({
   };
 
   const handleDoubleClick = () => {
-    tabGroupManager.openConversationAuto(conversationId);
+    tabGroupManager.openConversation(conversationId);
     handleRename();
   };
 
@@ -96,12 +96,12 @@ const ConversationRow = observer(function ConversationRow({
         <div
           role="button"
           tabIndex={0}
-          onClick={() => tabGroupManager.openConversationAutoPreview(conversationId)}
+          onClick={() => tabGroupManager.openConversationPreview(conversationId)}
           onDoubleClick={handleDoubleClick}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              tabGroupManager.openConversationAutoPreview(conversationId);
+              tabGroupManager.openConversationPreview(conversationId);
             }
           }}
           className={cn(
@@ -187,7 +187,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
       projectId,
       taskId,
       onSuccess: ({ conversationId }) => {
-        tabGroupManager.openConversationAuto(conversationId);
+        tabGroupManager.openConversation(conversationId);
       },
     });
   };

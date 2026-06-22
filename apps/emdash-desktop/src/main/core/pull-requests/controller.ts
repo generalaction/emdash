@@ -1,3 +1,4 @@
+import { err, ok } from '@emdash/shared';
 import { providerRepositoryService } from '@main/core/repository/provider-repository-service';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
@@ -9,7 +10,6 @@ import type {
   PullRequestMergeOptions,
 } from '@shared/core/pull-requests/pull-requests';
 import { createRPCController } from '@shared/lib/ipc/rpc';
-import { err, ok } from '@shared/lib/result';
 import { isGitHubDotComHost, parseRepositoryRef } from '@shared/repository-ref';
 import { prQueryService } from './pr-query-service';
 import { prSyncEngine } from './pr-sync-engine';

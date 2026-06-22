@@ -25,8 +25,8 @@ export const ISSUE_PROVIDER_CAPABILITIES: Record<IssueProviderType, IssueProvide
     supportsIssueContext: false,
   },
   gitlab: {
-    requiresProjectPath: true,
-    requiresRepositoryUrl: false,
+    requiresProjectPath: false,
+    requiresRepositoryUrl: true,
     supportsIssueContext: false,
   },
   plane: {
@@ -35,8 +35,8 @@ export const ISSUE_PROVIDER_CAPABILITIES: Record<IssueProviderType, IssueProvide
     supportsIssueContext: true,
   },
   forgejo: {
-    requiresProjectPath: true,
-    requiresRepositoryUrl: false,
+    requiresProjectPath: false,
+    requiresRepositoryUrl: true,
     supportsIssueContext: false,
   },
   featurebase: {

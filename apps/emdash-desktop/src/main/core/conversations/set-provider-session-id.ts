@@ -10,17 +10,19 @@ export async function setProviderSessionId(
   if (!trimmed) return false;
 
   const [row] = await db
-    .select({ sessionId: conversations.sessionId })
+    .select({ config: conversations.config })
     .from(conversations)
     .where(eq(conversations.id, conversationId))
     .limit(1);
 
   if (!row) return false;
-  if (row.sessionId === trimmed) return false;
+
+  const config = row.config ?? {};
+  if (config.providerSessionId === trimmed) return false;
 
   await db
     .update(conversations)
-    .set({ sessionId: trimmed })
+    .set({ config: { ...config, providerSessionId: trimmed } })
     .where(eq(conversations.id, conversationId));
 
   return true;

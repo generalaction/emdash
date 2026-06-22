@@ -1,11 +1,7 @@
 import ReactDOM from 'react-dom/client';
 import { setupNavigationGuards } from '@renderer/app/view-registry';
 import { prefetchAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import '@emdash/ui/styles/tokens.css';
-import '@emdash/ui/style.css';
 import './index.css';
-import '@emdash/chat-ui/style.css';
-import '@emdash/chat-ui/chat-theme.css';
 import 'devicon/devicon.min.css';
 import 'katex/dist/katex.min.css';
 import { setupAppCommandProvider } from '@renderer/lib/commands/app-commands';

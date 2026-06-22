@@ -11,7 +11,7 @@ import {
 // Fixtures
 // ---------------------------------------------------------------------------
 
-const gitController = createRPCController({
+const vcsController = createRPCController({
   commit: (msg: string) => Promise.resolve(`committed: ${msg}`),
   status: () => Promise.resolve('clean'),
 });
@@ -21,8 +21,12 @@ const fsController = createRPCController({
   write: (path: string, data: string) => Promise.resolve(data.length),
 });
 
-const wsGitController = createRPCController({
+const gitWorktreeController = createRPCController({
   clone: (url: string) => Promise.resolve(`cloned ${url}`),
+});
+
+const gitRepositoryController = createRPCController({
+  branches: () => Promise.resolve(['main']),
 });
 
 const wsFsController = createRPCController({
@@ -30,12 +34,13 @@ const wsFsController = createRPCController({
 });
 
 const workspaceNamespace = createRPCNamespace({
-  git: wsGitController,
+  gitWorktree: gitWorktreeController,
   fs: wsFsController,
 });
 
 const router = createRPCRouter({
-  git: gitController,
+  vcs: vcsController,
+  gitRepository: gitRepositoryController,
   fs: fsController,
   workspace: workspaceNamespace,
 });
@@ -69,18 +74,18 @@ describe('createRPCClient', () => {
     const invoke = vi.fn().mockResolvedValue('ok');
     const rpc = createRPCClient<Router>(invoke);
 
-    await rpc.git.commit('hello');
+    await rpc.vcs.commit('hello');
 
-    expect(invoke).toHaveBeenCalledWith('git.commit', 'hello');
+    expect(invoke).toHaveBeenCalledWith('vcs.commit', 'hello');
   });
 
   it('calls invoke with the nested channel and args for a 3-level call', async () => {
     const invoke = vi.fn().mockResolvedValue('ok');
     const rpc = createRPCClient<Router>(invoke);
 
-    await rpc.workspace.git.clone('https://example.com/repo');
+    await rpc.workspace.gitWorktree.clone('https://example.com/repo');
 
-    expect(invoke).toHaveBeenCalledWith('workspace.git.clone', 'https://example.com/repo');
+    expect(invoke).toHaveBeenCalledWith('workspace.gitWorktree.clone', 'https://example.com/repo');
   });
 
   it('forwards multiple arguments correctly', async () => {
@@ -96,7 +101,7 @@ describe('createRPCClient', () => {
     const invoke = vi.fn().mockResolvedValue('clean');
     const rpc = createRPCClient<Router>(invoke);
 
-    const result = await rpc.git.status();
+    const result = await rpc.vcs.status();
 
     expect(result).toBe('clean');
   });
@@ -120,8 +125,8 @@ describe('registerRPCRouter', () => {
     const ipc = makeIpcMainStub();
     registerRPCRouter(router, ipc as never);
 
-    expect(ipc.registeredChannels()).toContain('git.commit');
-    expect(ipc.registeredChannels()).toContain('git.status');
+    expect(ipc.registeredChannels()).toContain('vcs.commit');
+    expect(ipc.registeredChannels()).toContain('vcs.status');
     expect(ipc.registeredChannels()).toContain('fs.read');
     expect(ipc.registeredChannels()).toContain('fs.write');
   });
@@ -130,7 +135,8 @@ describe('registerRPCRouter', () => {
     const ipc = makeIpcMainStub();
     registerRPCRouter(router, ipc as never);
 
-    expect(ipc.registeredChannels()).toContain('workspace.git.clone');
+    expect(ipc.registeredChannels()).toContain('workspace.gitWorktree.clone');
+    expect(ipc.registeredChannels()).toContain('gitRepository.branches');
     expect(ipc.registeredChannels()).toContain('workspace.fs.list');
   });
 
@@ -138,7 +144,7 @@ describe('registerRPCRouter', () => {
     const ipc = makeIpcMainStub();
     registerRPCRouter(router, ipc as never);
 
-    const result = await ipc.invoke('git.commit', 'my message');
+    const result = await ipc.invoke('vcs.commit', 'my message');
     expect(result).toBe('committed: my message');
   });
 
@@ -146,7 +152,7 @@ describe('registerRPCRouter', () => {
     const ipc = makeIpcMainStub();
     registerRPCRouter(router, ipc as never);
 
-    const result = await ipc.invoke('workspace.git.clone', 'https://example.com');
+    const result = await ipc.invoke('workspace.gitWorktree.clone', 'https://example.com');
     expect(result).toBe('cloned https://example.com');
   });
 
@@ -167,11 +173,11 @@ describe('IpcClient type-safety', () => {
   const rpc = createRPCClient<Router>(invoke);
 
   it('types a flat procedure as an async function with the original signature', () => {
-    expectTypeOf(rpc.git.commit).toEqualTypeOf<(msg: string) => Promise<string>>();
+    expectTypeOf(rpc.vcs.commit).toEqualTypeOf<(msg: string) => Promise<string>>();
   });
 
   it('types a flat zero-arg procedure correctly', () => {
-    expectTypeOf(rpc.git.status).toEqualTypeOf<() => Promise<string>>();
+    expectTypeOf(rpc.vcs.status).toEqualTypeOf<() => Promise<string>>();
   });
 
   it('types a flat multi-arg procedure correctly', () => {
@@ -179,13 +185,13 @@ describe('IpcClient type-safety', () => {
   });
 
   it('types a nested procedure as an async function with the original signature', () => {
-    expectTypeOf(rpc.workspace.git.clone).toEqualTypeOf<(url: string) => Promise<string>>();
+    expectTypeOf(rpc.workspace.gitWorktree.clone).toEqualTypeOf<(url: string) => Promise<string>>();
   });
 
   it('types a nested namespace as a sub-namespace object, not a callable', () => {
     expectTypeOf(rpc.workspace).toEqualTypeOf<{
-      git: { clone: (url: string) => Promise<string> };
       fs: { list: (dir: string) => Promise<string[]> };
+      gitWorktree: { clone: (url: string) => Promise<string> };
     }>();
   });
 
@@ -201,7 +207,7 @@ describe('IpcClient type-safety', () => {
   });
 
   it('unwraps a Promise return value so it is not double-wrapped', () => {
-    // gitController.commit returns Promise<string> — IpcClient should give Promise<string>, not Promise<Promise<string>>
-    expectTypeOf(rpc.git.commit).returns.toEqualTypeOf<Promise<string>>();
+    // vcsController.commit returns Promise<string> — IpcClient should give Promise<string>, not Promise<Promise<string>>
+    expectTypeOf(rpc.vcs.commit).returns.toEqualTypeOf<Promise<string>>();
   });
 });

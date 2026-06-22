@@ -1,3 +1,4 @@
+import { err, type Result } from '@emdash/shared';
 import { Check, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -19,7 +20,6 @@ import type {
   ShareableProjectSettingsWriteField,
   WriteProjectConfigRequest,
 } from '@shared/core/project-settings/project-settings';
-import { err, type Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { SHAREABLE_FIELD_DESCRIPTOR_BY_ID } from './shareable-project-settings-fields';
 

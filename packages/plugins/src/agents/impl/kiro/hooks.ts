@@ -1,7 +1,7 @@
 import {
   buildMinimalJsonHookConfig,
   makeStdinHookCommand,
-} from '@emdash/shared/agents/plugins/helpers';
+} from '@emdash/core/agents/plugins/helpers';
 
 export const KIRO_HOOKS_PATH = '.kiro/agents/emdash.json';
 

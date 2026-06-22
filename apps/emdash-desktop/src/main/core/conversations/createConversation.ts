@@ -61,50 +61,43 @@ export async function createConversation(
       title: params.title,
       provider: params.provider,
       config,
-      // PTY conversations use sessionId as an idempotency guard (set to conversationId).
-      // ACP conversations write the agent-assigned session ID here after the first newSession call.
-      sessionId: params.type === 'acp' ? null : id,
+      sessionId: id,
       isInitialConversation: params.isInitialConversation ?? false,
       createdAt: sql`CURRENT_TIMESTAMP`,
       updatedAt: sql`CURRENT_TIMESTAMP`,
       lastInteractedAt: new Date().toISOString(),
-      type: params.type ?? 'pty',
     })
     .returning();
 
+  const task = resolveTask(params.projectId, params.taskId);
+  if (!task) {
+    throw new Error('Task not found');
+  }
+
   const conversation = mapConversationRowToConversation(row);
 
-  // ACP conversations are started lazily via hydrateConversation when the tab opens.
-  if (conversation.type !== 'acp') {
-    const task = resolveTask(params.projectId, params.taskId);
-    if (!task) {
-      throw new Error('Task not found');
-    }
-
-    await withCompensation({
-      action: () =>
-        task.conversations.startSession(
-          conversation,
-          params.initialSize,
-          false,
-          params.initialPrompt
-        ),
-      compensate: async () => {
-        await database.delete(conversations).where(eq(conversations.id, row.id)).execute();
-      },
-      onCompensationError: (error) => {
-        log.error('createConversation: failed to roll back conversation row after spawn failure', {
-          conversationId: id,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      },
-    });
-
-    emitInitialPromptStarted(conversation, params);
-  }
+  await withCompensation({
+    action: () =>
+      task.conversations.startSession(
+        conversation,
+        params.initialSize,
+        false,
+        params.initialPrompt
+      ),
+    compensate: async () => {
+      await database.delete(conversations).where(eq(conversations.id, row.id)).execute();
+    },
+    onCompensationError: (error) => {
+      log.error('createConversation: failed to roll back conversation row after spawn failure', {
+        conversationId: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    },
+  });
 
   conversationEvents._emit('conversation:created', conversation);
   events.emit(conversationCreatedChannel, { conversation });
+  emitInitialPromptStarted(conversation, params);
   telemetryService.capture('conversation_created', {
     provider: params.provider,
     is_first_in_task: existingConversation === undefined,

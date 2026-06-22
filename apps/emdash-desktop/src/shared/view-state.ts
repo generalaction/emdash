@@ -1,5 +1,5 @@
+import type { GitChangeStatus, GitObjectRef } from '@emdash/core/git';
 import type { BrowserSessionSnapshot } from '@shared/browser';
-import type { GitChangeStatus, GitObjectRef } from '@shared/core/git/git';
 
 export type TabViewSnapshot = {
   tabOrder: string[];
@@ -8,7 +8,6 @@ export type TabViewSnapshot = {
 
 export type TabDescriptor =
   | { kind: 'conversation'; tabId: string; conversationId: string; isPreview: boolean }
-  | { kind: 'chat'; tabId: string; conversationId: string; isPreview: boolean }
   | { kind: 'file'; tabId: string; path: string; isPreview: boolean; isExternal?: boolean }
   | {
       kind: 'browser';

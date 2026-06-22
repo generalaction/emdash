@@ -16,6 +16,17 @@ export function deleteProjectsById(
   const ids = [...projectIds];
   const placeholders = ids.map(() => '?').join(', ');
 
+  if (tableExists(sqlite, 'conversations')) {
+    runDelete(
+      sqlite,
+      'messages',
+      `DELETE FROM messages WHERE conversation_id IN (
+        SELECT id FROM conversations WHERE project_id IN (${placeholders})
+      )`,
+      ids
+    );
+  }
+
   runDelete(
     sqlite,
     'terminals',

@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LocalProject } from '@shared/projects';
-import { isUnregisteredProject } from './project';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { LocalProject, SshProject } from '@shared/projects';
+import { createUnmountedProject, isUnregisteredProject } from './project';
 import { ProjectManagerStore } from './project-manager';
 
 const mocks = vi.hoisted(() => ({
@@ -8,12 +8,14 @@ const mocks = vi.hoisted(() => ({
   createGithubRepository: vi.fn(),
   createProject: vi.fn(),
   deleteGithubRepository: vi.fn(),
-  initializeProject: vi.fn(),
+  initializeRepository: vi.fn(),
   inspectProjectPath: vi.fn(),
   openProject: vi.fn(),
   patchProjectSettings: vi.fn(),
   updateProjectSettings: vi.fn(),
   eventOn: vi.fn(),
+  sshConnect: vi.fn(),
+  sshStateFor: vi.fn(),
 }));
 
 vi.mock('@renderer/lib/ipc', () => ({
@@ -22,10 +24,12 @@ vi.mock('@renderer/lib/ipc', () => ({
   },
   rpc: {
     github: {
-      cloneRepository: mocks.cloneRepository,
       createRepository: mocks.createGithubRepository,
       deleteRepository: mocks.deleteGithubRepository,
-      initializeProject: mocks.initializeProject,
+    },
+    projectSetup: {
+      cloneRepository: mocks.cloneRepository,
+      initializeRepository: mocks.initializeRepository,
     },
     projects: {
       createProject: mocks.createProject,
@@ -44,6 +48,10 @@ vi.mock('@renderer/lib/stores/app-state', () => ({
       currentViewId: 'home',
       revalidate: vi.fn(),
       viewParamsStore: {},
+    },
+    sshConnections: {
+      connect: mocks.sshConnect,
+      stateFor: mocks.sshStateFor,
     },
   },
 }));
@@ -72,11 +80,35 @@ function localProject(overrides: Partial<LocalProject> = {}): LocalProject {
   };
 }
 
+function sshProject(overrides: Partial<SshProject> = {}): SshProject {
+  return {
+    type: 'ssh',
+    id: 'ssh-project-id',
+    name: 'SSH Project',
+    path: '/project',
+    baseRef: 'main',
+    connectionId: 'ssh-1',
+    repositoryWorkspaceId: null,
+    createdAt: '2026-05-28T00:00:00.000Z',
+    updatedAt: '2026-05-28T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function okProject(project: LocalProject) {
+  return { success: true as const, data: project };
+}
+
 describe('ProjectManagerStore project creation', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.eventOn.mockReturnValue(vi.fn());
     mocks.inspectProjectPath.mockResolvedValue({ isDirectory: true, isGitRepo: true });
-    mocks.createProject.mockResolvedValue(localProject());
+    mocks.createProject.mockResolvedValue(okProject(localProject()));
     mocks.openProject.mockReturnValue(new Promise(() => {}));
     mocks.cloneRepository.mockReturnValue(new Promise(() => {}));
     mocks.createGithubRepository.mockResolvedValue({
@@ -86,7 +118,7 @@ describe('ProjectManagerStore project creation', () => {
       nameWithOwner: 'acme/project',
     });
     mocks.deleteGithubRepository.mockResolvedValue({ success: true });
-    mocks.initializeProject.mockResolvedValue({ success: true });
+    mocks.initializeRepository.mockResolvedValue({ success: true });
     mocks.updateProjectSettings.mockResolvedValue({
       success: true,
       data: { githubAccountId: 'github.com:42' },
@@ -95,6 +127,8 @@ describe('ProjectManagerStore project creation', () => {
       success: true,
       data: { githubAccountId: 'github.com:42' },
     });
+    mocks.sshConnect.mockResolvedValue(undefined);
+    mocks.sshStateFor.mockReturnValue('disconnected');
   });
 
   it('returns an existing project without starting creation', async () => {
@@ -121,8 +155,8 @@ describe('ProjectManagerStore project creation', () => {
   it('creates unregistered project state before returning creating', async () => {
     let resolveCreateProject: (project: LocalProject) => void = () => {};
     mocks.createProject.mockReturnValueOnce(
-      new Promise<LocalProject>((resolve) => {
-        resolveCreateProject = resolve;
+      new Promise<ReturnType<typeof okProject>>((resolve) => {
+        resolveCreateProject = (project) => resolve(okProject(project));
       })
     );
     const store = new ProjectManagerStore();
@@ -161,7 +195,7 @@ describe('ProjectManagerStore project creation', () => {
       { id: 'optimistic-project' }
     );
 
-    if (result.kind === 'creating') void result.completion.catch(() => {});
+    if (result.kind === 'creating') void result.completion;
     expect(mocks.inspectProjectPath).toHaveBeenCalledWith({
       type: 'local',
       path: '/parent/child-project',
@@ -184,7 +218,7 @@ describe('ProjectManagerStore project creation', () => {
       { id: 'optimistic-project' }
     );
 
-    if (result.kind === 'creating') void result.completion.catch(() => {});
+    if (result.kind === 'creating') void result.completion;
     expect(mocks.inspectProjectPath).toHaveBeenCalledWith({
       type: 'local',
       path: '/parent/child-project',
@@ -211,7 +245,7 @@ describe('ProjectManagerStore project creation', () => {
       { id: 'optimistic-project' }
     );
 
-    if (result.kind === 'creating') void result.completion.catch(() => {});
+    if (result.kind === 'creating') void result.completion;
     expect(result.kind).toBe('creating');
     expect(store.projects.has('optimistic-project')).toBe(true);
   });
@@ -238,14 +272,16 @@ describe('ProjectManagerStore project creation', () => {
       { id: 'optimistic-project' }
     );
 
-    if (result.kind === 'creating') void result.completion.catch(() => {});
+    if (result.kind === 'creating') void result.completion;
     expect(result.kind).toBe('creating');
     expect(store.projects.has('optimistic-project')).toBe(true);
   });
 
   it('persists the selected GitHub account after registering a new project', async () => {
     mocks.cloneRepository.mockResolvedValueOnce({ success: true });
-    mocks.createProject.mockResolvedValueOnce(localProject({ id: 'optimistic-project' }));
+    mocks.createProject.mockResolvedValueOnce(
+      okProject(localProject({ id: 'optimistic-project' }))
+    );
     const store = new ProjectManagerStore();
 
     const result = await store.startProjectCreation(
@@ -270,8 +306,79 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.updateProjectSettings).not.toHaveBeenCalled();
   });
 
+  it('removes window and SSH event listeners on dispose', () => {
+    const disposeSshEvent = vi.fn();
+    mocks.eventOn.mockReturnValueOnce(disposeSshEvent);
+    const addEventListener = vi.fn();
+    const removeEventListener = vi.fn();
+    vi.stubGlobal('window', { addEventListener, removeEventListener });
+    const store = new ProjectManagerStore();
+
+    store.dispose();
+    store.dispose();
+
+    expect(disposeSshEvent).toHaveBeenCalledTimes(1);
+    expect(removeEventListener).toHaveBeenCalledWith('online', expect.any(Function));
+    expect(removeEventListener).toHaveBeenCalledWith('focus', expect.any(Function));
+    expect(addEventListener).toHaveBeenCalledWith('online', expect.any(Function));
+    expect(addEventListener).toHaveBeenCalledWith('focus', expect.any(Function));
+  });
+
+  it('retries SSH-disconnected projects without mounting before the connection is ready', async () => {
+    const store = new ProjectManagerStore();
+    const project = sshProject();
+    store.projects.set(project.id, createUnmountedProject(project, 'idle'));
+    const projectStore = store.projects.get(project.id);
+    if (!projectStore) throw new Error('Expected project store');
+    projectStore.phase = 'error';
+    projectStore.error = project.connectionId;
+    projectStore.errorCode = 'ssh-disconnected';
+
+    store.retryDisconnectedSshProjects({ force: true });
+    await Promise.resolve();
+
+    expect(mocks.sshConnect).toHaveBeenCalledWith('ssh-1', { force: true });
+    expect(mocks.openProject).not.toHaveBeenCalled();
+  });
+
+  it('mounts SSH-disconnected projects after a successful reconnect event', () => {
+    const store = new ProjectManagerStore();
+    const project = sshProject();
+    store.projects.set(project.id, createUnmountedProject(project, 'idle'));
+    const projectStore = store.projects.get(project.id);
+    if (!projectStore) throw new Error('Expected project store');
+    projectStore.phase = 'error';
+    projectStore.error = project.connectionId;
+    projectStore.errorCode = 'ssh-disconnected';
+
+    const handler = mocks.eventOn.mock.calls[0]?.[1];
+    if (!handler) throw new Error('Expected SSH event subscription');
+    handler({ type: 'connected', connectionId: 'ssh-1' });
+
+    expect(mocks.openProject).toHaveBeenCalledWith(project.id);
+  });
+
+  it('mounts SSH-disconnected projects when the connection is already connected', () => {
+    mocks.sshStateFor.mockReturnValue('connected');
+    const store = new ProjectManagerStore();
+    const project = sshProject();
+    store.projects.set(project.id, createUnmountedProject(project, 'idle'));
+    const projectStore = store.projects.get(project.id);
+    if (!projectStore) throw new Error('Expected project store');
+    projectStore.phase = 'error';
+    projectStore.error = project.connectionId;
+    projectStore.errorCode = 'ssh-disconnected';
+
+    store.retryDisconnectedSshProjects({ force: true });
+
+    expect(mocks.sshConnect).not.toHaveBeenCalled();
+    expect(mocks.openProject).toHaveBeenCalledWith(project.id);
+  });
+
   it('does not write GitHub account settings when creation did not specify one', async () => {
-    mocks.createProject.mockResolvedValueOnce(localProject({ id: 'optimistic-project' }));
+    mocks.createProject.mockResolvedValueOnce(
+      okProject(localProject({ id: 'optimistic-project' }))
+    );
     const store = new ProjectManagerStore();
 
     const result = await store.startProjectCreation(
@@ -286,8 +393,44 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.updateProjectSettings).not.toHaveBeenCalled();
   });
 
+  it('marks project creation as failed when the project RPC returns a typed error', async () => {
+    mocks.createProject.mockResolvedValueOnce({
+      success: false,
+      error: {
+        type: 'not-repository',
+        path: '/project',
+      },
+    });
+    const store = new ProjectManagerStore();
+
+    const result = await store.startProjectCreation(
+      { type: 'local' },
+      { mode: 'pick', name: 'Project', path: '/project' },
+      { id: 'optimistic-project' }
+    );
+
+    expect(result.kind).toBe('creating');
+    if (result.kind === 'creating') {
+      await expect(result.completion).resolves.toEqual({
+        success: false,
+        error: { type: 'not-repository', path: '/project' },
+      });
+    }
+
+    const project = store.projects.get('optimistic-project');
+    expect(project && isUnregisteredProject(project)).toBe(true);
+    if (project && isUnregisteredProject(project)) {
+      expect(project.phase).toBe('error');
+      expect(project.error).toBe(
+        'Directory is not a git repository. Enable "Initialize git repository" to continue.'
+      );
+    }
+  });
+
   it('persists the default GitHub account after initializing a picked folder', async () => {
-    mocks.createProject.mockResolvedValueOnce(localProject({ id: 'optimistic-project' }));
+    mocks.createProject.mockResolvedValueOnce(
+      okProject(localProject({ id: 'optimistic-project' }))
+    );
     const store = new ProjectManagerStore();
 
     const result = await store.startProjectCreation(
@@ -311,7 +454,9 @@ describe('ProjectManagerStore project creation', () => {
   });
 
   it('does not persist a GitHub account for picked repositories that were already git repos', async () => {
-    mocks.createProject.mockResolvedValueOnce(localProject({ id: 'optimistic-project' }));
+    mocks.createProject.mockResolvedValueOnce(
+      okProject(localProject({ id: 'optimistic-project' }))
+    );
     const store = new ProjectManagerStore();
 
     const result = await store.startProjectCreation(
@@ -348,7 +493,7 @@ describe('ProjectManagerStore project creation', () => {
       { id: 'optimistic-project' }
     );
 
-    if (result.kind === 'creating') void result.completion.catch(() => {});
+    if (result.kind === 'creating') void result.completion;
 
     expect(mocks.createGithubRepository).toHaveBeenCalledWith(
       expect.objectContaining({ accountId: 'github.com:42' })
@@ -363,7 +508,9 @@ describe('ProjectManagerStore project creation', () => {
       nameWithOwner: 'acme/project',
     });
     mocks.cloneRepository.mockResolvedValueOnce({ success: true });
-    mocks.createProject.mockResolvedValueOnce(localProject({ id: 'optimistic-project' }));
+    mocks.createProject.mockResolvedValueOnce(
+      okProject(localProject({ id: 'optimistic-project' }))
+    );
     const store = new ProjectManagerStore();
 
     const result = await store.startProjectCreation(
@@ -409,7 +556,10 @@ describe('ProjectManagerStore project creation', () => {
 
     expect(result.kind).toBe('creating');
     if (result.kind === 'creating') {
-      await expect(result.completion).rejects.toThrow('Clone failed');
+      await expect(result.completion).resolves.toEqual({
+        success: false,
+        error: { type: 'clone-failed', message: 'Clone failed' },
+      });
     }
 
     expect(mocks.deleteGithubRepository).toHaveBeenCalledWith({
@@ -443,7 +593,10 @@ describe('ProjectManagerStore project creation', () => {
 
     expect(result.kind).toBe('creating');
     if (result.kind === 'creating') {
-      await expect(result.completion).rejects.toThrow('Repository creation failed');
+      await expect(result.completion).resolves.toEqual({
+        success: false,
+        error: { type: 'repository-create-failed', message: 'Repository creation failed' },
+      });
     }
 
     expect(mocks.deleteGithubRepository).not.toHaveBeenCalled();

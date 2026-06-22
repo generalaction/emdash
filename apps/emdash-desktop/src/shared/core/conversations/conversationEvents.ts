@@ -6,9 +6,7 @@ export const conversationChangedChannel = defineEvent<{
   conversationId: string;
   taskId: string;
   projectId: string;
-  changes: Partial<
-    Pick<Conversation, 'lastInteractedAt' | 'title' | 'providerSessionId' | 'model'>
-  >;
+  changes: Partial<Pick<Conversation, 'lastInteractedAt' | 'title' | 'providerSessionId'>>;
 }>('conversation:changed');
 
 export const conversationCreatedChannel = defineEvent<{
@@ -21,5 +19,6 @@ export const conversationAgentStatusChangedChannel = defineEvent<{
   projectId: string;
   status: AgentStatus;
   seen: boolean;
+  appFocused: boolean;
   soundEvent?: 'needs_attention' | 'task_complete';
 }>('conversation:agent-status-changed');

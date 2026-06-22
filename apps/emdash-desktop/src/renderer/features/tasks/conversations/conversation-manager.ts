@@ -1,8 +1,8 @@
+import type { IDisposable } from '@emdash/shared';
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
-import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { Resource } from '@renderer/lib/stores/resource';
 import { log } from '@renderer/utils/logger';
 import { soundPlayer } from '@renderer/utils/soundPlayer';
@@ -21,7 +21,6 @@ import {
   type CreateConversationParams,
 } from '@shared/core/conversations/conversations';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
-import { ChatStore } from './chat/chat-store';
 
 export class ConversationManagerStore implements IDisposable {
   private offAgentStatusChanged: (() => void) | null = null;
@@ -36,8 +35,6 @@ export class ConversationManagerStore implements IDisposable {
   conversations = observable.map<string, ConversationStore>();
   /** Session layer keyed by conversation id — created alongside data, connected lazily. */
   sessions = observable.map<string, PtySession>();
-  /** Chat UI stores keyed by conversation id — created lazily for ACP conversations. */
-  chatStores = observable.map<string, ChatStore>();
 
   constructor(
     private readonly projectId: string,
@@ -47,7 +44,6 @@ export class ConversationManagerStore implements IDisposable {
     makeObservable(this, {
       conversations: observable,
       sessions: observable,
-      chatStores: observable,
       taskStatus: computed,
     });
 
@@ -126,7 +122,7 @@ export class ConversationManagerStore implements IDisposable {
       });
 
       if (payload.soundEvent) {
-        soundPlayer.play(payload.soundEvent, true);
+        soundPlayer.play(payload.soundEvent, payload.appFocused, payload.conversationId);
       }
     });
   }
@@ -174,17 +170,6 @@ export class ConversationManagerStore implements IDisposable {
     if (hasUnseenError) return 'error';
     if (hasUnseenCompleted) return 'completed';
     return null;
-  }
-
-  /** Returns an existing ChatStore for the conversation or lazily creates one. */
-  getOrCreateChatStore(conversationId: string): ChatStore {
-    const existing = this.chatStores.get(conversationId);
-    if (existing) return existing;
-    const convStore = this.conversations.get(conversationId);
-    const initialModel = convStore?.data.model;
-    const store = new ChatStore(conversationId, this.projectId, this.taskId, initialModel);
-    this.chatStores.set(conversationId, store);
-    return store;
   }
 
   async createConversation(params: CreateConversationParams): Promise<Conversation> {
@@ -280,9 +265,6 @@ export class ConversationManagerStore implements IDisposable {
     this.offConversationChanges = null;
     for (const session of this.sessions.values()) {
       session.destroy();
-    }
-    for (const store of this.chatStores.values()) {
-      store.dispose();
     }
   }
 

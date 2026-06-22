@@ -1,16 +1,18 @@
 import { join } from 'node:path';
 import { BrowserWindow } from 'electron';
-import appIcon from '@/assets/images/emdash/emdash_logo.png?asset';
+import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
 import {
   hardenBrowserWebviewPreferences,
   stripBrowserWebviewParams,
   validateBrowserWebviewAttach,
 } from '@main/core/browser/webview-security';
+import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { registerExternalLinkHandlers } from '@main/utils/externalLinks';
 import { PRODUCT_NAME } from '@shared/app-identity';
+import { windowMaximizeChangedChannel } from '@shared/events/appEvents';
 import { APP_ORIGIN } from './protocol';
 
 let mainWindow: BrowserWindow | null = null;
@@ -23,7 +25,7 @@ export function createMainWindow(): BrowserWindow {
     minHeight: 500,
     title: PRODUCT_NAME,
     // In production, electron-builder injects the icon from the app bundle.
-    ...(import.meta.env.DEV && { icon: appIcon }),
+    ...(import.meta.env.DEV && { icon: devIcon }),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -42,6 +44,11 @@ export function createMainWindow(): BrowserWindow {
           acceptFirstMouse: true,
         }
       : {}),
+    // Linux: go fully frameless and draw our own window controls in the
+    // renderer (see WindowControls). Electron's native titleBarOverlay is
+    // experimental/inconsistent across desktop environments, so we avoid it —
+    // this mirrors how VSCode handles its custom title bar on Linux.
+    ...(process.platform === 'linux' ? { frame: false } : {}),
     show: false,
   });
 
@@ -71,6 +78,15 @@ export function createMainWindow(): BrowserWindow {
 
   mainWindow.on('blur', () => {
     telemetryService.capture('app_window_unfocused');
+  });
+
+  // Keep the renderer's custom window controls (Linux) in sync with the
+  // actual maximize state so the maximize/restore icon stays correct.
+  mainWindow.on('maximize', () => {
+    events.emit(windowMaximizeChangedChannel, { maximized: true });
+  });
+  mainWindow.on('unmaximize', () => {
+    events.emit(windowMaximizeChangedChannel, { maximized: false });
   });
 
   // Cleanup reference on close

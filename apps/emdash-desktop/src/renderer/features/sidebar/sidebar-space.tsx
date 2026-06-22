@@ -13,7 +13,7 @@ export function SidebarSpace() {
       <Tooltip>
         <TooltipTrigger>
           <Toggle
-            className="size-7 border-none bg-background-3 [-webkit-app-region:no-drag] hover:bg-background-3 data-pressed:bg-background-2"
+            className="size-7 border-none bg-background-tertiary-3 [-webkit-app-region:no-drag] hover:bg-background-tertiary-3 data-pressed:bg-background-tertiary-2"
             variant="outline"
             size="sm"
             pressed={isLeftOpen}
@@ -24,7 +24,7 @@ export function SidebarSpace() {
         </TooltipTrigger>
         <TooltipContent>
           Toggle left sidebar
-          <BoundShortcut settingsKey="toggleLeftSidebar" variant="badge" />
+          <BoundShortcut settingsKey="toggleLeftSidebar" variant="keycaps" />
         </TooltipContent>
       </Tooltip>
     </div>

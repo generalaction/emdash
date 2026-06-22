@@ -1,5 +1,6 @@
 import { appState } from '@renderer/lib/stores/app-state';
 import type { LocalProject, SshProject } from '@shared/projects';
+import type { GitRepositoryStore } from './git-repository-store';
 import type { PrSyncStore } from './pr-sync-store';
 import {
   isUnmountedProject,
@@ -10,7 +11,6 @@ import {
 import type { ProjectManagerStore } from './project-manager';
 import type { ProjectSettingsStore } from './project-settings-store';
 import type { ProjectViewStore } from './project-view';
-import type { RepositoryStore } from './repository-store';
 
 /** Returns the ProjectManagerStore from appState. Call only inside `observer` components (or other MobX reactions). */
 export function getProjectManagerStore(): ProjectManagerStore {
@@ -88,9 +88,9 @@ export function unmountedMountErrorMessage(store: ProjectStore | undefined): str
   return 'Failed to open project';
 }
 
-/** Returns the RepositoryStore for a mounted project, or undefined if not ready. */
-export function getRepositoryStore(projectId: string): RepositoryStore | undefined {
-  return asMounted(getProjectStore(projectId))?.repository;
+/** Returns the GitRepositoryStore for a mounted project, or undefined if not ready. */
+export function getGitRepositoryStore(projectId: string): GitRepositoryStore | undefined {
+  return asMounted(getProjectStore(projectId))?.gitRepository;
 }
 
 /** Returns the ProjectSettingsStore for a mounted project, or undefined if not ready. */
