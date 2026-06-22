@@ -65,12 +65,12 @@ export const solarizedDarkTheme = defineTheme({
   // ladder's near-black base. Pin the ladder to those tones so the teal base is
   // authentic rather than crushed toward black.
   surfaceLightness: {
-    'sunken': 0.235,
-    'base': 0.267, //                 base03 — primary background
+    sunken: 0.235,
+    base: 0.267, //                 base03 — primary background
     'base-emphasis': 0.295,
-    'elevated': 0.309, //             base02 — raised panels
+    elevated: 0.309, //             base02 — raised panels
     'elevated-emphasis': 0.345,
-    'paper': 0.267, //                base03 — primary content background
+    paper: 0.267, //                base03 — primary content background
   },
 
   gamut: 'p3',

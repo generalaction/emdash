@@ -4,12 +4,11 @@ import { cn } from '../lib/cn';
 import { inputVariants, type InputVariantProps } from '../recipes/input';
 
 export interface InputProps
-  extends Omit<React.ComponentProps<'input'>, 'size'>,
-    InputVariantProps {}
+  extends Omit<React.ComponentProps<'input'>, 'size'>, InputVariantProps {}
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input(
   { className, type, size = 'base', ...props },
-  ref,
+  ref
 ) {
   return (
     <InputPrimitive

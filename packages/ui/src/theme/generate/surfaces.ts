@@ -13,9 +13,15 @@
  */
 
 import Color from 'colorjs.io';
-import { SURFACE_L, STATE_LAYER_DELTA } from '../contract/targets.js';
-import type { Polarity, Ramp, SurfaceScopeName, Surfaces, SurfaceLevel } from '../contract/roles.js';
+import type {
+  Polarity,
+  Ramp,
+  SurfaceScopeName,
+  Surfaces,
+  SurfaceLevel,
+} from '../contract/roles.js';
 import { SURFACE_SCOPES } from '../contract/roles.js';
+import { SURFACE_L, STATE_LAYER_DELTA } from '../contract/targets.js';
 
 // ── Internal constants ────────────────────────────────────────────────────────
 
@@ -26,7 +32,7 @@ const P3_FORMAT_PRECISION = 4;
 function toP3String(c: Color): string {
   const p3 = c.to('p3');
   const [r, g, b] = p3.coords.map((v) =>
-    Math.max(0, Math.min(1, +Number(v).toFixed(P3_FORMAT_PRECISION))),
+    Math.max(0, Math.min(1, +Number(v).toFixed(P3_FORMAT_PRECISION)))
   );
   return `color(display-p3 ${r} ${g} ${b})`;
 }
@@ -44,11 +50,7 @@ function shiftOklabL(c: Color, delta: number): Color {
  * maintaining any warm/cool tint in the neutral palette.
  * Hover/selected are OKLab ΔL shifts; direction depends on polarity.
  */
-function buildSurfaceLevel(
-  neutralRamp: Ramp,
-  targetL: number,
-  polarity: Polarity,
-): SurfaceLevel {
+function buildSurfaceLevel(neutralRamp: Ramp, targetL: number, polarity: Polarity): SurfaceLevel {
   // Derive base color: use the neutral hue + reduced chroma for a subtle tint
   const step1 = new Color(neutralRamp.steps[0]).to('oklch');
   const hue = step1.coords[2] || 0;
@@ -90,7 +92,7 @@ function buildSurfaceLevel(
 export function generateSurfaces(
   neutralRamp: Ramp,
   polarity: Polarity,
-  lightnessOverrides?: Partial<Record<SurfaceScopeName, number>>,
+  lightnessOverrides?: Partial<Record<SurfaceScopeName, number>>
 ): Surfaces {
   const surfaces = {} as Surfaces;
   for (const scope of SURFACE_SCOPES) {

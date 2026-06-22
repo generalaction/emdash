@@ -14,8 +14,8 @@ import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { AtSign, Braces, CircleDot, File, X } from 'lucide-react';
 import React from 'react';
 import { cn } from '../../lib/cn';
-import type { MentionKind } from './types';
 import { basename, fileIconClass } from './mention-pill-helpers';
+import type { MentionKind } from './types';
 
 // ── Kind → fallback lucide icon ───────────────────────────────────────────────
 
@@ -52,7 +52,7 @@ export function MentionPill({ node, deleteNode }: NodeViewProps) {
           'rounded-sm bg-surface-hover px-1 py-0.5',
           'text-xs font-medium text-foreground',
           'ring-1 ring-foreground/10',
-          'align-baseline',
+          'align-baseline'
         )}
         data-mention-id={node.attrs.id as string}
         data-mention-kind={kind}
@@ -72,7 +72,7 @@ export function MentionPill({ node, deleteNode }: NodeViewProps) {
             className={cn(
               'absolute inset-0 flex items-center justify-center rounded-sm',
               'bg-surface-hover opacity-0 transition-opacity group-hover:opacity-100',
-              'hover:bg-surface-selected',
+              'hover:bg-surface-selected'
             )}
           >
             <X className="size-2.5" />

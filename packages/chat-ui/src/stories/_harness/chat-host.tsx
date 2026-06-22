@@ -15,7 +15,15 @@ import { DEFAULT_THEME } from '@core/theme';
 import { createTranscript } from '@state/transcript';
 import type { TranscriptApi } from '@state/transcript';
 import { createViewState } from '@state/view-state';
-import { createEffect, createMemo, getOwner, onCleanup, onMount, runWithOwner, type JSX } from 'solid-js';
+import {
+  createEffect,
+  createMemo,
+  getOwner,
+  onCleanup,
+  onMount,
+  runWithOwner,
+  type JSX,
+} from 'solid-js';
 import { ChatRoot } from '@/ChatRoot';
 import type { ChatCommands, ChatItem } from '@/index';
 import { storyViewport } from './chat-host.css';

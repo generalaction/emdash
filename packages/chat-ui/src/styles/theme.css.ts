@@ -8,8 +8,10 @@
  *
  * DEFAULT THEME (createGlobalTheme × 2)
  *   The two createGlobalTheme calls are the chat-ui built-in default theme.
- *   They are self-contained: font values are concrete (Inter Variable / JetBrains
- *   Mono Variable) with no dependency on host vars like --font-sans.
+ *   Typography metric and chip-pad values are derived from DEFAULT_CONFIG so
+ *   this file and the runtime buildChatTheme share the same single source of truth.
+ *   Color/radii/family literals are kept inline here (host can override them via
+ *   class-selector rules without inline-style specificity issues).
  *   Specificity is zero (:where() selectors) so any host override wins
  *   regardless of stylesheet load order.
  *
@@ -19,7 +21,7 @@
  *   inherits everything not explicitly overridden from this default theme.
  */
 
-import { CHIP_DEFAULTS, SANS_FAMILY_CSS, TYPE_ROLES } from '@core/tokens';
+import { DEFAULT_CONFIG } from '@core/config';
 import { createGlobalTheme, createGlobalThemeContract } from '@vanilla-extract/css';
 
 // ── Contract (stable public names) ────────────────────────────────────────────
@@ -154,6 +156,12 @@ function pxStr(n: number) {
   return `${n}px`;
 }
 
+// Derive typography + chip values from DEFAULT_CONFIG (shared source of truth
+// with buildChatTheme / toCssVars so build-time defaults and runtime emission
+// can never drift from each other).
+const r = DEFAULT_CONFIG.roles;
+const c = DEFAULT_CONFIG.chips;
+
 // ── Light theme ────────────────────────────────────────────────────────────────
 // Selector mirrors the old :where(:root), :where(.emlight) block exactly.
 
@@ -190,7 +198,7 @@ createGlobalTheme(':where(:root), :where(.emlight)', vars, {
   planActive: '#f59e0b',
 
   // Non-color tokens
-  fontSans: SANS_FAMILY_CSS,
+  fontSans: ['Inter Variable', 'sans-serif'].join(', '),
   fontMono: "'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, monospace",
   radiusSm: '0.375rem',
   radiusMd: '0.5rem',
@@ -198,66 +206,69 @@ createGlobalTheme(':where(:root), :where(.emlight)', vars, {
   radiusXl: '0.875rem',
   radiusFull: '9999px',
 
-  // Typography — values sourced from tokens.ts TYPE_ROLES
+  // Typography — derived from DEFAULT_CONFIG.roles so values always match the
+  // runtime buildChatTheme output and the measure===offsetHeight invariant holds.
   typeBodyFontFamily: SANS_VAR,
-  typeBodyFontSize: pxStr(TYPE_ROLES.body.fontSize),
-  typeBodyFontWeight: String(TYPE_ROLES.body.fontWeight),
-  typeBodyLineHeight: pxStr(TYPE_ROLES.body.lineHeight),
+  typeBodyFontSize: pxStr(r.body.size),
+  typeBodyFontWeight: String(r.body.weight),
+  typeBodyLineHeight: pxStr(r.body.lineHeight),
 
   typeBodyBoldFontFamily: SANS_VAR,
-  typeBodyBoldFontSize: pxStr(TYPE_ROLES['body-bold'].fontSize),
-  typeBodyBoldFontWeight: String(TYPE_ROLES['body-bold'].fontWeight),
-  typeBodyBoldLineHeight: pxStr(TYPE_ROLES['body-bold'].lineHeight),
+  typeBodyBoldFontSize: pxStr(r['body-bold'].size),
+  typeBodyBoldFontWeight: String(r['body-bold'].weight),
+  typeBodyBoldLineHeight: pxStr(r['body-bold'].lineHeight),
 
   typeBodyItalicFontFamily: SANS_VAR,
-  typeBodyItalicFontSize: pxStr(TYPE_ROLES['body-italic'].fontSize),
-  typeBodyItalicFontWeight: String(TYPE_ROLES['body-italic'].fontWeight),
-  typeBodyItalicFontStyle: TYPE_ROLES['body-italic'].fontStyle ?? 'normal',
-  typeBodyItalicLineHeight: pxStr(TYPE_ROLES['body-italic'].lineHeight),
+  typeBodyItalicFontSize: pxStr(r['body-italic'].size),
+  typeBodyItalicFontWeight: String(r['body-italic'].weight),
+  typeBodyItalicFontStyle: r['body-italic'].style ?? 'normal',
+  typeBodyItalicLineHeight: pxStr(r['body-italic'].lineHeight),
 
   typeBodyLinkFontFamily: SANS_VAR,
-  typeBodyLinkFontSize: pxStr(TYPE_ROLES['body-link'].fontSize),
-  typeBodyLinkFontWeight: String(TYPE_ROLES['body-link'].fontWeight),
-  typeBodyLinkLineHeight: pxStr(TYPE_ROLES['body-link'].lineHeight),
+  typeBodyLinkFontSize: pxStr(r['body-link'].size),
+  typeBodyLinkFontWeight: String(r['body-link'].weight),
+  typeBodyLinkLineHeight: pxStr(r['body-link'].lineHeight),
 
   typeH1FontFamily: SANS_VAR,
-  typeH1FontSize: pxStr(TYPE_ROLES.h1.fontSize),
-  typeH1FontWeight: String(TYPE_ROLES.h1.fontWeight),
-  typeH1LineHeight: pxStr(TYPE_ROLES.h1.lineHeight),
+  typeH1FontSize: pxStr(r.h1.size),
+  typeH1FontWeight: String(r.h1.weight),
+  typeH1LineHeight: pxStr(r.h1.lineHeight),
 
   typeH2FontFamily: SANS_VAR,
-  typeH2FontSize: pxStr(TYPE_ROLES.h2.fontSize),
-  typeH2FontWeight: String(TYPE_ROLES.h2.fontWeight),
-  typeH2LineHeight: pxStr(TYPE_ROLES.h2.lineHeight),
+  typeH2FontSize: pxStr(r.h2.size),
+  typeH2FontWeight: String(r.h2.weight),
+  typeH2LineHeight: pxStr(r.h2.lineHeight),
 
   typeH3FontFamily: SANS_VAR,
-  typeH3FontSize: pxStr(TYPE_ROLES.h3.fontSize),
-  typeH3FontWeight: String(TYPE_ROLES.h3.fontWeight),
-  typeH3LineHeight: pxStr(TYPE_ROLES.h3.lineHeight),
+  typeH3FontSize: pxStr(r.h3.size),
+  typeH3FontWeight: String(r.h3.weight),
+  typeH3LineHeight: pxStr(r.h3.lineHeight),
 
   typeInlineCodeFontFamily: MONO_VAR,
-  typeInlineCodeFontSize: pxStr(TYPE_ROLES['inline-code'].fontSize),
-  typeInlineCodeFontWeight: String(TYPE_ROLES['inline-code'].fontWeight),
-  typeInlineCodeLineHeight: pxStr(TYPE_ROLES['inline-code'].lineHeight),
+  typeInlineCodeFontSize: pxStr(r['inline-code'].size),
+  typeInlineCodeFontWeight: String(r['inline-code'].weight),
+  typeInlineCodeLineHeight: pxStr(r['inline-code'].lineHeight),
 
   typeCodeFontFamily: MONO_VAR,
-  typeCodeFontSize: pxStr(TYPE_ROLES.code.fontSize),
-  typeCodeFontWeight: String(TYPE_ROLES.code.fontWeight),
-  typeCodeLineHeight: pxStr(TYPE_ROLES.code.lineHeight),
+  typeCodeFontSize: pxStr(r.code.size),
+  typeCodeFontWeight: String(r.code.weight),
+  typeCodeLineHeight: pxStr(r.code.lineHeight),
 
   typeCodeLangFontFamily: SANS_VAR,
-  typeCodeLangFontSize: pxStr(TYPE_ROLES['code-lang'].fontSize),
-  typeCodeLangFontWeight: String(TYPE_ROLES['code-lang'].fontWeight),
-  typeCodeLangLineHeight: pxStr(TYPE_ROLES['code-lang'].lineHeight),
+  typeCodeLangFontSize: pxStr(r['code-lang'].size),
+  typeCodeLangFontWeight: String(r['code-lang'].weight),
+  typeCodeLangLineHeight: pxStr(r['code-lang'].lineHeight),
 
   typeMentionFontFamily: SANS_VAR,
 
-  // Density defaults (match buildTheme() defaults in core/theme.ts)
-  icPadX: pxStr(CHIP_DEFAULTS.inlineCodePadX),
-  icPadY: pxStr(CHIP_DEFAULTS.inlineCodePadY),
+  // Chip padding — derived from DEFAULT_CONFIG.chips
+  icPadX: pxStr(c.inlineCodePadX),
+  icPadY: pxStr(c.inlineCodePadY),
 });
 
 // ── Dark theme ─────────────────────────────────────────────────────────────────
+// Only color overrides — typography and chip geometry are identical in both
+// themes so there is no need to repeat them here.
 
 createGlobalTheme(':where(.emdark)', vars, {
   // Colors
@@ -292,7 +303,7 @@ createGlobalTheme(':where(.emdark)', vars, {
   planActive: '#dead52',
 
   // Non-color tokens (same as light — host overrides these if needed)
-  fontSans: SANS_FAMILY_CSS,
+  fontSans: ['Inter Variable', 'sans-serif'].join(', '),
   fontMono: "'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, monospace",
   radiusSm: '0.375rem',
   radiusMd: '0.5rem',
@@ -300,61 +311,61 @@ createGlobalTheme(':where(.emdark)', vars, {
   radiusXl: '0.875rem',
   radiusFull: '9999px',
 
-  // Typography — identical to light (same font metrics in both themes)
+  // Typography — same values as light (font metrics are theme-independent).
   typeBodyFontFamily: SANS_VAR,
-  typeBodyFontSize: pxStr(TYPE_ROLES.body.fontSize),
-  typeBodyFontWeight: String(TYPE_ROLES.body.fontWeight),
-  typeBodyLineHeight: pxStr(TYPE_ROLES.body.lineHeight),
+  typeBodyFontSize: pxStr(r.body.size),
+  typeBodyFontWeight: String(r.body.weight),
+  typeBodyLineHeight: pxStr(r.body.lineHeight),
 
   typeBodyBoldFontFamily: SANS_VAR,
-  typeBodyBoldFontSize: pxStr(TYPE_ROLES['body-bold'].fontSize),
-  typeBodyBoldFontWeight: String(TYPE_ROLES['body-bold'].fontWeight),
-  typeBodyBoldLineHeight: pxStr(TYPE_ROLES['body-bold'].lineHeight),
+  typeBodyBoldFontSize: pxStr(r['body-bold'].size),
+  typeBodyBoldFontWeight: String(r['body-bold'].weight),
+  typeBodyBoldLineHeight: pxStr(r['body-bold'].lineHeight),
 
   typeBodyItalicFontFamily: SANS_VAR,
-  typeBodyItalicFontSize: pxStr(TYPE_ROLES['body-italic'].fontSize),
-  typeBodyItalicFontWeight: String(TYPE_ROLES['body-italic'].fontWeight),
-  typeBodyItalicFontStyle: TYPE_ROLES['body-italic'].fontStyle ?? 'normal',
-  typeBodyItalicLineHeight: pxStr(TYPE_ROLES['body-italic'].lineHeight),
+  typeBodyItalicFontSize: pxStr(r['body-italic'].size),
+  typeBodyItalicFontWeight: String(r['body-italic'].weight),
+  typeBodyItalicFontStyle: r['body-italic'].style ?? 'normal',
+  typeBodyItalicLineHeight: pxStr(r['body-italic'].lineHeight),
 
   typeBodyLinkFontFamily: SANS_VAR,
-  typeBodyLinkFontSize: pxStr(TYPE_ROLES['body-link'].fontSize),
-  typeBodyLinkFontWeight: String(TYPE_ROLES['body-link'].fontWeight),
-  typeBodyLinkLineHeight: pxStr(TYPE_ROLES['body-link'].lineHeight),
+  typeBodyLinkFontSize: pxStr(r['body-link'].size),
+  typeBodyLinkFontWeight: String(r['body-link'].weight),
+  typeBodyLinkLineHeight: pxStr(r['body-link'].lineHeight),
 
   typeH1FontFamily: SANS_VAR,
-  typeH1FontSize: pxStr(TYPE_ROLES.h1.fontSize),
-  typeH1FontWeight: String(TYPE_ROLES.h1.fontWeight),
-  typeH1LineHeight: pxStr(TYPE_ROLES.h1.lineHeight),
+  typeH1FontSize: pxStr(r.h1.size),
+  typeH1FontWeight: String(r.h1.weight),
+  typeH1LineHeight: pxStr(r.h1.lineHeight),
 
   typeH2FontFamily: SANS_VAR,
-  typeH2FontSize: pxStr(TYPE_ROLES.h2.fontSize),
-  typeH2FontWeight: String(TYPE_ROLES.h2.fontWeight),
-  typeH2LineHeight: pxStr(TYPE_ROLES.h2.lineHeight),
+  typeH2FontSize: pxStr(r.h2.size),
+  typeH2FontWeight: String(r.h2.weight),
+  typeH2LineHeight: pxStr(r.h2.lineHeight),
 
   typeH3FontFamily: SANS_VAR,
-  typeH3FontSize: pxStr(TYPE_ROLES.h3.fontSize),
-  typeH3FontWeight: String(TYPE_ROLES.h3.fontWeight),
-  typeH3LineHeight: pxStr(TYPE_ROLES.h3.lineHeight),
+  typeH3FontSize: pxStr(r.h3.size),
+  typeH3FontWeight: String(r.h3.weight),
+  typeH3LineHeight: pxStr(r.h3.lineHeight),
 
   typeInlineCodeFontFamily: MONO_VAR,
-  typeInlineCodeFontSize: pxStr(TYPE_ROLES['inline-code'].fontSize),
-  typeInlineCodeFontWeight: String(TYPE_ROLES['inline-code'].fontWeight),
-  typeInlineCodeLineHeight: pxStr(TYPE_ROLES['inline-code'].lineHeight),
+  typeInlineCodeFontSize: pxStr(r['inline-code'].size),
+  typeInlineCodeFontWeight: String(r['inline-code'].weight),
+  typeInlineCodeLineHeight: pxStr(r['inline-code'].lineHeight),
 
   typeCodeFontFamily: MONO_VAR,
-  typeCodeFontSize: pxStr(TYPE_ROLES.code.fontSize),
-  typeCodeFontWeight: String(TYPE_ROLES.code.fontWeight),
-  typeCodeLineHeight: pxStr(TYPE_ROLES.code.lineHeight),
+  typeCodeFontSize: pxStr(r.code.size),
+  typeCodeFontWeight: String(r.code.weight),
+  typeCodeLineHeight: pxStr(r.code.lineHeight),
 
   typeCodeLangFontFamily: SANS_VAR,
-  typeCodeLangFontSize: pxStr(TYPE_ROLES['code-lang'].fontSize),
-  typeCodeLangFontWeight: String(TYPE_ROLES['code-lang'].fontWeight),
-  typeCodeLangLineHeight: pxStr(TYPE_ROLES['code-lang'].lineHeight),
+  typeCodeLangFontSize: pxStr(r['code-lang'].size),
+  typeCodeLangFontWeight: String(r['code-lang'].weight),
+  typeCodeLangLineHeight: pxStr(r['code-lang'].lineHeight),
 
   typeMentionFontFamily: SANS_VAR,
 
-  // Density defaults
-  icPadX: pxStr(CHIP_DEFAULTS.inlineCodePadX),
-  icPadY: pxStr(CHIP_DEFAULTS.inlineCodePadY),
+  // Chip padding
+  icPadX: pxStr(c.inlineCodePadX),
+  icPadY: pxStr(c.inlineCodePadY),
 });

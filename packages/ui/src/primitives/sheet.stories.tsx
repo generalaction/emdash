@@ -128,8 +128,8 @@ export const WithoutFooter: Story = {
         </SheetHeader>
         <SheetBody>
           <p className="text-foreground-muted">
-            This sheet has no footer — the close button in the header is the only dismiss affordance.
-            Useful for detail panels, previews, or read-only views.
+            This sheet has no footer — the close button in the header is the only dismiss
+            affordance. Useful for detail panels, previews, or read-only views.
           </p>
           <div
             className="mt-4 rounded-lg border border-border p-3 text-xs"

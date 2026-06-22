@@ -1,4 +1,5 @@
 import { useCommands } from '@components/contexts/CommandsContext';
+import { useTheme } from '@components/contexts/ThemeContext';
 import { BlockFrame } from '@components/engine/block-frame';
 import {
   MentionAtIcon,
@@ -16,7 +17,6 @@ import type { InlineMention, InlineRun } from '@core/markdown/document';
 import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, Match, Show, Switch } from 'solid-js';
-import { MENTION_ICON_GAP, MENTION_ICON_W, MENTION_PAD_X, MENTION_PAD_Y } from './metrics';
 import {
   bulletColor,
   inlineCodeChip,
@@ -31,13 +31,6 @@ import {
   proseVars,
   quoteRailBar,
 } from './prose.css';
-
-const PROSE_STYLE_VARS = pxTokens({
-  mentionPadX: MENTION_PAD_X,
-  mentionPadY: MENTION_PAD_Y,
-  mentionIconW: MENTION_ICON_W,
-  mentionIconGap: MENTION_ICON_GAP,
-});
 
 // ── Fragment ──────────────────────────────────────────────────────────────────
 
@@ -221,8 +214,19 @@ export type ProseProps = {
 };
 
 export function Prose(props: ProseProps) {
+  const theme = useTheme();
+  const proseStyleVars = () => {
+    const chips = theme().chips;
+    return pxTokens({
+      mentionPadX: chips.mentionPadX,
+      mentionPadY: chips.mentionPadY,
+      mentionIconW: chips.mentionIconW,
+      mentionIconGap: chips.mentionIconGap,
+    });
+  };
+
   return (
-    <BlockFrame layout={props.block} style={assignInlineVars(proseVars, PROSE_STYLE_VARS)}>
+    <BlockFrame layout={props.block} style={assignInlineVars(proseVars, proseStyleVars())}>
       <Show when={props.block.quoteRail}>
         <ProseQuoteRail left={(props.block.lines[0]?.left ?? 18) - 10} />
       </Show>

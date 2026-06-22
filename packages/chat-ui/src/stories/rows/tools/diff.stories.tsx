@@ -198,7 +198,11 @@ export const RequestingPermission: Story = {
           newText: NEW_TS,
           status: 'running',
         },
-        permissionItem({ id: 'perm-diff', toolCallId: 'diff-perm:src/model.ts', title: 'Write a File' }),
+        permissionItem({
+          id: 'perm-diff',
+          toolCallId: 'diff-perm:src/model.ts',
+          title: 'Write a File',
+        }),
       ]}
       height={200}
     />

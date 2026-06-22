@@ -13,6 +13,7 @@ export const proseBlockDef = defineBlock<ProseBlock, ProseLeafLayout>({
       block,
       ctx.width,
       ctx.theme.fonts,
+      ctx.theme.prose,
       0,
       ctx.caches.prepareRichInline.bind(ctx.caches)
     );

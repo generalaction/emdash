@@ -48,7 +48,7 @@ function SelectTrigger({
           showChevron={showChevron}
           className={cn(
             'aria-invalid:border-border-destructive aria-invalid:ring-3 aria-invalid:ring-border-destructive/20',
-            className,
+            className
           )}
         />
       }

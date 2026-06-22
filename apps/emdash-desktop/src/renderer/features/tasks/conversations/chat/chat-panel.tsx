@@ -1,11 +1,19 @@
 import type { ChatCommands, ChatHandle } from '@emdash/chat-ui';
 import { ChatTranscript } from '@emdash/chat-ui/react';
-import { ChatComposer, type ComposerAttachment } from '@emdash/ui/components';
+import {
+  ChatComposer,
+  type ComposerAgentOption,
+  type ComposerAttachment,
+} from '@emdash/ui/components';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import { openFileInTaskEditor } from '@renderer/features/tasks/stores/open-file-in-file-editor';
+import { AgentIcon } from '@renderer/lib/components/agent-icon';
+import { useAgentAvailability } from '@renderer/lib/components/agent-selector/use-agent-availability';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import type { ModelOption } from '@shared/core/agents/agent-payload';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { useConversations } from '../../task-view-context';
 import { ChatEmptyState } from './chat-empty-state';
 import { desktopChatHighlighter } from './chat-highlighter';
@@ -22,6 +30,10 @@ export const ChatPanel = observer(function ChatPanel({
   const store = conversations.getOrCreateChatStore(conversationId);
   const convStore = conversations.conversations.get(conversationId);
   const providerId = convStore?.data.providerId;
+  const projectId = convStore?.data.projectId;
+  const taskId = convStore?.data.taskId;
+
+  const connectionId = projectId ? getProjectSshConnectionId(projectId) : undefined;
 
   const { data: agents } = useAgents();
   const agentPayload = agents?.find((a) => a.id === providerId);
@@ -35,8 +47,22 @@ export const ChatPanel = observer(function ChatPanel({
         ).modelOptions
       : null;
 
-  const projectId = convStore?.data.projectId;
-  const taskId = convStore?.data.taskId;
+  const { groups: agentGroups } = useAgentAvailability({
+    connectionId,
+    value: (providerId as AgentProviderId) ?? null,
+  });
+
+  const agentOptions = useMemo((): ComposerAgentOption[] => {
+    return agentGroups.flatMap((group) =>
+      group.items.map((item) => ({
+        id: item.agentId,
+        name: item.label,
+        disabled: item.disabled,
+        groupLabel: group.label,
+        icon: <AgentIcon id={item.agentId} size={16} className="rounded-sm" />,
+      }))
+    );
+  }, [agentGroups]);
 
   const handleReady = useCallback(
     ({ transcript }: ChatHandle) => {
@@ -109,6 +135,12 @@ export const ChatPanel = observer(function ChatPanel({
           disabled={store.isClosed}
           isWorking={store.isWorking}
           canSubmit={store.isReady}
+          agentOptions={agentOptions}
+          selectedAgent={providerId}
+          agentLocked={store.hasItems}
+          onAgentChange={(_agentId: string) => {
+            // TODO: re-provision conversation provider + ACP session (out of scope)
+          }}
           modelOptions={modelOptions}
           selectedModel={store.selectedModel}
           onModelChange={(id) => store.setModel(id)}

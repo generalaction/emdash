@@ -2,8 +2,8 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
 import { Field, FieldDescription, FieldError, FieldLabel } from './field';
 import { Input } from './input';
-import { Textarea } from './textarea';
 import { Surface } from './surface';
+import { Textarea } from './textarea';
 
 const meta: Meta = {
   title: 'Primitives/Field',
@@ -55,7 +55,7 @@ export const Disabled: Story = {
 /** Base (32 px) vs SM (24 px) input sizes. */
 export const Sizes: Story = {
   render: () => (
-    <div className="flex flex-col gap-4 w-72">
+    <div className="flex w-72 flex-col gap-4">
       <Field>
         <FieldLabel>Base (32 px)</FieldLabel>
         <Input size="base" placeholder="Base size input" />
@@ -84,43 +84,37 @@ export const WithTextarea: Story = {
 /** All states on each surface level — verifies contrast and bg-transparent. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <div className="flex flex-col gap-4 rounded-xl p-4 bg-surface-sunken">
-      {(
-        [
-          'sunken',
-          'base',
-          'base-emphasis',
-          'elevated',
-          'elevated-emphasis',
-        ] as const
-      ).map((level) => (
-        <Surface
-          key={level}
-          level={level}
-          className="flex flex-col gap-3 rounded-lg p-4 bg-surface"
-        >
-          <span className="text-xs text-foreground-muted">{level}</span>
-          <div className="grid grid-cols-2 gap-3">
-            <Field>
-              <FieldLabel>Default</FieldLabel>
-              <Input placeholder="Placeholder" />
-            </Field>
-            <Field>
-              <FieldLabel>Invalid</FieldLabel>
-              <Input defaultValue="bad value" aria-invalid="true" />
-              <FieldError>Error message</FieldError>
-            </Field>
-            <Field>
-              <FieldLabel>Disabled</FieldLabel>
-              <Input placeholder="Disabled" disabled />
-            </Field>
-            <Field>
-              <FieldLabel>Small</FieldLabel>
-              <Input size="sm" placeholder="Small" />
-            </Field>
-          </div>
-        </Surface>
-      ))}
+    <div className="flex flex-col gap-4 rounded-xl bg-surface-sunken p-4">
+      {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
+        (level) => (
+          <Surface
+            key={level}
+            level={level}
+            className="flex flex-col gap-3 rounded-lg bg-surface p-4"
+          >
+            <span className="text-xs text-foreground-muted">{level}</span>
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel>Default</FieldLabel>
+                <Input placeholder="Placeholder" />
+              </Field>
+              <Field>
+                <FieldLabel>Invalid</FieldLabel>
+                <Input defaultValue="bad value" aria-invalid="true" />
+                <FieldError>Error message</FieldError>
+              </Field>
+              <Field>
+                <FieldLabel>Disabled</FieldLabel>
+                <Input placeholder="Disabled" disabled />
+              </Field>
+              <Field>
+                <FieldLabel>Small</FieldLabel>
+                <Input size="sm" placeholder="Small" />
+              </Field>
+            </div>
+          </Surface>
+        )
+      )}
     </div>
   ),
 };

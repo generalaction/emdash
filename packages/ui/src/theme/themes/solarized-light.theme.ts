@@ -68,12 +68,12 @@ export const solarizedLightTheme = defineTheme({
   // L≈0.993 (near-white), which gamut-clamps the warm chroma away. Pin the
   // ladder to authentic Solarized lightness so the cream tint survives.
   surfaceLightness: {
-    'sunken': 0.915, //               below base2 — recessed wells
-    'base': 0.945,
+    sunken: 0.915, //               below base2 — recessed wells
+    base: 0.945,
     'base-emphasis': 0.962,
-    'elevated': 0.974, //             base3 — cream panels
+    elevated: 0.974, //             base3 — cream panels
     'elevated-emphasis': 0.955,
-    'paper': 0.974, //                base3 — primary content background
+    paper: 0.974, //                base3 — primary content background
   },
 
   gamut: 'p3',

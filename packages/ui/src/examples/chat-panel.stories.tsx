@@ -19,11 +19,10 @@
 import 'devicon/devicon.min.css';
 import '@emdash/chat-ui/style.css';
 import '@emdash/chat-ui/chat-theme.css';
-
-import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { ChatCommands, ChatHandle, MentionProvider } from '@emdash/chat-ui';
 import { generateMockTranscript } from '@emdash/chat-ui';
 import { ChatTranscript } from '@emdash/chat-ui/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { ArrowDown } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChatComposer, stopReasonNotice } from '../components/chat-composer';
@@ -49,15 +48,54 @@ const BLUE_1PX =
 // ── Mock mention provider ─────────────────────────────────────────────────────
 
 const MOCK_FILES: MentionItem[] = [
-  { id: 'src/components/chat-composer.tsx', label: 'src/components/chat-composer.tsx', name: 'chat-composer.tsx', kind: 'file', description: 'UI' },
-  { id: 'src/components/prompt-editor/prompt-editor.tsx', label: 'src/components/prompt-editor/prompt-editor.tsx', name: 'prompt-editor.tsx', kind: 'file', description: 'UI' },
-  { id: 'src/lib/file-icons.ts', label: 'src/lib/file-icons.ts', name: 'file-icons.ts', kind: 'file' },
-  { id: 'src/primitives/combobox.tsx', label: 'src/primitives/combobox.tsx', name: 'combobox.tsx', kind: 'file' },
-  { id: 'src/primitives/button.tsx', label: 'src/primitives/button.tsx', name: 'button.tsx', kind: 'file' },
+  {
+    id: 'src/components/chat-composer.tsx',
+    label: 'src/components/chat-composer.tsx',
+    name: 'chat-composer.tsx',
+    kind: 'file',
+    description: 'UI',
+  },
+  {
+    id: 'src/components/prompt-editor/prompt-editor.tsx',
+    label: 'src/components/prompt-editor/prompt-editor.tsx',
+    name: 'prompt-editor.tsx',
+    kind: 'file',
+    description: 'UI',
+  },
+  {
+    id: 'src/lib/file-icons.ts',
+    label: 'src/lib/file-icons.ts',
+    name: 'file-icons.ts',
+    kind: 'file',
+  },
+  {
+    id: 'src/primitives/combobox.tsx',
+    label: 'src/primitives/combobox.tsx',
+    name: 'combobox.tsx',
+    kind: 'file',
+  },
+  {
+    id: 'src/primitives/button.tsx',
+    label: 'src/primitives/button.tsx',
+    name: 'button.tsx',
+    kind: 'file',
+  },
   { id: 'package.json', label: 'package.json', name: 'package.json', kind: 'file' },
   { id: 'README.md', label: 'README.md', name: 'README.md', kind: 'file' },
-  { id: 'issue-42', label: 'issue-42', name: 'Issue #42: Dark mode toggle', kind: 'issue', description: 'open' },
-  { id: 'handleSubmit', label: 'handleSubmit', name: 'handleSubmit()', kind: 'symbol', description: 'chat-composer.tsx' },
+  {
+    id: 'issue-42',
+    label: 'issue-42',
+    name: 'Issue #42: Dark mode toggle',
+    kind: 'issue',
+    description: 'open',
+  },
+  {
+    id: 'handleSubmit',
+    label: 'handleSubmit',
+    name: 'handleSubmit()',
+    kind: 'symbol',
+    description: 'chat-composer.tsx',
+  },
 ];
 
 // ── Mock model options ────────────────────────────────────────────────────────

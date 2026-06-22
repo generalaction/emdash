@@ -21,7 +21,11 @@ import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from '
 import type React from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '../../lib/cn';
-import { ComboboxPopup, type ComboboxPopupHandle, type ComboboxPopupItem } from '../../primitives/combobox-popup';
+import {
+  ComboboxPopup,
+  type ComboboxPopupHandle,
+  type ComboboxPopupItem,
+} from '../../primitives/combobox-popup';
 import { buildMentionExtension } from './extensions/mention';
 import { buildSlashCommandExtension } from './extensions/slash-command';
 import { buildSubmitKeymap } from './extensions/submit-keymap';
@@ -151,12 +155,10 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
 
   // Separate suggestion state for @ and / so they don't conflict.
   const [isEmpty, setIsEmpty] = useState(true);
-  const [mentionSuggestion, setMentionSuggestion] = useState<SuggestionState<MentionItem>>(
-    emptySuggestion()
-  );
-  const [commandSuggestion, setCommandSuggestion] = useState<SuggestionState<CommandItem>>(
-    emptySuggestion()
-  );
+  const [mentionSuggestion, setMentionSuggestion] =
+    useState<SuggestionState<MentionItem>>(emptySuggestion());
+  const [commandSuggestion, setCommandSuggestion] =
+    useState<SuggestionState<CommandItem>>(emptySuggestion());
   const mentionPopupRef = useRef<ComboboxPopupHandle | null>(null);
   const commandPopupRef = useRef<ComboboxPopupHandle | null>(null);
 

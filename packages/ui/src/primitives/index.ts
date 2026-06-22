@@ -1,13 +1,12 @@
 export { Button, type ButtonProps } from './button';
-export { Toggle, ToggleGroup, ToggleGroupItem, type ToggleProps, type ToggleGroupProps } from './toggle';
 export {
-  Tabs,
-  TabsList,
-  TabsTab,
-  TabsPanel,
-  TabsIndicator,
-  type TabsTabProps,
-} from './tabs';
+  Toggle,
+  ToggleGroup,
+  ToggleGroupItem,
+  type ToggleProps,
+  type ToggleGroupProps,
+} from './toggle';
+export { Tabs, TabsList, TabsTab, TabsPanel, TabsIndicator, type TabsTabProps } from './tabs';
 export { TriggerButton, type TriggerButtonProps } from './trigger-button';
 export { Field, FieldLabel, FieldDescription, FieldError } from './field';
 export {

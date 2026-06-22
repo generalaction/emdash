@@ -134,7 +134,7 @@ export function ThemeProvider({
 
   const ctx = useMemo<ThemeContextValue>(
     () => ({ themeId: resolvedThemeId, setTheme, toggle }),
-    [resolvedThemeId, setTheme, toggle],
+    [resolvedThemeId, setTheme, toggle]
   );
 
   return (

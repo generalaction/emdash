@@ -94,16 +94,16 @@ export function ComboboxPopover<T>({
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
   const hoverCard = useHoverCard();
 
-  const selectedItem = value != null ? items.find((i) => itemToKey(i) === value) ?? null : null;
+  const selectedItem = value != null ? (items.find((i) => itemToKey(i) === value) ?? null) : null;
 
   const activeDetailItem =
     renderItemDetail && hoverCard.activeKey != null
-      ? items.find((i) => itemToKey(i) === hoverCard.activeKey) ?? null
+      ? (items.find((i) => itemToKey(i) === hoverCard.activeKey) ?? null)
       : null;
 
   const defaultFilter = React.useCallback(
     (item: T, query: string) => itemToLabel(item).toLowerCase().includes(query.toLowerCase()),
-    [itemToLabel],
+    [itemToLabel]
   );
 
   function handleOpenChange(next: boolean, eventDetails: ComboboxRootChangeEventDetails) {
@@ -142,17 +142,14 @@ export function ComboboxPopover<T>({
           'text-foreground hover:bg-surface-hover',
           'outline-none data-popup-open:bg-surface-hover',
           disabled && 'cursor-not-allowed opacity-60',
-          className,
+          className
         )}
       >
         <span className="flex-1 truncate text-left">{renderTrigger(selectedItem)}</span>
         <ChevronDown className="size-3 shrink-0 text-foreground-muted" />
       </ComboboxTrigger>
 
-      <ComboboxContent
-        ref={setAnchorEl}
-        className={cn('min-w-[180px]', contentClassName)}
-      >
+      <ComboboxContent ref={setAnchorEl} className={cn('min-w-[180px]', contentClassName)}>
         <ComboboxInput showTrigger={false} placeholder={searchPlaceholder} />
         <ComboboxList className="p-1!">
           {items.map((item) => {

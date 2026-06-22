@@ -2,6 +2,7 @@ export { ChatComposer, stopReasonNotice } from './chat-composer';
 export type {
   ChatComposerProps,
   ComposerAttachment,
+  ComposerAgentOption,
   ComposerModelOption,
   ComposerNotice,
   ComposerNoticeVariant,

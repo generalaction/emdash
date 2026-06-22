@@ -27,14 +27,12 @@ export function Callout({ status, icon, className, children, ...props }: Callout
       className={cn(
         'flex items-start gap-3 rounded-lg border px-4 py-3 text-sm',
         'bg-surface border-surface-border text-surface-foreground',
-        className,
+        className
       )}
       {...props}
     >
-      {icon && (
-        <span className="mt-0.5 shrink-0 [&_svg:not([class*='size-'])]:size-4">{icon}</span>
-      )}
-      <div className="flex-1 min-w-0">{children}</div>
+      {icon && <span className="mt-0.5 shrink-0 [&_svg:not([class*='size-'])]:size-4">{icon}</span>}
+      <div className="min-w-0 flex-1">{children}</div>
     </Surface>
   );
 }

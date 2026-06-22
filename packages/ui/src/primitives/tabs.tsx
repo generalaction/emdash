@@ -17,10 +17,7 @@ function TabsList({ className, ...props }: TabsPrimitive.List.Props) {
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
-      className={cn(
-        'inline-flex items-center gap-0.5 rounded-lg bg-surface p-0.5',
-        className,
-      )}
+      className={cn('inline-flex items-center gap-0.5 rounded-lg bg-surface p-0.5', className)}
       {...props}
     />
   );
@@ -39,7 +36,7 @@ export interface TabsTabProps extends TabsPrimitive.Tab.Props {
  */
 const TabsTab = React.forwardRef<HTMLButtonElement, TabsTabProps>(function TabsTab(
   { className, size = 'sm', tone = 'neutral', ...props },
-  ref,
+  ref
 ) {
   return (
     <TabsPrimitive.Tab
@@ -71,7 +68,7 @@ function TabsIndicator({ className, ...props }: TabsPrimitive.Indicator.Props) {
       data-slot="tabs-indicator"
       className={cn(
         'absolute bottom-0 left-0 h-0.5 w-[--active-tab-width] translate-x-[--active-tab-left] rounded-full bg-foreground transition-all duration-150',
-        className,
+        className
       )}
       {...props}
     />

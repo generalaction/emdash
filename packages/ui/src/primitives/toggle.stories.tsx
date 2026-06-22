@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon, BoldIcon, ItalicIcon } from 'lucide-react';
 import React from 'react';
-import { Toggle, ToggleGroup, ToggleGroupItem } from './toggle';
 import { Surface } from './surface';
+import { Toggle, ToggleGroup, ToggleGroupItem } from './toggle';
 
 const meta: Meta = {
   title: 'Primitives/Toggle',
@@ -49,38 +49,32 @@ export const Group: Story = {
 /** Active state across all surfaces. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <div className="flex flex-col gap-4 rounded-xl p-4 bg-surface-sunken">
-      {(
-        [
-          'sunken',
-          'base',
-          'base-emphasis',
-          'elevated',
-          'elevated-emphasis',
-        ] as const
-      ).map((level) => (
-        <Surface
-          key={level}
-          level={level}
-          className="flex flex-wrap items-center gap-2 rounded-lg p-3 bg-surface"
-        >
-          <span className="w-36 text-xs text-foreground-muted">{level}</span>
-          <Toggle pressed aria-label="Bold pressed">
-            <BoldIcon />
-          </Toggle>
-          <Toggle aria-label="Italic">
-            <ItalicIcon />
-          </Toggle>
-          <ToggleGroup>
-            <ToggleGroupItem value="left" aria-label="Left">
-              <AlignLeftIcon />
-            </ToggleGroupItem>
-            <ToggleGroupItem value="center" aria-label="Center">
-              <AlignCenterIcon />
-            </ToggleGroupItem>
-          </ToggleGroup>
-        </Surface>
-      ))}
+    <div className="flex flex-col gap-4 rounded-xl bg-surface-sunken p-4">
+      {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
+        (level) => (
+          <Surface
+            key={level}
+            level={level}
+            className="flex flex-wrap items-center gap-2 rounded-lg bg-surface p-3"
+          >
+            <span className="w-36 text-xs text-foreground-muted">{level}</span>
+            <Toggle pressed aria-label="Bold pressed">
+              <BoldIcon />
+            </Toggle>
+            <Toggle aria-label="Italic">
+              <ItalicIcon />
+            </Toggle>
+            <ToggleGroup>
+              <ToggleGroupItem value="left" aria-label="Left">
+                <AlignLeftIcon />
+              </ToggleGroupItem>
+              <ToggleGroupItem value="center" aria-label="Center">
+                <AlignCenterIcon />
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </Surface>
+        )
+      )}
     </div>
   ),
 };

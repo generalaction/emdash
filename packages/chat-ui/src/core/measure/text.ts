@@ -30,7 +30,7 @@ export function measureRuns(
   width: number,
   theme: ChatTheme
 ): Measured<ProseLaidOut> {
-  const laid = layoutProse(block, width, theme.fonts, 0);
+  const laid = layoutProse(block, width, theme.fonts, theme.prose, 0);
   return { height: laid.height, width: laid.contentWidth, layout: laid };
 }
 
@@ -41,5 +41,5 @@ export function measureRuns(
  * invoking the full line-breaking algorithm.
  */
 export function naturalWidth(block: ProseBlock, theme: ChatTheme): number {
-  return measureProseNaturalWidth(block, theme.fonts);
+  return measureProseNaturalWidth(block, theme.fonts, theme.prose);
 }

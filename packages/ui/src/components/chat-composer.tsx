@@ -7,7 +7,7 @@
  *   │ [Image previews 32x32 — shown only when present]   │
  *   │ [TipTap editor — auto-grows, max 200px, scrolls]   │
  *   ├────────────────────────────────────────────────────┤
- *   │ [Model selector]            [Attach?] [Stop | ↑]   │
+ *   │ [Agent] [Model selector]    [Attach?] [Stop | ↑]   │
  *   └────────────────────────────────────────────────────┘
  *
  * Delegates input and attachment state to the caller via props (host-controlled).
@@ -21,6 +21,16 @@ import { ArrowUp, CircleAlert, Paperclip, Square, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { cn } from '../lib/cn';
 import { Button } from '../primitives/button';
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxGroup,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxLabel,
+  ComboboxList,
+  ComboboxTrigger,
+} from '../primitives/combobox';
 import { ComboboxPopover } from './combobox-popover';
 import { PromptEditor } from './prompt-editor/prompt-editor';
 import type {
@@ -57,7 +67,8 @@ export function stopReasonNotice(reason: string): ComposerNotice | null {
       return {
         variant: 'error',
         title: 'Turn limit reached',
-        message: 'The agent hit the maximum number of turn requests. Send a new message to continue.',
+        message:
+          'The agent hit the maximum number of turn requests. Send a new message to continue.',
       };
     case 'max_tokens':
       return {
@@ -129,6 +140,24 @@ export interface ComposerModelOption {
   };
 }
 
+// ── Agent option types ────────────────────────────────────────────────────────
+
+/** Minimal agent descriptor the composer needs to render the agent selector. */
+export interface ComposerAgentOption {
+  id: string;
+  name: string;
+  /**
+   * Host-rendered icon — the app's AgentIcon is theme/registry aware, which
+   * this package can't reach. Shown in the trigger and each list row.
+   */
+  icon?: React.ReactNode;
+  description?: string;
+  /** e.g. not installed — shown but not selectable. */
+  disabled?: boolean;
+  /** Optional grouping header, e.g. "Installed" / "Not installed". */
+  groupLabel?: string;
+}
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 export interface ChatComposerProps {
@@ -136,6 +165,15 @@ export interface ChatComposerProps {
   isWorking?: boolean;
   /** False while the session is still starting up. Blocks Send/Enter but keeps the editor typeable. */
   canSubmit?: boolean;
+
+  agentOptions?: ComposerAgentOption[] | null;
+  selectedAgent?: string;
+  onAgentChange?: (agentId: string) => void;
+  /**
+   * True once the session has history (any prompt sent). ACP cannot switch
+   * agents mid-conversation, so the trigger becomes a disabled icon button.
+   */
+  agentLocked?: boolean;
 
   modelOptions?: Record<string, ComposerModelOption> | null;
   selectedModel?: string;
@@ -209,7 +247,7 @@ function ModelDetailCard({ item }: { item: ModelItem }) {
 
   return (
     <div className="w-56 p-3 text-sm" style={{ color: 'var(--foreground)' }}>
-      <p className="font-medium leading-tight">{name}</p>
+      <p className="leading-tight font-medium">{name}</p>
       {description && (
         <p className="mt-1 text-xs leading-snug" style={{ color: 'var(--foreground-muted)' }}>
           {description}
@@ -277,8 +315,7 @@ const NOTICE_CLASSES: Record<ComposerNoticeVariant, { container: string; icon: s
     icon: 'text-surface-destructive-foreground',
   },
   warning: {
-    container:
-      'bg-surface-warning border-surface-warning-border text-surface-warning-foreground',
+    container: 'bg-surface-warning border-surface-warning-border text-surface-warning-foreground',
     icon: 'text-surface-warning-foreground',
   },
   info: {
@@ -293,7 +330,7 @@ function NoticeBand({ notice }: { notice: ComposerNotice }) {
     <div
       className={cn(
         'flex items-start gap-2 rounded-t-xl border border-b-0 px-3 py-2 text-xs',
-        cls.container,
+        cls.container
       )}
     >
       <div className="flex-1">
@@ -317,12 +354,139 @@ function NoticeBand({ notice }: { notice: ComposerNotice }) {
   );
 }
 
+// ── Agent selector ────────────────────────────────────────────────────────────
+
+interface AgentGroup {
+  label: string;
+  items: ComposerAgentOption[];
+}
+
+function buildAgentGroups(options: ComposerAgentOption[]): AgentGroup[] {
+  const grouped = new Map<string, ComposerAgentOption[]>();
+  for (const opt of options) {
+    const label = opt.groupLabel ?? '';
+    const existing = grouped.get(label);
+    if (existing) {
+      existing.push(opt);
+    } else {
+      grouped.set(label, [opt]);
+    }
+  }
+  return Array.from(grouped.entries()).map(([label, items]) => ({ label, items }));
+}
+
+interface ComposerAgentSelectorProps {
+  options: ComposerAgentOption[];
+  selectedId?: string;
+  onSelect: (agentId: string) => void;
+  locked: boolean;
+  disabled: boolean;
+}
+
+function ComposerAgentSelector({
+  options,
+  selectedId,
+  onSelect,
+  locked,
+  disabled,
+}: ComposerAgentSelectorProps) {
+  const [open, setOpen] = useState(false);
+  const selected = selectedId ? (options.find((o) => o.id === selectedId) ?? null) : null;
+  const groups = buildAgentGroups(options);
+  const isDisabled = disabled || locked;
+
+  const triggerLabel = selected
+    ? locked
+      ? `${selected.name} — agents can't be switched after a conversation starts`
+      : selected.name
+    : 'Select agent';
+
+  // When locked or session closed, show a static disabled icon button.
+  if (isDisabled) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        icon
+        disabled
+        aria-label={triggerLabel}
+        title={triggerLabel}
+      >
+        {selected?.icon ?? <span className="size-4" />}
+      </Button>
+    );
+  }
+
+  return (
+    <Combobox
+      value={selected ?? null}
+      onValueChange={(item: ComposerAgentOption | null) => {
+        if (!item || item.disabled) return;
+        onSelect(item.id);
+        setOpen(false);
+      }}
+      open={open}
+      onOpenChange={(next) => setOpen(next)}
+      isItemEqualToValue={(a: ComposerAgentOption, b: ComposerAgentOption) => a.id === b.id}
+      filter={(item: ComposerAgentOption, query: string) =>
+        item.name.toLowerCase().includes(query.toLowerCase())
+      }
+      autoHighlight
+    >
+      <ComboboxTrigger
+        aria-label={triggerLabel}
+        title={triggerLabel}
+        className={cn(
+          'flex size-7 items-center justify-center rounded-md border border-transparent',
+          'text-foreground hover:bg-surface-hover outline-none data-popup-open:bg-surface-hover'
+        )}
+      >
+        {selected?.icon ?? <span className="size-4 rounded-sm bg-border" />}
+      </ComboboxTrigger>
+      <ComboboxContent className="min-w-[180px]">
+        <ComboboxInput showTrigger={false} placeholder="Search agents…" />
+        <ComboboxList>
+          {groups.map((group) =>
+            group.label ? (
+              <ComboboxGroup key={group.label}>
+                <ComboboxLabel>{group.label}</ComboboxLabel>
+                {group.items.map((item) => (
+                  <ComboboxItem
+                    key={item.id}
+                    value={item}
+                    disabled={item.disabled}
+                    className="gap-2"
+                  >
+                    {item.icon && <span className="shrink-0">{item.icon}</span>}
+                    <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                  </ComboboxItem>
+                ))}
+              </ComboboxGroup>
+            ) : (
+              group.items.map((item) => (
+                <ComboboxItem key={item.id} value={item} disabled={item.disabled} className="gap-2">
+                  {item.icon && <span className="shrink-0">{item.icon}</span>}
+                  <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                </ComboboxItem>
+              ))
+            )
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function ChatComposer({
   disabled = false,
   isWorking = false,
   canSubmit = true,
+  agentOptions,
+  selectedAgent,
+  onAgentChange,
+  agentLocked = false,
   modelOptions,
   selectedModel,
   onModelChange,
@@ -427,7 +591,7 @@ export function ChatComposer({
       <div
         className={cn(
           'grid transition-all duration-200 ease-out',
-          notice ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+          notice ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
         )}
         aria-hidden={!notice}
       >
@@ -441,141 +605,151 @@ export function ChatComposer({
           notice ? 'rounded-b-xl' : 'rounded-xl',
           dragActive
             ? 'border-border-1 ring-1 ring-border-1'
-            : 'border-border hover:border-border-1 focus-within:border-border-1 focus-within:ring-1 focus-within:ring-border-1',
+            : 'border-border hover:border-border-1 focus-within:border-border-1 focus-within:ring-1 focus-within:ring-border-1'
         )}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
         {/* Image attachment previews */}
-      {imageAttachments.length > 0 && (
-        <div className="flex flex-wrap gap-2 px-3 pt-3">
-          {imageAttachments.map((att) => (
-            <div key={att.id} className="group relative size-8">
-              <button
-                type="button"
-                aria-label={`View image: ${att.name}`}
-                onClick={() => onViewImage?.(att)}
-                className="block size-8 rounded-md p-0 focus-visible:outline-2 focus-visible:outline-offset-1"
-              >
-                <img
-                  src={att.previewUrl}
-                  alt={att.name}
-                  className="size-8 rounded-md object-cover ring-1 ring-border"
-                />
-              </button>
-              <button
-                type="button"
-                aria-label={`Remove ${att.name}`}
-                onClick={() => removeAttachment(att.id)}
-                className="absolute -top-1.5 -right-1.5 grid size-4 place-items-center rounded-full bg-surface text-foreground ring-1 ring-border opacity-0 transition-opacity group-hover:opacity-100"
-              >
-                <X className="size-2.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Editor area */}
-      <div className="max-h-[200px] overflow-y-auto px-3 pt-3 pb-1">
-        <PromptEditor
-          ref={(handle) => {
-            editorRef.current = handle;
-            if (editorApiRef) {
-              if (typeof editorApiRef === 'function') {
-                editorApiRef(handle);
-              } else {
-                (editorApiRef as React.MutableRefObject<PromptEditorRef | null>).current = handle;
-              }
-            }
-          }}
-          placeholder={
-            disabled ? 'Session closed' : !canSubmit ? 'Waiting for agent…' : 'Message…'
-          }
-          disabled={disabled}
-          onSubmit={handleSubmit}
-          mentionProvider={mentionProvider}
-          queryMentions={queryMentions}
-          queryCommands={queryCommands}
-          onCommand={onCommand}
-        />
-      </div>
-
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-2 pt-1 pb-2">
-        {/* Left: model selector */}
-        <div className="flex items-center gap-1.5">
-          {modelItems.length > 0 ? (
-            <ComboboxPopover<ModelItem>
-              items={modelItems}
-              value={selectedModel ?? null}
-              onValueChange={(id) => onModelChange?.(id)}
-              itemToKey={(item) => item.id}
-              itemToLabel={(item) => item.name}
-              disabled={disabled}
-              searchPlaceholder="Search models…"
-              contentClassName="min-w-[200px]"
-              renderTrigger={(selected) => (
-                <span
-                  className={cn('text-xs', selected ? 'text-foreground' : 'text-foreground-muted')}
+        {imageAttachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 px-3 pt-3">
+            {imageAttachments.map((att) => (
+              <div key={att.id} className="group relative size-8">
+                <button
+                  type="button"
+                  aria-label={`View image: ${att.name}`}
+                  onClick={() => onViewImage?.(att)}
+                  className="block size-8 rounded-md p-0 focus-visible:outline-2 focus-visible:outline-offset-1"
                 >
-                  {selected?.name ?? 'Model…'}
-                </span>
-              )}
-              renderItem={(item) => (
-                <span className="flex-1 truncate text-sm">{item.name}</span>
-              )}
-              renderItemDetail={(item) => <ModelDetailCard item={item} />}
-              detailSide="right"
-              detailAlign="start"
-            />
-          ) : (
-            <span />
-          )}
+                  <img
+                    src={att.previewUrl}
+                    alt={att.name}
+                    className="size-8 rounded-md object-cover ring-1 ring-border"
+                  />
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Remove ${att.name}`}
+                  onClick={() => removeAttachment(att.id)}
+                  className="absolute -top-1.5 -right-1.5 grid size-4 place-items-center rounded-full bg-surface text-foreground opacity-0 ring-1 ring-border transition-opacity group-hover:opacity-100"
+                >
+                  <X className="size-2.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Editor area */}
+        <div className="max-h-[200px] overflow-y-auto px-3 pt-3 pb-1">
+          <PromptEditor
+            ref={(handle) => {
+              editorRef.current = handle;
+              if (editorApiRef) {
+                if (typeof editorApiRef === 'function') {
+                  editorApiRef(handle);
+                } else {
+                  (editorApiRef as React.MutableRefObject<PromptEditorRef | null>).current = handle;
+                }
+              }
+            }}
+            placeholder={
+              disabled ? 'Session closed' : !canSubmit ? 'Waiting for agent…' : 'Message…'
+            }
+            disabled={disabled}
+            onSubmit={handleSubmit}
+            mentionProvider={mentionProvider}
+            queryMentions={queryMentions}
+            queryCommands={queryCommands}
+            onCommand={onCommand}
+          />
         </div>
 
-        {/* Right: attach + send/stop */}
-        <div className="flex items-center gap-1">
-          {onAttach && (
-            <Button
-              variant="ghost"
-              size="sm"
-              icon
-              onClick={onAttach}
-              disabled={disabled}
-              aria-label="Add attachment"
-            >
-              <Paperclip />
-            </Button>
-          )}
+        {/* Toolbar */}
+        <div className="flex items-center justify-between px-2 pt-1 pb-2">
+          {/* Left: agent + model selector */}
+          <div className="flex items-center gap-1.5">
+            {agentOptions && agentOptions.length > 0 && (
+              <ComposerAgentSelector
+                options={agentOptions}
+                selectedId={selectedAgent}
+                onSelect={(id) => onAgentChange?.(id)}
+                locked={agentLocked}
+                disabled={disabled}
+              />
+            )}
+            {modelItems.length > 0 ? (
+              <ComboboxPopover<ModelItem>
+                items={modelItems}
+                value={selectedModel ?? null}
+                onValueChange={(id) => onModelChange?.(id)}
+                itemToKey={(item) => item.id}
+                itemToLabel={(item) => item.name}
+                disabled={disabled}
+                searchPlaceholder="Search models…"
+                contentClassName="min-w-[200px]"
+                renderTrigger={(selected) => (
+                  <span
+                    className={cn(
+                      'text-xs',
+                      selected ? 'text-foreground' : 'text-foreground-muted'
+                    )}
+                  >
+                    {selected?.name ?? 'Model…'}
+                  </span>
+                )}
+                renderItem={(item) => <span className="flex-1 truncate text-sm">{item.name}</span>}
+                renderItemDetail={(item) => <ModelDetailCard item={item} />}
+                detailSide="right"
+                detailAlign="start"
+              />
+            ) : (
+              <span />
+            )}
+          </div>
 
-          {isWorking ? (
-            <Button
-              variant="primary"
-              tone="destructive"
-              size="sm"
-              onClick={onStop}
-              aria-label="Stop generation"
-            >
-              <Square className="size-3 fill-current" />
-              Stop
-            </Button>
-          ) : (
-            <Button
-              variant="primary"
-              size="sm"
-              icon
-              className="rounded-full"
-              onClick={() => handleSubmit(editorRef.current?.getText() ?? '')}
-              disabled={disabled || !canSubmit}
-              aria-label="Send message"
-            >
-              <ArrowUp />
-            </Button>
-          )}
+          {/* Right: attach + send/stop */}
+          <div className="flex items-center gap-1">
+            {onAttach && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon
+                onClick={onAttach}
+                disabled={disabled}
+                aria-label="Add attachment"
+              >
+                <Paperclip />
+              </Button>
+            )}
+
+            {isWorking ? (
+              <Button
+                variant="primary"
+                tone="destructive"
+                size="sm"
+                onClick={onStop}
+                aria-label="Stop generation"
+              >
+                <Square className="size-3 fill-current" />
+                Stop
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                size="sm"
+                icon
+                className="rounded-full"
+                onClick={() => handleSubmit(editorRef.current?.getText() ?? '')}
+                disabled={disabled || !canSubmit}
+                aria-label="Send message"
+              >
+                <ArrowUp />
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
       </div>
     </div>
   );

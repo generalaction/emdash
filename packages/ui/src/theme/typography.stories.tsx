@@ -41,8 +41,7 @@ export const TypeScale: Story = {
         <h2 className="text-sm font-semibold text-foreground">Type size scale</h2>
         <p className="mt-1 text-xs text-foreground-muted">
           Primitive <code className="font-mono">--text-*</code> tokens. Semantic{' '}
-          <code className="font-mono">--type-&lt;role&gt;-font-size</code> values reference
-          these.
+          <code className="font-mono">--type-&lt;role&gt;-font-size</code> values reference these.
         </p>
       </div>
       {SIZE_TOKENS.map(({ name, size, lh }) => (
@@ -181,9 +180,7 @@ export const RecipeDirectUse: Story = {
 export const AllSurfaces: Story = {
   render: () => (
     <div className="grid grid-cols-5 gap-3">
-      {(
-        ['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const
-      ).map((s) => (
+      {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map((s) => (
         <div key={s} className={`surface-${s} rounded-lg bg-surface p-4`}>
           <p className="mb-1 font-mono text-xs text-foreground-passive">.surface-{s}</p>
           <Heading level={2} className="mb-1">

@@ -20,6 +20,7 @@ import {
   prepareRichInline as rawPrepareRichInline,
   walkRichInlineLineRanges,
 } from '@chenglou/pretext/rich-inline';
+import type { FontConfig, ProseConfig } from '@core/config';
 import type {
   FragmentLayout,
   LineLayout,
@@ -27,9 +28,7 @@ import type {
   ProseLaidOut,
 } from '@core/layout/layout-types';
 import type { InlineRun, ProseBlock } from '@core/markdown/document';
-import type { FontConfig } from '@core/measure/fonts';
 import { runsToRichItems } from '@core/measure/to-rich-items';
-import { BLOCKQUOTE_INDENT, LIST_BULLET_GAP, LIST_INDENT } from '@core/metrics';
 
 type PrepareRichInlineFn = (items: RichInlineItem[]) => PreparedRichInline;
 
@@ -51,13 +50,16 @@ function lineHeightForVariant(variant: ProseBlock['variant'], fonts: FontConfig)
   }
 }
 
-function proseIndent(block: ProseBlock): { indent: number; textLeft: number } {
+function proseIndent(
+  block: ProseBlock,
+  prose: ProseConfig
+): { indent: number; textLeft: number } {
   const depth = block.depth ?? 0;
   const isListItem = block.variant === 'list-item';
   const isQuote = block.variant === 'quote';
-  const indentPerLevel = isListItem ? LIST_INDENT : isQuote ? BLOCKQUOTE_INDENT : 0;
+  const indentPerLevel = isListItem ? prose.listIndent : isQuote ? prose.blockquoteIndent : 0;
   const indent = (depth + 1) * indentPerLevel;
-  const textLeft = isListItem ? indent + LIST_BULLET_GAP : indent;
+  const textLeft = isListItem ? indent + prose.listBulletGap : indent;
   return { indent, textLeft };
 }
 
@@ -87,10 +89,11 @@ function segmentRuns(runs: InlineRun[]): Array<{ segRuns: InlineRun[]; baseIndex
 export function measureProseNaturalWidth(
   block: ProseBlock,
   fonts: FontConfig,
+  prose: ProseConfig,
   prepareRichInline: PrepareRichInlineFn = rawPrepareRichInline
 ): number {
   if (block.runs.length === 0) return 0;
-  const { textLeft } = proseIndent(block);
+  const { textLeft } = proseIndent(block, prose);
   const segments = segmentRuns(block.runs);
   let maxWidth = 0;
   for (const seg of segments) {
@@ -110,6 +113,7 @@ export function layoutProse(
   block: ProseBlock,
   width: number,
   fonts: FontConfig,
+  prose: ProseConfig,
   blockTop: number,
   prepareRichInline: PrepareRichInlineFn = rawPrepareRichInline
 ): ProseLaidOut {
@@ -129,7 +133,7 @@ export function layoutProse(
 
   const isQuote = block.variant === 'quote';
   const isListItem = block.variant === 'list-item';
-  const { indent, textLeft } = proseIndent(block);
+  const { indent, textLeft } = proseIndent(block, prose);
   const effectiveWidth = Math.max(1, width - textLeft);
 
   const segments = segmentRuns(block.runs);

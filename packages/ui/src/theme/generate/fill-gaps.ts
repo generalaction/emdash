@@ -13,9 +13,7 @@
 import Color from 'colorjs.io';
 import type { Ramp } from '../contract/roles.js';
 
-type ExplicitScaleInput =
-  | string[]
-  | { steps: string[]; contrast?: string };
+type ExplicitScaleInput = string[] | { steps: string[]; contrast?: string };
 
 function parseInput(input: ExplicitScaleInput): { steps: string[]; contrast?: string } {
   if (Array.isArray(input)) return { steps: input };
@@ -24,9 +22,7 @@ function parseInput(input: ExplicitScaleInput): { steps: string[]; contrast?: st
 
 function toP3String(c: Color): string {
   const p3 = c.to('p3');
-  const [r, g, b] = p3.coords.map((v) =>
-    Math.max(0, Math.min(1, +Number(v).toFixed(4))),
-  );
+  const [r, g, b] = p3.coords.map((v) => Math.max(0, Math.min(1, +Number(v).toFixed(4))));
   return `color(display-p3 ${r} ${g} ${b})`;
 }
 

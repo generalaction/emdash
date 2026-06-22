@@ -26,7 +26,7 @@ export const Default: Story = {
 
 export const Sizes: Story = {
   render: () => (
-    <div className="flex flex-col gap-3 w-64">
+    <div className="flex w-64 flex-col gap-3">
       <Input size="base" placeholder="Base (32 px)" />
       <Input size="sm" placeholder="Small (24 px)" />
     </div>

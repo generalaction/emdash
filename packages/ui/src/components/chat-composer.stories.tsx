@@ -9,13 +9,14 @@
 
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useEffect, useState } from 'react';
+import { Button } from '../primitives/button';
 import { ChatComposer } from './chat-composer';
 import type {
+  ComposerAgentOption,
   ComposerModelOption,
   ComposerNotice,
   ComposerNoticeVariant,
 } from './chat-composer';
-import { Button } from '../primitives/button';
 
 // ── Mock model options ────────────────────────────────────────────────────────
 
@@ -37,12 +38,56 @@ const MOCK_MODELS: Record<string, ComposerModelOption> = {
   },
 };
 
+// ── Mock agent options ─────────────────────────────────────────────────────────
+
+function AgentDot({ color }: { color: string }) {
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        width: 16,
+        height: 16,
+        borderRadius: 4,
+        background: color,
+        flexShrink: 0,
+      }}
+    />
+  );
+}
+
+const MOCK_AGENTS: ComposerAgentOption[] = [
+  {
+    id: 'claude',
+    name: 'Claude',
+    icon: <AgentDot color="#d97706" />,
+    description: 'Anthropic Claude coding agent.',
+    groupLabel: 'Installed',
+  },
+  {
+    id: 'codex',
+    name: 'OpenAI Codex',
+    icon: <AgentDot color="#10b981" />,
+    description: 'OpenAI Codex CLI agent.',
+    groupLabel: 'Installed',
+  },
+  {
+    id: 'gemini',
+    name: 'Gemini CLI',
+    icon: <AgentDot color="#6366f1" />,
+    description: 'Google Gemini CLI agent.',
+    disabled: true,
+    groupLabel: 'Not installed',
+  },
+];
+
 // ── Story args ────────────────────────────────────────────────────────────────
 
 interface PlaygroundArgs {
   disabled: boolean;
   isWorking: boolean;
   canSubmit: boolean;
+  showAgentSelector: boolean;
+  agentLocked: boolean;
   showModelSelector: boolean;
   showAttachButton: boolean;
   showNotice: boolean;
@@ -56,6 +101,8 @@ function ComposerPlayground(args: PlaygroundArgs) {
     disabled,
     isWorking,
     canSubmit,
+    showAgentSelector,
+    agentLocked,
     showModelSelector,
     showAttachButton,
     showNotice,
@@ -64,6 +111,7 @@ function ComposerPlayground(args: PlaygroundArgs) {
     noticeMessage,
   } = args;
 
+  const [selectedAgent, setSelectedAgent] = useState('claude');
   const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
   const [dismissed, setDismissed] = useState(false);
 
@@ -104,6 +152,10 @@ function ComposerPlayground(args: PlaygroundArgs) {
         disabled={disabled}
         isWorking={isWorking}
         canSubmit={canSubmit}
+        agentOptions={showAgentSelector ? MOCK_AGENTS : null}
+        selectedAgent={selectedAgent}
+        onAgentChange={setSelectedAgent}
+        agentLocked={agentLocked}
         modelOptions={showModelSelector ? MOCK_MODELS : null}
         selectedModel={selectedModel}
         onModelChange={setSelectedModel}
@@ -123,15 +175,36 @@ const meta: Meta<PlaygroundArgs> = {
   parameters: { layout: 'centered' },
   render: (args) => <ComposerPlayground {...args} />,
   argTypes: {
-    disabled: { control: 'boolean', description: 'Session closed — blocks the editor and controls.' },
+    disabled: {
+      control: 'boolean',
+      description: 'Session closed — blocks the editor and controls.',
+    },
     isWorking: { control: 'boolean', description: 'Agent is responding — shows the Stop button.' },
     canSubmit: {
       control: 'boolean',
       description: 'Session ready — when false, Send/Enter is blocked but typing is allowed.',
     },
-    showModelSelector: { control: 'boolean', description: 'Render the model selector in the toolbar.' },
-    showAttachButton: { control: 'boolean', description: 'Render the attachment (paperclip) button.' },
-    showNotice: { control: 'boolean', description: 'Show the session-state notice band above the input.' },
+    showAgentSelector: {
+      control: 'boolean',
+      description: 'Render the agent selector in the toolbar.',
+    },
+    agentLocked: {
+      control: 'boolean',
+      description:
+        'When true (prompt has been sent), the agent button is disabled — ACP cannot switch agents mid-conversation.',
+    },
+    showModelSelector: {
+      control: 'boolean',
+      description: 'Render the model selector in the toolbar.',
+    },
+    showAttachButton: {
+      control: 'boolean',
+      description: 'Render the attachment (paperclip) button.',
+    },
+    showNotice: {
+      control: 'boolean',
+      description: 'Show the session-state notice band above the input.',
+    },
     noticeVariant: {
       control: 'inline-radio',
       options: ['error', 'warning', 'info'],
@@ -144,6 +217,8 @@ const meta: Meta<PlaygroundArgs> = {
     disabled: false,
     isWorking: false,
     canSubmit: true,
+    showAgentSelector: true,
+    agentLocked: false,
     showModelSelector: true,
     showAttachButton: true,
     showNotice: false,

@@ -10,15 +10,7 @@
  *   3. Hybrid     — some scales generated, some explicit (e.g. branded accent)
  */
 
-import { generateRamp, generateNeutralRamp } from './generate/ramp.js';
-import { generateSurfaces } from './generate/surfaces.js';
-import { fillGaps } from './generate/fill-gaps.js';
-import { generateSyntaxTheme } from './generate/syntax.js';
-import type { ScaleTweaks } from './generate/ramp.js';
-import type { SyntaxThemeInput } from './generate/syntax.js';
-import {
-  SCALE_NAMES,
-} from './contract/roles.js';
+import { SCALE_NAMES } from './contract/roles.js';
 import type {
   HueScaleName,
   Polarity,
@@ -29,6 +21,12 @@ import type {
   SurfaceScopeName,
   SyntaxRole,
 } from './contract/roles.js';
+import { fillGaps } from './generate/fill-gaps.js';
+import { generateRamp, generateNeutralRamp } from './generate/ramp.js';
+import type { ScaleTweaks } from './generate/ramp.js';
+import { generateSurfaces } from './generate/surfaces.js';
+import { generateSyntaxTheme } from './generate/syntax.js';
+import type { SyntaxThemeInput } from './generate/syntax.js';
 
 // ── ThemeInput ────────────────────────────────────────────────────────────────
 
@@ -145,7 +143,7 @@ function resolveContrast(c: ThemeInput['contrast']): number {
 function resolveScale(
   name: ScaleName,
   input: ThemeInput,
-  explicitInput: ExplicitScaleInput | undefined,
+  explicitInput: ExplicitScaleInput | undefined
 ): Ramp {
   // Explicit takes precedence
   if (explicitInput != null) return fillGaps(explicitInput);
@@ -175,10 +173,7 @@ function resolveScale(
 
   if (name === 'accent') {
     const acc = input.accent;
-    const seed: HueSeed =
-      typeof acc === 'object' && 'hue' in acc
-        ? acc.hue
-        : (acc as HueSeed);
+    const seed: HueSeed = typeof acc === 'object' && 'hue' in acc ? acc.hue : (acc as HueSeed);
     const accChromaPeak = typeof acc === 'object' && 'chroma' in acc ? acc.chroma : undefined;
     return generateRamp(seed, {
       ...rampOpts,
@@ -187,9 +182,7 @@ function resolveScale(
   }
 
   // Hue-named scales (green, red, amber, blue, orange, purple)
-  const hue = input.hues?.[name as HueScaleName]
-    ?? DEFAULT_HUES[name as HueScaleName]
-    ?? 0;
+  const hue = input.hues?.[name as HueScaleName] ?? DEFAULT_HUES[name as HueScaleName] ?? 0;
   return generateRamp(hue, rampOpts);
 }
 

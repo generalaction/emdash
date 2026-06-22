@@ -16,9 +16,9 @@
  */
 
 import Color from 'colorjs.io';
+import type { Polarity, Scales, SyntaxRole } from '../contract/roles.js';
 import { SYNTAX_TEMPLATE } from '../contract/syntax-template.js';
 import { SYNTAX_MIN_APCA } from '../contract/targets.js';
-import type { Polarity, Scales, SyntaxRole } from '../contract/roles.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ function resolveWithMinContrast(
   scales: Scales,
   bgColor: Color,
   minLc: number,
-  _polarity: Polarity,
+  _polarity: Polarity
 ): string {
   const [scaleName, stepOrContrast] = ref.split('.') as [keyof Scales, string];
   const scale = scales[scaleName];
@@ -115,7 +115,7 @@ function colorToHex(cssColor: string): string {
 export function generateSyntaxTheme(
   scales: Scales,
   polarity: Polarity,
-  input: SyntaxThemeInput,
+  input: SyntaxThemeInput
 ): GeneratedSyntaxTheme {
   // Pass through explicit themes unchanged
   if (typeof input === 'string') {
@@ -134,9 +134,14 @@ export function generateSyntaxTheme(
   // Foreground = neutral step 12
   const fgColorStr = scales.neutral.steps[11];
 
-  const tokenColors: Array<{ scope: string | string[]; settings: { foreground?: string; fontStyle?: string } }> = [];
+  const tokenColors: Array<{
+    scope: string | string[];
+    settings: { foreground?: string; fontStyle?: string };
+  }> = [];
 
-  for (const [role, entry] of Object.entries(SYNTAX_TEMPLATE) as Array<[SyntaxRole, (typeof SYNTAX_TEMPLATE)[SyntaxRole]]>) {
+  for (const [role, entry] of Object.entries(SYNTAX_TEMPLATE) as Array<
+    [SyntaxRole, (typeof SYNTAX_TEMPLATE)[SyntaxRole]]
+  >) {
     // Resolve the palette ref
     const defaultRef = polarity === 'light' ? entry.lightDefault : entry.darkDefault;
     const ref = roleOverrides[role] ?? defaultRef;

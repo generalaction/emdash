@@ -10,11 +10,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AtSign, Braces, CircleDot, File } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { Button } from './button';
-import {
-  ComboboxPopup,
-  type ComboboxPopupHandle,
-  type ComboboxPopupItem,
-} from './combobox-popup';
+import { ComboboxPopup, type ComboboxPopupHandle, type ComboboxPopupItem } from './combobox-popup';
 
 const meta: Meta = {
   title: 'Primitives/ComboboxPopup',

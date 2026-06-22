@@ -26,11 +26,7 @@ export type SyntaxScopeEntry = {
  */
 export const SYNTAX_TEMPLATE: Record<SyntaxRole, SyntaxScopeEntry> = {
   comment: {
-    scopes: [
-      'comment',
-      'punctuation.definition.comment',
-      'string.comment',
-    ],
+    scopes: ['comment', 'punctuation.definition.comment', 'string.comment'],
     lightDefault: 'neutral.9',
     darkDefault: 'neutral.9',
   },
@@ -60,22 +56,12 @@ export const SYNTAX_TEMPLATE: Record<SyntaxRole, SyntaxScopeEntry> = {
     darkDefault: 'blue.11',
   },
   number: {
-    scopes: [
-      'constant.numeric',
-      'constant.language',
-      'constant.character',
-      'constant.other',
-    ],
+    scopes: ['constant.numeric', 'constant.language', 'constant.character', 'constant.other'],
     lightDefault: 'blue.11',
     darkDefault: 'blue.11',
   },
   function: {
-    scopes: [
-      'entity.name.function',
-      'support.function',
-      'meta.function-call',
-      'variable.function',
-    ],
+    scopes: ['entity.name.function', 'support.function', 'meta.function-call', 'variable.function'],
     lightDefault: 'accent.11',
     darkDefault: 'accent.11',
   },
@@ -93,12 +79,7 @@ export const SYNTAX_TEMPLATE: Record<SyntaxRole, SyntaxScopeEntry> = {
     darkDefault: 'amber.11',
   },
   variable: {
-    scopes: [
-      'variable',
-      'variable.other',
-      'variable.parameter',
-      'meta.definition.variable',
-    ],
+    scopes: ['variable', 'variable.other', 'variable.parameter', 'meta.definition.variable'],
     lightDefault: 'neutral.12',
     darkDefault: 'neutral.12',
   },
@@ -124,28 +105,17 @@ export const SYNTAX_TEMPLATE: Record<SyntaxRole, SyntaxScopeEntry> = {
     darkDefault: 'neutral.10',
   },
   tag: {
-    scopes: [
-      'entity.name.tag',
-      'meta.tag',
-      'punctuation.definition.tag',
-    ],
+    scopes: ['entity.name.tag', 'meta.tag', 'punctuation.definition.tag'],
     lightDefault: 'green.11',
     darkDefault: 'green.11',
   },
   attribute: {
-    scopes: [
-      'entity.other.attribute-name',
-      'meta.attribute',
-    ],
+    scopes: ['entity.other.attribute-name', 'meta.attribute'],
     lightDefault: 'blue.11',
     darkDefault: 'blue.11',
   },
   regexp: {
-    scopes: [
-      'string.regexp',
-      'constant.character.escape',
-      'constant.other.character-class.regexp',
-    ],
+    scopes: ['string.regexp', 'constant.character.escape', 'constant.other.character-class.regexp'],
     lightDefault: 'blue.11',
     darkDefault: 'blue.11',
   },

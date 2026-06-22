@@ -42,7 +42,7 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
       data-slot="dialog-overlay"
       className={cn(
         'fixed inset-0 z-50 bg-black/40 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0',
-        className,
+        className
       )}
       {...props}
     />
@@ -65,7 +65,7 @@ function DialogContent({
         className={cn(
           'surface-base fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl bg-surface text-sm text-foreground shadow-md ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
           SIZE_CLASSES[size],
-          className,
+          className
         )}
         {...props}
       >
@@ -125,7 +125,7 @@ function DialogBody({
       className="min-h-0"
       viewportClassName={cn(
         'flex w-full flex-col gap-2 p-4 pt-0 focus-visible:outline-none',
-        className,
+        className
       )}
       style={style}
     >
@@ -140,7 +140,7 @@ function DialogFooter({ className, children, ...props }: React.ComponentProps<'d
       data-slot="dialog-footer"
       className={cn(
         'flex shrink-0 bg-surface-base-emphasis flex-col-reverse gap-2 border-t border-border p-3 sm:flex-row sm:justify-end',
-        className,
+        className
       )}
       {...props}
     >

@@ -15,7 +15,7 @@ function Textarea({ className, size = 'base', ...props }: TextareaProps) {
         inputVariants({ size }),
         // Auto-grow; override the fixed height from inputVariants
         'h-auto field-sizing-content min-h-16 py-2',
-        className,
+        className
       )}
       {...props}
     />

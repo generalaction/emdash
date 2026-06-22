@@ -43,8 +43,8 @@ export const Default: Story = {
         </DialogHeader>
         <DialogBody>
           <p className="text-foreground-muted">
-            This is the dialog body. Place forms, content, or any composition here. The body
-            scrolls independently when it overflows.
+            This is the dialog body. Place forms, content, or any composition here. The body scrolls
+            independently when it overflows.
           </p>
         </DialogBody>
         <DialogFooter>
@@ -78,8 +78,8 @@ export const Sizes: Story = {
             </DialogHeader>
             <DialogBody>
               <p className="text-foreground-muted">
-                This dialog uses the <code>{size}</code> size option (
-                <code>{width}</code>), matching the emdash-desktop modal sizes.
+                This dialog uses the <code>{size}</code> size option (<code>{width}</code>),
+                matching the emdash-desktop modal sizes.
               </p>
             </DialogBody>
             <DialogFooter>
@@ -109,7 +109,13 @@ export const Confirmation: Story = {
         </DialogBody>
         <DialogFooter>
           <DialogClose render={<Button variant="ghost">Cancel</Button>} />
-          <DialogClose render={<Button variant="primary" tone="destructive">Delete</Button>} />
+          <DialogClose
+            render={
+              <Button variant="primary" tone="destructive">
+                Delete
+              </Button>
+            }
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -128,8 +134,8 @@ export const ExtraLarge: Story = {
         </DialogHeader>
         <DialogBody>
           <p className="text-foreground-muted">
-            The <code>xl</code> size takes up to 80% of the viewport width and is 80vh tall —
-            useful for content-heavy views like previews, diffs, or browsers.
+            The <code>xl</code> size takes up to 80% of the viewport width and is 80vh tall — useful
+            for content-heavy views like previews, diffs, or browsers.
           </p>
           {Array.from({ length: 24 }, (_, i) => (
             <p key={i} className="text-foreground-muted">

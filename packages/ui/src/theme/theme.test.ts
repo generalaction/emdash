@@ -8,13 +8,13 @@
  *  4. Snapshot: spot-check key vars from the generated light/dark themes.
  */
 
-import { describe, expect, it } from 'vitest';
 import Color from 'colorjs.io';
-import { lightTheme } from './themes/light.theme.js';
-import { darkTheme } from './themes/dark.theme.js';
-import { SEMANTIC_TEMPLATE } from './contract/semantic-template.js';
+import { describe, expect, it } from 'vitest';
 import { SURFACE_LEVELS, SURFACE_STATUSES } from './contract/roles.js';
+import { SEMANTIC_TEMPLATE } from './contract/semantic-template.js';
 import type { ResolvedTheme } from './define-theme.js';
+import { darkTheme } from './themes/dark.theme.js';
+import { lightTheme } from './themes/light.theme.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -57,7 +57,7 @@ describe('Theme generation', () => {
               // All text-zone steps should have meaningful contrast (|Lc| > 15)
               expect(
                 Math.abs(lc),
-                `step ${idx + 1}: |Lc| should be > 15, got ${Math.abs(lc).toFixed(1)}`,
+                `step ${idx + 1}: |Lc| should be > 15, got ${Math.abs(lc).toFixed(1)}`
               ).toBeGreaterThan(15);
             });
           });
@@ -68,10 +68,9 @@ describe('Theme generation', () => {
       it('all generated scale colors are in P3 gamut', () => {
         for (const [scaleName, ramp] of Object.entries(scales)) {
           ramp.steps.forEach((color: string, i: number) => {
-            expect(
-              isInP3Gamut(color),
-              `${scaleName}.step ${i + 1} out of gamut: ${color}`,
-            ).toBe(true);
+            expect(isInP3Gamut(color), `${scaleName}.step ${i + 1} out of gamut: ${color}`).toBe(
+              true
+            );
           });
         }
       });
@@ -85,7 +84,7 @@ describe('Theme generation', () => {
           const lc = apca(ramp.contrast, solid);
           expect(
             Math.abs(lc),
-            `${scaleName} contrast on step 9: |Lc| = ${Math.abs(lc).toFixed(1)}`,
+            `${scaleName} contrast on step 9: |Lc| = ${Math.abs(lc).toFixed(1)}`
           ).toBeGreaterThanOrEqual(40);
         }
       });
@@ -252,7 +251,7 @@ describe('Theme generation', () => {
             const c = new Color(cssVal!);
             expect(
               c.inGamut('p3'),
-              `--surface-${status}${variant}: ${cssVal} should be in P3 gamut`,
+              `--surface-${status}${variant}: ${cssVal} should be in P3 gamut`
             ).toBe(true);
           }
         }

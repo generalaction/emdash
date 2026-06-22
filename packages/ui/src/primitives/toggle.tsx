@@ -7,8 +7,7 @@ import { controlVariants, type ControlVariantProps } from '../recipes/control';
 // ── Toggle ────────────────────────────────────────────────────────────────────
 
 export interface ToggleProps
-  extends TogglePrimitive.Props,
-    Pick<ControlVariantProps, 'size' | 'tone'> {
+  extends TogglePrimitive.Props, Pick<ControlVariantProps, 'size' | 'tone'> {
   icon?: boolean;
 }
 
@@ -19,7 +18,7 @@ export interface ToggleProps
  */
 const Toggle = React.forwardRef<HTMLButtonElement, ToggleProps>(function Toggle(
   { className, size = 'base', tone = 'neutral', icon = false, ...props },
-  ref,
+  ref
 ) {
   return (
     <TogglePrimitive
@@ -60,7 +59,7 @@ const ToggleGroupItem = React.forwardRef<
   TogglePrimitive.Props & Pick<ControlVariantProps, 'size' | 'tone'> & { icon?: boolean }
 >(function ToggleGroupItem(
   { className, size = 'sm', tone = 'neutral', icon = false, ...props },
-  ref,
+  ref
 ) {
   return (
     <TogglePrimitive

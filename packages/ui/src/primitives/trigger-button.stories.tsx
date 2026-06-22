@@ -1,20 +1,14 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
-import { TriggerButton } from './trigger-button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './select';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
 import { Surface } from './surface';
+import { TriggerButton } from './trigger-button';
 
 const meta: Meta = {
   title: 'Primitives/TriggerButton',
@@ -68,33 +62,27 @@ export const AsDropdownTrigger: Story = {
 /** Active state across all surfaces. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <div className="flex flex-col gap-4 rounded-xl p-4 bg-surface-sunken">
-      {(
-        [
-          'sunken',
-          'base',
-          'base-emphasis',
-          'elevated',
-          'elevated-emphasis',
-        ] as const
-      ).map((level) => (
-        <Surface
-          key={level}
-          level={level}
-          className="flex flex-wrap items-center gap-2 rounded-lg p-3 bg-surface"
-        >
-          <span className="w-36 text-xs text-foreground-muted">{level}</span>
-          <Select>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Select…" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="a">Alpha</SelectItem>
-              <SelectItem value="b">Beta</SelectItem>
-            </SelectContent>
-          </Select>
-        </Surface>
-      ))}
+    <div className="flex flex-col gap-4 rounded-xl bg-surface-sunken p-4">
+      {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
+        (level) => (
+          <Surface
+            key={level}
+            level={level}
+            className="flex flex-wrap items-center gap-2 rounded-lg bg-surface p-3"
+          >
+            <span className="w-36 text-xs text-foreground-muted">{level}</span>
+            <Select>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Select…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="a">Alpha</SelectItem>
+                <SelectItem value="b">Beta</SelectItem>
+              </SelectContent>
+            </Select>
+          </Surface>
+        )
+      )}
     </div>
   ),
 };

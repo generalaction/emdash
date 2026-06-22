@@ -3,8 +3,9 @@ import { vars } from '@styles/theme.css';
 import { createVariableThemeContract } from '@styles/variable-theme-contract.css';
 
 // ── Runtime geometry contract ─────────────────────────────────────────────────
-// Values feed both the pretext measurer (via metrics.ts) and CSS via assignInlineVars.
-// Keep in sync with MENTION_PAD_X/Y, MENTION_ICON_W/GAP in metrics.ts.
+// Values fed from ChipConfig (theme.chips) via assignInlineVars in Prose.tsx.
+// The same values are stored in FontConfig.mentionIconW/mentionIconGap so the
+// measurement side and renderer never drift.
 
 export type ProseStyleVars = {
   mentionPadX: number;

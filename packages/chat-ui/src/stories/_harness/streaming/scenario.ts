@@ -6,7 +6,14 @@
  */
 
 import type { TranscriptApi } from '@state/transcript';
-import type { ChatElicitationOption, ChatItem, ChatRole, FileOp, FileOpKind, ToolStatus } from '@/model';
+import type {
+  ChatElicitationOption,
+  ChatItem,
+  ChatRole,
+  FileOp,
+  FileOpKind,
+  ToolStatus,
+} from '@/model';
 import type { ScriptStep } from '@/stories/_harness/chat-host';
 
 // ── Chunk splitting ───────────────────────────────────────────────────────────

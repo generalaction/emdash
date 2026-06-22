@@ -10,6 +10,7 @@ import { batch, createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import { ChatRoot } from './ChatRoot';
 import type { EngineControls } from './ChatRoot';
+import type { ChatConfig } from './core/config';
 import type { ChatHighlighter } from './core/highlight/highlighter';
 import type { MentionProvider } from './core/markdown/mention-provider';
 import type { ChatTheme } from './core/theme';
@@ -46,8 +47,19 @@ export type {
 export type { TranscriptApi, TranscriptEvent } from './state/transcript';
 export type { ViewState } from './state/view-state';
 export { generateMockTranscript } from './mock-transcript';
-export type { ChatTheme, DensityScale } from './core/theme';
-export { buildTheme, DEFAULT_THEME } from './core/theme';
+export type {
+  ChatConfig,
+  ChipConfig,
+  ChatTheme,
+  DensityScale,
+  FontConfig,
+  FontFamilies,
+  ProseConfig,
+  ResolvedTheme,
+  RoleName,
+  TypeRole,
+} from './core/theme';
+export { buildChatTheme, buildTheme, DEFAULT_CONFIG, DEFAULT_THEME } from './core/theme';
 export type { ChatHighlighter, HighlightResult, CodeToken } from './core/highlight/highlighter';
 export { createDefaultHighlighter } from './core/highlight/highlighter';
 export type {
@@ -120,8 +132,16 @@ export type ChatCommands = {
 // ── Mount options ─────────────────────────────────────────────────────────────
 
 export type MountChatOptions = {
-  /** Full theme (fonts + geometry). Replaces the old `fonts` option. */
+  /**
+   * Full resolved theme (output of buildChatTheme). When omitted, `config` is
+   * used. Kept for back-compat with callers that build a theme directly.
+   */
   theme?: ChatTheme;
+  /**
+   * Chat configuration (typography, chip geometry, prose geometry, density).
+   * Derived once into a ResolvedTheme by ChatRoot. Ignored when `theme` is set.
+   */
+  config?: ChatConfig;
   stickToBottom?: boolean;
   /** Pre-existing transcript store; if omitted a new one is created. */
   transcript?: TranscriptApi;
@@ -245,6 +265,7 @@ export function mountChat(container: HTMLElement, opts: MountChatOptions = {}): 
         transcript={transcript}
         viewState={viewState}
         theme={theme}
+        config={opts.config}
         stickToBottom={opts.stickToBottom}
         class={opts.class}
         contentClass={opts.contentClass}

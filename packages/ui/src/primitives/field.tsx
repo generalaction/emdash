@@ -28,7 +28,7 @@ function FieldLabel({ className, ...props }: FieldPrimitive.Label.Props) {
       className={cn(
         'text-sm font-medium leading-none text-foreground',
         'peer-disabled:cursor-not-allowed peer-disabled:opacity-70',
-        className,
+        className
       )}
       {...props}
     />

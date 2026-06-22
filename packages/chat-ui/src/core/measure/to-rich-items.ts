@@ -5,12 +5,14 @@
  * (pretext / FontConfig). Lives in core/measure/ because it depends on both
  * pretext and FontConfig — keeping it out of core/markdown/ preserves that
  * module as a pure, dependency-free document model.
+ *
+ * Mention icon geometry (mentionIconW, mentionIconGap) is now read from the
+ * FontConfig passed in so there is no import-time coupling to the Prose renderer.
  */
 
 import type { RichInlineItem } from '@chenglou/pretext/rich-inline';
-import { MENTION_ICON_GAP, MENTION_ICON_W } from '@components/rows/markdown/prose/metrics';
 import type { InlineCode, InlineMention, InlineRun, InlineText } from '@core/markdown/document';
-import type { FontConfig } from './fonts';
+import type { FontConfig } from '@core/config';
 
 export function runsToRichItems(runs: InlineRun[], fonts: FontConfig): RichInlineItem[] {
   return runs.flatMap((run): RichInlineItem[] => {
@@ -29,10 +31,10 @@ export function runsToRichItems(runs: InlineRun[], fonts: FontConfig): RichInlin
     if (run.kind === 'mention') {
       const mention = run as InlineMention;
       // Resolved mentions display the short name and include extra space for the
-      // leading icon container. MENTION_ICON_W + MENTION_ICON_GAP must equal the
-      // px values used in Prose.tsx so rendering and measurement stay in sync.
+      // leading icon container. fonts.mentionIconW + fonts.mentionIconGap must equal
+      // the px values used in Prose.tsx so rendering and measurement stay in sync.
       const displayText = mention.name ?? mention.label;
-      const iconWidth = mention.mentionKind ? MENTION_ICON_W + MENTION_ICON_GAP : 0;
+      const iconWidth = mention.mentionKind ? fonts.mentionIconW + fonts.mentionIconGap : 0;
       return [
         {
           text: displayText,

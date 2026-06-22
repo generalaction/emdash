@@ -21,12 +21,7 @@ type Story = StoryObj<typeof ChatHost>;
 
 /** Standalone permission row (no parent tool call). */
 export const Default: Story = {
-  render: () => (
-    <ChatHost
-      items={[permissionItem({ title: 'Read a File' })]}
-      height={80}
-    />
-  ),
+  render: () => <ChatHost items={[permissionItem({ title: 'Read a File' })]} height={80} />,
 };
 
 /** Permission row beneath a running tool call, linked by toolCallId. */

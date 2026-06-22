@@ -33,7 +33,7 @@ function SheetBackdrop({ className, ...props }: Drawer.Backdrop.Props) {
       data-slot="sheet-backdrop"
       className={cn(
         'fixed inset-0 z-50 bg-black/40 duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0',
-        className,
+        className
       )}
       {...props}
     />
@@ -63,7 +63,7 @@ function SheetContent({
           side === 'right'
             ? 'right-0 sm:max-w-xl data-open:animate-in data-open:slide-in-from-right data-closed:animate-out data-closed:slide-out-to-right'
             : 'left-0 sm:max-w-md data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left',
-          className,
+          className
         )}
         {...props}
       >
@@ -133,7 +133,7 @@ function SheetBody({
       className="min-h-0 flex-1"
       viewportClassName={cn(
         'flex w-full flex-col gap-2 p-4 pt-0 focus-visible:outline-none',
-        className,
+        className
       )}
       style={style}
     >
@@ -148,7 +148,7 @@ function SheetFooter({ className, children, ...props }: React.ComponentProps<'di
       data-slot="sheet-footer"
       className={cn(
         'flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-surface-base-emphasis p-3 sm:flex-row sm:justify-end',
-        className,
+        className
       )}
       {...props}
     >

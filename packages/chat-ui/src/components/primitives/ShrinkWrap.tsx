@@ -68,46 +68,19 @@ export function makeShrinkWrap(
   );
 }
 
-// ── InlineCodeChip preset ─────────────────────────────────────────────────────
-
-// ── UserBubble preset constants ───────────────────────────────────────────────
-
-/**
- * Horizontal padding of the user message bubble on each side (px).
- * This value MUST match `BUBBLE_PAD_X` in message/layout.ts — it is
- * separated here so ShrinkWrap.tsx has no dependency on message internals.
- * If you change one, change the other.
- */
-export const USER_BUBBLE_PAD_X = 14;
-/** Vertical padding of the user message bubble on each side (px). */
-export const USER_BUBBLE_PAD_Y = 8;
-/** Border radius of the user message bubble (px). */
-export const USER_BUBBLE_RADIUS = 12;
-
-// ── InlineCodeChip preset constants ──────────────────────────────────────────
-
-/**
- * Horizontal padding used by inline code chips (px).
- * This value must match the `inlineCodeExtraWidth` divided by 2 that is
- * fed into FontConfig / pretext so layout and rendering stay in sync.
- */
-export const INLINE_CODE_PAD_X = 6;
-/** Vertical padding used by inline code chips (px). */
-export const INLINE_CODE_PAD_Y = 2;
-
 /**
  * Inline code chip preset — inline-block box with monospace font chrome.
- * Reads `inlineCodePadX`/`inlineCodePadY` from the active theme so the
- * visual padding matches the pretext measurement.
+ * Reads `inlineCodePadX`/`inlineCodePadY` from the active theme's chip config
+ * so the visual padding matches the pretext measurement.
  */
 export function InlineCodeChip(props: { children: JSX.Element }) {
   const theme = useTheme();
-  const d = () => theme().density;
+  const chips = () => theme().chips;
 
   return (
     <ShrinkWrap
-      padX={d().inlineCodePadX}
-      padY={d().inlineCodePadY}
+      padX={chips().inlineCodePadX}
+      padY={chips().inlineCodePadY}
       radius={4}
       display="inline-block"
       class={inlineCodeChipVisual}

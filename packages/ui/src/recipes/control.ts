@@ -64,10 +64,7 @@ export const controlVariants = cva(
       },
       size: {
         base: 'h-8 gap-1.5 px-2.5',
-        sm: [
-          'h-6 gap-1 px-2 text-xs rounded-md',
-          "[&_svg:not([class*='size-'])]:size-3",
-        ].join(' '),
+        sm: ['h-6 gap-1 px-2 text-xs rounded-md', "[&_svg:not([class*='size-'])]:size-3"].join(' '),
         link: [
           'h-auto gap-1 border-0 bg-transparent! p-0',
           'text-foreground',
@@ -116,7 +113,7 @@ export const controlVariants = cva(
       size: 'base',
       icon: false,
     },
-  },
+  }
 );
 
 export type ControlVariantProps = VariantProps<typeof controlVariants>;

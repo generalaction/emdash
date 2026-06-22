@@ -10,9 +10,9 @@
  *   "mix(A pct%, B)"   → emitted as CSS color-mix(in srgb, var(--A) pct%, var(--B))
  */
 
-import { SEMANTIC_TEMPLATE } from './contract/semantic-template.js';
 import { SURFACE_SCOPES, SURFACE_STATUSES, STATUS_SCALE } from './contract/roles.js';
 import type { Scales, Surfaces, Polarity } from './contract/roles.js';
+import { SEMANTIC_TEMPLATE } from './contract/semantic-template.js';
 
 // ── Ref resolution ────────────────────────────────────────────────────────────
 
@@ -119,7 +119,7 @@ function buildPaletteVars(scales: Scales): Record<string, string> {
 export function resolveCssVars(
   scales: Scales,
   surfaces: Surfaces,
-  _polarity: Polarity,
+  _polarity: Polarity
 ): Record<string, string> {
   const vars: Record<string, string> = {};
 

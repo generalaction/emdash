@@ -100,9 +100,7 @@ const SECTIONS: Section[] = [
   },
 ];
 
-function categorize(
-  vars: readonly string[],
-): Array<{ title: string; tokens: string[] }> {
+function categorize(vars: readonly string[]): Array<{ title: string; tokens: string[] }> {
   const assigned = new Set<string>();
   const groups = SECTIONS.map(({ title, match }) => ({
     title,
@@ -196,10 +194,7 @@ function TokenRow({ varName }: { varName: string }) {
       {preview}
       <div className="flex min-w-0 flex-col gap-0.5">
         <span className="font-mono text-xs text-foreground">{varName}</span>
-        <span
-          ref={resolvedRef}
-          className="font-mono text-[10px] text-foreground-passive"
-        />
+        <span ref={resolvedRef} className="font-mono text-[10px] text-foreground-passive" />
       </div>
     </div>
   );
@@ -210,7 +205,7 @@ function TokenRow({ varName }: { varName: string }) {
 function SectionBlock({ title, tokens }: { title: string; tokens: string[] }) {
   return (
     <div>
-      <h3 className="mb-2 border-b border-border pb-1 text-[11px] font-semibold uppercase tracking-wider text-foreground-muted">
+      <h3 className="mb-2 border-b border-border pb-1 text-[11px] font-semibold tracking-wider text-foreground-muted uppercase">
         {title}
       </h3>
       <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-3">

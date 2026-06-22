@@ -52,10 +52,7 @@ function ContrastSwatch({ scale }: { scale: ScaleName }) {
   });
 
   return (
-    <div
-      className="flex flex-col items-center gap-1"
-      title={`--${scale}-contrast\n${resolved}`}
-    >
+    <div className="flex flex-col items-center gap-1" title={`--${scale}-contrast\n${resolved}`}>
       <div
         ref={ref}
         className="h-10 w-full rounded"

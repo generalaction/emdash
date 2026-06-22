@@ -101,18 +101,12 @@ function ModelDetailCard({ item }: { item: ModelItem }) {
     <div className="w-52 p-3 text-sm" style={{ color: 'var(--foreground)' }}>
       <div className="flex items-center gap-1.5">
         <Bot className="size-4 shrink-0" style={{ color: 'var(--foreground-muted)' }} />
-        <p className="font-medium leading-tight">{item.name}</p>
+        <p className="leading-tight font-medium">{item.name}</p>
       </div>
-      <p
-        className="mt-1.5 text-xs leading-snug"
-        style={{ color: 'var(--foreground-muted)' }}
-      >
+      <p className="mt-1.5 text-xs leading-snug" style={{ color: 'var(--foreground-muted)' }}>
         {item.description}
       </p>
-      <div
-        className="mt-2 space-y-1.5 border-t pt-2"
-        style={{ borderColor: 'var(--border)' }}
-      >
+      <div className="mt-2 space-y-1.5 border-t pt-2" style={{ borderColor: 'var(--border)' }}>
         <div className="flex items-center justify-between text-xs">
           <span style={{ color: 'var(--foreground-muted)' }}>Context</span>
           <span style={{ color: 'var(--foreground)' }}>{item.contextK}K</span>
@@ -200,8 +194,8 @@ function DetailCardAboveStory() {
   return (
     <div className="flex flex-col items-center gap-4">
       <p className="text-xs" style={{ color: 'var(--foreground-muted)' }}>
-        Hover a row — detail card appears above the popover (for bottom-anchored selectors like
-        the composer toolbar).
+        Hover a row — detail card appears above the popover (for bottom-anchored selectors like the
+        composer toolbar).
       </p>
       <ComboboxPopover<ModelItem>
         items={MODELS}

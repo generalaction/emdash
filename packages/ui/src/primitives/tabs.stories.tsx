@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
-import { Tabs, TabsList, TabsPanel, TabsTab } from './tabs';
 import { Surface } from './surface';
+import { Tabs, TabsList, TabsPanel, TabsTab } from './tabs';
 
 const meta: Meta = {
   title: 'Primitives/Tabs',
@@ -36,31 +36,25 @@ export const Default: Story = {
 /** Tabs on each surface level — hover/selected adapt via cascade. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <div className="flex flex-col gap-4 rounded-xl p-4 bg-surface-sunken">
-      {(
-        [
-          'sunken',
-          'base',
-          'base-emphasis',
-          'elevated',
-          'elevated-emphasis',
-        ] as const
-      ).map((level) => (
-        <Surface
-          key={level}
-          level={level}
-          className="flex flex-col gap-2 rounded-lg p-3 bg-surface"
-        >
-          <span className="text-xs text-foreground-muted">{level}</span>
-          <Tabs defaultValue="a">
-            <TabsList>
-              <TabsTab value="a">Alpha</TabsTab>
-              <TabsTab value="b">Beta</TabsTab>
-              <TabsTab value="c">Gamma</TabsTab>
-            </TabsList>
-          </Tabs>
-        </Surface>
-      ))}
+    <div className="flex flex-col gap-4 rounded-xl bg-surface-sunken p-4">
+      {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
+        (level) => (
+          <Surface
+            key={level}
+            level={level}
+            className="flex flex-col gap-2 rounded-lg bg-surface p-3"
+          >
+            <span className="text-xs text-foreground-muted">{level}</span>
+            <Tabs defaultValue="a">
+              <TabsList>
+                <TabsTab value="a">Alpha</TabsTab>
+                <TabsTab value="b">Beta</TabsTab>
+                <TabsTab value="c">Gamma</TabsTab>
+              </TabsList>
+            </Tabs>
+          </Surface>
+        )
+      )}
     </div>
   ),
 };

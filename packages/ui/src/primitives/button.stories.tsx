@@ -100,30 +100,24 @@ export const Disabled: Story = {
 /** Surface-relative hover / active adapt correctly across all backgrounds. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <div className="flex flex-col gap-4 rounded-xl p-4 bg-surface-sunken">
-      {(
-        [
-          'sunken',
-          'base',
-          'base-emphasis',
-          'elevated',
-          'elevated-emphasis',
-        ] as const
-      ).map((level) => (
-        <Surface
-          key={level}
-          level={level}
-          className="flex flex-wrap items-center gap-2 rounded-lg p-3 bg-surface"
-        >
-          <span className="w-36 text-xs text-foreground-muted">{level}</span>
-          <Button>Ghost</Button>
-          <Button variant="primary">Primary</Button>
-          <Button tone="destructive">Destructive</Button>
-          <Button icon>
-            <SearchIcon />
-          </Button>
-        </Surface>
-      ))}
+    <div className="flex flex-col gap-4 rounded-xl bg-surface-sunken p-4">
+      {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
+        (level) => (
+          <Surface
+            key={level}
+            level={level}
+            className="flex flex-wrap items-center gap-2 rounded-lg bg-surface p-3"
+          >
+            <span className="w-36 text-xs text-foreground-muted">{level}</span>
+            <Button>Ghost</Button>
+            <Button variant="primary">Primary</Button>
+            <Button tone="destructive">Destructive</Button>
+            <Button icon>
+              <SearchIcon />
+            </Button>
+          </Surface>
+        )
+      )}
     </div>
   ),
 };

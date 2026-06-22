@@ -35,7 +35,7 @@ const HOVER_CARD_ATTR = 'data-hover-card';
  */
 export function isEventInsideInteractiveLayer(
   event: Event | null | undefined,
-  ownPopup: HTMLElement | null,
+  ownPopup: HTMLElement | null
 ): boolean {
   if (!event) return false;
   const targets: Element[] = [];
@@ -45,7 +45,7 @@ export function isEventInsideInteractiveLayer(
   return targets.some((el) => {
     if (el.closest(`[${HOVER_CARD_ATTR}]`)) return true;
     const popup = el.closest(
-      '[data-slot="popover-content"],[data-slot="combobox-content"],[data-slot="dropdown-menu-content"]',
+      '[data-slot="popover-content"],[data-slot="combobox-content"],[data-slot="dropdown-menu-content"]'
     );
     return popup !== null && popup !== ownPopup;
   });
@@ -117,7 +117,7 @@ export function useHoverCard(): HoverCardController {
       clearOpenTimer();
       clearCloseTimer();
     },
-    [clearOpenTimer, clearCloseTimer],
+    [clearOpenTimer, clearCloseTimer]
   );
 
   const scheduleClose = useCallback(() => {
@@ -142,7 +142,7 @@ export function useHoverCard(): HoverCardController {
         }, OPEN_DELAY_MS);
       }
     },
-    [clearCloseTimer, setOpenState],
+    [clearCloseTimer, setOpenState]
   );
 
   const handleRowLeave = useCallback(() => {
@@ -155,7 +155,7 @@ export function useHoverCard(): HoverCardController {
       onMouseEnter: () => handleRowEnter(key),
       onMouseLeave: handleRowLeave,
     }),
-    [handleRowEnter, handleRowLeave],
+    [handleRowEnter, handleRowLeave]
   );
 
   const popupHoverProps: HoverCardRowProps = {
@@ -171,7 +171,7 @@ export function useHoverCard(): HoverCardController {
       }
       setOpenState(next);
     },
-    [clearOpenTimer, clearCloseTimer, setOpenState],
+    [clearOpenTimer, clearCloseTimer, setOpenState]
   );
 
   const close = useCallback(() => {
@@ -229,7 +229,7 @@ export function HoverCard({
       }
       handleOpenChange(next);
     },
-    [ownPopup, handleOpenChange],
+    [ownPopup, handleOpenChange]
   );
 
   if (!anchor) return null;

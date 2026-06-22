@@ -11,7 +11,7 @@ export type ButtonProps = ButtonPrimitive.Props &
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { className, variant = 'ghost', tone = 'neutral', size = 'base', icon = false, ...props },
-  ref,
+  ref
 ) {
   return (
     <ButtonPrimitive

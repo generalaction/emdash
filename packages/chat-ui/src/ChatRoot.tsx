@@ -45,6 +45,8 @@ import { genericEstimate } from './core/layout/generic-estimate';
 import type { MentionProvider } from './core/markdown/mention-provider';
 import { registerFontsReadyClear } from './core/measure/pretext-cache';
 import { StickToBottom } from './core/stick-to-bottom';
+import type { ChatConfig } from './core/config';
+import { DEFAULT_CONFIG, buildChatTheme } from './core/config';
 import type { ChatTheme } from './core/theme';
 import { DEFAULT_THEME } from './core/theme';
 import { unitReservedHeight } from './core/units';
@@ -106,8 +108,17 @@ export type EngineControls = {
 export type ChatRootProps = {
   transcript: TranscriptApi;
   viewState: ViewState;
-  /** Full theme (fonts + geometry). Replaces the old `fonts` option. */
+  /**
+   * Full resolved theme (output of buildChatTheme). When omitted, `config` is
+   * used to derive the theme. Kept for back-compat with callers that build a
+   * ChatTheme directly.
+   */
   theme?: ChatTheme;
+  /**
+   * Chat configuration (typography, chip geometry, prose geometry, density).
+   * Passed to buildChatTheme once at creation. Ignored when `theme` is provided.
+   */
+  config?: ChatConfig;
   stickToBottom?: boolean;
   /** Extra classes for the full-width scroll container. */
   class?: string;
@@ -173,7 +184,11 @@ export type ChatRootProps = {
 
 export function ChatRoot(props: ChatRootProps) {
   const caches = createChatCaches(props.highlighter, props.mentionProvider);
-  const theme = () => props.theme ?? DEFAULT_THEME;
+  // Resolve theme once at creation time (non-reactive by design: theme changes
+  // require a remount). Prefer the explicit `theme` prop for back-compat, then
+  // derive from `config`, then fall back to DEFAULT_THEME.
+  const resolved: ChatTheme = props.theme ?? buildChatTheme(props.config ?? DEFAULT_CONFIG);
+  const theme = () => resolved;
   const contentClass = () => props.contentClass ?? DEFAULT_CONTENT_CLASS;
   const commands = () => props.commands?.() ?? {};
 
@@ -547,25 +562,13 @@ export function ChatRoot(props: ChatRootProps) {
       props.controls.loadOlder = doLoadOlder;
     }
 
-    // CSS vars required by CSS modules. Set once on mount (theme is not reactive
-    // in the current architecture; if theme changes, a full unmount/remount is
-    // expected). Groups:
-    //   Typography — feed pretext measurement; keep until CSS modules migrate to --type-* vars.
-    //   Inline code / mention chrome — feed pretext extra-width accounting.
-    // Emit only the density-derived geometry vars that CSS modules actually read.
-    // Typography (font-size, font-weight, line-height) is now handled by the
-    // private --chat-type-* vars in tokens.css — no host override, no runtime emit.
-    // Mention geometry (icon width, gap, padding) is baked as px literals in
-    // prose.module.css and Prose.tsx via the MENTION_* constants.
-    const t = theme();
-    const d = t.density;
-    const cssVars: Record<string, string> = {
-      // Inline code chip padding (density-driven; consumed by prose.module.css +
-      // execute.module.css .pf--inline-code / .pexec__cmd).
-      '--chat-ic-pad-x': `${d.inlineCodePadX}px`,
-      '--chat-ic-pad-y': `${d.inlineCodePadY}px`,
-    };
-    for (const [k, v] of Object.entries(cssVars)) {
+    // Emit measurement-coupled CSS vars from the resolved theme.
+    // These are the non-color, non-family vars (--chat-type-*, --chat-ic-pad-*)
+    // that must match the measurement side exactly for the measure===offsetHeight
+    // invariant to hold. Colors/radii/font-family remain CSS-class-themed so
+    // host overrides via .emlight/.emdark keep working.
+    // Set once on mount — theme changes require a full remount.
+    for (const [k, v] of Object.entries(resolved.cssVars)) {
       el.style.setProperty(k, v);
     }
 

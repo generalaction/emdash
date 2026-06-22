@@ -1,12 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import React, { useState } from 'react';
 import { AlertCircleIcon, AlertTriangleIcon, InfoIcon } from 'lucide-react';
+import React, { useState } from 'react';
 import { Button } from '../primitives/button';
 import { Callout } from '../primitives/callout';
 import { Input } from '../primitives/input';
-import { Surface } from '../primitives/surface';
-import { ThemeProvider } from '../primitives/theme-provider';
-import { Toggle } from '../primitives/toggle';
 import {
   Select,
   SelectContent,
@@ -14,6 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../primitives/select';
+import { Surface } from '../primitives/surface';
+import { ThemeProvider } from '../primitives/theme-provider';
+import { Toggle } from '../primitives/toggle';
 import { SURFACE_LEVELS, SURFACE_ROLES, SURFACE_STATUSES } from '../theme/contract/roles';
 import type { SurfaceScopeName, SurfaceStatusName } from '../theme/contract/roles';
 
@@ -272,8 +272,8 @@ export const StatusSurfaces: Story = {
         </p>
         <p className="text-xs text-foreground-muted">
           Each status box rebinds <code className="font-mono">--surface-hover</code> and{' '}
-          <code className="font-mono">--surface-selected</code> so any ghost Button / Toggle
-          inside already hovers/selects with the correct tint.
+          <code className="font-mono">--surface-selected</code> so any ghost Button / Toggle inside
+          already hovers/selects with the correct tint.
         </p>
       </div>
       {SURFACE_STATUSES.map((status) => (

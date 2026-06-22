@@ -12,12 +12,8 @@
 
 import { useCommands } from '@components/contexts/CommandsContext';
 import type { ChatElicitation } from '@/model';
-import {
-  elicitationBox,
-  elicitationLabel,
-  elicitationTitle,
-} from './elicitation.css';
 import { SplitButton } from './SplitButton';
+import { elicitationBox, elicitationLabel, elicitationTitle } from './elicitation.css';
 
 export type PermissionRequestProps = {
   item: ChatElicitation;

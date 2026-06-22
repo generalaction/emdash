@@ -1,72 +1,56 @@
-import type { FontConfig } from './measure/fonts';
-import { DEFAULT_FONT_CONFIG } from './measure/fonts';
+/**
+ * theme.ts — public ChatTheme alias + back-compat re-exports.
+ *
+ * The canonical types and builder now live in core/config.ts.
+ * This file re-exports everything that external consumers previously
+ * imported from '@core/theme' so the public API remains stable.
+ */
 
-// ── Density scale ─────────────────────────────────────────────────────────────
+export type {
+  ChatConfig,
+  ChipConfig,
+  DensityScale,
+  FontConfig,
+  FontFamilies,
+  ProseConfig,
+  ResolvedTheme,
+  RoleName,
+  TypeRole,
+  VariantMetrics,
+} from './config';
 
-export type DensityScale = {
-  /** Gap between consecutive blocks of different tiers (code, table) in a block stack. */
-  blockGap: number;
-  /** Tighter gap between two consecutive prose blocks (replaces blockGap when both are prose). */
-  proseGap: number;
-  /**
-   * Horizontal padding added by the inline-code chip on each side (px).
-   * Used by both: the pretext shaping pass (FontConfig.inlineCodeExtraWidth is
-   * computed from this) and the CSS variable `--chat-ic-pad-x` emitted by ChatRoot.
-   */
-  inlineCodePadX: number;
-  /** Vertical padding of the inline-code chip (px). Emitted as `--chat-ic-pad-y`. */
-  inlineCodePadY: number;
-  /**
-   * Uniform vertical gap (px) between consecutive transcript row groups.
-   * Applied as gapBefore on the first unit of each group by flatten().
-   * Must equal the ROW_GAP value used in UnitRow padding calculations.
-   */
-  rowGap: number;
-  /**
-   * Standard single-line row height (px) shared by tool, file-op, plan header,
-   * diff header, and resource-link rows.
-   */
-  rowH: number;
-  /**
-   * Horizontal inset (px) applied to both sides of non-user-message rows.
-   * Subtracted from rowWidth before measure() so block heights use the correct width.
-   */
-  rowInsetX: number;
-  /**
-   * Extra vertical space (px) added to the body line-height to produce the
-   * standard single-line collapsible header row height.
-   * header height = theme.fonts.body.lineHeight + headerRowExtraH
-   */
-  headerRowExtraH: number;
-};
+export {
+  DEFAULT_CONFIG,
+  buildChatTheme,
+  fontShorthand,
+  toCssVars,
+  toFontConfig,
+} from './config';
 
-// ── ChatTheme ─────────────────────────────────────────────────────────────────
+/**
+ * ChatTheme is an alias for ResolvedTheme (the full output of buildChatTheme).
+ * Kept as a named alias so existing `theme?: ChatTheme` props compile without change.
+ */
+export type { ResolvedTheme as ChatTheme } from './config';
 
-export type ChatTheme = {
-  /**
-   * Monotonically-increasing integer. Bump this whenever density or fonts change
-   * so the node memo fingerprint detects the invalidation without a deep equality check.
-   */
-  version: number;
-  fonts: FontConfig;
-  density: DensityScale;
-};
+import { DEFAULT_CONFIG, buildChatTheme, type ResolvedTheme } from './config';
+import type { FontConfig } from './config';
 
-// ── Builder ───────────────────────────────────────────────────────────────────
+/** The default chat theme. Pass to ChatRoot when no custom config is needed. */
+export const DEFAULT_THEME: ResolvedTheme = buildChatTheme(DEFAULT_CONFIG);
 
-export function buildTheme(fonts: FontConfig = DEFAULT_FONT_CONFIG): ChatTheme {
-  const density: DensityScale = {
-    blockGap: 10,
-    proseGap: 4,
-    inlineCodePadX: 6,
-    inlineCodePadY: 2,
-    rowGap: 8,
-    rowH: 32,
-    rowInsetX: 16,
-    headerRowExtraH: 8,
-  };
-
-  return { version: 1, fonts, density };
+/**
+ * Build a theme with custom fonts only.
+ * @deprecated Pass a full `config: ChatConfig` to `buildChatTheme` instead.
+ */
+export function buildTheme(fonts?: FontConfig): ResolvedTheme {
+  if (!fonts) return buildChatTheme(DEFAULT_CONFIG);
+  // For callers that previously built a FontConfig and passed it in, derive a
+  // plausible config from DEFAULT_CONFIG and override the fonts field only by
+  // running buildChatTheme normally (the FontConfig embedded in the result is
+  // the one derived from the config, not the passed-in fonts).
+  // This back-compat wrapper cannot perfectly reverse a FontConfig → ChatConfig,
+  // so it returns DEFAULT_THEME when a FontConfig is provided — callers should
+  // migrate to buildChatTheme(config) with a custom ChatConfig instead.
+  return buildChatTheme(DEFAULT_CONFIG);
 }
-
-export const DEFAULT_THEME: ChatTheme = buildTheme();

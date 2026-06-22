@@ -26,8 +26,8 @@
  */
 
 import Color from 'colorjs.io';
-import { CHROMA_CURVE } from '../contract/targets.js';
 import type { Polarity, Ramp, Step } from '../contract/roles.js';
+import { CHROMA_CURVE } from '../contract/targets.js';
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -135,7 +135,7 @@ function solveLForAPCA(
   chroma: number,
   targetLc: number,
   bgColor: Color,
-  polarity: Polarity,
+  polarity: Polarity
 ): number {
   let lo = 0.0;
   let hi = 1.0;
@@ -191,7 +191,7 @@ function formatColor(c: Color, gamut: 'p3' | 'srgb'): string {
 function pickContrastColor(
   solidColor: Color,
   darkForeground: boolean | undefined,
-  gamut: 'p3' | 'srgb',
+  gamut: 'p3' | 'srgb'
 ): string {
   if (darkForeground) {
     return gamut === 'p3' ? 'color(display-p3 0.125 0.125 0.125)' : '#1a1a1a';
@@ -282,7 +282,7 @@ export function generateRamp(seed: HueSeed, opts: RampOptions): Ramp {
  * hue: warmth angle (0 = pure gray, 60 = warm, 250 = cool blue-gray).
  */
 export function generateNeutralRamp(
-  opts: RampOptions & { hue?: number; neutralChroma?: number },
+  opts: RampOptions & { hue?: number; neutralChroma?: number }
 ): Ramp {
   const { hue = 0, neutralChroma, ...rest } = opts;
   return generateRamp(hue, {

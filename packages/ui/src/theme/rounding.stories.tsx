@@ -26,9 +26,9 @@ export const Scale: Story = {
       <div>
         <h2 className="text-sm font-semibold text-foreground">Radius scale</h2>
         <p className="mt-1 text-xs text-foreground-muted">
-          Each swatch uses <code className="font-mono">border-radius: var(--radius-*)</code>.
-          The anchor is <code className="font-mono">--radius: 0.5rem</code>; change it to
-          rescale the whole system.
+          Each swatch uses <code className="font-mono">border-radius: var(--radius-*)</code>. The
+          anchor is <code className="font-mono">--radius: 0.5rem</code>; change it to rescale the
+          whole system.
         </p>
       </div>
       <div className="grid grid-cols-4 gap-6 lg:grid-cols-7">

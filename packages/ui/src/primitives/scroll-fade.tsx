@@ -64,7 +64,11 @@ const ScrollFade = React.forwardRef<HTMLDivElement, ScrollFadeProps>(function Sc
 
   // Default the rendered edges from the axis, then allow an explicit override.
   const defaultEdges: ScrollFadeEdge[] =
-    axis === 'x' ? ['left', 'right'] : axis === 'both' ? ['top', 'bottom', 'left', 'right'] : ['top', 'bottom'];
+    axis === 'x'
+      ? ['left', 'right']
+      : axis === 'both'
+        ? ['top', 'bottom', 'left', 'right']
+        : ['top', 'bottom'];
   const activeEdges = edges ?? defaultEdges;
   const showEdge = (edge: ScrollFadeEdge) => activeEdges.includes(edge);
 

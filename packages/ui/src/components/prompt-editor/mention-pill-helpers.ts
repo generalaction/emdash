@@ -4,8 +4,8 @@
  * a DOM environment.
  */
 
-import type { MentionKind } from './types';
 import { resolveFileIconClass } from '../../lib/file-icons';
+import type { MentionKind } from './types';
 
 // ── Basename ──────────────────────────────────────────────────────────────────
 

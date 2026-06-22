@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
-import { ThemeProvider } from './theme-provider';
 import { ScrollFade } from './scroll-fade';
+import { ThemeProvider } from './theme-provider';
 
 const meta: Meta<typeof ScrollFade> = {
   title: 'Primitives/ScrollFade',
@@ -31,7 +31,10 @@ function HorizontalItems({ n = 20 }: { n?: number }) {
   return (
     <div className="flex gap-3 whitespace-nowrap">
       {Array.from({ length: n }, (_, i) => (
-        <div key={i} className="rounded border border-border bg-surface-base-emphasis px-3 py-1 text-sm">
+        <div
+          key={i}
+          className="rounded border border-border bg-surface-base-emphasis px-3 py-1 text-sm"
+        >
           Item {i + 1}
         </div>
       ))}

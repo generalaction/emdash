@@ -4,7 +4,8 @@ import { cn } from '../lib/cn';
 import { controlVariants, type ControlVariantProps } from '../recipes/control';
 
 export interface TriggerButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
     Pick<ControlVariantProps, 'size' | 'tone'> {
   /**
    * Show a trailing chevron icon (for selects, comboboxes, dropdowns).
@@ -30,7 +31,7 @@ export interface TriggerButtonProps
 const TriggerButton = React.forwardRef<HTMLButtonElement, TriggerButtonProps>(
   function TriggerButton(
     { className, size = 'base', tone = 'neutral', showChevron = true, children, ...props },
-    ref,
+    ref
   ) {
     return (
       <button
@@ -42,7 +43,7 @@ const TriggerButton = React.forwardRef<HTMLButtonElement, TriggerButtonProps>(
           'w-fit justify-between gap-1.5',
           'data-placeholder:text-foreground-passive',
           '[&>[data-slot=trigger-value]]:line-clamp-1 [&>[data-slot=trigger-value]]:flex [&>[data-slot=trigger-value]]:items-center [&>[data-slot=trigger-value]]:gap-1.5',
-          className,
+          className
         )}
         {...props}
       >
@@ -55,7 +56,7 @@ const TriggerButton = React.forwardRef<HTMLButtonElement, TriggerButtonProps>(
         )}
       </button>
     );
-  },
+  }
 );
 
 export { TriggerButton };
