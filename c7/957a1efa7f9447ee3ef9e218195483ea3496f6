@@ -1,0 +1,47 @@
+packages/plugins/src/agents/impl/grok/hooks.ts
+  s_a4003025cee101::t_50e305d1e6bc08 20,26,36
+packages/plugins/src/agents/impl/kilocode/plugin-file.ts
+  s_a4003025cee101::t_50e305d1e6bc08 8
+packages/plugins/src/agents/impl/pi/plugin-file.ts
+  s_a4003025cee101::t_50e305d1e6bc08 10
+packages/plugins/src/agents/impl/opencode/plugin-file.ts
+  s_a4003025cee101::t_50e305d1e6bc08 8
+packages/core/src/agents/plugins/helpers/hooks.ts
+  s_696fefbca872f2::t_002210336d28b3 29,44,50
+packages/core/src/agents/plugins/helpers/hooks.test.ts
+  s_696fefbca872f2::t_002210336d28b3 14
+apps/emdash-desktop/src/main/core/pty/pty-env.test.ts
+  s_696fefbca872f2::t_002210336d28b3 167,176
+packages/plugins/src/agents/impl/codex/hooks.ts
+  s_a4003025cee101::t_50e305d1e6bc08 23
+packages/plugins/src/agents/impl/amp/plugin-file.ts
+  s_a4003025cee101::t_50e305d1e6bc08 9
+apps/emdash-desktop/src/main/core/pty/pty-env.ts
+  s_696fefbca872f2::t_002210336d28b3 161,289
+packages/plugins/src/agents/impl/commandcode/index.test.ts
+  s_a4003025cee101::t_b3d90ac98e9100 2,63-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "c7957a1efa7f9447ee3ef9e218195483ea3496f6",
+  "prompts": {},
+  "sessions": {
+    "s_696fefbca872f2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eedbf-0c6d-7f01-8cc2-cee963dc2fd8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_a4003025cee101": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eedbe-ffa4-7f42-a34a-10734a6ad13b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
