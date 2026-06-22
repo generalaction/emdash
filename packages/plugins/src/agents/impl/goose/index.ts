@@ -75,22 +75,11 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) => {
       if (ctx.isResuming) {
-        const resumeSessionId = ctx.providerSessionId?.trim();
-        if (!resumeSessionId) {
-          const args = ['session'];
+        const args = ['session', '--resume'];
 
-          if (ctx.sessionId) {
-            args.push('-n', ctx.sessionId);
-          }
-
-          if (ctx.extraArgs?.length) {
-            args.push(...ctx.extraArgs);
-          }
-
-          return { command: ctx.cli, args, env: {} };
+        if (ctx.sessionId) {
+          args.push('-n', ctx.sessionId);
         }
-
-        const args = ['session', '--resume', '--session-id', resumeSessionId];
 
         if (ctx.extraArgs?.length) {
           args.push(...ctx.extraArgs);
