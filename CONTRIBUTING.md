@@ -112,7 +112,10 @@ Root scripts are aggregate workspace scripts. Most app-specific commands live in
 
 ## Common Commands
 
-Run these from the repo root unless noted.
+Run these from the repo root unless noted. Root scripts run through Nx, which
+builds projects in dependency order and caches results locally. A second run
+of any cached target (`build`, `test`, `typecheck`, `lint`, `format:check`)
+replays instantly if inputs have not changed.
 
 ```bash
 pnpm run dev            # build packages, watch packages, and start the Electron app
@@ -122,7 +125,20 @@ pnpm run format:check   # check formatting without writing
 pnpm run lint           # lint with oxlint
 pnpm run typecheck      # run TypeScript checks
 pnpm run test           # run workspace tests
+pnpm run affected       # lint, typecheck, and test only projects changed vs. main
+pnpm run graph          # open the Nx project graph in the browser
 ```
+
+Individual project targets are addressable from the root without `cd`:
+
+```bash
+nx package:mac @emdash/emdash-desktop
+nx db:reset @emdash/emdash-desktop
+nx storybook @emdash/ui
+nx theme:build @emdash/ui
+```
+
+See `agents/workflows/nx.md` for a full explanation of the Nx setup.
 
 Useful app-local commands from `apps/emdash-desktop/`:
 
@@ -160,16 +176,9 @@ pnpm run typecheck
 pnpm run test
 ```
 
-There are no pre-commit hooks. CI currently enforces:
-
-```bash
-pnpm run format:check
-pnpm run typecheck
-pnpm run lint
-```
-
-Tests are still expected locally even when a specific CI workflow does not run
-the full test suite.
+There are no pre-commit hooks. CI enforces format:check, typecheck, and lint via
+`nx affected` — only projects touched by the PR are checked. Tests are still
+expected locally even when a specific CI workflow does not run the full test suite.
 
 ## Development Workflow
 
@@ -431,5 +440,6 @@ feed and Cloudflare R2 as fallback. Canary releases currently publish to R2 only
 - `agents/conventions/main-patterns.md`
 - `agents/conventions/renderer-patterns.md`
 - `agents/conventions/typescript.md`
+- `agents/workflows/nx.md`
 - `agents/workflows/testing.md`
 - `agents/workflows/worktrees.md`

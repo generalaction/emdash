@@ -93,3 +93,7 @@ apps/*/tooling/node-deps/node_modules/
 # Vitest / Browser testing
 .vitest-attachments/
 **/__screenshots__/
+
+# Nx local cache and workspace data
+.nx/cache
+.nx/workspace-data
