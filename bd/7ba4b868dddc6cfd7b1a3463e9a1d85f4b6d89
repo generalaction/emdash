@@ -1,0 +1,21 @@
+packages/plugins/src/agents/impl/droid/hooks.ts
+  s_f512b4cf456e97::t_15c819516fd3c5 92
+packages/plugins/src/agents/impl/droid/hooks.test.ts
+  s_f512b4cf456e97::t_15c819516fd3c5 69-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "bd7ba4b868dddc6cfd7b1a3463e9a1d85f4b6d89",
+  "prompts": {},
+  "sessions": {
+    "s_f512b4cf456e97": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef0c6-870b-7c81-a87d-5c136ed23182",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
