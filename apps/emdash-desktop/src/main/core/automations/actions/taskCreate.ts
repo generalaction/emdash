@@ -14,7 +14,7 @@ import {
 import { taskService } from '@main/core/tasks/task-service';
 import { db } from '@main/db/client';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
-import { resolveAutomationAgentAutoApprove } from '@shared/core/agents/agent-auto-approve-defaults';
+import { resolveAutomationAgentAutoApprove } from '@shared/core/agents/agent-auto-approve';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Automation } from '@shared/core/automations/automation';
 import type { AutomationRun } from '@shared/core/automations/automation-run';

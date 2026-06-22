@@ -12,7 +12,6 @@ import {
   ComboboxList,
   ComboboxTrigger,
 } from '@renderer/lib/ui/combobox';
-import { Kbd } from '@renderer/lib/ui/kbd';
 import { Shortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
@@ -206,7 +205,7 @@ export function AddContextPopover({
               )}
               <span>Add context</span>
             </span>
-            <Shortcut hotkey={ADD_CONTEXT_HOTKEY} />
+            <Shortcut hotkey={ADD_CONTEXT_HOTKEY} variant="keycaps" />
           </>
         )}
       </ComboboxTrigger>
@@ -246,7 +245,7 @@ export function AddContextPopover({
         <div className="flex items-center justify-end border-t px-2 py-1.5">
           <span className="flex items-center gap-1">
             <p className="text-xs text-foreground-passive">Add to input</p>
-            <Kbd className="text-foreground-passive">↵</Kbd>
+            <Shortcut hotkey="Enter" variant="keycaps" />
           </span>
         </div>
       </ComboboxContent>

@@ -508,7 +508,12 @@ describe('GitWorktree', () => {
         staged: [],
         unstaged: expect.arrayContaining([
           expect.objectContaining({ path: 'tracked.txt', status: 'modified' }),
-          expect.objectContaining({ path: 'untracked.txt', status: 'added' }),
+          expect.objectContaining({
+            path: 'untracked.txt',
+            status: 'added',
+            additions: 1,
+            deletions: 0,
+          }),
           expect.objectContaining({ path: 'to-delete.txt', status: 'deleted' }),
         ]),
       });
@@ -528,6 +533,114 @@ describe('GitWorktree', () => {
     } finally {
       await runtime.dispose();
       await watcher.dispose();
+    }
+  });
+
+  it('counts untracked file additions without a trailing newline', async () => {
+    const repo = await makeRepo();
+    const runtime = new GitRuntime();
+
+    try {
+      const lease = await runtime.openWorktree(repo);
+      await writeFile(path.join(repo, 'untracked.txt'), 'new', 'utf8');
+
+      await expect(lease.value.getStatus()).resolves.toMatchObject({
+        kind: 'ok',
+        unstaged: expect.arrayContaining([
+          expect.objectContaining({
+            path: 'untracked.txt',
+            status: 'added',
+            additions: 1,
+            deletions: 0,
+          }),
+        ]),
+      });
+
+      lease.release();
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it('reverts selected working tree changes while removing selected untracked files', async () => {
+    const repo = await makeRepo();
+    const runtime = new GitRuntime();
+
+    try {
+      const lease = await runtime.openWorktree(repo);
+      const worktree = lease.value;
+
+      await writeFile(path.join(repo, 'tracked.txt'), 'modified\n', 'utf8');
+      await writeFile(path.join(repo, 'untracked.txt'), 'new\n', 'utf8');
+
+      const sequences = await worktree.revert(['tracked.txt', 'untracked.txt']);
+
+      expect(sequences.status).toBeGreaterThanOrEqual(1);
+      await expect(worktree.getStatus()).resolves.toMatchObject({
+        kind: 'ok',
+        staged: [],
+        unstaged: [],
+      });
+      await expect(readFile(path.join(repo, 'tracked.txt'), 'utf8')).resolves.toBe('before\n');
+      await expect(readFile(path.join(repo, 'untracked.txt'), 'utf8')).rejects.toThrow();
+
+      lease.release();
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it('reverts selected working tree changes without discarding staged content', async () => {
+    const repo = await makeRepo();
+    const runtime = new GitRuntime();
+
+    try {
+      const lease = await runtime.openWorktree(repo);
+      const worktree = lease.value;
+
+      await writeFile(path.join(repo, 'tracked.txt'), 'staged\n', 'utf8');
+      await worktree.stage(['tracked.txt']);
+      await writeFile(path.join(repo, 'tracked.txt'), 'unstaged\n', 'utf8');
+
+      const sequences = await worktree.revert(['tracked.txt']);
+
+      expect(sequences.status).toBeGreaterThanOrEqual(1);
+      await expect(readFile(path.join(repo, 'tracked.txt'), 'utf8')).resolves.toBe('staged\n');
+      await expect(worktree.getStatus()).resolves.toMatchObject({
+        kind: 'ok',
+        staged: [expect.objectContaining({ path: 'tracked.txt', status: 'modified' })],
+        unstaged: [],
+      });
+
+      lease.release();
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it('reverts selected files staged for deletion without deleting the working copy', async () => {
+    const repo = await makeRepo();
+    const runtime = new GitRuntime();
+
+    try {
+      const lease = await runtime.openWorktree(repo);
+      const worktree = lease.value;
+
+      await execFileAsync('git', ['rm', '--cached', 'tracked.txt'], { cwd: repo });
+
+      const sequences = await worktree.revert(['tracked.txt']);
+
+      expect(sequences.status).toBeGreaterThanOrEqual(1);
+      await expect(readFile(path.join(repo, 'tracked.txt'), 'utf8')).resolves.toBe('before\n');
+      await expect(worktree.getStatus()).resolves.toMatchObject({
+        kind: 'ok',
+        staged: [],
+        unstaged: [],
+      });
+
+      lease.release();
+    } finally {
+      await runtime.dispose();
     }
   });
 

@@ -25,7 +25,7 @@ export function PanelTabs<T extends string>({
   return (
     <ToggleGroup
       className={cn(
-        'shrink-0 gap-1 border-none bg-transparent',
+        'shrink-0 gap-1 overflow-visible border-none bg-transparent',
         compact ? 'w-fit' : 'w-full',
         className
       )}

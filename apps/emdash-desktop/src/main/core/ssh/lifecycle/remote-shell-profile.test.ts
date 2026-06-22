@@ -139,6 +139,23 @@ describe('remote shell profile command building', () => {
     }
   );
 
+  it('captures fish login shell env without replacing the profile shell', async () => {
+    const client = makeRemoteShellClient([
+      '/usr/local/bin/fish',
+      'HOME=/Users/jona\nPATH=/usr/local/bin:/usr/bin\n',
+    ]);
+
+    await expect(captureRemoteShellProfile(client)).resolves.toEqual({
+      shell: '/usr/local/bin/fish',
+      env: {
+        HOME: '/Users/jona',
+        PATH: '/Users/jona/.local/bin:/usr/local/bin:/usr/bin',
+      },
+    });
+
+    expect(client.commands[1]).toContain("'/usr/local/bin/fish' -ilc 'env'");
+  });
+
   it('uses csh-compatible environment setup for explicit remote csh path lookup', () => {
     const command = buildRemoteShellCommandWithPathLookup(
       {
@@ -190,9 +207,16 @@ describe('remote shell profile command building', () => {
     expect(normalizeRemoteShell('/bin/tcsh')).toBe('/bin/sh');
   });
 
-  it('falls back to /bin/sh for unsupported remote shells', () => {
-    expect(normalizeRemoteShell('/usr/local/bin/fish')).toBe('/bin/sh');
+  it('preserves fish as a supported remote login shell', () => {
+    expect(normalizeRemoteShell('/usr/local/bin/fish')).toBe('/usr/local/bin/fish');
     expect(buildRemoteShellCommand({ shell: '/usr/local/bin/fish', env: {} }, 'echo ok')).toBe(
+      "'/bin/sh' -c 'echo ok'"
+    );
+  });
+
+  it('falls back to /bin/sh for unsupported remote shells', () => {
+    expect(normalizeRemoteShell('/bin/elvish')).toBe('/bin/sh');
+    expect(buildRemoteShellCommand({ shell: '/bin/elvish', env: {} }, 'echo ok')).toBe(
       "'/bin/sh' -c 'echo ok'"
     );
   });

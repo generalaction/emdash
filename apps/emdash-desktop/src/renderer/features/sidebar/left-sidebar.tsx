@@ -91,7 +91,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
                 <Library className="h-5 w-5 sm:h-4 sm:w-4" />
                 Library
               </span>
-              <BoundShortcut settingsKey="library" />
+              <BoundShortcut settingsKey="library" variant="keycaps" />
             </SidebarMenuButton>
             <SidebarMenuButton
               isActive={isCurrentView(currentView, 'settings')}
@@ -103,7 +103,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
                 <Settings className="h-5 w-5 sm:h-4 sm:w-4" />
                 Settings
               </span>
-              <BoundShortcut settingsKey="settings" />
+              <BoundShortcut settingsKey="settings" variant="keycaps" />
             </SidebarMenuButton>
           </SidebarMenu>
         </SidebarFooter>

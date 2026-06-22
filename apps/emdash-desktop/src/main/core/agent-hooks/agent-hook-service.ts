@@ -75,6 +75,8 @@ async function handleSessionEvent(
 
 class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHookServiceHooks> {
   private server = new HookServer();
+  private readonly observedStatuses = new Map<string, AgentStatus>();
+  private readonly disposers: Array<() => void> = [];
   private readonly _hooks = new HookCore<AgentHookServiceHooks>((name, e) =>
     log.error(`AgentHookService: ${String(name)} hook error`, e)
   );
@@ -119,56 +121,76 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
       this.emitAgentEvent(event, appFocused);
     });
 
-    conversationEvents.on(
-      'conversation:input-submitted',
-      ({ projectId, taskId, conversationId, providerId }) => {
-        // Only synthesise a 'start' event when the plugin does not supply its own
-        // start hook (e.g. UserPromptSubmit). Providers with start-capable hooks
-        // get 'working' from the real hook event instead.
-        const plugin = getPlugin(providerId);
-        const hooksDesc = plugin?.capabilities.hooks;
-        const supportedEvents =
-          hooksDesc && hooksDesc.kind !== 'none' ? hooksDesc.supportedEvents : [];
-        const hasStartHook = supportedEvents.includes('start');
+    this.disposers.push(
+      conversationEvents.on('conversation:deleted', (conversationId) => {
+        this.observedStatuses.delete(conversationId);
+      })
+    );
 
-        if (!hasStartHook) {
-          const agentEvent: AgentEvent = {
-            type: 'start',
-            source: 'input',
-            providerId,
-            projectId,
-            taskId,
-            conversationId,
-            timestamp: Date.now(),
-            payload: {},
-          };
-          this.emitAgentEvent(agentEvent, isAppFocused());
-        }
+    this.disposers.push(
+      conversationEvents.on(
+        'conversation:input-submitted',
+        ({ projectId, taskId, conversationId, providerId }) => {
+          // Only synthesise a 'start' event when the plugin does not supply its own
+          // start hook (e.g. UserPromptSubmit). Providers with start-capable hooks
+          // get 'working' from the real hook event instead.
+          const plugin = getPlugin(providerId);
+          const hooksDesc = plugin?.capabilities.hooks;
+          const supportedEvents =
+            hooksDesc && hooksDesc.kind !== 'none' ? hooksDesc.supportedEvents : [];
+          const hasStartHook = supportedEvents.includes('start');
 
-        telemetryService.capture('agent_run_started', {
-          provider: providerId,
-          project_id: projectId,
-          task_id: taskId,
-          conversation_id: conversationId,
-        });
+          if (!hasStartHook) {
+            const agentEvent: AgentEvent = {
+              type: 'start',
+              source: 'input',
+              providerId,
+              projectId,
+              taskId,
+              conversationId,
+              timestamp: Date.now(),
+              payload: {},
+            };
+            this.emitAgentEvent(agentEvent, isAppFocused());
+          }
 
-        const now = new Date().toISOString();
-        void touchConversation(conversationId, now).then(() => {
-          events.emit(conversationChangedChannel, {
-            conversationId,
-            taskId,
-            projectId,
-            changes: { lastInteractedAt: now },
+          telemetryService.capture('agent_run_started', {
+            provider: providerId,
+            project_id: projectId,
+            task_id: taskId,
+            conversation_id: conversationId,
           });
-        });
-      }
+
+          const now = new Date().toISOString();
+          void touchConversation(conversationId, now).then(() => {
+            events.emit(conversationChangedChannel, {
+              conversationId,
+              taskId,
+              projectId,
+              changes: { lastInteractedAt: now },
+            });
+          });
+        }
+      )
     );
 
     // Persist agent status to DB and emit simplified IPC for renderer.
-    this.on('agent:event', async (event) => {
+    this.on('agent:event', async (event, appFocused) => {
       const status = deriveAgentStatus(event);
       if (!status) return;
       const seen = status === 'idle' || status === 'working' ? 1 : 0;
+
+      const previousObservedStatus = this.observedStatuses.get(event.conversationId);
+      this.observedStatuses.set(event.conversationId, status);
+      const [current] =
+        previousObservedStatus === undefined
+          ? await db
+              .select({ agentStatus: conversations.agentStatus })
+              .from(conversations)
+              .where(eq(conversations.id, event.conversationId))
+              .limit(1)
+          : [];
+      const previousStatus = previousObservedStatus ?? current?.agentStatus;
 
       await db
         .update(conversations)
@@ -181,7 +203,8 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
         projectId: event.projectId,
         status,
         seen: seen === 1,
-        soundEvent: determineSoundEvent(event, status),
+        appFocused,
+        soundEvent: previousStatus === status ? undefined : determineSoundEvent(event, status),
       });
     });
 
@@ -203,6 +226,7 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
             .update(conversations)
             .set({ agentStatus: 'idle', agentStatusSeen: 1 })
             .where(eq(conversations.id, conversationId));
+          this.observedStatuses.set(conversationId, 'idle');
 
           events.emit(conversationAgentStatusChangedChannel, {
             conversationId,
@@ -210,6 +234,7 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
             projectId: row.projectId,
             status: 'idle',
             seen: true,
+            appFocused: isAppFocused(),
             soundEvent: undefined,
           });
         } catch (error) {
@@ -223,6 +248,10 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
   }
 
   dispose(): void {
+    for (const dispose of this.disposers.splice(0)) {
+      dispose();
+    }
+    this.observedStatuses.clear();
     this.server.stop();
   }
 

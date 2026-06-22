@@ -16,8 +16,18 @@ let activePreviewAudio: HTMLAudioElement | null = null;
 let activePreviewTones: Array<() => void> = [];
 let previewGeneration = 0;
 let unsubscribeSettingsCache: (() => void) | null = null;
+const recentSounds = new Map<string, number>();
 
 const NOTIFICATIONS_QUERY_KEY = ['appSettings', 'notifications', 'meta'] as const;
+const SOUND_DEDUPE_WINDOW_MS = 1_000;
+
+function pruneRecentSounds(now: number): void {
+  for (const [key, lastPlayedAt] of recentSounds) {
+    if (now - lastPlayedAt >= SOUND_DEDUPE_WINDOW_MS) {
+      recentSounds.delete(key);
+    }
+  }
+}
 
 function applySettings(nextSettings: NotificationSettings): void {
   const nextCustomSoundPath = nextSettings.customSoundPath?.trim() ?? '';
@@ -167,10 +177,18 @@ function stopActivePreview(): void {
 }
 
 export const soundPlayer = {
-  play(event: SoundEvent, appFocused?: boolean): void {
+  play(event: SoundEvent, appFocused?: boolean, dedupeKey?: string): void {
     if (!settings.enabled) return;
     if (!settings.sound) return;
     if (settings.soundFocusMode === 'unfocused' && appFocused) return;
+    if (dedupeKey) {
+      const now = Date.now();
+      pruneRecentSounds(now);
+      const key = `${event}:${dedupeKey}`;
+      const lastPlayedAt = recentSounds.get(key);
+      if (lastPlayedAt !== undefined && now - lastPlayedAt < SOUND_DEDUPE_WINDOW_MS) return;
+      recentSounds.set(key, now);
+    }
 
     try {
       const customSoundPath = settings.customSoundPath?.trim() ?? '';
