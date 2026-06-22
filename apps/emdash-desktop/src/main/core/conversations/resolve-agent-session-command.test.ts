@@ -155,5 +155,4 @@ describe('resolveAgentSessionCommandArgs', () => {
     expect(result.command).toBe('codex');
     expect(result.args).toEqual(['resume', 'provider-session-1']);
   });
-
 });
