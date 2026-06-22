@@ -1,0 +1,20 @@
+apps/emdash-desktop/src/renderer/features/projects/components/add-project-modal/remote-directory-selector.tsx
+  s_41dcbea4529085::t_b6664356b1bddb 41-45,94,105,123,158,165
+  s_41dcbea4529085::t_5e19ab3e819566 95-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "e2c6912a71cc3b2ec677428fb0acb06a35f057cc",
+  "prompts": {},
+  "sessions": {
+    "s_41dcbea4529085": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef053-2801-7533-aaea-7c6ba878a612",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
