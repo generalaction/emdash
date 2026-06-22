@@ -74,10 +74,12 @@ export class LiveModel<T, E = unknown> implements IDisposable {
     return this.cached;
   }
 
-  async get(): Promise<Result<LiveValue<T>, E>> {
+  async get(): Promise<LiveValue<T>> {
     this.assertNotDisposed();
-    if (this.cached && !this.scheduler.dirty) return ok(this.cached);
-    return this.scheduler.runDirect();
+    if (this.cached && !this.scheduler.dirty) return this.cached;
+    const result = await this.scheduler.runDirect();
+    if (!result.success) throw result.error;
+    return result.data;
   }
 
   subscribe(cb: (update: LiveValue<T>) => void): Unsubscribe {
@@ -93,9 +95,11 @@ export class LiveModel<T, E = unknown> implements IDisposable {
     };
   }
 
-  async refresh(): Promise<Result<LiveValue<T>, E>> {
+  async refresh(): Promise<LiveValue<T>> {
     this.assertNotDisposed();
-    return this.scheduler.runDirect();
+    const result = await this.scheduler.runDirect();
+    if (!result.success) throw result.error;
+    return result.data;
   }
 
   invalidate(): void {

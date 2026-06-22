@@ -117,7 +117,7 @@ describe('cloneProjectRepository', () => {
   it('maps clone errors into setup failures and still releases the runtime lease', async () => {
     mocks.cloneRepository.mockResolvedValue({
       success: false,
-      error: { type: 'target-exists', path: '/work/repo' },
+      error: { type: 'target_exists', path: '/work/repo' },
     });
 
     await expect(
@@ -138,7 +138,7 @@ describe('initializeProjectRepository', () => {
     vi.clearAllMocks();
     mocks.exists.mockResolvedValue(true);
     mocks.write.mockResolvedValue({ success: true, bytesWritten: 20 });
-    mocks.stage.mockResolvedValue({});
+    mocks.stage.mockResolvedValue({ success: true, data: {} });
     mocks.commit.mockResolvedValue({ success: true, data: { hash: 'abc123', sequences: {} } });
     mocks.getHead.mockResolvedValue({ kind: 'branch', name: 'main', oid: 'abc123' });
     mocks.publishBranch.mockResolvedValue({

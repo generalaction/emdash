@@ -3,13 +3,15 @@ import path from 'node:path';
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import { ExecError, type BoundExec } from '../exec';
 import type { IFileWatchService, WatchHandle } from '../fs';
-import { LiveModel, type LiveValue } from '../lib';
+import { LiveModel } from '../lib';
 import {
   classifyCommitError,
   classifyPullError,
   classifyPushError,
   gitErrorMessage,
+  toGitCommandError,
   type CommitError,
+  type GitCommandError,
   type PullError,
   type PushError,
 } from './errors';
@@ -139,16 +141,16 @@ export class GitWorktree implements IGitWorktree {
   }
 
   async getStatus(): Promise<GitStatusModel> {
-    return liveValue(await this.statusModel.get()).value;
+    return (await this.statusModel.get()).value;
   }
 
   async getHead(): Promise<GitHeadModel> {
-    return liveValue(await this.headModel.get()).value;
+    return (await this.headModel.get()).value;
   }
 
   async getSnapshot(): Promise<GitWorktreeSnapshot> {
     const [status, head] = await Promise.all([this.statusModel.get(), this.headModel.get()]);
-    return { status: liveValue(status), head: liveValue(head) };
+    return { status, head };
   }
 
   async getStatusFingerprint(untracked: GitStatusUntrackedMode): Promise<GitStatusFingerprint> {
@@ -339,59 +341,83 @@ export class GitWorktree implements IGitWorktree {
       this.statusModel.refresh(),
       this.headModel.refresh(),
     ]);
-    return { status: liveValue(status), head: liveValue(head) };
+    return { status, head };
   }
 
-  async stage(paths: string[]): Promise<GitSequences> {
-    if (paths.length === 0) return {};
-    await this.exec.exec(['add', '--', ...paths]);
-    return this.refreshStatus();
-  }
-
-  async stageAll(): Promise<GitSequences> {
-    await this.exec.exec(['add', '-A']);
-    return this.refreshStatus();
-  }
-
-  async unstage(paths: string[]): Promise<GitSequences> {
-    if (paths.length === 0) return {};
-    await this.exec.exec(['reset', 'HEAD', '--', ...paths]);
-    return this.refreshStatus();
-  }
-
-  async unstageAll(): Promise<GitSequences> {
+  async stage(paths: string[]): Promise<Result<GitSequences, GitCommandError>> {
+    if (paths.length === 0) return ok({});
     try {
-      await this.exec.exec(['reset', 'HEAD']);
-    } catch {}
-    return this.refreshStatus();
+      await this.exec.exec(['add', '--', ...paths]);
+      return ok(await this.refreshStatus());
+    } catch (error) {
+      return err(toGitCommandError(error));
+    }
   }
 
-  async revert(paths: string[]): Promise<GitSequences> {
-    if (paths.length === 0) return {};
-    const indexedPaths = await this.getIndexedPaths(paths);
-    const headPaths = await this.getHeadPaths(paths);
-    const indexedPathSet = new Set(indexedPaths);
-    const headOnlyPaths = headPaths.filter((filePath) => !indexedPathSet.has(filePath));
-    if (indexedPaths.length > 0) {
-      await this.exec.exec(['checkout', '--', ...indexedPaths]);
-    }
-    if (headOnlyPaths.length > 0) {
-      await this.exec.exec(['checkout', 'HEAD', '--', ...headOnlyPaths]);
-    }
-    const trackedPathSet = new Set([...indexedPaths, ...headPaths]);
-    const untrackedPaths = paths.filter((filePath) => !trackedPathSet.has(filePath));
-    if (untrackedPaths.length > 0) {
-      await this.exec.exec(['clean', '-fd', '--', ...untrackedPaths]);
-    }
-    return this.refreshStatus();
-  }
-
-  async revertAll(): Promise<GitSequences> {
+  async stageAll(): Promise<Result<GitSequences, GitCommandError>> {
     try {
-      await this.exec.exec(['reset', '--hard', 'HEAD']);
-    } catch {}
-    await this.exec.exec(['clean', '-fd']);
-    return this.refreshStatus();
+      await this.exec.exec(['add', '-A']);
+      return ok(await this.refreshStatus());
+    } catch (error) {
+      return err(toGitCommandError(error));
+    }
+  }
+
+  async unstage(paths: string[]): Promise<Result<GitSequences, GitCommandError>> {
+    if (paths.length === 0) return ok({});
+    try {
+      await this.exec.exec(['reset', 'HEAD', '--', ...paths]);
+      return ok(await this.refreshStatus());
+    } catch (error) {
+      return err(toGitCommandError(error));
+    }
+  }
+
+  async unstageAll(): Promise<Result<GitSequences, GitCommandError>> {
+    try {
+      try {
+        await this.exec.exec(['reset', 'HEAD']);
+      } catch {}
+      return ok(await this.refreshStatus());
+    } catch (error) {
+      return err(toGitCommandError(error));
+    }
+  }
+
+  async revert(paths: string[]): Promise<Result<GitSequences, GitCommandError>> {
+    if (paths.length === 0) return ok({});
+    try {
+      const indexedPaths = await this.getIndexedPaths(paths);
+      const headPaths = await this.getHeadPaths(paths);
+      const indexedPathSet = new Set(indexedPaths);
+      const headOnlyPaths = headPaths.filter((filePath) => !indexedPathSet.has(filePath));
+      if (indexedPaths.length > 0) {
+        await this.exec.exec(['checkout', '--', ...indexedPaths]);
+      }
+      if (headOnlyPaths.length > 0) {
+        await this.exec.exec(['checkout', 'HEAD', '--', ...headOnlyPaths]);
+      }
+      const trackedPathSet = new Set([...indexedPaths, ...headPaths]);
+      const untrackedPaths = paths.filter((filePath) => !trackedPathSet.has(filePath));
+      if (untrackedPaths.length > 0) {
+        await this.exec.exec(['clean', '-fd', '--', ...untrackedPaths]);
+      }
+      return ok(await this.refreshStatus());
+    } catch (error) {
+      return err(toGitCommandError(error));
+    }
+  }
+
+  async revertAll(): Promise<Result<GitSequences, GitCommandError>> {
+    try {
+      try {
+        await this.exec.exec(['reset', '--hard', 'HEAD']);
+      } catch {}
+      await this.exec.exec(['clean', '-fd']);
+      return ok(await this.refreshStatus());
+    } catch (error) {
+      return err(toGitCommandError(error));
+    }
   }
 
   async commit(
@@ -482,7 +508,7 @@ export class GitWorktree implements IGitWorktree {
 
   private async refreshStatus(): Promise<GitSequences> {
     const status = await this.statusModel.refresh();
-    return { status: liveValue(status).sequence };
+    return { status: status.sequence };
   }
 
   private async refreshAfterHistoryChange(): Promise<GitSequences> {
@@ -491,7 +517,7 @@ export class GitWorktree implements IGitWorktree {
       this.headModel.refresh(),
       this.repository.refreshRefs(),
     ]);
-    return { status: liveValue(status).sequence, head: liveValue(head).sequence, refs };
+    return { status: status.sequence, head: head.sequence, refs };
   }
 
   private async runStatusZ(parser: StatusParser): Promise<void> {
@@ -698,9 +724,4 @@ function imageMimeForPath(filePath: string): string | null {
 function looksLikeLfsPointer(buffer: Buffer): boolean {
   if (buffer.length > 1024) return false;
   return buffer.subarray(0, LFS_POINTER_PREFIX.length).equals(LFS_POINTER_PREFIX);
-}
-
-function liveValue<T>(result: Result<LiveValue<T>, unknown>): LiveValue<T> {
-  if (!result.success) throw result.error;
-  return result.data;
 }

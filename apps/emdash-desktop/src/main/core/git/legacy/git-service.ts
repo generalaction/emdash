@@ -8,7 +8,12 @@ import {
   TooManyFilesChangedError,
   type Commit,
   type CommitFile,
+  type CommitError,
+  type CreateBranchError,
+  type DeleteBranchError,
   type DiffMode,
+  type FetchError,
+  type FetchPrForReviewError,
   type GitChange,
   type GitChangeStatus,
   type GitObjectRef,
@@ -17,6 +22,8 @@ import {
   type FileStatus,
   type LocalBranch,
   type MergeBaseRange,
+  type PullError,
+  type PushError,
   type RemoteBranch,
 } from '@emdash/core/git';
 import { err, ok, type Result } from '@emdash/shared';
@@ -27,16 +34,9 @@ import { GIT_EXECUTABLE } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import {
   DEFAULT_REMOTE_NAME,
-  type CommitError,
-  type CreateBranchError,
-  type DeleteBranchError,
-  type FetchError,
-  type FetchPrForReviewError,
   type FullGitStatus,
   type GitInfo,
   type ImageReadResult,
-  type PullError,
-  type PushError,
 } from '@shared/core/git/types';
 import { toRangeString, toRefString } from '@shared/core/git/utils';
 import { parseRepositoryRef } from '@shared/repository-ref';
@@ -89,7 +89,7 @@ function classifyFetchError(stderr: string): FetchError {
   ) {
     return { type: 'remote_not_found', message: stderr };
   }
-  return { type: 'error', message: stderr };
+  return { type: 'git_error', message: stderr };
 }
 
 const IMAGE_MIME_BY_EXT: Record<string, string> = {
@@ -711,7 +711,9 @@ export class GitService implements IDisposable {
   // ---------------------------------------------------------------------------
 
   async commit(message: string): Promise<Result<{ hash: string }, CommitError>> {
-    if (!message || !message.trim()) return err({ type: 'empty_message' });
+    if (!message || !message.trim()) {
+      return err({ type: 'empty_message', message: 'Commit message is empty' });
+    }
     try {
       await this.ctx.exec('git', ['commit', '-m', message]);
     } catch (error: unknown) {
@@ -719,7 +721,7 @@ export class GitService implements IDisposable {
       const stdout = (error as { stdout?: string })?.stdout || '';
       const output = stderr || stdout || String(error);
       if (stderr.includes('nothing to commit') || stdout.includes('nothing to commit')) {
-        return err({ type: 'nothing_to_commit' });
+        return err({ type: 'nothing_to_commit', message: output || 'Nothing to commit' });
       }
       return err({ type: 'hook_failed', message: output });
     }
@@ -727,7 +729,7 @@ export class GitService implements IDisposable {
       const { stdout } = await this.ctx.exec('git', ['rev-parse', 'HEAD']);
       return ok({ hash: stdout.trim() });
     } catch (error: unknown) {
-      return err({ type: 'error', message: String(error) });
+      return err({ type: 'git_error', message: String(error) });
     }
   }
 
@@ -740,7 +742,9 @@ export class GitService implements IDisposable {
         .split('\n')
         .map((name) => name.trim())
         .filter(Boolean);
-      if (remoteNames.length === 0) return err({ type: 'no_remote' });
+      if (remoteNames.length === 0) {
+        return err({ type: 'no_remote', message: 'No remote configured' });
+      }
 
       const selectedRemote = remote?.trim();
       if (selectedRemote && !remoteNames.includes(selectedRemote)) {
@@ -769,7 +773,7 @@ export class GitService implements IDisposable {
         const { stdout } = await this.ctx.exec('git', ['branch', '--show-current']);
         const currentBranch = stdout.trim();
         if (!currentBranch) {
-          return err({ type: 'error', message: 'No branch checked out' });
+          return err({ type: 'git_error', message: 'No branch checked out' });
         }
         const output = await doPush(['push', remote, `HEAD:${currentBranch}`]);
         return ok({ output });
@@ -797,7 +801,7 @@ export class GitService implements IDisposable {
           return ok({ output });
         } catch (upstreamError: unknown) {
           const upstreamStderr = (upstreamError as { stderr?: string })?.stderr || '';
-          return err({ type: 'error', message: upstreamStderr || String(upstreamError) });
+          return err({ type: 'git_error', message: upstreamStderr || String(upstreamError) });
         }
       }
 
@@ -837,7 +841,7 @@ export class GitService implements IDisposable {
         return err({ type: 'no_remote', message });
       }
 
-      return err({ type: 'error', message });
+      return err({ type: 'git_error', message });
     }
   }
 
@@ -908,7 +912,7 @@ export class GitService implements IDisposable {
         return err({ type: 'no_remote', message });
       }
 
-      return err({ type: 'error', message });
+      return err({ type: 'git_error', message });
     }
   }
 
@@ -974,7 +978,7 @@ export class GitService implements IDisposable {
         return err({ type: 'network_error', message });
       }
 
-      return err({ type: 'error', message });
+      return err({ type: 'git_error', message });
     }
   }
 
@@ -1208,23 +1212,23 @@ export class GitService implements IDisposable {
     } catch (error: unknown) {
       const stderr = (error as { stderr?: string })?.stderr || String(error);
       if (stderr.includes('already exists')) {
-        return err({ type: 'already_exists', name });
+        return err({ type: 'already_exists', branch: name, message: stderr });
       }
       if (
         stderr.includes('not a valid object name') ||
         stderr.includes('Not a valid object name') ||
         stderr.includes('invalid reference')
       ) {
-        return err({ type: 'invalid_base', from });
+        return err({ type: 'invalid_base', branch: name, from, message: stderr });
       }
       if (
         stderr.includes('not a valid branch name') ||
         stderr.includes('invalid branch name') ||
         stderr.includes("'.' is not a valid branch name")
       ) {
-        return err({ type: 'invalid_name', name });
+        return err({ type: 'invalid_name', branch: name, message: stderr });
       }
-      return err({ type: 'error', message: stderr });
+      return err({ type: 'git_error', message: stderr });
     }
   }
 
@@ -1287,9 +1291,9 @@ export class GitService implements IDisposable {
         stderr.includes("couldn't find remote ref") ||
         stderr.includes('unknown revision')
       ) {
-        return err({ type: 'not_found', prNumber });
+        return err({ type: 'not_found', prNumber, message: stderr });
       }
-      return err({ type: 'error', message: stderr });
+      return err({ type: 'git_error', message: stderr });
     }
   }
 
@@ -1301,15 +1305,15 @@ export class GitService implements IDisposable {
     } catch (error: unknown) {
       const stderr = (error as { stderr?: string })?.stderr || String(error);
       if (stderr.includes('not fully merged')) {
-        return err({ type: 'unmerged', branch });
+        return err({ type: 'not_merged', branch, message: stderr });
       }
       if (stderr.includes('not found') || stderr.includes('did not match any branch')) {
-        return err({ type: 'not_found', branch });
+        return err({ type: 'not_found', branch, message: stderr });
       }
       if (stderr.includes('checked out') || stderr.includes('is not fully merged')) {
-        return err({ type: 'is_current', branch });
+        return err({ type: 'is_current', branch, message: stderr });
       }
-      return err({ type: 'error', message: stderr });
+      return err({ type: 'git_error', message: stderr });
     }
   }
 

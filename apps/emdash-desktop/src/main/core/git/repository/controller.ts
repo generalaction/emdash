@@ -1,3 +1,4 @@
+import { gitErrorMessage } from '@emdash/core/git';
 import { err, ok } from '@emdash/shared';
 import { telemetryService } from '@main/lib/telemetry';
 import type { GitRepositorySnapshotResult } from '@shared/core/git/rpc';
@@ -13,7 +14,7 @@ export const gitRepositoryController = createRPCController({
     try {
       return ok(await project.gitRepository.getSnapshot());
     } catch (e) {
-      return err({ type: 'git_error' as const, message: String(e) });
+      return err({ type: 'git_error' as const, message: gitErrorMessage(e) });
     }
   },
 
@@ -23,7 +24,7 @@ export const gitRepositoryController = createRPCController({
     try {
       return ok({ head: await project.getProjectRootHead() });
     } catch (e) {
-      return err({ type: 'git_error' as const, message: String(e) });
+      return err({ type: 'git_error' as const, message: gitErrorMessage(e) });
     }
   },
 
@@ -33,7 +34,7 @@ export const gitRepositoryController = createRPCController({
     try {
       return ok({ defaultBranch: await project.gitRepository.getDefaultBranch() });
     } catch (e) {
-      return err({ type: 'git_error' as const, message: String(e) });
+      return err({ type: 'git_error' as const, message: gitErrorMessage(e) });
     }
   },
 
@@ -44,12 +45,9 @@ export const gitRepositoryController = createRPCController({
   addRemote: async (projectId: string, name: string, url: string) => {
     const project = projectManager.getProject(projectId);
     if (!project) return err({ type: 'not_found' as const });
-    try {
-      await project.gitRepository.addRemote(name, url);
-      return ok();
-    } catch (e) {
-      return err({ type: 'git_error' as const, message: String(e) });
-    }
+    const result = await project.gitRepository.addRemote(name, url);
+    if (!result.success) return err(result.error);
+    return ok();
   },
 
   fetch: async (projectId: string, workspaceId?: string) => {
