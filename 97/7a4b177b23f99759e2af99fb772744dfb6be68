@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/main/core/conversations/getConversationHandoffPrompt.ts
+  s_60ec0725189476::t_fc4ed4b1772332 13-14,28-34,41-98,116-214,224,227,255,258-260,277-285,292,294
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "977a4b177b23f99759e2af99fb772744dfb6be68",
+  "prompts": {},
+  "sessions": {
+    "s_60ec0725189476": {
+      "agent_id": {
+        "tool": "amp",
+        "id": "TU-033clWsCopoU6vaTOp8ItT",
+        "model": "unknown"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
