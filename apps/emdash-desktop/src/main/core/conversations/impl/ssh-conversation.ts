@@ -1,6 +1,4 @@
-import { ensureHooksInstalled } from '@main/core/agent-hooks/hook-config-service';
 import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
-import { createSshPluginFs } from '@main/core/agents/plugin-fs';
 import { getPlugin } from '@main/core/agents/plugin-registry';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
@@ -120,11 +118,6 @@ export class SshConversationProvider implements ConversationProvider {
         ctx: this.ctx,
         remoteFs: new SshFileSystem(this.proxy, '/'),
         force: conversation.autoApprove === true,
-      });
-      await ensureHooksInstalled({
-        providerId: conversation.providerId,
-        taskPath: this.taskPath,
-        workspaceFs: createSshPluginFs(this.proxy, this.taskPath),
       });
 
       const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);

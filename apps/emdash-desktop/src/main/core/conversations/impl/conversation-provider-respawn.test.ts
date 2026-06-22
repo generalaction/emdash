@@ -50,9 +50,7 @@ vi.mock('@main/core/agents/plugin-registry', () => ({
       hooks:
         id === 'opencode'
           ? { kind: 'plugin', scope: 'workspace', supportedEvents: [] }
-          : id === 'goose'
-            ? { kind: 'config', scope: 'workspace', supportedEvents: ['session', 'start', 'stop'] }
-            : { kind: 'none' },
+          : { kind: 'none' },
       prompt: { kind: 'argv', flag: '' },
     },
     behavior: {
@@ -76,13 +74,6 @@ vi.mock('@main/core/agents/plugin-registry', () => ({
 
 vi.mock('@main/core/agents/plugin-fs', () => ({
   createPluginFs: vi.fn(() => ({
-    read: vi.fn(async () => null),
-    write: vi.fn(async () => {}),
-    delete: vi.fn(async () => {}),
-    exists: vi.fn(async () => false),
-    list: vi.fn(async () => []),
-  })),
-  createSshPluginFs: vi.fn(() => ({
     read: vi.fn(async () => null),
     write: vi.fn(async () => {}),
     delete: vi.fn(async () => {}),
@@ -492,20 +483,6 @@ describe('conversation provider respawn state', () => {
         sessionId: item.id,
       })
     );
-  });
-
-  it('installs workspace hooks before starting an SSH Goose conversation', async () => {
-    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
-    openSsh2Pty.mockResolvedValue({
-      success: true,
-      data: fakePty(exitHandlers),
-    });
-    const provider = sshProvider();
-
-    await provider.startSession(conversation({ providerId: 'goose' }));
-
-    expect(writeHooksMock).toHaveBeenCalledWith(expect.anything(), []);
-    expect(openSsh2Pty).toHaveBeenCalledTimes(1);
   });
 
   it('emits PTY exit when a local conversation unregisters before the registry exit handler runs', async () => {
