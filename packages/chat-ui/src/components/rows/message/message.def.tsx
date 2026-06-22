@@ -24,7 +24,6 @@ import {
 
 export function measureMessage(item: ChatMessage, ctx: MeasureCtx, vars: MessageVars): number {
   const { userCardPadY, cardBorder, collapsedMaxH, expandedMaxH, stackPadY } = vars;
-  const { blockGap, proseGap } = ctx.theme.density;
   const blocks = ctx.caches.parseBlocks(item.id, item.text);
 
   if (item.role === 'user') {
@@ -38,8 +37,6 @@ export function measureMessage(item: ChatMessage, ctx: MeasureCtx, vars: Message
     // stackPadY is the block stack's internal vertical padding; userCardPadY is applied by CSS.
     const stack = layoutBlockStack(blocks, innerCtx, {
       padY: stackPadY,
-      blockGap,
-      proseGap,
       isCollapsed: ctx.isCollapsed,
     });
     const contentH = aH + stack.height + 2 * userCardPadY + 2 * cardBorder;
@@ -51,33 +48,22 @@ export function measureMessage(item: ChatMessage, ctx: MeasureCtx, vars: Message
   if (blocks.length === 0) {
     return ctx.theme.fonts.body.lineHeight + 2 * stackPadY + footer;
   }
-  const stack = layoutBlockStack(blocks, ctx, {
-    padY: stackPadY,
-    blockGap,
-    proseGap,
-    isCollapsed: ctx.isCollapsed,
-  });
+  const stack = layoutBlockStack(blocks, ctx, { padY: stackPadY, isCollapsed: ctx.isCollapsed });
   return stack.height + footer;
 }
 
 function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx; vars: MessageVars }) {
   const mCtx = () => props.ctx.measureCtx?.();
 
-  const stackOpts = () => {
-    const ctx = mCtx();
-    return {
-      padY: props.vars.stackPadY,
-      blockGap: ctx?.theme.density.blockGap ?? 10,
-      proseGap: ctx?.theme.density.proseGap ?? 4,
-    };
-  };
-
   const stack = createMemo<Measured<StackLayout> | null>(() => {
     const ctx = mCtx();
     if (!ctx) return null;
     const blocks = ctx.caches.parseBlocks(props.data.id, props.data.text);
     if (blocks.length === 0) return null;
-    return layoutBlockStack(blocks, ctx, { ...stackOpts(), isCollapsed: ctx.isCollapsed });
+    return layoutBlockStack(blocks, ctx, {
+      padY: props.vars.stackPadY,
+      isCollapsed: ctx.isCollapsed,
+    });
   });
 
   const totalH = createMemo(() => {

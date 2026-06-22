@@ -3,6 +3,7 @@ import type { StackLayout } from '@core/compose';
 import type { Measured, MeasureCtx } from '@core/define';
 import type { BlockLeafLayout } from '@core/layout/layout-types';
 import type { Block, CodeBlock, ProseBlock, TableBlock } from '@core/markdown/document';
+import { resolveSeamGap } from '@core/spacing';
 import { BLOCK_REGISTRY } from './block-registry';
 
 // ── Per-block memo ────────────────────────────────────────────────────────────
@@ -28,8 +29,6 @@ export function measureBlockCached(block: Block, ctx: MeasureCtx): Measured<Bloc
 
 export type BlockStackOpts = {
   padY?: number;
-  blockGap?: number;
-  proseGap?: number;
   isCollapsed?: (id: string) => boolean;
 };
 
@@ -116,9 +115,12 @@ export function layoutBlockStack(
       }
     }
     if (prevKind === null) return 0;
-    const pb = BLOCK_REGISTRY[prevKind].margin?.(density).bottom ?? density.blockGap;
-    const ct = BLOCK_REGISTRY[curKind].margin?.(density).top ?? density.blockGap;
-    return Math.max(pb, ct);
+    return resolveSeamGap(
+      prevKind,
+      curKind,
+      (k) => BLOCK_REGISTRY[k as Block['kind']].margin?.(density),
+      density.blockGap
+    );
   };
 
   const safegapFn = (idx: number): number => {

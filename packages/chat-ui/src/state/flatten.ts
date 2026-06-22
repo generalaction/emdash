@@ -33,9 +33,15 @@ import { resolveSeamGap } from '@core/spacing';
 import { DEFAULT_THEME } from '@core/theme';
 import type { GroupChrome, Margin, RenderUnit, SegmentCtx } from '@core/units';
 import { stampGroupRoles } from '@core/units';
-import type { ChatItem } from '@/model';
-import type { ChatMessage } from '@/model';
+import type { ChatItem, ChatMessage } from '@/model';
 import type { TranscriptState } from './transcript';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Returns true when the item is a user-role message (boundary seam sentinel). */
+function itemIsUser(item: ChatItem): boolean {
+  return item.kind === 'message' && (item as ChatMessage).role === 'user';
+}
 
 // ── Per-item segment cache ─────────────────────────────────────────────────────
 
@@ -122,23 +128,19 @@ export function flatten(
     //   intra-turn seam           — collapsed: max(prev.margin.bottom, cur.margin.top)
     //                               with density.turnGap as the fallback for kinds
     //                               that do not declare a margin.
+    const curIsUser = itemIsUser(item);
     if (out.length > 0) {
-      const curIsUser = item.kind === 'message' && (item as ChatMessage).role === 'user';
-      if (curIsUser || prevWasUser) {
-        group[0].gapBefore = DEFAULT_THEME.density.rowGap;
-      } else {
-        const prev = out[out.length - 1];
-        group[0].gapBefore = resolveSeamGap(
-          prev.kind,
-          group[0].kind,
-          (k) => unitDefs?.[k]?.margin,
-          DEFAULT_THEME.density.turnGap
-        );
-      }
-      prevWasUser = item.kind === 'message' && (item as ChatMessage).role === 'user';
-    } else {
-      prevWasUser = item.kind === 'message' && (item as ChatMessage).role === 'user';
+      group[0].gapBefore =
+        curIsUser || prevWasUser
+          ? DEFAULT_THEME.density.rowGap
+          : resolveSeamGap(
+              out[out.length - 1].kind,
+              group[0].kind,
+              (k) => unitDefs?.[k]?.margin,
+              DEFAULT_THEME.density.turnGap
+            );
     }
+    prevWasUser = curIsUser;
 
     out.push(...group);
   };
@@ -183,9 +185,7 @@ export function collectUserTurnUnits(state: TranscriptState, units: RenderUnit[]
   // Build a set of itemIds for committed user messages.
   const userItemIds = new Set<string>();
   for (const item of state.committed) {
-    if (item.kind === 'message' && item.role === 'user') {
-      userItemIds.add(item.id);
-    }
+    if (itemIsUser(item)) userItemIds.add(item.id);
   }
 
   if (userItemIds.size === 0) return [];

@@ -33,8 +33,7 @@ function thinkingHeaderH(ctx: MeasureCtx): number {
 }
 
 function layoutThinkingBody(blocks: Block[], ctx: MeasureCtx, padY: number) {
-  const { blockGap, proseGap } = ctx.theme.density;
-  return layoutBlockStack(blocks, ctx, { padY, blockGap, proseGap });
+  return layoutBlockStack(blocks, ctx, { padY });
 }
 
 // ── ThinkingHeader ────────────────────────────────────────────────────────────

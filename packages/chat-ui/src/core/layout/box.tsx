@@ -117,7 +117,8 @@ export function codeLines(n: number, ViewComp?: Component<{ ctx: RenderCtx }>): 
  * A prose text content box.
  *
  * `blocks` is the pre-parsed block array (typically from `caches.parseBlocks`).
- * `opts` mirrors `BlockStackOpts` (padY, blockGap, proseGap).
+ * `opts` accepts `padY` and `isCollapsed` from `BlockStackOpts`. Inter-block
+ * gaps are resolved automatically from each block def's declared margins.
  *
  * `measure` calls `layoutBlockStack` and returns the stack height.
  * `View`    calls `layoutBlockStack` inside a SolidJS memo (reusing the

@@ -47,19 +47,16 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
     return c ? userInnerWidth(c.width, props.vars) : 0;
   };
 
-  const stackOpts = () => ({
-    padY: props.vars.stackPadY,
-    blockGap: mCtx()?.theme.density.blockGap ?? 10,
-    proseGap: mCtx()?.theme.density.proseGap ?? 4,
-  });
-
   const stack = createMemo<Measured<StackLayout> | null>(() => {
     const ctx = mCtx();
     if (!ctx) return null;
     const blocks = ctx.caches.parseBlocks(props.data.id, props.data.text);
     if (blocks.length === 0) return null;
     const innerCtx = { ...ctx, width: innerWidth() };
-    return layoutBlockStack(blocks, innerCtx, { ...stackOpts(), isCollapsed: ctx.isCollapsed });
+    return layoutBlockStack(blocks, innerCtx, {
+      padY: props.vars.stackPadY,
+      isCollapsed: ctx.isCollapsed,
+    });
   });
 
   const fullContentH = createMemo(() => {
@@ -78,7 +75,7 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
     }
     const innerCtx = { ...ctx, width: innerW };
     const s = layoutBlockStack(blocks, innerCtx, {
-      ...stackOpts(),
+      padY: props.vars.stackPadY,
       isCollapsed: ctx.isCollapsed,
     });
     return aH + s.height + 2 * props.vars.userCardPadY + 2 * props.vars.cardBorder;

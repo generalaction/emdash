@@ -63,11 +63,7 @@ function measureEntries(item: ChatPlan, ctx: MeasureCtx, vars: PlanVars): PlanEn
   const bodyWidth = ctx.width - chromeX(vars) - entryIndent(vars);
   return item.entries.map((entry, i) => {
     const blocks = ctx.caches.parseBlocks(`${item.id}:e${i}`, entry.content);
-    const measured = layoutBlockStack(
-      blocks,
-      { ...ctx, width: bodyWidth },
-      { padY: 0, blockGap: 4, proseGap: 2 }
-    );
+    const measured = layoutBlockStack(blocks, { ...ctx, width: bodyWidth }, { padY: 0 });
     return { measured, status: entry.status, priority: entry.priority };
   });
 }

@@ -7,15 +7,15 @@
  * Rendering:
  *   UnitDef.measure(data, ctx) → number  (content height)
  *   UnitDef.Render({ data, ctx })
- *   GroupChrome from the segmenter is applied per groupRole.
+ *   GroupChrome from the segmenter supplies insetX for horizontal padding.
  *
  * Height reservation:
- *   unitReservedHeight(unit, contentH)
- *   = gapBefore + contentH + chrome padY overhead + ROW_GAP (last/solo only)
+ *   unitReservedHeight(unit, contentH) = gapBefore + contentH
  *
- * Note on gapBefore: flatten() sets gapBefore = ROW_GAP on the first unit of
- * every group except the first group in the transcript. This replaces the
- * bottom-padding approach in the old Row.tsx and achieves the same spacing.
+ * Inter-row spacing lives entirely in unit.gapBefore (top padding). flatten()
+ * resolves each seam gap via margin-collapse (max of adjacent UnitDef margins)
+ * and stamps it onto the lower unit's gapBefore. No trailing bottom padding is
+ * added — each seam is owned by exactly one side.
  *
  * Debug overlay: dashed outline at reserved height; red when actual ≠ reserved.
  */
@@ -24,7 +24,7 @@ import { useDebug } from '@components/contexts/debug-context';
 import type { ChatCaches } from '@core/caches';
 import type { MeasureCtx, RenderCtx } from '@core/define';
 import type { ChatTheme } from '@core/theme';
-import type { GroupChrome, RenderUnit } from '@core/units';
+import type { RenderUnit } from '@core/units';
 import { unitReservedHeight } from '@core/units';
 import type { Virtualizer } from '@core/virtualizer';
 import type { ViewState } from '@state/view-state';
@@ -38,34 +38,6 @@ import {
   debugOk,
   debugOverlay,
 } from './unit-row.css';
-
-// ── GroupChrome helpers ───────────────────────────────────────────────────────
-
-/**
- * Returns top padding for a unit with chrome:
- *   - gapBefore (inter-group spacing)
- *   - chrome.padY for first/solo units (top padding inside the bubble)
- */
-function chromePadTop(chrome: GroupChrome, unit: RenderUnit): number {
-  const padY = chrome.padY ?? 0;
-  const isFirst = unit.groupRole === 'first' || unit.groupRole === 'solo';
-  return unit.gapBefore + (isFirst ? padY : 0);
-}
-
-/**
- * Returns bottom padding for a unit with chrome.
- *
- * Inter-row spacing is now owned exclusively by the lower row's `gapBefore`
- * (resolved by flatten() via margin-collapse), so this function no longer adds
- * a trailing rowGap. The chrome's padY is also intentionally omitted on the
- * bottom — see unitReservedHeight for the matching reservation formula.
- *
- * Returns 0 for all units; preserved as a named helper to make the intent
- * explicit and to allow future per-chrome bottom adjustments.
- */
-function chromePadBottom(_chrome: GroupChrome, _unit: RenderUnit): number {
-  return 0;
-}
 
 // ── Debug overlay ─────────────────────────────────────────────────────────────
 
@@ -186,8 +158,8 @@ export function UnitRow(props: UnitRowProps) {
           return (
             <div
               style={{
-                'padding-top': `${c ? chromePadTop(c, props.unit) : props.unit.gapBefore}px`,
-                'padding-bottom': c ? `${chromePadBottom(c, props.unit)}px` : '0px',
+                'padding-top': `${props.unit.gapBefore}px`,
+                'padding-bottom': '0px',
                 'padding-left': `${c ? (c.insetX ?? 0) : 0}px`,
                 'padding-right': `${c ? (c.insetX ?? 0) : 0}px`,
               }}

@@ -62,8 +62,10 @@ export type GroupRole = 'solo' | 'first' | 'middle' | 'last';
  * `data`      — segment payload; typed per-kind in each UnitDef.
  * `groupRole` — stamped by flatten(); used by UnitRow for chrome.
  * `gapBefore` — space reserved above this unit inside its virtualizer slot.
- *               The flatten pass sets inter-group gaps to ROW_GAP; intra-group
- *               gaps (PROSE_GAP / BLOCK_GAP) are set by the segmenter.
+ *               flatten() resolves each inter-group seam via margin-collapse
+ *               (max of adjacent UnitDef margins, falling back to turnGap) and
+ *               stamps the result here. User<->assistant boundary seams always
+ *               use rowGap. The first group in the transcript gets 0.
  * `chrome`    — optional group chrome carried from the ItemSegmenter, stamped
  *               by flatten(); undefined for solo legacy units.
  */
@@ -87,15 +89,12 @@ export type RenderUnit<D = unknown> = {
  * Composites (diff / plan / thinking / file-op) are single units and draw
  * their own borders/cards internally, so they do not use GroupChrome.
  *
- * `insetX`      — horizontal padding (px) subtracted from the available width
- *                 before measure(); also applied as left/right padding in the
- *                 rendered row wrapper so the content is visually inset.
- * `padY`        — vertical padding (px) added inside the wrapper for the
- *                 first unit (top) and last unit (bottom) of the group.
+ * `insetX` — horizontal padding (px) subtracted from the available width
+ *             before measure(); also applied as left/right padding in the
+ *             rendered row wrapper so the content is visually inset.
  */
 export type GroupChrome = {
   insetX?: number;
-  padY?: number;
 };
 
 // ── SegmentCtx ────────────────────────────────────────────────────────────────
@@ -212,27 +211,16 @@ export function unit<D>(
 /**
  * Compute the total virtualizer-reserved height for a native unit.
  *
- * Formula:
- *   gapBefore + contentH + chromeVerticalOverhead
+ * Formula: gapBefore + contentH
  *
- * `chromeVerticalOverhead` = padY on top (for first/solo only — padY on the
- * bottom side is intentionally omitted now that all inter-row spacing is owned
- * exclusively by the lower row's `gapBefore`).
- *
- * The previously present `trailingROWGAP` term has been removed: each seam
- * is now owned by exactly one side (the lower unit's `gapBefore`, resolved by
- * `flatten()` via margin-collapse). UnitRow must not add any bottom padding
- * for inter-row spacing either — only `gapBefore` top padding is rendered.
+ * All inter-row spacing lives in `gapBefore` (resolved by flatten() via
+ * margin-collapse). No chrome overhead or trailing gap is added.
  *
  * Exported so ChatRoot (estimate / prefetch paths) and UnitRow can share
  * the same formula without duplicating it.
  */
 export function unitReservedHeight(unit: RenderUnit, contentH: number): number {
-  const c = unit.chrome;
-  const role = unit.groupRole;
-  let overhead = 0;
-  if (c?.padY && (role === 'first' || role === 'solo')) overhead += c.padY;
-  return unit.gapBefore + contentH + overhead;
+  return unit.gapBefore + contentH;
 }
 
 // ── stampGroupRoles ───────────────────────────────────────────────────────────
