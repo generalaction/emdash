@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/lib/pty/pty.ts
+  s_e95544f99fd76f::t_0aaf8a39479171 22-30,46,157,163-167,169
+apps/emdash-desktop/src/renderer/utils/cssVars.ts
+  s_e95544f99fd76f::t_f5b568bf5c365f 5-9,14,22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "3e8bc7d6599af5cbe3e0e4f36d6e4bab84904802",
+  "prompts": {},
+  "sessions": {
+    "s_e95544f99fd76f": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eef26-627b-7d86-a285-625a24330977",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
