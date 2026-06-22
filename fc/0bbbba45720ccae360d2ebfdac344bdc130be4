@@ -1,0 +1,29 @@
+apps/emdash-desktop/src/renderer/app/app-menu-events.tsx
+  s_41dcbea4529085::t_b35ff9254b8b52 24,32,36,46,50,53,57,66
+apps/emdash-desktop/src/renderer/features/automations/use-automations.ts
+  s_41dcbea4529085::t_b35ff9254b8b52 141,145
+apps/emdash-desktop/src/renderer/lib/components/browser-app-shortcut-events.tsx
+  s_41dcbea4529085::t_b35ff9254b8b52 36,49
+apps/emdash-desktop/src/renderer/lib/components/titlebar/window-controls.tsx
+  s_41dcbea4529085::t_b35ff9254b8b52 35-38
+apps/emdash-desktop/src/renderer/lib/stores/use-agent-installation-statuses.ts
+  s_41dcbea4529085::t_b35ff9254b8b52 72
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_41dcbea4529085::t_b35ff9254b8b52 97,105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "fc0bbbba45720ccae360d2ebfdac344bdc130be4",
+  "prompts": {},
+  "sessions": {
+    "s_41dcbea4529085": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef053-2801-7533-aaea-7c6ba878a612",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
