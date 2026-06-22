@@ -71,6 +71,15 @@ export function isBrowserDataClearKind(kind: string): kind is BrowserDataClearKi
   return kind === 'storage' || kind === 'cookies' || kind === 'cache';
 }
 
+// Granular categories for clearing browsing data across the in-app browser
+// profiles from settings. `all` wipes everything; the rest map to Electron
+// `session.clearData({ dataTypes })` groups.
+export type BrowsingDataKind = 'all' | 'cookies' | 'siteData' | 'cache';
+
+export function isBrowsingDataKind(value: string): value is BrowsingDataKind {
+  return value === 'all' || value === 'cookies' || value === 'siteData' || value === 'cache';
+}
+
 export type BrowserDiagnosticsLevel = 'info' | 'warning' | 'error';
 
 export type BrowserDiagnosticsEntry = {
