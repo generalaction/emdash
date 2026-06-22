@@ -1,0 +1,22 @@
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.test.ts
+  s_98aa3485302ebb::t_abb7fa0d28cc58 1-9,15-31
+  s_98aa3485302ebb::t_eafe6cf38fa183 10-14
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.ts
+  s_98aa3485302ebb::t_4bf284a9057d22 3,54-58,139-151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "5a144fb0b0d0dc6b57edd42d77c29a1b5440eeeb",
+  "prompts": {},
+  "sessions": {
+    "s_98aa3485302ebb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef0f5-97f9-7173-b912-f514e19ba77b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
