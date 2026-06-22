@@ -359,6 +359,7 @@ describe('BrowserWebContentsRegistry', () => {
     expect(partitionSession.clearData).toHaveBeenNthCalledWith(3, {
       dataTypes: [
         'backgroundFetch',
+        'cacheStorage',
         'fileSystems',
         'indexedDB',
         'localStorage',

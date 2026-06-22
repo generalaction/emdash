@@ -346,6 +346,7 @@ async function clearPartitionBrowsingData(
       await partitionSession.clearData({
         dataTypes: [
           'backgroundFetch',
+          'cacheStorage',
           'fileSystems',
           'indexedDB',
           'localStorage',
