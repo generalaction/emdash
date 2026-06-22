@@ -1,0 +1,27 @@
+packages/plugins/src/agents/impl/qwen/index.ts
+  s_670e3b962a61b9::t_a69b37517982d6 28,59-62
+packages/plugins/src/agents/impl/qwen/hooks.ts
+  s_670e3b962a61b9::t_a69b37517982d6 30
+packages/plugins/src/agents/impl/qwen/index.test.ts
+  s_670e3b962a61b9::t_a69b37517982d6 45-59,91-92
+  s_670e3b962a61b9::t_a7659db82a4ff8 1-2,4,17-30,71-78,82-90
+  s_670e3b962a61b9::t_82479532552ba6 79-81
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_670e3b962a61b9::t_a69b37517982d6 252-255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "a647a30f8ff5a3db30c29a1a503d790db8ada302",
+  "prompts": {},
+  "sessions": {
+    "s_670e3b962a61b9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef092-0f0c-7bd1-a224-84719c55973c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
