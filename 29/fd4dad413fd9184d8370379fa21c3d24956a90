@@ -1,0 +1,42 @@
+packages/plugins/src/agents/impl/amp/index.ts
+  s_e6eaff8db44499::t_6406c53f759603 31,35,54,67-69
+packages/plugins/src/agents/impl/index.test.ts
+  s_e6eaff8db44499::t_cdfaed289bd577 145-148,150-156
+  s_e6eaff8db44499::t_906174272e3d78 149
+packages/core/src/agents/plugins/helpers/standard-command.ts
+  s_e6eaff8db44499::t_6406c53f759603 99,102,106
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.test.ts
+  s_e6eaff8db44499::t_5aac111e917886 2,10-25
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_e6eaff8db44499::t_6406c53f759603 283,290-292
+  s_e6eaff8db44499::t_5aac111e917886 698
+packages/plugins/src/agents/impl/amp/plugin-file.ts
+  s_e6eaff8db44499::t_6406c53f759603 7,31-32,35-40
+packages/core/src/agents/plugins/helpers/standard-command.test.ts
+  s_e6eaff8db44499::t_6406c53f759603 24-43
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.test.ts
+  s_e6eaff8db44499::t_e321ef25d8f2dc 215
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.ts
+  s_e6eaff8db44499::t_2eaeaa34ee0b75 3
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_e6eaff8db44499::t_4008e4c02b15e3 78-99,159-178
+packages/plugins/src/agents/impl/amp/plugin-file.test.ts
+  s_e6eaff8db44499::t_4008e4c02b15e3 1-12,14-18
+  s_e6eaff8db44499::t_2eaeaa34ee0b75 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "29fd4dad413fd9184d8370379fa21c3d24956a90",
+  "prompts": {},
+  "sessions": {
+    "s_e6eaff8db44499": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef093-1556-7621-9501-9686d59677bd",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
