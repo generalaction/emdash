@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/lib/ui/markdown-renderer.tsx
+  s_41dcbea4529085::t_0170fe8b691940 269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "d219452884d13f295a8e83aafb9a06b2676bef49",
+  "prompts": {},
+  "sessions": {
+    "s_41dcbea4529085": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef053-2801-7533-aaea-7c6ba878a612",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
