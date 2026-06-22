@@ -1310,7 +1310,7 @@ export class GitService implements IDisposable {
       if (stderr.includes('not found') || stderr.includes('did not match any branch')) {
         return err({ type: 'not_found', branch, message: stderr });
       }
-      if (stderr.includes('checked out') || stderr.includes('is not fully merged')) {
+      if (stderr.includes('checked out')) {
         return err({ type: 'is_current', branch, message: stderr });
       }
       return err({ type: 'git_error', message: stderr });
