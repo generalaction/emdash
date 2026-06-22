@@ -1,0 +1,37 @@
+apps/emdash-desktop/src/renderer/features/settings/components/BrowserSettingsCard.tsx
+  s_a8bd37fc3961b2::t_963ce0dcc26f2b 120-126
+  s_d679dc241ce60c::t_18319029cec0ec 35
+  s_d679dc241ce60c::t_2cf7149f820921 1
+  s_d679dc241ce60c::t_d4da371e3303a2 26
+  s_d679dc241ce60c::t_15322a64bdf154 50-51
+  s_a8bd37fc3961b2::t_8c6e7198905805 353
+  s_d679dc241ce60c::t_918a7e150a05e3 94-119,127-128
+  s_d679dc241ce60c::t_a82512d46bc07a 349
+  s_d679dc241ce60c::t_b3edd0009db323 347-348,350-352,354-358,360,362-411,416-429,433-436,438-450,457-463
+  s_a8bd37fc3961b2::t_730c8add7582c3 430-432,437,451-456
+  s_d679dc241ce60c::t_b6314820aa0b8d 359,361
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "6083bce11a52d1e00dad10329f9b8ec2d8c663c6",
+  "prompts": {},
+  "sessions": {
+    "s_a8bd37fc3961b2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "365a91ed-8a95-4849-9e3e-0a644d936409",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_d679dc241ce60c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dd09e693-fd89-4bad-8164-3efdc58f702e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
