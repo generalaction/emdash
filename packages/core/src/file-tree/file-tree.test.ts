@@ -12,9 +12,14 @@ import { resolveInsideRoot } from './paths';
 class ManualWatchService implements IFileWatchService {
   private consumers: Array<(events: RawFileEvent[]) => void> = [];
   private readyCalls = 0;
+  private releaseCalls = 0;
 
   get watchCount(): number {
     return this.readyCalls;
+  }
+
+  get releaseCount(): number {
+    return this.releaseCalls;
   }
 
   watch(_root: string, onEvents: (events: RawFileEvent[]) => void): WatchHandle {
@@ -23,6 +28,7 @@ class ManualWatchService implements IFileWatchService {
     return {
       ready: async () => {},
       release: () => {
+        this.releaseCalls += 1;
         this.consumers = this.consumers.filter((consumer) => consumer !== onEvents);
       },
     };
@@ -220,6 +226,24 @@ describe('FileTree', () => {
       error: { type: 'not-found', path: '' },
     });
     await runtime.dispose();
+  });
+
+  it('releases the runtime lease when ready rejects unexpectedly', async () => {
+    const root = await makeRoot();
+    const watcher = new ManualWatchService();
+    const runtime = new FileTreeRuntime({ watcher });
+    const originalReady = FileTree.prototype.ready;
+    FileTree.prototype.ready = async () => {
+      throw new Error('boom');
+    };
+
+    try {
+      await expect(runtime.open(root)).rejects.toThrow('boom');
+      await waitFor(async () => watcher.releaseCount === 1);
+    } finally {
+      FileTree.prototype.ready = originalReady;
+      await runtime.dispose();
+    }
   });
 });
 

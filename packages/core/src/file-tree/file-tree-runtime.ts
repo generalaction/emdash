@@ -40,12 +40,17 @@ export class FileTreeRuntime implements IFileTreeRuntime {
       });
       return tree;
     });
-    const ready = await lease.value.ready();
-    if (!ready.success) {
+    try {
+      const ready = await lease.value.ready();
+      if (!ready.success) {
+        lease.release();
+        return err(ready.error);
+      }
+      return ok(lease);
+    } catch (error) {
       lease.release();
-      return err(ready.error);
+      throw error;
     }
-    return ok(lease);
   }
 
   async dispose(): Promise<void> {
