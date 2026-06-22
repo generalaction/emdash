@@ -19,21 +19,15 @@ export interface SessionTheme {
   override?: ITerminalOptions['theme'];
 }
 
-function resolveThemeColor(color: string): string {
-  const cssVarMatch = color.trim().match(/^var\((--[^),\s]+)\)$/);
-  return cssColorToHex(cssVarMatch ? cssVar(cssVarMatch[1]) : color);
-}
+function normalizeThemeColors(theme: ITerminalOptions['theme']): ITerminalOptions['theme'] {
+  if (!theme) return theme;
 
-function resolveThemeOverride(override: ITerminalOptions['theme']): ITerminalOptions['theme'] {
-  if (!override) return override;
-
-  const resolved: Record<string, string> = {};
-  for (const [key, value] of Object.entries(override)) {
-    if (typeof value === 'string') {
-      resolved[key] = resolveThemeColor(value);
-    }
-  }
-  return resolved as ITerminalOptions['theme'];
+  return Object.fromEntries(
+    Object.entries(theme).map(([key, value]) => [
+      key,
+      typeof value === 'string' ? cssColorToHex(value) : value,
+    ])
+  );
 }
 
 export function readXtermCssVars(): ITerminalOptions['theme'] {
@@ -49,8 +43,7 @@ export function readXtermCssVars(): ITerminalOptions['theme'] {
 }
 
 export function buildTheme(theme?: SessionTheme): ITerminalOptions['theme'] {
-  if (theme?.override) return { ...readXtermCssVars(), ...resolveThemeOverride(theme.override) };
-  return readXtermCssVars();
+  return normalizeThemeColors({ ...readXtermCssVars(), ...theme?.override });
 }
 
 // ── FrontendPty ───────────────────────────────────────────────────────────────
@@ -161,17 +154,19 @@ export class FrontendPty {
     FrontendPty.all.add(this);
   }
 
-  setTheme(theme?: SessionTheme): void {
-    this.theme = theme;
+  private applyTheme(theme?: SessionTheme): void {
     this.terminal.options.minimumContrastRatio = MINIMUM_CONTRAST_RATIO;
     this.terminal.options.theme = buildTheme(theme);
     this.terminal.refresh(0, this.terminal.rows - 1);
   }
 
+  setTheme(theme?: SessionTheme): void {
+    this.theme = theme;
+    this.applyTheme(theme);
+  }
+
   refreshTheme(): void {
-    this.terminal.options.minimumContrastRatio = MINIMUM_CONTRAST_RATIO;
-    this.terminal.options.theme = buildTheme(this.theme);
-    this.terminal.refresh(0, this.terminal.rows - 1);
+    this.applyTheme(this.theme);
   }
 
   clear(): void {
