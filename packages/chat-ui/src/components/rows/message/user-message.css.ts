@@ -5,6 +5,17 @@ import { fadeOverlayBottom, fadeOverlayTop } from '@styles/effects.css';
 import { vars } from '@styles/theme.css';
 import { createVariableThemeContract } from '@styles/variable-theme-contract.css';
 
+/**
+ * Dedicated group-hover marker for the stop button.
+ *
+ * Apply this class to the user card root so that hovering anywhere on the card
+ * reveals the stop button. Keying the reveal to this dedicated empty marker
+ * (rather than a structural class like cardRoot) isolates it from the
+ * messageGroup/codeGroup hover reveals already present in descendant nodes,
+ * preventing cross-nesting leakage — same pattern as the copy-button isolation.
+ */
+export const userCardGroup = style({});
+
 // ── Runtime geometry contract ─────────────────────────────────────────────────
 // Set per-instance via assignInlineVars in message.def.tsx.
 
@@ -45,6 +56,47 @@ export const card = recipe({
         },
       },
     },
+    /** When true, the hover border shows regardless of overflow state. */
+    current: {
+      false: {},
+      true: {
+        selectors: {
+          '&:hover': { borderColor: vars.userCardBorderHover },
+        },
+      },
+    },
+  },
+});
+
+/**
+ * Stop button — absolutely positioned top-right of the user message card.
+ *
+ * Isolated reveal: opacity 0 by default; revealed only when `userCardGroup`
+ * is hovered (`${userCardGroup}:hover &`). The reveal selector is on this
+ * style itself (not a shared base), and keyed to the dedicated `userCardGroup`
+ * marker, so it cannot leak to/from the messageGroup/codeGroup hover contexts
+ * in descendant code blocks or sibling assistant messages.
+ */
+export const stopButtonOverlay = style({
+  position: 'absolute',
+  top: '6px',
+  right: '6px',
+  zIndex: 10,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '4px',
+  borderRadius: vars.radiusSm,
+  border: 'none',
+  background: 'transparent',
+  color: vars.fgMuted,
+  cursor: 'pointer',
+  opacity: 0,
+  transition: 'opacity 150ms ease',
+  selectors: {
+    [`${userCardGroup}:hover &`]: { opacity: 1 },
+    '&:focus-visible': { opacity: 1 },
+    '&:hover': { color: vars.fg },
   },
 });
 

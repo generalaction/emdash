@@ -44,6 +44,7 @@ export type {
   ChatElicitationOption,
   ChatElicitationOptionTone,
 } from './model';
+export type { TurnStatus } from './state/transcript';
 export type { TranscriptApi, TranscriptEvent } from './state/transcript';
 export type { ViewState } from './state/view-state';
 export { generateMockTranscript } from './mock-transcript';
@@ -97,6 +98,16 @@ export type ChatCommands = {
     itemId: string;
     source: 'user-message';
   }) => void;
+
+  /**
+   * Called when the user clicks the stop button on the current user message
+   * while the agent is generating. `itemId` is the user `ChatMessage` id.
+   *
+   * The host should cancel the in-progress agent turn. chat-ui will continue
+   * showing the stop button until the host dispatches `turn_cancelled` (or
+   * `turn_done`) to finalize the turn.
+   */
+  onStop?: (arg: { itemId: string }) => void;
 
   /**
    * Called when the user resolves an elicitation row (e.g. a permission

@@ -140,6 +140,9 @@ type ChatCommands = {
     source: 'user-message';
   }) => void;
 
+  /** Called when the user clicks the stop button on the current user message. */
+  onStop?: (arg: { itemId: string }) => void;
+
   onResolveElicitation?: (arg: {
     elicitationId: string;
     optionId: string | null; // null = programmatic cancel
@@ -151,6 +154,12 @@ type ChatCommands = {
 ```
 
 Invoked when the user clicks interactive elements in the transcript.
+
+`onStop` is called when the user clicks the stop button that appears on hover
+over the current user message while the agent is generating. The host should
+cancel the in-progress agent turn and then dispatch `turn_cancelled` so
+chat-ui removes the stop button and updates `turnStatus`.
+
 `onResolveElicitation` is called when the user accepts or rejects a permission
 request via the split-button. The host should dispatch `elicitation_removed` to
 remove the row immediately (optimistic UI) and then resolve the underlying
@@ -222,6 +231,15 @@ type ThinkingStatus = 'thinking' | 'done';
 type FileOpKind = 'read' | 'edit' | 'delete' | 'move';
 type FileOp = { path: string };
 type ChatElicitationOptionTone = 'accept' | 'reject' | 'neutral';
+
+/**
+ * Global turn lifecycle status. Tracks only the latest turn.
+ *
+ * - `'generating'` — the agent is actively streaming content.
+ * - `'cancelled'`  — the host dispatched `turn_cancelled` (user pressed Stop).
+ * - `'done'`       — the turn completed normally, or no turn has run yet.
+ */
+type TurnStatus = 'generating' | 'cancelled' | 'done';
 ```
 
 ### `ChatMessage`
@@ -390,7 +408,8 @@ A discriminated union on `type`. Deltas (text/reasoning chunks) are appended;
 | `diff_update` | `{ id, status?, oldText?, newText? }` | Patch a diff row. |
 | `elicitation_start` | `{ id, variant, toolCallId?, title, options, defaultOptionId }` | Show a permission-request row beneath the tool call identified by `toolCallId`. |
 | `elicitation_removed` | `{ id }` | Remove a pending elicitation row (optimistic — fire immediately on user response). |
-| `turn_done` | `{}` | Finalize the active turn into `committed`. |
+| `turn_done` | `{}` | Finalize the active turn into `committed`. Sets `turnStatus` to `'done'`. |
+| `turn_cancelled` | `{}` | Finalize the active turn into `committed` (same as `turn_done`), but sets `turnStatus` to `'cancelled'`. Dispatch instead of `turn_done` when the user cancels generation so the stop button is removed correctly. |
 
 Dispatching a content event after reasoning auto-finalizes any still-open
 `thinking` row, so you rarely need an explicit `thinking_done`.

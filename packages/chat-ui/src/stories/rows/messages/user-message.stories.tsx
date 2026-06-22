@@ -3,7 +3,8 @@
  */
 
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
-import { ChatHost } from '@/stories/_harness/chat-host';
+import { ChatHost, ScriptedChat } from '@/stories/_harness/chat-host';
+import { scenario, seedStep } from '@/stories/_harness/streaming/scenario';
 
 const meta: Meta = {
   title: 'Rows/Messages/User',
@@ -59,6 +60,40 @@ export const Overflowing: Story = {
     <ChatHost
       items={[{ kind: 'message', id: 'u1', role: 'user', text: USER_OVERFLOW_TEXT }]}
       height={300}
+    />
+  ),
+};
+
+/**
+ * User message while the agent is generating — shows the hover border and
+ * stop button overlay on hover. Clicking the stop button dispatches
+ * `turn_cancelled` (via the harness default onStop), removing the button.
+ *
+ * To see the stop button: hover the user message card.
+ */
+export const Generating: Story = {
+  render: () => (
+    <ScriptedChat
+      height={260}
+      script={scenario(
+        [
+          // Seed the user message into committed first
+          seedStep([{ kind: 'message', id: 'u1', role: 'user', text: 'Can you refactor the authentication module to use JWT tokens?' }]),
+        ],
+        [
+          // Start an assistant turn so turnStatus becomes 'generating'
+          {
+            kind: 'call',
+            fn: (api) => api.dispatch({ type: 'message_chunk', id: 'a1', role: 'assistant', text: 'Sure! ' }),
+          },
+          { kind: 'wait', ms: 600 },
+          {
+            kind: 'call',
+            fn: (api) => api.dispatch({ type: 'message_chunk', id: 'a1', role: 'assistant', text: 'I will start by replacing the session store with a JWT signing key…' }),
+          },
+          // No turn_done — leaves the turn open so turnStatus stays 'generating'
+        ]
+      )}
     />
   ),
 };

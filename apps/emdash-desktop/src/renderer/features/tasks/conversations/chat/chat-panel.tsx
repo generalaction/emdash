@@ -80,6 +80,9 @@ export const ChatPanel = observer(function ChatPanel({
       classifyLink(href) {
         return store.getResolver()?.classifyLink(href) ?? { kind: 'external' };
       },
+      onStop() {
+        store.cancel();
+      },
     };
   }, [projectId, taskId, store]);
 

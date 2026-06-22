@@ -1,6 +1,7 @@
 import { useCommands } from '@components/contexts/CommandsContext';
+import { useTurnState } from '@components/contexts/TurnStateContext';
 import { BlockStackView } from '@components/primitives/BlockStackView';
-import { ImageOffIcon } from '@components/primitives/icons';
+import { IconStop, ImageOffIcon } from '@components/primitives/icons';
 import type { StackLayout } from '@core/compose';
 import type { Measured, RenderCtx } from '@core/define';
 import { layoutBlockStack } from '@core/layout/block-stack';
@@ -20,11 +21,17 @@ import {
   cardFadeOverlay,
   cardRoot,
   cardVars,
+  stopButtonOverlay,
+  userCardGroup,
 } from './user-message.css';
 
 export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars: MessageVars }) {
   const commands = useCommands();
+  const turn = useTurnState();
   const mCtx = () => props.ctx.measureCtx?.();
+
+  const isCurrent = () => turn.currentMessageId() === props.data.id;
+  const showStop = () => isCurrent() && turn.turnStatus() === 'generating';
 
   const styleVars = () => ({
     height: clampedH(),
@@ -91,7 +98,7 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
   return (
     <div
       data-user-card={props.data.id}
-      class={`${card({ state: isOverflowing() && !isExpanded() ? 'overflowing' : 'static' })} ${cardRoot}`}
+      class={`${card({ state: isOverflowing() && !isExpanded() ? 'overflowing' : 'static', current: showStop() })} ${cardRoot} ${userCardGroup}`}
       style={{
         ...assignInlineVars(cardVars, pxTokens(styleVars())),
         'overflow-y': isExpanded() ? 'auto' : 'hidden',
@@ -134,6 +141,19 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
       <Show when={stack()}>{(s) => <BlockStackView node={s()} />}</Show>
       <Show when={!isExpanded() && isOverflowing()}>
         <div class={cardFadeOverlay} />
+      </Show>
+      <Show when={showStop()}>
+        <button
+          type="button"
+          class={stopButtonOverlay}
+          aria-label="Stop generating"
+          onClick={(e) => {
+            e.stopPropagation();
+            commands().onStop?.({ itemId: props.data.id });
+          }}
+        >
+          <IconStop />
+        </button>
       </Show>
     </div>
   );

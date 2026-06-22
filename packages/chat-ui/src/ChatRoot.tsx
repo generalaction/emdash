@@ -35,6 +35,7 @@ import { CachesContext } from './components/contexts/CachesContext';
 import { CommandsContext } from './components/contexts/CommandsContext';
 import { DebugContext } from './components/contexts/debug-context';
 import { ThemeContext } from './components/contexts/ThemeContext';
+import { TurnStateContext } from './components/contexts/TurnStateContext';
 import { SEGMENTERS, UNIT_REGISTRY } from './components/engine/unit-registry';
 import { UnitRow } from './components/engine/UnitRow';
 import { PinnedUserMessage } from './components/rows/message/PinnedUserMessage';
@@ -824,6 +825,21 @@ export function ChatRoot(props: ChatRootProps) {
     return new Set(active.map((i) => i.id));
   });
 
+  // The id of the last committed user-role message — the "current" user message
+  // whose stop button and hover border we show while generating. User messages
+  // are always in committed (flushed before assistant streaming starts), so this
+  // is stable during streaming. Returns null when no user message exists yet.
+  const currentMessageId = createMemo<string | null>(() => {
+    const committed = props.transcript.state.committed;
+    for (let i = committed.length - 1; i >= 0; i--) {
+      const item = committed[i];
+      if (item.kind === 'message' && item.role === 'user') return item.id;
+    }
+    return null;
+  });
+
+  const turnStatus = () => props.transcript.state.turnStatus;
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -831,6 +847,7 @@ export function ChatRoot(props: ChatRootProps) {
       <ThemeContext.Provider value={theme}>
         <CachesContext.Provider value={caches}>
           <CommandsContext.Provider value={commands}>
+          <TurnStateContext.Provider value={{ currentMessageId, turnStatus }}>
             {/* Non-scrolling positioned wrapper. Hosts the scroll container and
                 the pinned overlay as siblings so the overlay is unaffected by
                 native scroll (no per-frame counter-translation → no jitter).
@@ -930,6 +947,7 @@ export function ChatRoot(props: ChatRootProps) {
                 )}
               </Show>
             </div>
+          </TurnStateContext.Provider>
           </CommandsContext.Provider>
         </CachesContext.Provider>
       </ThemeContext.Provider>

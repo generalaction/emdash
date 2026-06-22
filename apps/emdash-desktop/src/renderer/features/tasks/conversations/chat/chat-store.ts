@@ -251,6 +251,12 @@ export class ChatStore {
   private readonly _unsubs: (() => void)[] = [];
 
   /**
+   * Set in cancel() before sending the ACP cancel RPC. _finalizeStreaming
+   * reads this flag to dispatch `turn_cancelled` instead of `turn_done`.
+   */
+  private _cancelRequested = false;
+
+  /**
    * Maps a streaming message key (`${role}:${messageId}`) to its item, so chunks
    * for the same role+message merge while different roles stay separate bubbles.
    */
@@ -492,6 +498,7 @@ export class ChatStore {
   }
 
   cancel(): void {
+    this._cancelRequested = true;
     void rpc.acp.cancel(this._conversationId);
   }
 
@@ -998,7 +1005,12 @@ export class ChatStore {
     }
     this._streamKeyMap.clear();
     this._segmentCountMap.clear();
-    this._transcript?.dispatch({ type: 'turn_done' });
+    if (this._cancelRequested) {
+      this._cancelRequested = false;
+      this._transcript?.dispatch({ type: 'turn_cancelled' });
+    } else {
+      this._transcript?.dispatch({ type: 'turn_done' });
+    }
     // Re-enrich resource links whose file existence may have changed mid-turn
     // (e.g., a file referenced at the start of the turn that was created later).
     void this._resolver?.reEnrichStale().then(() => {

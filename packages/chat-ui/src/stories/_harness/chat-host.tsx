@@ -6,9 +6,10 @@
  * TranscriptApi calls and re-runs on every story re-mount. ChatHostExpanded
  * pre-toggles a specific item so expanded-state stories start already opened.
  *
- * All hosts default onResolveElicitation to dispatch `elicitation_removed` so
- * permission-request stories work interactively out of the box. Pass a custom
- * `commands` to override this or extend other callbacks.
+ * All hosts default onResolveElicitation to dispatch `elicitation_removed` and
+ * onStop to dispatch `turn_cancelled` so permission-request and stop-button
+ * stories work interactively out of the box. Pass a custom `commands` to
+ * override or extend any callback.
  */
 
 import { DEFAULT_THEME } from '@core/theme';
@@ -66,13 +67,19 @@ export type ChatHostProps = {
 };
 
 /**
- * Build a merged ChatCommands object that defaults to optimistic elicitation
- * removal and merges caller overrides on top.
+ * Build a merged ChatCommands object that defaults to:
+ *  - optimistic elicitation removal (dispatch `elicitation_removed` on resolve)
+ *  - optimistic stop (dispatch `turn_cancelled` on stop)
+ * so permission-request and stop-button stories work interactively out of the
+ * box. Caller-supplied overrides replace any of these defaults.
  */
 function makeCommands(transcript: TranscriptApi, overrides?: ChatCommands): () => ChatCommands {
   return () => ({
     onResolveElicitation: ({ elicitationId }) => {
       transcript.dispatch({ type: 'elicitation_removed', id: elicitationId });
+    },
+    onStop: () => {
+      transcript.dispatch({ type: 'turn_cancelled' });
     },
     ...overrides,
   });

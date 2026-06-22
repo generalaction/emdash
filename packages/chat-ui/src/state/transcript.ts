@@ -32,9 +32,22 @@ import type {
   ToolStatus,
 } from '@/model';
 
+/**
+ * Global turn lifecycle status. Describes only the latest turn — there is no
+ * per-message history.
+ *
+ * - `'generating'` — the agent is actively streaming content.
+ * - `'cancelled'`  — the host dispatched `turn_cancelled` (e.g. the user
+ *                    pressed Stop); set for the lifetime of the turn after
+ *                    cancellation until the next turn starts.
+ * - `'done'`       — the turn completed normally, or no turn has run yet.
+ */
+export type TurnStatus = 'generating' | 'cancelled' | 'done';
+
 export type TranscriptState = {
   committed: readonly ChatItem[];
   activeTurn: ChatItem[] | null;
+  turnStatus: TurnStatus;
 };
 
 // ── Event union ───────────────────────────────────────────────────────────────
@@ -171,6 +184,13 @@ export type TranscriptEvent =
    */
   | { type: 'elicitation_removed'; id: string }
   /**
+   * The current turn was cancelled by the host (e.g. the user pressed Stop).
+   * Like `turn_done`, it finalizes streaming state and moves `activeTurn` into
+   * `committed`, but sets `turnStatus` to `'cancelled'` instead of `'done'`.
+   * The host must dispatch this instead of `turn_done` when cancellation occurs.
+   */
+  | { type: 'turn_cancelled' }
+  /**
    * The current turn is finished. Clears `streaming` flags, finalizes any
    * still-active thinking and execute rows, and moves activeTurn into committed.
    */
@@ -245,6 +265,7 @@ export function createTranscript(): TranscriptApi {
   const [state, setState] = createStore<TranscriptState>({
     committed: [],
     activeTurn: null,
+    turnStatus: 'done',
   });
 
   // id → committed index map; rebuilt on seed/prepend, patched on turn_done.
@@ -261,7 +282,7 @@ export function createTranscript(): TranscriptApi {
     state,
 
     seed(history) {
-      setState({ committed: [...history], activeTurn: null });
+      setState({ committed: [...history], activeTurn: null, turnStatus: 'done' });
       rebuildIdMap(history);
     },
 
@@ -290,6 +311,54 @@ export function createTranscript(): TranscriptApi {
     dispatch(event) {
       setState(
         produce((s) => {
+          // Capture before switch to detect when a new activeTurn opens.
+          const wasIdle = s.activeTurn === null;
+
+          /**
+           * Shared finalize helper — moves activeTurn items into committed,
+           * settling any still-streaming rows. Called by both `turn_done` and
+           * `turn_cancelled` so they stay in sync.
+           */
+          const finalizeAndCommit = (): void => {
+            if (!s.activeTurn) return;
+            const finalized: ChatItem[] = s.activeTurn.map((item) => {
+              if (item.kind === 'message' && item.streaming) {
+                return { ...item, streaming: false };
+              }
+              if (item.kind === 'thinking' && item.status === 'thinking') {
+                return {
+                  ...item,
+                  status: 'done' as const,
+                  durationMs: Date.now() - item.startedAt,
+                };
+              }
+              if (item.kind === 'execute' && item.status === 'running') {
+                return {
+                  ...item,
+                  status: 'done' as const,
+                  durationMs: Date.now() - item.startedAt,
+                };
+              }
+              if (item.kind === 'diff' && item.status === 'running') {
+                return { ...item, status: 'done' as const };
+              }
+              if (item.kind === 'plan' && item.streaming) {
+                return { ...item, streaming: false };
+              }
+              if (item.kind === 'resource-link' && item.status === 'running') {
+                return { ...item, status: 'done' as const };
+              }
+              return item;
+            });
+            const offset = s.committed.length;
+            s.committed = [...s.committed, ...finalized];
+            s.activeTurn = null;
+            // Patch idMap: only new items added at the tail.
+            for (let i = 0; i < finalized.length; i++) {
+              idMap.set(finalized[i].id, offset + i);
+            }
+          };
+
           /**
            * Auto-finalize any still-active thinking row when a content event
            * that follows reasoning arrives.  This stops the thinking header from
@@ -609,52 +678,31 @@ export function createTranscript(): TranscriptApi {
             }
 
             case 'turn_done': {
-              if (!s.activeTurn) break;
-              const finalized: ChatItem[] = s.activeTurn.map((item) => {
-                if (item.kind === 'message' && item.streaming) {
-                  return { ...item, streaming: false };
-                }
-                if (item.kind === 'thinking' && item.status === 'thinking') {
-                  return {
-                    ...item,
-                    status: 'done' as const,
-                    durationMs: Date.now() - item.startedAt,
-                  };
-                }
-                if (item.kind === 'execute' && item.status === 'running') {
-                  return {
-                    ...item,
-                    status: 'done' as const,
-                    durationMs: Date.now() - item.startedAt,
-                  };
-                }
-                if (item.kind === 'diff' && item.status === 'running') {
-                  return { ...item, status: 'done' as const };
-                }
-                if (item.kind === 'plan' && item.streaming) {
-                  return { ...item, streaming: false };
-                }
-                if (item.kind === 'resource-link' && item.status === 'running') {
-                  return { ...item, status: 'done' as const };
-                }
-                return item;
-              });
-              const offset = s.committed.length;
-              s.committed = [...s.committed, ...finalized];
-              s.activeTurn = null;
-              // Patch idMap: only new items added at the tail.
-              for (let i = 0; i < finalized.length; i++) {
-                idMap.set(finalized[i].id, offset + i);
-              }
+              finalizeAndCommit();
+              s.turnStatus = 'done';
               break;
             }
+
+            case 'turn_cancelled': {
+              finalizeAndCommit();
+              s.turnStatus = 'cancelled';
+              break;
+            }
+          }
+
+          // If this event opened a fresh activeTurn, mark as generating.
+          // Terminal events (turn_done / turn_cancelled) set activeTurn = null
+          // inside the switch, so wasIdle is true for them but activeTurn is
+          // null, so this guard never clobbers a terminal status.
+          if (wasIdle && s.activeTurn !== null) {
+            s.turnStatus = 'generating';
           }
         })
       );
     },
 
     reset() {
-      setState({ committed: [], activeTurn: null });
+      setState({ committed: [], activeTurn: null, turnStatus: 'done' });
       idMap.clear();
     },
   };
