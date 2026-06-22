@@ -1,0 +1,32 @@
+apps/emdash-desktop/src/main/core/agent-hooks/ssh-hook-tunnel.test.ts
+  s_aea524c6fdf649::t_25c79fee325ecf 1,28-32,64-68
+  s_aea524c6fdf649::t_ec655ad43a92a4 2-27,33-63,69-92
+apps/emdash-desktop/src/main/core/agent-hooks/ssh-hook-tunnel.ts
+  s_aea524c6fdf649::t_27300c0d912f43 1-112
+apps/emdash-desktop/src/main/core/conversations/impl/conversation-provider-respawn.test.ts
+  s_aea524c6fdf649::t_30cae817d7cf19 14-15,99,106-109,204,264-267,371-395,397-418
+  s_aea524c6fdf649::t_b7265ccafdac4a 790-791,831-832,868-869
+  s_aea524c6fdf649::t_598a068ece42c6 85-91
+  s_aea524c6fdf649::t_9751b116c691fe 396
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_aea524c6fdf649::t_ffa8266240da02 1-3,5,20,28,44,121,161-164,171-186,188-194,213,302,317,331,339,343-350,354,382,418
+  s_aea524c6fdf649::t_4db2bd0da7577f 13,187,234
+  s_aea524c6fdf649::t_79e5a1e2663111 165-170
+  s_aea524c6fdf649::t_cf7c0d43eaefa6 237-240,243,337-338,340-341
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "749c43601433b65f7bb287447b9ec62eb81156fd",
+  "prompts": {},
+  "sessions": {
+    "s_aea524c6fdf649": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eedc9-27a0-7f53-9716-2499ff5efd03",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
