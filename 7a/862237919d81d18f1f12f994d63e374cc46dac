@@ -1,0 +1,25 @@
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.ts
+  s_9c73d040bb32c9::t_728db8424841cf 54-58,139-151
+  s_9c73d040bb32c9::t_a752d7ce5766fe 3
+packages/plugins/src/agents/impl/droid/hooks.ts
+  s_9c73d040bb32c9::t_728db8424841cf 62-69,95
+  s_9c73d040bb32c9::t_a752d7ce5766fe 55-61,96
+packages/plugins/src/agents/impl/droid/hooks.test.ts
+  s_9c73d040bb32c9::t_728db8424841cf 68-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "7a862237919d81d18f1f12f994d63e374cc46dac",
+  "prompts": {},
+  "sessions": {
+    "s_9c73d040bb32c9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef0bc-1c15-7e63-9300-5d358db1e45f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
