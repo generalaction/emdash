@@ -1,7 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
-import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
+import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { toast } from '@renderer/lib/hooks/use-toast';
@@ -17,6 +17,7 @@ import {
 } from '@renderer/lib/ui/dialog';
 import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
+import { providerSupportsAutoApprove } from '@shared/core/agents/agent-auto-approve';
 import { nextDefaultConversationTitle } from './conversation-title-utils';
 import { useEffectiveProvider } from './use-effective-provider';
 
@@ -33,13 +34,16 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const connectionId = getProjectSshConnectionId(projectId);
   const { providerId, setProviderOverride, createDisabled } = useEffectiveProvider(connectionId);
   const conversationMgr = conversationRegistry.get(taskId);
-  const autoApproveDefaults = useAgentAutoApproveDefaults();
+  const taskSettings = useTaskSettings();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
   useCloseGuard(isSubmitting);
 
   const isHandoff = handoffSourceConversationId !== undefined;
-  const skipPermissions = providerId ? autoApproveDefaults.getDefault(providerId) : false;
+  const showAutoApproveToggle = providerId ? providerSupportsAutoApprove(providerId) : false;
+  const skipPermissions =
+    showAutoApproveToggle && (autoApproveOverride ?? taskSettings.autoApproveByDefault);
   const titleProviderId = providerId ?? 'claude';
   const title = nextDefaultConversationTitle(
     titleProviderId,
@@ -118,18 +122,18 @@ export const CreateConversationModal = observer(function CreateConversationModal
               connectionId={connectionId}
             />
           </Field>
-          <Field>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={skipPermissions}
-                disabled={!providerId || autoApproveDefaults.loading || autoApproveDefaults.saving}
-                onCheckedChange={(checked) => {
-                  if (providerId) autoApproveDefaults.setDefault(providerId, checked);
-                }}
-              />
-              <FieldLabel>Auto-approve permissions</FieldLabel>
-            </div>
-          </Field>
+          {showAutoApproveToggle ? (
+            <Field>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={skipPermissions}
+                  disabled={!providerId || taskSettings.loading || taskSettings.saving}
+                  onCheckedChange={setAutoApproveOverride}
+                />
+                <FieldLabel>Auto-approve permissions</FieldLabel>
+              </div>
+            </Field>
+          ) : null}
           {error && <p className="text-destructive text-xs">{error}</p>}
         </FieldGroup>
       </DialogContentArea>

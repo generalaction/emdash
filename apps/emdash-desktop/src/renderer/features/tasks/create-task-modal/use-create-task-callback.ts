@@ -1,5 +1,4 @@
 import { useCallback } from 'react';
-import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { log } from '@renderer/utils/logger';
@@ -22,7 +21,6 @@ export function useCreateTaskCallback({
   navigate,
   onClose,
 }: UseCreateTaskCallbackParams): { handleCreateTask: () => void; canCreate: boolean } {
-  const autoApproveDefaults = useAgentAutoApproveDefaults();
   const canCreate = !!selectedProjectId && state.isValid;
 
   const handleCreateTask = useCallback(() => {
@@ -40,10 +38,7 @@ export function useCreateTaskCallback({
           name: state.taskName.effectiveTaskName,
           linkedIssue: state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined,
           initialStatus: deriveInitialStatus(state.linkedType, state.linkedPR),
-          initialConversation: buildInitialConversation(
-            initialConversation,
-            autoApproveDefaults.getDefault
-          ),
+          initialConversation: buildInitialConversation(initialConversation),
         },
         workspaceConfig: state.workspaceConfig.resolvedConfig,
       })
@@ -51,14 +46,7 @@ export function useCreateTaskCallback({
 
     navigate('task', { projectId: selectedProjectId, taskId: id });
     onClose();
-  }, [
-    selectedProjectId,
-    state,
-    initialConversation,
-    autoApproveDefaults.getDefault,
-    navigate,
-    onClose,
-  ]);
+  }, [selectedProjectId, state, initialConversation, navigate, onClose]);
 
   return { handleCreateTask, canCreate };
 }

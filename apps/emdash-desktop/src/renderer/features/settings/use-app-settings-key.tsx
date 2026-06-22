@@ -75,7 +75,7 @@ export function useAppSettingsKey<K extends AppSettingsKey>(key: K) {
     defaults: data?.defaults,
     overrides: data?.overrides,
     isLoading,
-    isSaving: updateMutation.isPending,
+    isSaving: updateMutation.isPending || resetMutation.isPending || resetFieldMutation.isPending,
     isOverridden: !!(data?.overrides && Object.keys(data.overrides).length > 0),
     isFieldOverridden: (field: keyof AppSettings[K]) =>
       !!(data?.overrides && field in data.overrides),

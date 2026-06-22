@@ -7,7 +7,7 @@ async function notifyEmdash(
   body: Record<string, unknown> = {}
 ) {
   const port = process.env.EMDASH_HOOK_PORT;
-  const token = process.env.EMDASH_HOOK_TOKEN;
+  const token = process.env.EMDASH_HOOK_NONCE ?? process.env.EMDASH_HOOK_TOKEN;
   const ptyId = process.env.EMDASH_PTY_ID;
 
   if (!port || !token || !ptyId) return;

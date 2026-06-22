@@ -2,7 +2,6 @@ import { CheckCheckIcon, PlusIcon, X } from 'lucide-react';
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
-import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { Button } from '@renderer/lib/ui/button';
 import { Field } from '@renderer/lib/ui/field';
@@ -10,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popove
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import { providerSupportsAutoApprove } from '@shared/core/agents/agent-auto-approve';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
@@ -27,25 +27,35 @@ export type InitialConversationState = {
   setPrompt: Dispatch<SetStateAction<string>>;
   issueContext: string | null;
   setIssueContext: (ctx: string | null) => void;
+  autoApprove: boolean;
+  setAutoApprove: (autoApprove: boolean) => void;
   connectionId?: string;
 };
 
 export function useInitialConversationState(
   projectId?: string,
-  initialProvider?: AgentProviderId
+  initialProvider?: AgentProviderId,
+  autoApproveByDefault = false
 ): InitialConversationState {
   const connectionId = projectId ? getProjectSshConnectionId(projectId) : undefined;
   const { providerId, setProviderOverride } = useEffectiveProvider(connectionId, initialProvider);
   const [prompt, setPrompt] = useState('');
   const [issueContext, setIssueContext] = useState<string | null>(null);
+  const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
 
   const [prevProjectId, setPrevProjectId] = useState(projectId);
-  if (projectId !== prevProjectId) {
+  const projectChanged = projectId !== prevProjectId;
+
+  if (projectChanged) {
     setPrevProjectId(projectId);
     setProviderOverride(null);
     setPrompt('');
     setIssueContext(null);
+    setAutoApproveOverride(null);
   }
+
+  const autoApproveSupported = providerId ? providerSupportsAutoApprove(providerId) : false;
+  const autoApprove = autoApproveSupported && (autoApproveOverride ?? autoApproveByDefault);
 
   return {
     provider: providerId,
@@ -55,6 +65,8 @@ export function useInitialConversationState(
     setPrompt,
     issueContext,
     setIssueContext,
+    autoApprove,
+    setAutoApprove: setAutoApproveOverride,
     connectionId,
   };
 }
@@ -66,6 +78,7 @@ interface InitialConversationFieldProps {
   onPromptBlur?: () => void;
   placeholder?: string;
   textareaClassName?: string;
+  showAutoApproveToggle?: boolean;
 }
 
 export function InitialConversationField({
@@ -75,9 +88,9 @@ export function InitialConversationField({
   onPromptBlur,
   placeholder,
   textareaClassName,
+  showAutoApproveToggle = true,
 }: InitialConversationFieldProps) {
   const { value: promptLibrary } = usePromptLibrary();
-  const autoApproveDefaults = useAgentAutoApproveDefaults();
   const contextActions = useMemo(
     () => buildTaskContextActions(linkedIssue, [], promptLibrary),
     [linkedIssue, promptLibrary]
@@ -91,11 +104,11 @@ export function InitialConversationField({
     // oxlint-disable-next-line react/exhaustive-deps
   }, [includeIssueContextByDefault, linkedIssue?.identifier, linkedIssue?.provider]);
 
-  const autoApprove = state.provider ? autoApproveDefaults.getDefault(state.provider) : false;
+  const canToggleAutoApprove = state.provider ? providerSupportsAutoApprove(state.provider) : false;
 
   const handleToggleAutoApprove = () => {
     if (!state.provider) return;
-    autoApproveDefaults.setDefault(state.provider, !autoApprove);
+    state.setAutoApprove(!state.autoApprove);
   };
 
   const handleActionClick = async (text: string) => {
@@ -138,21 +151,23 @@ export function InitialConversationField({
                 </Button>
               )}
             />
-            <Tooltip>
-              <TooltipTrigger>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={handleToggleAutoApprove}
-                  disabled={!state.provider}
-                  data-active={autoApprove || undefined}
-                  className="transition-colors data-active:bg-background-destructive data-active:text-foreground-destructive"
-                >
-                  <CheckCheckIcon className="size-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Auto approve</TooltipContent>
-            </Tooltip>
+            {showAutoApproveToggle && canToggleAutoApprove ? (
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={handleToggleAutoApprove}
+                    disabled={!state.provider}
+                    data-active={state.autoApprove || undefined}
+                    className="transition-colors data-active:bg-background-destructive data-active:text-foreground-destructive"
+                  >
+                    <CheckCheckIcon className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Auto approve</TooltipContent>
+              </Tooltip>
+            ) : null}
           </div>
         </div>
 

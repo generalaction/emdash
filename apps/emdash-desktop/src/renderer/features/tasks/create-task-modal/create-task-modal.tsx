@@ -98,8 +98,12 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     defaultLinkedType
   );
 
-  const initialConversation = useInitialConversationState(selectedProjectId);
-  const { includeIssueContextByDefault } = useTaskSettings();
+  const { autoApproveByDefault, includeIssueContextByDefault } = useTaskSettings();
+  const initialConversation = useInitialConversationState(
+    selectedProjectId,
+    undefined,
+    autoApproveByDefault
+  );
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const { navigate } = useNavigate();
 

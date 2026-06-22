@@ -15,6 +15,7 @@ import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
 import SidebarMetadataSettingsCard from './SidebarMetadataSettingsCard';
 import { SshConnectionsSettingsCard } from './SshConnectionsSettingsCard';
 import {
+  AutoApproveByDefaultRow,
   AutoGenerateTaskNamesRow,
   AutoTrustWorktreesRow,
   CreateBranchAndWorktreeRow,
@@ -53,6 +54,7 @@ function GeneralSettingsPage() {
       <UpdateCard />
       <TelemetryCard />
       <AutoGenerateTaskNamesRow />
+      <AutoApproveByDefaultRow />
       <AutoTrustWorktreesRow />
       <CreateBranchAndWorktreeRow />
       <PreserveTaskNameCapitalizationRow />

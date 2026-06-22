@@ -17,13 +17,13 @@ function makeGrokSessionStartCommand(): string {
   if (process.platform === 'win32') {
     const script = [
       "$ErrorActionPreference = 'SilentlyContinue'",
-      'if (-not $env:EMDASH_HOOK_PORT -or -not $env:EMDASH_HOOK_TOKEN -or -not $env:EMDASH_PTY_ID) { exit 0 }',
+      'if (-not $env:EMDASH_HOOK_PORT -or -not $env:EMDASH_HOOK_NONCE -or -not $env:EMDASH_PTY_ID) { exit 0 }',
       '$payload = @{ session_id = $env:GROK_SESSION_ID } | ConvertTo-Json -Compress',
       'try { Invoke-WebRequest -UseBasicParsing -Method POST ' +
         "-Uri ('http://127.0.0.1:' + $env:EMDASH_HOOK_PORT + '/hook') " +
         '-Headers @{ ' +
         "'Content-Type' = 'application/json'; " +
-        "'X-Emdash-Token' = $env:EMDASH_HOOK_TOKEN; " +
+        "'X-Emdash-Token' = $env:EMDASH_HOOK_NONCE; " +
         "'X-Emdash-Pty-Id' = $env:EMDASH_PTY_ID; " +
         "'X-Emdash-Event-Type' = 'session' " +
         '} -Body $payload | Out-Null } catch { exit 0 }',
@@ -33,7 +33,7 @@ function makeGrokSessionStartCommand(): string {
   return (
     'curl -sf -X POST ' +
     '-H "Content-Type: application/json" ' +
-    '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
+    '-H "X-Emdash-Token: $EMDASH_HOOK_NONCE" ' +
     '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
     '-H "X-Emdash-Event-Type: session" ' +
     `--data-binary '{"session_id":"'"$GROK_SESSION_ID"'"}' ` +
