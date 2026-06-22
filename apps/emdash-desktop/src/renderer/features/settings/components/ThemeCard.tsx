@@ -9,9 +9,8 @@ import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 
 const ThemeCard: React.FC = () => {
-  const { theme, setTheme, highContrast } = useTheme();
+  const { theme, setTheme, highContrast, setHighContrast } = useTheme();
   const {
-    update,
     isLoading: interfaceLoading,
     isSaving: interfaceSaving,
     isFieldOverridden,
@@ -27,7 +26,7 @@ const ThemeCard: React.FC = () => {
 
   const handleSetHighContrast = (checked: boolean) => {
     captureTelemetry('setting_changed', { setting: 'high_contrast' });
-    update({ highContrast: checked });
+    setHighContrast(checked);
   };
 
   const buttonBase =

@@ -54,13 +54,18 @@ interface ThemeContextType {
   effectiveTheme: EffectiveTheme;
   /** Resolved high-contrast state (explicit preference, or the OS setting when unset). */
   highContrast: boolean;
+  setHighContrast: (enabled: boolean) => void;
 }
 
 export const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { value: themeValue, isLoading, update } = useAppSettingsKey('theme');
-  const { value: interfaceValue, isLoading: isInterfaceLoading } = useAppSettingsKey('interface');
+  const {
+    value: interfaceValue,
+    isLoading: isInterfaceLoading,
+    update: updateInterface,
+  } = useAppSettingsKey('interface');
   const [, setCachedTheme] = useLocalStorage<Theme>('emdash-theme', null);
   const [, setCachedHighContrast] = useLocalStorage<boolean | null>('emdash-high-contrast', null);
 
@@ -111,8 +116,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setTheme(next);
   };
 
+  const setHighContrast = (enabled: boolean) => {
+    // Collapse to "follow system" (null) when the choice already matches the OS
+    // preference, so the override / reset-to-default affordance only appears on a
+    // genuine divergence from the system setting.
+    updateInterface({ highContrast: enabled === systemPrefersContrast ? null : enabled });
+  };
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme, effectiveTheme, highContrast }}>
+    <ThemeContext.Provider
+      value={{ theme, setTheme, toggleTheme, effectiveTheme, highContrast, setHighContrast }}
+    >
       {children}
     </ThemeContext.Provider>
   );
