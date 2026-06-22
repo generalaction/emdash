@@ -11,11 +11,44 @@ import { buildTerminalFontFamily } from './terminal-font';
 import { ensureXtermHost } from './xterm-host';
 
 const SCROLLBACK_LINES = 100_000;
+const MINIMUM_CONTRAST_RATIO = 4.5;
 
 // ── Theme helpers ─────────────────────────────────────────────────────────────
 
 export interface SessionTheme {
   override?: ITerminalOptions['theme'];
+}
+
+function isOscThemeColorQuery(data: string): boolean {
+  const slots = data.split(';');
+  return slots.length > 0 && slots.every((slot) => slot.trim() === '?');
+}
+
+function protectAppThemeColors(terminal: Terminal): void {
+  // Codex emits OSC 10/11 sequences to set the terminal's default foreground
+  // and background. In embedded terminals those defaults belong to the app
+  // theme; letting a CLI override them can leave dark-mode input rows with a
+  // light background and light text after theme switches. Keep queries working
+  // for compatibility, but ignore attempts to mutate the app-owned defaults.
+  terminal.parser.registerOscHandler(10, (data) => !isOscThemeColorQuery(data));
+  terminal.parser.registerOscHandler(11, (data) => !isOscThemeColorQuery(data));
+}
+
+function resolveThemeColor(color: string): string {
+  const cssVarMatch = color.trim().match(/^var\((--[^),\s]+)\)$/);
+  return cssColorToHex(cssVarMatch ? cssVar(cssVarMatch[1]) : color);
+}
+
+function resolveThemeOverride(override: ITerminalOptions['theme']): ITerminalOptions['theme'] {
+  if (!override) return override;
+
+  const resolved: Record<string, string> = {};
+  for (const [key, value] of Object.entries(override)) {
+    if (typeof value === 'string') {
+      resolved[key] = resolveThemeColor(value);
+    }
+  }
+  return resolved as ITerminalOptions['theme'];
 }
 
 export function readXtermCssVars(): ITerminalOptions['theme'] {
@@ -31,7 +64,7 @@ export function readXtermCssVars(): ITerminalOptions['theme'] {
 }
 
 export function buildTheme(theme?: SessionTheme): ITerminalOptions['theme'] {
-  if (theme?.override) return { ...readXtermCssVars(), ...theme.override };
+  if (theme?.override) return { ...readXtermCssVars(), ...resolveThemeOverride(theme.override) };
   return readXtermCssVars();
 }
 
@@ -91,6 +124,7 @@ export class FrontendPty {
       fontSize: 13,
       lineHeight: 1.2,
       letterSpacing: 0,
+      minimumContrastRatio: MINIMUM_CONTRAST_RATIO,
       allowProposedApi: true,
       scrollOnUserInput: false,
       linkHandler: {
@@ -120,6 +154,8 @@ export class FrontendPty {
       );
     }
 
+    protectAppThemeColors(this.terminal);
+
     this.terminal.parser.registerOscHandler(52, (data) => {
       const text = decodeOsc52ClipboardData(data);
       if (text === null) return false;
@@ -144,11 +180,15 @@ export class FrontendPty {
 
   setTheme(theme?: SessionTheme): void {
     this.theme = theme;
+    this.terminal.options.minimumContrastRatio = MINIMUM_CONTRAST_RATIO;
     this.terminal.options.theme = buildTheme(theme);
+    this.terminal.refresh(0, this.terminal.rows - 1);
   }
 
   refreshTheme(): void {
+    this.terminal.options.minimumContrastRatio = MINIMUM_CONTRAST_RATIO;
     this.terminal.options.theme = buildTheme(this.theme);
+    this.terminal.refresh(0, this.terminal.rows - 1);
   }
 
   clear(): void {

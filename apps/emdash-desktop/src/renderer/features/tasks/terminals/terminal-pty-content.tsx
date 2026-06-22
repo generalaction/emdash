@@ -5,7 +5,6 @@ import { PtyPane } from '@renderer/lib/pty/pty-pane';
 import { type PtySession } from '@renderer/lib/pty/pty-session';
 import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
 import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
-import { cssVar } from '@renderer/utils/cssVars';
 import { cn } from '@renderer/utils/utils';
 
 export interface TerminalPtyContentProps {
@@ -119,7 +118,7 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
                   pty={activeSession.pty}
                   className="h-full w-full"
                   themeOverride={{
-                    background: cssVar('--background'),
+                    background: 'var(--background)',
                   }}
                   onEnterPress={onEnterPress}
                   onInterruptPress={onInterruptPress}
