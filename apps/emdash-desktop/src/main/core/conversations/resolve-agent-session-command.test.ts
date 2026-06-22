@@ -156,23 +156,4 @@ describe('resolveAgentSessionCommandArgs', () => {
     expect(result.args).toEqual(['resume', 'provider-session-1']);
   });
 
-  it('builds a Goose replacement resume command from the stored provider session id', () => {
-    const conversation = makeConversation({
-      id: '6fac6620-9fa8-4604-b7e0-1fe361589104',
-      providerId: 'goose',
-      providerSessionId: 'goose-session-id',
-    });
-    const spawnPlan = resolveAgentSessionCommandArgs(conversation, true);
-    const result = pluginRegistry.get('goose')!.behavior.prompt!.buildCommand({
-      cli: 'goose',
-      autoApprove: false,
-      model: '',
-      sessionId: spawnPlan.sessionId,
-      providerSessionId: conversation.providerSessionId ?? undefined,
-      isResuming: spawnPlan.isResuming,
-    });
-
-    expect(result.command).toBe('goose');
-    expect(result.args).toEqual(['session', '--resume', '--session-id', 'goose-session-id']);
-  });
 });

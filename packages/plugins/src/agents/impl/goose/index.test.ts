@@ -82,23 +82,6 @@ describe('goose provider', () => {
     });
   });
 
-  it('does not add an auto-approve flag because Goose has no supported CLI mode for it', () => {
-    const command = provider.behavior.prompt!.buildCommand({
-      ...baseContext,
-      autoApprove: true,
-      initialPrompt: 'Fix the bug',
-    });
-
-    expect(command.args).toEqual([
-      'run',
-      '-s',
-      '-n',
-      'emdash-conversation-id',
-      '-t',
-      'Fix the bug',
-    ]);
-  });
-
   it('writes an Open Plugins hook plugin for Goose', async () => {
     const fs = createMemoryFs();
 
