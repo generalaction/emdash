@@ -1,0 +1,31 @@
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.ts
+  s_14e95f1b55335f::t_e5476ae9465f5e 67
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_14e95f1b55335f::t_071ac0e546cae4 7,53-61
+  s_14e95f1b55335f::t_c5c0c7fec34964 52
+  s_14e95f1b55335f::t_6adb202a91eb57 359
+apps/emdash-desktop/src/main/core/dependencies/registry.test.ts
+  s_14e95f1b55335f::t_e5476ae9465f5e 1,43
+apps/emdash-desktop/src/main/core/mcp/services/McpService.ts
+  s_14e95f1b55335f::t_e5476ae9465f5e 2,17-20,157
+apps/emdash-desktop/src/main/core/mcp/controller.ts
+  s_14e95f1b55335f::t_e5476ae9465f5e 1,13-14
+apps/emdash-desktop/src/main/core/dependencies/dependency-managers.ts
+  s_14e95f1b55335f::t_e5476ae9465f5e 2-6,36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "b5ba1c92e9f9defb3b1d3d57c84b27c37b3df8d8",
+  "prompts": {},
+  "sessions": {
+    "s_14e95f1b55335f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef01d-62c5-75b3-81a3-a16a70ef36e2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
