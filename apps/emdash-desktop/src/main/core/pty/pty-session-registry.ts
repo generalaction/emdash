@@ -135,6 +135,10 @@ export class PtySessionRegistry {
     return buf;
   }
 
+  getBufferSnapshot(sessionId: string): string {
+    return this.ringBuffers.get(sessionId) ?? '';
+  }
+
   /**
    * Remove the consumer registration for a session.
    * Called when the renderer disposes its FrontendPty.
