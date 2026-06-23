@@ -158,6 +158,24 @@ describe('CollectionMirror', () => {
     ]);
   });
 
+  it('notifies only when snapshots and deltas are accepted', () => {
+    const applied: string[] = [];
+    const mirror = new CollectionMirror<string, Entry>({
+      onApplied: (change) => {
+        applied.push(
+          `${change.kind}:${change.kind === 'snapshot' ? change.snapshot.sequence : change.update.sequence}`
+        );
+      },
+    });
+
+    mirror.applyUpdate(delta([{ op: 'put', key: 'buffered', value: { label: 'buffered' } }], 2));
+    mirror.setSnapshot(snapshot([['a', { label: 'a' }]], 1));
+    mirror.applyUpdate(delta([{ op: 'put', key: 'stale', value: { label: 'stale' } }], 1));
+    mirror.applyUpdate(delta([{ op: 'put', key: 'b', value: { label: 'b' } }], 3));
+
+    expect(applied).toEqual(['snapshot:1', 'delta:2', 'delta:3']);
+  });
+
   it('accepts snapshot-shaped updates', () => {
     const mirror = new CollectionMirror<string, Entry>();
     mirror.applyUpdate({ kind: 'snapshot', ...snapshot([['a', { label: 'a' }]], 1) });

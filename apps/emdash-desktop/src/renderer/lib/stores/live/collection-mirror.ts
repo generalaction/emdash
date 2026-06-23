@@ -6,8 +6,13 @@ type CollectionDelta<K, V> = Extract<CollectionUpdate<K, V>, { kind: 'delta' }>;
 
 const DEFAULT_MAX_BUFFERED_DELTAS = 1_000;
 
-export type CollectionMirrorOptions = {
+export type CollectionMirrorChange<K, V> =
+  | { kind: 'snapshot'; snapshot: CollectionSnapshot<K, V> }
+  | { kind: 'delta'; update: CollectionDelta<K, V> };
+
+export type CollectionMirrorOptions<K = unknown, V = unknown> = {
   maxBufferedDeltas?: number;
+  onApplied?: (change: CollectionMirrorChange<K, V>) => void;
 };
 
 export class CollectionMirror<K, V> {
@@ -18,8 +23,8 @@ export class CollectionMirror<K, V> {
   private readonly droppedBufferedDeltaGenerations = new Set<number>();
   private pendingDeltas: Array<CollectionDelta<K, V>> = [];
 
-  constructor(options: CollectionMirrorOptions = {}) {
-    this.maxBufferedDeltas = options.maxBufferedDeltas ?? DEFAULT_MAX_BUFFERED_DELTAS;
+  constructor(private readonly opts: CollectionMirrorOptions<K, V> = {}) {
+    this.maxBufferedDeltas = this.opts.maxBufferedDeltas ?? DEFAULT_MAX_BUFFERED_DELTAS;
     makeObservable<this, 'revision'>(this, {
       revision: observable,
     });
@@ -101,6 +106,7 @@ export class CollectionMirror<K, V> {
       this.entriesByKey = new Map(snapshot.entries);
       this.version.accept(snapshot.generation, snapshot.sequence);
       this.revision += 1;
+      this.opts.onApplied?.({ kind: 'snapshot', snapshot });
     });
     this.version.flushAfterApply(generationChanged);
     if (this.droppedBufferedDeltaGenerations.delete(snapshot.generation)) {
@@ -129,6 +135,7 @@ export class CollectionMirror<K, V> {
       }
       this.version.accept(update.generation, update.sequence);
       this.revision += 1;
+      this.opts.onApplied?.({ kind: 'delta', update });
     });
     this.version.flushAfterApply(generationChanged);
   }
