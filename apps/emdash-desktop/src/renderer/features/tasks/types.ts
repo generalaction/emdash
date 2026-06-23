@@ -4,6 +4,8 @@ export type FileRendererData =
   | { kind: 'text' }
   | { kind: 'markdown' }
   | { kind: 'markdown-source' }
+  | { kind: 'csv' }
+  | { kind: 'csv-source' }
   | { kind: 'html' }
   | { kind: 'html-source' }
   | { kind: 'svg' }

@@ -2,8 +2,12 @@ import { observer } from 'mobx-react-lite';
 import { useEffect } from 'react';
 import { useEditorContext } from '@renderer/features/tasks/editor/editor-provider';
 import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
+import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import type { FileRendererData } from '@renderer/features/tasks/types';
 import { PreviewSourceToggle } from '@renderer/lib/editor/preview-source-toggle';
+import { ModelStatusOverlay } from '@renderer/lib/monaco/model-status-overlay';
+import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
+import { useModelStatus } from '@renderer/lib/monaco/use-model';
 
 /**
  * Maps each source-mode renderer kind to its paired preview kind.
@@ -13,11 +17,11 @@ const SOURCE_TO_PREVIEW = {
   'svg-source': 'svg',
   'html-source': 'html',
   'markdown-source': 'markdown',
+  'csv-source': 'csv',
 } as const satisfies Partial<Record<FileRendererData['kind'], FileRendererData['kind']>>;
 
 /**
- * Renders the sticky Monaco editor host for text, svg-source, html-source, and
- * markdown-source files. Owns the host div wiring (setEditorHost / triggerLayout)
+ * Renders the sticky Monaco editor host for text and source-mode files. Owns the host div wiring (setEditorHost / triggerLayout)
  * and the SourceModeToggleOverlay that switches any source-mode file back to its
  * paired preview renderer.
  *
@@ -26,6 +30,11 @@ const SOURCE_TO_PREVIEW = {
  */
 export const MonacoFileRenderer = observer(function MonacoFileRenderer() {
   const { setEditorHost, triggerLayout } = useEditorContext();
+  const { tabManager } = useTabGroupContext();
+  const { editorView } = useWorkspaceViewModel();
+  const activeTab = tabManager.activeFileEntry;
+  const bufferUri = activeTab ? buildMonacoModelPath(editorView.modelRootPath, activeTab.path) : '';
+  const modelStatus = useModelStatus(bufferUri);
 
   // Re-run Monaco layout whenever this component transitions to visible.
   useEffect(() => {
@@ -35,6 +44,7 @@ export const MonacoFileRenderer = observer(function MonacoFileRenderer() {
   return (
     <div className="relative h-full w-full">
       <div ref={setEditorHost} className="absolute inset-0 flex" />
+      {modelStatus !== 'ready' ? <ModelStatusOverlay status={modelStatus} /> : null}
       <SourceModeToggleOverlay />
     </div>
   );

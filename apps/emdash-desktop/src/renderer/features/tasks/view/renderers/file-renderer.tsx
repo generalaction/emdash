@@ -1,6 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import type { FileTabStore } from '@renderer/features/tasks/tabs/file-tab-store';
 import { BinaryRenderer } from '@renderer/lib/editor/binary-renderer';
+import { CsvRenderer } from '@renderer/lib/editor/csv-renderer';
 import { FileErrorRenderer } from '@renderer/lib/editor/file-error-renderer';
 import { HtmlRenderer } from '@renderer/lib/editor/html-renderer';
 import { ImageRenderer } from '@renderer/lib/editor/image-renderer';
@@ -26,6 +27,7 @@ export const FileRenderer = observer(function FileRenderer({ tab }: FileRenderer
 
   const monacoActive =
     kind === 'text' ||
+    kind === 'csv-source' ||
     kind === 'svg-source' ||
     kind === 'html-source' ||
     kind === 'markdown-source';
@@ -45,6 +47,8 @@ function BinaryOrPreviewRenderer({ tab }: FileRendererProps) {
   switch (tab.renderer.kind) {
     case 'markdown':
       return <MarkdownEditorRenderer filePath={tab.path} />;
+    case 'csv':
+      return <CsvRenderer filePath={tab.path} />;
     case 'svg':
       return <SvgRenderer filePath={tab.path} />;
     case 'html':

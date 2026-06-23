@@ -599,6 +599,14 @@ export class MonacoModelRegistry {
     }
   }
 
+  detach(editor: monaco.editor.IStandaloneCodeEditor, previousUri?: string): void {
+    if (previousUri) {
+      const prev = this.modelMap.get(previousUri);
+      if (prev?.type === 'buffer') prev.viewState = editor.saveViewState();
+    }
+    editor.setModel(null);
+  }
+
   /**
    * Register a one-shot callback that fires when the buffer model for `uri` is created.
    * If the model already exists, fires immediately.
