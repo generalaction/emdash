@@ -22,6 +22,11 @@ const planSpin = keyframes({
   to: { transform: 'rotate(360deg)' },
 });
 
+const fadeSlideIn = keyframes({
+  from: { opacity: 0, transform: 'translateY(2px)' },
+  to: { opacity: 1, transform: 'none' },
+});
+
 // ── text-shimmer ──────────────────────────────────────────────────────────────
 
 export const textShimmer = style({
@@ -61,6 +66,19 @@ export const fadeOverlayBottom = style({
     color-mix(in oklab, ${vars.bg}, transparent 50%) 40%,
     color-mix(in oklab, ${vars.bg}, transparent 100%) 100%
   )`,
+});
+
+// ── stream-word ───────────────────────────────────────────────────────────────
+
+/**
+ * Applied to each newly-revealed word span during streaming.
+ * `inline-block` is required for `transform` to apply; inside a `white-space:
+ * pre` fragment this preserves exact character widths, so pretext geometry and
+ * the reserved block height are untouched.
+ */
+export const streamWord = style({
+  display: 'inline-block',
+  animation: `${fadeSlideIn} 220ms ease-out both`,
 });
 
 // ── plan-spinner ──────────────────────────────────────────────────────────────

@@ -157,13 +157,22 @@ export function ScriptedChat(props: {
   height?: number;
   width?: number;
   commands?: ChatCommands;
+  /**
+   * Optional transcript wrapper. Receives the internally-created TranscriptApi
+   * and must return a compatible API (e.g. createStreamSmoother). Any `dispose`
+   * method returned by the wrapper is called on cleanup.
+   */
+  wrapTranscript?: (api: TranscriptApi) => TranscriptApi & { dispose?: () => void };
 }) {
   const transcript = createTranscript();
   const viewState = createViewState();
 
+  // Apply the optional wrapper (e.g. createStreamSmoother) so the script
+  // drives the wrapper which in turn feeds the real transcript.
+  const api = props.wrapTranscript ? props.wrapTranscript(transcript) : transcript;
+
   onMount(() => {
     const owner = getOwner();
-    const api = transcript;
     let idx = 0;
     let pendingTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -193,6 +202,10 @@ export function ScriptedChat(props: {
       if (pendingTimer !== undefined) {
         clearTimeout(pendingTimer);
         pendingTimer = undefined;
+      }
+      // Dispose the wrapper (e.g. clear smoother timers) after the script timers.
+      if (props.wrapTranscript && 'dispose' in api && typeof api.dispose === 'function') {
+        api.dispose();
       }
     });
 

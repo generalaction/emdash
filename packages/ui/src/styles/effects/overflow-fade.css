@@ -51,12 +51,17 @@
 
   /*
    * Anonymous self-timeline: the viewport drives the animation from its own
-   * scroll position. This is inactive when there is no overflow, so --sf-t stays
-   * at its initial-value 0 and no fade shows.
+   * scroll position.
+   *
+   * fill-mode must be none. With fill-mode: both/forwards, Chromium renders an
+   * inactive timeline (no overflow) in its after-fill phase and applies the 100%
+   * keyframe (--sf-t: 1), showing a permanent fade with no overflow. With none,
+   * the inactive case falls back to the base initial-value 0 (no fade), while the
+   * active case is always in-phase during scroll so fill-mode does not matter.
    */
   animation: sf-t-anim auto linear;
   animation-timeline: scroll(self block);
-  animation-fill-mode: both;
+  animation-fill-mode: none;
 }
 
 /* ── Keyframes ───────────────────────────────────────────────────────────────── */

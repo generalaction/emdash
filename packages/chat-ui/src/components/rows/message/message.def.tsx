@@ -1,5 +1,6 @@
 import { BlockStackView } from '@components/primitives/BlockStackView';
 import { CopyButton } from '@components/primitives/CopyButton';
+import { StreamContext, type StreamAnimation } from '@components/contexts/StreamContext';
 import type { StackLayout } from '@core/compose';
 import type { MeasureCtx, Measured, RenderCtx } from '@core/define';
 import { layoutBlockStack } from '@core/layout/block-stack';
@@ -51,6 +52,11 @@ export function measureMessage(item: ChatMessage, ctx: MeasureCtx, vars: Message
 function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx; vars: MessageVars }) {
   const mCtx = () => props.ctx.measureCtx?.();
 
+  // One frontier Map per mounted instance — persists across streaming chunks
+  // because the <For> in UnitRow keeps this component alive. Shared by ref with
+  // StreamContext so Prose.tsx can update it after each render without reactivity.
+  const streamAnimation: StreamAnimation = { frontier: new Map() };
+
   const stack = createMemo<Measured<StackLayout> | null>(() => {
     const ctx = mCtx();
     if (!ctx) return null;
@@ -80,7 +86,9 @@ function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx; vars: Messa
       style={assignInlineVars(assistantVars, pxTokens({ height: totalH() }))}
     >
       <div class={srOnly}>{plainText()}</div>
-      <Show when={stack()}>{(s) => <BlockStackView node={s()} />}</Show>
+      <StreamContext.Provider value={props.data.streaming ? streamAnimation : null}>
+        <Show when={stack()}>{(s) => <BlockStackView node={s()} />}</Show>
+      </StreamContext.Provider>
       <Show when={props.data.role === 'assistant'}>
         <div
           class={footerRow}
