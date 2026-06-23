@@ -1,8 +1,8 @@
 import { useTheme } from '@components/contexts/ThemeContext';
+import { HEADER_ROW_EXTRA_H } from '@components/engine/row-metrics';
 import { BlockStackView } from '@components/primitives/BlockStackView';
 import { CollapseHeader } from '@components/primitives/CollapseHeader';
 import { PreviewWindow } from '@components/primitives/PreviewWindow';
-import { HEADER_ROW_EXTRA_H } from '@components/engine/row-metrics';
 import type { MeasureCtx, RenderCtx } from '@core/define';
 import { layoutBlockStack } from '@core/layout/block-stack';
 import type { Block } from '@core/markdown/document';

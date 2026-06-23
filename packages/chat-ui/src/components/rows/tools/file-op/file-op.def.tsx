@@ -1,5 +1,5 @@
-import { PreviewWindow } from '@components/primitives/PreviewWindow';
 import { ROW_H } from '@components/engine/row-metrics';
+import { PreviewWindow } from '@components/primitives/PreviewWindow';
 import type { MeasureCtx, RenderCtx } from '@core/define';
 import { defineUnit } from '@core/units';
 import { pxTokens } from '@styles/px-tokens';

@@ -128,11 +128,7 @@ export function flatten(
     // Turn boundaries (user<->assistant) resolve via the user message margin
     // { top: 8, bottom: 8 } collapsing with adjacent unit margins.
     if (out.length > 0) {
-      group[0].gapBefore = resolveSeamGap(
-        out[out.length - 1].kind,
-        group[0].kind,
-        marginOf
-      );
+      group[0].gapBefore = resolveSeamGap(out[out.length - 1].kind, group[0].kind, marginOf);
     }
 
     out.push(...group);

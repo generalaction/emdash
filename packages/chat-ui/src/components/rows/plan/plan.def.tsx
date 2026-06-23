@@ -1,5 +1,5 @@
-import { PreviewWindow } from '@components/primitives/PreviewWindow';
 import { ROW_H } from '@components/engine/row-metrics';
+import { PreviewWindow } from '@components/primitives/PreviewWindow';
 import type { StackLayout } from '@core/compose';
 import { type Measured, type MeasureCtx, type RenderCtx } from '@core/define';
 import { layoutBlockStack } from '@core/layout/block-stack';
