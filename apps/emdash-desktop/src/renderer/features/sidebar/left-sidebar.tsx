@@ -1,6 +1,7 @@
 import { Clock, FolderInput, Library, MessageSquareShare, Settings } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
+import { FeatureAnnouncementSidebarCard } from '@renderer/features/feature-announcements/feature-announcement-sidebar-card';
 import {
   isCurrentView,
   useNavigate,
@@ -107,6 +108,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
             </SidebarMenuButton>
           </SidebarMenu>
         </SidebarFooter>
+        <FeatureAnnouncementSidebarCard />
         <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
           <button
             type="button"

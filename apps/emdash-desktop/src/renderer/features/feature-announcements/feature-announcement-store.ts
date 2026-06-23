@@ -11,27 +11,26 @@ export class FeatureAnnouncementStore {
   manifest: FeatureAnnouncementManifest | null = null;
   status: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
   isPreview = false;
+  previewVisible = true;
   dismissedIds = new Set<string>();
-  private hasPresented = false;
 
   constructor() {
-    makeObservable<this, 'hasPresented'>(this, {
+    makeObservable(this, {
       manifest: observable,
       status: observable,
       isPreview: observable,
+      previewVisible: observable,
       dismissedIds: observable,
-      hasPresented: observable,
-      shouldPresent: computed,
-      markPresented: action,
-      resetPresentation: action,
+      shouldShowInSidebar: computed,
+      dismiss: action,
       setManifest: action,
       setStatus: action,
     });
   }
 
-  get shouldPresent(): boolean {
-    if (!this.manifest || this.hasPresented) return false;
-    if (this.isPreview) return true;
+  get shouldShowInSidebar(): boolean {
+    if (!this.manifest || this.status !== 'ready') return false;
+    if (this.isPreview) return this.previewVisible;
     return !this.dismissedIds.has(this.manifest.id);
   }
 
@@ -43,24 +42,21 @@ export class FeatureAnnouncementStore {
     this.status = status;
   }
 
-  resetPresentation(): void {
-    this.hasPresented = false;
-  }
-
-  async markPresented(): Promise<void> {
+  async dismiss(): Promise<void> {
     if (!this.manifest) return;
-    this.hasPresented = true;
-    if (!this.isPreview) {
-      const announcementId = this.manifest.id;
-      this.dismissedIds = new Set([...this.dismissedIds, announcementId]);
-      await markAnnouncementDismissed(announcementId);
+    if (this.isPreview) {
+      this.previewVisible = false;
+      return;
     }
+    const announcementId = this.manifest.id;
+    if (this.dismissedIds.has(announcementId)) return;
+    this.dismissedIds = new Set([...this.dismissedIds, announcementId]);
+    await markAnnouncementDismissed(announcementId);
   }
 
   async replayPreview(): Promise<void> {
+    this.previewVisible = true;
     await this.refresh({ preview: true });
-    if (!this.manifest) return;
-    this.resetPresentation();
   }
 
   async clearDismissal(): Promise<void> {
@@ -68,7 +64,6 @@ export class FeatureAnnouncementStore {
     const announcementId = this.manifest.id;
     this.dismissedIds = new Set([...this.dismissedIds].filter((id) => id !== announcementId));
     await clearAnnouncementDismissal(announcementId);
-    this.resetPresentation();
   }
 
   async start(options?: { isFreshInstall?: boolean }): Promise<void> {
@@ -96,9 +91,6 @@ export class FeatureAnnouncementStore {
     runInAction(() => {
       this.status = 'loading';
       this.isPreview = Boolean(options?.preview);
-      if (!options?.preview) {
-        this.resetPresentation();
-      }
     });
 
     try {

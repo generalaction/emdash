@@ -51,35 +51,40 @@ describe('FeatureAnnouncementStore', () => {
     });
   });
 
-  it('does not present dismissed announcements', () => {
+  it('does not show dismissed announcements in the sidebar', () => {
     const store = new FeatureAnnouncementStore();
     store.setManifest(manifest);
+    store.setStatus('ready');
     store.dismissForTest(manifest.id);
 
-    expect(store.shouldPresent).toBe(false);
+    expect(store.shouldShowInSidebar).toBe(false);
   });
 
-  it('presents unseen announcements', () => {
+  it('shows unseen announcements in the sidebar', () => {
     const store = new FeatureAnnouncementStore();
     store.setManifest(manifest);
+    store.setStatus('ready');
 
-    expect(store.shouldPresent).toBe(true);
+    expect(store.shouldShowInSidebar).toBe(true);
   });
 
   it('persists dismissed announcement ids', async () => {
     const store = new FeatureAnnouncementStore();
     store.setManifest(manifest);
-    await store.markPresented();
+    store.setStatus('ready');
+    await store.dismiss();
 
     expect(settings).toEqual({ initialized: true, dismissedIds: ['test-announcement'] });
   });
 
-  it('does not persist preview presentation', async () => {
+  it('does not persist preview dismissal', async () => {
     const store = new FeatureAnnouncementStore();
     store.setManifest(manifest);
+    store.setStatus('ready');
     store.isPreview = true;
-    await store.markPresented();
+    await store.dismiss();
 
+    expect(store.shouldShowInSidebar).toBe(false);
     expect(settings).toEqual({ initialized: false, dismissedIds: [] });
   });
 
