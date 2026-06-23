@@ -14,7 +14,9 @@ export function useAutomationUnreadCount() {
 
   useEffect(() => {
     if (lastReadAt !== 0 || interfaceSettings === undefined) return;
-    void updateAsync({ automationsLastReadAt: Date.now() });
+    void rpc.automations.getNotificationsBaselineTimestamp().then((baseline) => {
+      void updateAsync({ automationsLastReadAt: baseline });
+    });
   }, [interfaceSettings, lastReadAt, updateAsync]);
 
   const query = useQuery({
