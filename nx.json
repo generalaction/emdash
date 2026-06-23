@@ -1,7 +1,10 @@
 {
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
   "namedInputs": {
-    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "default": [
+      "{projectRoot}/**/*",
+      "sharedGlobals"
+    ],
     "sharedGlobals": [
       "{workspaceRoot}/.oxlintrc.json",
       "{workspaceRoot}/.oxfmtrc.json",
@@ -10,31 +13,53 @@
   },
   "targetDefaults": {
     "build": {
-      "dependsOn": ["^build"],
-      "inputs": ["default"],
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "default"
+      ],
       "cache": true,
-      "outputs": ["{projectRoot}/dist", "{projectRoot}/out"]
+      "outputs": [
+        "{projectRoot}/dist",
+        "{projectRoot}/out"
+      ]
     },
     "typecheck": {
-      "dependsOn": ["^build"],
-      "inputs": ["default"],
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "default"
+      ],
       "cache": true
     },
     "test": {
-      "dependsOn": ["^build"],
-      "inputs": ["default"],
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "default"
+      ],
       "cache": true
     },
     "lint": {
-      "inputs": ["default"],
+      "inputs": [
+        "default"
+      ],
       "cache": true
     },
     "format:check": {
-      "inputs": ["default"],
+      "inputs": [
+        "default"
+      ],
       "cache": true
     },
     "dev": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     }
-  }
+  },
+  "analytics": false
 }
