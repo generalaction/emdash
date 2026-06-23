@@ -1,0 +1,67 @@
+apps/emdash-desktop/src/renderer/features/settings/components/UpdateCard.tsx
+  s_62bfd5d0937a9d::t_5d80b130db4172 1
+  s_62bfd5d0937a9d::t_c302fa1557e37b 61-98
+apps/emdash-desktop/src/shared/feature-announcements/schema.ts
+  s_62bfd5d0937a9d::t_348a191a21a948 15-18
+  s_62bfd5d0937a9d::t_0e2bcc4e71208d 38,41,50-51
+apps/emdash-desktop/src/renderer/app/modal-registry.ts
+  s_62bfd5d0937a9d::t_70615cdeb99c15 44
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-store.ts
+  s_62bfd5d0937a9d::t_c574227cd785f7 3-7,20,26,33-35,46-47,50-51,53-57,65,67-71,74,76-82,90,118-119
+  s_62bfd5d0937a9d::t_fe862386eed718 58-64,66
+  s_62bfd5d0937a9d::t_ede6a4949a5af2 27,120-121
+apps/emdash-desktop/src/renderer/features/feature-announcements/present-feature-announcement.ts
+  s_62bfd5d0937a9d::t_ad8820fd9963b2 1-21
+apps/emdash-desktop/feature-announcements.toml
+  s_62bfd5d0937a9d::t_9286df4b0f459c 19-20
+  s_62bfd5d0937a9d::t_40636b4c6fe381 8-15,21
+apps/emdash-desktop/src/renderer/App.tsx
+  s_62bfd5d0937a9d::t_ced96dccc50a90 96,105
+  s_62bfd5d0937a9d::t_45f72e3f12fd34 95
+  s_62bfd5d0937a9d::t_7532c0b5235611 6
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-toast.tsx
+  s_62bfd5d0937a9d::t_7e971b0833ca83 65,71
+  s_62bfd5d0937a9d::t_2b70fd55e8368b 35
+  s_62bfd5d0937a9d::t_f92785c0fdbc1f 3
+  s_62bfd5d0937a9d::t_c7f4b728f66f88 4-7
+  s_62bfd5d0937a9d::t_b4b23fe34358ea 1-2,8-34,36-64,66-70,72-124
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-state.test.ts
+  s_62bfd5d0937a9d::t_31dc9c42a5d292 1-65
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-state.ts
+  s_62bfd5d0937a9d::t_9a2f8a67bcebbd 1-51
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-modal.tsx
+  s_62bfd5d0937a9d::t_e70febc00a5b88 1,7,11,13,15-19,23,30-31,33,37,39,41,45,47-51,53-75,77-101,103
+  s_62bfd5d0937a9d::t_60a79c2848bead 3-6
+  s_62bfd5d0937a9d::t_bdf1628e3a47f3 20
+  s_62bfd5d0937a9d::t_398b195f1796b1 46,52
+apps/emdash-desktop/src/renderer/main.tsx
+  s_62bfd5d0937a9d::t_6ea4b747712bd2 34-36
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-launcher.tsx
+  s_62bfd5d0937a9d::t_7303cc4de29008 1-2,5-10,12-23
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-media.tsx
+  s_62bfd5d0937a9d::t_3107fa82bc3662 1-97
+apps/emdash-desktop/src/shared/feature-announcements/schema.test.ts
+  s_62bfd5d0937a9d::t_2a38d0719a4559 10
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-media.test.ts
+  s_62bfd5d0937a9d::t_dc58bc05ff49cd 1-44
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-store.test.ts
+  s_62bfd5d0937a9d::t_380faf47bda48c 9,33,38,41,45
+  s_62bfd5d0937a9d::t_3ccd8de1d02392 36
+  s_62bfd5d0937a9d::t_4aec1228d32b63 51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "aad0104549984c33fc35156598473f35115223ed",
+  "prompts": {},
+  "sessions": {
+    "s_62bfd5d0937a9d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "4471e7f2-d37f-4650-bbea-d5340910df7c",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
