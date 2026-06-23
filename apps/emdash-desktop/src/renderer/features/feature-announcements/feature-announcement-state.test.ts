@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  clearAnnouncementDismissal,
   initializeFreshInstallAnnouncement,
   isAnnouncementDismissed,
   markAnnouncementDismissed,
@@ -56,6 +57,13 @@ describe('feature announcement state', () => {
     expect(JSON.parse(storage.dump()[FEATURE_ANNOUNCEMENT_DISMISSED_STORAGE_KEY])).toEqual([
       'newer',
     ]);
+  });
+
+  it('clears a previously dismissed announcement id', () => {
+    const storage = makeStorage();
+    markAnnouncementDismissed('automations-2026-06', storage);
+    clearAnnouncementDismissal('automations-2026-06', storage);
+    expect(isAnnouncementDismissed('automations-2026-06', storage)).toBe(false);
   });
 
   it('treats corrupted storage as empty dismissed state', () => {

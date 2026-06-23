@@ -49,3 +49,11 @@ export function isAnnouncementDismissed(id: string, storage: StorageLike = local
   if (dismissed === null) return false;
   return dismissed.has(id);
 }
+
+export function clearAnnouncementDismissal(id: string, storage: StorageLike = localStorage): void {
+  const dismissed = readDismissedIds(storage);
+  if (dismissed === null || !dismissed.has(id)) return;
+  const next = new Set(dismissed);
+  next.delete(id);
+  writeDismissedIds(next, storage);
+}
