@@ -144,16 +144,6 @@ export async function collectLocalProcessTreeAsync(rootPid: number): Promise<Pro
 }
 
 /**
- * Snapshot the local process table and resolve the transitive descendant pids
- * of `rootPid`. Best-effort: resolves `[]` if `ps` is unavailable or fails.
- */
-export async function collectLocalDescendantPidsAsync(rootPid: number): Promise<number[]> {
-  return collectLocalProcessTreeAsync(rootPid).then(({ descendants }) =>
-    descendants.map(({ pid }) => pid)
-  );
-}
-
-/**
  * Snapshot specific pids for delayed signal identity checks. Missing pids are
  * omitted from the returned map.
  */
