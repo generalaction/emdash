@@ -1,0 +1,20 @@
+apps/emdash-desktop/src/renderer/features/tasks/view/renderers/monaco-file-renderer.tsx
+  s_724c0166afd6c2::t_0f2120737d1012 5,8,10,33-35,37,47,53-69
+  s_724c0166afd6c2::t_141beb3a1260ab 9,36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "b142b4d2c0b9a542f18f55e4dd9798c4a958be71",
+  "prompts": {},
+  "sessions": {
+    "s_724c0166afd6c2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef52e-092d-7ac2-876d-79bd2b0632be",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
