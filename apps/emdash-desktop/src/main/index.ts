@@ -12,6 +12,7 @@ import { createMainWindow } from './app/window';
 import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
 import { agentHookService } from './core/agent-hooks/agent-hook-service';
+import { appBadgeService } from './core/app/app-badge-service';
 import { appService } from './core/app/service';
 import { automationsService } from './core/automations/automations-service';
 import { cleanupLegacyBrowserPartitions } from './core/browser/browser-partition-cleanup';
@@ -133,6 +134,7 @@ void app.whenReady().then(async () => {
   prSyncScheduler.initialize();
   automationsService.start();
   appService.initialize();
+  await appBadgeService.initialize();
   await appSettingsService.initialize();
   browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
   setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
@@ -193,6 +195,7 @@ app.on('before-quit', (event) => {
   telemetryService.capture('app_closed');
   void telemetryService.dispose().finally(() => {
     automationsService.stop();
+    appBadgeService.clear();
     agentHookService.dispose();
     stopResourceSampler();
     updateService.dispose();
