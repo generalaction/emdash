@@ -8,7 +8,7 @@
  * The keyframe names are scoped by VE so they never collide in the host app.
  */
 
-import { keyframes, style } from '@vanilla-extract/css';
+import { createVar, fallbackVar, keyframes, style } from '@vanilla-extract/css';
 import { vars } from './theme.css';
 
 // ── Keyframes ─────────────────────────────────────────────────────────────────
@@ -22,9 +22,9 @@ const planSpin = keyframes({
   to: { transform: 'rotate(360deg)' },
 });
 
-const fadeSlideIn = keyframes({
-  from: { opacity: 0, transform: 'translateY(2px)' },
-  to: { opacity: 1, transform: 'none' },
+const fadeIn = keyframes({
+  from: { opacity: 0 },
+  to: { opacity: 1 },
 });
 
 // ── text-shimmer ──────────────────────────────────────────────────────────────
@@ -71,14 +71,20 @@ export const fadeOverlayBottom = style({
 // ── stream-word ───────────────────────────────────────────────────────────────
 
 /**
- * Applied to each newly-revealed word span during streaming.
- * `inline-block` is required for `transform` to apply; inside a `white-space:
- * pre` fragment this preserves exact character widths, so pretext geometry and
- * the reserved block height are untouched.
+ * Duration of the per-word fade-in. Override on any ancestor (e.g. ChatRoot or
+ * a story container) to tune the effect without rebuilding the stylesheet.
+ */
+export const streamWordDuration = createVar();
+
+/**
+ * Applied to each newly-revealed word span during streaming. A pure paint-only
+ * fade (`opacity`), so it never reflows: pretext geometry and the reserved
+ * block height are untouched. `inline-block` keeps exact character widths inside
+ * the `white-space: pre` fragment.
  */
 export const streamWord = style({
   display: 'inline-block',
-  animation: `${fadeSlideIn} 220ms ease-out both`,
+  animation: `${fadeIn} ${fallbackVar(streamWordDuration, '220ms')} ease-out both`,
 });
 
 // ── plan-spinner ──────────────────────────────────────────────────────────────
