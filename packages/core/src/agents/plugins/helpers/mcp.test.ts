@@ -378,4 +378,28 @@ describe('opencodeMcpAdapter', () => {
     };
     expect(parsed.mcp.inherited).toEqual({ enabled: false });
   });
+
+  it('prefers canonical environment when reading local OpenCode servers', async () => {
+    const fs = createMemoryFs({
+      '.config/opencode/opencode.json': jsonFile({
+        mcp: {
+          local: {
+            type: 'local',
+            command: ['npx', '-y', '@local/mcp'],
+            env: { LEGACY: '1' },
+            environment: { CANONICAL: '1' },
+          },
+        },
+      }),
+    });
+
+    const result = await adapter.readServers(fs);
+
+    expect(result).toContainEqual({
+      name: 'local',
+      command: 'npx',
+      args: ['-y', '@local/mcp'],
+      env: { CANONICAL: '1' },
+    });
+  });
 });

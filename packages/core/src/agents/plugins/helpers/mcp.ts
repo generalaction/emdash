@@ -328,8 +328,8 @@ export function opencodeMcpAdapter(
         const result: Record<string, unknown> = {};
         if (command) result.command = command;
         if (args.length) result.args = args;
-        if (entry.env) result.env = entry.env;
-        else if (entry.environment) result.env = entry.environment;
+        if (entry.environment) result.env = entry.environment;
+        else if (entry.env) result.env = entry.env;
         if (typeof entry.enabled === 'boolean') result.enabled = entry.enabled;
         if (typeof entry.cwd === 'string') result.cwd = entry.cwd;
         if (typeof entry.timeout === 'number') result.timeout = entry.timeout;
