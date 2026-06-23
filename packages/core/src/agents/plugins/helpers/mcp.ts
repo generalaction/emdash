@@ -307,7 +307,7 @@ export function opencodeMcpAdapter(
       if (Array.isArray(entry.args)) cmdVec.push(...(entry.args as string[]));
       if (!cmdVec.length && enabled === false) return { enabled: false };
       const result: Record<string, unknown> = { type: 'local', command: cmdVec, enabled };
-      if (entry.env) result.env = entry.env;
+      if (entry.env) result.environment = entry.env;
       return result;
     },
     fromNative(name, raw) {
