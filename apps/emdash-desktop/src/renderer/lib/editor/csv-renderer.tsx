@@ -3,8 +3,10 @@ import { useMemo } from 'react';
 import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { MAX_PREVIEW_COLUMNS, MAX_PREVIEW_ROWS, parseCsv } from '@renderer/lib/editor/csv-parser';
 import { PreviewSourceToggle } from '@renderer/lib/editor/preview-source-toggle';
+import { ModelStatusOverlay } from '@renderer/lib/monaco/model-status-overlay';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
+import { useModelStatus } from '@renderer/lib/monaco/use-model';
 
 interface CsvRendererProps {
   filePath: string;
@@ -14,9 +16,9 @@ export const CsvRenderer = observer(function CsvRenderer({ filePath }: CsvRender
   const taskView = useWorkspaceViewModel();
   const { editorView, tabManager } = taskView;
   const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
+  const modelStatus = useModelStatus(bufferUri);
 
-  void modelRegistry.bufferVersions.get(bufferUri);
-  const content = modelRegistry.getValue(bufferUri) ?? '';
+  const content = modelStatus === 'ready' ? (modelRegistry.getValue(bufferUri) ?? '') : '';
   const parsed = useMemo(() => parseCsv(content), [content]);
   const [header, ...bodyRows] = parsed.rows;
   const columnCount = Math.max(
@@ -29,7 +31,9 @@ export const CsvRenderer = observer(function CsvRenderer({ filePath }: CsvRender
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-background-secondary-1">
-      {parsed.rows.length ? (
+      {modelStatus !== 'ready' ? (
+        <ModelStatusOverlay status={modelStatus} />
+      ) : parsed.rows.length ? (
         <div className="h-full overflow-auto">
           <table
             className="min-w-full border-separate border-spacing-0 cursor-text text-left text-xs"
@@ -67,8 +71,13 @@ export const CsvRenderer = observer(function CsvRenderer({ filePath }: CsvRender
           </table>
           {parsed.truncatedRows > 0 || parsed.truncatedColumns > 0 ? (
             <div className="sticky bottom-0 border-t border-border bg-background-secondary-1 px-3 py-2 text-xs text-foreground-passive">
-              Preview capped at {MAX_PREVIEW_ROWS.toLocaleString()} rows and{' '}
-              {MAX_PREVIEW_COLUMNS.toLocaleString()} columns.
+              Preview capped at{' '}
+              {parsed.truncatedRows > 0 ? `${MAX_PREVIEW_ROWS.toLocaleString()} rows` : null}
+              {parsed.truncatedRows > 0 && parsed.truncatedColumns > 0 ? ' and ' : null}
+              {parsed.truncatedColumns > 0
+                ? `${MAX_PREVIEW_COLUMNS.toLocaleString()} columns`
+                : null}
+              .
             </div>
           ) : null}
         </div>
