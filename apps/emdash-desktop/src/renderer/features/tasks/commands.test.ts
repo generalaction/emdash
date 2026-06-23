@@ -115,7 +115,6 @@ describe('createTaskCommandProvider', () => {
       setTerminalDrawerOpen: vi.fn(),
       paneLayout: {
         open: vi.fn(),
-        openConversationInRightSplit: vi.fn(),
         openInRightSplit: vi.fn(),
       },
       terminalTabs: {

@@ -36,7 +36,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
 
   const autoFocus = isActive && taskView.focusedRegion === 'main';
 
-  // Build session ID list for PaneSizingProvider (all open conversation tabs).
+  // Build session ID list for PaneSizingContextProvider (all open conversation tabs).
   const allSessionIds = useMemo(() => {
     return pane.resolvedTabs
       .filter((t): t is ResolvedTab<ConversationResolvedData> => t.kind === 'conversation')

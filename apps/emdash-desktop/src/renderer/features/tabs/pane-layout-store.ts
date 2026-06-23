@@ -52,7 +52,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
       focusedPane: computed,
       splitRight: action,
       openInRightSplit: action,
-      openConversationInRightSplit: action,
       closePane: action,
       moveTab: action,
       handleDragEnd: action,
@@ -105,17 +104,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     this._redistributeSizes();
     this.activePaneId = newGroup.paneId;
     newGroup.pane.open(kind, args);
-  }
-
-  /** @deprecated Use openInRightSplit('conversation', { conversationId, preview: false }) */
-  openConversationInRightSplit(conversationId: string): void {
-    this.openInRightSplit(
-      'conversation' as KindOf<R>,
-      {
-        conversationId,
-        preview: false,
-      } as OpenArgsOf<R, KindOf<R>>
-    );
   }
 
   /**

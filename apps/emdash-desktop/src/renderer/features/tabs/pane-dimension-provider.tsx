@@ -21,7 +21,7 @@ class StandaloneSink implements PaneDimensionSink {
   }
 }
 
-/** Standalone observable sink for panels that have no PaneStore (terminal drawer, tabbed PTY panel). */
+/** Standalone observable sink for panels that have no PaneStore (e.g. the terminal drawer). */
 export function createPaneDimensionSink(): PaneDimensionSink {
   return new StandaloneSink();
 }

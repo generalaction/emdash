@@ -1,17 +1,14 @@
 /**
- * PaneSizingContext — backwards-compatibility wrapper.
+ * PaneSizingContext — PTY sizing bridge for a pane.
  *
- * Composes PaneDimensionProvider (generic container + ResizeObserver sink) with
- * usePtyPaneResize (PTY broadcast) and exposes the unified value via
- * PaneSizingContext so that use-pty.ts continues to work without changes.
+ * Reads the nearest PaneDimensionProvider (mounted by SplitPane) and adds a
+ * single usePtyPaneResize broadcaster shared across all terminals in the pane.
+ * Consumed by use-pty.ts via usePaneSizingContext().
  */
 
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import type { PaneDimensionSink } from '@renderer/features/tabs/pane-dimension-provider';
-import {
-  PaneDimensionProvider,
-  usePaneDimensions,
-} from '@renderer/features/tabs/pane-dimension-provider';
+import { usePaneDimensions } from '@renderer/features/tabs/pane-dimension-provider';
 import { usePtyPaneResize } from './use-pty-pane-resize';
 
 // ── Context interface ─────────────────────────────────────────────────────────
@@ -31,28 +28,6 @@ export function usePaneSizingContext(): PaneSizingContextValue | null {
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 
-interface PaneSizingProviderProps {
-  sink: PaneDimensionSink;
-  sessionIds: string[];
-  children: ReactNode;
-}
-
-export function PaneSizingProvider({ sink, sessionIds, children }: PaneSizingProviderProps) {
-  return (
-    <PaneDimensionProvider sink={sink}>
-      <PaneSizingInner sessionIds={sessionIds}>{children}</PaneSizingInner>
-    </PaneDimensionProvider>
-  );
-}
-
-/**
- * Provides PaneSizingContext by reading the nearest PaneDimensionProvider and
- * calling usePtyPaneResize.
- *
- * Use this when a PaneDimensionProvider is already mounted by an ancestor (e.g.
- * by SplitPane), so you only need to add the PTY broadcast layer without
- * creating a second container div.
- */
 export function PaneSizingContextProvider({
   sessionIds,
   children,
@@ -74,8 +49,4 @@ export function PaneSizingContextProvider({
   }, [dims, reportDimensions, getCurrentDimensions]);
 
   return <PaneSizingContext.Provider value={value}>{children}</PaneSizingContext.Provider>;
-}
-
-function PaneSizingInner({ sessionIds, children }: { sessionIds: string[]; children: ReactNode }) {
-  return <PaneSizingContextProvider sessionIds={sessionIds}>{children}</PaneSizingContextProvider>;
 }

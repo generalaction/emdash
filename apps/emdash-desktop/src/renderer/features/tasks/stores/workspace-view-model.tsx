@@ -27,7 +27,6 @@ import type { TaskTabContext } from './task-tab-context';
 import { terminalRegistry } from './terminal-registry';
 import { workspaceRegistry } from './workspace-registry';
 
-// Re-export RendererKind for consumers that imported it from task-view
 export type RendererKind = 'monaco' | 'markdown' | 'diff' | 'agents' | 'browser' | 'other-file';
 
 export class WorkspaceViewModel implements ILifecycle {

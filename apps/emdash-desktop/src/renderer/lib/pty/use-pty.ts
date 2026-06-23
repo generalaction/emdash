@@ -92,7 +92,7 @@ export type PasteFromClipboardHandler = (helpers: {
  * are auto-registered inside an async IIFE, awaiting the historical buffer
  * fetch before mounting.
  *
- * When inside a PaneSizingProvider the terminal is pre-resized to the pane's
+ * When inside a PaneSizingContextProvider the terminal is pre-resized to the pane's
  * current dimensions BEFORE being appended to the visible DOM, eliminating
  * the flash caused by a post-mount resize.
  */
@@ -129,7 +129,7 @@ export function usePty(
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
-  // When inside a PaneSizingProvider, PTY resizes are broadcast to ALL sessions
+  // When inside a PaneSizingContextProvider, PTY resizes are broadcast to ALL sessions
   // in the pane (including background ones).  Falls back to per-session resize
   // for standalone terminals (chat, task terminal panel, etc.).
   const paneSizing = usePaneSizingContext();
