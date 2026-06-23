@@ -508,7 +508,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
   mongodb: {
     config: {
       command: 'npx',
-      args: ['-y', 'mongodb-mcp-server@latest', '--readOnly'],
+      args: ['-y', 'mongodb-mcp-server@latest'],
       env: {
         MDB_MCP_CONNECTION_STRING: 'mongodb://localhost:27017/myDatabase',
       },
