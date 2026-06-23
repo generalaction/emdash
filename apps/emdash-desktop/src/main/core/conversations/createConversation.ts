@@ -7,6 +7,7 @@ import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { type AgentEvent } from '@shared/core/agents/agentEvents';
+import { type ConversationConfig } from '@shared/core/conversations/conversation-config';
 import { conversationCreatedChannel } from '@shared/core/conversations/conversationEvents';
 import {
   type Conversation,
@@ -50,7 +51,10 @@ export async function createConversation(
     .where(eq(conversations.taskId, params.taskId))
     .limit(1);
 
-  const config = params.autoApprove === undefined ? undefined : { autoApprove: params.autoApprove };
+  const configObj: ConversationConfig = {};
+  if (params.autoApprove !== undefined) configObj.autoApprove = params.autoApprove;
+  if (params.model) configObj.model = params.model;
+  const config = Object.keys(configObj).length > 0 ? configObj : undefined;
 
   const [row] = await database
     .insert(conversations)

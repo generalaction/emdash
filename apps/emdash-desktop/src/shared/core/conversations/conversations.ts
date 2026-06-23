@@ -14,6 +14,8 @@ export type Conversation = {
   autoApprove?: boolean;
   /** Provider-native session id captured at runtime for per-chat resume. */
   providerSessionId?: string;
+  /** Model to pass to the agent CLI. Absent or empty string means use the CLI default. */
+  model?: string;
   isInitialConversation: boolean | null;
   agentStatus?: AgentStatus | null;
   agentStatusSeen?: boolean;
@@ -31,6 +33,8 @@ export type CreateConversationParams = {
   provider: AgentProviderId;
   title: string;
   autoApprove?: boolean;
+  /** Model to pass to the agent CLI. Absent or empty string means use the CLI default. */
+  model?: string;
   isInitialConversation?: boolean;
   initialSize?: { cols: number; rows: number };
   initialPrompt?: string;

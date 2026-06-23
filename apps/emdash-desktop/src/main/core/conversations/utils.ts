@@ -16,6 +16,7 @@ export function mapConversationRowToConversation(
     providerId: row.provider as AgentProviderId,
     autoApprove: config.autoApprove,
     providerSessionId: config.providerSessionId,
+    model: config.model,
     resume: resume,
     lastInteractedAt: row.lastInteractedAt ?? null,
     isInitialConversation: row.isInitialConversation,
