@@ -1,0 +1,32 @@
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-store.ts
+  s_950af328609f49::t_92bb6689c605a0 14,22,33
+  s_950af328609f49::t_856d260ecba2d8 47-49,58
+  s_950af328609f49::t_3f0abed33e3756 18
+  s_950af328609f49::t_df8b8255e44249 45,51-54
+apps/emdash-desktop/src/renderer/features/sidebar/left-sidebar.tsx
+  s_950af328609f49::t_8c4d7e08684bdb 4
+  s_950af328609f49::t_29372a566f09ec 111
+apps/emdash-desktop/src/renderer/features/settings/components/AnnouncementDevControls.tsx
+  s_950af328609f49::t_0576e7cb5f3a0a 17,25-26
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-store.test.ts
+  s_950af328609f49::t_ddbc2a8e543605 87
+  s_950af328609f49::t_c9846dacc34da9 54,57,60,63,66,68,74-75,80,83,85
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-actions.ts
+  s_950af328609f49::t_0c0cee2116a430 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "9f24adb9faea41eddb79fead935d5042d2dbcb31",
+  "prompts": {},
+  "sessions": {
+    "s_950af328609f49": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0d28109e-8793-4a8d-8720-4b7b39e66e23",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
