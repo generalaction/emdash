@@ -11,7 +11,7 @@ export type CollectionMirrorOptions = {
 };
 
 export class CollectionMirror<K, V> {
-  revision = 0;
+  private revision = 0;
   private readonly version = new MirrorVersion('live collection', 'CollectionMirror');
   private readonly maxBufferedDeltas: number;
   private entriesByKey = new Map<K, V>();
