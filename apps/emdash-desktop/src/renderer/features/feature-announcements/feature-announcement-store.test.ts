@@ -47,11 +47,19 @@ describe('FeatureAnnouncementStore', () => {
   it('persists dismissed announcement ids', () => {
     const store = new FeatureAnnouncementStore();
     store.setManifest(manifest);
-    store.dismissForTest(manifest.id);
+    store.markPresented();
 
     expect(localStorage.getItem(FEATURE_ANNOUNCEMENT_DISMISSED_STORAGE_KEY)).toBe(
       JSON.stringify(['test-announcement'])
     );
   });
 
+  it('does not persist preview presentation', () => {
+    const store = new FeatureAnnouncementStore();
+    store.setManifest(manifest);
+    store.isPreview = true;
+    store.markPresented();
+
+    expect(localStorage.getItem(FEATURE_ANNOUNCEMENT_DISMISSED_STORAGE_KEY)).toBeNull();
+  });
 });

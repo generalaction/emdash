@@ -6,7 +6,6 @@ import {
   getFeatureAnnouncementMedia,
 } from '@renderer/features/feature-announcements/feature-announcement-media';
 import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
-import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
 import { cn } from '@renderer/utils/utils';
 import type { FeatureAnnouncementCtaAction } from '@shared/feature-announcements/constants';
@@ -16,20 +15,17 @@ const CUSTOM_TOAST_CLASSNAMES = {
   toast: '!border-none !bg-transparent !p-0 !shadow-none',
 };
 
-function handleCtaAction(action: FeatureAnnouncementCtaAction): void {
-  switch (action) {
-    case 'open-automations':
-      appState.navigation.navigate('automations');
-      break;
-  }
-}
+type FeatureAnnouncementToastOptions = {
+  onAction?: (action: FeatureAnnouncementCtaAction) => void;
+  onDismiss?: () => void;
+};
 
 export function showFeatureAnnouncementToast(
   manifest: FeatureAnnouncementManifest,
-  onDismiss?: () => void
+  options?: FeatureAnnouncementToastOptions
 ): void {
   toast.custom(
-    (id) => <FeatureAnnouncementToastCard manifest={manifest} toastId={id} onDismiss={onDismiss} />,
+    (id) => <FeatureAnnouncementToastCard manifest={manifest} toastId={id} options={options} />,
     {
       duration: Infinity,
       classNames: CUSTOM_TOAST_CLASSNAMES,
@@ -40,16 +36,16 @@ export function showFeatureAnnouncementToast(
 function FeatureAnnouncementToastCard({
   manifest,
   toastId,
-  onDismiss,
+  options,
 }: {
   manifest: FeatureAnnouncementManifest;
   toastId: string | number;
-  onDismiss?: () => void;
+  options?: FeatureAnnouncementToastOptions;
 }) {
   const media = getFeatureAnnouncementMedia(manifest);
   const dismiss = () => {
     toast.dismiss(toastId);
-    onDismiss?.();
+    options?.onDismiss?.();
   };
 
   const handleLearnMore = () => {
@@ -65,7 +61,7 @@ function FeatureAnnouncementToastCard({
     }
 
     if (manifest.cta?.action) {
-      handleCtaAction(manifest.cta.action);
+      options?.onAction?.(manifest.cta.action);
     }
     dismiss();
   };

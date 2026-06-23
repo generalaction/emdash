@@ -10,12 +10,15 @@ import type { FeatureAnnouncementManifest } from '@shared/feature-announcements/
 export class FeatureAnnouncementStore {
   manifest: FeatureAnnouncementManifest | null = null;
   status: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
+  isPreview = false;
   private hasPresented = false;
 
   constructor() {
-    makeObservable(this, {
+    makeObservable<this, 'hasPresented'>(this, {
       manifest: observable,
       status: observable,
+      isPreview: observable,
+      hasPresented: observable,
       shouldPresent: computed,
       markPresented: action,
       resetPresentation: action,
@@ -26,6 +29,7 @@ export class FeatureAnnouncementStore {
 
   get shouldPresent(): boolean {
     if (!this.manifest || this.hasPresented) return false;
+    if (this.isPreview) return true;
     return !isAnnouncementDismissed(this.manifest.id);
   }
 
@@ -42,24 +46,9 @@ export class FeatureAnnouncementStore {
   }
 
   markPresented(): void {
-    this.hasPresented = true;
-  }
-
-  present(options?: { preview?: boolean }): void {
     if (!this.manifest) return;
-
-    void import('@renderer/features/feature-announcements/present-feature-announcement').then(
-      ({ presentFeatureAnnouncement }) => {
-        presentFeatureAnnouncement(this.manifest!, () => {
-          if (options?.preview) {
-            this.resetPresentation();
-          }
-        });
-      }
-    );
-
-    this.markPresented();
-    if (!options?.preview) {
+    this.hasPresented = true;
+    if (!this.isPreview) {
       markAnnouncementDismissed(this.manifest.id);
     }
   }
@@ -68,7 +57,6 @@ export class FeatureAnnouncementStore {
     await this.refresh({ preview: true });
     if (!this.manifest) return;
     this.resetPresentation();
-    this.present({ preview: true });
   }
 
   clearDismissal(): void {
@@ -93,6 +81,7 @@ export class FeatureAnnouncementStore {
 
     runInAction(() => {
       this.status = 'loading';
+      this.isPreview = Boolean(options?.preview);
       if (!options?.preview) {
         this.resetPresentation();
       }
