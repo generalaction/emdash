@@ -4,8 +4,11 @@ import { cx } from '@styles/utilities/cx';
 import { sx } from '@styles/utilities/sprinkles.css';
 import { Box } from './box';
 import { ScrollFade } from './scroll-fade';
+import { Surface } from './surface';
 import { ThemeProvider } from './theme-provider';
 import * as s from '../story-layout.css';
+
+const SURFACE_LEVELS = ['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const;
 
 const meta: Meta<typeof ScrollFade> = {
   title: 'Primitives/ScrollFade',
@@ -165,10 +168,10 @@ export const CustomSize: Story = {
 export const AllSurfaces: Story = {
   render: () => (
     <Box display="flex" flexWrap="wrap" gap="4">
-      {(['sunken', 'base', 'raised', 'overlay', 'floating'] as const).map((sv) => (
-        <Box key={sv} className={`surface-${sv}`} rounded="lg" padding="4">
+      {SURFACE_LEVELS.map((level) => (
+        <Surface key={level} level={level} className={cx(sx({ rounded: 'lg', padding: '4' }))}>
           <p className={cx(sx({ marginBottom: '2', fontSize: 'xs', color: 'foregroundMuted' }))}>
-            .surface-{sv}
+            .surface-{level}
           </p>
           <ScrollFade
             className={cx(sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }), s.h40, s.w44)}
@@ -177,7 +180,7 @@ export const AllSurfaces: Story = {
               <Paragraph n={8} />
             </Box>
           </ScrollFade>
-        </Box>
+        </Surface>
       ))}
     </Box>
   ),

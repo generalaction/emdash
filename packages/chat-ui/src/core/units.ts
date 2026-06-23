@@ -23,7 +23,7 @@
  * ── State split (Lane A vs Lane B) ───────────────────────────────────────────
  *
  * Identical to the `ComponentDef` contract in `core/define.ts`:
- * Lane A (layout-affecting): width, theme.version, expanded(id).
+ * Lane A (layout-affecting): width, expanded(id).
  * Lane B (presentational): hover, shimmer, copied state, timers.
  * Only Lane A values must appear in `UnitDef.measure` and the fingerprint.
  */

@@ -232,9 +232,9 @@ export function ChatRoot(props: ChatRootProps) {
   const [viewHeight, setViewHeight] = createSignal(600);
   const [containerWidth, setContainerWidth] = createSignal(0);
   // Monotonically-increasing counter bumped after fonts load. Including this in
-  // blockMemo fingerprints forces a cache miss even when theme.version and width
-  // are unchanged, clearing any fallback-font geometry that was measured before
-  // Inter/JetBrains loaded.
+  // blockMemo fingerprints forces a cache miss even when width is unchanged,
+  // clearing any fallback-font geometry that was measured before Inter/JetBrains
+  // loaded.
   const [measureEpoch, setMeasureEpoch] = createSignal(0);
 
   // Id of the single currently-expanded user message card. Only one card can be

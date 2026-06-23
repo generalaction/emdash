@@ -11,7 +11,6 @@
  * Lane A — layout-affecting state. These are the ONLY inputs that must be
  * reflected in `MeasureCtx` and can legitimately cause `virt.setSize` to be called:
  *   • `ctx.width`          — available column width (px)
- *   • `ctx.theme.version`  — theme version token
  *   • `ctx.expanded(id)`   — resolved collapse state for collapsible defs
  *   • `ctx.measureEpoch`   — bumped after font load to invalidate blockMemo
  *   • `ctx.expandedId`     — id of the single expanded user message card
@@ -48,15 +47,15 @@ export type Measured<L = unknown> = {
 /**
  * Read-only inputs available to every `measure` call (and optional `estimate`).
  *
- * `theme`        — full ChatTheme (fonts, chips, version).
+ * `theme`        — full ChatTheme (fonts, chips). Constant for the lifetime of a ChatRoot.
  * `width`        — available horizontal space in px.
  * `isCollapsed`  — raw view-state collapse flag (for block-level collapse).
  * `expanded`     — engine-resolved "is expanded" for the row. For native UnitDef
  *                  composites, `expanded(id)` = `isCollapsed(id)` (inverted
  *                  semantics: stored "collapsed" flag means "expanded").
  * `measureEpoch` — optional monotonic counter bumped after fonts load to force
- *                  `blockMemo` cache misses even when theme.version/width are
- *                  unchanged. This clears fallback-font geometry and prevents
+ *                  `blockMemo` cache misses even when width is unchanged.
+ *                  This clears fallback-font geometry and prevents
  *                  `contain: paint` from clipping under-measured content.
  * `expandedId`  — optional id of the single currently-expanded user message card.
  *                 When `expandedId === item.id` the card is measured at the

@@ -3,7 +3,7 @@ import { XIcon } from 'lucide-react';
 import * as React from 'react';
 import { cx } from '@styles/utilities/cx';
 import { Button } from './button';
-import { ScrollFade } from './scroll-fade';
+import { ScrollContainer } from './scroll-container';
 import * as styles from './dialog.css';
 
 // ── Size options (match emdash-desktop modal sizes) ───────────────────────────
@@ -49,13 +49,15 @@ function DialogContent({
   return (
     <DialogPortal>
       <DialogOverlay />
-      <DialogPrimitive.Popup
-        data-slot="dialog-content"
-        className={cx('surface-base', styles.content({ size }), className)}
-        {...props}
-      >
-        {children}
-      </DialogPrimitive.Popup>
+      <div className={styles.positioner}>
+        <DialogPrimitive.Popup
+          data-slot="dialog-content"
+          className={cx('surface-base', styles.content({ size }), className)}
+          {...props}
+        >
+          {children}
+        </DialogPrimitive.Popup>
+      </div>
     </DialogPortal>
   );
 }
@@ -94,20 +96,28 @@ function DialogBody({
   className,
   children,
   style,
+  maxHeight,
+  topFade = true,
+  bottomFade = true,
 }: {
   className?: string;
   children?: React.ReactNode;
   style?: React.CSSProperties;
+  maxHeight?: number | string;
+  topFade?: boolean;
+  bottomFade?: boolean;
 }) {
   return (
-    <ScrollFade
+    <ScrollContainer
       axis="y"
-      edges={['top']}
+      maxHeight={maxHeight}
+      topFade={topFade}
+      bottomFade={bottomFade}
       style={{ minHeight: 0, ...style }}
       viewportClassName={cx(styles.body, className)}
     >
       {children}
-    </ScrollFade>
+    </ScrollContainer>
   );
 }
 

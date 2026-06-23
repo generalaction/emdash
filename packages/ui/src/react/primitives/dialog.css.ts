@@ -14,17 +14,25 @@ export const overlay = style({
   },
 });
 
+/** Full-viewport grid that centers the popup without using transform on the popup itself. */
+export const positioner = style({
+  position: 'fixed',
+  inset: 0,
+  zIndex: 50,
+  display: 'grid',
+  placeItems: 'center',
+  padding: '1rem',
+  pointerEvents: 'none',
+});
+
 export const content = recipe({
   base: {
-    position: 'fixed',
-    top: '50%',
-    left: '50%',
+    pointerEvents: 'auto',
     zIndex: 50,
     display: 'flex',
-    maxHeight: 'calc(100dvh - 2rem)',
+    maxHeight: '100%',
     width: '100%',
-    maxWidth: 'calc(100% - 2rem)',
-    transform: 'translateX(-50%) translateY(-50%)',
+    maxWidth: '100%',
     flexDirection: 'column',
     overflow: 'hidden',
     borderRadius: 'var(--radius-xl)',

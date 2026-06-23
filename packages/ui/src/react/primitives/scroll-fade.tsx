@@ -28,6 +28,8 @@ export type ScrollFadeProps = {
   className?: string;
   viewportClassName?: string;
   style?: React.CSSProperties;
+  /** Inline styles applied directly to the scrollable viewport div (not the wrapper). */
+  viewportStyle?: React.CSSProperties;
   children?: React.ReactNode;
 };
 
@@ -51,7 +53,7 @@ export type ScrollFadeProps = {
  * </ScrollFade>
  */
 const ScrollFade = React.forwardRef<HTMLDivElement, ScrollFadeProps>(function ScrollFade(
-  { axis = 'y', edges, size, fadeColor, className, viewportClassName, style, children },
+  { axis = 'y', edges, size, fadeColor, className, viewportClassName, viewportStyle, style, children },
   ref
 ) {
   const fadeSize = size === undefined ? undefined : typeof size === 'number' ? `${size}px` : size;
@@ -72,11 +74,13 @@ const ScrollFade = React.forwardRef<HTMLDivElement, ScrollFadeProps>(function Sc
   const activeEdges = edges ?? defaultEdges;
   const showEdge = (edge: ScrollFadeEdge) => activeEdges.includes(edge);
 
+  const mergedViewportStyle: React.CSSProperties = { height: '100%', width: '100%', ...viewportStyle };
+
   return (
     <div className={cx('scroll-fade', className)} style={wrapperStyle}>
       <div
         ref={ref}
-        style={{ height: '100%', width: '100%' }}
+        style={mergedViewportStyle}
         className={cx('scroll-fade__viewport', viewportClassName)}
       >
         {children}

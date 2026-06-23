@@ -20,6 +20,7 @@ import {
   inlineCodeChip,
   linkFragment,
   mentionChip,
+  mentionChipByKind,
   mentionPlain,
   pbullet,
   pf,
@@ -48,9 +49,10 @@ function fragVisualClass(run: InlineRun, variant: string): string {
   if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(variant)) return '';
   if (run.kind === 'code') return inlineCodeChip;
   if (run.kind === 'mention') {
-    // Resolved context mentions mirror the ChatComposer pill: a neutral chip
-    // with a hairline ring. Plain/math mentions keep the rounded-full blue tint.
-    if ((run as InlineMention).mentionKind) return mentionChip;
+    // Resolved context mentions use per-kind background colors.
+    // Plain/math mentions (no mentionKind) keep the rounded-full blue tint.
+    const { mentionKind } = run as InlineMention;
+    if (mentionKind) return mentionChipByKind[mentionKind] ?? mentionChip;
     return mentionPlain;
   }
   if (run.kind === 'text' && run.href) return linkFragment;
@@ -140,7 +142,7 @@ function ProseFragment(props: {
               </Switch>
             }
           >
-            {(ic) => <i class={`${ic()} leading-none`} style={{ 'font-size': '12px' }} />}
+            {(ic) => <i class={`${ic()} leading-none`} style={{ 'font-size': '11px' }} />}
           </Show>
         </span>
         <span>{mention.name ?? mention.label}</span>

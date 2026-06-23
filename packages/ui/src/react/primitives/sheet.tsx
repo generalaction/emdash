@@ -3,7 +3,7 @@ import { XIcon } from 'lucide-react';
 import * as React from 'react';
 import { cx } from '@styles/utilities/cx';
 import { Button } from './button';
-import { ScrollFade } from './scroll-fade';
+import { ScrollContainer } from './scroll-container';
 import * as styles from './sheet.css';
 
 // ── Side option ───────────────────────────────────────────────────────────────
@@ -100,20 +100,28 @@ function SheetBody({
   className,
   children,
   style,
+  maxHeight,
+  topFade = true,
+  bottomFade = true,
 }: {
   className?: string;
   children?: React.ReactNode;
   style?: React.CSSProperties;
+  maxHeight?: number | string;
+  topFade?: boolean;
+  bottomFade?: boolean;
 }) {
   return (
-    <ScrollFade
+    <ScrollContainer
       axis="y"
-      edges={['top']}
+      maxHeight={maxHeight}
+      topFade={topFade}
+      bottomFade={bottomFade}
       style={{ minHeight: 0, flex: '1 1 0%', ...style }}
       viewportClassName={cx(styles.sheetBody, className)}
     >
       {children}
-    </ScrollFade>
+    </ScrollContainer>
   );
 }
 

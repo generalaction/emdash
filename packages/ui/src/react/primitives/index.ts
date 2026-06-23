@@ -16,6 +16,7 @@ export {
   type ScrollFadeEdge,
   type ScrollFadeProps,
 } from './scroll-fade';
+export { ScrollContainer, type ScrollContainerProps } from './scroll-container';
 export { Text, type TextProps } from './typography/Text';
 export { Heading, type HeadingProps } from './typography/Heading';
 export { textVariants, type TextVariantProps } from './typography/typography.variants';

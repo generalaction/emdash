@@ -9,13 +9,13 @@ import { BLOCK_REGISTRY } from './block-registry';
 // ── Per-block memo ────────────────────────────────────────────────────────────
 //
 // WeakMap keyed by Block object. Skips re-measures for unchanged blocks inside
-// streaming rows. Fingerprint includes measureEpoch, theme.version, width, and
-// collapsed state so the cache is invalidated correctly on any relevant change.
+// streaming rows. Fingerprint includes measureEpoch, width, and collapsed state
+// so the cache is invalidated correctly on any relevant change.
 
 const blockMemo = new WeakMap<Block, { fingerprint: string; result: Measured<BlockLeafLayout> }>();
 
 export function measureBlockCached(block: Block, ctx: MeasureCtx): Measured<BlockLeafLayout> {
-  const fingerprint = `${ctx.measureEpoch ?? 0}|${ctx.theme.version}|${ctx.width}|${ctx.isCollapsed(block.id)}`;
+  const fingerprint = `${ctx.measureEpoch ?? 0}|${ctx.width}|${ctx.isCollapsed(block.id)}`;
   const cached = blockMemo.get(block);
   if (cached?.fingerprint === fingerprint) return cached.result;
 

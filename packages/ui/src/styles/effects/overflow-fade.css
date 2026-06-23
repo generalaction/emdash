@@ -63,7 +63,8 @@
   top: 0;
   background: linear-gradient(
     to bottom,
-    var(--fade-color),
+    var(--fade-color) 0,
+    var(--fade-color) 2px,
     color-mix(in oklab, var(--fade-color), transparent 100%)
   );
   animation: sf-reveal linear both;
@@ -79,7 +80,8 @@
   bottom: 0;
   background: linear-gradient(
     to top,
-    var(--fade-color),
+    var(--fade-color) 0,
+    var(--fade-color) 2px,
     color-mix(in oklab, var(--fade-color), transparent 100%)
   );
   animation: sf-hide linear both;
@@ -100,7 +102,8 @@
   left: 0;
   background: linear-gradient(
     to right,
-    var(--fade-color),
+    var(--fade-color) 0,
+    var(--fade-color) 2px,
     color-mix(in oklab, var(--fade-color), transparent 100%)
   );
   animation: sf-reveal linear both;
@@ -112,7 +115,8 @@
   right: 0;
   background: linear-gradient(
     to left,
-    var(--fade-color),
+    var(--fade-color) 0,
+    var(--fade-color) 2px,
     color-mix(in oklab, var(--fade-color), transparent 100%)
   );
   animation: sf-hide linear both;

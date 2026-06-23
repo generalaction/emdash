@@ -15,7 +15,6 @@ import {
   DialogTrigger,
   type DialogSize,
 } from './dialog';
-import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Primitives/Dialog',
@@ -145,7 +144,7 @@ export const ScrollableBody: Story = {
         <DialogHeader>
           <DialogTitle>Terms of service</DialogTitle>
         </DialogHeader>
-        <DialogBody className={s.maxH50vh}>
+        <DialogBody maxHeight="50vh">
           {Array.from({ length: 20 }, (_, i) => (
             <p key={i} className={cx(sx({ color: 'foregroundMuted' }))}>
               {i + 1}. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod
