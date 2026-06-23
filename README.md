@@ -40,9 +40,9 @@ already use: Claude Code, Codex, OpenCode, Gemini, Amp, and more.
 
 | Platform | Install |
 | --- | --- |
-| macOS | `brew install --cask emdash` · [Apple Silicon](https://releases.emdash.sh/emdash-arm64.dmg) · [Intel](https://releases.emdash.sh/emdash-x64.dmg) |
-| Windows | [Installer](https://releases.emdash.sh/emdash-x64.msi) · [Portable](https://releases.emdash.sh/emdash-x64.exe) |
-| Linux | [AppImage](https://releases.emdash.sh/emdash-x86_64.AppImage) · [Debian package](https://releases.emdash.sh/emdash-amd64.deb) |
+| macOS | `brew install --cask emdash` · [Apple Silicon](https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.dmg) · [Intel](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.dmg) |
+| Windows | [Installer](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.msi) · [Portable](https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.exe) |
+| Linux | [AppImage](https://github.com/generalaction/emdash/releases/latest/download/emdash-x86_64.AppImage) · [Debian package](https://github.com/generalaction/emdash/releases/latest/download/emdash-amd64.deb) |
 
 See the [latest release](https://github.com/generalaction/emdash/releases/latest) for
 all desktop builds.

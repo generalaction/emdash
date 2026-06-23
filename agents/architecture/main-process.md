@@ -7,9 +7,9 @@ The main process is organized into domain modules under `src/main/core/`. Each d
 ## Domain Modules (`src/main/core/`)
 
 - **account** — Emdash account service, credential store, provider token registry
-- **agent-hooks** — HTTP hook server for agent callbacks, event enrichment, OS notifications, hook config writer (Claude/Codex)
+- **agent-hooks** — HTTP hook server for agent callbacks, event enrichment, OS notifications, hook/plugin config writer
 - **app** — App lifecycle service and controller
-- **conversations** — Conversation CRUD, session start, agent event classifiers (per-provider terminal output parsers)
+- **conversations** — Conversation CRUD and session start
 - **dependencies** — CLI agent detection, probing, dependency management
 - **editor** — Editor buffer service for Monaco integration
 - **fs** — Filesystem operations with provider pattern (`local-fs.ts`, `ssh-fs.ts`)
@@ -35,14 +35,14 @@ The main process is organized into domain modules under `src/main/core/`. Each d
 - `src/main/lib/` — Logger, telemetry, events, result type, updater error
 - `src/main/db/` — Database schema and initialization
 - `src/main/utils/` — Shell environment, shell escaping, child process env, external links
-- `src/main/core/agent-hooks/` — Hook server, event enrichment, OS notifications, hook config writer for Claude/Codex
+- `src/main/core/agent-hooks/` — Hook server, event enrichment, OS notifications, hook/plugin config writer
 
 ## IPC / RPC Structure
 
 - All domain controllers are assembled into a typed RPC router in `src/main/rpc.ts`.
 - RPC primitives live in `src/shared/ipc/rpc.ts` (`createRPCRouter`, `createRPCController`, `createRPCClient`).
 - Event primitives live in `src/shared/ipc/events.ts`.
-- A small number of manual IPC handlers remain in `electron-api.d.ts` for methods requiring `event.sender` (PTY start/input/resize/kill, fsList, openIn).
+- The preload bridge (`src/preload/index.ts`) exposes only `invoke`, `eventSend`, `eventOn`, and `getPathForFile`; there are no other manual IPC handlers.
 
 ## When Editing Here
 

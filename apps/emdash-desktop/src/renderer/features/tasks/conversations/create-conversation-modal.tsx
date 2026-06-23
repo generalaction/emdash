@@ -1,0 +1,121 @@
+import { observer } from 'mobx-react-lite';
+import { useCallback, useState } from 'react';
+import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
+import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
+import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
+import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
+import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
+import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import {
+  DialogContentArea,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@renderer/lib/ui/dialog';
+import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
+import { Switch } from '@renderer/lib/ui/switch';
+import { providerSupportsAutoApprove } from '@shared/core/agents/agent-auto-approve';
+import { nextDefaultConversationTitle } from './conversation-title-utils';
+import { useEffectiveProvider } from './use-effective-provider';
+
+export const CreateConversationModal = observer(function CreateConversationModal({
+  onSuccess,
+  projectId,
+  taskId,
+}: BaseModalProps<{ conversationId: string }> & {
+  projectId: string;
+  taskId: string;
+}) {
+  const connectionId = getProjectSshConnectionId(projectId);
+  const { providerId, setProviderOverride, createDisabled } = useEffectiveProvider(connectionId);
+  const conversationMgr = conversationRegistry.get(taskId);
+  const taskSettings = useTaskSettings();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
+  useCloseGuard(isSubmitting);
+
+  const showAutoApproveToggle = providerId ? providerSupportsAutoApprove(providerId) : false;
+  const skipPermissions =
+    showAutoApproveToggle && (autoApproveOverride ?? taskSettings.autoApproveByDefault);
+  const titleProviderId = providerId ?? 'claude';
+  const title = nextDefaultConversationTitle(
+    titleProviderId,
+    Array.from(conversationMgr?.conversations.values() ?? [], (conversation) => conversation.data)
+  );
+
+  const handleCreateConversation = useCallback(async () => {
+    if (createDisabled || isSubmitting || !conversationMgr || !providerId) return;
+    const id = crypto.randomUUID();
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await conversationMgr.createConversation({
+        projectId,
+        taskId,
+        id,
+        autoApprove: skipPermissions,
+        provider: providerId,
+        title,
+      });
+      setIsSubmitting(false);
+      onSuccess({ conversationId: id });
+    } catch {
+      setError('Failed to create conversation');
+      setIsSubmitting(false);
+    }
+  }, [
+    conversationMgr,
+    createDisabled,
+    isSubmitting,
+    providerId,
+    title,
+    onSuccess,
+    projectId,
+    taskId,
+    skipPermissions,
+  ]);
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Create Conversation</DialogTitle>
+      </DialogHeader>
+      <DialogContentArea>
+        <FieldGroup>
+          <Field>
+            <FieldLabel>Agent</FieldLabel>
+            <AgentSelector
+              autoFocus
+              value={providerId}
+              onChange={setProviderOverride}
+              connectionId={connectionId}
+            />
+          </Field>
+          {showAutoApproveToggle ? (
+            <Field>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={skipPermissions}
+                  disabled={!providerId || taskSettings.loading || taskSettings.saving}
+                  onCheckedChange={setAutoApproveOverride}
+                />
+                <FieldLabel>Auto-approve permissions</FieldLabel>
+              </div>
+            </Field>
+          ) : null}
+          {error && <p className="text-destructive text-xs">{error}</p>}
+        </FieldGroup>
+      </DialogContentArea>
+      <DialogFooter>
+        <ConfirmButton
+          onClick={() => void handleCreateConversation()}
+          disabled={createDisabled || isSubmitting}
+        >
+          {isSubmitting ? 'Creating...' : 'Create'}
+        </ConfirmButton>
+      </DialogFooter>
+    </>
+  );
+});
