@@ -1,4 +1,5 @@
 import './app/configure-app-identity';
+import './core/telemetry/automation-telemetry';
 import { join } from 'node:path';
 import { config as dotenvConfig } from 'dotenv';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
