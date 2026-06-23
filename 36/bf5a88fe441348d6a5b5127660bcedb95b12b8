@@ -1,0 +1,82 @@
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 3-9
+apps/emdash-desktop/src/main/core/mcp/services/McpService.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 2,17-20
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 125
+packages/core/src/agents/plugins/helpers/standard-command.test.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 24-43
+packages/core/src/agents/plugins/helpers/standard-command.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 99,102,106
+apps/emdash-desktop/src/main/core/dependencies/dependency-managers.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 2-6,36
+apps/emdash-desktop/src/main/core/conversations/impl/conversation-provider-respawn.test.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 488-512
+apps/emdash-desktop/src/renderer/features/settings/components/BrowserSettingsCard.tsx
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 1,26,35,50-51,94-128,347-411,416-463
+apps/emdash-desktop/src/main/core/mcp/controller.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 1,13-14
+apps/emdash-desktop/src/main/core/browser/controller.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 5-12,63-70,72-85
+apps/emdash-desktop/src/main/core/dependencies/registry.test.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 1,43
+apps/emdash-desktop/src/main/core/pty/controller.test.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 1-69
+packages/core/src/agents/plugins/helpers/mcp.test.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 7,408-475
+  s_2c4f8f863a9a1e::t_5eb5509671e0ec 407
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 82-83,285,292-294,393,703
+apps/emdash-desktop/src/shared/browser.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 74-82
+apps/emdash-desktop/src/shared/browser.test.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 6,93-105
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.test.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 1-31
+apps/emdash-desktop/src/main/core/pty/controller.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 29
+packages/plugins/src/agents/impl/charm/index.test.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 1-64
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 54,139
+packages/core/src/agents/plugins/helpers/mcp.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 393-415
+packages/plugins/src/agents/impl/amp/plugin-file.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 7,31-32,35-40
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 78-99,180-199
+packages/core/src/git/git-repository.ts
+  s_2c4f8f863a9a1e::t_e1ee5ff3a03f78 150
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.test.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 332-370
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.test.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 215
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.test.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 2,10-25
+packages/plugins/src/agents/impl/index.test.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 145-156
+packages/plugins/src/agents/impl/charm/index.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 2-7,10-16,26,33-43,57,59
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 67
+packages/plugins/src/agents/impl/amp/index.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 28,32,48,61-63
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_2c4f8f863a9a1e::t_bc16d553fd3078 7,18,52-62,206-215,344-366
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "36bf5a88fe441348d6a5b5127660bcedb95b12b8",
+  "prompts": {},
+  "sessions": {
+    "s_2c4f8f863a9a1e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef446-5fe8-7b12-8d9a-02ff565ee8ce",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
