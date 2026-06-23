@@ -53,7 +53,7 @@ automationsService.on('automation:created', (automation) => {
     ...automationTelemetryProps(automation),
     enabled: automation.enabled,
     provider: getProvider(automation),
-    has_initial_prompt: Boolean(automation.conversationConfig?.prompt.trim()),
+    has_initial_prompt: Boolean(automation.conversationConfig?.prompt?.trim()),
   });
 });
 
