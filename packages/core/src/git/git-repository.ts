@@ -147,7 +147,7 @@ export class GitRepository implements IGitRepository {
     try {
       const { stdout } = await this.exec.exec(['remote', 'show', remote]);
       const match = /HEAD branch:\s*(\S+)/.exec(stdout);
-      if (match?.[1]) return match[1];
+      if (match?.[1] && match[1] !== '(unknown)') return match[1];
     } catch {}
 
     for (const candidate of ['main', 'master', 'develop', 'trunk']) {
