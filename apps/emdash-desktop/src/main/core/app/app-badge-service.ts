@@ -35,10 +35,6 @@ class AppBadgeService {
     this.setCount(0, { force: true });
   }
 
-  setVisibleNotificationCount(count: number): void {
-    this.setCount(Math.max(0, Math.floor(count)), { force: true });
-  }
-
   private setCount(count: number, options: { force?: boolean } = {}): void {
     if (!options.force && count === this.unreadCount) return;
 

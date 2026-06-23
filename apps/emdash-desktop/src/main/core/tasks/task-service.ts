@@ -1,5 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { eq, sql } from 'drizzle-orm';
+import { appBadgeService } from '@main/core/app/app-badge-service';
 import { projectManager } from '@main/core/projects/project-manager';
 import {
   workspaceBootstrapService,
@@ -181,12 +182,16 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
 
   async archiveTask(projectId: string, taskId: string): Promise<void> {
     await archiveTask(projectId, taskId);
+    void appBadgeService.sync();
     this._hooks.callHookBackground('task:archived', taskId, projectId);
   }
 
   async restoreTask(id: string): Promise<void> {
     const task = await restoreTask(id);
-    if (task) this._hooks.callHookBackground('task:updated', task);
+    if (task) {
+      void appBadgeService.sync();
+      this._hooks.callHookBackground('task:updated', task);
+    }
   }
 
   async renameTask(
