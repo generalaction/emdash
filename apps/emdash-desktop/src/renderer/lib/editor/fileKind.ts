@@ -60,6 +60,7 @@ export function getFileKind(filePath: string): Exclude<ManagedFileKind, 'too-lar
   const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
   if (RASTER_EXTS.has(ext)) return 'image';
   if (ext === 'svg') return 'svg';
+  if (ext === 'csv') return 'csv';
   if (ext === 'md' || ext === 'mdx') return 'markdown';
   if (HTML_EXTS.has(ext)) return 'html';
   if (BINARY_EXTS.has(ext)) return 'binary';
@@ -68,7 +69,7 @@ export function getFileKind(filePath: string): Exclude<ManagedFileKind, 'too-lar
 
 /** True for file kinds that default to rendered/preview mode. */
 export function isPreviewableKind(kind: ManagedFileKind): boolean {
-  return kind === 'svg' || kind === 'markdown' || kind === 'html';
+  return kind === 'svg' || kind === 'markdown' || kind === 'html' || kind === 'csv';
 }
 
 /** True for files the diff viewer must not load into Monaco. */

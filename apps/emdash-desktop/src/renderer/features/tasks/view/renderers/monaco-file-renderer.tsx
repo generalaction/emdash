@@ -13,11 +13,11 @@ const SOURCE_TO_PREVIEW = {
   'svg-source': 'svg',
   'html-source': 'html',
   'markdown-source': 'markdown',
+  'csv-source': 'csv',
 } as const satisfies Partial<Record<FileRendererData['kind'], FileRendererData['kind']>>;
 
 /**
- * Renders the sticky Monaco editor host for text, svg-source, html-source, and
- * markdown-source files. Owns the host div wiring (setEditorHost / triggerLayout)
+ * Renders the sticky Monaco editor host for text and source-mode files. Owns the host div wiring (setEditorHost / triggerLayout)
  * and the SourceModeToggleOverlay that switches any source-mode file back to its
  * paired preview renderer.
  *
