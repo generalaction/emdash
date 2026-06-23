@@ -28,21 +28,28 @@ export async function listChildren(
     return err(classifyFileTreeFsError(error, resolved.data.relPath));
   }
 
-  const listed: ListedEntry[] = [];
+  const candidates: Array<Omit<ListedEntry, 'devIno'> & { absPath: string }> = [];
   for (const entry of entries) {
     if (!entry.isFile() && !entry.isDirectory()) continue;
     const relPath = resolved.data.relPath ? `${resolved.data.relPath}/${entry.name}` : entry.name;
     if (isExcludedPath(relPath)) continue;
     const childResolved = resolveInsideRoot(rootPath, relPath);
     if (!childResolved.success) return childResolved;
-    const devIno = await statDevIno(childResolved.data.absPath);
-    listed.push({
+    candidates.push({
       path: relPath,
       name: basenameFromRelPath(relPath),
       type: entry.isDirectory() ? 'directory' : 'file',
-      devIno,
+      absPath: childResolved.data.absPath,
     });
   }
+
+  const devInos = await Promise.all(candidates.map((entry) => statDevIno(entry.absPath)));
+  const listed: ListedEntry[] = candidates.map((entry, index) => ({
+    path: entry.path,
+    name: entry.name,
+    type: entry.type,
+    devIno: devInos[index],
+  }));
 
   listed.sort((a, b) => {
     if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
