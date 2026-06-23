@@ -3,8 +3,11 @@ export function cssVar(name: string): string {
 }
 
 function resolveCssVarColor(color: string): string {
-  const cssVarMatch = color.trim().match(/^var\((--[^),\s]+)\)$/);
-  return cssVarMatch ? cssVar(cssVarMatch[1]) : color;
+  const cssVarMatch = color.trim().match(/^var\((--[^),\s]+)(?:,\s*(.+))?\)$/);
+  if (!cssVarMatch) return color;
+
+  const value = cssVar(cssVarMatch[1]);
+  return value || cssVarMatch[2] || color;
 }
 
 /**
@@ -19,7 +22,10 @@ export function cssColorToHex(cssColor: string): string {
   canvas.width = canvas.height = 1;
   const ctx = canvas.getContext('2d');
   if (!ctx) return cssColor;
-  ctx.fillStyle = resolveCssVarColor(cssColor).trim();
+  const resolved = resolveCssVarColor(cssColor).trim();
+  ctx.fillStyle = '#010203';
+  ctx.fillStyle = resolved;
+  if (ctx.fillStyle === '#010203' && resolved.toLowerCase() !== '#010203') return cssColor;
   ctx.fillRect(0, 0, 1, 1);
   const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
   const hex = (n: number) => n.toString(16).padStart(2, '0');

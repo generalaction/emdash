@@ -73,6 +73,14 @@ describe('FrontendPty xterm host', () => {
     expect(frontendPty.terminal.options.minimumContrastRatio).toBe(4.5);
   });
 
+  it('preserves invalid theme overrides instead of coercing them to black', async () => {
+    const { buildTheme } = await getPtyModule();
+
+    expect(buildTheme({ override: { background: 'var(--missing-color)' } })?.background).toBe(
+      'var(--missing-color)'
+    );
+  });
+
   it('subsequent calls recreate host if the previous host was removed from the DOM', async () => {
     const originalOpen = Terminal.prototype.open;
     const openCall: { parent?: HTMLElement } = {};
