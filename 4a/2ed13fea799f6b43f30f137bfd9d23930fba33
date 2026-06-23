@@ -1,0 +1,29 @@
+apps/emdash-desktop/src/assets/images/mcp/dev_manager.svg
+  s_cca176c6b8edb2::t_c780c237901cd8 1-4
+apps/emdash-desktop/src/assets/images/mcp/jam.svg
+  s_cca176c6b8edb2::t_c780c237901cd8 1-4
+apps/emdash-desktop/src/assets/images/mcp/honeycomb.svg
+  s_cca176c6b8edb2::t_c780c237901cd8 1-7
+apps/emdash-desktop/src/renderer/utils/mcpIcons.tsx
+  s_cca176c6b8edb2::t_f8790131acc38e 18
+apps/emdash-desktop/src/assets/images/mcp/magic_patterns.svg
+  s_cca176c6b8edb2::t_c780c237901cd8 1-4
+apps/emdash-desktop/src/assets/images/mcp/motherduck.svg
+  s_cca176c6b8edb2::t_c780c237901cd8 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "4a2ed13fea799f6b43f30f137bfd9d23930fba33",
+  "prompts": {},
+  "sessions": {
+    "s_cca176c6b8edb2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1522a985-66a0-4656-a0f3-e70085f2770e",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
