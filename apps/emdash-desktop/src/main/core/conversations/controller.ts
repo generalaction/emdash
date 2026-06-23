@@ -2,6 +2,7 @@ import { createRPCController } from '@shared/lib/ipc/rpc';
 import { createConversation } from './createConversation';
 import { dehydrateConversation } from './dehydrateConversation';
 import { deleteConversation } from './deleteConversation';
+import { getConversationHandoffPrompt } from './getConversationHandoffPrompt';
 import { getConversations } from './getConversations';
 import { getConversationsForProject } from './getConversationsForProject';
 import { getConversationsForTask } from './getConversationsForTask';
@@ -18,5 +19,6 @@ export const conversationController = createRPCController({
   renameConversation,
   getConversationsForTask,
   getConversationsForProject,
+  getConversationHandoffPrompt,
   markConversationSeen,
 });

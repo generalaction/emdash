@@ -99,6 +99,19 @@ describe('PtySessionRegistry', () => {
     expect(events.emit).toHaveBeenCalledWith(ptyDataChannel, 'final output', 'session-1');
   });
 
+  it('returns a non-consuming snapshot of buffered output', () => {
+    const registry = new PtySessionRegistry();
+    const pty = fakePty();
+
+    registry.register('session-1', pty);
+    pty.emitData('first');
+    pty.emitData(' second');
+
+    expect(registry.getBufferSnapshot('session-1')).toBe('first second');
+    expect(registry.subscribe('session-1')).toBe('first second');
+    expect(registry.getBufferSnapshot('session-1')).toBe('first second');
+  });
+
   it('emits exit when unregistering the current PTY with exit info', () => {
     const registry = new PtySessionRegistry();
     const pty = fakePty();
