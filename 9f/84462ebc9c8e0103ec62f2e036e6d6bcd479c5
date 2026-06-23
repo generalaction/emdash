@@ -1,0 +1,23 @@
+apps/emdash-desktop/scripts/download-mcp-icons.py
+  s_cca176c6b8edb2::t_22560bc9d47c0f 8-9,161-178,180
+apps/emdash-desktop/src/renderer/tests/mcp-icon-data.test.ts
+  s_cca176c6b8edb2::t_e2e291fd9d8d6b 43-44,47
+apps/emdash-desktop/src/assets/images/mcp/exa.svg
+  s_cca176c6b8edb2::t_d19c19567bbd21 1,3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "9f84462ebc9c8e0103ec62f2e036e6d6bcd479c5",
+  "prompts": {},
+  "sessions": {
+    "s_cca176c6b8edb2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1522a985-66a0-4656-a0f3-e70085f2770e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
