@@ -16,10 +16,6 @@ function lv<T>(value: T, sequence: number) {
   return { value, sequence, generation: expect.any(Number) };
 }
 
-function okLv<T>(value: T, sequence: number) {
-  return { success: true, data: lv(value, sequence) };
-}
-
 describe('LiveModel', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -33,10 +29,17 @@ describe('LiveModel', () => {
     let computes = 0;
     const model = new LiveModel({ compute: async () => ok(++computes) });
 
-    await expect(model.get()).resolves.toEqual(okLv(1, 1));
-    await expect(model.get()).resolves.toEqual(okLv(1, 1));
+    await expect(model.get()).resolves.toEqual(lv(1, 1));
+    await expect(model.get()).resolves.toEqual(lv(1, 1));
     expect(computes).toBe(1);
     expect(model.getCached()).toEqual(lv(1, 1));
+  });
+
+  it('throws expected compute errors from direct reads', async () => {
+    const model = new LiveModel<number, string>({ compute: async () => err('boom') });
+
+    await expect(model.get()).rejects.toBe('boom');
+    await expect(model.refresh()).rejects.toBe('boom');
   });
 
   it('only marks dirty on invalidate without subscribers, recomputes on next get', async () => {
@@ -48,7 +51,7 @@ describe('LiveModel', () => {
     await vi.runAllTimersAsync();
     expect(computes).toBe(1); // no subscriber: no background recompute
 
-    await expect(model.get()).resolves.toEqual(okLv(2, 2));
+    await expect(model.get()).resolves.toEqual(lv(2, 2));
   });
 
   it('recomputes and pushes on invalidate while subscribed, with debounce coalescing', async () => {
@@ -90,9 +93,9 @@ describe('LiveModel', () => {
     expect(gates).toHaveLength(2);
 
     gates[1]!.resolve(ok(20));
-    await expect(second).resolves.toEqual(okLv(20, 2));
-    await expect(third).resolves.toEqual(okLv(20, 2));
-    await expect(first).resolves.toEqual(okLv(10, 1));
+    await expect(second).resolves.toEqual(lv(20, 2));
+    await expect(third).resolves.toEqual(lv(20, 2));
+    await expect(first).resolves.toEqual(lv(10, 1));
   });
 
   it('runs again after a compute that was invalidated mid-flight (subscribed)', async () => {
@@ -142,10 +145,10 @@ describe('LiveModel', () => {
     expect(model.getCached()).toEqual(lv(1, 1));
     expect(pushed).toEqual([1]);
 
-    await expect(model.refresh()).resolves.toEqual(err('boom'));
+    await expect(model.refresh()).rejects.toBe('boom');
 
     fail = false;
-    await expect(model.get()).resolves.toEqual(okLv(4, 2)); // dirty: recomputes
+    await expect(model.get()).resolves.toEqual(lv(4, 2)); // dirty: recomputes
   });
 
   it('rejects direct refresh after an unexpected thrown compute error', async () => {
@@ -222,7 +225,7 @@ describe('LiveModel', () => {
 
     // refresh resolves with the cached value (read-your-writes still holds: the
     // current sequence already represents the unchanged content)
-    await expect(model.refresh()).resolves.toEqual({ success: true, data: first });
+    await expect(model.refresh()).resolves.toBe(first);
     expect(computes).toBe(3);
 
     // suppression clears dirty: the next get serves the cache without recomputing
@@ -253,10 +256,9 @@ describe('LiveModel', () => {
     const a = await first.get();
     const b = await first.refresh();
     const c = await second.get();
-    if (!a.success || !b.success || !c.success) throw new Error('unexpected test failure');
 
-    expect(a.data.generation).toBe(b.data.generation); // stable within an instance
-    expect(c.data.generation).toBeGreaterThan(a.data.generation); // later instance: later generation
+    expect(a.generation).toBe(b.generation); // stable within an instance
+    expect(c.generation).toBeGreaterThan(a.generation); // later instance: later generation
   });
 
   it('rejects get/refresh/subscribe after dispose and stops timers', async () => {

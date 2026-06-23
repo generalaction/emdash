@@ -15,12 +15,6 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'supported',
     },
-    effort: {
-      kind: 'none',
-    },
-    hooks: {
-      kind: 'none',
-    },
     hostDependency: {
       id: 'rovo',
       binaryNames: ['rovodev', 'acli'],
@@ -41,15 +35,6 @@ export const plugin = definePlugin(
       updates: {
         kind: 'none',
       },
-    },
-    mcp: {
-      kind: 'none',
-    },
-    models: {
-      kind: 'none',
-    },
-    plugins: {
-      kind: 'none',
     },
     prompt: {
       kind: 'argv',

@@ -1,3 +1,4 @@
+import { gitErrorMessage } from '@emdash/core/git';
 import { err } from '@emdash/shared';
 import { log } from '@main/lib/logger';
 import type { GitRepositoryService } from './service';
@@ -47,8 +48,9 @@ export class GitRepositoryFetchService {
         return this.gitRepository.fetch(remote);
       })
       .catch((e): GitRepositoryFetchResult => {
-        log.warn('GitRepositoryFetchService: fetch threw unexpectedly', { error: String(e) });
-        return err({ type: 'error', message: String(e) });
+        const message = gitErrorMessage(e);
+        log.warn('GitRepositoryFetchService: fetch threw unexpectedly', { error: message });
+        return err({ type: 'git_error', message });
       })
       .finally(() => {
         this._inflight = undefined;

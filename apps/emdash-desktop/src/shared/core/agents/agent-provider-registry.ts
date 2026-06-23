@@ -426,9 +426,12 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     defaultArgs: ['run', '-s'],
     initialPromptFlag: '-t',
     resumeFlag: '--resume',
+    sessionIdFlag: '--session-id',
+    sessionIdOnResumeOnly: true,
     icon: 'goose.png',
     alt: 'Goose CLI',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'kimi',

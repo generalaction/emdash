@@ -25,6 +25,10 @@
       "types": "./dist/exec.d.mts",
       "default": "./dist/exec.mjs"
     },
+    "./file-tree": {
+      "types": "./dist/file-tree.d.mts",
+      "default": "./dist/file-tree.mjs"
+    },
     "./fs": {
       "types": "./dist/fs.d.mts",
       "default": "./dist/fs.mjs"

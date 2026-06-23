@@ -58,6 +58,14 @@ async function makeRecordingGitExecutable(): Promise<{ executable: string; logPa
   return { executable, logPath };
 }
 
+function expectSuccess<T>(
+  result: { success: true; data: T } | { success: false; error: unknown }
+): T {
+  expect(result.success).toBe(true);
+  if (!result.success) throw new Error(String(result.error));
+  return result.data;
+}
+
 describe('GitWorktree', () => {
   it('refreshes and emits worktree facts for real file and git mutations', async () => {
     const repo = await makeRepo();
@@ -122,7 +130,7 @@ describe('GitWorktree', () => {
         expect.objectContaining({ path: 'tracked.txt', status: 'modified' }),
       ]);
 
-      const stageSequences = await worktree.stage(['tracked.txt']);
+      const stageSequences = expectSuccess(await worktree.stage(['tracked.txt']));
       expect(stageSequences.status).toBeGreaterThanOrEqual(1);
       const snapshotAfterStage = await worktree.getSnapshot();
       expect(snapshotAfterStage.status.sequence).toBeGreaterThanOrEqual(stageSequences.status!);
@@ -489,7 +497,7 @@ describe('GitWorktree', () => {
       await execFileAsync('git', ['commit', '-m', 'add to-delete'], { cwd: repo });
       await rm(path.join(repo, 'to-delete.txt'));
 
-      const stageAllSequences = await worktree.stageAll();
+      const stageAllSequences = expectSuccess(await worktree.stageAll());
       expect(stageAllSequences.status).toBeGreaterThanOrEqual(1);
       expect(await worktree.getStatus()).toMatchObject({
         kind: 'ok',
@@ -501,7 +509,7 @@ describe('GitWorktree', () => {
         unstaged: [],
       });
 
-      const unstageAllSequences = await worktree.unstageAll();
+      const unstageAllSequences = expectSuccess(await worktree.unstageAll());
       expect(unstageAllSequences.status).toBeGreaterThanOrEqual(1);
       expect(await worktree.getStatus()).toMatchObject({
         kind: 'ok',
@@ -518,7 +526,7 @@ describe('GitWorktree', () => {
         ]),
       });
 
-      const revertAllSequences = await worktree.revertAll();
+      const revertAllSequences = expectSuccess(await worktree.revertAll());
       expect(revertAllSequences.status).toBeGreaterThanOrEqual(1);
       expect(await worktree.getStatus()).toMatchObject({
         kind: 'ok',
@@ -573,7 +581,7 @@ describe('GitWorktree', () => {
       await writeFile(path.join(repo, 'tracked.txt'), 'modified\n', 'utf8');
       await writeFile(path.join(repo, 'untracked.txt'), 'new\n', 'utf8');
 
-      const sequences = await worktree.revert(['tracked.txt', 'untracked.txt']);
+      const sequences = expectSuccess(await worktree.revert(['tracked.txt', 'untracked.txt']));
 
       expect(sequences.status).toBeGreaterThanOrEqual(1);
       await expect(worktree.getStatus()).resolves.toMatchObject({
@@ -599,10 +607,10 @@ describe('GitWorktree', () => {
       const worktree = lease.value;
 
       await writeFile(path.join(repo, 'tracked.txt'), 'staged\n', 'utf8');
-      await worktree.stage(['tracked.txt']);
+      expectSuccess(await worktree.stage(['tracked.txt']));
       await writeFile(path.join(repo, 'tracked.txt'), 'unstaged\n', 'utf8');
 
-      const sequences = await worktree.revert(['tracked.txt']);
+      const sequences = expectSuccess(await worktree.revert(['tracked.txt']));
 
       expect(sequences.status).toBeGreaterThanOrEqual(1);
       await expect(readFile(path.join(repo, 'tracked.txt'), 'utf8')).resolves.toBe('staged\n');
@@ -628,7 +636,7 @@ describe('GitWorktree', () => {
 
       await execFileAsync('git', ['rm', '--cached', 'tracked.txt'], { cwd: repo });
 
-      const sequences = await worktree.revert(['tracked.txt']);
+      const sequences = expectSuccess(await worktree.revert(['tracked.txt']));
 
       expect(sequences.status).toBeGreaterThanOrEqual(1);
       await expect(readFile(path.join(repo, 'tracked.txt'), 'utf8')).resolves.toBe('before\n');
@@ -653,7 +661,7 @@ describe('GitWorktree', () => {
       const worktree = lease.value;
 
       await writeFile(path.join(repo, 'tracked.txt'), 'two\n', 'utf8');
-      const firstSequences = await worktree.stage(['tracked.txt']);
+      const firstSequences = expectSuccess(await worktree.stage(['tracked.txt']));
       const firstStatus = await worktree.getStatus();
       if (firstStatus.kind !== 'ok') throw new Error('Expected ok status');
       const firstChange = firstStatus.staged[0];
@@ -666,7 +674,7 @@ describe('GitWorktree', () => {
       });
 
       await writeFile(path.join(repo, 'tracked.txt'), 'too\n', 'utf8');
-      const secondSequences = await worktree.stage(['tracked.txt']);
+      const secondSequences = expectSuccess(await worktree.stage(['tracked.txt']));
       const secondStatus = await worktree.getStatus();
       if (secondStatus.kind !== 'ok') throw new Error('Expected ok status');
       const secondChange = secondStatus.staged[0];
@@ -700,10 +708,10 @@ describe('GitWorktree', () => {
       const lease = await runtime.openWorktree(repo);
       await writeFile(path.join(repo, 'extra.txt'), 'bar\n', 'utf8');
 
-      const unstageSequences = await lease.value.unstageAll();
+      const unstageSequences = expectSuccess(await lease.value.unstageAll());
       expect(unstageSequences.status).toBeGreaterThanOrEqual(1);
 
-      const revertSequences = await lease.value.revertAll();
+      const revertSequences = expectSuccess(await lease.value.revertAll());
       expect(revertSequences.status).toBeGreaterThanOrEqual(1);
       await expect(readFile(path.join(repo, 'untracked.txt'), 'utf8')).rejects.toThrow();
       await expect(readFile(path.join(repo, 'extra.txt'), 'utf8')).rejects.toThrow();

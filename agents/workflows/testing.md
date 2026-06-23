@@ -34,10 +34,9 @@ pnpm run test
 
 ## CI Notes
 
-- `.github/workflows/code-consistency-check.yml` currently enforces:
-  - `pnpm run format:check`
-  - `pnpm run typecheck`
-  - `pnpm run lint`
+- `.github/workflows/code-consistency-check.yml` uses `nx affected` to enforce
+  format:check, typecheck, and lint only for projects touched by the PR. Nx
+  computes the affected set using `nrwl/nx-set-shas` and the PR base/head SHAs.
 - Tests are still expected locally before merging even though they are not enabled in that workflow yet.
 
 ## Focused Validation

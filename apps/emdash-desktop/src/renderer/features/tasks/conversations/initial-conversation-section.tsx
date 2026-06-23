@@ -32,11 +32,17 @@ export type InitialConversationState = {
   connectionId?: string;
 };
 
+interface InitialConversationStateOptions {
+  resetPromptOnProjectChange?: boolean;
+}
+
 export function useInitialConversationState(
   projectId?: string,
   initialProvider?: AgentProviderId,
-  autoApproveByDefault = false
+  autoApproveByDefault = false,
+  options: InitialConversationStateOptions = {}
 ): InitialConversationState {
+  const { resetPromptOnProjectChange = true } = options;
   const connectionId = projectId ? getProjectSshConnectionId(projectId) : undefined;
   const { providerId, setProviderOverride } = useEffectiveProvider(connectionId, initialProvider);
   const [prompt, setPrompt] = useState('');
@@ -49,7 +55,9 @@ export function useInitialConversationState(
   if (projectChanged) {
     setPrevProjectId(projectId);
     setProviderOverride(null);
-    setPrompt('');
+    if (resetPromptOnProjectChange) {
+      setPrompt('');
+    }
     setIssueContext(null);
     setAutoApproveOverride(null);
   }
