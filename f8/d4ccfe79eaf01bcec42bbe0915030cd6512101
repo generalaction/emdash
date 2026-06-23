@@ -1,0 +1,39 @@
+apps/emdash-desktop/src/renderer/lib/editor/types.ts
+  s_724c0166afd6c2::t_f0e8e81344ed3e 6
+apps/emdash-desktop/src/renderer/lib/editor/csv-renderer.test.ts
+  s_724c0166afd6c2::t_399db6fb86cc91 2
+  s_724c0166afd6c2::t_1040784f15601b 1,3-28
+apps/emdash-desktop/src/renderer/features/tasks/view/renderers/monaco-file-renderer.tsx
+  s_724c0166afd6c2::t_f0e8e81344ed3e 16,20
+apps/emdash-desktop/src/renderer/features/tasks/types.ts
+  s_724c0166afd6c2::t_f0e8e81344ed3e 7-8
+apps/emdash-desktop/src/renderer/lib/editor/renderer-utils.ts
+  s_724c0166afd6c2::t_f0e8e81344ed3e 7-8
+apps/emdash-desktop/src/renderer/lib/editor/csv-parser.ts
+  s_724c0166afd6c2::t_399db6fb86cc91 1-60
+apps/emdash-desktop/src/renderer/features/tasks/view/renderers/file-renderer.tsx
+  s_724c0166afd6c2::t_f0e8e81344ed3e 4,30,50-51
+apps/emdash-desktop/src/renderer/lib/editor/fileKind.ts
+  s_724c0166afd6c2::t_f0e8e81344ed3e 63,72
+apps/emdash-desktop/src/renderer/lib/editor/csv-renderer.tsx
+  s_724c0166afd6c2::t_399db6fb86cc91 4
+  s_724c0166afd6c2::t_3b6f84d07788e1 22-25,46-49,53
+  s_724c0166afd6c2::t_24351ba0aec403 1-3,5-21,26-29,31-36,38-45,50-52,54-89
+  s_724c0166afd6c2::t_1e01c031ab39ce 30,37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "f8d4ccfe79eaf01bcec42bbe0915030cd6512101",
+  "prompts": {},
+  "sessions": {
+    "s_724c0166afd6c2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef52e-092d-7ac2-876d-79bd2b0632be",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
