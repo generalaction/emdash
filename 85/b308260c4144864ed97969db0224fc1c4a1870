@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/tests/mcp-icon-data.test.ts
+  s_68fed7153b6b51::t_6ff7604df9947a 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "85b308260c4144864ed97969db0224fc1c4a1870",
+  "prompts": {},
+  "sessions": {
+    "s_68fed7153b6b51": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ef5a1-0eb0-755e-b1e9-7dd554bcb08f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
