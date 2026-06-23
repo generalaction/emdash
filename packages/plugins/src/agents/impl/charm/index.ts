@@ -25,12 +25,6 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'none',
     },
-    effort: {
-      kind: 'none',
-    },
-    hooks: {
-      kind: 'none',
-    },
     hostDependency: npmDependency({
       id: 'charm',
       package: '@charmland/crush',

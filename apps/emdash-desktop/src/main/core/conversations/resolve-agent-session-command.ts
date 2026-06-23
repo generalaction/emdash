@@ -1,6 +1,6 @@
 import type { Conversation } from '@shared/core/conversations/conversations';
 
-const PROVIDER_SESSION_ID_REQUIRED_FOR_RESUME = new Set(['codex', 'commandcode', 'droid']);
+const PROVIDER_SESSION_ID_REQUIRED_FOR_RESUME = new Set(['codex', 'commandcode', 'droid', 'goose']);
 
 /** Some providers need their native session id, not the Emdash conversation id, to resume. */
 export function resolveAgentSessionCommandArgs(

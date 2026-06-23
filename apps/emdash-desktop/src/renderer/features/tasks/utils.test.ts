@@ -45,7 +45,7 @@ describe('formatFetchErrorDetail', () => {
 describe('formatPushErrorDetail', () => {
   it('explains GitHub repository-not-found push failures as credential or write-access issues', () => {
     const detail = formatPushErrorDetail({
-      type: 'error',
+      type: 'git_error',
       message:
         "remote: Repository not found.\nfatal: repository 'https://github.com/orbit-logistics/orbit/' not found",
     });
@@ -70,7 +70,7 @@ describe('formatPushErrorDetail', () => {
     const message =
       "fatal: repository 'https://github.com/orbit-logistics/orbit/' is not accessible (You are missing read permission...)";
     const detail = formatPushErrorDetail({
-      type: 'error',
+      type: 'git_error',
       message,
     });
 

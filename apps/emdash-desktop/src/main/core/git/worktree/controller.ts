@@ -1,4 +1,4 @@
-import type { DiffTarget, GitObjectRef } from '@emdash/core/git';
+import { gitErrorMessage, type DiffTarget, type GitObjectRef } from '@emdash/core/git';
 import { err, ok } from '@emdash/shared';
 import { resolveWorkspace } from '@main/core/projects/utils';
 import { log } from '@main/lib/logger';
@@ -22,7 +22,7 @@ export const gitWorktreeController = createRPCController({
       return ok(await workspace.gitWorktree.getSnapshot());
     } catch (error) {
       log.error('gitCtrl.getWorktreeSnapshot failed', { projectId, workspaceId, error });
-      return err({ type: 'git_error', message: String(error) });
+      return err({ type: 'git_error', message: gitErrorMessage(error) });
     }
   },
 
@@ -33,7 +33,7 @@ export const gitWorktreeController = createRPCController({
       return ok({ changes: await workspace.gitWorktree.getChangedFiles(base) });
     } catch (error) {
       log.error('gitCtrl.getChangedFiles failed', { projectId, workspaceId, base, error });
-      return err({ type: 'git_error' as const, message: String(error) });
+      return err({ type: 'git_error' as const, message: gitErrorMessage(error) });
     }
   },
 
@@ -44,7 +44,7 @@ export const gitWorktreeController = createRPCController({
       return ok({ content: await workspace.gitWorktree.getFileAtRef(filePath, ref) });
     } catch (error) {
       log.error('gitCtrl.getFileAtRef failed', { projectId, workspaceId, filePath, ref, error });
-      return err({ type: 'git_error' as const, message: String(error) });
+      return err({ type: 'git_error' as const, message: gitErrorMessage(error) });
     }
   },
 
@@ -55,7 +55,7 @@ export const gitWorktreeController = createRPCController({
       return ok({ content: await workspace.gitWorktree.getFileAtIndex(filePath) });
     } catch (error) {
       log.error('gitCtrl.getFileAtIndex failed', { projectId, workspaceId, filePath, error });
-      return err({ type: 'git_error' as const, message: String(error) });
+      return err({ type: 'git_error' as const, message: gitErrorMessage(error) });
     }
   },
 
@@ -66,7 +66,7 @@ export const gitWorktreeController = createRPCController({
       return ok({ result: await workspace.gitWorktree.getImageAtRef(filePath, ref) });
     } catch (error) {
       log.error('gitCtrl.getImageAtRef failed', { projectId, workspaceId, filePath, ref, error });
-      return err({ type: 'git_error' as const, message: String(error) });
+      return err({ type: 'git_error' as const, message: gitErrorMessage(error) });
     }
   },
 
@@ -77,7 +77,7 @@ export const gitWorktreeController = createRPCController({
       return ok({ result: await workspace.gitWorktree.getImageAtIndex(filePath) });
     } catch (error) {
       log.error('gitCtrl.getImageAtIndex failed', { projectId, workspaceId, filePath, error });
-      return err({ type: 'git_error' as const, message: String(error) });
+      return err({ type: 'git_error' as const, message: gitErrorMessage(error) });
     }
   },
 
@@ -103,17 +103,18 @@ export const gitWorktreeController = createRPCController({
       if (!workspace) return err({ type: 'not_found' as const });
       const status = await workspace.gitWorktree.getStatus();
       const count = status.kind === 'ok' ? status.unstaged.length : 0;
-      const sequences = await workspace.gitWorktree.stageAll();
+      const result = await workspace.gitWorktree.stageAll();
+      if (!result.success) return err(result.error);
       telemetryService.capture('vcs_files_staged', {
         count,
         scope: 'all',
         project_id: projectId,
         task_id: workspaceId,
       });
-      return ok({ sequences });
+      return ok({ sequences: result.data });
     } catch (error) {
       log.error('gitCtrl.stageAllFiles failed', { projectId, workspaceId, error });
-      return err({ type: 'git_error' as const, message: String(error) });
+      return err({ type: 'git_error' as const, message: gitErrorMessage(error) });
     }
   },
 
@@ -139,17 +140,18 @@ export const gitWorktreeController = createRPCController({
       if (!workspace) return err({ type: 'not_found' as const });
       const status = await workspace.gitWorktree.getStatus();
       const count = status.kind === 'ok' ? status.staged.length : 0;
-      const sequences = await workspace.gitWorktree.unstageAll();
+      const result = await workspace.gitWorktree.unstageAll();
+      if (!result.success) return err(result.error);
       telemetryService.capture('vcs_files_unstaged', {
         count,
         scope: 'all',
         project_id: projectId,
         task_id: workspaceId,
       });
-      return ok({ sequences });
+      return ok({ sequences: result.data });
     } catch (error) {
       log.error('gitCtrl.unstageAllFiles failed', { projectId, workspaceId, error });
-      return err({ type: 'git_error' as const, message: String(error) });
+      return err({ type: 'git_error' as const, message: gitErrorMessage(error) });
     }
   },
 
@@ -178,17 +180,18 @@ export const gitWorktreeController = createRPCController({
         status.kind === 'ok'
           ? new Set([...status.staged, ...status.unstaged].map((change) => change.path)).size
           : 0;
-      const sequences = await workspace.gitWorktree.revertAll();
+      const result = await workspace.gitWorktree.revertAll();
+      if (!result.success) return err(result.error);
       telemetryService.capture('vcs_files_discarded', {
         count,
         scope: 'all',
         project_id: projectId,
         task_id: workspaceId,
       });
-      return ok({ sequences });
+      return ok({ sequences: result.data });
     } catch (error) {
       log.error('gitCtrl.revertAllFiles failed', { projectId, workspaceId, error });
-      return err({ type: 'git_error' as const, message: String(error) });
+      return err({ type: 'git_error' as const, message: gitErrorMessage(error) });
     }
   },
 
@@ -252,7 +255,7 @@ export const gitWorktreeController = createRPCController({
       return ok({ commits: result.commits, aheadCount: result.aheadCount });
     } catch (error) {
       log.error('gitCtrl.getLog failed', { projectId, workspaceId, error });
-      return err({ type: 'git_error' as const, message: String(error) });
+      return err({ type: 'git_error' as const, message: gitErrorMessage(error) });
     }
   },
 
@@ -263,7 +266,7 @@ export const gitWorktreeController = createRPCController({
       return ok({ files: await workspace.gitWorktree.getCommitFiles(commitHash) });
     } catch (error) {
       log.error('gitCtrl.getCommitFiles failed', { projectId, workspaceId, commitHash, error });
-      return err({ type: 'git_error' as const, message: String(error) });
+      return err({ type: 'git_error' as const, message: gitErrorMessage(error) });
     }
   },
 });

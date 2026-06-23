@@ -75,6 +75,27 @@ describe('resolveAgentSessionCommandArgs', () => {
     });
   });
 
+  it('uses stored Goose session id when resuming', () => {
+    expect(
+      resolveAgentSessionCommandArgs(
+        makeConversation({
+          providerId: 'goose',
+          providerSessionId: 'goose-session-id',
+        }),
+        true
+      )
+    ).toEqual({ sessionId: 'goose-session-id', isResuming: true });
+  });
+
+  it('starts fresh when resuming Goose without a stored session id', () => {
+    expect(resolveAgentSessionCommandArgs(makeConversation({ providerId: 'goose' }), true)).toEqual(
+      {
+        sessionId: 'conv-1',
+        isResuming: false,
+      }
+    );
+  });
+
   it('keeps resume enabled when provider session ids are unavailable', () => {
     expect(
       resolveAgentSessionCommandArgs(makeConversation(), true, { requireProviderSessionId: false })

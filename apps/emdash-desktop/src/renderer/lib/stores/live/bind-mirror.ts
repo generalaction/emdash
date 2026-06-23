@@ -1,6 +1,7 @@
-import type { LiveValue } from '@emdash/core/lib';
+import type { CollectionSnapshot, CollectionUpdate, LiveValue } from '@emdash/core/lib';
 import type { Result, Unsubscribe } from '@emdash/shared';
 import { makeObservable, observable, runInAction } from 'mobx';
+import type { CollectionMirror } from './collection-mirror';
 import type { ModelMirror } from './model-mirror';
 
 export type MirrorBindingStatus =
@@ -31,7 +32,29 @@ export type BindMirrorOptions<T, E = unknown> = {
   onUnexpectedError?: (error: unknown) => void;
 };
 
-class MirrorBindingImpl<T, E> implements MirrorBinding {
+export type BindCollectionMirrorOptions<K, V, E = unknown> = {
+  mirror: CollectionMirror<K, V>;
+  subscribe: (push: (update: CollectionUpdate<K, V>) => void) => Unsubscribe;
+  snapshot: () => Promise<Result<CollectionSnapshot<K, V>, E>>;
+  onError?: (error: E) => void;
+  onUnexpectedError?: (error: unknown) => void;
+};
+
+type MirrorTarget<Snapshot, Update> = {
+  readonly hasSnapshot: boolean;
+  setSnapshot(snapshot: Snapshot): void;
+  applyUpdate(update: Update): void;
+};
+
+type BindLiveMirrorOptions<Snapshot, Update, E = unknown> = {
+  mirror: MirrorTarget<Snapshot, Update>;
+  subscribe: (push: (update: Update) => void) => Unsubscribe;
+  snapshot: () => Promise<Result<Snapshot, E>>;
+  onError?: (error: E) => void;
+  onUnexpectedError?: (error: unknown) => void;
+};
+
+class MirrorBindingImpl<Snapshot, Update, E> implements MirrorBinding {
   status: MirrorBindingStatus = 'idle';
 
   private started = false;
@@ -41,7 +64,7 @@ class MirrorBindingImpl<T, E> implements MirrorBinding {
   private inFlight: Promise<void> | null = null;
   private runId = 0;
 
-  constructor(private readonly opts: BindMirrorOptions<T, E>) {
+  constructor(private readonly opts: BindLiveMirrorOptions<Snapshot, Update, E>) {
     makeObservable(this, { status: observable });
   }
 
@@ -54,7 +77,7 @@ class MirrorBindingImpl<T, E> implements MirrorBinding {
     this.unsubscribe = this.opts.subscribe((value) => {
       if (!this.started || runId !== this.runId) return;
       this.opts.mirror.applyUpdate(value);
-      if (this.opts.mirror.current) this.markLive();
+      if (this.opts.mirror.hasSnapshot) this.markLive();
     });
     void this.resync();
   }
@@ -141,5 +164,11 @@ class MirrorBindingImpl<T, E> implements MirrorBinding {
 }
 
 export function bindMirror<T, E = unknown>(opts: BindMirrorOptions<T, E>): MirrorBinding {
-  return new MirrorBindingImpl(opts);
+  return new MirrorBindingImpl<LiveValue<T>, LiveValue<T>, E>(opts);
+}
+
+export function bindCollectionMirror<K, V, E = unknown>(
+  opts: BindCollectionMirrorOptions<K, V, E>
+): MirrorBinding {
+  return new MirrorBindingImpl<CollectionSnapshot<K, V>, CollectionUpdate<K, V>, E>(opts);
 }

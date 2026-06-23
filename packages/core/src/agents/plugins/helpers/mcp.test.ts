@@ -1,7 +1,13 @@
 import { parse as parseTOML } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
 import type { PluginFs } from '../../runtime/fs';
-import { codexMcpAdapter, createMcpAdapter, crushMcpAdapter, passthroughMcpAdapter } from './mcp';
+import {
+  codexMcpAdapter,
+  createMcpAdapter,
+  crushMcpAdapter,
+  droidMcpAdapter,
+  passthroughMcpAdapter,
+} from './mcp';
 
 // ── In-memory PluginFs ───────────────────────────────────────────────────────
 
@@ -193,6 +199,35 @@ describe('createMcpAdapter with multiple legacyReadPaths', () => {
       const parsed = JSON.parse(content) as Record<string, unknown>;
       expect((parsed.mcpServers as Record<string, unknown>).gone).toBeUndefined();
     }
+  });
+});
+
+// ── Droid adapter ───────────────────────────────────────────────────────────
+
+describe('droidMcpAdapter', () => {
+  const adapter = droidMcpAdapter();
+
+  it('writes Factory MCP config to the documented path', async () => {
+    const fs = createMemoryFs();
+
+    await adapter.writeServers(fs, [{ name: 'filesystem', command: 'npx' }]);
+
+    const raw = await fs.read('.factory/mcp.json');
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!) as Record<string, unknown>;
+    expect(parsed.mcpServers).toEqual({ filesystem: { command: 'npx' } });
+    expect(await fs.read('.droid/settings.json')).toBeNull();
+  });
+
+  it('reads legacy Droid and Factory config paths', async () => {
+    const fs = createMemoryFs({
+      '.droid/settings.json': jsonFile({ mcpServers: { droidLegacy: { command: 'd' } } }),
+      '.factory/config.json': jsonFile({ mcpServers: { factoryLegacy: { command: 'f' } } }),
+    });
+
+    const result = await adapter.readServers(fs);
+
+    expect(result.map((server) => server.name).sort()).toEqual(['droidLegacy', 'factoryLegacy']);
   });
 });
 

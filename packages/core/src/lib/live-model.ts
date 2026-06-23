@@ -7,12 +7,16 @@ import {
   type Result,
   type Unsubscribe,
 } from '@emdash/shared';
-import { LiveScheduler, type LiveSchedulerRun } from './live-scheduler';
 
 export type LiveValue<T> = {
   value: T;
   generation: number;
   sequence: number;
+};
+
+type LiveModelRun<T, E> = {
+  result: Result<LiveValue<T>, E>;
+  completed: boolean;
 };
 
 export type LiveModelOptions<T, E = unknown> = {
@@ -46,24 +50,19 @@ export class LiveModel<T, E = unknown> implements IDisposable {
   private readonly emitter = new Emitter<LiveValue<T>>();
   private readonly generation = LiveModel.nextGeneration();
   private readonly isEqual: (a: T, b: T) => boolean;
-  private readonly scheduler: LiveScheduler<Result<LiveValue<T>, E>>;
 
   private cached: LiveValue<T> | undefined;
+  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private dirty = true;
   private disposed = false;
+  private inFlight: Promise<Result<LiveValue<T>, E>> | null = null;
+  private inFlightToken: object | null = null;
+  private queued: Promise<Result<LiveValue<T>, E>> | null = null;
+  private revalidateTimer: ReturnType<typeof setTimeout> | null = null;
   private sequence = 0;
 
   constructor(private readonly options: LiveModelOptions<T, E>) {
     this.isEqual = options.isEqual ?? isDeepEqual;
-    this.scheduler = new LiveScheduler<Result<LiveValue<T>, E>>({
-      run: () => this.recompute(),
-      hasDemand: () => this.emitter.size > 0,
-      initialDirty: true,
-      debounceMs: options.debounceMs,
-      revalidateIntervalMs: options.revalidateIntervalMs,
-      onBackgroundResult: (result) => {
-        if (!result.success) options.onError?.(result.error);
-      },
-    });
   }
 
   get subscriberCount(): number {
@@ -74,39 +73,49 @@ export class LiveModel<T, E = unknown> implements IDisposable {
     return this.cached;
   }
 
-  async get(): Promise<Result<LiveValue<T>, E>> {
+  async get(): Promise<LiveValue<T>> {
     this.assertNotDisposed();
-    if (this.cached && !this.scheduler.dirty) return ok(this.cached);
-    return this.scheduler.runDirect();
+    if (this.cached && !this.dirty) return this.cached;
+    const result = await this.schedule();
+    if (!result.success) throw result.error;
+    return result.data;
   }
 
   subscribe(cb: (update: LiveValue<T>) => void): Unsubscribe {
     this.assertNotDisposed();
     const unsubscribe = this.emitter.subscribe(cb);
-    this.scheduler.onDemandAvailable();
+    if (this.dirty || !this.cached) {
+      this.scheduleBackground();
+    } else {
+      this.armRevalidate();
+    }
     let released = false;
     return () => {
       if (released) return;
       released = true;
       unsubscribe();
-      this.scheduler.onDemandUnavailable();
+      if (this.emitter.size === 0) this.clearTimers();
     };
   }
 
-  async refresh(): Promise<Result<LiveValue<T>, E>> {
+  async refresh(): Promise<LiveValue<T>> {
     this.assertNotDisposed();
-    return this.scheduler.runDirect();
+    const result = await this.schedule();
+    if (!result.success) throw result.error;
+    return result.data;
   }
 
   invalidate(): void {
     if (this.disposed) return;
-    this.scheduler.markDirty();
+    this.dirty = true;
+    if (this.emitter.size === 0) return;
+    this.scheduleDebounced();
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.scheduler.dispose();
+    this.clearTimers();
     this.emitter.clear();
   }
 
@@ -115,7 +124,53 @@ export class LiveModel<T, E = unknown> implements IDisposable {
     return LiveModel.lastGeneration;
   }
 
-  private async recompute(): Promise<LiveSchedulerRun<Result<LiveValue<T>, E>>> {
+  private schedule(): Promise<Result<LiveValue<T>, E>> {
+    if (this.inFlight) {
+      this.queued ??= this.inFlight.then(
+        () => this.runNow(),
+        () => this.runNow()
+      );
+      return this.queued;
+    }
+    return this.runNow();
+  }
+
+  private runNow(): Promise<Result<LiveValue<T>, E>> {
+    this.queued = null;
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+
+    const token = {};
+    this.inFlightToken = token;
+    const run = (async () => {
+      this.dirty = false;
+      let completed = false;
+      try {
+        const outcome = await this.recompute();
+        completed = outcome.completed;
+        if (!completed) this.dirty = true;
+        return outcome.result;
+      } catch (error) {
+        this.dirty = true;
+        throw error;
+      } finally {
+        if (this.inFlightToken === token) {
+          this.inFlightToken = null;
+          this.inFlight = null;
+        }
+        this.armRevalidate();
+        if (completed && this.dirty && !this.queued && this.emitter.size > 0) {
+          this.scheduleDebounced();
+        }
+      }
+    })();
+    this.inFlight = run;
+    return run;
+  }
+
+  private async recompute(): Promise<LiveModelRun<T, E>> {
     const computed = await this.options.compute();
     if (!computed.success) {
       return { result: err(computed.error), completed: false };
@@ -132,6 +187,45 @@ export class LiveModel<T, E = unknown> implements IDisposable {
     this.cached = update;
     if (!this.disposed) this.emitter.emit(update);
     return { result: ok(update), completed: true };
+  }
+
+  private scheduleDebounced(): void {
+    if (this.debounceTimer) clearTimeout(this.debounceTimer);
+    this.debounceTimer = setTimeout(() => {
+      this.debounceTimer = null;
+      if (!this.dirty || this.disposed) return;
+      this.scheduleBackground();
+    }, this.options.debounceMs ?? 0);
+  }
+
+  private scheduleBackground(): void {
+    void this.schedule()
+      .then((result) => {
+        if (!result.success) this.options.onError?.(result.error);
+      })
+      .catch((error) => {
+        queueMicrotask(() => {
+          throw error;
+        });
+      });
+  }
+
+  private armRevalidate(): void {
+    const interval = this.options.revalidateIntervalMs;
+    if (!interval || this.disposed || this.emitter.size === 0) return;
+    if (this.revalidateTimer) clearTimeout(this.revalidateTimer);
+    this.revalidateTimer = setTimeout(() => {
+      this.revalidateTimer = null;
+      if (this.disposed || this.emitter.size === 0) return;
+      this.scheduleBackground();
+    }, interval);
+  }
+
+  private clearTimers(): void {
+    if (this.debounceTimer) clearTimeout(this.debounceTimer);
+    this.debounceTimer = null;
+    if (this.revalidateTimer) clearTimeout(this.revalidateTimer);
+    this.revalidateTimer = null;
   }
 
   private assertNotDisposed(): void {
