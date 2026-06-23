@@ -1,0 +1,34 @@
+apps/emdash-desktop/src/main/core/automations/controller.ts
+  s_6d3d3a64d22809::t_35ca912b1b79c3 15-16
+apps/emdash-desktop/src/renderer/features/automations/use-automation-unread-count.ts
+  s_6d3d3a64d22809::t_8298ef0a44ab8f 17-19
+apps/emdash-desktop/src/main/core/automations/automations-service.ts
+  s_6d3d3a64d22809::t_a59a941beb4e54 1
+  s_04ab630d7f3407::t_1f34f65ef67299 35-42,167,175
+  s_6d3d3a64d22809::t_9a421bd9b4dc17 163-166,168-170
+  s_04ab630d7f3407::t_267100dbb38eed 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "3b3b354ef2049d6935296438c8eaec3957b88c7a",
+  "prompts": {},
+  "sessions": {
+    "s_04ab630d7f3407": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_10a1b22daffehceEghZIQJScam",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_6d3d3a64d22809": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "33b1d1b1-d805-48cf-b21c-7c5a09510ef0",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
