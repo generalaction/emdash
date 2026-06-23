@@ -392,7 +392,11 @@ export function crushMcpAdapter(configPath = '.config/crush/crush.json') {
     serversKey: 'mcp',
     toNative(s) {
       const { name: _n, transport: _transport, ...rest } = s;
-      return rest as Record<string, unknown>;
+      const entry = rest as Record<string, unknown>;
+      if (!('type' in entry) && _transport) {
+        entry.type = _transport;
+      }
+      return entry;
     },
     fromNative(name, raw) {
       return { name, ...raw } as McpServerRegistration;
