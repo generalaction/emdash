@@ -1,0 +1,39 @@
+apps/emdash-desktop/src/main/core/conversations/emit-conversation-started.test.ts
+  s_88f4febd93aad0::t_10d23b85c9bffc 1-49
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_88f4febd93aad0::t_279bd0b63656d0 78-98,158-177
+apps/emdash-desktop/src/main/core/conversations/emit-conversation-started.ts
+  s_88f4febd93aad0::t_e3d4e737ba4261 1
+  s_88f4febd93aad0::t_ea93f463e4e20a 2-25
+packages/plugins/src/agents/impl/devin/hooks.ts
+  s_88f4febd93aad0::t_e2812c2e735ef5 1-2
+  s_88f4febd93aad0::t_eadd06c5a8b5a2 4-6,9-10,15-42,44-66
+packages/plugins/src/agents/impl/devin/index.test.ts
+  s_88f4febd93aad0::t_a806aa0fdff41a 1-92
+packages/plugins/src/agents/impl/devin/index.ts
+  s_88f4febd93aad0::t_94154375484ba6 21,67-70
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_88f4febd93aad0::t_467e8d3d3f1ba6 179-182
+apps/emdash-desktop/src/main/core/conversations/hydrateConversation.ts
+  s_88f4febd93aad0::t_a486a4ff2fc63e 5,42-52
+apps/emdash-desktop/src/main/core/conversations/createConversation.ts
+  s_88f4febd93aad0::t_63cf442fd42ee7 16,26
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.ts
+  s_88f4febd93aad0::t_c7da09f699a8af 3-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "f8a0fc47e7080fec7abc6e213d57578da6c10c50",
+  "prompts": {},
+  "sessions": {
+    "s_88f4febd93aad0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef309-9a9c-7861-8bc9-916b54433fef",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
