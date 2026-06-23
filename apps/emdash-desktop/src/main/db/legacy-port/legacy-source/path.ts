@@ -14,7 +14,7 @@ export function resolveLegacyUserDataPathCandidates(
     candidates.push(join(dirname(userDataPath), 'Emdash'));
   }
 
-  return [...new Set(candidates)];
+  return candidates;
 }
 
 export function resolveLegacyDatabasePath(userDataPath: string): string {
