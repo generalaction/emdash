@@ -440,7 +440,7 @@ describe('terminal shell resolver', () => {
     ).rejects.toBeInstanceOf(ShellUnavailableError);
   });
 
-  it('keeps login-shell args for unknown remote system shells after normalization', async () => {
+  it('keeps fish as the remote system shell after normalization', async () => {
     const profile = await resolveTerminalShell({
       intent: 'system',
       target: {
@@ -451,11 +451,11 @@ describe('terminal shell resolver', () => {
 
     expect(profile).toMatchObject({
       id: 'target-default',
-      resolvedShellId: 'sh',
+      resolvedShellId: 'fish',
       resolvedFromSystem: true,
-      executable: '/bin/sh',
-      interactiveArgs: ['-i'],
-      commandArgs: ['-c'],
+      executable: '/usr/local/bin/fish',
+      interactiveArgs: ['-il'],
+      commandArgs: ['-lc'],
     });
   });
 });

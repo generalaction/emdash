@@ -1,7 +1,7 @@
+import type { Result } from '@emdash/shared';
 import type { FileSystemProvider } from '@main/core/fs/types';
-import type { RepositoryGitProvider } from '@main/core/git/repository-git-provider';
 import { log } from '@main/lib/logger';
-import { remoteNameFromQualifiedRef } from '@shared/core/git/git-utils';
+import { remoteNameFromQualifiedRef } from '@shared/core/git/utils';
 import {
   baseProjectSettingsSchema,
   legacyBaseProjectSettingsSchema,
@@ -11,7 +11,6 @@ import {
   type ShareableProjectSettings,
 } from '@shared/core/project-settings/project-settings';
 import { mergeShareableProjectSettings } from '@shared/core/project-settings/project-settings-fields';
-import type { Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import {
   hasLegacyShareableConfigMigrated,
@@ -26,10 +25,14 @@ export type LegacyProjectSettingsMigrationArgs = {
   configReader: Pick<FileSystemProvider, 'exists' | 'read'> | undefined;
   defaultBranchFallback: string;
   storage: ProjectSettingsStorage;
-  git?: Pick<RepositoryGitProvider, 'isFileCleanlyTracked'>;
+  git?: ProjectSettingsGitInspector;
   normalizeStoredWorktreeDirectory: (
     worktreeDirectory: string
   ) => Promise<Result<string, UpdateProjectSettingsError>>;
+};
+
+export type ProjectSettingsGitInspector = {
+  isFileCleanlyTracked(filePath: string): Promise<boolean>;
 };
 
 function normalizeLegacyDefaultBranch(

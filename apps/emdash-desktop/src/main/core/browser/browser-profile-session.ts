@@ -1,5 +1,11 @@
 import { app, session, type Session } from 'electron';
 import { log } from '@main/lib/logger';
+import type { AppSettings } from '@shared/core/app-settings';
+import {
+  applyLocalDevelopmentCorsRelaxation,
+  localDevelopmentCorsRelaxationRequest,
+  type BrowserCorsRelaxationRequest,
+} from './browser-cors-relaxation';
 import {
   firefoxUserAgent,
   isGoogleAuthUrl,
@@ -16,6 +22,11 @@ const ALLOWED_BROWSER_PERMISSIONS: ReadonlySet<string> = new Set([
 ]);
 
 const configuredPartitions = new Set<string>();
+let relaxCorsForLocalDevelopment = false;
+
+export function setBrowserCorsRelaxationSettings(browser: AppSettings['browser']): void {
+  relaxCorsForLocalDevelopment = browser.relaxCorsForLocalhost;
+}
 
 /**
  * Returns the session for a browser partition, applying profile-wide hardening
@@ -30,11 +41,40 @@ export function configureBrowserProfileSession(partition: string): Session {
 
   ses.setUserAgent(stripEmbeddedBrowserTokens(ses.getUserAgent(), app.getName()));
 
+  const corsRequests = new Map<number, BrowserCorsRelaxationRequest>();
+
   ses.webRequest.onBeforeSendHeaders((details, callback) => {
     if (isGoogleAuthUrl(details.url)) {
       details.requestHeaders['User-Agent'] = firefoxUserAgent();
     }
+
+    const corsRequest = relaxCorsForLocalDevelopment
+      ? localDevelopmentCorsRelaxationRequest(details.requestHeaders)
+      : null;
+    if (corsRequest) corsRequests.set(details.id, corsRequest);
+    else corsRequests.delete(details.id);
+
     callback({ requestHeaders: details.requestHeaders });
+  });
+
+  ses.webRequest.onHeadersReceived((details, callback) => {
+    const corsRequest = corsRequests.get(details.id);
+    corsRequests.delete(details.id);
+    if (!relaxCorsForLocalDevelopment || !corsRequest || !details.responseHeaders) {
+      callback({ responseHeaders: details.responseHeaders });
+      return;
+    }
+
+    callback({
+      responseHeaders: applyLocalDevelopmentCorsRelaxation(details.responseHeaders, corsRequest),
+    });
+  });
+
+  ses.webRequest.onCompleted((details) => {
+    corsRequests.delete(details.id);
+  });
+  ses.webRequest.onErrorOccurred((details) => {
+    corsRequests.delete(details.id);
   });
 
   ses.setPermissionRequestHandler((_webContents, permission, callback) => {

@@ -1,18 +1,18 @@
-import type { CLIAgentPluginProvider } from '@emdash/shared/agents/plugins';
-import type { Platform } from '@emdash/shared/deps';
+import type { CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
+import type { Platform } from '@emdash/core/deps';
 import {
   deriveHostDependencyStatus,
   resolveActiveInstallation,
   resolveInstallOptions,
   sourceKey,
   toPlatform,
-} from '@emdash/shared/deps/runtime';
+} from '@emdash/core/deps/runtime';
 import type {
   DependencyId,
   DependencyState,
   HostDependency,
   HostDependencyManager,
-} from '@emdash/shared/deps/runtime';
+} from '@emdash/core/deps/runtime';
 import type {
   AgentInstallationStatus,
   AgentMetadata,

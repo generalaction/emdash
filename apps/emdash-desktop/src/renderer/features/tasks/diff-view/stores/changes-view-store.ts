@@ -1,6 +1,6 @@
 import { computed, makeObservable, observable, reaction, runInAction, when } from 'mobx';
 import { type PrStore } from '@renderer/features/tasks/stores/pr-store';
-import { type GitStore } from './git-store';
+import { type GitWorktreeStore } from '../../stores/git-worktree-store';
 
 export type SelectionState = 'all' | 'none' | 'partial';
 
@@ -19,7 +19,7 @@ export class ChangesViewStore {
   private _suppressAutoExpand = new Set<keyof ExpandedSections>();
 
   constructor(
-    private readonly git: GitStore,
+    private readonly gitWorktree: GitWorktreeStore,
     private readonly pr: PrStore
   ) {
     makeObservable(this, {
@@ -32,8 +32,8 @@ export class ChangesViewStore {
     this._disposeReactions.push(
       reaction(
         () => ({
-          unstaged: this.git.unstagedFileChanges.map((c) => c.path),
-          staged: this.git.stagedFileChanges.map((c) => c.path),
+          unstaged: this.gitWorktree.unstagedFileChanges.map((c) => c.path),
+          staged: this.gitWorktree.stagedFileChanges.map((c) => c.path),
         }),
         ({ unstaged, staged }) => {
           const unstagedSet = new Set(unstaged);
@@ -53,10 +53,10 @@ export class ChangesViewStore {
     // Set sensible initial expanded state once the first git load completes.
     this._disposeReactions.push(
       when(
-        () => !this.git.isLoading && !this.git.error,
+        () => !this.gitWorktree.isLoading && !this.gitWorktree.error,
         () => {
-          const hasUnstaged = this.git.unstagedFileChanges.length > 0;
-          const hasStaged = this.git.stagedFileChanges.length > 0;
+          const hasUnstaged = this.gitWorktree.unstagedFileChanges.length > 0;
+          const hasStaged = this.gitWorktree.stagedFileChanges.length > 0;
           const hasPullRequests = this.pr.pullRequests.length > 0;
 
           runInAction(() => {
@@ -74,8 +74,8 @@ export class ChangesViewStore {
     this._disposeReactions.push(
       reaction(
         () => ({
-          unstaged: this.git.unstagedFileChanges.length,
-          staged: this.git.stagedFileChanges.length,
+          unstaged: this.gitWorktree.unstagedFileChanges.length,
+          staged: this.gitWorktree.stagedFileChanges.length,
           pullRequests: this.pr.pullRequests.length,
         }),
         (curr, prev) => {
@@ -127,7 +127,7 @@ export class ChangesViewStore {
   }
 
   get unstagedSelectionState(): SelectionState {
-    const total = this.git.unstagedFileChanges.length;
+    const total = this.gitWorktree.unstagedFileChanges.length;
     const selected = this.unstagedSelection.size;
     if (total === 0 || selected === 0) return 'none';
     if (selected === total) return 'all';
@@ -135,7 +135,7 @@ export class ChangesViewStore {
   }
 
   get stagedSelectionState(): SelectionState {
-    const total = this.git.stagedFileChanges.length;
+    const total = this.gitWorktree.stagedFileChanges.length;
     const selected = this.stagedSelection.size;
     if (total === 0 || selected === 0) return 'none';
     if (selected === total) return 'all';
@@ -154,14 +154,16 @@ export class ChangesViewStore {
     if (this.unstagedSelectionState === 'all') {
       this.unstagedSelection.clear();
     } else {
-      for (const c of this.git.unstagedFileChanges) {
+      for (const c of this.gitWorktree.unstagedFileChanges) {
         this.unstagedSelection.add(c.path);
       }
     }
   }
 
-  clearUnstagedSelection(): void {
-    this.unstagedSelection.clear();
+  removeUnstagedSelection(paths: readonly string[]): void {
+    for (const path of paths) {
+      this.unstagedSelection.delete(path);
+    }
   }
 
   toggleStagedItem(path: string): void {
@@ -176,14 +178,16 @@ export class ChangesViewStore {
     if (this.stagedSelectionState === 'all') {
       this.stagedSelection.clear();
     } else {
-      for (const c of this.git.stagedFileChanges) {
+      for (const c of this.gitWorktree.stagedFileChanges) {
         this.stagedSelection.add(c.path);
       }
     }
   }
 
-  clearStagedSelection(): void {
-    this.stagedSelection.clear();
+  removeStagedSelection(paths: readonly string[]): void {
+    for (const path of paths) {
+      this.stagedSelection.delete(path);
+    }
   }
 
   toggleExpanded(section: keyof ExpandedSections): void {

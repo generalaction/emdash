@@ -30,15 +30,6 @@ vi.mock('@main/core/github/services/repo-service', () => ({
   repoService: {},
 }));
 
-vi.mock('@main/core/ssh/lifecycle/production-ssh-connection-manager', () => ({
-  sshConnectionManager: {},
-}));
-
-vi.mock('@main/core/git/impl/git-repo-utils', () => ({
-  cloneRepository: vi.fn(),
-  initializeNewProject: vi.fn(),
-}));
-
 vi.mock('@main/lib/events', () => ({
   events: {
     emit: mocks.emit,

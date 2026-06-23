@@ -1,10 +1,10 @@
-import { pluginRegistry } from '@emdash/plugins/agents';
-import type { CLIAgentPluginProvider } from '@emdash/shared/agents/plugins';
+import type { CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
 import type {
   DependencyDescriptor,
   DependencyStatus,
   ProbeResult,
-} from '@emdash/shared/deps/runtime';
+} from '@emdash/core/deps/runtime';
+import { pluginRegistry } from '@emdash/plugins/agents';
 
 /**
  * Agents that output their version on stderr, time out during probing, or return
@@ -68,6 +68,9 @@ function buildAgentDependencies(): DependencyDescriptor[] {
 }
 
 export const DEPENDENCIES: DependencyDescriptor[] = buildAgentDependencies();
+export const AGENT_DEPENDENCIES = DEPENDENCIES.filter(
+  (dependency) => dependency.category === 'agent'
+);
 
 export function getDependencyDescriptor(id: string): DependencyDescriptor | undefined {
   return DEPENDENCIES.find((d) => d.id === id);

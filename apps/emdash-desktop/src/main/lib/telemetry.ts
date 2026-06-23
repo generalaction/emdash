@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import type { IDisposable, IInitializable } from '@emdash/shared';
 import { app } from 'electron';
 import { KV } from '@main/db/kv';
 import { env as appEnv } from '@main/lib/env';
-import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import type { TelemetryEnvelope, TelemetryEvent, TelemetryProperties } from '@shared/telemetry';
 
 interface InitOptions {

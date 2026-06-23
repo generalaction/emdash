@@ -75,19 +75,18 @@ export class GitHubCliAccountImportService {
       const accountId = `${host}:${String(user.id)}`;
       if (removedAccountIds.has(accountId)) continue;
 
-      imported.push(
-        await this.accountRegistry.upsertAccount({
-          accessToken: token,
-          credentialSource: 'cli',
-          providerAccount: {
-            providerId: 'github',
-            providerAccountId: String(user.id),
-            host,
-            login: user.login,
-            avatarUrl: user.avatar_url,
-          },
-        })
-      );
+      const { account } = await this.accountRegistry.upsertAccount({
+        accessToken: token,
+        credentialSource: 'cli',
+        providerAccount: {
+          providerId: 'github',
+          providerAccountId: String(user.id),
+          host,
+          login: user.login,
+          avatarUrl: user.avatar_url,
+        },
+      });
+      imported.push(account);
     }
     return imported;
   }

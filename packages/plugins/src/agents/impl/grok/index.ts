@@ -1,5 +1,5 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand } from '@emdash/shared/agents/plugins/helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
 import { buildGrokHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -14,9 +14,6 @@ export const plugin = definePlugin(
   {
     autoApprove: {
       kind: 'supported',
-    },
-    effort: {
-      kind: 'none',
     },
     hooks: {
       kind: 'config',
@@ -50,17 +47,9 @@ export const plugin = definePlugin(
         },
       },
     },
-    mcp: {
-      kind: 'none',
-    },
-    models: {
-      kind: 'none',
-    },
-    plugins: {
-      kind: 'none',
-    },
     prompt: {
-      kind: 'keystroke',
+      kind: 'argv',
+      flag: '',
     },
     sessions: {
       kind: 'resumable',
@@ -74,6 +63,7 @@ export const provider = registerPluginBehavior(plugin, {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
         autoApproveFlag: '--always-approve',
+        initialPromptFlag: '',
         resumeFlag: '-r',
         sessionIdFlag: '-r',
         sessionIdOnResumeOnly: true,

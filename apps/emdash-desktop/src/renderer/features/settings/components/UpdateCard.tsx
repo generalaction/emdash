@@ -4,7 +4,6 @@ import React from 'react';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
-import { formatBytes } from '@renderer/utils/formatBytes';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { SettingRow } from './SettingRow';
 
@@ -12,9 +11,6 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
   const update = appState.update;
   const downloadProgress =
     update.state.status === 'downloading' ? update.state.progress : undefined;
-  const hasByteProgress =
-    downloadProgress !== undefined &&
-    ((downloadProgress.total ?? 0) > 0 || (downloadProgress.transferred ?? 0) > 0);
 
   const versionTitle = (
     <div className="flex items-center gap-2">
@@ -40,13 +36,12 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-8 w-8"
                 onClick={() => update.check()}
                 disabled={update.state.status === 'checking'}
                 aria-label="Check for updates"
               >
                 <RefreshCw
-                  className={`h-3 w-3 ${update.state.status === 'checking' ? 'animate-spin' : ''}`}
+                  className={`size-4 ${update.state.status === 'checking' ? 'animate-spin' : ''}`}
                 />
               </Button>
             )}
@@ -56,19 +51,11 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
       />
 
       {update.state.status === 'downloading' && downloadProgress && (
-        <div className="space-y-2">
-          <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
-            <div
-              className="bg-primary h-full transition-all duration-300 ease-out"
-              style={{ width: `${downloadProgress.percent || 0}%` }}
-            />
-          </div>
-          {hasByteProgress && (
-            <p className="text-muted-foreground text-xs">
-              {formatBytes(downloadProgress.transferred || 0)} /{' '}
-              {formatBytes(downloadProgress.total || 0)}
-            </p>
-          )}
+        <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
+          <div
+            className="bg-primary h-full transition-all duration-300 ease-out"
+            style={{ width: `${downloadProgress.percent || 0}%` }}
+          />
         </div>
       )}
     </div>
@@ -143,42 +130,32 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
     switch (update.state.status) {
       case 'available':
         return (
-          <Button
-            size="sm"
-            variant="default"
-            onClick={() => update.download()}
-            className="h-7 text-xs"
-          >
-            <Download className="mr-1.5 h-3 w-3" />
+          <Button variant="default" onClick={() => update.download()}>
+            <Download className="size-4" />
             Download
           </Button>
         );
 
       case 'downloading':
         return (
-          <Button size="sm" variant="outline" disabled className="h-7 text-xs">
-            <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+          <Button variant="outline" disabled>
+            <Loader2 className="size-4 animate-spin" />
             Downloading
           </Button>
         );
 
       case 'downloaded':
         return (
-          <Button
-            size="sm"
-            variant="default"
-            onClick={() => update.install()}
-            className="h-7 text-xs"
-          >
-            <RefreshCw className="mr-1.5 h-3 w-3" />
+          <Button variant="default" onClick={() => update.install()}>
+            <RefreshCw className="size-4" />
             Restart
           </Button>
         );
 
       case 'installing':
         return (
-          <Button size="sm" variant="outline" disabled className="h-7 text-xs">
-            <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+          <Button variant="outline" disabled>
+            <Loader2 className="size-4 animate-spin" />
             Installing
           </Button>
         );

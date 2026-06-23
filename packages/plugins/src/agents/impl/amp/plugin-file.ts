@@ -2,16 +2,11 @@
 // This file is intentionally kept as plain TypeScript so it can be inlined at runtime
 // without a bundler asset pipeline.
 export const AMP_PLUGIN_CONTENT = `\
-// @i-know-the-amp-plugin-api-is-wip-and-very-experimental-right-now
+import type { PluginAPI } from '@ampcode/plugin';
 
-type AmpPluginAPI = {
-  on(event: 'agent.start', handler: () => unknown): void;
-  on(event: 'agent.end', handler: () => unknown): void;
-};
-
-async function notifyEmdash(eventType: 'start' | 'stop', body: Record<string, unknown> = {}) {
+async function notifyEmdash(eventType: 'start' | 'stop' | 'session', body: Record<string, unknown> = {}) {
   const port = process.env.EMDASH_HOOK_PORT;
-  const token = process.env.EMDASH_HOOK_TOKEN;
+  const token = process.env.EMDASH_HOOK_NONCE ?? process.env.EMDASH_HOOK_TOKEN;
   const ptyId = process.env.EMDASH_PTY_ID;
 
   if (!port || !token || !ptyId) return;
@@ -32,13 +27,17 @@ async function notifyEmdash(eventType: 'start' | 'stop', body: Record<string, un
   }
 }
 
-export default function (amp: AmpPluginAPI) {
-  amp.on('agent.start', async () => {
-    await notifyEmdash('start');
+export default function (amp: PluginAPI) {
+  amp.on('session.start', async (event) => {
+    await notifyEmdash('session', { session_id: event.thread.id });
   });
 
-  amp.on('agent.end', async () => {
-    await notifyEmdash('stop', { message: 'Task completed' });
+  amp.on('agent.start', async (event) => {
+    await notifyEmdash('start', { session_id: event.thread.id });
+  });
+
+  amp.on('agent.end', async (event) => {
+    await notifyEmdash('stop', { message: 'Task completed', session_id: event.thread.id });
   });
 }
 `;

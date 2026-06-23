@@ -1,10 +1,10 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   ampMcpAdapter,
   buildStandardCommand,
   createFileDropPlugin,
   npmDependency,
-} from '@emdash/shared/agents/plugins/helpers';
+} from '@emdash/core/agents/plugins/helpers';
 import { AMP_PLUGIN_CONTENT } from './plugin-file';
 
 const AMP_PLUGIN_PATH = '.amp/plugins/emdash-hook.ts';
@@ -22,26 +22,20 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'supported',
     },
-    effort: {
-      kind: 'none',
-    },
     hooks: {
       kind: 'plugin',
       scope: 'workspace',
-      supportedEvents: ['start', 'stop'],
+      supportedEvents: ['start', 'stop', 'session'],
     },
     hostDependency: npmDependency({
       id: 'amp',
-      package: '@sourcegraph/amp',
+      package: '@ampcode/cli',
       versionSuffix: '@latest',
     }),
     mcp: {
       kind: 'supported',
       scope: 'global',
       supportedTransports: ['stdio', 'http'],
-    },
-    models: {
-      kind: 'none',
     },
     plugins: {
       kind: 'file-drop',
@@ -51,7 +45,7 @@ export const plugin = definePlugin(
       kind: 'stdin-pipe',
     },
     sessions: {
-      kind: 'stateless',
+      kind: 'resumable',
     },
   },
   { icon }
@@ -64,6 +58,9 @@ export const provider = registerPluginBehavior(plugin, {
         autoApproveFlag: '--dangerously-allow-all',
         initialPromptViaStdinPipe: true,
         extraEnv: { PLUGINS: 'all' },
+        resumeFlag: 'threads continue',
+        sessionIdFlag: 'threads continue',
+        sessionIdOnResumeOnly: true,
       }),
   },
   mcp: ampMcpAdapter(),

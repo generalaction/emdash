@@ -125,4 +125,33 @@ describe('pluginRegistry', () => {
       expect(typeof p.behavior.prompt?.buildCommand).toBe('function');
     }
   });
+
+  it('passes Grok initial prompts as positional argv for interactive sessions', () => {
+    const result = pluginRegistry.get('grok')!.behavior.prompt!.buildCommand({
+      cli: 'grok',
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: '',
+    });
+
+    expect(result).toEqual({
+      command: 'grok',
+      args: ['--always-approve', 'Fix the bug'],
+      env: {},
+    });
+  });
+
+  it('uses the current Amp npm package for install and updates', () => {
+    const amp = pluginRegistry.get('amp')!;
+
+    expect(amp.capabilities.hostDependency.installCommands.macos?.[0]?.command).toBe(
+      'npm install -g @ampcode/cli@latest'
+    );
+    expect(amp.capabilities.hostDependency.updates).toMatchObject({
+      kind: 'supported',
+      releaseSource: { kind: 'npm', package: '@ampcode/cli' },
+    });
+  });
 });

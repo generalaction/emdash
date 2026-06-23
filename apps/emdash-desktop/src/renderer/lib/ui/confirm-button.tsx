@@ -25,7 +25,7 @@ export function ConfirmButton({ disabled, children, ...props }: ConfirmButtonPro
     <Button ref={ref} disabled={disabled} {...props}>
       <span className="flex items-center gap-2">
         {children}
-        <BoundShortcut settingsKey="confirm" />
+        <BoundShortcut settingsKey="confirm" variant="keycaps" />
       </span>
     </Button>
   );

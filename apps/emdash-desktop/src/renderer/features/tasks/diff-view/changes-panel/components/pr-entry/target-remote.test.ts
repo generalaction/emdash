@@ -1,8 +1,8 @@
+import type { GitRemote } from '@emdash/core/git';
 import { describe, expect, it } from 'vitest';
-import type { Remote } from '@shared/core/git/git';
 import { getTargetRemotes, resolveCreatePrTargetRemote } from './target-remote';
 
-const remotes: Remote[] = [
+const remotes: GitRemote[] = [
   { name: 'origin', url: 'git@github.com:user/repo.git' },
   { name: 'upstream', url: 'git@github.com:org/repo.git' },
   { name: 'gitlab', url: 'git@gitlab.com:user/repo.git' },

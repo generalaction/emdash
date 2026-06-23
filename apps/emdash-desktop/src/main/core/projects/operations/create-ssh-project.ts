@@ -1,16 +1,16 @@
 import { randomUUID } from 'node:crypto';
+import { err, ok } from '@emdash/shared';
 import { sql } from 'drizzle-orm';
-import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
-import { GitService } from '@main/core/git/impl/git-service';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
+import { runtimeManager } from '@main/core/runtime/runtime-manager';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import type { ProjectPathStatus, SshProject } from '@shared/projects';
-import { ensureGitRepository, resolveProjectBaseRef } from './create-project-utils';
+import type { CreateProjectResult, ProjectPathStatus } from '@shared/projects';
+import { ensureProjectRepository } from './create-project-utils';
 import { ensureRepositoryWorkspace } from './ensure-repository-workspace';
 
 export type CreateSshProjectParams = {
@@ -21,19 +21,31 @@ export type CreateSshProjectParams = {
   initGitRepository?: boolean;
 };
 
-export async function createSshProject(params: CreateSshProjectParams): Promise<SshProject> {
+export async function createSshProject(
+  params: CreateSshProjectParams
+): Promise<CreateProjectResult> {
   const sshProxy = await sshConnectionManager.connect(params.connectionId);
 
   const sshFs = new SshFileSystem(sshProxy, params.path);
   const pathEntry = await sshFs.stat('');
   if (!pathEntry || pathEntry.type !== 'dir') {
-    throw new Error('Invalid directory');
+    return err({
+      type: 'invalid-directory',
+      path: params.path,
+      message: 'Invalid directory',
+    });
   }
-  const baseSshCtx = new SshExecutionContext(sshProxy, { root: params.path });
-  const git = new GitService(baseSshCtx, sshFs);
-
-  const gitInfo = await ensureGitRepository(git, params.initGitRepository);
-  const baseRef = await resolveProjectBaseRef(git, gitInfo.baseRef);
+  const runtimeLease = await runtimeManager.acquire({
+    kind: 'ssh',
+    connectionId: params.connectionId,
+  });
+  const repositoryResult = await ensureProjectRepository(
+    runtimeLease.value.git,
+    params.path,
+    params.initGitRepository
+  ).finally(() => runtimeLease.release());
+  if (!repositoryResult.success) return repositoryResult;
+  const gitInfo = repositoryResult.data;
 
   const [row] = await db
     .insert(projects)
@@ -43,7 +55,7 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
       path: gitInfo.rootPath,
       workspaceProvider: 'ssh',
       sshConnectionId: params.connectionId,
-      baseRef,
+      baseRef: gitInfo.baseRef,
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
     .returning();
@@ -54,7 +66,7 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
     name: row.name,
     path: row.path,
     connectionId: params.connectionId,
-    baseRef: row.baseRef ?? baseRef,
+    baseRef: row.baseRef ?? gitInfo.baseRef,
     repositoryWorkspaceId: null as string | null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -73,7 +85,7 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
 
   projectEvents._emit('project:created', project);
 
-  return project;
+  return ok(project);
 }
 
 export async function getSshProjectPathStatus(
@@ -88,10 +100,13 @@ export async function getSshProjectPathStatus(
       return { isDirectory: false, isGitRepo: false };
     }
 
-    const baseSshCtx = new SshExecutionContext(sshProxy, { root: path });
-    const git = new GitService(baseSshCtx, sshFs);
-    const gitInfo = await git.detectInfo();
-    return { isDirectory: true, isGitRepo: gitInfo.isGitRepo };
+    const runtimeLease = await runtimeManager.acquire({ kind: 'ssh', connectionId });
+    try {
+      const inspection = await runtimeLease.value.git.inspectPath(path);
+      return { isDirectory: true, isGitRepo: inspection.kind === 'repository' };
+    } finally {
+      runtimeLease.release();
+    }
   } catch {
     return { isDirectory: false, isGitRepo: false };
   }

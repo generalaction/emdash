@@ -1,41 +1,4 @@
 /**
- * Utilities for converting diff formats and working with Monaco Editor
- */
-
-import type { DiffLine } from '@shared/core/git/git';
-
-/**
- * Convert DiffLine[] format to original/modified strings for Monaco Editor
- */
-export function convertDiffLinesToMonacoFormat(lines: DiffLine[]): {
-  original: string;
-  modified: string;
-} {
-  const originalLines: string[] = [];
-  const modifiedLines: string[] = [];
-
-  for (const line of lines) {
-    if (line.type === 'context') {
-      // Context lines appear in both files
-      const content = line.left || line.right || '';
-      originalLines.push(content);
-      modifiedLines.push(content);
-    } else if (line.type === 'del') {
-      // Deleted lines only in original
-      originalLines.push(line.left || line.right || '');
-    } else if (line.type === 'add') {
-      // Added lines only in modified
-      modifiedLines.push(line.right || line.left || '');
-    }
-  }
-
-  return {
-    original: originalLines.join('\n'),
-    modified: modifiedLines.join('\n'),
-  };
-}
-
-/**
  * Map file extensions to Monaco Editor language IDs
  * Monaco uses different IDs than Prism in some cases
  */

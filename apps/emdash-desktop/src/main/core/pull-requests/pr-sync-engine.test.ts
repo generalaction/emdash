@@ -1,8 +1,8 @@
+import { err, ok } from '@emdash/shared';
+import type { Result } from '@emdash/shared';
 import type { Octokit } from '@octokit/rest';
 import { describe, expect, it, vi } from 'vitest';
 import type { GitHubApiAuthError } from '@main/core/github/services/github-api-auth-errors';
-import { err, ok } from '@shared/lib/result';
-import type { Result } from '@shared/lib/result';
 import { PrSyncEngine } from './pr-sync-engine';
 import { toPrApiError } from './pr-sync-errors';
 

@@ -26,13 +26,13 @@ export const SETTINGS_DEFAULTS = {
   }),
   tasks: {
     autoGenerateName: true,
+    autoApproveByDefault: false,
     autoTrustWorktrees: true,
     createBranchAndWorktree: true,
     preserveNameCapitalization: false,
     includeIssueContextByDefault: true,
     deleteBehavior: 'ask' as const,
   },
-  agentAutoApproveDefaults: {},
   notifications: {
     enabled: true,
     sound: true,
@@ -67,6 +67,7 @@ export const SETTINGS_DEFAULTS = {
   },
   browser: {
     defaultProfileId: DEFAULT_BROWSER_PROFILE_ID,
+    relaxCorsForLocalhost: false,
     profiles: DEFAULT_BROWSER_PROFILES,
   },
   resourceMonitor: {

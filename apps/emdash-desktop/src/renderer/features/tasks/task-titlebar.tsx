@@ -45,8 +45,8 @@ import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import { AutomationRunPill } from './components/automation-run-pill';
-import { DevServerPills } from './components/dev-server-pills';
 import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
+import { PreviewServerPills } from './components/preview-servers/preview-server-pills';
 import { type SidebarTab } from './types';
 import { useGitActions } from './use-git-actions';
 
@@ -121,8 +121,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
     isPushing,
   } = useGitActions(projectId, taskId);
 
-  const linesAdded = workspace.git.totalLinesAdded;
-  const linesDeleted = workspace.git.totalLinesDeleted;
+  const linesAdded = workspace.gitWorktree.totalLinesAdded;
+  const linesDeleted = workspace.gitWorktree.totalLinesDeleted;
   const hasDiffStats = linesAdded > 0 || linesDeleted > 0;
 
   const projectStore = asMounted(getProjectStore(projectId));
@@ -168,7 +168,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               <div className="flex flex-col gap-1 rounded-md border border-border p-2">
                 <span className="flex items-center gap-1 text-foreground-muted">
                   <GitBranch className="size-3.5" />
-                  <span>{workspace.git.branchName}</span>
+                  <span>{workspace.gitWorktree.branchName}</span>
                 </span>
                 <div className="flex w-full items-center gap-1">
                   {hasUpstream ? (
@@ -278,7 +278,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   void taskStore.updateLinkedIssue(issue ?? undefined);
                 }}
                 projectId={projectId}
-                repositoryUrl={workspace.repository.issueRepositoryUrl ?? ''}
+                repositoryUrl={workspace.gitRepository.canonicalRepositoryUrl ?? ''}
                 projectPath={workspace.path}
                 excludeTaskId={taskId}
               />
@@ -311,7 +311,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
       }
       rightSlot={
         <div className="flex items-center gap-2">
-          <DevServerPills projectId={projectId} taskId={taskId} />
+          <PreviewServerPills />
           <OpenInMenu
             path={workspace.path}
             className="h-7 bg-transparent"
@@ -334,7 +334,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               </Toggle>
             </TooltipTrigger>
             <TooltipContent>
-              Toggle terminal <BoundShortcut settingsKey="toggleTerminalDrawer" variant="badge" />
+              Toggle terminal <BoundShortcut settingsKey="toggleTerminalDrawer" variant="keycaps" />
             </TooltipContent>
           </Tooltip>
           <Separator orientation="vertical" className="h-5 self-center!" />
@@ -381,7 +381,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 }
               />
               <TooltipContent>
-                Changes <BoundShortcut settingsKey="sidebarChanges" variant="badge" />
+                Changes <BoundShortcut settingsKey="sidebarChanges" variant="keycaps" />
               </TooltipContent>
             </Tooltip>
             <Tooltip>
@@ -393,7 +393,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 }
               />
               <TooltipContent>
-                Files <BoundShortcut settingsKey="sidebarFiles" variant="badge" />
+                Files <BoundShortcut settingsKey="sidebarFiles" variant="keycaps" />
               </TooltipContent>
             </Tooltip>
             <Tooltip>
@@ -405,7 +405,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 }
               />
               <TooltipContent>
-                Conversations <BoundShortcut settingsKey="sidebarConversations" variant="badge" />
+                Conversations <BoundShortcut settingsKey="sidebarConversations" variant="keycaps" />
               </TooltipContent>
             </Tooltip>
           </ToggleGroup>

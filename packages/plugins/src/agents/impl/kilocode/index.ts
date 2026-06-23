@@ -1,6 +1,13 @@
-import { definePlugin, registerPluginBehavior } from '@emdash/shared/agents/plugins';
-import { buildStandardCommand, npmDependency } from '@emdash/shared/agents/plugins/helpers';
+import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import {
+  buildStandardCommand,
+  createFileDropPlugin,
+  npmDependency,
+} from '@emdash/core/agents/plugins/helpers';
 import { icon } from './icon';
+import { KILOCODE_PLUGIN_CONTENT } from './plugin-file';
+
+const KILOCODE_PLUGIN_PATH = '.kilo/plugins/emdash-notifications.js';
 
 export const plugin = definePlugin(
   {
@@ -14,29 +21,26 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'supported',
     },
-    effort: {
-      kind: 'none',
-    },
     hooks: {
-      kind: 'none',
+      kind: 'plugin',
+      scope: 'workspace',
+      supportedEvents: ['notification', 'stop', 'session'],
     },
     hostDependency: npmDependency({
       id: 'kilocode',
       package: '@kilocode/cli',
       binaryNames: ['kilo'],
     }),
-    mcp: {
-      kind: 'none',
-    },
-    models: {
-      kind: 'none',
-    },
     plugins: {
-      kind: 'none',
+      kind: 'file-drop',
+      scope: 'workspace',
     },
     prompt: {
       kind: 'argv',
-      flag: '',
+      // `kilo <positional>` is interpreted as the project directory and gets
+      // realpath()'d, which throws ENAMETOOLONG on large prompts (ENG-1546).
+      // The interactive TUI accepts the initial prompt via `--prompt` instead.
+      flag: '--prompt',
     },
     sessions: {
       kind: 'resumable',
@@ -50,8 +54,12 @@ export const provider = registerPluginBehavior(plugin, {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
         autoApproveFlag: '--auto',
-        initialPromptFlag: '',
+        initialPromptFlag: '--prompt',
         resumeFlag: '--continue',
       }),
   },
+  plugins: createFileDropPlugin({
+    relativePath: KILOCODE_PLUGIN_PATH,
+    content: KILOCODE_PLUGIN_CONTENT,
+  }),
 });

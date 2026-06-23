@@ -71,6 +71,7 @@ function PaneEmptyStateAction({
 }) {
   return (
     <button
+      data-slot="button"
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       className={cn(
@@ -82,7 +83,7 @@ function PaneEmptyStateAction({
         {icon}
         {label}
       </div>
-      <BoundShortcut settingsKey={shortcutSettingsKey} className="text-foreground-muted" />
+      <BoundShortcut settingsKey={shortcutSettingsKey} variant="keycaps" />
     </button>
   );
 }

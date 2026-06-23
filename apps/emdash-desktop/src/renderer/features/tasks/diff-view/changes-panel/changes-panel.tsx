@@ -26,7 +26,7 @@ export const ChangesPanel = observer(function ChangesPanel() {
     containerRef,
   } = usePanelLayout(changesView ?? null, taskView.isChangesPanelVisible);
 
-  if (!diffView || !changesView || !workspace.git.hasData) return null;
+  if (!diffView || !changesView || !workspace.gitWorktree.hasData) return null;
 
   return (
     <div ref={containerRef} className="flex h-full flex-col">

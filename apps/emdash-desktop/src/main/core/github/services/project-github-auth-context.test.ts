@@ -1,6 +1,6 @@
+import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectSettings } from '@shared/core/project-settings/project-settings';
-import { err, ok } from '@shared/lib/result';
 import {
   ProjectGitHubAuthContextResolver,
   type ProjectGitHubAuthContextError,

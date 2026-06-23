@@ -28,6 +28,7 @@ import {
 import { clearDestinationDataPreservingSignIn } from './reset';
 import { buildLegacyProjectSelection } from './source-analysis';
 import { createLegacyPortStateStore } from './state-store';
+import { ensureImportedTaskWorkspaces } from './task-workspace-backfill';
 
 type LegacyPortDb = ReturnType<typeof drizzle<typeof schema>>;
 
@@ -214,6 +215,7 @@ export async function runLegacyPort(
         skipLegacyProjectIds: selection.skipLegacyProjectIds,
       });
       const taskResult = await portTasks({ appDb: appTarget.db, legacyDb, remap });
+      ensureImportedTaskWorkspaces(appTarget.db);
       const conversationsSummary = await portConversations({
         appDb: appTarget.db,
         legacyDb,
