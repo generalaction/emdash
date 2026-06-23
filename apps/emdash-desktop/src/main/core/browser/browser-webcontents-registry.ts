@@ -4,6 +4,7 @@ import {
   session,
   type BrowserWindow,
   type BrowserWindowConstructorOptions,
+  type ClearDataOptions,
   type MenuItemConstructorOptions,
   type WebContents,
 } from 'electron';
@@ -14,6 +15,7 @@ import {
   isNamedBrowserProfileId,
   normalizeBrowserUrl,
   type BrowserDataClearKind,
+  type BrowsingDataKind,
 } from '@shared/browser';
 import type { AppSettings } from '@shared/core/app-settings';
 import { browserAppShortcutChannel, tabNavigationShortcutChannel } from '@shared/events/appEvents';
@@ -46,6 +48,17 @@ const BROWSER_POPUP_WINDOW_OPTIONS: BrowserWindowConstructorOptions = {
     allowRunningInsecureContent: false,
   },
 };
+
+// Electron's type union lags Chromium's supported `clearData` values.
+const SITE_DATA_CLEAR_DATA_TYPES = [
+  'backgroundFetch',
+  'cacheStorage',
+  'fileSystems',
+  'indexedDB',
+  'localStorage',
+  'serviceWorkers',
+  'webSQL',
+] as unknown as NonNullable<ClearDataOptions['dataTypes']>;
 
 export class BrowserWebContentsRegistry {
   private readonly sessionsByBrowserId = new Map<string, RegisteredBrowserSession>();
@@ -190,6 +203,16 @@ export class BrowserWebContentsRegistry {
     return true;
   }
 
+  /**
+   * Clears a category of browsing data across the given partitions. Used by the
+   * global "Browsing data" settings controls, which target every browser
+   * profile rather than a single open tab.
+   */
+  async clearBrowsingData(kind: BrowsingDataKind, partitions: readonly string[]): Promise<boolean> {
+    await Promise.all(partitions.map((partition) => clearPartitionBrowsingData(partition, kind)));
+    return true;
+  }
+
   private isRegisteredPartitionSession(webContents: WebContents): boolean {
     for (const partition of this.registeredPartitions) {
       if (session.fromPartition(partition) === webContents.session) {
@@ -317,6 +340,30 @@ export class BrowserWebContentsRegistry {
 }
 
 export const browserWebContentsRegistry = new BrowserWebContentsRegistry();
+
+async function clearPartitionBrowsingData(
+  partition: string,
+  kind: BrowsingDataKind
+): Promise<void> {
+  const partitionSession = session.fromPartition(partition);
+  switch (kind) {
+    case 'all':
+      // No options clears every data type, more thoroughly than clearStorageData.
+      await partitionSession.clearData();
+      return;
+    case 'cookies':
+      await partitionSession.clearData({ dataTypes: ['cookies'] });
+      return;
+    case 'siteData':
+      await partitionSession.clearData({
+        dataTypes: SITE_DATA_CLEAR_DATA_TYPES,
+      });
+      return;
+    case 'cache':
+      await partitionSession.clearData({ dataTypes: ['cache'] });
+      return;
+  }
+}
 
 function hardenBrowserPopupWindow(window: BrowserWindow): void {
   const webContents = window.webContents;

@@ -212,7 +212,7 @@ describe('AgentUpdateService', () => {
       id: 'amp',
       updates: {
         kind: 'supported' as const,
-        releaseSource: { kind: 'npm' as const, package: '@sourcegraph/amp' },
+        releaseSource: { kind: 'npm' as const, package: '@ampcode/cli' },
         update: { kind: 'package-manager' as const },
       },
       commandHooks: undefined,

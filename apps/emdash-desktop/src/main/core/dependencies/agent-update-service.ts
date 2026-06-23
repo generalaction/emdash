@@ -64,7 +64,7 @@ export class AgentUpdateService {
    * data and emit on the desktop channels. Called once per manager instance.
    */
   attach(manager: HostDependencyManager, connectionId?: string): void {
-    manager.onStatusUpdated.subscribe((event) => {
+    manager.onStatusUpdated.subscribe((event: DependencyStatusUpdatedEvent) => {
       this.handleManagerEvent(event, connectionId);
     });
   }
