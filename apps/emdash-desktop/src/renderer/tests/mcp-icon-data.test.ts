@@ -8,8 +8,7 @@ import { resolveMcpIconKey } from '@renderer/utils/mcpIcons';
 const mcpIconsDir = join(fileURLToPath(new URL('.', import.meta.url)), '../../assets/images/mcp');
 
 const CATALOG_ICON_FILES = new Set(
-  readdirSync(mcpIconsDir)
-    .filter((name) => name.endsWith('.svg') && name !== 'mcp_default.svg')
+  readdirSync(mcpIconsDir).filter((name) => name.endsWith('.svg') && name !== 'mcp_default.svg')
 );
 
 function listCatalogIconFiles(): string[] {
