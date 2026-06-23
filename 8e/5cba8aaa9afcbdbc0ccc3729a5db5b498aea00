@@ -1,0 +1,39 @@
+packages/plugins/src/agents/impl/copilot/hooks.ts
+  s_eb5e6473579e9e::t_5eee496b843635 17,19,27-32,34-35,50-54,60-70,97-102,104-105
+  s_eb5e6473579e9e::t_31394ce472b92a 20,33,71-76,103
+packages/plugins/src/agents/impl/copilot/index.ts
+  s_eb5e6473579e9e::t_9ab266265c4b6a 25
+packages/plugins/src/agents/impl/claude/index.ts
+  s_eb5e6473579e9e::t_24cd885e52c305 25
+packages/plugins/src/agents/impl/kilocode/index.ts
+  s_eb5e6473579e9e::t_cf58cc757476bb 27
+packages/plugins/src/agents/impl/droid/hooks.ts
+  s_eb5e6473579e9e::t_be0036f3e2f0e4 17,19
+packages/plugins/src/agents/impl/devin/index.ts
+  s_eb5e6473579e9e::t_6d0e61f5a46c61 21
+packages/plugins/src/agents/impl/mistral/hooks.ts
+  s_eb5e6473579e9e::t_772ef407dee02a 31-39
+packages/plugins/src/agents/impl/mistral/index.ts
+  s_eb5e6473579e9e::t_729a2345ba408f 21
+packages/plugins/src/agents/impl/devin/hooks.ts
+  s_eb5e6473579e9e::t_6549af12af6197 11-12
+packages/plugins/src/agents/impl/claude/hooks.ts
+  s_eb5e6473579e9e::t_3f45d4ad9a2e90 5,43
+  s_eb5e6473579e9e::t_ad2e7c27198d71 41,46-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "8e5cba8aaa9afcbdbc0ccc3729a5db5b498aea00",
+  "prompts": {},
+  "sessions": {
+    "s_eb5e6473579e9e": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ef5c9-8f4b-75b6-a9f4-dbde859f327f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
