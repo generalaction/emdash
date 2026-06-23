@@ -65,3 +65,8 @@ export function parseFeatureAnnouncementManifestRaw(
   if (!parsed.success) return null;
   return parsed.data;
 }
+
+/** Validates manifest shape and throws with Zod error details (tests/CI). */
+export function assertFeatureAnnouncementManifest(raw: unknown): FeatureAnnouncementManifest {
+  return featureAnnouncementManifestSchema.parse(raw);
+}

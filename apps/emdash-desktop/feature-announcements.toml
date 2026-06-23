@@ -1,8 +1,13 @@
+#:schema ./feature-announcements.schema.json
+#
 # In-app feature highlight manifest.
 #
 # Edit this file on GitHub to announce major features without shipping a new app
 # release. Set `enabled = false` to hide the card while keeping content around
 # for the next launch.
+#
+# Runtime validation: src/shared/feature-announcements/schema.ts (Zod).
+# Editor/CI schema: feature-announcements.schema.json (keep in sync with Zod).
 #
 # The app fetches this file from the main branch at startup.
 #

@@ -1,0 +1,117 @@
+{
+  "$id": "feature-announcements.schema.json",
+  "title": "Emdash feature announcement manifest",
+  "description": "In-app feature highlight shown as a toast. Runtime validation uses the Zod schema in src/shared/feature-announcements/schema.ts — keep both in sync.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["enabled", "id", "title", "changelogUrl", "features"],
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Set to false to hide the announcement without deleting content."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier used for dismissal persistence."
+    },
+    "eyebrow": {
+      "type": "string",
+      "minLength": 1,
+      "default": "Now available"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "hero": {
+      "type": "string",
+      "enum": ["automations"],
+      "description": "Built-in coded hero graphic shipped with the app."
+    },
+    "image": {
+      "type": "string",
+      "format": "uri",
+      "description": "Remote hero image URL. Takes precedence over hero when both are set."
+    },
+    "changelogUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "learnMoreUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "minAppVersion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Semver minimum; older app versions ignore this manifest."
+    },
+    "features": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "items": {
+        "$ref": "#/$defs/feature"
+      }
+    },
+    "cta": {
+      "$ref": "#/$defs/cta"
+    }
+  },
+  "$defs": {
+    "feature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["icon", "title", "description"],
+      "properties": {
+        "icon": {
+          "type": "string",
+          "enum": ["calendar-clock", "list-checks", "shield", "check", "sparkles", "message-square"]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "cta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label"],
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "view": {
+          "type": "string",
+          "enum": ["home", "automations", "library", "skills", "mcp", "project", "task", "settings"]
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        }
+      },
+      "oneOf": [
+        {
+          "required": ["view"],
+          "not": {
+            "required": ["url"]
+          }
+        },
+        {
+          "required": ["url"],
+          "not": {
+            "required": ["view"]
+          }
+        }
+      ]
+    }
+  }
+}
