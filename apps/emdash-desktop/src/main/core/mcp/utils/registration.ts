@@ -60,9 +60,9 @@ export function mcpServerToRegistration(server: McpServer): McpServerRegistratio
  */
 export function mcpServerFieldCount(server: McpServer): number {
   let n = 0;
-  if (server.command) n++;
+  if (server.command) n += 10;
   if (server.args?.length) n++;
-  if (server.url) n++;
+  if (server.url) n += 10;
   if (server.headers && Object.keys(server.headers).length) n++;
   if (server.env && Object.keys(server.env).length) n++;
   if (server.enabled !== undefined) n++;
