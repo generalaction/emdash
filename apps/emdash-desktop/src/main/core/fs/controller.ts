@@ -14,6 +14,15 @@ import {
   type SearchOptions,
 } from './types';
 
+/**
+ * Legacy workspace filesystem RPC surface.
+ *
+ * Keep this for non-tree file operations: editor read/write/image/copy, Monaco
+ * invalidation, lifecycle script config watches, project settings, and related
+ * workspace services. The file tree no longer uses this surface; new tree code
+ * should go through `workspace.fileTree` / `@emdash/core/file-tree`.
+ */
+
 // One watcher per (projectId, workspaceId) pair, shared across all consumers via labels.
 // Local: single recursive @parcel/watcher subscription — update() is a no-op.
 // SSH:   poll-based — update() receives the union of all labels' paths to poll.
@@ -49,6 +58,11 @@ function joinWorkspacePath(rootPath: string, filePath: string): string {
 }
 
 export const filesController = createRPCController({
+  /**
+   * @deprecated Not used by the editor file tree. Prefer `workspace.fileTree`
+   * for tree data, and add narrowly-scoped file operation RPCs for other use
+   * cases instead of growing this generic listing route.
+   */
   listFiles: async (
     projectId: string,
     workspaceId: string,
@@ -296,6 +310,8 @@ export const filesController = createRPCController({
     paths: string[],
     label = 'default'
   ) => {
+    // Legacy raw filesystem watch channel. Do not use this for the file tree;
+    // tree subscriptions are served by `workspace.fileTree` and `fileTreeUpdateChannel`.
     const env = resolveWorkspace(projectId, workspaceId);
     if (!env) {
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });

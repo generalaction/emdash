@@ -5,9 +5,11 @@ import { WorkspaceRegistry } from './workspace-registry';
 function makeWorkspace(id: string): {
   workspace: Workspace;
   dispose: ReturnType<typeof vi.fn>;
+  fileTreeDispose: ReturnType<typeof vi.fn>;
   gitDispose: ReturnType<typeof vi.fn>;
 } {
   const dispose = vi.fn(async () => {});
+  const fileTreeDispose = vi.fn();
   const gitDispose = vi.fn();
 
   return {
@@ -15,6 +17,7 @@ function makeWorkspace(id: string): {
       id,
       path: `/tmp/${id}`,
       fs: {} as Workspace['fs'],
+      fileTree: { dispose: fileTreeDispose } as unknown as Workspace['fileTree'],
       gitWorktree: { dispose: gitDispose } as unknown as Workspace['gitWorktree'],
       settings: {} as Workspace['settings'],
       lifecycleService: {
@@ -24,6 +27,7 @@ function makeWorkspace(id: string): {
       gitRepositoryFetchService: {} as Workspace['gitRepositoryFetchService'],
     },
     dispose,
+    fileTreeDispose,
     gitDispose,
   };
 }
@@ -68,7 +72,7 @@ describe('WorkspaceRegistry', () => {
 
   it('disposes workspace resources when ref count reaches zero', async () => {
     const registry = new WorkspaceRegistry();
-    const { workspace, dispose, gitDispose } = makeWorkspace('branch:main');
+    const { workspace, dispose, fileTreeDispose, gitDispose } = makeWorkspace('branch:main');
     const factory = vi.fn(async () => ({ workspace }));
 
     await registry.acquire('branch:main', 'test-project', factory);
@@ -76,10 +80,12 @@ describe('WorkspaceRegistry', () => {
 
     await registry.release('branch:main');
     expect(dispose).not.toHaveBeenCalled();
+    expect(fileTreeDispose).not.toHaveBeenCalled();
     expect(gitDispose).not.toHaveBeenCalled();
     expect(registry.refCount('branch:main')).toBe(1);
 
     await registry.release('branch:main');
+    expect(fileTreeDispose).toHaveBeenCalledTimes(1);
     expect(gitDispose).toHaveBeenCalledTimes(1);
     expect(dispose).toHaveBeenCalledTimes(1);
     expect(registry.get('branch:main')).toBeUndefined();
@@ -101,8 +107,10 @@ describe('WorkspaceRegistry', () => {
 
     await registry.releaseAll();
 
+    expect(first.fileTreeDispose).toHaveBeenCalledTimes(1);
     expect(first.gitDispose).toHaveBeenCalledTimes(1);
     expect(first.dispose).toHaveBeenCalledTimes(1);
+    expect(second.fileTreeDispose).toHaveBeenCalledTimes(1);
     expect(second.gitDispose).toHaveBeenCalledTimes(1);
     expect(second.dispose).toHaveBeenCalledTimes(1);
     expect(registry.refCount('branch:main')).toBe(0);

@@ -1,3 +1,4 @@
+import type { IFileTreeRuntime } from '@emdash/core/file-tree';
 import type { IGitRuntime } from '@emdash/core/git';
 import type { IDisposable, Lease, Unsubscribe } from '@emdash/shared';
 
@@ -15,6 +16,7 @@ export interface HealthSource {
 
 export interface MachineRuntime extends IDisposable {
   readonly machine: MachineRef;
+  readonly fileTree: IFileTreeRuntime;
   readonly git: IGitRuntime;
   readonly health: HealthSource;
 }

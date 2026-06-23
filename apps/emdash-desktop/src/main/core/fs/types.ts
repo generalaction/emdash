@@ -137,8 +137,18 @@ export interface SearchMatch {
 }
 
 /**
- * Filesystem interface abstraction
- * Implementations: LocalFileSystem (local disk), RemoteFileSystem (SFTP over SSH)
+ * Legacy workspace filesystem abstraction.
+ *
+ * This provider remains active for non-tree workspace file operations
+ * (read/write/image/copy/search/config watches/project setup). Do not extend it
+ * for the editor file tree; file-tree reads, scopes, and deltas live in
+ * `@emdash/core/file-tree` and are exposed through `workspace.fileTree`.
+ *
+ * Longer term this desktop-side provider should disappear behind filesystem APIs
+ * owned by `@emdash/core`. Those APIs should run where the workspace lives and
+ * call `node:fs` directly: desktop imports core directly for local projects,
+ * while the workspace server imports the same core API and exposes it to
+ * desktop for remote projects.
  */
 export interface FileSystemProvider {
   /**

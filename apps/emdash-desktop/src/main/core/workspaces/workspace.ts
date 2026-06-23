@@ -1,3 +1,4 @@
+import type { IFileTree } from '@emdash/core/file-tree';
 import type { IGitWorktree } from '@emdash/core/git';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
@@ -9,6 +10,7 @@ export interface Workspace {
   readonly id: string;
   readonly path: string;
   readonly fs: FileSystemProvider;
+  readonly fileTree: IFileTree;
   readonly gitWorktree: IGitWorktree;
   readonly settings: ProjectSettingsProvider;
   readonly lifecycleService: LifecycleScriptService;

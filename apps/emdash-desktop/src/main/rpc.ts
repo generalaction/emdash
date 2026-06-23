@@ -10,6 +10,7 @@ import { editorBufferController } from './core/editor/controller';
 import { featurebaseController } from './core/featurebase/controller';
 import { forgejoController } from './core/forgejo/controller';
 import { filesController } from './core/fs/controller';
+import { fileTreeController } from './core/fs/file-tree/controller';
 import { gitRepositoryController } from './core/git/repository/controller';
 import { gitWorktreeController } from './core/git/worktree/controller';
 import { githubController } from './core/github/controller';
@@ -85,6 +86,7 @@ export const rpcRouter = createRPCRouter({
   workspace: createRPCNamespace({
     gitWorktree: gitWorktreeController,
     fs: filesController,
+    fileTree: fileTreeController,
     editor: editorBufferController,
   }),
 });

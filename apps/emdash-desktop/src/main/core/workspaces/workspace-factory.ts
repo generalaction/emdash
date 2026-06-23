@@ -24,6 +24,7 @@ import { type WorkspaceFactoryResult } from '@main/core/workspaces/workspace-reg
 import { handleGitWorktreeUpdate } from '@main/core/workspaces/workspace-worktree-update';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { fileTreeUpdateChannel } from '@shared/core/fs/fsEvents';
 import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
 import type { Task } from '@shared/core/tasks/tasks';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
@@ -129,11 +130,8 @@ export function createWorkspaceFactory(
       terminals: workspaceTerminals,
     });
 
-    const runtimeLease = await context.workspaceRuntime.manager.acquire(
-      context.workspaceRuntime.machine
-    );
-    const worktreeLease = await runtimeLease.value.git.openWorktree(workDir);
-    const gitWorktree = worktreeLease.value;
+    const runtime = await acquireWorkspaceRuntime(context.workspaceRuntime, workDir);
+    const { gitWorktree, fileTree } = runtime;
 
     const gitRepository =
       context.gitRepository ?? new GitRepositoryService(gitWorktree.repository, context.settings);
@@ -143,11 +141,13 @@ export function createWorkspaceFactory(
       context.gitRepositoryFetchService ??
       new GitRepositoryFetchService(gitRepository, () => gitRepository.getBaseRemote());
     let unsubscribeGitUpdates: (() => void) | undefined;
+    let unsubscribeFileTreeUpdates: (() => void) | undefined;
 
     const workspace: Workspace = {
       id: workspaceId,
       path: workDir,
       fs: workspaceFs,
+      fileTree,
       gitWorktree,
       settings: context.settings,
       lifecycleService,
@@ -156,8 +156,9 @@ export function createWorkspaceFactory(
       dispose: () => {
         unsubscribeGitUpdates?.();
         unsubscribeGitUpdates = undefined;
-        worktreeLease.release();
-        runtimeLease.release();
+        unsubscribeFileTreeUpdates?.();
+        unsubscribeFileTreeUpdates = undefined;
+        runtime.release();
       },
     };
 
@@ -176,6 +177,13 @@ export function createWorkspaceFactory(
             });
           })
         );
+        unsubscribeFileTreeUpdates = ws.fileTree.subscribe((update) => {
+          events.emit(fileTreeUpdateChannel, {
+            projectId: context.projectId,
+            workspaceId,
+            update,
+          });
+        });
 
         if (ownsFetchService) {
           gitRepositoryFetchService.start();
@@ -269,6 +277,42 @@ export function createWorkspaceFactory(
       },
     };
   };
+}
+
+async function acquireWorkspaceRuntime(
+  workspaceRuntime: WorkspaceFactoryContext['workspaceRuntime'],
+  workDir: string
+) {
+  const runtimeLease = await workspaceRuntime.manager.acquire(workspaceRuntime.machine);
+  try {
+    const worktreeLease = await runtimeLease.value.git.openWorktree(workDir);
+    try {
+      const openedFileTree = await runtimeLease.value.fileTree.open(workDir);
+      if (!openedFileTree.success) {
+        throw new Error(`Failed to open file tree: ${JSON.stringify(openedFileTree.error)}`);
+      }
+
+      const fileTreeLease = openedFileTree.data;
+      let released = false;
+      return {
+        gitWorktree: worktreeLease.value,
+        fileTree: fileTreeLease.value,
+        release: () => {
+          if (released) return;
+          released = true;
+          fileTreeLease.release();
+          worktreeLease.release();
+          runtimeLease.release();
+        },
+      };
+    } catch (error) {
+      worktreeLease.release();
+      throw error;
+    }
+  } catch (error) {
+    runtimeLease.release();
+    throw error;
+  }
 }
 
 type TaskProviderOpts = {

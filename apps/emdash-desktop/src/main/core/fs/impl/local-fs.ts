@@ -140,6 +140,12 @@ const IMAGE_MIME_TYPES: Record<string, string> = {
   '.ico': 'image/x-icon',
 };
 
+/**
+ * Legacy local `FileSystemProvider` implementation.
+ *
+ * Keep for non-tree workspace file operations. The editor file tree uses
+ * `@emdash/core/file-tree` directly and should not add new behavior here.
+ */
 export class LocalFileSystem implements FileSystemProvider {
   private listAbort: AbortController | null = null;
 
