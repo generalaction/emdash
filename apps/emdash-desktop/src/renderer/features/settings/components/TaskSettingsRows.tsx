@@ -15,6 +15,10 @@ import type { TaskDeleteBehavior } from '@shared/core/app-settings';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 
+function taskDeleteBehaviorLabel(value: TaskDeleteBehavior) {
+  return value === 'ask' ? 'Ask every time' : 'Always delete';
+}
+
 function InfoTooltip({ label, content }: { label: string; content: React.ReactNode }) {
   return (
     <TooltipProvider delay={150}>
@@ -211,7 +215,7 @@ export const TaskDeleteBehaviorRow: React.FC = () => {
         <>
           <ResetToDefaultButton
             visible={taskSettings.isFieldOverridden('deleteBehavior')}
-            defaultLabel="ask"
+            defaultLabel={taskDeleteBehaviorLabel('ask')}
             onReset={taskSettings.resetDeleteBehavior}
             disabled={taskSettings.loading || taskSettings.saving}
           />
@@ -220,7 +224,7 @@ export const TaskDeleteBehaviorRow: React.FC = () => {
             onValueChange={(next) => taskSettings.updateDeleteBehavior(next as TaskDeleteBehavior)}
           >
             <SelectTrigger className="w-auto shrink-0 gap-2 [&>span]:line-clamp-none">
-              <SelectValue />
+              <SelectValue>{taskDeleteBehaviorLabel(taskSettings.deleteBehavior)}</SelectValue>
             </SelectTrigger>
             <SelectContent align="end" className="min-w-max">
               <SelectItem value="delete-worktree-and-branch">Always delete</SelectItem>
