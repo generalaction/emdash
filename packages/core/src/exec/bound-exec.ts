@@ -128,7 +128,7 @@ class ProcessBoundExec implements BoundExec {
           fail(error);
           return;
         }
-        failExec(null);
+        failExec(null, error instanceof Error ? error.message : String(error));
       });
 
       child.on('close', (code) => {

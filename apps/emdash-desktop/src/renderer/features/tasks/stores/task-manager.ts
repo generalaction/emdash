@@ -341,6 +341,7 @@ export class TaskManagerStore {
           title: ic.title ?? '',
           lastInteractedAt: null,
           autoApprove: ic.autoApprove ?? false,
+          model: ic.model,
           isInitialConversation: true,
         };
         const conversationManager = conversationRegistry.acquire(params.id, this.projectId, [

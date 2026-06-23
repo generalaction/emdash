@@ -122,7 +122,7 @@ export class SshConversationProvider implements ConversationProvider {
 
       const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
       const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming, {
-        requireProviderSessionId: false,
+        requireProviderSessionId: conversation.providerId === 'amp' ? undefined : false,
       });
       const plugin = getPlugin(conversation.providerId);
 
@@ -144,7 +144,7 @@ export class SshConversationProvider implements ConversationProvider {
         sessionId: agentSession.sessionId,
         providerSessionId: conversation.providerSessionId ?? undefined,
         isResuming: agentSession.isResuming,
-        model: '',
+        model: conversation.model ?? '',
       });
 
       const customEnv = providerConfig?.env ?? {};

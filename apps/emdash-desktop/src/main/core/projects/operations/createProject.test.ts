@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { Result } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createLocalProject } from './create-local-project';
+import { createLocalProject, getLocalProjectPathStatus } from './create-local-project';
 import { createSshProject, getSshProjectPathStatus } from './create-ssh-project';
 
 const mocks = vi.hoisted(() => ({
@@ -189,6 +189,41 @@ describe('createLocalProject', () => {
     expect(mocks.runtimeReleaseMock).toHaveBeenCalledTimes(1);
   });
 
+  it('surfaces git inspection failures when creating a local project', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-project-'));
+    tempDirs.push(projectPath);
+
+    mocks.ensureRepositoryMock.mockResolvedValueOnce({
+      success: false,
+      error: {
+        type: 'inspect-failed',
+        path: projectPath,
+        message: 'Permission denied',
+      },
+    });
+
+    await expect(
+      createLocalProject({
+        id: 'project-id',
+        name: 'Project',
+        path: projectPath,
+      })
+    ).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'inspect-failed',
+        path: projectPath,
+        message: 'Permission denied',
+      },
+    });
+
+    expect(mocks.ensureRepositoryMock).toHaveBeenCalledWith(projectPath, {
+      initIfMissing: false,
+    });
+    expect(mocks.openRepositoryMock).not.toHaveBeenCalled();
+    expect(mocks.runtimeReleaseMock).toHaveBeenCalledTimes(1);
+  });
+
   it('does not run git init when the folder is already a repository', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-project-'));
     tempDirs.push(projectPath);
@@ -304,6 +339,50 @@ describe('createLocalProject', () => {
       expect.objectContaining({ baseRef: 'origin/feature/current' })
     );
     expect(created.baseRef).toBe('origin/feature/current');
+  });
+});
+
+describe('getLocalProjectPathStatus', () => {
+  const tempDirs: string[] = [];
+
+  afterEach(() => {
+    for (const dir of tempDirs.splice(0)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns git status for existing local directories', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-project-'));
+    tempDirs.push(projectPath);
+    mocks.inspectPathMock.mockResolvedValueOnce({
+      kind: 'repository',
+      rootPath: projectPath,
+      baseRef: 'origin/main',
+    });
+
+    const status = await getLocalProjectPathStatus(projectPath);
+
+    expect(status).toEqual({ isDirectory: true, isGitRepo: true });
+    expect(mocks.inspectPathMock).toHaveBeenCalledWith(projectPath);
+  });
+
+  it('returns inspection failures separately from non-repository status', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-project-'));
+    tempDirs.push(projectPath);
+    mocks.inspectPathMock.mockResolvedValueOnce({
+      kind: 'inspect-failed',
+      path: projectPath,
+      message: 'Permission denied',
+    });
+
+    const status = await getLocalProjectPathStatus(projectPath);
+
+    expect(status).toEqual({
+      isDirectory: true,
+      isGitRepo: false,
+      error: { type: 'inspect-failed', path: projectPath, message: 'Permission denied' },
+    });
+    expect(mocks.inspectPathMock).toHaveBeenCalledWith(projectPath);
   });
 });
 
@@ -465,6 +544,23 @@ describe('getSshProjectPathStatus', () => {
     const status = await getSshProjectPathStatus(projectPath, 'connection-id');
 
     expect(status).toEqual({ isDirectory: true, isGitRepo: true });
+    expect(mocks.inspectPathMock).toHaveBeenCalledWith(projectPath);
+  });
+
+  it('returns remote inspection failures separately from non-repository status', async () => {
+    mocks.inspectPathMock.mockResolvedValueOnce({
+      kind: 'inspect-failed',
+      path: projectPath,
+      message: 'Permission denied',
+    });
+
+    const status = await getSshProjectPathStatus(projectPath, 'connection-id');
+
+    expect(status).toEqual({
+      isDirectory: true,
+      isGitRepo: false,
+      error: { type: 'inspect-failed', path: projectPath, message: 'Permission denied' },
+    });
     expect(mocks.inspectPathMock).toHaveBeenCalledWith(projectPath);
   });
 });

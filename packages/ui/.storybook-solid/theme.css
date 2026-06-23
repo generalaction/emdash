@@ -1,0 +1,6 @@
+/* Shared VE theme for Solid Storybook — same files as .storybook-react */
+@import '../src/styles/theme.css';
+@import '../src/styles/semantic.css';
+@import '../src/styles/theme.base.css';
+@import '../src/styles/overflow-fade.css';
+@import '../src/styles/typography.css';

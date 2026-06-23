@@ -3,6 +3,7 @@ import { type FileRendererData } from '@renderer/features/tasks/editor/stores/fi
 /** All possible states a file can be in once opened by the editor. */
 export type ManagedFileKind =
   | 'text'
+  | 'csv'
   | 'markdown'
   | 'html'
   | 'svg'

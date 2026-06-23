@@ -51,6 +51,11 @@ function determineSoundEvent(
   return undefined;
 }
 
+export function providerSupportsNativeStartHook(providerId: string): boolean {
+  const hooks = getPlugin(providerId).capabilities.hooks;
+  return hooks.kind !== 'none' && hooks.supportedEvents.includes('start');
+}
+
 async function handleSessionEvent(
   ctx: { conversationId: string; taskId: string; projectId: string; providerId: string },
   providerSessionId: string
@@ -131,16 +136,7 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
       conversationEvents.on(
         'conversation:input-submitted',
         ({ projectId, taskId, conversationId, providerId }) => {
-          // Only synthesise a 'start' event when the plugin does not supply its own
-          // start hook (e.g. UserPromptSubmit). Providers with start-capable hooks
-          // get 'working' from the real hook event instead.
-          const plugin = getPlugin(providerId);
-          const hooksDesc = plugin?.capabilities.hooks;
-          const supportedEvents =
-            hooksDesc && hooksDesc.kind !== 'none' ? hooksDesc.supportedEvents : [];
-          const hasStartHook = supportedEvents.includes('start');
-
-          if (!hasStartHook) {
+          if (!providerSupportsNativeStartHook(providerId)) {
             const agentEvent: AgentEvent = {
               type: 'start',
               source: 'input',

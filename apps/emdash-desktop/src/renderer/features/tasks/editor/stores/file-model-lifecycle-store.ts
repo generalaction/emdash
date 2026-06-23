@@ -1,6 +1,6 @@
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import type { PaneLayoutStore } from '@renderer/features/tabs/pane-layout-store';
-import { getFileKind } from '@renderer/lib/editor/fileKind';
+import { getFileKind, isMonacoBackedKind } from '@renderer/lib/editor/fileKind';
 import { rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
@@ -212,7 +212,7 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
       return;
     }
 
-    if (kind === 'text' || kind === 'markdown' || kind === 'svg' || kind === 'html') {
+    if (isMonacoBackedKind(kind)) {
       const language = getMonacoLanguageId(filePath);
       try {
         await modelRegistry.registerModel(

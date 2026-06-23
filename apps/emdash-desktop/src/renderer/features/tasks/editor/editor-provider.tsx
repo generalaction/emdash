@@ -187,7 +187,13 @@ export const EditorProvider = observer(function EditorProvider({
         }
 
         const status = modelRegistry.modelStatus.get(newBufUri); // reactive
-        if (status !== 'ready') return;
+        if (status !== 'ready') {
+          if (prevBufUriRef.current && prevBufUriRef.current !== newBufUri) {
+            modelRegistry.detach(editor, prevBufUriRef.current);
+            prevBufUriRef.current = undefined;
+          }
+          return;
+        }
 
         modelRegistry.attach(editor, newBufUri, prevBufUriRef.current);
         prevBufUriRef.current = newBufUri;

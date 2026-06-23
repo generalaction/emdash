@@ -48,7 +48,13 @@ const FileTabContent = observer(function FileTabContent({ host }: TabContentProp
   );
 });
 
-const MONACO_KINDS = new Set(['text', 'svg-source', 'html-source', 'markdown-source']);
+const MONACO_KINDS = new Set([
+  'text',
+  'csv-source',
+  'svg-source',
+  'html-source',
+  'markdown-source',
+]);
 
 const FileTabBody = observer(function FileTabBody({ host }: { host: TabHost }) {
   const activeTab = host.resolvedTabs.find((t) => t.isActive);

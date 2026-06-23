@@ -1,6 +1,6 @@
 import { type Terminal } from '@xterm/xterm';
 import { reaction } from 'mobx';
-import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { dispatchMatchingHotkeys } from '@renderer/lib/hotkeys/dispatch-matching-hotkeys';
 import { events, rpc } from '@renderer/lib/ipc';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
@@ -23,6 +23,7 @@ import {
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
 } from './pty-keybindings';
+import { createResizeScheduler } from './resize-scheduler';
 import { getTerminalContextLink } from './terminal-context-link';
 import { buildTerminalFontFamily } from './terminal-font';
 import { getCellMetrics } from './xterm-cell-metrics';
@@ -149,8 +150,10 @@ export function usePty(
   // Core xterm.js reference, kept alive across renders.
   const termRef = useRef<Terminal | null>(null);
 
-  // Resize debounce state.
-  const pendingResizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Resize debounce state.  lastRequestedResizeRef tracks the latest measured
+  // dimensions (including pending trailing values), while lastSentResizeRef
+  // tracks dimensions actually sent to rpc.pty.resize.
+  const lastRequestedResizeRef = useRef<{ cols: number; rows: number } | null>(null);
   const lastSentResizeRef = useRef<{ cols: number; rows: number } | null>(null);
 
   // First-message capture state.
@@ -170,20 +173,30 @@ export function usePty(
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
+  // Recreated per session so the trailing flush targets the current sessionId.
+  // See createResizeScheduler for the leading-edge rationale (ENG-1577).
+  const ptyResizeScheduler = useMemo(
+    () =>
+      createResizeScheduler<{ cols: number; rows: number }>((dims) => {
+        const lastSent = lastSentResizeRef.current;
+        if (lastSent?.cols === dims.cols && lastSent?.rows === dims.rows) return;
+        lastSentResizeRef.current = dims;
+        void rpc.pty.resize(sessionId, dims.cols, dims.rows);
+      }, PTY_RESIZE_DEBOUNCE_MS),
+    [sessionId]
+  );
+
   const queuePtyResize = useCallback(
     (newCols: number, newRows: number) => {
       const c = Math.max(MIN_TERMINAL_COLS, Math.floor(newCols));
       const r = Math.max(MIN_TERMINAL_ROWS, Math.floor(newRows));
-      const last = lastSentResizeRef.current;
-      if (last?.cols === c && last?.rows === r) return;
-      if (pendingResizeTimerRef.current) clearTimeout(pendingResizeTimerRef.current);
-      pendingResizeTimerRef.current = setTimeout(() => {
-        pendingResizeTimerRef.current = null;
-        lastSentResizeRef.current = { cols: c, rows: r };
-        void rpc.pty.resize(sessionId, c, r);
-      }, PTY_RESIZE_DEBOUNCE_MS);
+      const lastRequested = lastRequestedResizeRef.current;
+      if (lastRequested?.cols === c && lastRequested?.rows === r) return;
+      const dims = { cols: c, rows: r };
+      lastRequestedResizeRef.current = dims;
+      ptyResizeScheduler.schedule(dims);
     },
-    [sessionId]
+    [ptyResizeScheduler]
   );
 
   // Stable ref so measureAndResize can always call the latest queuePtyResize
@@ -692,11 +705,9 @@ export function usePty(
 
     // ── Cleanup ───────────────────────────────────────────────────────────────
     return () => {
-      if (pendingResizeTimerRef.current) {
-        clearTimeout(pendingResizeTimerRef.current);
-        pendingResizeTimerRef.current = null;
-      }
+      ptyResizeScheduler.cancel();
       // Reset dedup so the next session always gets a resize on mount.
+      lastRequestedResizeRef.current = null;
       lastSentResizeRef.current = null;
       // ResizeObserver.disconnect() and other cleanups run BEFORE unmount —
       // preserving the invariant that the ResizeObserver is torn down before

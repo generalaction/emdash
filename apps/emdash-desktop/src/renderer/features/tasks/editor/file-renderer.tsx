@@ -2,6 +2,7 @@ import { runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useEffect } from 'react';
 import { BinaryRenderer } from '@renderer/lib/editor/binary-renderer';
+import { CsvRenderer } from '@renderer/lib/editor/csv-renderer';
 import { FileErrorRenderer } from '@renderer/lib/editor/file-error-renderer';
 import { HtmlRenderer } from '@renderer/lib/editor/html-renderer';
 import { ImageRenderer } from '@renderer/lib/editor/image-renderer';
@@ -58,6 +59,8 @@ function BinaryOrPreviewRenderer({ tab }: FileRendererProps) {
   switch (tab.renderer.kind) {
     case 'markdown':
       return <MarkdownEditorRenderer filePath={tab.path} />;
+    case 'csv':
+      return <CsvRenderer filePath={tab.path} />;
     case 'svg':
       return <SvgRenderer filePath={tab.path} />;
     case 'html':
