@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/main/lib/telemetry.ts
+  s_bf1e0b45d13078::t_cdd414c1e7c4c0 22-24,172-174,176
+apps/emdash-desktop/src/main/core/telemetry/automation-telemetry.ts
+  s_bf1e0b45d13078::t_e11a18199b8b63 46-50,86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "1a6068990c66e2a1181b4e5a094c8295bbb7537d",
+  "prompts": {},
+  "sessions": {
+    "s_bf1e0b45d13078": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef5ae-6dc6-7691-9d45-38d1912ff05a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
