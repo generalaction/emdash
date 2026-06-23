@@ -1,0 +1,21 @@
+packages/plugins/src/agents/impl/goose/hooks.ts
+  s_70e2dc3d4eea3b::t_2aaf5bce95275a 25
+packages/plugins/src/agents/impl/goose/index.test.ts
+  s_70e2dc3d4eea3b::t_2aaf5bce95275a 107-109,113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "8b5fb753e5bd5800112cfce4a029de5339ab4754",
+  "prompts": {},
+  "sessions": {
+    "s_70e2dc3d4eea3b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef2c4-a0b0-7e71-92e8-beffe8315320",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
