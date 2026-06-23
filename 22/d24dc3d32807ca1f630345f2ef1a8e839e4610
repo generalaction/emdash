@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-notifications.ts
+  s_686253bc580c75::t_b330479c72b689 30,51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "22d24dc3d32807ca1f630345f2ef1a8e839e4610",
+  "prompts": {},
+  "sessions": {
+    "s_686253bc580c75": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef524-64b3-77c2-a342-a556862fcfe9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
