@@ -20,9 +20,6 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'supported',
     },
-    effort: {
-      kind: 'none',
-    },
     hooks: {
       kind: 'config',
       scope: 'global',
@@ -49,12 +46,6 @@ export const plugin = definePlugin(
       kind: 'supported',
       scope: 'global',
       supportedTransports: ['stdio', 'http'],
-    },
-    models: {
-      kind: 'none',
-    },
-    plugins: {
-      kind: 'none',
     },
     prompt: {
       kind: 'argv',

@@ -18,12 +18,6 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/earendil-works/pi/tree/main/packages/coding-agent',
   },
   {
-    autoApprove: {
-      kind: 'none',
-    },
-    effort: {
-      kind: 'none',
-    },
     hooks: {
       kind: 'plugin',
       scope: 'workspace',
@@ -34,12 +28,6 @@ export const plugin = definePlugin(
       package: '@earendil-works/pi-coding-agent',
       installFlags: '--ignore-scripts',
     }),
-    mcp: {
-      kind: 'none',
-    },
-    models: {
-      kind: 'none',
-    },
     plugins: {
       kind: 'file-drop',
       scope: 'workspace',

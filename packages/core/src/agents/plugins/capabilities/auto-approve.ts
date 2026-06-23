@@ -11,5 +11,6 @@ export const autoApproveCapability = definePluginCapability()(
   'auto-approve',
   z.object({
     kind: z.enum(['supported', 'none']),
-  })
+  }),
+  { kind: 'none' }
 );
