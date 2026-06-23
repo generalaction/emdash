@@ -59,19 +59,8 @@ automationsService.on('automation:enabled', (automation) => {
   });
 });
 
-automationsService.on('automation:deleted', (automationId) => {
-  telemetryService.capture('automation_deleted', { automation_id: automationId });
-});
-
 automationsService.on('run:started', (run) => {
   captureRunStarted(run);
-});
-
-automationsService.on('run:stopped', (run) => {
-  telemetryService.capture('automation_run_stopped', {
-    ...runTelemetryProps(run),
-    status: run.status,
-  });
 });
 
 automationsService.on('run:step-completed', (run) => {

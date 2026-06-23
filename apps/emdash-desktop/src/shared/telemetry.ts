@@ -70,7 +70,6 @@ export type TelemetryEventProperties = {
     has_initial_prompt: boolean;
   };
   automation_enabled_changed: { enabled: boolean; trigger_kind: 'cron' };
-  automation_deleted: EmptyProps;
   automation_run_started: { trigger_kind: AutomationRunTriggerKind };
   automation_run_completed: {
     status: Extract<AutomationRunStatus, 'done' | 'failed' | 'skipped'>;
@@ -80,7 +79,6 @@ export type TelemetryEventProperties = {
     error_step?: string;
     error_code?: string;
   };
-  automation_run_stopped: { status: AutomationRunStatus; trigger_kind: AutomationRunTriggerKind };
 
   project_added: { type: 'local' | 'ssh'; strategy: 'open' | 'create' | 'clone'; success: boolean };
   project_deleted: EmptyProps;
