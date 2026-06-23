@@ -1,0 +1,84 @@
+apps/emdash-desktop/feature-announcements.toml
+  s_62bfd5d0937a9d::t_b7e11f15cf26a3 1-29
+apps/emdash-desktop/src/main/rpc.ts
+  s_62bfd5d0937a9d::t_a8a8e3067b7db2 60
+  s_62bfd5d0937a9d::t_4421b699fceab1 10
+apps/emdash-desktop/src/renderer/main.tsx
+  s_62bfd5d0937a9d::t_cffbfc08cb715a 33
+apps/emdash-desktop/src/renderer/app/workspace.tsx
+  s_62bfd5d0937a9d::t_cb79cd94111182 1
+  s_62bfd5d0937a9d::t_c68cc673429428 34
+apps/emdash-desktop/src/shared/urls.ts
+  s_62bfd5d0937a9d::t_e5c2543da5f6f3 2
+apps/emdash-desktop/src/renderer/features/settings/components/AnnouncementPreviewRow.tsx
+  s_62bfd5d0937a9d::t_4aa5157d94acf9 3
+  s_62bfd5d0937a9d::t_1ba4d85dcd7cd9 1-2,4-20,22-30
+  s_62bfd5d0937a9d::t_ec7f0a47be48a7 21
+apps/emdash-desktop/src/shared/feature-announcements/constants.ts
+  s_0bf7cb56f8c2a8::t_8d6da17684342f 6
+  s_0bf7cb56f8c2a8::t_9ffaa480053171 7-20
+  s_62bfd5d0937a9d::t_a9e8104f16b4d1 1-5
+apps/emdash-desktop/src/renderer/lib/stores/app-state.ts
+  s_0bf7cb56f8c2a8::t_8d6da17684342f 1
+  s_62bfd5d0937a9d::t_f468b4c28f3db1 20,25
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-store.test.ts
+  s_62bfd5d0937a9d::t_62cdbf08685089 1
+  s_62bfd5d0937a9d::t_bfc27e005d87fe 2-35,38-43
+  s_62bfd5d0937a9d::t_140eb2d76830b5 36-37
+apps/emdash-desktop/src/main/core/feature-announcements/controller.ts
+  s_62bfd5d0937a9d::t_de866a5d81316a 1-31
+apps/emdash-desktop/src/shared/feature-announcements/schema.test.ts
+  s_62bfd5d0937a9d::t_0cf98190e2ba9a 1-52
+apps/emdash-desktop/src/renderer/features/settings/components/SettingsPage.tsx
+  s_62bfd5d0937a9d::t_f27b0eb0068084 56
+  s_0bf7cb56f8c2a8::t_8d6da17684342f 7
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-icon.tsx
+  s_62bfd5d0937a9d::t_1297839888dca6 1-23
+apps/emdash-desktop/src/main/app/menu.ts
+  s_62bfd5d0937a9d::t_673b62cdf98025 13
+  s_62bfd5d0937a9d::t_bd6d0e2635300d 171
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-card.tsx
+  s_62bfd5d0937a9d::t_589f32649019e3 7
+  s_62bfd5d0937a9d::t_14833a1f2816e4 13
+  s_62bfd5d0937a9d::t_3ae9fbba045677 76
+  s_62bfd5d0937a9d::t_622521d71b0d9c 30,34,38
+  s_62bfd5d0937a9d::t_d2ab4788195e7e 1-6,8-12,14-29,31-33,35-37,39-75,77-149
+apps/emdash-desktop/src/main/core/feature-announcements/service.ts
+  s_0bf7cb56f8c2a8::t_8d6da17684342f 56-58,90-93
+  s_62bfd5d0937a9d::t_19f82a6447df2a 14
+  s_62bfd5d0937a9d::t_073ee40d9b22ac 1-13,15-44,54-55,59-89,94-115
+  s_62bfd5d0937a9d::t_10c8d6ae3182a7 45-53
+apps/emdash-desktop/src/shared/feature-announcements/schema.ts
+  s_62bfd5d0937a9d::t_012e1a1c5a303e 52-59
+  s_62bfd5d0937a9d::t_dea46d4588defd 1-51
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-store.ts
+  s_62bfd5d0937a9d::t_0cab4cff1b8023 1,7-31,34-92,95-120,123-125
+  s_0bf7cb56f8c2a8::t_9ffaa480053171 2-6
+  s_62bfd5d0937a9d::t_9b3807dadefe06 93-94
+  s_0bf7cb56f8c2a8::t_8d6da17684342f 32-33
+  s_62bfd5d0937a9d::t_363ea43a78d656 121-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "098315be1794b9d87df17743d965d1275b7f2397",
+  "prompts": {},
+  "sessions": {
+    "s_0bf7cb56f8c2a8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef2cc-d679-70f0-91f3-bf64edce3a37",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_62bfd5d0937a9d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "4471e7f2-d37f-4650-bbea-d5340910df7c",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
