@@ -193,11 +193,9 @@ export const TaskDeleteBehaviorRow: React.FC = () => {
             value={taskSettings.deleteBehavior}
             onValueChange={(next) => taskSettings.updateDeleteBehavior(next as TaskDeleteBehavior)}
           >
-            <SelectTrigger className="w-auto shrink-0 gap-2 [&>span]:line-clamp-none">
+            <SelectTrigger className="w-[160px] shrink-0 gap-2 [&>span]:line-clamp-none">
               <SelectValue>
-                {taskSettings.deleteBehavior === 'ask'
-                  ? 'Ask every time'
-                  : 'Delete worktree and branch'}
+                {taskSettings.deleteBehavior === 'ask' ? 'Ask every time' : 'Always delete'}
               </SelectValue>
             </SelectTrigger>
             <SelectContent align="end" className="min-w-max">
