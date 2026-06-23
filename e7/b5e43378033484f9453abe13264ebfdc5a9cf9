@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-modal.tsx
+  s_62bfd5d0937a9d::t_8a2a554217a4b9 23-24,42,48,80-83,90
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-media.tsx
+  s_62bfd5d0937a9d::t_e07b3c43ed7eda 68-70,72
+  s_62bfd5d0937a9d::t_7f00be4fe0c0a1 8-11,14,61-64,71,73-74,85,89-90
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-toast.tsx
+  s_62bfd5d0937a9d::t_ffe19de6a5625c 14-17,26,47-48,66,72,102-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "e7b5e43378033484f9453abe13264ebfdc5a9cf9",
+  "prompts": {},
+  "sessions": {
+    "s_62bfd5d0937a9d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "4471e7f2-d37f-4650-bbea-d5340910df7c",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
