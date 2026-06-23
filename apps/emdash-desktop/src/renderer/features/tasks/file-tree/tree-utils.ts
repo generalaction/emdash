@@ -145,3 +145,19 @@ export function buildVisibleRows<T extends VisibleFileNode>(
   walk(rootNodes, 0);
   return rows;
 }
+
+export function expandedDirectoryPathsNeedingLoad<T extends VisibleFileNode>(
+  rows: readonly TreeRow<T>[],
+  expandedPaths: Set<string>,
+  loadedPaths: Set<string>,
+  pendingPaths: Set<string>
+): string[] {
+  const paths: string[] = [];
+  for (const row of rows) {
+    if (row.node.type !== 'directory') continue;
+    if (!isChainExpanded(row.chain, expandedPaths)) continue;
+    if (loadedPaths.has(row.node.path) || pendingPaths.has(row.node.path)) continue;
+    paths.push(row.node.path);
+  }
+  return paths;
+}

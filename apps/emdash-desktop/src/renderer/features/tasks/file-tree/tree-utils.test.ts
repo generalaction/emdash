@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildVisibleRows,
+  expandedDirectoryPathsNeedingLoad,
   makeNode,
   sortFileNodes,
   toRenderableFileNode,
@@ -235,5 +236,53 @@ describe('file tree utils', () => {
       'src/components/Button.tsx',
     ]);
     expect(rows[0].chain.map((node) => node.path)).toEqual(['src', 'src/components']);
+  });
+
+  it('finds expanded visible directories that still need loading', () => {
+    const src = toRenderableFileNode({
+      id: 1,
+      path: 'src',
+      name: 'src',
+      parentId: null,
+      type: 'directory',
+      childrenLoaded: false,
+    });
+    const docs = toRenderableFileNode({
+      id: 2,
+      path: 'docs',
+      name: 'docs',
+      parentId: null,
+      type: 'directory',
+      childrenLoaded: true,
+    });
+    const pending = toRenderableFileNode({
+      id: 3,
+      path: 'pending',
+      name: 'pending',
+      parentId: null,
+      type: 'directory',
+      childrenLoaded: false,
+    });
+    const readme = toRenderableFileNode({
+      id: 4,
+      path: 'README.md',
+      name: 'README.md',
+      parentId: null,
+      type: 'file',
+      childrenLoaded: false,
+    });
+    const rows = buildVisibleRows(
+      [src, docs, pending, readme],
+      new Set(['src', 'docs', 'pending'])
+    );
+
+    expect(
+      expandedDirectoryPathsNeedingLoad(
+        rows,
+        new Set(['src', 'docs', 'pending']),
+        new Set(['', 'docs']),
+        new Set(['pending'])
+      )
+    ).toEqual(['src']);
   });
 });

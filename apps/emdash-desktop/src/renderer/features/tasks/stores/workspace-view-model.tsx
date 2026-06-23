@@ -3,6 +3,10 @@ import { computed, makeAutoObservable, observable, reaction, runInAction } from 
 import { DiffTabLifecycleStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
+import {
+  buildVisibleRows,
+  expandedDirectoryPathsNeedingLoad,
+} from '@renderer/features/tasks/file-tree/tree-utils';
 import { PreviewServerStore } from '@renderer/features/tasks/stores/preview-server-store';
 import { TabGroupManagerStore } from '@renderer/features/tasks/tabs/tab-group-manager-store';
 import type { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
@@ -360,6 +364,30 @@ export class WorkspaceViewModel implements ILifecycle {
       { fireImmediately: true }
     );
     this._sessionDisposers.push(closeEmptyTerminalDrawerDisposer);
+
+    const loadExpandedDirectoriesDisposer = reaction(
+      () => {
+        const rows = buildVisibleRows(
+          workspace.files.rootNodes,
+          this.editorView.expandedPaths,
+          workspace.files.childrenById
+        );
+        return expandedDirectoryPathsNeedingLoad(
+          rows,
+          this.editorView.expandedPaths,
+          workspace.files.loadedPaths,
+          workspace.files.pendingPaths
+        ).join('\0');
+      },
+      (key) => {
+        if (!key) return;
+        for (const path of key.split('\0')) {
+          void workspace.files.loadDir(path);
+        }
+      },
+      { fireImmediately: true }
+    );
+    this._sessionDisposers.push(loadExpandedDirectoriesDisposer);
   }
 
   /**
