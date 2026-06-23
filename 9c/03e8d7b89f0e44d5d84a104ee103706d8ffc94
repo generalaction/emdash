@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/renderer/app/notification-badge-sync.tsx
+  s_d696db5bb5418b::t_12197e63db77e8 5,11-18
+apps/emdash-desktop/src/main/core/app/app-badge-service.ts
+  s_d696db5bb5418b::t_12197e63db77e8 12,16,19-20
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-notifications.ts
+  s_d696db5bb5418b::t_12197e63db77e8 21-35,41,46-52,76-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "9c03e8d7b89f0e44d5d84a104ee103706d8ffc94",
+  "prompts": {},
+  "sessions": {
+    "s_d696db5bb5418b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef569-7f45-7920-bd0e-8fa86e026766",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
