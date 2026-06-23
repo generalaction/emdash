@@ -34,14 +34,30 @@ export const hooksCapability = definePluginCapability<IHooksBehavior>()(
       kind: z.literal('config'),
       scope: z.enum(['global', 'workspace']),
       supportedEvents: z.array(
-        z.enum(['notification', 'stop', 'session', 'start', 'tool-use', 'tool-use-failure'])
+        z.enum([
+          'notification',
+          'stop',
+          'error',
+          'session',
+          'start',
+          'tool-use',
+          'tool-use-failure',
+        ])
       ),
     }),
     z.object({
       kind: z.literal('plugin'),
       scope: z.enum(['global', 'workspace']),
       supportedEvents: z.array(
-        z.enum(['notification', 'stop', 'session', 'start', 'tool-use', 'tool-use-failure'])
+        z.enum([
+          'notification',
+          'stop',
+          'error',
+          'session',
+          'start',
+          'tool-use',
+          'tool-use-failure',
+        ])
       ),
     }),
     z.object({ kind: z.literal('none') }),

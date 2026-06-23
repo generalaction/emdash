@@ -638,6 +638,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'pi.png',
     alt: 'Pi CLI',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'letta',

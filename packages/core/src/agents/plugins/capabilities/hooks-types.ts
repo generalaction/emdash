@@ -1,6 +1,7 @@
 export const HOOK_EVENTS = [
   'notification',
   'stop',
+  'error',
   'session',
   'start',
   'tool-use',
