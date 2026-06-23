@@ -40,8 +40,11 @@ describe('prepareInlineSvgMarkup', () => {
     const processed = prepareInlineSvgMarkup(exa);
 
     expect(processed).toContain('fill="currentColor"');
+    expect(exa).toContain('viewBox="0 0 151 182"');
+    expect(exa).toContain('M150.5 14.1064');
     expect(processed).not.toContain('#1E40ED');
     expect(processed).not.toContain('fill="white"');
+    expect(exa).not.toContain('M128,242.7');
   });
 
   it('uses the official MCP mark as monochrome fallback markup', () => {

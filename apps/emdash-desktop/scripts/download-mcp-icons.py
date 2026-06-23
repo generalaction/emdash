@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import re
 import subprocess
+import tempfile
+import zipfile
 from pathlib import Path
 
 ICON_DIR = Path(__file__).resolve().parents[1] / "src/assets/images/mcp"
@@ -156,16 +158,26 @@ def install_official() -> None:
         wrap_svg("Parallel", "0 0 271 270", strip_mono_colors(parallel_path))
     )
 
-    # Exa — official brand kit (Google Drive)
-    exa_raw = fetch(
-        "https://drive.google.com/uc?export=download&id=1wsBF0mRjzpIIzZ5FpFUMbyIJ017mvAVJ"
-    )
-    exa_paths = "\n".join(
-        p.replace("class=\"st0\"", "")
-        for p in re.findall(r"<path class=\"st0\"[^>]*/>", exa_raw)
-    )
+    # Exa — official brand kit from exa.ai/brand (Logomark SVG)
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        archive = tmp_path / "exa-brand-assets.zip"
+        archive.write_bytes(
+            subprocess.run(
+                ["curl", "-fsSL", "--max-time", "60", "https://exa.ai/assets/Exa%20Brand%20Assets.zip"],
+                capture_output=True,
+                check=True,
+            ).stdout
+        )
+        with zipfile.ZipFile(archive) as zip_file:
+            zip_file.extractall(tmp_path)
+        exa_raw = (
+            tmp_path
+            / "Exa Brand Assets/Logo/SVGs/Logomark/Exa Logomark Blue.svg"
+        ).read_text()
+    exa_paths = strip_mono_colors("\n".join(re.findall(r"<path[^>]*/>", exa_raw)))
     (ICON_DIR / "exa.svg").write_text(
-        wrap_svg("Exa", "89.8 186.1 127.6 127.6", strip_mono_colors(exa_paths))
+        wrap_svg("Exa", "0 0 151 182", exa_paths)
     )
 
     # MCP fallback — official docs mark, without the black app-icon container.
