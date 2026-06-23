@@ -143,6 +143,12 @@ class TelemetryService implements IInitializable, IDisposable {
       'terminal_id',
       'was_crash',
       'type',
+      'status',
+      'automation_id',
+      'trigger_kind',
+      'duration_ms',
+      'error_step',
+      'error_code',
     ]);
     const passthroughProps = new Set([
       '$exception_message',
