@@ -1,0 +1,29 @@
+apps/emdash-desktop/src/shared/telemetry.ts
+  s_7848d392ea5194::t_f5b14deda2266f 29
+  s_7848d392ea5194::t_2eee9c56707eaf 2-5,66-83
+apps/emdash-desktop/src/main/core/telemetry/automation-telemetry.ts
+  s_7848d392ea5194::t_5463e07c380ca3 1-7,9-10,12-39,46-66,68-77,82-92
+  s_7848d392ea5194::t_294d6d291fd7f5 8
+  s_7848d392ea5194::t_41674e943877cf 11,40-45,67,78-81
+apps/emdash-desktop/src/main/index.ts
+  s_7848d392ea5194::t_930865c58d70b9 2
+apps/emdash-desktop/src/main/lib/telemetry.ts
+  s_7848d392ea5194::t_65e85c1488900d 147-151
+  s_7848d392ea5194::t_4b84abde70eb8d 146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "0eb0d2bc62363355ef57f43ac2432197d1f5ef0f",
+  "prompts": {},
+  "sessions": {
+    "s_7848d392ea5194": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef59d-5b38-75f2-9bb8-a52ab17e3626",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
