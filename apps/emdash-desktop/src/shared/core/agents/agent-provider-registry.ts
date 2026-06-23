@@ -79,6 +79,8 @@ export type AgentProviderDefinition = {
   sessionIdFlag?: string;
   newConversationFlag?: string;
   sessionIdOnResumeOnly?: boolean;
+  /** When true, sessionIdFlag is injected on fresh and resumed sessions. */
+  sessionIdAlways?: boolean;
   /** Resume flag used when sessionIdOnResumeOnly is set but no provider session id is stored yet. */
   resumeWithoutSessionFlag?: string;
   defaultArgs?: string[];
@@ -386,6 +388,9 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'crush',
     autoApproveFlag: '--yolo',
+    initialPromptFlag: '',
+    sessionIdFlag: '--session',
+    sessionIdAlways: true,
     icon: 'charm.png',
     alt: 'Charm CLI',
     terminalOnly: true,

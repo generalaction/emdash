@@ -134,4 +134,22 @@ describe('resolveAgentSessionCommandArgs', () => {
     expect(result.command).toBe('codex');
     expect(result.args).toEqual(['resume', 'provider-session-1']);
   });
+
+  it('builds a Charm resume command from the logical conversation id', () => {
+    const conversation = makeConversation({
+      id: '6fac6620-9fa8-4604-b7e0-1fe361589104',
+      providerId: 'charm',
+    });
+    const spawnPlan = resolveAgentSessionCommandArgs(conversation, true);
+    const result = pluginRegistry.get('charm')!.behavior.prompt!.buildCommand({
+      cli: 'crush',
+      autoApprove: false,
+      model: '',
+      sessionId: spawnPlan.sessionId,
+      isResuming: spawnPlan.isResuming,
+    });
+
+    expect(result.command).toBe('crush');
+    expect(result.args).toEqual(['run', '--session', conversation.id]);
+  });
 });
