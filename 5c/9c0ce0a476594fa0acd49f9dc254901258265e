@@ -1,0 +1,22 @@
+apps/emdash-desktop/src/renderer/utils/mcpIcons.tsx
+  s_a629192d329825::t_3892322781bba5 66
+apps/emdash-desktop/src/renderer/tests/mcp-icon-data.test.ts
+  s_a629192d329825::t_b26e8c636bf546 92
+  s_a629192d329825::t_3892322781bba5 105,117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "5c9c0ce0a476594fa0acd49f9dc254901258265e",
+  "prompts": {},
+  "sessions": {
+    "s_a629192d329825": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_10a5a404effemlN5gsIjo5AmGN",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
