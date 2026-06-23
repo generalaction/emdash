@@ -39,9 +39,12 @@ export default defineConfig({
         'react/patterns': resolve(__dirname, 'src/react/patterns/index.ts'),
         'styles/recipes/control': resolve(__dirname, 'src/styles/recipes/control.ts'),
         'styles/recipes/input': resolve(__dirname, 'src/styles/recipes/input.ts'),
+        'styles/recipes/surface': resolve(__dirname, 'src/styles/recipes/surface.css.ts'),
+        'styles/recipes/card': resolve(__dirname, 'src/styles/recipes/card.css.ts'),
         // VE theme utilities — exports sx (Sprinkles) and vars (theme contract).
         // Importing this entry causes style.css to include the extracted VE atoms.
-        'styles/sprinkles': resolve(__dirname, 'src/styles/sprinkles.css.ts'),
+        'styles/utilities/sprinkles': resolve(__dirname, 'src/styles/utilities/sprinkles.css.ts'),
+        'styles/utilities': resolve(__dirname, 'src/styles/utilities/index.ts'),
       },
       formats: ['es'],
     },
@@ -50,7 +53,6 @@ export default defineConfig({
         'react',
         'react-dom',
         'react/jsx-runtime',
-        'clsx',
         '@base-ui/react',
         'lucide-react',
         '@tiptap/core',

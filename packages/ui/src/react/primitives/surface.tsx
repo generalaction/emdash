@@ -13,7 +13,7 @@
 
 import type { SurfaceScopeName, SurfaceStatusName } from '@theme/core/contract/roles';
 import React, { createContext, useContext } from 'react';
-import { cn } from '../lib/cn';
+import { cx } from '@styles/utilities/cx';
 
 // ── Context ───────────────────────────────────────────────────────────────────
 
@@ -69,7 +69,7 @@ export function Surface({
 
   return (
     <SurfaceContext.Provider value={contextValue}>
-      <As className={cn(elevationClass, statusClass, className)} {...props}>
+      <As className={cx(elevationClass, statusClass, className)} {...props}>
         {children}
       </As>
     </SurfaceContext.Provider>

@@ -2,7 +2,7 @@
 
 import type { RecipeVariants } from '@vanilla-extract/recipes';
 import * as React from 'react';
-import { cn } from '../lib/cn';
+import { cx } from '@styles/utilities/cx';
 import { Button } from './button';
 import { Input } from './input';
 import { Textarea } from './textarea';
@@ -13,7 +13,7 @@ function InputGroup({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot="input-group"
       role="group"
-      className={cn(styles.inputGroup, className)}
+      className={cx(styles.inputGroup, className)}
       {...props}
     />
   );
@@ -31,7 +31,7 @@ function InputGroupAddon({
       role="group"
       data-slot="input-group-addon"
       data-align={align}
-      className={cn(styles.inputGroupAddon({ align }), className)}
+      className={cx(styles.inputGroupAddon({ align }), className)}
       onClick={(e) => {
         if ((e.target as HTMLElement).closest('button')) {
           return;
@@ -55,21 +55,21 @@ function InputGroupButton({
       type={type}
       size="sm"
       icon
-      className={cn(styles.inputGroupButton, className)}
+      className={cx(styles.inputGroupButton, className)}
       {...props}
     />
   );
 }
 
 function InputGroupText({ className, ...props }: React.ComponentProps<'span'>) {
-  return <span className={cn(styles.inputGroupText, className)} {...props} />;
+  return <span className={cx(styles.inputGroupText, className)} {...props} />;
 }
 
 function InputGroupInput({ className, size: _size, ...props }: React.ComponentProps<'input'>) {
   return (
     <Input
       data-slot="input-group-control"
-      className={cn(styles.inputGroupControl, className)}
+      className={cx(styles.inputGroupControl, className)}
       {...props}
     />
   );
@@ -79,7 +79,7 @@ function InputGroupTextarea({ className, ...props }: React.ComponentProps<'texta
   return (
     <Textarea
       data-slot="input-group-control"
-      className={cn(styles.inputGroupTextareaControl, className)}
+      className={cx(styles.inputGroupTextareaControl, className)}
       {...props}
     />
   );

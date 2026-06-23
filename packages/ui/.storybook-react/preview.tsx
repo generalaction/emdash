@@ -4,7 +4,7 @@ import { ThemeProvider } from '../src/react/primitives/theme-provider';
 import type { ThemeId } from '../src/react/primitives/theme-provider';
 import { THEME_MANIFEST } from '../src/theme/themes/registry';
 // Side-effect: pulls surfaces.css.ts + tokens.css.ts into the VE build graph.
-import '../src/styles/sprinkles.css';
+import '../src/styles/utilities/sprinkles.css';
 import './theme.css';
 // Third-party CSS loaded globally so all stories can rely on them without
 // individual imports. Vite handles these in the Storybook build.

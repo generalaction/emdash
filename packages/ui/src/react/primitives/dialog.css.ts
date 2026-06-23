@@ -1,6 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
-import { kfFadeIn, kfFadeOut, kfPopupIn, kfPopupOut } from '@styles/animations.css';
+import { kfFadeIn, kfFadeOut, kfPopupIn, kfPopupOut } from '@styles/effects/animations.css';
 import { vars } from '@theme/core/contract/contract.css';
 
 export const overlay = style({

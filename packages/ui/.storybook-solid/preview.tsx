@@ -2,7 +2,7 @@ import { createEffect } from 'solid-js';
 import type { Decorator, Preview } from 'storybook-solidjs';
 import { THEME_MANIFEST } from '../src/theme/themes/registry';
 // Side-effect: pulls VE surfaces + tokens into the build graph.
-import '../src/styles/sprinkles.css';
+import '../src/styles/utilities/sprinkles.css';
 import './theme.css';
 
 type ThemeId = (typeof THEME_MANIFEST)[number]['id'];

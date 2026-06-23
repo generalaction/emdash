@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { cn } from '../../lib/cn';
+import { cx } from '@styles/utilities/cx';
 import { textVariants, type TextVariantProps } from './typography.variants';
 
 type HeadingLevel = 1 | 2 | 3;
@@ -34,5 +34,5 @@ export const Heading = React.forwardRef<HTMLHeadingElement, HeadingProps>(functi
 ) {
   const Tag = levelToTag[level];
   const variant = levelToVariant[level];
-  return <Tag ref={ref} className={cn(textVariants({ variant, tone }), className)} {...props} />;
+  return <Tag ref={ref} className={cx(textVariants({ variant, tone }), className)} {...props} />;
 });

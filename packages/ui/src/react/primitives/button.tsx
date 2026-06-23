@@ -1,7 +1,7 @@
 import { Button as ButtonPrimitive } from '@base-ui/react/button';
 import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
 import * as React from 'react';
-import { cn } from '../lib/cn';
+import { cx } from '@styles/utilities/cx';
 
 export type ButtonProps = ButtonPrimitive.Props &
   ControlVariantProps & {
@@ -17,7 +17,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
     <ButtonPrimitive
       ref={ref}
       data-slot="button"
-      className={cn(controlVariants({ variant, tone, size, icon }), className)}
+      className={cx(controlVariants({ variant, tone, size, icon }), className)}
       {...props}
     />
   );

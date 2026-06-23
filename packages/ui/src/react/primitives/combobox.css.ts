@@ -6,7 +6,7 @@ import {
   kfPopupInSlideFromBottom,
   kfPopupInSlideFromLeft,
   kfPopupInSlideFromRight,
-} from '@styles/animations.css';
+} from '@styles/effects/animations.css';
 import { vars } from '@theme/core/contract/contract.css';
 
 export const positioner = style({

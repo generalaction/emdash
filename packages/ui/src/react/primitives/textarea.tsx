@@ -1,6 +1,6 @@
 import { inputVariants, type InputVariantProps } from '@styles/recipes/input';
 import * as React from 'react';
-import { cn } from '../lib/cn';
+import { cx } from '@styles/utilities/cx';
 import { textareaOverride } from './textarea.css';
 
 export interface TextareaProps extends React.ComponentProps<'textarea'> {
@@ -12,7 +12,7 @@ function Textarea({ className, size = 'base', ...props }: TextareaProps) {
   return (
     <textarea
       data-slot="textarea"
-      className={cn(inputVariants({ size }), textareaOverride, className)}
+      className={cx(inputVariants({ size }), textareaOverride, className)}
       {...props}
     />
   );

@@ -1,7 +1,7 @@
 import { Drawer } from '@base-ui/react/drawer';
 import { XIcon } from 'lucide-react';
 import * as React from 'react';
-import { cn } from '../lib/cn';
+import { cx } from '@styles/utilities/cx';
 import { Button } from './button';
 import { ScrollFade } from './scroll-fade';
 import * as styles from './sheet.css';
@@ -32,7 +32,7 @@ function SheetBackdrop({ className, ...props }: Drawer.Backdrop.Props) {
   return (
     <Drawer.Backdrop
       data-slot="sheet-backdrop"
-      className={cn(styles.backdrop, className)}
+      className={cx(styles.backdrop, className)}
       {...props}
     />
   );
@@ -51,7 +51,7 @@ function SheetContent({
       <SheetBackdrop />
       <Drawer.Popup
         data-slot="sheet-content"
-        className={cn('surface-base', styles.sheetContent({ side }), className)}
+        className={cx('surface-base', styles.sheetContent({ side }), className)}
         {...props}
       >
         {children}
@@ -69,7 +69,7 @@ function SheetHeader({
   ...props
 }: React.ComponentProps<'div'> & { showCloseButton?: boolean }) {
   return (
-    <div data-slot="sheet-header" className={cn(styles.sheetHeader, className)} {...props}>
+    <div data-slot="sheet-header" className={cx(styles.sheetHeader, className)} {...props}>
       <div className={styles.sheetHeaderInner}>{children}</div>
       {showCloseButton && (
         <Drawer.Close
@@ -92,7 +92,7 @@ function SheetHeader({
 
 function SheetTitle({ className, ...props }: Drawer.Title.Props) {
   return (
-    <Drawer.Title data-slot="sheet-title" className={cn(styles.sheetTitle, className)} {...props} />
+    <Drawer.Title data-slot="sheet-title" className={cx(styles.sheetTitle, className)} {...props} />
   );
 }
 
@@ -110,7 +110,7 @@ function SheetBody({
       axis="y"
       edges={['top']}
       style={{ minHeight: 0, flex: '1 1 0%', ...style }}
-      viewportClassName={cn(styles.sheetBody, className)}
+      viewportClassName={cx(styles.sheetBody, className)}
     >
       {children}
     </ScrollFade>
@@ -119,7 +119,7 @@ function SheetBody({
 
 function SheetFooter({ className, children, ...props }: React.ComponentProps<'div'>) {
   return (
-    <div data-slot="sheet-footer" className={cn(styles.sheetFooter, className)} {...props}>
+    <div data-slot="sheet-footer" className={cx(styles.sheetFooter, className)} {...props}>
       {children}
     </div>
   );

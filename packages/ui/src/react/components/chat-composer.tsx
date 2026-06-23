@@ -19,7 +19,7 @@
 
 import { ArrowUp, CircleAlert, Paperclip, Square, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import { cn } from '../lib/cn';
+import { cx } from '@styles/utilities/cx';
 import { Button } from '../primitives/button';
 import {
   Combobox,
@@ -322,7 +322,7 @@ function NoticeBand({ notice }: { notice: ComposerNotice }) {
           {notice.title && <p className={styles.noticeBandTitle}>{notice.title}</p>}
         </div>
         <p
-          className={cn(styles.noticeBandMessage, notice.title && styles.noticeBandMessageIndented)}
+          className={cx(styles.noticeBandMessage, notice.title && styles.noticeBandMessageIndented)}
         >
           {notice.message}
         </p>
@@ -590,7 +590,7 @@ export function ChatComposer({
   const hasBand = !!(permissionRequest ?? notice);
 
   return (
-    <div className={cn(styles.composerRoot, className)}>
+    <div className={cx(styles.composerRoot, className)}>
       {/* Permission band — shown when the agent is awaiting user approval. */}
       {permissionRequest && onResolvePermission && (
         <PermissionBand
@@ -605,7 +605,7 @@ export function ChatComposer({
           Hidden when the permission band is active. */}
       {!permissionRequest && (
         <div
-          className={cn(
+          className={cx(
             styles.noticeAnimWrapper,
             notice ? styles.noticeAnimVisible : styles.noticeAnimHidden
           )}

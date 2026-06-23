@@ -6,8 +6,8 @@
  * and writes the output files.
  *
  * Emits:
- *   styles/theme.css                        — :root palette vars + per-.em<id> semantic + syntax vars
- *   styles/semantic.css                     — per-theme semantic vars (imported separately)
+ *   theme/__generated__/theme.css           — @layer tokens { :root palette vars + per-.em<id> semantic + syntax vars }
+ *   theme/__generated__/semantic.css        — @layer tokens { per-theme semantic vars (imported separately) }
  *   theme/__generated__/shiki-themes.gen.ts — single var-based Shiki theme (emSyntaxTheme)
  */
 
@@ -25,8 +25,7 @@ import { emitThemeCss } from './emit-theme-css';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Output directories
-const STYLES_DIR = join(__dirname, '..', '..', '..', 'styles');
+// Output directories — generated CSS lands in theme/__generated__/
 const GENERATED_DIR = join(__dirname, '..', '..', '__generated__');
 
 const ALL_THEMES: ResolvedTheme[] = [
@@ -41,17 +40,16 @@ function run(): void {
 
   console.log(`Building ${themes.length} theme(s): ${themes.map((t) => t.id).join(', ')}`);
 
-  // Ensure output directories exist
-  mkdirSync(STYLES_DIR, { recursive: true });
+  // Ensure output directory exists
   mkdirSync(GENERATED_DIR, { recursive: true });
 
-  // styles/theme.css
-  writeFileSync(join(STYLES_DIR, 'theme.css'), emitThemeCss(themes), 'utf8');
-  console.log('✓ styles/theme.css');
+  // theme/__generated__/theme.css
+  writeFileSync(join(GENERATED_DIR, 'theme.css'), emitThemeCss(themes), 'utf8');
+  console.log('✓ theme/__generated__/theme.css');
 
-  // styles/semantic.css
-  writeFileSync(join(STYLES_DIR, 'semantic.css'), emitSemanticCss(themes), 'utf8');
-  console.log('✓ styles/semantic.css');
+  // theme/__generated__/semantic.css
+  writeFileSync(join(GENERATED_DIR, 'semantic.css'), emitSemanticCss(themes), 'utf8');
+  console.log('✓ theme/__generated__/semantic.css');
 
   // theme/__generated__/shiki-themes.gen.ts
   writeFileSync(join(GENERATED_DIR, 'shiki-themes.gen.ts'), emitShikiThemesTs(), 'utf8');

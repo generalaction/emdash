@@ -1,9 +1,11 @@
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
 import type { StorybookConfig } from 'storybook-solidjs-vite';
 import { mergeConfig } from 'vite';
 import solid from 'vite-plugin-solid';
 
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const root = resolve(__dirname, '../src');
 
 const config: StorybookConfig = {

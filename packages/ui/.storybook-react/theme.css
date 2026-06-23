@@ -1,11 +1,11 @@
 /* @emdash/ui theme — palette ramps + semantic vars */
-@import '../src/styles/theme.css';
+@import '../src/theme/__generated__/theme.css';
 /* semantic aliases (.emlight / .emdark) */
-@import '../src/styles/semantic.css';
+@import '../src/theme/__generated__/semantic.css';
 /* structural CSS (keyframes, global resets, application layout) */
 @import '../src/styles/theme.base.css';
 /* scroll-aware overflow fade utility */
-@import '../src/styles/overflow-fade.css';
+@import '../src/styles/effects/overflow-fade.css';
 /* semantic typography role classes */
 @import '../src/styles/typography.css';
 /* Surface scope classes and non-color tokens are emitted by Vanilla Extract.

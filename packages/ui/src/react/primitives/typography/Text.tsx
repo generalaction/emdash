@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { cn } from '../../lib/cn';
+import { cx } from '@styles/utilities/cx';
 import { textVariants, type TextVariantProps } from './typography.variants';
 
 type AsProp<C extends React.ElementType> = { as?: C };
@@ -29,5 +29,5 @@ export function Text<C extends React.ElementType = 'span'>({
   ...props
 }: TextProps<C>) {
   const Component = as ?? 'span';
-  return <Component className={cn(textVariants({ variant, tone }), className)} {...props} />;
+  return <Component className={cx(textVariants({ variant, tone }), className)} {...props} />;
 }

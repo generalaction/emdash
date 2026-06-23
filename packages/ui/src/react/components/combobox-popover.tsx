@@ -18,7 +18,7 @@
 import { type ComboboxRootChangeEventDetails } from '@base-ui/react/combobox';
 import { ChevronDown } from 'lucide-react';
 import * as React from 'react';
-import { cn } from '../lib/cn';
+import { cx } from '@styles/utilities/cx';
 import {
   Combobox,
   ComboboxContent,
@@ -138,14 +138,14 @@ export function ComboboxPopover<T>({
       filter={filter ?? defaultFilter}
       autoHighlight
     >
-      <ComboboxTrigger disabled={disabled} className={cn(styles.trigger, className)}>
+      <ComboboxTrigger disabled={disabled} className={cx(styles.trigger, className)}>
         <span className={styles.triggerLabel}>{renderTrigger(selectedItem)}</span>
         <ChevronDown className={styles.triggerChevron} />
       </ComboboxTrigger>
 
       <ComboboxContent
         ref={setAnchorEl}
-        className={cn(styles.contentMinWidth, contentClassName)}
+        className={cx(styles.contentMinWidth, contentClassName)}
         style={contentStyle}
       >
         <ComboboxInput showTrigger={false} placeholder={searchPlaceholder} />

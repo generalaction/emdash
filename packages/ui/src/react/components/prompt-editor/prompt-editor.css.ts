@@ -1,5 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
+// Colocated chip-class styles — global selectors for TipTap-serialized HTML.
+import './chip-classes.css';
 
 export const editorWrapper = style({
   position: 'relative',

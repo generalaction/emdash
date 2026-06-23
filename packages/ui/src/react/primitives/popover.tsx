@@ -2,7 +2,7 @@
 
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover';
 import * as React from 'react';
-import { cn } from '../lib/cn';
+import { cx } from '@styles/utilities/cx';
 import * as styles from './popover.css';
 
 function Popover({ ...props }: PopoverPrimitive.Root.Props) {
@@ -38,7 +38,7 @@ function PopoverContent({
       >
         <PopoverPrimitive.Popup
           data-slot="popover-content"
-          className={cn('surface-elevated', styles.popupContent, className)}
+          className={cx('surface-elevated', styles.popupContent, className)}
           {...props}
         />
       </PopoverPrimitive.Positioner>
@@ -48,7 +48,7 @@ function PopoverContent({
 
 function PopoverHeader({ className, ...props }: React.ComponentProps<'div'>) {
   return (
-    <div data-slot="popover-header" className={cn(styles.popoverHeader, className)} {...props} />
+    <div data-slot="popover-header" className={cx(styles.popoverHeader, className)} {...props} />
   );
 }
 
@@ -56,7 +56,7 @@ function PopoverTitle({ className, ...props }: PopoverPrimitive.Title.Props) {
   return (
     <PopoverPrimitive.Title
       data-slot="popover-title"
-      className={cn(styles.popoverTitle, className)}
+      className={cx(styles.popoverTitle, className)}
       {...props}
     />
   );
@@ -66,7 +66,7 @@ function PopoverDescription({ className, ...props }: PopoverPrimitive.Descriptio
   return (
     <PopoverPrimitive.Description
       data-slot="popover-description"
-      className={cn(styles.popoverDescription, className)}
+      className={cx(styles.popoverDescription, className)}
       {...props}
     />
   );

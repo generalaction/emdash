@@ -1,7 +1,7 @@
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { XIcon } from 'lucide-react';
 import * as React from 'react';
-import { cn } from '../lib/cn';
+import { cx } from '@styles/utilities/cx';
 import { Button } from './button';
 import { ScrollFade } from './scroll-fade';
 import * as styles from './dialog.css';
@@ -32,7 +32,7 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
-      className={cn(styles.overlay, className)}
+      className={cx(styles.overlay, className)}
       {...props}
     />
   );
@@ -51,7 +51,7 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
-        className={cn('surface-base', styles.content({ size }), className)}
+        className={cx('surface-base', styles.content({ size }), className)}
         {...props}
       >
         {children}
@@ -69,7 +69,7 @@ function DialogHeader({
   ...props
 }: React.ComponentProps<'div'> & { showCloseButton?: boolean }) {
   return (
-    <div data-slot="dialog-header" className={cn(styles.header, className)} {...props}>
+    <div data-slot="dialog-header" className={cx(styles.header, className)} {...props}>
       <div className={styles.headerInner}>{children}</div>
       {showCloseButton && (
         <DialogPrimitive.Close
@@ -104,7 +104,7 @@ function DialogBody({
       axis="y"
       edges={['top']}
       style={{ minHeight: 0, ...style }}
-      viewportClassName={cn(styles.body, className)}
+      viewportClassName={cx(styles.body, className)}
     >
       {children}
     </ScrollFade>
@@ -113,7 +113,7 @@ function DialogBody({
 
 function DialogFooter({ className, children, ...props }: React.ComponentProps<'div'>) {
   return (
-    <div data-slot="dialog-footer" className={cn(styles.footer, className)} {...props}>
+    <div data-slot="dialog-footer" className={cx(styles.footer, className)} {...props}>
       {children}
     </div>
   );
@@ -123,7 +123,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn(styles.title, className)}
+      className={cx(styles.title, className)}
       {...props}
     />
   );

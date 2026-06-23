@@ -1,7 +1,8 @@
 /**
  * codegen/emit-theme-css.ts
  *
- * Emits styles/theme.css — the full palette + per-theme semantic var blocks.
+ * Emits theme/__generated__/theme.css — the full palette + per-theme semantic var blocks,
+ * wrapped in @layer tokens.
  * :root contains all vars from the light theme as defaults; each .em<id>
  * block overrides all vars for that theme.
  */
@@ -17,22 +18,25 @@ export function emitThemeCss(themes: ResolvedTheme[]): string {
     '',
   ];
 
+  lines.push('@layer tokens {', '');
+
   // :root — default vars using the light theme as fallback
   const defaultTheme = themes.find((t) => t.polarity === 'light') ?? themes[0];
-  lines.push(':root {');
+  lines.push('  :root {');
   for (const [prop, value] of Object.entries(defaultTheme.cssVars)) {
-    lines.push(`  ${prop}: ${value};`);
+    lines.push(`    ${prop}: ${value};`);
   }
-  lines.push('}', '');
+  lines.push('  }', '');
 
   // Per-theme selectors
   for (const theme of themes) {
-    lines.push(`${theme.selector} {`);
+    lines.push(`  ${theme.selector} {`);
     for (const [prop, value] of Object.entries(theme.cssVars)) {
-      lines.push(`  ${prop}: ${value};`);
+      lines.push(`    ${prop}: ${value};`);
     }
-    lines.push('}', '');
+    lines.push('  }', '');
   }
 
+  lines.push('}');
   return lines.join('\n');
 }

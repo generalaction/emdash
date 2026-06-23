@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { cn } from '../lib/cn';
+import { cx } from '@styles/utilities/cx';
 
 export type ScrollFadeAxis = 'y' | 'x' | 'both';
 
@@ -73,11 +73,11 @@ const ScrollFade = React.forwardRef<HTMLDivElement, ScrollFadeProps>(function Sc
   const showEdge = (edge: ScrollFadeEdge) => activeEdges.includes(edge);
 
   return (
-    <div className={cn('scroll-fade', className)} style={wrapperStyle}>
+    <div className={cx('scroll-fade', className)} style={wrapperStyle}>
       <div
         ref={ref}
         style={{ height: '100%', width: '100%' }}
-        className={cn('scroll-fade__viewport', viewportClassName)}
+        className={cx('scroll-fade__viewport', viewportClassName)}
       >
         {children}
       </div>

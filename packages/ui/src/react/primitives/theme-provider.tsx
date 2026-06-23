@@ -20,7 +20,7 @@
 import { THEME_MANIFEST } from '@theme/themes/registry';
 import type { ThemeId } from '@theme/themes/registry';
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { cn } from '../lib/cn';
+import { cx } from '@styles/utilities/cx';
 
 // Re-export for consumers that want to enumerate themes.
 export type { ThemeId };
@@ -139,7 +139,7 @@ export function ThemeProvider({
 
   return (
     <ThemeContext.Provider value={ctx}>
-      <As className={cn(themeClass, className)} style={style}>
+      <As className={cx(themeClass, className)} style={style}>
         {children}
       </As>
     </ThemeContext.Provider>

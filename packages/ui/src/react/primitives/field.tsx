@@ -1,6 +1,6 @@
 import { Field as FieldPrimitive } from '@base-ui/react/field';
 import * as React from 'react';
-import { cn } from '../lib/cn';
+import { cx } from '@styles/utilities/cx';
 import * as styles from './field.css';
 
 // ── Root ──────────────────────────────────────────────────────────────────────
@@ -12,7 +12,7 @@ import * as styles from './field.css';
  */
 function Field({ className, ...props }: FieldPrimitive.Root.Props) {
   return (
-    <FieldPrimitive.Root data-slot="field" className={cn(styles.field, className)} {...props} />
+    <FieldPrimitive.Root data-slot="field" className={cx(styles.field, className)} {...props} />
   );
 }
 
@@ -22,7 +22,7 @@ function FieldLabel({ className, ...props }: FieldPrimitive.Label.Props) {
   return (
     <FieldPrimitive.Label
       data-slot="field-label"
-      className={cn(styles.fieldLabel, className)}
+      className={cx(styles.fieldLabel, className)}
       {...props}
     />
   );
@@ -34,7 +34,7 @@ function FieldDescription({ className, ...props }: FieldPrimitive.Description.Pr
   return (
     <FieldPrimitive.Description
       data-slot="field-description"
-      className={cn(styles.fieldDescription, className)}
+      className={cx(styles.fieldDescription, className)}
       {...props}
     />
   );
@@ -49,7 +49,7 @@ function FieldError({ className, ...props }: FieldPrimitive.Error.Props) {
   return (
     <FieldPrimitive.Error
       data-slot="field-error"
-      className={cn(styles.fieldError, className)}
+      className={cx(styles.fieldError, className)}
       {...props}
     />
   );

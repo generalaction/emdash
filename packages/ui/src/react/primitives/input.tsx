@@ -1,7 +1,7 @@
 import { Input as InputPrimitive } from '@base-ui/react/input';
 import { inputVariants, type InputVariantProps } from '@styles/recipes/input';
 import * as React from 'react';
-import { cn } from '../lib/cn';
+import { cx } from '@styles/utilities/cx';
 
 export interface InputProps
   extends Omit<React.ComponentProps<'input'>, 'size'>, InputVariantProps {}
@@ -15,7 +15,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input(
       type={type}
       data-slot="input"
       ref={ref}
-      className={cn(inputVariants({ size }), className)}
+      className={cx(inputVariants({ size }), className)}
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
           e.currentTarget.blur();

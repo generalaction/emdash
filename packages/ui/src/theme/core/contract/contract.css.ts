@@ -1,6 +1,6 @@
 /**
  * VE theme contract: maps camelCase TypeScript keys to the stable CSS custom
- * property names emitted by styles/theme.css and styles/semantic.css.
+ * property names emitted by theme/__generated__/theme.css and theme/__generated__/semantic.css.
  *
  * This is a REFERENCE-ONLY contract (createGlobalThemeContract only, no
  * createGlobalTheme). Values come from the generated CSS files and .em<id>

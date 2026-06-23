@@ -2,7 +2,7 @@ import { Toggle as TogglePrimitive } from '@base-ui/react/toggle';
 import { ToggleGroup as ToggleGroupPrimitive } from '@base-ui/react/toggle-group';
 import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
 import * as React from 'react';
-import { cn } from '../lib/cn';
+import { cx } from '@styles/utilities/cx';
 import { toggleGroup as toggleGroupClass } from './toggle.css';
 
 // ── Toggle ────────────────────────────────────────────────────────────────────
@@ -25,7 +25,7 @@ const Toggle = React.forwardRef<HTMLButtonElement, ToggleProps>(function Toggle(
     <TogglePrimitive
       ref={ref}
       data-slot="toggle"
-      className={cn(controlVariants({ variant: 'ghost', tone, size, icon }), className)}
+      className={cx(controlVariants({ variant: 'ghost', tone, size, icon }), className)}
       {...props}
     />
   );
@@ -46,7 +46,7 @@ function ToggleGroup({ className, ...props }: ToggleGroupProps) {
   return (
     <ToggleGroupPrimitive
       data-slot="toggle-group"
-      className={cn(toggleGroupClass, className)}
+      className={cx(toggleGroupClass, className)}
       {...props}
     />
   );
@@ -66,7 +66,7 @@ const ToggleGroupItem = React.forwardRef<
     <TogglePrimitive
       ref={ref}
       data-slot="toggle-group-item"
-      className={cn(controlVariants({ variant: 'ghost', tone, size, icon }), className)}
+      className={cx(controlVariants({ variant: 'ghost', tone, size, icon }), className)}
       {...props}
     />
   );

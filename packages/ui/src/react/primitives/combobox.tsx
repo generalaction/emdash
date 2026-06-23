@@ -1,7 +1,7 @@
 import { Combobox as ComboboxPrimitive } from '@base-ui/react';
 import { CheckIcon, XIcon } from 'lucide-react';
 import * as React from 'react';
-import { cn } from '../lib/cn';
+import { cx } from '@styles/utilities/cx';
 import { Button } from './button';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from './input-group';
 import * as styles from './combobox.css';
@@ -16,7 +16,7 @@ function ComboboxTrigger({ className, children, ...props }: ComboboxPrimitive.Tr
   return (
     <ComboboxPrimitive.Trigger
       data-slot="combobox-trigger"
-      className={cn(styles.comboboxTrigger, className)}
+      className={cx(styles.comboboxTrigger, className)}
       {...props}
     >
       {children}
@@ -29,7 +29,7 @@ function ComboboxClear({ className, ...props }: ComboboxPrimitive.Clear.Props) {
     <ComboboxPrimitive.Clear
       data-slot="combobox-clear"
       render={<InputGroupButton />}
-      className={cn(className)}
+      className={cx(className)}
       {...props}
     >
       <XIcon style={{ pointerEvents: 'none' }} />
@@ -55,7 +55,7 @@ function ComboboxInput({
   inputRef?: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
-    <InputGroup className={cn(styles.inputGroupAutoWidth, styles.inputGroupNoRing, className)}>
+    <InputGroup className={cx(styles.inputGroupAutoWidth, styles.inputGroupNoRing, className)}>
       {leftAddon && <InputGroupAddon align="inline-start">{leftAddon}</InputGroupAddon>}
       <ComboboxPrimitive.Input
         render={<InputGroupInput ref={inputRef} disabled={disabled} />}
@@ -108,7 +108,7 @@ function ComboboxContent({
           data-slot="combobox-content"
           data-chips={!!anchor}
           finalFocus={finalFocus}
-          className={cn('surface-elevated', styles.comboboxContent, className)}
+          className={cx('surface-elevated', styles.comboboxContent, className)}
           {...props}
         />
       </ComboboxPrimitive.Positioner>
@@ -120,7 +120,7 @@ function ComboboxList({ className, ...props }: ComboboxPrimitive.List.Props) {
   return (
     <ComboboxPrimitive.List
       data-slot="combobox-list"
-      className={cn(styles.comboboxList, className)}
+      className={cx(styles.comboboxList, className)}
       {...props}
     />
   );
@@ -135,7 +135,7 @@ function ComboboxItem({
   return (
     <ComboboxPrimitive.Item
       data-slot="combobox-item"
-      className={cn(styles.comboboxItem, className)}
+      className={cx(styles.comboboxItem, className)}
       {...props}
     >
       {children}
@@ -150,7 +150,7 @@ function ComboboxItem({
 
 function ComboboxGroup({ className, ...props }: ComboboxPrimitive.Group.Props) {
   return (
-    <ComboboxPrimitive.Group data-slot="combobox-group" className={cn(className)} {...props} />
+    <ComboboxPrimitive.Group data-slot="combobox-group" className={cx(className)} {...props} />
   );
 }
 
@@ -158,7 +158,7 @@ function ComboboxLabel({ className, ...props }: ComboboxPrimitive.GroupLabel.Pro
   return (
     <ComboboxPrimitive.GroupLabel
       data-slot="combobox-label"
-      className={cn(styles.comboboxLabel, className)}
+      className={cx(styles.comboboxLabel, className)}
       {...props}
     />
   );
@@ -172,7 +172,7 @@ function ComboboxEmpty({ className, ...props }: ComboboxPrimitive.Empty.Props) {
   return (
     <ComboboxPrimitive.Empty
       data-slot="combobox-empty"
-      className={cn(styles.comboboxEmpty, className)}
+      className={cx(styles.comboboxEmpty, className)}
       {...props}
     />
   );
@@ -182,7 +182,7 @@ function ComboboxSeparator({ className, ...props }: ComboboxPrimitive.Separator.
   return (
     <ComboboxPrimitive.Separator
       data-slot="combobox-separator"
-      className={cn(styles.comboboxSeparator, className)}
+      className={cx(styles.comboboxSeparator, className)}
       {...props}
     />
   );
@@ -195,7 +195,7 @@ function ComboboxChips({
   return (
     <ComboboxPrimitive.Chips
       data-slot="combobox-chips"
-      className={cn(styles.comboboxChips, className)}
+      className={cx(styles.comboboxChips, className)}
       {...props}
     />
   );
@@ -212,7 +212,7 @@ function ComboboxChip({
   return (
     <ComboboxPrimitive.Chip
       data-slot="combobox-chip"
-      className={cn(styles.comboboxChip, className)}
+      className={cx(styles.comboboxChip, className)}
       {...props}
     >
       {children}
@@ -233,7 +233,7 @@ function ComboboxChipsInput({ className, ...props }: ComboboxPrimitive.Input.Pro
   return (
     <ComboboxPrimitive.Input
       data-slot="combobox-chip-input"
-      className={cn(styles.comboboxChipsInput, className)}
+      className={cx(styles.comboboxChipsInput, className)}
       {...props}
     />
   );

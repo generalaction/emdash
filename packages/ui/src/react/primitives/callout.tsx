@@ -1,6 +1,6 @@
 import type { SurfaceStatusName } from '@theme/core/contract/roles';
 import * as React from 'react';
-import { cn } from '../lib/cn';
+import { cx } from '@styles/utilities/cx';
 import { Surface } from './surface';
 import * as styles from './callout.css';
 
@@ -23,7 +23,7 @@ export interface CalloutProps extends React.HTMLAttributes<HTMLDivElement> {
  */
 export function Callout({ status, icon, className, children, ...props }: CalloutProps) {
   return (
-    <Surface status={status} className={cn(styles.calloutRoot, className)} {...props}>
+    <Surface status={status} className={cx(styles.calloutRoot, className)} {...props}>
       {icon && <span className={styles.calloutIcon}>{icon}</span>}
       <div className={styles.calloutContent}>{children}</div>
     </Surface>

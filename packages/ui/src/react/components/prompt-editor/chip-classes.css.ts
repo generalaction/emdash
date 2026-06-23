@@ -5,6 +5,7 @@
  * correctly as serialized HTML from ProseMirror.
  */
 import { globalStyle } from '@vanilla-extract/css';
+import { vars } from '@theme/core/contract/contract.css';
 
 // Applied to mention chip DOM elements in the serialized HTML representation.
 globalStyle('.mention-chip', {
@@ -16,8 +17,8 @@ globalStyle('.mention-chip', {
   paddingRight: '0.25rem',
   paddingTop: '0.125rem',
   paddingBottom: '0.125rem',
-  backgroundColor: 'var(--surface-hover)',
-  color: 'var(--foreground)',
+  backgroundColor: vars.surfaceHover,
+  color: vars.foreground,
   boxShadow: '0 0 0 1px rgba(0,0,0,0.1)',
   verticalAlign: 'baseline',
 });
@@ -32,8 +33,8 @@ globalStyle('.slash-command-chip', {
   paddingRight: '0.25rem',
   paddingTop: '0.125rem',
   paddingBottom: '0.125rem',
-  backgroundColor: 'var(--surface-hover)',
-  color: 'var(--foreground)',
+  backgroundColor: vars.surfaceHover,
+  color: vars.foreground,
   boxShadow: '0 0 0 1px rgba(0,0,0,0.1)',
   verticalAlign: 'baseline',
 });
