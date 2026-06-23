@@ -58,12 +58,20 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
   private readonly scheduler = new AutomationScheduler({
     onRunStep: (run) => {
       this._hooks.callHookBackground('run:step-completed', run);
-      events.emit(automationRunChangedChannel, { automationId: run.automationId, run });
+      this.emitRunChanged(run);
     },
     onScheduledRunChanged: (automationId) => {
       events.emit(automationChangedChannel, { automationId });
     },
   });
+
+  private emitRunChanged(run: AutomationRun): void {
+    events.emit(automationRunChangedChannel, { automationId: run.automationId, run });
+  }
+
+  private emitRunChanges(runs: AutomationRun[]): void {
+    for (const run of runs) this.emitRunChanged(run);
+  }
 
   on<K extends keyof AutomationsServiceHooks>(name: K, handler: AutomationsServiceHooks[K]) {
     return this._hooks.on(name, handler);
@@ -100,7 +108,8 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     const automation = await updateSettingsInRepo(id, patch);
     if (!automation) throw new Error('automation_not_found');
     if (patch.triggerConfig !== undefined) {
-      await skipQueuedCronRuns(id, 'trigger_changed');
+      const skippedRuns = await skipQueuedCronRuns(id, 'trigger_changed');
+      this.emitRunChanges(skippedRuns);
       if (automation.enabled) {
         await ensureNextCronRun(automation);
         events.emit(automationChangedChannel, { automationId: id });
@@ -130,7 +139,8 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     if (enabled) {
       await ensureNextCronRun(automation);
     } else {
-      await skipQueuedCronRuns(id, 'disabled');
+      const skippedRuns = await skipQueuedCronRuns(id, 'disabled');
+      this.emitRunChanges(skippedRuns);
     }
     this._hooks.callHookBackground('automation:enabled', automation);
     events.emit(automationChangedChannel, { automationId: id });
@@ -263,6 +273,7 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     }
     this._hooks.callHookBackground('run:stopped', stopped);
     this._hooks.callHookBackground('run:step-completed', stopped);
+    this.emitRunChanged(stopped);
     return stopped;
   }
 
@@ -271,7 +282,8 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
   }
 
   async deleteAutomation(id: string): Promise<void> {
-    await skipQueuedCronRuns(id, 'automation_deleted');
+    const skippedRuns = await skipQueuedCronRuns(id, 'automation_deleted');
+    this.emitRunChanges(skippedRuns);
     const deleted = await softDeleteAutomation(id);
     if (!deleted) throw new Error('automation_not_found');
     this._hooks.callHookBackground('automation:deleted', id);
