@@ -1,0 +1,21 @@
+packages/core/src/agents/plugins/helpers/mcp.test.ts
+  s_6e238a42d9f6a4::t_9ec472a5983aef 288-308
+packages/core/src/agents/plugins/helpers/mcp.ts
+  s_6e238a42d9f6a4::t_9ec472a5983aef 395-399
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "3674cf8eac98bc0c443a3ae92ca30864ec0a3e9b",
+  "prompts": {},
+  "sessions": {
+    "s_6e238a42d9f6a4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef3c5-13ad-72b3-b50a-94db0d895444",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
