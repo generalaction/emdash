@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/assets/images/mcp/monday.svg
+  s_cca176c6b8edb2::t_60b792ddb1d3a8 1,3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "e86861b8bf74b3ba9aa5a47388f115a59095bcab",
+  "prompts": {},
+  "sessions": {
+    "s_cca176c6b8edb2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1522a985-66a0-4656-a0f3-e70085f2770e",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
