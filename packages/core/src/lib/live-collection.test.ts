@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { LiveCollection, type CollectionUpdate } from './live-collection';
 
 function deferred<T>() {
@@ -20,10 +20,6 @@ function cachedSnapshot<K, V>(entries: Array<[K, V]>, sequence: number) {
   return { entries, generation: expect.any(Number), sequence };
 }
 
-function okSnapshot<K, V>(entries: Array<[K, V]>, sequence: number) {
-  return { success: true, data: cachedSnapshot(entries, sequence) };
-}
-
 function delta<K, V>(
   ops: Array<{ op: 'put'; key: K; value: V } | { op: 'del'; key: K }>,
   sequence: number
@@ -32,137 +28,17 @@ function delta<K, V>(
 }
 
 describe('LiveCollection', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('delivers a synchronous snapshot before deltas, even during an in-flight compute', async () => {
-    const gate = deferred<Result<Array<[string, number]>>>();
-    const collection = new LiveCollection<string, number>({ compute: () => gate.promise });
-
-    const refresh = collection.refresh();
-    expect(collection.put('local', 1)).toBe(1);
-
-    const updates: Array<CollectionUpdate<string, number>> = [];
-    collection.subscribe((update) => updates.push(update));
-    expect(updates).toEqual([snapshot([['local', 1]], 1)]);
-
-    expect(collection.put('after-subscribe', 2)).toBe(2);
-    gate.resolve(ok([['remote', 3]]));
-    await refresh;
-
-    expect(updates).toEqual([
-      snapshot([['local', 1]], 1),
-      delta([{ op: 'put', key: 'after-subscribe', value: 2 }], 2),
-      delta(
-        [
-          { op: 'del', key: 'local' },
-          { op: 'del', key: 'after-subscribe' },
-          { op: 'put', key: 'remote', value: 3 },
-        ],
-        3
-      ),
-    ]);
-  });
-
-  it('does not advance sequence for subscriber or read baselines', async () => {
+  it('does not advance sequence for subscriber or read baselines', () => {
     const collection = new LiveCollection<string, number>();
     const updates: Array<CollectionUpdate<string, number>> = [];
 
     const unsubscribe = collection.subscribe((update) => updates.push(update));
     expect(updates).toEqual([snapshot([], 0)]);
-    await expect(collection.get()).resolves.toEqual(okSnapshot([], 0));
-    await expect(collection.refresh()).resolves.toEqual(okSnapshot([], 0));
     expect(collection.getCached()).toEqual(cachedSnapshot([], 0));
 
     unsubscribe();
     collection.subscribe((update) => updates.push(update));
     expect(updates).toEqual([snapshot([], 0), snapshot([], 0)]);
-  });
-
-  it('emits derived compute results as diffs against the current mergebox', async () => {
-    let entries: Array<[string, { id: number; value: string }]> = [
-      ['a', { id: 1, value: 'one' }],
-      ['b', { id: 2, value: 'two' }],
-    ];
-    const collection = new LiveCollection<string, { id: number; value: string }>({
-      compute: async () => ok(entries),
-    });
-    const updates: Array<CollectionUpdate<string, { id: number; value: string }>> = [];
-
-    collection.subscribe((update) => updates.push(update));
-    await vi.runAllTimersAsync();
-    expect(updates).toEqual([
-      snapshot([], 0),
-      delta(
-        [
-          { op: 'put', key: 'a', value: { id: 1, value: 'one' } },
-          { op: 'put', key: 'b', value: { id: 2, value: 'two' } },
-        ],
-        1
-      ),
-    ]);
-
-    entries = [
-      ['b', { id: 2, value: 'changed' }],
-      ['c', { id: 3, value: 'three' }],
-    ];
-    collection.invalidate();
-    await vi.runAllTimersAsync();
-    expect(updates).toEqual([
-      snapshot([], 0),
-      delta(
-        [
-          { op: 'put', key: 'a', value: { id: 1, value: 'one' } },
-          { op: 'put', key: 'b', value: { id: 2, value: 'two' } },
-        ],
-        1
-      ),
-      delta(
-        [
-          { op: 'del', key: 'a' },
-          { op: 'put', key: 'b', value: { id: 2, value: 'changed' } },
-          { op: 'put', key: 'c', value: { id: 3, value: 'three' } },
-        ],
-        2
-      ),
-    ]);
-
-    collection.invalidate();
-    await vi.runAllTimersAsync();
-    expect(updates).toHaveLength(3);
-    expect(collection.getCached()).toEqual(
-      cachedSnapshot(
-        [
-          ['b', { id: 2, value: 'changed' }],
-          ['c', { id: 3, value: 'three' }],
-        ],
-        2
-      )
-    );
-  });
-
-  it('uses a custom isEqual for puts and recompute diffs', async () => {
-    let entries: Array<[string, { id: number; noise: number }]> = [['a', { id: 1, noise: 1 }]];
-    const collection = new LiveCollection<string, { id: number; noise: number }>({
-      compute: async () => ok(entries),
-      isEqual: (a, b) => a.id === b.id,
-    });
-    const updates: Array<CollectionUpdate<string, { id: number; noise: number }>> = [];
-    collection.subscribe((update) => updates.push(update));
-    await vi.runAllTimersAsync();
-
-    entries = [['a', { id: 1, noise: 2 }]];
-    collection.invalidate();
-    await vi.runAllTimersAsync();
-    expect(updates).toHaveLength(2);
-
-    expect(collection.put('a', { id: 1, noise: 3 })).toBe(1);
-    expect(updates).toHaveLength(2);
   });
 
   it('emits driven mutations with monotonic sequences and reset snapshots', () => {
@@ -229,118 +105,195 @@ describe('LiveCollection', () => {
     expect(collection.getCached().entries[0]![1]).toBe(original);
   });
 
-  it('serves the current snapshot in driven mode', async () => {
-    const collection = new LiveCollection<string, number>();
-    collection.put('a', 1);
-    collection.invalidate();
-
-    await expect(collection.get()).resolves.toEqual(okSnapshot([['a', 1]], 1));
-    await expect(collection.refresh()).resolves.toEqual(okSnapshot([['a', 1]], 1));
-  });
-
-  it('demand-gates invalidation until get or subscribe', async () => {
-    let computes = 0;
-    const collection = new LiveCollection<string, number>({
-      compute: async () => ok([['value', ++computes]]),
+  it('loads one scope by diffing only entries owned by that scope', async () => {
+    type Entry = { scope: string | null; value: number };
+    const collection = new LiveCollection<string, Entry>({
+      scopeOf: (entry) => entry.scope,
     });
-
-    collection.invalidate();
-    await vi.runAllTimersAsync();
-    expect(computes).toBe(0);
-
-    await expect(collection.get()).resolves.toEqual(okSnapshot([['value', 1]], 1));
-    collection.invalidate();
-    await vi.runAllTimersAsync();
-    expect(computes).toBe(1);
-
-    const updates: Array<CollectionUpdate<string, number>> = [];
+    const updates: Array<CollectionUpdate<string, Entry>> = [];
     collection.subscribe((update) => updates.push(update));
-    expect(updates).toEqual([snapshot([['value', 1]], 1)]);
-    await vi.runAllTimersAsync();
 
-    expect(computes).toBe(2);
+    await expect(
+      collection.loadScope('src', async () =>
+        ok([
+          ['src/a', { scope: 'src', value: 1 }],
+          ['src/b', { scope: 'src', value: 2 }],
+        ])
+      )
+    ).resolves.toEqual(ok(1));
+    await expect(
+      collection.loadScope('test', async () => ok([['test/a', { scope: 'test', value: 3 }]]))
+    ).resolves.toEqual(ok(2));
+    await expect(
+      collection.loadScope('src', async () =>
+        ok([
+          ['src/b', { scope: 'src', value: 20 }],
+          ['src/c', { scope: 'src', value: 4 }],
+        ])
+      )
+    ).resolves.toEqual(ok(3));
+
+    expect(collection.loadedScopes()).toEqual(['src', 'test']);
+    expect(collection.isScopeLoaded('src')).toBe(true);
+    expect(collection.getCached()).toEqual(
+      cachedSnapshot(
+        [
+          ['src/b', { scope: 'src', value: 20 }],
+          ['test/a', { scope: 'test', value: 3 }],
+          ['src/c', { scope: 'src', value: 4 }],
+        ],
+        3
+      )
+    );
     expect(updates).toEqual([
-      snapshot([['value', 1]], 1),
-      delta([{ op: 'put', key: 'value', value: 2 }], 2),
+      snapshot([], 0),
+      delta(
+        [
+          { op: 'put', key: 'src/a', value: { scope: 'src', value: 1 } },
+          { op: 'put', key: 'src/b', value: { scope: 'src', value: 2 } },
+        ],
+        1
+      ),
+      delta([{ op: 'put', key: 'test/a', value: { scope: 'test', value: 3 } }], 2),
+      delta(
+        [
+          { op: 'del', key: 'src/a' },
+          { op: 'put', key: 'src/b', value: { scope: 'src', value: 20 } },
+          { op: 'put', key: 'src/c', value: { scope: 'src', value: 4 } },
+        ],
+        3
+      ),
     ]);
   });
 
-  it('queues exactly one trailing recompute during an in-flight refresh', async () => {
-    const gates: Array<ReturnType<typeof deferred<Result<Array<[string, number]>>>>> = [];
-    const collection = new LiveCollection<string, number>({
-      compute: () => {
-        const gate = deferred<Result<Array<[string, number]>>>();
-        gates.push(gate);
-        return gate.promise;
-      },
+  it('single-flights concurrent loads for the same scope', async () => {
+    type Entry = { scope: string | null; value: number };
+    const gate = deferred<Result<Array<[string, Entry]>>>();
+    let loads = 0;
+    const collection = new LiveCollection<string, Entry>({
+      scopeOf: (entry) => entry.scope,
     });
 
-    const first = collection.refresh();
-    const second = collection.refresh();
-    const third = collection.refresh();
-    expect(gates).toHaveLength(1);
+    const first = collection.loadScope('src', () => {
+      loads += 1;
+      return gate.promise;
+    });
+    const second = collection.loadScope('src', () => {
+      loads += 1;
+      return gate.promise;
+    });
 
-    gates[0]!.resolve(ok([['a', 1]]));
-    await first;
-    await vi.runAllTimersAsync();
-    expect(gates).toHaveLength(2);
+    expect(loads).toBe(1);
+    gate.resolve(ok([['src/a', { scope: 'src', value: 1 }]]));
+    await expect(first).resolves.toEqual(ok(1));
+    await expect(second).resolves.toEqual(ok(1));
 
-    gates[1]!.resolve(ok([['a', 2]]));
-    await expect(second).resolves.toEqual(okSnapshot([['a', 2]], 2));
-    await expect(third).resolves.toEqual(okSnapshot([['a', 2]], 2));
-    await expect(first).resolves.toEqual(okSnapshot([['a', 1]], 1));
+    await expect(
+      collection.loadScope('src', async () => ok([['src/a', { scope: 'src', value: 2 }]]))
+    ).resolves.toEqual(ok(2));
+    expect(loads).toBe(1);
   });
 
-  it('keeps last-good entries after expected failures and returns them as errors', async () => {
-    let fail = false;
-    let computes = 0;
-    const errors: string[] = [];
-    const collection = new LiveCollection<string, number, string>({
-      compute: async () => {
-        computes += 1;
-        if (fail) return err('boom');
-        return ok([['value', computes]]);
-      },
-      onError: (error) => errors.push(error),
+  it('suppresses no-op scope loads and preserves equal existing values', async () => {
+    type Entry = { scope: string | null; id: number; label: string };
+    const original = { scope: 'src', id: 1, label: 'original' };
+    const equalReplacement = { scope: 'src', id: 1, label: 'replacement' };
+    const collection = new LiveCollection<string, Entry>({
+      scopeOf: (entry) => entry.scope,
+      isEqual: (a, b) => a.id === b.id,
     });
+    const updates: Array<CollectionUpdate<string, Entry>> = [];
+    collection.subscribe((update) => updates.push(update));
+
+    await expect(
+      collection.loadScope('src', async () => ok([['src/a', original]]))
+    ).resolves.toEqual(ok(1));
+    await expect(
+      collection.loadScope('other', async () =>
+        ok([['other/a', { scope: 'other', id: 2, label: 'x' }]])
+      )
+    ).resolves.toEqual(ok(2));
+    await expect(
+      collection.loadScope('src', async () => ok([['src/a', equalReplacement]]))
+    ).resolves.toEqual(ok(2));
+
+    expect(updates).toHaveLength(3);
+    expect(collection.getCached().entries.find(([key]) => key === 'src/a')?.[1]).toBe(original);
+  });
+
+  it('does not mark a scope loaded when its loader returns an expected error', async () => {
+    type Entry = { scope: string | null; value: number };
+    const collection = new LiveCollection<string, Entry, string>({
+      scopeOf: (entry) => entry.scope,
+    });
+
+    await expect(collection.loadScope('src', async () => err('boom'))).resolves.toEqual(
+      err('boom')
+    );
+
+    expect(collection.isScopeLoaded('src')).toBe(false);
+    expect(collection.getCached()).toEqual(cachedSnapshot([], 0));
+  });
+
+  it('propagates unexpected load errors without marking the scope loaded', async () => {
+    type Entry = { scope: string | null; value: number };
+    const unexpected = new Error('boom');
+    const collection = new LiveCollection<string, Entry>({
+      scopeOf: (entry) => entry.scope,
+    });
+
+    await expect(
+      collection.loadScope('src', async (): Promise<Result<Array<[string, Entry]>>> => {
+        throw unexpected;
+      })
+    ).rejects.toBe(unexpected);
+
+    expect(collection.isScopeLoaded('src')).toBe(false);
+    await expect(
+      collection.loadScope('src', async () => ok([['src/a', { scope: 'src', value: 1 }]]))
+    ).resolves.toEqual(ok(1));
+  });
+
+  it('throws when a scoped load returns entries outside the requested scope', async () => {
+    type Entry = { scope: string | null; value: number };
+    const collection = new LiveCollection<string, Entry>({
+      scopeOf: (entry) => entry.scope,
+    });
+
+    await expect(
+      collection.loadScope('src', async () => ok([['test/a', { scope: 'test', value: 1 }]]))
+    ).rejects.toThrow('LiveCollection loadScope loaded an entry outside the requested scope');
+    expect(collection.isScopeLoaded('src')).toBe(false);
+  });
+
+  it('unloads only direct entries in the requested scope', async () => {
+    type Entry = { scope: string | null; value: number };
+    const collection = new LiveCollection<string, Entry>({
+      scopeOf: (entry) => entry.scope,
+    });
+    await collection.loadScope(null, async () => ok([['src', { scope: null, value: 1 }]]));
+    await collection.loadScope('src', async () => ok([['src/a', { scope: 'src', value: 2 }]]));
+
+    expect(collection.unloadScope(null)).toBe(3);
+
+    expect(collection.isScopeLoaded(null)).toBe(false);
+    expect(collection.isScopeLoaded('src')).toBe(true);
+    expect(collection.getCached()).toEqual(
+      cachedSnapshot([['src/a', { scope: 'src', value: 2 }]], 3)
+    );
+  });
+
+  it('can reset with a new generation for resync baselines', () => {
+    const collection = new LiveCollection<string, number>();
     const updates: Array<CollectionUpdate<string, number>> = [];
     collection.subscribe((update) => updates.push(update));
-    await vi.runAllTimersAsync();
+    const initialGeneration = updates[0]!.generation;
 
-    fail = true;
-    collection.invalidate();
-    await vi.runAllTimersAsync();
+    expect(collection.put('a', 1)).toBe(1);
+    expect(collection.resetWithNewGeneration([['b', 2]])).toBe(2);
 
-    expect(errors).toHaveLength(1);
-    expect(collection.getCached()).toEqual(cachedSnapshot([['value', 1]], 1));
-    expect(updates).toEqual([snapshot([], 0), delta([{ op: 'put', key: 'value', value: 1 }], 1)]);
-    await expect(collection.refresh()).resolves.toEqual(err('boom'));
-
-    fail = false;
-    await expect(collection.get()).resolves.toEqual(okSnapshot([['value', 4]], 2));
-  });
-
-  it('rejects direct refresh when compute throws unexpectedly', async () => {
-    const unexpected = new Error('boom');
-    const collection = new LiveCollection<string, number>({
-      compute: async () => {
-        throw unexpected;
-      },
-    });
-
-    await expect(collection.refresh()).rejects.toBe(unexpected);
-  });
-
-  it('reconciles apply calls that occur during an in-flight refresh', async () => {
-    const gate = deferred<Result<Array<[string, number]>>>();
-    const collection = new LiveCollection<string, number>({ compute: () => gate.promise });
-
-    const refresh = collection.refresh();
-    expect(collection.put('optimistic', 1)).toBe(1);
-    gate.resolve(ok([['truth', 2]]));
-
-    await expect(refresh).resolves.toEqual(okSnapshot([['truth', 2]], 2));
-    expect(collection.getCached()).toEqual(cachedSnapshot([['truth', 2]], 2));
+    expect(updates[2]).toEqual(snapshot([['b', 2]], 2));
+    expect(updates[2]!.generation).toBeGreaterThan(initialGeneration);
   });
 
   it('unsubscribes if the initial snapshot callback throws', () => {
@@ -355,28 +308,23 @@ describe('LiveCollection', () => {
     expect(collection.put('a', 1)).toBe(1);
   });
 
-  it('rejects get/refresh/subscribe after dispose and makes mutations no-ops', async () => {
-    let computes = 0;
-    const collection = new LiveCollection<string, number>({
-      compute: async () => ok([['value', ++computes]]),
-      revalidateIntervalMs: 1_000,
+  it('rejects subscribe/loadScope after dispose and makes mutations no-ops', async () => {
+    const collection = new LiveCollection<string, { scope: string | null; value: number }>({
+      scopeOf: (entry) => entry.scope,
     });
     const unsubscribe = collection.subscribe(() => {});
-    await vi.advanceTimersByTimeAsync(0);
-    expect(computes).toBe(1);
+    collection.put('value', { scope: null, value: 1 });
 
     collection.dispose();
     unsubscribe();
     unsubscribe();
-    await vi.advanceTimersByTimeAsync(10_000);
 
-    await expect(collection.get()).rejects.toThrow('LiveCollection disposed');
-    await expect(collection.refresh()).rejects.toThrow('LiveCollection disposed');
     expect(() => collection.subscribe(() => {})).toThrow('LiveCollection disposed');
-    expect(collection.invalidate()).toBeUndefined();
-    expect(collection.put('a', 1)).toBe(1);
+    expect(() =>
+      collection.loadScope(null, async () => ok([['value', { scope: null, value: 2 }]]))
+    ).toThrow('LiveCollection disposed');
+    expect(collection.put('a', { scope: null, value: 3 })).toBe(1);
     expect(collection.delete('value')).toBe(1);
     expect(collection.reset()).toBe(1);
-    expect(computes).toBe(1);
   });
 });

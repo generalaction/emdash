@@ -7,9 +7,9 @@ import {
   type Result,
   type Unsubscribe,
 } from '@emdash/shared';
-import { LiveScheduler, type LiveSchedulerRun } from './live-scheduler';
 
 export type KeyedOp<K, V> = { op: 'put'; key: K; value: V } | { op: 'del'; key: K };
+export type ScopeKey<K> = K | null;
 
 export type CollectionSnapshot<K, V> = {
   entries: Array<[K, V]>;
@@ -21,52 +21,33 @@ export type CollectionUpdate<K, V> =
   | ({ kind: 'snapshot' } & CollectionSnapshot<K, V>)
   | { kind: 'delta'; generation: number; ops: Array<KeyedOp<K, V>>; sequence: number };
 
-export type LiveCollectionOptions<K, V, E = unknown> = {
-  /** Compute the full current collection. Omit for driven mode. */
-  compute?: () => Promise<Result<Iterable<readonly [K, V]>, E>>;
-  /** Debounce window for invalidation-triggered recomputes. Defaults to 0 (next tick). */
-  debounceMs?: number;
-  /** While subscribed, recompute at this interval even without invalidation. */
-  revalidateIntervalMs?: number;
+export type LiveCollectionOptions<K, V> = {
   /** Used to suppress no-op updates. */
   isEqual?: (a: V, b: V) => boolean;
-  /** Receives errors returned by background recomputes. */
-  onError?: (error: E) => void;
+  /** Maps each value to the scope that owns it. Required for loadScope/unloadScope. */
+  scopeOf?: (value: V) => ScopeKey<K>;
 };
 
 /**
  * A keyed live collection backed by an authoritative in-memory mergebox.
  *
  * Subscribers synchronously receive a current snapshot baseline before any future delta.
- * Recomputes are demand-gated and single-flight, following the same lifecycle as LiveModel.
  */
 export class LiveCollection<K, V, E = unknown> implements IDisposable {
   private static lastGeneration = 0;
 
   private readonly emitter = new Emitter<CollectionUpdate<K, V>>();
-  private readonly generation = LiveCollection.nextGeneration();
   private readonly isEqual: (a: V, b: V) => boolean;
-  private readonly scheduler: LiveScheduler<Result<CollectionSnapshot<K, V>, E>> | null;
 
   private disposed = false;
   private entries = new Map<K, V>();
+  private generation = LiveCollection.nextGeneration();
+  private loadedScopeKeys = new Set<ScopeKey<K>>();
+  private loadingScopes = new Map<ScopeKey<K>, Promise<Result<number, E>>>();
   private sequence = 0;
 
-  constructor(private readonly options: LiveCollectionOptions<K, V, E> = {}) {
-    const compute = options.compute;
+  constructor(private readonly options: LiveCollectionOptions<K, V> = {}) {
     this.isEqual = options.isEqual ?? isDeepEqual;
-    this.scheduler = compute
-      ? new LiveScheduler<Result<CollectionSnapshot<K, V>, E>>({
-          run: () => this.recompute(compute),
-          hasDemand: () => this.emitter.size > 0,
-          initialDirty: true,
-          debounceMs: options.debounceMs,
-          revalidateIntervalMs: options.revalidateIntervalMs,
-          onBackgroundResult: (result) => {
-            if (!result.success) options.onError?.(result.error);
-          },
-        })
-      : null;
   }
 
   get size(): number {
@@ -81,18 +62,6 @@ export class LiveCollection<K, V, E = unknown> implements IDisposable {
     return this.snapshot();
   }
 
-  async get(): Promise<Result<CollectionSnapshot<K, V>, E>> {
-    this.assertNotDisposed();
-    if (!this.scheduler || !this.scheduler.dirty) return ok(this.snapshot());
-    return this.scheduler.runDirect();
-  }
-
-  async refresh(): Promise<Result<CollectionSnapshot<K, V>, E>> {
-    this.assertNotDisposed();
-    if (!this.scheduler) return ok(this.snapshot());
-    return this.scheduler.runDirect();
-  }
-
   subscribe(cb: (update: CollectionUpdate<K, V>) => void): Unsubscribe {
     this.assertNotDisposed();
     const unsubscribe = this.emitter.subscribe(cb);
@@ -102,19 +71,12 @@ export class LiveCollection<K, V, E = unknown> implements IDisposable {
       unsubscribe();
       throw error;
     }
-    this.scheduler?.onDemandAvailable();
     let released = false;
     return () => {
       if (released) return;
       released = true;
       unsubscribe();
-      this.scheduler?.onDemandUnavailable();
     };
-  }
-
-  invalidate(): void {
-    if (this.disposed) return;
-    this.scheduler?.markDirty();
   }
 
   apply(ops: Array<KeyedOp<K, V>>): number {
@@ -169,9 +131,61 @@ export class LiveCollection<K, V, E = unknown> implements IDisposable {
   }
 
   reset(entries?: Iterable<readonly [K, V]>): number {
+    return this.resetInternal(entries);
+  }
+
+  resetWithNewGeneration(entries?: Iterable<readonly [K, V]>): number {
+    return this.resetInternal(entries, { bumpGeneration: true });
+  }
+
+  loadScope(
+    scope: ScopeKey<K>,
+    load: () => Promise<Result<Iterable<readonly [K, V]>, E>>
+  ): Promise<Result<number, E>> {
+    this.assertNotDisposed();
+    this.assertScoped();
+    const existing = this.loadingScopes.get(scope);
+    if (existing) return existing;
+
+    const loading = this.loadScopeInternal(scope, load);
+    this.loadingScopes.set(scope, loading);
+    void loading.then(
+      () => {
+        if (this.loadingScopes.get(scope) === loading) this.loadingScopes.delete(scope);
+      },
+      () => {
+        if (this.loadingScopes.get(scope) === loading) this.loadingScopes.delete(scope);
+      }
+    );
+    return loading;
+  }
+
+  isScopeLoaded(scope: ScopeKey<K>): boolean {
+    return this.loadedScopeKeys.has(scope);
+  }
+
+  loadedScopes(): Array<ScopeKey<K>> {
+    return [...this.loadedScopeKeys];
+  }
+
+  unloadScope(scope: ScopeKey<K>): number {
     if (this.disposed) return this.sequence;
+    this.assertScoped();
+    this.loadedScopeKeys.delete(scope);
+    const ops: Array<KeyedOp<K, V>> = [];
+    for (const [key, value] of this.entries) {
+      if (this.scopeOf(value) === scope) ops.push({ op: 'del', key });
+    }
+    return this.apply(ops);
+  }
+
+  private resetInternal(
+    entries?: Iterable<readonly [K, V]>,
+    options: { bumpGeneration?: boolean } = {}
+  ): number {
+    if (this.disposed) return this.sequence;
+    if (options.bumpGeneration) this.generation = LiveCollection.nextGeneration();
     this.entries = new Map(entries);
-    this.scheduler?.markClean();
     const update: CollectionUpdate<K, V> = {
       kind: 'snapshot',
       ...this.snapshot(++this.sequence),
@@ -183,38 +197,12 @@ export class LiveCollection<K, V, E = unknown> implements IDisposable {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.scheduler?.dispose();
     this.emitter.clear();
   }
 
   private static nextGeneration(): number {
     LiveCollection.lastGeneration = Math.max(LiveCollection.lastGeneration + 1, Date.now());
     return LiveCollection.lastGeneration;
-  }
-
-  private async recompute(
-    compute: () => Promise<Result<Iterable<readonly [K, V]>, E>>
-  ): Promise<LiveSchedulerRun<Result<CollectionSnapshot<K, V>, E>>> {
-    const computed = await compute();
-    if (!computed.success) {
-      return { result: err(computed.error), completed: false };
-    }
-
-    const computedEntries = new Map(computed.data);
-    const effectiveOps = this.diff(this.entries, computedEntries);
-    if (effectiveOps.length === 0) {
-      return { result: ok(this.snapshot()), completed: true };
-    }
-
-    this.entries = computedEntries;
-    const update: CollectionUpdate<K, V> = {
-      kind: 'delta',
-      generation: this.generation,
-      ops: effectiveOps,
-      sequence: ++this.sequence,
-    };
-    if (!this.disposed) this.emitter.emit(update);
-    return { result: ok(this.snapshot()), completed: true };
   }
 
   private diff(from: Map<K, V>, to: Map<K, V>): Array<KeyedOp<K, V>> {
@@ -229,6 +217,45 @@ export class LiveCollection<K, V, E = unknown> implements IDisposable {
       }
     }
     return ops;
+  }
+
+  private async loadScopeInternal(
+    scope: ScopeKey<K>,
+    load: () => Promise<Result<Iterable<readonly [K, V]>, E>>
+  ): Promise<Result<number, E>> {
+    const loaded = await load();
+    if (!loaded.success) return err(loaded.error);
+
+    const nextEntries = new Map<K, V>();
+    for (const [key, value] of loaded.data) {
+      const actualScope = this.scopeOf(value);
+      if (actualScope !== scope) {
+        throw new Error('LiveCollection loadScope loaded an entry outside the requested scope');
+      }
+      nextEntries.set(key, value);
+    }
+
+    const currentEntries = new Map<K, V>();
+    for (const [key, value] of this.entries) {
+      if (this.scopeOf(value) === scope) currentEntries.set(key, value);
+    }
+
+    const ops = this.diff(currentEntries, nextEntries);
+    this.loadedScopeKeys.add(scope);
+    return ok(this.apply(ops));
+  }
+
+  private scopeOf(value: V): ScopeKey<K> {
+    const scopeOf = this.options.scopeOf;
+    if (!scopeOf)
+      throw new Error('LiveCollection scopeOf option is required for scoped operations');
+    return scopeOf(value);
+  }
+
+  private assertScoped(): void {
+    if (!this.options.scopeOf) {
+      throw new Error('LiveCollection scopeOf option is required for scoped operations');
+    }
   }
 
   private snapshot(sequence = this.sequence): CollectionSnapshot<K, V> {
