@@ -5,13 +5,14 @@ import { getEffectiveHotkey, getHotkeyRegistration } from './useKeyboardShortcut
 
 /**
  * Minimal interface required for tab navigation shortcuts.
- * Both TabViewProvider stores and EditorViewStore satisfy this shape.
+ * Both PaneStore and EditorViewStore satisfy this shape.
  */
 export interface TabNavigationProvider {
   setNextTabActive: () => void;
   setPreviousTabActive: () => void;
   setTabActiveIndex: (index: number) => void;
   closeActiveTab: () => void;
+  reopenClosedTab?: () => void;
 }
 
 export interface UseTabShortcutsOptions {
@@ -21,7 +22,6 @@ export interface UseTabShortcutsOptions {
    * Defaults to true (always enabled when store is present).
    */
   focused?: boolean;
-  closeActiveTab?: () => void;
 }
 
 /**
@@ -44,14 +44,12 @@ const TAB_INDEX_HOTKEYS = [
  * Registers keyboard shortcuts for tab navigation within any TabNavigationProvider.
  *
  * Shortcuts:
- *   tabNext   (default Mod+Alt+ArrowRight)  — next tab
- *   tabPrev   (default Mod+Alt+ArrowLeft)  — previous tab
- *   Control+Tab / Control+Shift+Tab         — next / previous tab
- *   tabClose  (default Mod+W)      — close active tab
- *   Mod+1–9                        — jump to tab by index (not configurable)
- *
- * Note: Mod+] and Mod+[ are reserved for history back/forward navigation
- * (navigateForward / navigateBack) in useKeyboardShortcuts.ts.
+ *   tabNext    (default Mod+Alt+ArrowRight) — next tab
+ *   tabPrev    (default Mod+Alt+ArrowLeft)  — previous tab
+ *   Control+Tab / Control+Shift+Tab          — next / previous tab
+ *   tabClose   (default Mod+W)              — close active tab
+ *   tabReopen  (default Mod+Shift+T)        — reopen most recently closed tab
+ *   Mod+1–9                                 — jump to tab by index (not configurable)
  *
  * Pass `focused: false` to disable shortcuts when the panel is not focused,
  * preventing conflicts when multiple tab panels are mounted simultaneously.
@@ -65,6 +63,7 @@ export function useTabShortcuts(
   const tabNextHotkey = getEffectiveHotkey('tabNext', keyboard);
   const tabPrevHotkey = getEffectiveHotkey('tabPrev', keyboard);
   const tabCloseHotkey = getEffectiveHotkey('tabClose', keyboard);
+  const tabReopenHotkey = getEffectiveHotkey('tabReopen', keyboard);
 
   useHotkey(
     getHotkeyRegistration('tabNext', keyboard),
@@ -100,10 +99,19 @@ export function useTabShortcuts(
     getHotkeyRegistration('tabClose', keyboard),
     (e) => {
       e.preventDefault();
-      (options?.closeActiveTab ?? store?.closeActiveTab)?.();
+      store?.closeActiveTab();
     },
     { enabled: enabled && tabCloseHotkey !== null, conflictBehavior: 'allow' }
   );
+  useHotkey(
+    getHotkeyRegistration('tabReopen', keyboard),
+    (e) => {
+      e.preventDefault();
+      store?.reopenClosedTab?.();
+    },
+    { enabled: enabled && tabReopenHotkey !== null, conflictBehavior: 'allow' }
+  );
+
   useHotkey(
     TAB_INDEX_HOTKEYS[0],
     (e) => {

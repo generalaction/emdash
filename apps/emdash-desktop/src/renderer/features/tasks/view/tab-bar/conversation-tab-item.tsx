@@ -1,17 +1,10 @@
-import { Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useRef, useState } from 'react';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from '@renderer/lib/ui/context-menu';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
 import { AgentStatusIndicator } from '../../components/agent-status-indicator';
 import { formatConversationTitleForDisplay } from '../../conversations/conversation-title-utils';
-import type { ResolvedConversationTab } from '../../tabs/tab-manager-store';
+import type { ResolvedConversationTab } from '../../tabs/pane-store';
 import { TabCloseButton } from './tab-close-button';
 import { TabDragPreviewShell, TabItemShell } from './tab-item-shell';
 import { TabTitle } from './tab-title';
@@ -22,12 +15,18 @@ export const ConversationTabItem = observer(function ConversationTabItem({
   onPin,
   onClose,
   onRenameSubmit,
+  renameRef,
 }: {
   tab: ResolvedConversationTab;
   onSelect: () => void;
   onPin: () => void;
   onClose: () => void;
   onRenameSubmit: (newName: string) => void;
+  /**
+   * Mutable ref that the caller populates with a `startRename` callback.
+   * Allows external triggers (e.g. context-menu commands) to start inline editing.
+   */
+  renameRef?: React.MutableRefObject<(() => void) | null>;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const committedRef = useRef(false);
@@ -36,15 +35,18 @@ export const ConversationTabItem = observer(function ConversationTabItem({
   const rawTitle = tab.store.data.title ?? '';
   const renameInputWidth = `${Math.min(Math.max(rawTitle.length || title.length, 8), 24)}ch`;
 
-  const handleRename = useCallback(() => {
+  const startRename = useCallback(() => {
     committedRef.current = false;
     window.setTimeout(() => setIsEditing(true), 0);
   }, []);
 
+  // Keep the ref in sync so context menu commands can trigger rename.
+  if (renameRef) renameRef.current = startRename;
+
   const handleDoubleClick = useCallback(() => {
     if (tab.isPreview) onPin();
-    handleRename();
-  }, [handleRename, onPin, tab.isPreview]);
+    startRename();
+  }, [startRename, onPin, tab.isPreview]);
 
   const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
     input?.focus();
@@ -62,60 +64,50 @@ export const ConversationTabItem = observer(function ConversationTabItem({
   };
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger>
-        <TabItemShell
-          tabId={tab.tabId}
-          isActive={tab.isActive}
-          title={tab.isPreview ? `${title} (preview — double-click to keep and rename)` : title}
-          onSelect={onSelect}
-          onPin={onPin}
-          onDoubleClick={handleDoubleClick}
-          onClose={onClose}
-        >
-          <AgentIcon id={tab.store.data.providerId} size={16} />
-          {isEditing ? (
-            <input
-              ref={handleRenameInputRef}
-              className="my-1 min-w-0 rounded bg-background-1 px-1.5 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
-              style={{ width: renameInputWidth }}
-              defaultValue={rawTitle}
-              maxLength={MAX_CONVERSATION_TITLE_LENGTH}
-              onClick={(e) => e.stopPropagation()}
-              onDoubleClick={(e) => e.stopPropagation()}
-              onBlur={(e) => commitRename(e.target.value)}
-              onKeyDown={(e) => {
-                e.stopPropagation();
-                if (e.key === 'Enter') commitRename(e.currentTarget.value);
-                else if (e.key === 'Escape') {
-                  committedRef.current = true;
-                  setIsEditing(false);
-                }
-              }}
-            />
-          ) : (
-            <TabTitle isActive={tab.isActive} isPreview={tab.isPreview} maxWidth="max-w-24">
-              {title}
-            </TabTitle>
-          )}
-          <TabCloseButton
-            onClose={onClose}
-            ariaLabel={`Close ${title}`}
-            statusIndicator={
-              <span className="transition-opacity group-hover:opacity-0">
-                <AgentStatusIndicator status={tab.store.indicatorStatus} disableTooltip />
-              </span>
+    <TabItemShell
+      tabId={tab.tabId}
+      isActive={tab.isActive}
+      title={tab.isPreview ? `${title} (preview — double-click to keep and rename)` : title}
+      onSelect={onSelect}
+      onPin={onPin}
+      onDoubleClick={handleDoubleClick}
+      onClose={onClose}
+    >
+      <AgentIcon id={tab.store.data.providerId} size={16} />
+      {isEditing ? (
+        <input
+          ref={handleRenameInputRef}
+          className="my-1 min-w-0 rounded bg-background-1 px-1.5 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
+          style={{ width: renameInputWidth }}
+          defaultValue={rawTitle}
+          maxLength={MAX_CONVERSATION_TITLE_LENGTH}
+          onClick={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+          onBlur={(e) => commitRename(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === 'Enter') commitRename(e.currentTarget.value);
+            else if (e.key === 'Escape') {
+              committedRef.current = true;
+              setIsEditing(false);
             }
-          />
-        </TabItemShell>
-      </ContextMenuTrigger>
-      <ContextMenuContent finalFocus={false}>
-        <ContextMenuItem onClick={handleRename}>
-          <Pencil className="size-4" />
-          Rename
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+          }}
+        />
+      ) : (
+        <TabTitle isActive={tab.isActive} isPreview={tab.isPreview} maxWidth="max-w-24">
+          {title}
+        </TabTitle>
+      )}
+      <TabCloseButton
+        onClose={onClose}
+        ariaLabel={`Close ${title}`}
+        statusIndicator={
+          <span className="transition-opacity group-hover:opacity-0">
+            <AgentStatusIndicator status={tab.store.indicatorStatus} disableTooltip />
+          </span>
+        }
+      />
+    </TabItemShell>
   );
 });
 

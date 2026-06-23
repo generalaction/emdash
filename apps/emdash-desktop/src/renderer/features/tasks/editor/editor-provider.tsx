@@ -2,7 +2,7 @@ import { autorun } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import type * as monacoNS from 'monaco-editor';
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
-import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
+import { usePaneContext } from '@renderer/features/tasks/tabs/pane-context';
 import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { registerActiveCodeEditor } from '@renderer/lib/editor/activeCodeEditor';
 import { DEFAULT_EDITOR_OPTIONS } from '@renderer/lib/editor/utils';
@@ -50,8 +50,8 @@ export const EditorProvider = observer(function EditorProvider({
   projectId: string;
 }) {
   const taskView = useWorkspaceViewModel();
-  const { editorView, tabGroupManager } = taskView;
-  const { groupId, tabManager: paneTabManager } = useTabGroupContext();
+  const { editorView, paneLayout } = taskView;
+  const { paneId, pane: paneTabManager } = usePaneContext();
   const { effectiveTheme } = useTheme();
   const isActive = useIsActiveTask(taskId);
 
@@ -114,7 +114,7 @@ export const EditorProvider = observer(function EditorProvider({
 
     const focusDisposable = editor.onDidFocusEditorWidget(() => {
       taskView.setFocusedRegion('main');
-      tabGroupManager.setActiveGroup(groupId);
+      paneLayout.setActiveGroup(paneId);
     });
 
     // Satisfy any focus request that arrived before the editor was ready.
@@ -148,7 +148,7 @@ export const EditorProvider = observer(function EditorProvider({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
       if (!isActive || taskView.focusedRegion !== 'main') return;
-      if (tabGroupManager.activeGroupId !== groupId) return;
+      if (paneLayout.activePaneId !== paneId) return;
       if (event.key.toLowerCase() !== 's') return;
       if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
 
@@ -169,7 +169,7 @@ export const EditorProvider = observer(function EditorProvider({
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [editorView, groupId, isActive, paneTabManager, tabGroupManager, taskView]);
+  }, [editorView, paneId, isActive, paneTabManager, paneLayout, taskView]);
 
   // ---------------------------------------------------------------------------
   // Model attachment — autorun that re-evaluates whenever the pane-local active
@@ -238,14 +238,14 @@ export const EditorProvider = observer(function EditorProvider({
   useEffect(() => {
     if (!isActive || focusedRegion !== 'main') return;
     // Only the focused pane should attempt to focus.
-    if (tabGroupManager.activeGroupId !== groupId) return;
+    if (paneLayout.activePaneId !== paneId) return;
     const editor = editorRef.current;
     if (editor?.getModel()) {
       editor.focus();
     } else {
       focusPendingRef.current = true;
     }
-  }, [isActive, focusedRegion, groupId, tabGroupManager.activeGroupId]);
+  }, [isActive, focusedRegion, paneId, paneLayout.activePaneId]);
 
   // ---------------------------------------------------------------------------
   // setEditorHost — called by PaneContent to give the editor a stable DOM node.

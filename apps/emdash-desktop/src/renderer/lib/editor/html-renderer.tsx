@@ -37,7 +37,7 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
   const taskView = useWorkspaceViewModel();
-  const { editorView, tabManager } = taskView;
+  const { editorView, activePane } = taskView;
   const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
 
   // Touch bufferVersions so this observer re-renders when the buffer is first
@@ -88,12 +88,12 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
       if (!target) return;
       const ext = target.split('.').pop()?.toLowerCase() ?? '';
       if (HTML_EXTS.has(ext)) {
-        tabManager.openFile(target);
+        activePane.open('file', { path: target, preview: false });
       }
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [fileDir, tabManager]);
+  }, [fileDir, activePane]);
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-background-secondary-1">
@@ -117,7 +117,7 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
         activeMode="preview"
         onSwitch={(mode) => {
           if (mode === 'source') {
-            tabManager.updateRenderer(filePath, () => ({ kind: 'html-source' }));
+            activePane.updateRenderer(filePath, () => ({ kind: 'html-source' }));
           }
         }}
       />

@@ -1,8 +1,20 @@
 import { action, makeObservable, observable } from 'mobx';
-import type { FileRendererData } from '@renderer/features/tasks/types';
 import { getFileKind } from '@renderer/lib/editor/fileKind';
 import { getDefaultRenderer } from '@renderer/lib/editor/renderer-utils';
 import type { ManagedFileKind } from '@renderer/lib/editor/types';
+
+export type FileRendererData =
+  | { kind: 'text' }
+  | { kind: 'markdown' }
+  | { kind: 'markdown-source' }
+  | { kind: 'html' }
+  | { kind: 'html-source' }
+  | { kind: 'svg' }
+  | { kind: 'svg-source' }
+  | { kind: 'image' }
+  | { kind: 'binary' }
+  | { kind: 'too-large' }
+  | { kind: 'file-error' };
 
 /**
  * Observable store for a single open file tab.

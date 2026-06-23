@@ -36,9 +36,9 @@ export const UnstagedSection = observer(function UnstagedSection() {
   const hasStagedChanges = git.stagedFileChanges.length > 0;
 
   const activePath =
-    taskView.tabManager.activeDescriptor?.kind === 'diff' &&
-    taskView.tabManager.activeDescriptor.diffGroup === 'disk'
-      ? taskView.tabManager.activeDescriptor.path
+    taskView.activePane.activeDescriptor?.kind === 'diff' &&
+    taskView.activePane.activeDescriptor.diffGroup === 'disk'
+      ? taskView.activePane.activeDescriptor.path
       : undefined;
 
   const prefetch = usePrefetchDiffModels(projectId, workspaceId, 'disk', HEAD_REF);
@@ -50,27 +50,29 @@ export const UnstagedSection = observer(function UnstagedSection() {
   if (!diffView || !changesView) return null;
 
   const handleSelectChange = (change: GitChange) => {
-    taskView.tabManager.openDiffPreview(
-      {
+    taskView.activePane.open('diff', {
+      activeFile: {
         path: change.path,
         type: 'disk',
         group: 'disk',
         originalRef: commitRef('HEAD'),
       },
-      change.status
-    );
+      status: change.status,
+      preview: true,
+    });
   };
 
   const handleDoubleClickChange = (change: GitChange) => {
-    taskView.tabManager.openDiff(
-      {
+    taskView.activePane.open('diff', {
+      activeFile: {
         path: change.path,
         type: 'disk',
         group: 'disk',
         originalRef: commitRef('HEAD'),
       },
-      change.status
-    );
+      status: change.status,
+      preview: false,
+    });
   };
 
   const handleDiscardSelection = () => {

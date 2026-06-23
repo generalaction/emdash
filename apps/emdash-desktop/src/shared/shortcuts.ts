@@ -210,6 +210,13 @@ export const APP_SHORTCUTS = defineShortcuts({
     category: 'Tab Navigation',
     conflictBehavior: 'allow',
   },
+  tabReopen: {
+    defaultHotkey: 'Mod+Shift+T',
+    label: 'Reopen Closed Tab',
+    description: 'Reopen the most recently closed tab',
+    category: 'Tab Navigation',
+    conflictBehavior: 'allow',
+  },
   newConversation: {
     defaultHotkey: 'Mod+T',
     label: 'New Conversation',

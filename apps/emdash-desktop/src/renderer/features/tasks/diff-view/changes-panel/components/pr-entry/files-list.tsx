@@ -26,17 +26,17 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
   const prefetchPrDiff = usePrefetchDiffModels(projectId, workspaceId, 'pr', baseRef, modifiedRef);
 
   const activePath =
-    taskView.tabManager.activeDescriptor?.kind === 'diff' &&
-    taskView.tabManager.activeDescriptor.diffGroup === 'pr' &&
-    taskView.tabManager.activeDescriptor.prNumber === prNumber &&
-    refsEqual(taskView.tabManager.activeDescriptor.originalRef, baseRef) &&
-    refsEqual(taskView.tabManager.activeDescriptor.modifiedRef ?? modifiedRef, modifiedRef)
-      ? taskView.tabManager.activeDescriptor.path
+    taskView.activePane.activeDescriptor?.kind === 'diff' &&
+    taskView.activePane.activeDescriptor.diffGroup === 'pr' &&
+    taskView.activePane.activeDescriptor.prNumber === prNumber &&
+    refsEqual(taskView.activePane.activeDescriptor.originalRef, baseRef) &&
+    refsEqual(taskView.activePane.activeDescriptor.modifiedRef ?? modifiedRef, modifiedRef)
+      ? taskView.activePane.activeDescriptor.path
       : undefined;
 
   const handleSelectChange = (change: GitChange) => {
-    taskView.tabManager.openDiffPreview(
-      {
+    taskView.activePane.open('diff', {
+      activeFile: {
         path: change.path,
         type: 'git',
         group: 'pr',
@@ -46,13 +46,14 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
         prBaseOid: pr.baseRefOid,
         prHeadOid: pr.headRefOid,
       },
-      change.status
-    );
+      status: change.status,
+      preview: true,
+    });
   };
 
   const handleDoubleClickChange = (change: GitChange) => {
-    taskView.tabManager.openDiff(
-      {
+    taskView.activePane.open('diff', {
+      activeFile: {
         path: change.path,
         type: 'git',
         group: 'pr',
@@ -62,8 +63,9 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
         prBaseOid: pr.baseRefOid,
         prHeadOid: pr.headRefOid,
       },
-      change.status
-    );
+      status: change.status,
+      preview: false,
+    });
   };
 
   return (

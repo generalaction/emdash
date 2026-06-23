@@ -1,4 +1,4 @@
-import { type FileRendererData } from '@renderer/features/tasks/types';
+import { type FileRendererData } from '@renderer/features/tasks/tabs/file-tab-store';
 
 /** All possible states a file can be in once opened by the editor. */
 export type ManagedFileKind =

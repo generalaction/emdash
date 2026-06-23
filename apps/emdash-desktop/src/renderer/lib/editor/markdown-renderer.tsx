@@ -29,8 +29,8 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
   const taskView = useWorkspaceViewModel();
-  const { editorView, tabManager } = taskView;
-  const tab = Array.from(tabManager.entries.values()).find(
+  const { editorView, activePane } = taskView;
+  const tab = Array.from(activePane.entries.values()).find(
     (entry): entry is FileTabStore => entry.kind === 'file' && entry.path === filePath
   );
   const showExternalSpinner = useDelayedBoolean(!!(tab?.isExternal && tab.isLoading), 200);
@@ -58,7 +58,7 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
           value={['markdown']}
           onValueChange={(value) => {
             if (value.includes('markdown-source')) {
-              tabManager.updateRenderer(filePath, () => ({ kind: 'markdown-source' }));
+              activePane.updateRenderer(filePath, () => ({ kind: 'markdown-source' }));
             }
           }}
           size="sm"

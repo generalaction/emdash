@@ -1,6 +1,6 @@
 import { Globe, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import type { ResolvedBrowserTab } from '../../tabs/tab-manager-store';
+import type { ResolvedBrowserTab } from '../../tabs/pane-store';
 import { TabCloseButton } from './tab-close-button';
 import { TabDragPreviewShell, TabItemShell } from './tab-item-shell';
 import { TabTitle } from './tab-title';

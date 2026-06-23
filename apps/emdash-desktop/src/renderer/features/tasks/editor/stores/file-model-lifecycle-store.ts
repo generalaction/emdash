@@ -1,8 +1,7 @@
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
-import type { TabGroupManagerStore } from '@renderer/features/tasks/tabs/tab-group-manager-store';
+import type { PaneLayoutStore } from '@renderer/features/tasks/tabs/pane-layout-store';
 import { getFileKind } from '@renderer/lib/editor/fileKind';
 import { rpc } from '@renderer/lib/ipc';
-import { showModal } from '@renderer/lib/modal/modal-provider';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
@@ -17,7 +16,7 @@ import type { EditorViewSnapshot } from '@shared/view-state';
  * Replaces the model lifecycle reaction in TaskViewStore and the model-related
  * methods in EditorViewStore. Also manages the file-tree sidebar's expanded paths.
  *
- * Reactive model lifecycle: watches tabManager.openFilePaths and registers/unregisters
+ * Reactive model lifecycle: watches pane.openFilePaths and registers/unregisters
  * Monaco models (disk, git, buffer) accordingly. On registration results, updates the
  * corresponding FileTabStore directly (setImageContent, setTotalSize, updateRenderer).
  */
@@ -36,11 +35,11 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
 
   private readonly projectId: string;
   private readonly workspaceId: string;
-  private readonly tabGroupManager: TabGroupManagerStore;
+  private readonly paneLayout: PaneLayoutStore;
   private readonly disposers: (() => void)[] = [];
 
-  constructor(tabGroupManager: TabGroupManagerStore, projectId: string, workspaceId: string) {
-    this.tabGroupManager = tabGroupManager;
+  constructor(paneLayout: PaneLayoutStore, projectId: string, workspaceId: string) {
+    this.paneLayout = paneLayout;
     this.projectId = projectId;
     this.workspaceId = workspaceId;
     this.modelRootPath = `workspace:${workspaceId}`;
@@ -56,7 +55,7 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
     // across ALL panes. A model stays registered as long as any pane has the file open.
     this.disposers.push(
       reaction(
-        () => this.tabGroupManager.allOpenFilePaths,
+        () => this.paneLayout.allOpenFilePaths,
         (current, previous = []) => {
           const prev = new Set(previous);
           const curr = new Set(current);
@@ -72,28 +71,6 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
         { fireImmediately: true }
       )
     );
-
-    // Register as the close coordinator for all panes. For dirty file tabs this
-    // shows the unsaved-changes dialog before proceeding. All other tab kinds
-    // and clean file tabs close immediately. The handler is propagated to all
-    // current and future groups via TabGroupManagerStore.
-    tabGroupManager.registerCloseHandler(async (tabId) => {
-      // Find which group owns this tab.
-      for (const { tabManager } of tabGroupManager.groups) {
-        const entry = tabManager.entries.get(tabId);
-        if (entry !== undefined) {
-          if (entry.kind === 'file') {
-            const uri = buildMonacoModelPath(this.modelRootPath, entry.path);
-            if (modelRegistry.isDirty(uri)) {
-              const result = await this._confirmClose(entry.path);
-              if (result === 'cancel') return;
-            }
-          }
-          tabManager.closeTab(tabId);
-          return;
-        }
-      }
-    });
   }
 
   // ---------------------------------------------------------------------------
@@ -102,7 +79,7 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
 
   /** Union of all open file paths across all panes (deduplicated). */
   get openFilePaths(): string[] {
-    return this.tabGroupManager.allOpenFilePaths;
+    return this.paneLayout.allOpenFilePaths;
   }
 
   // ---------------------------------------------------------------------------
@@ -217,24 +194,6 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
   }
 
   // ---------------------------------------------------------------------------
-  // Private — close guard
-  // ---------------------------------------------------------------------------
-
-  private _confirmClose(path: string): Promise<'proceed' | 'cancel'> {
-    const fileName = path.split('/').pop() ?? path;
-    return new Promise((resolve) =>
-      showModal('unsavedChangesModal', {
-        fileName,
-        onSuccess: (result) => {
-          const savePromise = result === 'save' ? this.saveFile(path) : Promise.resolve();
-          void savePromise.then(() => resolve('proceed'));
-        },
-        onClose: () => resolve('cancel'),
-      })
-    );
-  }
-
-  // ---------------------------------------------------------------------------
   // Private — model registration
   // ---------------------------------------------------------------------------
 
@@ -245,8 +204,8 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
       const result = await rpc.workspace.fs.readImage(this.projectId, this.workspaceId, filePath);
       const imageContent = result.success ? (result.data?.dataUrl ?? '') : '';
       runInAction(() => {
-        for (const { tabManager } of this.tabGroupManager.groups) {
-          tabManager.setImageContent(filePath, imageContent);
+        for (const { pane } of this.paneLayout.groups) {
+          pane.setImageContent(filePath, imageContent);
         }
       });
       return;
@@ -265,8 +224,8 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
         );
       } catch {
         runInAction(() => {
-          for (const { tabManager } of this.tabGroupManager.groups) {
-            tabManager.updateRenderer(filePath, () => ({ kind: 'file-error' as const }));
+          for (const { pane } of this.paneLayout.groups) {
+            pane.updateRenderer(filePath, () => ({ kind: 'file-error' as const }));
           }
         });
         return;
@@ -277,9 +236,9 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
       if (modelRegistry.modelStatus.get(diskUri) === 'too-large') {
         const totalSize = modelRegistry.modelTotalSizes.get(diskUri);
         runInAction(() => {
-          for (const { tabManager } of this.tabGroupManager.groups) {
-            tabManager.updateRenderer(filePath, () => ({ kind: 'too-large' as const }));
-            if (totalSize != null) tabManager.setFileTotalSize(filePath, totalSize);
+          for (const { pane } of this.paneLayout.groups) {
+            pane.updateRenderer(filePath, () => ({ kind: 'too-large' as const }));
+            if (totalSize != null) pane.setFileTotalSize(filePath, totalSize);
           }
         });
         return;

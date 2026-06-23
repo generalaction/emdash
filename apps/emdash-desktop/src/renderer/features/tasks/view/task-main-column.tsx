@@ -11,7 +11,7 @@ import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import { usePanelRef } from 'react-resizable-panels';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
-import { TabGroupProvider } from '../tabs/tab-group-context';
+import { PaneProvider } from '../tabs/pane-context';
 import { useTaskViewContext, useWorkspaceViewModel } from '../task-view-context';
 import { TerminalsPanel } from '../terminals/terminal-panel';
 import { PaneContent } from './pane-content';
@@ -58,7 +58,7 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
 const SplitPaneLayout = observer(function SplitPaneLayout() {
   const { projectId, taskId } = useTaskViewContext();
   const taskView = useWorkspaceViewModel();
-  const { tabGroupManager } = taskView;
+  const { paneLayout } = taskView;
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
@@ -71,24 +71,32 @@ const SplitPaneLayout = observer(function SplitPaneLayout() {
       onDragEnd={(event) => {
         setActiveDragId(null);
         if (event.over) {
-          tabGroupManager.handleDragEnd(event.active.id as string, event.over.id as string);
+          paneLayout.handleDragEnd(event.active.id as string, event.over.id as string);
         }
       }}
       onDragCancel={() => setActiveDragId(null)}
     >
       <ResizablePanelGroup orientation="horizontal" id="task-main-split">
-        {tabGroupManager.groups.map((group, i) => (
-          <TabGroupProvider key={group.groupId} group={group} taskId={taskId} projectId={projectId}>
+        {paneLayout.groups.map((group, i) => (
+          <PaneProvider
+            key={group.paneId}
+            group={group}
+            taskId={taskId}
+            projectId={projectId}
+            isFocusedPane={
+              taskView.focusedRegion === 'main' && paneLayout.activePaneId === group.paneId
+            }
+          >
             {i > 0 && <ResizableHandle />}
             <ResizablePanel
-              id={`pane-${group.groupId}`}
-              defaultSize={`${tabGroupManager.paneSizes[i] ?? Math.floor(100 / tabGroupManager.groups.length)}%`}
+              id={`pane-${group.paneId}`}
+              defaultSize={`${paneLayout.paneSizes[i] ?? Math.floor(100 / paneLayout.groups.length)}%`}
               minSize="200px"
-              onPointerDown={() => tabGroupManager.setActiveGroup(group.groupId)}
+              onPointerDown={() => paneLayout.setActiveGroup(group.paneId)}
             >
               <PaneContent />
             </ResizablePanel>
-          </TabGroupProvider>
+          </PaneProvider>
         ))}
       </ResizablePanelGroup>
       <DragOverlay dropAnimation={null}>

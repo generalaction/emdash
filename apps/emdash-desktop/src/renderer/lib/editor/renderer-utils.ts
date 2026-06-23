@@ -1,4 +1,4 @@
-import { type FileRendererData } from '@renderer/features/tasks/types';
+import { type FileRendererData } from '@renderer/features/tasks/tabs/file-tab-store';
 import { type getFileKind } from './fileKind';
 
 /** Returns the default renderer for a file based on its kind. */

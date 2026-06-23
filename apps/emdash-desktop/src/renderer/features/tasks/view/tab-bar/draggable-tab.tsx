@@ -29,8 +29,8 @@ function DropIndicator() {
   return <div className="pointer-events-none absolute inset-y-1 left-0 z-10 w-0.5 bg-foreground" />;
 }
 
-export function PaneDropZone({ groupId }: { groupId: string }) {
-  const { setNodeRef, isOver } = useDroppable({ id: `pane-drop-${groupId}` });
+export function PaneDropZone({ paneId }: { paneId: string }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `pane-drop-${paneId}` });
   return (
     <div ref={setNodeRef} className="relative h-full flex-1">
       {isOver && <DropIndicator />}

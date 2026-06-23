@@ -10,27 +10,24 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { useTabGroupContext } from '../../tabs/tab-group-context';
+import { usePaneContext } from '../../tabs/pane-context';
 import { useTaskViewContext, useWorkspaceViewModel } from '../../task-view-context';
 
 export const TabBarActions = observer(function TabBarActions() {
   const taskView = useWorkspaceViewModel();
   const { projectId, taskId, workspaceId } = useTaskViewContext();
-  const { groupId, tabManager } = useTabGroupContext();
-  const { tabGroupManager } = taskView;
+  const { pane, isFocusedPane } = usePaneContext();
+  const { paneLayout } = taskView;
   const showCommandPalette = useShowModal('commandPaletteModal');
   const showCreateConversationModal = useShowModal('createConversationModal');
-
-  const isFocusedPane =
-    taskView.focusedRegion === 'main' && tabGroupManager.activeGroupId === groupId;
   const { value: keyboard } = useAppSettingsKey('keyboard');
-  const canSplit = tabManager.resolvedTabs.length >= 2 && tabGroupManager.groups.length < 3;
+  const canSplit = pane.resolvedTabs.length >= 2 && paneLayout.groups.length < 3;
 
   useHotkey(
     getHotkeyRegistration('splitPane', keyboard),
     (e) => {
       e.preventDefault();
-      tabGroupManager.splitRight();
+      paneLayout.splitRight();
     },
     {
       enabled: isFocusedPane && canSplit && getEffectiveHotkey('splitPane', keyboard) !== null,
@@ -49,7 +46,8 @@ export const TabBarActions = observer(function TabBarActions() {
               showCreateConversationModal({
                 projectId,
                 taskId,
-                onSuccess: ({ conversationId }) => tabManager.openConversation(conversationId),
+                onSuccess: ({ conversationId }: { conversationId: string }) =>
+                  pane.open('conversation', { conversationId, preview: false }),
               })
             }
           >
@@ -74,7 +72,7 @@ export const TabBarActions = observer(function TabBarActions() {
         </TooltipTrigger>
         <TooltipContent>Open File</TooltipContent>
       </Tooltip>
-      {tabGroupManager.groups.length < 3 && (
+      {paneLayout.groups.length < 3 && (
         <Tooltip>
           <TooltipTrigger>
             <span>
@@ -82,7 +80,7 @@ export const TabBarActions = observer(function TabBarActions() {
                 size="icon-sm"
                 variant="ghost"
                 disabled={!canSplit}
-                onClick={() => tabGroupManager.splitRight()}
+                onClick={() => paneLayout.splitRight()}
                 aria-label="Split pane right"
               >
                 <Columns2 className="size-3.5" />

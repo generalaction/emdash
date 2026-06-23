@@ -1,4 +1,6 @@
+import { runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
+import { useEffect } from 'react';
 import type { FileTabStore } from '@renderer/features/tasks/tabs/file-tab-store';
 import { BinaryRenderer } from '@renderer/lib/editor/binary-renderer';
 import { FileErrorRenderer } from '@renderer/lib/editor/file-error-renderer';
@@ -7,6 +9,7 @@ import { ImageRenderer } from '@renderer/lib/editor/image-renderer';
 import { MarkdownEditorRenderer } from '@renderer/lib/editor/markdown-renderer';
 import { SvgRenderer } from '@renderer/lib/editor/svg-renderer';
 import { TooLargeRenderer } from '@renderer/lib/editor/too-large-renderer';
+import { rpc } from '@renderer/lib/ipc';
 import { ShowHide } from '@renderer/lib/ui/show-hide';
 import { MonacoFileRenderer } from './monaco-file-renderer';
 
@@ -20,8 +23,33 @@ interface FileRendererProps {
  * Monaco is kept alive via ShowHide so cursor position and scroll survive
  * renderer-kind transitions (e.g. toggling svg-source ↔ svg). All preview
  * renderers, including markdown, mount/unmount freely and hold no persistent state.
+ *
+ * For external (outside-workspace) tabs, the async file read is triggered here
+ * via useEffect so the store's open() and deserialize() remain synchronous.
  */
 export const FileRenderer = observer(function FileRenderer({ tab }: FileRendererProps) {
+  useEffect(() => {
+    if (!tab.isExternal || !tab.isLoading) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const result = await rpc.app.readUserFile(tab.path);
+        if (cancelled) return;
+        runInAction(() => {
+          if (result.success) tab.setExternalContent(result.content);
+          else tab.setExternalError(result.error);
+        });
+      } catch (error) {
+        if (cancelled) return;
+        runInAction(() => {
+          tab.setExternalError(error instanceof Error ? error.message : String(error));
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, tab.isExternal, tab.isLoading, tab.path]);
   const kind = tab.renderer.kind;
 
   const monacoActive =

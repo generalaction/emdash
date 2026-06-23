@@ -1,7 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { GitChangeStatusIcon } from '../../diff-view/changes-panel/components/changes-list-item';
-import type { ResolvedDiffTab } from '../../tabs/tab-manager-store';
+import type { ResolvedDiffTab } from '../../tabs/pane-store';
 import { TabCloseButton } from './tab-close-button';
 import { TabDragPreviewShell, TabItemShell } from './tab-item-shell';
 import { TabTitle } from './tab-title';

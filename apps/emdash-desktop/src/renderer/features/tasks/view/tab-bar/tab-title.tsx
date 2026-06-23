@@ -1,7 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { cn } from '@renderer/utils/utils';
-import { useTabGroupContext } from '../../tabs/tab-group-context';
-import { useWorkspaceViewModel } from '../../task-view-context';
+import { usePaneContext } from '../../tabs/pane-context';
 
 export const TabTitle = observer(function TabTitle({
   isActive,
@@ -18,9 +17,7 @@ export const TabTitle = observer(function TabTitle({
   className?: string;
   children: React.ReactNode;
 }) {
-  const { groupId } = useTabGroupContext();
-  const { focusedRegion, tabGroupManager } = useWorkspaceViewModel();
-  const isFocused = focusedRegion === 'main' && tabGroupManager.activeGroupId === groupId;
+  const { isFocusedPane } = usePaneContext();
 
   return (
     <span
@@ -28,7 +25,7 @@ export const TabTitle = observer(function TabTitle({
         'truncate p-1 text-sm opacity-85 group-hover:opacity-100 transition-opacity',
         maxWidth,
         isPreview && 'italic',
-        isActive && isFocused && 'opacity-100',
+        isActive && isFocusedPane && 'opacity-100',
         hasError && 'text-foreground-destructive',
         className
       )}

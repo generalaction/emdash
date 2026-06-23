@@ -1,8 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import { Separator } from '@renderer/lib/ui/separator';
 import { cn } from '@renderer/utils/utils';
-import { useTabGroupContext } from '../../tabs/tab-group-context';
-import { useWorkspaceViewModel } from '../../task-view-context';
+import { usePaneContext } from '../../tabs/pane-context';
 import { DraggableTab } from './draggable-tab';
 
 export function TabDragPreviewShell({ children }: { children: React.ReactNode }) {
@@ -37,9 +36,7 @@ export const TabItemShell = observer(function TabItemShell({
   innerPaddingRight?: string;
   children: React.ReactNode;
 }) {
-  const { groupId } = useTabGroupContext();
-  const { focusedRegion, tabGroupManager } = useWorkspaceViewModel();
-  const isFocused = focusedRegion === 'main' && tabGroupManager.activeGroupId === groupId;
+  const { isFocusedPane } = usePaneContext();
 
   return (
     <DraggableTab id={tabId}>
@@ -69,7 +66,7 @@ export const TabItemShell = observer(function TabItemShell({
           'group relative flex h-full flex-col bg-background-secondary hover:bg-background-secondary-1 text-sm hover:bg-muted',
           className,
           isActive && 'bg-background-secondary-1 text-foreground-muted',
-          isFocused && 'text-foreground'
+          isFocusedPane && 'text-foreground'
         )}
       >
         <div className={cn('flex h-full items-center gap-1.5 pl-3', innerPaddingRight)}>

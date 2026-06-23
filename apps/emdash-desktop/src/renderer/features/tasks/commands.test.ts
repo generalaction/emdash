@@ -3,7 +3,6 @@ import { APP_SHORTCUTS } from '@shared/shortcuts';
 import { createTaskCommandProvider } from './commands';
 
 const mocks = vi.hoisted(() => ({
-  closeActiveTabWithConfirm: vi.fn(),
   focusUrl: vi.fn(),
   getRegisteredTaskData: vi.fn(),
   getTaskGitWorktreeStore: vi.fn(),
@@ -43,10 +42,6 @@ vi.mock('@renderer/features/tasks/stores/task-selectors', () => ({
   getTaskGitWorktreeStore: mocks.getTaskGitWorktreeStore,
   getTaskStore: mocks.getTaskStore,
   getTaskView: mocks.getTaskView,
-}));
-
-vi.mock('@renderer/features/tasks/tabs/close-tab-with-confirm', () => ({
-  closeActiveTabWithConfirm: mocks.closeActiveTabWithConfirm,
 }));
 
 vi.mock('@renderer/lib/modal/modal-provider', () => ({
@@ -118,15 +113,14 @@ describe('createTaskCommandProvider', () => {
       setSidebarCollapsed: vi.fn(),
       setSidebarTab: vi.fn(),
       setTerminalDrawerOpen: vi.fn(),
-      tabGroupManager: {
-        openBrowser: vi.fn(),
-        openConversation: vi.fn(),
+      paneLayout: {
+        open: vi.fn(),
         openConversationInRightSplit: vi.fn(),
       },
       terminalTabs: {
         tabs: [],
       },
-      tabManager: {
+      activePane: {
         resolvedTabs: [{ id: 'tab-1' }],
         setNextTabActive: vi.fn(),
         setPreviousTabActive: vi.fn(),
@@ -189,9 +183,7 @@ describe('createTaskCommandProvider', () => {
     const modalOptions = mocks.showModal.mock.calls[0][1];
     modalOptions.onSuccess({ conversationId: 'conversation-1' });
 
-    expect(taskView.tabGroupManager.openConversationInRightSplit).toHaveBeenCalledWith(
-      'conversation-1'
-    );
+    expect(taskView.paneLayout.openConversationInRightSplit).toHaveBeenCalledWith('conversation-1');
     expect(taskView.setFocusedRegion).toHaveBeenCalledWith('main');
   });
 
@@ -204,13 +196,13 @@ describe('createTaskCommandProvider', () => {
     command?.execute();
 
     expect(command?.shortcutKey).toBe('openBrowser');
-    expect(taskView.tabGroupManager.openBrowser).toHaveBeenCalledWith();
+    expect(taskView.paneLayout.open).toHaveBeenCalledWith('browser', {});
     expect(taskView.setFocusedRegion).toHaveBeenCalledWith('main');
   });
 
   it('executes active browser commands through the browser controls registry', () => {
     const taskView = mocks.getTaskView();
-    taskView.tabManager.resolvedTabs = [activeBrowserTab()];
+    taskView.activePane.resolvedTabs = [activeBrowserTab()];
     mocks.getTaskView.mockReturnValue(taskView);
     const provider = createTaskCommandProvider('project-1', 'task-1');
 
@@ -242,7 +234,7 @@ describe('createTaskCommandProvider', () => {
     const tab = activeBrowserTab();
     tab.session.canGoBack = true;
     tab.session.canGoForward = true;
-    taskView.tabManager.resolvedTabs = [tab];
+    taskView.activePane.resolvedTabs = [tab];
     mocks.getTaskView.mockReturnValue(taskView);
     const provider = createTaskCommandProvider('project-1', 'task-1');
 
@@ -262,7 +254,7 @@ describe('createTaskCommandProvider', () => {
 
   it('disables browser history commands when the session has no history', () => {
     const taskView = mocks.getTaskView();
-    taskView.tabManager.resolvedTabs = [activeBrowserTab()];
+    taskView.activePane.resolvedTabs = [activeBrowserTab()];
     mocks.getTaskView.mockReturnValue(taskView);
     const provider = createTaskCommandProvider('project-1', 'task-1');
 

@@ -16,7 +16,7 @@ interface SvgRendererProps {
  */
 export const SvgRenderer = observer(function SvgRenderer({ filePath }: SvgRendererProps) {
   const taskView = useWorkspaceViewModel();
-  const { editorView, tabManager } = taskView;
+  const { editorView, activePane } = taskView;
   const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
 
   // Touch bufferVersions so this observer re-renders when the buffer is first
@@ -40,7 +40,7 @@ export const SvgRenderer = observer(function SvgRenderer({ filePath }: SvgRender
         value={['svg']}
         onValueChange={(value) => {
           if (value.includes('svg-source')) {
-            tabManager.updateRenderer(filePath, () => ({ kind: 'svg-source' }));
+            activePane.updateRenderer(filePath, () => ({ kind: 'svg-source' }));
           }
         }}
         size="sm"

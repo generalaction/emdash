@@ -1,8 +1,8 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect } from 'react';
 import { useEditorContext } from '@renderer/features/tasks/editor/editor-provider';
-import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
-import type { FileRendererData } from '@renderer/features/tasks/types';
+import type { FileRendererData } from '@renderer/features/tasks/tabs/file-tab-store';
+import { usePaneContext } from '@renderer/features/tasks/tabs/pane-context';
 import { PreviewSourceToggle } from '@renderer/lib/editor/preview-source-toggle';
 
 /**
@@ -22,7 +22,7 @@ const SOURCE_TO_PREVIEW = {
  * paired preview renderer.
  *
  * EditorProvider (which creates the Monaco editor instance) lives higher in the tree
- * inside TabGroupProvider — this component only manages the host attachment point.
+ * inside PaneProvider — this component only manages the host attachment point.
  */
 export const MonacoFileRenderer = observer(function MonacoFileRenderer() {
   const { setEditorHost, triggerLayout } = useEditorContext();
@@ -46,8 +46,8 @@ export const MonacoFileRenderer = observer(function MonacoFileRenderer() {
  * paired preview renderer kind via SOURCE_TO_PREVIEW.
  */
 const SourceModeToggleOverlay = observer(function SourceModeToggleOverlay() {
-  const { tabManager } = useTabGroupContext();
-  const activeTab = tabManager.activeFileEntry;
+  const { pane } = usePaneContext();
+  const activeTab = pane.activeFileEntry;
   if (!activeTab) return null;
 
   const previewKind = SOURCE_TO_PREVIEW[activeTab.renderer.kind as keyof typeof SOURCE_TO_PREVIEW];
@@ -58,7 +58,7 @@ const SourceModeToggleOverlay = observer(function SourceModeToggleOverlay() {
       activeMode="source"
       onSwitch={(mode) => {
         if (mode === 'preview') {
-          tabManager.updateRenderer(activeTab.path, () => ({ kind: previewKind }));
+          pane.updateRenderer(activeTab.path, () => ({ kind: previewKind }));
         }
       }}
     />

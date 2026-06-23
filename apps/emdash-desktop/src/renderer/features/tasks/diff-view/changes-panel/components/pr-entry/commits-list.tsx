@@ -192,16 +192,16 @@ const CommitFilesList = observer(function CommitFilesList({ commit }: { commit: 
   );
 
   const activePath =
-    taskView.tabManager.activeDescriptor?.kind === 'diff' &&
-    taskView.tabManager.activeDescriptor.diffGroup === 'git' &&
-    refsEqual(taskView.tabManager.activeDescriptor.originalRef, originalRef) &&
-    refsMatch(taskView.tabManager.activeDescriptor.modifiedRef, modifiedRef)
-      ? taskView.tabManager.activeDescriptor.path
+    taskView.activePane.activeDescriptor?.kind === 'diff' &&
+    taskView.activePane.activeDescriptor.diffGroup === 'git' &&
+    refsEqual(taskView.activePane.activeDescriptor.originalRef, originalRef) &&
+    refsMatch(taskView.activePane.activeDescriptor.modifiedRef, modifiedRef)
+      ? taskView.activePane.activeDescriptor.path
       : undefined;
 
   const openPreview = (change: GitChange) => {
-    taskView.tabManager.openDiffPreview(
-      {
+    taskView.activePane.open('diff', {
+      activeFile: {
         path: change.path,
         type: 'git',
         group: 'git',
@@ -210,13 +210,14 @@ const CommitFilesList = observer(function CommitFilesList({ commit }: { commit: 
         commitOriginalSha: originalSha,
         commitModifiedSha: commit.hash,
       },
-      change.status
-    );
+      status: change.status,
+      preview: true,
+    });
   };
 
   const openDiff = (change: GitChange) => {
-    taskView.tabManager.openDiff(
-      {
+    taskView.activePane.open('diff', {
+      activeFile: {
         path: change.path,
         type: 'git',
         group: 'git',
@@ -225,8 +226,9 @@ const CommitFilesList = observer(function CommitFilesList({ commit }: { commit: 
         commitOriginalSha: originalSha,
         commitModifiedSha: commit.hash,
       },
-      change.status
-    );
+      status: change.status,
+      preview: false,
+    });
   };
 
   if (filesQuery.isLoading) {

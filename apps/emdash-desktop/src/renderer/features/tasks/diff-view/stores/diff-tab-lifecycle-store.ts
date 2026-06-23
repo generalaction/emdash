@@ -1,6 +1,6 @@
 import { reaction } from 'mobx';
 import type { DiffTabStore } from '@renderer/features/tasks/tabs/diff-tab-store';
-import type { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
+import type { PaneStore } from '@renderer/features/tasks/tabs/pane-store';
 import { commitRef } from '@shared/core/git/utils';
 import { getPrNumber } from '@shared/core/pull-requests/pull-requests';
 import type { ActiveFile } from '@shared/view-state';
@@ -21,7 +21,7 @@ export class DiffTabLifecycleStore {
   private readonly disposers: (() => void)[] = [];
 
   constructor(
-    private readonly tabManager: TabManagerStore,
+    private readonly tabManager: PaneStore,
     private readonly gitWorktree: GitWorktreeStore,
     private readonly pr: PrStore,
     private readonly diffView: DiffViewStore

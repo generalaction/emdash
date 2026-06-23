@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
+import { usePaneContext } from '@renderer/features/tasks/tabs/pane-context';
 import { usePreviewServers } from '@renderer/features/tasks/task-view-context';
 import { events, rpc } from '@renderer/lib/ipc';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
@@ -27,7 +27,7 @@ export const BrowserPane = observer(function BrowserPane({
   visible: boolean;
 }) {
   const session = browserSessionStore.getSession(browserId);
-  const { tabManager } = useTabGroupContext();
+  const { pane } = usePaneContext();
   const previewServers = usePreviewServers();
   const webviewRef = useRef<BrowserWebviewElement | null>(null);
   const focusUrlRef = useRef<() => void>(() => {});
@@ -97,12 +97,12 @@ export const BrowserPane = observer(function BrowserPane({
     return events.on(tabNavigationShortcutChannel, (event) => {
       if (event.source.kind !== 'browser' || event.source.browserId !== sessionBrowserId) return;
       if (event.direction === 'next') {
-        tabManager.setNextTabActive();
+        pane.setNextTabActive();
       } else {
-        tabManager.setPreviousTabActive();
+        pane.setPreviousTabActive();
       }
     });
-  }, [sessionBrowserId, tabManager, visible]);
+  }, [sessionBrowserId, pane, visible]);
 
   const webviewProps = useMemo(() => {
     if (!webviewMount) return null;

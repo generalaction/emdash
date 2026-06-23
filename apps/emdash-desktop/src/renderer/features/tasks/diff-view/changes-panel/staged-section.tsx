@@ -34,9 +34,9 @@ export const StagedSection = observer(function StagedSection() {
   const hasChanges = changes.length > 0;
 
   const activePath =
-    taskView.tabManager.activeDescriptor?.kind === 'diff' &&
-    taskView.tabManager.activeDescriptor.diffGroup === 'staged'
-      ? taskView.tabManager.activeDescriptor.path
+    taskView.activePane.activeDescriptor?.kind === 'diff' &&
+    taskView.activePane.activeDescriptor.diffGroup === 'staged'
+      ? taskView.activePane.activeDescriptor.path
       : undefined;
 
   const prefetch = usePrefetchDiffModels(projectId, workspaceId, 'staged', HEAD_REF);
@@ -46,27 +46,29 @@ export const StagedSection = observer(function StagedSection() {
   if (!diffView || !changesView) return null;
 
   const handleSelectChange = (change: GitChange) => {
-    taskView.tabManager.openDiffPreview(
-      {
+    taskView.activePane.open('diff', {
+      activeFile: {
         path: change.path,
         type: 'git',
         group: 'staged',
         originalRef: commitRef('HEAD'),
       },
-      change.status
-    );
+      status: change.status,
+      preview: true,
+    });
   };
 
   const handleDoubleClickChange = (change: GitChange) => {
-    taskView.tabManager.openDiff(
-      {
+    taskView.activePane.open('diff', {
+      activeFile: {
         path: change.path,
         type: 'git',
         group: 'staged',
         originalRef: commitRef('HEAD'),
       },
-      change.status
-    );
+      status: change.status,
+      preview: false,
+    });
   };
 
   const handleUnstageSelection = () => {

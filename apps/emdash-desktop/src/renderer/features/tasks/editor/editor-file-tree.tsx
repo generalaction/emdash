@@ -142,7 +142,7 @@ const FileTreeRow = observer(function FileTreeRow({
 
   const node = row.node;
   const isExpanded = isChainExpanded(row.chain, editorView.expandedPaths);
-  const isSelected = taskView.tabManager.activeFilePath === node.path;
+  const isSelected = taskView.activePane.activeFilePath === node.path;
   const fileStatus = workspace.gitWorktree.fileChanges?.find((c) => c.path === node.path)?.status;
   const paddingLeft = row.renderDepth * 12 + 4;
   const targetDirPath = node.type === 'directory' ? node.path : (node.parentPath ?? '');
@@ -171,14 +171,14 @@ const FileTreeRow = observer(function FileTreeRow({
     if (node.type === 'directory') {
       toggleExpand();
     } else {
-      taskView.tabManager.openFilePreview(node.path);
+      taskView.activePane.open('file', { path: node.path, preview: true });
     }
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (node.type === 'file') {
-      taskView.tabManager.openFile(node.path);
+      taskView.activePane.open('file', { path: node.path, preview: false });
     }
   };
 
@@ -188,7 +188,7 @@ const FileTreeRow = observer(function FileTreeRow({
       if (node.type === 'directory') {
         toggleExpand();
       } else {
-        taskView.tabManager.openFilePreview(node.path);
+        taskView.activePane.open('file', { path: node.path, preview: true });
       }
     }
   };

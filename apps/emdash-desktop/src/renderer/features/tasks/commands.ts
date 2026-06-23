@@ -6,7 +6,6 @@ import {
   getTaskStore,
   getTaskView,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { closeActiveTabWithConfirm } from '@renderer/features/tasks/tabs/close-tab-with-confirm';
 import type { CommandProvider } from '@renderer/lib/commands/types';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
@@ -37,8 +36,8 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       if (taskStore?.state !== 'provisioned') return [];
 
       const taskView = getTaskView(projectId, taskId);
-      const tabManager = taskView?.tabManager;
-      const hasTabs = (tabManager?.resolvedTabs.length ?? 0) > 0;
+      const activePane = taskView?.activePane;
+      const hasTabs = (activePane?.resolvedTabs.length ?? 0) > 0;
 
       const visibleTaskEntries = sidebarStore.visibleTaskEntries;
       const currentIdx = visibleTaskEntries.findIndex(
@@ -48,7 +47,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       const git = getTaskGitWorktreeStore(projectId, taskId);
       const repository = git ? getGitRepositoryStore(projectId) : undefined;
       const taskData = getRegisteredTaskData(projectId, taskId);
-      const activeBrowserTab = tabManager?.resolvedTabs.find(
+      const activeBrowserTab = activePane?.resolvedTabs.find(
         (tab) => tab.isActive && tab.kind === 'browser'
       );
       const activeBrowserSession =
@@ -90,7 +89,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
               projectId,
               taskId,
               onSuccess: ({ conversationId }) => {
-                taskView?.tabGroupManager.openConversation(conversationId);
+                taskView?.paneLayout.open('conversation', { conversationId, preview: false });
                 taskView?.setFocusedRegion('main');
               },
             });
@@ -107,7 +106,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
               projectId,
               taskId,
               onSuccess: ({ conversationId }) => {
-                taskView?.tabGroupManager.openConversationInRightSplit(conversationId);
+                taskView?.paneLayout.openConversationInRightSplit(conversationId);
                 taskView?.setFocusedRegion('main');
               },
             });
@@ -208,7 +207,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           shortcutKey: openBrowserDef.shortcutKey,
           group: openBrowserDef.group,
           execute() {
-            taskView?.tabGroupManager.openBrowser();
+            taskView?.paneLayout.open('browser', {});
             taskView?.setFocusedRegion('main');
           },
         },
@@ -310,7 +309,18 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           group: 'Tabs',
           enabled: hasTabs,
           execute() {
-            if (tabManager) closeActiveTabWithConfirm(tabManager);
+            const activeId = activePane?.activeTabId;
+            if (activePane && activeId) activePane.requestCloseTab(activeId);
+          },
+        },
+        {
+          id: 'task.tabReopen',
+          label: 'Reopen Closed Tab',
+          description: 'Reopen the most recently closed tab',
+          shortcutKey: 'tabReopen',
+          group: 'Tabs',
+          execute() {
+            activePane?.reopenClosedTab();
           },
         },
         {
@@ -321,7 +331,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           group: 'Tabs',
           enabled: hasTabs,
           execute() {
-            tabManager?.setNextTabActive();
+            activePane?.setNextTabActive();
           },
         },
         {
@@ -332,7 +342,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           group: 'Tabs',
           enabled: hasTabs,
           execute() {
-            tabManager?.setPreviousTabActive();
+            activePane?.setPreviousTabActive();
           },
         },
         ...([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((n) => ({
@@ -342,7 +352,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           group: 'Tabs',
           enabled: hasTabs,
           execute() {
-            tabManager?.setTabActiveIndex(n - 1);
+            activePane?.setTabActiveIndex(n - 1);
           },
         })),
 

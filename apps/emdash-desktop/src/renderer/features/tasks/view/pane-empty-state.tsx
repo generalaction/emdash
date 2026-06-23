@@ -7,11 +7,11 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 import type { ShortcutSettingsKey } from '@shared/shortcuts';
-import { useTabGroupContext } from '../tabs/tab-group-context';
+import { usePaneContext } from '../tabs/pane-context';
 
 export function PaneEmptyState() {
   const { projectId, taskId, workspaceId } = useTaskViewContext();
-  const { tabManager } = useTabGroupContext();
+  const { pane } = usePaneContext();
   const showCreateConversationModal = useShowModal('createConversationModal');
   const showCommandPalette = useShowModal('commandPaletteModal');
 
@@ -20,7 +20,8 @@ export function PaneEmptyState() {
       showCreateConversationModal({
         projectId,
         taskId,
-        onSuccess: ({ conversationId }) => tabManager.openConversation(conversationId),
+        onSuccess: ({ conversationId }) =>
+          pane.open('conversation', { conversationId, preview: false }),
       }),
     () => showCommandPalette({ projectId, taskId, workspaceId: workspaceId ?? undefined }),
   ];

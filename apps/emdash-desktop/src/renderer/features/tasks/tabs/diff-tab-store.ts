@@ -1,8 +1,12 @@
 import type { GitChangeStatus, GitObjectRef } from '@emdash/core/git';
 import { action, makeObservable, observable } from 'mobx';
-import type { DiffRendererData } from '@renderer/features/tasks/types';
 import { getFileKind } from '@renderer/lib/editor/fileKind';
 import type { ActiveFile } from '@shared/view-state';
+
+export type DiffRendererData =
+  | { kind: 'text' } // text, markdown, html → MonacoDiffRenderer
+  | { kind: 'image' } // image, svg → ImageDiffView
+  | { kind: 'binary' }; // exe, zip, etc → fallback message
 
 /**
  * Observable store for a single open diff tab.
