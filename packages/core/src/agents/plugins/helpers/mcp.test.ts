@@ -273,6 +273,8 @@ describe('opencodeMcpAdapter', () => {
         args: ['-y', '@playwright/mcp'],
         env: { BROWSER: 'chromium' },
         enabled: false,
+        cwd: './tools',
+        timeout: 10_000,
       },
     ]);
 
@@ -286,10 +288,12 @@ describe('opencodeMcpAdapter', () => {
       command: ['npx', '-y', '@playwright/mcp'],
       enabled: false,
       environment: { BROWSER: 'chromium' },
+      cwd: './tools',
+      timeout: 10_000,
     });
   });
 
-  it('reads enabled state from OpenCode server entries', async () => {
+  it('reads current OpenCode server fields', async () => {
     const fs = createMemoryFs({
       '.config/opencode/opencode.json': jsonFile({
         mcp: {
@@ -298,12 +302,16 @@ describe('opencodeMcpAdapter', () => {
             command: ['npx', '-y', '@local/mcp'],
             enabled: false,
             environment: { LOCAL: '1' },
+            cwd: './mcp',
+            timeout: 20_000,
           },
           remote: {
             type: 'remote',
             url: 'https://example.com/mcp',
             enabled: false,
             headers: { Authorization: 'Bearer token' },
+            oauth: false,
+            timeout: 30_000,
           },
           inherited: { enabled: false },
         },
@@ -318,6 +326,8 @@ describe('opencodeMcpAdapter', () => {
       args: ['-y', '@local/mcp'],
       enabled: false,
       env: { LOCAL: '1' },
+      cwd: './mcp',
+      timeout: 20_000,
     });
     expect(result).toContainEqual({
       name: 'remote',
@@ -325,6 +335,8 @@ describe('opencodeMcpAdapter', () => {
       url: 'https://example.com/mcp',
       enabled: false,
       headers: { Authorization: 'Bearer token' },
+      oauth: false,
+      timeout: 30_000,
     });
     expect(result).toContainEqual({ name: 'inherited', enabled: false });
 

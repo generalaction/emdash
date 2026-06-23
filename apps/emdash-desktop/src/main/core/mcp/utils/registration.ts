@@ -25,6 +25,12 @@ export function registrationToMcpServer(
         ? (reg.env as Record<string, string>)
         : undefined,
     enabled: typeof reg.enabled === 'boolean' ? reg.enabled : undefined,
+    cwd: typeof reg.cwd === 'string' ? reg.cwd : undefined,
+    timeout: typeof reg.timeout === 'number' ? reg.timeout : undefined,
+    oauth:
+      (typeof reg.oauth === 'object' && reg.oauth !== null) || reg.oauth === false
+        ? (reg.oauth as Record<string, unknown> | false)
+        : undefined,
     providers,
   };
 }
@@ -42,6 +48,9 @@ export function mcpServerToRegistration(server: McpServer): McpServerRegistratio
     headers: server.headers,
     env: server.env,
     enabled: server.enabled,
+    cwd: server.cwd,
+    timeout: server.timeout,
+    oauth: server.oauth,
   };
 }
 
@@ -57,5 +66,8 @@ export function mcpServerFieldCount(server: McpServer): number {
   if (server.headers && Object.keys(server.headers).length) n++;
   if (server.env && Object.keys(server.env).length) n++;
   if (server.enabled !== undefined) n++;
+  if (server.cwd) n++;
+  if (server.timeout !== undefined) n++;
+  if (server.oauth !== undefined) n++;
   return n;
 }

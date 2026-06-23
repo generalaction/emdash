@@ -11,6 +11,9 @@ export interface McpServer {
   // common
   env?: Record<string, string>;
   enabled?: boolean;
+  cwd?: string;
+  timeout?: number;
+  oauth?: Record<string, unknown> | false;
   providers: string[];
 }
 

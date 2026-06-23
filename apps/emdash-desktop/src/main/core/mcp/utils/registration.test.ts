@@ -7,6 +7,9 @@ describe('MCP registration conversion', () => {
       {
         name: 'inherited',
         enabled: false,
+        cwd: './mcp',
+        timeout: 10_000,
+        oauth: false,
       },
       ['opencode']
     );
@@ -15,6 +18,9 @@ describe('MCP registration conversion', () => {
       name: 'inherited',
       transport: 'stdio',
       enabled: false,
+      cwd: './mcp',
+      timeout: 10_000,
+      oauth: false,
       providers: ['opencode'],
     });
 
@@ -22,6 +28,9 @@ describe('MCP registration conversion', () => {
       name: 'inherited',
       transport: 'stdio',
       enabled: false,
+      cwd: './mcp',
+      timeout: 10_000,
+      oauth: false,
     });
   });
 });

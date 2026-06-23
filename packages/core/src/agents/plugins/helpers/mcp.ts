@@ -271,7 +271,7 @@ export function qwenMcpAdapter(configPath = '.qwen/settings.json') {
 }
 
 /**
- * OpenCode adapter — type:'remote'/httpUrl for HTTP; type:'local'/command[] for stdio.
+ * OpenCode adapter — type:'remote'/url for HTTP; type:'local'/command[] for stdio.
  * Write: ~/.config/opencode/opencode.json; legacy read: ~/.opencode/config.json.
  */
 export function opencodeMcpAdapter(
@@ -299,6 +299,8 @@ export function opencodeMcpAdapter(
           enabled,
         };
         if (entry.env) result.env = entry.env;
+        if (entry.timeout !== undefined) result.timeout = entry.timeout;
+        if (entry.oauth !== undefined) result.oauth = entry.oauth;
         return result;
       }
       // stdio
@@ -308,6 +310,8 @@ export function opencodeMcpAdapter(
       if (!cmdVec.length && enabled === false) return { enabled: false };
       const result: Record<string, unknown> = { type: 'local', command: cmdVec, enabled };
       if (entry.env) result.environment = entry.env;
+      if (entry.cwd !== undefined) result.cwd = entry.cwd;
+      if (entry.timeout !== undefined) result.timeout = entry.timeout;
       return result;
     },
     fromNative(name, raw) {
@@ -327,6 +331,8 @@ export function opencodeMcpAdapter(
         if (entry.env) result.env = entry.env;
         else if (entry.environment) result.env = entry.environment;
         if (typeof entry.enabled === 'boolean') result.enabled = entry.enabled;
+        if (typeof entry.cwd === 'string') result.cwd = entry.cwd;
+        if (typeof entry.timeout === 'number') result.timeout = entry.timeout;
         return { name, ...result } as McpServerRegistration;
       }
       return { name, ...entry } as McpServerRegistration;
