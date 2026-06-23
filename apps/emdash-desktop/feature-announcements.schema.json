@@ -108,7 +108,7 @@
         {
           "required": ["url"],
           "not": {
-            "required": ["view"]
+            "required": ["action"]
           }
         }
       ]

@@ -37,6 +37,21 @@ describe('feature announcement state', () => {
     });
   });
 
+  it('initializes fresh installs even when no announcement is available', async () => {
+    const client = makeSettingsClient();
+    await initializeFreshInstallAnnouncement(
+      {
+        isFreshInstall: true,
+      },
+      client
+    );
+
+    expect(client.read()).toEqual({
+      initialized: true,
+      dismissedIds: [],
+    });
+  });
+
   it('does not touch already-initialized state on a fresh-install flag', async () => {
     const client = makeSettingsClient({ initialized: true, dismissedIds: ['older'] });
     await initializeFreshInstallAnnouncement(

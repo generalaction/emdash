@@ -46,7 +46,7 @@ export async function writeAnnouncementDismissalState(
  */
 export async function initializeFreshInstallAnnouncement(
   options: {
-    announcementId: string;
+    announcementId?: string;
     isFreshInstall: boolean;
   },
   client: AnnouncementSettingsClient = appSettingsClient
@@ -59,7 +59,7 @@ export async function initializeFreshInstallAnnouncement(
   await writeAnnouncementDismissalState(
     {
       initialized: true,
-      dismissedIds: [options.announcementId],
+      dismissedIds: options.announcementId ? [options.announcementId] : [],
     },
     client
   );

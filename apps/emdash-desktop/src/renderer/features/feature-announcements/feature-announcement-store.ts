@@ -74,9 +74,9 @@ export class FeatureAnnouncementStore {
   async start(options?: { isFreshInstall?: boolean }): Promise<void> {
     await Promise.all([this.refresh(), this.loadDismissalState()]);
 
-    if (this.manifest && options?.isFreshInstall) {
+    if (options?.isFreshInstall) {
       await initializeFreshInstallAnnouncement({
-        announcementId: this.manifest.id,
+        announcementId: this.manifest?.id,
         isFreshInstall: true,
       });
       await this.loadDismissalState();

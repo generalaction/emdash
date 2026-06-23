@@ -76,9 +76,3 @@ export function FeatureAnnouncementMediaArea({ media }: { media: FeatureAnnounce
     </div>
   );
 }
-
-export function getFeatureAnnouncementMedia(
-  manifest: FeatureAnnouncementManifest
-): FeatureAnnouncementMedia | null {
-  return resolveFeatureAnnouncementMedia(manifest);
-}

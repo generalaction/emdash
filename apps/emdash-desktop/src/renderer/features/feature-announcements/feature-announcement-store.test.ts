@@ -10,6 +10,10 @@ vi.mock('@renderer/lib/ipc', () => ({
       get: vi.fn(),
       update: vi.fn(),
     },
+    featureAnnouncements: {
+      getCurrent: vi.fn(),
+      preview: vi.fn(),
+    },
   },
 }));
 
@@ -36,6 +40,14 @@ describe('FeatureAnnouncementStore', () => {
     vi.mocked(rpc.appSettings.get).mockImplementation(async () => settings);
     vi.mocked(rpc.appSettings.update).mockImplementation(async (_key, next) => {
       settings = next as AnnouncementSettings;
+    });
+    vi.mocked(rpc.featureAnnouncements.getCurrent).mockResolvedValue({
+      success: true,
+      data: null,
+    });
+    vi.mocked(rpc.featureAnnouncements.preview).mockResolvedValue({
+      success: true,
+      data: null,
     });
   });
 
@@ -69,5 +81,15 @@ describe('FeatureAnnouncementStore', () => {
     await store.markPresented();
 
     expect(settings).toEqual({ initialized: false, dismissedIds: [] });
+  });
+
+  it('initializes fresh-install dismissal state when manifest fetch fails', async () => {
+    vi.mocked(rpc.featureAnnouncements.getCurrent).mockRejectedValue(new Error('offline'));
+
+    const store = new FeatureAnnouncementStore();
+    await store.start({ isFreshInstall: true });
+
+    expect(store.status).toBe('error');
+    expect(settings).toEqual({ initialized: true, dismissedIds: [] });
   });
 });
