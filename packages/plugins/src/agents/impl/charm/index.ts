@@ -1,10 +1,20 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
+import type { CommandContext } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
   crushMcpAdapter,
   npmDependency,
 } from '@emdash/core/agents/plugins/helpers';
 import { icon } from './icon';
+
+function buildCharmCommand(ctx: CommandContext) {
+  return buildStandardCommand(ctx, {
+    defaultArgs: ctx.initialPrompt && !ctx.isResuming ? ['run'] : undefined,
+    initialPromptFlag: '',
+    sessionIdFlag: '--session',
+    sessionIdAlways: true,
+  });
+}
 
 export const plugin = definePlugin(
   {
@@ -52,13 +62,7 @@ export const plugin = definePlugin(
 
 export const provider = registerPluginBehavior(plugin, {
   prompt: {
-    buildCommand: (ctx) =>
-      buildStandardCommand(ctx, {
-        defaultArgs: ['run'],
-        initialPromptFlag: '',
-        sessionIdFlag: '--session',
-        sessionIdAlways: true,
-      }),
+    buildCommand: buildCharmCommand,
   },
   mcp: crushMcpAdapter(),
 });

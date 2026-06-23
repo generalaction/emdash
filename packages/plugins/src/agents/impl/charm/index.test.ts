@@ -39,6 +39,16 @@ describe('charm provider', () => {
     });
   });
 
+  it('starts an empty fresh session in interactive mode', () => {
+    const command = provider.behavior.prompt!.buildCommand(baseContext);
+
+    expect(command).toEqual({
+      command: 'crush',
+      args: ['--session', 'emdash-session-id'],
+      env: {},
+    });
+  });
+
   it('resumes the same named crush session', () => {
     const command = provider.behavior.prompt!.buildCommand({
       ...baseContext,
@@ -47,7 +57,7 @@ describe('charm provider', () => {
 
     expect(command).toEqual({
       command: 'crush',
-      args: ['run', '--session', 'emdash-session-id'],
+      args: ['--session', 'emdash-session-id'],
       env: {},
     });
   });
