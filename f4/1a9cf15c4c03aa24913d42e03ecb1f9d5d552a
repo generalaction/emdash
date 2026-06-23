@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/lib/editor/csv-renderer.tsx
+  s_902c91f2a80e93::t_ccd2c36089bb70 21-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "f41a9cf15c4c03aa24913d42e03ecb1f9d5d552a",
+  "prompts": {},
+  "sessions": {
+    "s_902c91f2a80e93": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef579-b0f9-7c70-a535-c63592ee8aee",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
