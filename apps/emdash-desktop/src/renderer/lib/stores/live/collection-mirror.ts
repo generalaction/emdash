@@ -15,7 +15,7 @@ export class CollectionMirror<K, V> {
   private readonly version = new MirrorVersion('live collection', 'CollectionMirror');
   private readonly maxBufferedDeltas: number;
   private entriesByKey = new Map<K, V>();
-  private droppedBufferedDeltas = false;
+  private readonly droppedBufferedDeltaGenerations = new Set<number>();
   private pendingDeltas: Array<CollectionDelta<K, V>> = [];
 
   constructor(options: CollectionMirrorOptions = {}) {
@@ -90,6 +90,7 @@ export class CollectionMirror<K, V> {
 
   dispose(): void {
     this.pendingDeltas = [];
+    this.droppedBufferedDeltaGenerations.clear();
     this.version.dispose();
   }
 
@@ -102,10 +103,10 @@ export class CollectionMirror<K, V> {
       this.revision += 1;
     });
     this.version.flushAfterApply(generationChanged);
-    if (this.droppedBufferedDeltas) {
-      this.droppedBufferedDeltas = false;
-      this.pendingDeltas = [];
-      return;
+    if (this.droppedBufferedDeltaGenerations.delete(snapshot.generation)) {
+      this.pendingDeltas = this.pendingDeltas.filter(
+        (update) => update.generation !== snapshot.generation
+      );
     }
     this.flushPendingDeltas();
   }
@@ -134,10 +135,13 @@ export class CollectionMirror<K, V> {
 
   private bufferDelta(update: CollectionDelta<K, V>): void {
     if (update.generation < this.generation) return;
-    if (this.droppedBufferedDeltas) return;
+    if (this.droppedBufferedDeltaGenerations.has(update.generation)) return;
     if (this.pendingDeltas.length >= this.maxBufferedDeltas) {
+      for (const pending of this.pendingDeltas) {
+        this.droppedBufferedDeltaGenerations.add(pending.generation);
+      }
+      this.droppedBufferedDeltaGenerations.add(update.generation);
       this.pendingDeltas = [];
-      this.droppedBufferedDeltas = true;
       return;
     }
     this.pendingDeltas.push(update);

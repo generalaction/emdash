@@ -136,6 +136,28 @@ describe('CollectionMirror', () => {
     ]);
   });
 
+  it('keeps later-generation deltas after an earlier generation overflows', () => {
+    const mirror = new CollectionMirror<string, Entry>({ maxBufferedDeltas: 1 });
+
+    mirror.applyUpdate(delta([{ op: 'put', key: 'b', value: { label: 'b' } }], 2, 1));
+    mirror.applyUpdate(delta([{ op: 'put', key: 'c', value: { label: 'c' } }], 3, 1));
+    mirror.applyUpdate(delta([{ op: 'put', key: 'd', value: { label: 'd' } }], 2, 2));
+
+    mirror.setSnapshot(snapshot([['a', { label: 'a' }]], 1, 1));
+
+    expect(mirror.generation).toBe(1);
+    expect(mirror.entries()).toEqual([['a', { label: 'a' }]]);
+
+    mirror.setSnapshot(snapshot([['e', { label: 'e' }]], 1, 2));
+
+    expect(mirror.generation).toBe(2);
+    expect(mirror.sequence).toBe(2);
+    expect(mirror.entries()).toEqual([
+      ['e', { label: 'e' }],
+      ['d', { label: 'd' }],
+    ]);
+  });
+
   it('accepts snapshot-shaped updates', () => {
     const mirror = new CollectionMirror<string, Entry>();
     mirror.applyUpdate({ kind: 'snapshot', ...snapshot([['a', { label: 'a' }]], 1) });
