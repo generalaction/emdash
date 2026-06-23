@@ -1,5 +1,5 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
-import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
+import { buildGooseHookConfig } from './hooks';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -10,6 +10,17 @@ export const plugin = definePlugin(
     websiteUrl: 'https://goose-docs.ai/docs/quickstart/',
   },
   {
+    autoApprove: {
+      kind: 'none',
+    },
+    effort: {
+      kind: 'none',
+    },
+    hooks: {
+      kind: 'config',
+      scope: 'workspace',
+      supportedEvents: ['session', 'start', 'stop', 'tool-use', 'tool-use-failure'],
+    },
     hostDependency: {
       id: 'goose',
       binaryNames: ['goose'],
@@ -40,6 +51,15 @@ export const plugin = definePlugin(
         },
       },
     },
+    mcp: {
+      kind: 'none',
+    },
+    models: {
+      kind: 'none',
+    },
+    plugins: {
+      kind: 'none',
+    },
     prompt: {
       kind: 'argv',
       flag: '-t',
@@ -53,11 +73,60 @@ export const plugin = definePlugin(
 
 export const provider = registerPluginBehavior(plugin, {
   prompt: {
-    buildCommand: (ctx) =>
-      buildStandardCommand(ctx, {
-        defaultArgs: ['run', '-s'],
-        initialPromptFlag: '-t',
-        resumeFlag: '--resume',
-      }),
+    buildCommand: (ctx) => {
+      if (ctx.isResuming) {
+        const resumeSessionId = ctx.providerSessionId?.trim();
+        if (!resumeSessionId) {
+          const args = ['session'];
+
+          if (ctx.sessionId) {
+            args.push('-n', ctx.sessionId);
+          }
+
+          if (ctx.extraArgs?.length) {
+            args.push(...ctx.extraArgs);
+          }
+
+          return { command: ctx.cli, args, env: {} };
+        }
+
+        const args = ['session', '--resume', '--session-id', resumeSessionId];
+
+        if (ctx.extraArgs?.length) {
+          args.push(...ctx.extraArgs);
+        }
+
+        return { command: ctx.cli, args, env: {} };
+      }
+
+      if (!ctx.initialPrompt?.trim()) {
+        const args = ['session'];
+
+        if (ctx.sessionId) {
+          args.push('-n', ctx.sessionId);
+        }
+
+        if (ctx.extraArgs?.length) {
+          args.push(...ctx.extraArgs);
+        }
+
+        return { command: ctx.cli, args, env: {} };
+      }
+
+      const args = ['run', '-s'];
+
+      if (ctx.sessionId) {
+        args.push('-n', ctx.sessionId);
+      }
+
+      args.push('-t', ctx.initialPrompt);
+
+      if (ctx.extraArgs?.length) {
+        args.push(...ctx.extraArgs);
+      }
+
+      return { command: ctx.cli, args, env: {} };
+    },
   },
+  hooks: buildGooseHookConfig(),
 });
