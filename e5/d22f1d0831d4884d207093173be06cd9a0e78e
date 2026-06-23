@@ -1,0 +1,32 @@
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-state.test.ts
+  s_62bfd5d0937a9d::t_2655967a3f8bc8 3
+  s_62bfd5d0937a9d::t_d69cc0ffc1b86b 62-68
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-state.ts
+  s_62bfd5d0937a9d::t_f313d8b2855f58 52-59
+apps/emdash-desktop/src/renderer/features/settings/components/UpdateCard.tsx
+  s_62bfd5d0937a9d::t_fcc85f66892758 63
+  s_62bfd5d0937a9d::t_f50f1631ddbdf5 1,8
+apps/emdash-desktop/src/shared/feature-announcements/constants.ts
+  s_62bfd5d0937a9d::t_195bdabebff29d 8-11
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-store.ts
+  s_62bfd5d0937a9d::t_c516ed43583b2e 3,9,19-27,31,38,41-42,50,62-81,98,105,110-122,126,139-141
+apps/emdash-desktop/src/renderer/features/settings/components/AnnouncementDevControls.tsx
+  s_62bfd5d0937a9d::t_f251c7a83b87df 9-11,13,15-73
+  s_62bfd5d0937a9d::t_651537b62bd326 1-8,12,14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "e5d22f1d0831d4884d207093173be06cd9a0e78e",
+  "prompts": {},
+  "sessions": {
+    "s_62bfd5d0937a9d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "4471e7f2-d37f-4650-bbea-d5340910df7c",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
