@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/renderer/lib/components/error-boundary.tsx
+  s_12778f5de95dab::t_d5c420cf7594f9 39-44
+  s_12778f5de95dab::t_01484e4b6f5103 2
+apps/emdash-desktop/src/main/app/menu.ts
+  s_12778f5de95dab::t_5890932d7ae43f 30-49
+  s_12778f5de95dab::t_950b7f5806a8d2 211-223
+  s_12778f5de95dab::t_2328d885bd9500 1-2,4-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "b46fab57699f16be44da04358b3bd8d88f935f0d",
+  "prompts": {},
+  "sessions": {
+    "s_12778f5de95dab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "06e38dc5-5126-482c-83b3-de44c1d8e2d7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
