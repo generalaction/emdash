@@ -36,19 +36,25 @@ export const TabItemShell = observer(function TabItemShell({
   innerPaddingRight?: string;
   children: React.ReactNode;
 }) {
-  const { isFocusedPane } = usePaneContext();
+  const { isFocusedPane, pane } = usePaneContext();
+
+  const handleSelect = () => {
+    const wasActive = isActive;
+    onSelect();
+    if (!wasActive) pane.focusActiveContent();
+  };
 
   return (
     <DraggableTab id={tabId}>
       <div
         role="button"
         tabIndex={0}
-        onClick={onSelect}
+        onClick={handleSelect}
         onDoubleClick={onDoubleClick ?? onPin}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            onSelect();
+            handleSelect();
           }
         }}
         onMouseDown={(e) => {

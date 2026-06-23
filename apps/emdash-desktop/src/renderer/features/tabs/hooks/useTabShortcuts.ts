@@ -16,6 +16,8 @@ export interface TabNavigationProvider {
   setTabActiveIndex: (index: number) => void;
   closeActiveTab: () => void;
   reopenClosedTab?: () => void;
+  /** Triggers inline rename of the active tab. Returns true when handled. */
+  renameActiveTab?: () => boolean;
 }
 
 export interface UseTabShortcutsOptions {
@@ -52,6 +54,7 @@ const TAB_INDEX_HOTKEYS = [
  *   Control+Tab / Control+Shift+Tab          — next / previous tab
  *   tabClose   (default Mod+W)              — close active tab
  *   tabReopen  (default Mod+Shift+T)        — reopen most recently closed tab
+ *   tabRename  (default Mod+Shift+R)        — rename active tab (when supported)
  *   Mod+1–9                                 — jump to tab by index (not configurable)
  *
  * Pass `focused: false` to disable shortcuts when the panel is not focused,
@@ -67,6 +70,7 @@ export function useTabShortcuts(
   const tabPrevHotkey = getEffectiveHotkey('tabPrev', keyboard);
   const tabCloseHotkey = getEffectiveHotkey('tabClose', keyboard);
   const tabReopenHotkey = getEffectiveHotkey('tabReopen', keyboard);
+  const tabRenameHotkey = getEffectiveHotkey('tabRename', keyboard);
 
   useHotkey(
     getHotkeyRegistration('tabNext', keyboard),
@@ -113,6 +117,14 @@ export function useTabShortcuts(
       store?.reopenClosedTab?.();
     },
     { enabled: enabled && tabReopenHotkey !== null, conflictBehavior: 'allow' }
+  );
+  useHotkey(
+    getHotkeyRegistration('tabRename', keyboard),
+    (e) => {
+      // Only swallow the key when a renamable tab actually handled it.
+      if (store?.renameActiveTab?.()) e.preventDefault();
+    },
+    { enabled: enabled && tabRenameHotkey !== null, conflictBehavior: 'allow' }
   );
 
   useHotkey(

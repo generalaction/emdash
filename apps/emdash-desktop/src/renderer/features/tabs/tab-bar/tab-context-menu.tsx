@@ -13,6 +13,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 
 /**
  * Generic context menu wrapper for any tab kind.
@@ -70,6 +71,7 @@ export const TabContextMenu = observer(function TabContextMenu({
           <ContextMenuItem key={cmd.id} onClick={() => void cmd.run()}>
             {cmd.icon ? <cmd.icon className="size-4" /> : null}
             {cmd.label}
+            {cmd.shortcut ? <BoundShortcut settingsKey={cmd.shortcut} className="ml-auto" /> : null}
           </ContextMenuItem>
         ))}
         {visibleKind.length > 0 && visibleEngine.length > 0 && <ContextMenuSeparator />}
@@ -77,6 +79,7 @@ export const TabContextMenu = observer(function TabContextMenu({
           <ContextMenuItem key={cmd.id} onClick={() => void cmd.run()}>
             {cmd.icon ? <cmd.icon className="size-4" /> : null}
             {cmd.label}
+            {cmd.shortcut ? <BoundShortcut settingsKey={cmd.shortcut} className="ml-auto" /> : null}
           </ContextMenuItem>
         ))}
       </ContextMenuContent>

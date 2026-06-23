@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
 import { TabCloseButton } from '@renderer/features/tabs/tab-bar/tab-close-button';
 import { TabDragPreviewShell, TabItemShell } from '@renderer/features/tabs/tab-bar/tab-item-shell';
@@ -16,18 +16,18 @@ export const ConversationTabItem = observer(function ConversationTabItem({
   onPin,
   onClose,
   onRenameSubmit,
-  renameRef,
+  renameRequested,
+  onRenameConsumed,
 }: {
   tab: ResolvedTab<ConversationResolvedData>;
   onSelect: () => void;
   onPin: () => void;
   onClose: () => void;
   onRenameSubmit: (newName: string) => void;
-  /**
-   * Mutable ref that the caller populates with a `startRename` callback.
-   * Allows external triggers (e.g. context-menu commands) to start inline editing.
-   */
-  renameRef?: React.MutableRefObject<(() => void) | null>;
+  /** True when the engine has signalled that this tab should begin inline editing. */
+  renameRequested?: boolean;
+  /** Called immediately after the rename request is consumed, to reset the signal. */
+  onRenameConsumed?: () => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const committedRef = useRef(false);
@@ -41,8 +41,11 @@ export const ConversationTabItem = observer(function ConversationTabItem({
     window.setTimeout(() => setIsEditing(true), 0);
   }, []);
 
-  // Keep the ref in sync so context menu commands can trigger rename.
-  if (renameRef) renameRef.current = startRename;
+  useEffect(() => {
+    if (!renameRequested) return;
+    startRename();
+    onRenameConsumed?.();
+  }, [renameRequested, startRename, onRenameConsumed]);
 
   const handleDoubleClick = useCallback(() => {
     if (tab.isPreview) onPin();

@@ -1,8 +1,17 @@
 import { useDroppable } from '@dnd-kit/core';
 import { observer } from 'mobx-react-lite';
-import { type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { usePaneContext } from '../tabs/pane-context';
 import { TabBar } from './tab-bar';
+
+const CONTENT_FOCUS_SELECTOR = 'textarea, webview, [contenteditable="true"]';
+
+function focusActiveContentElement(container: HTMLElement): void {
+  for (const el of container.querySelectorAll<HTMLElement>(CONTENT_FOCUS_SELECTOR)) {
+    el.focus();
+    if (document.activeElement === el) return;
+  }
+}
 
 /** The content for a single pane: tab bar + content area. */
 export const PaneContent = observer(function PaneContent({
@@ -18,6 +27,22 @@ export const PaneContent = observer(function PaneContent({
   const { setNodeRef: setContentDropRef, isOver: isOverContent } = useDroppable({
     id: `pane-content-${paneId}`,
   });
+  const contentRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    pane.setContentFocuser(() => {
+      if (contentRef.current) focusActiveContentElement(contentRef.current);
+    });
+    return () => pane.setContentFocuser(null);
+  }, [pane]);
+
+  const setContentRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      setContentDropRef(el);
+      contentRef.current = el;
+    },
+    [setContentDropRef]
+  );
 
   const hasAnyTab = pane.resolvedTabs.length > 0;
   const activeKind = pane.resolvedTabs.find((t) => t.isActive)?.kind ?? null;
@@ -29,7 +54,7 @@ export const PaneContent = observer(function PaneContent({
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <TabBar actionsSlot={actionsSlot} />
-      <div ref={setContentDropRef} className="relative min-h-0 flex-1">
+      <div ref={setContentRef} className="relative min-h-0 flex-1">
         {isOverContent && (
           <div className="pointer-events-none absolute inset-0 z-20 bg-foreground/10" />
         )}

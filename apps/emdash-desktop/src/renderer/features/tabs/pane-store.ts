@@ -46,6 +46,10 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
   /** Bounded stack of recently closed tabs for reopening. Not observable — not persisted. */
   private readonly _closedTabHistory: Array<{ data: TabDescriptor; index: number }> = [];
   private static readonly _MAX_CLOSED_HISTORY = 20;
+  /** Current pending inline-rename request. Observed by tab chips via TabHost. */
+  renameRequest: { tabId: string; nonce: number } | null = null;
+  /** Focuses the active tab's content DOM. Registered by PaneContent. */
+  private _contentFocuser: (() => void) | null = null;
   get ctx(): TabViewContext {
     return this._ctx;
   }
@@ -84,6 +88,10 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
       reopenClosedTab: action,
       restoreSnapshot: action,
       detachTab: action,
+      renameRequest: observable,
+      requestRename: action,
+      clearRenameRequest: action,
+      commitRename: action,
     });
 
     // Call mount lifecycle for each registered tab kind.
@@ -278,6 +286,49 @@ export class PaneStore<R extends TabRegistry = TabRegistry>
   closeOthers(tabId: string): void {
     const toClose = this.tabOrder.filter((id) => id !== tabId);
     for (const id of toClose) this.closeTab(id);
+  }
+
+  /** Signals the tab chip for tabId to begin inline editing (TabHost.requestRename). */
+  requestRename(tabId: string): void {
+    this.renameRequest = { tabId, nonce: (this.renameRequest?.nonce ?? 0) + 1 };
+  }
+
+  /** Called by the tab chip after it has consumed a rename request (TabHost.clearRenameRequest). */
+  clearRenameRequest(): void {
+    this.renameRequest = null;
+  }
+
+  /** Delegates to provider.rename() to persist the new name (TabHost.commitRename). */
+  commitRename(tabId: string, name: string): void {
+    const entry = this.entries.get(tabId);
+    if (!entry || !this.registry.has(entry.kind)) return;
+    this.registry.get(entry.kind).rename?.(entry, name, this._ctx);
+  }
+
+  /**
+   * Signals inline rename of the active tab when its kind supports it.
+   * Returns true when a renamable tab was signalled, false otherwise.
+   */
+  renameActiveTab(): boolean {
+    const id = this.resolvedActiveTabId;
+    if (!id) return false;
+    const entry = this.entries.get(id);
+    if (!entry || !this.registry.has(entry.kind)) return false;
+    if (!this.registry.get(entry.kind).rename) return false;
+    this.requestRename(id);
+    return true;
+  }
+
+  /** Registers a focuser so focusActiveContent() can target the active content DOM. */
+  setContentFocuser(focuser: (() => void) | null): void {
+    this._contentFocuser = focuser;
+  }
+
+  /** Moves DOM focus into the active tab's content (e.g. Monaco textarea, xterm, webview). */
+  focusActiveContent(): void {
+    const focuser = this._contentFocuser;
+    if (!focuser) return;
+    requestAnimationFrame(() => focuser());
   }
 
   /** User-initiated close — calls def.confirmClose if defined, then closes on confirm. */

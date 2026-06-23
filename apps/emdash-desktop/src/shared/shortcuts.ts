@@ -217,6 +217,13 @@ export const APP_SHORTCUTS = defineShortcuts({
     category: 'Tab Navigation',
     conflictBehavior: 'allow',
   },
+  tabRename: {
+    defaultHotkey: 'Mod+Shift+R',
+    label: 'Rename Tab',
+    description: 'Rename the active tab (when supported)',
+    category: 'Tab Navigation',
+    conflictBehavior: 'allow',
+  },
   newConversation: {
     defaultHotkey: 'Mod+T',
     label: 'New Conversation',

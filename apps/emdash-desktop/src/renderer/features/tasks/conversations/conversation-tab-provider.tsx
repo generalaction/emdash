@@ -1,7 +1,5 @@
-import { Pencil } from 'lucide-react';
 import { action, autorun, reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import { useRef } from 'react';
 import type {
   TabProvider,
   TabItemProps,
@@ -41,20 +39,23 @@ type ConversationDescriptor = Extract<TabDescriptor, { kind: 'conversation' }>;
 // UI adapters — bridge new TabItemProps to existing component APIs
 // ---------------------------------------------------------------------------
 
-function ConversationTabItemAdapter({ tab, host, ctx }: TabItemProps<ConversationResolvedData>) {
-  const renameRef = useRef<(() => void) | null>(null);
+function ConversationTabItemAdapter({
+  tab,
+  host,
+  ctx: _ctx,
+}: TabItemProps<ConversationResolvedData>) {
   return (
     <TabContextMenu
       tab={tab}
       host={host}
-      ctx={ctx}
+      ctx={_ctx}
       kindCommands={[
         {
           id: 'conversation:rename',
           label: 'Rename',
-          icon: Pencil,
           group: 'edit',
-          run: () => renameRef.current?.(),
+          shortcut: 'tabRename',
+          run: () => host.requestRename(tab.tabId),
         },
       ]}
     >
@@ -63,12 +64,9 @@ function ConversationTabItemAdapter({ tab, host, ctx }: TabItemProps<Conversatio
         onSelect={() => host.setActiveTab(tab.tabId)}
         onPin={() => host.pin(tab.tabId)}
         onClose={() => host.requestCloseTab(tab.tabId)}
-        onRenameSubmit={(name) =>
-          void conversationRegistry
-            .get((ctx as TaskTabContext).taskId)
-            ?.renameConversation(tab.conversationId, name)
-        }
-        renameRef={renameRef}
+        onRenameSubmit={(name) => host.commitRename(tab.tabId, name)}
+        renameRequested={host.renameRequest?.tabId === tab.tabId}
+        onRenameConsumed={() => host.clearRenameRequest()}
       />
     </TabContextMenu>
   );
@@ -235,5 +233,11 @@ export const conversationTabProvider: TabProvider<
       .get((ctx as TaskTabContext).taskId)
       ?.conversations.get(entry.conversationId)
       ?.markSeen();
+  },
+
+  rename(entry: ConversationTabEntry, name: string, ctx: TabViewContext): void {
+    void conversationRegistry
+      .get((ctx as TaskTabContext).taskId)
+      ?.renameConversation(entry.conversationId, name);
   },
 };

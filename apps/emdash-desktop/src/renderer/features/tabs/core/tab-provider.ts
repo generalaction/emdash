@@ -1,4 +1,5 @@
 import type React from 'react';
+import type { ShortcutSettingsKey } from '@shared/shortcuts';
 
 /**
  * Minimal shape every tab entry must satisfy. The engine stores entries as
@@ -77,6 +78,8 @@ export interface TabCommand {
   icon?: React.ComponentType<{ className?: string }>;
   /** Grouping key for separator placement. */
   group?: 'close' | (string & {});
+  /** App-shortcut key whose effective hotkey is rendered next to the command. */
+  shortcut?: ShortcutSettingsKey;
   /** Hides the command when false (default: always visible). */
   isAvailable?(): boolean;
   run(): void | Promise<void>;
@@ -135,6 +138,17 @@ export interface TabHost {
   requestCloseTab(tabId: string): void;
   /** Closes every open tab except the given one. */
   closeOthers(tabId: string): void;
+  /**
+   * The current pending rename request, if any. Observed by tab chips
+   * so they can start inline editing when their tabId matches.
+   */
+  readonly renameRequest: { tabId: string; nonce: number } | null;
+  /** Signal the tab chip for tabId to begin inline editing. */
+  requestRename(tabId: string): void;
+  /** Called by the tab chip after it has consumed a rename request. */
+  clearRenameRequest(): void;
+  /** Delegates to provider.rename() to persist the new name. */
+  commitRename(tabId: string, name: string): void;
 }
 
 /**
@@ -231,4 +245,11 @@ export interface TabProvider<
    * that the store calls when it is disposed.
    */
   mount?(host: TabHost, ctx: TabViewContext): () => void;
+
+  /**
+   * Persist a new name for this tab's backing entity. Presence marks the
+   * kind as renamable — the engine exposes Cmd+Shift+R and the context-menu
+   * "Rename" command only when the active tab's provider defines this.
+   */
+  rename?(entry: E, name: string, ctx: TabViewContext): void;
 }
