@@ -34,6 +34,7 @@ import {
 } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import { measureDimensions, type TerminalDimensions } from './pty-dimensions';
+import { createResizeScheduler, type ResizeScheduler } from './resize-scheduler';
 
 const PTY_RESIZE_DEBOUNCE_MS = 60;
 const MIN_TERMINAL_COLS = 2;
@@ -108,8 +109,20 @@ export function PaneSizingProvider({ paneId, sessionIds, children }: PaneSizingP
   const containerRef = useRef<HTMLDivElement>(null);
   const sessionsRef = useRef<string[]>([]);
   const lastDimensionsRef = useRef<{ cols: number; rows: number } | null>(null);
-  const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingDimsRef = useRef<{ cols: number; rows: number } | null>(null);
+
+  // Leading + trailing debounce so the PTY resize stays in lockstep with the
+  // synchronous xterm grid resize (ENG-1577).  See createResizeScheduler.
+  const schedulerRef = useRef<ResizeScheduler<{ cols: number; rows: number }> | null>(null);
+  if (schedulerRef.current === null) {
+    schedulerRef.current = createResizeScheduler((dims) => {
+      lastDimensionsRef.current = dims;
+      // No dedup: a newly active session's PTY may not have received the resize
+      // yet even when the pane dimensions are unchanged, so we always broadcast.
+      for (const id of sessionsRef.current) {
+        void rpc.pty.resize(id, dims.cols, dims.rows);
+      }
+    }, PTY_RESIZE_DEBOUNCE_MS);
+  }
 
   // Register/unregister this pane in the module-level registry.
   useEffect(() => {
@@ -135,41 +148,16 @@ export function PaneSizingProvider({ paneId, sessionIds, children }: PaneSizingP
     }
   }, [sessionIds]);
 
-  // Clear debounce timer on unmount.
+  // Drop any pending trailing flush on unmount.
   useEffect(() => {
-    return () => {
-      if (pendingTimerRef.current) {
-        clearTimeout(pendingTimerRef.current);
-      }
-    };
+    return () => schedulerRef.current?.cancel();
   }, []);
 
-  const flush = useCallback(() => {
-    const dims = pendingDimsRef.current;
-    pendingDimsRef.current = null;
-    if (!dims) return;
-    lastDimensionsRef.current = dims;
-    for (const id of sessionsRef.current) {
-      void rpc.pty.resize(id, dims.cols, dims.rows);
-    }
+  const reportDimensions = useCallback((cols: number, rows: number) => {
+    const c = Math.max(MIN_TERMINAL_COLS, cols);
+    const r = Math.max(MIN_TERMINAL_ROWS, rows);
+    schedulerRef.current?.schedule({ cols: c, rows: r });
   }, []);
-
-  const reportDimensions = useCallback(
-    (cols: number, rows: number) => {
-      const c = Math.max(MIN_TERMINAL_COLS, cols);
-      const r = Math.max(MIN_TERMINAL_ROWS, rows);
-      // No dedup here: a newly active session's PTY may not have received the
-      // resize yet even if the pane dimensions are unchanged, so we always
-      // broadcast.  The debounce timer coalesces rapid calls.
-      pendingDimsRef.current = { cols: c, rows: r };
-      if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
-      pendingTimerRef.current = setTimeout(() => {
-        pendingTimerRef.current = null;
-        flush();
-      }, PTY_RESIZE_DEBOUNCE_MS);
-    },
-    [flush]
-  );
 
   const getCurrentDimensions = useCallback(
     (): { cols: number; rows: number } | null => lastDimensionsRef.current,

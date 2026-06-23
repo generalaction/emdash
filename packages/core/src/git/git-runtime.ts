@@ -136,7 +136,7 @@ export class GitRuntime implements IGitRuntime {
     const inspected = await this.inspectResolvedPath(resolvedTargetPath);
     if (inspected.kind === 'repository') return ok(inspected);
     return err({
-      type: 'git-error',
+      type: 'git_error',
       message: `Cloned path is not a git repository: ${resolvedTargetPath}`,
     });
   }

@@ -13,7 +13,7 @@ This directory is the system of record for agent-facing repo guidance. Keep topi
 - `architecture/`
   - system structure and major code ownership boundaries
 - `workflows/`
-  - task-oriented procedures like testing, worktrees, and remote development
+  - task-oriented procedures like testing, worktrees, remote development, and Nx task orchestration
 - `integrations/`
   - provider, MCP, and external service guidance
 - `risky-areas/`

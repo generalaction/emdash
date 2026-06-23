@@ -94,6 +94,24 @@ describe('SshConnectionStore', () => {
     expect(store.healthStates).toEqual({});
   });
 
+  it('allows forced connect while reconnecting', async () => {
+    const store = new SshConnectionStore();
+    store.start();
+
+    emitSshEvent({
+      type: 'reconnecting',
+      connectionId: 'ssh-1',
+      attempt: 1,
+      delayMs: 20_000,
+    });
+
+    await store.connect('ssh-1');
+    expect(rpc.ssh.connect).not.toHaveBeenCalled();
+
+    await store.connect('ssh-1', { force: true });
+    expect(rpc.ssh.connect).toHaveBeenCalledWith('ssh-1');
+  });
+
   it('passes SSH config alias and proxy metadata through saveConnection', async () => {
     const store = new SshConnectionStore();
 

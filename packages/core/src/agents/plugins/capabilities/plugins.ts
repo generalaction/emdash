@@ -29,5 +29,6 @@ export const pluginsCapability = definePluginCapability<IPlugins>()(
     }),
     z.object({ kind: z.literal('cli') }),
     z.object({ kind: z.literal('none') }),
-  ])
+  ]),
+  { kind: 'none' }
 );

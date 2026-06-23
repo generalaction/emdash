@@ -5,6 +5,7 @@ export default defineConfig({
     deps: 'src/host-dependencies/capability.ts',
     'deps-runtime': 'src/host-dependencies/runtime/index.ts',
     exec: 'src/exec/index.ts',
+    'file-tree': 'src/file-tree/index.ts',
     fs: 'src/fs/index.ts',
     git: 'src/git/index.ts',
     lib: 'src/lib/index.ts',

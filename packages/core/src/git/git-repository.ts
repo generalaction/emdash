@@ -78,13 +78,13 @@ export class GitRepository implements IGitRepository {
     this.onError = options.onError ?? (() => {});
 
     this.refsModel = new LiveModel<GitRefsModel>({
-      compute: () => this.computeRefs(),
+      compute: async () => ok(await this.computeRefs()),
       debounceMs: WATCH_DEBOUNCE_MS,
       revalidateIntervalMs: REVALIDATE_INTERVAL_MS,
       onError: (error) => this.onError(`refs ${this.gitCommonDir}`, error),
     });
     this.remotesModel = new LiveModel<GitRemotesModel>({
-      compute: () => this.computeRemotes(),
+      compute: async () => ok(await this.computeRemotes()),
       debounceMs: WATCH_DEBOUNCE_MS,
       revalidateIntervalMs: REVALIDATE_INTERVAL_MS,
       onError: (error) => this.onError(`remotes ${this.gitCommonDir}`, error),
@@ -250,7 +250,7 @@ export class GitRepository implements IGitRepository {
       const remote = options.remote ?? 'origin';
       const fetchResult = await this.fetch(remote);
       if (!fetchResult.success) {
-        return err({ type: 'fetch-failed', remote, branch: from, error: fetchResult.error });
+        return err({ type: 'fetch_failed', remote, branch: from, error: fetchResult.error });
       }
     }
 
@@ -311,7 +311,9 @@ export class GitRepository implements IGitRepository {
           this.refsModel.refresh(),
           this.remotesModel.refresh(),
         ]);
-        return ok({ sequences: { refs: refs.sequence, remotes: remotes2.sequence } });
+        return ok({
+          sequences: { refs: refs.sequence, remotes: remotes2.sequence },
+        });
       }
 
       const remote = options.configuredRemote ?? 'origin';

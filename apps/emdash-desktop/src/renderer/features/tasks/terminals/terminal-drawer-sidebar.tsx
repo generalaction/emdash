@@ -82,7 +82,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
                 </button>
               </TooltipTrigger>
               <TooltipContent>
-                New terminal <BoundShortcut settingsKey="newTerminal" variant="badge" />
+                New terminal <BoundShortcut settingsKey="newTerminal" variant="keycaps" />
               </TooltipContent>
             </Tooltip>
             <DropdownMenu onOpenChange={(open) => open && onShellMenuOpen()}>

@@ -361,11 +361,11 @@ export function copilotMcpAdapter(
 
 /**
  * Droid (Factory AI) adapter — passthrough, uses mcpServers JSON key.
- * Write: ~/.droid/settings.json; legacy read: ~/.factory/config.json.
+ * Write: ~/.factory/mcp.json; legacy read: old Droid/Factory config paths.
  */
 export function droidMcpAdapter(
-  configPath = '.droid/settings.json',
-  legacyReadPaths = ['.factory/config.json']
+  configPath = '.factory/mcp.json',
+  legacyReadPaths = ['.droid/settings.json', '.factory/config.json']
 ) {
   return passthroughMcpAdapter(configPath, legacyReadPaths);
 }

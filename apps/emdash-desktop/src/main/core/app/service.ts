@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import type { IDisposable, IInitializable } from '@emdash/shared';
 import { eq } from 'drizzle-orm';
-import { app, clipboard, dialog, shell } from 'electron';
+import { app, clipboard, dialog, Menu, shell } from 'electron';
 import { getMainWindow } from '@main/app/window';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
@@ -16,7 +16,13 @@ import {
   buildRemoteSshCommand,
   buildRemoteTerminalExecArgs,
 } from '@main/utils/remoteOpenIn';
-import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
+import {
+  appPasteChannel,
+  appRedoChannel,
+  appUndoChannel,
+  terminalContextMenuActionChannel,
+  type TerminalContextMenuAction,
+} from '@shared/events/appEvents';
 import {
   getAppById,
   getResolvedLabel,
@@ -229,6 +235,62 @@ class AppService implements IInitializable, IDisposable {
   clipboardWriteText(text: string): void {
     if (typeof text !== 'string') throw new Error('Invalid clipboard text');
     clipboard.writeText(text);
+  }
+
+  showTerminalContextMenu(args: {
+    requestId: string;
+    selectionText?: string | null;
+    linkText?: string | null;
+    x: number;
+    y: number;
+  }): void {
+    if (!args.requestId || typeof args.requestId !== 'string') {
+      throw new Error('Invalid context menu request');
+    }
+    const selectionText = args.selectionText ?? '';
+    const linkText = args.linkText?.trim() ?? '';
+    const hasSelection = selectionText.length > 0;
+    const hasLink = linkText.length > 0;
+    const emitAction = (action: TerminalContextMenuAction) => {
+      events.emit(terminalContextMenuActionChannel, { requestId: args.requestId, action });
+    };
+    const template: Electron.MenuItemConstructorOptions[] = [
+      {
+        label: 'Copy',
+        accelerator: 'CmdOrCtrl+C',
+        enabled: hasSelection,
+        click: () => clipboard.writeText(selectionText),
+      },
+      ...(hasLink
+        ? [
+            {
+              label: 'Copy Link',
+              click: () => clipboard.writeText(linkText),
+            },
+          ]
+        : []),
+      {
+        label: 'Paste',
+        accelerator: 'CmdOrCtrl+V',
+        click: () => emitAction('paste'),
+      },
+      { type: 'separator' },
+      {
+        label: 'Select All',
+        accelerator: 'CmdOrCtrl+A',
+        click: () => emitAction('select-all'),
+      },
+      {
+        label: 'Clear',
+        click: () => emitAction('clear'),
+      },
+    ];
+
+    Menu.buildFromTemplate(template).popup({
+      window: getMainWindow() ?? undefined,
+      x: Math.round(args.x),
+      y: Math.round(args.y),
+    });
   }
 
   quit(): void {
