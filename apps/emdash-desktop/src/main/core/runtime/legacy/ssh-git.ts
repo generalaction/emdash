@@ -60,6 +60,28 @@ const HEAD_POLL_MS = 10_000;
 const REFS_POLL_MS = 15_000;
 const REMOTES_POLL_MS = 60_000;
 
+const RECOVERABLE_SSH_REFRESH_ERROR_CODES = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'EHOSTUNREACH',
+  'ENETDOWN',
+  'ENETUNREACH',
+  'ENOTCONN',
+  'EPIPE',
+  'ETIMEDOUT',
+]);
+
+function isRecoverableSshRefreshError(error: unknown): boolean {
+  const code =
+    typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : null;
+  if (typeof code === 'string' && RECOVERABLE_SSH_REFRESH_ERROR_CODES.has(code)) return true;
+
+  const message = error instanceof Error ? error.message : String(error);
+  return /SSH connection is not available|read ETIMEDOUT|timed out|connection (?:reset|refused|closed)|not connected|socket hang up/i.test(
+    message
+  );
+}
+
 type LegacyRepositoryResource = {
   repository: LegacySshGitRepository;
 };
@@ -228,7 +250,7 @@ export class LegacySshGitRuntime implements IGitRuntime {
   }
 }
 
-class LegacySshGitRepository implements IGitRepository {
+export class LegacySshGitRepository implements IGitRepository {
   readonly gitCommonDir: string;
   readonly objectStoreDir: string;
 
@@ -243,11 +265,11 @@ class LegacySshGitRepository implements IGitRepository {
     this.gitCommonDir = gitCommonDir;
     this.objectStoreDir = `${gitCommonDir}/objects`;
     this.refsModel = new LiveModel<GitRefsModel>({
-      compute: async () => ok(await this.computeRefs()),
+      compute: () => this.computeRefs(),
       onError: (error) => log.warn('LegacySshGitRepository: refs refresh failed', { error }),
     });
     this.remotesModel = new LiveModel<GitRemotesModel>({
-      compute: async () => ok(await this.computeRemotes()),
+      compute: () => this.computeRemotes(),
       onError: (error) => log.warn('LegacySshGitRepository: remotes refresh failed', { error }),
     });
     this.timers = [
@@ -392,12 +414,22 @@ class LegacySshGitRepository implements IGitRepository {
     return (await this.refsModel.refresh()).sequence;
   }
 
-  private async computeRefs(): Promise<GitRefsModel> {
-    return { branches: await this.git.getBranches() };
+  private async computeRefs(): Promise<Result<GitRefsModel, unknown>> {
+    try {
+      return ok({ branches: await this.git.getBranches() });
+    } catch (error) {
+      if (isRecoverableSshRefreshError(error)) return err(error);
+      throw error;
+    }
   }
 
-  private async computeRemotes(): Promise<GitRemotesModel> {
-    return { remotes: (await this.git.getRemotes()) as GitRemote[] };
+  private async computeRemotes(): Promise<Result<GitRemotesModel, unknown>> {
+    try {
+      return ok({ remotes: (await this.git.getRemotes()) as GitRemote[] });
+    } catch (error) {
+      if (isRecoverableSshRefreshError(error)) return err(error);
+      throw error;
+    }
   }
 }
 
