@@ -2,20 +2,39 @@ export function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-function resolveCssVarColor(color: string): string {
-  const cssVarMatch = color.trim().match(/^var\((--[^),\s]+)(?:,\s*(.+))?\)$/);
-  if (!cssVarMatch) return color;
+function parseCssVarReference(color: string): { name: string; fallback?: string } | null {
+  const trimmed = color.trim();
+  if (!trimmed.startsWith('var(') || !trimmed.endsWith(')')) return null;
 
-  const value = cssVar(cssVarMatch[1]);
-  return value || cssVarMatch[2] || color;
+  const contents = trimmed.slice(4, -1).trim();
+  const separatorIndex = contents.indexOf(',');
+  const name = (separatorIndex === -1 ? contents : contents.slice(0, separatorIndex)).trim();
+  if (!/^--[^\s,]+$/.test(name)) return null;
+
+  const fallback = separatorIndex === -1 ? undefined : contents.slice(separatorIndex + 1).trim();
+  return { name, fallback };
+}
+
+function resolveCssVarColor(color: string, seen = new Set<string>()): string {
+  const cssVarReference = parseCssVarReference(color);
+  if (!cssVarReference) return color;
+  if (seen.has(cssVarReference.name)) return cssVarReference.fallback ?? color;
+
+  seen.add(cssVarReference.name);
+  const value = cssVar(cssVarReference.name);
+  return resolveCssVarColor(value || cssVarReference.fallback || color, seen);
+}
+
+function isValidCSSColor(color: string): boolean {
+  return typeof CSS === 'undefined' || CSS.supports('color', color);
 }
 
 /**
  * Converts any CSS color string (hex, hsl, color(display-p3 ...), color-mix, etc.)
  * to a hex string by painting a 1×1 canvas pixel and reading back the sRGB bytes.
  * Out-of-gamut P3 values are clamped to sRGB, which is imperceptible for UI chrome colors.
- * Resolves simple CSS variable references before painting.
- * Returns the original string unchanged if the canvas context is unavailable.
+ * Resolves chained CSS variable references before painting.
+ * Returns the original string unchanged if the color is invalid or the canvas context is unavailable.
  */
 export function cssColorToHex(cssColor: string): string {
   const canvas = document.createElement('canvas');
@@ -23,9 +42,8 @@ export function cssColorToHex(cssColor: string): string {
   const ctx = canvas.getContext('2d');
   if (!ctx) return cssColor;
   const resolved = resolveCssVarColor(cssColor).trim();
-  ctx.fillStyle = '#010203';
+  if (!isValidCSSColor(resolved)) return cssColor;
   ctx.fillStyle = resolved;
-  if (ctx.fillStyle === '#010203' && resolved.toLowerCase() !== '#010203') return cssColor;
   ctx.fillRect(0, 0, 1, 1);
   const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
   const hex = (n: number) => n.toString(16).padStart(2, '0');

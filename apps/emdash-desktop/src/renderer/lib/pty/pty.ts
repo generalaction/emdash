@@ -155,7 +155,6 @@ export class FrontendPty {
   }
 
   private applyTheme(theme?: SessionTheme): void {
-    this.terminal.options.minimumContrastRatio = MINIMUM_CONTRAST_RATIO;
     this.terminal.options.theme = buildTheme(theme);
     this.terminal.refresh(0, this.terminal.rows - 1);
   }
