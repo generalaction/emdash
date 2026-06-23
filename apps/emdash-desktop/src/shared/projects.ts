@@ -3,6 +3,7 @@ import type { Result } from '@emdash/shared';
 export type ProjectPathStatus = {
   isDirectory: boolean;
   isGitRepo: boolean;
+  error?: { type: 'inspect-failed'; path: string; message: string };
 };
 
 export type LocalProject = {
@@ -54,6 +55,7 @@ export type CreateProjectParams = CreateLocalProjectParams | CreateSshProjectPar
 export type CreateProjectError =
   | { type: 'invalid-directory'; path: string; message: string }
   | { type: 'not-repository'; path: string }
+  | { type: 'inspect-failed'; path: string; message: string }
   | { type: 'init-failed'; path: string; message: string }
   | { type: 'open-repository-failed'; path: string; message: string };
 
