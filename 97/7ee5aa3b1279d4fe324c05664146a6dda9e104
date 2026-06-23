@@ -1,0 +1,40 @@
+apps/emdash-desktop/src/renderer/features/sidebar/automations-sidebar-item.tsx
+  s_6d3d3a64d22809::t_fbaead534f6fcd 3
+  s_6d3d3a64d22809::t_47a17f8423a38c 20,53,57,60,63,75
+  s_6d3d3a64d22809::t_4a00d8ca39ca8e 33,39-43,45-52,77-82
+  s_6d3d3a64d22809::t_443ee5e3a78610 1-2,4-19,21-32,34,44,54-56,59,61-62,64-74,76,83-85
+  s_6d3d3a64d22809::t_bad2154ef0663a 35-38
+  s_6d3d3a64d22809::t_f9baec2e2f37ff 58
+apps/emdash-desktop/src/main/core/settings/settings-registry.ts
+  s_6d3d3a64d22809::t_16d498a026b028 63
+apps/emdash-desktop/src/renderer/features/automations/use-automation-unread-count.ts
+  s_6d3d3a64d22809::t_8946d9e0c11baa 11,15-19,23
+  s_6d3d3a64d22809::t_076ace0568dbc6 1-10,12-14,20-22,24-43
+apps/emdash-desktop/src/main/core/settings/schema.ts
+  s_6d3d3a64d22809::t_49d578977449c9 94-95
+apps/emdash-desktop/src/main/core/automations/automations-service.ts
+  s_6d3d3a64d22809::t_94a429a4680a48 1
+  s_6d3d3a64d22809::t_0e14782609611e 154-167
+apps/emdash-desktop/src/renderer/features/sidebar/left-sidebar.tsx
+  s_6d3d3a64d22809::t_9b3911d8ff1608 12
+  s_6d3d3a64d22809::t_22f94de329c131 70
+  s_6d3d3a64d22809::t_2db05a339295b0 1
+apps/emdash-desktop/src/main/core/automations/controller.ts
+  s_6d3d3a64d22809::t_6b75d35e1bb395 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "977ee5aa3b1279d4fe324c05664146a6dda9e104",
+  "prompts": {},
+  "sessions": {
+    "s_6d3d3a64d22809": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "33b1d1b1-d805-48cf-b21c-7c5a09510ef0",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
