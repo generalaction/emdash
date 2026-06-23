@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/tasks/editor/editor-provider.tsx
+  s_724c0166afd6c2::t_d3a76f77f50791 194-200
+apps/emdash-desktop/src/renderer/lib/monaco/monaco-model-registry.ts
+  s_724c0166afd6c2::t_d3a76f77f50791 602-609
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "cc60c91d7da69d5d367ef36e7d35e6d615029e8d",
+  "prompts": {},
+  "sessions": {
+    "s_724c0166afd6c2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef52e-092d-7ac2-876d-79bd2b0632be",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
