@@ -197,14 +197,11 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     config: {
       type: 'http',
       url: 'https://mcp.neon.tech/mcp',
-      headers: {
-        Authorization: 'Bearer YOUR_API_KEY',
-      },
     },
     name: 'Neon',
     description: 'Manage Neon Postgres databases, branches, migrations, and queries',
     docsUrl: 'https://neon.com/docs/ai/neon-mcp-server',
-    credentialKeys: [{ key: 'Authorization', required: true }],
+    credentialKeys: [],
   },
   bigquery: {
     config: {
@@ -487,5 +484,88 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     docsUrl:
       'https://support.devrev.ai/en-US/devrev/article/ZNqaZTsx-devrev-mcp-server-connect-your-ai-coding-assistant',
     credentialKeys: [{ key: 'Authorization', required: false }],
+  },
+  prisma: {
+    config: {
+      type: 'http',
+      url: 'https://mcp.prisma.io/mcp',
+    },
+    name: 'Prisma',
+    description: 'Manage Prisma Postgres databases, migrations, and connection strings',
+    docsUrl: 'https://www.prisma.io/docs/ai/tools/mcp-server',
+    credentialKeys: [],
+  },
+  railway: {
+    config: {
+      type: 'http',
+      url: 'https://mcp.railway.com',
+    },
+    name: 'Railway',
+    description: 'Create projects, deploy services, and manage Railway infrastructure',
+    docsUrl: 'https://docs.railway.com/ai/mcp-server',
+    credentialKeys: [],
+  },
+  mongodb: {
+    config: {
+      command: 'npx',
+      args: ['-y', 'mongodb-mcp-server@latest', '--readOnly'],
+      env: {
+        MDB_MCP_CONNECTION_STRING: 'mongodb://localhost:27017/myDatabase',
+      },
+    },
+    name: 'MongoDB',
+    description: 'Query and manage MongoDB databases and Atlas clusters',
+    docsUrl: 'https://www.mongodb.com/docs/mcp-server/',
+    credentialKeys: [{ key: 'MDB_MCP_CONNECTION_STRING', required: true }],
+  },
+  monday: {
+    config: {
+      type: 'http',
+      url: 'https://mcp.monday.com/mcp',
+    },
+    name: 'monday.com',
+    description: 'Manage boards, items, and workflows in your monday.com workspace',
+    docsUrl: 'https://developer.monday.com/api-reference/docs/monday-mcp-overview',
+    credentialKeys: [],
+  },
+  shopify: {
+    config: {
+      command: 'npx',
+      args: ['-y', '@shopify/dev-mcp@latest'],
+    },
+    name: 'Shopify Dev',
+    description: 'Search Shopify docs, explore GraphQL schemas, and validate app code',
+    docsUrl: 'https://shopify.dev/docs/apps/build/ai-toolkit',
+    credentialKeys: [],
+  },
+  graphite: {
+    config: {
+      command: 'gt',
+      args: ['mcp'],
+    },
+    name: 'Graphite',
+    description: 'Generate and manage stacked pull requests with the Graphite CLI',
+    docsUrl: 'https://graphite.com/docs/gt-mcp',
+    credentialKeys: [],
+  },
+  axiom: {
+    config: {
+      type: 'http',
+      url: 'https://mcp.axiom.co/mcp',
+    },
+    name: 'Axiom',
+    description: 'Query logs, traces, metrics, and alerts in Axiom observability datasets',
+    docsUrl: 'https://axiom.co/docs/console/intelligence/mcp-server',
+    credentialKeys: [],
+  },
+  azure: {
+    config: {
+      command: 'npx',
+      args: ['-y', '@azure/mcp@latest', 'server', 'start'],
+    },
+    name: 'Azure MCP Server',
+    description: 'Manage Azure resources and run cloud operations through natural language',
+    docsUrl: 'https://learn.microsoft.com/en-us/azure/developer/azure-mcp-server/',
+    credentialKeys: [],
   },
 };
