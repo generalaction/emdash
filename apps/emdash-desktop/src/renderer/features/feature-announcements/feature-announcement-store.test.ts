@@ -1,7 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FeatureAnnouncementStore } from '@renderer/features/feature-announcements/feature-announcement-store';
-import { FEATURE_ANNOUNCEMENT_DISMISSED_STORAGE_KEY } from '@shared/feature-announcements/constants';
+import { rpc } from '@renderer/lib/ipc';
+import type { AnnouncementSettings } from '@shared/core/app-settings';
 import type { FeatureAnnouncementManifest } from '@shared/feature-announcements/schema';
+
+vi.mock('@renderer/lib/ipc', () => ({
+  rpc: {
+    appSettings: {
+      get: vi.fn(),
+      update: vi.fn(),
+    },
+  },
+}));
 
 const manifest: FeatureAnnouncementManifest = {
   enabled: true,
@@ -19,13 +29,13 @@ const manifest: FeatureAnnouncementManifest = {
 };
 
 describe('FeatureAnnouncementStore', () => {
+  let settings: AnnouncementSettings;
+
   beforeEach(() => {
-    const storage = new Map<string, string>();
-    vi.stubGlobal('localStorage', {
-      clear: vi.fn(() => storage.clear()),
-      getItem: vi.fn((key: string) => storage.get(key) ?? null),
-      setItem: vi.fn((key: string, value: string) => storage.set(key, value)),
-      removeItem: vi.fn((key: string) => storage.delete(key)),
+    settings = { initialized: false, dismissedIds: [] };
+    vi.mocked(rpc.appSettings.get).mockImplementation(async () => settings);
+    vi.mocked(rpc.appSettings.update).mockImplementation(async (_key, next) => {
+      settings = next as AnnouncementSettings;
     });
   });
 
@@ -44,22 +54,20 @@ describe('FeatureAnnouncementStore', () => {
     expect(store.shouldPresent).toBe(true);
   });
 
-  it('persists dismissed announcement ids', () => {
+  it('persists dismissed announcement ids', async () => {
     const store = new FeatureAnnouncementStore();
     store.setManifest(manifest);
-    store.markPresented();
+    await store.markPresented();
 
-    expect(localStorage.getItem(FEATURE_ANNOUNCEMENT_DISMISSED_STORAGE_KEY)).toBe(
-      JSON.stringify(['test-announcement'])
-    );
+    expect(settings).toEqual({ initialized: true, dismissedIds: ['test-announcement'] });
   });
 
-  it('does not persist preview presentation', () => {
+  it('does not persist preview presentation', async () => {
     const store = new FeatureAnnouncementStore();
     store.setManifest(manifest);
     store.isPreview = true;
-    store.markPresented();
+    await store.markPresented();
 
-    expect(localStorage.getItem(FEATURE_ANNOUNCEMENT_DISMISSED_STORAGE_KEY)).toBeNull();
+    expect(settings).toEqual({ initialized: false, dismissedIds: [] });
   });
 });

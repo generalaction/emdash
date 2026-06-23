@@ -2,8 +2,8 @@ import { action, computed, makeObservable, observable, runInAction } from 'mobx'
 import {
   clearAnnouncementDismissal,
   initializeFreshInstallAnnouncement,
-  isAnnouncementDismissed,
   markAnnouncementDismissed,
+  readAnnouncementDismissalState,
 } from '@renderer/features/feature-announcements/feature-announcement-state';
 import type { FeatureAnnouncementManifest } from '@shared/feature-announcements/schema';
 
@@ -11,6 +11,7 @@ export class FeatureAnnouncementStore {
   manifest: FeatureAnnouncementManifest | null = null;
   status: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
   isPreview = false;
+  dismissedIds = new Set<string>();
   private hasPresented = false;
 
   constructor() {
@@ -18,6 +19,7 @@ export class FeatureAnnouncementStore {
       manifest: observable,
       status: observable,
       isPreview: observable,
+      dismissedIds: observable,
       hasPresented: observable,
       shouldPresent: computed,
       markPresented: action,
@@ -30,7 +32,7 @@ export class FeatureAnnouncementStore {
   get shouldPresent(): boolean {
     if (!this.manifest || this.hasPresented) return false;
     if (this.isPreview) return true;
-    return !isAnnouncementDismissed(this.manifest.id);
+    return !this.dismissedIds.has(this.manifest.id);
   }
 
   setManifest(manifest: FeatureAnnouncementManifest | null): void {
@@ -45,11 +47,13 @@ export class FeatureAnnouncementStore {
     this.hasPresented = false;
   }
 
-  markPresented(): void {
+  async markPresented(): Promise<void> {
     if (!this.manifest) return;
     this.hasPresented = true;
     if (!this.isPreview) {
-      markAnnouncementDismissed(this.manifest.id);
+      const announcementId = this.manifest.id;
+      this.dismissedIds = new Set([...this.dismissedIds, announcementId]);
+      await markAnnouncementDismissed(announcementId);
     }
   }
 
@@ -59,21 +63,31 @@ export class FeatureAnnouncementStore {
     this.resetPresentation();
   }
 
-  clearDismissal(): void {
+  async clearDismissal(): Promise<void> {
     if (!this.manifest) return;
-    clearAnnouncementDismissal(this.manifest.id);
+    const announcementId = this.manifest.id;
+    this.dismissedIds = new Set([...this.dismissedIds].filter((id) => id !== announcementId));
+    await clearAnnouncementDismissal(announcementId);
     this.resetPresentation();
   }
 
   async start(options?: { isFreshInstall?: boolean }): Promise<void> {
-    await this.refresh();
+    await Promise.all([this.refresh(), this.loadDismissalState()]);
 
     if (this.manifest && options?.isFreshInstall) {
-      initializeFreshInstallAnnouncement({
+      await initializeFreshInstallAnnouncement({
         announcementId: this.manifest.id,
         isFreshInstall: true,
       });
+      await this.loadDismissalState();
     }
+  }
+
+  async loadDismissalState(): Promise<void> {
+    const settings = await readAnnouncementDismissalState();
+    runInAction(() => {
+      this.dismissedIds = new Set(settings.dismissedIds);
+    });
   }
 
   async refresh(options?: { preview?: boolean }): Promise<void> {
@@ -110,6 +124,6 @@ export class FeatureAnnouncementStore {
 
   /** @internal test helper */
   dismissForTest(id: string): void {
-    markAnnouncementDismissed(id);
+    this.dismissedIds = new Set([...this.dismissedIds, id]);
   }
 }

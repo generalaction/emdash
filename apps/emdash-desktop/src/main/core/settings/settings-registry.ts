@@ -64,6 +64,10 @@ export const SETTINGS_DEFAULTS = {
   browserPreview: {
     enabled: true,
   },
+  announcements: {
+    initialized: false,
+    dismissedIds: [] as string[],
+  },
   browser: {
     defaultProfileId: DEFAULT_BROWSER_PROFILE_ID,
     relaxCorsForLocalhost: false,

@@ -26,7 +26,7 @@ export const AnnouncementDevControls = observer(
               onClick={async () => {
                 await store.replayPreview();
                 if (!store.manifest) return;
-                store.markPresented();
+                await store.markPresented();
                 presentFeatureAnnouncement(store.manifest, {
                   onDismiss: () => store.resetPresentation(),
                 });
@@ -39,7 +39,9 @@ export const AnnouncementDevControls = observer(
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => store.clearDismissal()}
+              onClick={() => {
+                void store.clearDismissal();
+              }}
               disabled={!store.manifest}
             >
               <RotateCcw className="size-4" />

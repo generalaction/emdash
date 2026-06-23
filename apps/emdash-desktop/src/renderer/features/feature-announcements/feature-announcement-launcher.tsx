@@ -23,7 +23,7 @@ export const FeatureAnnouncementLauncher = observer(function FeatureAnnouncement
     }
 
     const timer = setTimeout(() => {
-      store.markPresented();
+      void store.markPresented();
       presentFeatureAnnouncement(manifest);
     }, 800);
 

@@ -2,72 +2,92 @@ import { describe, expect, it } from 'vitest';
 import {
   clearAnnouncementDismissal,
   initializeFreshInstallAnnouncement,
-  isAnnouncementDismissed,
   markAnnouncementDismissed,
-  readDismissedIds,
+  readAnnouncementDismissalState,
 } from '@renderer/features/feature-announcements/feature-announcement-state';
-import { FEATURE_ANNOUNCEMENT_DISMISSED_STORAGE_KEY } from '@shared/feature-announcements/constants';
+import type { AnnouncementSettings } from '@shared/core/app-settings';
 
-function makeStorage(initial: Record<string, string> = {}) {
-  const data = new Map(Object.entries(initial));
+function makeSettingsClient(
+  initial: AnnouncementSettings = { initialized: false, dismissedIds: [] }
+) {
+  let settings = initial;
   return {
-    getItem: (key: string) => data.get(key) ?? null,
-    setItem: (key: string, value: string) => void data.set(key, value),
-    dump: () => Object.fromEntries(data),
+    get: async () => settings,
+    update: async (next: AnnouncementSettings) => {
+      settings = next;
+    },
+    read: () => settings,
   };
 }
 
 describe('feature announcement state', () => {
-  it('marks the current announcement as dismissed on a fresh install', () => {
-    const storage = makeStorage();
-    initializeFreshInstallAnnouncement({
-      announcementId: 'automations-2026-06',
-      isFreshInstall: true,
-      storage,
+  it('marks the current announcement as dismissed on a fresh install', async () => {
+    const client = makeSettingsClient();
+    await initializeFreshInstallAnnouncement(
+      {
+        announcementId: 'automations-2026-06',
+        isFreshInstall: true,
+      },
+      client
+    );
+
+    expect(client.read()).toEqual({
+      initialized: true,
+      dismissedIds: ['automations-2026-06'],
     });
-    expect(isAnnouncementDismissed('automations-2026-06', storage)).toBe(true);
   });
 
-  it('does not touch already-initialized state on a fresh-install flag', () => {
-    const storage = makeStorage({
-      [FEATURE_ANNOUNCEMENT_DISMISSED_STORAGE_KEY]: JSON.stringify(['older']),
+  it('does not touch already-initialized state on a fresh-install flag', async () => {
+    const client = makeSettingsClient({ initialized: true, dismissedIds: ['older'] });
+    await initializeFreshInstallAnnouncement(
+      {
+        announcementId: 'automations-2026-06',
+        isFreshInstall: true,
+      },
+      client
+    );
+
+    expect(client.read()).toEqual({ initialized: true, dismissedIds: ['older'] });
+  });
+
+  it('shows existing users unseen announcements', async () => {
+    const client = makeSettingsClient();
+    await initializeFreshInstallAnnouncement(
+      {
+        announcementId: 'automations-2026-06',
+        isFreshInstall: false,
+      },
+      client
+    );
+
+    expect(client.read()).toEqual({ initialized: false, dismissedIds: [] });
+  });
+
+  it('is idempotent when marking the same announcement twice', async () => {
+    const client = makeSettingsClient();
+    await markAnnouncementDismissed('newer', client);
+    await markAnnouncementDismissed('newer', client);
+
+    expect(client.read()).toEqual({ initialized: true, dismissedIds: ['newer'] });
+  });
+
+  it('clears a previously dismissed announcement id', async () => {
+    const client = makeSettingsClient();
+    await markAnnouncementDismissed('automations-2026-06', client);
+    await clearAnnouncementDismissal('automations-2026-06', client);
+
+    expect(client.read()).toEqual({ initialized: true, dismissedIds: [] });
+  });
+
+  it('normalizes stored dismissed ids', async () => {
+    const client = makeSettingsClient({
+      initialized: true,
+      dismissedIds: ['z', '', 'a', 'z'],
     });
-    initializeFreshInstallAnnouncement({
-      announcementId: 'automations-2026-06',
-      isFreshInstall: true,
-      storage,
+
+    await expect(readAnnouncementDismissalState(client)).resolves.toEqual({
+      initialized: true,
+      dismissedIds: ['a', 'z'],
     });
-    expect(isAnnouncementDismissed('automations-2026-06', storage)).toBe(false);
-  });
-
-  it('shows existing users unseen announcements', () => {
-    const storage = makeStorage();
-    initializeFreshInstallAnnouncement({
-      announcementId: 'automations-2026-06',
-      isFreshInstall: false,
-      storage,
-    });
-    expect(isAnnouncementDismissed('automations-2026-06', storage)).toBe(false);
-  });
-
-  it('is idempotent when marking the same announcement twice', () => {
-    const storage = makeStorage();
-    markAnnouncementDismissed('newer', storage);
-    markAnnouncementDismissed('newer', storage);
-    expect(JSON.parse(storage.dump()[FEATURE_ANNOUNCEMENT_DISMISSED_STORAGE_KEY])).toEqual([
-      'newer',
-    ]);
-  });
-
-  it('clears a previously dismissed announcement id', () => {
-    const storage = makeStorage();
-    markAnnouncementDismissed('automations-2026-06', storage);
-    clearAnnouncementDismissal('automations-2026-06', storage);
-    expect(isAnnouncementDismissed('automations-2026-06', storage)).toBe(false);
-  });
-
-  it('treats corrupted storage as empty dismissed state', () => {
-    const storage = makeStorage({ [FEATURE_ANNOUNCEMENT_DISMISSED_STORAGE_KEY]: 'not json{' });
-    expect(readDismissedIds(storage)).toEqual(new Set());
   });
 });

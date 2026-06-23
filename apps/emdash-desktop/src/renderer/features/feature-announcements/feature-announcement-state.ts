@@ -1,59 +1,98 @@
-import { FEATURE_ANNOUNCEMENT_DISMISSED_STORAGE_KEY } from '@shared/feature-announcements/constants';
+import type { AnnouncementSettings } from '@shared/core/app-settings';
 
-type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
+type AnnouncementSettingsClient = {
+  get: () => Promise<AnnouncementSettings>;
+  update: (settings: AnnouncementSettings) => Promise<void>;
+};
 
-/** Returns null when announcement tracking has never been initialized. */
-export function readDismissedIds(storage: StorageLike = localStorage): Set<string> | null {
-  try {
-    const raw = storage.getItem(FEATURE_ANNOUNCEMENT_DISMISSED_STORAGE_KEY);
-    if (raw === null) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.filter((id): id is string => typeof id === 'string'));
-  } catch {
-    return new Set();
-  }
+const appSettingsClient: AnnouncementSettingsClient = {
+  get: async () => {
+    const { rpc } = await import('@renderer/lib/ipc');
+    return rpc.appSettings.get('announcements') as Promise<AnnouncementSettings>;
+  },
+  update: async (settings) => {
+    const { rpc } = await import('@renderer/lib/ipc');
+    return rpc.appSettings.update('announcements', settings);
+  },
+};
+
+function normalizeDismissedIds(ids: string[]): string[] {
+  return [...new Set(ids.filter((id) => id.length > 0))].sort();
 }
 
-export function writeDismissedIds(ids: Set<string>, storage: StorageLike = localStorage): void {
-  try {
-    storage.setItem(FEATURE_ANNOUNCEMENT_DISMISSED_STORAGE_KEY, JSON.stringify([...ids].sort()));
-  } catch {
-    // localStorage may be unavailable
-  }
+export async function readAnnouncementDismissalState(
+  client: AnnouncementSettingsClient = appSettingsClient
+): Promise<AnnouncementSettings> {
+  const settings = await client.get();
+  return {
+    initialized: settings.initialized,
+    dismissedIds: normalizeDismissedIds(settings.dismissedIds),
+  };
+}
+
+export async function writeAnnouncementDismissalState(
+  settings: AnnouncementSettings,
+  client: AnnouncementSettingsClient = appSettingsClient
+): Promise<void> {
+  await client.update({
+    initialized: settings.initialized,
+    dismissedIds: normalizeDismissedIds(settings.dismissedIds),
+  });
 }
 
 /**
  * Fresh installs shouldn't greet new users with a backlog of announcements.
  * Mark the current manifest as dismissed on first launch without showing it.
  */
-export function initializeFreshInstallAnnouncement(options: {
-  announcementId: string;
-  isFreshInstall: boolean;
-  storage?: StorageLike;
-}): void {
-  const storage = options.storage ?? localStorage;
+export async function initializeFreshInstallAnnouncement(
+  options: {
+    announcementId: string;
+    isFreshInstall: boolean;
+  },
+  client: AnnouncementSettingsClient = appSettingsClient
+): Promise<void> {
   if (!options.isFreshInstall) return;
-  if (readDismissedIds(storage) !== null) return;
-  writeDismissedIds(new Set([options.announcementId]), storage);
+
+  const settings = await readAnnouncementDismissalState(client);
+  if (settings.initialized) return;
+
+  await writeAnnouncementDismissalState(
+    {
+      initialized: true,
+      dismissedIds: [options.announcementId],
+    },
+    client
+  );
 }
 
-export function markAnnouncementDismissed(id: string, storage: StorageLike = localStorage): void {
-  const dismissed = readDismissedIds(storage) ?? new Set<string>();
-  if (dismissed.has(id)) return;
-  writeDismissedIds(new Set([...dismissed, id]), storage);
+export async function markAnnouncementDismissed(
+  id: string,
+  client: AnnouncementSettingsClient = appSettingsClient
+): Promise<void> {
+  const settings = await readAnnouncementDismissalState(client);
+  if (settings.initialized && settings.dismissedIds.includes(id)) return;
+
+  await writeAnnouncementDismissalState(
+    {
+      initialized: true,
+      dismissedIds: [...settings.dismissedIds, id],
+    },
+    client
+  );
 }
 
-export function isAnnouncementDismissed(id: string, storage: StorageLike = localStorage): boolean {
-  const dismissed = readDismissedIds(storage);
-  if (dismissed === null) return false;
-  return dismissed.has(id);
-}
+export async function clearAnnouncementDismissal(
+  id: string,
+  client: AnnouncementSettingsClient = appSettingsClient
+): Promise<void> {
+  const settings = await readAnnouncementDismissalState(client);
+  if (!settings.dismissedIds.includes(id)) return;
 
-export function clearAnnouncementDismissal(id: string, storage: StorageLike = localStorage): void {
-  const dismissed = readDismissedIds(storage);
-  if (dismissed === null || !dismissed.has(id)) return;
-  const next = new Set(dismissed);
-  next.delete(id);
-  writeDismissedIds(next, storage);
+  await writeAnnouncementDismissalState(
+    {
+      initialized: true,
+      dismissedIds: settings.dismissedIds.filter((dismissedId) => dismissedId !== id),
+    },
+    client
+  );
 }
