@@ -10,7 +10,7 @@ import {
   menuRedoChannel,
   menuUndoChannel,
 } from '@shared/events/appEvents';
-import { EMDASH_DOCS_URL, EMDASH_ISSUES_NEW_URL, EMDASH_RELEASES_URL } from '@shared/urls';
+import { EMDASH_CHANGELOG_URL, EMDASH_DOCS_URL, EMDASH_ISSUES_NEW_URL } from '@shared/urls';
 import { getMainWindow } from './window';
 
 function copyInstallationId(): void {
@@ -168,7 +168,7 @@ export function setupApplicationMenu(): void {
         {
           label: 'Changelog',
           click: () => {
-            void shell.openExternal(EMDASH_RELEASES_URL);
+            void shell.openExternal(EMDASH_CHANGELOG_URL);
           },
         },
         { type: 'separator' as const },

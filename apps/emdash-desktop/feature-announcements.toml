@@ -1,0 +1,29 @@
+# In-app feature highlight manifest.
+#
+# Edit this file on GitHub to announce major features without shipping a new app
+# release. Set `enabled = false` to hide the card while keeping content around
+# for the next launch.
+#
+# The app fetches this file from the main branch at startup.
+
+enabled = true
+id = "automations-2026-06"
+eyebrow = "Now available"
+title = "Emdash Automations"
+changelogUrl = "https://emdash.sh/changelog"
+learnMoreUrl = "https://docs.emdash.sh"
+minAppVersion = "1.1.27"
+
+[[features]]
+icon = "calendar-clock"
+title = "Run agents on a schedule"
+description = "Launch coding agents on a cron — nightly dependency audits, issue triage, recurring chores."
+
+[[features]]
+icon = "list-checks"
+title = "Every run in one place"
+description = "Follow live status and review the results of past runs without leaving the app."
+
+[cta]
+label = "Open Automations"
+view = "automations"

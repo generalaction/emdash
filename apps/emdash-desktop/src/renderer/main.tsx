@@ -30,6 +30,7 @@ async function bootstrap() {
   wireExternalLinkRequests();
 
   appState.update.start();
+  void appState.featureAnnouncements.start();
   initSoundPlayer();
 
   // Initialize Monaco and load app data in parallel. Awaiting Monaco here

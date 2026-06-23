@@ -7,6 +7,7 @@ import { automationsController } from './core/automations/controller';
 import { browserController } from './core/browser/controller';
 import { conversationController } from './core/conversations/controller';
 import { editorBufferController } from './core/editor/controller';
+import { featureAnnouncementsController } from './core/feature-announcements/controller';
 import { featurebaseController } from './core/featurebase/controller';
 import { forgejoController } from './core/forgejo/controller';
 import { filesController } from './core/fs/controller';
@@ -56,6 +57,7 @@ export const rpcRouter = createRPCRouter({
   pty: ptyController,
   resourceMonitor: resourceMonitorController,
   asana: asanaController,
+  featureAnnouncements: featureAnnouncementsController,
   featurebase: featurebaseController,
   forgejo: forgejoController,
   github: githubController,
