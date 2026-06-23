@@ -20,11 +20,8 @@ export function FeatureAnnouncementModal({
   const media = getFeatureAnnouncementMedia(manifest);
 
   const handleLearnMore = () => {
-    if (manifest.learnMoreUrl) confirmOpenExternalLink(manifest.learnMoreUrl);
-  };
-
-  const handleChangelog = () => {
-    confirmOpenExternalLink(manifest.changelogUrl);
+    const url = manifest.learnMoreUrl ?? manifest.changelogUrl;
+    confirmOpenExternalLink(url);
   };
 
   const handleCta = () => {
@@ -42,13 +39,13 @@ export function FeatureAnnouncementModal({
   };
 
   return (
-    <>
+    <div className="group/announcement relative overflow-hidden rounded-xl">
       {media && <FeatureAnnouncementMediaArea media={media} variant="modal" />}
       <button
         type="button"
         onClick={onClose}
         className={cn(
-          'absolute top-3 right-3 rounded-full p-1.5 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+          'absolute top-3 right-3 z-10 rounded-full p-1.5 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
           media
             ? 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
             : 'text-foreground-tertiary-muted hover:text-foreground-tertiary'
@@ -80,24 +77,16 @@ export function FeatureAnnouncementModal({
         </ul>
       </div>
       <DialogFooter className="items-center sm:justify-between">
-        <div className="flex items-center gap-1">
-          {manifest.learnMoreUrl && (
-            <Button variant="ghost" onClick={handleLearnMore}>
-              Learn more
-              <ArrowUpRight className="size-3.5" />
-            </Button>
-          )}
-          <Button variant="ghost" onClick={handleChangelog}>
-            Full changelog
-            <ArrowUpRight className="size-3.5" />
-          </Button>
-        </div>
+        <Button variant="ghost" className="announcement-learn-more" onClick={handleLearnMore}>
+          Learn more
+          <ArrowUpRight className="size-3.5 transition-transform duration-200 group-has-[.announcement-learn-more:hover]/announcement:translate-x-px group-has-[.announcement-learn-more:hover]/announcement:-translate-y-px" />
+        </Button>
         {manifest.cta ? (
           <Button onClick={handleCta}>{manifest.cta.label}</Button>
         ) : (
           <Button onClick={onClose}>Got it</Button>
         )}
       </DialogFooter>
-    </>
+    </div>
   );
 }

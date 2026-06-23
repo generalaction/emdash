@@ -11,6 +11,10 @@ import { Button } from '@renderer/lib/ui/button';
 import { cn } from '@renderer/utils/utils';
 import type { FeatureAnnouncementManifest } from '@shared/feature-announcements/schema';
 
+const CUSTOM_TOAST_CLASSNAMES = {
+  toast: '!border-none !bg-transparent !p-0 !shadow-none',
+};
+
 export function showFeatureAnnouncementToast(
   manifest: FeatureAnnouncementManifest,
   onDismiss?: () => void
@@ -19,6 +23,7 @@ export function showFeatureAnnouncementToast(
     (id) => <FeatureAnnouncementToastCard manifest={manifest} toastId={id} onDismiss={onDismiss} />,
     {
       duration: Infinity,
+      classNames: CUSTOM_TOAST_CLASSNAMES,
     }
   );
 }
@@ -39,11 +44,8 @@ function FeatureAnnouncementToastCard({
   };
 
   const handleLearnMore = () => {
-    if (manifest.learnMoreUrl) confirmOpenExternalLink(manifest.learnMoreUrl);
-  };
-
-  const handleChangelog = () => {
-    confirmOpenExternalLink(manifest.changelogUrl);
+    const url = manifest.learnMoreUrl ?? manifest.changelogUrl;
+    confirmOpenExternalLink(url);
   };
 
   const handleCta = () => {
@@ -61,13 +63,13 @@ function FeatureAnnouncementToastCard({
   };
 
   return (
-    <div className="relative w-[356px] overflow-hidden rounded-xl bg-background-quaternary text-sm shadow-lg ring-1 ring-foreground/10">
+    <div className="group/announcement relative w-[356px] overflow-hidden rounded-xl bg-background-quaternary text-sm shadow-lg">
       {media && <FeatureAnnouncementMediaArea media={media} variant="toast" />}
       <button
         type="button"
         onClick={dismiss}
         className={cn(
-          'absolute top-2 right-2 rounded-full p-1 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+          'absolute top-2 right-2 z-10 rounded-full p-1 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
           media
             ? 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
             : 'text-foreground-tertiary-muted hover:text-foreground-tertiary'
@@ -97,18 +99,15 @@ function FeatureAnnouncementToastCard({
         </ul>
       </div>
       <div className="flex items-center justify-between border-t border-border bg-background-quaternary-1 p-2">
-        <div className="flex items-center gap-1">
-          {manifest.learnMoreUrl && (
-            <Button variant="ghost" size="xs" onClick={handleLearnMore}>
-              Learn more
-              <ArrowUpRight className="size-3" />
-            </Button>
-          )}
-          <Button variant="ghost" size="xs" onClick={handleChangelog}>
-            Full changelog
-            <ArrowUpRight className="size-3" />
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="xs"
+          className="announcement-learn-more"
+          onClick={handleLearnMore}
+        >
+          Learn more
+          <ArrowUpRight className="size-3 transition-transform duration-200 group-hover/announcement:translate-x-px group-has-[.announcement-learn-more:hover]/announcement:-translate-y-px" />
+        </Button>
         {manifest.cta ? (
           <Button size="xs" onClick={handleCta}>
             {manifest.cta.label}
