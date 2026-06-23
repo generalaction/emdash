@@ -1,0 +1,52 @@
+apps/emdash-desktop/src/main/index.ts
+  s_12778f5de95dab::t_e6b2b2922b8339 199
+  s_12778f5de95dab::t_0ddbbc01ed9b70 197
+  s_12778f5de95dab::t_f3b105bc430cab 47,49
+apps/emdash-desktop/src/shared/logger.ts
+  s_12778f5de95dab::t_11fae1981f59a5 64-66,87-93
+apps/emdash-desktop/src/main/core/settings/controller.ts
+  s_12778f5de95dab::t_d6f53c497ae42d 4,17-18
+apps/emdash-desktop/src/main/lib/log-level.ts
+  s_12778f5de95dab::t_9f5d929e39baad 1-31
+apps/emdash-desktop/src/main/core/settings/settings-registry.ts
+  s_12778f5de95dab::t_8f9c3ffc169eb7 75-77
+apps/emdash-desktop/src/main/lib/log-context.ts
+  s_12778f5de95dab::t_f6706cd4c64fae 1-42
+apps/emdash-desktop/src/main/core/settings/schema.ts
+  s_12778f5de95dab::t_dccc6e77b30233 171
+  s_12778f5de95dab::t_e187c921016402 131-133
+  s_12778f5de95dab::t_29d515b690fdd1 153
+apps/emdash-desktop/src/shared/lib/ipc/rpc.ts
+  s_12778f5de95dab::t_2baa46c6af3d6c 25-30,33-38,40-43,46,51-55,57
+apps/emdash-desktop/src/renderer/features/settings/components/LoggingSettingsCard.tsx
+  s_12778f5de95dab::t_c60ff17ef50b7c 21-26
+  s_12778f5de95dab::t_7e02773cc72965 1-20,27-63
+apps/emdash-desktop/src/renderer/features/settings/components/SettingsPage.tsx
+  s_12778f5de95dab::t_731fc1288c1f0a 12
+  s_12778f5de95dab::t_c9440557e7ae3d 57
+apps/emdash-desktop/src/main/lib/file-logger.ts
+  s_12778f5de95dab::t_0befd51fcf8ac5 113
+  s_12778f5de95dab::t_2a1d8dac303776 11
+apps/emdash-desktop/src/main/lib/rpc-logging.ts
+  s_12778f5de95dab::t_ce0a47a455bc8d 1-34
+apps/emdash-desktop/src/main/core/pty/local-pty.ts
+  s_12778f5de95dab::t_d705b6d441fe1f 3
+  s_12778f5de95dab::t_320715fb61fae2 23-29,33-48
+  s_12778f5de95dab::t_d1df506d336098 77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "e7288600a513e7a8e40cbe06bf29174928f2a463",
+  "prompts": {},
+  "sessions": {
+    "s_12778f5de95dab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "06e38dc5-5126-482c-83b3-de44c1d8e2d7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
