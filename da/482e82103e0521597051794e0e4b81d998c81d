@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/settings/components/TaskSettingsRows.tsx
+  s_9cd2451b6de3c2::t_073b69467fc5fc 196,198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "da482e82103e0521597051794e0e4b81d998c81d",
+  "prompts": {},
+  "sessions": {
+    "s_9cd2451b6de3c2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25855ac7-f6c8-407b-9ec7-fde8dafcb6df",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
