@@ -1,9 +1,10 @@
 import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import type { ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
-import { TabCloseButton } from '@renderer/features/tabs/tab-bar/tab-close-button';
-import { TabDragPreviewShell, TabItemShell } from '@renderer/features/tabs/tab-bar/tab-item-shell';
-import { TabTitle } from '@renderer/features/tabs/tab-bar/tab-title';
+import type { TabItemProps } from '@renderer/features/tabs/core/tab-provider';
+import {
+  GenericTabDragPreview,
+  GenericTabItem,
+} from '@renderer/features/tabs/tab-bar/generic-tab-item';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
@@ -23,15 +24,9 @@ function fileTabErrorTooltip(diskStatus: string, diskUri: string): string | unde
 
 export const FileTabItem = observer(function FileTabItem({
   tab,
-  onSelect,
-  onPin,
-  onClose,
-}: {
-  tab: ResolvedTab<FileResolvedData>;
-  onSelect: () => void;
-  onPin: () => void;
-  onClose: () => void;
-}) {
+  host,
+  ctx,
+}: TabItemProps<FileResolvedData>) {
   const fileName = tab.path.split('/').pop() ?? 'Untitled';
   const isMonacoFile =
     tab.path.endsWith('.md') ||
@@ -45,52 +40,47 @@ export const FileTabItem = observer(function FileTabItem({
   const showSpinner = useDelayedBoolean(isMonacoFile && diskStatus === 'loading', 200);
 
   const errorTooltip = hasFileIssue ? fileTabErrorTooltip(diskStatus, diskUri) : undefined;
-  const baseTitle = tab.isPreview ? `${tab.path} (preview — double-click to keep)` : tab.path;
-  const tabTitle = errorTooltip ? `${tab.path} — ${errorTooltip}` : baseTitle;
+  const tooltip = errorTooltip ? `${tab.path} — ${errorTooltip}` : tab.path;
 
   return (
-    <TabItemShell
-      tabId={tab.tabId}
-      isActive={tab.isActive}
-      title={tabTitle}
-      onSelect={onSelect}
-      onPin={onPin}
-      onClose={onClose}
-    >
-      <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
-        {showSpinner ? (
-          <Loader2 className="h-3 w-3 animate-spin" />
-        ) : (
-          <FileIcon filename={fileName} />
-        )}
-      </span>
-      <TabTitle isActive={tab.isActive} isPreview={tab.isPreview} hasError={hasFileIssue}>
-        {fileName}
-      </TabTitle>
-      <TabCloseButton
-        onClose={onClose}
-        ariaLabel={`Close ${fileName}`}
-        statusIndicator={
-          tab.isDirty ? (
-            <div
-              className="size-2 rounded-full bg-foreground group-hover:opacity-0"
-              title="Unsaved changes"
-            />
-          ) : undefined
-        }
-      />
-    </TabItemShell>
+    <GenericTabItem
+      tab={tab}
+      host={host}
+      ctx={ctx}
+      label={fileName}
+      tooltip={tooltip}
+      preSlot={
+        <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
+          {showSpinner ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <FileIcon filename={fileName} />
+          )}
+        </span>
+      }
+      hasError={hasFileIssue}
+      statusSlot={
+        tab.isDirty ? (
+          <div
+            className="size-2 rounded-full bg-foreground group-hover:opacity-0"
+            title="Unsaved changes"
+          />
+        ) : undefined
+      }
+    />
   );
 });
 
-export function FileTabDragPreview({ tab }: { tab: ResolvedTab<FileResolvedData> }) {
+export function FileTabDragPreview({ tab }: { tab: { path: string } }) {
   const fileName = tab.path.split('/').pop() ?? 'Untitled';
   return (
-    <TabDragPreviewShell>
-      <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
-        <FileIcon filename={fileName} />
-      </span>
-      <span className="max-w-[200px] truncate">{fileName}</span>
-    </TabDragPreviewShell>
+    <GenericTabDragPreview
+      preSlot={
+        <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
+          <FileIcon filename={fileName} />
+        </span>
+      }
+      label={fileName}
+    />
   );
 }

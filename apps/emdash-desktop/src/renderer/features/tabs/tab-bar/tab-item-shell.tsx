@@ -18,7 +18,6 @@ export const TabItemShell = observer(function TabItemShell({
   title,
   onSelect,
   onPin,
-  onDoubleClick,
   onClose,
   className,
   innerPaddingRight = 'pr-2',
@@ -29,7 +28,6 @@ export const TabItemShell = observer(function TabItemShell({
   title: string;
   onSelect: () => void;
   onPin: () => void;
-  onDoubleClick?: () => void;
   onClose: () => void;
   className?: string;
   activeClassName?: string;
@@ -50,7 +48,7 @@ export const TabItemShell = observer(function TabItemShell({
         role="button"
         tabIndex={0}
         onClick={handleSelect}
-        onDoubleClick={onDoubleClick ?? onPin}
+        onDoubleClick={onPin}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
@@ -75,7 +73,7 @@ export const TabItemShell = observer(function TabItemShell({
           isFocusedPane && 'text-foreground'
         )}
       >
-        <div className={cn('flex h-full items-center gap-1.5 pl-3', innerPaddingRight)}>
+        <div className={cn('flex h-full items-center pl-3', innerPaddingRight)}>
           {children}
         </div>
       </div>

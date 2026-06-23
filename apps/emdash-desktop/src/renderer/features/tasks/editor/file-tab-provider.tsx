@@ -2,13 +2,11 @@ import { observer } from 'mobx-react-lite';
 import type {
   TabProvider,
   TabHost,
-  TabItemProps,
   TabViewContext,
   TabContentProps,
   ResolvedTab,
   ResolveContext,
 } from '@renderer/features/tabs/core/tab-provider';
-import { TabContextMenu } from '@renderer/features/tabs/tab-bar/tab-context-menu';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
@@ -36,23 +34,6 @@ export interface FileResolvedData {
 }
 
 type FileDescriptor = Extract<TabDescriptor, { kind: 'file' }>;
-
-// ---------------------------------------------------------------------------
-// UI adapters
-// ---------------------------------------------------------------------------
-
-function FileTabItemAdapter({ tab, host, ctx }: TabItemProps<FileResolvedData>) {
-  return (
-    <TabContextMenu tab={tab} host={host} ctx={ctx}>
-      <FileTabItem
-        tab={tab}
-        onSelect={() => host.setActiveTab(tab.tabId)}
-        onPin={() => host.pin(tab.tabId)}
-        onClose={() => host.requestCloseTab(tab.tabId)}
-      />
-    </TabContextMenu>
-  );
-}
 
 /**
  * Mounts EditorProvider unconditionally so the Monaco instance persists across
@@ -136,7 +117,7 @@ export const fileTabProvider: TabProvider<
     return tab;
   },
 
-  TabItem: FileTabItemAdapter,
+  TabItem: FileTabItem,
   DragPreview: FileTabDragPreview,
   Content: FileTabContent,
 

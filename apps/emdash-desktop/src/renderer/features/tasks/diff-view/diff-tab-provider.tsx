@@ -3,13 +3,11 @@ import { observer } from 'mobx-react-lite';
 import type {
   TabProvider,
   TabHost,
-  TabItemProps,
   TabViewContext,
   TabContentProps,
   ResolvedTab,
   ResolveContext,
 } from '@renderer/features/tabs/core/tab-provider';
-import { TabContextMenu } from '@renderer/features/tabs/tab-bar/tab-context-menu';
 import { refsEqual } from '@shared/core/git/utils';
 import type { ActiveFile, TabDescriptor } from '@shared/view-state';
 import { DiffTabItem, DiffTabDragPreview, diffGroupSuffix } from './diff-tab-item';
@@ -49,19 +47,6 @@ type DiffDescriptor = Extract<TabDescriptor, { kind: 'diff' }>;
 // ---------------------------------------------------------------------------
 // UI adapters
 // ---------------------------------------------------------------------------
-
-function DiffTabItemAdapter({ tab, host, ctx }: TabItemProps<DiffResolvedData>) {
-  return (
-    <TabContextMenu tab={tab} host={host} ctx={ctx}>
-      <DiffTabItem
-        tab={tab}
-        onSelect={() => host.setActiveTab(tab.tabId)}
-        onPin={() => host.pin(tab.tabId)}
-        onClose={() => host.requestCloseTab(tab.tabId)}
-      />
-    </TabContextMenu>
-  );
-}
 
 /**
  * Renders the active diff view. Visibility when inactive is managed by PaneContent
@@ -145,7 +130,7 @@ export const diffTabProvider: TabProvider<
     );
   },
 
-  TabItem: DiffTabItemAdapter,
+  TabItem: DiffTabItem,
   DragPreview: DiffTabDragPreview,
   Content: DiffTabContent,
 

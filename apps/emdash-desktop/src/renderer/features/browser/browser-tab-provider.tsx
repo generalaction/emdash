@@ -7,13 +7,11 @@ import { browserSessionStore } from '@renderer/features/browser/browser-session-
 import { getAppSettingValueSnapshot } from '@renderer/features/settings/app-settings-client';
 import type {
   TabProvider,
-  TabItemProps,
   TabViewContext,
   TabContentProps,
   ResolvedTab,
   ResolveContext,
 } from '@renderer/features/tabs/core/tab-provider';
-import { TabContextMenu } from '@renderer/features/tabs/tab-bar/tab-context-menu';
 import type { TaskTabContext } from '@renderer/features/tasks/stores/task-tab-context';
 import { events, rpc } from '@renderer/lib/ipc';
 import { normalizeBrowserProfileSelection, type BrowserSessionSnapshot } from '@shared/browser';
@@ -40,19 +38,6 @@ type BrowserDescriptor = Extract<TabDescriptor, { kind: 'browser' }>;
 // ---------------------------------------------------------------------------
 // UI adapters
 // ---------------------------------------------------------------------------
-
-function BrowserTabItemAdapter({ tab, host, ctx }: TabItemProps<BrowserResolvedData>) {
-  return (
-    <TabContextMenu tab={tab} host={host} ctx={ctx}>
-      <BrowserTabItem
-        tab={tab}
-        onSelect={() => host.setActiveTab(tab.tabId)}
-        onPin={() => host.pin(tab.tabId)}
-        onClose={() => host.requestCloseTab(tab.tabId)}
-      />
-    </TabContextMenu>
-  );
-}
 
 /**
  * Mounts BrowserPane for every open browser tab; visibility is managed via
@@ -134,7 +119,7 @@ export const browserTabProvider: TabProvider<
     return new BrowserTabEntry(data.browserId, data.isPreview, data.tabId);
   },
 
-  TabItem: BrowserTabItemAdapter,
+  TabItem: BrowserTabItem,
   DragPreview: BrowserTabDragPreview,
   Content: BrowserTabContent,
 

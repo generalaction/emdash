@@ -1,12 +1,13 @@
 import { Globe, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import type { ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
-import { TabCloseButton } from '@renderer/features/tabs/tab-bar/tab-close-button';
-import { TabDragPreviewShell, TabItemShell } from '@renderer/features/tabs/tab-bar/tab-item-shell';
-import { TabTitle } from '@renderer/features/tabs/tab-bar/tab-title';
+import type { TabItemProps } from '@renderer/features/tabs/core/tab-provider';
+import {
+  GenericTabDragPreview,
+  GenericTabItem,
+} from '@renderer/features/tabs/tab-bar/generic-tab-item';
 import type { BrowserResolvedData } from './browser-tab-provider';
 
-function browserTabLabel(tab: ResolvedTab<BrowserResolvedData>): string {
+function browserTabLabel(tab: { session: BrowserResolvedData['session'] }): string {
   if (tab.session.title.trim()) return tab.session.title.trim();
   if (tab.session.currentUrl === 'about:blank') return 'Browser';
   try {
@@ -18,48 +19,37 @@ function browserTabLabel(tab: ResolvedTab<BrowserResolvedData>): string {
 
 export const BrowserTabItem = observer(function BrowserTabItem({
   tab,
-  onSelect,
-  onPin,
-  onClose,
-}: {
-  tab: ResolvedTab<BrowserResolvedData>;
-  onSelect: () => void;
-  onPin: () => void;
-  onClose: () => void;
-}) {
+  host,
+  ctx,
+}: TabItemProps<BrowserResolvedData>) {
   const label = browserTabLabel(tab);
-  const title = tab.isPreview ? `${label} (preview - double-click to keep)` : label;
 
   return (
-    <TabItemShell
-      tabId={tab.tabId}
-      isActive={tab.isActive}
-      title={title}
-      onSelect={onSelect}
-      onPin={onPin}
-      onClose={onClose}
-    >
-      <span className="shrink-0 text-foreground-muted [&>svg]:h-3 [&>svg]:w-3">
-        {tab.session.isLoading ? <Loader2 className="animate-spin" /> : <Globe />}
-      </span>
-      <TabTitle
-        isActive={tab.isActive}
-        isPreview={tab.isPreview}
-        hasError={!!tab.session.loadError}
-      >
-        {label}
-      </TabTitle>
-      <TabCloseButton onClose={onClose} ariaLabel={`Close ${label}`} />
-    </TabItemShell>
+    <GenericTabItem
+      tab={tab}
+      host={host}
+      ctx={ctx}
+      label={label}
+      preSlot={
+        <span className="shrink-0 text-foreground-muted [&>svg]:h-3 [&>svg]:w-3">
+          {tab.session.isLoading ? <Loader2 className="animate-spin" /> : <Globe />}
+        </span>
+      }
+      hasError={!!tab.session.loadError}
+    />
   );
 });
 
-export function BrowserTabDragPreview({ tab }: { tab: ResolvedTab<BrowserResolvedData> }) {
+export function BrowserTabDragPreview({
+  tab,
+}: {
+  tab: { session: BrowserResolvedData['session'] };
+}) {
   const label = browserTabLabel(tab);
   return (
-    <TabDragPreviewShell>
-      <Globe className="size-3 shrink-0 text-foreground-muted" />
-      <span className="max-w-[200px] truncate">{label}</span>
-    </TabDragPreviewShell>
+    <GenericTabDragPreview
+      preSlot={<Globe className="size-3 shrink-0 text-foreground-muted" />}
+      label={label}
+    />
   );
 }

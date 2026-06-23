@@ -2,12 +2,10 @@ import { action, autorun, reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import type {
   TabProvider,
-  TabItemProps,
   TabViewContext,
   ResolvedTab,
   ResolveContext,
 } from '@renderer/features/tabs/core/tab-provider';
-import { TabContextMenu } from '@renderer/features/tabs/tab-bar/tab-context-menu';
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
 import type { TabDescriptor } from '@shared/view-state';
 import { conversationRegistry } from '../stores/conversation-registry';
@@ -34,43 +32,6 @@ export interface ConversationResolvedData {
 }
 
 type ConversationDescriptor = Extract<TabDescriptor, { kind: 'conversation' }>;
-
-// ---------------------------------------------------------------------------
-// UI adapters — bridge new TabItemProps to existing component APIs
-// ---------------------------------------------------------------------------
-
-function ConversationTabItemAdapter({
-  tab,
-  host,
-  ctx: _ctx,
-}: TabItemProps<ConversationResolvedData>) {
-  return (
-    <TabContextMenu
-      tab={tab}
-      host={host}
-      ctx={_ctx}
-      kindCommands={[
-        {
-          id: 'conversation:rename',
-          label: 'Rename',
-          group: 'edit',
-          shortcut: 'tabRename',
-          run: () => host.requestRename(tab.tabId),
-        },
-      ]}
-    >
-      <ConversationTabItem
-        tab={tab}
-        onSelect={() => host.setActiveTab(tab.tabId)}
-        onPin={() => host.pin(tab.tabId)}
-        onClose={() => host.requestCloseTab(tab.tabId)}
-        onRenameSubmit={(name) => host.commitRename(tab.tabId, name)}
-        renameRequested={host.renameRequest?.tabId === tab.tabId}
-        onRenameConsumed={() => host.clearRenameRequest()}
-      />
-    </TabContextMenu>
-  );
-}
 
 /**
  * Mounts ConversationsPanel unconditionally. Visibility is managed by the
@@ -115,7 +76,7 @@ export const conversationTabProvider: TabProvider<
     return new ConversationTabEntry(data.conversationId, data.isPreview, data.tabId);
   },
 
-  TabItem: ConversationTabItemAdapter,
+  TabItem: ConversationTabItem,
   DragPreview: ConversationTabDragPreview,
   Content: ConversationTabContent,
 

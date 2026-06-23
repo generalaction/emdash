@@ -1,7 +1,9 @@
 import { observer } from 'mobx-react-lite';
-import type { ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
-import { TabCloseButton } from '@renderer/features/tabs/tab-bar/tab-close-button';
-import { TabDragPreviewShell, TabItemShell } from '@renderer/features/tabs/tab-bar/tab-item-shell';
+import type { TabItemProps } from '@renderer/features/tabs/core/tab-provider';
+import {
+  GenericTabDragPreview,
+  GenericTabItem,
+} from '@renderer/features/tabs/tab-bar/generic-tab-item';
 import { TabTitle } from '@renderer/features/tabs/tab-bar/tab-title';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { GitChangeStatusIcon } from './changes-panel/components/changes-list-item';
@@ -22,62 +24,56 @@ export function diffGroupSuffix(diffGroup: DiffResolvedData['diffGroup']): strin
 
 export const DiffTabItem = observer(function DiffTabItem({
   tab,
-  onSelect,
-  onPin,
-  onClose,
-}: {
-  tab: ResolvedTab<DiffResolvedData>;
-  onSelect: () => void;
-  onPin: () => void;
-  onClose: () => void;
-}) {
+  host,
+  ctx,
+}: TabItemProps<DiffResolvedData>) {
   const fileName = tab.path.split('/').pop() ?? 'Untitled';
   const suffix = diffGroupSuffix(tab.diffGroup);
 
   return (
-    <TabItemShell
-      tabId={tab.tabId}
-      isActive={tab.isActive}
-      title={
-        tab.isPreview
-          ? `${tab.path} ${suffix} (preview — double-click to keep)`
-          : `${tab.path} ${suffix}`
+    <GenericTabItem
+      tab={tab}
+      host={host}
+      ctx={ctx}
+      label={fileName}
+      tooltip={`${tab.path} ${suffix}`}
+      preSlot={
+        <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
+          <FileIcon filename={fileName} />
+        </span>
       }
-      onSelect={onSelect}
-      onPin={onPin}
-      onClose={onClose}
-    >
-      <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
-        <FileIcon filename={fileName} />
-      </span>
-      <TabTitle isActive={tab.isActive} isPreview={tab.isPreview}>
-        {fileName}
-        <span className="ml-1 text-xs text-foreground-muted">{suffix}</span>
-      </TabTitle>
-      <TabCloseButton
-        onClose={onClose}
-        ariaLabel={`Close ${fileName} ${suffix}`}
-        statusIndicator={
-          tab.status ? (
-            <span className="transition-opacity group-hover:opacity-0">
-              <GitChangeStatusIcon status={tab.status} className="size-4" />
-            </span>
-          ) : undefined
-        }
-      />
-    </TabItemShell>
+      labelSlot={
+        <TabTitle isActive={tab.isActive} isPreview={tab.isPreview}>
+          {fileName}
+          <span className="ml-1 text-xs text-foreground-muted">{suffix}</span>
+        </TabTitle>
+      }
+      statusSlot={
+        tab.status ? (
+          <span className="transition-opacity group-hover:opacity-0">
+            <GitChangeStatusIcon status={tab.status} className="size-4" />
+          </span>
+        ) : undefined
+      }
+    />
   );
 });
 
-export function DiffTabDragPreview({ tab }: { tab: ResolvedTab<DiffResolvedData> }) {
+export function DiffTabDragPreview({
+  tab,
+}: {
+  tab: { path: string; diffGroup: DiffResolvedData['diffGroup'] };
+}) {
   const fileName = tab.path.split('/').pop() ?? 'Untitled';
   const suffix = diffGroupSuffix(tab.diffGroup);
   return (
-    <TabDragPreviewShell>
-      <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
-        <FileIcon filename={fileName} />
-      </span>
-      <span className="max-w-[200px] truncate">{`${fileName} ${suffix}`}</span>
-    </TabDragPreviewShell>
+    <GenericTabDragPreview
+      preSlot={
+        <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
+          <FileIcon filename={fileName} />
+        </span>
+      }
+      label={`${fileName} ${suffix}`}
+    />
   );
 }
