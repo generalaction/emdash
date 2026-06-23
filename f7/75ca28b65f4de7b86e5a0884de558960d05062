@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/renderer/lib/editor/fileKind.ts
+  s_724c0166afd6c2::t_4f17ec4f2a4cfd 75-79
+apps/emdash-desktop/src/renderer/lib/editor/fileKind.test.ts
+  s_724c0166afd6c2::t_4f17ec4f2a4cfd 1-11
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/file-model-lifecycle-store.ts
+  s_724c0166afd6c2::t_4f17ec4f2a4cfd 3,255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "f775ca28b65f4de7b86e5a0884de558960d05062",
+  "prompts": {},
+  "sessions": {
+    "s_724c0166afd6c2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef52e-092d-7ac2-876d-79bd2b0632be",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
