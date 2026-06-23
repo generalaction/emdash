@@ -7,9 +7,12 @@ import type {
   TabViewContext,
   ResolvedTab,
 } from '@renderer/features/tabs/core/tab-provider';
+import { Separator } from '@renderer/lib/ui/separator';
+import { cn } from '@renderer/utils/utils';
+import { usePaneContext } from '../pane-context';
 import { TabCloseButton } from './tab-close-button';
 import { TabContextMenu } from './tab-context-menu';
-import { TabDragPreviewShell, TabItemShell } from './tab-item-shell';
+import { DraggableTab } from './draggable-tab';
 import { TabTitle } from './tab-title';
 
 export interface GenericTabItemProps {
@@ -40,7 +43,9 @@ export interface GenericTabItemProps {
 }
 
 /**
- * Single generic tab chip renderer. Wraps TabContextMenu + TabItemShell and owns:
+ * Single generic tab chip renderer. Owns:
+ * - Drag wrapper, click/keyboard interaction, active styling, pane separator
+ * - Context menu wrapping
  * - Preview tooltip/italic formatting
  * - Inline rename (label → input) driven by host.renameRequest
  * - Close button with optional status indicator underneath
@@ -62,6 +67,7 @@ export const GenericTabItem = observer(function GenericTabItem({
   renameValue,
   renameMaxLength,
 }: GenericTabItemProps) {
+  const { isFocusedPane, pane } = usePaneContext();
   const [isEditing, setIsEditing] = useState(false);
   const committedRef = useRef(false);
 
@@ -89,66 +95,102 @@ export const GenericTabItem = observer(function GenericTabItem({
     [host, label, renameMaxLength, renameValue, tab.tabId]
   );
 
+  const handleSelect = () => {
+    const wasActive = tab.isActive;
+    host.setActiveTab(tab.tabId);
+    if (!wasActive) pane.focusActiveContent();
+  };
+
   const base = tooltip ?? label;
   const fullTitle = tab.isPreview ? `${base} (preview — double-click to keep)` : base;
 
   return (
     <TabContextMenu tab={tab} host={host} ctx={ctx} kindCommands={kindCommands}>
-      <TabItemShell
-        tabId={tab.tabId}
-        isActive={tab.isActive}
-        title={fullTitle}
-        onSelect={() => host.setActiveTab(tab.tabId)}
-        onPin={() => host.pin(tab.tabId)}
-        onClose={() => host.requestCloseTab(tab.tabId)}
-      >
-        {preSlot}
-        {isEditing ? (
-          <input
-            ref={(el) => {
-              el?.focus();
-              el?.select();
-            }}
-            defaultValue={renameValue ?? label}
-            maxLength={renameMaxLength}
-            className=" min-w-0 rounded bg-background-1 max-w-30 h-6 px-1.5 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
-            onClick={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => e.stopPropagation()}
-            onBlur={(e) => commit(e.target.value)}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              if (e.key === 'Enter') commit(e.currentTarget.value);
-              else if (e.key === 'Escape') {
-                committedRef.current = true;
-                setIsEditing(false);
-              }
-            }}
-          />
-        ) : (
-          (labelSlot ?? (
-            <TabTitle isActive={tab.isActive} isPreview={tab.isPreview} hasError={hasError} className="px-1.5">
-              {label}
-            </TabTitle>
-          ))
-        )}
-        <TabCloseButton
-          onClose={() => host.requestCloseTab(tab.tabId)}
-          ariaLabel={`Close ${label}`}
-          statusIndicator={statusSlot}
-        />
-      </TabItemShell>
+      <DraggableTab id={tab.tabId}>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={handleSelect}
+          onDoubleClick={() => host.pin(tab.tabId)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleSelect();
+            }
+          }}
+          onMouseDown={(e) => {
+            if (e.button === 1) e.preventDefault();
+          }}
+          onAuxClick={(e) => {
+            if (e.button === 1) {
+              e.preventDefault();
+              host.requestCloseTab(tab.tabId);
+            }
+          }}
+          title={fullTitle}
+          data-tabid={tab.tabId}
+          className={cn(
+            'group relative flex h-full flex-col bg-background-secondary hover:bg-background-secondary-1 text-sm hover:bg-muted',
+            tab.isActive && 'bg-background-secondary-1 text-foreground-muted',
+            isFocusedPane && 'text-foreground'
+          )}
+        >
+          <div className="flex h-full items-center pl-3 pr-2">
+            {preSlot}
+            {isEditing ? (
+              <input
+                ref={(el) => {
+                  el?.focus();
+                  el?.select();
+                }}
+                defaultValue={renameValue ?? label}
+                maxLength={renameMaxLength}
+                className=" min-w-0 rounded bg-background-1 max-w-30 h-6 px-1.5 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
+                onClick={(e) => e.stopPropagation()}
+                onDoubleClick={(e) => e.stopPropagation()}
+                onBlur={(e) => commit(e.target.value)}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === 'Enter') commit(e.currentTarget.value);
+                  else if (e.key === 'Escape') {
+                    committedRef.current = true;
+                    setIsEditing(false);
+                  }
+                }}
+              />
+            ) : (
+              (labelSlot ?? (
+                <TabTitle
+                  isActive={tab.isActive}
+                  isPreview={tab.isPreview}
+                  hasError={hasError}
+                  className="px-1.5"
+                >
+                  {label}
+                </TabTitle>
+              ))
+            )}
+            <TabCloseButton
+              onClose={() => host.requestCloseTab(tab.tabId)}
+              ariaLabel={`Close ${label}`}
+              statusIndicator={statusSlot}
+            />
+          </div>
+        </div>
+        <Separator orientation="vertical" />
+      </DraggableTab>
     </TabContextMenu>
   );
 });
 
 /**
- * Generic drag ghost for any tab kind. Replaces the four per-kind DragPreview bodies.
+ * Generic drag ghost for any tab kind.
  */
 export function GenericTabDragPreview({ preSlot, label }: { preSlot?: ReactNode; label: string }) {
   return (
-    <TabDragPreviewShell>
+    <div className="flex cursor-grabbing items-center gap-1.5 rounded-md border border-border bg-background-secondary-1 px-2 py-1 text-sm opacity-80 shadow-lg">
       {preSlot}
       <span className="max-w-[200px] truncate">{label}</span>
-    </TabDragPreviewShell>
+    </div>
   );
 }
