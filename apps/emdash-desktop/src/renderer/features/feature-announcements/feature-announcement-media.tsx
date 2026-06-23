@@ -46,20 +46,10 @@ export function resolveFeatureAnnouncementMedia(
   return null;
 }
 
-export function FeatureAnnouncementMediaArea({
-  media,
-  variant,
-}: {
-  media: FeatureAnnouncementMedia;
-  variant: 'toast' | 'modal';
-}) {
-  const heightClass = variant === 'toast' ? 'h-28' : 'h-52';
-
+export function FeatureAnnouncementMediaArea({ media }: { media: FeatureAnnouncementMedia }) {
   if (media.kind === 'image') {
     return (
-      <div
-        className={cn('relative shrink-0 overflow-hidden rounded-t-xl bg-neutral-950', heightClass)}
-      >
+      <div className="relative h-28 shrink-0 overflow-hidden rounded-t-xl bg-neutral-950">
         <img
           src={media.url}
           alt=""
@@ -76,12 +66,11 @@ export function FeatureAnnouncementMediaArea({
   return (
     <div
       className={cn(
-        'relative flex shrink-0 items-center justify-center overflow-hidden rounded-t-xl bg-neutral-950',
-        heightClass
+        'relative flex h-28 shrink-0 items-center justify-center overflow-hidden rounded-t-xl bg-neutral-950'
       )}
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.08),transparent_65%)]" />
-      <div className={variant === 'toast' ? 'scale-80' : undefined}>
+      <div className="scale-80">
         <HeroGraphic />
       </div>
     </div>

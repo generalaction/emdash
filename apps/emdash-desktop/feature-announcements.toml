@@ -16,7 +16,6 @@
 
 enabled = true
 id = "automations-2026-06"
-display = "toast"
 hero = "automations"
 # image = "https://example.com/automations-hero.png"
 eyebrow = "Now available"

@@ -6,7 +6,6 @@ import type { FeatureAnnouncementManifest } from '@shared/feature-announcements/
 const manifest: FeatureAnnouncementManifest = {
   enabled: true,
   id: 'test-announcement',
-  display: 'toast',
   eyebrow: 'Now available',
   title: 'Test Feature',
   changelogUrl: 'https://emdash.sh/changelog',

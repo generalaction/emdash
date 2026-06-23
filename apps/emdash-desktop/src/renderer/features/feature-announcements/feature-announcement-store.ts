@@ -6,7 +6,6 @@ import {
   markAnnouncementDismissed,
 } from '@renderer/features/feature-announcements/feature-announcement-state';
 import {
-  FEATURE_ANNOUNCEMENT_DEV_REPEAT_ON_LAUNCH_KEY,
   FEATURE_ANNOUNCEMENT_NAVIGABLE_VIEWS,
   type FeatureAnnouncementNavigableView,
 } from '@shared/feature-announcements/constants';
@@ -16,30 +15,18 @@ function isNavigableView(value: string): value is FeatureAnnouncementNavigableVi
   return (FEATURE_ANNOUNCEMENT_NAVIGABLE_VIEWS as readonly string[]).includes(value);
 }
 
-function readDevRepeatOnLaunch(): boolean {
-  if (!import.meta.env.DEV) return false;
-  try {
-    return localStorage.getItem(FEATURE_ANNOUNCEMENT_DEV_REPEAT_ON_LAUNCH_KEY) === 'true';
-  } catch {
-    return false;
-  }
-}
-
 export class FeatureAnnouncementStore {
   manifest: FeatureAnnouncementManifest | null = null;
   status: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
-  devRepeatOnLaunch = readDevRepeatOnLaunch();
   private hasPresented = false;
 
   constructor() {
     makeObservable(this, {
       manifest: observable,
       status: observable,
-      devRepeatOnLaunch: observable,
       shouldPresent: computed,
       markPresented: action,
       resetPresentation: action,
-      setDevRepeatOnLaunch: action,
       setManifest: action,
       setStatus: action,
     });
@@ -47,7 +34,6 @@ export class FeatureAnnouncementStore {
 
   get shouldPresent(): boolean {
     if (!this.manifest || this.hasPresented) return false;
-    if (import.meta.env.DEV && this.devRepeatOnLaunch) return true;
     return !isAnnouncementDismissed(this.manifest.id);
   }
 
@@ -59,22 +45,6 @@ export class FeatureAnnouncementStore {
     this.status = status;
   }
 
-  setDevRepeatOnLaunch(enabled: boolean): void {
-    if (!import.meta.env.DEV) return;
-    this.devRepeatOnLaunch = enabled;
-    try {
-      localStorage.setItem(
-        FEATURE_ANNOUNCEMENT_DEV_REPEAT_ON_LAUNCH_KEY,
-        enabled ? 'true' : 'false'
-      );
-    } catch {
-      // localStorage may be unavailable
-    }
-    if (enabled) {
-      this.resetPresentation();
-    }
-  }
-
   resetPresentation(): void {
     this.hasPresented = false;
   }
@@ -83,17 +53,12 @@ export class FeatureAnnouncementStore {
     this.hasPresented = true;
   }
 
-  present(options?: { preview?: boolean; display?: 'modal' | 'toast' }): void {
+  present(options?: { preview?: boolean }): void {
     if (!this.manifest) return;
-
-    const manifest =
-      options?.display !== undefined
-        ? { ...this.manifest, display: options.display }
-        : this.manifest;
 
     void import('@renderer/features/feature-announcements/present-feature-announcement').then(
       ({ presentFeatureAnnouncement }) => {
-        presentFeatureAnnouncement(manifest, () => {
+        presentFeatureAnnouncement(this.manifest!, () => {
           if (options?.preview) {
             this.resetPresentation();
           }
@@ -102,16 +67,16 @@ export class FeatureAnnouncementStore {
     );
 
     this.markPresented();
-    if (!options?.preview && !(import.meta.env.DEV && this.devRepeatOnLaunch)) {
+    if (!options?.preview) {
       markAnnouncementDismissed(this.manifest.id);
     }
   }
 
-  async replayPreview(display: 'modal' | 'toast'): Promise<void> {
+  async replayPreview(): Promise<void> {
     await this.refresh({ preview: true });
     if (!this.manifest) return;
     this.resetPresentation();
-    this.present({ preview: true, display });
+    this.present({ preview: true });
   }
 
   clearDismissal(): void {
@@ -123,7 +88,7 @@ export class FeatureAnnouncementStore {
   async start(options?: { isFreshInstall?: boolean }): Promise<void> {
     await this.refresh();
 
-    if (this.manifest && options?.isFreshInstall && !this.devRepeatOnLaunch) {
+    if (this.manifest && options?.isFreshInstall) {
       initializeFreshInstallAnnouncement({
         announcementId: this.manifest.id,
         isFreshInstall: true,

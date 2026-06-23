@@ -64,7 +64,7 @@ function FeatureAnnouncementToastCard({
 
   return (
     <div className="relative w-[356px] overflow-hidden rounded-xl bg-background-quaternary text-sm shadow-lg">
-      {media && <FeatureAnnouncementMediaArea media={media} variant="toast" />}
+      {media && <FeatureAnnouncementMediaArea media={media} />}
       <button
         type="button"
         onClick={dismiss}
