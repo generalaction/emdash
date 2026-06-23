@@ -18,6 +18,9 @@ export const CsvRenderer = observer(function CsvRenderer({ filePath }: CsvRender
   const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
   const modelStatus = useModelStatus(bufferUri);
 
+  // Touch bufferVersions so this observer re-renders when the buffer is first
+  // populated or updated externally before reading the non-observable model text.
+  void modelRegistry.bufferVersions.get(bufferUri);
   const content = modelStatus === 'ready' ? (modelRegistry.getValue(bufferUri) ?? '') : '';
   const parsed = useMemo(() => parseCsv(content), [content]);
   const [header, ...bodyRows] = parsed.rows;
