@@ -18,17 +18,38 @@ function hasVisibleTaskNotification(taskId: string): boolean {
   return status !== null && status !== 'idle' && status !== 'working';
 }
 
-export function getVisibleTaskNotificationCount(): number {
+function getUnseenConversationNotificationCount(taskId: string): number {
+  const conversations = conversationRegistry.get(taskId);
+  if (!conversations) return 0;
+
+  let count = 0;
+  for (const conversation of conversations.conversations.values()) {
+    if (!conversation.seen && conversation.indicatorStatus) count += 1;
+  }
+  return count;
+}
+
+export function getVisibleTaskNotificationCount(
+  currentProjectId: string | undefined,
+  currentTaskId: string | undefined
+): number {
   let count = 0;
 
   for (const projectStore of getProjectManagerStore().projects.values()) {
     const mounted = asMounted(projectStore);
     if (!mounted) continue;
+    const projectId = mounted.data.id;
 
     for (const [taskId, taskStore] of mounted.taskManager.tasks) {
       if (!isRegistered(taskStore)) continue;
       if (taskStore.data.archivedAt) continue;
-      if (hasVisibleTaskNotification(taskId)) count += 1;
+      if (!hasVisibleTaskNotification(taskId)) continue;
+
+      if (projectId === currentProjectId && taskId === currentTaskId) {
+        count += getUnseenConversationNotificationCount(taskId);
+      } else {
+        count += 1;
+      }
     }
   }
 
@@ -52,10 +73,8 @@ export function getTaskNotificationItems(
       if (!hasVisibleTaskNotification(taskId)) continue;
 
       if (projectId === currentProjectId && taskId === currentTaskId) {
-        const conversations = conversationRegistry.get(taskId);
-        if (!conversations) continue;
-
-        for (const conversation of conversations.conversations.values()) {
+        const conversations = conversationRegistry.get(taskId)?.conversations.values() ?? [];
+        for (const conversation of conversations) {
           if (!conversation.seen && conversation.indicatorStatus) {
             result.push({
               kind: 'conversation',

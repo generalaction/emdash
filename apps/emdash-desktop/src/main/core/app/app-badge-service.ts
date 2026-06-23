@@ -9,15 +9,15 @@ class AppBadgeService {
   }
 
   clear(): void {
-    this.setCount(0, { force: true });
+    this.setCount(0);
   }
 
   setVisibleNotificationCount(count: number): void {
-    this.setCount(Math.max(0, Math.floor(count)), { force: true });
+    this.setCount(Math.max(0, Math.floor(count)));
   }
 
-  private setCount(count: number, options: { force?: boolean } = {}): void {
-    if (!options.force && count === this.unreadCount) return;
+  private setCount(count: number): void {
+    if (count === this.unreadCount) return;
 
     this.unreadCount = count;
     const succeeded = app.setBadgeCount(count);
