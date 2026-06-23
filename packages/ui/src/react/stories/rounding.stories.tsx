@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
+import { cx } from '@styles/utilities/cx';
+import { sx } from '@styles/utilities/sprinkles.css';
+import { Box } from '../primitives/box';
 import * as s from '../story-layout.css';
 
 const meta: Meta = {
@@ -23,68 +26,72 @@ const RADIUS_TOKENS: Array<{ name: string; var: string; label: string }> = [
 /** All radius tokens with swatches showing the curvature. */
 export const Scale: Story = {
   render: () => (
-    <div className={`${s.flex} ${s.flexCol} ${s.gap6} ${s.p4}`}>
-      <div>
-        <h2 className={`${s.textSm} ${s.fontSemibold} ${s.textForeground}`}>Radius scale</h2>
-        <p className={`${s.mt1} ${s.textXs} ${s.textForegroundMuted}`}>
-          Each swatch uses <code className={s.fontMono}>border-radius: var(--radius-*)</code>. The
-          anchor is <code className={s.fontMono}>--radius: 0.5rem</code>; change it to rescale the
+    <Box display="flex" flexDirection="column" gap="6" padding="4">
+      <Box>
+        <h2 className={cx(sx({ fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' }))}>Radius scale</h2>
+        <p className={cx(sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }))}>
+          Each swatch uses <code className={cx(sx({ fontFamily: 'mono' }))}>border-radius: var(--radius-*)</code>. The
+          anchor is <code className={cx(sx({ fontFamily: 'mono' }))}>--radius: 0.5rem</code>; change it to rescale the
           whole system.
         </p>
-      </div>
-      <div className={`${s.grid} ${s.cols4} ${s.gap6} ${s.lgCols7}`}>
+      </Box>
+      <Box display="grid" gap="6" className={cx(s.cols4, s.lgCols7)}>
         {RADIUS_TOKENS.map(({ name, var: cssVar, label }) => (
-          <div key={name} className={`${s.flex} ${s.flexCol} ${s.itemsCenter} ${s.gap3}`}>
-            <div
-              className={`${s.bgSurfaceBaseEmphasis} ${s.h16} ${s.w16} ${s.border2} ${s.borderBorder}`}
+          <Box key={name} display="flex" flexDirection="column" alignItems="center" gap="3">
+            <Box
+              background="surfaceBaseEmphasis"
+              borderWidth="2"
+              borderStyle="solid"
+              borderColor="border"
+              className={cx(s.h16, s.w16)}
               style={{ borderRadius: `var(${cssVar})` }}
             />
-            <div className={s.textCenter}>
-              <p className={`${s.fontMono} ${s.textXs} ${s.fontMedium} ${s.textForeground}`}>
+            <Box textAlign="center">
+              <p className={cx(sx({ fontFamily: 'mono', fontSize: 'xs', fontWeight: 'medium', color: 'foreground' }))}>
                 {cssVar}
               </p>
-              <p className={`${s.mt05} ${s.fontMono} ${s.text10px} ${s.textForegroundPassive}`}>
+              <p className={cx(sx({ fontFamily: 'mono', color: 'foregroundPassive', marginTop: '0.5' }), s.text10px)}>
                 {label}
               </p>
-            </div>
-          </div>
+            </Box>
+          </Box>
         ))}
-      </div>
-    </div>
+      </Box>
+    </Box>
   ),
 };
 
 /** Controls and inputs use the token scale. */
 export const InContext: Story = {
   render: () => (
-    <div className={`${s.flex} ${s.flexCol} ${s.gap6} ${s.p4}`}>
-      <div>
-        <h2 className={`${s.textSm} ${s.fontSemibold} ${s.textForeground}`}>Tokens in use</h2>
-        <p className={`${s.mt1} ${s.textXs} ${s.textForegroundMuted}`}>
-          Buttons use <code className={s.fontMono}>--radius-lg</code> (base) and{' '}
-          <code className={s.fontMono}>--radius-md</code> (sm). Inputs use{' '}
-          <code className={s.fontMono}>--radius-md</code>.
+    <Box display="flex" flexDirection="column" gap="6" padding="4">
+      <Box>
+        <h2 className={cx(sx({ fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' }))}>Tokens in use</h2>
+        <p className={cx(sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }))}>
+          Buttons use <code className={cx(sx({ fontFamily: 'mono' }))}>--radius-lg</code> (base) and{' '}
+          <code className={cx(sx({ fontFamily: 'mono' }))}>--radius-md</code> (sm). Inputs use{' '}
+          <code className={cx(sx({ fontFamily: 'mono' }))}>--radius-md</code>.
         </p>
-      </div>
-      <div className={`${s.flex} ${s.flexWrap} ${s.itemsCenter} ${s.gap3}`}>
+      </Box>
+      <Box display="flex" flexWrap="wrap" alignItems="center" gap="3">
         <button
           type="button"
-          className={`${s.bgSurfaceHover} ${s.inlineFlex} ${s.h8} ${s.itemsCenter} ${s.gap15} ${s.roundedLg} ${s.border} ${s.borderTransparent} ${s.px25} ${s.textSm} ${s.textForeground}`}
+          className={cx(sx({ background: 'surfaceHover', display: 'inline-flex', alignItems: 'center', gap: '1.5', rounded: 'lg', borderWidth: '1', borderStyle: 'solid', borderColor: 'transparent', px: '2.5', fontSize: 'sm', color: 'foreground' }), s.h8)}
         >
           Base button (--radius-lg)
         </button>
         <button
           type="button"
-          className={`${s.bgSurfaceHover} ${s.inlineFlex} ${s.h6} ${s.itemsCenter} ${s.gap1} ${s.roundedMd} ${s.border} ${s.borderTransparent} ${s.px2} ${s.textXs} ${s.textForeground}`}
+          className={cx(sx({ background: 'surfaceHover', display: 'inline-flex', alignItems: 'center', gap: '1', rounded: 'md', borderWidth: '1', borderStyle: 'solid', borderColor: 'transparent', px: '2', fontSize: 'xs', color: 'foreground' }), s.h6)}
         >
           SM button (--radius-md)
         </button>
         <input
           type="text"
           placeholder="Input (--radius-md)"
-          className={`${s.bgSurface} ${s.h8} ${s.roundedMd} ${s.border} ${s.borderBorder} ${s.px25} ${s.textSm} ${s.textForeground} ${s.outlineNone}`}
+          className={cx(sx({ background: 'surface', rounded: 'md', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', px: '2.5', fontSize: 'sm', color: 'foreground' }), s.h8, s.outlineNone)}
         />
-      </div>
-    </div>
+      </Box>
+    </Box>
   ),
 };

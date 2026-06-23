@@ -7,7 +7,7 @@ import {
   DropdownMenuTrigger,
 } from './dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
-import { Surface } from './surface';
+import { Box } from './box';
 import { TriggerButton } from './trigger-button';
 import * as s from '../story-layout.css';
 
@@ -22,11 +22,11 @@ type Story = StoryObj;
 /** Bare TriggerButton — becomes "active" (surface-selected) while expanded. */
 export const Bare: Story = {
   render: () => (
-    <div className={`${s.flex} ${s.flexWrap} ${s.itemsCenter} ${s.gap3}`}>
+    <Box display="flex" flexWrap="wrap" alignItems="center" gap="3">
       <TriggerButton>Choose an option</TriggerButton>
       <TriggerButton size="sm">Small trigger</TriggerButton>
       <TriggerButton showChevron={false}>No chevron</TriggerButton>
-    </div>
+    </Box>
   ),
 };
 
@@ -63,15 +63,20 @@ export const AsDropdownTrigger: Story = {
 /** Active state across all surfaces. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <div className={`${s.bgSurfaceSunken} ${s.flex} ${s.flexCol} ${s.gap4} ${s.roundedXl} ${s.p4}`}>
+    <Box background="surfaceSunken" display="flex" flexDirection="column" gap="4" rounded="xl" padding="4">
       {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
         (level) => (
-          <Surface
+          <Box
             key={level}
-            level={level}
-            className={`bg-surface ${s.flex} ${s.flexWrap} ${s.itemsCenter} ${s.gap2} ${s.roundedLg} ${s.p3}`}
+            surface={level}
+            display="flex"
+            flexWrap="wrap"
+            alignItems="center"
+            gap="2"
+            rounded="lg"
+            padding="3"
           >
-            <span className={`${s.w36} ${s.textXs} ${s.textForegroundMuted}`}>{level}</span>
+            <span className={s.w36} style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)' }}>{level}</span>
             <Select>
               <SelectTrigger className={s.w40}>
                 <SelectValue placeholder="Select…" />
@@ -81,9 +86,9 @@ export const AcrossSurfaces: Story = {
                 <SelectItem value="b">Beta</SelectItem>
               </SelectContent>
             </Select>
-          </Surface>
+          </Box>
         )
       )}
-    </div>
+    </Box>
   ),
 };

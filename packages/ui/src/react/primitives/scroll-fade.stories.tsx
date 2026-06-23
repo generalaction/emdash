@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
+import { cx } from '@styles/utilities/cx';
+import { sx } from '@styles/utilities/sprinkles.css';
+import { Box } from './box';
 import { ScrollFade } from './scroll-fade';
 import { ThemeProvider } from './theme-provider';
 import * as s from '../story-layout.css';
@@ -13,13 +16,11 @@ const meta: Meta<typeof ScrollFade> = {
 export default meta;
 type Story = StoryObj<typeof ScrollFade>;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function Paragraph({ n = 1 }: { n?: number }) {
   return (
     <>
       {Array.from({ length: n }, (_, i) => (
-        <p key={i} className={`${s.textSm} ${s.textForeground}`}>
+        <p key={i} className={cx(sx({ fontSize: 'sm', color: 'foreground' }))}>
           Paragraph {i + 1}. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod
           tempor incididunt ut labore et dolore magna aliqua.
         </p>
@@ -30,30 +31,35 @@ function Paragraph({ n = 1 }: { n?: number }) {
 
 function HorizontalItems({ n = 20 }: { n?: number }) {
   return (
-    <div className={`${s.flex} ${s.gap3} ${s.noWrap}`}>
+    <Box display="flex" gap="3" whiteSpace="nowrap">
       {Array.from({ length: n }, (_, i) => (
-        <div
+        <Box
           key={i}
-          className={`${s.bgSurfaceBaseEmphasis} ${s.rounded} ${s.border} ${s.borderBorder} ${s.px3} ${s.py1} ${s.textSm}`}
+          background="surfaceBaseEmphasis"
+          rounded="sm"
+          borderWidth="1"
+          borderStyle="solid"
+          borderColor="border"
+          px="3"
+          py="1"
+          fontSize="sm"
         >
           Item {i + 1}
-        </div>
+        </Box>
       ))}
-    </div>
+    </Box>
   );
 }
-
-// ── Stories ───────────────────────────────────────────────────────────────────
 
 /** Vertical fade — content overflows, fades appear top and bottom as you scroll. */
 export const VerticalOverflow: Story = {
   render: () => (
     <ScrollFade
-      className={`bg-surface ${s.h48} ${s.w80} ${s.rounded} ${s.border} ${s.borderBorder}`}
+      className={cx(sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }), s.h48, s.w80)}
     >
-      <div className={`${s.flex} ${s.flexCol} ${s.gap3} ${s.p4}`}>
+      <Box display="flex" flexDirection="column" gap="3" padding="4">
         <Paragraph n={8} />
-      </div>
+      </Box>
     </ScrollFade>
   ),
 };
@@ -62,11 +68,11 @@ export const VerticalOverflow: Story = {
 export const VerticalNoOverflow: Story = {
   render: () => (
     <ScrollFade
-      className={`bg-surface ${s.h48} ${s.w80} ${s.rounded} ${s.border} ${s.borderBorder}`}
+      className={cx(sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }), s.h48, s.w80)}
     >
-      <div className={`${s.flex} ${s.flexCol} ${s.gap3} ${s.p4}`}>
+      <Box display="flex" flexDirection="column" gap="3" padding="4">
         <Paragraph n={2} />
-      </div>
+      </Box>
     </ScrollFade>
   ),
 };
@@ -76,11 +82,11 @@ export const HorizontalOverflow: Story = {
   render: () => (
     <ScrollFade
       axis="x"
-      className={`bg-surface ${s.w80} ${s.rounded} ${s.border} ${s.borderBorder}`}
+      className={cx(sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }), s.w80)}
     >
-      <div className={s.p4}>
+      <Box padding="4">
         <HorizontalItems n={20} />
-      </div>
+      </Box>
     </ScrollFade>
   ),
 };
@@ -90,14 +96,14 @@ export const BothAxes: Story = {
   render: () => (
     <ScrollFade
       axis="both"
-      className={`bg-surface ${s.h48} ${s.w80} ${s.rounded} ${s.border} ${s.borderBorder}`}
+      className={cx(sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }), s.h48, s.w80)}
     >
-      <div className={s.p4}>
-        <div className={s.mb3}>
+      <Box padding="4">
+        <Box marginBottom="3">
           <HorizontalItems n={20} />
-        </div>
+        </Box>
         <Paragraph n={8} />
-      </div>
+      </Box>
     </ScrollFade>
   ),
 };
@@ -105,100 +111,102 @@ export const BothAxes: Story = {
 /** Non-surface background — override --fade-color to match the container's paint. */
 export const NonSurfaceBackground: Story = {
   render: () => (
-    <div className={`${s.flex} ${s.flexCol} ${s.gap4}`}>
-      <p className={`${s.textXs} ${s.textForegroundMuted}`}>
+    <Box display="flex" flexDirection="column" gap="4">
+      <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>
         Code-block-style container: overrides <code>--fade-color</code> to match its background.
       </p>
       <ScrollFade
-        className={`${s.h40} ${s.w80} ${s.rounded} ${s.border} ${s.borderBorder}`}
+        className={cx(sx({ borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }), s.h40, s.w80)}
         fadeColor="var(--neutral-1)"
         style={{ background: 'var(--neutral-1)' }}
       >
-        <pre className={`${s.p4} ${s.fontMono} ${s.textXs} ${s.textForeground}`}>
+        <pre className={cx(sx({ padding: '4', fontFamily: 'mono', fontSize: 'xs', color: 'foreground' }))}>
           {Array.from(
             { length: 20 },
             (_, i) => `const line${i + 1} = "some code value here";`
           ).join('\n')}
         </pre>
       </ScrollFade>
-    </div>
+    </Box>
   ),
 };
 
 /** Custom fade size — larger gradient for a more dramatic effect. */
 export const CustomSize: Story = {
   render: () => (
-    <div className={`${s.flex} ${s.gap6}`}>
-      <div className={`${s.flex} ${s.flexCol} ${s.gap1}`}>
-        <p className={`${s.textXs} ${s.textForegroundMuted}`}>size=12 (subtle)</p>
+    <Box display="flex" gap="6">
+      <Box display="flex" flexDirection="column" gap="1">
+        <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>size=12 (subtle)</p>
         <ScrollFade
           size={12}
-          className={`bg-surface ${s.h48} ${s.w52} ${s.rounded} ${s.border} ${s.borderBorder}`}
+          className={cx(sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }), s.h48, s.w52)}
         >
-          <div className={`${s.flex} ${s.flexCol} ${s.gap3} ${s.p4}`}>
+          <Box display="flex" flexDirection="column" gap="3" padding="4">
             <Paragraph n={8} />
-          </div>
+          </Box>
         </ScrollFade>
-      </div>
-      <div className={`${s.flex} ${s.flexCol} ${s.gap1}`}>
-        <p className={`${s.textXs} ${s.textForegroundMuted}`}>size=48 (dramatic)</p>
+      </Box>
+      <Box display="flex" flexDirection="column" gap="1">
+        <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>size=48 (dramatic)</p>
         <ScrollFade
           size={48}
-          className={`bg-surface ${s.h48} ${s.w52} ${s.rounded} ${s.border} ${s.borderBorder}`}
+          className={cx(sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }), s.h48, s.w52)}
         >
-          <div className={`${s.flex} ${s.flexCol} ${s.gap3} ${s.p4}`}>
+          <Box display="flex" flexDirection="column" gap="3" padding="4">
             <Paragraph n={8} />
-          </div>
+          </Box>
         </ScrollFade>
-      </div>
-    </div>
+      </Box>
+    </Box>
   ),
 };
 
 /** All surface elevations side-by-side — verifies automatic surface-cascade color matching. */
 export const AllSurfaces: Story = {
   render: () => (
-    <div className={`${s.flex} ${s.flexWrap} ${s.gap4}`}>
+    <Box display="flex" flexWrap="wrap" gap="4">
       {(['sunken', 'base', 'raised', 'overlay', 'floating'] as const).map((sv) => (
-        <div key={sv} className={`surface-${sv} ${s.roundedLg} ${s.p4}`}>
-          <p className={`${s.mb2} ${s.textXs} ${s.textForegroundMuted}`}>.surface-{sv}</p>
+        <Box key={sv} className={`surface-${sv}`} rounded="lg" padding="4">
+          <p className={cx(sx({ marginBottom: '2', fontSize: 'xs', color: 'foregroundMuted' }))}>
+            .surface-{sv}
+          </p>
           <ScrollFade
-            className={`bg-surface ${s.h40} ${s.w44} ${s.rounded} ${s.border} ${s.borderBorder}`}
+            className={cx(sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }), s.h40, s.w44)}
           >
-            <div className={`${s.flex} ${s.flexCol} ${s.gap3} ${s.p3}`}>
+            <Box display="flex" flexDirection="column" gap="3" padding="3">
               <Paragraph n={8} />
-            </div>
+            </Box>
           </ScrollFade>
-        </div>
+        </Box>
       ))}
-    </div>
+    </Box>
   ),
 };
 
 /** Light and dark side-by-side — fade color adapts to mode via the surface cascade. */
 export const BothModes: Story = {
   render: () => (
-    <div className={`${s.flex} ${s.minHScreen} ${s.divideX} ${s.divideBorder}`}>
-      <ThemeProvider defaultTheme="light" className={`${s.flex1} ${s.bgBackground} ${s.p8}`}>
-        <p className={`${s.mb4} ${s.textSm} ${s.fontMedium} ${s.textForeground}`}>Light mode</p>
+    <Box display="flex" className={cx(s.minHScreen, s.divideX, s.divideBorder)}>
+      <ThemeProvider defaultTheme="light" className={cx(sx({ flex: '1', background: 'background', padding: '8' }))}>
+        <p className={cx(sx({ marginBottom: '4', fontSize: 'sm', fontWeight: 'medium', color: 'foreground' }))}>Light mode</p>
         <ScrollFade
-          className={`bg-surface ${s.h48} ${s.w80} ${s.rounded} ${s.border} ${s.borderBorder}`}
+          className={cx(sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }), s.h48, s.w80)}
         >
-          <div className={`${s.flex} ${s.flexCol} ${s.gap3} ${s.p4}`}>
+          <Box display="flex" flexDirection="column" gap="3" padding="4">
             <Paragraph n={8} />
-          </div>
+          </Box>
         </ScrollFade>
       </ThemeProvider>
-      <ThemeProvider defaultTheme="dark" className={`${s.flex1} ${s.bgBackground} ${s.p8}`}>
-        <p className={`${s.mb4} ${s.textSm} ${s.fontMedium} ${s.textForeground}`}>Dark mode</p>
+      <ThemeProvider defaultTheme="dark" className={cx(sx({ flex: '1', background: 'background', padding: '8' }))}>
+        <p className={cx(sx({ marginBottom: '4', fontSize: 'sm', fontWeight: 'medium', color: 'foreground' }))}>Dark mode</p>
         <ScrollFade
-          className={`bg-surface ${s.h48} ${s.w80} ${s.rounded} ${s.border} ${s.borderBorder}`}
+          className={cx(sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }), s.h48, s.w80)}
         >
-          <div className={`${s.flex} ${s.flexCol} ${s.gap3} ${s.p4}`}>
+          <Box display="flex" flexDirection="column" gap="3" padding="4">
             <Paragraph n={8} />
-          </div>
+          </Box>
         </ScrollFade>
       </ThemeProvider>
-    </div>
+    </Box>
   ),
 };

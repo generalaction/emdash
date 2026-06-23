@@ -1,37 +1,42 @@
 /**
  * Box — polymorphic layout primitive.
  *
- * Accepts all Sprinkles props from `sx()` directly as props, plus a
- * `className` escape hatch for recipe/utility class names. Renders as `div`
- * by default but any HTML element tag can be passed via the `as` prop.
+ * Accepts Sprinkles props directly (layout, spacing, color, radius, type), an
+ * optional `surface` prop that both scopes the surface cascade for descendants
+ * (.surface-<value>) and paints background: var(--surface), plus a `className`
+ * escape hatch for recipe/utility classes. Renders as `div` by default; any
+ * HTML tag can be passed via `as`.
  *
  * Usage:
  *   <Box display="flex" alignItems="center" gap="2" padding="3">…</Box>
- *   <Box as="section" background="surface" borderRadius="md">…</Box>
+ *   <Box surface="base" borderRadius="md" padding="3">…</Box>
+ *   <Box surface="elevated" background="surfaceEmphasis">…</Box>  // explicit bg wins
  *   <Box className={cx(card(), myStyle)}>…</Box>
- *
- * Sprinkles props are applied last so they override any recipe/utility class
- * at the same `@layer utilities` level — deterministic without tailwind-merge.
  */
 
+import type { SurfaceScopeName, SurfaceStatusName } from '@theme/core/contract/roles';
 import React from 'react';
+import { cx } from '@styles/utilities/cx';
 import { sx } from '@styles/utilities/sprinkles.css';
 import type { Sprinkles } from '@styles/utilities/sprinkles.css';
-import { cx } from '@styles/utilities/cx';
+
+export type SurfaceProp = SurfaceScopeName | 'emphasis' | SurfaceStatusName;
 
 export type BoxProps = React.HTMLAttributes<HTMLElement> &
   Sprinkles & {
     as?: keyof React.JSX.IntrinsicElements;
     ref?: React.Ref<HTMLElement>;
+    /**
+     * Sets the surface cascade scope (.surface-<value>) AND paints
+     * background: var(--surface) so descendants resolve tokens correctly.
+     * An explicit `background` prop overrides the paint while keeping the scope.
+     */
+    surface?: SurfaceProp;
   };
 
 // Build a set of all Sprinkles property names for fast splitting.
 const sprinklesPropertySet = new Set(Object.keys(sx.properties));
 
-/**
- * Split props into `[sprinklesProps, rest]` so Sprinkles props are not
- * forwarded to the DOM element.
- */
 function splitProps(props: Record<string, unknown>): [Sprinkles, Record<string, unknown>] {
   const sprinkles: Record<string, unknown> = {};
   const rest: Record<string, unknown> = {};
@@ -46,11 +51,16 @@ function splitProps(props: Record<string, unknown>): [Sprinkles, Record<string, 
 }
 
 export const Box = React.forwardRef<HTMLElement, BoxProps>(function Box(
-  { as: Tag = 'div', className, ...rest },
+  { as: Tag = 'div', surface, className, ...rest },
   ref
 ) {
   const [sprinklesProps, elementProps] = splitProps(rest as Record<string, unknown>);
-  const sxClass = Object.keys(sprinklesProps).length > 0 ? sx(sprinklesProps) : undefined;
+  // surface forces background: 'surface' unless caller overrides with an explicit background prop
+  const mergedSprinkles: Sprinkles = surface
+    ? { background: 'surface', ...sprinklesProps }
+    : sprinklesProps;
+  const sxClass = Object.keys(mergedSprinkles).length > 0 ? sx(mergedSprinkles) : undefined;
+  const surfaceClass = surface ? `surface-${surface}` : undefined;
   const Component = Tag as React.ElementType;
-  return <Component ref={ref} className={cx(className, sxClass)} {...elementProps} />;
+  return <Component ref={ref} className={cx(surfaceClass, className, sxClass)} {...elementProps} />;
 });

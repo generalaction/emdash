@@ -1,19 +1,15 @@
 /**
  * ComboboxPopover — searchable combobox-in-popover component
- *
- * Stories demonstrate:
- *  - Basic flat list with in-popover search
- *  - With per-row detail hover card
- *  - Interaction inside detail card keeps popover open
  */
 
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Bot, Cpu, Zap } from 'lucide-react';
 import React, { useState } from 'react';
+import { cx } from '@styles/utilities/cx';
+import { sx } from '@styles/utilities/sprinkles.css';
+import { Box } from '../primitives/box';
 import { ComboboxPopover } from './combobox-popover';
 import * as s from '../story-layout.css';
-
-// ── Shared data ───────────────────────────────────────────────────────────────
 
 interface ModelItem {
   id: string;
@@ -26,122 +22,76 @@ interface ModelItem {
 }
 
 const MODELS: ModelItem[] = [
-  {
-    id: 'claude-opus-4',
-    name: 'Claude Opus 4',
-    provider: 'Anthropic',
-    description: 'Most capable model for complex reasoning and nuanced tasks.',
-    contextK: 200,
-    speed: 0.4,
-    intelligence: 1.0,
-  },
-  {
-    id: 'claude-sonnet-4-5',
-    name: 'Claude Sonnet 4.5',
-    provider: 'Anthropic',
-    description: 'Excellent balance of speed and intelligence.',
-    contextK: 200,
-    speed: 0.75,
-    intelligence: 0.85,
-  },
-  {
-    id: 'claude-haiku-4',
-    name: 'Claude Haiku 4',
-    provider: 'Anthropic',
-    description: 'Fast and efficient for high-volume tasks.',
-    contextK: 200,
-    speed: 0.95,
-    intelligence: 0.65,
-  },
-  {
-    id: 'gpt-4o',
-    name: 'GPT-4o',
-    provider: 'OpenAI',
-    description: 'OpenAI flagship multimodal model.',
-    contextK: 128,
-    speed: 0.7,
-    intelligence: 0.9,
-  },
-  {
-    id: 'gpt-4o-mini',
-    name: 'GPT-4o Mini',
-    provider: 'OpenAI',
-    description: 'Lightweight, cost-efficient GPT-4o variant.',
-    contextK: 128,
-    speed: 0.9,
-    intelligence: 0.7,
-  },
-  {
-    id: 'gemini-2.5-pro',
-    name: 'Gemini 2.5 Pro',
-    provider: 'Google',
-    description: "Google's most capable model — 1M context window.",
-    contextK: 1000,
-    speed: 0.6,
-    intelligence: 0.95,
-  },
+  { id: 'claude-opus-4', name: 'Claude Opus 4', provider: 'Anthropic', description: 'Most capable model for complex reasoning and nuanced tasks.', contextK: 200, speed: 0.4, intelligence: 1.0 },
+  { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', provider: 'Anthropic', description: 'Excellent balance of speed and intelligence.', contextK: 200, speed: 0.75, intelligence: 0.85 },
+  { id: 'claude-haiku-4', name: 'Claude Haiku 4', provider: 'Anthropic', description: 'Fast and efficient for high-volume tasks.', contextK: 200, speed: 0.95, intelligence: 0.65 },
+  { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI', description: 'OpenAI flagship multimodal model.', contextK: 128, speed: 0.7, intelligence: 0.9 },
+  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', description: 'Lightweight, cost-efficient GPT-4o variant.', contextK: 128, speed: 0.9, intelligence: 0.7 },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google', description: "Google's most capable model — 1M context window.", contextK: 1000, speed: 0.6, intelligence: 0.95 },
 ];
 
 function BarMeter({ value }: { value: number }) {
   const filled = Math.round(Math.max(0, Math.min(1, value)) * 5);
   return (
-    <span className={`${s.flex} ${s.itemsCenter} ${s.gapHalf}`}>
+    <Box display="flex" alignItems="center" gap="0.5">
       {Array.from({ length: 5 }, (_, i) => (
         <span
           key={i}
-          className={`${s.size15} ${s.roundedFull}`}
+          className={cx(sx({ rounded: 'full' }), s.size15)}
           style={{ background: i < filled ? 'var(--foreground-muted)' : 'var(--border)' }}
         />
       ))}
-    </span>
+    </Box>
   );
 }
 
 function ModelDetailCard({ item }: { item: ModelItem }) {
   return (
-    <div className={`${s.w52} ${s.p3} ${s.textSm}`} style={{ color: 'var(--foreground)' }}>
-      <div className={`${s.flex} ${s.itemsCenter} ${s.gap15}`}>
-        <Bot className={`${s.size4} ${s.shrink0}`} style={{ color: 'var(--foreground-muted)' }} />
-        <p className={`${s.leadingTight} ${s.fontMedium}`}>{item.name}</p>
-      </div>
+    <Box padding="3" fontSize="sm" className={s.w52} style={{ color: 'var(--foreground)' }}>
+      <Box display="flex" alignItems="center" gap="1.5">
+        <Bot className={cx(s.size4, sx({ flexShrink: 0 }))} style={{ color: 'var(--foreground-muted)' }} />
+        <p className={cx(sx({ lineHeight: 'tight', fontWeight: 'medium' }))}>{item.name}</p>
+      </Box>
       <p
-        className={`${s.mt15} ${s.textXs} ${s.leadingSnug}`}
+        className={cx(sx({ marginTop: '1.5', fontSize: 'xs', lineHeight: 'snug' }))}
         style={{ color: 'var(--foreground-muted)' }}
       >
         {item.description}
       </p>
-      <div
-        className={`${s.mt2} ${s.spaceY15} ${s.borderT} ${s.pt2}`}
+      <Box
+        marginTop="2"
+        borderTopWidth="1"
+        borderStyle="solid"
+        paddingTop="2"
+        className={s.spaceY15}
         style={{ borderColor: 'var(--border)' }}
       >
-        <div className={`${s.flex} ${s.itemsCenter} ${s.justifyBetween} ${s.textXs}`}>
+        <Box display="flex" alignItems="center" justifyContent="space-between" fontSize="xs">
           <span style={{ color: 'var(--foreground-muted)' }}>Context</span>
           <span style={{ color: 'var(--foreground)' }}>{item.contextK}K</span>
-        </div>
-        <div className={`${s.flex} ${s.itemsCenter} ${s.justifyBetween} ${s.textXs}`}>
+        </Box>
+        <Box display="flex" alignItems="center" justifyContent="space-between" fontSize="xs">
           <span
-            className={`${s.flex} ${s.itemsCenter} ${s.gap1}`}
+            className={cx(sx({ display: 'flex', alignItems: 'center', gap: '1' }))}
             style={{ color: 'var(--foreground-muted)' }}
           >
             <Zap className={s.size3} /> Speed
           </span>
           <BarMeter value={item.speed} />
-        </div>
-        <div className={`${s.flex} ${s.itemsCenter} ${s.justifyBetween} ${s.textXs}`}>
+        </Box>
+        <Box display="flex" alignItems="center" justifyContent="space-between" fontSize="xs">
           <span
-            className={`${s.flex} ${s.itemsCenter} ${s.gap1}`}
+            className={cx(sx({ display: 'flex', alignItems: 'center', gap: '1' }))}
             style={{ color: 'var(--foreground-muted)' }}
           >
             <Cpu className={s.size3} /> Intelligence
           </span>
           <BarMeter value={item.intelligence} />
-        </div>
-      </div>
-    </div>
+        </Box>
+      </Box>
+    </Box>
   );
 }
-
-// ── Meta ──────────────────────────────────────────────────────────────────────
 
 const meta: Meta = {
   title: 'Components/ComboboxPopover',
@@ -151,13 +101,11 @@ export default meta;
 
 type Story = StoryObj;
 
-// ── Stories ───────────────────────────────────────────────────────────────────
-
 function BasicStory() {
   const [value, setValue] = useState<string>('claude-sonnet-4-5');
   return (
-    <div className={`${s.flex} ${s.flexCol} ${s.itemsCenter} ${s.gap4}`}>
-      <p className={s.textXs} style={{ color: 'var(--foreground-muted)' }}>
+    <Box display="flex" flexDirection="column" alignItems="center" gap="4">
+      <p className={cx(sx({ fontSize: 'xs' }))} style={{ color: 'var(--foreground-muted)' }}>
         Selected: <strong>{MODELS.find((m) => m.id === value)?.name ?? '—'}</strong>
       </p>
       <ComboboxPopover<ModelItem>
@@ -168,21 +116,21 @@ function BasicStory() {
         itemToLabel={(m) => m.name}
         searchPlaceholder="Search models…"
         renderTrigger={(selected) => (
-          <span className={s.textXs}>{selected?.name ?? 'Pick a model'}</span>
+          <span className={cx(sx({ fontSize: 'xs' }))}>{selected?.name ?? 'Pick a model'}</span>
         )}
         renderItem={(item) => (
-          <span className={`${s.flex1} ${s.truncate} ${s.textSm}`}>{item.name}</span>
+          <span className={cx(sx({ flex: '1', fontSize: 'sm' }), 'truncate')}>{item.name}</span>
         )}
       />
-    </div>
+    </Box>
   );
 }
 
 function WithDetailHoverCardStory() {
   const [value, setValue] = useState<string>('claude-sonnet-4-5');
   return (
-    <div className={`${s.flex} ${s.flexCol} ${s.itemsCenter} ${s.gap4}`}>
-      <p className={s.textXs} style={{ color: 'var(--foreground-muted)' }}>
+    <Box display="flex" flexDirection="column" alignItems="center" gap="4">
+      <p className={cx(sx({ fontSize: 'xs' }))} style={{ color: 'var(--foreground-muted)' }}>
         Hover any row in the list to see the detail card.
       </p>
       <ComboboxPopover<ModelItem>
@@ -193,24 +141,24 @@ function WithDetailHoverCardStory() {
         itemToLabel={(m) => m.name}
         searchPlaceholder="Search models…"
         renderTrigger={(selected) => (
-          <span className={s.textXs}>{selected?.name ?? 'Pick a model'}</span>
+          <span className={cx(sx({ fontSize: 'xs' }))}>{selected?.name ?? 'Pick a model'}</span>
         )}
         renderItem={(item) => (
-          <span className={`${s.flex1} ${s.truncate} ${s.textSm}`}>{item.name}</span>
+          <span className={cx(sx({ flex: '1', fontSize: 'sm' }), 'truncate')}>{item.name}</span>
         )}
         renderItemDetail={(item) => <ModelDetailCard item={item} />}
         detailSide="right"
         detailAlign="start"
       />
-    </div>
+    </Box>
   );
 }
 
 function DetailCardAboveStory() {
   const [value, setValue] = useState<string>('gpt-4o');
   return (
-    <div className={`${s.flex} ${s.flexCol} ${s.itemsCenter} ${s.gap4}`}>
-      <p className={s.textXs} style={{ color: 'var(--foreground-muted)' }}>
+    <Box display="flex" flexDirection="column" alignItems="center" gap="4">
+      <p className={cx(sx({ fontSize: 'xs' }))} style={{ color: 'var(--foreground-muted)' }}>
         Hover a row — detail card appears above the popover (for bottom-anchored selectors like the
         composer toolbar).
       </p>
@@ -222,25 +170,25 @@ function DetailCardAboveStory() {
         itemToLabel={(m) => m.name}
         searchPlaceholder="Search models…"
         renderTrigger={(selected) => (
-          <span className={s.textXs}>{selected?.name ?? 'Pick a model'}</span>
+          <span className={cx(sx({ fontSize: 'xs' }))}>{selected?.name ?? 'Pick a model'}</span>
         )}
         renderItem={(item) => (
-          <div className={`${s.flex} ${s.itemsCenter} ${s.gap2}`}>
+          <Box display="flex" alignItems="center" gap="2">
             <Bot
-              className={`${s.size35} ${s.shrink0}`}
+              className={cx(s.size35, sx({ flexShrink: 0 }))}
               style={{ color: 'var(--foreground-muted)' }}
             />
-            <span className={`${s.flex1} ${s.truncate} ${s.textSm}`}>{item.name}</span>
-            <span className={s.textXs} style={{ color: 'var(--foreground-muted)' }}>
+            <span className={cx(sx({ flex: '1', fontSize: 'sm' }), 'truncate')}>{item.name}</span>
+            <span className={cx(sx({ fontSize: 'xs' }))} style={{ color: 'var(--foreground-muted)' }}>
               {item.provider}
             </span>
-          </div>
+          </Box>
         )}
         renderItemDetail={(item) => <ModelDetailCard item={item} />}
         detailSide="top"
         detailAlign="start"
       />
-    </div>
+    </Box>
   );
 }
 

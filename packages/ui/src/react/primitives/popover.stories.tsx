@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
+import { cx } from '@styles/utilities/cx';
+import { sx } from '@styles/utilities/sprinkles.css';
+import { Box } from './box';
 import { Button } from './button';
 import {
   Popover,
@@ -10,7 +13,6 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from './popover';
-import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Primitives/Popover',
@@ -33,7 +35,7 @@ export const Default: Story = {
             This is a short description of the popover content.
           </PopoverDescription>
         </PopoverHeader>
-        <p className={`${s.textSm} ${s.textForegroundMuted}`}>Some body content here.</p>
+        <p className={cx(sx({ fontSize: 'sm', color: 'foregroundMuted' }))}>Some body content here.</p>
       </PopoverContent>
     </Popover>
   ),
@@ -54,7 +56,7 @@ export const WithCloseButton: Story = {
             </Button>
           </PopoverClose>
         </PopoverHeader>
-        <p className={`${s.textSm} ${s.textForegroundMuted}`}>Configure your preferences here.</p>
+        <p className={cx(sx({ fontSize: 'sm', color: 'foregroundMuted' }))}>Configure your preferences here.</p>
       </PopoverContent>
     </Popover>
   ),
@@ -62,7 +64,7 @@ export const WithCloseButton: Story = {
 
 export const Aligned: Story = {
   render: () => (
-    <div className={`${s.flex} ${s.gap4}`}>
+    <Box display="flex" gap="4">
       {(['start', 'center', 'end'] as const).map((align) => (
         <Popover key={align}>
           <PopoverTrigger>
@@ -71,10 +73,10 @@ export const Aligned: Story = {
             </Button>
           </PopoverTrigger>
           <PopoverContent align={align}>
-            <p className={s.textSm}>Aligned: {align}</p>
+            <p className={cx(sx({ fontSize: 'sm' }))}>Aligned: {align}</p>
           </PopoverContent>
         </Popover>
       ))}
-    </div>
+    </Box>
   ),
 };

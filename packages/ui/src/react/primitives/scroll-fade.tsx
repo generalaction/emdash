@@ -40,7 +40,7 @@ export type ScrollFadeProps = {
  *
  * @example
  * // Vertical fade (default) — matches the current surface automatically.
- * <ScrollFade className="h-64">
+ * <ScrollFade className={cx(sx({ background: 'surface' }), s.h48)}>
  *   <VeryLongList />
  * </ScrollFade>
  *

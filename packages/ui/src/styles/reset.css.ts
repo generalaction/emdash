@@ -38,3 +38,18 @@ globalStyle('button, input, optgroup, select, textarea', {
     },
   },
 });
+
+// Strip native button chrome so the User-Agent ButtonFace background does not
+// bleed through theme-driven styles (matches Tailwind Preflight). Without this,
+// resting buttons that omit a background (e.g. ghost) show a theme-independent
+// system gray instead of the surface behind them.
+globalStyle('button', {
+  '@layer': {
+    reset: {
+      appearance: 'none',
+      backgroundColor: 'transparent',
+      backgroundImage: 'none',
+      cursor: 'pointer',
+    },
+  },
+});

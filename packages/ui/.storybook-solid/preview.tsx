@@ -1,8 +1,11 @@
 import { createEffect } from 'solid-js';
 import type { Decorator, Preview } from 'storybook-solidjs';
 import { THEME_MANIFEST } from '../src/theme/themes/registry';
-// Side-effect: pulls VE surfaces + tokens into the build graph.
-import '../src/styles/utilities/sprinkles.css';
+// Full VE barrel: layers, tokens contract, surfaces, reset/base, sprinkles,
+// animations, SVG helpers — matches what ThemeProvider loads in React Storybook.
+import '@styles/global.css';
+// Plain generated CSS: palette ramps, semantic aliases, fonts, typography,
+// overflow-fade — same stack as ThemeProvider's side-effect imports.
 import './theme.css';
 
 type ThemeId = (typeof THEME_MANIFEST)[number]['id'];

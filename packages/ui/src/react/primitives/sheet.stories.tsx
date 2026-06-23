@@ -1,15 +1,8 @@
-/**
- * Sheet — side-panel primitive composed of Header / Body / Footer.
- *
- * Stories demonstrate:
- *  - Default composition (right side: header + body + footer)
- *  - Left side variant
- *  - Scrollable long body with top scroll-fade
- *  - Sheet without a footer (header + body only)
- */
-
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
+import { cx } from '@styles/utilities/cx';
+import { sx } from '@styles/utilities/sprinkles.css';
+import { Box } from './box';
 import { Button } from './button';
 import {
   Sheet,
@@ -21,7 +14,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from './sheet';
-import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Primitives/Sheet',
@@ -30,8 +22,6 @@ const meta: Meta = {
 export default meta;
 
 type Story = StoryObj;
-
-// ── Default (right side) ──────────────────────────────────────────────────────
 
 export const Default: Story = {
   render: () => (
@@ -42,7 +32,7 @@ export const Default: Story = {
           <SheetTitle>Sheet title</SheetTitle>
         </SheetHeader>
         <SheetBody>
-          <p className={s.textForegroundMuted}>
+          <p className={cx(sx({ color: 'foregroundMuted' }))}>
             This is the sheet body. Place forms, content, or any composition here. The body scrolls
             independently when it overflows, with a top fade when scrolled down.
           </p>
@@ -56,8 +46,6 @@ export const Default: Story = {
   ),
 };
 
-// ── Left side ─────────────────────────────────────────────────────────────────
-
 export const LeftSide: Story = {
   render: () => (
     <Sheet>
@@ -67,21 +55,21 @@ export const LeftSide: Story = {
           <SheetTitle>Navigation</SheetTitle>
         </SheetHeader>
         <SheetBody>
-          <p className={s.textForegroundMuted}>
+          <p className={cx(sx({ color: 'foregroundMuted' }))}>
             This sheet slides in from the left. Use it for navigation drawers, sidebars, or
             secondary panels.
           </p>
-          <div className={`${s.mt4} ${s.flex} ${s.flexCol} ${s.gap1}`}>
+          <Box marginTop="4" display="flex" flexDirection="column" gap="1">
             {['Overview', 'Tasks', 'Settings', 'Members', 'Integrations'].map((item) => (
               <button
                 key={item}
                 type="button"
-                className={`${s.bgSurfaceBaseEmphasis} ${s.roundedLg} ${s.px3} ${s.py2} ${s.textLeft} ${s.textSm} ${s.textForeground}`}
+                className={cx(sx({ background: 'surfaceBaseEmphasis', rounded: 'lg', px: '3', py: '2', textAlign: 'left', fontSize: 'sm', color: 'foreground' }))}
               >
                 {item}
               </button>
             ))}
-          </div>
+          </Box>
         </SheetBody>
         <SheetFooter>
           <SheetClose render={<Button variant="ghost">Close</Button>} />
@@ -90,8 +78,6 @@ export const LeftSide: Story = {
     </Sheet>
   ),
 };
-
-// ── Scrollable body ───────────────────────────────────────────────────────────
 
 export const ScrollableBody: Story = {
   render: () => (
@@ -103,7 +89,7 @@ export const ScrollableBody: Story = {
         </SheetHeader>
         <SheetBody>
           {Array.from({ length: 20 }, (_, i) => (
-            <p key={i} className={s.textForegroundMuted}>
+            <p key={i} className={cx(sx({ color: 'foregroundMuted' }))}>
               {i + 1}. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod
               tempor incididunt ut labore et dolore magna aliqua.
             </p>
@@ -117,8 +103,6 @@ export const ScrollableBody: Story = {
   ),
 };
 
-// ── Without footer ────────────────────────────────────────────────────────────
-
 export const WithoutFooter: Story = {
   render: () => (
     <Sheet>
@@ -128,17 +112,23 @@ export const WithoutFooter: Story = {
           <SheetTitle>Details</SheetTitle>
         </SheetHeader>
         <SheetBody>
-          <p className={s.textForegroundMuted}>
+          <p className={cx(sx({ color: 'foregroundMuted' }))}>
             This sheet has no footer — the close button in the header is the only dismiss
             affordance. Useful for detail panels, previews, or read-only views.
           </p>
-          <div
-            className={`${s.mt4} ${s.roundedLg} ${s.border} ${s.borderBorder} ${s.p3} ${s.textXs}`}
+          <Box
+            marginTop="4"
+            rounded="lg"
+            borderWidth="1"
+            borderStyle="solid"
+            borderColor="border"
+            padding="3"
+            fontSize="xs"
             style={{ color: 'var(--foreground-muted)' }}
           >
-            <p className={`${s.fontMedium} ${s.textForeground}`}>Component</p>
+            <p className={cx(sx({ fontWeight: 'medium', color: 'foreground' }))}>Component</p>
             <p>packages/ui/src/primitives/sheet.tsx</p>
-          </div>
+          </Box>
         </SheetBody>
       </SheetContent>
     </Sheet>

@@ -9,6 +9,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AtSign, Braces, CircleDot, File } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import { cx } from '@styles/utilities/cx';
+import { sx } from '@styles/utilities/sprinkles.css';
+import { Box } from './box';
 import { Button } from './button';
 import { ComboboxPopup, type ComboboxPopupHandle, type ComboboxPopupItem } from './combobox-popup';
 import * as s from '../story-layout.css';
@@ -20,33 +23,11 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
-// ── Shared sample data ────────────────────────────────────────────────────────
-
 const FILE_ITEMS: ComboboxPopupItem[] = [
-  {
-    id: 'src/components/chat-composer.tsx',
-    icon: <i className="devicon-react-original colored" style={{ fontSize: '13px' }} />,
-    label: 'chat-composer.tsx',
-    description: 'src/components',
-  },
-  {
-    id: 'src/lib/file-icons.ts',
-    icon: <i className="devicon-typescript-plain colored" style={{ fontSize: '13px' }} />,
-    label: 'file-icons.ts',
-    description: 'src/lib',
-  },
-  {
-    id: 'package.json',
-    icon: <i className="devicon-npm-original-wordmark colored" style={{ fontSize: '13px' }} />,
-    label: 'package.json',
-    description: '',
-  },
-  {
-    id: 'README.md',
-    icon: <i className="devicon-markdown-original" style={{ fontSize: '13px' }} />,
-    label: 'README.md',
-    description: '',
-  },
+  { id: 'src/components/chat-composer.tsx', icon: <i className="devicon-react-original colored" style={{ fontSize: '13px' }} />, label: 'chat-composer.tsx', description: 'src/components' },
+  { id: 'src/lib/file-icons.ts', icon: <i className="devicon-typescript-plain colored" style={{ fontSize: '13px' }} />, label: 'file-icons.ts', description: 'src/lib' },
+  { id: 'package.json', icon: <i className="devicon-npm-original-wordmark colored" style={{ fontSize: '13px' }} />, label: 'package.json', description: '' },
+  { id: 'README.md', icon: <i className="devicon-markdown-original" style={{ fontSize: '13px' }} />, label: 'README.md', description: '' },
 ];
 
 const MIXED_ITEMS: ComboboxPopupItem[] = [
@@ -55,8 +36,6 @@ const MIXED_ITEMS: ComboboxPopupItem[] = [
   { id: 's1', icon: <Braces className={s.size35} />, label: 'handleSubmit', description: 'symbol' },
   { id: 'c1', icon: <AtSign className={s.size35} />, label: 'custom item', description: 'custom' },
 ];
-
-// ── Wrapper that anchors the popup to a button ────────────────────────────────
 
 function AnchoredPopup({
   items,
@@ -80,7 +59,6 @@ function AnchoredPopup({
     }
   }
 
-  // Forward keyboard events to the popup handle.
   useEffect(() => {
     if (!anchorRect) return;
     function handleKey(e: KeyboardEvent) {
@@ -92,11 +70,11 @@ function AnchoredPopup({
   }, [anchorRect]);
 
   return (
-    <div className={`${s.flex} ${s.flexCol} ${s.itemsCenter} ${s.gap2}`}>
+    <Box display="flex" flexDirection="column" alignItems="center" gap="2">
       <Button ref={buttonRef} variant="ghost" size="sm" onClick={toggle}>
         {anchorRect ? 'Close popup' : 'Open popup'}
       </Button>
-      <p className={`${s.textXs} ${s.textForegroundMuted}`}>
+      <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>
         {anchorRect ? 'Arrow keys to navigate, Enter to select, Esc to dismiss' : ''}
       </p>
       <ComboboxPopup
@@ -110,11 +88,9 @@ function AnchoredPopup({
         emptyLabel={emptyLabel}
         header={header}
       />
-    </div>
+    </Box>
   );
 }
-
-// ── Stories ───────────────────────────────────────────────────────────────────
 
 export const FileItems: Story = {
   render: () => <AnchoredPopup items={FILE_ITEMS} />,
@@ -128,7 +104,7 @@ export const WithHeader: Story = {
   render: () => (
     <AnchoredPopup
       items={FILE_ITEMS.slice(0, 3)}
-      header={<span className={`${s.fontMedium} ${s.textForeground}`}>Context files</span>}
+      header={<span className={cx(sx({ fontWeight: 'medium', color: 'foreground' }))}>Context files</span>}
     />
   ),
 };

@@ -59,6 +59,9 @@ export const controlVariants = recipe({
   variants: {
     variant: {
       ghost: {
+        // Transparent at rest: blend into the surface behind us, only tinting
+        // on interaction via the surface cascade vars below.
+        backgroundColor: 'transparent',
         color: vars.foregroundMuted,
         selectors: {
           '&:hover': { backgroundColor: vars.surfaceHover, color: vars.foreground },

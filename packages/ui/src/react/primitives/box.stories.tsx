@@ -56,3 +56,30 @@ export const PolymorphicAs: Story = {
     </Box>
   ),
 };
+
+/** surface prop applies .surface-<value> class (cascade scope) + background: var(--surface). */
+export const Surfaces: Story = {
+  render: () => (
+    <Box display="flex" flexDirection="column" gap="3" padding="4">
+      {(
+        ['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis', 'paper'] as const
+      ).map((level) => (
+        <Box key={level} surface={level} borderRadius="md" padding="3" display="flex" alignItems="center" gap="3">
+          <Box fontSize="xs" color="foregroundMuted" style={{ minWidth: '9rem' }}>
+            {level}
+          </Box>
+          <Box surface="emphasis" borderRadius="sm" padding="2" fontSize="sm">
+            emphasis card
+          </Box>
+        </Box>
+      ))}
+      <Box display="flex" gap="3">
+        {(['destructive', 'warning', 'info'] as const).map((status) => (
+          <Box key={status} surface={status} borderRadius="md" padding="3" fontSize="sm" flex="1">
+            {status}
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  ),
+};
