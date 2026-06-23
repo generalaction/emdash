@@ -133,10 +133,9 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
         </Button>
         <ConfirmButton
           variant="destructive"
-          disabled={isLoading}
           onClick={() => onSuccess({ deleteWorktree, deleteBranch })}
         >
-          {isLoading ? 'Loading...' : isBulk ? `Delete ${count} tasks` : 'Delete'}
+          {isBulk ? `Delete ${count} tasks` : 'Delete'}
         </ConfirmButton>
       </DialogFooter>
     </>
