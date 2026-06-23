@@ -34,7 +34,7 @@ describe('charm provider', () => {
 
     expect(command).toEqual({
       command: 'crush',
-      args: ['run', '--session', 'emdash-session-id', 'implement the task'],
+      args: ['run', 'implement the task'],
       env: {},
     });
   });
@@ -44,12 +44,12 @@ describe('charm provider', () => {
 
     expect(command).toEqual({
       command: 'crush',
-      args: ['--session', 'emdash-session-id'],
+      args: [],
       env: {},
     });
   });
 
-  it('resumes the same named crush session', () => {
+  it('does not pass Emdash ids as Crush session ids', () => {
     const command = provider.behavior.prompt!.buildCommand({
       ...baseContext,
       isResuming: true,
@@ -57,7 +57,7 @@ describe('charm provider', () => {
 
     expect(command).toEqual({
       command: 'crush',
-      args: ['--session', 'emdash-session-id'],
+      args: [],
       env: {},
     });
   });

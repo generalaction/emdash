@@ -11,8 +11,6 @@ function buildCharmCommand(ctx: CommandContext) {
   return buildStandardCommand(ctx, {
     defaultArgs: ctx.initialPrompt && !ctx.isResuming ? ['run'] : undefined,
     initialPromptFlag: '',
-    sessionIdFlag: '--session',
-    sessionIdAlways: true,
   });
 }
 
@@ -54,7 +52,7 @@ export const plugin = definePlugin(
       flag: '',
     },
     sessions: {
-      kind: 'resumable',
+      kind: 'stateless',
     },
   },
   { icon }

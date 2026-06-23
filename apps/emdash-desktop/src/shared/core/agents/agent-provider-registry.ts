@@ -388,8 +388,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'crush',
     initialPromptFlag: '',
-    sessionIdFlag: '--session',
-    sessionIdAlways: true,
     icon: 'charm.png',
     alt: 'Charm CLI',
     terminalOnly: true,
