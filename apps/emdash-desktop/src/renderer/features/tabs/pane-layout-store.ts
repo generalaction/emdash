@@ -1,13 +1,15 @@
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
 import { PaneStore } from '@renderer/features/tabs/pane-store';
 import type { TabGroupsSnapshot } from '@shared/view-state';
-import type { TabKind, OpenArgsOf } from './providers';
+import type { TabViewContext } from './core/tab-provider';
+import type { KindOf, OpenArgsOf, TabRegistry } from './core/tab-provider-registry';
+import type { TabPersistenceAdapter } from './persistence';
 
 const MAX_PANE_COUNT = 8;
 
-export interface Pane {
+export interface Pane<R extends TabRegistry = TabRegistry> {
   paneId: string;
-  pane: PaneStore;
+  pane: PaneStore<R>;
 }
 
 /**
@@ -17,22 +19,26 @@ export interface Pane {
  * Each pane is an independent tab manager. The focused pane is exposed via
  * the `focusedPane` getter so callers that only care about the active
  * pane continue to work without change.
+ *
+ * The registry generic R captures the full provider set so that `open<K>` is
+ * typed at injection; defaults to the base TabRegistry for untyped contexts.
  */
-export class PaneLayoutStore {
-  readonly groups: Pane[] = [];
+export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
+  readonly groups: Pane<R>[] = [];
   activePaneId: string;
   paneSizes: number[];
 
-  private readonly _workspaceId: string;
-  private readonly _projectId: string;
-  private readonly _taskId: string;
+  private readonly _registry: R;
+  private readonly _ctx: TabViewContext;
+  private readonly _persistor: TabPersistenceAdapter | undefined;
+  private _persistDisposer: (() => void) | null = null;
   /** Disposers for the per-group auto-close reactions. Not observable. */
   private readonly _autoCloseDisposers = new Map<string, () => void>();
 
-  constructor(workspaceId: string, projectId: string, taskId: string) {
-    this._workspaceId = workspaceId;
-    this._projectId = projectId;
-    this._taskId = taskId;
+  constructor(registry: R, ctx: TabViewContext, persistor?: TabPersistenceAdapter) {
+    this._registry = registry;
+    this._ctx = ctx;
+    this._persistor = persistor;
 
     const initial = this._createPane();
     this.groups.push(initial);
@@ -57,7 +63,7 @@ export class PaneLayoutStore {
     });
   }
 
-  get focusedPane(): PaneStore {
+  get focusedPane(): PaneStore<R> {
     return this.groups.find((g) => g.paneId === this.activePaneId)?.pane ?? this.groups[0].pane;
   }
 
@@ -85,7 +91,7 @@ export class PaneLayoutStore {
    * Opens a tab of any kind in a new pane to the right of the currently focused pane.
    * Falls back to opening in the focused pane when the max pane count is reached.
    */
-  openInRightSplit<K extends TabKind>(kind: K, args: OpenArgsOf<K>): void {
+  openInRightSplit<K extends KindOf<R>>(kind: K, args: OpenArgsOf<R, K>): void {
     if (this.groups.length >= MAX_PANE_COUNT) {
       this.open(kind, args);
       return;
@@ -103,7 +109,13 @@ export class PaneLayoutStore {
 
   /** @deprecated Use openInRightSplit('conversation', { conversationId, preview: false }) */
   openConversationInRightSplit(conversationId: string): void {
-    this.openInRightSplit('conversation', { conversationId, preview: false });
+    this.openInRightSplit(
+      'conversation' as KindOf<R>,
+      {
+        conversationId,
+        preview: false,
+      } as OpenArgsOf<R, KindOf<R>>
+    );
   }
 
   /**
@@ -199,7 +211,7 @@ export class PaneLayoutStore {
     }
   }
 
-  open<K extends TabKind>(kind: K, args: OpenArgsOf<K>): void {
+  open<K extends KindOf<R>>(kind: K, args: OpenArgsOf<R, K>): void {
     this.focusedPane.open(kind, args);
   }
 
@@ -239,7 +251,37 @@ export class PaneLayoutStore {
         : this._evenSizes(snapshot.groups.length);
   }
 
+  /**
+   * Load saved tab state via the injected persistor.
+   *
+   * @param fallback - Optional opaque blob to pass to the persistor for
+   *   backwards-compatible migration (e.g. the full aggregate view-state).
+   * @returns `true` when state was restored, `false` when nothing was found.
+   */
+  hydrate(fallback?: unknown): boolean {
+    const saved = this._persistor?.load(fallback);
+    if (saved) {
+      this.restoreSnapshot(saved);
+      return true;
+    }
+    return false;
+  }
+
+  /** Start persisting snapshot changes via the injected persistor. */
+  startPersistence(): void {
+    if (!this._persistor) return;
+    this._persistDisposer?.();
+    this._persistDisposer = this._persistor.start(() => this.snapshot);
+  }
+
+  /** Stop persistence and clean up. */
+  stopPersistence(): void {
+    this._persistDisposer?.();
+    this._persistDisposer = null;
+  }
+
   dispose(): void {
+    this.stopPersistence();
     for (const disposer of this._autoCloseDisposers.values()) {
       disposer();
     }
@@ -249,15 +291,15 @@ export class PaneLayoutStore {
     }
   }
 
-  private _createPane(): Pane {
+  private _createPane(): Pane<R> {
     const paneId = crypto.randomUUID();
     const pane = this._createPaneStore(paneId);
     this._registerAutoClose(paneId, pane);
     return { paneId, pane };
   }
 
-  private _createPaneStore(_paneId: string): PaneStore {
-    return new PaneStore(this._workspaceId, this._projectId, this._taskId);
+  private _createPaneStore(_paneId: string): PaneStore<R> {
+    return new PaneStore<R>(this._registry, this._ctx);
   }
 
   /**
@@ -267,7 +309,7 @@ export class PaneLayoutStore {
    * Fires only after the enclosing action completes, so splitRight() (which opens
    * a tab in the same action) won't trigger a false auto-close.
    */
-  private _registerAutoClose(paneId: string, pane: PaneStore): void {
+  private _registerAutoClose(paneId: string, pane: PaneStore<R>): void {
     const disposer = reaction(
       () => pane.tabOrder.length,
       (length) => {

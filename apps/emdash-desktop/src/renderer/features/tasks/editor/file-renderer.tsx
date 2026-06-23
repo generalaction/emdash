@@ -9,8 +9,6 @@ import { MarkdownEditorRenderer } from '@renderer/lib/editor/markdown-renderer';
 import { SvgRenderer } from '@renderer/lib/editor/svg-renderer';
 import { TooLargeRenderer } from '@renderer/lib/editor/too-large-renderer';
 import { rpc } from '@renderer/lib/ipc';
-import { ShowHide } from '@renderer/lib/ui/show-hide';
-import { MonacoFileRenderer } from './monaco-file-renderer';
 import type { FileTabStore } from './stores/file-tab-store';
 
 interface FileRendererProps {
@@ -18,11 +16,12 @@ interface FileRendererProps {
 }
 
 /**
- * Routes a file tab to the correct renderer based on its current renderer kind.
+ * Routes a file tab to the correct non-Monaco renderer based on its renderer kind.
  *
- * Monaco is kept alive via ShowHide so cursor position and scroll survive
- * renderer-kind transitions (e.g. toggling svg-source ↔ svg). All preview
- * renderers, including markdown, mount/unmount freely and hold no persistent state.
+ * The Monaco host is hoisted to FileTabBody in file-tab-provider.tsx and is always
+ * mounted alongside this component. This component handles external file loading
+ * and renders preview/binary renderers; for Monaco-based kinds it returns null
+ * (the hoisted host is shown instead via visibility toggling).
  *
  * For external (outside-workspace) tabs, the async file read is triggered here
  * via useEffect so the store's open() and deserialize() remain synchronous.
@@ -50,22 +49,8 @@ export const FileRenderer = observer(function FileRenderer({ tab }: FileRenderer
       cancelled = true;
     };
   }, [tab, tab.isExternal, tab.isLoading, tab.path]);
-  const kind = tab.renderer.kind;
 
-  const monacoActive =
-    kind === 'text' ||
-    kind === 'svg-source' ||
-    kind === 'html-source' ||
-    kind === 'markdown-source';
-
-  return (
-    <div className="relative h-full w-full overflow-hidden">
-      <ShowHide visible={monacoActive}>
-        <MonacoFileRenderer />
-      </ShowHide>
-      {!monacoActive && <BinaryOrPreviewRenderer tab={tab} />}
-    </div>
-  );
+  return <BinaryOrPreviewRenderer tab={tab} />;
 });
 
 /** Renders file types that carry no persistent editor state. */

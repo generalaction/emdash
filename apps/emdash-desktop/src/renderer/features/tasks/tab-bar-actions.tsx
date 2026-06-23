@@ -2,6 +2,7 @@ import { useHotkey } from '@tanstack/react-hotkeys';
 import { Columns2, FileSearch, MessageSquarePlus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import {
   useTaskViewContext,
   useWorkspaceViewModel,
@@ -14,7 +15,6 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { usePaneContext } from '../pane-context';
 
 export const TabBarActions = observer(function TabBarActions() {
   const taskView = useWorkspaceViewModel();

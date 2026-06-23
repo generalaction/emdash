@@ -32,6 +32,11 @@ class ViewStateCache {
     return value;
   }
 
+  /** Synchronous read — returns undefined when the key is absent. */
+  peek(key: string): unknown {
+    return this.map.get(key);
+  }
+
   /** Write a value to the cache (called by SnapshotRegistry on every save). */
   set(key: string, value: unknown): void {
     this.map.set(key, value);

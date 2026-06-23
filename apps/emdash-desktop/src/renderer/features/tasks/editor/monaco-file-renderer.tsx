@@ -1,5 +1,4 @@
 import { observer } from 'mobx-react-lite';
-import { useEffect } from 'react';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { useEditorContext } from '@renderer/features/tasks/editor/editor-provider';
 import { activeFileEntry as getActiveFileEntry } from '@renderer/features/tasks/editor/pane-selectors';
@@ -26,12 +25,7 @@ const SOURCE_TO_PREVIEW = {
  * inside PaneProvider — this component only manages the host attachment point.
  */
 export const MonacoFileRenderer = observer(function MonacoFileRenderer() {
-  const { setEditorHost, triggerLayout } = useEditorContext();
-
-  // Re-run Monaco layout whenever this component transitions to visible.
-  useEffect(() => {
-    triggerLayout();
-  }, [triggerLayout]);
+  const { setEditorHost } = useEditorContext();
 
   return (
     <div className="relative h-full w-full">

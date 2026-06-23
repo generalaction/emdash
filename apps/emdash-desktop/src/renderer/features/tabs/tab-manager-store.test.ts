@@ -56,14 +56,21 @@ vi.mock('@renderer/features/tasks/conversations/conversation-title-utils', () =>
     (title as string) ?? 'Conversation',
 }));
 
-// Register all built-in tab kinds before any PaneStore is constructed.
-import '@renderer/features/tabs/providers';
 import type { BrowserResolvedData } from '@renderer/features/browser/browser-tab-provider';
+import { taskTabView } from '@renderer/features/tasks/task-tab-registry';
 import type { ResolvedTab } from './core/tab-provider';
 import { PaneStore } from './pane-store';
 
-function createTabManager(): PaneStore {
-  return new PaneStore('workspace-1', 'project-1', 'task-1');
+const testCtx = {
+  viewId: 'task-1',
+  projectId: 'project-1',
+  workspaceId: 'workspace-1',
+  taskId: 'task-1',
+  modelRootPath: 'workspace:workspace-1',
+};
+
+function createTabManager() {
+  return new PaneStore(taskTabView.registry, testCtx);
 }
 
 describe('PaneStore browser tabs', () => {

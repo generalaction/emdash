@@ -1,5 +1,6 @@
 import { FileSearch, MessageSquare } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { EmdashLogo } from '@renderer/lib/emdash-logo';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
@@ -7,7 +8,6 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 import type { ShortcutSettingsKey } from '@shared/shortcuts';
-import { usePaneContext } from '../tabs/pane-context';
 
 export function PaneEmptyState() {
   const { projectId, taskId, workspaceId } = useTaskViewContext();

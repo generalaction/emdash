@@ -5,17 +5,15 @@ import { useRef } from 'react';
 import type {
   TabProvider,
   TabItemProps,
-  TabKindContext,
-  TabRendererProps,
+  TabViewContext,
   ResolvedTab,
   ResolveContext,
 } from '@renderer/features/tabs/core/tab-provider';
-import { registerTabProvider } from '@renderer/features/tabs/core/tab-provider-registry';
 import { TabContextMenu } from '@renderer/features/tabs/tab-bar/tab-context-menu';
-import { ShowHide } from '@renderer/lib/ui/show-hide';
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
 import type { TabDescriptor } from '@shared/view-state';
 import { conversationRegistry } from '../stores/conversation-registry';
+import type { TaskTabContext } from '../stores/task-tab-context';
 import type { ConversationStore } from './conversation-manager';
 import { ConversationTabEntry } from './conversation-tab-entry';
 import { ConversationTabItem, ConversationTabDragPreview } from './conversation-tab-item';
@@ -66,7 +64,9 @@ function ConversationTabItemAdapter({ tab, host, ctx }: TabItemProps<Conversatio
         onPin={() => host.pin(tab.tabId)}
         onClose={() => host.requestCloseTab(tab.tabId)}
         onRenameSubmit={(name) =>
-          void conversationRegistry.get(ctx.taskId)?.renameConversation(tab.conversationId, name)
+          void conversationRegistry
+            .get((ctx as TaskTabContext).taskId)
+            ?.renameConversation(tab.conversationId, name)
         }
         renameRef={renameRef}
       />
@@ -75,20 +75,12 @@ function ConversationTabItemAdapter({ tab, host, ctx }: TabItemProps<Conversatio
 }
 
 /**
- * Mounts ConversationsPanel unconditionally; shows/hides it based on whether a
- * conversation tab is the active tab in this pane. ConversationsPanel is kept
- * alive (ShowHide) so PTY sessions survive tab switches.
+ * Mounts ConversationsPanel unconditionally. Visibility is managed by the
+ * parent PaneContent via visibility:hidden + inert so PTY sessions survive
+ * tab switches without needing an extra ShowHide wrapper here.
  */
-const ConversationTabRenderer = observer(function ConversationTabRenderer({
-  host,
-}: TabRendererProps) {
-  const activeTab = host.resolvedTabs.find((t) => t.isActive);
-  const visible = activeTab?.kind === 'conversation';
-  return (
-    <ShowHide visible={visible}>
-      <ConversationsPanel />
-    </ShowHide>
-  );
+const ConversationTabContent = observer(function ConversationTabContent() {
+  return <ConversationsPanel />;
 });
 
 // ---------------------------------------------------------------------------
@@ -96,6 +88,7 @@ const ConversationTabRenderer = observer(function ConversationTabRenderer({
 // ---------------------------------------------------------------------------
 
 export const conversationTabProvider: TabProvider<
+  'conversation',
   ConversationTabEntry,
   ConversationResolvedData,
   ConversationDescriptor,
@@ -104,7 +97,9 @@ export const conversationTabProvider: TabProvider<
   kind: 'conversation',
 
   resolve(entry: ConversationTabEntry, ctx: ResolveContext): ConversationResolvedData | null {
-    const store = conversationRegistry.get(ctx.taskId)?.conversations.get(entry.conversationId);
+    const store = conversationRegistry
+      .get((ctx as unknown as TaskTabContext).taskId)
+      ?.conversations.get(entry.conversationId);
     if (!store) return null;
     return { conversationId: entry.conversationId, store };
   },
@@ -118,19 +113,19 @@ export const conversationTabProvider: TabProvider<
     };
   },
 
-  deserialize(data: ConversationDescriptor, _ctx: TabKindContext): ConversationTabEntry {
+  deserialize(data: ConversationDescriptor, _ctx: TabViewContext): ConversationTabEntry {
     return new ConversationTabEntry(data.conversationId, data.isPreview, data.tabId);
   },
 
   TabItem: ConversationTabItemAdapter,
   DragPreview: ConversationTabDragPreview,
-  Renderer: ConversationTabRenderer,
+  Content: ConversationTabContent,
 
   title(tab: ResolvedTab<ConversationResolvedData>): string {
     return formatConversationTitleForDisplay(tab.store.data.providerId, tab.store.data.title);
   },
 
-  open(args: ConversationOpenArgs, host, _ctx: TabKindContext): void {
+  open(args: ConversationOpenArgs, host, _ctx: TabViewContext): void {
     const existing = host.findEntry(
       (e): e is ConversationTabEntry =>
         (e as ConversationTabEntry).kind === 'conversation' &&
@@ -169,7 +164,8 @@ export const conversationTabProvider: TabProvider<
   },
 
   mount(host, ctx): () => void {
-    const conversations = () => conversationRegistry.get(ctx.taskId);
+    const taskCtx = ctx as TaskTabContext;
+    const conversations = () => conversationRegistry.get(taskCtx.taskId);
 
     const getActiveConversation = (): ConversationStore | undefined => {
       const activeId = host.resolvedActiveTabId;
@@ -230,13 +226,14 @@ export const conversationTabProvider: TabProvider<
     };
   },
 
-  onActivate(entry: ConversationTabEntry, _ctx: TabKindContext): void {
+  onActivate(entry: ConversationTabEntry, _ctx: TabViewContext): void {
     setTelemetryConversationScope(entry.conversationId);
   },
 
-  onClose(entry: ConversationTabEntry, ctx: TabKindContext): void {
-    conversationRegistry.get(ctx.taskId)?.conversations.get(entry.conversationId)?.markSeen();
+  onClose(entry: ConversationTabEntry, ctx: TabViewContext): void {
+    conversationRegistry
+      .get((ctx as TaskTabContext).taskId)
+      ?.conversations.get(entry.conversationId)
+      ?.markSeen();
   },
 };
-
-registerTabProvider(conversationTabProvider);

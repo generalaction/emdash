@@ -9,16 +9,20 @@ import {
   setTabActiveIndex as tabUtilsSetTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
 import type { TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
-import type { TabEntryBase, TabHost, TabKindContext, ResolvedTab } from './core/tab-provider';
-import { tabProviderRegistry } from './core/tab-provider-registry';
-import type { TabKind, OpenArgsOf } from './providers';
+import type { TabEntryBase, TabHost, TabViewContext, ResolvedTab } from './core/tab-provider';
+import type { KindOf, OpenArgsOf, TabRegistry } from './core/tab-provider-registry';
 
 /**
  * Owns all tab open/close/order/active state for a single pane.
  * Entity-specific state lives in the domain entry classes (FileTabStore, DiffTabStore,
  * ConversationTabEntry, …). Monaco model registration is handled by FileModelLifecycleStore.
+ *
+ * The registry generic R captures the full provider set so that `open<K>` is
+ * typed at injection; defaults to the base TabRegistry for untyped contexts.
  */
-export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
+export class PaneStore<R extends TabRegistry = TabRegistry>
+  implements Snapshottable<TabManagerSnapshot>, TabHost
+{
   /** All open tab entries keyed by tabId. O(1) lookup; finer-grained MobX reactivity. */
   readonly entries = observable.map<string, TabEntryBase>();
   /** Tab display order (array of tabIds). Drives resolvedTabs. */
@@ -27,35 +31,35 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
   isVisible = false;
   /** True when this pane is the active/focused pane AND the task is the active view. */
   isFocused = false;
+  /** Current pixel dimensions of the pane container, null until first measurement. */
+  dimensions: { width: number; height: number } | null = null;
 
-  /** Used by resolvedTabs and FileModelLifecycleStore to build buffer URIs. */
-  readonly modelRootPath: string;
+  /**
+   * The registry of tab providers this pane was constructed with.
+   * React chrome reads the registry off this property via PaneContext.
+   */
+  readonly registry: R;
 
-  private readonly _projectId: string;
-  private readonly _workspaceId: string;
-  private readonly _taskId: string;
   private readonly disposers: (() => void)[] = [];
   /** Stable context object passed to TabProvider methods. Never changes after construction. */
-  private readonly _ctx: TabKindContext;
+  private readonly _ctx: TabViewContext;
   /** Bounded stack of recently closed tabs for reopening. Not observable — not persisted. */
   private readonly _closedTabHistory: Array<{ data: TabDescriptor; index: number }> = [];
   private static readonly _MAX_CLOSED_HISTORY = 20;
-  get ctx(): TabKindContext {
+  get ctx(): TabViewContext {
     return this._ctx;
   }
 
-  constructor(workspaceId: string, projectId: string, taskId: string) {
-    this._projectId = projectId;
-    this._workspaceId = workspaceId;
-    this._taskId = taskId;
-    this.modelRootPath = `workspace:${workspaceId}`;
-    this._ctx = { projectId, workspaceId, taskId, modelRootPath: this.modelRootPath };
+  constructor(registry: R, ctx: TabViewContext) {
+    this.registry = registry;
+    this._ctx = ctx;
 
     makeObservable(this, {
       tabOrder: observable,
       activeTabId: observable,
       isVisible: observable,
       isFocused: observable,
+      dimensions: observable,
       resolvedActiveTabId: computed,
       activeEntry: computed,
       resolvedTabs: computed,
@@ -72,6 +76,7 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
       setTabActiveIndex: action,
       setVisible: action,
       setFocused: action,
+      setDimensions: action,
       pin: action,
       attachEntry: action,
       closeOthers: action,
@@ -83,7 +88,7 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
 
     // Call mount lifecycle for each registered tab kind.
     // Each def.mount returns a disposer that is pushed to this.disposers.
-    for (const def of tabProviderRegistry.all()) {
+    for (const def of this.registry.all()) {
       if (def.mount) {
         this.disposers.push(def.mount(this, this._ctx));
       }
@@ -136,8 +141,8 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
     const effectiveActiveId = this.resolvedActiveTabId;
     for (const id of this.tabOrder) {
       const entry = this.entries.get(id);
-      if (!entry || !tabProviderRegistry.has(entry.kind)) continue;
-      const def = tabProviderRegistry.get(entry.kind);
+      if (!entry || !this.registry.has(entry.kind)) continue;
+      const def = this.registry.get(entry.kind);
       const isActive = effectiveActiveId === entry.tabId;
       const rd = def.resolve(entry, { ...this._ctx, isActive });
       if (!rd) continue;
@@ -156,8 +161,8 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
     const tabs: TabDescriptor[] = [];
     for (const id of this.tabOrder) {
       const entry = this.entries.get(id);
-      if (!entry || !tabProviderRegistry.has(entry.kind)) continue;
-      const data = tabProviderRegistry.get(entry.kind).serialize(entry);
+      if (!entry || !this.registry.has(entry.kind)) continue;
+      const data = this.registry.get(entry.kind).serialize(entry);
       if (data !== null) tabs.push(data as unknown as TabDescriptor);
     }
     return { tabs, activeTabId: this.activeTabId };
@@ -167,21 +172,16 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
   // Actions — open
   // ---------------------------------------------------------------------------
 
-  open<K extends TabKind>(kind: K, args: OpenArgsOf<K>): void {
-    const def = tabProviderRegistry.get(kind);
-    if (!def) {
+  open<K extends KindOf<R>>(kind: K, args: OpenArgsOf<R, K>): void {
+    if (!this.registry.has(kind)) {
       console.warn(`[PaneStore] Unknown tab kind: ${kind}`);
       return;
     }
-    def.open(args as never, this, this._ctx);
+    this.registry.get(kind).open(args as never, this, this._ctx);
   }
 
   openKind(kind: string, args: unknown): void {
-    if (!tabProviderRegistry.has(kind)) {
-      console.warn(`[PaneStore] Unknown tab kind: ${kind}`);
-      return;
-    }
-    tabProviderRegistry.get(kind).open(args as never, this, this._ctx);
+    this.open(kind as KindOf<R>, args as OpenArgsOf<R, KindOf<R>>);
   }
 
   replaceEntry(
@@ -196,8 +196,8 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
     }
     // Call onClose for replaced entry.
     const old = this.entries.get(existingTabId);
-    if (old && tabProviderRegistry.has(old.kind)) {
-      tabProviderRegistry.get(old.kind).onClose?.(old, this._ctx);
+    if (old && this.registry.has(old.kind)) {
+      this.registry.get(old.kind).onClose?.(old, this._ctx);
     }
     this.entries.delete(existingTabId);
     this.entries.set(newEntry.tabId, newEntry as TabEntryBase);
@@ -221,8 +221,8 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
   setActiveTab(id: string): void {
     this.activeTabId = id;
     const entry = this.entries.get(id);
-    if (entry && this.isVisible && tabProviderRegistry.has(entry.kind)) {
-      tabProviderRegistry.get(entry.kind).onActivate?.(entry, this._ctx);
+    if (entry && this.isVisible && this.registry.has(entry.kind)) {
+      this.registry.get(entry.kind).onActivate?.(entry, this._ctx);
     }
   }
 
@@ -285,8 +285,8 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
     const entry = this.entries.get(tabId);
     if (!entry) return;
 
-    if (tabProviderRegistry.has(entry.kind)) {
-      const def = tabProviderRegistry.get(entry.kind);
+    if (this.registry.has(entry.kind)) {
+      const def = this.registry.get(entry.kind);
       if (def.confirmClose) {
         void Promise.resolve(def.confirmClose(entry, this, this._ctx)).then((proceed) => {
           if (proceed) this._removeTab(tabId);
@@ -302,14 +302,18 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
     this.isVisible = visible;
     if (visible) {
       const entry = this.activeEntry;
-      if (entry && tabProviderRegistry.has(entry.kind)) {
-        tabProviderRegistry.get(entry.kind).onActivate?.(entry, this._ctx);
+      if (entry && this.registry.has(entry.kind)) {
+        this.registry.get(entry.kind).onActivate?.(entry, this._ctx);
       }
     }
   }
 
   setFocused(focused: boolean): void {
     this.isFocused = focused;
+  }
+
+  setDimensions(width: number, height: number): void {
+    this.dimensions = { width, height };
   }
 
   // ---------------------------------------------------------------------------
@@ -321,15 +325,15 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
       // Run onClose for all current entries so kinds can clean up (e.g. browser sessions).
       for (const id of [...this.tabOrder]) {
         const entry = this.entries.get(id);
-        if (entry && tabProviderRegistry.has(entry.kind)) {
-          tabProviderRegistry.get(entry.kind).onClose?.(entry, this._ctx);
+        if (entry && this.registry.has(entry.kind)) {
+          this.registry.get(entry.kind).onClose?.(entry, this._ctx);
         }
       }
       this.entries.clear();
       this.tabOrder = [];
       for (const desc of snapshot.tabs) {
-        if (!tabProviderRegistry.has(desc.kind)) continue;
-        const def = tabProviderRegistry.get(desc.kind);
+        if (!this.registry.has(desc.kind)) continue;
+        const def = this.registry.get(desc.kind);
         const entry = def.deserialize(desc, this._ctx) as TabEntryBase;
         this.entries.set(entry.tabId, entry);
         this.tabOrder.push(entry.tabId);
@@ -341,8 +345,8 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
   dispose(): void {
     for (const id of this.tabOrder) {
       const entry = this.entries.get(id);
-      if (entry && tabProviderRegistry.has(entry.kind)) {
-        tabProviderRegistry.get(entry.kind).onClose?.(entry, this._ctx);
+      if (entry && this.registry.has(entry.kind)) {
+        this.registry.get(entry.kind).onClose?.(entry, this._ctx);
       }
     }
     for (const d of this.disposers) d();
@@ -358,8 +362,8 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
 
     // Record tab position before removing so we can restore it on reopen.
     const index = this.tabOrder.indexOf(id);
-    if (tabProviderRegistry.has(entry.kind)) {
-      const data = tabProviderRegistry.get(entry.kind).serialize(entry);
+    if (this.registry.has(entry.kind)) {
+      const data = this.registry.get(entry.kind).serialize(entry);
       if (data !== null) {
         this._closedTabHistory.push({ data: data as unknown as TabDescriptor, index });
         if (this._closedTabHistory.length > PaneStore._MAX_CLOSED_HISTORY) {
@@ -370,8 +374,8 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
 
     this.entries.delete(id);
     removeTabId(this, id);
-    if (tabProviderRegistry.has(entry.kind)) {
-      tabProviderRegistry.get(entry.kind).onClose?.(entry, this._ctx);
+    if (this.registry.has(entry.kind)) {
+      this.registry.get(entry.kind).onClose?.(entry, this._ctx);
     }
   }
 
@@ -384,8 +388,8 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
     const record = this._closedTabHistory.pop();
     if (!record) return;
     const { data, index } = record;
-    if (!tabProviderRegistry.has(data.kind)) return;
-    const provider = tabProviderRegistry.get(data.kind);
+    if (!this.registry.has(data.kind)) return;
+    const provider = this.registry.get(data.kind);
     const entry = provider.deserialize(data as never, this._ctx) as TabEntryBase;
     this.entries.set(entry.tabId, entry);
     const insertAt = Math.min(index, this.tabOrder.length);

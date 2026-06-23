@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type {
   TabCommand,
   TabHost,
-  TabKindContext,
+  TabViewContext,
   ResolvedTab,
 } from '@renderer/features/tabs/core/tab-provider';
 import {
@@ -30,7 +30,7 @@ export const TabContextMenu = observer(function TabContextMenu({
 }: {
   tab: ResolvedTab;
   host: TabHost;
-  ctx: TabKindContext;
+  ctx: TabViewContext;
   kindCommands?: TabCommand[];
   children: ReactNode;
 }) {

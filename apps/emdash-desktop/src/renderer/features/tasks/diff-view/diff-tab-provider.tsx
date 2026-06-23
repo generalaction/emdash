@@ -4,12 +4,11 @@ import type {
   TabProvider,
   TabHost,
   TabItemProps,
-  TabKindContext,
-  TabRendererProps,
+  TabViewContext,
+  TabContentProps,
   ResolvedTab,
   ResolveContext,
 } from '@renderer/features/tabs/core/tab-provider';
-import { registerTabProvider } from '@renderer/features/tabs/core/tab-provider-registry';
 import { TabContextMenu } from '@renderer/features/tabs/tab-bar/tab-context-menu';
 import { refsEqual } from '@shared/core/git/utils';
 import type { ActiveFile, TabDescriptor } from '@shared/view-state';
@@ -65,10 +64,10 @@ function DiffTabItemAdapter({ tab, host, ctx }: TabItemProps<DiffResolvedData>) 
 }
 
 /**
- * Renders the active diff tab; returns null when no diff tab is active.
- * DiffView mounts/unmounts per active tab (no keepalive needed for diffs).
+ * Renders the active diff view. Visibility when inactive is managed by PaneContent
+ * via visibility:hidden + inert, so this component mounts whenever the pane has any tab.
  */
-const DiffTabRenderer = observer(function DiffTabRenderer({ host }: TabRendererProps) {
+const DiffTabContent = observer(function DiffTabContent({ host }: TabContentProps) {
   const activeTab = host.resolvedTabs.find((t) => t.isActive);
   if (activeTab?.kind !== 'diff') return null;
   const activeTabId = activeTab.tabId;
@@ -85,6 +84,7 @@ const DiffTabRenderer = observer(function DiffTabRenderer({ host }: TabRendererP
 // ---------------------------------------------------------------------------
 
 export const diffTabProvider: TabProvider<
+  'diff',
   DiffTabStore,
   DiffResolvedData,
   DiffDescriptor,
@@ -125,7 +125,7 @@ export const diffTabProvider: TabProvider<
     };
   },
 
-  deserialize(data: DiffDescriptor, _ctx: TabKindContext): DiffTabStore {
+  deserialize(data: DiffDescriptor, _ctx: TabViewContext): DiffTabStore {
     return new DiffTabStore(
       {
         path: data.path,
@@ -147,14 +147,14 @@ export const diffTabProvider: TabProvider<
 
   TabItem: DiffTabItemAdapter,
   DragPreview: DiffTabDragPreview,
-  Renderer: DiffTabRenderer,
+  Content: DiffTabContent,
 
   title(tab: ResolvedTab<DiffResolvedData>): string {
     const fileName = tab.path.split('/').pop() ?? 'Untitled';
     return `${fileName} ${diffGroupSuffix(tab.diffGroup)}`;
   },
 
-  open(args: DiffOpenArgs, host: TabHost, _ctx: TabKindContext): void {
+  open(args: DiffOpenArgs, host: TabHost, _ctx: TabViewContext): void {
     const { activeFile, status } = args;
 
     const existing = host.findEntry((e): e is DiffTabStore => {
@@ -197,5 +197,3 @@ export const diffTabProvider: TabProvider<
     }
   },
 };
-
-registerTabProvider(diffTabProvider);

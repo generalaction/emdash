@@ -12,24 +12,23 @@ export interface TabEntryBase {
 }
 
 /**
- * Ambient context available to all tab-kind method implementations
- * (resolve, open, serialize, deserialize, onClose, mount). Holds the stable
- * identifiers for the current workspace/task, passed from the store at
- * construction time.
+ * Generic ambient context passed to all tab-kind method implementations
+ * (resolve, open, serialize, deserialize, onClose, mount). The library
+ * only requires a stable viewId; domain-specific fields (projectId,
+ * workspaceId, taskId, modelRootPath) live in TaskTabContext in
+ * features/tasks and are accessed via a cast at the provider boundary.
  */
-export interface TabKindContext {
-  projectId: string;
-  workspaceId: string;
-  taskId: string;
-  modelRootPath: string;
+export interface TabViewContext {
+  /** Stable identifier for the view that owns this pane (e.g. taskId). */
+  viewId: string;
 }
 
 /**
- * Context passed to resolve(). Extends TabKindContext with the derived
+ * Context passed to resolve(). Extends TabViewContext with the derived
  * isActive flag so a kind can make activity-dependent decisions when
  * building its resolved view model.
  */
-export interface ResolveContext extends TabKindContext {
+export interface ResolveContext extends TabViewContext {
   isActive: boolean;
 }
 
@@ -57,18 +56,18 @@ export type ResolvedTab<RD extends object = object> = {
 export interface TabItemProps<RD extends object> {
   tab: ResolvedTab<RD>;
   host: TabHost;
-  ctx: TabKindContext;
+  ctx: TabViewContext;
 }
 
 /**
- * Props for a kind's Renderer component (the pane content area).
+ * Props for a kind's Content component (the pane body area).
  *
- * PaneContent mounts every registered Renderer unconditionally — the
+ * PaneContent mounts every registered Content unconditionally — the
  * component itself decides visibility, keepalive, and async loading.
  */
-export interface TabRendererProps {
+export interface TabContentProps {
   host: TabHost;
-  ctx: TabKindContext;
+  ctx: TabViewContext;
 }
 
 /** A single actionable entry in a tab context menu. */
@@ -92,8 +91,8 @@ export interface TabCommand {
 export interface TabHost {
   readonly resolvedTabs: ReadonlyArray<ResolvedTab>;
   readonly resolvedActiveTabId: string | undefined;
-  /** The ambient context for this pane (projectId, workspaceId, taskId, modelRootPath). */
-  readonly ctx: TabKindContext;
+  /** The ambient context for this pane (viewId + any domain-specific fields). */
+  readonly ctx: TabViewContext;
   /** True when this pane is the currently focused pane in the main region. */
   readonly isFocused: boolean;
   /** Opens a tab of any registered kind. Used by mount() callbacks that listen for
@@ -142,18 +141,20 @@ export interface TabHost {
  * The core contract for a tab kind.
  *
  * Generic parameters
+ *   K        – literal string kind discriminant
  *   E        – the mutable observable entry (FileTabStore, BrowserTabEntry, …)
  *   RD       – kind-derived resolved fields (beyond tabId/kind/isPreview/isActive)
  *   Data     – serialized form written to / read from the DB snapshot
  *   OpenArgs – argument bag for opening a tab of this kind
  */
 export interface TabProvider<
+  K extends string = string,
   E extends object = object,
   RD extends object = object,
   Data = unknown,
   OpenArgs = unknown,
 > {
-  readonly kind: string;
+  readonly kind: K;
 
   /**
    * Pure function: maps an entry to kind-specific view-model fields.
@@ -174,7 +175,7 @@ export interface TabProvider<
    * any async loading (external files, image data-URLs) belongs in
    * the kind's Renderer via useEffect.
    */
-  deserialize(data: Data, ctx: TabKindContext): E;
+  deserialize(data: Data, ctx: TabViewContext): E;
 
   /** Renders the tab's chip in the tab bar. */
   TabItem: React.ComponentType<TabItemProps<RD>>;
@@ -182,7 +183,7 @@ export interface TabProvider<
   DragPreview: React.ComponentType<{ tab: ResolvedTab<RD> }>;
 
   /**
-   * The pane content component for this kind.
+   * The pane body component for this kind.
    *
    * Mounted unconditionally by PaneContent regardless of which kind is
    * active. The component is responsible for:
@@ -191,7 +192,7 @@ export interface TabProvider<
    *   - keepalive semantics (mount-all vs mount-active-only)
    *   - async data loading via useEffect
    */
-  Renderer: React.ComponentType<TabRendererProps>;
+  Content: React.ComponentType<TabContentProps>;
 
   /** Human-readable label used in dialogs (close-confirm, command palette). */
   title(tab: ResolvedTab<RD>): string;
@@ -200,28 +201,28 @@ export interface TabProvider<
    * Opens (or focuses / preview-replaces) a tab of this kind.
    * Must be synchronous — all async work belongs in the Renderer.
    */
-  open(args: OpenArgs, host: TabHost, ctx: TabKindContext): void;
+  open(args: OpenArgs, host: TabHost, ctx: TabViewContext): void;
 
   /**
    * Called before a user-initiated close. Return false (or a Promise that
    * resolves to false) to veto the close — e.g. to show an unsaved-changes
    * dialog. Not invoked for programmatic closes (closeTab).
    */
-  confirmClose?(entry: E, host: TabHost, ctx: TabKindContext): boolean | Promise<boolean>;
+  confirmClose?(entry: E, host: TabHost, ctx: TabViewContext): boolean | Promise<boolean>;
 
   /**
    * Called after a tab of this kind becomes the active tab in its pane.
    * Use for side-effects that should only run when the tab is brought into
    * focus (e.g. updating telemetry scope). Not called on initial open.
    */
-  onActivate?(entry: E, ctx: TabKindContext): void;
+  onActivate?(entry: E, ctx: TabViewContext): void;
 
   /**
    * Synchronous teardown after an entry is removed from the store.
    * Use for resource cleanup that the engine cannot know about
    * (e.g. browser session teardown).
    */
-  onClose?(entry: E, ctx: TabKindContext): void;
+  onClose?(entry: E, ctx: TabViewContext): void;
 
   /**
    * Called once when a PaneStore is constructed. Wire store-lifetime
@@ -229,5 +230,5 @@ export interface TabProvider<
    * conversation is deleted, open-in-new-tab listener). Return a disposer
    * that the store calls when it is disposed.
    */
-  mount?(host: TabHost, ctx: TabKindContext): () => void;
+  mount?(host: TabHost, ctx: TabViewContext): () => void;
 }

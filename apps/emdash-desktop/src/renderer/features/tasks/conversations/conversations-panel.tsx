@@ -11,7 +11,7 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
-import { PaneSizingProvider } from '@renderer/lib/pty/pane-sizing-context';
+import { PaneSizingContextProvider } from '@renderer/lib/pty/pane-sizing-context';
 import { PtyPane } from '@renderer/lib/pty/pty-pane';
 import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
 import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
@@ -30,7 +30,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const workspace = useWorkspace();
   const workspaceId = useWorkspaceId();
   const { value: interfaceSettings } = useAppSettingsKey('interface');
-  const { paneId, pane } = usePaneContext();
+  const { pane } = usePaneContext();
   const isActive = useIsActiveTask(taskId);
   const remoteConnectionId = workspace.sshConnectionId;
 
@@ -111,7 +111,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
             }
           }}
         >
-          <PaneSizingProvider paneId={`conversations-${paneId}`} sessionIds={allSessionIds}>
+          <PaneSizingContextProvider sessionIds={allSessionIds}>
             <div className="flex min-h-0 flex-1 flex-col">
               {activeSessionId && activeSession?.status === 'ready' && activeSession.pty ? (
                 <div ref={terminalContainerRef} className="relative flex h-full min-h-0 flex-1">
@@ -138,7 +138,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
                 </div>
               ) : null}
             </div>
-          </PaneSizingProvider>
+          </PaneSizingContextProvider>
         </div>
       </div>
       <ContextBar

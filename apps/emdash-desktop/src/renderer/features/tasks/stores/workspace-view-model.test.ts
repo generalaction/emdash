@@ -1,5 +1,7 @@
 import { makeObservable, observable, runInAction } from 'mobx';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { rpc } from '@renderer/lib/ipc';
+import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import type { Task } from '@shared/core/tasks/tasks';
 import type { Terminal } from '@shared/core/terminals/terminals';
@@ -33,8 +35,6 @@ vi.mock('@renderer/features/tasks/conversations/conversation-title-utils', () =>
   formatConversationTitleForDisplay: (_providerId: unknown, title: unknown) =>
     (title as string) ?? 'Conversation',
 }));
-
-import '@renderer/features/tabs/providers';
 
 vi.mock('@renderer/lib/ipc', () => ({
   events: { on: () => () => {} },
@@ -212,6 +212,9 @@ afterEach(() => {
   terminalRegistry.release('task-1');
   terminalRegistryEntries().delete('task-1');
   workspaceRegistry.release('project-1', 'workspace-1');
+  // Clear cache keys written by TaskTabViewPersistor so tests don't pollute each other.
+  viewStateCache.delete('task:task-1:tabs');
+  viewStateCache.delete('task:task-persistor:tabs');
 });
 
 describe('WorkspaceViewModel terminal drawer snapshot', () => {
@@ -702,6 +705,96 @@ describe('WorkspaceViewModel conversation hydration', () => {
     expect(dehydrateConversation).toHaveBeenCalledTimes(1);
     expect(dehydrateConversation).toHaveBeenCalledWith('conversation-1');
 
+    viewModel.dispose();
+  });
+});
+
+describe('WorkspaceViewModel tab persistence adapter', () => {
+  const PERSISTOR_TASK_ID = 'task-persistor';
+
+  function makePersistorViewModel(): WorkspaceViewModel {
+    return new WorkspaceViewModel({
+      data: makeTask({ id: PERSISTOR_TASK_ID }),
+    } as unknown as TaskStore);
+  }
+
+  it('restores tabs from legacy aggregate tabGroups via the persistor', () => {
+    const viewModel = makePersistorViewModel();
+    viewModel.restoreSnapshot({
+      focusedRegion: 'main',
+      tabGroups: {
+        groups: [
+          {
+            groupId: 'group-1',
+            tabManager: { tabs: [], activeTabId: undefined },
+          },
+        ],
+        activeGroupId: 'group-1',
+        paneSizes: [100],
+      },
+    });
+
+    expect(viewModel.paneLayout.groups).toHaveLength(1);
+    expect(viewModel.paneLayout.groups[0].paneId).toBe('group-1');
+    viewModel.dispose();
+  });
+
+  it('gates default-conversation auto-open when tab state is restored', () => {
+    const conversations = conversationRegistry.acquire(PERSISTOR_TASK_ID, 'project-1', [
+      makeConversation({
+        id: 'conversation-1',
+        isInitialConversation: true,
+        taskId: PERSISTOR_TASK_ID,
+      }),
+    ]);
+    const viewModel = makePersistorViewModel();
+
+    viewModel.restoreSnapshot({
+      focusedRegion: 'main',
+      tabGroups: {
+        groups: [
+          {
+            groupId: 'group-1',
+            tabManager: { tabs: [], activeTabId: undefined },
+          },
+        ],
+        activeGroupId: 'group-1',
+        paneSizes: [100],
+      },
+    });
+
+    // Conversation list changes should not open a default conversation when tabs were restored.
+    runInAction(() => {
+      const conv = makeConversation({
+        id: 'conversation-2',
+        title: 'Conversation 2',
+        taskId: PERSISTOR_TASK_ID,
+      });
+      conversations.conversations.set(conv.id, new ConversationStore(conv));
+    });
+
+    expect(conversationTabIds(viewModel)).toHaveLength(0);
+    viewModel.dispose();
+    conversationRegistry.release(PERSISTOR_TASK_ID);
+  });
+
+  it('eager-writes dedicated tabs key when migrating from legacy aggregate', () => {
+    vi.mocked(rpc.viewState.save).mockClear();
+
+    const viewModel = makePersistorViewModel();
+    viewModel.restoreSnapshot({
+      focusedRegion: 'main',
+      tabGroups: {
+        groups: [{ groupId: 'g1', tabManager: { tabs: [], activeTabId: undefined } }],
+        activeGroupId: 'g1',
+        paneSizes: [100],
+      },
+    });
+
+    expect(vi.mocked(rpc.viewState.save)).toHaveBeenCalledWith(
+      `task:${PERSISTOR_TASK_ID}:tabs`,
+      expect.objectContaining({ groups: expect.any(Array) })
+    );
     viewModel.dispose();
   });
 });

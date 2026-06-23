@@ -3,19 +3,21 @@ import type {
   TabProvider,
   TabHost,
   TabItemProps,
-  TabKindContext,
-  TabRendererProps,
+  TabViewContext,
+  TabContentProps,
   ResolvedTab,
   ResolveContext,
 } from '@renderer/features/tabs/core/tab-provider';
-import { registerTabProvider } from '@renderer/features/tabs/core/tab-provider-registry';
 import { TabContextMenu } from '@renderer/features/tabs/tab-bar/tab-context-menu';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import type { TabDescriptor } from '@shared/view-state';
+import type { TaskTabContext } from '../stores/task-tab-context';
+import { EditorProvider } from './editor-provider';
 import { FileRenderer } from './file-renderer';
 import { FileTabItem, FileTabDragPreview } from './file-tab-item';
+import { MonacoFileRenderer } from './monaco-file-renderer';
 import { FileTabStore } from './stores/file-tab-store';
 
 export interface FileOpenArgs {
@@ -53,19 +55,44 @@ function FileTabItemAdapter({ tab, host, ctx }: TabItemProps<FileResolvedData>) 
 }
 
 /**
- * Renders the active file tab; returns null when no file tab is active.
- * FileRenderer uses ShowHide internally to keep Monaco alive across tab switches.
+ * Mounts EditorProvider unconditionally so the Monaco instance persists across
+ * tab switches. The Monaco host is overlaid and visibility-toggled rather than
+ * unmounted, so cursor position and scroll survive kind transitions.
  */
-const FileTabRenderer = observer(function FileTabRenderer({ host }: TabRendererProps) {
+const FileTabContent = observer(function FileTabContent({ host }: TabContentProps) {
+  return (
+    <EditorProvider>
+      <FileTabBody host={host} />
+    </EditorProvider>
+  );
+});
+
+const MONACO_KINDS = new Set(['text', 'svg-source', 'html-source', 'markdown-source']);
+
+const FileTabBody = observer(function FileTabBody({ host }: { host: TabHost }) {
   const activeTab = host.resolvedTabs.find((t) => t.isActive);
-  if (activeTab?.kind !== 'file') return null;
-  const activeTabId = activeTab.tabId;
-  const entry = host.findEntry((e): e is FileTabStore => {
-    const s = e as FileTabStore;
-    return s.kind === 'file' && s.tabId === activeTabId;
-  });
-  if (!entry) return null;
-  return <FileRenderer tab={entry} />;
+  const activeFile =
+    activeTab?.kind === 'file'
+      ? host.findEntry(
+          (e): e is FileTabStore =>
+            (e as FileTabStore).kind === 'file' && (e as FileTabStore).tabId === activeTab.tabId
+        )
+      : null;
+
+  const monacoActive = activeFile ? MONACO_KINDS.has(activeFile.renderer.kind) : false;
+
+  return (
+    <div className="relative h-full w-full overflow-hidden">
+      <div className="absolute inset-0" style={{ visibility: monacoActive ? 'visible' : 'hidden' }}>
+        <MonacoFileRenderer />
+      </div>
+      {activeFile && (
+        <div className="absolute inset-0">
+          <FileRenderer tab={activeFile} />
+        </div>
+      )}
+    </div>
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -73,6 +100,7 @@ const FileTabRenderer = observer(function FileTabRenderer({ host }: TabRendererP
 // ---------------------------------------------------------------------------
 
 export const fileTabProvider: TabProvider<
+  'file',
   FileTabStore,
   FileResolvedData,
   FileDescriptor,
@@ -81,7 +109,9 @@ export const fileTabProvider: TabProvider<
   kind: 'file',
 
   resolve(entry: FileTabStore, ctx: ResolveContext): FileResolvedData {
-    const bufferUri = entry.isExternal ? '' : buildMonacoModelPath(ctx.modelRootPath, entry.path);
+    const bufferUri = entry.isExternal
+      ? ''
+      : buildMonacoModelPath((ctx as unknown as TaskTabContext).modelRootPath, entry.path);
     return {
       path: entry.path,
       isExternal: entry.isExternal,
@@ -100,7 +130,7 @@ export const fileTabProvider: TabProvider<
     };
   },
 
-  deserialize(data: FileDescriptor, _ctx: TabKindContext): FileTabStore {
+  deserialize(data: FileDescriptor, _ctx: TabViewContext): FileTabStore {
     const tab = new FileTabStore(data.path, data.isPreview, data.tabId);
     if (data.isExternal) tab.markExternalLoading();
     return tab;
@@ -108,13 +138,13 @@ export const fileTabProvider: TabProvider<
 
   TabItem: FileTabItemAdapter,
   DragPreview: FileTabDragPreview,
-  Renderer: FileTabRenderer,
+  Content: FileTabContent,
 
   title(tab: ResolvedTab<FileResolvedData>): string {
     return tab.path.split('/').pop() ?? 'Untitled';
   },
 
-  open(args: FileOpenArgs, host: TabHost, ctx: TabKindContext): void {
+  open(args: FileOpenArgs, host: TabHost, ctx: TabViewContext): void {
     const existing = host.findEntry(
       (e): e is FileTabStore =>
         (e as FileTabStore).kind === 'file' && (e as FileTabStore).path === args.path
@@ -133,7 +163,7 @@ export const fileTabProvider: TabProvider<
           !(e as FileTabStore).isExternal
       );
       const prevUri = prevPreview
-        ? buildMonacoModelPath(ctx.modelRootPath, prevPreview.path)
+        ? buildMonacoModelPath((ctx as TaskTabContext).modelRootPath, prevPreview.path)
         : null;
       const canReplace = prevPreview && prevUri && !modelRegistry.isDirty(prevUri);
 
@@ -171,9 +201,9 @@ export const fileTabProvider: TabProvider<
     host.attachEntry(tab, { activate: true });
   },
 
-  async confirmClose(entry: FileTabStore, _host: TabHost, ctx: TabKindContext): Promise<boolean> {
+  async confirmClose(entry: FileTabStore, _host: TabHost, ctx: TabViewContext): Promise<boolean> {
     if (entry.isExternal) return true;
-    const bufferUri = buildMonacoModelPath(ctx.modelRootPath, entry.path);
+    const bufferUri = buildMonacoModelPath((ctx as TaskTabContext).modelRootPath, entry.path);
     if (!modelRegistry.isDirty(bufferUri)) return true;
 
     const fileName = entry.path.split('/').pop() ?? entry.path;
@@ -192,5 +222,3 @@ export const fileTabProvider: TabProvider<
     );
   },
 };
-
-registerTabProvider(fileTabProvider);

@@ -1,12 +1,10 @@
 import { observer } from 'mobx-react-lite';
-import { useEffect, useRef } from 'react';
-import { tabProviderRegistry } from '@renderer/features/tabs/core/tab-provider-registry';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { useTabShortcuts } from '@renderer/features/tabs/hooks/useTabShortcuts';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { PaneDropZone } from './tab-bar/draggable-tab';
-import { TabBarActions } from './tab-bar/tab-bar-actions';
 
-export const TabBar = observer(function TabBar() {
+export const TabBar = observer(function TabBar({ actionsSlot }: { actionsSlot?: ReactNode }) {
   const { paneId, pane, isFocusedPane } = usePaneContext();
 
   useTabShortcuts(pane, { focused: isFocusedPane });
@@ -28,14 +26,14 @@ export const TabBar = observer(function TabBar() {
     <div className="task-tab-bar flex h-[41px] shrink-0 items-center justify-between border-b border-border bg-background-secondary">
       <div ref={scrollContainerRef} className="flex h-full w-full overflow-x-auto">
         {resolvedTabs.map((tab) => {
-          if (!tabProviderRegistry.has(tab.kind)) return null;
-          const def = tabProviderRegistry.get(tab.kind);
+          if (!pane.registry.has(tab.kind)) return null;
+          const def = pane.registry.get(tab.kind);
           const TabItemComponent = def.TabItem;
           return <TabItemComponent key={tab.tabId} tab={tab} host={pane} ctx={pane.ctx} />;
         })}
         <PaneDropZone paneId={paneId} />
       </div>
-      <TabBarActions />
+      {actionsSlot}
     </div>
   );
 });

@@ -146,7 +146,6 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           className="h-full"
           activeSession={activeSession}
           allSessionIds={allSessionIds}
-          paneId="terminal-drawer"
           autoFocus={autoFocus}
           emptyState={emptyState}
           remoteConnectionId={remoteConnectionId}

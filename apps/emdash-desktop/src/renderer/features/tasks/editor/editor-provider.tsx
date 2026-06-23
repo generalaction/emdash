@@ -17,6 +17,7 @@ import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { defineMonacoThemes, getMonacoTheme } from '@renderer/lib/monaco/monaco-themes';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
+import { useTaskViewContext } from '../task-view-context';
 import {
   activeFileEntry as getActiveFileEntry,
   activeFilePath as getActiveFilePath,
@@ -25,15 +26,9 @@ import {
 interface EditorContextValue {
   /**
    * Ref callback that appends the pane's stable Monaco editor container to the
-   * given DOM element. Called by PaneContent to position the editor host.
+   * given DOM element. Called by MonacoFileRenderer to position the editor host.
    */
   setEditorHost: (el: HTMLElement | null) => void;
-  /**
-   * Explicitly re-runs layout() on the Monaco editor.
-   * Call this whenever the Monaco host transitions from hidden to visible
-   * (e.g. when activeRenderer switches to 'monaco').
-   */
-  triggerLayout: () => void;
 }
 
 const EditorContext = createContext<EditorContextValue | null>(null);
@@ -46,13 +41,10 @@ export function useEditorContext(): EditorContextValue {
 
 export const EditorProvider = observer(function EditorProvider({
   children,
-  taskId,
-  projectId: _projectId,
 }: {
   children: ReactNode;
-  taskId: string;
-  projectId: string;
 }) {
+  const { taskId } = useTaskViewContext();
   const taskView = useWorkspaceViewModel();
   const { editorView, paneLayout } = taskView;
   const { paneId, pane: paneTabManager } = usePaneContext();
@@ -264,16 +256,5 @@ export const EditorProvider = observer(function EditorProvider({
     }
   }, []);
 
-  // ---------------------------------------------------------------------------
-  // triggerLayout — called when the Monaco host transitions from hidden to visible.
-  // ---------------------------------------------------------------------------
-  const triggerLayout = useCallback(() => {
-    editorRef.current?.layout();
-  }, []);
-
-  return (
-    <EditorContext.Provider value={{ setEditorHost, triggerLayout }}>
-      {children}
-    </EditorContext.Provider>
-  );
+  return <EditorContext.Provider value={{ setEditorHost }}>{children}</EditorContext.Provider>;
 });

@@ -1,9 +1,5 @@
 import type { ILifecycle } from '@emdash/shared';
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
-// Bootstrap tab kind registrations before any PaneStore is constructed.
-import '@renderer/features/tabs/providers';
-import { PaneLayoutStore } from '@renderer/features/tabs/pane-layout-store';
-import type { PaneStore } from '@renderer/features/tabs/pane-store';
 import { DiffTabLifecycleStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import { activeFileEntry as getActiveFileEntry } from '@renderer/features/tasks/editor/pane-selectors';
@@ -22,10 +18,12 @@ import type {
   TaskViewSnapshot,
   TerminalDrawerActiveItem,
 } from '@shared/view-state';
+import { taskTabView } from '../task-tab-registry';
 import { ConversationHydrationReconciler } from './conversation-hydration-reconciler';
 import { conversationRegistry } from './conversation-registry';
 import { PrStore } from './pr-store';
 import type { TaskStore } from './task-store';
+import type { TaskTabContext } from './task-tab-context';
 import { terminalRegistry } from './terminal-registry';
 import { workspaceRegistry } from './workspace-registry';
 
@@ -40,7 +38,7 @@ export class WorkspaceViewModel implements ILifecycle {
   terminalDrawerActiveItem: TerminalDrawerActiveItem | undefined;
 
   /** Stable sub-stores — live for the full WorkspaceViewModel lifetime. */
-  readonly paneLayout: PaneLayoutStore;
+  readonly paneLayout: ReturnType<typeof taskTabView.createPaneLayoutStore>;
   readonly terminalTabs: TerminalTabViewStore;
   readonly editorView: FileModelLifecycleStore;
 
@@ -49,7 +47,7 @@ export class WorkspaceViewModel implements ILifecycle {
    * Callers outside the split-pane render tree use this to access tab state
    * without needing to know about multiple panes.
    */
-  get activePane(): PaneStore {
+  get activePane(): ReturnType<typeof taskTabView.createPaneLayoutStore>['focusedPane'] {
     return this.paneLayout.focusedPane;
   }
 
@@ -95,7 +93,14 @@ export class WorkspaceViewModel implements ILifecycle {
 
     const workspaceId = taskData.workspaceId ?? taskData.id;
 
-    this.paneLayout = new PaneLayoutStore(workspaceId, taskData.projectId, this.taskId);
+    const taskCtx: TaskTabContext = {
+      viewId: this.taskId,
+      projectId: taskData.projectId,
+      workspaceId,
+      taskId: this.taskId,
+      modelRootPath: `workspace:${workspaceId}`,
+    };
+    this.paneLayout = taskTabView.createPaneLayoutStore(taskCtx);
     this.terminalTabs = new TerminalTabViewStore(() => terminalRegistry.get(this.taskId) ?? null);
     this.editorView = new FileModelLifecycleStore(this.paneLayout, taskData.projectId, workspaceId);
 
@@ -201,7 +206,6 @@ export class WorkspaceViewModel implements ILifecycle {
       focusedRegion: this.focusedRegion,
       isTerminalDrawerOpen: this.isTerminalDrawerOpen,
       terminalDrawerActiveItem: this.terminalDrawerActiveItem,
-      tabGroups: this.paneLayout.snapshot,
       terminals: this.terminalTabs.snapshot,
       editor: this.editorView.snapshot,
       diffView: this.diffView?.snapshot ?? this._savedDiffViewSnapshot,
@@ -217,50 +221,15 @@ export class WorkspaceViewModel implements ILifecycle {
    * initialize() so the reaction baseline is correct.
    */
   restoreSnapshot(savedSnapshot: TaskViewSnapshot): void {
-    const hasRestoredTabSnapshot =
-      savedSnapshot.tabGroups !== undefined ||
-      savedSnapshot.tabManager !== undefined ||
-      (savedSnapshot.conversations?.tabOrder?.length ?? 0) > 0;
-    this._hasConsumedDefaultConversationAutoOpen = hasRestoredTabSnapshot;
-
     this.sidebarTab = (savedSnapshot.sidebarTab as SidebarTab) ?? 'conversations';
     this.isSidebarCollapsed = savedSnapshot.isSidebarCollapsed ?? true;
     this.focusedRegion = savedSnapshot.focusedRegion === 'bottom' ? 'bottom' : 'main';
     this.isTerminalDrawerOpen = savedSnapshot.isTerminalDrawerOpen ?? false;
     this.terminalDrawerActiveItem = savedSnapshot.terminalDrawerActiveItem;
 
-    if (savedSnapshot.tabGroups) {
-      // Current format: multi-group snapshot.
-      this.paneLayout.restoreSnapshot(savedSnapshot.tabGroups);
-    } else if (savedSnapshot.tabManager) {
-      // Legacy migration: single-pane tabManager snapshot from before split panes.
-      this.paneLayout.restoreSnapshot({
-        groups: [{ groupId: crypto.randomUUID(), tabManager: savedSnapshot.tabManager }],
-        activeGroupId: '',
-        paneSizes: [100],
-      });
-    } else if (savedSnapshot.conversations?.tabOrder?.length) {
-      // Legacy migration: conversation tabs were stored under `conversations` before
-      // the unified tab refactor.
-      this.paneLayout.restoreSnapshot({
-        groups: [
-          {
-            groupId: crypto.randomUUID(),
-            tabManager: {
-              tabs: savedSnapshot.conversations.tabOrder.map((id) => ({
-                kind: 'conversation' as const,
-                tabId: crypto.randomUUID(),
-                conversationId: id,
-                isPreview: false,
-              })),
-              activeTabId: undefined,
-            },
-          },
-        ],
-        activeGroupId: '',
-        paneSizes: [100],
-      });
-    }
+    // Pass the aggregate blob as fallback so the persistor can migrate legacy
+    // tabGroups/tabManager/conversations fields when no dedicated key exists yet.
+    this._hasConsumedDefaultConversationAutoOpen = this.paneLayout.hydrate(savedSnapshot);
 
     if (savedSnapshot.terminals) {
       this.terminalTabs.restoreSnapshot(savedSnapshot.terminals);
@@ -313,6 +282,7 @@ export class WorkspaceViewModel implements ILifecycle {
 
     // Register snapshot with the persistence layer.
     this._snapshotDisposer = snapshotRegistry.register(`task:${this.taskId}`, () => this.snapshot);
+    this.paneLayout.startPersistence();
 
     // Open the default conversation tab only for fresh task views. If tab state was
     // restored, even an empty tab list represents the user's persisted choice.
@@ -380,6 +350,7 @@ export class WorkspaceViewModel implements ILifecycle {
     // Stop snapshot persistence.
     this._snapshotDisposer?.();
     this._snapshotDisposer = null;
+    this.paneLayout.stopPersistence();
 
     // Dispose session-scoped reactions.
     for (const d of this._sessionDisposers) d();

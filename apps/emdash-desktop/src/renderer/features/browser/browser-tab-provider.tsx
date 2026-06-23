@@ -8,15 +8,14 @@ import { getAppSettingValueSnapshot } from '@renderer/features/settings/app-sett
 import type {
   TabProvider,
   TabItemProps,
-  TabKindContext,
-  TabRendererProps,
+  TabViewContext,
+  TabContentProps,
   ResolvedTab,
   ResolveContext,
 } from '@renderer/features/tabs/core/tab-provider';
-import { registerTabProvider } from '@renderer/features/tabs/core/tab-provider-registry';
 import { TabContextMenu } from '@renderer/features/tabs/tab-bar/tab-context-menu';
+import type { TaskTabContext } from '@renderer/features/tasks/stores/task-tab-context';
 import { events, rpc } from '@renderer/lib/ipc';
-import { ShowHide } from '@renderer/lib/ui/show-hide';
 import { normalizeBrowserProfileSelection, type BrowserSessionSnapshot } from '@shared/browser';
 import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 import type { TabDescriptor } from '@shared/view-state';
@@ -56,12 +55,12 @@ function BrowserTabItemAdapter({ tab, host, ctx }: TabItemProps<BrowserResolvedD
 }
 
 /**
- * Mounts BrowserPane for every open browser tab (keepalive via ShowHide).
- * The active browser tab is the one whose tabId matches the host's active tab.
+ * Mounts BrowserPane for every open browser tab; visibility is managed via
+ * visibility:hidden + inert so browser sessions survive tab switches.
  * When no browser tab is active, calls setActiveBrowser(null) so the browser
  * process stops responding to commands.
  */
-const BrowserTabRenderer = observer(function BrowserTabRenderer({ host }: TabRendererProps) {
+const BrowserTabContent = observer(function BrowserTabContent({ host }: TabContentProps) {
   const browserTabs = host.resolvedTabs.filter(
     (t): t is ResolvedTab<BrowserResolvedData> => t.kind === 'browser'
   );
@@ -80,9 +79,16 @@ const BrowserTabRenderer = observer(function BrowserTabRenderer({ host }: TabRen
       {browserTabs.map((tab) => {
         const visible = activeBrowserId === tab.browserId;
         return (
-          <ShowHide key={tab.browserId} visible={visible}>
+          <div
+            key={tab.browserId}
+            className="absolute inset-0"
+            style={{ visibility: visible ? 'visible' : 'hidden' }}
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore — `inert` is a valid HTML attribute in modern browsers but not yet in React types
+            inert={visible ? undefined : ''}
+          >
             <BrowserPane browserId={tab.browserId} visible={visible} />
-          </ShowHide>
+          </div>
         );
       })}
     </>
@@ -94,6 +100,7 @@ const BrowserTabRenderer = observer(function BrowserTabRenderer({ host }: TabRen
 // ---------------------------------------------------------------------------
 
 export const browserTabProvider: TabProvider<
+  'browser',
   BrowserTabEntry,
   BrowserResolvedData,
   BrowserDescriptor,
@@ -119,7 +126,7 @@ export const browserTabProvider: TabProvider<
     };
   },
 
-  deserialize(data: BrowserDescriptor, _ctx: TabKindContext): BrowserTabEntry {
+  deserialize(data: BrowserDescriptor, _ctx: TabViewContext): BrowserTabEntry {
     browserSessionStore.restoreSession(
       data.session,
       getAppSettingValueSnapshot('browser')?.profiles
@@ -129,7 +136,7 @@ export const browserTabProvider: TabProvider<
 
   TabItem: BrowserTabItemAdapter,
   DragPreview: BrowserTabDragPreview,
-  Renderer: BrowserTabRenderer,
+  Content: BrowserTabContent,
 
   title(tab: ResolvedTab<BrowserResolvedData>): string {
     const { session } = tab;
@@ -142,16 +149,17 @@ export const browserTabProvider: TabProvider<
     }
   },
 
-  open(args: BrowserOpenArgs, host, ctx: TabKindContext): void {
+  open(args: BrowserOpenArgs, host, ctx: TabViewContext): void {
+    const taskCtx = ctx as TaskTabContext;
     const browserSettings = getAppSettingValueSnapshot('browser');
     const profileId = normalizeBrowserProfileSelection(
       browserSettings?.defaultProfileId,
       browserSettings?.profiles
     );
     const session = browserSessionStore.createSession({
-      projectId: ctx.projectId,
-      workspaceId: ctx.workspaceId,
-      taskId: ctx.taskId,
+      projectId: taskCtx.projectId,
+      workspaceId: taskCtx.workspaceId,
+      taskId: taskCtx.taskId,
       profileId,
       initialUrl: args.initialUrl,
     });
@@ -159,7 +167,7 @@ export const browserTabProvider: TabProvider<
     host.attachEntry(entry, { activate: true });
   },
 
-  onClose(entry: BrowserTabEntry, _ctx: TabKindContext): void {
+  onClose(entry: BrowserTabEntry, _ctx: TabViewContext): void {
     browserDiagnosticsStore.clearBrowser(entry.browserId);
     browserSessionStore.removeSession(entry.browserId);
     void rpc.browser.unregisterSession(entry.browserId);
@@ -180,5 +188,3 @@ export const browserTabProvider: TabProvider<
     );
   },
 };
-
-registerTabProvider(browserTabProvider);
