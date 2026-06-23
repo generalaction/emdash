@@ -102,11 +102,21 @@ export class LocalPtySession implements Pty {
 
   onExit(handler: (info: PtyExitInfo) => void): void {
     this.proc.onExit(({ exitCode, signal }) => {
-      if (this.killTimer) {
-        clearTimeout(this.killTimer);
-        this.killTimer = null;
+      try {
+        if (this.killTimer) {
+          clearTimeout(this.killTimer);
+          this.killTimer = null;
+        }
+        handler({ exitCode, signal: normalizeSignal(signal) });
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : String(e);
+        log.error('LocalPtySession:onExit handler failed', {
+          id: this.id,
+          exitCode,
+          signal: normalizeSignal(signal),
+          error: message,
+        });
       }
-      handler({ exitCode, signal: normalizeSignal(signal) });
     });
   }
 

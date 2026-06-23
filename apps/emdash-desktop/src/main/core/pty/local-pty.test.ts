@@ -1,8 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { log } from '@main/lib/logger';
 import { LocalPtySession } from './local-pty';
 
 vi.mock('node-pty', () => ({
   spawn: vi.fn(),
+}));
+
+vi.mock('@main/lib/logger', () => ({
+  log: {
+    error: vi.fn(),
+    info: vi.fn(),
+  },
 }));
 
 describe('LocalPtySession', () => {
@@ -78,6 +86,26 @@ describe('LocalPtySession', () => {
 
     vi.advanceTimersByTime(2000);
     expect(process.kill).not.toHaveBeenCalledWith(-1234, 'SIGKILL');
+  });
+
+  it('catches errors thrown by onExit handlers', () => {
+    let exitHandler: ((info: { exitCode: number; signal: number }) => void) | undefined;
+    vi.mocked(mockProc.onExit).mockImplementation((handler) => {
+      exitHandler = handler;
+      return { dispose: vi.fn() };
+    });
+
+    pty.onExit(() => {
+      throw new Error('cleanup failed');
+    });
+
+    expect(() => exitHandler?.({ exitCode: 1, signal: 15 })).not.toThrow();
+    expect(log.error).toHaveBeenCalledWith('LocalPtySession:onExit handler failed', {
+      id: 'test-id',
+      exitCode: 1,
+      signal: 'SIGTERM',
+      error: 'cleanup failed',
+    });
   });
 
   it('kill() does not use process groups on Windows', () => {
