@@ -72,6 +72,11 @@ export function isPreviewableKind(kind: ManagedFileKind): boolean {
   return kind === 'svg' || kind === 'markdown' || kind === 'html' || kind === 'csv';
 }
 
+/** True for files backed by Monaco text models for source editing and saving. */
+export function isMonacoBackedKind(kind: ManagedFileKind): boolean {
+  return kind === 'text' || isPreviewableKind(kind);
+}
+
 /** True for files the diff viewer must not load into Monaco. */
 export function isBinaryForDiff(filePath: string): boolean {
   const kind = getFileKind(filePath);

@@ -1,6 +1,6 @@
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import type { TabGroupManagerStore } from '@renderer/features/tasks/tabs/tab-group-manager-store';
-import { getFileKind } from '@renderer/lib/editor/fileKind';
+import { getFileKind, isMonacoBackedKind } from '@renderer/lib/editor/fileKind';
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
@@ -252,7 +252,7 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
       return;
     }
 
-    if (kind === 'text' || kind === 'markdown' || kind === 'svg' || kind === 'html') {
+    if (isMonacoBackedKind(kind)) {
       const language = getMonacoLanguageId(filePath);
       try {
         await modelRegistry.registerModel(
