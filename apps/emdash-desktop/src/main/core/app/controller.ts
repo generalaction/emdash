@@ -2,6 +2,7 @@ import { getDiagnosticLogAttachment } from '@main/lib/file-logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import type { OpenInAppId } from '@shared/openInApps';
+import { appBadgeService } from './app-badge-service';
 import { appService } from './service';
 
 export const appController = createRPCController({
@@ -109,5 +110,8 @@ export const appController = createRPCController({
   getAppVersion: () => appService.getCachedAppVersion(),
   getElectronVersion: () => process.versions.electron,
   getPlatform: () => process.platform,
+  setNotificationBadgeCount: (count: number) => {
+    appBadgeService.setVisibleNotificationCount(count);
+  },
   getDiagnosticLogAttachment,
 });

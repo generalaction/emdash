@@ -134,7 +134,7 @@ void app.whenReady().then(async () => {
   prSyncScheduler.initialize();
   automationsService.start();
   appService.initialize();
-  await appBadgeService.initialize();
+  appBadgeService.initialize();
   await appSettingsService.initialize();
   browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
   setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
