@@ -84,7 +84,8 @@ export const streamWordDuration = createVar();
  */
 export const streamWord = style({
   display: 'inline-block',
-  animation: `${fadeIn} ${fallbackVar(streamWordDuration, '220ms')} ease-out both`,
+  // easeOutCubic — a soft, decelerating curve so words settle gently.
+  animation: `${fadeIn} ${fallbackVar(streamWordDuration, '200ms')} cubic-bezier(0.215, 0.61, 0.355, 1) both`,
 });
 
 // ── plan-spinner ──────────────────────────────────────────────────────────────

@@ -115,9 +115,9 @@ const meta: Meta<PlaygroundArgs> = {
     },
   },
   args: {
-    chunkMs: 55,
+    chunkMs: 10,
     chunkSize: 1,
-    animationDurationMs: 220,
+    animationDurationMs: 200,
     smoothed: false,
   },
 };
