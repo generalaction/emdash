@@ -1,6 +1,11 @@
 import type z from 'zod';
 import type { AssetDescriptors, AssetMap } from './asset';
-import type { CapabilityBehaviors, CapabilityDescriptors, CapabilityMap } from './capability';
+import type {
+  CapabilityBehaviors,
+  CapabilityDescriptors,
+  CapabilityMap,
+  ResolvedCapabilityDescriptors,
+} from './capability';
 
 /**
  * Create a plugin framework bound to a fixed capability map, metadata schema,
@@ -23,16 +28,23 @@ export function createPluginFramework<
     capabilities: CapabilityDescriptors<TCaps>,
     assets: AssetDescriptors<TAssets>
   ) {
+    const resolved = {} as ResolvedCapabilityDescriptors<TCaps>;
+    for (const key of Object.keys(capabilityMap) as (keyof TCaps)[]) {
+      const provided = (capabilities as Record<keyof TCaps, unknown>)[key];
+      (resolved as Record<keyof TCaps, unknown>)[key] =
+        provided !== undefined ? provided : capabilityMap[key].defaultDescriptor;
+    }
+
     return {
       metadata,
-      capabilities,
+      capabilities: resolved,
       assets,
       validate(): z.ZodError[] {
         const metaResult = metadataSchema.safeParse(metadata);
         if (!metaResult.success) return [metaResult.error];
         return [
           ...Object.entries(capabilityMap).flatMap(([key, cap]) => {
-            const result = cap.descriptorSchema.safeParse(capabilities[key as keyof TCaps]);
+            const result = cap.descriptorSchema.safeParse(resolved[key as keyof TCaps]);
             return result.success ? [] : [result.error];
           }),
           ...Object.entries(assetMap).flatMap(([key, asset]) => {

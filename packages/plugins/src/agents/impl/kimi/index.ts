@@ -38,9 +38,6 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'supported',
     },
-    effort: {
-      kind: 'none',
-    },
     hooks: {
       kind: 'config',
       scope: 'global',
@@ -73,15 +70,6 @@ export const plugin = definePlugin(
           kind: 'package-manager',
         },
       },
-    },
-    mcp: {
-      kind: 'none',
-    },
-    models: {
-      kind: 'none',
-    },
-    plugins: {
-      kind: 'none',
     },
     prompt: {
       kind: 'keystroke',

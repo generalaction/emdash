@@ -37,5 +37,6 @@ export const mcpCapability = definePluginCapability<IMcpBehavior>()(
     z.object({
       kind: z.literal('none'),
     }),
-  ])
+  ]),
+  { kind: 'none' }
 );

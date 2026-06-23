@@ -1,16 +1,10 @@
 import type { LiveValue } from '@emdash/core/lib';
 import { makeObservable, observable, runInAction } from 'mobx';
-
-type Waiter = {
-  sequence: number;
-  resolve: () => void;
-  reject: (error: Error) => void;
-  timer: ReturnType<typeof setTimeout> | undefined;
-};
+import { MirrorVersion } from './mirror-version';
 
 export class ModelMirror<T> {
   current: LiveValue<T> | null = null;
-  private waiters: Waiter[] = [];
+  private readonly version = new MirrorVersion('live model', 'ModelMirror');
 
   constructor() {
     makeObservable<this, 'current'>(this, {
@@ -22,12 +16,16 @@ export class ModelMirror<T> {
     return this.current?.value ?? null;
   }
 
+  get hasSnapshot(): boolean {
+    return this.current !== null;
+  }
+
   get sequence(): number {
-    return this.current?.sequence ?? -1;
+    return this.version.sequence;
   }
 
   get generation(): number {
-    return this.current?.generation ?? -1;
+    return this.version.generation;
   }
 
   setSnapshot(value: LiveValue<T>): void {
@@ -39,66 +37,20 @@ export class ModelMirror<T> {
   }
 
   waitForSequence(target: number, timeoutMs = 15_000): Promise<void> {
-    if (this.sequence >= target) return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      const waiter: Waiter = {
-        sequence: target,
-        resolve,
-        reject,
-        timer:
-          timeoutMs > 0
-            ? setTimeout(() => {
-                this.waiters = this.waiters.filter((candidate) => candidate !== waiter);
-                reject(new Error(`Timed out waiting for live model sequence ${target}`));
-              }, timeoutMs)
-            : undefined,
-      };
-      this.waiters.push(waiter);
-    });
+    return this.version.waitForSequence(target, timeoutMs);
   }
 
   dispose(): void {
-    for (const waiter of this.waiters) {
-      if (waiter.timer) clearTimeout(waiter.timer);
-      waiter.reject(new Error('ModelMirror disposed'));
-    }
-    this.waiters = [];
+    this.version.dispose();
   }
 
   private apply(value: LiveValue<T>): void {
-    if (this.current) {
-      if (value.generation < this.current.generation) return;
-      if (value.generation === this.current.generation && value.sequence <= this.current.sequence) {
-        return;
-      }
-    }
-    const generationChanged = this.current !== null && value.generation > this.current.generation;
+    if (!this.version.shouldApply(value.generation, value.sequence)) return;
+    const generationChanged = this.version.willChangeGeneration(value.generation);
     runInAction(() => {
       this.current = value;
+      this.version.accept(value.generation, value.sequence);
     });
-    if (generationChanged) {
-      this.flushAllWaiters();
-    } else {
-      this.flushCaughtUpWaiters();
-    }
-  }
-
-  private flushCaughtUpWaiters(): void {
-    const ready = this.waiters.filter((waiter) => this.sequence >= waiter.sequence);
-    if (ready.length === 0) return;
-    this.waiters = this.waiters.filter((waiter) => this.sequence < waiter.sequence);
-    for (const waiter of ready) {
-      if (waiter.timer) clearTimeout(waiter.timer);
-      waiter.resolve();
-    }
-  }
-
-  private flushAllWaiters(): void {
-    const ready = this.waiters;
-    this.waiters = [];
-    for (const waiter of ready) {
-      if (waiter.timer) clearTimeout(waiter.timer);
-      waiter.resolve();
-    }
+    this.version.flushAfterApply(generationChanged);
   }
 }

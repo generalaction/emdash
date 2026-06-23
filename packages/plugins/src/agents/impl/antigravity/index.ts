@@ -14,12 +14,6 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'supported',
     },
-    effort: {
-      kind: 'none',
-    },
-    hooks: {
-      kind: 'none',
-    },
     hostDependency: {
       id: 'antigravity',
       binaryNames: ['agy', 'antigravity'],
@@ -46,15 +40,6 @@ export const plugin = definePlugin(
           kind: 'package-manager',
         },
       },
-    },
-    mcp: {
-      kind: 'none',
-    },
-    models: {
-      kind: 'none',
-    },
-    plugins: {
-      kind: 'none',
     },
     prompt: {
       kind: 'argv',

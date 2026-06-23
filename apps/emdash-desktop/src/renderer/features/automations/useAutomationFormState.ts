@@ -86,7 +86,9 @@ export function useAutomationFormState(
     ? seedConversationConfig?.provider
     : undefined;
 
-  const initialConversation = useInitialConversationState(effectiveProjectId, seedProvider);
+  const initialConversation = useInitialConversationState(effectiveProjectId, seedProvider, false, {
+    resetPromptOnProjectChange: false,
+  });
 
   const [promptSeeded, setPromptSeeded] = useState(false);
   if (!promptSeeded && seedPrompt) {

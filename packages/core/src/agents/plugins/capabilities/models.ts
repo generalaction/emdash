@@ -27,5 +27,6 @@ export const modelsCapability = definePluginCapability()(
       modelOptions: z.record(z.string(), modelOptionSchema),
     }),
     z.object({ kind: z.literal('none') }),
-  ])
+  ]),
+  { kind: 'none' }
 );
