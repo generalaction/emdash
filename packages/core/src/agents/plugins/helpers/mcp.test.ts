@@ -1,7 +1,12 @@
 import { parse as parseTOML } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
 import type { PluginFs } from '../../runtime/fs';
-import { codexMcpAdapter, createMcpAdapter, passthroughMcpAdapter } from './mcp';
+import {
+  codexMcpAdapter,
+  createMcpAdapter,
+  opencodeMcpAdapter,
+  passthroughMcpAdapter,
+} from './mcp';
 
 // ── In-memory PluginFs ───────────────────────────────────────────────────────
 
@@ -250,5 +255,119 @@ describe('codexMcpAdapter', () => {
       headers: { Authorization: 'Bearer token' },
     });
     expect(result[0].http_headers).toBeUndefined();
+  });
+});
+
+// ── OpenCode adapter ────────────────────────────────────────────────────────
+
+describe('opencodeMcpAdapter', () => {
+  const adapter = opencodeMcpAdapter('.config/opencode/opencode.json');
+
+  it('writes local servers using OpenCode env and enabled fields', async () => {
+    const fs = createMemoryFs();
+
+    await adapter.writeServers(fs, [
+      {
+        name: 'playwright',
+        command: 'npx',
+        args: ['-y', '@playwright/mcp'],
+        env: { BROWSER: 'chromium' },
+        enabled: false,
+      },
+    ]);
+
+    const raw = await fs.read('.config/opencode/opencode.json');
+    const parsed = JSON.parse(raw!) as {
+      mcp: Record<string, Record<string, unknown>>;
+    };
+
+    expect(parsed.mcp.playwright).toEqual({
+      type: 'local',
+      command: ['npx', '-y', '@playwright/mcp'],
+      enabled: false,
+      env: { BROWSER: 'chromium' },
+    });
+  });
+
+  it('reads local servers from env and legacy environment fields', async () => {
+    const fs = createMemoryFs({
+      '.config/opencode/opencode.json': jsonFile({
+        mcp: {
+          current: {
+            type: 'local',
+            command: ['npx', '-y', '@current/mcp'],
+            enabled: false,
+            env: { CURRENT: '1' },
+          },
+          legacy: {
+            type: 'local',
+            command: ['node', 'server.js'],
+            environment: { LEGACY: '1' },
+          },
+        },
+      }),
+    });
+
+    const result = await adapter.readServers(fs);
+
+    expect(result).toContainEqual({
+      name: 'current',
+      command: 'npx',
+      args: ['-y', '@current/mcp'],
+      enabled: false,
+      env: { CURRENT: '1' },
+    });
+    expect(result).toContainEqual({
+      name: 'legacy',
+      command: 'node',
+      args: ['server.js'],
+      env: { LEGACY: '1' },
+    });
+  });
+
+  it('preserves disabled inherited OpenCode servers', async () => {
+    const fs = createMemoryFs({
+      '.config/opencode/opencode.json': jsonFile({
+        mcp: {
+          inherited: { enabled: false },
+        },
+      }),
+    });
+
+    const result = await adapter.readServers(fs);
+    expect(result).toEqual([{ name: 'inherited', enabled: false }]);
+
+    await adapter.writeServers(fs, result);
+
+    const raw = await fs.read('.config/opencode/opencode.json');
+    const parsed = JSON.parse(raw!) as {
+      mcp: Record<string, Record<string, unknown>>;
+    };
+    expect(parsed.mcp.inherited).toEqual({ enabled: false });
+  });
+
+  it('preserves enabled on remote servers', async () => {
+    const fs = createMemoryFs({
+      '.config/opencode/opencode.json': jsonFile({
+        mcp: {
+          remote: {
+            type: 'remote',
+            url: 'https://example.com/mcp',
+            enabled: false,
+            headers: { Authorization: 'Bearer token' },
+          },
+        },
+      }),
+    });
+
+    const result = await adapter.readServers(fs);
+
+    expect(result[0]).toMatchObject({
+      name: 'remote',
+      type: 'http',
+      url: 'https://example.com/mcp',
+      enabled: false,
+      headers: { Authorization: 'Bearer token' },
+    });
   });
 });

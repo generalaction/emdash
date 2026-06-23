@@ -286,6 +286,7 @@ export function opencodeMcpAdapter(
     toNative(s) {
       const entry = deepClone(s) as Record<string, unknown>;
       delete entry.name;
+      const enabled = typeof entry.enabled === 'boolean' ? entry.enabled : true;
       if (entry.type === 'http') {
         const url = (entry.url as string) ?? '';
         const baseHeaders = (entry.headers as Record<string, string>) ?? {};
@@ -295,7 +296,7 @@ export function opencodeMcpAdapter(
           type: 'remote',
           url,
           headers,
-          enabled: true,
+          enabled,
         };
         if (entry.env) result.env = entry.env;
         return result;
@@ -304,14 +305,15 @@ export function opencodeMcpAdapter(
       const cmdVec: string[] = [];
       if (typeof entry.command === 'string' && entry.command) cmdVec.push(entry.command as string);
       if (Array.isArray(entry.args)) cmdVec.push(...(entry.args as string[]));
-      const result: Record<string, unknown> = { type: 'local', command: cmdVec, enabled: true };
-      if (entry.env) result.environment = entry.env;
+      if (!cmdVec.length && enabled === false) return { enabled: false };
+      const result: Record<string, unknown> = { type: 'local', command: cmdVec, enabled };
+      if (entry.env) result.env = entry.env;
       return result;
     },
     fromNative(name, raw) {
       const entry = deepClone(raw) as Record<string, unknown>;
       if (entry.type === 'remote') {
-        const { type: _t, enabled: _e, ...rest } = entry;
+        const { type: _t, ...rest } = entry;
         const result = { ...rest, type: 'http' } as Record<string, unknown>;
         stripInjectedHeaders(result);
         return { name, ...result } as McpServerRegistration;
@@ -322,7 +324,9 @@ export function opencodeMcpAdapter(
         const result: Record<string, unknown> = {};
         if (command) result.command = command;
         if (args.length) result.args = args;
-        if (entry.environment) result.env = entry.environment;
+        if (entry.env) result.env = entry.env;
+        else if (entry.environment) result.env = entry.environment;
+        if (typeof entry.enabled === 'boolean') result.enabled = entry.enabled;
         return { name, ...result } as McpServerRegistration;
       }
       return { name, ...entry } as McpServerRegistration;

@@ -24,6 +24,7 @@ export function registrationToMcpServer(
       typeof reg.env === 'object' && reg.env !== null
         ? (reg.env as Record<string, string>)
         : undefined,
+    enabled: typeof reg.enabled === 'boolean' ? reg.enabled : undefined,
     providers,
   };
 }
@@ -40,6 +41,7 @@ export function mcpServerToRegistration(server: McpServer): McpServerRegistratio
     url: server.url,
     headers: server.headers,
     env: server.env,
+    enabled: server.enabled,
   };
 }
 
@@ -54,5 +56,6 @@ export function mcpServerFieldCount(server: McpServer): number {
   if (server.url) n++;
   if (server.headers && Object.keys(server.headers).length) n++;
   if (server.env && Object.keys(server.env).length) n++;
+  if (server.enabled !== undefined) n++;
   return n;
 }

@@ -19,6 +19,7 @@ export type McpServerRegistration = {
   url?: string;
   headers?: Record<string, string>;
   env?: Record<string, string>;
+  enabled?: boolean;
   [key: string]: unknown;
 };
 
