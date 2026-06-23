@@ -6,6 +6,7 @@ import type { FeatureAnnouncementManifest } from '@shared/feature-announcements/
 const manifest: FeatureAnnouncementManifest = {
   enabled: true,
   id: 'test-announcement',
+  display: 'toast',
   eyebrow: 'Now available',
   title: 'Test Feature',
   changelogUrl: 'https://emdash.sh/changelog',
@@ -29,27 +30,25 @@ describe('FeatureAnnouncementStore', () => {
     });
   });
 
-  it('hides dismissed announcements', () => {
+  it('does not present dismissed announcements', () => {
     const store = new FeatureAnnouncementStore();
     store.setManifest(manifest);
-    store.dismiss();
+    store.dismissForTest(manifest.id);
 
-    expect(store.visibleManifest).toBeNull();
+    expect(store.shouldPresent).toBe(false);
   });
 
-  it('shows preview announcements even when dismissed', () => {
+  it('presents unseen announcements', () => {
     const store = new FeatureAnnouncementStore();
     store.setManifest(manifest);
-    store.dismiss();
-    store.preview(manifest);
 
-    expect(store.visibleManifest).toEqual(manifest);
+    expect(store.shouldPresent).toBe(true);
   });
 
   it('persists dismissed announcement ids', () => {
     const store = new FeatureAnnouncementStore();
     store.setManifest(manifest);
-    store.dismiss();
+    store.dismissForTest(manifest.id);
 
     expect(localStorage.getItem(FEATURE_ANNOUNCEMENT_DISMISSED_STORAGE_KEY)).toBe(
       JSON.stringify(['test-announcement'])

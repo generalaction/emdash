@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AppMenuEvents } from './app/app-menu-events';
 import { WelcomeScreen } from './app/welcome';
 import { Workspace } from './app/workspace';
+import { FeatureAnnouncementLauncher } from './features/feature-announcements/feature-announcement-launcher';
 import { IntegrationsProvider } from './features/integrations/integrations-provider';
 import { Onboarding } from './features/onboarding/onboarding';
 import { FramelessTitlebarOverlay } from './lib/components/titlebar/window-controls';
@@ -91,6 +92,8 @@ function AppContent() {
     return <Workspace />;
   };
 
+  const workspaceVisible = !isLoading && view === 'workspace';
+
   return (
     <TooltipProvider delay={300}>
       <WorkspaceLayoutContextProvider>
@@ -99,6 +102,7 @@ function AppContent() {
             <IntegrationsProvider>
               <WorkspaceViewProvider>
                 <AppMenuEvents onOpenSettings={handleOpenSettingsFromMenu} />
+                <FeatureAnnouncementLauncher active={workspaceVisible} />
                 <RightSidebarProvider>
                   <ThemeProvider>
                     <ModalRenderer />

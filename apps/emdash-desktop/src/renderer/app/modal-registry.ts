@@ -1,4 +1,5 @@
 import { CommandPaletteModal } from '@renderer/features/command-palette/command-palette-modal';
+import { FeatureAnnouncementModal } from '@renderer/features/feature-announcements/feature-announcement-modal';
 import { IntegrationSetupModal } from '@renderer/features/integrations/integration-setup-modal';
 import { PromptModal } from '@renderer/features/library/prompts/prompt-modal';
 import { McpModal } from '@renderer/features/mcp/components/McpModal';
@@ -40,6 +41,7 @@ export function createModal<TProps, TResult>(
 }
 
 export const modalRegistry = {
+  featureAnnouncementModal: createModal(FeatureAnnouncementModal, { size: 'md' }),
   commandPaletteModal: createModal(CommandPaletteModal, { size: 'md' }),
   taskModal: createModal(CreateTaskModal),
   addProjectModal: createModal(AddProjectModal),

@@ -1,4 +1,3 @@
-import { FeatureAnnouncementCard } from '@renderer/features/feature-announcements/feature-announcement-card';
 import { LeftSidebar } from '@renderer/features/sidebar/left-sidebar';
 import { CommandShortcutBinder } from '@renderer/lib/commands/command-shortcut-binder';
 import { AppKeyboardShortcuts } from '@renderer/lib/components/app-keyboard-shortcuts';
@@ -31,7 +30,6 @@ export function Workspace() {
           </WrapView>
         }
       />
-      <FeatureAnnouncementCard />
       <Toaster />
     </>
   );

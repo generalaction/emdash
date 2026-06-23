@@ -7,6 +7,7 @@ import {
 const sampleManifest = {
   enabled: true,
   id: 'automations-2026-06',
+  display: 'toast' as const,
   eyebrow: 'Now available',
   title: 'Emdash Automations',
   changelogUrl: 'https://emdash.sh/changelog',

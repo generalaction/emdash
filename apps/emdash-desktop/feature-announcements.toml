@@ -5,9 +5,20 @@
 # for the next launch.
 #
 # The app fetches this file from the main branch at startup.
+#
+# Media — pick one (`image` wins if both are set):
+#   hero  = built-in coded UI mock shipped with the app
+#   image = remote hero image URL, rendered full-bleed in the dark header area
+#
+# Examples:
+#   hero = "automations"
+#   image = "https://raw.githubusercontent.com/generalaction/emdash/main/apps/emdash-desktop/build/feature-announcements/automations-hero.png"
 
 enabled = true
 id = "automations-2026-06"
+display = "toast"
+hero = "automations"
+# image = "https://example.com/automations-hero.png"
 eyebrow = "Now available"
 title = "Emdash Automations"
 changelogUrl = "https://emdash.sh/changelog"

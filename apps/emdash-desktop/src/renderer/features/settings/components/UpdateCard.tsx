@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, Download, Loader2, RefreshCw } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Download, Loader2, Megaphone, RefreshCw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -57,6 +57,44 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
             style={{ width: `${downloadProgress.percent || 0}%` }}
           />
         </div>
+      )}
+
+      {import.meta.env.DEV && (
+        <SettingRow
+          title="Announcement"
+          description="Preview the newest in-app announcement (dev only)."
+          className="items-center rounded-lg border p-4"
+          control={
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  void appState.featureAnnouncements.refresh({ preview: true }).then(() => {
+                    appState.featureAnnouncements.present({ preview: true, display: 'modal' });
+                  });
+                }}
+              >
+                <Megaphone className="size-4" />
+                Modal
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  void appState.featureAnnouncements.refresh({ preview: true }).then(() => {
+                    appState.featureAnnouncements.present({ preview: true, display: 'toast' });
+                  });
+                }}
+              >
+                <Megaphone className="size-4" />
+                Toast
+              </Button>
+            </div>
+          }
+        />
       )}
     </div>
   );

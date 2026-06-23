@@ -4,7 +4,6 @@ import { PageContent, PageLayout, PageSidebarMenu } from '@renderer/lib/componen
 import { rpc } from '@renderer/lib/ipc';
 import { AgentsSettingsPage } from '../agents-page/AgentsSettingsPage';
 import { AccountTab } from './AccountTab';
-import { AnnouncementPreviewRow } from './AnnouncementPreviewRow';
 import { BrowserSettingsCard } from './BrowserSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
@@ -53,7 +52,6 @@ function GeneralSettingsPage() {
         description="Manage your account, privacy settings, notifications, and app updates."
       />
       <UpdateCard />
-      <AnnouncementPreviewRow />
       <TelemetryCard />
       <AutoGenerateTaskNamesRow />
       <AutoApproveByDefaultRow />

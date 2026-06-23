@@ -12,6 +12,10 @@ const featureAnnouncementIconSchema = z.enum([
 
 const featureAnnouncementViewSchema = z.enum(FEATURE_ANNOUNCEMENT_NAVIGABLE_VIEWS);
 
+const featureAnnouncementHeroSchema = z.enum(['automations']);
+
+const featureAnnouncementDisplaySchema = z.enum(['modal', 'toast']);
+
 const featureAnnouncementFeatureSchema = z.object({
   icon: featureAnnouncementIconSchema,
   title: z.string().min(1),
@@ -31,8 +35,10 @@ const featureAnnouncementCtaSchema = z
 export const featureAnnouncementManifestSchema = z.object({
   enabled: z.boolean().default(false),
   id: z.string().min(1),
+  display: featureAnnouncementDisplaySchema.default('toast'),
   eyebrow: z.string().min(1).default('Now available'),
   title: z.string().min(1),
+  hero: featureAnnouncementHeroSchema.optional(),
   image: z.url().optional(),
   changelogUrl: z.url(),
   learnMoreUrl: z.url().optional(),
@@ -40,6 +46,9 @@ export const featureAnnouncementManifestSchema = z.object({
   features: z.array(featureAnnouncementFeatureSchema).min(1).max(4),
   cta: featureAnnouncementCtaSchema.optional(),
 });
+
+export type FeatureAnnouncementHero = z.infer<typeof featureAnnouncementHeroSchema>;
+export type FeatureAnnouncementDisplay = z.infer<typeof featureAnnouncementDisplaySchema>;
 
 export type FeatureAnnouncementIcon = z.infer<typeof featureAnnouncementIconSchema>;
 export type FeatureAnnouncementFeature = z.infer<typeof featureAnnouncementFeatureSchema>;
