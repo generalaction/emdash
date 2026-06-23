@@ -853,14 +853,14 @@ export class SshFileSystem implements FileSystemProvider {
    * Get relative path from full remote path
    */
   private relativePath(fullPath: string): string {
-    const normalized = fullPath.replace(/\\/g, '/');
-    const normalizedBase = this.remotePath.replace(/\\/g, '/');
+    const normalized = fullPath.replace(/\\/g, '/').replace(/\/+/g, '/');
+    const normalizedBase = normalizeRemoteBasePath(this.remotePath);
 
     if (normalized === normalizedBase) {
       return '';
     }
 
-    const prefix = `${normalizedBase}/`;
+    const prefix = normalizedBase === '/' ? '/' : `${normalizedBase}/`;
     if (normalized.startsWith(prefix)) {
       return normalized.substring(prefix.length);
     }
@@ -1035,4 +1035,10 @@ export class SshFileSystem implements FileSystemProvider {
       },
     };
   }
+}
+
+function normalizeRemoteBasePath(path: string): string {
+  const normalized = path.replace(/\\/g, '/').replace(/\/+/g, '/');
+  if (normalized === '/') return '/';
+  return normalized.replace(/\/$/, '');
 }
