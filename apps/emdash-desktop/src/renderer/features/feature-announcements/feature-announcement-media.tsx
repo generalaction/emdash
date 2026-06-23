@@ -5,10 +5,6 @@ import type {
   FeatureAnnouncementManifest,
 } from '@shared/feature-announcements/schema';
 
-/** Applied when hovering the "Learn more" footer link. */
-export const FEATURE_ANNOUNCEMENT_LEARN_MORE_HOVER_CLASSES =
-  'group-has-[.announcement-learn-more:hover]/announcement:-translate-y-1 group-has-[.announcement-learn-more:hover]/announcement:scale-[1.03]';
-
 function AutomationsHeroGraphic() {
   return (
     <div className="pointer-events-none w-60 rounded-lg bg-white p-1 text-xs shadow-2xl select-none">
@@ -58,19 +54,17 @@ export function FeatureAnnouncementMediaArea({
   variant: 'toast' | 'modal';
 }) {
   const heightClass = variant === 'toast' ? 'h-28' : 'h-52';
-  const motionClass = cn(
-    'transition-transform duration-300 ease-out will-change-transform',
-    FEATURE_ANNOUNCEMENT_LEARN_MORE_HOVER_CLASSES
-  );
 
   if (media.kind === 'image') {
     return (
       <div
         className={cn('relative shrink-0 overflow-hidden rounded-t-xl bg-neutral-950', heightClass)}
       >
-        <div className={cn('absolute inset-0', motionClass)}>
-          <img src={media.url} alt="" className="size-full object-cover object-center" />
-        </div>
+        <img
+          src={media.url}
+          alt=""
+          className="absolute inset-0 size-full object-cover object-center"
+        />
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.15),transparent_70%)]" />
       </div>
     );
@@ -87,7 +81,7 @@ export function FeatureAnnouncementMediaArea({
       )}
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.08),transparent_65%)]" />
-      <div className={cn(variant === 'toast' ? 'scale-80' : undefined, motionClass)}>
+      <div className={variant === 'toast' ? 'scale-80' : undefined}>
         <HeroGraphic />
       </div>
     </div>

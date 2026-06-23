@@ -39,7 +39,7 @@ export function FeatureAnnouncementModal({
   };
 
   return (
-    <div className="group/announcement relative overflow-hidden rounded-xl">
+    <div className="relative overflow-hidden rounded-xl">
       {media && <FeatureAnnouncementMediaArea media={media} variant="modal" />}
       <button
         type="button"
@@ -77,9 +77,9 @@ export function FeatureAnnouncementModal({
         </ul>
       </div>
       <DialogFooter className="items-center sm:justify-between">
-        <Button variant="ghost" className="announcement-learn-more" onClick={handleLearnMore}>
+        <Button variant="ghost" className="group/learn-more" onClick={handleLearnMore}>
           Learn more
-          <ArrowUpRight className="size-3.5 transition-transform duration-200 group-has-[.announcement-learn-more:hover]/announcement:translate-x-px group-has-[.announcement-learn-more:hover]/announcement:-translate-y-px" />
+          <ArrowUpRight className="size-3.5 transition-transform duration-200 group-hover/learn-more:translate-x-px group-hover/learn-more:-translate-y-px" />
         </Button>
         {manifest.cta ? (
           <Button onClick={handleCta}>{manifest.cta.label}</Button>

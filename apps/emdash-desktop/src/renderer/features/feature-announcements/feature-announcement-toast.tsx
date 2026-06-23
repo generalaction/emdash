@@ -63,7 +63,7 @@ function FeatureAnnouncementToastCard({
   };
 
   return (
-    <div className="group/announcement relative w-[356px] overflow-hidden rounded-xl bg-background-quaternary text-sm shadow-lg">
+    <div className="relative w-[356px] overflow-hidden rounded-xl bg-background-quaternary text-sm shadow-lg">
       {media && <FeatureAnnouncementMediaArea media={media} variant="toast" />}
       <button
         type="button"
@@ -99,14 +99,9 @@ function FeatureAnnouncementToastCard({
         </ul>
       </div>
       <div className="flex items-center justify-between border-t border-border bg-background-quaternary-1 p-2">
-        <Button
-          variant="ghost"
-          size="xs"
-          className="announcement-learn-more"
-          onClick={handleLearnMore}
-        >
+        <Button variant="ghost" size="xs" className="group/learn-more" onClick={handleLearnMore}>
           Learn more
-          <ArrowUpRight className="size-3 transition-transform duration-200 group-hover/announcement:translate-x-px group-has-[.announcement-learn-more:hover]/announcement:-translate-y-px" />
+          <ArrowUpRight className="size-3 transition-transform duration-200 group-hover/learn-more:translate-x-px group-hover/learn-more:-translate-y-px" />
         </Button>
         {manifest.cta ? (
           <Button size="xs" onClick={handleCta}>
