@@ -4,7 +4,7 @@
   "description": "In-app feature highlight shown as a toast. Runtime validation uses the Zod schema in src/shared/feature-announcements/schema.ts — keep both in sync.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["enabled", "id", "title", "changelogUrl", "features"],
+  "required": ["id", "title", "changelogUrl", "features"],
   "properties": {
     "enabled": {
       "type": "boolean",

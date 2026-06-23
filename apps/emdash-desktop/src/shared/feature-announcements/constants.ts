@@ -5,6 +5,17 @@ export const FEATURE_ANNOUNCEMENT_MANIFEST_URL =
 
 export const FEATURE_ANNOUNCEMENT_DISMISSED_STORAGE_KEY = 'emdash:feature-announcements:dismissed';
 
+export const FEATURE_ANNOUNCEMENT_ICONS = [
+  'calendar-clock',
+  'list-checks',
+  'shield',
+  'check',
+  'sparkles',
+  'message-square',
+] as const;
+
+export const FEATURE_ANNOUNCEMENT_HEROES = ['automations'] as const;
+
 export const FEATURE_ANNOUNCEMENT_CTA_ACTIONS = ['open-automations'] as const;
 
 export type FeatureAnnouncementCtaAction = (typeof FEATURE_ANNOUNCEMENT_CTA_ACTIONS)[number];

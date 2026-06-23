@@ -1,24 +1,23 @@
 import z from 'zod';
-import { FEATURE_ANNOUNCEMENT_CTA_ACTIONS } from './constants';
+import {
+  FEATURE_ANNOUNCEMENT_CTA_ACTIONS,
+  FEATURE_ANNOUNCEMENT_HEROES,
+  FEATURE_ANNOUNCEMENT_ICONS,
+} from './constants';
 
-const featureAnnouncementIconSchema = z.enum([
-  'calendar-clock',
-  'list-checks',
-  'shield',
-  'check',
-  'sparkles',
-  'message-square',
-]);
+const featureAnnouncementIconSchema = z.enum(FEATURE_ANNOUNCEMENT_ICONS);
 
 const featureAnnouncementCtaActionSchema = z.enum(FEATURE_ANNOUNCEMENT_CTA_ACTIONS);
 
-const featureAnnouncementHeroSchema = z.enum(['automations']);
+const featureAnnouncementHeroSchema = z.enum(FEATURE_ANNOUNCEMENT_HEROES);
 
-const featureAnnouncementFeatureSchema = z.object({
-  icon: featureAnnouncementIconSchema,
-  title: z.string().min(1),
-  description: z.string().min(1),
-});
+const featureAnnouncementFeatureSchema = z
+  .object({
+    icon: featureAnnouncementIconSchema,
+    title: z.string().min(1),
+    description: z.string().min(1),
+  })
+  .strict();
 
 const featureAnnouncementCtaSchema = z
   .object({
@@ -28,21 +27,24 @@ const featureAnnouncementCtaSchema = z
   })
   .refine((cta) => Boolean(cta.action) !== Boolean(cta.url), {
     message: 'CTA must specify exactly one of action or url',
-  });
+  })
+  .strict();
 
-export const featureAnnouncementManifestSchema = z.object({
-  enabled: z.boolean().default(false),
-  id: z.string().min(1),
-  eyebrow: z.string().min(1).default('Now available'),
-  title: z.string().min(1),
-  hero: featureAnnouncementHeroSchema.optional(),
-  image: z.url().optional(),
-  changelogUrl: z.url(),
-  learnMoreUrl: z.url().optional(),
-  minAppVersion: z.string().min(1).optional(),
-  features: z.array(featureAnnouncementFeatureSchema).min(1).max(4),
-  cta: featureAnnouncementCtaSchema.optional(),
-});
+export const featureAnnouncementManifestSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    id: z.string().min(1),
+    eyebrow: z.string().min(1).default('Now available'),
+    title: z.string().min(1),
+    hero: featureAnnouncementHeroSchema.optional(),
+    image: z.url().optional(),
+    changelogUrl: z.url(),
+    learnMoreUrl: z.url().optional(),
+    minAppVersion: z.string().min(1).optional(),
+    features: z.array(featureAnnouncementFeatureSchema).min(1).max(4),
+    cta: featureAnnouncementCtaSchema.optional(),
+  })
+  .strict();
 
 export type FeatureAnnouncementHero = z.infer<typeof featureAnnouncementHeroSchema>;
 
