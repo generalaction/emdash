@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/assets/images/mcp/amplitude.svg
+  s_cca176c6b8edb2::t_c043afc360e9c0 1-5
+apps/emdash-desktop/src/assets/images/mcp/context7.svg
+  s_cca176c6b8edb2::t_9a6f923ff40425 1-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "44c30effdd673b65017fb71456897b5ccde47a7a",
+  "prompts": {},
+  "sessions": {
+    "s_cca176c6b8edb2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1522a985-66a0-4656-a0f3-e70085f2770e",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
