@@ -27,6 +27,7 @@ export function getVisibleTaskNotificationCount(): number {
 
     for (const [taskId, taskStore] of mounted.taskManager.tasks) {
       if (!isRegistered(taskStore)) continue;
+      if (taskStore.data.archivedAt) continue;
       if (hasVisibleTaskNotification(taskId)) count += 1;
     }
   }
@@ -47,6 +48,7 @@ export function getTaskNotificationItems(
 
     for (const [taskId, taskStore] of mounted.taskManager.tasks) {
       if (!isRegistered(taskStore)) continue;
+      if (taskStore.data.archivedAt) continue;
       if (!hasVisibleTaskNotification(taskId)) continue;
 
       if (projectId === currentProjectId && taskId === currentTaskId) {
