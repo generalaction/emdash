@@ -1,0 +1,28 @@
+packages/plugins/src/agents/impl/charm/index.ts
+  s_f6b95f78969fcb::t_53bb3fac73b5da 2-6,32-33,64
+  s_f6b95f78969fcb::t_25369b2712f48a 34
+packages/core/src/agents/plugins/helpers/mcp.test.ts
+  s_f6b95f78969fcb::t_7bdace8de03b66 288,293,300
+  s_f6b95f78969fcb::t_9100fc38471277 4,255-287,289-292,294-299,301-302
+packages/core/src/agents/plugins/helpers/mcp.ts
+  s_f6b95f78969fcb::t_6414acd098b638 383-401
+packages/plugins/src/agents/impl/charm/index.test.ts
+  s_f6b95f78969fcb::t_56b50e4aa7488a 19
+  s_f6b95f78969fcb::t_141ba83ffe5490 15-18,20-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "ceb0652a16f391e064b055a7dcebeb20831574f1",
+  "prompts": {},
+  "sessions": {
+    "s_f6b95f78969fcb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef0c2-e561-7583-95b5-dd2d3c2fb570",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
