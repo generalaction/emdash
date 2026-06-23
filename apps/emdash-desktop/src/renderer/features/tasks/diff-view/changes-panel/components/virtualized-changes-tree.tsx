@@ -6,7 +6,7 @@ import {
   buildVisibleRows,
   isChainExpanded,
   type TreeRow,
-} from '@renderer/features/tasks/editor/stores/files-store-utils';
+} from '@renderer/features/tasks/file-tree/tree-utils';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { cn } from '@renderer/utils/utils';
 import { ChangeStatusAffordance } from './changes-list-item';

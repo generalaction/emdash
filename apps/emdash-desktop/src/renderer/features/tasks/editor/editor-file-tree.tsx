@@ -2,14 +2,14 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight, Copy, FileText, Folder, FolderOpen } from 'lucide-react';
 import { runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { CompactedPathLabel } from '@renderer/features/tasks/editor/compacted-path-label';
 import type { FilesStore } from '@renderer/features/tasks/editor/stores/files-store';
 import {
   buildVisibleRows,
   isChainExpanded,
   type TreeRow,
-} from '@renderer/features/tasks/editor/stores/files-store-utils';
+} from '@renderer/features/tasks/file-tree/tree-utils';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -90,6 +90,7 @@ async function importLocalFiles(args: {
       }
     );
     if (!result.success) throw new Error(resultErrorMessage(result.error));
+    files.confirmOptimisticNodes(inserted);
   } catch (error) {
     for (const p of inserted) files.removeNode(p);
     await files.loadDir(destDirPath, true);
@@ -389,26 +390,9 @@ export const EditorFileTree = observer(function EditorFileTree() {
   const editorView = taskView.editorView;
   const [isDragOverRoot, setIsDragOverRoot] = useState(false);
 
-  const visibleRows = files ? buildVisibleRows(files.rootNodes, editorView.expandedPaths) : [];
-
-  const prefetchKey = files
-    ? visibleRows
-        .filter(
-          (row) =>
-            row.node.type === 'directory' &&
-            !files.loadedPaths.has(row.node.path) &&
-            !files.pendingPaths.has(row.node.path)
-        )
-        .map((row) => row.node.path)
-        .join('\0')
-    : '';
-
-  useEffect(() => {
-    if (!files || !prefetchKey) return;
-    for (const path of prefetchKey.split('\0')) {
-      void files.loadDir(path);
-    }
-  }, [prefetchKey, files]);
+  const visibleRows = files
+    ? buildVisibleRows(files.rootNodes, editorView.expandedPaths, files.childrenById)
+    : [];
 
   const parentRef = useRef<HTMLDivElement>(null);
 

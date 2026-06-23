@@ -31,8 +31,13 @@ vi.mock('@renderer/lib/ipc', () => ({
     },
     workspace: {
       gitWorktree: {},
+      fileTree: {
+        getSnapshot: vi.fn().mockResolvedValue({
+          success: true,
+          data: { entries: [], generation: 1, sequence: 0 },
+        }),
+      },
       fs: {
-        listFiles: vi.fn().mockResolvedValue({ success: true, data: [] }),
         watchSetPaths: vi.fn().mockResolvedValue(undefined),
         watchStop: vi.fn().mockResolvedValue(undefined),
       },

@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { FileNode } from '@shared/core/fs/fs';
-import { buildVisibleRows, makeNode, sortFileNodes } from './files-store-utils';
+import {
+  buildVisibleRows,
+  makeNode,
+  sortFileNodes,
+  toRenderableFileNode,
+  type NestedFileNode,
+  type RenderableFileNode,
+} from './tree-utils';
 
-function attach(parent: FileNode, child: FileNode): FileNode {
+function attach(parent: NestedFileNode, child: NestedFileNode): NestedFileNode {
   parent.children.push(child);
   return child;
 }
@@ -189,5 +195,45 @@ describe('file tree utils', () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0].chain.map((n) => n.path)).toEqual(['a', 'a/b']);
+  });
+
+  it('walks flat render nodes through a childrenById index', () => {
+    const src = toRenderableFileNode({
+      id: 1,
+      path: 'src',
+      name: 'src',
+      parentId: null,
+      type: 'directory',
+      childrenLoaded: true,
+    });
+    const components = toRenderableFileNode({
+      id: 2,
+      path: 'src/components',
+      name: 'components',
+      parentId: 1,
+      type: 'directory',
+      childrenLoaded: true,
+    });
+    const button = toRenderableFileNode({
+      id: 3,
+      path: 'src/components/Button.tsx',
+      name: 'Button.tsx',
+      parentId: 2,
+      type: 'file',
+      childrenLoaded: false,
+    });
+    const childrenById = new Map<number | null, RenderableFileNode[]>([
+      [null, [src]],
+      [1, [components]],
+      [2, [button]],
+    ]);
+
+    const rows = buildVisibleRows([src], new Set(['src/components']), childrenById);
+
+    expect(rows.map((row) => row.node.path)).toEqual([
+      'src/components',
+      'src/components/Button.tsx',
+    ]);
+    expect(rows[0].chain.map((node) => node.path)).toEqual(['src', 'src/components']);
   });
 });

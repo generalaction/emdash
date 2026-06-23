@@ -1,18 +1,21 @@
 import type { GitChange } from '@emdash/core/git';
-import { makeNode, sortFileNodes } from '@renderer/features/tasks/editor/stores/files-store-utils';
-import { type FileNode } from '@shared/core/fs/fs';
+import {
+  makeNode,
+  sortFileNodes,
+  type NestedFileNode,
+} from '@renderer/features/tasks/file-tree/tree-utils';
 
 export interface ChangesTree {
-  rootNodes: FileNode[];
+  rootNodes: NestedFileNode[];
   changeByPath: Map<string, GitChange>;
   directoryPaths: Set<string>;
 }
 
 export function buildChangesTree(changes: GitChange[]): ChangesTree {
-  const nodesByPath = new Map<string, FileNode>();
+  const nodesByPath = new Map<string, NestedFileNode>();
   const changeByPath = new Map<string, GitChange>();
   const directoryPaths = new Set<string>();
-  const rootNodes: FileNode[] = [];
+  const rootNodes: NestedFileNode[] = [];
 
   for (const change of changes) {
     changeByPath.set(change.path, change);
@@ -21,7 +24,7 @@ export function buildChangesTree(changes: GitChange[]): ChangesTree {
     if (parts.length === 0) continue;
 
     let prefix = '';
-    let parentNode: FileNode | null = null;
+    let parentNode: NestedFileNode | null = null;
     for (let i = 0; i < parts.length; i++) {
       const segment = parts[i]!;
       prefix = prefix ? `${prefix}/${segment}` : segment;
@@ -51,7 +54,7 @@ export function buildChangesTree(changes: GitChange[]): ChangesTree {
   };
 }
 
-function sortRecursively(nodes: FileNode[]): FileNode[] {
+function sortRecursively(nodes: NestedFileNode[]): NestedFileNode[] {
   const sorted = sortFileNodes(nodes);
   for (const node of sorted) {
     if (node.children.length > 0) {
