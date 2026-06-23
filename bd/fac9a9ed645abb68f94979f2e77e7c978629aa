@@ -1,0 +1,31 @@
+apps/emdash-desktop/src/renderer/App.tsx
+  s_6c663cfe15e1e4::t_9da7b68d4d81b4 6,103
+apps/emdash-desktop/src/main/index.ts
+  s_6c663cfe15e1e4::t_48f3073e369e92 137
+apps/emdash-desktop/src/renderer/features/command-palette/palette-notifications.ts
+  s_6c663cfe15e1e4::t_6eda67c74f2c7c 1-45
+apps/emdash-desktop/src/renderer/features/command-palette/palette-notifications-group.tsx
+  s_6c663cfe15e1e4::t_84f0e981950948 7,29
+apps/emdash-desktop/src/main/core/app/app-badge-service.ts
+  s_6c663cfe15e1e4::t_cd4049cbf53219 7-8,15-16
+apps/emdash-desktop/src/main/core/app/controller.ts
+  s_6c663cfe15e1e4::t_7ba7919eb545b1 5,113-115
+apps/emdash-desktop/src/renderer/features/command-palette/notification-badge-sync.tsx
+  s_6c663cfe15e1e4::t_1b5ca95ec13cf5 1-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "bdfac9a9ed645abb68f94979f2e77e7c978629aa",
+  "prompts": {},
+  "sessions": {
+    "s_6c663cfe15e1e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef404-3e14-7fc3-8c6c-0155638b2479",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
