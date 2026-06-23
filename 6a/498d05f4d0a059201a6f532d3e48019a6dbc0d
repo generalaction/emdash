@@ -1,0 +1,21 @@
+packages/plugins/src/agents/impl/charm/index.ts
+  s_f6b95f78969fcb::t_d4405cdddbd905 18
+packages/plugins/src/agents/impl/charm/index.test.ts
+  s_f6b95f78969fcb::t_d7efd61a8bf2f0 15-18,31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "6a498d05f4d0a059201a6f532d3e48019a6dbc0d",
+  "prompts": {},
+  "sessions": {
+    "s_f6b95f78969fcb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef0c2-e561-7583-95b5-dd2d3c2fb570",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
