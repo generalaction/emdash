@@ -1,0 +1,27 @@
+packages/plugins/src/agents/impl/pi/index.ts
+  s_eb5e6473579e9e::t_2a23d5909d4ba7 24
+packages/core/src/agents/plugins/capabilities/hooks.ts
+  s_eb5e6473579e9e::t_a0b4caf6d996ca 37-45,52-60
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_eb5e6473579e9e::t_a73bf898c520ec 641
+packages/core/src/agents/plugins/capabilities/hooks-types.ts
+  s_eb5e6473579e9e::t_81f933ce9bff71 4
+packages/plugins/src/agents/impl/kilocode/index.ts
+  s_eb5e6473579e9e::t_fb1712e9db36e1 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "b9e30f0c2707bd0eee271ae413cba6f78c60e2c5",
+  "prompts": {},
+  "sessions": {
+    "s_eb5e6473579e9e": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ef5c9-8f4b-75b6-a9f4-dbde859f327f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
