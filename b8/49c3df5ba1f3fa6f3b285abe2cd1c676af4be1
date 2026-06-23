@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/main/core/automations/automations-service.ts
+  s_734063585b715f::t_8c54d99e139fed 61,68-75,111-112,142-143,276,285-286
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "b849c3df5ba1f3fa6f3b285abe2cd1c676af4be1",
+  "prompts": {},
+  "sessions": {
+    "s_734063585b715f": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ef5e4-06af-7f48-9c78-2b3e32e06d61",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
