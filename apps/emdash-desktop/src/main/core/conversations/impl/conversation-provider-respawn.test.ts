@@ -485,6 +485,31 @@ describe('conversation provider respawn state', () => {
     );
   });
 
+  it('starts remote Amp fresh when no provider thread id is available', async () => {
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    openSsh2Pty.mockResolvedValue({
+      success: true,
+      data: fakePty(exitHandlers),
+    });
+    const provider = sshProvider();
+    const initialPrompt = 'continue this task';
+    const item = conversation({ providerId: 'amp', providerSessionId: undefined });
+
+    try {
+      await provider.startSession(item, undefined, true, initialPrompt);
+
+      expect(buildCommandMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          initialPrompt,
+          isResuming: false,
+          sessionId: item.id,
+        })
+      );
+    } finally {
+      ptySessionRegistry.unregister(makePtySessionId(item.projectId, item.taskId, item.id));
+    }
+  });
+
   it('emits PTY exit when a local conversation unregisters before the registry exit handler runs', async () => {
     const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
     const exitInfo = { exitCode: 0 };

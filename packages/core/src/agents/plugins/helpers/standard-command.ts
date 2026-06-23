@@ -96,14 +96,14 @@ export function buildStandardCommand(ctx: CommandContext, spec: StandardCommandS
     } else if (spec.resumeFlag) {
       if (spec.sessionIdFlag && validSessionId) {
         // resumeFlag takes the session ID (e.g. '--resume <id>' or '-r <id>')
-        args.push(spec.resumeFlag, validSessionId);
+        args.push(...splitFlag(spec.resumeFlag), validSessionId);
       } else if (spec.sessionIdFlag && !spec.sessionIdOnResumeOnly) {
         // Use emdash UUID
-        args.push(spec.resumeFlag, ctx.sessionId!);
+        args.push(...splitFlag(spec.resumeFlag), ctx.sessionId!);
       } else if (spec.resumeWithoutSessionFlag) {
         args.push(...splitFlag(spec.resumeWithoutSessionFlag));
       } else {
-        args.push(spec.resumeFlag);
+        args.push(...splitFlag(spec.resumeFlag));
       }
     }
   } else {

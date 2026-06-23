@@ -75,6 +75,28 @@ describe('resolveAgentSessionCommandArgs', () => {
     });
   });
 
+  it('uses stored Amp thread id when resuming', () => {
+    expect(
+      resolveAgentSessionCommandArgs(
+        makeConversation({
+          providerId: 'amp',
+          providerSessionId: 'T-d2fc4acc-dd1d-497f-9609-ed0da22a7c95',
+        }),
+        true
+      )
+    ).toEqual({
+      sessionId: 'T-d2fc4acc-dd1d-497f-9609-ed0da22a7c95',
+      isResuming: true,
+    });
+  });
+
+  it('starts fresh when resuming Amp without a stored thread id', () => {
+    expect(resolveAgentSessionCommandArgs(makeConversation({ providerId: 'amp' }), true)).toEqual({
+      sessionId: 'conv-1',
+      isResuming: false,
+    });
+  });
+
   it('uses stored Goose session id when resuming', () => {
     expect(
       resolveAgentSessionCommandArgs(
@@ -154,5 +176,25 @@ describe('resolveAgentSessionCommandArgs', () => {
 
     expect(result.command).toBe('codex');
     expect(result.args).toEqual(['resume', 'provider-session-1']);
+  });
+
+  it('builds an Amp replacement resume command from the stored provider thread id', () => {
+    const conversation = makeConversation({
+      id: '6fac6620-9fa8-4604-b7e0-1fe361589104',
+      providerId: 'amp',
+      providerSessionId: 'T-d2fc4acc-dd1d-497f-9609-ed0da22a7c95',
+    });
+    const spawnPlan = resolveAgentSessionCommandArgs(conversation, true);
+    const result = pluginRegistry.get('amp')!.behavior.prompt!.buildCommand({
+      cli: 'amp',
+      autoApprove: false,
+      model: '',
+      sessionId: spawnPlan.sessionId,
+      providerSessionId: conversation.providerSessionId ?? undefined,
+      isResuming: spawnPlan.isResuming,
+    });
+
+    expect(result.command).toBe('amp');
+    expect(result.args).toEqual(['threads', 'continue', 'T-d2fc4acc-dd1d-497f-9609-ed0da22a7c95']);
   });
 });
