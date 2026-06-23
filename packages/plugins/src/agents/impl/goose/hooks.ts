@@ -22,7 +22,7 @@ const GOOSE_HOOK_SPECS = [
   { hookKey: 'SessionStart', command: makeStdinHookCommand('session') },
   { hookKey: 'UserPromptSubmit', command: makeStdinHookCommand('start') },
   { hookKey: 'PreToolUse', command: makeStdinHookCommand('start') },
-  { hookKey: 'PostToolUse', command: makeStdinHookCommand('start') },
+  { hookKey: 'PostToolUse', command: makeStdinHookCommand('tool-use') },
   { hookKey: 'PostToolUseFailure', command: makeStdinHookCommand('error') },
   { hookKey: 'Stop', command: makeStdinHookCommand('stop') },
   { hookKey: 'SessionEnd', command: makeStdinHookCommand('stop') },

@@ -104,9 +104,13 @@ describe('goose provider', () => {
       buildNestedEntry(makeStdinHookCommand('start')),
     ]);
     expect(hooksConfig.hooks.PreToolUse).toEqual([buildNestedEntry(makeStdinHookCommand('start'))]);
+    expect(hooksConfig.hooks.PostToolUse).toEqual([
+      buildNestedEntry(makeStdinHookCommand('tool-use')),
+    ]);
     expect(hooksConfig.hooks.PostToolUseFailure).toEqual([
       buildNestedEntry(makeStdinHookCommand('error')),
     ]);
+    expect(hooksConfig.hooks.Stop).toEqual([buildNestedEntry(makeStdinHookCommand('stop'))]);
     expect(hooksConfig.hooks.SessionEnd).toEqual([buildNestedEntry(makeStdinHookCommand('stop'))]);
   });
 
