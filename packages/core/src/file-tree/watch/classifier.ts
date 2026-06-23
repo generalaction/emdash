@@ -1,24 +1,16 @@
 import path from 'node:path';
-import type { Result } from '@emdash/shared';
 import type { RawFileEvent } from '../../fs';
 import type { KeyedOp } from '../../lib';
-import type { FileTreeError } from '../errors';
 import { isExcludedPath } from '../ignores';
 import { statEntry as statFileTreeEntry, type ListedEntry } from '../list';
 import type { FileNode, NodeId } from '../models/tree';
 import type { NodeIdAssigner, Tombstone } from '../node-id';
 import { parentRelPath, resolveInsideRoot } from '../paths';
 
-export type FileTreeStatEntry = (
-  rootPath: string,
-  relPath: string
-) => Promise<Result<ListedEntry, FileTreeError>>;
-
 export type FileTreeWatchClassifierOptions = {
   rootPath: string;
   ids: NodeIdAssigner;
   isScopeLoaded: (scope: NodeId | null) => boolean;
-  statEntry?: FileTreeStatEntry;
 };
 
 export type FileTreeWatchClassification = {
@@ -30,7 +22,6 @@ export async function classifyFileTreeWatchEvents(
   events: RawFileEvent[],
   options: FileTreeWatchClassifierOptions
 ): Promise<FileTreeWatchClassification> {
-  const statEntry = options.statEntry ?? statFileTreeEntry;
   const tombstones: Tombstone[] = [];
   const ops: Array<KeyedOp<NodeId, FileNode>> = [];
   const unloadedScopes: NodeId[] = [];
@@ -49,7 +40,7 @@ export async function classifyFileTreeWatchEvents(
       continue;
     }
 
-    const stat = await statEntry(options.rootPath, relPath);
+    const stat = await statFileTreeEntry(options.rootPath, relPath);
     if (!stat.success) continue;
     const parentId = parentScopeFor(stat.data, options.ids);
     if (parentId === undefined || !options.isScopeLoaded(parentId)) continue;

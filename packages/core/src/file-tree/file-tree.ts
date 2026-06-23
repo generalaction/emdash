@@ -3,7 +3,7 @@ import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import type { IFileWatchService, RawFileEvent, WatchHandle } from '../fs';
 import { LiveCollection, type KeyedOp } from '../lib';
 import { classifyFileTreeFsError, type FileTreeError, type FileTreeOnError } from './errors';
-import { watchIgnoreGlobs } from './ignores';
+import { isExcludedPath, watchIgnoreGlobs } from './ignores';
 import { listChildren } from './list';
 import type { FileNode, NodeId } from './models/tree';
 import { NodeIdAssigner } from './node-id';
@@ -23,8 +23,6 @@ const REVALIDATE_INTERVAL_MS = 5 * 60_000;
 export type FileTreeOptions = {
   rootPath: string;
   watcher: IFileWatchService;
-  watchDebounceMs?: number;
-  revalidateIntervalMs?: number;
   onError?: FileTreeOnError;
 };
 
@@ -55,7 +53,7 @@ export class FileTree implements IFileTree {
         );
       },
       {
-        debounceMs: options.watchDebounceMs ?? WATCH_DEBOUNCE_MS,
+        debounceMs: WATCH_DEBOUNCE_MS,
         ignore: watchIgnoreGlobs(),
         onResync: () => {
           void this.resync().catch((error) =>
@@ -64,7 +62,7 @@ export class FileTree implements IFileTree {
         },
       }
     );
-    const interval = options.revalidateIntervalMs ?? REVALIDATE_INTERVAL_MS;
+    const interval = REVALIDATE_INTERVAL_MS;
     this.revalidateTimer =
       interval > 0
         ? setInterval(() => {
@@ -212,10 +210,11 @@ export class FileTree implements IFileTree {
     const listed = await listChildren(this.rootPath, dirPath);
     if (!listed.success) return listed;
 
-    const listedPaths = new Set(listed.data.map((entry) => entry.path));
+    const listedEntries = listed.data.filter((entry) => !isExcludedPath(entry.path));
+    const listedPaths = new Set(listedEntries.map((entry) => entry.path));
     let sequence = this.removeMissingChildren(scope, listedPaths);
 
-    const nodes = listed.data.map((entry) =>
+    const nodes = listedEntries.map((entry) =>
       this.ids.upsert(entry, scope, this.ids.getByPath(entry.path)?.childrenLoaded)
     );
     const loaded = await this.collection.loadScope(scope, async () =>
