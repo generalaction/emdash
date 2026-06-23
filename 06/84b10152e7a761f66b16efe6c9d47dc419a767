@@ -1,0 +1,25 @@
+apps/emdash-desktop/src/renderer/features/settings/components/AnnouncementDevControls.tsx
+  s_3a9a686c700dc4::t_21e69ab9ef0a6a 4,26-32
+apps/emdash-desktop/src/renderer/features/feature-announcements/present-feature-announcement.ts
+  s_3a9a686c700dc4::t_21e69ab9ef0a6a 1-22
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-launcher.tsx
+  s_3a9a686c700dc4::t_21e69ab9ef0a6a 3
+  s_3a9a686c700dc4::t_3e08a51e13d291 15-21
+  s_3a9a686c700dc4::t_e8069e575afea9 22-23,27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "0684b10152e7a761f66b16efe6c9d47dc419a767",
+  "prompts": {},
+  "sessions": {
+    "s_3a9a686c700dc4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef401-ed02-7202-83b9-65c5b325e45a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
