@@ -3,8 +3,8 @@ import { XIcon } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '../lib/cn';
 import { Button } from './button';
-import * as styles from './dialog.css';
 import { ScrollFade } from './scroll-fade';
+import * as styles from './dialog.css';
 
 // ── Size options (match emdash-desktop modal sizes) ───────────────────────────
 
@@ -69,11 +69,7 @@ function DialogHeader({
   ...props
 }: React.ComponentProps<'div'> & { showCloseButton?: boolean }) {
   return (
-    <div
-      data-slot="dialog-header"
-      className={cn(styles.header, className)}
-      {...props}
-    >
+    <div data-slot="dialog-header" className={cn(styles.header, className)} {...props}>
       <div className={styles.headerInner}>{children}</div>
       {showCloseButton && (
         <DialogPrimitive.Close
@@ -117,11 +113,7 @@ function DialogBody({
 
 function DialogFooter({ className, children, ...props }: React.ComponentProps<'div'>) {
   return (
-    <div
-      data-slot="dialog-footer"
-      className={cn(styles.footer, className)}
-      {...props}
-    >
+    <div data-slot="dialog-footer" className={cn(styles.footer, className)} {...props}>
       {children}
     </div>
   );

@@ -62,13 +62,25 @@ export const controlVariants = recipe({
         color: vars.foregroundMuted,
         selectors: {
           '&:hover': { backgroundColor: vars.surfaceHover, color: vars.foreground },
-          '&[aria-expanded="true"]': { backgroundColor: vars.surfaceSelected, color: vars.foreground },
-          '&[aria-pressed="true"]': { backgroundColor: vars.surfaceSelected, color: vars.foreground },
-          '&[aria-selected="true"]': { backgroundColor: vars.surfaceSelected, color: vars.foreground },
+          '&[aria-expanded="true"]': {
+            backgroundColor: vars.surfaceSelected,
+            color: vars.foreground,
+          },
+          '&[aria-pressed="true"]': {
+            backgroundColor: vars.surfaceSelected,
+            color: vars.foreground,
+          },
+          '&[aria-selected="true"]': {
+            backgroundColor: vars.surfaceSelected,
+            color: vars.foreground,
+          },
           '&[data-pressed]': { backgroundColor: vars.surfaceSelected, color: vars.foreground },
           '&[data-selected]': { backgroundColor: vars.surfaceSelected, color: vars.foreground },
           '&[data-popup-open]': { backgroundColor: vars.surfaceSelected, color: vars.foreground },
-          '&[data-active="true"]': { backgroundColor: vars.surfaceSelected, color: vars.foreground },
+          '&[data-active="true"]': {
+            backgroundColor: vars.surfaceSelected,
+            color: vars.foreground,
+          },
         },
       },
       primary: {

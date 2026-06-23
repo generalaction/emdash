@@ -18,13 +18,13 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SEMANTIC_TEMPLATE } from './contract/semantic-template.js';
-import { allSurfaceVarNames } from './contract/roles.js';
-import type { ResolvedTheme } from './define-theme.js';
 import { darkTheme } from '../themes/dark.theme.js';
 import { lightTheme } from '../themes/light.theme.js';
 import { solarizedDarkTheme } from '../themes/solarized-dark.theme.js';
 import { solarizedLightTheme } from '../themes/solarized-light.theme.js';
+import { allSurfaceVarNames } from './contract/roles.js';
+import { SEMANTIC_TEMPLATE } from './contract/semantic-template.js';
+import type { ResolvedTheme } from './define-theme.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Outputs: theme/core/ for TS artifacts, styles/ for generated CSS, theme/themes/ for shiki

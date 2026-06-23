@@ -1,5 +1,4 @@
 import { style } from '@vanilla-extract/css';
-import { vars } from '../../theme/core/contract/contract.css';
 import {
   kfPopupIn,
   kfPopupOut,
@@ -8,6 +7,7 @@ import {
   kfPopupInSlideFromLeft,
   kfPopupInSlideFromRight,
 } from '../../styles/animations.css';
+import { vars } from '../../theme/core/contract/contract.css';
 
 export const positioner = style({
   isolation: 'isolate',
@@ -36,7 +36,9 @@ export const popupContent = style({
     '&[data-open][data-side="right"]': { animation: `${kfPopupInSlideFromLeft} 100ms both` },
     '&[data-open][data-side="inline-end"]': { animation: `${kfPopupInSlideFromLeft} 100ms both` },
     '&[data-open][data-side="left"]': { animation: `${kfPopupInSlideFromRight} 100ms both` },
-    '&[data-open][data-side="inline-start"]': { animation: `${kfPopupInSlideFromRight} 100ms both` },
+    '&[data-open][data-side="inline-start"]': {
+      animation: `${kfPopupInSlideFromRight} 100ms both`,
+    },
     '&[data-closed]': { animation: `${kfPopupOut} 100ms both` },
   },
 });

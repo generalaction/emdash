@@ -1,7 +1,7 @@
 import { ChevronDownIcon } from 'lucide-react';
 import * as React from 'react';
-import { cn } from '../lib/cn';
 import { controlVariants, type ControlVariantProps } from '../../styles/recipes/control';
+import { cn } from '../lib/cn';
 import { triggerButtonChevron, triggerButtonExtra } from './trigger-button.css';
 
 export interface TriggerButtonProps
@@ -39,13 +39,15 @@ const TriggerButton = React.forwardRef<HTMLButtonElement, TriggerButtonProps>(
         ref={ref}
         type="button"
         data-slot="trigger-button"
-        className={cn(controlVariants({ variant: 'ghost', tone, size }), triggerButtonExtra, className)}
+        className={cn(
+          controlVariants({ variant: 'ghost', tone, size }),
+          triggerButtonExtra,
+          className
+        )}
         {...props}
       >
         {children}
-        {showChevron && (
-          <ChevronDownIcon className={triggerButtonChevron} aria-hidden />
-        )}
+        {showChevron && <ChevronDownIcon className={triggerButtonChevron} aria-hidden />}
       </button>
     );
   }

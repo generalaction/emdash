@@ -48,11 +48,7 @@ function PopoverContent({
 
 function PopoverHeader({ className, ...props }: React.ComponentProps<'div'>) {
   return (
-    <div
-      data-slot="popover-header"
-      className={cn(styles.popoverHeader, className)}
-      {...props}
-    />
+    <div data-slot="popover-header" className={cn(styles.popoverHeader, className)} {...props} />
   );
 }
 

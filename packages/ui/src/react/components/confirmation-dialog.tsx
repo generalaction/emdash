@@ -14,7 +14,6 @@
 
 import * as React from 'react';
 import { Button } from '../primitives/button';
-import * as styles from './confirmation-dialog.css';
 import {
   Dialog,
   DialogBody,
@@ -24,6 +23,7 @@ import {
   DialogTitle,
   type DialogSize,
 } from '../primitives/dialog';
+import * as styles from './confirmation-dialog.css';
 
 export interface ConfirmationDialogProps {
   open: boolean;

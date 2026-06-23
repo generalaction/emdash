@@ -36,13 +36,13 @@ export const Default: Story = {
 /** Tabs on each surface level — hover/selected adapt via cascade. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <div className="flex flex-col gap-4 rounded-xl bg-surface-sunken p-4">
+    <div className="bg-surface-sunken flex flex-col gap-4 rounded-xl p-4">
       {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
         (level) => (
           <Surface
             key={level}
             level={level}
-            className="flex flex-col gap-2 rounded-lg bg-surface p-3"
+            className="bg-surface flex flex-col gap-2 rounded-lg p-3"
           >
             <span className="text-xs text-foreground-muted">{level}</span>
             <Tabs defaultValue="a">

@@ -84,13 +84,13 @@ export const WithTextarea: Story = {
 /** All states on each surface level — verifies contrast and bg-transparent. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <div className="flex flex-col gap-4 rounded-xl bg-surface-sunken p-4">
+    <div className="bg-surface-sunken flex flex-col gap-4 rounded-xl p-4">
       {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
         (level) => (
           <Surface
             key={level}
             level={level}
-            className="flex flex-col gap-3 rounded-lg bg-surface p-4"
+            className="bg-surface flex flex-col gap-3 rounded-lg p-4"
           >
             <span className="text-xs text-foreground-muted">{level}</span>
             <div className="grid grid-cols-2 gap-3">

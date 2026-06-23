@@ -1,6 +1,5 @@
-import { recipe } from '@vanilla-extract/recipes';
 import { style } from '@vanilla-extract/css';
-import { vars } from '../../theme/core/contract/contract.css';
+import { recipe } from '@vanilla-extract/recipes';
 import {
   kfFadeIn,
   kfFadeOut,
@@ -9,6 +8,7 @@ import {
   kfSlideOutToRight,
   kfSlideOutToLeft,
 } from '../../styles/animations.css';
+import { vars } from '../../theme/core/contract/contract.css';
 
 export const backdrop = style({
   position: 'fixed',

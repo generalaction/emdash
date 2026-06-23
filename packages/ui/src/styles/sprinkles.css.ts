@@ -2,7 +2,6 @@
 // VE build graph so their globalStyle output lands in dist/style.css.
 import './surfaces.css';
 import './design-tokens.css';
-
 /**
  * sprinkles.css.ts — atomic CSS utilities for @emdash/ui.
  *
@@ -18,7 +17,6 @@ import './design-tokens.css';
  *   import { sx } from '@emdash/ui/theme/sprinkles';
  *   <div className={sx({ display: 'flex', background: 'surface', padding: '3' })} />
  */
-
 import { createSprinkles, defineProperties } from '@vanilla-extract/sprinkles';
 import { vars } from '../theme/core/contract/contract.css';
 import { tokenVars } from './design-tokens.css';
@@ -339,6 +337,12 @@ const borderProps = defineProperties({
 
 // ── Combined sprinkles function ───────────────────────────────────────────────
 
-export const sx = createSprinkles(layoutProps, spacingProps, typographyProps, colorProps, borderProps);
+export const sx = createSprinkles(
+  layoutProps,
+  spacingProps,
+  typographyProps,
+  colorProps,
+  borderProps
+);
 
 export type Sprinkles = Parameters<typeof sx>[0];

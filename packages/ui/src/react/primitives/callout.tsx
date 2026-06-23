@@ -1,8 +1,8 @@
 import * as React from 'react';
-import { cn } from '../lib/cn';
 import type { SurfaceStatusName } from '../../theme/core/contract/roles';
-import * as styles from './callout.css';
+import { cn } from '../lib/cn';
 import { Surface } from './surface';
+import * as styles from './callout.css';
 
 export interface CalloutProps extends React.HTMLAttributes<HTMLDivElement> {
   /** Status variant — determines the tinted background, border, and text color. */

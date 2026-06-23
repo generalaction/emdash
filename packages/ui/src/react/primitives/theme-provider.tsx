@@ -18,9 +18,9 @@
  */
 
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { cn } from '../lib/cn';
 import { THEME_MANIFEST } from '../../theme/core/theme-manifest';
 import type { ThemeId } from '../../theme/core/theme-manifest';
+import { cn } from '../lib/cn';
 
 // Re-export for consumers that want to enumerate themes.
 export type { ThemeId };

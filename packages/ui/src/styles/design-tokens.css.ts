@@ -65,7 +65,7 @@ export const tokenVars = createGlobalThemeContract(
     animatePanelBlurIn: 'animate-panel-blur-in',
     animatePanelBlurOut: 'animate-panel-blur-out',
   },
-  (name) => `--${name}`,
+  (name) => `--${name}`
 );
 
 export type TokenVars = typeof tokenVars;
@@ -77,8 +77,7 @@ globalStyle(':root', {
     // Font families
     [tokenVars.fontSans]:
       "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
-    [tokenVars.fontMono]:
-      "'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, monospace",
+    [tokenVars.fontMono]: "'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, monospace",
 
     // Font weight scale
     [tokenVars.fontWeightNormal]: '400',

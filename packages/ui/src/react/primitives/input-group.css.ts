@@ -1,5 +1,5 @@
-import { recipe } from '@vanilla-extract/recipes';
 import { globalStyle, style } from '@vanilla-extract/css';
+import { recipe } from '@vanilla-extract/recipes';
 import { vars } from '../../theme/core/contract/contract.css';
 
 export const inputGroup = style({
@@ -61,7 +61,10 @@ const inputGroupAddonBase = style({
   },
 });
 globalStyle(`${inputGroupAddonBase} > kbd`, { borderRadius: 'calc(var(--radius-md) - 5px)' });
-globalStyle(`${inputGroupAddonBase} > svg:not([class*='size-'])`, { width: '1rem', height: '1rem' });
+globalStyle(`${inputGroupAddonBase} > svg:not([class*='size-'])`, {
+  width: '1rem',
+  height: '1rem',
+});
 
 export const inputGroupAddon = recipe({
   base: inputGroupAddonBase,

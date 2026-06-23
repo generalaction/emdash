@@ -1,7 +1,7 @@
-import type { StorybookConfig } from 'storybook-solidjs-vite';
 import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
-import solid from 'vite-plugin-solid';
+import type { StorybookConfig } from 'storybook-solidjs-vite';
 import { mergeConfig } from 'vite';
+import solid from 'vite-plugin-solid';
 
 const config: StorybookConfig = {
   stories: ['../src/solid/**/*.mdx', '../src/solid/**/*.stories.tsx'],

@@ -33,7 +33,7 @@ function HorizontalItems({ n = 20 }: { n?: number }) {
       {Array.from({ length: n }, (_, i) => (
         <div
           key={i}
-          className="rounded border border-border bg-surface-base-emphasis px-3 py-1 text-sm"
+          className="bg-surface-base-emphasis rounded border border-border px-3 py-1 text-sm"
         >
           Item {i + 1}
         </div>
@@ -47,7 +47,7 @@ function HorizontalItems({ n = 20 }: { n?: number }) {
 /** Vertical fade — content overflows, fades appear top and bottom as you scroll. */
 export const VerticalOverflow: Story = {
   render: () => (
-    <ScrollFade className="h-48 w-80 rounded border border-border bg-surface">
+    <ScrollFade className="bg-surface h-48 w-80 rounded border border-border">
       <div className="flex flex-col gap-3 p-4">
         <Paragraph n={8} />
       </div>
@@ -58,7 +58,7 @@ export const VerticalOverflow: Story = {
 /** No overflow — fades should not appear when content fits. */
 export const VerticalNoOverflow: Story = {
   render: () => (
-    <ScrollFade className="h-48 w-80 rounded border border-border bg-surface">
+    <ScrollFade className="bg-surface h-48 w-80 rounded border border-border">
       <div className="flex flex-col gap-3 p-4">
         <Paragraph n={2} />
       </div>
@@ -69,7 +69,7 @@ export const VerticalNoOverflow: Story = {
 /** Horizontal fade — wide content overflows horizontally. */
 export const HorizontalOverflow: Story = {
   render: () => (
-    <ScrollFade axis="x" className="w-80 rounded border border-border bg-surface">
+    <ScrollFade axis="x" className="bg-surface w-80 rounded border border-border">
       <div className="p-4">
         <HorizontalItems n={20} />
       </div>
@@ -80,7 +80,7 @@ export const HorizontalOverflow: Story = {
 /** Both axes — content overflows in both directions. */
 export const BothAxes: Story = {
   render: () => (
-    <ScrollFade axis="both" className="h-48 w-80 rounded border border-border bg-surface">
+    <ScrollFade axis="both" className="bg-surface h-48 w-80 rounded border border-border">
       <div className="p-4">
         <div className="mb-3">
           <HorizontalItems n={20} />
@@ -120,7 +120,7 @@ export const CustomSize: Story = {
     <div className="flex gap-6">
       <div className="flex flex-col gap-1">
         <p className="text-xs text-foreground-muted">size=12 (subtle)</p>
-        <ScrollFade size={12} className="h-48 w-52 rounded border border-border bg-surface">
+        <ScrollFade size={12} className="bg-surface h-48 w-52 rounded border border-border">
           <div className="flex flex-col gap-3 p-4">
             <Paragraph n={8} />
           </div>
@@ -128,7 +128,7 @@ export const CustomSize: Story = {
       </div>
       <div className="flex flex-col gap-1">
         <p className="text-xs text-foreground-muted">size=48 (dramatic)</p>
-        <ScrollFade size={48} className="h-48 w-52 rounded border border-border bg-surface">
+        <ScrollFade size={48} className="bg-surface h-48 w-52 rounded border border-border">
           <div className="flex flex-col gap-3 p-4">
             <Paragraph n={8} />
           </div>
@@ -145,7 +145,7 @@ export const AllSurfaces: Story = {
       {(['sunken', 'base', 'raised', 'overlay', 'floating'] as const).map((s) => (
         <div key={s} className={`surface-${s} rounded-lg p-4`}>
           <p className="mb-2 text-xs text-foreground-muted">.surface-{s}</p>
-          <ScrollFade className="h-40 w-44 rounded border border-border bg-surface">
+          <ScrollFade className="bg-surface h-40 w-44 rounded border border-border">
             <div className="flex flex-col gap-3 p-3">
               <Paragraph n={8} />
             </div>
@@ -162,7 +162,7 @@ export const BothModes: Story = {
     <div className="flex min-h-screen divide-x divide-border">
       <ThemeProvider defaultTheme="light" className="flex-1 bg-background p-8">
         <p className="mb-4 text-sm font-medium text-foreground">Light mode</p>
-        <ScrollFade className="h-48 w-80 rounded border border-border bg-surface">
+        <ScrollFade className="bg-surface h-48 w-80 rounded border border-border">
           <div className="flex flex-col gap-3 p-4">
             <Paragraph n={8} />
           </div>
@@ -170,7 +170,7 @@ export const BothModes: Story = {
       </ThemeProvider>
       <ThemeProvider defaultTheme="dark" className="flex-1 bg-background p-8">
         <p className="mb-4 text-sm font-medium text-foreground">Dark mode</p>
-        <ScrollFade className="h-48 w-80 rounded border border-border bg-surface">
+        <ScrollFade className="bg-surface h-48 w-80 rounded border border-border">
           <div className="flex flex-col gap-3 p-4">
             <Paragraph n={8} />
           </div>

@@ -12,11 +12,7 @@ import * as styles from './field.css';
  */
 function Field({ className, ...props }: FieldPrimitive.Root.Props) {
   return (
-    <FieldPrimitive.Root
-      data-slot="field"
-      className={cn(styles.field, className)}
-      {...props}
-    />
+    <FieldPrimitive.Root data-slot="field" className={cn(styles.field, className)} {...props} />
   );
 }
 

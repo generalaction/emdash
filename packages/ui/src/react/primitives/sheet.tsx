@@ -69,11 +69,7 @@ function SheetHeader({
   ...props
 }: React.ComponentProps<'div'> & { showCloseButton?: boolean }) {
   return (
-    <div
-      data-slot="sheet-header"
-      className={cn(styles.sheetHeader, className)}
-      {...props}
-    >
+    <div data-slot="sheet-header" className={cn(styles.sheetHeader, className)} {...props}>
       <div className={styles.sheetHeaderInner}>{children}</div>
       {showCloseButton && (
         <Drawer.Close
@@ -96,11 +92,7 @@ function SheetHeader({
 
 function SheetTitle({ className, ...props }: Drawer.Title.Props) {
   return (
-    <Drawer.Title
-      data-slot="sheet-title"
-      className={cn(styles.sheetTitle, className)}
-      {...props}
-    />
+    <Drawer.Title data-slot="sheet-title" className={cn(styles.sheetTitle, className)} {...props} />
   );
 }
 
@@ -127,11 +119,7 @@ function SheetBody({
 
 function SheetFooter({ className, children, ...props }: React.ComponentProps<'div'>) {
   return (
-    <div
-      data-slot="sheet-footer"
-      className={cn(styles.sheetFooter, className)}
-      {...props}
-    >
+    <div data-slot="sheet-footer" className={cn(styles.sheetFooter, className)} {...props}>
       {children}
     </div>
   );

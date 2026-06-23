@@ -139,9 +139,7 @@ function ComboboxItem({
       {...props}
     >
       {children}
-      <ComboboxPrimitive.ItemIndicator
-        render={<span className={styles.comboboxItemIndicator} />}
-      >
+      <ComboboxPrimitive.ItemIndicator render={<span className={styles.comboboxItemIndicator} />}>
         {showCheck && (
           <CheckIcon style={{ pointerEvents: 'none' }} absoluteStrokeWidth strokeWidth={3} />
         )}

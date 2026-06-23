@@ -35,7 +35,7 @@ export const Scale: Story = {
         {RADIUS_TOKENS.map(({ name, var: cssVar, label }) => (
           <div key={name} className="flex flex-col items-center gap-3">
             <div
-              className="h-16 w-16 border-2 border-border bg-surface-emphasis"
+              className="bg-surface-emphasis h-16 w-16 border-2 border-border"
               style={{ borderRadius: `var(${cssVar})` }}
             />
             <div className="text-center">
@@ -65,20 +65,20 @@ export const InContext: Story = {
         {/* Import lazily so this story doesn't add a hard dep on Button */}
         <button
           type="button"
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-transparent bg-surface-hover px-2.5 text-sm text-foreground"
+          className="bg-surface-hover inline-flex h-8 items-center gap-1.5 rounded-lg border border-transparent px-2.5 text-sm text-foreground"
         >
           Base button (rounded-lg)
         </button>
         <button
           type="button"
-          className="inline-flex h-6 items-center gap-1 rounded-md border border-transparent bg-surface-hover px-2 text-xs text-foreground"
+          className="bg-surface-hover inline-flex h-6 items-center gap-1 rounded-md border border-transparent px-2 text-xs text-foreground"
         >
           SM button (rounded-md)
         </button>
         <input
           type="text"
           placeholder="Input (rounded-md)"
-          className="h-8 rounded-md border border-border bg-surface-input px-2.5 text-sm text-foreground outline-none"
+          className="bg-surface-input h-8 rounded-md border border-border px-2.5 text-sm text-foreground outline-none"
         />
       </div>
     </div>

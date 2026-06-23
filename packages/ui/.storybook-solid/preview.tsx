@@ -1,5 +1,5 @@
-import type { Decorator, Preview } from 'storybook-solidjs';
 import { createEffect } from 'solid-js';
+import type { Decorator, Preview } from 'storybook-solidjs';
 import { THEME_MANIFEST } from '../src/theme/core/theme-manifest';
 // Side-effect: pulls VE surfaces + tokens into the build graph.
 import '../src/styles/sprinkles.css';

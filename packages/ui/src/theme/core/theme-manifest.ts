@@ -8,10 +8,20 @@ export type ThemeManifestEntry = {
 };
 
 export const THEME_MANIFEST: readonly ThemeManifestEntry[] = [
-  { id: "light", label: "Light", polarity: "light", selector: ".emlight" },
-  { id: "dark", label: "Dark", polarity: "dark", selector: ".emdark" },
-  { id: "solarized-light", label: "Solarized Light", polarity: "light", selector: ".emsolarized-light" },
-  { id: "solarized-dark", label: "Solarized Dark", polarity: "dark", selector: ".emsolarized-dark" },
+  { id: 'light', label: 'Light', polarity: 'light', selector: '.emlight' },
+  { id: 'dark', label: 'Dark', polarity: 'dark', selector: '.emdark' },
+  {
+    id: 'solarized-light',
+    label: 'Solarized Light',
+    polarity: 'light',
+    selector: '.emsolarized-light',
+  },
+  {
+    id: 'solarized-dark',
+    label: 'Solarized Dark',
+    polarity: 'dark',
+    selector: '.emsolarized-dark',
+  },
 ] as const;
 
 export type ThemeId = (typeof THEME_MANIFEST)[number]['id'];

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React, { useEffect, useRef, useState } from 'react';
-import { ThemeProvider } from '../primitives/theme-provider';
 import { SCALE_NAMES, STEPS } from '../../theme/core/contract/roles';
+import { ThemeProvider } from '../primitives/theme-provider';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,7 +32,12 @@ function StepSwatch({ scale, step }: { scale: ScaleName; step: number }) {
       <div
         ref={ref}
         className="h-10 w-full rounded"
-        style={{ background: `var(${varName})`, boxShadow: isStep9 ? '0 0 0 2px var(--background), 0 0 0 4px var(--border-primary)' : undefined }}
+        style={{
+          background: `var(${varName})`,
+          boxShadow: isStep9
+            ? '0 0 0 2px var(--background), 0 0 0 4px var(--border-primary)'
+            : undefined,
+        }}
       />
       <span className="font-mono text-[9px] leading-none text-foreground-passive">{step}</span>
     </div>

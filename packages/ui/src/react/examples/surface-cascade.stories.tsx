@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AlertCircleIcon, AlertTriangleIcon, InfoIcon } from 'lucide-react';
 import React, { useState } from 'react';
+import { SURFACE_LEVELS, SURFACE_ROLES, SURFACE_STATUSES } from '../../theme/core/contract/roles';
+import type { SurfaceScopeName, SurfaceStatusName } from '../../theme/core/contract/roles';
 import { Button } from '../primitives/button';
 import { Callout } from '../primitives/callout';
 import { Input } from '../primitives/input';
@@ -14,8 +16,6 @@ import {
 import { Surface } from '../primitives/surface';
 import { ThemeProvider } from '../primitives/theme-provider';
 import { Toggle } from '../primitives/toggle';
-import { SURFACE_LEVELS, SURFACE_ROLES, SURFACE_STATUSES } from '../../theme/core/contract/roles';
-import type { SurfaceScopeName, SurfaceStatusName } from '../../theme/core/contract/roles';
 
 const meta: Meta = {
   title: 'Examples/Surface Cascade',
@@ -45,7 +45,10 @@ function ElevationSwatch({ level, label }: { level: string; label: string }) {
       />
       <div
         className="h-6 w-full rounded"
-        style={{ background: `var(--surface-${level}-selected)`, boxShadow: isEmphasis ? 'inset 0 0 0 1px var(--border-primary)' : undefined }}
+        style={{
+          background: `var(--surface-${level}-selected)`,
+          boxShadow: isEmphasis ? 'inset 0 0 0 1px var(--border-primary)' : undefined,
+        }}
         title={`--surface-${level}-selected`}
       />
     </div>
@@ -58,7 +61,7 @@ function SurfaceCard({ level }: { level: SurfaceScopeName }) {
   return (
     <Surface
       level={level}
-      className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
+      className="bg-surface flex flex-col gap-3 rounded-lg border border-border p-4"
     >
       <p className="font-mono text-xs text-foreground-muted">.surface-{level}</p>
       <Input placeholder="Search…" />
@@ -94,20 +97,20 @@ function SurfaceTabs({ level }: { level: SurfaceScopeName }) {
   ];
   return (
     <Surface level={level} className="flex flex-col gap-0 rounded-lg border border-border">
-      <div className="flex items-center gap-1 border-b border-border bg-surface px-1 pt-1">
+      <div className="bg-surface flex items-center gap-1 border-b border-border px-1 pt-1">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             data-active={active === tab.id ? 'true' : undefined}
             onClick={() => setActive(tab.id)}
-            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-transparent px-2.5 text-sm text-foreground-muted transition-all hover:bg-surface-hover hover:text-foreground data-[active=true]:bg-surface-selected data-[active=true]:text-foreground"
+            className="hover:bg-surface-hover data-[active=true]:bg-surface-selected inline-flex h-7 items-center gap-1.5 rounded-md border border-transparent px-2.5 text-sm text-foreground-muted transition-all hover:text-foreground data-[active=true]:text-foreground"
           >
             {tab.label}
           </button>
         ))}
       </div>
-      <Surface emphasis className="rounded-b-lg bg-surface p-4">
+      <Surface emphasis className="bg-surface rounded-b-lg p-4">
         <p className="text-sm text-foreground-muted">
           Content for <strong className="text-foreground">{active}</strong> tab on{' '}
           <code className="font-mono text-xs">.surface-{level}</code>
@@ -163,10 +166,10 @@ export const Cascade: Story = {
         <Surface
           key={level}
           level={level}
-          className="flex flex-col gap-3 rounded-xl bg-surface p-4"
+          className="bg-surface flex flex-col gap-3 rounded-xl p-4"
         >
           <p className="font-mono text-xs text-foreground-muted">.surface-{level}</p>
-          <Surface emphasis className="rounded-lg bg-surface p-3">
+          <Surface emphasis className="bg-surface rounded-lg p-3">
             <p className="text-xs text-foreground-muted">.surface-emphasis (card)</p>
             <p className="mt-1 text-sm text-foreground">Card content adapts automatically.</p>
           </Surface>
@@ -238,7 +241,7 @@ function StatusRoom({ status }: { status: SurfaceStatusName }) {
       </Callout>
       <Surface
         status={status}
-        className="flex items-center gap-2 rounded-lg border bg-surface p-3"
+        className="bg-surface flex items-center gap-2 rounded-lg border p-3"
         style={{ borderColor: `var(--surface-${status}-border)` }}
       >
         <span className="flex-1 text-sm" style={{ color: `var(--surface-${status}-foreground)` }}>

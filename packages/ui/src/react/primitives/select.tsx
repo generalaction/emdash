@@ -3,8 +3,8 @@
 import { Select as SelectPrimitive } from '@base-ui/react/select';
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
 import * as React from 'react';
-import { cn } from '../lib/cn';
 import type { ControlVariantProps } from '../../styles/recipes/control';
+import { cn } from '../lib/cn';
 import { TriggerButton } from './trigger-button';
 import * as styles from './select.css';
 
@@ -116,9 +116,7 @@ function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Prop
       <SelectPrimitive.ItemText className={styles.selectItemText}>
         {children}
       </SelectPrimitive.ItemText>
-      <SelectPrimitive.ItemIndicator
-        render={<span className={styles.selectItemIndicator} />}
-      >
+      <SelectPrimitive.ItemIndicator render={<span className={styles.selectItemIndicator} />}>
         <CheckIcon style={{ pointerEvents: 'none' }} />
       </SelectPrimitive.ItemIndicator>
     </SelectPrimitive.Item>

@@ -75,7 +75,7 @@ export const LeftSide: Story = {
               <button
                 key={item}
                 type="button"
-                className="rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-surface-base-emphasis"
+                className="hover:bg-surface-base-emphasis rounded-lg px-3 py-2 text-left text-sm text-foreground"
               >
                 {item}
               </button>

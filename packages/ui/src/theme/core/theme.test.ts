@@ -10,11 +10,11 @@
 
 import Color from 'colorjs.io';
 import { describe, expect, it } from 'vitest';
+import { darkTheme } from '../themes/dark.theme.js';
+import { lightTheme } from '../themes/light.theme.js';
 import { SURFACE_LEVELS, SURFACE_STATUSES } from './contract/roles.js';
 import { SEMANTIC_TEMPLATE } from './contract/semantic-template.js';
 import type { ResolvedTheme } from './define-theme.js';
-import { darkTheme } from '../themes/dark.theme.js';
-import { lightTheme } from '../themes/light.theme.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

@@ -20,7 +20,6 @@
 import { ArrowUp, CircleAlert, Paperclip, Square, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { cn } from '../lib/cn';
-import * as styles from './chat-composer.css';
 import { Button } from '../primitives/button';
 import {
   Combobox,
@@ -42,6 +41,7 @@ import type {
   MentionItem,
   PromptEditorRef,
 } from './prompt-editor/types';
+import * as styles from './chat-composer.css';
 
 export type { MentionItem, CommandItem };
 export type { MentionKind, CommandBehavior, ContextMentionProvider } from './prompt-editor/types';
@@ -321,7 +321,9 @@ function NoticeBand({ notice }: { notice: ComposerNotice }) {
           <CircleAlert style={{ width: '0.875rem', height: '0.875rem', flexShrink: 0 }} />
           {notice.title && <p className={styles.noticeBandTitle}>{notice.title}</p>}
         </div>
-        <p className={cn(styles.noticeBandMessage, notice.title && styles.noticeBandMessageIndented)}>
+        <p
+          className={cn(styles.noticeBandMessage, notice.title && styles.noticeBandMessageIndented)}
+        >
           {notice.message}
         </p>
       </div>
@@ -435,7 +437,17 @@ function ComposerAgentSelector({
                 {group.items.map((item) => (
                   <ComboboxItem key={item.id} value={item} disabled={item.disabled}>
                     {item.icon && <span style={{ flexShrink: 0 }}>{item.icon}</span>}
-                    <span style={{ minWidth: 0, flex: '1 1 0%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+                    <span
+                      style={{
+                        minWidth: 0,
+                        flex: '1 1 0%',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {item.name}
+                    </span>
                   </ComboboxItem>
                 ))}
               </ComboboxGroup>
@@ -443,7 +455,17 @@ function ComposerAgentSelector({
               group.items.map((item) => (
                 <ComboboxItem key={item.id} value={item} disabled={item.disabled}>
                   {item.icon && <span style={{ flexShrink: 0 }}>{item.icon}</span>}
-                  <span style={{ minWidth: 0, flex: '1 1 0%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+                  <span
+                    style={{
+                      minWidth: 0,
+                      flex: '1 1 0%',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {item.name}
+                  </span>
                 </ComboboxItem>
               ))
             )
@@ -612,11 +634,7 @@ export function ChatComposer({
                   onClick={() => onViewImage?.(att)}
                   className={styles.attachmentThumbBtn}
                 >
-                  <img
-                    src={att.previewUrl}
-                    alt={att.name}
-                    className={styles.attachmentThumbImg}
-                  />
+                  <img src={att.previewUrl} alt={att.name} className={styles.attachmentThumbImg} />
                 </button>
                 <button
                   type="button"
@@ -680,11 +698,28 @@ export function ChatComposer({
                 searchPlaceholder="Search models…"
                 contentStyle={{ minWidth: '12.5rem' }}
                 renderTrigger={(selected) => (
-                  <span style={{ color: selected ? 'var(--foreground)' : 'var(--foreground-muted)', fontSize: 'var(--text-xs)' }}>
+                  <span
+                    style={{
+                      color: selected ? 'var(--foreground)' : 'var(--foreground-muted)',
+                      fontSize: 'var(--text-xs)',
+                    }}
+                  >
                     {selected?.name ?? 'Model…'}
                   </span>
                 )}
-                renderItem={(item) => <span style={{ flex: '1 1 0%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--text-sm)' }}>{item.name}</span>}
+                renderItem={(item) => (
+                  <span
+                    style={{
+                      flex: '1 1 0%',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      fontSize: 'var(--text-sm)',
+                    }}
+                  >
+                    {item.name}
+                  </span>
+                )}
                 renderItemDetail={(item) => <ModelDetailCard item={item} />}
                 detailSide="right"
                 detailAlign="start"

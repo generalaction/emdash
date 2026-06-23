@@ -307,7 +307,7 @@ function LiveChatPanel({
   );
 
   return (
-    <div className="surface-paper relative h-full overflow-hidden rounded-xl border border-border bg-surface">
+    <div className="surface-paper bg-surface relative h-full overflow-hidden rounded-xl border border-border">
       {/* Full-bleed transcript — reserves canvas space for the floating composer */}
       <ChatTranscript
         className="absolute inset-0"
@@ -325,7 +325,7 @@ function LiveChatPanel({
           horizontal padding so it sits flush with user message bubble edges */}
       <div
         ref={composerRef}
-        className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-2xl bg-surface/80 pb-2 backdrop-blur-sm"
+        className="bg-surface/80 absolute inset-x-0 bottom-0 mx-auto w-full max-w-2xl pb-2 backdrop-blur-sm"
       >
         {/* Scroll-to-bottom affordance — floats above the composer while the
             transcript is scrolled up past the stick threshold (48px). */}

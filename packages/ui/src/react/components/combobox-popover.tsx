@@ -19,7 +19,6 @@ import { type ComboboxRootChangeEventDetails } from '@base-ui/react/combobox';
 import { ChevronDown } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '../lib/cn';
-import * as styles from './combobox-popover.css';
 import {
   Combobox,
   ComboboxContent,
@@ -29,6 +28,7 @@ import {
   ComboboxTrigger,
 } from '../primitives/combobox';
 import { HoverCard, isEventInsideInteractiveLayer, useHoverCard } from '../primitives/hover-card';
+import * as styles from './combobox-popover.css';
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -138,10 +138,7 @@ export function ComboboxPopover<T>({
       filter={filter ?? defaultFilter}
       autoHighlight
     >
-      <ComboboxTrigger
-        disabled={disabled}
-        className={cn(styles.trigger, className)}
-      >
+      <ComboboxTrigger disabled={disabled} className={cn(styles.trigger, className)}>
         <span className={styles.triggerLabel}>{renderTrigger(selectedItem)}</span>
         <ChevronDown className={styles.triggerChevron} />
       </ComboboxTrigger>

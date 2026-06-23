@@ -118,9 +118,7 @@ export const ComboboxPopup = React.forwardRef<ComboboxPopupHandle, ComboboxPopup
         {header && <div className={styles.popupHeader}>{header}</div>}
         <ul ref={listRef} className={styles.popupList}>
           {items.length === 0 && emptyLabel ? (
-            <li className={cn(styles.popupItem, styles.popupItemDefault)}>
-              {emptyLabel}
-            </li>
+            <li className={cn(styles.popupItem, styles.popupItemDefault)}>{emptyLabel}</li>
           ) : (
             items.map((item, index) => (
               <li

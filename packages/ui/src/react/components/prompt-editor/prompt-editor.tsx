@@ -21,13 +21,12 @@ import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from '
 import type React from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '../../lib/cn';
-import * as styles from './prompt-editor.css';
-import './chip-classes.css';
 import {
   ComboboxPopup,
   type ComboboxPopupHandle,
   type ComboboxPopupItem,
 } from '../../primitives/combobox-popup';
+import './chip-classes.css';
 import { buildMentionExtension } from './extensions/mention';
 import { buildSlashCommandExtension } from './extensions/slash-command';
 import { buildSubmitKeymap } from './extensions/submit-keymap';
@@ -40,6 +39,7 @@ import type {
   PromptEditorProps,
   PromptEditorRef,
 } from './types';
+import * as styles from './prompt-editor.css';
 
 // ── Icon helpers for the popup ────────────────────────────────────────────────
 
@@ -57,7 +57,11 @@ function mentionToPopupItem(item: MentionItem): ComboboxPopupItem {
   if (!icon) {
     if (item.kind === 'file') {
       const cls = fileIconClass(item.label);
-      icon = cls ? <i className={cls} style={{ fontSize: '13px', lineHeight: 1 }} /> : KIND_POPUP_ICONS.file;
+      icon = cls ? (
+        <i className={cls} style={{ fontSize: '13px', lineHeight: 1 }} />
+      ) : (
+        KIND_POPUP_ICONS.file
+      );
     } else {
       icon = KIND_POPUP_ICONS[item.kind] ?? KIND_POPUP_ICONS.custom;
     }

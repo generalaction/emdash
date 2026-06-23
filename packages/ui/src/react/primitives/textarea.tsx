@@ -1,6 +1,6 @@
 import * as React from 'react';
-import { cn } from '../lib/cn';
 import { inputVariants, type InputVariantProps } from '../../styles/recipes/input';
+import { cn } from '../lib/cn';
 import { textareaOverride } from './textarea.css';
 
 export interface TextareaProps extends React.ComponentProps<'textarea'> {

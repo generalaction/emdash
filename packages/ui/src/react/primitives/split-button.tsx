@@ -12,16 +12,16 @@
 
 import { ChevronDownIcon } from 'lucide-react';
 import * as React from 'react';
-import { cn } from '../lib/cn';
 import { controlVariants, type ControlVariantProps } from '../../styles/recipes/control';
+import { cn } from '../lib/cn';
 import { Button, type ButtonProps } from './button';
-import * as styles from './split-button.css';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './dropdown-menu';
+import * as styles from './split-button.css';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
