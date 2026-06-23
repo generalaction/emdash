@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   releaseWorkspace: vi.fn(),
   buildTaskFromWorkspace: vi.fn(),
   emitTaskProvisionProgress: vi.fn(),
+  createWorkspaceFactory: vi.fn(),
 }));
 
 // Prevent the module-level singleton from attempting to open the Electron app DB.
@@ -29,6 +30,10 @@ vi.mock('./workspace-registry', () => ({
     acquire: mocks.acquireWorkspace,
     release: mocks.releaseWorkspace,
   },
+}));
+
+vi.mock('./workspace-factory', () => ({
+  createWorkspaceFactory: mocks.createWorkspaceFactory,
 }));
 
 const WS_ID = 'ws-1';
@@ -53,6 +58,7 @@ describe('WorkspaceBootstrapService', () => {
   let svc: WorkspaceBootstrapService;
 
   beforeEach(async () => {
+    vi.clearAllMocks();
     fixture = await openFixture('empty');
     svc = new WorkspaceBootstrapService(fixture.db);
 
@@ -75,6 +81,7 @@ describe('WorkspaceBootstrapService', () => {
         terminals: {},
       },
     });
+    mocks.createWorkspaceFactory.mockReturnValue(vi.fn());
   });
 
   afterEach(() => {
@@ -157,7 +164,7 @@ describe('WorkspaceBootstrapService', () => {
         repoPath: '/repo',
         defaultWorkspaceType: { kind: 'local' },
         settings: {
-          get: vi.fn(),
+          get: vi.fn().mockResolvedValue({}),
         },
         gitRepository: {
           getConfiguredRemotes: vi.fn(),
@@ -196,16 +203,113 @@ describe('WorkspaceBootstrapService', () => {
       expect(result.success).toBe(true);
       if (!result.success) throw new Error('expected success');
       expect(result.data.path).toBe('/worktrees/task-branch');
-      expect(serveBranchWorktree).toHaveBeenCalledWith('task/branch', {
-        type: 'local',
-        branch: 'main',
-      });
+      expect(serveBranchWorktree).toHaveBeenCalledWith(
+        'task/branch',
+        {
+          type: 'local',
+          branch: 'main',
+        },
+        undefined,
+        {
+          projectId: 'proj-1',
+          taskId: 'task-1',
+          workspaceId: WS_ID,
+          sourceBranch: 'main',
+        }
+      );
       expect(existsAbsolute).not.toHaveBeenCalledWith('/worktrees/broken-task-branch');
       expect(mocks.acquireWorkspace).toHaveBeenCalled();
 
       const [ws] = await fixture.db.select().from(workspaces).where(eq(workspaces.id, WS_ID));
       expect(ws.path).toBe('/worktrees/task-branch');
       expect(ws.branchName).toBe('task/branch');
+    });
+
+    it('uses the configured agent working directory when acquiring the workspace', async () => {
+      const project = {
+        projectId: 'proj-1',
+        type: 'local',
+        repoPath: '/repo',
+        defaultWorkspaceType: { kind: 'local' },
+        defaultWorkspaceMachine: { kind: 'local' },
+        settings: {
+          get: vi.fn().mockResolvedValue({
+            worktreeLifecycle: { workingDirectory: 'services/web' },
+          }),
+        },
+        gitRepository: {},
+        gitRepositoryFetchService: {},
+        worktreeHost: {
+          pathApi: {
+            join: (...segments: string[]) => segments.join('/'),
+          },
+          existsAbsolute: vi.fn().mockResolvedValue(true),
+        },
+      } as unknown as ProjectProvider;
+
+      const result = await svc.ensureWorkspaceSetup(
+        {
+          id: WS_ID,
+          type: 'local',
+          kind: 'project-root',
+          path: '/worktrees/task-branch',
+          branchName: null,
+          config: null,
+        },
+        { workspaceIntent: null, workspaceProvider: null },
+        task,
+        project
+      );
+
+      expect(result.success).toBe(true);
+      expect(mocks.createWorkspaceFactory).toHaveBeenCalledWith(
+        WS_ID,
+        { kind: 'local' },
+        expect.objectContaining({
+          workDir: '/worktrees/task-branch/services/web',
+        })
+      );
+    });
+
+    it('rejects agent working directories that escape the worktree', async () => {
+      const project = {
+        projectId: 'proj-1',
+        type: 'local',
+        repoPath: '/repo',
+        defaultWorkspaceType: { kind: 'local' },
+        settings: {
+          get: vi.fn().mockResolvedValue({
+            worktreeLifecycle: { workingDirectory: '../outside' },
+          }),
+        },
+        worktreeHost: {
+          pathApi: {
+            join: (...segments: string[]) => segments.join('/'),
+          },
+          existsAbsolute: vi.fn(),
+        },
+      } as unknown as ProjectProvider;
+
+      const result = await svc.ensureWorkspaceSetup(
+        {
+          id: WS_ID,
+          type: 'local',
+          kind: 'project-root',
+          path: '/worktrees/task-branch',
+          branchName: null,
+          config: null,
+        },
+        { workspaceIntent: null, workspaceProvider: null },
+        task,
+        project
+      );
+
+      expect(result.success).toBe(false);
+      if (result.success) throw new Error('expected failure');
+      expect(result.error.type).toBe('setup-failed');
+      if (result.error.type !== 'setup-failed') throw new Error('expected setup failure');
+      expect(result.error.message).toContain('must stay inside the worktree');
+      expect(mocks.acquireWorkspace).not.toHaveBeenCalled();
     });
   });
 });

@@ -21,28 +21,49 @@ export async function removeWorktreeIfUnused(
     id: string;
     kind: 'worktree' | 'project-root' | 'byoi' | null;
     branchName: string | null;
+    path?: string | null;
     config: WorkspaceConfig | null;
   },
   project: ProjectProvider,
-  excludeArchived: boolean
+  excludeArchived: boolean,
+  options: {
+    excludeTaskId?: string;
+    throwOnFailure?: boolean;
+  } = {}
 ): Promise<boolean> {
   const branchName = getProvisionedWorkspaceBranch(workspace);
   if (!branchName) return false;
 
   const where = excludeArchived
-    ? and(eq(tasks.workspaceId, workspace.id), isNull(tasks.archivedAt))
-    : eq(tasks.workspaceId, workspace.id);
+    ? options.excludeTaskId
+      ? and(
+          eq(tasks.workspaceId, workspace.id),
+          isNull(tasks.archivedAt),
+          ne(tasks.id, options.excludeTaskId)
+        )
+      : and(eq(tasks.workspaceId, workspace.id), isNull(tasks.archivedAt))
+    : options.excludeTaskId
+      ? and(eq(tasks.workspaceId, workspace.id), ne(tasks.id, options.excludeTaskId))
+      : eq(tasks.workspaceId, workspace.id);
 
   const siblings = await db.select({ id: tasks.id }).from(tasks).where(where).limit(1);
   if (siblings.length > 0) return false;
 
   try {
-    await project.removeTaskWorktree(branchName);
+    await project.removeTaskWorktree(branchName, {
+      worktreePath: workspace.path ?? undefined,
+      lifecycleContext: {
+        projectId: project.projectId,
+        taskId: options.excludeTaskId ?? '',
+        workspaceId: workspace.id,
+      },
+    });
   } catch (e) {
     log.warn('removeWorktreeIfUnused: worktree removal failed', {
       branchName,
       error: String(e),
     });
+    if (options.throwOnFailure) throw e;
     return false;
   }
   return true;

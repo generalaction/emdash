@@ -1,7 +1,10 @@
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type { WorktreeHost } from '@main/core/projects/worktrees/hosts/worktree-host';
-import type { WorktreeService } from '@main/core/projects/worktrees/worktree-service';
+import type {
+  WorktreeLifecycleContext,
+  WorktreeService,
+} from '@main/core/projects/worktrees/worktree-service';
 
 /**
  * Context passed to every workspace setup step executor.
@@ -21,6 +24,8 @@ export type StepContext = {
   projectSettings: ProjectSettingsProvider;
   /** Worktree service that owns checkout validation, stale cleanup, and checkout creation. */
   worktreeService: Pick<WorktreeService, 'serveBranchWorktree'>;
+  /** Task/workspace identifiers exposed to custom worktree lifecycle commands. */
+  worktreeLifecycleContext?: WorktreeLifecycleContext;
   /**
    * Resolved worktree path from a preceding `add-worktree` step.
    * Populated by the executor after a successful add-worktree step so that

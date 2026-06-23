@@ -40,6 +40,7 @@ export async function deleteTask(
         id: string;
         kind: 'worktree' | 'project-root' | 'byoi' | null;
         branchName: string | null;
+        path: string | null;
         config: WorkspaceConfig | null;
       }
     | undefined;
@@ -50,6 +51,19 @@ export async function deleteTask(
       .where(eq(workspaces.id, task.workspaceId))
       .limit(1);
     if (ws) wsRow = ws;
+  }
+
+  let worktreeRemoved = false;
+  const shouldUseStrictCustomTeardown =
+    project && deleteWorktree && wsRow && (await project.hasCustomWorktreeTeardownCommand());
+  if (project && deleteWorktree && wsRow && shouldUseStrictCustomTeardown) {
+    worktreeRemoved = await removeWorktreeIfUnused(wsRow, project, false, {
+      excludeTaskId: taskId,
+      throwOnFailure: true,
+    });
+  }
+
+  if (task.workspaceId) {
     await deleteWorkspaceIfUnused(task.workspaceId, taskId);
   }
 
@@ -57,8 +71,11 @@ export async function deleteTask(
   void viewStateService.del(`task:${taskId}`);
   telemetryService.capture('task_deleted', { project_id: projectId, task_id: taskId });
 
+  if (project && deleteWorktree && wsRow && !shouldUseStrictCustomTeardown) {
+    worktreeRemoved = await removeWorktreeIfUnused(wsRow, project, false);
+  }
+
   if (project && deleteWorktree && wsRow) {
-    const worktreeRemoved = await removeWorktreeIfUnused(wsRow, project, false);
     const provisionedBranch = getProvisionedWorkspaceBranch(wsRow);
     if (worktreeRemoved && deleteBranch && provisionedBranch) {
       const fromBranch =

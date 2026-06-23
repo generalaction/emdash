@@ -24,7 +24,9 @@ import {
   normalizeShareableFieldValue,
   settingsToForm,
   validateWorkspaceProviderCommands,
+  validateWorktreeLifecycleSettings,
   type FormState,
+  type WorktreeLifecycleValidationErrors,
   type WorkspaceProviderValidationErrors,
 } from './project-settings-form-model';
 import { projectConfigTargetValue } from './share-project-config-modal';
@@ -89,6 +91,8 @@ export function useProjectSettingsForm({
   const [worktreeDirectoryError, setWorktreeDirectoryError] = useState<string | null>(null);
   const [workspaceProviderErrors, setWorkspaceProviderErrors] =
     useState<WorkspaceProviderValidationErrors>({});
+  const [worktreeLifecycleErrors, setWorktreeLifecycleErrors] =
+    useState<WorktreeLifecycleValidationErrors>({});
 
   const resolvedSnapshot = resolveFormSnapshot(formSnapshot, baseline);
   const { form, savedForm } = resolvedSnapshot;
@@ -108,6 +112,7 @@ export function useProjectSettingsForm({
   const baselineResynced = resolvedSnapshot !== formSnapshot && areFormStatesEqual(form, savedForm);
   const visibleWorktreeDirectoryError = baselineResynced ? null : worktreeDirectoryError;
   const visibleWorkspaceProviderErrors = baselineResynced ? {} : workspaceProviderErrors;
+  const visibleWorktreeLifecycleErrors = baselineResynced ? {} : worktreeLifecycleErrors;
 
   const update = useCallback(
     <K extends keyof FormState>(key: K, value: FormState[K]) => {
@@ -121,6 +126,13 @@ export function useProjectSettingsForm({
       }
       if (key === 'provisionCommand' || key === 'terminateCommand') {
         setWorkspaceProviderErrors({});
+      }
+      if (
+        key === 'worktreeCreateCommand' ||
+        key === 'worktreeTeardownCommand' ||
+        key === 'worktreeWorkingDirectory'
+      ) {
+        setWorktreeLifecycleErrors({});
       }
     },
     [form, resolvedSnapshot, visibleWorktreeDirectoryError]
@@ -142,10 +154,19 @@ export function useProjectSettingsForm({
       ...form,
       provisionCommand: form.provisionCommand.trim(),
       terminateCommand: form.terminateCommand.trim(),
+      worktreeCreateCommand: form.worktreeCreateCommand.trim(),
+      worktreeTeardownCommand: form.worktreeTeardownCommand.trim(),
+      worktreeWorkingDirectory: form.worktreeWorkingDirectory.trim(),
     };
     const nextWorkspaceProviderErrors = validateWorkspaceProviderCommands(formAtSubmit);
     if (Object.values(nextWorkspaceProviderErrors).some(Boolean)) {
       setWorkspaceProviderErrors(nextWorkspaceProviderErrors);
+      setSaveStatus('idle');
+      return;
+    }
+    const nextWorktreeLifecycleErrors = validateWorktreeLifecycleSettings(formAtSubmit);
+    if (Object.values(nextWorktreeLifecycleErrors).some(Boolean)) {
+      setWorktreeLifecycleErrors(nextWorktreeLifecycleErrors);
       setSaveStatus('idle');
       return;
     }
@@ -252,6 +273,7 @@ export function useProjectSettingsForm({
     });
     setWorktreeDirectoryError(null);
     setWorkspaceProviderErrors({});
+    setWorktreeLifecycleErrors({});
     if (saveStatus === 'error') setSaveStatus('idle');
   }, [resolvedSnapshot, savedForm, saveStatus]);
 
@@ -266,6 +288,7 @@ export function useProjectSettingsForm({
     configMigrations,
     worktreeDirectoryError: visibleWorktreeDirectoryError,
     workspaceProviderErrors: visibleWorkspaceProviderErrors,
+    worktreeLifecycleErrors: visibleWorktreeLifecycleErrors,
     update,
     getOverrideSources,
     handleSave,

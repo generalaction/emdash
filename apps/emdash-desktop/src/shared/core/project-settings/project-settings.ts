@@ -40,6 +40,26 @@ export const shareableProjectSettingsWithDefaultsSchema = shareableProjectSettin
 
 export type ShareableProjectSettings = z.infer<typeof shareableProjectSettingsSchema>;
 
+export function isSafeRelativeWorktreeWorkingDirectory(value: string | undefined): boolean {
+  const trimmed = value?.trim();
+  if (!trimmed) return true;
+  if (trimmed.startsWith('/') || trimmed.startsWith('\\') || /^[A-Za-z]:[\\/]/.test(trimmed)) {
+    return false;
+  }
+  const segments = trimmed.split(/[\\/]+/).filter(Boolean);
+  return segments.every((segment) => segment !== '..');
+}
+
+export const worktreeLifecycleSettingsSchema = z
+  .object({
+    createCommand: z.string().trim().min(1).optional(),
+    teardownCommand: z.string().trim().min(1).optional(),
+    workingDirectory: z.string().trim().optional().refine(isSafeRelativeWorktreeWorkingDirectory, {
+      message: 'Working directory must be a relative path inside the worktree',
+    }),
+  })
+  .optional();
+
 export const baseProjectSettingsSchema = z.object({
   worktreeDirectory: z.string().trim().optional(),
   defaultBranch: defaultBranchSettingSchema.optional(),
@@ -56,6 +76,7 @@ export const baseProjectSettingsSchema = z.object({
       terminateCommand: z.string().min(1),
     })
     .optional(),
+  worktreeLifecycle: worktreeLifecycleSettingsSchema,
 });
 
 export type BaseProjectSettings = z.infer<typeof baseProjectSettingsSchema>;

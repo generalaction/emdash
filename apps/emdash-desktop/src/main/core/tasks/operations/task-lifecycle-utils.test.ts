@@ -67,6 +67,7 @@ describe('task lifecycle workspace cleanup', () => {
     };
     const project = {
       removeTaskWorktree: vi.fn().mockResolvedValue(undefined),
+      projectId: 'project-1',
     };
     mocks.selectLimit.mockResolvedValue([]);
 
@@ -83,7 +84,14 @@ describe('task lifecycle workspace cleanup', () => {
       )
     ).resolves.toBe(true);
 
-    expect(project.removeTaskWorktree).toHaveBeenCalledWith('task/provisioned');
+    expect(project.removeTaskWorktree).toHaveBeenCalledWith('task/provisioned', {
+      worktreePath: undefined,
+      lifecycleContext: {
+        projectId: 'project-1',
+        taskId: '',
+        workspaceId: 'ws-task',
+      },
+    });
   });
 
   it('deletes the workspace index when deleting the unreferenced workspace row', async () => {

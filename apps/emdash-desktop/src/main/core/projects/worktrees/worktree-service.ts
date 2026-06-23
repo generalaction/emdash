@@ -7,11 +7,23 @@ import { log } from '@main/lib/logger';
 import { DEFAULT_REMOTE_NAME } from '@shared/core/git/types';
 import { getEffectiveTaskSettings } from '../settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../settings/provider';
+import {
+  runWorktreeLifecycleCommand,
+  WorktreeLifecycleCommandError,
+  type WorktreeLifecycleCommandVariables,
+} from './custom-worktree-command';
 import type { WorktreeHost } from './hosts/worktree-host';
 
 export type ServeWorktreeError =
   | { type: 'worktree-setup-failed'; cause: unknown }
   | { type: 'branch-not-found'; branch: string };
+
+export type WorktreeLifecycleContext = Pick<
+  WorktreeLifecycleCommandVariables,
+  'projectId' | 'taskId' | 'workspaceId'
+> & {
+  sourceBranch?: string;
+};
 
 export class WorktreeService {
   private gitOpQueue: Promise<unknown> = Promise.resolve();
@@ -226,7 +238,7 @@ export class WorktreeService {
   async checkoutBranchWorktree(
     sourceBranch: GitBranchRef | undefined,
     branchName: string,
-    options: { copyPreservedFiles?: boolean } = {}
+    options: { copyPreservedFiles?: boolean; lifecycleContext?: WorktreeLifecycleContext } = {}
   ): Promise<Result<string, ServeWorktreeError>> {
     await this.ensureWorktreePoolDirExists();
     return this.enqueueGitOp(() =>
@@ -237,7 +249,7 @@ export class WorktreeService {
   private async doCheckoutBranchWorktree(
     sourceBranch: GitBranchRef | undefined,
     branchName: string,
-    options: { copyPreservedFiles?: boolean }
+    options: { copyPreservedFiles?: boolean; lifecycleContext?: WorktreeLifecycleContext }
   ): Promise<Result<string, ServeWorktreeError>> {
     const baseConfigValue = this.getBranchBaseConfigValue(sourceBranch);
     const checkedOutPath = await this.findBranchAnywhere(branchName);
@@ -278,7 +290,14 @@ export class WorktreeService {
 
       await this.host.mkdirAbsolute(this.host.pathApi.dirname(targetPath), { recursive: true });
       await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
-      await this.ctx.exec('git', ['worktree', 'add', targetPath, branchName]);
+      await this.addWorktree(branchName, targetPath, {
+        lifecycleContext: options.lifecycleContext
+          ? {
+              ...options.lifecycleContext,
+              sourceBranch: options.lifecycleContext.sourceBranch ?? baseConfigValue,
+            }
+          : { sourceBranch: baseConfigValue },
+      });
     } catch (cause) {
       return err({ type: 'worktree-setup-failed', cause });
     }
@@ -297,7 +316,7 @@ export class WorktreeService {
 
   async checkoutExistingBranch(
     branchName: string,
-    options: { copyPreservedFiles?: boolean } = {}
+    options: { copyPreservedFiles?: boolean; lifecycleContext?: WorktreeLifecycleContext } = {}
   ): Promise<Result<string, ServeWorktreeError>> {
     await this.ensureWorktreePoolDirExists();
     return this.enqueueGitOp(() => this.doCheckoutExistingBranch(branchName, options));
@@ -306,21 +325,25 @@ export class WorktreeService {
   async serveBranchWorktree(
     branchName: string,
     sourceBranch?: GitBranchRef,
-    copyPreservedFiles?: boolean
+    copyPreservedFiles?: boolean,
+    lifecycleContext?: WorktreeLifecycleContext
   ): Promise<Result<string, ServeWorktreeError>> {
     const existing = await this.getWorktree(branchName);
     if (existing) return ok(existing);
 
     if (!sourceBranch || branchName === sourceBranch.branch) {
-      return this.checkoutExistingBranch(branchName, { copyPreservedFiles });
+      return this.checkoutExistingBranch(branchName, { copyPreservedFiles, lifecycleContext });
     }
 
-    return this.checkoutBranchWorktree(sourceBranch, branchName, { copyPreservedFiles });
+    return this.checkoutBranchWorktree(sourceBranch, branchName, {
+      copyPreservedFiles,
+      lifecycleContext,
+    });
   }
 
   private async doCheckoutExistingBranch(
     branchName: string,
-    options: { copyPreservedFiles?: boolean }
+    options: { copyPreservedFiles?: boolean; lifecycleContext?: WorktreeLifecycleContext }
   ): Promise<Result<string, ServeWorktreeError>> {
     const checkedOutPath = await this.findBranchAnywhere(branchName);
     if (checkedOutPath) {
@@ -376,7 +399,9 @@ export class WorktreeService {
       }
 
       await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
-      await this.ctx.exec('git', ['worktree', 'add', targetPath, branchName]);
+      await this.addWorktree(branchName, targetPath, {
+        lifecycleContext: options.lifecycleContext,
+      });
     } catch (cause) {
       return err({ type: 'worktree-setup-failed', cause });
     }
@@ -397,10 +422,100 @@ export class WorktreeService {
     await this.ctx.exec('git', ['worktree', 'move', oldPath, newPath]);
   }
 
-  async removeWorktree(worktreePath: string): Promise<void> {
+  async hasCustomTeardownCommand(): Promise<boolean> {
+    return Boolean((await this.projectSettings.get()).worktreeLifecycle?.teardownCommand?.trim());
+  }
+
+  async removeWorktree(
+    worktreePath: string,
+    lifecycleContext?: WorktreeLifecycleContext & { branchName: string }
+  ): Promise<void> {
+    const teardownCommand = (await this.projectSettings.get()).worktreeLifecycle?.teardownCommand;
+    if (teardownCommand?.trim()) {
+      const variables = this.buildCommandVariables(
+        lifecycleContext?.branchName ?? '',
+        worktreePath,
+        lifecycleContext
+      );
+      await runWorktreeLifecycleCommand({
+        kind: 'teardown',
+        command: teardownCommand,
+        variables,
+        ctx: this.ctx,
+      });
+      if (await this.host.existsAbsolute(worktreePath)) {
+        log.warn('WorktreeService: custom teardown left worktree path behind', {
+          worktreePath,
+        });
+        throw new WorktreeLifecycleCommandError(
+          'teardown',
+          `Custom worktree teardown command finished but "${worktreePath}" still exists`
+        );
+      }
+      await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+      return;
+    }
+
     await this.removePathForReuse(worktreePath).finally(() => {
       this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
     });
+  }
+
+  private buildCommandVariables(
+    branchName: string,
+    worktreePath: string,
+    lifecycleContext: Partial<WorktreeLifecycleContext> | undefined
+  ): WorktreeLifecycleCommandVariables {
+    return {
+      branchName,
+      targetDir: worktreePath,
+      worktreePath,
+      projectId: lifecycleContext?.projectId ?? '',
+      taskId: lifecycleContext?.taskId ?? '',
+      workspaceId: lifecycleContext?.workspaceId ?? '',
+      projectPath: this.repoPath,
+      sourceBranch: lifecycleContext?.sourceBranch,
+    };
+  }
+
+  private async addWorktree(
+    branchName: string,
+    targetPath: string,
+    options: { lifecycleContext?: Partial<WorktreeLifecycleContext> }
+  ): Promise<void> {
+    const createCommand = (await this.projectSettings.get()).worktreeLifecycle?.createCommand;
+    if (!createCommand?.trim()) {
+      await this.ctx.exec('git', ['worktree', 'add', targetPath, branchName]);
+      return;
+    }
+
+    await runWorktreeLifecycleCommand({
+      kind: 'create',
+      command: createCommand,
+      variables: this.buildCommandVariables(branchName, targetPath, options.lifecycleContext),
+      ctx: this.ctx,
+    });
+
+    if (!(await this.host.existsAbsolute(targetPath))) {
+      log.warn('WorktreeService: custom create did not create target path', {
+        branchName,
+        targetPath,
+      });
+      throw new WorktreeLifecycleCommandError(
+        'create',
+        `Custom worktree create command finished but "${targetPath}" was not created`
+      );
+    }
+    if (!(await this.isValidWorktree(targetPath))) {
+      log.warn('WorktreeService: custom create produced invalid worktree', {
+        branchName,
+        targetPath,
+      });
+      throw new WorktreeLifecycleCommandError(
+        'create',
+        `Custom worktree create command finished but "${targetPath}" is not a valid Git worktree`
+      );
+    }
   }
 
   private taskConfigFs(targetPath: string): Pick<FileSystemProvider, 'exists' | 'read'> {
