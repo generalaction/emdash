@@ -15,7 +15,7 @@ export const plugin = definePlugin(
   },
   {
     autoApprove: {
-      kind: 'supported',
+      kind: 'none',
     },
     effort: {
       kind: 'none',
@@ -55,7 +55,6 @@ export const provider = registerPluginBehavior(plugin, {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
         defaultArgs: ['run'],
-        autoApproveFlag: '--yolo',
         initialPromptFlag: '',
         sessionIdFlag: '--session',
         sessionIdAlways: true,

@@ -12,6 +12,10 @@ const baseContext = {
 };
 
 describe('charm provider', () => {
+  it('does not advertise auto-approve because Crush rejects --yolo with run', () => {
+    expect(provider.capabilities.autoApprove).toEqual({ kind: 'none' });
+  });
+
   it('supports Crush MCP configuration', () => {
     expect(provider.capabilities.mcp).toEqual({
       kind: 'supported',
@@ -24,6 +28,7 @@ describe('charm provider', () => {
   it('runs a fresh prompt through crush run with the prompt as a positional arg', () => {
     const command = provider.behavior.prompt!.buildCommand({
       ...baseContext,
+      autoApprove: true,
       initialPrompt: 'implement the task',
     });
 

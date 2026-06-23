@@ -387,7 +387,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['crush'],
     versionArgs: ['--version'],
     cli: 'crush',
-    autoApproveFlag: '--yolo',
     initialPromptFlag: '',
     sessionIdFlag: '--session',
     sessionIdAlways: true,
