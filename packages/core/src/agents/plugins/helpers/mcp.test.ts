@@ -1,7 +1,7 @@
 import { parse as parseTOML } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
 import type { PluginFs } from '../../runtime/fs';
-import { codexMcpAdapter, createMcpAdapter, passthroughMcpAdapter } from './mcp';
+import { codexMcpAdapter, createMcpAdapter, crushMcpAdapter, passthroughMcpAdapter } from './mcp';
 
 // ── In-memory PluginFs ───────────────────────────────────────────────────────
 
@@ -250,5 +250,54 @@ describe('codexMcpAdapter', () => {
       headers: { Authorization: 'Bearer token' },
     });
     expect(result[0].http_headers).toBeUndefined();
+  });
+});
+
+// ── Crush adapter ───────────────────────────────────────────────────────────
+
+describe('crushMcpAdapter', () => {
+  const adapter = crushMcpAdapter('.config/crush/crush.json');
+
+  it('writes servers under the mcp key and preserves unrelated config', async () => {
+    const fs = createMemoryFs({
+      '.config/crush/crush.json': jsonFile({ options: { debug: true } }),
+    });
+
+    await adapter.writeServers(fs, [
+      {
+        name: 'docs',
+        transport: 'http',
+        type: 'http',
+        url: 'https://example.com/mcp',
+        headers: { Authorization: 'Bearer $TOKEN' },
+      },
+    ]);
+
+    const raw = await fs.read('.config/crush/crush.json');
+    const parsed = JSON.parse(raw!) as Record<string, unknown>;
+    const servers = parsed.mcp as Record<string, Record<string, unknown>>;
+
+    expect(parsed.options).toEqual({ debug: true });
+    expect(servers.docs).toEqual({
+      type: 'http',
+      url: 'https://example.com/mcp',
+      headers: { Authorization: 'Bearer $TOKEN' },
+    });
+  });
+
+  it('reads stdio and http servers from the mcp key', async () => {
+    const fs = createMemoryFs({
+      '.config/crush/crush.json': jsonFile({
+        mcp: {
+          local: { type: 'stdio', command: 'node', args: ['server.js'] },
+          remote: { type: 'http', url: 'https://example.com/mcp' },
+        },
+      }),
+    });
+
+    await expect(adapter.readServers(fs)).resolves.toEqual([
+      { name: 'local', type: 'stdio', command: 'node', args: ['server.js'] },
+      { name: 'remote', type: 'http', url: 'https://example.com/mcp' },
+    ]);
   });
 });

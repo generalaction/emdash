@@ -1,5 +1,9 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
-import { buildStandardCommand, npmDependency } from '@emdash/core/agents/plugins/helpers';
+import {
+  buildStandardCommand,
+  crushMcpAdapter,
+  npmDependency,
+} from '@emdash/core/agents/plugins/helpers';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -25,7 +29,9 @@ export const plugin = definePlugin(
       binaryNames: ['crush'],
     }),
     mcp: {
-      kind: 'none',
+      kind: 'supported',
+      scope: 'global',
+      supportedTransports: ['stdio', 'http'],
     },
     models: {
       kind: 'none',
@@ -55,4 +61,5 @@ export const provider = registerPluginBehavior(plugin, {
         sessionIdAlways: true,
       }),
   },
+  mcp: crushMcpAdapter(),
 });

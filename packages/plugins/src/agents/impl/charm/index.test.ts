@@ -12,6 +12,15 @@ const baseContext = {
 };
 
 describe('charm provider', () => {
+  it('supports Crush MCP configuration', () => {
+    expect(provider.capabilities.mcp).toEqual({
+      kind: 'supported',
+      scope: 'global',
+      supportedTransports: ['stdio', 'http'],
+    });
+    expect(provider.behavior.mcp).toBeDefined();
+  });
+
   it('runs a fresh prompt through crush run with the prompt as a positional arg', () => {
     const command = provider.behavior.prompt!.buildCommand({
       ...baseContext,

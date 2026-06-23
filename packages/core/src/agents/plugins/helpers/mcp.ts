@@ -380,3 +380,22 @@ export function ampMcpAdapter(
 ) {
   return passthroughMcpAdapter(configPath, legacyReadPaths);
 }
+
+/**
+ * Crush adapter — passthrough, uses the `mcp` JSON key.
+ * Write: ~/.config/crush/crush.json.
+ */
+export function crushMcpAdapter(configPath = '.config/crush/crush.json') {
+  return createMcpAdapter({
+    configPath,
+    format: 'json',
+    serversKey: 'mcp',
+    toNative(s) {
+      const { name: _n, transport: _transport, ...rest } = s;
+      return rest as Record<string, unknown>;
+    },
+    fromNative(name, raw) {
+      return { name, ...raw } as McpServerRegistration;
+    },
+  });
+}
