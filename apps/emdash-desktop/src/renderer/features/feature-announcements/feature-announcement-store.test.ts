@@ -54,9 +54,4 @@ describe('FeatureAnnouncementStore', () => {
     );
   });
 
-  it('resolves known CTA views', () => {
-    const store = new FeatureAnnouncementStore();
-    expect(store.resolveCtaView('automations')).toBe('automations');
-    expect(store.resolveCtaView('unknown-view')).toBeNull();
-  });
 });

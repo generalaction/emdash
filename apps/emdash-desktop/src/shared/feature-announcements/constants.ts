@@ -5,16 +5,6 @@ export const FEATURE_ANNOUNCEMENT_MANIFEST_URL =
 
 export const FEATURE_ANNOUNCEMENT_DISMISSED_STORAGE_KEY = 'emdash:feature-announcements:dismissed';
 
-export const FEATURE_ANNOUNCEMENT_NAVIGABLE_VIEWS = [
-  'home',
-  'automations',
-  'library',
-  'skills',
-  'mcp',
-  'project',
-  'task',
-  'settings',
-] as const;
+export const FEATURE_ANNOUNCEMENT_CTA_ACTIONS = ['open-automations'] as const;
 
-export type FeatureAnnouncementNavigableView =
-  (typeof FEATURE_ANNOUNCEMENT_NAVIGABLE_VIEWS)[number];
+export type FeatureAnnouncementCtaAction = (typeof FEATURE_ANNOUNCEMENT_CTA_ACTIONS)[number];

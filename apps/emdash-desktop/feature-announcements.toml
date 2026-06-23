@@ -41,4 +41,4 @@ description = "Follow live status and review the results of past runs without le
 
 [cta]
 label = "Open Automations"
-view = "automations"
+action = "open-automations"

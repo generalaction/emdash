@@ -21,7 +21,7 @@ const sampleManifest = {
   ],
   cta: {
     label: 'Open Automations',
-    view: 'automations',
+    action: 'open-automations',
   },
 };
 
@@ -45,7 +45,7 @@ describe('feature announcement schema', () => {
     expect(
       parseFeatureAnnouncementManifest({
         ...sampleManifest,
-        cta: { label: 'Broken', view: 'automations', url: 'https://example.com' },
+        cta: { label: 'Broken', action: 'open-automations', url: 'https://example.com' },
       })
     ).toBeNull();
   });

@@ -1,5 +1,5 @@
 import z from 'zod';
-import { FEATURE_ANNOUNCEMENT_NAVIGABLE_VIEWS } from './constants';
+import { FEATURE_ANNOUNCEMENT_CTA_ACTIONS } from './constants';
 
 const featureAnnouncementIconSchema = z.enum([
   'calendar-clock',
@@ -10,7 +10,7 @@ const featureAnnouncementIconSchema = z.enum([
   'message-square',
 ]);
 
-const featureAnnouncementViewSchema = z.enum(FEATURE_ANNOUNCEMENT_NAVIGABLE_VIEWS);
+const featureAnnouncementCtaActionSchema = z.enum(FEATURE_ANNOUNCEMENT_CTA_ACTIONS);
 
 const featureAnnouncementHeroSchema = z.enum(['automations']);
 
@@ -23,11 +23,11 @@ const featureAnnouncementFeatureSchema = z.object({
 const featureAnnouncementCtaSchema = z
   .object({
     label: z.string().min(1),
-    view: featureAnnouncementViewSchema.optional(),
+    action: featureAnnouncementCtaActionSchema.optional(),
     url: z.url().optional(),
   })
-  .refine((cta) => Boolean(cta.view) !== Boolean(cta.url), {
-    message: 'CTA must specify exactly one of view or url',
+  .refine((cta) => Boolean(cta.action) !== Boolean(cta.url), {
+    message: 'CTA must specify exactly one of action or url',
   });
 
 export const featureAnnouncementManifestSchema = z.object({

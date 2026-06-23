@@ -89,9 +89,9 @@
           "type": "string",
           "minLength": 1
         },
-        "view": {
+        "action": {
           "type": "string",
-          "enum": ["home", "automations", "library", "skills", "mcp", "project", "task", "settings"]
+          "enum": ["open-automations"]
         },
         "url": {
           "type": "string",
@@ -100,7 +100,7 @@
       },
       "oneOf": [
         {
-          "required": ["view"],
+          "required": ["action"],
           "not": {
             "required": ["url"]
           }

@@ -9,11 +9,20 @@ import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
 import { cn } from '@renderer/utils/utils';
+import type { FeatureAnnouncementCtaAction } from '@shared/feature-announcements/constants';
 import type { FeatureAnnouncementManifest } from '@shared/feature-announcements/schema';
 
 const CUSTOM_TOAST_CLASSNAMES = {
   toast: '!border-none !bg-transparent !p-0 !shadow-none',
 };
+
+function handleCtaAction(action: FeatureAnnouncementCtaAction): void {
+  switch (action) {
+    case 'open-automations':
+      appState.navigation.navigate('automations');
+      break;
+  }
+}
 
 export function showFeatureAnnouncementToast(
   manifest: FeatureAnnouncementManifest,
@@ -55,9 +64,8 @@ function FeatureAnnouncementToastCard({
       return;
     }
 
-    const view = appState.featureAnnouncements.resolveCtaView(manifest.cta?.view);
-    if (view) {
-      appState.navigation.navigate(view);
+    if (manifest.cta?.action) {
+      handleCtaAction(manifest.cta.action);
     }
     dismiss();
   };
