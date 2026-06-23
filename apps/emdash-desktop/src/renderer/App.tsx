@@ -1,9 +1,9 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { AppMenuEvents } from './app/app-menu-events';
+import { NotificationBadgeSync } from './app/notification-badge-sync';
 import { WelcomeScreen } from './app/welcome';
 import { Workspace } from './app/workspace';
-import { NotificationBadgeSync } from './features/command-palette/notification-badge-sync';
 import { IntegrationsProvider } from './features/integrations/integrations-provider';
 import { Onboarding } from './features/onboarding/onboarding';
 import { FramelessTitlebarOverlay } from './lib/components/titlebar/window-controls';

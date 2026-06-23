@@ -1,10 +1,10 @@
 import { Command } from 'cmdk';
 import { useObserver } from 'mobx-react-lite';
 import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
+import { getTaskNotificationItems } from '@renderer/features/tasks/stores/task-notifications';
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { cn } from '@renderer/utils/utils';
 import { PaletteConversationItem } from './palette-conversation-item';
-import { getPaletteNotificationItems } from './palette-notifications';
 import { PaletteTaskItem } from './palette-task-item';
 
 const GROUP_CLASS = cn(
@@ -26,7 +26,7 @@ export function PaletteNotificationsGroup({
   onClose,
   navigate,
 }: PaletteNotificationsGroupProps) {
-  const items = useObserver(() => getPaletteNotificationItems(currentProjectId, currentTaskId));
+  const items = useObserver(() => getTaskNotificationItems(currentProjectId, currentTaskId));
 
   if (items.length === 0) return null;
 
