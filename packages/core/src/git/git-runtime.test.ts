@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
+import { ExecError, type BoundExec } from '../exec';
 import type { IFileWatchService } from '../fs';
 import { GitRuntime } from './index';
 
@@ -14,6 +15,9 @@ async function makeRepo(): Promise<string> {
   await execFileAsync('git', ['init', '-b', 'main'], { cwd: repo });
   await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo });
   await execFileAsync('git', ['config', 'user.name', 'Test User'], { cwd: repo });
+  await writeFile(path.join(repo, 'INITIAL.md'), '# Initial\n', 'utf8');
+  await execFileAsync('git', ['add', 'INITIAL.md'], { cwd: repo });
+  await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: repo });
   return repo;
 }
 
@@ -42,6 +46,25 @@ function createNoopWatcher(): IFileWatchService {
   };
 }
 
+function createFailingExec(error: unknown): BoundExec {
+  return {
+    file: 'git',
+    cwd: '/',
+    async exec() {
+      throw error;
+    },
+    async execStreaming() {
+      throw error;
+    },
+    async execBuffer() {
+      throw error;
+    },
+    withCwd() {
+      return this;
+    },
+  };
+}
+
 describe('GitRuntime', () => {
   it('inspects repository and non-repository paths without opening live models', async () => {
     const directory = await mkdtemp(path.join(tmpdir(), 'emdash-shared-runtime-plain-'));
@@ -57,6 +80,49 @@ describe('GitRuntime', () => {
         kind: 'repository',
         rootPath: await realpath(repo),
         baseRef: 'main',
+      });
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it('inspects paths with git -C instead of spawning inside the target directory', async () => {
+    const repo = await makeRepo();
+    const { executable, logPath } = await makeRecordingGitExecutable();
+    const runtime = new GitRuntime({ executable });
+
+    try {
+      await expect(runtime.inspectPath(repo)).resolves.toMatchObject({
+        kind: 'repository',
+        rootPath: await realpath(repo),
+      });
+    } finally {
+      await runtime.dispose();
+    }
+
+    const calls = (await readFile(logPath, 'utf8')).trim().split('\n').filter(Boolean);
+    expect(calls[0]).toBe(`-C ${repo} rev-parse --is-inside-work-tree`);
+  });
+
+  it('does not classify git inspection failures as non-repositories', async () => {
+    const targetPath = '/Volumes/Data/dev/myapp';
+    const error = new ExecError(
+      'git',
+      ['-C', targetPath, 'rev-parse', '--is-inside-work-tree'],
+      128,
+      '',
+      `fatal: cannot change to '${targetPath}': Permission denied`
+    );
+    const runtime = new GitRuntime({
+      exec: createFailingExec(error),
+      watcher: createNoopWatcher(),
+    });
+
+    try {
+      await expect(runtime.inspectPath(targetPath)).resolves.toEqual({
+        kind: 'inspect-failed',
+        path: targetPath,
+        message: `fatal: cannot change to '${targetPath}': Permission denied`,
       });
     } finally {
       await runtime.dispose();

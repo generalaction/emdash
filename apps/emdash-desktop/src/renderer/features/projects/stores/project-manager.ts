@@ -604,7 +604,9 @@ export class ProjectManagerStore {
         store.error =
           error.type === 'not-repository'
             ? 'Directory is not a git repository. Enable "Initialize git repository" to continue.'
-            : error.message;
+            : error.type === 'inspect-failed'
+              ? `Could not inspect directory: ${error.message}`
+              : error.message;
       }
     });
   }

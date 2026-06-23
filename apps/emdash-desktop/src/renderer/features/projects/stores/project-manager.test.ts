@@ -427,6 +427,43 @@ describe('ProjectManagerStore project creation', () => {
     }
   });
 
+  it('marks project creation with an inspection failure message', async () => {
+    mocks.createProject.mockResolvedValueOnce({
+      success: false,
+      error: {
+        type: 'inspect-failed',
+        path: '/Volumes/Data/dev/myapp',
+        message: 'Permission denied',
+      },
+    });
+    const store = new ProjectManagerStore();
+
+    const result = await store.startProjectCreation(
+      { type: 'local' },
+      { mode: 'pick', name: 'Project', path: '/Volumes/Data/dev/myapp' },
+      { id: 'optimistic-project' }
+    );
+
+    expect(result.kind).toBe('creating');
+    if (result.kind === 'creating') {
+      await expect(result.completion).resolves.toEqual({
+        success: false,
+        error: {
+          type: 'inspect-failed',
+          path: '/Volumes/Data/dev/myapp',
+          message: 'Permission denied',
+        },
+      });
+    }
+
+    const project = store.projects.get('optimistic-project');
+    expect(project && isUnregisteredProject(project)).toBe(true);
+    if (project && isUnregisteredProject(project)) {
+      expect(project.phase).toBe('error');
+      expect(project.error).toBe('Could not inspect directory: Permission denied');
+    }
+  });
+
   it('persists the default GitHub account after initializing a picked folder', async () => {
     mocks.createProject.mockResolvedValueOnce(
       okProject(localProject({ id: 'optimistic-project' }))
