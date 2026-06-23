@@ -91,6 +91,8 @@ export const interfaceSettingsSchema = z.object({
   showLeftSidebarTimestamps: z.boolean(),
   confirmTabClose: z.boolean(),
   hideContextBar: z.boolean(),
+  /** Timestamp (ms) of the last time the user viewed automations; used for unread run badges. */
+  automationsLastReadAt: z.number(),
 });
 
 export const changesViewModeSchema = z.object({

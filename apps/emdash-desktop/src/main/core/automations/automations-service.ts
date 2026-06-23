@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, ne, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { automationRuns, tasks } from '@main/db/schema';
 import { events } from '@main/lib/events';
@@ -149,6 +149,20 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
       .limit(limit)
       .offset(offset);
     return rows.map(({ run, taskId }) => mapAutomationRunRowToAutomationRun(run, taskId));
+  }
+
+  async countUnreadFinishedRuns(sinceMs: number): Promise<number> {
+    const finishedAt = sql<number>`COALESCE(${automationRuns.finishedAt}, ${automationRuns.startedAt}, ${automationRuns.scheduledAt})`;
+    const [result] = await db
+      .select({ count: count() })
+      .from(automationRuns)
+      .where(
+        and(
+          inArray(automationRuns.status, ['done', 'failed', 'skipped']),
+          gt(finishedAt, sinceMs)
+        )
+      );
+    return result?.count ?? 0;
   }
 
   async countAutomationRunsByStatus(
