@@ -180,7 +180,7 @@ export const TaskDeleteBehaviorRow: React.FC = () => {
   return (
     <SettingRow
       title="Task delete behavior"
-      description="Choose whether deleting a task also deletes its worktree and branch automatically."
+      description="Whether to also delete the worktree and branch."
       control={
         <>
           <ResetToDefaultButton
