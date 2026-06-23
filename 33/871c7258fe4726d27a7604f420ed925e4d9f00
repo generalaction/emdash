@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/main/core/mcp/utils/registration.ts
+  s_df1298551bb2ae::t_a2392203e728c1 63,65
+apps/emdash-desktop/src/main/core/mcp/services/McpService.test.ts
+  s_df1298551bb2ae::t_3d58539e679b9c 162-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "33871c7258fe4726d27a7604f420ed925e4d9f00",
+  "prompts": {},
+  "sessions": {
+    "s_df1298551bb2ae": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef303-7a52-7643-a420-81065a31bec5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
