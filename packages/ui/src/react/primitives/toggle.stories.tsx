@@ -3,6 +3,7 @@ import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon, BoldIcon, ItalicIcon } 
 import React from 'react';
 import { Surface } from './surface';
 import { Toggle, ToggleGroup, ToggleGroupItem } from './toggle';
+import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Primitives/Toggle',
@@ -15,7 +16,7 @@ type Story = StoryObj;
 /** A standalone toggle — active state via data-pressed / aria-pressed. */
 export const Standalone: Story = {
   render: () => (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className={`${s.flex} ${s.flexWrap} ${s.itemsCenter} ${s.gap2}`}>
       <Toggle aria-label="Bold">
         <BoldIcon />
       </Toggle>
@@ -49,15 +50,15 @@ export const Group: Story = {
 /** Active state across all surfaces. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <div className="bg-surface-sunken flex flex-col gap-4 rounded-xl p-4">
+    <div className={`${s.bgSurfaceSunken} ${s.flex} ${s.flexCol} ${s.gap4} ${s.roundedXl} ${s.p4}`}>
       {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
         (level) => (
           <Surface
             key={level}
             level={level}
-            className="bg-surface flex flex-wrap items-center gap-2 rounded-lg p-3"
+            className={`bg-surface ${s.flex} ${s.flexWrap} ${s.itemsCenter} ${s.gap2} ${s.roundedLg} ${s.p3}`}
           >
-            <span className="w-36 text-xs text-foreground-muted">{level}</span>
+            <span className={`${s.w36} ${s.textXs} ${s.textForegroundMuted}`}>{level}</span>
             <Toggle pressed aria-label="Bold pressed">
               <BoldIcon />
             </Toggle>

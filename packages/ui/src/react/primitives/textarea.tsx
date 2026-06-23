@@ -1,5 +1,5 @@
+import { inputVariants, type InputVariantProps } from '@styles/recipes/input';
 import * as React from 'react';
-import { inputVariants, type InputVariantProps } from '../../styles/recipes/input';
 import { cn } from '../lib/cn';
 import { textareaOverride } from './textarea.css';
 

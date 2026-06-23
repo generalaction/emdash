@@ -21,6 +21,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from './sheet';
+import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Primitives/Sheet',
@@ -41,7 +42,7 @@ export const Default: Story = {
           <SheetTitle>Sheet title</SheetTitle>
         </SheetHeader>
         <SheetBody>
-          <p className="text-foreground-muted">
+          <p className={s.textForegroundMuted}>
             This is the sheet body. Place forms, content, or any composition here. The body scrolls
             independently when it overflows, with a top fade when scrolled down.
           </p>
@@ -66,16 +67,16 @@ export const LeftSide: Story = {
           <SheetTitle>Navigation</SheetTitle>
         </SheetHeader>
         <SheetBody>
-          <p className="text-foreground-muted">
+          <p className={s.textForegroundMuted}>
             This sheet slides in from the left. Use it for navigation drawers, sidebars, or
             secondary panels.
           </p>
-          <div className="mt-4 flex flex-col gap-1">
+          <div className={`${s.mt4} ${s.flex} ${s.flexCol} ${s.gap1}`}>
             {['Overview', 'Tasks', 'Settings', 'Members', 'Integrations'].map((item) => (
               <button
                 key={item}
                 type="button"
-                className="hover:bg-surface-base-emphasis rounded-lg px-3 py-2 text-left text-sm text-foreground"
+                className={`${s.bgSurfaceBaseEmphasis} ${s.roundedLg} ${s.px3} ${s.py2} ${s.textLeft} ${s.textSm} ${s.textForeground}`}
               >
                 {item}
               </button>
@@ -102,7 +103,7 @@ export const ScrollableBody: Story = {
         </SheetHeader>
         <SheetBody>
           {Array.from({ length: 20 }, (_, i) => (
-            <p key={i} className="text-foreground-muted">
+            <p key={i} className={s.textForegroundMuted}>
               {i + 1}. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod
               tempor incididunt ut labore et dolore magna aliqua.
             </p>
@@ -127,15 +128,15 @@ export const WithoutFooter: Story = {
           <SheetTitle>Details</SheetTitle>
         </SheetHeader>
         <SheetBody>
-          <p className="text-foreground-muted">
+          <p className={s.textForegroundMuted}>
             This sheet has no footer — the close button in the header is the only dismiss
             affordance. Useful for detail panels, previews, or read-only views.
           </p>
           <div
-            className="mt-4 rounded-lg border border-border p-3 text-xs"
+            className={`${s.mt4} ${s.roundedLg} ${s.border} ${s.borderBorder} ${s.p3} ${s.textXs}`}
             style={{ color: 'var(--foreground-muted)' }}
           >
-            <p className="font-medium text-foreground">Component</p>
+            <p className={`${s.fontMedium} ${s.textForeground}`}>Component</p>
             <p>packages/ui/src/primitives/sheet.tsx</p>
           </div>
         </SheetBody>

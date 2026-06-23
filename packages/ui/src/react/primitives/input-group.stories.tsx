@@ -9,6 +9,7 @@ import {
   InputGroupText,
   InputGroupTextarea,
 } from './input-group';
+import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Primitives/InputGroup',
@@ -20,7 +21,7 @@ type Story = StoryObj;
 
 export const WithLeadingIcon: Story = {
   render: () => (
-    <div className="w-72">
+    <div className={s.w72}>
       <InputGroup>
         <InputGroupAddon align="inline-start">
           <SearchIcon />
@@ -33,7 +34,7 @@ export const WithLeadingIcon: Story = {
 
 export const WithTrailingButton: Story = {
   render: () => (
-    <div className="w-72">
+    <div className={s.w72}>
       <InputGroup>
         <InputGroupInput placeholder="Search…" />
         <InputGroupAddon align="inline-end">
@@ -48,7 +49,7 @@ export const WithTrailingButton: Story = {
 
 export const WithPrefixText: Story = {
   render: () => (
-    <div className="w-72">
+    <div className={s.w72}>
       <InputGroup>
         <InputGroupAddon align="inline-start">
           <InputGroupText>https://</InputGroupText>
@@ -61,7 +62,7 @@ export const WithPrefixText: Story = {
 
 export const WithTextarea: Story = {
   render: () => (
-    <div className="w-72">
+    <div className={s.w72}>
       <InputGroup>
         <InputGroupAddon align="block-start">
           <InputGroupText>Note</InputGroupText>
@@ -74,7 +75,7 @@ export const WithTextarea: Story = {
 
 export const Invalid: Story = {
   render: () => (
-    <div className="w-72">
+    <div className={s.w72}>
       <InputGroup>
         <InputGroupAddon align="inline-start">
           <SearchIcon />

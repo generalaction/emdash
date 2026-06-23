@@ -1,8 +1,7 @@
 /**
- * animations.css.ts — Vanilla Extract keyframes replacing tw-animate-css utilities
- * used by the overlay primitives (dialog, sheet, popover, dropdown, select, combobox).
+ * animations.css.ts — Vanilla Extract keyframes for overlay primitives.
+ * (dialog, sheet, popover, dropdown, select, combobox)
  *
- * Naming mirrors tw-animate-css conventions:
  *  - kfPopupIn/Out           fade + zoom (for dialogs and side-less popups)
  *  - kfPopupInSlideFrom*     fade + zoom + 0.5rem slide (for positioner popups)
  *  - kfSlide{In/Out}{From/To}{Right/Left}  full-width slides (for sheets)

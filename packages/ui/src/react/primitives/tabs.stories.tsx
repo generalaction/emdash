@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
 import { Surface } from './surface';
 import { Tabs, TabsList, TabsPanel, TabsTab } from './tabs';
+import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Primitives/Tabs',
@@ -20,13 +21,13 @@ export const Default: Story = {
         <TabsTab value="details">Details</TabsTab>
         <TabsTab value="history">History</TabsTab>
       </TabsList>
-      <TabsPanel value="overview" className="mt-3 text-sm text-foreground-muted">
+      <TabsPanel value="overview" className={`${s.mt3} ${s.textSm} ${s.textForegroundMuted}`}>
         Overview content
       </TabsPanel>
-      <TabsPanel value="details" className="mt-3 text-sm text-foreground-muted">
+      <TabsPanel value="details" className={`${s.mt3} ${s.textSm} ${s.textForegroundMuted}`}>
         Details content
       </TabsPanel>
-      <TabsPanel value="history" className="mt-3 text-sm text-foreground-muted">
+      <TabsPanel value="history" className={`${s.mt3} ${s.textSm} ${s.textForegroundMuted}`}>
         History content
       </TabsPanel>
     </Tabs>
@@ -36,15 +37,15 @@ export const Default: Story = {
 /** Tabs on each surface level — hover/selected adapt via cascade. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <div className="bg-surface-sunken flex flex-col gap-4 rounded-xl p-4">
+    <div className={`${s.bgSurfaceSunken} ${s.flex} ${s.flexCol} ${s.gap4} ${s.roundedXl} ${s.p4}`}>
       {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
         (level) => (
           <Surface
             key={level}
             level={level}
-            className="bg-surface flex flex-col gap-2 rounded-lg p-3"
+            className={`bg-surface ${s.flex} ${s.flexCol} ${s.gap2} ${s.roundedLg} ${s.p3}`}
           >
-            <span className="text-xs text-foreground-muted">{level}</span>
+            <span className={`${s.textXs} ${s.textForegroundMuted}`}>{level}</span>
             <Tabs defaultValue="a">
               <TabsList>
                 <TabsTab value="a">Alpha</TabsTab>

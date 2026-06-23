@@ -23,7 +23,7 @@ import {
 // ── Measure ───────────────────────────────────────────────────────────────────
 
 export function measureMessage(item: ChatMessage, ctx: MeasureCtx, vars: MessageVars): number {
-  const { userCardPadY, cardBorder, collapsedMaxH, expandedMaxH, stackPadY } = vars;
+  const { userCardPadY, cardBorder, collapsedMaxH, expandedMaxH } = vars;
   const blocks = ctx.caches.parseBlocks(item.id, item.text);
 
   if (item.role === 'user') {
@@ -34,11 +34,7 @@ export function measureMessage(item: ChatMessage, ctx: MeasureCtx, vars: Message
       return Math.min(fallback, ctx.expandedId === item.id ? expandedMaxH : collapsedMaxH);
     }
     const innerCtx = { ...ctx, width: innerW };
-    // stackPadY is the block stack's internal vertical padding; userCardPadY is applied by CSS.
-    const stack = layoutBlockStack(blocks, innerCtx, {
-      padY: stackPadY,
-      isCollapsed: ctx.isCollapsed,
-    });
+    const stack = layoutBlockStack(blocks, innerCtx, { isCollapsed: ctx.isCollapsed });
     const contentH = aH + stack.height + 2 * userCardPadY + 2 * cardBorder;
     return Math.min(contentH, ctx.expandedId === item.id ? expandedMaxH : collapsedMaxH);
   }
@@ -46,9 +42,9 @@ export function measureMessage(item: ChatMessage, ctx: MeasureCtx, vars: Message
   // assistant / thought
   const footer = item.role === 'assistant' ? vars.footerH : 0;
   if (blocks.length === 0) {
-    return ctx.theme.fonts.body.lineHeight + 2 * stackPadY + footer;
+    return ctx.theme.fonts.body.lineHeight + footer;
   }
-  const stack = layoutBlockStack(blocks, ctx, { padY: stackPadY, isCollapsed: ctx.isCollapsed });
+  const stack = layoutBlockStack(blocks, ctx, { isCollapsed: ctx.isCollapsed });
   return stack.height + footer;
 }
 
@@ -60,10 +56,7 @@ function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx; vars: Messa
     if (!ctx) return null;
     const blocks = ctx.caches.parseBlocks(props.data.id, props.data.text);
     if (blocks.length === 0) return null;
-    return layoutBlockStack(blocks, ctx, {
-      padY: props.vars.stackPadY,
-      isCollapsed: ctx.isCollapsed,
-    });
+    return layoutBlockStack(blocks, ctx, { isCollapsed: ctx.isCollapsed });
   });
 
   const totalH = createMemo(() => {
@@ -123,7 +116,6 @@ export const messageUnitDef = defineUnit<ChatMessage, MessageVars>({
     expandedMaxH: 360,
     userCardPadX: 16,
     userCardPadY: 16,
-    stackPadY: 6,
     attachThumb: 32,
     attachGap: 8,
     footerH: 24,
@@ -137,14 +129,13 @@ export const messageUnitDef = defineUnit<ChatMessage, MessageVars>({
       const est =
         aH +
         lines * ctx.theme.fonts.body.lineHeight +
-        2 * vars.stackPadY +
         2 * vars.userCardPadY +
         2 * vars.cardBorder;
       return Math.min(est, ctx.expandedId === item.id ? vars.expandedMaxH : vars.collapsedMaxH);
     }
     const lines = Math.max(1, Math.ceil(item.text.length / 60));
     const footer = item.role === 'assistant' ? vars.footerH : 0;
-    return lines * ctx.theme.fonts.body.lineHeight + 2 * vars.stackPadY + footer;
+    return lines * ctx.theme.fonts.body.lineHeight + footer;
   },
 
   measure: measureMessage,

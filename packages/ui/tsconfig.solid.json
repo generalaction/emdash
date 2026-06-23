@@ -13,7 +13,14 @@
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@react/*": ["./src/react/*"],
+      "@solid/*": ["./src/solid/*"],
+      "@styles/*": ["./src/styles/*"],
+      "@theme/*": ["./src/theme/*"]
+    }
   },
   "include": ["src/solid/**/*.ts", "src/solid/**/*.tsx"],
   "exclude": ["node_modules", "dist"]

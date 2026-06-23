@@ -1,15 +1,12 @@
 /* Structural CSS rules, keyframes, global resets, and application layout.
- * Non-color design tokens (--text-*, --radius-*, --font-*, --animate-*) are now
- * emitted by theme/tokens.css.ts (Vanilla Extract). Import this file after the
- * color theme files (theme.css, semantic.css). */
+ * Import this file after the color theme files (theme.css, semantic.css). */
 
 @import '@fontsource-variable/jetbrains-mono/index.css';
 @import './effects.css';
 
 /* ── Mini preflight reset ─────────────────────────────────────────────────────
- * Replaces the font/box-model parts of the Tailwind preflight that used to be
- * injected by @tailwindcss. Keeps box-sizing predictable, removes default
- * browser margins, and applies the design-system font everywhere. */
+ * Keeps box-sizing predictable, removes default browser margins, and applies
+ * the design-system font everywhere. */
 *,
 *::before,
 *::after {

@@ -9,6 +9,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
 import { Surface } from './surface';
 import { TriggerButton } from './trigger-button';
+import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Primitives/TriggerButton',
@@ -21,7 +22,7 @@ type Story = StoryObj;
 /** Bare TriggerButton — becomes "active" (surface-selected) while expanded. */
 export const Bare: Story = {
   render: () => (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className={`${s.flex} ${s.flexWrap} ${s.itemsCenter} ${s.gap3}`}>
       <TriggerButton>Choose an option</TriggerButton>
       <TriggerButton size="sm">Small trigger</TriggerButton>
       <TriggerButton showChevron={false}>No chevron</TriggerButton>
@@ -33,7 +34,7 @@ export const Bare: Story = {
 export const AsSelectTrigger: Story = {
   render: () => (
     <Select>
-      <SelectTrigger className="w-48">
+      <SelectTrigger className={s.w48}>
         <SelectValue placeholder="Pick an option" />
       </SelectTrigger>
       <SelectContent>
@@ -49,7 +50,7 @@ export const AsSelectTrigger: Story = {
 export const AsDropdownTrigger: Story = {
   render: () => (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<TriggerButton className="w-48">Actions</TriggerButton>} />
+      <DropdownMenuTrigger render={<TriggerButton className={s.w48}>Actions</TriggerButton>} />
       <DropdownMenuContent>
         <DropdownMenuItem>Edit</DropdownMenuItem>
         <DropdownMenuItem>Duplicate</DropdownMenuItem>
@@ -62,17 +63,17 @@ export const AsDropdownTrigger: Story = {
 /** Active state across all surfaces. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <div className="bg-surface-sunken flex flex-col gap-4 rounded-xl p-4">
+    <div className={`${s.bgSurfaceSunken} ${s.flex} ${s.flexCol} ${s.gap4} ${s.roundedXl} ${s.p4}`}>
       {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
         (level) => (
           <Surface
             key={level}
             level={level}
-            className="bg-surface flex flex-wrap items-center gap-2 rounded-lg p-3"
+            className={`bg-surface ${s.flex} ${s.flexWrap} ${s.itemsCenter} ${s.gap2} ${s.roundedLg} ${s.p3}`}
           >
-            <span className="w-36 text-xs text-foreground-muted">{level}</span>
+            <span className={`${s.w36} ${s.textXs} ${s.textForegroundMuted}`}>{level}</span>
             <Select>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className={s.w40}>
                 <SelectValue placeholder="Select…" />
               </SelectTrigger>
               <SelectContent>

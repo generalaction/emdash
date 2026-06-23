@@ -1,5 +1,5 @@
 import { style } from '@vanilla-extract/css';
-import { vars } from '../../../theme/core/contract/contract.css';
+import { vars } from '@theme/core/contract/contract.css';
 
 export const editorWrapper = style({
   position: 'relative',
@@ -22,7 +22,6 @@ export const editorPlaceholder = style({
 });
 
 // These classes are assigned via TipTap editorProps.attributes.class
-// Define them here so they exist in style.css without Tailwind
 export const promptEditorContentClass = style({
   outline: 'none',
   fontSize: 'var(--text-sm)',

@@ -10,9 +10,9 @@
  * Escape, and positioning with no manual listeners required.
  */
 
+import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
 import { ChevronDownIcon } from 'lucide-react';
 import * as React from 'react';
-import { controlVariants, type ControlVariantProps } from '../../styles/recipes/control';
 import { cn } from '../lib/cn';
 import { Button, type ButtonProps } from './button';
 import {

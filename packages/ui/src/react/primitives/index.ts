@@ -140,5 +140,5 @@ export {
   type SplitButtonOptionTone,
 } from './split-button';
 export { resolveFileIconClass } from '../lib/file-icons';
-export { controlVariants, type ControlVariantProps } from '../../styles/recipes/control';
-export { inputVariants, type InputVariantProps } from '../../styles/recipes/input';
+export { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
+export { inputVariants, type InputVariantProps } from '@styles/recipes/input';

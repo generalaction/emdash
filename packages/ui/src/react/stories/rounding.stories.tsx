@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
+import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Theme/Rounding',
@@ -22,25 +23,29 @@ const RADIUS_TOKENS: Array<{ name: string; var: string; label: string }> = [
 /** All radius tokens with swatches showing the curvature. */
 export const Scale: Story = {
   render: () => (
-    <div className="flex flex-col gap-6 p-4">
+    <div className={`${s.flex} ${s.flexCol} ${s.gap6} ${s.p4}`}>
       <div>
-        <h2 className="text-sm font-semibold text-foreground">Radius scale</h2>
-        <p className="mt-1 text-xs text-foreground-muted">
-          Each swatch uses <code className="font-mono">border-radius: var(--radius-*)</code>. The
-          anchor is <code className="font-mono">--radius: 0.5rem</code>; change it to rescale the
+        <h2 className={`${s.textSm} ${s.fontSemibold} ${s.textForeground}`}>Radius scale</h2>
+        <p className={`${s.mt1} ${s.textXs} ${s.textForegroundMuted}`}>
+          Each swatch uses <code className={s.fontMono}>border-radius: var(--radius-*)</code>. The
+          anchor is <code className={s.fontMono}>--radius: 0.5rem</code>; change it to rescale the
           whole system.
         </p>
       </div>
-      <div className="grid grid-cols-4 gap-6 lg:grid-cols-7">
+      <div className={`${s.grid} ${s.cols4} ${s.gap6} ${s.lgCols7}`}>
         {RADIUS_TOKENS.map(({ name, var: cssVar, label }) => (
-          <div key={name} className="flex flex-col items-center gap-3">
+          <div key={name} className={`${s.flex} ${s.flexCol} ${s.itemsCenter} ${s.gap3}`}>
             <div
-              className="bg-surface-emphasis h-16 w-16 border-2 border-border"
+              className={`${s.bgSurfaceBaseEmphasis} ${s.h16} ${s.w16} ${s.border2} ${s.borderBorder}`}
               style={{ borderRadius: `var(${cssVar})` }}
             />
-            <div className="text-center">
-              <p className="font-mono text-xs font-medium text-foreground">{cssVar}</p>
-              <p className="mt-0.5 font-mono text-[10px] text-foreground-passive">{label}</p>
+            <div className={s.textCenter}>
+              <p className={`${s.fontMono} ${s.textXs} ${s.fontMedium} ${s.textForeground}`}>
+                {cssVar}
+              </p>
+              <p className={`${s.mt05} ${s.fontMono} ${s.text10px} ${s.textForegroundPassive}`}>
+                {label}
+              </p>
             </div>
           </div>
         ))}
@@ -52,33 +57,32 @@ export const Scale: Story = {
 /** Controls and inputs use the token scale. */
 export const InContext: Story = {
   render: () => (
-    <div className="flex flex-col gap-6 p-4">
+    <div className={`${s.flex} ${s.flexCol} ${s.gap6} ${s.p4}`}>
       <div>
-        <h2 className="text-sm font-semibold text-foreground">Tokens in use</h2>
-        <p className="mt-1 text-xs text-foreground-muted">
-          Buttons use <code className="font-mono">rounded-lg</code> (base) and{' '}
-          <code className="font-mono">rounded-md</code> (sm). Inputs use{' '}
-          <code className="font-mono">rounded-md</code>.
+        <h2 className={`${s.textSm} ${s.fontSemibold} ${s.textForeground}`}>Tokens in use</h2>
+        <p className={`${s.mt1} ${s.textXs} ${s.textForegroundMuted}`}>
+          Buttons use <code className={s.fontMono}>--radius-lg</code> (base) and{' '}
+          <code className={s.fontMono}>--radius-md</code> (sm). Inputs use{' '}
+          <code className={s.fontMono}>--radius-md</code>.
         </p>
       </div>
-      <div className="flex flex-wrap items-center gap-3">
-        {/* Import lazily so this story doesn't add a hard dep on Button */}
+      <div className={`${s.flex} ${s.flexWrap} ${s.itemsCenter} ${s.gap3}`}>
         <button
           type="button"
-          className="bg-surface-hover inline-flex h-8 items-center gap-1.5 rounded-lg border border-transparent px-2.5 text-sm text-foreground"
+          className={`${s.bgSurfaceHover} ${s.inlineFlex} ${s.h8} ${s.itemsCenter} ${s.gap15} ${s.roundedLg} ${s.border} ${s.borderTransparent} ${s.px25} ${s.textSm} ${s.textForeground}`}
         >
-          Base button (rounded-lg)
+          Base button (--radius-lg)
         </button>
         <button
           type="button"
-          className="bg-surface-hover inline-flex h-6 items-center gap-1 rounded-md border border-transparent px-2 text-xs text-foreground"
+          className={`${s.bgSurfaceHover} ${s.inlineFlex} ${s.h6} ${s.itemsCenter} ${s.gap1} ${s.roundedMd} ${s.border} ${s.borderTransparent} ${s.px2} ${s.textXs} ${s.textForeground}`}
         >
-          SM button (rounded-md)
+          SM button (--radius-md)
         </button>
         <input
           type="text"
-          placeholder="Input (rounded-md)"
-          className="bg-surface-input h-8 rounded-md border border-border px-2.5 text-sm text-foreground outline-none"
+          placeholder="Input (--radius-md)"
+          className={`${s.bgSurface} ${s.h8} ${s.roundedMd} ${s.border} ${s.borderBorder} ${s.px25} ${s.textSm} ${s.textForeground} ${s.outlineNone}`}
         />
       </div>
     </div>

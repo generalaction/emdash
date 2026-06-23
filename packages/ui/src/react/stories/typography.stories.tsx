@@ -4,6 +4,7 @@ import { ThemeProvider } from '../primitives/theme-provider';
 import { Heading } from '../primitives/typography/Heading';
 import { Text } from '../primitives/typography/Text';
 import { textVariants, type TextVariantProps } from '../primitives/typography/typography.variants';
+import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Theme/Typography',
@@ -36,25 +37,25 @@ const WEIGHT_TOKENS = [
 /** Primitive type size scale — each --text-* token. */
 export const TypeScale: Story = {
   render: () => (
-    <div className="flex flex-col gap-2 p-4">
-      <div className="mb-4">
-        <h2 className="text-sm font-semibold text-foreground">Type size scale</h2>
-        <p className="mt-1 text-xs text-foreground-muted">
-          Primitive <code className="font-mono">--text-*</code> tokens. Semantic{' '}
-          <code className="font-mono">--type-&lt;role&gt;-font-size</code> values reference these.
+    <div className={`${s.flex} ${s.flexCol} ${s.gap2} ${s.p4}`}>
+      <div className={s.mb4}>
+        <h2 className={`${s.textSm} ${s.fontSemibold} ${s.textForeground}`}>Type size scale</h2>
+        <p className={`${s.mt1} ${s.textXs} ${s.textForegroundMuted}`}>
+          Primitive <code className={s.fontMono}>--text-*</code> tokens. Semantic{' '}
+          <code className={s.fontMono}>--type-&lt;role&gt;-font-size</code> values reference these.
         </p>
       </div>
       {SIZE_TOKENS.map(({ name, size, lh }) => (
-        <div key={name} className="flex items-baseline gap-4">
-          <div className="w-48 shrink-0 text-right">
-            <code className="font-mono text-xs text-foreground-passive">{name}</code>
-            <span className="ml-2 text-xs text-foreground-passive">
+        <div key={name} className={`${s.flex} ${s.itemsBaseline} ${s.gap4}`}>
+          <div className={`${s.w48} ${s.shrink0} ${s.textRight}`}>
+            <code className={`${s.fontMono} ${s.textXs} ${s.textForegroundPassive}`}>{name}</code>
+            <span className={`${s.ml2} ${s.textXs} ${s.textForegroundPassive}`}>
               {size} / {lh}
             </span>
           </div>
           <span
             style={{ fontSize: `var(${name})`, lineHeight: `var(${name}--line-height, ${lh})` }}
-            className="text-foreground"
+            className={s.textForeground}
           >
             The quick brown fox jumps over the lazy dog.
           </span>
@@ -67,22 +68,22 @@ export const TypeScale: Story = {
 /** Font weight scale — each --font-weight-* token. */
 export const Weights: Story = {
   render: () => (
-    <div className="flex flex-col gap-4 p-4">
-      <div className="mb-2">
-        <h2 className="text-sm font-semibold text-foreground">Font weight scale</h2>
-        <p className="mt-1 text-xs text-foreground-muted">
-          Primitive <code className="font-mono">--font-weight-*</code> tokens.
+    <div className={`${s.flex} ${s.flexCol} ${s.gap4} ${s.p4}`}>
+      <div className={s.mb2}>
+        <h2 className={`${s.textSm} ${s.fontSemibold} ${s.textForeground}`}>Font weight scale</h2>
+        <p className={`${s.mt1} ${s.textXs} ${s.textForegroundMuted}`}>
+          Primitive <code className={s.fontMono}>--font-weight-*</code> tokens.
         </p>
       </div>
       {WEIGHT_TOKENS.map(({ name, value, label }) => (
-        <div key={name} className="flex items-baseline gap-4">
-          <div className="w-48 shrink-0 text-right">
-            <code className="font-mono text-xs text-foreground-passive">{name}</code>
-            <span className="ml-2 text-xs text-foreground-passive">{value}</span>
+        <div key={name} className={`${s.flex} ${s.itemsBaseline} ${s.gap4}`}>
+          <div className={`${s.w48} ${s.shrink0} ${s.textRight}`}>
+            <code className={`${s.fontMono} ${s.textXs} ${s.textForegroundPassive}`}>{name}</code>
+            <span className={`${s.ml2} ${s.textXs} ${s.textForegroundPassive}`}>{value}</span>
           </div>
           <span
             style={{ fontWeight: `var(${name})`, fontSize: '14px' }}
-            className="text-foreground"
+            className={s.textForeground}
           >
             {label}: The quick brown fox jumps over the lazy dog.
           </span>
@@ -111,10 +112,14 @@ const ROLES: Array<{ label: string; variant: TextVariantProps['variant']; as?: s
 /** Every typography role applied to a sample sentence. */
 export const AllRoles: Story = {
   render: () => (
-    <div className="flex flex-col gap-4">
+    <div className={`${s.flex} ${s.flexCol} ${s.gap4}`}>
       {ROLES.map(({ label, variant }) => (
-        <div key={variant} className="flex items-baseline gap-4">
-          <span className="w-52 shrink-0 font-mono text-xs text-foreground-passive">{label}</span>
+        <div key={variant} className={`${s.flex} ${s.itemsBaseline} ${s.gap4}`}>
+          <span
+            className={`${s.w52} ${s.shrink0} ${s.fontMono} ${s.textXs} ${s.textForegroundPassive}`}
+          >
+            {label}
+          </span>
           <Text as="p" variant={variant} tone="default">
             The quick brown fox jumps over the lazy dog.
           </Text>
@@ -127,7 +132,7 @@ export const AllRoles: Story = {
 /** Heading component: levels 1–3. */
 export const Headings: Story = {
   render: () => (
-    <div className="flex flex-col gap-3">
+    <div className={`${s.flex} ${s.flexCol} ${s.gap3}`}>
       <Heading level={1}>Heading level 1 — 20px / 700</Heading>
       <Heading level={2}>Heading level 2 — 17px / 700</Heading>
       <Heading level={3}>Heading level 3 — 14px / 600</Heading>
@@ -138,7 +143,7 @@ export const Headings: Story = {
 /** Tone variants — default, muted, passive. */
 export const Tones: Story = {
   render: () => (
-    <div className="flex flex-col gap-2">
+    <div className={`${s.flex} ${s.flexCol} ${s.gap2}`}>
       {(['default', 'muted', 'passive'] as const).map((tone) => (
         <Text key={tone} as="p" variant="body" tone={tone}>
           tone="{tone}": The quick brown fox jumps over the lazy dog.
@@ -148,14 +153,14 @@ export const Tones: Story = {
   ),
 };
 
-/** className extension — role + extra Tailwind classes. */
+/** className extension — role + extra utility classes. */
 export const ClassExtension: Story = {
   render: () => (
-    <div className="flex flex-col gap-2">
-      <Text as="p" variant="body" className="italic underline">
+    <div className={`${s.flex} ${s.flexCol} ${s.gap2}`}>
+      <Text as="p" variant="body" className={`${s.italic} ${s.underline}`}>
         className extension: italic + underline applied after role.
       </Text>
-      <Heading level={2} className="text-foreground-muted">
+      <Heading level={2} className={s.textForegroundMuted}>
         Muted h2 via className
       </Heading>
     </div>
@@ -165,7 +170,7 @@ export const ClassExtension: Story = {
 /** textVariants recipe used directly (no component wrapper). */
 export const RecipeDirectUse: Story = {
   render: () => (
-    <div className="flex flex-col gap-2">
+    <div className={`${s.flex} ${s.flexCol} ${s.gap2}`}>
       <p className={textVariants({ variant: 'h1', tone: 'default' })}>
         textVariants — h1 role, default tone
       </p>
@@ -179,11 +184,13 @@ export const RecipeDirectUse: Story = {
 /** All surfaces side-by-side to confirm readability. */
 export const AllSurfaces: Story = {
   render: () => (
-    <div className="grid grid-cols-5 gap-3">
-      {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map((s) => (
-        <div key={s} className={`surface-${s} bg-surface rounded-lg p-4`}>
-          <p className="mb-1 font-mono text-xs text-foreground-passive">.surface-{s}</p>
-          <Heading level={2} className="mb-1">
+    <div className={`${s.grid} ${s.cols5} ${s.gap3}`}>
+      {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map((sv) => (
+        <div key={sv} className={`surface-${sv} bg-surface ${s.roundedLg} ${s.p4}`}>
+          <p className={`${s.mb1} ${s.fontMono} ${s.textXs} ${s.textForegroundPassive}`}>
+            .surface-{sv}
+          </p>
+          <Heading level={2} className={s.mb1}>
             Heading
           </Heading>
           <Text as="p" variant="body" tone="default">
@@ -201,23 +208,23 @@ export const AllSurfaces: Story = {
 /** Light and dark modes side-by-side. */
 export const BothModes: Story = {
   render: () => (
-    <div className="flex min-h-screen divide-x divide-border">
-      <ThemeProvider defaultTheme="light" className="flex-1 bg-background p-8">
-        <Heading level={1} className="mb-2">
+    <div className={`${s.flex} ${s.minHScreen} ${s.divideX} ${s.divideBorder}`}>
+      <ThemeProvider defaultTheme="light" className={`${s.flex1} ${s.bgBackground} ${s.p8}`}>
+        <Heading level={1} className={s.mb2}>
           Light mode
         </Heading>
-        <Text as="p" variant="body" tone="default" className="mb-1">
+        <Text as="p" variant="body" tone="default" className={s.mb1}>
           Body text
         </Text>
         <Text as="p" variant="body" tone="muted">
           Muted body text
         </Text>
       </ThemeProvider>
-      <ThemeProvider defaultTheme="dark" className="flex-1 bg-background p-8">
-        <Heading level={1} className="mb-2">
+      <ThemeProvider defaultTheme="dark" className={`${s.flex1} ${s.bgBackground} ${s.p8}`}>
+        <Heading level={1} className={s.mb2}>
           Dark mode
         </Heading>
-        <Text as="p" variant="body" tone="default" className="mb-1">
+        <Text as="p" variant="body" tone="default" className={s.mb1}>
           Body text
         </Text>
         <Text as="p" variant="body" tone="muted">

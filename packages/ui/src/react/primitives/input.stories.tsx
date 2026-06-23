@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
 import { Input } from './input';
+import * as s from '../story-layout.css';
 
 const meta: Meta<typeof Input> = {
   title: 'Primitives/Input',
@@ -18,7 +19,7 @@ type Story = StoryObj<typeof Input>;
 
 export const Default: Story = {
   render: () => (
-    <div className="w-64">
+    <div className={s.w64}>
       <Input placeholder="Enter text…" />
     </div>
   ),
@@ -26,7 +27,7 @@ export const Default: Story = {
 
 export const Sizes: Story = {
   render: () => (
-    <div className="flex w-64 flex-col gap-3">
+    <div className={`${s.flex} ${s.w64} ${s.flexCol} ${s.gap3}`}>
       <Input size="base" placeholder="Base (32 px)" />
       <Input size="sm" placeholder="Small (24 px)" />
     </div>
@@ -35,7 +36,7 @@ export const Sizes: Story = {
 
 export const WithValue: Story = {
   render: () => (
-    <div className="w-64">
+    <div className={s.w64}>
       <Input defaultValue="Hello world" />
     </div>
   ),
@@ -43,7 +44,7 @@ export const WithValue: Story = {
 
 export const Disabled: Story = {
   render: () => (
-    <div className="w-64">
+    <div className={s.w64}>
       <Input placeholder="Disabled" disabled />
     </div>
   ),
@@ -51,7 +52,7 @@ export const Disabled: Story = {
 
 export const Invalid: Story = {
   render: () => (
-    <div className="w-64">
+    <div className={s.w64}>
       <Input placeholder="Invalid" aria-invalid="true" />
     </div>
   ),
@@ -59,7 +60,7 @@ export const Invalid: Story = {
 
 export const Types: Story = {
   render: () => (
-    <div className="flex w-64 flex-col gap-3">
+    <div className={`${s.flex} ${s.w64} ${s.flexCol} ${s.gap3}`}>
       <Input type="text" placeholder="Text" />
       <Input type="email" placeholder="Email" />
       <Input type="password" placeholder="Password" />

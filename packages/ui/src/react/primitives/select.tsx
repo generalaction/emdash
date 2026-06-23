@@ -1,9 +1,9 @@
 'use client';
 
 import { Select as SelectPrimitive } from '@base-ui/react/select';
+import type { ControlVariantProps } from '@styles/recipes/control';
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
 import * as React from 'react';
-import type { ControlVariantProps } from '../../styles/recipes/control';
 import { cn } from '../lib/cn';
 import { TriggerButton } from './trigger-button';
 import * as styles from './select.css';

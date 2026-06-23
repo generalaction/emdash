@@ -26,7 +26,6 @@ import {
   type ComboboxPopupHandle,
   type ComboboxPopupItem,
 } from '../../primitives/combobox-popup';
-import './chip-classes.css';
 import { buildMentionExtension } from './extensions/mention';
 import { buildSlashCommandExtension } from './extensions/slash-command';
 import { buildSubmitKeymap } from './extensions/submit-keymap';

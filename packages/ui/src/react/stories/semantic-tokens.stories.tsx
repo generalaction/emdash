@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { SEMANTIC_VARS } from '@theme/core/contract/semantic-template';
 import React, { useEffect, useRef } from 'react';
-import { SEMANTIC_VARS } from '../../theme/core/contract/contract.generated';
 import { ThemeProvider } from '../primitives/theme-provider';
+import * as s from '../story-layout.css';
 
 // ── Sections ──────────────────────────────────────────────────────────────────
 //
@@ -48,18 +49,9 @@ const SECTIONS: Section[] = [
       !v.startsWith('--border-warning') &&
       !v.startsWith('--border-info'),
   },
-  {
-    title: 'Primary button',
-    match: (v) => v.startsWith('--primary-button'),
-  },
-  {
-    title: 'Selection',
-    match: (v) => v.startsWith('--selection'),
-  },
-  {
-    title: 'Status',
-    match: (v) => v.startsWith('--status'),
-  },
+  { title: 'Primary button', match: (v) => v.startsWith('--primary-button') },
+  { title: 'Selection', match: (v) => v.startsWith('--selection') },
+  { title: 'Status', match: (v) => v.startsWith('--status') },
   {
     title: 'Diff / VCS',
     match: (v) =>
@@ -149,7 +141,6 @@ function TokenRow({ varName }: { varName: string }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const kind = detectKind(varName);
 
-  // Read the resolved value once mounted (updates on each render → theme switches)
   const resolvedRef = useRef<HTMLSpanElement | null>(null);
   useEffect(() => {
     if (!ref.current || !resolvedRef.current) return;
@@ -165,36 +156,36 @@ function TokenRow({ varName }: { varName: string }) {
 
   const preview =
     kind === 'foreground' ? (
-      // Text preview: colored text on neutral background
       <div
         ref={ref}
-        className="flex h-8 w-16 shrink-0 items-center justify-center rounded border border-border bg-background text-sm font-semibold"
+        className={`${s.flex} ${s.h8} ${s.w16} ${s.shrink0} ${s.itemsCenter} ${s.justifyCenter} ${s.rounded} ${s.border} ${s.borderBorder} ${s.bgBackground} ${s.textSm} ${s.fontSemibold}`}
         style={{ color: `var(${varName})` }}
       >
         Aa
       </div>
     ) : kind === 'border' ? (
-      // Border preview: box drawn in that border color
       <div
         ref={ref}
-        className="h-8 w-16 shrink-0 rounded bg-background"
+        className={`${s.h8} ${s.w16} ${s.shrink0} ${s.rounded} ${s.bgBackground}`}
         style={{ border: `2px solid var(${varName})` }}
       />
     ) : (
-      // Background / fill preview
       <div
         ref={ref}
-        className="h-8 w-16 shrink-0 rounded border border-border"
+        className={`${s.h8} ${s.w16} ${s.shrink0} ${s.rounded} ${s.border} ${s.borderBorder}`}
         style={{ background: `var(${varName})` }}
       />
     );
 
   return (
-    <div className="flex items-center gap-3 py-1.5">
+    <div className={`${s.flex} ${s.itemsCenter} ${s.gap3} ${s.py15}`}>
       {preview}
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="font-mono text-xs text-foreground">{varName}</span>
-        <span ref={resolvedRef} className="font-mono text-[10px] text-foreground-passive" />
+      <div className={`${s.flex} ${s.minW0} ${s.flexCol} ${s.gapHalf}`}>
+        <span className={`${s.fontMono} ${s.textXs} ${s.textForeground}`}>{varName}</span>
+        <span
+          ref={resolvedRef}
+          className={`${s.fontMono} ${s.text10px} ${s.textForegroundPassive}`}
+        />
       </div>
     </div>
   );
@@ -205,10 +196,12 @@ function TokenRow({ varName }: { varName: string }) {
 function SectionBlock({ title, tokens }: { title: string; tokens: string[] }) {
   return (
     <div>
-      <h3 className="mb-2 border-b border-border pb-1 text-[11px] font-semibold tracking-wider text-foreground-muted uppercase">
+      <h3
+        className={`${s.mb2} ${s.borderB} ${s.borderBorder} ${s.pb1} ${s.text11px} ${s.fontSemibold} ${s.trackingWider} ${s.textForegroundMuted} ${s.uppercase}`}
+      >
         {title}
       </h3>
-      <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-3">
+      <div className={`${s.grid} ${s.cols1} ${s.gap0}`}>
         {tokens.map((v) => (
           <TokenRow key={v} varName={v} />
         ))}
@@ -222,12 +215,14 @@ function SectionBlock({ title, tokens }: { title: string; tokens: string[] }) {
 function SemanticTokenGrid() {
   const groups = categorize(SEMANTIC_VARS);
   return (
-    <div className="flex flex-col gap-8 bg-background p-6">
+    <div className={`${s.flex} ${s.flexCol} ${s.gap8} ${s.bgBackground} ${s.p6}`}>
       <div>
-        <h2 className="text-sm font-semibold text-foreground">Semantic Color Tokens</h2>
-        <p className="mt-1 text-xs text-foreground-muted">
+        <h2 className={`${s.textSm} ${s.fontSemibold} ${s.textForeground}`}>
+          Semantic Color Tokens
+        </h2>
+        <p className={`${s.mt1} ${s.textXs} ${s.textForegroundMuted}`}>
           Every semantic CSS custom property defined in{' '}
-          <code className="rounded bg-background-2 px-1 font-mono text-[11px]">
+          <code className={`${s.rounded} ${s.bgBackground2} ${s.px1} ${s.fontMono} ${s.text11px}`}>
             semantic-template.ts
           </code>
           . Foreground tokens show colored text; border tokens show a colored outline; all others
@@ -260,15 +255,19 @@ export const SemanticTokens: Story = {
 /** Light and dark semantic tokens side-by-side. */
 export const BothModes: Story = {
   render: () => (
-    <div className="flex min-h-screen">
-      <ThemeProvider defaultTheme="light" className="flex-1 overflow-auto">
-        <div className="border-b border-border bg-background px-6 py-3 text-sm font-medium text-foreground">
+    <div className={`${s.flex} ${s.minHScreen}`}>
+      <ThemeProvider defaultTheme="light" className={`${s.flex1} ${s.overflowAuto}`}>
+        <div
+          className={`${s.borderB} ${s.borderBorder} ${s.bgBackground} ${s.px6} ${s.py3} ${s.textSm} ${s.fontMedium} ${s.textForeground}`}
+        >
           Light
         </div>
         <SemanticTokenGrid />
       </ThemeProvider>
-      <ThemeProvider defaultTheme="dark" className="flex-1 overflow-auto">
-        <div className="border-b border-border bg-background px-6 py-3 text-sm font-medium text-foreground">
+      <ThemeProvider defaultTheme="dark" className={`${s.flex1} ${s.overflowAuto}`}>
+        <div
+          className={`${s.borderB} ${s.borderBorder} ${s.bgBackground} ${s.px6} ${s.py3} ${s.textSm} ${s.fontMedium} ${s.textForeground}`}
+        >
           Dark
         </div>
         <SemanticTokenGrid />

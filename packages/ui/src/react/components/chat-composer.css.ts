@@ -1,6 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
-import { vars } from '../../theme/core/contract/contract.css';
+import { vars } from '@theme/core/contract/contract.css';
 
 export const composerRoot = style({
   display: 'flex',

@@ -11,6 +11,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import React, { useState } from 'react';
 import { Button } from '../primitives/button';
 import { ConfirmationDialog } from './confirmation-dialog';
+import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Components/ConfirmationDialog',
@@ -24,11 +25,11 @@ function NeutralStory() {
   const [open, setOpen] = useState(false);
   const [lastAction, setLastAction] = useState<string>('—');
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className={`${s.flex} ${s.flexCol} ${s.itemsCenter} ${s.gap3}`}>
       <Button variant="ghost" onClick={() => setOpen(true)}>
         Leave page
       </Button>
-      <p className="text-xs text-foreground-muted">Last action: {lastAction}</p>
+      <p className={`${s.textXs} ${s.textForegroundMuted}`}>Last action: {lastAction}</p>
       <ConfirmationDialog
         open={open}
         onOpenChange={setOpen}

@@ -2,7 +2,7 @@
  * Semantic class names assigned by the TipTap mention and slash-command
  * extensions. These classes need to exist in style.css so that the serialized
  * HTML from ProseMirror (used in clipboard/copy scenarios) can be styled
- * correctly without relying on Tailwind.
+ * correctly as serialized HTML from ProseMirror.
  */
 import { globalStyle } from '@vanilla-extract/css';
 

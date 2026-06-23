@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
 import { Textarea } from './textarea';
+import * as s from '../story-layout.css';
 
 const meta: Meta<typeof Textarea> = {
   title: 'Primitives/Textarea',
@@ -16,7 +17,7 @@ type Story = StoryObj<typeof Textarea>;
 
 export const Default: Story = {
   render: () => (
-    <div className="w-64">
+    <div className={s.w64}>
       <Textarea placeholder="Enter text…" />
     </div>
   ),
@@ -24,7 +25,7 @@ export const Default: Story = {
 
 export const Sizes: Story = {
   render: () => (
-    <div className="flex w-64 flex-col gap-3">
+    <div className={`${s.flex} ${s.w64} ${s.flexCol} ${s.gap3}`}>
       <Textarea size="base" placeholder="Base size textarea" />
       <Textarea size="sm" placeholder="Small size textarea" />
     </div>
@@ -33,7 +34,7 @@ export const Sizes: Story = {
 
 export const WithValue: Story = {
   render: () => (
-    <div className="w-64">
+    <div className={s.w64}>
       <Textarea defaultValue="Some longer text that wraps over multiple lines in the textarea." />
     </div>
   ),
@@ -41,7 +42,7 @@ export const WithValue: Story = {
 
 export const Disabled: Story = {
   render: () => (
-    <div className="w-64">
+    <div className={s.w64}>
       <Textarea placeholder="Disabled" disabled />
     </div>
   ),
@@ -49,7 +50,7 @@ export const Disabled: Story = {
 
 export const Invalid: Story = {
   render: () => (
-    <div className="w-64">
+    <div className={s.w64}>
       <Textarea placeholder="Invalid" aria-invalid="true" />
     </div>
   ),

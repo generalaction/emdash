@@ -17,9 +17,9 @@
  *   const { themeId, setTheme, toggle } = useTheme();
  */
 
+import { THEME_MANIFEST } from '@theme/themes/registry';
+import type { ThemeId } from '@theme/themes/registry';
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { THEME_MANIFEST } from '../../theme/core/theme-manifest';
-import type { ThemeId } from '../../theme/core/theme-manifest';
 import { cn } from '../lib/cn';
 
 // Re-export for consumers that want to enumerate themes.

@@ -1,7 +1,7 @@
 import { Toggle as TogglePrimitive } from '@base-ui/react/toggle';
 import { ToggleGroup as ToggleGroupPrimitive } from '@base-ui/react/toggle-group';
+import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
 import * as React from 'react';
-import { controlVariants, type ControlVariantProps } from '../../styles/recipes/control';
 import { cn } from '../lib/cn';
 import { toggleGroup as toggleGroupClass } from './toggle.css';
 

@@ -11,6 +11,7 @@ import { AtSign, Braces, CircleDot, File } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { Button } from './button';
 import { ComboboxPopup, type ComboboxPopupHandle, type ComboboxPopupItem } from './combobox-popup';
+import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Primitives/ComboboxPopup',
@@ -49,10 +50,10 @@ const FILE_ITEMS: ComboboxPopupItem[] = [
 ];
 
 const MIXED_ITEMS: ComboboxPopupItem[] = [
-  { id: 'f1', icon: <File className="size-3.5" />, label: 'src/utils.ts', description: 'file' },
-  { id: 'i1', icon: <CircleDot className="size-3.5" />, label: 'Issue #42', description: 'issue' },
-  { id: 's1', icon: <Braces className="size-3.5" />, label: 'handleSubmit', description: 'symbol' },
-  { id: 'c1', icon: <AtSign className="size-3.5" />, label: 'custom item', description: 'custom' },
+  { id: 'f1', icon: <File className={s.size35} />, label: 'src/utils.ts', description: 'file' },
+  { id: 'i1', icon: <CircleDot className={s.size35} />, label: 'Issue #42', description: 'issue' },
+  { id: 's1', icon: <Braces className={s.size35} />, label: 'handleSubmit', description: 'symbol' },
+  { id: 'c1', icon: <AtSign className={s.size35} />, label: 'custom item', description: 'custom' },
 ];
 
 // ── Wrapper that anchors the popup to a button ────────────────────────────────
@@ -91,11 +92,11 @@ function AnchoredPopup({
   }, [anchorRect]);
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className={`${s.flex} ${s.flexCol} ${s.itemsCenter} ${s.gap2}`}>
       <Button ref={buttonRef} variant="ghost" size="sm" onClick={toggle}>
         {anchorRect ? 'Close popup' : 'Open popup'}
       </Button>
-      <p className="text-xs text-foreground-muted">
+      <p className={`${s.textXs} ${s.textForegroundMuted}`}>
         {anchorRect ? 'Arrow keys to navigate, Enter to select, Esc to dismiss' : ''}
       </p>
       <ComboboxPopup
@@ -127,7 +128,7 @@ export const WithHeader: Story = {
   render: () => (
     <AnchoredPopup
       items={FILE_ITEMS.slice(0, 3)}
-      header={<span className="font-medium text-foreground">Context files</span>}
+      header={<span className={`${s.fontMedium} ${s.textForeground}`}>Context files</span>}
     />
   ),
 };

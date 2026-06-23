@@ -17,6 +17,7 @@ import type {
   ComposerNotice,
   ComposerNoticeVariant,
 } from './chat-composer';
+import * as s from '../story-layout.css';
 
 // ── Mock model options ────────────────────────────────────────────────────────
 
@@ -132,8 +133,8 @@ function ComposerPlayground(args: PlaygroundArgs) {
     : null;
 
   return (
-    <div className="mx-auto w-full max-w-2xl">
-      <div className="mb-3 flex items-center gap-3">
+    <div className={`${s.mxAuto} ${s.wFull} ${s.maxW2xl}`}>
+      <div className={`${s.mb3} ${s.flex} ${s.itemsCenter} ${s.gap3}`}>
         <Button
           size="sm"
           variant="ghost"
@@ -143,7 +144,7 @@ function ComposerPlayground(args: PlaygroundArgs) {
         >
           Dismiss
         </Button>
-        <span className="text-xs text-foreground-muted">
+        <span className={`${s.textXs} ${s.textForegroundMuted}`}>
           Toggle <code>showNotice</code> in Controls to watch the band transition in and out.
         </span>
       </div>

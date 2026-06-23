@@ -16,9 +16,10 @@
  */
 
 import Color from 'colorjs.io';
-import type { Polarity, Scales, SyntaxRole } from '../contract/roles.js';
-import { SYNTAX_TEMPLATE } from '../contract/syntax-template.js';
-import { SYNTAX_MIN_APCA } from '../contract/targets.js';
+import type { Polarity, Scales, SyntaxRole } from '../contract/roles';
+import { SYNTAX_TEMPLATE } from '../contract/syntax-template';
+import { SYNTAX_MIN_APCA } from '../contract/targets';
+import { colorToHex, resolveScaleRef } from './color-format';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -30,24 +31,6 @@ export type SyntaxThemeInput =
 export type GeneratedSyntaxTheme = object; // VSCode theme JSON format
 
 // ── Palette ref resolution ────────────────────────────────────────────────────
-
-/**
- * Resolve a palette ref like "success.11" or "neutral.contrast" to a CSS color.
- */
-function resolveRef(ref: string, scales: Scales): string {
-  const [scaleName, stepOrContrast] = ref.split('.') as [keyof Scales, string];
-  const scale = scales[scaleName];
-  if (!scale) throw new Error(`generateSyntax: unknown scale "${scaleName}" in ref "${ref}"`);
-
-  if (stepOrContrast === 'contrast') return scale.contrast;
-
-  const stepNum = parseInt(stepOrContrast, 10);
-  if (isNaN(stepNum) || stepNum < 1 || stepNum > 12) {
-    throw new Error(`generateSyntax: invalid step "${stepOrContrast}" in ref "${ref}"`);
-  }
-
-  return scale.steps[stepNum - 1];
-}
 
 /**
  * Resolve a palette ref and, if APCA vs bg is below the minimum, climb up
@@ -62,17 +45,15 @@ function resolveWithMinContrast(
 ): string {
   const [scaleName, stepOrContrast] = ref.split('.') as [keyof Scales, string];
   const scale = scales[scaleName];
-  if (!scale) return resolveRef(ref, scales);
+  if (!scale) return resolveScaleRef(ref, scales);
 
   if (stepOrContrast === 'contrast') {
     return scale.contrast;
   }
 
   let stepNum = parseInt(stepOrContrast, 10);
-  if (isNaN(stepNum)) return resolveRef(ref, scales);
+  if (isNaN(stepNum)) return resolveScaleRef(ref, scales);
 
-  // For light mode, higher contrast = lower step number (toward 12).
-  // For dark mode, higher contrast = higher step number (toward 12).
   const contrastDirection = 1; // always move toward step 12 for more contrast
 
   for (let attempt = 0; attempt < 4; attempt++) {
@@ -90,19 +71,55 @@ function resolveWithMinContrast(
   return scale.steps[Math.min(11, stepNum - 1)];
 }
 
-// ── CSS color hex conversion ──────────────────────────────────────────────────
+// ── CSS-variable map ──────────────────────────────────────────────────────────
 
-function colorToHex(cssColor: string): string {
-  try {
-    const c = new Color(cssColor);
-    const srgb = c.to('srgb');
-    const r = Math.round(Math.max(0, Math.min(1, srgb.coords[0])) * 255);
-    const g = Math.round(Math.max(0, Math.min(1, srgb.coords[1])) * 255);
-    const b = Math.round(Math.max(0, Math.min(1, srgb.coords[2])) * 255);
-    return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
-  } catch {
-    return cssColor;
+/**
+ * Produce per-theme CSS custom properties for syntax highlighting.
+ *
+ * Each `--syntax-<role>` var holds the contrast-checked hex color for that
+ * token role; the single static Shiki theme (emit-shiki.ts) references these
+ * vars so switching themes requires only a class swap, not re-tokenizing.
+ *
+ * Alpha-composited editor chrome colors (selection, findMatch, scrollbar) that
+ * cannot be expressed as a bare `var()` in a Shiki `colors` object are emitted
+ * as `--syntax-editor-*` for reference by the host app; non-alpha colors reuse
+ * existing palette vars (`--background`, `--foreground`, `--neutral-*`).
+ */
+export function generateSyntaxVars(
+  scales: Scales,
+  polarity: Polarity,
+  input: SyntaxThemeInput
+): Record<string, string> {
+  if (typeof input === 'string' || 'vscodeTheme' in input) {
+    return {};
   }
+
+  const { roleOverrides = {} } = input;
+  const bgColorStr = scales.neutral.steps[0];
+  const bgColor = new Color(bgColorStr);
+  const vars: Record<string, string> = {};
+
+  for (const [role, entry] of Object.entries(SYNTAX_TEMPLATE) as Array<
+    [SyntaxRole, (typeof SYNTAX_TEMPLATE)[SyntaxRole]]
+  >) {
+    const defaultRef = polarity === 'light' ? entry.lightDefault : entry.darkDefault;
+    const ref = roleOverrides[role] ?? defaultRef;
+    const minLc = SYNTAX_MIN_APCA[role] ?? SYNTAX_MIN_APCA['default'] ?? 45;
+    const resolvedColor = resolveWithMinContrast(ref, scales, bgColor, minLc, polarity);
+    vars[`--syntax-${role}`] = colorToHex(resolvedColor);
+  }
+
+  // Alpha-composited editor chrome vars (cannot be a plain var() in Shiki colors).
+  // Non-alpha chrome colors (bg, fg, line-highlight, cursor, line-number, bracket)
+  // reuse existing --background / --foreground / --neutral-* palette vars.
+  const selectionHex = colorToHex(scales.blue.steps[5]);
+  vars['--syntax-editor-selection-bg'] = selectionHex + '40';
+  vars['--syntax-editor-find-match-bg'] = selectionHex + '60';
+  vars['--syntax-editor-find-match-hl'] = selectionHex + '30';
+  vars['--syntax-editor-scrollbar-bg'] = colorToHex(scales.neutral.steps[5]) + '60';
+  vars['--syntax-editor-scrollbar-hover'] = colorToHex(scales.neutral.steps[6]) + '80';
+
+  return vars;
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────

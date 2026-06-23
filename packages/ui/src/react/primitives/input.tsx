@@ -1,6 +1,6 @@
 import { Input as InputPrimitive } from '@base-ui/react/input';
+import { inputVariants, type InputVariantProps } from '@styles/recipes/input';
 import * as React from 'react';
-import { inputVariants, type InputVariantProps } from '../../styles/recipes/input';
 import { cn } from '../lib/cn';
 
 export interface InputProps

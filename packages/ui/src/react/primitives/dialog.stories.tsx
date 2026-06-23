@@ -22,6 +22,7 @@ import {
   DialogTrigger,
   type DialogSize,
 } from './dialog';
+import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Primitives/Dialog',
@@ -42,7 +43,7 @@ export const Default: Story = {
           <DialogTitle>Dialog title</DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <p className="text-foreground-muted">
+          <p className={s.textForegroundMuted}>
             This is the dialog body. Place forms, content, or any composition here. The body scrolls
             independently when it overflows.
           </p>
@@ -68,7 +69,7 @@ const SIZES: { size: DialogSize; label: string; width: string }[] = [
 
 export const Sizes: Story = {
   render: () => (
-    <div className="flex flex-wrap gap-3">
+    <div className={`${s.flex} ${s.flexWrap} ${s.gap3}`}>
       {SIZES.map(({ size, label, width }) => (
         <Dialog key={size}>
           <DialogTrigger render={<Button variant="ghost">{label}</Button>} />
@@ -77,7 +78,7 @@ export const Sizes: Story = {
               <DialogTitle>{label}</DialogTitle>
             </DialogHeader>
             <DialogBody>
-              <p className="text-foreground-muted">
+              <p className={s.textForegroundMuted}>
                 This dialog uses the <code>{size}</code> size option (<code>{width}</code>),
                 matching the emdash-desktop modal sizes.
               </p>
@@ -103,7 +104,7 @@ export const Confirmation: Story = {
           <DialogTitle>Delete item?</DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <p className="text-foreground-muted">
+          <p className={s.textForegroundMuted}>
             This action cannot be undone. The item will be permanently removed.
           </p>
         </DialogBody>
@@ -133,12 +134,12 @@ export const ExtraLarge: Story = {
           <DialogTitle>Extra large dialog</DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <p className="text-foreground-muted">
+          <p className={s.textForegroundMuted}>
             The <code>xl</code> size takes up to 80% of the viewport width and is 80vh tall — useful
             for content-heavy views like previews, diffs, or browsers.
           </p>
           {Array.from({ length: 24 }, (_, i) => (
-            <p key={i} className="text-foreground-muted">
+            <p key={i} className={s.textForegroundMuted}>
               {i + 1}. Lorem ipsum dolor sit amet, consectetur adipiscing elit.
             </p>
           ))}
@@ -161,9 +162,9 @@ export const ScrollableBody: Story = {
         <DialogHeader>
           <DialogTitle>Terms of service</DialogTitle>
         </DialogHeader>
-        <DialogBody className="max-h-[50vh]">
+        <DialogBody className={s.maxH50vh}>
           {Array.from({ length: 20 }, (_, i) => (
-            <p key={i} className="text-foreground-muted">
+            <p key={i} className={s.textForegroundMuted}>
               {i + 1}. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod
               tempor incididunt ut labore et dolore magna aliqua.
             </p>

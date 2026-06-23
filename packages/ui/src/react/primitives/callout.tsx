@@ -1,5 +1,5 @@
+import type { SurfaceStatusName } from '@theme/core/contract/roles';
 import * as React from 'react';
-import type { SurfaceStatusName } from '../../theme/core/contract/roles';
 import { cn } from '../lib/cn';
 import { Surface } from './surface';
 import * as styles from './callout.css';

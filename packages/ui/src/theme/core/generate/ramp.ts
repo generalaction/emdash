@@ -26,8 +26,9 @@
  */
 
 import Color from 'colorjs.io';
-import type { Polarity, Ramp, Step } from '../contract/roles.js';
-import { CHROMA_CURVE } from '../contract/targets.js';
+import type { Polarity, Ramp, Step } from '../contract/roles';
+import { CHROMA_CURVE } from '../contract/targets';
+import { formatColor, pickContrastColor } from './color-format';
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -170,43 +171,6 @@ function solveLForAPCA(
 function clampToGamut(c: Color, gamut: 'p3' | 'srgb'): Color {
   const space = gamut === 'p3' ? 'p3' : 'srgb';
   return c.inGamut(space) ? c : (c.toGamut({ space }) as Color);
-}
-
-function toP3String(c: Color): string {
-  const p3 = c.to('p3');
-  const coords = p3.coords.map((v) => Math.max(0, Math.min(1, +Number(v).toFixed(4))));
-  return `color(display-p3 ${coords[0]} ${coords[1]} ${coords[2]})`;
-}
-
-function toSrgbString(c: Color): string {
-  const srgb = c.to('srgb');
-  const coords = srgb.coords.map((v) => Math.max(0, Math.min(1, +Number(v).toFixed(4))));
-  return `rgb(${Math.round(coords[0] * 255)} ${Math.round(coords[1] * 255)} ${Math.round(coords[2] * 255)})`;
-}
-
-function formatColor(c: Color, gamut: 'p3' | 'srgb'): string {
-  return gamut === 'p3' ? toP3String(c) : toSrgbString(c);
-}
-
-function pickContrastColor(
-  solidColor: Color,
-  darkForeground: boolean | undefined,
-  gamut: 'p3' | 'srgb'
-): string {
-  if (darkForeground) {
-    return gamut === 'p3' ? 'color(display-p3 0.125 0.125 0.125)' : '#1a1a1a';
-  }
-  const white = new Color('oklch', [1, 0, 0]);
-  const black = new Color('oklch', [0.12, 0, 0]);
-  const lcWhite = Math.abs(solidColor.contrastAPCA(white) as number);
-  const lcBlack = Math.abs(solidColor.contrastAPCA(black) as number);
-  return lcWhite >= lcBlack
-    ? gamut === 'p3'
-      ? 'color(display-p3 1 1 1)'
-      : '#ffffff'
-    : gamut === 'p3'
-      ? 'color(display-p3 0.125 0.125 0.125)'
-      : '#1a1a1a';
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────

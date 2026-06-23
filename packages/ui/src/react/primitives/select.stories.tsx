@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from './select';
+import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Primitives/Select',
@@ -21,7 +22,7 @@ type Story = StoryObj;
 
 export const Default: Story = {
   render: () => (
-    <div className="w-48">
+    <div className={s.w48}>
       <Select>
         <SelectTrigger>
           <SelectValue placeholder="Pick a fruit" />
@@ -38,7 +39,7 @@ export const Default: Story = {
 
 export const WithGroups: Story = {
   render: () => (
-    <div className="w-48">
+    <div className={s.w48}>
       <Select>
         <SelectTrigger>
           <SelectValue placeholder="Pick a food" />
@@ -63,7 +64,7 @@ export const WithGroups: Story = {
 
 export const WithDefaultValue: Story = {
   render: () => (
-    <div className="w-48">
+    <div className={s.w48}>
       <Select defaultValue="banana">
         <SelectTrigger>
           <SelectValue />
@@ -80,7 +81,7 @@ export const WithDefaultValue: Story = {
 
 export const Disabled: Story = {
   render: () => (
-    <div className="w-48">
+    <div className={s.w48}>
       <Select disabled>
         <SelectTrigger>
           <SelectValue placeholder="Disabled" />
@@ -95,7 +96,7 @@ export const Disabled: Story = {
 
 export const WithDisabledItem: Story = {
   render: () => (
-    <div className="w-48">
+    <div className={s.w48}>
       <Select>
         <SelectTrigger>
           <SelectValue placeholder="Pick a fruit" />

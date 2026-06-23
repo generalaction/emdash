@@ -1,7 +1,8 @@
-// Side-effect imports — pulls surfaces.css.ts and design-tokens.css.ts into the
-// VE build graph so their globalStyle output lands in dist/style.css.
-import './surfaces.css';
+// Side-effect imports — pulls VE modules into the build graph so their
+// globalStyle output lands in dist/style.css.
+import '../react/components/prompt-editor/chip-classes.css';
 import './design-tokens.css';
+import './surfaces.css';
 /**
  * sprinkles.css.ts — atomic CSS utilities for @emdash/ui.
  *
@@ -18,8 +19,8 @@ import './design-tokens.css';
  *   <div className={sx({ display: 'flex', background: 'surface', padding: '3' })} />
  */
 import { createSprinkles, defineProperties } from '@vanilla-extract/sprinkles';
-import { vars } from '../theme/core/contract/contract.css';
 import { tokenVars } from './design-tokens.css';
+import { vars } from '@theme/core/contract/contract.css';
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 

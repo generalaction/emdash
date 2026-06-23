@@ -3,6 +3,7 @@ import { PlusIcon, SearchIcon, TrashIcon } from 'lucide-react';
 import React from 'react';
 import { Button } from './button';
 import { Surface } from './surface';
+import * as s from '../story-layout.css';
 
 const meta: Meta<typeof Button> = {
   title: 'Primitives/Button',
@@ -27,9 +28,9 @@ export const Default: Story = {
 /** All variants × tones. */
 export const VariantMatrix: Story = {
   render: () => (
-    <div className="flex flex-col gap-3">
+    <div className={`${s.flex} ${s.flexCol} ${s.gap3}`}>
       {(['ghost', 'primary'] as const).map((variant) => (
-        <div key={variant} className="flex flex-wrap items-center gap-2">
+        <div key={variant} className={`${s.flex} ${s.flexWrap} ${s.itemsCenter} ${s.gap2}`}>
           {(['neutral', 'destructive'] as const).map((tone) => (
             <Button key={tone} variant={variant} tone={tone}>
               {variant} / {tone}
@@ -44,13 +45,13 @@ export const VariantMatrix: Story = {
 /** Base (32 px) and SM (24 px) sizes, plus Link. */
 export const Sizes: Story = {
   render: () => (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-end gap-2">
+    <div className={`${s.flex} ${s.flexCol} ${s.gap3}`}>
+      <div className={`${s.flex} ${s.flexWrap} ${s.itemsEnd} ${s.gap2}`}>
         <Button size="base">Base</Button>
         <Button size="sm">Small</Button>
         <Button size="link">Link</Button>
       </div>
-      <div className="flex flex-wrap items-end gap-2">
+      <div className={`${s.flex} ${s.flexWrap} ${s.itemsEnd} ${s.gap2}`}>
         <Button size="base" icon>
           <SearchIcon />
         </Button>
@@ -65,7 +66,7 @@ export const Sizes: Story = {
 /** Icon-only icon buttons. */
 export const IconButtons: Story = {
   render: () => (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className={`${s.flex} ${s.flexWrap} ${s.itemsCenter} ${s.gap2}`}>
       <Button icon>
         <PlusIcon />
       </Button>
@@ -85,7 +86,7 @@ export const IconButtons: Story = {
 /** Disabled state. */
 export const Disabled: Story = {
   render: () => (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className={`${s.flex} ${s.flexWrap} ${s.itemsCenter} ${s.gap2}`}>
       <Button disabled>Ghost</Button>
       <Button variant="primary" disabled>
         Primary
@@ -100,15 +101,15 @@ export const Disabled: Story = {
 /** Surface-relative hover / active adapt correctly across all backgrounds. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <div className="bg-surface-sunken flex flex-col gap-4 rounded-xl p-4">
+    <div className={`${s.bgSurfaceSunken} ${s.flex} ${s.flexCol} ${s.gap4} ${s.roundedXl} ${s.p4}`}>
       {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
         (level) => (
           <Surface
             key={level}
             level={level}
-            className="bg-surface flex flex-wrap items-center gap-2 rounded-lg p-3"
+            className={`bg-surface ${s.flex} ${s.flexWrap} ${s.itemsCenter} ${s.gap2} ${s.roundedLg} ${s.p3}`}
           >
-            <span className="w-36 text-xs text-foreground-muted">{level}</span>
+            <span className={`${s.w36} ${s.textXs} ${s.textForegroundMuted}`}>{level}</span>
             <Button>Ghost</Button>
             <Button variant="primary">Primary</Button>
             <Button tone="destructive">Destructive</Button>

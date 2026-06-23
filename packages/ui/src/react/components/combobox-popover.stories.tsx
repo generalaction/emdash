@@ -11,6 +11,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Bot, Cpu, Zap } from 'lucide-react';
 import React, { useState } from 'react';
 import { ComboboxPopover } from './combobox-popover';
+import * as s from '../story-layout.css';
 
 // ── Shared data ───────────────────────────────────────────────────────────────
 
@@ -84,11 +85,11 @@ const MODELS: ModelItem[] = [
 function BarMeter({ value }: { value: number }) {
   const filled = Math.round(Math.max(0, Math.min(1, value)) * 5);
   return (
-    <span className="flex items-center gap-0.5">
+    <span className={`${s.flex} ${s.itemsCenter} ${s.gapHalf}`}>
       {Array.from({ length: 5 }, (_, i) => (
         <span
           key={i}
-          className="size-1.5 rounded-full"
+          className={`${s.size15} ${s.roundedFull}`}
           style={{ background: i < filled ? 'var(--foreground-muted)' : 'var(--border)' }}
         />
       ))}
@@ -98,28 +99,40 @@ function BarMeter({ value }: { value: number }) {
 
 function ModelDetailCard({ item }: { item: ModelItem }) {
   return (
-    <div className="w-52 p-3 text-sm" style={{ color: 'var(--foreground)' }}>
-      <div className="flex items-center gap-1.5">
-        <Bot className="size-4 shrink-0" style={{ color: 'var(--foreground-muted)' }} />
-        <p className="leading-tight font-medium">{item.name}</p>
+    <div className={`${s.w52} ${s.p3} ${s.textSm}`} style={{ color: 'var(--foreground)' }}>
+      <div className={`${s.flex} ${s.itemsCenter} ${s.gap15}`}>
+        <Bot className={`${s.size4} ${s.shrink0}`} style={{ color: 'var(--foreground-muted)' }} />
+        <p className={`${s.leadingTight} ${s.fontMedium}`}>{item.name}</p>
       </div>
-      <p className="mt-1.5 text-xs leading-snug" style={{ color: 'var(--foreground-muted)' }}>
+      <p
+        className={`${s.mt15} ${s.textXs} ${s.leadingSnug}`}
+        style={{ color: 'var(--foreground-muted)' }}
+      >
         {item.description}
       </p>
-      <div className="mt-2 space-y-1.5 border-t pt-2" style={{ borderColor: 'var(--border)' }}>
-        <div className="flex items-center justify-between text-xs">
+      <div
+        className={`${s.mt2} ${s.spaceY15} ${s.borderT} ${s.pt2}`}
+        style={{ borderColor: 'var(--border)' }}
+      >
+        <div className={`${s.flex} ${s.itemsCenter} ${s.justifyBetween} ${s.textXs}`}>
           <span style={{ color: 'var(--foreground-muted)' }}>Context</span>
           <span style={{ color: 'var(--foreground)' }}>{item.contextK}K</span>
         </div>
-        <div className="flex items-center justify-between text-xs">
-          <span className="flex items-center gap-1" style={{ color: 'var(--foreground-muted)' }}>
-            <Zap className="size-3" /> Speed
+        <div className={`${s.flex} ${s.itemsCenter} ${s.justifyBetween} ${s.textXs}`}>
+          <span
+            className={`${s.flex} ${s.itemsCenter} ${s.gap1}`}
+            style={{ color: 'var(--foreground-muted)' }}
+          >
+            <Zap className={s.size3} /> Speed
           </span>
           <BarMeter value={item.speed} />
         </div>
-        <div className="flex items-center justify-between text-xs">
-          <span className="flex items-center gap-1" style={{ color: 'var(--foreground-muted)' }}>
-            <Cpu className="size-3" /> Intelligence
+        <div className={`${s.flex} ${s.itemsCenter} ${s.justifyBetween} ${s.textXs}`}>
+          <span
+            className={`${s.flex} ${s.itemsCenter} ${s.gap1}`}
+            style={{ color: 'var(--foreground-muted)' }}
+          >
+            <Cpu className={s.size3} /> Intelligence
           </span>
           <BarMeter value={item.intelligence} />
         </div>
@@ -143,8 +156,8 @@ type Story = StoryObj;
 function BasicStory() {
   const [value, setValue] = useState<string>('claude-sonnet-4-5');
   return (
-    <div className="flex flex-col items-center gap-4">
-      <p className="text-xs" style={{ color: 'var(--foreground-muted)' }}>
+    <div className={`${s.flex} ${s.flexCol} ${s.itemsCenter} ${s.gap4}`}>
+      <p className={s.textXs} style={{ color: 'var(--foreground-muted)' }}>
         Selected: <strong>{MODELS.find((m) => m.id === value)?.name ?? '—'}</strong>
       </p>
       <ComboboxPopover<ModelItem>
@@ -155,9 +168,11 @@ function BasicStory() {
         itemToLabel={(m) => m.name}
         searchPlaceholder="Search models…"
         renderTrigger={(selected) => (
-          <span className="text-xs">{selected?.name ?? 'Pick a model'}</span>
+          <span className={s.textXs}>{selected?.name ?? 'Pick a model'}</span>
         )}
-        renderItem={(item) => <span className="flex-1 truncate text-sm">{item.name}</span>}
+        renderItem={(item) => (
+          <span className={`${s.flex1} ${s.truncate} ${s.textSm}`}>{item.name}</span>
+        )}
       />
     </div>
   );
@@ -166,8 +181,8 @@ function BasicStory() {
 function WithDetailHoverCardStory() {
   const [value, setValue] = useState<string>('claude-sonnet-4-5');
   return (
-    <div className="flex flex-col items-center gap-4">
-      <p className="text-xs" style={{ color: 'var(--foreground-muted)' }}>
+    <div className={`${s.flex} ${s.flexCol} ${s.itemsCenter} ${s.gap4}`}>
+      <p className={s.textXs} style={{ color: 'var(--foreground-muted)' }}>
         Hover any row in the list to see the detail card.
       </p>
       <ComboboxPopover<ModelItem>
@@ -178,9 +193,11 @@ function WithDetailHoverCardStory() {
         itemToLabel={(m) => m.name}
         searchPlaceholder="Search models…"
         renderTrigger={(selected) => (
-          <span className="text-xs">{selected?.name ?? 'Pick a model'}</span>
+          <span className={s.textXs}>{selected?.name ?? 'Pick a model'}</span>
         )}
-        renderItem={(item) => <span className="flex-1 truncate text-sm">{item.name}</span>}
+        renderItem={(item) => (
+          <span className={`${s.flex1} ${s.truncate} ${s.textSm}`}>{item.name}</span>
+        )}
         renderItemDetail={(item) => <ModelDetailCard item={item} />}
         detailSide="right"
         detailAlign="start"
@@ -192,8 +209,8 @@ function WithDetailHoverCardStory() {
 function DetailCardAboveStory() {
   const [value, setValue] = useState<string>('gpt-4o');
   return (
-    <div className="flex flex-col items-center gap-4">
-      <p className="text-xs" style={{ color: 'var(--foreground-muted)' }}>
+    <div className={`${s.flex} ${s.flexCol} ${s.itemsCenter} ${s.gap4}`}>
+      <p className={s.textXs} style={{ color: 'var(--foreground-muted)' }}>
         Hover a row — detail card appears above the popover (for bottom-anchored selectors like the
         composer toolbar).
       </p>
@@ -205,13 +222,16 @@ function DetailCardAboveStory() {
         itemToLabel={(m) => m.name}
         searchPlaceholder="Search models…"
         renderTrigger={(selected) => (
-          <span className="text-xs">{selected?.name ?? 'Pick a model'}</span>
+          <span className={s.textXs}>{selected?.name ?? 'Pick a model'}</span>
         )}
         renderItem={(item) => (
-          <div className="flex items-center gap-2">
-            <Bot className="size-3.5 shrink-0" style={{ color: 'var(--foreground-muted)' }} />
-            <span className="flex-1 truncate text-sm">{item.name}</span>
-            <span className="text-xs" style={{ color: 'var(--foreground-muted)' }}>
+          <div className={`${s.flex} ${s.itemsCenter} ${s.gap2}`}>
+            <Bot
+              className={`${s.size35} ${s.shrink0}`}
+              style={{ color: 'var(--foreground-muted)' }}
+            />
+            <span className={`${s.flex1} ${s.truncate} ${s.textSm}`}>{item.name}</span>
+            <span className={s.textXs} style={{ color: 'var(--foreground-muted)' }}>
               {item.provider}
             </span>
           </div>

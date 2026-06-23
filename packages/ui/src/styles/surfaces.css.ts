@@ -16,9 +16,9 @@
  *   → surface-elevated → surface-elevated-emphasis
  */
 
+import { THEME_MANIFEST } from '@theme/themes/registry';
 import { globalStyle } from '@vanilla-extract/css';
-import { THEME_MANIFEST } from '../theme/core/theme-manifest';
-import { vars } from '../theme/core/contract/contract.css';
+import { vars } from '@theme/core/contract/contract.css';
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 

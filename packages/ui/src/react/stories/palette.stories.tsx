@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { SCALE_NAMES, STEPS } from '@theme/core/contract/roles';
 import React, { useEffect, useRef, useState } from 'react';
-import { SCALE_NAMES, STEPS } from '../../theme/core/contract/roles';
 import { ThemeProvider } from '../primitives/theme-provider';
+import * as s from '../story-layout.css';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -28,10 +29,13 @@ function StepSwatch({ scale, step }: { scale: ScaleName; step: number }) {
   const isStep9 = step === 9;
 
   return (
-    <div className="flex flex-col items-center gap-1" title={`${varName}\n${resolved}`}>
+    <div
+      className={`${s.flex} ${s.flexCol} ${s.itemsCenter} ${s.gap1}`}
+      title={`${varName}\n${resolved}`}
+    >
       <div
         ref={ref}
-        className="h-10 w-full rounded"
+        className={`${s.h10} ${s.wFull} ${s.rounded}`}
         style={{
           background: `var(${varName})`,
           boxShadow: isStep9
@@ -39,7 +43,9 @@ function StepSwatch({ scale, step }: { scale: ScaleName; step: number }) {
             : undefined,
         }}
       />
-      <span className="font-mono text-[9px] leading-none text-foreground-passive">{step}</span>
+      <span className={`${s.fontMono} ${s.text9px} ${s.leadingNone} ${s.textForegroundPassive}`}>
+        {step}
+      </span>
     </div>
   );
 }
@@ -57,16 +63,21 @@ function ContrastSwatch({ scale }: { scale: ScaleName }) {
   });
 
   return (
-    <div className="flex flex-col items-center gap-1" title={`--${scale}-contrast\n${resolved}`}>
+    <div
+      className={`${s.flex} ${s.flexCol} ${s.itemsCenter} ${s.gap1}`}
+      title={`--${scale}-contrast\n${resolved}`}
+    >
       <div
         ref={ref}
-        className="h-10 w-full rounded"
+        className={`${s.h10} ${s.wFull} ${s.rounded}`}
         style={{
           background: `var(--${scale}-contrast)`,
           outline: '1px solid var(--border)',
         }}
       />
-      <span className="font-mono text-[9px] leading-none text-foreground-passive">ctrst</span>
+      <span className={`${s.fontMono} ${s.text9px} ${s.leadingNone} ${s.textForegroundPassive}`}>
+        ctrst
+      </span>
     </div>
   );
 }
@@ -75,21 +86,20 @@ function ContrastSwatch({ scale }: { scale: ScaleName }) {
 
 function ScaleRow({ scale }: { scale: ScaleName }) {
   return (
-    <div className="flex items-start gap-2">
-      {/* Scale label */}
-      <div className="w-16 shrink-0 pt-3">
-        <span className="font-mono text-xs font-medium text-foreground">{scale}</span>
+    <div className={`${s.flex} ${s.itemsStart} ${s.gap2}`}>
+      <div className={`${s.w16} ${s.shrink0} ${s.pt3}`}>
+        <span className={`${s.fontMono} ${s.textXs} ${s.fontMedium} ${s.textForeground}`}>
+          {scale}
+        </span>
       </div>
 
-      {/* 12 steps */}
-      <div className="grid flex-1 grid-cols-12 gap-1">
+      <div className={`${s.grid} ${s.flex1} ${s.cols12} ${s.gap1}`}>
         {STEPS.map((step) => (
           <StepSwatch key={step} scale={scale} step={step} />
         ))}
       </div>
 
-      {/* Contrast swatch */}
-      <div className="w-12 shrink-0">
+      <div className={`${s.w12} ${s.shrink0}`}>
         <ContrastSwatch scale={scale} />
       </div>
     </div>
@@ -100,16 +110,21 @@ function ScaleRow({ scale }: { scale: ScaleName }) {
 
 function HeaderRow() {
   return (
-    <div className="flex items-center gap-2">
-      <div className="w-16 shrink-0" />
-      <div className="grid flex-1 grid-cols-12 gap-1">
+    <div className={`${s.flex} ${s.itemsCenter} ${s.gap2}`}>
+      <div className={`${s.w16} ${s.shrink0}`} />
+      <div className={`${s.grid} ${s.flex1} ${s.cols12} ${s.gap1}`}>
         {STEPS.map((step) => (
-          <div key={step} className="text-center font-mono text-[9px] text-foreground-passive">
+          <div
+            key={step}
+            className={`${s.textCenter} ${s.fontMono} ${s.text9px} ${s.textForegroundPassive}`}
+          >
             {step}
           </div>
         ))}
       </div>
-      <div className="w-12 shrink-0 text-center font-mono text-[9px] text-foreground-passive">
+      <div
+        className={`${s.w12} ${s.shrink0} ${s.textCenter} ${s.fontMono} ${s.text9px} ${s.textForegroundPassive}`}
+      >
         C
       </div>
     </div>
@@ -120,17 +135,17 @@ function HeaderRow() {
 
 function PaletteGrid() {
   return (
-    <div className="flex flex-col gap-3 bg-background p-6">
-      <div className="mb-2">
-        <h2 className="text-sm font-semibold text-foreground">Color Palette</h2>
-        <p className="mt-1 text-xs text-foreground-muted">
+    <div className={`${s.flex} ${s.flexCol} ${s.gap3} ${s.bgBackground} ${s.p6}`}>
+      <div className={s.mb2}>
+        <h2 className={`${s.textSm} ${s.fontSemibold} ${s.textForeground}`}>Color Palette</h2>
+        <p className={`${s.mt1} ${s.textXs} ${s.textForegroundMuted}`}>
           Generated from OKLCH hue seeds with APCA-targeted contrast. Step 9 (ringed) is the solid
           fill. &quot;C&quot; is the auto-selected contrast text color for use on step 9. Hover a
           swatch for the CSS variable name and computed value.
         </p>
       </div>
       <HeaderRow />
-      <div className="flex flex-col gap-2">
+      <div className={`${s.flex} ${s.flexCol} ${s.gap2}`}>
         {SCALE_NAMES.map((scale) => (
           <ScaleRow key={scale} scale={scale} />
         ))}
@@ -157,15 +172,19 @@ export const Palette: Story = {
 /** Light and dark palettes rendered side-by-side for visual parity check. */
 export const BothModes: Story = {
   render: () => (
-    <div className="flex min-h-screen">
-      <ThemeProvider defaultTheme="light" className="flex-1">
-        <div className="border-b border-border bg-background px-6 py-3 text-sm font-medium text-foreground">
+    <div className={`${s.flex} ${s.minHScreen}`}>
+      <ThemeProvider defaultTheme="light" className={s.flex1}>
+        <div
+          className={`${s.borderB} ${s.borderBorder} ${s.bgBackground} ${s.px6} ${s.py3} ${s.textSm} ${s.fontMedium} ${s.textForeground}`}
+        >
           Light
         </div>
         <PaletteGrid />
       </ThemeProvider>
-      <ThemeProvider defaultTheme="dark" className="flex-1">
-        <div className="border-b border-border bg-background px-6 py-3 text-sm font-medium text-foreground">
+      <ThemeProvider defaultTheme="dark" className={s.flex1}>
+        <div
+          className={`${s.borderB} ${s.borderBorder} ${s.bgBackground} ${s.px6} ${s.py3} ${s.textSm} ${s.fontMedium} ${s.textForeground}`}
+        >
           Dark
         </div>
         <PaletteGrid />

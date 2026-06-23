@@ -2,11 +2,15 @@ import type { Decorator, Preview } from '@storybook/react-vite';
 import React, { useEffect } from 'react';
 import { ThemeProvider } from '../src/react/primitives/theme-provider';
 import type { ThemeId } from '../src/react/primitives/theme-provider';
-import { THEME_MANIFEST } from '../src/theme/core/theme-manifest';
+import { THEME_MANIFEST } from '../src/theme/themes/registry';
 // Side-effect: pulls surfaces.css.ts + tokens.css.ts into the VE build graph.
 import '../src/styles/sprinkles.css';
 import './theme.css';
-import './stories.css';
+// Third-party CSS loaded globally so all stories can rely on them without
+// individual imports. Vite handles these in the Storybook build.
+import 'devicon/devicon.min.css';
+import '@emdash/chat-ui/style.css';
+import '@emdash/chat-ui/chat-theme.css';
 
 const COLOR_MODES: ThemeId[] = ['light', 'dark', 'solarized-light', 'solarized-dark'];
 

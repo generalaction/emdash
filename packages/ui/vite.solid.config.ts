@@ -1,12 +1,23 @@
 import { resolve } from 'node:path';
 import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
 import { defineConfig } from 'vite';
+
+const root = resolve(__dirname, 'src');
 import dts from 'vite-plugin-dts';
 import solid from 'vite-plugin-solid';
 
 // Solid lib build — separate from the React pipeline because the JSX transforms
 // (solid-js vs react-jsx) are incompatible. VE is shared; solid-js is external.
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': root,
+      '@react': resolve(root, 'react'),
+      '@solid': resolve(root, 'solid'),
+      '@styles': resolve(root, 'styles'),
+      '@theme': resolve(root, 'theme'),
+    },
+  },
   plugins: [
     solid(),
     vanillaExtractPlugin(),

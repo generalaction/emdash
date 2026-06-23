@@ -1,6 +1,8 @@
 import { resolve } from 'node:path';
 import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
 import { defineConfig } from 'vite';
+
+const root = resolve(__dirname, 'src');
 import dts from 'vite-plugin-dts';
 
 // @vitejs/plugin-react is intentionally omitted from the lib build.
@@ -8,6 +10,15 @@ import dts from 'vite-plugin-dts';
 // The plugin is only needed for Storybook (HMR / React Refresh).
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': root,
+      '@react': resolve(root, 'react'),
+      '@solid': resolve(root, 'solid'),
+      '@styles': resolve(root, 'styles'),
+      '@theme': resolve(root, 'theme'),
+    },
+  },
   plugins: [
     vanillaExtractPlugin(),
     dts({

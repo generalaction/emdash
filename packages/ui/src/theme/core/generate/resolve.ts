@@ -1,5 +1,5 @@
 /**
- * resolve.ts
+ * generate/resolve.ts
  *
  * Resolves the role-stable semantic template against a generated palette
  * (Scales + Surfaces) to produce a concrete CSS custom-property map.
@@ -10,9 +10,9 @@
  *   "mix(A pct%, B)"   → emitted as CSS color-mix(in srgb, var(--A) pct%, var(--B))
  */
 
-import { SURFACE_SCOPES, SURFACE_STATUSES, STATUS_SCALE } from './contract/roles.js';
-import type { Scales, Surfaces, Polarity } from './contract/roles.js';
-import { SEMANTIC_TEMPLATE } from './contract/semantic-template.js';
+import { SURFACE_SCOPES, SURFACE_STATUSES, STATUS_SCALE } from '../contract/roles';
+import type { Scales, Surfaces, Polarity } from '../contract/roles';
+import { SEMANTIC_TEMPLATE } from '../contract/semantic-template';
 
 // ── Ref resolution ────────────────────────────────────────────────────────────
 
@@ -64,7 +64,6 @@ function resolveRef(ref: string, scales: Scales, _surfaces: Surfaces): string {
 
 function buildSurfaceVars(surfaces: Surfaces): Record<string, string> {
   const vars: Record<string, string> = {};
-  // Iterate elevation levels (darkest → lightest) followed by semantic roles.
   for (const scopeName of SURFACE_SCOPES) {
     const level = surfaces[scopeName];
     vars[`--surface-${scopeName}`] = level.base;

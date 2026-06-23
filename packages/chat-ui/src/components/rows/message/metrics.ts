@@ -4,7 +4,6 @@ export type MessageVars = {
   expandedMaxH: number;
   userCardPadX: number;
   userCardPadY: number;
-  stackPadY: number;
   attachThumb: number;
   attachGap: number;
   footerH: number;

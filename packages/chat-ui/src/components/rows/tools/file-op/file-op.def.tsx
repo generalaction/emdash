@@ -2,12 +2,11 @@ import { ROW_H } from '@components/engine/row-metrics';
 import { PreviewWindow } from '@components/primitives/PreviewWindow';
 import type { MeasureCtx, RenderCtx } from '@core/define';
 import { defineUnit } from '@core/units';
-import { pxTokens } from '@styles/px-tokens';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
 import type { ChatFileOpToolCall } from '@/model';
 import { FileOpRow, FileOpHeader, FileOpList, FileOpPreviewBody } from './FileOperation';
-import { fileOpCardVars, fileOpRoot, type FileOpStyleVars } from './file-op.css';
+import { fileOpCardVars, fileOpRoot } from './file-op.css';
 
 export type FileOpVars = {
   /** Measure-only: fixed row height for header and per-file lines. */
@@ -41,18 +40,16 @@ function FileOpUnitRender(props: { data: ChatFileOpToolCall; ctx: RenderCtx; var
   const isExpanded = () => props.ctx.viewState.isCollapsed(props.data.id);
 
   const totalH = createMemo(() => {
-    const item = props.data;
-    const v = props.vars;
-    if (item.ops.length <= 1) return v.rowH;
-    if (isExpanded()) return v.rowH + item.ops.length * v.rowH + 2 * v.padY;
-    if (item.status === 'running') return v.rowH + v.windowH;
-    return v.rowH;
+    const ctx = props.ctx.measureCtx?.();
+    if (!ctx) return props.vars.rowH;
+    return measureFileOpH(props.data, ctx, props.vars);
   });
 
-  const styleVars = (): FileOpStyleVars => ({ height: totalH(), padY: props.vars.padY });
-
   return (
-    <div class={fileOpRoot} style={assignInlineVars(fileOpCardVars, pxTokens(styleVars()))}>
+    <div
+      class={fileOpRoot}
+      style={assignInlineVars({ [fileOpCardVars.height]: `${totalH()}px` })}
+    >
       <Show
         when={props.data.ops.length > 1}
         fallback={<FileOpRow item={props.data} rowH={rowH()} lineH={rowH()} />}
