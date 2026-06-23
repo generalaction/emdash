@@ -102,21 +102,17 @@ function SheetBody({
   style,
   maxHeight,
   topFade = true,
-  bottomFade = true,
 }: {
   className?: string;
   children?: React.ReactNode;
   style?: React.CSSProperties;
   maxHeight?: number | string;
   topFade?: boolean;
-  bottomFade?: boolean;
 }) {
   return (
     <ScrollContainer
-      axis="y"
       maxHeight={maxHeight}
       topFade={topFade}
-      bottomFade={bottomFade}
       style={{ minHeight: 0, flex: '1 1 0%', ...style }}
       viewportClassName={cx(styles.sheetBody, className)}
     >

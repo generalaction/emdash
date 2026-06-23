@@ -32,29 +32,7 @@ function Paragraph({ n = 1 }: { n?: number }) {
   );
 }
 
-function HorizontalItems({ n = 20 }: { n?: number }) {
-  return (
-    <Box display="flex" gap="3" whiteSpace="nowrap">
-      {Array.from({ length: n }, (_, i) => (
-        <Box
-          key={i}
-          background="surfaceBaseEmphasis"
-          rounded="sm"
-          borderWidth="1"
-          borderStyle="solid"
-          borderColor="border"
-          px="3"
-          py="1"
-          fontSize="sm"
-        >
-          Item {i + 1}
-        </Box>
-      ))}
-    </Box>
-  );
-}
-
-/** Vertical fade — content overflows, fades appear top and bottom as you scroll. */
+/** Vertical fade — content overflows, the top fade appears as you scroll down. */
 export const VerticalOverflow: Story = {
   render: () => (
     <ScrollFade
@@ -67,7 +45,7 @@ export const VerticalOverflow: Story = {
   ),
 };
 
-/** No overflow — fades should not appear when content fits. */
+/** No overflow — the top fade should not appear when content fits. */
 export const VerticalNoOverflow: Story = {
   render: () => (
     <ScrollFade
@@ -80,47 +58,19 @@ export const VerticalNoOverflow: Story = {
   ),
 };
 
-/** Horizontal fade — wide content overflows horizontally. */
-export const HorizontalOverflow: Story = {
-  render: () => (
-    <ScrollFade
-      axis="x"
-      className={cx(sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }), s.w80)}
-    >
-      <Box padding="4">
-        <HorizontalItems n={20} />
-      </Box>
-    </ScrollFade>
-  ),
-};
-
-/** Both axes — content overflows in both directions. */
-export const BothAxes: Story = {
-  render: () => (
-    <ScrollFade
-      axis="both"
-      className={cx(sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }), s.h48, s.w80)}
-    >
-      <Box padding="4">
-        <Box marginBottom="3">
-          <HorizontalItems n={20} />
-        </Box>
-        <Paragraph n={8} />
-      </Box>
-    </ScrollFade>
-  ),
-};
-
-/** Non-surface background — override --fade-color to match the container's paint. */
+/**
+ * Non-surface background — the mask approach is color-agnostic, so no
+ * --fade-color override is needed. The fade just works regardless of the
+ * container background.
+ */
 export const NonSurfaceBackground: Story = {
   render: () => (
     <Box display="flex" flexDirection="column" gap="4">
       <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>
-        Code-block-style container: overrides <code>--fade-color</code> to match its background.
+        Code-block-style container: mask-based fades work on any background color.
       </p>
       <ScrollFade
         className={cx(sx({ borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }), s.h40, s.w80)}
-        fadeColor="var(--neutral-1)"
         style={{ background: 'var(--neutral-1)' }}
       >
         <pre className={cx(sx({ padding: '4', fontFamily: 'mono', fontSize: 'xs', color: 'foreground' }))}>
@@ -164,7 +114,7 @@ export const CustomSize: Story = {
   ),
 };
 
-/** All surface elevations side-by-side — verifies automatic surface-cascade color matching. */
+/** All surface elevations side-by-side — the mask-based fade is color-agnostic and works on every surface. */
 export const AllSurfaces: Story = {
   render: () => (
     <Box display="flex" flexWrap="wrap" gap="4">
@@ -186,7 +136,7 @@ export const AllSurfaces: Story = {
   ),
 };
 
-/** Light and dark side-by-side — fade color adapts to mode via the surface cascade. */
+/** Light and dark side-by-side — the mask-based top fade works identically in both modes. */
 export const BothModes: Story = {
   render: () => (
     <Box display="flex" className={cx(s.minHScreen, s.divideX, s.divideBorder)}>

@@ -1,30 +1,12 @@
 import * as React from 'react';
 import { cx } from '@styles/utilities/cx';
 
-export type ScrollFadeAxis = 'y' | 'x' | 'both';
-
-export type ScrollFadeEdge = 'top' | 'bottom' | 'left' | 'right';
-
 export type ScrollFadeProps = {
-  /** Which axis to fade. Defaults to 'y'. */
-  axis?: ScrollFadeAxis;
-  /**
-   * Restrict the rendered fades to specific edges. When omitted, all edges for
-   * the chosen `axis` render (y → top + bottom, x → left + right, both → all).
-   * Example: `edges={['top']}` shows only the top fade when scrolled down.
-   */
-  edges?: ScrollFadeEdge[];
   /**
    * Override the fade gradient size. Accepts any CSS length string ('32px', '2rem')
-   * or a number interpreted as pixels. Defaults to the fade.size token (24px).
+   * or a number interpreted as pixels. Defaults to 24px.
    */
   size?: number | string;
-  /**
-   * Override the fade gradient color. Defaults to var(--surface) from the surface cascade.
-   * Use this for containers whose background is not the surface color
-   * (e.g. '--fade-color: var(--chat-code-bg)').
-   */
-  fadeColor?: string;
   className?: string;
   viewportClassName?: string;
   style?: React.CSSProperties;
@@ -34,47 +16,33 @@ export type ScrollFadeProps = {
 };
 
 /**
- * ScrollFade wraps a scrollable viewport with surface-cascade-aware edge fades.
- * Fades are driven by CSS scroll-driven animations — they appear only on edges
- * with hidden content, with no JavaScript required.
+ * ScrollFade wraps a scrollable viewport with a mask-based top fade.
+ * The fade is driven by a CSS scroll-driven animation via a @property custom
+ * property — it appears only once the user scrolls down, works correctly in
+ * light and dark mode (no color-matching needed), and disappears automatically
+ * when content does not overflow.
  *
  * The viewport ref is forwarded so callers can programmatically scroll it.
  *
  * @example
- * // Vertical fade (default) — matches the current surface automatically.
  * <ScrollFade className={cx(sx({ background: 'surface' }), s.h48)}>
  *   <VeryLongList />
  * </ScrollFade>
- *
- * @example
- * // Horizontal, custom size and non-surface background.
- * <ScrollFade axis="x" size={40} fadeColor="var(--chat-code-bg)" className="w-full">
- *   <HorizontalContent />
- * </ScrollFade>
  */
 const ScrollFade = React.forwardRef<HTMLDivElement, ScrollFadeProps>(function ScrollFade(
-  { axis = 'y', edges, size, fadeColor, className, viewportClassName, viewportStyle, style, children },
+  { size, className, viewportClassName, viewportStyle, style, children },
   ref
 ) {
   const fadeSize = size === undefined ? undefined : typeof size === 'number' ? `${size}px` : size;
 
-  const wrapperStyle: React.CSSProperties = {
-    ...style,
+  const wrapperStyle: React.CSSProperties = { ...style };
+
+  const mergedViewportStyle: React.CSSProperties = {
+    height: '100%',
+    width: '100%',
     ...(fadeSize ? ({ '--fade-size': fadeSize } as React.CSSProperties) : {}),
-    ...(fadeColor ? ({ '--fade-color': fadeColor } as React.CSSProperties) : {}),
+    ...viewportStyle,
   };
-
-  // Default the rendered edges from the axis, then allow an explicit override.
-  const defaultEdges: ScrollFadeEdge[] =
-    axis === 'x'
-      ? ['left', 'right']
-      : axis === 'both'
-        ? ['top', 'bottom', 'left', 'right']
-        : ['top', 'bottom'];
-  const activeEdges = edges ?? defaultEdges;
-  const showEdge = (edge: ScrollFadeEdge) => activeEdges.includes(edge);
-
-  const mergedViewportStyle: React.CSSProperties = { height: '100%', width: '100%', ...viewportStyle };
 
   return (
     <div className={cx('scroll-fade', className)} style={wrapperStyle}>
@@ -85,10 +53,6 @@ const ScrollFade = React.forwardRef<HTMLDivElement, ScrollFadeProps>(function Sc
       >
         {children}
       </div>
-      {showEdge('top') && <div className="scroll-fade__top" aria-hidden="true" />}
-      {showEdge('bottom') && <div className="scroll-fade__bottom" aria-hidden="true" />}
-      {showEdge('left') && <div className="scroll-fade__left" aria-hidden="true" />}
-      {showEdge('right') && <div className="scroll-fade__right" aria-hidden="true" />}
     </div>
   );
 });

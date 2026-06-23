@@ -33,10 +33,8 @@ function Paragraph({ n = 1 }: { n?: number }) {
 }
 
 /**
- * Content overflows — both top and bottom fades appear as you scroll.
- * This is the key difference from ScrollFade: the bottom fade is absent
- * when the container is at rest (not yet scrolled) only while the content
- * actually overflows.
+ * Content overflows — the top fade appears once you scroll down. At rest
+ * (scrolled to the top) no fade shows.
  */
 export const WithOverflow: Story = {
   render: () => (
@@ -55,8 +53,8 @@ export const WithOverflow: Story = {
 };
 
 /**
- * Content fits — no fades are rendered at all because the ResizeObserver
- * detects no overflow.
+ * Content fits — no fade appears because the scroll timeline stays inactive
+ * when there is no overflow.
  */
 export const NoOverflow: Story = {
   render: () => (
@@ -74,55 +72,12 @@ export const NoOverflow: Story = {
   ),
 };
 
-/**
- * Top fade disabled — scrolling down still shows the bottom fade, but
- * no top fade appears after scrolling down.
- */
+/** Top fade disabled — scrollable, but no fade appears after scrolling down. */
 export const TopFadeDisabled: Story = {
   render: () => (
     <ScrollContainer
       maxHeight={192}
       topFade={false}
-      className={cx(
-        sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }),
-        s.w80
-      )}
-    >
-      <Box display="flex" flexDirection="column" gap="3" padding="4">
-        <Paragraph n={8} />
-      </Box>
-    </ScrollContainer>
-  ),
-};
-
-/**
- * Bottom fade disabled — the top fade still appears after scrolling, but
- * no bottom fade shows at the initial position.
- */
-export const BottomFadeDisabled: Story = {
-  render: () => (
-    <ScrollContainer
-      maxHeight={192}
-      bottomFade={false}
-      className={cx(
-        sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }),
-        s.w80
-      )}
-    >
-      <Box display="flex" flexDirection="column" gap="3" padding="4">
-        <Paragraph n={8} />
-      </Box>
-    </ScrollContainer>
-  ),
-};
-
-/** Both fades disabled — scrollable but no gradient overlays. */
-export const BothFadesDisabled: Story = {
-  render: () => (
-    <ScrollContainer
-      maxHeight={192}
-      topFade={false}
-      bottomFade={false}
       className={cx(
         sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }),
         s.w80
@@ -153,10 +108,9 @@ export const MaxHeightString: Story = {
 };
 
 /**
- * All surface elevations side-by-side — the fade gradient automatically matches
- * the container background because --fade-color inherits from --surface via the
- * surface cascade. Each ScrollContainer sits inside a <Surface level=...> scope
- * that rebinds --surface, so both background and fade update together.
+ * All surface elevations side-by-side — the mask-based fade is color-agnostic
+ * (it clips content alpha rather than overlaying a color), so it works correctly
+ * on every surface without any per-surface configuration.
  */
 export const SurfaceAware: Story = {
   render: () => (
@@ -183,7 +137,7 @@ export const SurfaceAware: Story = {
   ),
 };
 
-/** Light and dark side-by-side — fade color adapts to mode via the surface cascade. */
+/** Light and dark side-by-side — the mask-based top fade works identically in both modes. */
 export const BothModes: Story = {
   render: () => (
     <Box display="flex" className={cx(s.minHScreen, s.divideX, s.divideBorder)}>
