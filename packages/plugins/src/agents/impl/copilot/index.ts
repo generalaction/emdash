@@ -22,7 +22,7 @@ export const plugin = definePlugin(
     hooks: {
       kind: 'config',
       scope: 'workspace',
-      supportedEvents: ['stop', 'session', 'notification'],
+      supportedEvents: ['start', 'stop', 'error', 'session', 'notification'],
     },
     hostDependency: npmDependency({ id: 'copilot', package: '@github/copilot' }),
     mcp: {

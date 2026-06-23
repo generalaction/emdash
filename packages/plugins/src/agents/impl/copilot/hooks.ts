@@ -14,14 +14,25 @@ export const COPILOT_HOOKS_PATH = '.github/hooks/emdash.json';
 
 export function buildCopilotHookConfig() {
   const stopCmd = makeStdinHookCommand('stop');
+  const startCmd = makeStdinHookCommand('start');
   const sessionCmd = makeStdinHookCommand('session');
+  const errorCmd = makeStdinHookCommand('error');
+  const notificationCmd = makeStdinHookCommand('notification');
   const permCmd = makeNotificationHookCommand('permission_prompt');
 
   return {
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readJsonConfig(fs, COPILOT_HOOKS_PATH);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      const installed = ['agentStop', 'sessionStart', 'permissionRequest'].some((k) => {
+      const installed = [
+        'agentStop',
+        'sessionEnd',
+        'sessionStart',
+        'userPromptSubmitted',
+        'errorOccurred',
+        'notification',
+        'permissionRequest',
+      ].some((k) => {
         const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
         return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
       });
@@ -36,19 +47,38 @@ export function buildCopilotHookConfig() {
         ...filterUserHooks(stopExisting as Record<string, unknown>[]),
         buildFlatEntry(stopCmd),
       ];
+      const sessionEndExisting = Array.isArray(hooks.sessionEnd) ? hooks.sessionEnd : [];
+      hooks.sessionEnd = [
+        ...filterUserHooks(sessionEndExisting as Record<string, unknown>[]),
+        buildFlatEntry(stopCmd),
+      ];
       const sessionExisting = Array.isArray(hooks.sessionStart) ? hooks.sessionStart : [];
       hooks.sessionStart = [
         ...filterUserHooks(sessionExisting as Record<string, unknown>[]),
         buildFlatEntry(sessionCmd),
+      ];
+      const startExisting = Array.isArray(hooks.userPromptSubmitted)
+        ? hooks.userPromptSubmitted
+        : [];
+      hooks.userPromptSubmitted = [
+        ...filterUserHooks(startExisting as Record<string, unknown>[]),
+        buildFlatEntry(startCmd),
+      ];
+      const errorExisting = Array.isArray(hooks.errorOccurred) ? hooks.errorOccurred : [];
+      hooks.errorOccurred = [
+        ...filterUserHooks(errorExisting as Record<string, unknown>[]),
+        buildFlatEntry(errorCmd),
+      ];
+      const notificationExisting = Array.isArray(hooks.notification) ? hooks.notification : [];
+      hooks.notification = [
+        ...filterUserHooks(notificationExisting as Record<string, unknown>[]),
+        buildFlatEntry(notificationCmd),
       ];
       const permExisting = Array.isArray(hooks.permissionRequest) ? hooks.permissionRequest : [];
       hooks.permissionRequest = [
         ...filterUserHooks(permExisting as Record<string, unknown>[]),
         buildFlatEntry(permCmd),
       ];
-      if (Array.isArray(hooks.notification)) {
-        hooks.notification = filterUserHooks(hooks.notification as Record<string, unknown>[]);
-      }
 
       await writeJsonConfig(fs, COPILOT_HOOKS_PATH, { ...config, version: 1, hooks });
       return [COPILOT_HOOKS_PATH];
@@ -64,7 +94,15 @@ export function buildCopilotHookConfig() {
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
       const config = await readJsonConfig(fs, COPILOT_HOOKS_PATH);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      return ['agentStop', 'sessionStart', 'permissionRequest'].some((k) => {
+      return [
+        'agentStop',
+        'sessionEnd',
+        'sessionStart',
+        'userPromptSubmitted',
+        'errorOccurred',
+        'notification',
+        'permissionRequest',
+      ].some((k) => {
         const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
         return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
       });

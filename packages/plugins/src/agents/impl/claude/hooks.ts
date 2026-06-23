@@ -2,6 +2,7 @@ import type { CanonicalHookEvent } from '@emdash/core/agents/plugins';
 import {
   buildNestedJsonHookConfig,
   defaultHookEventParser,
+  makeNotificationHookCommand,
   makeStdinHookCommand,
 } from '@emdash/core/agents/plugins/helpers';
 
@@ -37,9 +38,13 @@ function parseClaudeHookEvent(
 export function buildClaudeHookConfig() {
   return {
     ...buildNestedJsonHookConfig(CLAUDE_SETTINGS_PATH, [
+      { hookKey: 'SessionStart', command: makeStdinHookCommand('session') },
       { hookKey: 'UserPromptSubmit', command: makeStdinHookCommand('start') },
+      { hookKey: 'PermissionRequest', command: makeNotificationHookCommand('permission_prompt') },
       { hookKey: 'Notification', command: makeStdinHookCommand('notification') },
       { hookKey: 'Stop', command: makeStdinHookCommand('stop') },
+      { hookKey: 'StopFailure', command: makeStdinHookCommand('error') },
+      { hookKey: 'SessionEnd', command: makeStdinHookCommand('stop') },
     ]),
     parseHookEvent: parseClaudeHookEvent,
   };

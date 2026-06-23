@@ -28,6 +28,15 @@ const MISTRAL_HOOK_ENTRIES = [
     strict: false,
     description: 'Notify Emdash when Mistral Vibe asks for user input.',
   },
+  {
+    name: 'emdash-after-tool',
+    type: 'after_tool',
+    match: '*',
+    command: makeStdinHookCommand('tool-use'),
+    timeout: 10,
+    strict: false,
+    description: 'Notify Emdash after Mistral Vibe runs a tool.',
+  },
 ];
 
 async function enableExperimentalHooks(fs: PluginFs): Promise<string[]> {

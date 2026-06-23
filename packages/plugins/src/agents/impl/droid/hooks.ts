@@ -14,7 +14,9 @@ const DROID_HOOK_SPECS = [
   { hookKey: 'UserPromptSubmit', command: makeStdinHookCommand('start') },
   { hookKey: 'Notification', command: makeStdinHookCommand('notification') },
   { hookKey: 'Stop', command: makeStdinHookCommand('stop') },
+  { hookKey: 'SubagentStop', command: makeStdinHookCommand('stop') },
   { hookKey: 'SessionStart', command: makeStdinHookCommand('session') },
+  { hookKey: 'SessionEnd', command: makeStdinHookCommand('stop') },
 ];
 
 function getHooks(config: Record<string, unknown>): Record<string, unknown[]> {
