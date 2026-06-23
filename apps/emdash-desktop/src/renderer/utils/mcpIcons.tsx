@@ -63,9 +63,9 @@ export function resolveMcpIconKey(iconKey?: string, name?: string): string | und
 
     const normalized = normalizeIconKey(candidate);
     const withoutMcpAffixes = normalized
+      .replace(/^mcp_server_/, '')
       .replace(/^mcp_/, '')
       .replace(/_mcp$/, '')
-      .replace(/^mcp_server_/, '')
       .replace(/_server$/, '');
     const candidates = [
       candidate,

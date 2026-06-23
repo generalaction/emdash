@@ -89,6 +89,7 @@ describe('resolveMcpIconKey', () => {
     expect(resolveMcpIconKey(undefined, 'Chrome DevTools MCP')).toBe('chrome_devtools');
     expect(resolveMcpIconKey(undefined, 'Shopify Dev')).toBe('shopify');
     expect(resolveMcpIconKey(undefined, 'mcp-server-context7')).toBe('context7');
+    expect(resolveMcpIconKey(undefined, 'mcp-server-mongodb')).toBe('mongodb');
   });
 
   it('keeps unknown MCP servers on the official MCP fallback', () => {
@@ -101,6 +102,7 @@ describe('mcp catalog icon assets', () => {
   it('matches catalog keys and metadata conventions', () => {
     const iconFiles = listCatalogIconFiles();
 
+    // Update this count whenever a new icon file is added to the mcp assets directory.
     expect(iconFiles.length).toBe(53);
 
     for (const file of iconFiles) {
@@ -112,11 +114,7 @@ describe('mcp catalog icon assets', () => {
       expect(svg).toContain('<title>');
       expect(processed).toContain('class="h-full w-full"');
 
-      if (key === 'mcp_default') {
-        expect(processed).toContain('stroke="currentColor"');
-      } else {
-        expect(processed).toContain('fill="currentColor"');
-      }
+      expect(processed).toContain('fill="currentColor"');
 
       expect(svg).not.toContain('<image');
     }
