@@ -1,11 +1,12 @@
 import { Globe, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import type { ResolvedBrowserTab } from '../../tabs/pane-store';
-import { TabCloseButton } from './tab-close-button';
-import { TabDragPreviewShell, TabItemShell } from './tab-item-shell';
-import { TabTitle } from './tab-title';
+import type { ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
+import { TabCloseButton } from '@renderer/features/tabs/tab-bar/tab-close-button';
+import { TabDragPreviewShell, TabItemShell } from '@renderer/features/tabs/tab-bar/tab-item-shell';
+import { TabTitle } from '@renderer/features/tabs/tab-bar/tab-title';
+import type { BrowserResolvedData } from './browser-tab-provider';
 
-function browserTabLabel(tab: ResolvedBrowserTab): string {
+function browserTabLabel(tab: ResolvedTab<BrowserResolvedData>): string {
   if (tab.session.title.trim()) return tab.session.title.trim();
   if (tab.session.currentUrl === 'about:blank') return 'Browser';
   try {
@@ -21,7 +22,7 @@ export const BrowserTabItem = observer(function BrowserTabItem({
   onPin,
   onClose,
 }: {
-  tab: ResolvedBrowserTab;
+  tab: ResolvedTab<BrowserResolvedData>;
   onSelect: () => void;
   onPin: () => void;
   onClose: () => void;
@@ -53,7 +54,7 @@ export const BrowserTabItem = observer(function BrowserTabItem({
   );
 });
 
-export function BrowserTabDragPreview({ tab }: { tab: ResolvedBrowserTab }) {
+export function BrowserTabDragPreview({ tab }: { tab: ResolvedTab<BrowserResolvedData> }) {
   const label = browserTabLabel(tab);
   return (
     <TabDragPreviewShell>

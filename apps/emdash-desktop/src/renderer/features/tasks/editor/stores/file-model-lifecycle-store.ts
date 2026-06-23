@@ -1,5 +1,5 @@
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
-import type { PaneLayoutStore } from '@renderer/features/tasks/tabs/pane-layout-store';
+import type { PaneLayoutStore } from '@renderer/features/tabs/pane-layout-store';
 import { getFileKind } from '@renderer/lib/editor/fileKind';
 import { rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
@@ -9,6 +9,7 @@ import { getMonacoLanguageId } from '@renderer/utils/diffUtils';
 import { log } from '@renderer/utils/logger';
 import { HEAD_REF } from '@shared/core/git/types';
 import type { EditorViewSnapshot } from '@shared/view-state';
+import { allOpenFilePaths, fileEntryByPath } from '../pane-selectors';
 
 /**
  * Owns Monaco model lifecycle (register/unregister) and file persistence (save, conflict).
@@ -55,7 +56,7 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
     // across ALL panes. A model stays registered as long as any pane has the file open.
     this.disposers.push(
       reaction(
-        () => this.paneLayout.allOpenFilePaths,
+        () => allOpenFilePaths(this.paneLayout),
         (current, previous = []) => {
           const prev = new Set(previous);
           const curr = new Set(current);
@@ -79,7 +80,7 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
 
   /** Union of all open file paths across all panes (deduplicated). */
   get openFilePaths(): string[] {
-    return this.paneLayout.allOpenFilePaths;
+    return allOpenFilePaths(this.paneLayout);
   }
 
   // ---------------------------------------------------------------------------
@@ -205,7 +206,7 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
       const imageContent = result.success ? (result.data?.dataUrl ?? '') : '';
       runInAction(() => {
         for (const { pane } of this.paneLayout.groups) {
-          pane.setImageContent(filePath, imageContent);
+          fileEntryByPath(pane, filePath)?.setImageContent(imageContent);
         }
       });
       return;
@@ -225,7 +226,9 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
       } catch {
         runInAction(() => {
           for (const { pane } of this.paneLayout.groups) {
-            pane.updateRenderer(filePath, () => ({ kind: 'file-error' as const }));
+            fileEntryByPath(pane, filePath)?.updateRenderer(() => ({
+              kind: 'file-error' as const,
+            }));
           }
         });
         return;
@@ -237,8 +240,8 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
         const totalSize = modelRegistry.modelTotalSizes.get(diskUri);
         runInAction(() => {
           for (const { pane } of this.paneLayout.groups) {
-            pane.updateRenderer(filePath, () => ({ kind: 'too-large' as const }));
-            if (totalSize != null) pane.setFileTotalSize(filePath, totalSize);
+            fileEntryByPath(pane, filePath)?.updateRenderer(() => ({ kind: 'too-large' as const }));
+            if (totalSize != null) fileEntryByPath(pane, filePath)?.setTotalSize(totalSize);
           }
         });
         return;

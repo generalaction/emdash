@@ -1,12 +1,13 @@
 import { observer } from 'mobx-react-lite';
+import type { ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
+import { TabCloseButton } from '@renderer/features/tabs/tab-bar/tab-close-button';
+import { TabDragPreviewShell, TabItemShell } from '@renderer/features/tabs/tab-bar/tab-item-shell';
+import { TabTitle } from '@renderer/features/tabs/tab-bar/tab-title';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
-import { GitChangeStatusIcon } from '../../diff-view/changes-panel/components/changes-list-item';
-import type { ResolvedDiffTab } from '../../tabs/pane-store';
-import { TabCloseButton } from './tab-close-button';
-import { TabDragPreviewShell, TabItemShell } from './tab-item-shell';
-import { TabTitle } from './tab-title';
+import { GitChangeStatusIcon } from './changes-panel/components/changes-list-item';
+import type { DiffResolvedData } from './diff-tab-provider';
 
-export function diffGroupSuffix(diffGroup: ResolvedDiffTab['diffGroup']): string {
+export function diffGroupSuffix(diffGroup: DiffResolvedData['diffGroup']): string {
   switch (diffGroup) {
     case 'disk':
       return '(Working Tree)';
@@ -25,7 +26,7 @@ export const DiffTabItem = observer(function DiffTabItem({
   onPin,
   onClose,
 }: {
-  tab: ResolvedDiffTab;
+  tab: ResolvedTab<DiffResolvedData>;
   onSelect: () => void;
   onPin: () => void;
   onClose: () => void;
@@ -68,7 +69,7 @@ export const DiffTabItem = observer(function DiffTabItem({
   );
 });
 
-export function DiffTabDragPreview({ tab }: { tab: ResolvedDiffTab }) {
+export function DiffTabDragPreview({ tab }: { tab: ResolvedTab<DiffResolvedData> }) {
   const fileName = tab.path.split('/').pop() ?? 'Untitled';
   const suffix = diffGroupSuffix(tab.diffGroup);
   return (

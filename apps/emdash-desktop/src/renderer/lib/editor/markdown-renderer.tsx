@@ -1,7 +1,8 @@
 import { Eye, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback } from 'react';
-import type { FileTabStore } from '@renderer/features/tasks/tabs/file-tab-store';
+import { fileEntryByPath } from '@renderer/features/tasks/editor/pane-selectors';
+import type { FileTabStore } from '@renderer/features/tasks/editor/stores/file-tab-store';
 import {
   useTaskViewContext,
   useWorkspaceId,
@@ -30,9 +31,7 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
   const workspaceId = useWorkspaceId();
   const taskView = useWorkspaceViewModel();
   const { editorView, activePane } = taskView;
-  const tab = Array.from(activePane.entries.values()).find(
-    (entry): entry is FileTabStore => entry.kind === 'file' && entry.path === filePath
-  );
+  const tab: FileTabStore | undefined = fileEntryByPath(activePane, filePath);
   const showExternalSpinner = useDelayedBoolean(!!(tab?.isExternal && tab.isLoading), 200);
   const bufferUri = tab?.isExternal ? '' : buildMonacoModelPath(editorView.modelRootPath, filePath);
   // Reading bufferVersions creates a MobX tracking dependency so this observer()
@@ -58,7 +57,7 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
           value={['markdown']}
           onValueChange={(value) => {
             if (value.includes('markdown-source')) {
-              activePane.updateRenderer(filePath, () => ({ kind: 'markdown-source' }));
+              tab?.updateRenderer(() => ({ kind: 'markdown-source' }));
             }
           }}
           size="sm"

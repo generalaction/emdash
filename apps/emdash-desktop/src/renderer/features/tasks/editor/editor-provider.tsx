@@ -2,7 +2,7 @@ import { autorun } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import type * as monacoNS from 'monaco-editor';
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
-import { usePaneContext } from '@renderer/features/tasks/tabs/pane-context';
+import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { registerActiveCodeEditor } from '@renderer/lib/editor/activeCodeEditor';
 import { DEFAULT_EDITOR_OPTIONS } from '@renderer/lib/editor/utils';
@@ -17,6 +17,10 @@ import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { defineMonacoThemes, getMonacoTheme } from '@renderer/lib/monaco/monaco-themes';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
+import {
+  activeFileEntry as getActiveFileEntry,
+  activeFilePath as getActiveFilePath,
+} from './pane-selectors';
 
 interface EditorContextValue {
   /**
@@ -104,7 +108,7 @@ export const EditorProvider = observer(function EditorProvider({
 
     addMonacoKeyboardShortcuts(editor, m, {
       onSave: () => {
-        const path = paneTabManager.activeFilePath;
+        const path = getActiveFilePath(paneTabManager);
         if (path) void editorView.saveFile(path);
       },
       onSaveAll: () => {
@@ -159,7 +163,7 @@ export const EditorProvider = observer(function EditorProvider({
         return;
       }
 
-      const path = paneTabManager.activeFilePath;
+      const path = getActiveFilePath(paneTabManager);
       if (!path) return;
 
       event.preventDefault();
@@ -181,7 +185,7 @@ export const EditorProvider = observer(function EditorProvider({
         const editor = editorRef.current;
         if (!editor) return;
 
-        const entry = paneTabManager.activeFileEntry; // reactive
+        const entry = getActiveFileEntry(paneTabManager); // reactive
         const newBufUri = entry ? buildMonacoModelPath(editorView.modelRootPath, entry.path) : null;
 
         if (!newBufUri) {

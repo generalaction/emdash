@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite';
-import { tabProviderRegistry } from '../../tabs/core/tab-provider-registry';
-import { useWorkspaceViewModel } from '../../task-view-context';
+import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
+import { tabProviderRegistry } from '../core/tab-provider-registry';
 
 export const TabDragPreview = observer(function TabDragPreview({ tabId }: { tabId: string }) {
   const { paneLayout } = useWorkspaceViewModel();

@@ -2,18 +2,6 @@ import { Pencil } from 'lucide-react';
 import { action, autorun, reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
-import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
-import { ConversationsPanel } from '@renderer/features/tasks/conversations/conversations-panel';
-import {
-  ConversationTabItem,
-  ConversationTabDragPreview,
-} from '@renderer/features/tasks/view/tab-bar/conversation-tab-item';
-import { TabContextMenu } from '@renderer/features/tasks/view/tab-bar/tab-context-menu';
-import { ShowHide } from '@renderer/lib/ui/show-hide';
-import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
-import type { TabDescriptor } from '@shared/view-state';
-import type { ConversationStore } from '../../conversations/conversation-manager';
-import { conversationRegistry } from '../../stores/conversation-registry';
 import type {
   TabProvider,
   TabItemProps,
@@ -21,10 +9,18 @@ import type {
   TabRendererProps,
   ResolvedTab,
   ResolveContext,
-} from '../core/tab-provider';
-import { registerTabProvider } from '../core/tab-provider-registry';
-import { ConversationTabEntry } from '../pane-store';
-import type { ResolvedConversationTab } from '../pane-store';
+} from '@renderer/features/tabs/core/tab-provider';
+import { registerTabProvider } from '@renderer/features/tabs/core/tab-provider-registry';
+import { TabContextMenu } from '@renderer/features/tabs/tab-bar/tab-context-menu';
+import { ShowHide } from '@renderer/lib/ui/show-hide';
+import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
+import type { TabDescriptor } from '@shared/view-state';
+import { conversationRegistry } from '../stores/conversation-registry';
+import type { ConversationStore } from './conversation-manager';
+import { ConversationTabEntry } from './conversation-tab-entry';
+import { ConversationTabItem, ConversationTabDragPreview } from './conversation-tab-item';
+import { formatConversationTitleForDisplay } from './conversation-title-utils';
+import { ConversationsPanel } from './conversations-panel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -65,7 +61,7 @@ function ConversationTabItemAdapter({ tab, host, ctx }: TabItemProps<Conversatio
       ]}
     >
       <ConversationTabItem
-        tab={tab as ResolvedConversationTab}
+        tab={tab}
         onSelect={() => host.setActiveTab(tab.tabId)}
         onPin={() => host.pin(tab.tabId)}
         onClose={() => host.requestCloseTab(tab.tabId)}
@@ -76,10 +72,6 @@ function ConversationTabItemAdapter({ tab, host, ctx }: TabItemProps<Conversatio
       />
     </TabContextMenu>
   );
-}
-
-function ConversationDragPreviewAdapter({ tab }: { tab: ResolvedTab<ConversationResolvedData> }) {
-  return <ConversationTabDragPreview tab={tab as ResolvedConversationTab} />;
 }
 
 /**
@@ -131,7 +123,7 @@ export const conversationTabProvider: TabProvider<
   },
 
   TabItem: ConversationTabItemAdapter,
-  DragPreview: ConversationDragPreviewAdapter,
+  DragPreview: ConversationTabDragPreview,
   Renderer: ConversationTabRenderer,
 
   title(tab: ResolvedTab<ConversationResolvedData>): string {
@@ -236,6 +228,14 @@ export const conversationTabProvider: TabProvider<
     return () => {
       for (const d of disposers) d();
     };
+  },
+
+  onActivate(entry: ConversationTabEntry, _ctx: TabKindContext): void {
+    setTelemetryConversationScope(entry.conversationId);
+  },
+
+  onClose(entry: ConversationTabEntry, ctx: TabKindContext): void {
+    conversationRegistry.get(ctx.taskId)?.conversations.get(entry.conversationId)?.markSeen();
   },
 };
 

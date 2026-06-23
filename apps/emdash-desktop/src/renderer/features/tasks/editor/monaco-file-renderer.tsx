@@ -1,9 +1,10 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect } from 'react';
+import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { useEditorContext } from '@renderer/features/tasks/editor/editor-provider';
-import type { FileRendererData } from '@renderer/features/tasks/tabs/file-tab-store';
-import { usePaneContext } from '@renderer/features/tasks/tabs/pane-context';
+import { activeFileEntry as getActiveFileEntry } from '@renderer/features/tasks/editor/pane-selectors';
 import { PreviewSourceToggle } from '@renderer/lib/editor/preview-source-toggle';
+import type { FileRendererData } from './stores/file-tab-store';
 
 /**
  * Maps each source-mode renderer kind to its paired preview kind.
@@ -47,7 +48,7 @@ export const MonacoFileRenderer = observer(function MonacoFileRenderer() {
  */
 const SourceModeToggleOverlay = observer(function SourceModeToggleOverlay() {
   const { pane } = usePaneContext();
-  const activeTab = pane.activeFileEntry;
+  const activeTab = getActiveFileEntry(pane);
   if (!activeTab) return null;
 
   const previewKind = SOURCE_TO_PREVIEW[activeTab.renderer.kind as keyof typeof SOURCE_TO_PREVIEW];
@@ -58,7 +59,7 @@ const SourceModeToggleOverlay = observer(function SourceModeToggleOverlay() {
       activeMode="source"
       onSwitch={(mode) => {
         if (mode === 'preview') {
-          pane.updateRenderer(activeTab.path, () => ({ kind: previewKind }));
+          activeTab.updateRenderer(() => ({ kind: previewKind }));
         }
       }}
     />

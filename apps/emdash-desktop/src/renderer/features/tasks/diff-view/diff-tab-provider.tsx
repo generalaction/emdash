@@ -1,14 +1,5 @@
 import type { GitChangeStatus, GitObjectRef } from '@emdash/core/git';
 import { observer } from 'mobx-react-lite';
-import { DiffView } from '@renderer/features/tasks/diff-view/main-panel/diff-view';
-import {
-  DiffTabItem,
-  DiffTabDragPreview,
-  diffGroupSuffix,
-} from '@renderer/features/tasks/view/tab-bar/diff-tab-item';
-import { TabContextMenu } from '@renderer/features/tasks/view/tab-bar/tab-context-menu';
-import { refsEqual } from '@shared/core/git/utils';
-import type { ActiveFile, TabDescriptor } from '@shared/view-state';
 import type {
   TabProvider,
   TabHost,
@@ -17,19 +8,14 @@ import type {
   TabRendererProps,
   ResolvedTab,
   ResolveContext,
-} from '../core/tab-provider';
-import { registerTabProvider } from '../core/tab-provider-registry';
-import { DiffTabStore } from '../diff-tab-store';
-import type { ResolvedDiffTab } from '../pane-store';
-import { optionalRefsEqual } from '../pane-store';
-
-// ---------------------------------------------------------------------------
-// Registry augmentation — enables typed manager.open('diff', args)
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+} from '@renderer/features/tabs/core/tab-provider';
+import { registerTabProvider } from '@renderer/features/tabs/core/tab-provider-registry';
+import { TabContextMenu } from '@renderer/features/tabs/tab-bar/tab-context-menu';
+import { refsEqual } from '@shared/core/git/utils';
+import type { ActiveFile, TabDescriptor } from '@shared/view-state';
+import { DiffTabItem, DiffTabDragPreview, diffGroupSuffix } from './diff-tab-item';
+import { DiffView } from './main-panel/diff-view';
+import { DiffTabStore } from './stores/diff-tab-store';
 
 export interface DiffOpenArgs {
   activeFile: ActiveFile;
@@ -51,6 +37,14 @@ export interface DiffResolvedData {
   status: GitChangeStatus | undefined;
 }
 
+function optionalRefsEqual(
+  left: GitObjectRef | undefined,
+  right: GitObjectRef | undefined
+): boolean {
+  if (left === undefined || right === undefined) return left === right;
+  return refsEqual(left, right);
+}
+
 type DiffDescriptor = Extract<TabDescriptor, { kind: 'diff' }>;
 
 // ---------------------------------------------------------------------------
@@ -61,17 +55,13 @@ function DiffTabItemAdapter({ tab, host, ctx }: TabItemProps<DiffResolvedData>) 
   return (
     <TabContextMenu tab={tab} host={host} ctx={ctx}>
       <DiffTabItem
-        tab={tab as ResolvedDiffTab}
+        tab={tab}
         onSelect={() => host.setActiveTab(tab.tabId)}
         onPin={() => host.pin(tab.tabId)}
         onClose={() => host.requestCloseTab(tab.tabId)}
       />
     </TabContextMenu>
   );
-}
-
-function DiffDragPreviewAdapter({ tab }: { tab: ResolvedTab<DiffResolvedData> }) {
-  return <DiffTabDragPreview tab={tab as ResolvedDiffTab} />;
 }
 
 /**
@@ -156,7 +146,7 @@ export const diffTabProvider: TabProvider<
   },
 
   TabItem: DiffTabItemAdapter,
-  DragPreview: DiffDragPreviewAdapter,
+  DragPreview: DiffTabDragPreview,
   Renderer: DiffTabRenderer,
 
   title(tab: ResolvedTab<DiffResolvedData>): string {

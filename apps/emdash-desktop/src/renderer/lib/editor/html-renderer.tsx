@@ -1,5 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
+import { fileEntryByPath } from '@renderer/features/tasks/editor/pane-selectors';
 import {
   useTaskViewContext,
   useWorkspaceId,
@@ -117,7 +118,7 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
         activeMode="preview"
         onSwitch={(mode) => {
           if (mode === 'source') {
-            activePane.updateRenderer(filePath, () => ({ kind: 'html-source' }));
+            fileEntryByPath(activePane, filePath)?.updateRenderer(() => ({ kind: 'html-source' }));
           }
         }}
       />

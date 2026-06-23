@@ -1,12 +1,13 @@
 import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import type { ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
+import { TabCloseButton } from '@renderer/features/tabs/tab-bar/tab-close-button';
+import { TabDragPreviewShell, TabItemShell } from '@renderer/features/tabs/tab-bar/tab-item-shell';
+import { TabTitle } from '@renderer/features/tabs/tab-bar/tab-title';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
-import type { ResolvedFileTab } from '../../tabs/pane-store';
-import { TabCloseButton } from './tab-close-button';
-import { TabDragPreviewShell, TabItemShell } from './tab-item-shell';
-import { TabTitle } from './tab-title';
+import type { FileResolvedData } from './file-tab-provider';
 
 function fileTabErrorTooltip(diskStatus: string, diskUri: string): string | undefined {
   if (diskStatus === 'error') return 'File not found';
@@ -26,7 +27,7 @@ export const FileTabItem = observer(function FileTabItem({
   onPin,
   onClose,
 }: {
-  tab: ResolvedFileTab;
+  tab: ResolvedTab<FileResolvedData>;
   onSelect: () => void;
   onPin: () => void;
   onClose: () => void;
@@ -82,7 +83,7 @@ export const FileTabItem = observer(function FileTabItem({
   );
 });
 
-export function FileTabDragPreview({ tab }: { tab: ResolvedFileTab }) {
+export function FileTabDragPreview({ tab }: { tab: ResolvedTab<FileResolvedData> }) {
   const fileName = tab.path.split('/').pop() ?? 'Untitled';
   return (
     <TabDragPreviewShell>

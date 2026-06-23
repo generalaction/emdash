@@ -1,6 +1,17 @@
 import type React from 'react';
 
 /**
+ * Minimal shape every tab entry must satisfy. The engine stores entries as
+ * this type so it can operate on them without knowing the concrete kind.
+ * Domain entry classes (ConversationTabEntry, FileTabStore, …) extend this.
+ */
+export interface TabEntryBase {
+  readonly kind: string;
+  readonly tabId: string;
+  isPreview: boolean;
+}
+
+/**
  * Ambient context available to all tab-kind method implementations
  * (resolve, open, serialize, deserialize, onClose, mount). Holds the stable
  * identifiers for the current workspace/task, passed from the store at
@@ -66,7 +77,7 @@ export interface TabCommand {
   label: string;
   icon?: React.ComponentType<{ className?: string }>;
   /** Grouping key for separator placement. */
-  group?: 'close' | 'edit' | 'reveal' | (string & {});
+  group?: 'close' | (string & {});
   /** Hides the command when false (default: always visible). */
   isAvailable?(): boolean;
   run(): void | Promise<void>;
@@ -191,15 +202,19 @@ export interface TabProvider<
    */
   open(args: OpenArgs, host: TabHost, ctx: TabKindContext): void;
 
-  /** Kind-specific context-menu items appended after the engine's builtins. */
-  getCommands?(tab: ResolvedTab<RD>, host: TabHost, ctx: TabKindContext): TabCommand[];
-
   /**
    * Called before a user-initiated close. Return false (or a Promise that
    * resolves to false) to veto the close — e.g. to show an unsaved-changes
    * dialog. Not invoked for programmatic closes (closeTab).
    */
   confirmClose?(entry: E, host: TabHost, ctx: TabKindContext): boolean | Promise<boolean>;
+
+  /**
+   * Called after a tab of this kind becomes the active tab in its pane.
+   * Use for side-effects that should only run when the tab is brought into
+   * focus (e.g. updating telemetry scope). Not called on initial open.
+   */
+  onActivate?(entry: E, ctx: TabKindContext): void;
 
   /**
    * Synchronous teardown after an entry is removed from the store.

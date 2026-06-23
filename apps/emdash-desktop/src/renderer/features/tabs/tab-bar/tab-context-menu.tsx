@@ -5,7 +5,7 @@ import type {
   TabHost,
   TabKindContext,
   ResolvedTab,
-} from '@renderer/features/tasks/tabs/core/tab-provider';
+} from '@renderer/features/tabs/core/tab-provider';
 import {
   ContextMenu,
   ContextMenuContent,

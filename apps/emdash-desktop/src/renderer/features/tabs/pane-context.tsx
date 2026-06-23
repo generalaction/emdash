@@ -1,5 +1,4 @@
 import { createContext, useContext, type ReactNode } from 'react';
-import { EditorProvider } from '@renderer/features/tasks/editor/editor-provider';
 import type { Pane } from './pane-layout-store';
 import type { PaneStore } from './pane-store';
 
@@ -26,29 +25,23 @@ export function usePaneContext(): PaneContextValue {
 
 interface PaneProviderProps {
   group: Pane;
-  taskId: string;
-  projectId: string;
   isFocusedPane: boolean;
   children: ReactNode;
 }
 
 /**
- * Wraps a single pane with its PaneContext value and a per-pane EditorProvider.
- * Use this in SplitPaneLayout instead of nesting PaneContext.Provider and
- * EditorProvider manually.
+ * Wraps a single pane with its PaneContext value.
+ * Callers (e.g. SplitPaneLayout) are responsible for composing EditorProvider
+ * around the pane content outside this component.
  */
 export function PaneProvider({
   group,
-  taskId,
-  projectId,
   isFocusedPane,
   children,
-}: PaneProviderProps) {
+}: Omit<PaneProviderProps, 'taskId' | 'projectId'>) {
   return (
     <PaneContext.Provider value={{ paneId: group.paneId, pane: group.pane, isFocusedPane }}>
-      <EditorProvider taskId={taskId} projectId={projectId}>
-        {children}
-      </EditorProvider>
+      {children}
     </PaneContext.Provider>
   );
 }

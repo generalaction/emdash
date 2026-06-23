@@ -1,14 +1,4 @@
 import { observer } from 'mobx-react-lite';
-import { FileRenderer } from '@renderer/features/tasks/view/renderers/file-renderer';
-import {
-  FileTabItem,
-  FileTabDragPreview,
-} from '@renderer/features/tasks/view/tab-bar/file-tab-item';
-import { TabContextMenu } from '@renderer/features/tasks/view/tab-bar/tab-context-menu';
-import { showModal } from '@renderer/lib/modal/modal-provider';
-import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
-import type { TabDescriptor } from '@shared/view-state';
 import type {
   TabProvider,
   TabHost,
@@ -17,18 +7,16 @@ import type {
   TabRendererProps,
   ResolvedTab,
   ResolveContext,
-} from '../core/tab-provider';
-import { registerTabProvider } from '../core/tab-provider-registry';
-import { FileTabStore } from '../file-tab-store';
-import type { ResolvedFileTab } from '../pane-store';
-
-// ---------------------------------------------------------------------------
-// Registry augmentation — enables typed manager.open('file', args)
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+} from '@renderer/features/tabs/core/tab-provider';
+import { registerTabProvider } from '@renderer/features/tabs/core/tab-provider-registry';
+import { TabContextMenu } from '@renderer/features/tabs/tab-bar/tab-context-menu';
+import { showModal } from '@renderer/lib/modal/modal-provider';
+import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
+import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
+import type { TabDescriptor } from '@shared/view-state';
+import { FileRenderer } from './file-renderer';
+import { FileTabItem, FileTabDragPreview } from './file-tab-item';
+import { FileTabStore } from './stores/file-tab-store';
 
 export interface FileOpenArgs {
   path: string;
@@ -55,17 +43,13 @@ function FileTabItemAdapter({ tab, host, ctx }: TabItemProps<FileResolvedData>) 
   return (
     <TabContextMenu tab={tab} host={host} ctx={ctx}>
       <FileTabItem
-        tab={tab as ResolvedFileTab}
+        tab={tab}
         onSelect={() => host.setActiveTab(tab.tabId)}
         onPin={() => host.pin(tab.tabId)}
         onClose={() => host.requestCloseTab(tab.tabId)}
       />
     </TabContextMenu>
   );
-}
-
-function FileDragPreviewAdapter({ tab }: { tab: ResolvedTab<FileResolvedData> }) {
-  return <FileTabDragPreview tab={tab as ResolvedFileTab} />;
 }
 
 /**
@@ -123,7 +107,7 @@ export const fileTabProvider: TabProvider<
   },
 
   TabItem: FileTabItemAdapter,
-  DragPreview: FileDragPreviewAdapter,
+  DragPreview: FileTabDragPreview,
   Renderer: FileTabRenderer,
 
   title(tab: ResolvedTab<FileResolvedData>): string {

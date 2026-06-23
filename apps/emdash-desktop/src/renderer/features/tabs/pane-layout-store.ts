@@ -1,6 +1,5 @@
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
-import type { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
-import { PaneStore } from '@renderer/features/tasks/tabs/pane-store';
+import { PaneStore } from '@renderer/features/tabs/pane-store';
 import type { TabGroupsSnapshot } from '@shared/view-state';
 import type { TabKind, OpenArgsOf } from './providers';
 
@@ -24,20 +23,13 @@ export class PaneLayoutStore {
   activePaneId: string;
   paneSizes: number[];
 
-  private readonly _getConversations: () => ConversationManagerStore | null;
   private readonly _workspaceId: string;
   private readonly _projectId: string;
   private readonly _taskId: string;
   /** Disposers for the per-group auto-close reactions. Not observable. */
   private readonly _autoCloseDisposers = new Map<string, () => void>();
 
-  constructor(
-    getConversations: () => ConversationManagerStore | null,
-    workspaceId: string,
-    projectId: string,
-    taskId: string
-  ) {
-    this._getConversations = getConversations;
+  constructor(workspaceId: string, projectId: string, taskId: string) {
     this._workspaceId = workspaceId;
     this._projectId = projectId;
     this._taskId = taskId;
@@ -52,8 +44,8 @@ export class PaneLayoutStore {
       activePaneId: observable,
       paneSizes: observable,
       focusedPane: computed,
-      allOpenFilePaths: computed,
       splitRight: action,
+      openInRightSplit: action,
       openConversationInRightSplit: action,
       closePane: action,
       moveTab: action,
@@ -67,16 +59,6 @@ export class PaneLayoutStore {
 
   get focusedPane(): PaneStore {
     return this.groups.find((g) => g.paneId === this.activePaneId)?.pane ?? this.groups[0].pane;
-  }
-
-  get allOpenFilePaths(): string[] {
-    const seen = new Set<string>();
-    for (const { pane } of this.groups) {
-      for (const path of pane.openFilePaths) {
-        seen.add(path);
-      }
-    }
-    return [...seen];
   }
 
   splitRight(): void {
@@ -99,9 +81,13 @@ export class PaneLayoutStore {
     this.moveTab(activeTabId, sourceGroup.paneId, newGroup.paneId);
   }
 
-  openConversationInRightSplit(conversationId: string): void {
+  /**
+   * Opens a tab of any kind in a new pane to the right of the currently focused pane.
+   * Falls back to opening in the focused pane when the max pane count is reached.
+   */
+  openInRightSplit<K extends TabKind>(kind: K, args: OpenArgsOf<K>): void {
     if (this.groups.length >= MAX_PANE_COUNT) {
-      this.open('conversation', { conversationId, preview: false });
+      this.open(kind, args);
       return;
     }
 
@@ -112,7 +98,12 @@ export class PaneLayoutStore {
     this.groups.splice(insertAt, 0, newGroup);
     this._redistributeSizes();
     this.activePaneId = newGroup.paneId;
-    newGroup.pane.open('conversation', { conversationId, preview: false });
+    newGroup.pane.open(kind, args);
+  }
+
+  /** @deprecated Use openInRightSplit('conversation', { conversationId, preview: false }) */
+  openConversationInRightSplit(conversationId: string): void {
+    this.openInRightSplit('conversation', { conversationId, preview: false });
   }
 
   /**
@@ -209,16 +200,6 @@ export class PaneLayoutStore {
   }
 
   open<K extends TabKind>(kind: K, args: OpenArgsOf<K>): void {
-    if (kind === 'conversation') {
-      const convArgs = args as { conversationId: string; preview?: boolean };
-      for (const { paneId, pane } of this.groups) {
-        if (pane.hasConversationTab(convArgs.conversationId)) {
-          this.activePaneId = paneId;
-          pane.open(kind, args);
-          return;
-        }
-      }
-    }
     this.focusedPane.open(kind, args);
   }
 
@@ -276,13 +257,7 @@ export class PaneLayoutStore {
   }
 
   private _createPaneStore(_paneId: string): PaneStore {
-    const store = new PaneStore(
-      this._getConversations,
-      this._workspaceId,
-      this._projectId,
-      this._taskId
-    );
-    return store;
+    return new PaneStore(this._workspaceId, this._projectId, this._taskId);
   }
 
   /**

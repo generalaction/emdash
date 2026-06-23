@@ -116,6 +116,7 @@ describe('createTaskCommandProvider', () => {
       paneLayout: {
         open: vi.fn(),
         openConversationInRightSplit: vi.fn(),
+        openInRightSplit: vi.fn(),
       },
       terminalTabs: {
         tabs: [],
@@ -183,7 +184,10 @@ describe('createTaskCommandProvider', () => {
     const modalOptions = mocks.showModal.mock.calls[0][1];
     modalOptions.onSuccess({ conversationId: 'conversation-1' });
 
-    expect(taskView.paneLayout.openConversationInRightSplit).toHaveBeenCalledWith('conversation-1');
+    expect(taskView.paneLayout.openInRightSplit).toHaveBeenCalledWith('conversation', {
+      conversationId: 'conversation-1',
+      preview: false,
+    });
     expect(taskView.setFocusedRegion).toHaveBeenCalledWith('main');
   });
 

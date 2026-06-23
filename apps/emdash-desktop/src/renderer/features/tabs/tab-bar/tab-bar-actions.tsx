@@ -3,6 +3,10 @@ import { Columns2, FileSearch, MessageSquarePlus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import {
+  useTaskViewContext,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
+import {
   getEffectiveHotkey,
   getHotkeyRegistration,
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
@@ -10,8 +14,7 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { usePaneContext } from '../../tabs/pane-context';
-import { useTaskViewContext, useWorkspaceViewModel } from '../../task-view-context';
+import { usePaneContext } from '../pane-context';
 
 export const TabBarActions = observer(function TabBarActions() {
   const taskView = useWorkspaceViewModel();

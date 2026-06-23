@@ -2,11 +2,11 @@ import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import {
   getRegisteredTaskData,
   getTaskStore,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { usePaneContext } from '@renderer/features/tasks/tabs/pane-context';
 import {
   useConversations,
   useTaskViewContext,

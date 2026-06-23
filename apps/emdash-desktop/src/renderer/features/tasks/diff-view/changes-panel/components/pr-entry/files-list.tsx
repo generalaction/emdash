@@ -1,6 +1,7 @@
 import type { GitChange } from '@emdash/core/git';
 import { observer } from 'mobx-react-lite';
 import { usePrefetchDiffModels } from '@renderer/features/tasks/diff-view/changes-panel/hooks/use-prefetch-diff-models';
+import { activeDiffEntry } from '@renderer/features/tasks/diff-view/pane-selectors';
 import {
   useTaskViewContext,
   useWorkspaceId,
@@ -25,13 +26,13 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
 
   const prefetchPrDiff = usePrefetchDiffModels(projectId, workspaceId, 'pr', baseRef, modifiedRef);
 
+  const _activeDiff = activeDiffEntry(taskView.activePane);
   const activePath =
-    taskView.activePane.activeDescriptor?.kind === 'diff' &&
-    taskView.activePane.activeDescriptor.diffGroup === 'pr' &&
-    taskView.activePane.activeDescriptor.prNumber === prNumber &&
-    refsEqual(taskView.activePane.activeDescriptor.originalRef, baseRef) &&
-    refsEqual(taskView.activePane.activeDescriptor.modifiedRef ?? modifiedRef, modifiedRef)
-      ? taskView.activePane.activeDescriptor.path
+    _activeDiff?.diffGroup === 'pr' &&
+    _activeDiff.prNumber === prNumber &&
+    refsEqual(_activeDiff.originalRef, baseRef) &&
+    refsEqual(_activeDiff.modifiedRef ?? modifiedRef, modifiedRef)
+      ? _activeDiff.path
       : undefined;
 
   const handleSelectChange = (change: GitChange) => {

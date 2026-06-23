@@ -5,16 +5,6 @@ import { browserDiagnosticsStore } from '@renderer/features/browser/browser-diag
 import { BrowserPane } from '@renderer/features/browser/browser-pane';
 import { browserSessionStore } from '@renderer/features/browser/browser-session-store';
 import { getAppSettingValueSnapshot } from '@renderer/features/settings/app-settings-client';
-import {
-  BrowserTabItem,
-  BrowserTabDragPreview,
-} from '@renderer/features/tasks/view/tab-bar/browser-tab-item';
-import { TabContextMenu } from '@renderer/features/tasks/view/tab-bar/tab-context-menu';
-import { events, rpc } from '@renderer/lib/ipc';
-import { ShowHide } from '@renderer/lib/ui/show-hide';
-import { normalizeBrowserProfileSelection, type BrowserSessionSnapshot } from '@shared/browser';
-import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
-import type { TabDescriptor } from '@shared/view-state';
 import type {
   TabProvider,
   TabItemProps,
@@ -22,10 +12,16 @@ import type {
   TabRendererProps,
   ResolvedTab,
   ResolveContext,
-} from '../core/tab-provider';
-import { registerTabProvider } from '../core/tab-provider-registry';
-import { BrowserTabEntry } from '../pane-store';
-import type { ResolvedBrowserTab } from '../pane-store';
+} from '@renderer/features/tabs/core/tab-provider';
+import { registerTabProvider } from '@renderer/features/tabs/core/tab-provider-registry';
+import { TabContextMenu } from '@renderer/features/tabs/tab-bar/tab-context-menu';
+import { events, rpc } from '@renderer/lib/ipc';
+import { ShowHide } from '@renderer/lib/ui/show-hide';
+import { normalizeBrowserProfileSelection, type BrowserSessionSnapshot } from '@shared/browser';
+import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
+import type { TabDescriptor } from '@shared/view-state';
+import { BrowserTabEntry } from './browser-tab-entry';
+import { BrowserTabItem, BrowserTabDragPreview } from './browser-tab-item';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -50,17 +46,13 @@ function BrowserTabItemAdapter({ tab, host, ctx }: TabItemProps<BrowserResolvedD
   return (
     <TabContextMenu tab={tab} host={host} ctx={ctx}>
       <BrowserTabItem
-        tab={tab as ResolvedBrowserTab}
+        tab={tab}
         onSelect={() => host.setActiveTab(tab.tabId)}
         onPin={() => host.pin(tab.tabId)}
         onClose={() => host.requestCloseTab(tab.tabId)}
       />
     </TabContextMenu>
   );
-}
-
-function BrowserDragPreviewAdapter({ tab }: { tab: ResolvedTab<BrowserResolvedData> }) {
-  return <BrowserTabDragPreview tab={tab as ResolvedBrowserTab} />;
 }
 
 /**
@@ -71,10 +63,11 @@ function BrowserDragPreviewAdapter({ tab }: { tab: ResolvedTab<BrowserResolvedDa
  */
 const BrowserTabRenderer = observer(function BrowserTabRenderer({ host }: TabRendererProps) {
   const browserTabs = host.resolvedTabs.filter(
-    (t): t is ResolvedBrowserTab => t.kind === 'browser'
+    (t): t is ResolvedTab<BrowserResolvedData> => t.kind === 'browser'
   );
   const activeTab = host.resolvedTabs.find((t) => t.isActive);
-  const activeBrowserTab = activeTab?.kind === 'browser' ? (activeTab as ResolvedBrowserTab) : null;
+  const activeBrowserTab =
+    activeTab?.kind === 'browser' ? (activeTab as ResolvedTab<BrowserResolvedData>) : null;
   const activeBrowserId = activeBrowserTab?.browserId ?? null;
 
   useEffect(() => {
@@ -135,7 +128,7 @@ export const browserTabProvider: TabProvider<
   },
 
   TabItem: BrowserTabItemAdapter,
-  DragPreview: BrowserDragPreviewAdapter,
+  DragPreview: BrowserTabDragPreview,
   Renderer: BrowserTabRenderer,
 
   title(tab: ResolvedTab<BrowserResolvedData>): string {

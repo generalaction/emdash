@@ -211,7 +211,11 @@ function closeConversationTabsForSession(sessionId: string): void {
 
   for (const { pane } of taskView.paneLayout.groups) {
     for (const [tabId, entry] of pane.entries) {
-      if (entry.kind === 'conversation' && entry.conversationId === parsed.leafId) {
+      if (
+        entry.kind === 'conversation' &&
+        (entry as unknown as { kind: 'conversation'; conversationId: string }).conversationId ===
+          parsed.leafId
+      ) {
         pane.closeTab(tabId);
       }
     }

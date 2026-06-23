@@ -1,6 +1,7 @@
 import { Eye, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
+import { fileEntryByPath } from '@renderer/features/tasks/editor/pane-selectors';
 import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
@@ -40,7 +41,7 @@ export const SvgRenderer = observer(function SvgRenderer({ filePath }: SvgRender
         value={['svg']}
         onValueChange={(value) => {
           if (value.includes('svg-source')) {
-            activePane.updateRenderer(filePath, () => ({ kind: 'svg-source' }));
+            fileEntryByPath(activePane, filePath)?.updateRenderer(() => ({ kind: 'svg-source' }));
           }
         }}
         size="sm"

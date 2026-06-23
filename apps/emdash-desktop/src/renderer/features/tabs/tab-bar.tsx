@@ -1,8 +1,8 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef } from 'react';
-import { tabProviderRegistry } from '@renderer/features/tasks/tabs/core/tab-provider-registry';
-import { usePaneContext } from '@renderer/features/tasks/tabs/pane-context';
-import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
+import { tabProviderRegistry } from '@renderer/features/tabs/core/tab-provider-registry';
+import { useTabShortcuts } from '@renderer/features/tabs/hooks/useTabShortcuts';
+import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { PaneDropZone } from './tab-bar/draggable-tab';
 import { TabBarActions } from './tab-bar/tab-bar-actions';
 

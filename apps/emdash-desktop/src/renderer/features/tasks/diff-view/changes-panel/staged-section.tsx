@@ -2,6 +2,7 @@ import type { GitChange } from '@emdash/core/git';
 import { Minus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { toast } from 'sonner';
+import { activeDiffEntry } from '@renderer/features/tasks/diff-view/pane-selectors';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -33,11 +34,8 @@ export const StagedSection = observer(function StagedSection() {
   const changes = git.stagedFileChanges;
   const hasChanges = changes.length > 0;
 
-  const activePath =
-    taskView.activePane.activeDescriptor?.kind === 'diff' &&
-    taskView.activePane.activeDescriptor.diffGroup === 'staged'
-      ? taskView.activePane.activeDescriptor.path
-      : undefined;
+  const _activeDiff = activeDiffEntry(taskView.activePane);
+  const activePath = _activeDiff?.diffGroup === 'staged' ? _activeDiff.path : undefined;
 
   const prefetch = usePrefetchDiffModels(projectId, workspaceId, 'staged', HEAD_REF);
 

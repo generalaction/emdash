@@ -12,19 +12,19 @@ import { terminalRegistry } from './terminal-registry';
 import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';
 
-vi.mock('@renderer/features/tasks/view/tab-bar/browser-tab-item', () => ({
+vi.mock('@renderer/features/browser/browser-tab-item', () => ({
   BrowserTabItem: () => null,
   BrowserTabDragPreview: () => null,
 }));
-vi.mock('@renderer/features/tasks/view/tab-bar/file-tab-item', () => ({
+vi.mock('@renderer/features/tasks/editor/file-tab-item', () => ({
   FileTabItem: () => null,
   FileTabDragPreview: () => null,
 }));
-vi.mock('@renderer/features/tasks/view/tab-bar/conversation-tab-item', () => ({
+vi.mock('@renderer/features/tasks/conversations/conversation-tab-item', () => ({
   ConversationTabItem: () => null,
   ConversationTabDragPreview: () => null,
 }));
-vi.mock('@renderer/features/tasks/view/tab-bar/diff-tab-item', () => ({
+vi.mock('@renderer/features/tasks/diff-view/diff-tab-item', () => ({
   DiffTabItem: () => null,
   DiffTabDragPreview: () => null,
   diffGroupSuffix: (group: string) => `(${group})`,
@@ -34,7 +34,7 @@ vi.mock('@renderer/features/tasks/conversations/conversation-title-utils', () =>
     (title as string) ?? 'Conversation',
 }));
 
-import '@renderer/features/tasks/tabs/providers';
+import '@renderer/features/tabs/providers';
 
 vi.mock('@renderer/lib/ipc', () => ({
   events: { on: () => () => {} },
@@ -46,6 +46,9 @@ vi.mock('@renderer/lib/ipc', () => ({
     },
     viewState: {
       save: vi.fn(),
+    },
+    conversations: {
+      markConversationSeen: vi.fn().mockResolvedValue(undefined),
     },
     gitRepository: {
       getDefaultBranch: vi
@@ -147,7 +150,9 @@ function addConversation(
 
 function conversationTabIds(viewModel: WorkspaceViewModel): string[] {
   return viewModel.activePane.resolvedTabs.flatMap((tab) =>
-    tab.kind === 'conversation' ? [tab.conversationId] : []
+    tab.kind === 'conversation'
+      ? [(tab as unknown as { kind: 'conversation'; conversationId: string }).conversationId]
+      : []
   );
 }
 

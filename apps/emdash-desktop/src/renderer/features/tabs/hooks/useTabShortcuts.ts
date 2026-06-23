@@ -1,7 +1,10 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import {
+  getEffectiveHotkey,
+  getHotkeyRegistration,
+} from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { TAB_NAVIGATION_HOTKEYS } from '@shared/shortcuts';
-import { getEffectiveHotkey, getHotkeyRegistration } from './useKeyboardShortcuts';
 
 /**
  * Minimal interface required for tab navigation shortcuts.

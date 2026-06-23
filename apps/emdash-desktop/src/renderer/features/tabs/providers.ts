@@ -11,11 +11,11 @@
  * workspace-view-model.tsx or test setup).
  */
 
+import { browserTabProvider } from '@renderer/features/browser/browser-tab-provider';
+import { conversationTabProvider } from '@renderer/features/tasks/conversations/conversation-tab-provider';
+import { diffTabProvider } from '@renderer/features/tasks/diff-view/diff-tab-provider';
+import { fileTabProvider } from '@renderer/features/tasks/editor/file-tab-provider';
 import { type TabProvider } from './core/tab-provider';
-import { browserTabProvider } from './definitions/browser-tab-provider';
-import { conversationTabProvider } from './definitions/conversation-tab-provider';
-import { diffTabProvider } from './definitions/diff-tab-provider';
-import { fileTabProvider } from './definitions/file-tab-provider';
 
 export const tabProviders = {
   conversation: conversationTabProvider,

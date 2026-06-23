@@ -9,13 +9,14 @@ import {
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import { usePanelRef } from 'react-resizable-panels';
+import { PaneContent } from '@renderer/features/tabs/pane-content';
+import { PaneProvider } from '@renderer/features/tabs/pane-context';
+import { TabDragPreview } from '@renderer/features/tabs/tab-bar/tab-drag-preview';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
-import { PaneProvider } from '../tabs/pane-context';
+import { EditorProvider } from '../editor/editor-provider';
 import { useTaskViewContext, useWorkspaceViewModel } from '../task-view-context';
 import { TerminalsPanel } from '../terminals/terminal-panel';
-import { PaneContent } from './pane-content';
-import { TabDragPreview } from './tab-bar/tab-drag-preview';
 
 export const TaskMainColumn = observer(function TaskMainColumn() {
   const taskView = useWorkspaceViewModel();
@@ -81,21 +82,21 @@ const SplitPaneLayout = observer(function SplitPaneLayout() {
           <PaneProvider
             key={group.paneId}
             group={group}
-            taskId={taskId}
-            projectId={projectId}
             isFocusedPane={
               taskView.focusedRegion === 'main' && paneLayout.activePaneId === group.paneId
             }
           >
-            {i > 0 && <ResizableHandle />}
-            <ResizablePanel
-              id={`pane-${group.paneId}`}
-              defaultSize={`${paneLayout.paneSizes[i] ?? Math.floor(100 / paneLayout.groups.length)}%`}
-              minSize="200px"
-              onPointerDown={() => paneLayout.setActiveGroup(group.paneId)}
-            >
-              <PaneContent />
-            </ResizablePanel>
+            <EditorProvider taskId={taskId} projectId={projectId}>
+              {i > 0 && <ResizableHandle />}
+              <ResizablePanel
+                id={`pane-${group.paneId}`}
+                defaultSize={`${paneLayout.paneSizes[i] ?? Math.floor(100 / paneLayout.groups.length)}%`}
+                minSize="200px"
+                onPointerDown={() => paneLayout.setActiveGroup(group.paneId)}
+              >
+                <PaneContent />
+              </ResizablePanel>
+            </EditorProvider>
           </PaneProvider>
         ))}
       </ResizablePanelGroup>

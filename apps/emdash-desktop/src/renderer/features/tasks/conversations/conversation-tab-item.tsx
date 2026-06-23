@@ -1,13 +1,14 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useRef, useState } from 'react';
+import type { ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
+import { TabCloseButton } from '@renderer/features/tabs/tab-bar/tab-close-button';
+import { TabDragPreviewShell, TabItemShell } from '@renderer/features/tabs/tab-bar/tab-item-shell';
+import { TabTitle } from '@renderer/features/tabs/tab-bar/tab-title';
 import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
-import { AgentStatusIndicator } from '../../components/agent-status-indicator';
-import { formatConversationTitleForDisplay } from '../../conversations/conversation-title-utils';
-import type { ResolvedConversationTab } from '../../tabs/pane-store';
-import { TabCloseButton } from './tab-close-button';
-import { TabDragPreviewShell, TabItemShell } from './tab-item-shell';
-import { TabTitle } from './tab-title';
+import { AgentStatusIndicator } from '../components/agent-status-indicator';
+import type { ConversationResolvedData } from './conversation-tab-provider';
+import { formatConversationTitleForDisplay } from './conversation-title-utils';
 
 export const ConversationTabItem = observer(function ConversationTabItem({
   tab,
@@ -17,7 +18,7 @@ export const ConversationTabItem = observer(function ConversationTabItem({
   onRenameSubmit,
   renameRef,
 }: {
-  tab: ResolvedConversationTab;
+  tab: ResolvedTab<ConversationResolvedData>;
   onSelect: () => void;
   onPin: () => void;
   onClose: () => void;
@@ -114,7 +115,7 @@ export const ConversationTabItem = observer(function ConversationTabItem({
 export const ConversationTabDragPreview = observer(function ConversationTabDragPreview({
   tab,
 }: {
-  tab: ResolvedConversationTab;
+  tab: ResolvedTab<ConversationResolvedData>;
 }) {
   const label = formatConversationTitleForDisplay(tab.store.data.providerId, tab.store.data.title);
   return (

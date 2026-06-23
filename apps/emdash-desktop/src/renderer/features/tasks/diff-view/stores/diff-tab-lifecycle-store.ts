@@ -1,6 +1,6 @@
 import { reaction } from 'mobx';
-import type { DiffTabStore } from '@renderer/features/tasks/tabs/diff-tab-store';
-import type { PaneStore } from '@renderer/features/tasks/tabs/pane-store';
+import type { PaneStore } from '@renderer/features/tabs/pane-store';
+import type { DiffTabStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-store';
 import { commitRef } from '@shared/core/git/utils';
 import { getPrNumber } from '@shared/core/pull-requests/pull-requests';
 import type { ActiveFile } from '@shared/view-state';
@@ -29,10 +29,7 @@ export class DiffTabLifecycleStore {
     // Sync DiffViewStore.activeFile whenever the user activates a diff tab.
     this.disposers.push(
       reaction(
-        () => {
-          const desc = this.tabManager.activeDescriptor;
-          return desc?.kind === 'diff' ? desc : null;
-        },
+        () => this.tabManager.activeEntryOfKind<DiffTabStore>('diff') ?? null,
         (tab) => {
           if (tab) {
             const activeFile: ActiveFile = {
@@ -61,9 +58,8 @@ export class DiffTabLifecycleStore {
           const valid = new Set<string>();
           for (const c of this.gitWorktree.unstagedFileChanges) valid.add(`disk:${c.path}`);
           for (const c of this.gitWorktree.stagedFileChanges) valid.add(`staged:${c.path}`);
-          for (const id of this.tabManager.tabOrder) {
-            const t = this.tabManager.entries.get(id);
-            if (!t || t.kind !== 'diff' || t.diffGroup !== 'pr' || t.prNumber == null) continue;
+          for (const t of this.tabManager.entriesOfKind<DiffTabStore>('diff')) {
+            if (t.diffGroup !== 'pr' || t.prNumber == null) continue;
             const matchedPr = this.pr.pullRequests.find((p) => getPrNumber(p) === t.prNumber);
             if (matchedPr) {
               for (const f of this.pr.getFiles(matchedPr).data ?? []) valid.add(`pr:${f.path}`);
@@ -72,15 +68,9 @@ export class DiffTabLifecycleStore {
           return valid;
         },
         (validKeys) => {
-          const stale = [...this.tabManager.tabOrder]
-            .map((id) => this.tabManager.entries.get(id))
-            .filter(
-              (t): t is DiffTabStore =>
-                t !== undefined &&
-                t.kind === 'diff' &&
-                t.diffGroup !== 'git' &&
-                !validKeys.has(`${t.diffGroup}:${t.path}`)
-            );
+          const stale = this.tabManager
+            .entriesOfKind<DiffTabStore>('diff')
+            .filter((t) => t.diffGroup !== 'git' && !validKeys.has(`${t.diffGroup}:${t.path}`));
 
           for (const tab of stale) {
             const counterpartGroup: 'disk' | 'staged' | null =
@@ -92,12 +82,7 @@ export class DiffTabLifecycleStore {
                   ? this.gitWorktree.stagedFileChanges
                   : this.gitWorktree.unstagedFileChanges;
               const match = changes.find((c) => c.path === tab.path);
-              this.tabManager.transitionDiffTab(
-                tab.tabId,
-                counterpartGroup,
-                commitRef('HEAD'),
-                match?.status
-              );
+              tab.transition(counterpartGroup, commitRef('HEAD'), match?.status);
             } else {
               this.tabManager.closeTab(tab.tabId);
             }

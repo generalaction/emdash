@@ -23,6 +23,7 @@ import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { cn } from '@renderer/utils/utils';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
+import { activeConversationId as getActiveConversationId } from './pane-selectors';
 
 const ROW_HEIGHT = 32;
 
@@ -51,7 +52,7 @@ const ConversationRow = observer(function ConversationRow({
   const conversation = conversations.conversations.get(conversationId);
   if (!conversation) return null;
 
-  const isActive = activePane.activeConversationId === conversationId;
+  const isActive = getActiveConversationId(activePane) === conversationId;
   const displayTitle = formatConversationTitleForDisplay(
     conversation.data.providerId,
     conversation.data.title

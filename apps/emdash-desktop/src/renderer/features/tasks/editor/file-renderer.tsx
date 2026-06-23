@@ -1,7 +1,6 @@
 import { runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useEffect } from 'react';
-import type { FileTabStore } from '@renderer/features/tasks/tabs/file-tab-store';
 import { BinaryRenderer } from '@renderer/lib/editor/binary-renderer';
 import { FileErrorRenderer } from '@renderer/lib/editor/file-error-renderer';
 import { HtmlRenderer } from '@renderer/lib/editor/html-renderer';
@@ -12,6 +11,7 @@ import { TooLargeRenderer } from '@renderer/lib/editor/too-large-renderer';
 import { rpc } from '@renderer/lib/ipc';
 import { ShowHide } from '@renderer/lib/ui/show-hide';
 import { MonacoFileRenderer } from './monaco-file-renderer';
+import type { FileTabStore } from './stores/file-tab-store';
 
 interface FileRendererProps {
   tab: FileTabStore;

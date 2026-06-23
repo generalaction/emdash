@@ -1,13 +1,14 @@
 import type { ILifecycle } from '@emdash/shared';
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
 // Bootstrap tab kind registrations before any PaneStore is constructed.
-import '@renderer/features/tasks/tabs/providers';
+import '@renderer/features/tabs/providers';
+import { PaneLayoutStore } from '@renderer/features/tabs/pane-layout-store';
+import type { PaneStore } from '@renderer/features/tabs/pane-store';
 import { DiffTabLifecycleStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
+import { activeFileEntry as getActiveFileEntry } from '@renderer/features/tasks/editor/pane-selectors';
 import { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
 import { PreviewServerStore } from '@renderer/features/tasks/stores/preview-server-store';
-import { PaneLayoutStore } from '@renderer/features/tasks/tabs/pane-layout-store';
-import type { PaneStore } from '@renderer/features/tasks/tabs/pane-store';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { type SidebarTab } from '@renderer/features/tasks/types';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -94,12 +95,7 @@ export class WorkspaceViewModel implements ILifecycle {
 
     const workspaceId = taskData.workspaceId ?? taskData.id;
 
-    this.paneLayout = new PaneLayoutStore(
-      () => conversationRegistry.get(this.taskId) ?? null,
-      workspaceId,
-      taskData.projectId,
-      this.taskId
-    );
+    this.paneLayout = new PaneLayoutStore(workspaceId, taskData.projectId, this.taskId);
     this.terminalTabs = new TerminalTabViewStore(() => terminalRegistry.get(this.taskId) ?? null);
     this.editorView = new FileModelLifecycleStore(this.paneLayout, taskData.projectId, workspaceId);
 
@@ -180,10 +176,10 @@ export class WorkspaceViewModel implements ILifecycle {
   // -------------------------------------------------------------------------
 
   get activeRenderer(): RendererKind {
-    const desc = this.activePane.activeDescriptor;
+    const desc = this.activePane.activeEntry;
     if (desc?.kind === 'diff') return 'diff';
     if (desc?.kind === 'browser') return 'browser';
-    const tab = this.activePane.activeFileEntry;
+    const tab = getActiveFileEntry(this.activePane);
     if (!tab) return 'agents';
     switch (tab.renderer.kind) {
       case 'text':
@@ -494,7 +490,17 @@ export class WorkspaceViewModel implements ILifecycle {
 
     this._hasConsumedDefaultConversationAutoOpen = true;
     if (this.paneLayout.focusedPane.tabOrder.length === 0) {
-      runInAction(() => this.paneLayout.focusedPane.initializeDefault());
+      runInAction(() => {
+        for (const [id, store] of conversations.conversations) {
+          if (store.isInitialConversation) {
+            this.paneLayout.focusedPane.open('conversation', {
+              conversationId: id,
+              preview: false,
+            });
+            return;
+          }
+        }
+      });
     }
   }
 
@@ -503,7 +509,11 @@ export class WorkspaceViewModel implements ILifecycle {
     for (const { pane } of this.paneLayout.groups) {
       for (const tabId of pane.tabOrder) {
         const entry = pane.entries.get(tabId);
-        if (entry?.kind === 'conversation') ids.add(entry.conversationId);
+        if (entry?.kind === 'conversation') {
+          ids.add(
+            (entry as unknown as { kind: 'conversation'; conversationId: string }).conversationId
+          );
+        }
       }
     }
     return [...ids].sort();

@@ -1,5 +1,7 @@
 import { browserControlsRegistry } from '@renderer/features/browser/browser-controls-registry';
+import type { BrowserResolvedData } from '@renderer/features/browser/browser-tab-provider';
 import { getGitRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
+import type { ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
 import {
   getRegisteredTaskData,
   getTaskGitWorktreeStore,
@@ -49,9 +51,8 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       const taskData = getRegisteredTaskData(projectId, taskId);
       const activeBrowserTab = activePane?.resolvedTabs.find(
         (tab) => tab.isActive && tab.kind === 'browser'
-      );
-      const activeBrowserSession =
-        activeBrowserTab?.kind === 'browser' ? activeBrowserTab.session : null;
+      ) as ResolvedTab<BrowserResolvedData> | undefined;
+      const activeBrowserSession = activeBrowserTab?.session ?? null;
 
       const newConversationDef = taskDef('task.newConversation');
       const newConversationSplitRightDef = taskDef('task.newConversationSplitRight');
@@ -106,7 +107,10 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
               projectId,
               taskId,
               onSuccess: ({ conversationId }) => {
-                taskView?.paneLayout.openConversationInRightSplit(conversationId);
+                taskView?.paneLayout.openInRightSplit('conversation', {
+                  conversationId,
+                  preview: false,
+                });
                 taskView?.setFocusedRegion('main');
               },
             });

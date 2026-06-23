@@ -1,8 +1,9 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import type { ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
+import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { useIsActiveTask } from '@renderer/features/tasks/hooks/use-is-active-task';
-import { usePaneContext } from '@renderer/features/tasks/tabs/pane-context';
 import {
   useConversations,
   useTaskViewContext,
@@ -16,6 +17,11 @@ import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay
 import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
 import { ContextBar } from './context-bar';
 import type { ConversationStore } from './conversation-manager';
+import type { ConversationResolvedData } from './conversation-tab-provider';
+import {
+  activeConversation as getActiveConversation,
+  activeConversationId as getActiveConversationId,
+} from './pane-selectors';
 
 export const ConversationsPanel = observer(function ConversationsPanel() {
   const { taskId } = useTaskViewContext();
@@ -33,12 +39,15 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   // Build session ID list for PaneSizingProvider (all open conversation tabs).
   const allSessionIds = useMemo(() => {
     return pane.resolvedTabs
-      .filter((t) => t.kind === 'conversation')
+      .filter((t): t is ResolvedTab<ConversationResolvedData> => t.kind === 'conversation')
       .map((t) => conversations.sessions.get(t.store.data.id)?.sessionId)
       .filter((id): id is string => Boolean(id));
   }, [pane.resolvedTabs, conversations.sessions]);
 
-  const activeConversation: ConversationStore | undefined = pane.activeConversation;
+  const activeConversation: ConversationStore | undefined = getActiveConversation(
+    pane,
+    conversations
+  );
   const activeSession = activeConversation
     ? (conversations.sessions.get(activeConversation.data.id) ?? null)
     : null;
@@ -132,7 +141,10 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
           </PaneSizingProvider>
         </div>
       </div>
-      <ContextBar conversationId={pane.activeConversationId} hideTrigger={hideContextBarTrigger} />
+      <ContextBar
+        conversationId={getActiveConversationId(pane)}
+        hideTrigger={hideContextBarTrigger}
+      />
     </div>
   );
 });

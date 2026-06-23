@@ -1,12 +1,4 @@
-import type { GitChangeStatus, GitObjectRef } from '@emdash/core/git';
 import { action, computed, makeObservable, observable } from 'mobx';
-import type {
-  ConversationManagerStore,
-  ConversationStore,
-} from '@renderer/features/tasks/conversations/conversation-manager';
-import type { DiffTabStore } from '@renderer/features/tasks/tabs/diff-tab-store';
-import type { FileTabStore } from '@renderer/features/tasks/tabs/file-tab-store';
-import type { FileRendererData } from '@renderer/features/tasks/tabs/file-tab-store';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
 import {
   addTabId,
@@ -16,140 +8,19 @@ import {
   setPreviousTabActive as tabUtilsSetPreviousTabActive,
   setTabActiveIndex as tabUtilsSetTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
-import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
-import type { BrowserSessionSnapshot } from '@shared/browser';
-import { refsEqual } from '@shared/core/git/utils';
 import type { TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
-import type { TabHost, TabKindContext } from './core/tab-provider';
+import type { TabEntryBase, TabHost, TabKindContext, ResolvedTab } from './core/tab-provider';
 import { tabProviderRegistry } from './core/tab-provider-registry';
 import type { TabKind, OpenArgsOf } from './providers';
 
-// ---------------------------------------------------------------------------
-// Conversation tab entry — thin reference into ConversationManagerStore
-// ---------------------------------------------------------------------------
-
-export class ConversationTabEntry {
-  readonly kind = 'conversation' as const;
-  readonly tabId: string;
-  conversationId: string;
-  isPreview: boolean;
-
-  constructor(conversationId: string, isPreview: boolean, tabId?: string) {
-    this.tabId = tabId ?? crypto.randomUUID();
-    this.conversationId = conversationId;
-    this.isPreview = isPreview;
-    makeObservable(this, {
-      conversationId: observable,
-      isPreview: observable,
-      pin: action,
-    });
-  }
-
-  pin(): void {
-    this.isPreview = false;
-  }
-}
-
-export class BrowserTabEntry {
-  readonly kind = 'browser' as const;
-  readonly tabId: string;
-  readonly browserId: string;
-  isPreview: boolean;
-
-  constructor(browserId: string, isPreview: boolean, tabId?: string) {
-    this.tabId = tabId ?? crypto.randomUUID();
-    this.browserId = browserId;
-    this.isPreview = isPreview;
-    makeObservable(this, {
-      isPreview: observable,
-      pin: action,
-    });
-  }
-
-  pin(): void {
-    this.isPreview = false;
-  }
-}
-
-export type TabEntry = FileTabStore | DiffTabStore | ConversationTabEntry | BrowserTabEntry;
-
-export function optionalRefsEqual(
-  left: GitObjectRef | undefined,
-  right: GitObjectRef | undefined
-): boolean {
-  if (left === undefined || right === undefined) return left === right;
-  return refsEqual(left, right);
-}
-
-// ---------------------------------------------------------------------------
-// Resolved tabs — enriched with live store references and derived state
-// ---------------------------------------------------------------------------
-
-export type ResolvedConversationTab = {
-  kind: 'conversation';
-  tabId: string;
-  conversationId: string;
-  store: ConversationStore;
-  isPreview: boolean;
-  isActive: boolean;
-};
-
-export type ResolvedFileTab = {
-  kind: 'file';
-  tabId: string;
-  path: string;
-  isPreview: boolean;
-  isDirty: boolean;
-  bufferUri: string;
-  isActive: boolean;
-  isExternal: boolean;
-};
-
-export type ResolvedBrowserTab = {
-  kind: 'browser';
-  tabId: string;
-  browserId: string;
-  session: BrowserSessionSnapshot;
-  isPreview: boolean;
-  isActive: boolean;
-};
-
-export type ResolvedDiffTab = {
-  kind: 'diff';
-  tabId: string;
-  path: string;
-  diffGroup: 'disk' | 'staged' | 'git' | 'pr';
-  originalRef: GitObjectRef;
-  modifiedRef?: GitObjectRef;
-  prNumber?: number;
-  prBaseOid?: string;
-  prHeadOid?: string;
-  commitOriginalSha?: string | null;
-  commitModifiedSha?: string;
-  status?: GitChangeStatus;
-  isPreview: boolean;
-  isActive: boolean;
-};
-
-export type ResolvedTab =
-  | ResolvedConversationTab
-  | ResolvedFileTab
-  | ResolvedBrowserTab
-  | ResolvedDiffTab;
-
-// ---------------------------------------------------------------------------
-// TabManagerStore
-// ---------------------------------------------------------------------------
-
 /**
- * Owns all tab open/close/order/active state across conversation, file, and diff tabs.
- *
- * Entity-specific state lives in FileTabStore / DiffTabStore / ConversationTabEntry.
- * Monaco model registration is handled by FileModelLifecycleStore which watches this store.
+ * Owns all tab open/close/order/active state for a single pane.
+ * Entity-specific state lives in the domain entry classes (FileTabStore, DiffTabStore,
+ * ConversationTabEntry, …). Monaco model registration is handled by FileModelLifecycleStore.
  */
 export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
   /** All open tab entries keyed by tabId. O(1) lookup; finer-grained MobX reactivity. */
-  readonly entries = observable.map<string, TabEntry>();
+  readonly entries = observable.map<string, TabEntryBase>();
   /** Tab display order (array of tabIds). Drives resolvedTabs. */
   tabOrder: string[] = [];
   activeTabId: string | undefined = undefined;
@@ -160,7 +31,6 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
   /** Used by resolvedTabs and FileModelLifecycleStore to build buffer URIs. */
   readonly modelRootPath: string;
 
-  private readonly _getConversations: () => ConversationManagerStore | null;
   private readonly _projectId: string;
   private readonly _workspaceId: string;
   private readonly _taskId: string;
@@ -174,13 +44,7 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
     return this._ctx;
   }
 
-  constructor(
-    getConversations: () => ConversationManagerStore | null,
-    workspaceId: string,
-    projectId: string,
-    taskId: string
-  ) {
-    this._getConversations = getConversations;
+  constructor(workspaceId: string, projectId: string, taskId: string) {
     this._projectId = projectId;
     this._workspaceId = workspaceId;
     this._taskId = taskId;
@@ -193,13 +57,7 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
       isVisible: observable,
       isFocused: observable,
       resolvedActiveTabId: computed,
-      activeDescriptor: computed,
-      activeConversation: computed,
-      activeConversationId: computed,
-      activeFileEntry: computed,
-      activeFilePath: computed,
-      activeDiffEntry: computed,
-      openFilePaths: computed,
+      activeEntry: computed,
       resolvedTabs: computed,
       snapshot: computed,
       open: action,
@@ -214,18 +72,12 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
       setTabActiveIndex: action,
       setVisible: action,
       setFocused: action,
-      updateRenderer: action,
-      setImageContent: action,
-      setFileTotalSize: action,
-      transitionDiffTab: action,
-      pinTab: action,
       pin: action,
       attachEntry: action,
       closeOthers: action,
       requestCloseTab: action,
       reopenClosedTab: action,
       restoreSnapshot: action,
-      initializeDefault: action,
       detachTab: action,
     });
 
@@ -254,49 +106,29 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
     return this.tabOrder[0];
   }
 
-  get activeDescriptor(): TabEntry | undefined {
-    if (!this.resolvedActiveTabId) return undefined;
-    return this.entries.get(this.resolvedActiveTabId);
+  // ---------------------------------------------------------------------------
+  // Generic entry accessors — kind-agnostic surface for domain consumers
+  // ---------------------------------------------------------------------------
+
+  /** The currently active entry, regardless of kind. */
+  get activeEntry(): TabEntryBase | undefined {
+    return this.entries.get(this.resolvedActiveTabId ?? '');
   }
 
-  get activeConversation(): ConversationStore | undefined {
-    const desc = this.activeDescriptor;
-    if (!desc || desc.kind !== 'conversation') return undefined;
-    return this._getConversations()?.conversations.get(desc.conversationId);
-  }
-
-  get activeConversationId(): string | undefined {
-    const desc = this.activeDescriptor;
-    return desc?.kind === 'conversation' ? desc.conversationId : undefined;
-  }
-
-  get activeFileEntry(): FileTabStore | undefined {
-    const desc = this.activeDescriptor;
-    return desc?.kind === 'file' ? desc : undefined;
-  }
-
-  get activeFilePath(): string | null {
-    return this.activeFileEntry?.path ?? null;
-  }
-
-  get activeDiffEntry(): DiffTabStore | undefined {
-    const desc = this.activeDescriptor;
-    return desc?.kind === 'diff' ? desc : undefined;
-  }
-
-  /**
-   * Paths of all currently open file tabs.
-   * Used by FileModelLifecycleStore to drive Monaco model registration/unregistration.
-   * Diff tabs are intentionally excluded — their model lifecycle is managed by
-   * FileDiffView's own useEffect.
-   */
-  get openFilePaths(): string[] {
-    const paths: string[] = [];
+  /** All entries of the given kind, in tab-order. Type-cast by caller. */
+  entriesOfKind<E extends TabEntryBase>(kind: string): E[] {
+    const result: E[] = [];
     for (const id of this.tabOrder) {
       const entry = this.entries.get(id);
-      if (entry?.kind === 'file' && !entry.isExternal) paths.push(entry.path);
+      if (entry?.kind === kind) result.push(entry as unknown as E);
     }
-    return paths;
+    return result;
+  }
+
+  /** The active entry if it matches the given kind, otherwise undefined. */
+  activeEntryOfKind<E extends TabEntryBase>(kind: string): E | undefined {
+    const entry = this.activeEntry;
+    return entry?.kind === kind ? (entry as unknown as E) : undefined;
   }
 
   get resolvedTabs(): ResolvedTab[] {
@@ -315,7 +147,7 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
         isPreview: entry.isPreview,
         isActive,
         ...rd,
-      } as unknown as ResolvedTab);
+      } as ResolvedTab);
     }
     return result;
   }
@@ -332,7 +164,7 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
   }
 
   // ---------------------------------------------------------------------------
-  // Actions — generic open (replaces 8 open* methods)
+  // Actions — open
   // ---------------------------------------------------------------------------
 
   open<K extends TabKind>(kind: K, args: OpenArgsOf<K>): void {
@@ -368,51 +200,9 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
       tabProviderRegistry.get(old.kind).onClose?.(old, this._ctx);
     }
     this.entries.delete(existingTabId);
-    this.entries.set(newEntry.tabId, newEntry as unknown as TabEntry);
+    this.entries.set(newEntry.tabId, newEntry as TabEntryBase);
     this.tabOrder.splice(idx, 1, newEntry.tabId);
     if (opts?.activate ?? true) this.activeTabId = newEntry.tabId;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Actions — renderer/diff state (delegation proxies)
-  // ---------------------------------------------------------------------------
-
-  /** Delegation proxy — callers with the path can still call this. */
-  updateRenderer(filePath: string, updater: (prev: FileRendererData) => FileRendererData): void {
-    const entry = this._findFileEntryByPath(filePath);
-    if (entry) entry.updateRenderer(updater);
-  }
-
-  /**
-   * Called by the model-lifecycle reaction in TaskViewStore after an image is fetched.
-   * Delegation proxy — will be removed when FileModelLifecycleStore is extracted.
-   */
-  setImageContent(path: string, content: string): void {
-    const entry = this._findFileEntryByPath(path);
-    if (entry) entry.setImageContent(content);
-  }
-
-  /**
-   * Called by the model-lifecycle reaction in TaskViewStore after a too-large file is detected.
-   * Delegation proxy — will be removed when FileModelLifecycleStore is extracted.
-   */
-  setFileTotalSize(path: string, totalSize: number): void {
-    const entry = this._findFileEntryByPath(path);
-    if (entry) entry.setTotalSize(totalSize);
-  }
-
-  /**
-   * Transitions a diff tab between disk/staged groups in-place.
-   * Delegation proxy — will be removed when DiffTabLifecycleStore is extracted.
-   */
-  transitionDiffTab(
-    tabId: string,
-    newGroup: 'disk' | 'staged',
-    newOriginalRef: GitObjectRef,
-    status?: GitChangeStatus
-  ): void {
-    const entry = this.entries.get(tabId);
-    if (entry?.kind === 'diff') entry.transition(newGroup, newOriginalRef, status);
   }
 
   // ---------------------------------------------------------------------------
@@ -430,9 +220,9 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
 
   setActiveTab(id: string): void {
     this.activeTabId = id;
-    const entry = this.activeDescriptor;
-    if (entry?.kind === 'conversation' && this.isVisible) {
-      setTelemetryConversationScope(entry.conversationId);
+    const entry = this.entries.get(id);
+    if (entry && this.isVisible && tabProviderRegistry.has(entry.kind)) {
+      tabProviderRegistry.get(entry.kind).onActivate?.(entry, this._ctx);
     }
   }
 
@@ -452,37 +242,29 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
     tabUtilsSetTabActiveIndex(this, index);
   }
 
-  pinTab(tabId: string): void {
+  // ---------------------------------------------------------------------------
+  // TabHost interface — generic primitives used by TabProvider methods
+  // ---------------------------------------------------------------------------
+
+  /** Sets isPreview = false (TabHost.pin). */
+  pin(tabId: string): void {
     const entry = this.entries.get(tabId);
     if (entry) entry.isPreview = false;
   }
 
-  // ---------------------------------------------------------------------------
-  // TabHost interface — generic primitives used by TabDefinition methods
-  // ---------------------------------------------------------------------------
-
-  /** Sets isPreview = false (TabHost.pin). Delegates to pinTab. */
-  pin(tabId: string): void {
-    this.pinTab(tabId);
-  }
-
-  /**
-   * Appends an entry and optionally activates it (TabHost.attachEntry).
-   * Replaces the scattered entries.set + addTabId + activeTabId triples in open*
-   * methods after Phase 3.
-   */
+  /** Appends an entry and optionally activates it (TabHost.attachEntry). */
   attachEntry(
     entry: { readonly kind: string; readonly tabId: string; isPreview: boolean },
     opts?: { activate?: boolean }
   ): void {
-    this.entries.set(entry.tabId, entry as unknown as TabEntry);
+    this.entries.set(entry.tabId, entry as TabEntryBase);
     addTabId(this, entry.tabId);
     if (opts?.activate) this.activeTabId = entry.tabId;
   }
 
   /**
    * Returns the first tab-order entry satisfying the type predicate (TabHost.findEntry).
-   * Used by TabDefinition.open() for deduplication.
+   * Used by TabProvider.open() for deduplication.
    */
   findEntry<E extends object>(predicate: (e: object) => e is E): E | undefined {
     for (const id of this.tabOrder) {
@@ -498,59 +280,36 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
     for (const id of toClose) this.closeTab(id);
   }
 
-  /**
-   * User-initiated close — calls def.confirmClose if defined, then closes on confirm.
-   * Also marks conversation as seen after close for hydration purposes.
-   */
+  /** User-initiated close — calls def.confirmClose if defined, then closes on confirm. */
   requestCloseTab(tabId: string): void {
     const entry = this.entries.get(tabId);
     if (!entry) return;
-
-    const conversationId = this._getConversationIdForTab(tabId);
-    const afterClose = () => {
-      if (conversationId && !this.entries.has(tabId)) {
-        this._markConversationSeen(conversationId);
-      }
-    };
 
     if (tabProviderRegistry.has(entry.kind)) {
       const def = tabProviderRegistry.get(entry.kind);
       if (def.confirmClose) {
         void Promise.resolve(def.confirmClose(entry, this, this._ctx)).then((proceed) => {
-          if (proceed) {
-            this._removeTab(tabId);
-            afterClose();
-          }
+          if (proceed) this._removeTab(tabId);
         });
         return;
       }
     }
 
     this._removeTab(tabId);
-    afterClose();
   }
-
-  // ---------------------------------------------------------------------------
-  // Visibility / telemetry
-  // ---------------------------------------------------------------------------
 
   setVisible(visible: boolean): void {
     this.isVisible = visible;
     if (visible) {
-      setTelemetryConversationScope(this.activeConversation?.data.id ?? null);
+      const entry = this.activeEntry;
+      if (entry && tabProviderRegistry.has(entry.kind)) {
+        tabProviderRegistry.get(entry.kind).onActivate?.(entry, this._ctx);
+      }
     }
   }
 
   setFocused(focused: boolean): void {
     this.isFocused = focused;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Helpers for sidebar
-  // ---------------------------------------------------------------------------
-
-  hasConversationTab(conversationId: string): boolean {
-    return this._findConversationEntry(conversationId) !== undefined;
   }
 
   // ---------------------------------------------------------------------------
@@ -571,23 +330,12 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
       for (const desc of snapshot.tabs) {
         if (!tabProviderRegistry.has(desc.kind)) continue;
         const def = tabProviderRegistry.get(desc.kind);
-        const entry = def.deserialize(desc, this._ctx) as unknown as TabEntry;
+        const entry = def.deserialize(desc, this._ctx) as TabEntryBase;
         this.entries.set(entry.tabId, entry);
         this.tabOrder.push(entry.tabId);
       }
     }
     if (snapshot.activeTabId !== undefined) this.activeTabId = snapshot.activeTabId;
-  }
-
-  initializeDefault(): void {
-    const conversations = this._getConversations();
-    if (!conversations) return;
-    for (const [id, store] of conversations.conversations) {
-      if (store.isInitialConversation) {
-        this.open('conversation', { conversationId: id, preview: false });
-        return;
-      }
-    }
   }
 
   dispose(): void {
@@ -603,24 +351,6 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
-
-  private _findConversationEntry(conversationId: string): ConversationTabEntry | undefined {
-    for (const id of this.tabOrder) {
-      const entry = this.entries.get(id);
-      if (entry?.kind === 'conversation' && entry.conversationId === conversationId) {
-        return entry;
-      }
-    }
-    return undefined;
-  }
-
-  private _findFileEntryByPath(path: string): FileTabStore | undefined {
-    for (const id of this.tabOrder) {
-      const entry = this.entries.get(id);
-      if (entry?.kind === 'file' && entry.path === path) return entry;
-    }
-    return undefined;
-  }
 
   private _removeTab(id: string): void {
     const entry = this.entries.get(id);
@@ -656,28 +386,19 @@ export class PaneStore implements Snapshottable<TabManagerSnapshot>, TabHost {
     const { data, index } = record;
     if (!tabProviderRegistry.has(data.kind)) return;
     const provider = tabProviderRegistry.get(data.kind);
-    const entry = provider.deserialize(data as never, this._ctx) as unknown as TabEntry;
+    const entry = provider.deserialize(data as never, this._ctx) as TabEntryBase;
     this.entries.set(entry.tabId, entry);
     const insertAt = Math.min(index, this.tabOrder.length);
     this.tabOrder.splice(insertAt, 0, entry.tabId);
     this.activeTabId = entry.tabId;
   }
 
-  detachTab(id: string): TabEntry | undefined {
+  detachTab(id: string): TabEntryBase | undefined {
     const entry = this.entries.get(id);
     if (!entry) return undefined;
 
     this.entries.delete(id);
     removeTabId(this, id);
     return entry;
-  }
-
-  private _getConversationIdForTab(id: string): string | undefined {
-    const entry = this.entries.get(id);
-    return entry?.kind === 'conversation' ? entry.conversationId : undefined;
-  }
-
-  private _markConversationSeen(conversationId: string): void {
-    this._getConversations()?.conversations.get(conversationId)?.markSeen();
   }
 }
