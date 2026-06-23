@@ -43,6 +43,11 @@ function captureRunStarted(run: AutomationRun): void {
   telemetryService.capture('automation_run_started', runTelemetryProps(run));
 }
 
+function clearRunTelemetryDedupe(runId: string): void {
+  startedRunIds.delete(runId);
+  completedRunIds.delete(runId);
+}
+
 automationsService.on('automation:created', (automation) => {
   telemetryService.capture('automation_created', {
     ...automationTelemetryProps(automation),
@@ -78,4 +83,5 @@ automationsService.on('run:step-completed', (run) => {
     error_step: run.error?.step,
     error_code: run.error?.code,
   });
+  clearRunTelemetryDedupe(run.id);
 });
