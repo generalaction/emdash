@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   createGithubRepository: vi.fn(),
   createProject: vi.fn(),
   deleteGithubRepository: vi.fn(),
-  initializeProject: vi.fn(),
+  initializeRepository: vi.fn(),
   inspectProjectPath: vi.fn(),
   openProject: vi.fn(),
   patchProjectSettings: vi.fn(),
@@ -24,10 +24,12 @@ vi.mock('@renderer/lib/ipc', () => ({
   },
   rpc: {
     github: {
-      cloneRepository: mocks.cloneRepository,
       createRepository: mocks.createGithubRepository,
       deleteRepository: mocks.deleteGithubRepository,
-      initializeProject: mocks.initializeProject,
+    },
+    projectSetup: {
+      cloneRepository: mocks.cloneRepository,
+      initializeRepository: mocks.initializeRepository,
     },
     projects: {
       createProject: mocks.createProject,
@@ -116,7 +118,7 @@ describe('ProjectManagerStore project creation', () => {
       nameWithOwner: 'acme/project',
     });
     mocks.deleteGithubRepository.mockResolvedValue({ success: true });
-    mocks.initializeProject.mockResolvedValue({ success: true });
+    mocks.initializeRepository.mockResolvedValue({ success: true });
     mocks.updateProjectSettings.mockResolvedValue({
       success: true,
       data: { githubAccountId: 'github.com:42' },

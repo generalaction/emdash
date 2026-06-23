@@ -11,29 +11,11 @@ export const plugin = definePlugin(
     websiteUrl: 'https://jules.google/docs/cli/reference/',
   },
   {
-    autoApprove: {
-      kind: 'none',
-    },
-    effort: {
-      kind: 'none',
-    },
-    hooks: {
-      kind: 'none',
-    },
     hostDependency: npmDependency({
       id: 'jules',
       package: '@google/jules',
       versionArgs: ['version'],
     }),
-    mcp: {
-      kind: 'none',
-    },
-    models: {
-      kind: 'none',
-    },
-    plugins: {
-      kind: 'none',
-    },
     prompt: {
       kind: 'keystroke',
     },

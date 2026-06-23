@@ -11,25 +11,7 @@ export const plugin = definePlugin(
     websiteUrl: 'https://freebuff.com',
   },
   {
-    autoApprove: {
-      kind: 'none',
-    },
-    effort: {
-      kind: 'none',
-    },
-    hooks: {
-      kind: 'none',
-    },
     hostDependency: npmDependency({ id: 'freebuff', package: 'freebuff' }),
-    mcp: {
-      kind: 'none',
-    },
-    models: {
-      kind: 'none',
-    },
-    plugins: {
-      kind: 'none',
-    },
     prompt: {
       kind: 'argv',
       flag: '',

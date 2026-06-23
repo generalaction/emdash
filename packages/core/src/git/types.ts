@@ -181,12 +181,12 @@ export interface IGitWorktree extends IDisposable {
   getImageAtIndex(filePath: string): Promise<ImageReadResult>;
   getLog(options?: GitLogOptions): Promise<GitLogResult>;
   getCommitFiles(hash: string): Promise<CommitFile[]>;
-  stage(paths: string[]): Promise<GitSequences>;
-  stageAll(): Promise<GitSequences>;
-  unstage(paths: string[]): Promise<GitSequences>;
-  unstageAll(): Promise<GitSequences>;
-  revert(paths: string[]): Promise<GitSequences>;
-  revertAll(): Promise<GitSequences>;
+  stage(paths: string[]): Promise<Result<GitSequences, GitCommandError>>;
+  stageAll(): Promise<Result<GitSequences, GitCommandError>>;
+  unstage(paths: string[]): Promise<Result<GitSequences, GitCommandError>>;
+  unstageAll(): Promise<Result<GitSequences, GitCommandError>>;
+  revert(paths: string[]): Promise<Result<GitSequences, GitCommandError>>;
+  revertAll(): Promise<Result<GitSequences, GitCommandError>>;
   commit(message: string): Promise<Result<{ hash: string; sequences: GitSequences }, CommitError>>;
   push(remote?: string): Promise<Result<{ output: string; sequences: GitSequences }, PushError>>;
   pull(): Promise<Result<{ output: string; sequences: GitSequences }, PullError>>;

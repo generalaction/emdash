@@ -24,5 +24,6 @@ export const effortCapability = definePluginCapability()(
     z.object({
       kind: z.literal('none'),
     }),
-  ])
+  ]),
+  { kind: 'none' }
 );

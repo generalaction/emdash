@@ -1,4 +1,4 @@
-import type { FetchError, PushError } from '@shared/core/git/types';
+import type { FetchError, PushError } from '@emdash/core/git';
 
 type PushLikeError = PushError | { type: string; message?: string };
 
@@ -56,7 +56,7 @@ export function formatFetchErrorDetail(
       return 'Cannot reach the remote. Check your network connection, then try again.';
     case 'remote_not_found':
       return 'The remote repository was not found, or your Git credentials do not have access.';
-    case 'error':
+    case 'git_error':
       return 'An unexpected error occurred while fetching from the remote.';
   }
 }

@@ -22,9 +22,6 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'supported',
     },
-    effort: {
-      kind: 'none',
-    },
     hooks: {
       kind: 'plugin',
       scope: 'workspace',
@@ -39,9 +36,6 @@ export const plugin = definePlugin(
       kind: 'supported',
       scope: 'global',
       supportedTransports: ['stdio', 'http'],
-    },
-    models: {
-      kind: 'none',
     },
     plugins: {
       kind: 'file-drop',
