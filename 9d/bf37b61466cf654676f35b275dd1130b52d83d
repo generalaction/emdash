@@ -1,0 +1,44 @@
+apps/emdash-desktop/src/assets/images/mcp/axiom.svg
+  s_cca176c6b8edb2::t_086c309704c451 1-4
+apps/emdash-desktop/src/assets/images/mcp/prisma.svg
+  s_cca176c6b8edb2::t_4d5f96b6c044b9 1
+apps/emdash-desktop/src/assets/images/mcp/shopify.svg
+  s_cca176c6b8edb2::t_4d5f96b6c044b9 1
+apps/emdash-desktop/src/assets/images/mcp/railway.svg
+  s_cca176c6b8edb2::t_4d5f96b6c044b9 1
+apps/emdash-desktop/src/assets/images/mcp/monday.svg
+  s_cca176c6b8edb2::t_9175d22e4725bb 1-4
+apps/emdash-desktop/src/assets/images/mcp/azure.svg
+  s_cca176c6b8edb2::t_cd3d51246cf567 1
+apps/emdash-desktop/src/shared/core/mcp/catalog.ts
+  s_cca176c6b8edb2::t_776f9fc1c508d9 204,488-504,506-517,519-535,537-565,567-570
+  s_080271108b50ff::t_aa56a529d94d61 505
+apps/emdash-desktop/src/assets/images/mcp/graphite.svg
+  s_cca176c6b8edb2::t_4d5f96b6c044b9 1
+apps/emdash-desktop/src/assets/images/mcp/mongodb.svg
+  s_cca176c6b8edb2::t_4d5f96b6c044b9 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "9dbf37b61466cf654676f35b275dd1130b52d83d",
+  "prompts": {},
+  "sessions": {
+    "s_080271108b50ff": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ef50b-3b2f-70b5-9e96-cd880c966f1e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_cca176c6b8edb2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1522a985-66a0-4656-a0f3-e70085f2770e",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
