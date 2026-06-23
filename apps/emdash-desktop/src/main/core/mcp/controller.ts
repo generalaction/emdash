@@ -1,3 +1,4 @@
+import type { CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
 import type { DependencyId } from '@emdash/core/deps/runtime';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import { localDependencyManager } from '@main/core/dependencies/dependency-managers';
@@ -9,8 +10,8 @@ import { mcpService } from './services/McpService';
 function mapProviders(): McpProvidersResponse[] {
   return pluginRegistry
     .getAll()
-    .filter((p) => p.capabilities.mcp.kind === 'supported')
-    .map((p) => {
+    .filter((p: CLIAgentPluginProvider) => p.capabilities.mcp.kind === 'supported')
+    .map((p: CLIAgentPluginProvider) => {
       const dep = localDependencyManager.get(p.metadata.id as DependencyId);
       const mcp = p.capabilities.mcp;
       const supportsHttp = mcp.kind === 'supported' && mcp.supportedTransports.includes('http');
