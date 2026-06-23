@@ -1,7 +1,7 @@
 import { Command } from 'cmdk';
 import { useObserver } from 'mobx-react-lite';
-import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { getTaskNotificationItems } from '@renderer/features/tasks/stores/task-notifications';
+import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { cn } from '@renderer/utils/utils';
 import { PaletteConversationItem } from './palette-conversation-item';
