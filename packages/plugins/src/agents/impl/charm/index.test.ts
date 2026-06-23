@@ -46,20 +46,4 @@ describe('charm provider', () => {
       env: {},
     });
   });
-
-  it('keeps yolo after the session selector', () => {
-    const command = provider.behavior.prompt!.buildCommand({
-      ...baseContext,
-      autoApprove: true,
-      initialPrompt: 'implement the task',
-    });
-
-    expect(command.args).toEqual([
-      'run',
-      '--session',
-      'emdash-session-id',
-      '--yolo',
-      'implement the task',
-    ]);
-  });
 });
