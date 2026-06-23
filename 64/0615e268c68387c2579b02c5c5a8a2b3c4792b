@@ -1,0 +1,36 @@
+apps/emdash-desktop/src/renderer/App.tsx
+  s_6c663cfe15e1e4::t_3811367a518acd 6,103
+apps/emdash-desktop/src/main/core/app/app-badge-service.ts
+  s_6c663cfe15e1e4::t_b0731bd6ff6cfd 28,35,42-43
+  s_6c663cfe15e1e4::t_6aefb4815eb4ec 38-41
+  s_6c663cfe15e1e4::t_8dd71b4e8b15a4 1,4,19-26
+  s_6c663cfe15e1e4::t_f94b28ed8e7d7a 2-3,5-18,27,29-34,36-37,44-53
+apps/emdash-desktop/src/main/core/conversations/deleteConversation.ts
+  s_6c663cfe15e1e4::t_9276e90b0032a4 2,28
+apps/emdash-desktop/src/renderer/features/command-palette/notification-badge-sync.tsx
+  s_6c663cfe15e1e4::t_329fbe92b34b2a 1-49
+apps/emdash-desktop/src/main/index.ts
+  s_6c663cfe15e1e4::t_1e6a6a0c2d1115 15,137,198
+apps/emdash-desktop/src/main/core/conversations/markConversationSeen.ts
+  s_6c663cfe15e1e4::t_36a742117d9676 2,11
+apps/emdash-desktop/src/main/core/app/controller.ts
+  s_6c663cfe15e1e4::t_787b303c46e6ba 5,113-115
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.ts
+  s_6c663cfe15e1e4::t_c8e700f77c9cf8 4,196,227
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "640615e268c68387c2579b02c5c5a8a2b3c4792b",
+  "prompts": {},
+  "sessions": {
+    "s_6c663cfe15e1e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef404-3e14-7fc3-8c6c-0155638b2479",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
