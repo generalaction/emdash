@@ -21,9 +21,6 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'supported',
     },
-    effort: {
-      kind: 'none',
-    },
     hooks: {
       kind: 'plugin',
       scope: 'workspace',
@@ -34,12 +31,6 @@ export const plugin = definePlugin(
       package: '@kilocode/cli',
       binaryNames: ['kilo'],
     }),
-    mcp: {
-      kind: 'none',
-    },
-    models: {
-      kind: 'none',
-    },
     plugins: {
       kind: 'file-drop',
       scope: 'workspace',

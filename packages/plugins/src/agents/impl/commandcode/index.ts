@@ -15,9 +15,6 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'supported',
     },
-    effort: {
-      kind: 'none',
-    },
     hooks: {
       kind: 'config',
       scope: 'workspace',
@@ -29,15 +26,6 @@ export const plugin = definePlugin(
       binaryNames: ['command-code', 'commandcode', 'cmdc'],
       versionSuffix: '@latest',
     }),
-    mcp: {
-      kind: 'none',
-    },
-    models: {
-      kind: 'none',
-    },
-    plugins: {
-      kind: 'none',
-    },
     prompt: {
       kind: 'argv',
       flag: '',

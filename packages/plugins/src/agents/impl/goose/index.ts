@@ -10,15 +10,6 @@ export const plugin = definePlugin(
     websiteUrl: 'https://goose-docs.ai/docs/quickstart/',
   },
   {
-    autoApprove: {
-      kind: 'none',
-    },
-    effort: {
-      kind: 'none',
-    },
-    hooks: {
-      kind: 'none',
-    },
     hostDependency: {
       id: 'goose',
       binaryNames: ['goose'],
@@ -48,15 +39,6 @@ export const plugin = definePlugin(
           kind: 'package-manager',
         },
       },
-    },
-    mcp: {
-      kind: 'none',
-    },
-    models: {
-      kind: 'none',
-    },
-    plugins: {
-      kind: 'none',
     },
     prompt: {
       kind: 'argv',
