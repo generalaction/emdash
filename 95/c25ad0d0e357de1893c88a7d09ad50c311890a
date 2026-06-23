@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/settings/components/TaskSettingsRows.tsx
+  s_a9400dab2adc43::t_c56322087b476d 18-21,218,227
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "95c25ad0d0e357de1893c88a7d09ad50c311890a",
+  "prompts": {},
+  "sessions": {
+    "s_a9400dab2adc43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef44f-d0ca-7422-b625-693691004f3d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
