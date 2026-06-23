@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/utils/cssVars.ts
+  s_9a4f2b092eac83::t_6b65d18271ae45 5-7,9-29,36-37,45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "2b58993caab14dacb5cfd6a41667c792de7a0792",
+  "prompts": {},
+  "sessions": {
+    "s_9a4f2b092eac83": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ef3ff-d951-77d7-942c-cd6242b67f47",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
