@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/integrations/NotionSetupForm.tsx
+  s_de253ae1bad339::t_633a38aed353b5 8,14-17,27-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "3a9ac7141332bda99685882fbd1da74673074484",
+  "prompts": {},
+  "sessions": {
+    "s_de253ae1bad339": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ef957-7441-7333-b3c1-3dde223b9c36",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
