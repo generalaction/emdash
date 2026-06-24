@@ -1,0 +1,30 @@
+apps/emdash-desktop/src/renderer/features/tasks/delete-task-modal.test.ts
+  s_97a2e52a103aa5::t_b69db1fa206d5b 89-107
+apps/emdash-desktop/src/renderer/features/tasks/components/task-git-diff-stats.tsx
+  s_97a2e52a103aa5::t_b69db1fa206d5b 24-34
+apps/emdash-desktop/src/renderer/features/sidebar/task-item.tsx
+  s_97a2e52a103aa5::t_b69db1fa206d5b 5-7,74
+apps/emdash-desktop/src/renderer/features/projects/components/task-view/task-list.tsx
+  s_97a2e52a103aa5::t_b69db1fa206d5b 8,178-182
+apps/emdash-desktop/src/renderer/features/tasks/delete-task-modal.tsx
+  s_97a2e52a103aa5::t_b69db1fa206d5b 18,50-54,59,83,97,108-114
+  s_97a2e52a103aa5::t_af98704996bfe7 85
+apps/emdash-desktop/src/renderer/features/projects/components/task-view/task-row.tsx
+  s_97a2e52a103aa5::t_b69db1fa206d5b 6-8,48-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "44dd765f17b92709016682eb67999e60985e5877",
+  "prompts": {},
+  "sessions": {
+    "s_97a2e52a103aa5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef2c6-d858-77f0-9f4b-165806256ddb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
