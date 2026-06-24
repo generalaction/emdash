@@ -49,7 +49,7 @@ describe('NotionConnectionService', () => {
       expect(result).toEqual({ success: true, displayName: 'Acme' });
       expect(mockSetSecret).toHaveBeenCalledWith(
         'emdash-notion-credentials',
-        JSON.stringify({ token: input.token, databaseIds: [], databaseUrls: [] })
+        JSON.stringify({ token: input.token, scope: { type: 'all-shared' } })
       );
     });
 
@@ -65,13 +65,13 @@ describe('NotionConnectionService', () => {
       expect(headers.get('Notion-Version')).toEqual(expect.any(String));
     });
 
-    it('parses and deduplicates database IDs from URLs and raw IDs', async () => {
+    it('parses and deduplicates data source IDs from URLs and raw IDs', async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ id: 'bot-1', name: 'Emdash' }));
 
-      const databaseId = 'abcdefabcdefabcdefabcdefabcdefab';
+      const dataSourceId = 'abcdefabcdefabcdefabcdefabcdefab';
       const result = await service.saveCredentials({
         token: 'secret_token',
-        databaseUrls: `https://www.notion.so/acme/Roadmap-${databaseId}?v=123\n${databaseId}`,
+        databaseUrls: `https://www.notion.so/acme/Roadmap-${dataSourceId}?v=123\n${dataSourceId}`,
       });
 
       expect(result.success).toBe(true);
@@ -79,8 +79,11 @@ describe('NotionConnectionService', () => {
         'emdash-notion-credentials',
         JSON.stringify({
           token: 'secret_token',
-          databaseIds: [databaseId],
-          databaseUrls: [`https://www.notion.so/acme/Roadmap-${databaseId}?v=123`, databaseId],
+          scope: {
+            type: 'data-sources',
+            dataSourceIds: [dataSourceId],
+            sourceUrls: [`https://www.notion.so/acme/Roadmap-${dataSourceId}?v=123`, dataSourceId],
+          },
         })
       );
     });
@@ -125,12 +128,34 @@ describe('NotionConnectionService', () => {
   });
 
   describe('getStoredCredentials', () => {
-    it('defaults missing database scope to empty lists', async () => {
+    it('defaults missing database scope to all shared pages', async () => {
       mockGetSecret.mockResolvedValueOnce(JSON.stringify({ token: 'stored-token' }));
 
       const result = await service.getStoredCredentials();
 
-      expect(result).toEqual({ token: 'stored-token', databaseIds: [], databaseUrls: [] });
+      expect(result).toEqual({ token: 'stored-token', scope: { type: 'all-shared' } });
+    });
+
+    it('migrates legacy database scope to data source scope', async () => {
+      const dataSourceId = 'abcdefabcdefabcdefabcdefabcdefab';
+      mockGetSecret.mockResolvedValueOnce(
+        JSON.stringify({
+          token: 'stored-token',
+          databaseIds: [dataSourceId, dataSourceId],
+          databaseUrls: ['https://notion.so/example'],
+        })
+      );
+
+      const result = await service.getStoredCredentials();
+
+      expect(result).toEqual({
+        token: 'stored-token',
+        scope: {
+          type: 'data-sources',
+          dataSourceIds: [dataSourceId],
+          sourceUrls: ['https://notion.so/example'],
+        },
+      });
     });
 
     it('returns null for invalid stored credential shapes', async () => {

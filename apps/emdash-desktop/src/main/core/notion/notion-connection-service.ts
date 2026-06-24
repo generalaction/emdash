@@ -16,10 +16,13 @@ export const NOTION_API_ERROR_MESSAGES = {
   UNAVAILABLE: 'Notion API is temporarily unavailable. Please try again.',
 } as const;
 
+export type NotionPageScope =
+  | { type: 'all-shared' }
+  | { type: 'data-sources'; dataSourceIds: string[]; sourceUrls: string[] };
+
 export type NotionCredentials = {
   token: string;
-  databaseIds: string[];
-  databaseUrls: string[];
+  scope: NotionPageScope;
 };
 
 type SaveCredentialsInput = {
@@ -33,27 +36,63 @@ type NotionUser = {
   bot?: { owner?: { type?: string; workspace?: boolean }; workspace_name?: string | null };
 };
 
+type StoredNotionCredentials = {
+  token?: unknown;
+  scope?: unknown;
+  databaseIds?: unknown;
+  databaseUrls?: unknown;
+};
+
+function uniqueStrings(values: unknown): string[] | null {
+  if (!Array.isArray(values) || values.some((value) => typeof value !== 'string')) {
+    return null;
+  }
+  return [...new Set(values)];
+}
+
+function normalizeStoredScope(candidate: StoredNotionCredentials): NotionPageScope | null {
+  if (candidate.scope && typeof candidate.scope === 'object') {
+    const scope = candidate.scope as Partial<NotionPageScope>;
+    if (scope.type === 'all-shared') {
+      return { type: 'all-shared' };
+    }
+    if (scope.type === 'data-sources') {
+      const dataSourceIds = uniqueStrings(scope.dataSourceIds);
+      const sourceUrls = uniqueStrings(scope.sourceUrls);
+      if (!dataSourceIds || !sourceUrls) return null;
+      return dataSourceIds.length
+        ? { type: 'data-sources', dataSourceIds, sourceUrls }
+        : { type: 'all-shared' };
+    }
+    return null;
+  }
+
+  const legacyDatabaseIds = uniqueStrings(candidate.databaseIds ?? []);
+  const legacyDatabaseUrls = uniqueStrings(candidate.databaseUrls ?? []);
+  if (!legacyDatabaseIds || !legacyDatabaseUrls) return null;
+  return legacyDatabaseIds.length
+    ? {
+        type: 'data-sources',
+        dataSourceIds: legacyDatabaseIds,
+        sourceUrls: legacyDatabaseUrls,
+      }
+    : { type: 'all-shared' };
+}
+
 function normalizeStoredCredentials(raw: unknown): NotionCredentials | null {
   if (!raw || typeof raw !== 'object') return null;
 
-  const candidate = raw as Partial<NotionCredentials>;
+  const candidate = raw as StoredNotionCredentials;
   if (typeof candidate.token !== 'string' || !candidate.token.trim()) {
     return null;
   }
 
-  const databaseIds = candidate.databaseIds ?? [];
-  const databaseUrls = candidate.databaseUrls ?? [];
-  if (!Array.isArray(databaseIds) || databaseIds.some((id) => typeof id !== 'string')) {
-    return null;
-  }
-  if (!Array.isArray(databaseUrls) || databaseUrls.some((url) => typeof url !== 'string')) {
-    return null;
-  }
+  const scope = normalizeStoredScope(candidate);
+  if (!scope) return null;
 
   return {
     token: candidate.token,
-    databaseIds: [...new Set(databaseIds)],
-    databaseUrls: [...new Set(databaseUrls)],
+    scope,
   };
 }
 
@@ -111,15 +150,15 @@ export class NotionConnectionService {
       return { success: false, error: 'Notion integration token cannot be empty.' };
     }
 
-    const databaseScope = this.parseDatabaseUrls(input.databaseUrls);
-    if (databaseScope === null) {
+    const scope = this.parseDatabaseUrls(input.databaseUrls);
+    if (scope === null) {
       return {
         success: false,
         error:
           'Could not parse database ID from one or more URLs. Paste Notion database URLs or 32-character IDs.',
       };
     }
-    if (databaseScope.databaseIds.length > MAX_SELECTED_DATABASES) {
+    if (scope.type === 'data-sources' && scope.dataSourceIds.length > MAX_SELECTED_DATABASES) {
       return {
         success: false,
         error: `Notion database scope is limited to ${MAX_SELECTED_DATABASES} databases. Remove some URLs and try again.`,
@@ -128,7 +167,7 @@ export class NotionConnectionService {
 
     try {
       const user = await this.fetchMe(token);
-      const credentials: NotionCredentials = { token, ...databaseScope };
+      const credentials: NotionCredentials = { token, scope };
       await this.storeCredentials(credentials);
       telemetryService.capture('integration_connected', { provider: 'notion' });
       return { success: true, displayName: user.bot?.workspace_name ?? user.name ?? 'Notion' };
@@ -220,27 +259,29 @@ export class NotionConnectionService {
     return (await response.json()) as T;
   }
 
-  private parseDatabaseUrls(
-    databaseUrls: string
-  ): Pick<NotionCredentials, 'databaseIds' | 'databaseUrls'> | null {
+  private parseDatabaseUrls(databaseUrls: string): NotionPageScope | null {
     const raw = databaseUrls.trim();
-    if (!raw) return { databaseIds: [], databaseUrls: [] };
+    if (!raw) return { type: 'all-shared' };
 
     const values = raw
       .split(/[,\n]+/)
       .map((s) => s.trim())
       .filter(Boolean);
-    const databaseIds = new Set<string>();
-    const normalizedUrls = new Set<string>();
+    const dataSourceIds = new Set<string>();
+    const sourceUrls = new Set<string>();
 
     for (const value of values) {
       const id = parseDatabaseIdFromUrl(value);
       if (!id) return null;
-      databaseIds.add(id);
-      normalizedUrls.add(value);
+      dataSourceIds.add(id);
+      sourceUrls.add(value);
     }
 
-    return { databaseIds: [...databaseIds], databaseUrls: [...normalizedUrls] };
+    return {
+      type: 'data-sources',
+      dataSourceIds: [...dataSourceIds],
+      sourceUrls: [...sourceUrls],
+    };
   }
 
   private async fetchMe(token: string): Promise<NotionUser> {

@@ -39,6 +39,12 @@ type NotionSearchResponse = {
   next_cursor?: string | null;
 };
 
+type NotionDataSourceQueryResponse = {
+  results: NotionPage[];
+  has_more: boolean;
+  next_cursor?: string | null;
+};
+
 type NotionBlockChildrenResponse = {
   results: NotionBlock[];
   has_more: boolean;
@@ -108,10 +114,6 @@ function getAssignees(page: NotionPage): string[] | undefined {
   return assignees.length ? (assignees as string[]) : undefined;
 }
 
-function getParentDatabaseId(page: NotionPage): string | undefined {
-  return page.parent?.database_id ?? page.parent?.data_source_id;
-}
-
 function toIssue(page: NotionPage, context?: string): LinkedIssue {
   return {
     provider: 'notion',
@@ -127,19 +129,24 @@ function toIssue(page: NotionPage, context?: string): LinkedIssue {
   };
 }
 
-function isInConfiguredDatabase(page: NotionPage, databaseIds: string[]): boolean {
-  if (!databaseIds.length) return true;
-  const parentId = getParentDatabaseId(page)?.replace(/-/g, '').toLowerCase();
-  return !!parentId && databaseIds.includes(parentId);
-}
-
 function sortByUpdatedAtDesc(issues: LinkedIssue[]): LinkedIssue[] {
   return [...issues].sort(
     (a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime()
   );
 }
 
-async function searchPages(
+function issueMatchesTerm(issue: LinkedIssue, term: string): boolean {
+  const normalizedTerm = term.toLowerCase();
+  return [
+    issue.title,
+    issue.description,
+    issue.status,
+    issue.project,
+    ...(issue.assignees ?? []),
+  ].some((value) => value?.toLowerCase().includes(normalizedTerm));
+}
+
+async function searchSharedPages(
   credentials: NotionCredentials,
   searchTerm: string | undefined,
   limit: number
@@ -162,13 +169,62 @@ async function searchPages(
       { method: 'POST', body: JSON.stringify(body) }
     );
 
-    pages.push(
-      ...data.results.filter((page) => isInConfiguredDatabase(page, credentials.databaseIds))
-    );
+    pages.push(...data.results);
     startCursor = data.next_cursor ?? undefined;
   } while (startCursor && pages.length < limit);
 
   return pages.slice(0, limit);
+}
+
+async function queryDataSourcePages(
+  token: string,
+  dataSourceId: string,
+  limit: number
+): Promise<NotionPage[]> {
+  const pages: NotionPage[] = [];
+  let startCursor: string | undefined;
+
+  do {
+    const body: Record<string, unknown> = {
+      page_size: Math.min(100, limit),
+      result_type: 'page',
+      sorts: [{ direction: 'descending', timestamp: 'last_edited_time' }],
+    };
+    if (startCursor) body.start_cursor = startCursor;
+
+    const data = await notionConnectionService.request<NotionDataSourceQueryResponse>(
+      token,
+      `/data_sources/${encodeURIComponent(dataSourceId)}/query`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+
+    pages.push(...data.results);
+    startCursor = data.next_cursor ?? undefined;
+  } while (startCursor && pages.length < limit);
+
+  return pages.slice(0, limit);
+}
+
+async function listScopedIssues(
+  credentials: NotionCredentials,
+  searchTerm: string | undefined,
+  limit: number
+): Promise<LinkedIssue[]> {
+  if (credentials.scope.type === 'all-shared') {
+    const pages = await searchSharedPages(credentials, searchTerm, limit);
+    return pages.map((page) => toIssue(page));
+  }
+
+  const pagesBySource = await Promise.all(
+    credentials.scope.dataSourceIds.map((dataSourceId) =>
+      queryDataSourcePages(credentials.token, dataSourceId, limit)
+    )
+  );
+  const issues = pagesBySource.flat().map((page) => toIssue(page));
+  const filteredIssues = searchTerm
+    ? issues.filter((issue) => issueMatchesTerm(issue, searchTerm))
+    : issues;
+  return sortByUpdatedAtDesc(filteredIssues).slice(0, limit);
 }
 
 async function listIssues(opts: IssueQueryOpts): Promise<IssueListResult> {
@@ -180,8 +236,8 @@ async function listIssues(opts: IssueQueryOpts): Promise<IssueListResult> {
   const sanitizedLimit = clampIssueLimit(opts.limit, 50, 200);
 
   try {
-    const pages = await searchPages(credentials, undefined, sanitizedLimit);
-    return { success: true, issues: sortByUpdatedAtDesc(pages.map((page) => toIssue(page))) };
+    const issues = await listScopedIssues(credentials, undefined, sanitizedLimit);
+    return { success: true, issues: sortByUpdatedAtDesc(issues) };
   } catch (error) {
     return {
       success: false,
@@ -204,8 +260,8 @@ async function searchIssues(opts: IssueSearchOpts): Promise<IssueListResult> {
   const sanitizedLimit = clampIssueLimit(opts.limit, 20, 200);
 
   try {
-    const pages = await searchPages(credentials, term, sanitizedLimit);
-    return { success: true, issues: sortByUpdatedAtDesc(pages.map((page) => toIssue(page))) };
+    const issues = await listScopedIssues(credentials, term, sanitizedLimit);
+    return { success: true, issues: sortByUpdatedAtDesc(issues) };
   } catch (error) {
     return {
       success: false,

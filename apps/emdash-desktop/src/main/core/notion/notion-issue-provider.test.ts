@@ -14,12 +14,12 @@ vi.mock('./notion-connection-service', () => ({
 const mockGetStoredCredentials = vi.mocked(notionConnectionService.getStoredCredentials);
 const mockRequest = vi.mocked(notionConnectionService.request);
 
-const DATABASE_ID = 'abcdefabcdefabcdefabcdefabcdefab';
+const DATA_SOURCE_ID = 'abcdefabcdefabcdefabcdefabcdefab';
 const PAGE = {
   object: 'page',
   id: 'page-1',
   url: 'https://www.notion.so/acme/Fix-login-bug-page-1',
-  parent: { type: 'database_id', database_id: DATABASE_ID },
+  parent: { type: 'data_source_id', data_source_id: DATA_SOURCE_ID },
   last_edited_time: '2026-05-20T10:00:00.000Z',
   properties: {
     Name: { type: 'title', title: [{ plain_text: 'Fix login bug' }] },
@@ -35,8 +35,11 @@ describe('notionIssueProvider', () => {
   });
 
   describe('listIssues', () => {
-    it('returns pages from configured databases', async () => {
-      const credentials = { token: 'tok', databaseIds: [DATABASE_ID], databaseUrls: [] };
+    it('queries configured data sources directly', async () => {
+      const credentials = {
+        token: 'tok',
+        scope: { type: 'data-sources' as const, dataSourceIds: [DATA_SOURCE_ID], sourceUrls: [] },
+      };
       mockGetStoredCredentials.mockResolvedValue(credentials);
       mockRequest.mockResolvedValue({
         results: [PAGE],
@@ -62,20 +65,16 @@ describe('notionIssueProvider', () => {
       });
       expect(mockRequest).toHaveBeenCalledWith(
         credentials.token,
-        '/search',
+        `/data_sources/${DATA_SOURCE_ID}/query`,
         expect.objectContaining({
           method: 'POST',
-          body: expect.stringContaining('"value":"page"'),
+          body: expect.stringContaining('"result_type":"page"'),
         })
       );
     });
 
-    it('filters out pages outside configured database scope', async () => {
-      const credentials = {
-        token: 'tok',
-        databaseIds: ['11111111111111111111111111111111'],
-        databaseUrls: [],
-      };
+    it('uses shared-page search when no data source scope is configured', async () => {
+      const credentials = { token: 'tok', scope: { type: 'all-shared' as const } };
       mockGetStoredCredentials.mockResolvedValue(credentials);
       mockRequest.mockResolvedValue({
         results: [PAGE],
@@ -85,7 +84,15 @@ describe('notionIssueProvider', () => {
 
       const result = await notionIssueProvider.listIssues({ limit: 50 });
 
-      expect(result).toEqual({ success: true, issues: [] });
+      expect(result).toEqual({ success: true, issues: [expect.any(Object)] });
+      expect(mockRequest).toHaveBeenCalledWith(
+        credentials.token,
+        '/search',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"value":"page"'),
+        })
+      );
     });
 
     it('returns error when no credentials stored', async () => {
@@ -107,7 +114,7 @@ describe('notionIssueProvider', () => {
     });
 
     it('passes the search query to Notion', async () => {
-      const credentials = { token: 'tok', databaseIds: [], databaseUrls: [] };
+      const credentials = { token: 'tok', scope: { type: 'all-shared' as const } };
       mockGetStoredCredentials.mockResolvedValue(credentials);
       mockRequest.mockResolvedValue({
         results: [PAGE],
@@ -124,11 +131,47 @@ describe('notionIssueProvider', () => {
         expect.objectContaining({ body: expect.stringContaining('"query":"login"') })
       );
     });
+
+    it('searches configured data sources without global parent filtering', async () => {
+      const credentials = {
+        token: 'tok',
+        scope: { type: 'data-sources' as const, dataSourceIds: [DATA_SOURCE_ID], sourceUrls: [] },
+      };
+      mockGetStoredCredentials.mockResolvedValue(credentials);
+      mockRequest.mockResolvedValue({
+        results: [
+          PAGE,
+          {
+            ...PAGE,
+            id: 'page-2',
+            properties: {
+              ...PAGE.properties,
+              Name: { type: 'title', title: [{ plain_text: 'Write release notes' }] },
+            },
+          },
+        ],
+        has_more: false,
+        next_cursor: null,
+      });
+
+      const result = await notionIssueProvider.searchIssues({ searchTerm: 'login', limit: 20 });
+
+      expect(result).toEqual({
+        success: true,
+        issues: [expect.objectContaining({ identifier: PAGE.id })],
+      });
+      expect(mockRequest).toHaveBeenCalledWith(
+        credentials.token,
+        `/data_sources/${DATA_SOURCE_ID}/query`,
+        expect.objectContaining({ method: 'POST' })
+      );
+      expect(mockRequest).not.toHaveBeenCalledWith(credentials.token, '/search', expect.anything());
+    });
   });
 
   describe('getIssueContext', () => {
     it('returns page metadata with block children as context', async () => {
-      const credentials = { token: 'tok', databaseIds: [], databaseUrls: [] };
+      const credentials = { token: 'tok', scope: { type: 'all-shared' as const } };
       mockGetStoredCredentials.mockResolvedValue(credentials);
       mockRequest.mockResolvedValueOnce(PAGE).mockResolvedValueOnce({
         results: [
@@ -163,7 +206,7 @@ describe('notionIssueProvider', () => {
     });
 
     it('follows block children pagination when building context', async () => {
-      const credentials = { token: 'tok', databaseIds: [], databaseUrls: [] };
+      const credentials = { token: 'tok', scope: { type: 'all-shared' as const } };
       mockGetStoredCredentials.mockResolvedValue(credentials);
       mockRequest
         .mockResolvedValueOnce(PAGE)
@@ -208,7 +251,7 @@ describe('notionIssueProvider', () => {
     });
 
     it('includes nested child blocks when building context', async () => {
-      const credentials = { token: 'tok', databaseIds: [], databaseUrls: [] };
+      const credentials = { token: 'tok', scope: { type: 'all-shared' as const } };
       mockGetStoredCredentials.mockResolvedValue(credentials);
       mockRequest
         .mockResolvedValueOnce(PAGE)
