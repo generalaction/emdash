@@ -130,5 +130,4 @@ describe('LegacySshGitRepository', () => {
       vi.useRealTimers();
     }
   });
-
 });
