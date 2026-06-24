@@ -80,11 +80,11 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
       await backfillGitHubAccount(provider);
       return provider;
     } catch (error) {
-      repoLease.release();
+      await repoLease.release();
       throw error;
     }
   } catch (error) {
-    runtimeLease.release();
+    await runtimeLease.release();
     throw error;
   }
 }
@@ -124,7 +124,9 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
           void provider?.gitRepositoryFetchService.fetch();
         }
       };
-      const dispose = () => sshConnectionManager.off('connection-event', handler);
+      const dispose = () => {
+        sshConnectionManager.off('connection-event', handler);
+      };
 
       const repoLease = await runtimeLease.value.git.openRepository(project.path);
       try {
@@ -153,11 +155,11 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
 
         return provider;
       } catch (error) {
-        repoLease.release();
+        await repoLease.release();
         throw error;
       }
     } catch (error) {
-      runtimeLease.release();
+      await runtimeLease.release();
       throw error;
     }
   } catch (error) {
@@ -179,7 +181,7 @@ async function runLegacyProjectSettingsMigration(
   try {
     await settings.ensure({ git: lease.value });
   } finally {
-    lease.release();
+    await lease.release();
   }
 }
 
@@ -205,7 +207,7 @@ function buildProvider(
   settings: ProjectSettingsProvider,
   worktreeHost: WorktreeHost,
   resolveWorktreePoolPath: () => Promise<string>,
-  dispose: () => void,
+  dispose: () => void | Promise<void>,
   runtimeLease: Lease<MachineRuntime>,
   repoLease: Lease<IGitRepository>
 ): ProjectProvider {
@@ -234,10 +236,10 @@ function buildProvider(
     events.emit(gitRepoUpdateChannel, { projectId, update });
   });
 
-  const releaseGitRuntime = () => {
+  const releaseGitRuntime = async () => {
     unsubscribeRepoUpdates();
-    repoLease.release();
-    runtimeLease.release();
+    await repoLease.release();
+    await runtimeLease.release();
   };
 
   return new ProjectProvider(
@@ -248,10 +250,9 @@ function buildProvider(
     worktreeService,
     gitRepositoryFetchService,
     runtimeLease.value.git,
-    () => {
-      gitRepositoryFetchService.stop();
-      releaseGitRuntime();
-      dispose();
+    async () => {
+      await releaseGitRuntime();
+      await dispose();
     }
   );
 }

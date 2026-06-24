@@ -34,10 +34,10 @@ describe('ResourceMap', () => {
     expect(leaseA.value).toBe('value');
     expect(leaseB.value).toBe('value');
 
-    leaseA.release();
-    leaseA.release(); // idempotent
+    await leaseA.release();
+    await leaseA.release(); // idempotent
     expect(torndown).toEqual([]);
-    leaseB.release();
+    await leaseB.release();
     await new Promise((resolve) => setImmediate(resolve));
     expect(torndown).toEqual(['k']);
     expect(map.idle).toBe(true);
@@ -53,7 +53,7 @@ describe('ResourceMap', () => {
     // A fresh acquire provisions again rather than reusing the poisoned entry.
     const lease = await map.acquire('k', async () => 'recovered');
     expect(lease.value).toBe('recovered');
-    lease.release();
+    await lease.release();
   });
 
   it('waits for an in-flight teardown before re-provisioning the same key', async () => {
@@ -68,7 +68,7 @@ describe('ResourceMap', () => {
     });
 
     const first = await map.acquire('k', async () => 'one');
-    first.release();
+    const firstRelease = first.release();
 
     const second = map.acquire('k', async () => {
       order.push('provision:two');
@@ -78,10 +78,36 @@ describe('ResourceMap', () => {
     expect(order).toEqual(['teardown:start']);
 
     teardownGate.resolve();
+    await firstRelease;
     const lease = await second;
     expect(order).toEqual(['teardown:start', 'teardown:end', 'provision:two']);
     expect(lease.value).toBe('two');
-    lease.release();
+    await lease.release();
+  });
+
+  it('waits for all in-flight teardowns during dispose', async () => {
+    const teardownGate = deferred<void>();
+    const map = new ResourceMap<string>({
+      teardown: async () => {
+        await teardownGate.promise;
+      },
+    });
+
+    const lease = await map.acquire('k', async () => 'value');
+    const release = lease.release();
+
+    let disposed = false;
+    const dispose = map.dispose().then(() => {
+      disposed = true;
+    });
+
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(disposed).toBe(false);
+
+    teardownGate.resolve();
+    await release;
+    await dispose;
+    expect(disposed).toBe(true);
   });
 
   it('tears down when the last lease releases while provisioning succeeded late', async () => {
@@ -96,7 +122,7 @@ describe('ResourceMap', () => {
     const pending = map.acquire('k', () => gate.promise);
     gate.resolve('late');
     const lease = await pending;
-    lease.release();
+    await lease.release();
     await new Promise((resolve) => setImmediate(resolve));
     expect(torndown).toEqual(['late']);
   });
@@ -111,7 +137,7 @@ describe('ResourceMap', () => {
     });
 
     const lease = await map.acquire('k', async () => 'value');
-    lease.release();
+    await lease.release();
     await new Promise((resolve) => setImmediate(resolve));
 
     expect(errors).toHaveLength(1);
@@ -128,13 +154,13 @@ describe('ResourceMap', () => {
     });
 
     const lease = await map.acquire('k', async () => 'value');
-    map.dispose();
+    const disposed = map.dispose();
 
     expect(lease.value).toBe('value');
     await expect(map.acquire('other', async () => 'x')).rejects.toThrow('ResourceMap disposed');
 
-    lease.release();
-    await new Promise((resolve) => setImmediate(resolve));
+    await lease.release();
+    await disposed;
     expect(emptied).toBe(1);
     expect(map.idle).toBe(true);
   });

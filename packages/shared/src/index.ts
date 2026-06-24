@@ -10,4 +10,12 @@ export {
 } from './result';
 export { Emitter } from './emitter';
 export { isDeepEqual } from './deep-equal';
-export type { IDisposable, IInitializable, ILifecycle, Lease, Unsubscribe } from './lifecycle';
+export { toPendingLease, withLease } from './lifecycle';
+export type {
+  PendingLease,
+  IDisposable,
+  IInitializable,
+  ILifecycle,
+  Lease,
+  Unsubscribe,
+} from './lifecycle';

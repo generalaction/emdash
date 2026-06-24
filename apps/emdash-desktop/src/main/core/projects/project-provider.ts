@@ -85,7 +85,7 @@ export class ProjectProvider implements IDisposable {
     worktreeService: WorktreeService,
     gitRepositoryFetchService: GitRepositoryFetchService,
     private readonly _gitRuntime: IGitRuntime,
-    private readonly _dispose: () => void
+    private readonly _dispose: () => void | Promise<void>
   ) {
     this.type = transport.kind;
     this.projectId = projectId;
@@ -130,17 +130,20 @@ export class ProjectProvider implements IDisposable {
     try {
       return await lease.value.getHead();
     } finally {
-      lease.release();
+      await lease.release();
     }
   }
 
   async dispose(): Promise<void> {
-    this._dispose();
-    this.gitRepositoryFetchService.stop();
-    const projectSettings = await this.settings.get();
-    const mode = projectSettings.tmux ? 'detach' : 'terminate';
-    await taskSessionManager.teardownAllForProject(this.projectId, mode);
-    await workspaceRegistry.releaseAllForProject(this.projectId, mode);
-    await previewServerService.stopForProject(this.projectId);
+    try {
+      this.gitRepositoryFetchService.stop();
+      const projectSettings = await this.settings.get();
+      const mode = projectSettings.tmux ? 'detach' : 'terminate';
+      await taskSessionManager.teardownAllForProject(this.projectId, mode);
+      await workspaceRegistry.releaseAllForProject(this.projectId, mode);
+      await previewServerService.stopForProject(this.projectId);
+    } finally {
+      await this._dispose();
+    }
   }
 }

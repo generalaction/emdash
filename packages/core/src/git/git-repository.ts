@@ -359,8 +359,8 @@ export class GitRepository implements IGitRepository {
     }
   }
 
-  dispose(): void {
-    this.commonDirWatch.release();
+  async dispose(): Promise<void> {
+    await this.commonDirWatch.release();
     this.refsModel.dispose();
     this.remotesModel.dispose();
     this.worktrees.clear();

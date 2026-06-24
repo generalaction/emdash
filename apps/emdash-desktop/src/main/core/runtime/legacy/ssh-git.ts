@@ -83,9 +83,9 @@ export class LegacySshGitRuntime implements IGitRuntime {
       }),
   });
   private readonly worktrees = new ResourceMap<LegacyWorktreeResource>({
-    teardown: (_key, resource) => {
-      resource.worktree.dispose();
-      resource.repositoryLease.release();
+    teardown: async (_key, resource) => {
+      await resource.worktree.dispose();
+      await resource.repositoryLease.release();
     },
     onError: (context, error) =>
       log.warn('LegacySshGitRuntime: worktree teardown failed', { context, error: String(error) }),
@@ -190,9 +190,11 @@ export class LegacySshGitRuntime implements IGitRuntime {
     };
   }
 
-  dispose(): void {
-    this.worktrees.dispose();
-    this.repositories.dispose();
+  async dispose(): Promise<void> {
+    const worktreesDisposed = this.worktrees.dispose();
+    const repositoriesDisposed = this.repositories.dispose();
+    await worktreesDisposed;
+    await repositoriesDisposed;
   }
 
   /**
@@ -590,7 +592,7 @@ class LegacySshGitWorktree implements IGitWorktree {
     return ok({ output: result.data.output, sequences: await this.refreshAfterHistoryChange() });
   }
 
-  dispose(): void {
+  async dispose(): Promise<void> {
     for (const timer of this.timers) clearInterval(timer);
     this.statusModel.dispose();
     this.headModel.dispose();
