@@ -73,7 +73,7 @@ export class OverrideSettings<TConfig extends object> {
     value: TConfig;
     defaults: TConfig;
     overrides: Partial<TConfig>;
-  } | null> {
+  }> {
     const externalDefaults = this.getExternalDefaults();
     const defaults = (externalDefaults[id] ?? {}) as TConfig;
 
