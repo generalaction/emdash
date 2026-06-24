@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { resolveGitBin } from './exec';
 
+const originalPlatform = process.platform;
 let tempDir: string;
 
 beforeEach(() => {
@@ -11,12 +12,17 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  Object.defineProperty(process, 'platform', { value: originalPlatform });
   fs.rmSync(tempDir, { recursive: true, force: true });
 });
 
-function executableGit(directory: string): string {
+function setPlatform(platform: NodeJS.Platform): void {
+  Object.defineProperty(process, 'platform', { value: platform });
+}
+
+function executableGit(directory: string, filename = 'git'): string {
   fs.mkdirSync(directory, { recursive: true });
-  const gitPath = path.join(directory, 'git');
+  const gitPath = path.join(directory, filename);
   fs.writeFileSync(gitPath, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
   return gitPath;
 }
@@ -33,5 +39,20 @@ describe('resolveGitBin', () => {
     const pathGit = executableGit(path.join(tempDir, 'path-bin'));
 
     expect(resolveGitBin({ PATH: path.dirname(pathGit) })).toBe(pathGit);
+  });
+
+  it('skips invalid explicit GIT_PATH and falls back to PATH git', () => {
+    const pathGit = executableGit(path.join(tempDir, 'path-bin'));
+
+    expect(resolveGitBin({ GIT_PATH: '/does/not/exist', PATH: path.dirname(pathGit) })).toBe(
+      pathGit
+    );
+  });
+
+  it('finds PATHEXT executables on Windows PATH', () => {
+    setPlatform('win32');
+    const pathGit = executableGit(path.join(tempDir, 'path-bin'), 'git.exe');
+
+    expect(resolveGitBin({ PATH: path.dirname(pathGit), PATHEXT: '.exe' })).toBe(pathGit);
   });
 });

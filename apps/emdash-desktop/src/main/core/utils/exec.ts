@@ -1,18 +1,34 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+function windowsExecutableExtensions(env: NodeJS.ProcessEnv): string[] {
+  const pathExt = env.PATHEXT || '.COM;.EXE;.BAT;.CMD';
+  return pathExt
+    .split(';')
+    .map((extension) => extension.trim().toLowerCase())
+    .filter(Boolean)
+    .map((extension) => (extension.startsWith('.') ? extension : `.${extension}`));
+}
+
 function findExecutableOnPath(name: string, env: NodeJS.ProcessEnv = process.env): string | null {
   const pathValue = env.PATH;
   if (!pathValue) return null;
 
+  const extensions =
+    process.platform === 'win32' && !path.extname(name)
+      ? ['', ...windowsExecutableExtensions(env)]
+      : [''];
+
   for (const directory of pathValue.split(path.delimiter)) {
     if (!directory) continue;
 
-    const candidate = path.join(directory, name);
-    try {
-      fs.accessSync(candidate, fs.constants.X_OK);
-      return candidate;
-    } catch {}
+    for (const extension of extensions) {
+      const candidate = path.join(directory, `${name}${extension}`);
+      try {
+        fs.accessSync(candidate, fs.constants.X_OK);
+        return candidate;
+      } catch {}
+    }
   }
 
   return null;
