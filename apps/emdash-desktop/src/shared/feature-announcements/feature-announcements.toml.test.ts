@@ -38,6 +38,7 @@ describe('feature-announcements.toml', () => {
       $defs?: {
         feature?: {
           additionalProperties?: boolean;
+          required?: string[];
           properties?: Record<string, { enum?: string[] }>;
         };
         cta?: { additionalProperties?: boolean; properties?: Record<string, { enum?: string[] }> };
