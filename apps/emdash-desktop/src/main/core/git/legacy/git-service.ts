@@ -56,6 +56,33 @@ const STATUS_FINGERPRINT_TIMEOUT_MS: Record<GitStatusUntrackedMode, number> = {
   normal: 10_000,
 };
 
+const RECOVERABLE_SSH_TRANSPORT_ERROR_CODES = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'EHOSTUNREACH',
+  'ENETDOWN',
+  'ENETUNREACH',
+  'ENOTCONN',
+  'EPIPE',
+  'ETIMEDOUT',
+]);
+
+function isRecoverableSshTransportError(error: unknown): boolean {
+  const code =
+    typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : null;
+  if (typeof code === 'string' && RECOVERABLE_SSH_TRANSPORT_ERROR_CODES.has(code)) return true;
+
+  const message = error instanceof Error ? error.message : String(error);
+  return /SSH connection is not available|read ETIMEDOUT|timed out|connection (?:reset|refused|closed)|not connected|socket hang up/i.test(
+    message
+  );
+}
+
+function emptyStdoutUnlessRecoverable(error: unknown): { stdout: string } {
+  if (isRecoverableSshTransportError(error)) throw error;
+  return { stdout: '' };
+}
+
 function classifyFetchError(stderr: string): FetchError {
   if (
     stderr.includes('Authentication failed') ||
@@ -204,10 +231,8 @@ export class GitService implements IDisposable {
       const parser = new StatusParser();
       const [, stagedRes, unstagedRes, head] = await Promise.all([
         this._runStatusZ(parser),
-        this.ctx.exec('git', ['diff', '--numstat', '--cached']).catch(() => ({
-          stdout: '',
-        })),
-        this.ctx.exec('git', ['diff', '--numstat']).catch(() => ({ stdout: '' })),
+        this.ctx.exec('git', ['diff', '--numstat', '--cached']).catch(emptyStdoutUnlessRecoverable),
+        this.ctx.exec('git', ['diff', '--numstat']).catch(emptyStdoutUnlessRecoverable),
         this._getHeadInfo(),
       ]);
 
@@ -221,6 +246,7 @@ export class GitService implements IDisposable {
       return await this._buildFullGitStatus(parser.status, stagedNumstat, unstagedNumstat, head);
     } catch (e) {
       if (e instanceof TooManyFilesChangedError) throw e;
+      if (isRecoverableSshTransportError(e)) throw e;
       return {
         staged: [],
         unstaged: [],
@@ -997,7 +1023,8 @@ export class GitService implements IDisposable {
     try {
       const { stdout } = await this.ctx.exec('git', ['rev-parse', '--symbolic-full-name', 'HEAD']);
       ref = stdout.trim();
-    } catch {
+    } catch (error) {
+      if (isRecoverableSshTransportError(error)) throw error;
       return this._getUnbornHeadInfo();
     }
 
@@ -1024,7 +1051,8 @@ export class GitService implements IDisposable {
       if (ref.startsWith('heads/'))
         return { kind: 'branch', name: ref.slice('heads/'.length), oid };
       return { kind: 'branch', name: ref, oid };
-    } catch {
+    } catch (error) {
+      if (isRecoverableSshTransportError(error)) throw error;
       return this._getUnbornHeadInfo();
     }
   }
@@ -1033,7 +1061,8 @@ export class GitService implements IDisposable {
     try {
       const { stdout: symOut } = await this.ctx.exec('git', ['symbolic-ref', '--short', 'HEAD']);
       return { kind: 'unborn', name: symOut.trim() };
-    } catch {
+    } catch (error) {
+      if (isRecoverableSshTransportError(error)) throw error;
       return { kind: 'unborn', name: 'main' };
     }
   }
@@ -1162,7 +1191,8 @@ export class GitService implements IDisposable {
         }
       }
       return remotes;
-    } catch {
+    } catch (error) {
+      if (isRecoverableSshTransportError(error)) throw error;
       return [];
     }
   }

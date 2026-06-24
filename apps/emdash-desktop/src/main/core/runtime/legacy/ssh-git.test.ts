@@ -1,8 +1,48 @@
 import type { LocalBranch } from '@emdash/core/git';
 import { describe, expect, it, vi } from 'vitest';
-import type { GitService } from '@main/core/git/legacy/git-service';
+import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { FileSystemProvider } from '@main/core/fs/types';
+import { GitService } from '@main/core/git/legacy/git-service';
 import { log } from '@main/lib/logger';
 import { LegacySshGitRepository, LegacySshGitWorktree } from './ssh-git';
+
+describe('GitService SSH refresh failures', () => {
+  function createRejectingGitService(error: Error): GitService {
+    const ctx = {
+      root: '/repo/worktree',
+      supportsLocalSpawn: false,
+      exec: vi.fn(async () => {
+        throw error;
+      }),
+      execStreaming: vi.fn(async () => {
+        throw error;
+      }),
+      dispose: vi.fn(),
+    } as unknown as IExecutionContext;
+    const fs = {} as FileSystemProvider;
+    return new GitService(ctx, fs);
+  }
+
+  it('propagates recoverable SSH failures from status fallback paths', async () => {
+    const git = createRejectingGitService(new Error('SSH connection is not available'));
+
+    await expect(git.getFullStatus()).rejects.toThrow('SSH connection is not available');
+  });
+
+  it('propagates recoverable SSH failures from head fallback paths', async () => {
+    const git = createRejectingGitService(
+      Object.assign(new Error('read ETIMEDOUT'), { code: 'ETIMEDOUT' })
+    );
+
+    await expect(git.getHeadInfo()).rejects.toThrow('read ETIMEDOUT');
+  });
+
+  it('propagates recoverable SSH failures from remotes fallback paths', async () => {
+    const git = createRejectingGitService(new Error('socket hang up'));
+
+    await expect(git.getRemotes()).rejects.toThrow('socket hang up');
+  });
+});
 
 describe('LegacySshGitRepository', () => {
   it('treats unavailable SSH connections during background refs refresh as recoverable', async () => {
@@ -22,10 +62,11 @@ describe('LegacySshGitRepository', () => {
 
     try {
       await expect(repository.getRefs()).resolves.toEqual({ branches: firstRefs });
+      await expect(repository.getRemotes()).resolves.toEqual({ remotes: [] });
       const updates: unknown[] = [];
       const unsubscribe = repository.subscribe((update) => updates.push(update));
 
-      await vi.advanceTimersByTimeAsync(15_000);
+      await vi.advanceTimersByTimeAsync(15_001);
 
       expect(getBranches).toHaveBeenCalledTimes(2);
       expect(updates).toEqual([]);
@@ -75,10 +116,15 @@ describe('LegacySshGitRepository', () => {
         stagedAdded: 0,
         stagedDeleted: 0,
       });
+      await expect(worktree.getHead()).resolves.toEqual({
+        kind: 'branch',
+        name: 'main',
+        oid: 'abc123',
+      });
       const updates: unknown[] = [];
       const unsubscribe = worktree.subscribe((update) => updates.push(update));
 
-      await vi.advanceTimersByTimeAsync(20_000);
+      await vi.advanceTimersByTimeAsync(20_001);
 
       expect(getFullStatus).toHaveBeenCalledTimes(2);
       expect(updates).toEqual([]);
@@ -123,10 +169,17 @@ describe('LegacySshGitRepository', () => {
         name: 'main',
         oid: 'abc123',
       });
+      await expect(worktree.getStatus()).resolves.toEqual({
+        kind: 'ok',
+        staged: [],
+        unstaged: [],
+        stagedAdded: 0,
+        stagedDeleted: 0,
+      });
       const updates: unknown[] = [];
       const unsubscribe = worktree.subscribe((update) => updates.push(update));
 
-      await vi.advanceTimersByTimeAsync(10_000);
+      await vi.advanceTimersByTimeAsync(10_001);
 
       expect(getHeadInfo).toHaveBeenCalledTimes(2);
       expect(updates).toEqual([]);
