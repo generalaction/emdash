@@ -10,9 +10,9 @@ import type {
 import { Separator } from '@renderer/lib/ui/separator';
 import { cn } from '@renderer/utils/utils';
 import { usePaneContext } from '../pane-context';
+import { DraggableTab } from './draggable-tab';
 import { TabCloseButton } from './tab-close-button';
 import { TabContextMenu } from './tab-context-menu';
-import { DraggableTab } from './draggable-tab';
 import { TabTitle } from './tab-title';
 
 export interface GenericTabItemProps {
@@ -135,7 +135,7 @@ export const GenericTabItem = observer(function GenericTabItem({
             isFocusedPane && 'text-foreground'
           )}
         >
-          <div className="flex h-full items-center pl-3 pr-2">
+          <div className="flex h-full items-center pr-2 pl-3">
             {preSlot}
             {isEditing ? (
               <input
@@ -145,7 +145,7 @@ export const GenericTabItem = observer(function GenericTabItem({
                 }}
                 defaultValue={renameValue ?? label}
                 maxLength={renameMaxLength}
-                className=" min-w-0 rounded bg-background-1 max-w-30 h-6 px-1.5 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
+                className="h-6 max-w-30 min-w-0 rounded bg-background-1 px-1.5 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
                 onClick={(e) => e.stopPropagation()}
                 onDoubleClick={(e) => e.stopPropagation()}
                 onBlur={(e) => commit(e.target.value)}

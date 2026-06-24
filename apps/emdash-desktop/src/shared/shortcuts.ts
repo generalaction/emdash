@@ -237,7 +237,7 @@ export const APP_SHORTCUTS = defineShortcuts({
     category: 'Task View',
   },
   newTerminal: {
-    defaultHotkey: 'Mod+Shift+T',
+    defaultHotkey: 'Mod+Shift+`',
     label: 'New Terminal',
     description: 'Create a new terminal in the current task',
     category: 'Task View',
