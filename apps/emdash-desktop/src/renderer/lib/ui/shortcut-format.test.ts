@@ -2,9 +2,7 @@ import { parseHotkey } from '@tanstack/react-hotkeys';
 import { describe, expect, it } from 'vitest';
 import {
   describeShortcut,
-  formatShortcutDisplay,
   formatShortcutKey,
-  getShortcutKeyOpticalAlignClass,
   getShortcutKeys,
 } from './shortcut-format';
 
@@ -49,36 +47,4 @@ describe('shortcut formatting', () => {
     expect(formatShortcutKey('End', 'mac')).toBe('End');
   });
 
-  it('joins formatted keys into a single display string', () => {
-    expect(formatShortcutDisplay(['Meta', 'K'], 'mac')).toBe('⌘K');
-    expect(formatShortcutDisplay(['Meta', ','], 'mac')).toBe('⌘,');
-  });
-
-  it('optically adjusts symbolic shortcut keys inside keycaps', () => {
-    expect(getShortcutKeyOpticalAlignClass('Enter')).toBe('translate-y-px');
-    expect(getShortcutKeyOpticalAlignClass('Meta')).toBe('-translate-y-px');
-  });
-
-  it('optically lowers single alphanumeric key labels to account for cap-height', () => {
-    expect(getShortcutKeyOpticalAlignClass('K')).toBe('translate-y-[0.5px]');
-    expect(getShortcutKeyOpticalAlignClass('1')).toBe('translate-y-[0.5px]');
-  });
-
-  it('optically raises punctuation and operators with low visual centers', () => {
-    expect(getShortcutKeyOpticalAlignClass('(')).toBe('-translate-y-px');
-    expect(getShortcutKeyOpticalAlignClass(')')).toBe('-translate-y-px');
-    expect(getShortcutKeyOpticalAlignClass('+')).toBe('-translate-y-px');
-    expect(getShortcutKeyOpticalAlignClass(',')).toBe('-translate-y-px');
-    expect(getShortcutKeyOpticalAlignClass('-')).toBe('-translate-y-px');
-    expect(getShortcutKeyOpticalAlignClass('.')).toBe('-translate-y-px');
-    expect(getShortcutKeyOpticalAlignClass(':')).toBe('-translate-y-px');
-    expect(getShortcutKeyOpticalAlignClass(';')).toBe('-translate-y-px');
-    expect(getShortcutKeyOpticalAlignClass('=')).toBe('-translate-y-px');
-    expect(getShortcutKeyOpticalAlignClass('[')).toBe('-translate-y-px');
-    expect(getShortcutKeyOpticalAlignClass(']')).toBe('-translate-y-px');
-    expect(getShortcutKeyOpticalAlignClass('{')).toBe('-translate-y-px');
-    expect(getShortcutKeyOpticalAlignClass('}')).toBe('-translate-y-px');
-    expect(getShortcutKeyOpticalAlignClass('/')).toBe('-translate-y-px');
-    expect(getShortcutKeyOpticalAlignClass('\\')).toBe('-translate-y-px');
-  });
 });
