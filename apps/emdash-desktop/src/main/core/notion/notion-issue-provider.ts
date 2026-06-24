@@ -71,7 +71,7 @@ const BLOCK_CONTEXT_PAGE_SIZE = 100;
 const MAX_CONTEXT_BLOCKS = 300;
 const MAX_CONTEXT_DEPTH = 3;
 const NOTION_DATA_SOURCE_CONCURRENCY = 4;
-const MAX_DISCOVERED_DATA_SOURCES = 25;
+const DATA_SOURCE_QUERY_PAGE_SIZE = 100;
 
 function plainText(value: NotionRichText[] | undefined): string | undefined {
   const text = value
@@ -187,16 +187,13 @@ async function searchSharedPages(
   return pages.slice(0, limit);
 }
 
-async function searchSharedDataSources(
-  credentials: NotionCredentials,
-  limit: number
-): Promise<NotionDataSource[]> {
+async function searchSharedDataSources(credentials: NotionCredentials): Promise<NotionDataSource[]> {
   const dataSources: NotionDataSource[] = [];
   let startCursor: string | undefined;
 
   do {
     const body: Record<string, unknown> = {
-      page_size: Math.min(100, limit),
+      page_size: 100,
       filter: { property: 'object', value: 'data_source' },
       sort: { direction: 'descending', timestamp: 'last_edited_time' },
     };
@@ -210,9 +207,27 @@ async function searchSharedDataSources(
 
     dataSources.push(...data.results.filter((result) => result.object === 'data_source'));
     startCursor = data.next_cursor ?? undefined;
-  } while (startCursor && dataSources.length < limit);
+  } while (startCursor);
 
-  return dataSources.slice(0, limit);
+  return dataSources;
+}
+
+async function queryDataSourcePageBatch(
+  token: string,
+  dataSourceId: string,
+  startCursor?: string
+): Promise<NotionDataSourceQueryResponse> {
+  const body: Record<string, unknown> = {
+    page_size: DATA_SOURCE_QUERY_PAGE_SIZE,
+    sorts: [{ direction: 'descending', timestamp: 'last_edited_time' }],
+  };
+  if (startCursor) body.start_cursor = startCursor;
+
+  return notionConnectionService.request<NotionDataSourceQueryResponse>(
+    token,
+    `/data_sources/${encodeURIComponent(dataSourceId)}/query`,
+    { method: 'POST', body: JSON.stringify(body) }
+  );
 }
 
 async function queryDataSourcePages(
@@ -224,23 +239,40 @@ async function queryDataSourcePages(
   let startCursor: string | undefined;
 
   do {
-    const body: Record<string, unknown> = {
-      page_size: Math.min(100, limit),
-      sorts: [{ direction: 'descending', timestamp: 'last_edited_time' }],
-    };
-    if (startCursor) body.start_cursor = startCursor;
-
-    const data = await notionConnectionService.request<NotionDataSourceQueryResponse>(
-      token,
-      `/data_sources/${encodeURIComponent(dataSourceId)}/query`,
-      { method: 'POST', body: JSON.stringify(body) }
-    );
-
+    const data = await queryDataSourcePageBatch(token, dataSourceId, startCursor);
     pages.push(...data.results);
     startCursor = data.next_cursor ?? undefined;
   } while (startCursor && pages.length < limit);
 
   return pages.slice(0, limit);
+}
+
+async function searchDataSourceIssues(
+  token: string,
+  dataSourceId: string,
+  searchTerm: string,
+  limit: number
+): Promise<LinkedIssue[]> {
+  const issues: LinkedIssue[] = [];
+  let startCursor: string | undefined;
+
+  do {
+    const data = await queryDataSourcePageBatch(token, dataSourceId, startCursor);
+    for (const page of data.results) {
+      const issue = toIssue(page);
+      if (issueMatchesTerm(issue, searchTerm)) {
+        issues.push(issue);
+        if (issues.length >= limit) break;
+      }
+    }
+    startCursor = data.next_cursor ?? undefined;
+  } while (startCursor && issues.length < limit);
+
+  return issues;
+}
+
+function dedupeIssuesByIdentifier(issues: LinkedIssue[]): LinkedIssue[] {
+  return [...new Map(issues.map((issue) => [issue.identifier, issue])).values()];
 }
 
 async function listScopedIssues(
@@ -250,20 +282,32 @@ async function listScopedIssues(
 ): Promise<LinkedIssue[]> {
   if (credentials.scope.type === 'all-shared') {
     if (!searchTerm) {
-      const dataSources = await searchSharedDataSources(credentials, MAX_DISCOVERED_DATA_SOURCES);
+      const dataSources = await searchSharedDataSources(credentials);
       const pagesBySource = await mapWithConcurrency(
         dataSources,
         NOTION_DATA_SOURCE_CONCURRENCY,
         (dataSource) => queryDataSourcePages(credentials.token, dataSource.id, limit)
       );
       const dataSourceIssues = pagesBySource.flat().map((page) => toIssue(page));
-      if (dataSourceIssues.length) {
-        return sortByUpdatedAtDesc(dataSourceIssues).slice(0, limit);
-      }
+      const sharedPageIssues = (await searchSharedPages(credentials, undefined, limit)).map((page) =>
+        toIssue(page)
+      );
+      return sortByUpdatedAtDesc(
+        dedupeIssuesByIdentifier([...dataSourceIssues, ...sharedPageIssues])
+      ).slice(0, limit);
     }
 
     const pages = await searchSharedPages(credentials, searchTerm, limit);
     return pages.map((page) => toIssue(page));
+  }
+
+  if (searchTerm) {
+    const issuesBySource = await Promise.all(
+      credentials.scope.dataSourceIds.map((dataSourceId) =>
+        searchDataSourceIssues(credentials.token, dataSourceId, searchTerm, limit)
+      )
+    );
+    return sortByUpdatedAtDesc(dedupeIssuesByIdentifier(issuesBySource.flat())).slice(0, limit);
   }
 
   const pagesBySource = await Promise.all(
@@ -272,10 +316,7 @@ async function listScopedIssues(
     )
   );
   const issues = pagesBySource.flat().map((page) => toIssue(page));
-  const filteredIssues = searchTerm
-    ? issues.filter((issue) => issueMatchesTerm(issue, searchTerm))
-    : issues;
-  return sortByUpdatedAtDesc(filteredIssues).slice(0, limit);
+  return sortByUpdatedAtDesc(dedupeIssuesByIdentifier(issues)).slice(0, limit);
 }
 
 async function listIssues(opts: IssueQueryOpts): Promise<IssueListResult> {

@@ -116,8 +116,17 @@ describe('notionIssueProvider', () => {
       );
     });
 
-    it('falls back to shared-page search when discovered data sources have no pages', async () => {
+    it('merges shared pages with discovered data source pages', async () => {
       const credentials = { token: 'tok', scope: { type: 'all-shared' as const } };
+      const sharedPage = {
+        ...PAGE,
+        id: 'shared-page-1',
+        parent: { type: 'page_id' },
+        properties: {
+          ...PAGE.properties,
+          Name: { type: 'title', title: [{ plain_text: 'Standalone plan' }] },
+        },
+      };
       mockGetStoredCredentials.mockResolvedValue(credentials);
       mockRequest
         .mockResolvedValueOnce({
@@ -128,19 +137,25 @@ describe('notionIssueProvider', () => {
           next_cursor: null,
         })
         .mockResolvedValueOnce({
-          results: [],
+          results: [PAGE],
           has_more: false,
           next_cursor: null,
         })
         .mockResolvedValueOnce({
-          results: [PAGE],
+          results: [sharedPage],
           has_more: false,
           next_cursor: null,
         });
 
       const result = await notionIssueProvider.listIssues({ limit: 50 });
 
-      expect(result).toEqual({ success: true, issues: [expect.any(Object)] });
+      expect(result).toEqual({
+        success: true,
+        issues: [
+          expect.objectContaining({ title: 'Fix login bug' }),
+          expect.objectContaining({ title: 'Standalone plan' }),
+        ],
+      });
       expect(mockRequest).toHaveBeenLastCalledWith(
         credentials.token,
         '/search',
@@ -219,6 +234,46 @@ describe('notionIssueProvider', () => {
         expect.objectContaining({ method: 'POST' })
       );
       expect(mockRequest).not.toHaveBeenCalledWith(credentials.token, '/search', expect.anything());
+    });
+
+    it('continues paginating configured data source search until it finds matches', async () => {
+      const credentials = {
+        token: 'tok',
+        scope: { type: 'data-sources' as const, dataSourceIds: [DATA_SOURCE_ID], sourceUrls: [] },
+      };
+      mockGetStoredCredentials.mockResolvedValue(credentials);
+      mockRequest
+        .mockResolvedValueOnce({
+          results: [
+            {
+              ...PAGE,
+              id: 'page-2',
+              properties: {
+                ...PAGE.properties,
+                Name: { type: 'title', title: [{ plain_text: 'Write release notes' }] },
+              },
+            },
+          ],
+          has_more: true,
+          next_cursor: 'cursor-2',
+        })
+        .mockResolvedValueOnce({
+          results: [PAGE],
+          has_more: false,
+          next_cursor: null,
+        });
+
+      const result = await notionIssueProvider.searchIssues({ searchTerm: 'login', limit: 20 });
+
+      expect(result).toEqual({
+        success: true,
+        issues: [expect.objectContaining({ identifier: PAGE.id })],
+      });
+      expect(mockRequest).toHaveBeenLastCalledWith(
+        credentials.token,
+        `/data_sources/${DATA_SOURCE_ID}/query`,
+        expect.objectContaining({ body: expect.stringContaining('"start_cursor":"cursor-2"') })
+      );
     });
   });
 
