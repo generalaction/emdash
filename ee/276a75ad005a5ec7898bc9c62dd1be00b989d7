@@ -1,0 +1,25 @@
+apps/emdash-desktop/src/main/core/pty/ssh2-pty.test.ts
+  s_49f457c2d9a234::t_039e73a2130adb 76-108
+apps/emdash-desktop/src/main/core/terminals/impl/ssh-terminal-provider.ts
+  s_49f457c2d9a234::t_3f39834be4051e 355,371
+apps/emdash-desktop/src/main/core/terminals/impl/ssh-terminal-provider.test.ts
+  s_49f457c2d9a234::t_6fc1bdc7089349 114,245-276
+apps/emdash-desktop/src/main/core/pty/ssh2-pty.ts
+  s_49f457c2d9a234::t_118ecc0462f0f6 2,73,78,89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "ee276a75ad005a5ec7898bc9c62dd1be00b989d7",
+  "prompts": {},
+  "sessions": {
+    "s_49f457c2d9a234": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019efab8-d460-7e66-a9bd-35f487e9fdff",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
