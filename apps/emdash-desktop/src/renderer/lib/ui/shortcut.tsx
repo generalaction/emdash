@@ -33,6 +33,8 @@ const KEYCAP_KBD_CLASS = cn(
   'in-data-[slot=dropdown-menu-item]:bg-background-3'
 );
 
+const SHORT_KEYCAP_KBD_CLASS = 'w-5 px-0';
+
 interface ShortcutProps {
   hotkey: Hotkey | null | undefined;
   className?: string;
@@ -67,11 +69,22 @@ function Shortcut({ hotkey, className, variant = 'text' }: ShortcutProps) {
     >
       {variant === 'keycaps' ? (
         <KbdGroup className="items-center justify-center gap-0.5">
-          {keys.map((key, index) => (
-            <Kbd key={`${key}-${index}`} aria-hidden="true" className={KEYCAP_KBD_CLASS}>
-              {formatShortcutKey(key, PLATFORM)}
-            </Kbd>
-          ))}
+          {keys.map((key, index) => {
+            const label = formatShortcutKey(key, PLATFORM);
+
+            return (
+              <Kbd
+                key={`${key}-${index}`}
+                aria-hidden="true"
+                className={cn(
+                  KEYCAP_KBD_CLASS,
+                  label.length === 1 && SHORT_KEYCAP_KBD_CLASS
+                )}
+              >
+                {label}
+              </Kbd>
+            );
+          })}
         </KbdGroup>
       ) : variant === 'text' ? (
         <span aria-hidden="true">{formatShortcutDisplay(keys, PLATFORM)}</span>
