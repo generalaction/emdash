@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/lib/ui/shortcut-format.test.ts
+  s_4164fd05b1effa::t_1db82059a049df 5,7,52-69
+apps/emdash-desktop/src/renderer/features/command-palette/command-palette-modal.tsx
+  s_4164fd05b1effa::t_1db82059a049df 60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "118aff046435fb5a960e400635d0882bb11e93ab",
+  "prompts": {},
+  "sessions": {
+    "s_4164fd05b1effa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_105aa0b1dffecyK7dbXj2M6fJH",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
