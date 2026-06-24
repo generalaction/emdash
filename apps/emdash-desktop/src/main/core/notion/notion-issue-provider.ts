@@ -39,12 +39,22 @@ type NotionSearchResponse = {
   next_cursor?: string | null;
 };
 
+type NotionBlockChildrenResponse = {
+  results: NotionBlock[];
+  has_more: boolean;
+  next_cursor?: string | null;
+};
+
 type NotionBlock = {
   id: string;
   type: string;
   has_children?: boolean;
   [key: string]: unknown;
 };
+
+const BLOCK_CONTEXT_PAGE_SIZE = 100;
+const MAX_CONTEXT_BLOCKS = 300;
+const MAX_CONTEXT_DEPTH = 3;
 
 function plainText(value: NotionRichText[] | undefined): string | undefined {
   const text = value
@@ -224,12 +234,47 @@ function getBlockText(block: NotionBlock): string | undefined {
   return text;
 }
 
+function blockChildrenPath(blockId: string, startCursor?: string): string {
+  const params = new URLSearchParams({ page_size: String(BLOCK_CONTEXT_PAGE_SIZE) });
+  if (startCursor) params.set('start_cursor', startCursor);
+  return `/blocks/${encodeURIComponent(blockId)}/children?${params.toString()}`;
+}
+
+async function collectBlockLines(
+  token: string,
+  blockId: string,
+  depth: number,
+  remainingBlocks: { count: number }
+): Promise<string[]> {
+  const lines: string[] = [];
+  let startCursor: string | undefined;
+
+  do {
+    const data = await notionConnectionService.request<NotionBlockChildrenResponse>(
+      token,
+      blockChildrenPath(blockId, startCursor)
+    );
+
+    for (const block of data.results) {
+      if (remainingBlocks.count <= 0) return lines;
+      remainingBlocks.count -= 1;
+
+      const text = getBlockText(block);
+      if (text) lines.push(text);
+
+      if (block.has_children && depth < MAX_CONTEXT_DEPTH && remainingBlocks.count > 0) {
+        lines.push(...(await collectBlockLines(token, block.id, depth + 1, remainingBlocks)));
+      }
+    }
+
+    startCursor = data.next_cursor ?? undefined;
+  } while (startCursor && remainingBlocks.count > 0);
+
+  return lines;
+}
+
 async function fetchBlockContext(token: string, pageId: string): Promise<string | undefined> {
-  const data = await notionConnectionService.request<{ results: NotionBlock[] }>(
-    token,
-    `/blocks/${encodeURIComponent(pageId)}/children?page_size=50`
-  );
-  const lines = data.results.map(getBlockText).filter(Boolean) as string[];
+  const lines = await collectBlockLines(token, pageId, 0, { count: MAX_CONTEXT_BLOCKS });
   return lines.length ? lines.join('\n\n') : undefined;
 }
 

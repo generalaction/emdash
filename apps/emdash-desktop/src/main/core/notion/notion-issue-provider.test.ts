@@ -158,7 +158,98 @@ describe('notionIssueProvider', () => {
       expect(mockRequest).toHaveBeenCalledWith(credentials.token, `/pages/${PAGE.id}`);
       expect(mockRequest).toHaveBeenCalledWith(
         credentials.token,
-        `/blocks/${PAGE.id}/children?page_size=50`
+        `/blocks/${PAGE.id}/children?page_size=100`
+      );
+    });
+
+    it('follows block children pagination when building context', async () => {
+      const credentials = { token: 'tok', databaseIds: [], databaseUrls: [] };
+      mockGetStoredCredentials.mockResolvedValue(credentials);
+      mockRequest
+        .mockResolvedValueOnce(PAGE)
+        .mockResolvedValueOnce({
+          results: [
+            {
+              id: 'block-1',
+              type: 'paragraph',
+              paragraph: { rich_text: [{ plain_text: 'First page body' }] },
+            },
+          ],
+          has_more: true,
+          next_cursor: 'cursor-2',
+        })
+        .mockResolvedValueOnce({
+          results: [
+            {
+              id: 'block-2',
+              type: 'paragraph',
+              paragraph: { rich_text: [{ plain_text: 'Second page body' }] },
+            },
+          ],
+          has_more: false,
+          next_cursor: null,
+        });
+
+      const result = await notionIssueProvider.getIssueContext!({ identifier: PAGE.id });
+
+      expect(result).toEqual({
+        success: true,
+        issue: expect.objectContaining({
+          context: expect.stringContaining('First page body'),
+        }),
+      });
+      if (result.success) {
+        expect(result.issue.context).toContain('Second page body');
+      }
+      expect(mockRequest).toHaveBeenCalledWith(
+        credentials.token,
+        `/blocks/${PAGE.id}/children?page_size=100&start_cursor=cursor-2`
+      );
+    });
+
+    it('includes nested child blocks when building context', async () => {
+      const credentials = { token: 'tok', databaseIds: [], databaseUrls: [] };
+      mockGetStoredCredentials.mockResolvedValue(credentials);
+      mockRequest
+        .mockResolvedValueOnce(PAGE)
+        .mockResolvedValueOnce({
+          results: [
+            {
+              id: 'block-parent',
+              type: 'toggle',
+              has_children: true,
+              toggle: { rich_text: [{ plain_text: 'Investigation notes' }] },
+            },
+          ],
+          has_more: false,
+          next_cursor: null,
+        })
+        .mockResolvedValueOnce({
+          results: [
+            {
+              id: 'block-child',
+              type: 'paragraph',
+              paragraph: { rich_text: [{ plain_text: 'Nested reproduction detail' }] },
+            },
+          ],
+          has_more: false,
+          next_cursor: null,
+        });
+
+      const result = await notionIssueProvider.getIssueContext!({ identifier: PAGE.id });
+
+      expect(result).toEqual({
+        success: true,
+        issue: expect.objectContaining({
+          context: expect.stringContaining('Investigation notes'),
+        }),
+      });
+      if (result.success) {
+        expect(result.issue.context).toContain('Nested reproduction detail');
+      }
+      expect(mockRequest).toHaveBeenCalledWith(
+        credentials.token,
+        '/blocks/block-parent/children?page_size=100'
       );
     });
   });
