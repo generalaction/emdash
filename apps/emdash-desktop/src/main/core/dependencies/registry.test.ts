@@ -39,6 +39,12 @@ describe('buildDescriptorFromProvider', () => {
 });
 
 describe('DEPENDENCIES', () => {
+  it('contains core dependencies', () => {
+    expect(DEPENDENCIES).toContainEqual(
+      expect.objectContaining({ id: 'git', category: 'core', commands: ['git'] })
+    );
+  });
+
   it('contains an entry for every registered plugin', () => {
     const pluginIds = pluginRegistry.getAll().map((p: CLIAgentPluginProvider) => p.metadata.id);
     for (const id of pluginIds) {
