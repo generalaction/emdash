@@ -38,8 +38,7 @@ export const plugin = definePlugin(
       },
     },
     prompt: {
-      kind: 'argv',
-      flag: '',
+      kind: 'keystroke',
     },
     sessions: {
       kind: 'stateless',
@@ -54,7 +53,6 @@ export const provider = registerPluginBehavior(plugin, {
       buildStandardCommand(ctx, {
         defaultArgs: ['rovodev', 'run'],
         autoApproveFlag: '--yolo',
-        initialPromptFlag: '',
       }),
   },
 });

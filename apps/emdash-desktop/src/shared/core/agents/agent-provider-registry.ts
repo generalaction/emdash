@@ -508,7 +508,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'acli',
     defaultArgs: ['rovodev', 'run'],
     autoApproveFlag: '--yolo',
-    initialPromptFlag: '',
+    useKeystrokeInjection: true,
     icon: 'atlassian.png',
     alt: 'Rovo Dev CLI',
     terminalOnly: true,

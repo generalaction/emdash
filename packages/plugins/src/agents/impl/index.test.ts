@@ -155,8 +155,7 @@ describe('pluginRegistry', () => {
     });
   });
 
-
-  it('uses current Rovo Dev ACLI install and launch metadata', () => {
+  it('uses current Rovo Dev ACLI install and interactive launch metadata', () => {
     const rovo = pluginRegistry.get('rovo')!;
 
     expect(rovo.capabilities.hostDependency.binaryNames).toEqual(['acli']);
@@ -164,6 +163,7 @@ describe('pluginRegistry', () => {
       method: 'homebrew',
       command: 'brew tap atlassian/homebrew-acli && brew install acli',
     });
+    expect(rovo.capabilities.prompt.kind).toBe('keystroke');
 
     const command = rovo.behavior.prompt!.buildCommand({
       cli: 'acli',
@@ -176,7 +176,7 @@ describe('pluginRegistry', () => {
 
     expect(command).toEqual({
       command: 'acli',
-      args: ['rovodev', 'run', '--yolo', 'Fix the bug'],
+      args: ['rovodev', 'run', '--yolo'],
       env: {},
     });
   });
