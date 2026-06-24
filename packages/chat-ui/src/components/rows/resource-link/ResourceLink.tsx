@@ -15,8 +15,9 @@
  */
 
 import { useCommands } from '@components/contexts/CommandsContext';
-import { GenericFileIcon } from '@components/primitives/icons';
+import { GenericFileIcon, IconError } from '@components/primitives/icons';
 import { resolveFileIconClass } from '@lib/file-icons';
+import { vars } from '@styles/theme.css';
 import { Show } from 'solid-js';
 import type { ChatResourceLink, ResourceTarget } from '@/model';
 import {
@@ -100,6 +101,14 @@ export function ResourceLink(props: ResourceLinkProps) {
       <span class={pathText}>{secondary()}</span>
       <Show when={props.item.size !== undefined}>
         <span class={sizeText}>{formatSize(props.item.size!)}</span>
+      </Show>
+      <Show when={props.item.status === 'error'}>
+        <span
+          style={{ display: 'inline-flex', 'vertical-align': 'middle', color: vars.fgError }}
+          aria-label="error"
+        >
+          <IconError />
+        </span>
       </Show>
     </div>
   );

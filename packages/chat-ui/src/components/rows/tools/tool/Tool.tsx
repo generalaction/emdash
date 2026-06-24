@@ -13,6 +13,8 @@
 
 import { Show } from 'solid-js';
 import type { ChatToolCall } from '@/model';
+import { IconError } from '@components/primitives/icons';
+import { vars } from '@styles/theme.css';
 import { textShimmer, toolRow, toolSummary } from './tool.css';
 
 export type ToolProps = {
@@ -25,6 +27,14 @@ export function Tool(props: ToolProps) {
       <span>{props.item.name}</span>
       <Show when={props.item.inputSummary}>
         <span class={toolSummary}>{props.item.inputSummary}</span>
+      </Show>
+      <Show when={props.item.status === 'error'}>
+        <span
+          style={{ display: 'inline-flex', 'vertical-align': 'middle', color: vars.fgError }}
+          aria-label="error"
+        >
+          <IconError />
+        </span>
       </Show>
     </div>
   );

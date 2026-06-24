@@ -40,14 +40,6 @@
       "default": "./dist/react/chat-ui.js"
     },
     "./react/chat-ui/chat-theme.css": "./src/react/chat-ui/chat-theme.css",
-    "./solid": {
-      "types": "./dist/src/solid/index.d.ts",
-      "default": "./dist/solid.js"
-    },
-    "./solid/components": {
-      "types": "./dist/src/solid/components/index.d.ts",
-      "default": "./dist/solid/components.js"
-    },
     "./style.css": "./dist/style.css",
     "./styles/utilities": {
       "types": "./dist/src/styles/utilities/index.d.ts",
@@ -95,13 +87,11 @@
     "theme:build": "tsx src/theme/core/codegen/run.ts && oxfmt src/theme/__generated__/theme.css src/theme/__generated__/semantic.css",
     "theme:watch": "tsx --watch src/theme/core/codegen/run.ts",
     "storybook:react": "storybook dev -p 6006 -c .storybook-react",
-    "storybook:solid": "storybook dev -p 6007 -c .storybook-solid",
     "build-storybook:react": "storybook build -c .storybook-react",
-    "build-storybook:solid": "storybook build -c .storybook-solid",
     "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/ui/src\"'",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.solid.json"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@emdash/chat-ui": "workspace:*",
@@ -134,20 +124,16 @@
     "oxlint": "^1.66.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "solid-js": "^1.9.13",
     "storybook": "^10.4.6",
-    "storybook-solidjs-vite": "10.4.0",
     "tsx": "^4.22.4",
     "typescript": "^6.0.2",
     "vite": "^7.1.11",
     "vite-plugin-dts": "5.0.2",
-    "vite-plugin-solid": "2.11.12",
     "vitest": "^4.1.0"
   },
   "peerDependencies": {
     "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "solid-js": "^1.9.13"
+    "react-dom": "^19.2.0"
   },
   "packageManager": "pnpm@10.28.2"
 }

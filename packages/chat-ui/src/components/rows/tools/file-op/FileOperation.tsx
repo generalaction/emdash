@@ -1,6 +1,8 @@
 import { useCommands } from '@components/contexts/CommandsContext';
 import { CollapseHeader } from '@components/primitives/CollapseHeader';
+import { IconError } from '@components/primitives/icons';
 import { basename } from '@lib/path';
+import { vars } from '@styles/theme.css';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, Show, createEffect } from 'solid-js';
 import type { ChatFileOpToolCall, FileOpKind } from '@/model';
@@ -68,6 +70,14 @@ export function FileOpRow(props: FileOpRowProps) {
           />
         )}
       </Show>
+      <Show when={props.item.status === 'error'}>
+        <span
+          style={{ display: 'inline-flex', 'vertical-align': 'middle', color: vars.fgError }}
+          aria-label="error"
+        >
+          <IconError />
+        </span>
+      </Show>
     </div>
   );
 }
@@ -86,6 +96,7 @@ export function FileOpHeader(props: FileOpHeaderProps) {
       id={props.item.id}
       expanded={props.expanded}
       active={props.item.status === 'running'}
+      error={props.item.status === 'error'}
       height={props.rowH}
     >
       {VERB[props.item.op]} {props.item.ops.length} files

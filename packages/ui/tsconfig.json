@@ -16,11 +16,10 @@
     "paths": {
       "@/*": ["./src/*"],
       "@react/*": ["./src/react/*"],
-      "@solid/*": ["./src/solid/*"],
       "@styles/*": ["./src/styles/*"],
       "@theme/*": ["./src/theme/*"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "dist", "src/solid"]
+  "exclude": ["node_modules", "dist"]
 }

@@ -67,6 +67,7 @@ export const vars = createGlobalThemeContract(
     diffModified: 'chat-diff-modified',
 
     // Misc semantic
+    fgError: 'chat-fg-error',
     link: 'chat-link',
     bubbleUser: 'chat-bubble-user',
     bubbleUserFg: 'chat-bubble-user-fg',
@@ -206,6 +207,7 @@ createGlobalTheme(':where(:root), :where(.emlight)', vars, {
   diffAdded: '#4f9f4f',
   diffDeleted: '#d56761',
   diffModified: '#c28c00',
+  fgError: '#d56761',
   link: '#2263a4',
   bubbleUser: '#dadada',
   bubbleUserFg: '#21201f',
@@ -248,6 +250,7 @@ createGlobalTheme(':where(.emdark)', vars, {
   diffAdded: '#54a55a',
   diffDeleted: '#dc6b67',
   diffModified: '#ce981d',
+  fgError: '#dc6b67',
   link: '#7cbcff',
   bubbleUser: '#282727',
   bubbleUserFg: '#e9e8e9',

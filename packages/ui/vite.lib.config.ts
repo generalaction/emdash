@@ -14,7 +14,6 @@ export default defineConfig({
     alias: {
       '@': root,
       '@react': resolve(root, 'react'),
-      '@solid': resolve(root, 'solid'),
       '@styles': resolve(root, 'styles'),
       '@theme': resolve(root, 'theme'),
     },

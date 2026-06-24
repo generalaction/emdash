@@ -1,11 +1,12 @@
 import { useCaches } from '@components/contexts/CachesContext';
 import { useCommands } from '@components/contexts/CommandsContext';
 import { cancelIdle, scheduleIdle } from '@components/engine/dom-utils';
-import { GenericFileIcon } from '@components/primitives/icons';
+import { GenericFileIcon, IconError } from '@components/primitives/icons';
 import { applyTokensToElement } from '@core/highlight/apply-tokens';
 import type { CodeToken } from '@core/highlight/highlighter';
 import { resolveFileIconClass } from '@lib/file-icons';
 import { basename } from '@lib/path';
+import { vars } from '@styles/theme.css';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, Show, createEffect, onCleanup } from 'solid-js';
 import type { ChatDiff } from '@/model';
@@ -77,6 +78,11 @@ export function DiffHeader(props: DiffHeaderProps) {
         <span class={diffDelsCount}>−{props.dels}</span>
       </Show>
       <span class={diffSpacer} />
+      <Show when={props.item.status === 'error'}>
+        <span style={{ display: 'flex', color: vars.fgError }} aria-label="error">
+          <IconError />
+        </span>
+      </Show>
     </div>
   );
 }

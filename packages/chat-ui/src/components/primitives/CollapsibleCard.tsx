@@ -14,8 +14,10 @@
 
 import type { RenderCtx } from '@core/define';
 import { pxTokens } from '@styles/px-tokens';
+import { vars } from '@styles/theme.css';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import type { JSX } from 'solid-js';
+import { Show } from 'solid-js';
 import {
   cardChevron,
   cardChevronExpanded,
@@ -24,6 +26,7 @@ import {
   collapsibleCardVars,
 } from './collapsible-card.css';
 import { textShimmer } from '@styles/effects.css';
+import { IconError } from './icons';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -43,9 +46,11 @@ export type CollapsibleCardProps = {
    * (use while the item is running / streaming).
    */
   active?: boolean;
+  /** When true, renders the error icon on the far right of the header. */
+  error?: boolean;
   /** Header label content (left side of the header). */
   header: JSX.Element;
-  /** Optional right-aligned content beside the chevron. */
+  /** Optional right-aligned content beside the error icon. */
   headerRight?: JSX.Element;
   /** Card body — rendered below the header inside the clipped shell. */
   children: JSX.Element;
@@ -70,9 +75,8 @@ export function CollapsibleCard(props: CollapsibleCardProps) {
         aria-expanded={props.expanded ? 'true' : 'false'}
         data-collapse-id={props.id}
       >
-        <span classList={{ [textShimmer]: !!props.active }}>{props.header}</span>
         <span style={{ display: 'flex', 'align-items': 'center', gap: '6px' }}>
-          {props.headerRight}
+          <span classList={{ [textShimmer]: !!props.active }}>{props.header}</span>
           <span
             class={cardChevron}
             classList={{ [cardChevronExpanded]: props.expanded }}
@@ -80,6 +84,14 @@ export function CollapsibleCard(props: CollapsibleCardProps) {
           >
             ›
           </span>
+        </span>
+        <span style={{ display: 'flex', 'align-items': 'center', gap: '6px' }}>
+          {props.headerRight}
+          <Show when={props.error}>
+            <span style={{ display: 'flex', color: vars.fgError }} aria-label="error">
+              <IconError />
+            </span>
+          </Show>
         </span>
       </div>
       {props.children}
