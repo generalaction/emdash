@@ -1,0 +1,33 @@
+packages/plugins/src/agents/impl/claude/hooks.test.ts
+  s_558963d37b4e8c::t_7eea88590de465 8-17
+  s_558963d37b4e8c::t_680a6b39da41e8 1-7,18-31
+packages/plugins/src/agents/impl/copilot/hooks.ts
+  s_558963d37b4e8c::t_680a6b39da41e8 15-31,102
+  s_558963d37b4e8c::t_7eea88590de465 44
+packages/plugins/src/agents/impl/copilot/hooks.test.ts
+  s_558963d37b4e8c::t_1b308f2c15c0fa 2
+  s_558963d37b4e8c::t_e27c4b659956f3 74-76
+  s_558963d37b4e8c::t_680a6b39da41e8 1,3-73,77-78
+packages/plugins/src/agents/impl/mistral/hooks.test.ts
+  s_558963d37b4e8c::t_680a6b39da41e8 53-63
+packages/plugins/src/agents/impl/claude/hooks.ts
+  s_558963d37b4e8c::t_680a6b39da41e8 12-13,22-25
+packages/plugins/src/agents/impl/mistral/hooks.ts
+  s_558963d37b4e8c::t_680a6b39da41e8 34,38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "2e5916486c4513527a1737df4e7e54858bf2a65e",
+  "prompts": {},
+  "sessions": {
+    "s_558963d37b4e8c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef802-f29a-75e1-98fa-c84f9afcef53",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
