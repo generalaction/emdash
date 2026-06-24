@@ -198,6 +198,21 @@ function PlainIcon(props: ProviderIconProps) {
   );
 }
 
+function NotionIcon(props: ProviderIconProps) {
+  return (
+    <ProviderSvg
+      {...props}
+      viewBox="0 0 64 64"
+      className={cn('text-[#1C1C1C] emdark:text-foreground', props.className)}
+    >
+      <path
+        fill="currentColor"
+        d="M12.9 5.3 49.7 8c4.7.4 7.3 3 7.3 7.7v35.2c0 4.3-2.5 7-6.5 7.3L13.1 60.5c-4.4.3-7.9-2.4-8.1-6.8V12.9c0-4.4 3.4-7.9 7.9-7.6Zm1 5.3c-2.1-.2-3.7 1.5-3.7 3.5v38.6c0 2 1.5 3.3 3.7 3.2l35.3-2.1c1.7-.1 2.8-1.3 2.8-3.1V16.1c0-1.9-1.1-3-3-3.2L13.9 10.6Zm7.5 12.2 8.3-.5 11.5 17.5V21.6l-4.6-.4v-3.7l13.4.8v3.8l-4.2.2v25.3l-5 .3-12-18.5v19.2l4.8.7v3.6l-14.1.9v-3.6l4.4-.7V26.6l-4.5-.4v-3.4Z"
+      />
+    </ProviderSvg>
+  );
+}
+
 export const PROVIDER_ICON_COMPONENTS = {
   linear: LinearIcon,
   github: GitHubIcon,
@@ -207,6 +222,7 @@ export const PROVIDER_ICON_COMPONENTS = {
   asana: AsanaIcon,
   monday: MondayIcon,
   trello: TrelloIcon,
+  notion: NotionIcon,
   forgejo: ForgejoIcon,
   featurebase: FeaturebaseIcon,
   plain: PlainIcon,

@@ -29,6 +29,7 @@ vi.mock('@renderer/lib/ipc', () => ({
     asana: { saveToken: vi.fn(), clearToken: vi.fn() },
     monday: { saveCredentials: vi.fn(), clearCredentials: vi.fn() },
     trello: { saveCredentials: vi.fn(), clearCredentials: vi.fn() },
+    notion: { saveCredentials: vi.fn(), clearCredentials: vi.fn() },
   },
 }));
 

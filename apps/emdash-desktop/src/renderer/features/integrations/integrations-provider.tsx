@@ -77,6 +77,13 @@ function validateTrelloCredentials(input: {
   return null;
 }
 
+function validateNotionCredentials(input: { token: string; databaseUrls: string }): string | null {
+  if (!input.token?.trim()) {
+    return 'Integration token is required.';
+  }
+  return null;
+}
+
 const PROVIDER_CONNECTION_CONFIG: {
   [P in SetupIntegrationType]: ProviderConnectionConfig<P>;
 } = {
@@ -129,6 +136,11 @@ const PROVIDER_CONNECTION_CONFIG: {
     connectMutationFn: (credentials) => rpc.trello.saveCredentials(credentials),
     disconnectMutationFn: () => rpc.trello.clearCredentials(),
     validateInput: validateTrelloCredentials,
+  },
+  notion: {
+    connectMutationFn: (credentials) => rpc.notion.saveCredentials(credentials),
+    disconnectMutationFn: () => rpc.notion.clearCredentials(),
+    validateInput: validateNotionCredentials,
   },
 };
 
@@ -214,6 +226,10 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     ...PROVIDER_CONNECTION_CONFIG.trello,
     invalidate: invalidateStatuses,
   });
+  const notionConnection = useProviderConnection({
+    ...PROVIDER_CONNECTION_CONFIG.notion,
+    invalidate: invalidateStatuses,
+  });
 
   const connectionStatus = statusData
     ? { ...DEFAULT_CONNECTION_STATUS, ...statusData }
@@ -229,6 +245,7 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     asana: asanaConnection,
     monday: mondayConnection,
     trello: trelloConnection,
+    notion: notionConnection,
   };
 
   return (

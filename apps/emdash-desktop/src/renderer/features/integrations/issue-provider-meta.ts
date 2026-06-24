@@ -11,6 +11,7 @@ export const ISSUE_PROVIDER_ORDER: IssueProviderType[] = [
   'trello',
   'asana',
   'monday',
+  'notion',
   'featurebase',
   'plain',
 ];
@@ -70,6 +71,12 @@ export const ISSUE_PROVIDER_META: Record<
     description: 'Work on Monday.com items',
     features: ['issues'],
     disconnectCredentialLabel: 'API token',
+  },
+  notion: {
+    displayName: 'Notion',
+    description: 'Work on Notion pages',
+    features: ['issues'],
+    disconnectCredentialLabel: 'integration token',
   },
   trello: {
     displayName: 'Trello',
@@ -139,6 +146,10 @@ export const SETUP_PROVIDER_META: Record<
   monday: {
     title: 'Connect Monday.com',
     subtitle: 'Enter your Monday.com API token and optionally specify board URLs.',
+  },
+  notion: {
+    title: 'Connect Notion',
+    subtitle: 'Enter your Notion integration token and optionally specify database URLs.',
   },
   trello: {
     title: 'Connect Trello',

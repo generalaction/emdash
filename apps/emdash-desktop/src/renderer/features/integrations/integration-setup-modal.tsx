@@ -9,6 +9,7 @@ import { SETUP_PROVIDER_META } from './issue-provider-meta';
 import JiraSetupForm from './JiraSetupForm';
 import LinearSetupForm from './LinearSetupForm';
 import MondaySetupForm from './MondaySetupForm';
+import NotionSetupForm from './NotionSetupForm';
 import PlainSetupForm from './PlainSetupForm';
 import PlaneSetupForm from './PlaneSetupForm';
 import { type SetupFormProps } from './SetupFormShell';
@@ -32,6 +33,7 @@ const SETUP_FORMS: Record<SetupIntegrationType, ComponentType<SetupFormProps>> =
   asana: AsanaSetupForm,
   monday: MondaySetupForm,
   trello: TrelloSetupForm,
+  notion: NotionSetupForm,
 };
 
 export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props) {
