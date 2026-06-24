@@ -1,0 +1,49 @@
+apps/emdash-desktop/src/main/core/notion/notion-connection-service.ts
+  s_760e6dd4de391c::t_70892b383192d4 174-175
+  s_760e6dd4de391c::t_2ee60e279c9198 1-173,176-203,210-211,213-261
+  s_760e6dd4de391c::t_873b5d0c9118b2 204-209,212
+apps/emdash-desktop/src/main/core/notion/notion-issue-provider.ts
+  s_760e6dd4de391c::t_2ee60e279c9198 1-16,26-77,83-265
+  s_760e6dd4de391c::t_85f5ffa3d541d1 17-25
+  s_760e6dd4de391c::t_70892b383192d4 78-82
+apps/emdash-desktop/src/main/core/notion/notion-issue-provider.test.ts
+  s_760e6dd4de391c::t_7bc1e4ae76e1f1 1-132,143-165
+  s_760e6dd4de391c::t_70892b383192d4 133-142
+apps/emdash-desktop/src/shared/issue-providers.ts
+  s_760e6dd4de391c::t_205d45ac07d5b4 67-71
+apps/emdash-desktop/src/main/core/notion/controller.ts
+  s_760e6dd4de391c::t_70892b383192d4 6-10
+  s_760e6dd4de391c::t_2ee60e279c9198 1-5,11-19
+apps/emdash-desktop/src/main/core/issues/registry.ts
+  s_760e6dd4de391c::t_7342b8276c2dfe 9,33
+apps/emdash-desktop/src/main/core/notion/notion-connection-service.test.ts
+  s_760e6dd4de391c::t_70892b383192d4 83
+  s_760e6dd4de391c::t_385065f9ea9e87 61-65
+  s_760e6dd4de391c::t_7bc1e4ae76e1f1 1-60,66-82,84-153
+apps/emdash-desktop/src/main/rpc.ts
+  s_760e6dd4de391c::t_7342b8276c2dfe 22,68
+apps/emdash-desktop/src/shared/core/linked-issue.ts
+  s_760e6dd4de391c::t_205d45ac07d5b4 21
+apps/emdash-desktop/src/renderer/features/tasks/conversations/context-actions.ts
+  s_760e6dd4de391c::t_85f5ffa3d541d1 47
+apps/emdash-desktop/src/shared/telemetry.ts
+  s_760e6dd4de391c::t_205d45ac07d5b4 98,175
+  s_760e6dd4de391c::t_23240f9ee7b219 176-178
+  s_760e6dd4de391c::t_7bffe507878cff 135-164
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "c50fee45b29fb35306f429e4eae7afe111c82379",
+  "prompts": {},
+  "sessions": {
+    "s_760e6dd4de391c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef7f7-792a-74a1-a418-d97235dd6751",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
