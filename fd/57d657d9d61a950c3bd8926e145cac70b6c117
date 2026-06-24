@@ -1,0 +1,42 @@
+apps/emdash-desktop/src/shared/core/automations/automation-run.ts
+  s_6d3d3a64d22809::t_4fe7ec2cc12c44 21-36
+apps/emdash-desktop/src/renderer/features/sidebar/automations-sidebar-item.tsx
+  s_6d3d3a64d22809::t_f1fc14da19a918 41-50
+  s_0ab18a5333c48f::t_fa728237e0c426 8
+apps/emdash-desktop/src/renderer/features/automations/use-automation-unread-count.ts
+  s_6d3d3a64d22809::t_d364cf1057fed9 5
+  s_6d3d3a64d22809::t_d662f0430cc853 30-31
+apps/emdash-desktop/src/main/core/automations/automations-service.ts
+  s_0ab18a5333c48f::t_4a9a79f7a42f3f 64
+  s_0ab18a5333c48f::t_fa728237e0c426 1-14
+  s_6d3d3a64d22809::t_ba2b5ebfa0a7b6 211-217
+  s_6d3d3a64d22809::t_408a9938a49a98 25-29
+  s_0ab18a5333c48f::t_499b84777b7ef9 53
+  s_6d3d3a64d22809::t_976258cff5a99a 58
+  s_6d3d3a64d22809::t_ef9bb3a025d42b 59-61,65
+  s_6d3d3a64d22809::t_d4b5d9125e4250 62-63,66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "fd57d657d9d61a950c3bd8926e145cac70b6c117",
+  "prompts": {},
+  "sessions": {
+    "s_0ab18a5333c48f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef803-3594-7d72-8458-fc28b52511c2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_6d3d3a64d22809": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "33b1d1b1-d805-48cf-b21c-7c5a09510ef0",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
