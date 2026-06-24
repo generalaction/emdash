@@ -2,19 +2,19 @@ import { toPendingLease, type IDisposable } from '@emdash/shared';
 import { ResourceMap } from '../lib';
 import { NativeWatch } from './native-watch';
 import { realpathOrResolve } from './paths';
-import type { FileWatchOptions, IFileWatchService, RawFileEvent, WatchHandle } from './types';
+import type { WatchOptions, IWatchService, WatchEvent, WatchHandle } from './types';
 
-export type FileWatchServiceOptions = {
+export type WatchServiceOptions = {
   /** Receives background failures (resubscribe attempts, teardown). */
   onError?: (context: string, error: unknown) => void;
 };
 
 type WatchConsumer = {
-  onEvents: (events: RawFileEvent[]) => void;
+  onEvents: (events: WatchEvent[]) => void;
   onResync?: () => void;
   releaseResource: () => Promise<void>;
   debounceMs: number;
-  pending: RawFileEvent[];
+  pending: WatchEvent[];
   timer: ReturnType<typeof setTimeout> | null;
 };
 
@@ -26,14 +26,14 @@ function watchKey(root: string, ignore: string[]): string {
   return JSON.stringify({ root, ignore });
 }
 
-export class FileWatchService implements IFileWatchService, IDisposable {
+export class WatchService implements IWatchService, IDisposable {
   private readonly consumers = new Map<string, Set<WatchConsumer>>();
   private readonly natives = new Map<string, NativeWatch>();
   private readonly subscriptions: ResourceMap<NativeWatch>;
   private readonly onError: (context: string, error: unknown) => void;
   private disposed = false;
 
-  constructor(options: FileWatchServiceOptions = {}) {
+  constructor(options: WatchServiceOptions = {}) {
     this.onError = options.onError ?? (() => {});
     this.subscriptions = new ResourceMap<NativeWatch>({
       teardown: async (key, native) => {
@@ -46,10 +46,10 @@ export class FileWatchService implements IFileWatchService, IDisposable {
 
   watch(
     root: string,
-    onEvents: (events: RawFileEvent[]) => void,
-    options: FileWatchOptions = {}
+    onEvents: (events: WatchEvent[]) => void,
+    options: WatchOptions = {}
   ): WatchHandle {
-    if (this.disposed) throw new Error('FileWatchService disposed');
+    if (this.disposed) throw new Error('WatchService disposed');
     const normalizedRoot = realpathOrResolve(root);
     const ignore = normalizeIgnore(options.ignore);
     const key = watchKey(normalizedRoot, ignore);
@@ -114,7 +114,7 @@ export class FileWatchService implements IFileWatchService, IDisposable {
     this.natives.clear();
   }
 
-  private deliver(key: string, events: RawFileEvent[]): void {
+  private deliver(key: string, events: WatchEvent[]): void {
     const consumerSet = this.consumers.get(key);
     if (!consumerSet) return;
     for (const consumer of consumerSet) {
@@ -139,7 +139,7 @@ export class FileWatchService implements IFileWatchService, IDisposable {
   }
 }
 
-function deliverEvents(consumer: WatchConsumer, events: RawFileEvent[]): void {
+function deliverEvents(consumer: WatchConsumer, events: WatchEvent[]): void {
   if (consumer.debounceMs <= 0) {
     consumer.onEvents(events);
     return;

@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import { ExecError, type BoundExec } from '../exec';
-import type { IFileWatchService, WatchHandle } from '../fs';
 import { LiveModel } from '../lib';
+import type { IWatchService, WatchHandle } from '../watch';
 import {
   classifyCommitError,
   classifyPullError,
@@ -71,7 +71,7 @@ export type GitWorktreeOptions = {
   gitDir: string;
   repository: GitRepository;
   exec: BoundExec;
-  watcher: IFileWatchService;
+  watcher: IWatchService;
   onError?: GitOnError;
 };
 

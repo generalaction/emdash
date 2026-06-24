@@ -25,13 +25,13 @@
       "types": "./dist/exec.d.mts",
       "default": "./dist/exec.mjs"
     },
-    "./file-tree": {
-      "types": "./dist/file-tree.d.mts",
-      "default": "./dist/file-tree.mjs"
+    "./files": {
+      "types": "./dist/files.d.mts",
+      "default": "./dist/files.mjs"
     },
-    "./fs": {
-      "types": "./dist/fs.d.mts",
-      "default": "./dist/fs.mjs"
+    "./watch": {
+      "types": "./dist/watch.d.mts",
+      "default": "./dist/watch.mjs"
     },
     "./git": {
       "types": "./dist/git.d.mts",

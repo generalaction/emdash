@@ -1,5 +1,5 @@
 import type { Lease, Result, Unsubscribe } from '@emdash/shared';
-import type { CollectionSnapshot, CollectionUpdate } from '../lib';
+import type { CollectionSnapshot, CollectionUpdate } from '../../lib';
 import type { FileTreeError } from './errors';
 import type { FileNode, NodeId } from './models/tree';
 
@@ -28,8 +28,3 @@ export interface IFileTree {
 }
 
 export type FileTreeLease = Lease<IFileTree>;
-
-export interface IFileTreeRuntime {
-  open(rootPath: string): Promise<Result<FileTreeLease, FileTreeError>>;
-  dispose(): Promise<void>;
-}

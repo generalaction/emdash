@@ -5,7 +5,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { ExecError, type BoundExec } from '../exec';
-import type { IFileWatchService } from '../fs';
+import type { IWatchService } from '../watch';
 import { GitRuntime } from './index';
 
 const execFileAsync = promisify(execFile);
@@ -46,7 +46,7 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-function createNoopWatcher(): IFileWatchService {
+function createNoopWatcher(): IWatchService {
   return {
     watch: () => ({
       ready: async () => {},
@@ -235,7 +235,7 @@ describe('GitRuntime', () => {
     const repo = await makeRepo();
     const releaseGate = deferred<void>();
     let releaseStarted = 0;
-    const watcher: IFileWatchService = {
+    const watcher: IWatchService = {
       watch: () => ({
         ready: async () => {},
         release: async () => {

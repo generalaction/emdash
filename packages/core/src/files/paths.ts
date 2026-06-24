@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
-import type { FileTreeError } from './errors';
+import type { FileError } from './errors';
 
 export type RelPath = string & { readonly __relPath: unique symbol };
 
@@ -12,7 +12,7 @@ export type ResolvedPath = {
 export function normalizeRelPath(
   input: string,
   options: { allowEmpty?: boolean } = {}
-): Result<RelPath, FileTreeError> {
+): Result<RelPath, FileError> {
   if (input.includes('\0')) {
     return err({ type: 'invalid-path', path: input, message: 'Path contains a null byte' });
   }
@@ -39,11 +39,24 @@ export function normalizeRelPath(
   return ok(normalized as RelPath);
 }
 
+export function normalizeRelPaths(
+  inputs: readonly string[],
+  options: { allowEmpty?: boolean } = {}
+): Result<RelPath[], FileError> {
+  const normalized = new Set<RelPath>();
+  for (const input of inputs) {
+    const result = normalizeRelPath(input, options);
+    if (!result.success) return result;
+    normalized.add(result.data);
+  }
+  return ok([...normalized]);
+}
+
 export function resolveInsideRoot(
   rootPath: string,
   input: string,
   options: { allowEmpty?: boolean } = {}
-): Result<ResolvedPath, FileTreeError> {
+): Result<ResolvedPath, FileError> {
   const normalized = normalizeRelPath(input, options);
   if (!normalized.success) return normalized;
 
@@ -65,4 +78,8 @@ export function parentRelPath(relPath: string): string {
 export function basenameFromRelPath(relPath: string): string {
   const index = relPath.lastIndexOf('/');
   return index === -1 ? relPath : relPath.slice(index + 1);
+}
+
+export function isRelPathWithinScope(relPath: string, scopePath: string): boolean {
+  return scopePath === '' || relPath === scopePath || relPath.startsWith(`${scopePath}/`);
 }

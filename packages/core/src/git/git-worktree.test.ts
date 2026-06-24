@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { FileWatchService } from '../fs';
+import { WatchService } from '../watch';
 import { GitRuntime, type GitRepoUpdate, type GitWorktreeUpdate } from './index';
 
 const execFileAsync = promisify(execFile);
@@ -69,7 +69,7 @@ function expectSuccess<T>(
 describe('GitWorktree', () => {
   it('refreshes and emits worktree facts for real file and git mutations', async () => {
     const repo = await makeRepo();
-    const watcher = new FileWatchService();
+    const watcher = new WatchService();
     const runtime = new GitRuntime({ watcher });
     const updates: GitWorktreeUpdate[] = [];
     const repoUpdates: GitRepoUpdate[] = [];
@@ -196,7 +196,7 @@ describe('GitWorktree', () => {
 
   it('refreshes staged status when an external commit advances the branch ref', async () => {
     const repo = await makeRepo();
-    const watcher = new FileWatchService();
+    const watcher = new WatchService();
     const runtime = new GitRuntime({ watcher });
     const updates: GitWorktreeUpdate[] = [];
 
@@ -257,7 +257,7 @@ describe('GitWorktree', () => {
     await execFileAsync('git', ['commit', '-am', 'main edit'], { cwd: repo });
     await execFileAsync('git', ['checkout', 'feature'], { cwd: repo });
 
-    const watcher = new FileWatchService();
+    const watcher = new WatchService();
     const runtime = new GitRuntime({ watcher });
     const updates: GitWorktreeUpdate[] = [];
 
@@ -317,7 +317,7 @@ describe('GitWorktree', () => {
     await writeFile(path.join(repo, 'tracked.txt'), 'pushed\n', 'utf8');
     await execFileAsync('git', ['add', 'tracked.txt'], { cwd: repo });
 
-    const watcher = new FileWatchService();
+    const watcher = new WatchService();
     const runtime = new GitRuntime({ watcher });
     const repoUpdates: string[] = [];
 
@@ -383,7 +383,7 @@ describe('GitWorktree', () => {
     await execFileAsync('git', ['add', 'pixel.png'], { cwd: repo });
     await execFileAsync('git', ['commit', '-m', 'add pixel'], { cwd: repo });
 
-    const watcher = new FileWatchService();
+    const watcher = new WatchService();
     const runtime = new GitRuntime({ watcher });
     try {
       const lease = await runtime.openWorktree(repo);
@@ -413,7 +413,7 @@ describe('GitWorktree', () => {
     await execFileAsync('git', ['commit', '-m', 'add pixel'], { cwd: repo });
     const { executable, logPath } = await makeRecordingGitExecutable();
 
-    const watcher = new FileWatchService();
+    const watcher = new WatchService();
     const runtime = new GitRuntime({ watcher, executable });
     try {
       const lease = await runtime.openWorktree(repo);
@@ -484,7 +484,7 @@ describe('GitWorktree', () => {
 
   it('stageAll, unstageAll, and revertAll mutate the full worktree state', async () => {
     const repo = await makeRepo();
-    const watcher = new FileWatchService();
+    const watcher = new WatchService();
     const runtime = new GitRuntime({ watcher });
 
     try {

@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import type { IDisposable } from '@emdash/shared';
 import parcelWatcher from '@parcel/watcher';
-import type { RawFileEvent } from './types';
+import type { WatchEvent } from './types';
 
 const RESUBSCRIBE_DELAY_MS = 250;
 const MAX_RESUBSCRIBE_DELAY_MS = 30_000;
@@ -14,7 +14,7 @@ const MAX_RESUBSCRIBE_DELAY_MS = 30_000;
 export class NativeWatch implements IDisposable {
   readonly root: string;
   readonly ignore: string[];
-  private readonly deliver: (events: RawFileEvent[]) => void;
+  private readonly deliver: (events: WatchEvent[]) => void;
   private readonly resync: () => void;
   private readonly onError: (context: string, error: unknown) => void;
   private subscription: Promise<parcelWatcher.AsyncSubscription> | null = null;
@@ -25,7 +25,7 @@ export class NativeWatch implements IDisposable {
   constructor(
     root: string,
     ignore: string[],
-    deliver: (events: RawFileEvent[]) => void,
+    deliver: (events: WatchEvent[]) => void,
     resync: () => void,
     onError: (context: string, error: unknown) => void
   ) {
@@ -63,7 +63,7 @@ export class NativeWatch implements IDisposable {
           return;
         }
         if (events.length === 0) return;
-        this.deliver(events.map(toRawFileEvent));
+        this.deliver(events.map(toWatchEvent));
       },
       { ignore: this.ignore }
     );
@@ -96,7 +96,7 @@ export class NativeWatch implements IDisposable {
   }
 }
 
-function toRawFileEvent(event: parcelWatcher.Event): RawFileEvent {
+function toWatchEvent(event: parcelWatcher.Event): WatchEvent {
   return {
     kind: event.type,
     path: event.path,

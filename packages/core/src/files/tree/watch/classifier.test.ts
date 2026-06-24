@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, afterEach } from 'vitest';
-import type { RawFileEvent } from '../../fs';
+import type { WatchEvent } from '../../../watch';
 import { statEntry, type DevIno, type ListedEntry } from '../list';
 import type { FileNodeType, NodeId } from '../models/tree';
 import { NodeIdAssigner } from '../node-id';
@@ -193,7 +193,7 @@ async function makeRoot(): Promise<string> {
 async function classify(
   rootPath: string,
   ids: NodeIdAssigner,
-  events: RawFileEvent[],
+  events: WatchEvent[],
   options: {
     loadedScopes?: Set<NodeId | null>;
     isScopeLoaded?: (scope: NodeId | null) => boolean;

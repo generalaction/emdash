@@ -1,13 +1,13 @@
 import path from 'node:path';
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
-import type { IFileWatchService, RawFileEvent, WatchHandle } from '../fs';
-import { KeyedMutex, LiveCollection, type KeyedOp } from '../lib';
+import { KeyedMutex, LiveCollection, type KeyedOp } from '../../lib';
+import type { IWatchService, WatchEvent, WatchHandle } from '../../watch';
+import { isIgnored, watchIgnoreGlobs } from '../ignores';
+import { resolveInsideRoot } from '../paths';
 import { classifyFileTreeFsError, type FileTreeError, type FileTreeOnError } from './errors';
-import { isIgnored, watchIgnoreGlobs } from './ignores';
 import { listChildren } from './list';
 import type { FileNode, NodeId } from './models/tree';
 import { NodeIdAssigner } from './node-id';
-import { resolveInsideRoot } from './paths';
 import type {
   FileTreeSequences,
   FileTreeSnapshot,
@@ -22,7 +22,7 @@ const REVALIDATE_INTERVAL_MS = 5 * 60_000;
 
 export type FileTreeOptions = {
   rootPath: string;
-  watcher: IFileWatchService;
+  watcher: IWatchService;
   onError?: FileTreeOnError;
 };
 
@@ -128,6 +128,22 @@ export class FileTree implements IFileTree {
     return ok({ snapshot: snapshot.data, unsubscribe });
   }
 
+  async refresh(): Promise<Result<FileTreeSnapshot, FileTreeError>> {
+    return this.runMutation(async () => {
+      const refreshed = await this.refreshLoadedScopes();
+      if (!refreshed.success) return err(refreshed.error);
+      return ok(this.collection.getCached());
+    });
+  }
+
+  async dispose(): Promise<void> {
+    if (this.disposed) return;
+    this.disposed = true;
+    if (this.revalidateTimer) clearInterval(this.revalidateTimer);
+    await this.watch.release();
+    this.collection.dispose();
+  }
+
   async expandDir(dirId: NodeId | null): Promise<Result<FileTreeSequences, FileTreeError>> {
     const ready = await this.ready();
     if (!ready.success) return err(ready.error);
@@ -160,14 +176,6 @@ export class FileTree implements IFileTree {
     });
   }
 
-  async refresh(): Promise<Result<FileTreeSnapshot, FileTreeError>> {
-    return this.runMutation(async () => {
-      const refreshed = await this.refreshLoadedScopes();
-      if (!refreshed.success) return err(refreshed.error);
-      return ok(this.collection.getCached());
-    });
-  }
-
   private async refreshLoadedScopes(): Promise<Result<FileTreeSequences, FileTreeError>> {
     const scopes = this.collection.loadedScopes();
     let sequences: FileTreeSequences = {};
@@ -183,14 +191,6 @@ export class FileTree implements IFileTree {
       sequences = mergeSequences(sequences, refreshed.data);
     }
     return ok(sequences);
-  }
-
-  async dispose(): Promise<void> {
-    if (this.disposed) return;
-    this.disposed = true;
-    if (this.revalidateTimer) clearInterval(this.revalidateTimer);
-    await this.watch.release();
-    this.collection.dispose();
   }
 
   private async loadDirectoryScope(
@@ -279,7 +279,7 @@ export class FileTree implements IFileTree {
     return ok(sequence === 0 ? {} : { tree: sequence });
   }
 
-  private async applyWatchEvents(events: RawFileEvent[]): Promise<void> {
+  private async applyWatchEvents(events: WatchEvent[]): Promise<void> {
     if (this.disposed) return;
     const classification = await classifyFileTreeWatchEvents(events, {
       rootPath: this.rootPath,

@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { FileWatchService, type RawFileEvent } from './index';
+import { WatchService, type WatchEvent } from './index';
 
 async function eventually<T>(
   read: () => T | undefined,
@@ -18,12 +18,12 @@ async function eventually<T>(
   throw new Error('Timed out waiting for condition');
 }
 
-describe('FileWatchService', () => {
+describe('WatchService', () => {
   it('emits real file events through ref-counted leases', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'emdash-shared-watch-'));
-    const watch = new FileWatchService();
-    const firstEvents: RawFileEvent[] = [];
-    const secondEvents: RawFileEvent[] = [];
+    const watch = new WatchService();
+    const firstEvents: WatchEvent[] = [];
+    const secondEvents: WatchEvent[] = [];
 
     try {
       const first = watch.watch(root, (events) => firstEvents.push(...events));
@@ -66,8 +66,8 @@ describe('FileWatchService', () => {
 
   it('keeps the shared subscription alive across concurrent release/re-watch', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'emdash-shared-watch-relock-'));
-    const watch = new FileWatchService();
-    const events: RawFileEvent[] = [];
+    const watch = new WatchService();
+    const events: WatchEvent[] = [];
 
     try {
       const first = watch.watch(root, () => {});
@@ -90,7 +90,7 @@ describe('FileWatchService', () => {
 
   it('surfaces watcher subscription failures through ready()', async () => {
     const root = path.join(tmpdir(), `emdash-shared-watch-missing-${Date.now()}`);
-    const watch = new FileWatchService();
+    const watch = new WatchService();
 
     try {
       const handle = watch.watch(root, () => {});
@@ -110,7 +110,7 @@ describe('FileWatchService', () => {
 
   it('disposes active handles by releasing their shared native subscription', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'emdash-shared-watch-dispose-'));
-    const watch = new FileWatchService();
+    const watch = new WatchService();
     const handle = watch.watch(root, () => {});
 
     await handle.ready();

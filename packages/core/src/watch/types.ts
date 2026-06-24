@@ -1,11 +1,11 @@
-export type FileChangeKind = 'create' | 'update' | 'delete';
+export type WatchEventKind = 'create' | 'update' | 'delete';
 
-export type RawFileEvent = {
-  kind: FileChangeKind;
+export type WatchEvent = {
+  kind: WatchEventKind;
   path: string;
 };
 
-export type FileWatchOptions = {
+export type WatchOptions = {
   /**
    * Native-level ignore globs, a property of the shared root subscription: consumers watching
    * the same root should agree on the ignore set to share one native watcher (different sets
@@ -25,11 +25,11 @@ export type WatchHandle = {
   release(): Promise<void>;
 };
 
-export type IFileWatchService = {
+export type IWatchService = {
   watch(
     root: string,
-    onEvents: (events: RawFileEvent[]) => void,
-    options?: FileWatchOptions
+    onEvents: (events: WatchEvent[]) => void,
+    options?: WatchOptions
   ): WatchHandle;
   dispose(): Promise<void>;
 };

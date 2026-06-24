@@ -1,9 +1,9 @@
 import { lstat, readdir } from 'node:fs/promises';
 import { err, ok, type Result } from '@emdash/shared';
+import { isIgnored } from '../ignores';
+import { basenameFromRelPath, resolveInsideRoot } from '../paths';
 import { classifyFileTreeFsError, type FileTreeError } from './errors';
-import { isIgnored } from './ignores';
 import type { FileNodeType } from './models/tree';
-import { basenameFromRelPath, resolveInsideRoot } from './paths';
 
 export type DevIno = `${number}:${number}`;
 

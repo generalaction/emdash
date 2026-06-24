@@ -3,14 +3,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Result } from '@emdash/shared';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { IFileWatchService, RawFileEvent, WatchHandle } from '../fs';
+import type { IWatchService, WatchEvent, WatchHandle } from '../../watch';
+import { FilesRuntime } from '../files-runtime';
+import { resolveInsideRoot } from '../paths';
 import { FileTree } from './file-tree';
-import { FileTreeRuntime } from './file-tree-runtime';
 import type { FileNode } from './models/tree';
-import { resolveInsideRoot } from './paths';
 
-class ManualWatchService implements IFileWatchService {
-  private consumers: Array<(events: RawFileEvent[]) => void> = [];
+class ManualWatchService implements IWatchService {
+  private consumers: Array<(events: WatchEvent[]) => void> = [];
   private readyCalls = 0;
   private releaseCalls = 0;
 
@@ -22,7 +22,7 @@ class ManualWatchService implements IFileWatchService {
     return this.releaseCalls;
   }
 
-  watch(_root: string, onEvents: (events: RawFileEvent[]) => void): WatchHandle {
+  watch(_root: string, onEvents: (events: WatchEvent[]) => void): WatchHandle {
     this.consumers.push(onEvents);
     this.readyCalls += 1;
     return {
@@ -34,7 +34,7 @@ class ManualWatchService implements IFileWatchService {
     };
   }
 
-  emit(events: RawFileEvent[]): void {
+  emit(events: WatchEvent[]): void {
     for (const consumer of this.consumers) consumer(events);
   }
 
@@ -106,7 +106,7 @@ describe('FileTree', () => {
     expect(paths(await nodes(tree))).toEqual(['target.txt']);
 
     const patched = tree as unknown as {
-      applyWatchEvents(events: RawFileEvent[]): Promise<void>;
+      applyWatchEvents(events: WatchEvent[]): Promise<void>;
     };
     const originalApplyWatchEvents = patched.applyWatchEvents;
     let resolveApplied: () => void = () => {};
@@ -283,7 +283,7 @@ describe('FileTree', () => {
 
     const patched = tree as unknown as {
       refreshLoadedScopes(): Promise<Result<unknown, unknown>>;
-      applyWatchEvents(events: RawFileEvent[]): Promise<void>;
+      applyWatchEvents(events: WatchEvent[]): Promise<void>;
     };
     const originalRefreshLoadedScopes = patched.refreshLoadedScopes;
     const originalApplyWatchEvents = patched.applyWatchEvents;
@@ -350,10 +350,10 @@ describe('FileTree', () => {
   it('runtime leases share one tree per resolved root', async () => {
     const root = await makeRoot();
     const watcher = new ManualWatchService();
-    const runtime = new FileTreeRuntime({ watcher });
+    const runtime = new FilesRuntime({ watcher });
 
-    const first = await runtime.open(root);
-    const second = await runtime.open(root);
+    const first = await runtime.openTree(root);
+    const second = await runtime.openTree(root);
     const firstLease = unwrap(first);
     const secondLease = unwrap(second);
 
@@ -367,9 +367,9 @@ describe('FileTree', () => {
 
   it('returns a typed error when opening a missing root', async () => {
     const root = path.join(await makeRoot(), 'missing');
-    const runtime = new FileTreeRuntime({ watcher: new ManualWatchService() });
+    const runtime = new FilesRuntime({ watcher: new ManualWatchService() });
 
-    await expect(runtime.open(root)).resolves.toMatchObject({
+    await expect(runtime.openTree(root)).resolves.toMatchObject({
       success: false,
       error: { type: 'not-found', path: '' },
     });
@@ -379,14 +379,14 @@ describe('FileTree', () => {
   it('releases the runtime lease when ready rejects unexpectedly', async () => {
     const root = await makeRoot();
     const watcher = new ManualWatchService();
-    const runtime = new FileTreeRuntime({ watcher });
+    const runtime = new FilesRuntime({ watcher });
     const originalReady = FileTree.prototype.ready;
     FileTree.prototype.ready = async () => {
       throw new Error('boom');
     };
 
     try {
-      await expect(runtime.open(root)).rejects.toThrow('boom');
+      await expect(runtime.openTree(root)).rejects.toThrow('boom');
       await waitFor(async () => watcher.releaseCount === 1);
     } finally {
       FileTree.prototype.ready = originalReady;

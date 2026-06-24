@@ -1,11 +1,11 @@
 import path from 'node:path';
-import type { RawFileEvent } from '../../fs';
-import type { KeyedOp } from '../../lib';
-import { isIgnored } from '../ignores';
+import type { KeyedOp } from '../../../lib';
+import type { WatchEvent } from '../../../watch';
+import { isIgnored } from '../../ignores';
+import { parentRelPath, resolveInsideRoot } from '../../paths';
 import { statEntry as statFileTreeEntry, type ListedEntry } from '../list';
 import type { FileNode, NodeId } from '../models/tree';
 import type { NodeIdAssigner, Tombstone } from '../node-id';
-import { parentRelPath, resolveInsideRoot } from '../paths';
 
 export type FileTreeWatchClassifierOptions = {
   rootPath: string;
@@ -19,7 +19,7 @@ export type FileTreeWatchClassification = {
 };
 
 export async function classifyFileTreeWatchEvents(
-  events: RawFileEvent[],
+  events: WatchEvent[],
   options: FileTreeWatchClassifierOptions
 ): Promise<FileTreeWatchClassification> {
   const tombstones: Tombstone[] = [];
@@ -80,7 +80,7 @@ function parentScopeFor(entry: ListedEntry, ids: NodeIdAssigner): NodeId | null 
   return parent?.type === 'directory' ? parent.id : undefined;
 }
 
-function relPathFromWatchEvent(rootPath: string, event: RawFileEvent): string | null {
+function relPathFromWatchEvent(rootPath: string, event: WatchEvent): string | null {
   const relative = path.relative(rootPath, event.path).replace(/\\/g, '/');
   const resolved = resolveInsideRoot(rootPath, relative, { allowEmpty: true });
   if (!resolved.success || !resolved.data.relPath) return null;
