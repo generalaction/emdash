@@ -316,18 +316,18 @@ async function listScopedIssues(
   }
 
   if (searchTerm) {
-    const issuesBySource = await Promise.all(
-      credentials.scope.dataSourceIds.map((dataSourceId) =>
-        searchDataSourceIssues(credentials.token, dataSourceId, searchTerm, limit)
-      )
+    const issuesBySource = await mapWithConcurrency(
+      credentials.scope.dataSourceIds,
+      NOTION_DATA_SOURCE_CONCURRENCY,
+      (dataSourceId) => searchDataSourceIssues(credentials.token, dataSourceId, searchTerm, limit)
     );
     return sortByUpdatedAtDesc(dedupeIssuesByIdentifier(issuesBySource.flat())).slice(0, limit);
   }
 
-  const pagesBySource = await Promise.all(
-    credentials.scope.dataSourceIds.map((dataSourceId) =>
-      queryDataSourcePages(credentials.token, dataSourceId, limit)
-    )
+  const pagesBySource = await mapWithConcurrency(
+    credentials.scope.dataSourceIds,
+    NOTION_DATA_SOURCE_CONCURRENCY,
+    (dataSourceId) => queryDataSourcePages(credentials.token, dataSourceId, limit)
   );
   const issues = pagesBySource.flat().map((page) => toIssue(page));
   return sortByUpdatedAtDesc(dedupeIssuesByIdentifier(issues)).slice(0, limit);
@@ -343,7 +343,7 @@ async function listIssues(opts: IssueQueryOpts): Promise<IssueListResult> {
 
   try {
     const issues = await listScopedIssues(credentials, undefined, sanitizedLimit);
-    return { success: true, issues: sortByUpdatedAtDesc(issues) };
+    return { success: true, issues };
   } catch (error) {
     return toIssueListError(error, 'Failed to fetch Notion pages.');
   }
@@ -364,7 +364,7 @@ async function searchIssues(opts: IssueSearchOpts): Promise<IssueListResult> {
 
   try {
     const issues = await listScopedIssues(credentials, term, sanitizedLimit);
-    return { success: true, issues: sortByUpdatedAtDesc(issues) };
+    return { success: true, issues };
   } catch (error) {
     return toIssueListError(error, 'Failed to search Notion pages.');
   }

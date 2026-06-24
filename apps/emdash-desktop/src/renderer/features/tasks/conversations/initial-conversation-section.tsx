@@ -20,18 +20,12 @@ import { cn } from '@renderer/utils/utils';
 import { providerSupportsAutoApprove } from '@shared/core/agents/agent-auto-approve';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { LinkedIssue } from '@shared/core/linked-issue';
-import { ProviderLogo } from '../components/issue-selector/issue-selector';
+import { compactIssueIdentifier, ProviderLogo } from '../components/issue-selector/issue-selector';
 import { appendInitialConversationText } from '../create-task-modal/initial-conversation-text';
 import { usePromptFileDrop } from '../create-task-modal/use-prompt-file-drop';
 import { AddContextPopover } from './add-context-popover';
 import { buildIssueContextText, buildTaskContextActions } from './context-actions';
 import { useEffectiveProvider } from './use-effective-provider';
-
-function compactIssueIdentifier(issue: LinkedIssue): string {
-  return issue.provider === 'notion' && issue.identifier.length > 12
-    ? `${issue.identifier.slice(0, 8)}…`
-    : issue.identifier;
-}
 
 export type InitialConversationState = {
   provider: AgentProviderId | null;
@@ -258,7 +252,7 @@ export function InitialConversationField({
                   className="shrink-0 font-mono text-foreground-muted"
                   title={linkedIssue.identifier}
                 >
-                  {compactIssueIdentifier(linkedIssue)}
+                  {compactIssueIdentifier(linkedIssue.provider, linkedIssue.identifier)}
                 </span>
                 <button
                   type="button"

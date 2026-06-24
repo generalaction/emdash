@@ -42,8 +42,7 @@ export function IssueIdentifier({
   className?: string;
 }) {
   if (provider === 'asana') return null;
-  const displayIdentifier =
-    provider === 'notion' && identifier.length > 12 ? `${identifier.slice(0, 8)}…` : identifier;
+  const displayIdentifier = compactIssueIdentifier(provider, identifier);
 
   return (
     <span
@@ -56,6 +55,15 @@ export function IssueIdentifier({
       {displayIdentifier}
     </span>
   );
+}
+
+export function compactIssueIdentifier(
+  provider: LinkedIssue['provider'] | undefined,
+  identifier: string
+): string {
+  return provider === 'notion' && identifier.length > 12
+    ? `${identifier.slice(0, 8)}…`
+    : identifier;
 }
 
 export function ProviderLogo({

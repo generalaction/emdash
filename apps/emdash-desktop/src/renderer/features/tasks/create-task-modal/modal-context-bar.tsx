@@ -6,14 +6,7 @@ import {
 import { PromptActionsMenu } from '@renderer/features/tasks/conversations/prompt-actions-menu';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import type { LinkedIssue } from '@shared/core/linked-issue';
-import { ProviderLogo } from '../components/issue-selector/issue-selector';
-
-function compactIssueIdentifier(provider: LinkedIssue['provider'], identifier: string): string {
-  return provider === 'notion' && identifier.length > 12
-    ? `${identifier.slice(0, 8)}…`
-    : identifier;
-}
+import { compactIssueIdentifier, ProviderLogo } from '../components/issue-selector/issue-selector';
 
 interface ModalContextBarProps {
   actions: ContextAction[];
