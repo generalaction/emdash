@@ -1,3 +1,4 @@
+import { mapWithConcurrency } from '@main/core/issues/helpers/map-with-concurrency';
 import { clampIssueLimit, normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
 import type {
   IssueContextOpts,
@@ -34,9 +35,17 @@ type NotionPage = {
 };
 
 type NotionSearchResponse = {
-  results: NotionPage[];
+  results: (NotionPage | NotionDataSource)[];
   has_more: boolean;
   next_cursor?: string | null;
+};
+
+type NotionDataSource = {
+  object: 'data_source';
+  id: string;
+  url: string;
+  title?: NotionRichText[];
+  parent?: { type?: string; database_id?: string };
 };
 
 type NotionDataSourceQueryResponse = {
@@ -61,6 +70,8 @@ type NotionBlock = {
 const BLOCK_CONTEXT_PAGE_SIZE = 100;
 const MAX_CONTEXT_BLOCKS = 300;
 const MAX_CONTEXT_DEPTH = 3;
+const NOTION_DATA_SOURCE_CONCURRENCY = 4;
+const MAX_DISCOVERED_DATA_SOURCES = 25;
 
 function plainText(value: NotionRichText[] | undefined): string | undefined {
   const text = value
@@ -169,11 +180,39 @@ async function searchSharedPages(
       { method: 'POST', body: JSON.stringify(body) }
     );
 
-    pages.push(...data.results);
+    pages.push(...data.results.filter((result) => result.object === 'page'));
     startCursor = data.next_cursor ?? undefined;
   } while (startCursor && pages.length < limit);
 
   return pages.slice(0, limit);
+}
+
+async function searchSharedDataSources(
+  credentials: NotionCredentials,
+  limit: number
+): Promise<NotionDataSource[]> {
+  const dataSources: NotionDataSource[] = [];
+  let startCursor: string | undefined;
+
+  do {
+    const body: Record<string, unknown> = {
+      page_size: Math.min(100, limit),
+      filter: { property: 'object', value: 'data_source' },
+      sort: { direction: 'descending', timestamp: 'last_edited_time' },
+    };
+    if (startCursor) body.start_cursor = startCursor;
+
+    const data = await notionConnectionService.request<NotionSearchResponse>(
+      credentials.token,
+      '/search',
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+
+    dataSources.push(...data.results.filter((result) => result.object === 'data_source'));
+    startCursor = data.next_cursor ?? undefined;
+  } while (startCursor && dataSources.length < limit);
+
+  return dataSources.slice(0, limit);
 }
 
 async function queryDataSourcePages(
@@ -187,7 +226,6 @@ async function queryDataSourcePages(
   do {
     const body: Record<string, unknown> = {
       page_size: Math.min(100, limit),
-      result_type: 'page',
       sorts: [{ direction: 'descending', timestamp: 'last_edited_time' }],
     };
     if (startCursor) body.start_cursor = startCursor;
@@ -211,6 +249,19 @@ async function listScopedIssues(
   limit: number
 ): Promise<LinkedIssue[]> {
   if (credentials.scope.type === 'all-shared') {
+    if (!searchTerm) {
+      const dataSources = await searchSharedDataSources(credentials, MAX_DISCOVERED_DATA_SOURCES);
+      const pagesBySource = await mapWithConcurrency(
+        dataSources,
+        NOTION_DATA_SOURCE_CONCURRENCY,
+        (dataSource) => queryDataSourcePages(credentials.token, dataSource.id, limit)
+      );
+      const dataSourceIssues = pagesBySource.flat().map((page) => toIssue(page));
+      if (dataSourceIssues.length) {
+        return sortByUpdatedAtDesc(dataSourceIssues).slice(0, limit);
+      }
+    }
+
     const pages = await searchSharedPages(credentials, searchTerm, limit);
     return pages.map((page) => toIssue(page));
   }

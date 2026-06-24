@@ -68,30 +68,83 @@ describe('notionIssueProvider', () => {
         `/data_sources/${DATA_SOURCE_ID}/query`,
         expect.objectContaining({
           method: 'POST',
-          body: expect.stringContaining('"result_type":"page"'),
+          body: expect.not.stringContaining('result_type'),
         })
       );
     });
 
-    it('uses shared-page search when no data source scope is configured', async () => {
+    it('discovers shared data sources when no data source scope is configured', async () => {
       const credentials = { token: 'tok', scope: { type: 'all-shared' as const } };
       mockGetStoredCredentials.mockResolvedValue(credentials);
-      mockRequest.mockResolvedValue({
-        results: [PAGE],
-        has_more: false,
-        next_cursor: null,
-      });
+      mockRequest
+        .mockResolvedValueOnce({
+          results: [
+            {
+              object: 'data_source',
+              id: DATA_SOURCE_ID,
+              url: 'https://app.notion.com/p/source',
+              title: [{ plain_text: 'Goals' }],
+            },
+          ],
+          has_more: false,
+          next_cursor: null,
+        })
+        .mockResolvedValueOnce({
+          results: [PAGE],
+          has_more: false,
+          next_cursor: null,
+        });
 
       const result = await notionIssueProvider.listIssues({ limit: 50 });
 
-      expect(result).toEqual({ success: true, issues: [expect.any(Object)] });
+      expect(result).toEqual({
+        success: true,
+        issues: [expect.objectContaining({ title: 'Fix login bug' })],
+      });
       expect(mockRequest).toHaveBeenCalledWith(
         credentials.token,
         '/search',
         expect.objectContaining({
           method: 'POST',
-          body: expect.stringContaining('"value":"page"'),
+          body: expect.stringContaining('"value":"data_source"'),
         })
+      );
+      expect(mockRequest).toHaveBeenCalledWith(
+        credentials.token,
+        `/data_sources/${DATA_SOURCE_ID}/query`,
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
+
+    it('falls back to shared-page search when discovered data sources have no pages', async () => {
+      const credentials = { token: 'tok', scope: { type: 'all-shared' as const } };
+      mockGetStoredCredentials.mockResolvedValue(credentials);
+      mockRequest
+        .mockResolvedValueOnce({
+          results: [
+            { object: 'data_source', id: DATA_SOURCE_ID, url: 'https://app.notion.com/p/source' },
+          ],
+          has_more: false,
+          next_cursor: null,
+        })
+        .mockResolvedValueOnce({
+          results: [],
+          has_more: false,
+          next_cursor: null,
+        })
+        .mockResolvedValueOnce({
+          results: [PAGE],
+          has_more: false,
+          next_cursor: null,
+        });
+
+      const result = await notionIssueProvider.listIssues({ limit: 50 });
+
+      expect(result).toEqual({ success: true, issues: [expect.any(Object)] });
+      expect(mockRequest).toHaveBeenLastCalledWith(
+        credentials.token,
+        '/search',
+        expect.objectContaining({ body: expect.stringContaining('"value":"page"') })
       );
     });
 
