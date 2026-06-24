@@ -1,0 +1,438 @@
+apps/emdash-desktop/src/renderer/features/tasks/conversations/initial-conversation-section.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1,6,10-16,40-42,62,65,67,77-80,96-97,102-110,135,182-204
+apps/emdash-desktop/src/renderer/features/tasks/stores/open-file-in-file-editor.ts
+  s_473927847260ba::t_f90f4aab3c18d7 28,40-44
+apps/emdash-desktop/src/main/core/projects/operations/create-ssh-project.ts
+  s_473927847260ba::t_f90f4aab3c18d7 107-113
+  s_473927847260ba::t_ec7fba67be0452 2,106
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/generic-tab-item.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-196
+apps/emdash-desktop/src/renderer/lib/editor/fileKind.test.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-11
+apps/emdash-desktop/src/main/core/view-state/view-state-service.ts
+  s_473927847260ba::t_f90f4aab3c18d7 20,22-26
+apps/emdash-desktop/src/renderer/lib/pty/pane-sizing-context.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 2,4-6,9-12,20,31-34,37-47,49,51
+apps/emdash-desktop/src/renderer/features/command-palette/command-palette-modal.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 242-245,252-255
+apps/emdash-desktop/src/shared/projects.ts
+  s_473927847260ba::t_f90f4aab3c18d7 6,58
+packages/core/src/agents/plugins/helpers/standard-command.ts
+  s_473927847260ba::t_f90f4aab3c18d7 64-69,130-132
+apps/emdash-desktop/src/renderer/lib/monaco/model-status-overlay.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-20
+apps/emdash-desktop/src/assets/images/mcp/resend.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/assets/images/mcp/devrev.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/assets/images/mcp/wordpress.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-manager.ts
+  s_473927847260ba::t_f90f4aab3c18d7 344
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/file-model-lifecycle-store.ts
+  s_473927847260ba::t_f90f4aab3c18d7 2-3,12,20,22,39,42-43,59,83,208-209,215,228-229,240-242
+apps/emdash-desktop/src/renderer/tests/browser/terminal-dimensions.test.ts
+  s_473927847260ba::t_f90f4aab3c18d7 112-113,144
+apps/emdash-desktop/src/main/core/pty/local-pty.test.ts
+  s_473927847260ba::t_f90f4aab3c18d7 4,22,32,34,41-46,48-50,60,65-68,70-71,94,99-110,119-137
+apps/emdash-desktop/src/renderer/lib/monaco/monaco-bootstrap.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-48
+apps/emdash-desktop/src/assets/images/mcp/sanity.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/renderer/features/tabs/persistence.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-28
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/diff-tab-store.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-100
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-content-preview.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-54
+apps/emdash-desktop/src/main/db/legacy-port/legacy-source/path.ts
+  s_473927847260ba::t_f90f4aab3c18d7 2,5-19,24-35,37-39,46-53,55-57
+apps/emdash-desktop/src/renderer/features/tabs/pane-context.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-50
+apps/emdash-desktop/src/assets/images/mcp/clickup.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/assets/images/mcp/jam.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-13
+apps/emdash-desktop/src/renderer/lib/editor/csv-renderer.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-95
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/files-list.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 4,29,31-35,39-40,50-52,56-57,67-69
+apps/emdash-desktop/src/renderer/features/projects/stores/project-manager.ts
+  s_473927847260ba::t_f90f4aab3c18d7 607-609
+apps/emdash-desktop/src/main/core/tasks/operations/deleteTask.test.ts
+  s_473927847260ba::t_f90f4aab3c18d7 8,43,66-72
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/tab-title.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-36
+apps/emdash-desktop/src/renderer/features/tasks/terminals/terminal-pty-content.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 3-7,86,102-139
+apps/emdash-desktop/src/main/core/conversations/impl/local-conversation.ts
+  s_473927847260ba::t_f90f4aab3c18d7 162
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/diff-toolbar.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 3
+apps/emdash-desktop/src/assets/images/mcp/supabase.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/assets/images/mcp/context7.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-6
+apps/emdash-desktop/src/assets/images/mcp/notion.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/shared/core/conversations/conversation-config.ts
+  s_473927847260ba::t_f90f4aab3c18d7 16-17
+apps/emdash-desktop/src/assets/images/mcp/chrome_devtools.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/assets/images/mcp/cloudflare.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/assets/images/mcp/canva.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/main/lib/telemetry.ts
+  s_473927847260ba::t_f90f4aab3c18d7 22-24,149-154,172-174,176
+apps/emdash-desktop/src/renderer/features/automations/components/CreateAutomationView.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 78
+apps/emdash-desktop/src/renderer/features/tasks/conversations/create-conversation-modal.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 9,18-24,45,48-52,62-70,84,102,117,121-145
+apps/emdash-desktop/src/renderer/features/projects/components/add-project-modal/add-project-modal.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 253,257,265,440
+apps/emdash-desktop/src/renderer/features/tasks/conversations/initial-conversation-section.test.ts
+  s_473927847260ba::t_f90f4aab3c18d7 43-46
+apps/emdash-desktop/src/renderer/features/tabs/pane-layout-store.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-323
+apps/emdash-desktop/src/renderer/features/tasks/commands.ts
+  s_473927847260ba::t_f90f4aab3c18d7 2,4,41-42,52,54-55,93,110-113,214,316-327,338,349,359
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/git-fetch.ts
+  s_473927847260ba::t_f90f4aab3c18d7 5-27,42-49
+apps/emdash-desktop/src/assets/images/mcp/vercel.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/assets/images/mcp/wix.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/renderer/features/tasks/commands.test.ts
+  s_473927847260ba::t_f90f4aab3c18d7 116-118,123,186-189,202,208,240,260
+apps/emdash-desktop/src/assets/images/mcp/graphite.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/main/index.ts
+  s_473927847260ba::t_f90f4aab3c18d7 2
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-content-toolbar.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-39
+apps/emdash-desktop/src/renderer/features/tasks/conversations/context-bar.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 5,36,58
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversations-panel.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 4-5,14,20-24,33,39,41-42,45,47-50,114,141,144-147
+apps/emdash-desktop/src/renderer/lib/editor/csv-parser.test.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-28
+apps/emdash-desktop/src/assets/images/mcp/amplitude.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-tab-item.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-64
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-content-renderer.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-32
+apps/emdash-desktop/src/shared/core/agents/agent-payload.ts
+  s_473927847260ba::t_f90f4aab3c18d7 161-174,177
+apps/emdash-desktop/src/renderer/features/command-palette/resource-monitor-view.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 212-219
+apps/emdash-desktop/src/shared/core/mcp/catalog.ts
+  s_473927847260ba::t_f90f4aab3c18d7 204,488-570
+apps/emdash-desktop/src/assets/images/mcp/asana.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/assets/images/mcp/atlassian.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+packages/plugins/src/agents/impl/codex/index.ts
+  s_473927847260ba::t_f90f4aab3c18d7 23-39,90
+apps/emdash-desktop/src/renderer/features/sidebar/use-sidebar-drop.ts
+  s_473927847260ba::t_f90f4aab3c18d7 57-64
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/diff-view.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 2
+apps/emdash-desktop/src/assets/images/mcp/neon.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1,3
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-tab-view-persistor.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-91
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-tab-entry.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-27
+apps/emdash-desktop/src/renderer/features/tabs/core/tab-provider.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-255
+apps/emdash-desktop/src/renderer/lib/editor/fileKind.ts
+  s_473927847260ba::t_f90f4aab3c18d7 63,72-77
+apps/emdash-desktop/src/renderer/features/tabs/pane-store.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-459
+apps/emdash-desktop/src/shared/core/automations/config.ts
+  s_473927847260ba::t_f90f4aab3c18d7 22-23
+apps/emdash-desktop/src/shared/core/conversations/conversations.ts
+  s_473927847260ba::t_f90f4aab3c18d7 17-18,36-37
+apps/emdash-desktop/src/assets/images/mcp/motherduck.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/assets/images/mcp/shopify.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/tab-context-menu.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-88
+apps/emdash-desktop/src/assets/images/mcp/hugging_face.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/renderer/features/tabs/pane-content.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-80
+apps/emdash-desktop/src/renderer/features/projects/components/add-project-modal/content.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 21,27,59-66
+apps/emdash-desktop/src/main/core/pty/local-pty.ts
+  s_473927847260ba::t_91483e37666387 107
+  s_473927847260ba::t_f90f4aab3c18d7 6,54-58,86-88,91-94
+apps/emdash-desktop/src/main/db/legacy-port/legacy-source/path.test.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-26
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/diff-tab-provider.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-184
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/file-tab-store.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-128
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/staged-section.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 5,37-38,47-48,54-56,60-61,67-69
+apps/emdash-desktop/src/main/core/projects/operations/createProject.test.ts
+  s_473927847260ba::t_f90f4aab3c18d7 6,192-226,345-388,549-565
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 5,21,26,40,45-47,49-50,95-97,99-102,104,107,139-140,143-146,156,183,186,188-190,221-223,268,276,344,359,369,371,382,454-465,471-478
+apps/emdash-desktop/src/assets/images/mcp/slack.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/renderer/lib/editor/html-renderer.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 3,36-39,43-44,95,100,103
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 3,30,100,102,105
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/draggable-tab.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-39
+apps/emdash-desktop/src/renderer/lib/monaco/sticky-diff-editor.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 5,46,48,95,115,139-140,143-149
+apps/emdash-desktop/src/renderer/features/command-palette/palette-notifications-group.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 84-87
+apps/emdash-desktop/src/renderer/lib/monaco/monaco-model-registry.ts
+  s_473927847260ba::t_f90f4aab3c18d7 84-91,97-99,112,570-575,615-656
+apps/emdash-desktop/src/assets/images/mcp/cloudinary.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/renderer/lib/pty/pty-dimensions.ts
+  s_473927847260ba::t_f90f4aab3c18d7 6
+apps/emdash-desktop/src/renderer/lib/pty/use-pty-pane-resize.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-88
+apps/emdash-desktop/src/renderer/main.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 13,37-39
+apps/emdash-desktop/src/shared/shortcuts.ts
+  s_473927847260ba::t_f90f4aab3c18d7 213-226,240
+apps/emdash-desktop/src/renderer/features/browser/browser-tab-provider.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-175
+apps/emdash-desktop/src/renderer/features/automations/useAutomationFormState.ts
+  s_473927847260ba::t_f90f4aab3c18d7 89-90,101-106,134,200
+apps/emdash-desktop/src/renderer/lib/open-external-link.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 23
+apps/emdash-desktop/src/renderer/lib/stores/view-state-cache.ts
+  s_473927847260ba::t_f90f4aab3c18d7 35-39
+apps/emdash-desktop/src/renderer/utils/mcp-icon-data.ts
+  s_473927847260ba::t_f90f4aab3c18d7 18-56,58-63
+packages/core/src/git/git-runtime.test.ts
+  s_473927847260ba::t_f90f4aab3c18d7 7,18-20,49-67,89-130
+apps/emdash-desktop/src/renderer/features/tabs/pane-store.test.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-203
+agents/integrations/providers.md
+  s_473927847260ba::t_f90f4aab3c18d7 5-6,36,41
+apps/emdash-desktop/src/main/core/pty/posix-pty-terminator.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-112
+apps/emdash-desktop/src/assets/images/mcp/parallel.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-11
+apps/emdash-desktop/src/assets/images/mcp/playwright.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/main/db/legacy-port/service.ts
+  s_473927847260ba::t_f90f4aab3c18d7 25-27,139,158-159,174,226,244
+apps/emdash-desktop/src/renderer/features/tasks/tab-bar-actions.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-107
+apps/emdash-desktop/src/assets/images/mcp/stripe.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/main/core/automations/actions/taskCreate.ts
+  s_473927847260ba::t_f90f4aab3c18d7 191
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_473927847260ba::t_f90f4aab3c18d7 147
+apps/emdash-desktop/src/assets/images/mcp/bigquery.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/assets/images/mcp/mcp_default.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-6
+apps/emdash-desktop/src/renderer/features/tabs/core/tab-provider-registry.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-94
+apps/emdash-desktop/src/renderer/features/tabs/pane-dimension-provider.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-81
+apps/emdash-desktop/src/renderer/lib/components/agent-selector/agent-info-card.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 4,9,16,31-36,39-44,70-84
+apps/emdash-desktop/src/renderer/features/tasks/components/preview-servers/preview-server-pill.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 92
+apps/emdash-desktop/src/renderer/features/tasks/pane-empty-state.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-90
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-tab-context.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-21
+apps/emdash-desktop/src/assets/images/mcp/figma.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/renderer/features/browser/browser-tab-entry.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-26
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/commits-list.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 7,195,197-200,204-205,214-216,220-221,230-232
+apps/emdash-desktop/src/renderer/utils/mcpIcons.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 2,6-33,43-45,47-57,60-62,64-76,78-81,83,85-104,108
+apps/emdash-desktop/src/renderer/features/tasks/view/task-main-column.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 12-16,19-22,62-95,99,105-136
+packages/core/src/git/types.ts
+  s_473927847260ba::t_f90f4aab3c18d7 108-111,119
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/pane-selectors.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-12
+apps/emdash-desktop/src/assets/images/mcp/aws_marketplace.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-content-types.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-74
+apps/emdash-desktop/src/assets/images/mcp/planetscale.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-tab-provider.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-222
+apps/emdash-desktop/src/renderer/features/tasks/terminals/terminal-panel.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 4
+apps/emdash-desktop/src/renderer/features/projects/stores/project-manager.test.ts
+  s_473927847260ba::t_f90f4aab3c18d7 430-466
+apps/emdash-desktop/src/assets/images/mcp/intercom.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/git-fetch.test.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-102
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-36
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/build-create-task-params.test.ts
+  s_473927847260ba::t_f90f4aab3c18d7 19-20
+apps/emdash-desktop/src/assets/images/mcp/exa.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/main/core/telemetry/automation-telemetry.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-87
+apps/emdash-desktop/src/assets/images/mcp/posthog.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/renderer/lib/editor/types.ts
+  s_473927847260ba::t_f90f4aab3c18d7 4
+apps/emdash-desktop/src/shared/core/conversations/conversation-config.test.ts
+  s_473927847260ba::t_f90f4aab3c18d7 30-40
+apps/emdash-desktop/src/main/core/pty/process-tree.test.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-117
+apps/emdash-desktop/src/renderer/features/tasks/editor/pane-selectors.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-40
+apps/emdash-desktop/src/assets/images/mcp/azure.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/assets/images/mcp/clerk.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/main/core/pty/posix-pty-terminator.test.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-196
+apps/emdash-desktop/src/renderer/features/tasks/task-tab-registry.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-112
+apps/emdash-desktop/src/renderer/lib/pty/use-pty.ts
+  s_473927847260ba::t_f90f4aab3c18d7 2,96,133,142,678-682,684-703,737-738
+apps/emdash-desktop/src/main/core/conversations/createConversation.ts
+  s_473927847260ba::t_f90f4aab3c18d7 10,54-57
+apps/emdash-desktop/src/main/db/legacy-port/controller.ts
+  s_473927847260ba::t_f90f4aab3c18d7 14-15,43-44
+apps/emdash-desktop/src/shared/telemetry.ts
+  s_473927847260ba::t_f90f4aab3c18d7 2-5,29,66-81
+apps/emdash-desktop/src/assets/images/mcp/microsoft_learn.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/renderer/lib/components/nav-buttons.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 18
+packages/plugins/src/agents/impl/claude/index.ts
+  s_473927847260ba::t_f90f4aab3c18d7 22-38,112
+apps/emdash-desktop/src/assets/images/mcp/axiom.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store.ts
+  s_473927847260ba::t_f90f4aab3c18d7 2-3,24,32,61-62,71-73,85
+apps/emdash-desktop/src/assets/images/mcp/dev_manager.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+packages/core/src/agents/plugins/helpers/standard-command.test.ts
+  s_473927847260ba::t_f90f4aab3c18d7 44-102
+packages/core/src/exec/bound-exec.ts
+  s_473927847260ba::t_f90f4aab3c18d7 131
+apps/emdash-desktop/src/shared/core/tasks/task-config.ts
+  s_473927847260ba::t_f90f4aab3c18d7 17
+apps/emdash-desktop/src/assets/images/mcp/magic_patterns.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-tab-item.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-86
+apps/emdash-desktop/src/renderer/features/tasks/conversations/pane-selectors.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-28
+apps/emdash-desktop/src/renderer/features/tabs/pane-layout-context.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-27
+apps/emdash-desktop/src/renderer/features/tasks/editor/editor-file-tree.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 37,146,175,182,192
+apps/emdash-desktop/src/assets/images/mcp/make.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/main/core/projects/path-utils.ts
+  s_473927847260ba::t_f90f4aab3c18d7 3-19,21-27
+apps/emdash-desktop/src/main/core/tasks/operations/createTask.ts
+  s_473927847260ba::t_f90f4aab3c18d7 97
+apps/emdash-desktop/src/renderer/app/app-menu-events.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 78-81
+apps/emdash-desktop/src/assets/images/mcp/miro.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/assets/images/mcp/netlify.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/tab-close-button.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-27
+packages/core/src/git/git-runtime.ts
+  s_473927847260ba::t_f90f4aab3c18d7 103-105,118-124,148-150,244,246,248-256,261,268,274,282,306-313
+apps/emdash-desktop/src/assets/images/mcp/prisma.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/assets/images/mcp/railway.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/assets/images/mcp/monday.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/assets/images/mcp/sentry.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/renderer/features/tasks/conversations/sidebar-conversations-list.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 26,39,55,78,100,105,167,191
+apps/emdash-desktop/src/renderer/features/tasks/editor/editor-provider.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 5,11,19-23,28,46,48-49,74,79-80,83,100,110,144,155,165,177,187-193,240,247,262
+apps/emdash-desktop/src/renderer/lib/editor/csv-parser.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-60
+apps/emdash-desktop/src/renderer/lib/editor/svg-renderer.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 13-14,17,31
+apps/emdash-desktop/src/renderer/features/browser/browser-tab-item.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-55
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/unstaged-section.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 5,39-40,51-52,58-60,64-65,71-73
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/build-create-task-params.ts
+  s_473927847260ba::t_f90f4aab3c18d7 22
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.test.ts
+  s_473927847260ba::t_f90f4aab3c18d7 3-4,17-38,50-52,152-155,215-217,391-394,398-399,406,408,438,445,461-464,468,474,489,515-518,524-527,536,599-600,607,629-630,654,659,687,700,711-799
+apps/emdash-desktop/src/assets/images/mcp/webflow.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/main/core/conversations/utils.ts
+  s_473927847260ba::t_f90f4aab3c18d7 19
+apps/emdash-desktop/src/renderer/lib/editor/markdown-renderer.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 3,17,22,25,29-31,33-34,36-37,50,56,65
+apps/emdash-desktop/src/main/core/projects/operations/create-local-project.ts
+  s_473927847260ba::t_f90f4aab3c18d7 12,26-34,91-99,106-112
+  s_473927847260ba::t_ec7fba67be0452 2,105
+apps/emdash-desktop/src/assets/images/mcp/mongodb.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/main/core/pty/process-tree.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-163
+apps/emdash-desktop/src/renderer/features/tabs/hooks/useTabShortcuts.ts
+  s_473927847260ba::t_f90f4aab3c18d7 1-202
+apps/emdash-desktop/src/assets/images/mcp/graphos.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/assets/images/mcp/linear.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-tab-provider.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-204
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/diff-tab-item.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-79
+apps/emdash-desktop/src/assets/images/mcp/notra.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-4
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/diff-file-renderer.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 8
+apps/emdash-desktop/src/assets/images/mcp/honeycomb.svg
+  s_473927847260ba::t_f90f4aab3c18d7 1-7
+apps/emdash-desktop/src/main/core/tasks/operations/deleteTask.ts
+  s_473927847260ba::t_f90f4aab3c18d7 58
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/tab-drag-preview.tsx
+  s_473927847260ba::t_f90f4aab3c18d7 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "860ed47e599b5e335716786d9c043f69c4ba0350",
+  "prompts": {},
+  "sessions": {
+    "s_473927847260ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_106923b8fffe6tQoqfxwP6FeEp",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
