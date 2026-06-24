@@ -12,6 +12,23 @@ import {
 
 export const COPILOT_HOOKS_PATH = '.github/hooks/emdash.json';
 
+const COPILOT_MANAGED_HOOK_KEYS = [
+  'agentStop',
+  'sessionEnd',
+  'sessionStart',
+  'userPromptSubmitted',
+  'errorOccurred',
+  'notification',
+  'permissionRequest',
+];
+
+function hasAllManagedCopilotHooks(hooks: Record<string, unknown[]>): boolean {
+  return COPILOT_MANAGED_HOOK_KEYS.every((k) => {
+    const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
+    return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+  });
+}
+
 export function buildCopilotHookConfig() {
   const stopCmd = makeStdinHookCommand('stop');
   const startCmd = makeStdinHookCommand('start');
@@ -24,19 +41,7 @@ export function buildCopilotHookConfig() {
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readJsonConfig(fs, COPILOT_HOOKS_PATH);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      const installed = [
-        'agentStop',
-        'sessionEnd',
-        'sessionStart',
-        'userPromptSubmitted',
-        'errorOccurred',
-        'notification',
-        'permissionRequest',
-      ].some((k) => {
-        const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
-      });
-      return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
+      return hasAllManagedCopilotHooks(hooks) ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, COPILOT_HOOKS_PATH);
@@ -94,18 +99,7 @@ export function buildCopilotHookConfig() {
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
       const config = await readJsonConfig(fs, COPILOT_HOOKS_PATH);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      return [
-        'agentStop',
-        'sessionEnd',
-        'sessionStart',
-        'userPromptSubmitted',
-        'errorOccurred',
-        'notification',
-        'permissionRequest',
-      ].some((k) => {
-        const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
-      });
+      return hasAllManagedCopilotHooks(hooks);
     },
   };
 }

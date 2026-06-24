@@ -31,11 +31,11 @@ const MISTRAL_HOOK_ENTRIES = [
   {
     name: 'emdash-after-tool',
     type: 'after_tool',
-    match: '*',
+    match: 're:^(?!ask_user_question$).+',
     command: makeStdinHookCommand('tool-use'),
     timeout: 10,
     strict: false,
-    description: 'Notify Emdash after Mistral Vibe runs a tool.',
+    description: 'Notify Emdash after Mistral Vibe runs a non-prompt tool.',
   },
 ];
 

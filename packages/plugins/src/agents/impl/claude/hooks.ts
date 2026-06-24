@@ -9,8 +9,8 @@ import {
 export const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
 
 /**
- * Claude's Notification events carry no `notification_type` field.
- * Classify by examining the message text:
+ * Claude's Notification events usually carry no `notification_type` field.
+ * Classify those by examining the message text:
  *   /permission|approval/i → permission_prompt
  *   everything else        → idle_prompt (agent waiting / done)
  */
@@ -19,6 +19,10 @@ function parseClaudeHookEvent(
   body: Record<string, unknown>
 ): CanonicalHookEvent {
   if (eventType === 'notification') {
+    if (body.notification_type || body.notificationType) {
+      return defaultHookEventParser(eventType, body);
+    }
+
     const message = typeof body.message === 'string' ? body.message : '';
     const notificationType = /permission|approval/i.test(message)
       ? ('permission_prompt' as const)

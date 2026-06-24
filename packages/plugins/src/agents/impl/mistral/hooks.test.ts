@@ -50,4 +50,15 @@ command = "curl http://127.0.0.1:$EMDASH_HOOK_PORT/hook"
     );
     await expect(fs.exists(MISTRAL_HOOKS_PATH)).resolves.toBe(false);
   });
+
+  it('excludes ask_user_question from the after_tool hook', async () => {
+    const fs = createMemoryFs({ [MISTRAL_CONFIG_PATH]: '' });
+    const hooks = buildMistralHookConfig();
+
+    await hooks.writeHooks(fs, []);
+
+    const hooksToml = await fs.read(MISTRAL_HOOKS_PATH);
+    expect(hooksToml).toContain('name = "emdash-after-tool"');
+    expect(hooksToml).toContain('match = "re:^(?!ask_user_question$).+"');
+  });
 });
