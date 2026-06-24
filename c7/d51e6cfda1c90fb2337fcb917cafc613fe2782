@@ -1,0 +1,39 @@
+packages/ui/src/react/primitives/typography/typography.variants.css.ts
+  s_4164fd05b1effa::t_da68a0bbd109ce 9,12-15,24,30,36,43,49,55,61,67,73,79,85
+apps/emdash-desktop/src/renderer/features/tabs/core/tab-provider-registry.ts
+  s_4164fd05b1effa::t_647c2d636b03cb 5
+  s_4164fd05b1effa::t_da68a0bbd109ce 90
+apps/emdash-desktop/src/renderer/features/tasks/task-tab-registry.tsx
+  s_4164fd05b1effa::t_da68a0bbd109ce 95
+  s_4164fd05b1effa::t_2dd2939b8a3684 99-101
+packages/ui/src/react/components/prompt-editor/extensions/slash-command.ts
+  s_4164fd05b1effa::t_b9c35c70bb3ea0 21,76
+packages/ui/src/react/components/prompt-editor/prompt-editor.tsx
+  s_4164fd05b1effa::t_b9c35c70bb3ea0 107,109,115,123
+packages/chat-ui/src/tests/contract.tsx
+  s_4164fd05b1effa::t_b9c35c70bb3ea0 71,94
+packages/ui/src/react/stories/palette.stories.tsx
+  s_4164fd05b1effa::t_da68a0bbd109ce 20,51
+packages/ui/src/react/components/chat-composer.tsx
+  s_4164fd05b1effa::t_da68a0bbd109ce 531
+packages/ui/src/react/components/prompt-editor/extensions/mention.ts
+  s_4164fd05b1effa::t_b9c35c70bb3ea0 26,64,68
+apps/emdash-desktop/src/renderer/lib/ui/shortcut.tsx
+  s_4164fd05b1effa::t_2dd2939b8a3684 79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "c7d51e6cfda1c90fb2337fcb917cafc613fe2782",
+  "prompts": {},
+  "sessions": {
+    "s_4164fd05b1effa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_105aa0b1dffecyK7dbXj2M6fJH",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
