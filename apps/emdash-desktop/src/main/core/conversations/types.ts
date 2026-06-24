@@ -7,7 +7,7 @@ export interface ConversationProvider {
     isResuming?: boolean,
     initialPrompt?: string
   ): Promise<void>;
-  detachSession(conversationId: string): Promise<void>;
+  detachSession(conversationId: string): Promise<boolean>;
   stopSession(conversationId: string): Promise<void>;
   destroyAll(): Promise<void>;
   detachAll(): Promise<void>;
