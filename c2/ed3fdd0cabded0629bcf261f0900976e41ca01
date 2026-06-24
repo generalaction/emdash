@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/renderer/features/tasks/components/issue-selector/issue-selector.tsx
+  s_760e6dd4de391c::t_b0ea55299a6fe7 45-47,50,52,56,327-329,331,338,340-344
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/modal-context-bar.tsx
+  s_760e6dd4de391c::t_061cc0d61de9ab 13-15,60,68
+  s_760e6dd4de391c::t_b3f4b9baa996ea 9,12
+  s_760e6dd4de391c::t_b582eeebc59b9a 16-17,57-59,61-67,69-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "c2ed3fdd0cabded0629bcf261f0900976e41ca01",
+  "prompts": {},
+  "sessions": {
+    "s_760e6dd4de391c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef7f7-792a-74a1-a418-d97235dd6751",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
