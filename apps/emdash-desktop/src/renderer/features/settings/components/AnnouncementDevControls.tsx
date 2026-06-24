@@ -1,6 +1,7 @@
 import { Megaphone, RotateCcw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
+import { presentFeatureAnnouncement } from '@renderer/features/feature-announcements/present-feature-announcement';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
 import { SettingRow } from './SettingRow';
@@ -14,7 +15,7 @@ export const AnnouncementDevControls = observer(
     return (
       <SettingRow
         title="Announcement"
-        description="Preview or reset the in-app announcement sidebar card (dev only)."
+        description="Preview or reset the in-app announcement toast (dev only)."
         className="items-center rounded-lg border p-4"
         control={
           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -22,8 +23,13 @@ export const AnnouncementDevControls = observer(
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => {
-                void store.replayPreview();
+              onClick={async () => {
+                await store.replayPreview();
+                if (!store.manifest) return;
+                await store.markPresented();
+                presentFeatureAnnouncement(store.manifest, {
+                  onDismiss: () => store.resetPresentation(),
+                });
               }}
             >
               <Megaphone className="size-4" />
