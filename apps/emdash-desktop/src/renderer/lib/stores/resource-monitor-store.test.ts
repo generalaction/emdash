@@ -58,6 +58,37 @@ describe('ResourceMonitorStore', () => {
     expect(setOpen).toHaveBeenNthCalledWith(2, clientId, subscriptionId, false, 2);
   });
 
+  it('tracks initial loading until the first fetch resolves', async () => {
+    const { ResourceMonitorStore } = await import('./resource-monitor-store');
+    const { rpc } = await import('@renderer/lib/ipc');
+    vi.mocked(rpc.resourceMonitor.getSnapshot).mockResolvedValue({ success: true, data: null });
+
+    const store = new ResourceMonitorStore();
+    store.start();
+
+    expect(store.isLoadingInitialSnapshot).toBe(true);
+    await Promise.resolve();
+
+    expect(store.snapshot).toBeNull();
+    expect(store.isLoadingInitialSnapshot).toBe(false);
+  });
+
+  it('stops initial loading when an event snapshot arrives first', async () => {
+    const { ResourceMonitorStore } = await import('./resource-monitor-store');
+    const { rpc } = await import('@renderer/lib/ipc');
+    vi.mocked(rpc.resourceMonitor.getSnapshot).mockResolvedValue({
+      success: true,
+      data: snapshot(1),
+    });
+
+    const store = new ResourceMonitorStore();
+    store.start();
+    snapshotHandler?.(snapshot(2));
+
+    expect(store.snapshot?.timestamp).toBe(2);
+    expect(store.isLoadingInitialSnapshot).toBe(false);
+  });
+
   it('does not let an older fetched snapshot overwrite a newer event snapshot', async () => {
     const { ResourceMonitorStore } = await import('./resource-monitor-store');
     const { rpc } = await import('@renderer/lib/ipc');

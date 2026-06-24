@@ -5,6 +5,7 @@ import type { ResourcePtyEntry, ResourceSnapshot } from '@shared/resource-monito
 
 export class ResourceMonitorStore {
   snapshot: ResourceSnapshot | null = null;
+  isLoadingInitialSnapshot = false;
   private started = false;
   private offSnapshot: (() => void) | null = null;
   private clientId = crypto.randomUUID();
@@ -14,6 +15,7 @@ export class ResourceMonitorStore {
   constructor() {
     makeObservable(this, {
       snapshot: observable,
+      isLoadingInitialSnapshot: observable,
       totalCpuPercent: computed,
       totalMemoryBytes: computed,
       appMemoryBytes: computed,
@@ -57,23 +59,35 @@ export class ResourceMonitorStore {
   start(): void {
     if (this.started) return;
     this.started = true;
+    this.isLoadingInitialSnapshot = this.snapshot === null;
     const subscriptionId = crypto.randomUUID();
     this.subscriptionId = subscriptionId;
     void rpc.resourceMonitor.setOpen(this.clientId, subscriptionId, true, ++this.sequence);
     this.offSnapshot = events.on(resourceSnapshotChannel, (snap) => {
       runInAction(() => {
         this.snapshot = snap;
+        this.isLoadingInitialSnapshot = false;
       });
     });
     rpc.resourceMonitor
       .getSnapshot()
       .then((res) => {
-        if (!res?.success || !res.data) return;
+        if (!res?.success) {
+          runInAction(() => {
+            this.isLoadingInitialSnapshot = false;
+          });
+          return;
+        }
         runInAction(() => {
           this.applyFetchedSnapshot(res.data);
+          this.isLoadingInitialSnapshot = false;
         });
       })
-      .catch(() => {});
+      .catch(() => {
+        runInAction(() => {
+          this.isLoadingInitialSnapshot = false;
+        });
+      });
   }
 
   dispose(): void {
@@ -82,6 +96,7 @@ export class ResourceMonitorStore {
     this.offSnapshot?.();
     this.offSnapshot = null;
     this.started = false;
+    this.isLoadingInitialSnapshot = false;
     this.subscriptionId = null;
     if (subscriptionId) {
       void rpc.resourceMonitor.setOpen(this.clientId, subscriptionId, false, ++this.sequence);
