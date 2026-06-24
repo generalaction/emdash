@@ -1,0 +1,50 @@
+apps/emdash-desktop/src/main/core/dependencies/dependency-managers.ts
+  s_325cb390d8d872::t_acdbb7de798d36 8,52
+  s_325cb390d8d872::t_3bae47755f32d3 4,7,17,50-51
+  s_325cb390d8d872::t_74e943f4bd1f4a 37-49,53-58
+  s_325cb390d8d872::t_dba92b15704fb7 62-64
+apps/emdash-desktop/src/main/core/dependencies/dependency-managers.test.ts
+  s_325cb390d8d872::t_9da55f3bf140f6 255-256
+  s_325cb390d8d872::t_735844b945105e 198-225
+  s_325cb390d8d872::t_1583ce10d7b621 226-254,257-283
+  s_325cb390d8d872::t_51a66595785f55 7,9,15,23-27,30-33,53,59-61,96-97
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-git.ts
+  s_325cb390d8d872::t_518682f7fffc8a 94-97,159-162,219,232
+apps/emdash-desktop/src/main/core/execution-context/ssh-execution-context.test.ts
+  s_325cb390d8d872::t_7b962278aae140 33-47
+apps/emdash-desktop/src/main/core/utils/exec.ts
+  s_325cb390d8d872::t_5443811ca3946a 60
+  s_325cb390d8d872::t_fd04b64ced04b2 54,59,68-70,74-75,78-79,81
+  s_325cb390d8d872::t_a2d76c059175f3 57-58,61-67,71-73,80
+apps/emdash-desktop/src/main/core/execution-context/ssh-execution-context.ts
+  s_325cb390d8d872::t_5443811ca3946a 55,125
+  s_325cb390d8d872::t_d10f4923dd2047 7,12,17,29-30,33,47,49,178-180
+apps/emdash-desktop/src/main/core/execution-context/local-execution-context.ts
+  s_325cb390d8d872::t_7591f5fd6712c8 4,37
+apps/emdash-desktop/src/main/core/git/legacy/git-service.ts
+  s_325cb390d8d872::t_203610e5e2acd5 33,428
+apps/emdash-desktop/src/main/core/runtime/runtime-manager.ts
+  s_325cb390d8d872::t_57ee0f44677fb1 96-97,101-106
+  s_325cb390d8d872::t_b098d89bc95f0e 11-12,14,20-63,67,88,107-108,119
+  s_325cb390d8d872::t_5443811ca3946a 1-7,98-100
+apps/emdash-desktop/src/main/core/utils/exec.test.ts
+  s_325cb390d8d872::t_4a3beae061425f 5,11,16,60,62-67
+  s_325cb390d8d872::t_c29057cc8bfaba 61,68-78,80-81
+  s_325cb390d8d872::t_3c77f2d0542aca 79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "2c3c81efa67e3317fdf594fb71cee81de79c1d3b",
+  "prompts": {},
+  "sessions": {
+    "s_325cb390d8d872": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019efae3-a256-766a-8351-01ce7065fa26",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
