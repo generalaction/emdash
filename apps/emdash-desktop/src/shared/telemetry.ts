@@ -95,6 +95,7 @@ export type TelemetryEventProperties = {
       | 'plain'
       | 'forgejo'
       | 'featurebase'
+      | 'notion'
       | 'asana'
       | 'none';
     provider: AgentProviderId | null;
@@ -131,8 +132,36 @@ export type TelemetryEventProperties = {
   user_signed_in: EmptyProps;
   user_signed_out: EmptyProps;
 
-  integration_connected: { provider: 'github' | 'linear' | 'jira' | 'asana' };
-  integration_disconnected: { provider: 'github' | 'linear' | 'jira' | 'asana' };
+  integration_connected: {
+    provider:
+      | 'github'
+      | 'linear'
+      | 'jira'
+      | 'gitlab'
+      | 'plane'
+      | 'plain'
+      | 'forgejo'
+      | 'featurebase'
+      | 'notion'
+      | 'asana'
+      | 'monday'
+      | 'trello';
+  };
+  integration_disconnected: {
+    provider:
+      | 'github'
+      | 'linear'
+      | 'jira'
+      | 'gitlab'
+      | 'plane'
+      | 'plain'
+      | 'forgejo'
+      | 'featurebase'
+      | 'notion'
+      | 'asana'
+      | 'monday'
+      | 'trello';
+  };
   issue_linked_to_task: {
     provider:
       | 'github'
@@ -143,7 +172,10 @@ export type TelemetryEventProperties = {
       | 'plain'
       | 'forgejo'
       | 'featurebase'
-      | 'asana';
+      | 'notion'
+      | 'asana'
+      | 'monday'
+      | 'trello';
   };
 
   open_in_external: { app: OpenInAppId | 'browser' };

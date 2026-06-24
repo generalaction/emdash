@@ -1,0 +1,261 @@
+import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
+import { log } from '@main/lib/logger';
+import { telemetryService } from '@main/lib/telemetry';
+import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
+
+const NOTION_API_BASE_URL = 'https://api.notion.com/v1';
+const NOTION_VERSION = '2022-06-28';
+const CREDENTIALS_KEY = 'emdash-notion-credentials';
+const MAX_SELECTED_DATABASES = 50;
+
+export const NOTION_API_ERROR_MESSAGES = {
+  AUTH_FAILED: 'Notion authentication failed. Check your internal integration token.',
+  MISSING_PERMISSIONS:
+    'Notion token was accepted but is missing access to the selected pages or databases.',
+  RATE_LIMITED: 'Notion API rate limit exceeded. Please try again shortly.',
+  UNAVAILABLE: 'Notion API is temporarily unavailable. Please try again.',
+} as const;
+
+export type NotionCredentials = {
+  token: string;
+  databaseIds: string[];
+  databaseUrls: string[];
+};
+
+type SaveCredentialsInput = {
+  token: string;
+  databaseUrls: string;
+};
+
+type NotionUser = {
+  id: string;
+  name?: string | null;
+  bot?: { owner?: { type?: string; workspace?: boolean }; workspace_name?: string | null };
+};
+
+function normalizeStoredCredentials(raw: unknown): NotionCredentials | null {
+  if (!raw || typeof raw !== 'object') return null;
+
+  const candidate = raw as Partial<NotionCredentials>;
+  if (typeof candidate.token !== 'string' || !candidate.token.trim()) {
+    return null;
+  }
+
+  const databaseIds = candidate.databaseIds ?? [];
+  const databaseUrls = candidate.databaseUrls ?? [];
+  if (!Array.isArray(databaseIds) || databaseIds.some((id) => typeof id !== 'string')) {
+    return null;
+  }
+  if (!Array.isArray(databaseUrls) || databaseUrls.some((url) => typeof url !== 'string')) {
+    return null;
+  }
+
+  return {
+    token: candidate.token,
+    databaseIds: [...new Set(databaseIds)],
+    databaseUrls: [...new Set(databaseUrls)],
+  };
+}
+
+function toNotionApiErrorMessage(status: number, apiMessage?: string): string {
+  if (apiMessage) return apiMessage;
+
+  if (status === 401) return NOTION_API_ERROR_MESSAGES.AUTH_FAILED;
+  if (status === 403) return NOTION_API_ERROR_MESSAGES.MISSING_PERMISSIONS;
+  if (status === 429) return NOTION_API_ERROR_MESSAGES.RATE_LIMITED;
+  if (status >= 500) return NOTION_API_ERROR_MESSAGES.UNAVAILABLE;
+
+  return `Notion API error (${status})`;
+}
+
+function normalizeNotionId(value: string): string | null {
+  const compact = value.replace(/-/g, '').trim();
+  if (!/^[a-fA-F0-9]{32}$/.test(compact)) return null;
+  return compact.toLowerCase();
+}
+
+function parseDatabaseIdFromUrl(rawUrl: string): string | null {
+  try {
+    const url = new URL(rawUrl);
+    if (!url.hostname.endsWith('notion.so') && !url.hostname.endsWith('notion.site')) {
+      return null;
+    }
+
+    const candidates = [
+      ...url.pathname.split('/'),
+      ...url.searchParams.values(),
+      url.hash.replace(/^#/, ''),
+    ];
+
+    for (const candidate of candidates) {
+      const match = candidate.match(/[a-fA-F0-9]{32}/);
+      if (!match) continue;
+      const id = normalizeNotionId(match[0]);
+      if (id) return id;
+    }
+
+    return null;
+  } catch {
+    return normalizeNotionId(rawUrl);
+  }
+}
+
+export class NotionConnectionService {
+  private cachedCredentials: NotionCredentials | null | undefined = undefined;
+
+  async saveCredentials(
+    input: SaveCredentialsInput
+  ): Promise<{ success: boolean; displayName?: string; error?: string }> {
+    const token = input.token.trim();
+    if (!token) {
+      return { success: false, error: 'Notion integration token cannot be empty.' };
+    }
+
+    const databaseScope = this.parseDatabaseUrls(input.databaseUrls);
+    if (databaseScope === null) {
+      return {
+        success: false,
+        error:
+          'Could not parse database ID from one or more URLs. Paste Notion database URLs or 32-character IDs.',
+      };
+    }
+    if (databaseScope.databaseIds.length > MAX_SELECTED_DATABASES) {
+      return {
+        success: false,
+        error: `Notion database scope is limited to ${MAX_SELECTED_DATABASES} databases. Remove some URLs and try again.`,
+      };
+    }
+
+    try {
+      const user = await this.fetchMe(token);
+      const credentials: NotionCredentials = { token, ...databaseScope };
+      await this.storeCredentials(credentials);
+      telemetryService.capture('integration_connected', { provider: 'notion' });
+      return { success: true, displayName: user.bot?.workspace_name ?? user.name ?? 'Notion' };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to validate Notion token. Please try again.';
+      return { success: false, error: message };
+    }
+  }
+
+  async clearCredentials(): Promise<{ success: boolean; error?: string }> {
+    try {
+      await encryptedAppSecretsStore.deleteSecret(CREDENTIALS_KEY);
+      this.cachedCredentials = null;
+      telemetryService.capture('integration_disconnected', { provider: 'notion' });
+      return { success: true };
+    } catch (error) {
+      log.error('Failed to clear Notion credentials:', error);
+      return {
+        success: false,
+        error: 'Unable to remove Notion credentials from secure storage.',
+      };
+    }
+  }
+
+  async checkConnection(): Promise<ConnectionStatus> {
+    try {
+      const credentials = await this.getStoredCredentials();
+      if (!credentials) {
+        return { connected: false, capabilities: ISSUE_PROVIDER_CAPABILITIES.notion };
+      }
+
+      const user = await this.fetchMe(credentials.token);
+      return {
+        connected: true,
+        displayName: user.bot?.workspace_name ?? user.name ?? 'Notion',
+        displayDetail: user.bot?.workspace_name && user.name ? user.name : undefined,
+        capabilities: ISSUE_PROVIDER_CAPABILITIES.notion,
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to verify Notion connection.';
+      return { connected: false, error: message, capabilities: ISSUE_PROVIDER_CAPABILITIES.notion };
+    }
+  }
+
+  async isConfigured(): Promise<boolean> {
+    return !!(await this.getStoredCredentials());
+  }
+
+  async getStoredCredentials(): Promise<NotionCredentials | null> {
+    if (this.cachedCredentials !== undefined) {
+      return this.cachedCredentials;
+    }
+
+    try {
+      const raw = await encryptedAppSecretsStore.getSecret(CREDENTIALS_KEY);
+      if (!raw) {
+        this.cachedCredentials = null;
+        return null;
+      }
+      this.cachedCredentials = normalizeStoredCredentials(JSON.parse(raw));
+      return this.cachedCredentials;
+    } catch (error) {
+      log.error('Failed to read Notion credentials from secure storage:', error);
+      return null;
+    }
+  }
+
+  async request<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
+    const headers = new Headers(init.headers);
+    headers.set('Accept', 'application/json');
+    headers.set('Content-Type', 'application/json');
+    headers.set('Notion-Version', NOTION_VERSION);
+    headers.set('Authorization', `Bearer ${token}`);
+
+    const response = await fetch(`${NOTION_API_BASE_URL}${path}`, {
+      ...init,
+      headers,
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(toNotionApiErrorMessage(response.status, body?.message));
+    }
+
+    return (await response.json()) as T;
+  }
+
+  private parseDatabaseUrls(
+    databaseUrls: string
+  ): Pick<NotionCredentials, 'databaseIds' | 'databaseUrls'> | null {
+    const raw = databaseUrls.trim();
+    if (!raw) return { databaseIds: [], databaseUrls: [] };
+
+    const values = raw
+      .split(/[,\n]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const databaseIds = new Set<string>();
+    const normalizedUrls = new Set<string>();
+
+    for (const value of values) {
+      const id = parseDatabaseIdFromUrl(value);
+      if (!id) return null;
+      databaseIds.add(id);
+      normalizedUrls.add(value);
+    }
+
+    return { databaseIds: [...databaseIds], databaseUrls: [...normalizedUrls] };
+  }
+
+  private async fetchMe(token: string): Promise<NotionUser> {
+    return this.request<NotionUser>(token, '/users/me');
+  }
+
+  private async storeCredentials(credentials: NotionCredentials): Promise<void> {
+    try {
+      await encryptedAppSecretsStore.setSecret(CREDENTIALS_KEY, JSON.stringify(credentials));
+      this.cachedCredentials = credentials;
+    } catch (error) {
+      log.error('Failed to store Notion credentials:', error);
+      throw new Error('Unable to save Notion credentials securely.');
+    }
+  }
+}
+
+export const notionConnectionService = new NotionConnectionService();

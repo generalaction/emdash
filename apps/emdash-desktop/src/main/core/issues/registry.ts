@@ -6,6 +6,7 @@ import { gitlabIssueProvider } from '@main/core/gitlab/gitlab-issue-provider';
 import { jiraIssueProvider } from '@main/core/jira/jira-issue-provider';
 import { linearIssueProvider } from '@main/core/linear/linear-issue-provider';
 import { mondayIssueProvider } from '@main/core/monday/monday-issue-provider';
+import { notionIssueProvider } from '@main/core/notion/notion-issue-provider';
 import { plainIssueProvider } from '@main/core/plain/plain-issue-provider';
 import { planeIssueProvider } from '@main/core/plane/plane-issue-provider';
 import { trelloIssueProvider } from '@main/core/trello/trello-issue-provider';
@@ -29,6 +30,7 @@ register(plainIssueProvider);
 register(asanaIssueProvider);
 register(mondayIssueProvider);
 register(trelloIssueProvider);
+register(notionIssueProvider);
 
 export function getIssueProvider(type: IssueProviderType): IssueProvider | undefined {
   return providers.get(type);

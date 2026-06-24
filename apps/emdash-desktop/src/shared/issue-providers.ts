@@ -64,6 +64,11 @@ export const ISSUE_PROVIDER_CAPABILITIES: Record<IssueProviderType, IssueProvide
     requiresRepositoryUrl: false,
     supportsIssueContext: true,
   },
+  notion: {
+    requiresProjectPath: false,
+    requiresRepositoryUrl: false,
+    supportsIssueContext: true,
+  },
 };
 
 export type ConnectionStatus = {
