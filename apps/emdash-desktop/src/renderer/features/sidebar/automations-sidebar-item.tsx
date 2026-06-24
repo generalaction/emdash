@@ -5,6 +5,7 @@ import {
   useAutomationUnreadCount,
   useMarkAutomationsRead,
 } from '@renderer/features/automations/use-automation-unread-count';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import {
   isCurrentView,
   useNavigate,
@@ -37,8 +38,16 @@ export const AutomationsSidebarItem = observer(function AutomationsSidebarItem()
   }, [unreadCount]);
 
   async function handleMarkAsRead() {
-    setMenuOpen(false);
-    await markAsRead();
+    try {
+      await markAsRead();
+      setMenuOpen(false);
+    } catch {
+      toast({
+        title: 'Could not mark as read',
+        description: 'Your read state could not be saved. Please try again.',
+        variant: 'destructive',
+      });
+    }
   }
 
   return (

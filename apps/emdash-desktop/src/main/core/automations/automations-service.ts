@@ -1,4 +1,17 @@
-import { and, asc, count, desc, eq, gt, inArray, isNotNull, ne, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { automationRuns, tasks } from '@main/db/schema';
 import { events } from '@main/lib/events';
@@ -9,7 +22,11 @@ import type {
   CreateAutomationParams,
   UpdateAutomationSettingsPatch,
 } from '@shared/core/automations/automation';
-import type { AutomationRun } from '@shared/core/automations/automation-run';
+import {
+  AUTOMATION_SKIP_CODES_EXCLUDED_FROM_NOTIFICATIONS,
+  TERMINAL_AUTOMATION_RUN_STATUSES,
+  type AutomationRun,
+} from '@shared/core/automations/automation-run';
 import {
   automationChangedChannel,
   automationRunChangedChannel,
@@ -31,12 +48,21 @@ import {
 import { markRunSkipped } from './run-transitions';
 import { mapAutomationRunRowToAutomationRun } from './utils';
 
-const notificationRunStatuses = ['done', 'failed', 'skipped'];
-
 function notificationRunPredicate() {
   return and(
-    inArray(automationRuns.status, notificationRunStatuses),
+    inArray(automationRuns.status, [...TERMINAL_AUTOMATION_RUN_STATUSES]),
     isNotNull(automationRuns.finishedAt)
+  );
+}
+
+function isExcludedFromUnreadNotifications() {
+  const excludedInList = AUTOMATION_SKIP_CODES_EXCLUDED_FROM_NOTIFICATIONS.map(
+    (code) => `'${code}'`
+  ).join(', ');
+  return or(
+    ne(automationRuns.status, 'skipped'),
+    isNull(sql`json_extract(${automationRuns.error}, '$.code')`),
+    sql`json_extract(${automationRuns.error}, '$.code') NOT IN (${sql.raw(excludedInList)})`
   );
 }
 
@@ -182,7 +208,13 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     const [result] = await db
       .select({ count: count() })
       .from(automationRuns)
-      .where(and(notificationRunPredicate(), gt(automationRuns.finishedAt, sinceMs)));
+      .where(
+        and(
+          notificationRunPredicate(),
+          isExcludedFromUnreadNotifications(),
+          gt(automationRuns.finishedAt, sinceMs)
+        )
+      );
     return result?.count ?? 0;
   }
 

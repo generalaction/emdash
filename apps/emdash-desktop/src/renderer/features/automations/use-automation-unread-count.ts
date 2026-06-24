@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { events, rpc } from '@renderer/lib/ipc';
+import { isTerminalAutomationRunStatus } from '@shared/core/automations/automation-run';
 import { automationRunChangedChannel } from '@shared/core/automations/automationEvents';
 
 export const automationUnreadCountQueryKey = (lastReadAt: number) =>
@@ -26,7 +27,8 @@ export function useAutomationUnreadCount() {
   });
 
   useEffect(() => {
-    return events.on(automationRunChangedChannel, () => {
+    return events.on(automationRunChangedChannel, ({ run }) => {
+      if (!isTerminalAutomationRunStatus(run.status)) return;
       void queryClient.invalidateQueries({ queryKey: ['automations', 'unread-count'] });
     });
   }, [queryClient]);
