@@ -10,8 +10,7 @@ import { wireCommitHistoryInvalidation } from '@renderer/lib/commit-history-inva
 import { wireExternalLinkRequests } from '@renderer/lib/external-link-requests';
 import { rpc } from '@renderer/lib/ipc';
 import { wireModelRegistryInvalidation } from '@renderer/lib/monaco/invalidation-bridges';
-import { codeEditorPool } from '@renderer/lib/monaco/monaco-code-pool';
-import { diffEditorPool } from '@renderer/lib/monaco/monaco-diff-pool';
+import { monacoBootstrap } from '@renderer/lib/monaco/monaco-bootstrap';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { wirePrCacheInvalidation } from '@renderer/lib/pr-cache-invalidation';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
@@ -35,12 +34,9 @@ async function bootstrap() {
   // Initialize Monaco and load app data in parallel. Awaiting Monaco here
   // guarantees __monaco is set before React renders, so StickyDiffEditor can
   // create editors synchronously on mount without any async coordination.
-  const [, , navResult, sidebarResult, allViewState] = await Promise.all([
-    codeEditorPool.init(0).catch((error: unknown) => {
-      log.warn('[monaco-code-pool] init failed:', error);
-    }),
-    diffEditorPool.init(0).catch((error: unknown) => {
-      log.warn('[monaco-diff-pool] init failed:', error);
+  const [, navResult, sidebarResult, allViewState] = await Promise.all([
+    monacoBootstrap.init().catch((error: unknown) => {
+      log.warn('[monaco-bootstrap] init failed:', error);
     }),
     rpc.viewState.get('navigation') as Promise<NavigationSnapshot> | null,
     rpc.viewState.get('sidebar'),

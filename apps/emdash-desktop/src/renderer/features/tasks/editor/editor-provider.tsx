@@ -8,13 +8,12 @@ import { registerActiveCodeEditor } from '@renderer/lib/editor/activeCodeEditor'
 import { DEFAULT_EDITOR_OPTIONS } from '@renderer/lib/editor/utils';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import { codeEditorPool } from '@renderer/lib/monaco/monaco-code-pool';
+import { monacoBootstrap } from '@renderer/lib/monaco/monaco-bootstrap';
 import {
   addMonacoKeyboardShortcuts,
   configureMonacoEditor,
 } from '@renderer/lib/monaco/monaco-config';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
-import { defineMonacoThemes, getMonacoTheme } from '@renderer/lib/monaco/monaco-themes';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
 import { useTaskViewContext } from '../task-view-context';
@@ -72,18 +71,16 @@ export const EditorProvider = observer(function EditorProvider({
   // When this pane's editor is created it will inherit the current theme.
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    const m = codeEditorPool.getMonaco();
-    if (m) defineMonacoThemes(m as Parameters<typeof defineMonacoThemes>[0]);
-    codeEditorPool.setTheme(getMonacoTheme(effectiveTheme));
+    monacoBootstrap.setTheme(effectiveTheme);
   }, [effectiveTheme]);
 
   // ---------------------------------------------------------------------------
   // Editor creation — fires once on mount. Creates a Monaco editor directly
-  // (no pool lease) using the globally-loaded Monaco instance. Monaco is
-  // guaranteed to be loaded before any pane renders (bootstrap awaits pool init).
+  // using the globally-loaded Monaco instance. Monaco is guaranteed to be loaded
+  // before any pane renders (bootstrap awaits init in main.tsx).
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    const m = codeEditorPool.getMonaco();
+    const m = monacoBootstrap.getMonaco();
     if (!m) return;
 
     const container = document.createElement('div');
