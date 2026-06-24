@@ -199,15 +199,13 @@ async function runQuitCleanup(): Promise<void> {
   updateService.dispose();
   prSyncScheduler.dispose();
 
+  void projectManager.dispose().catch((e) => {
+    log.error('Failed to shutdown project manager:', e);
+  });
+
   const results = await Promise.allSettled([
     telemetryService.dispose(),
-    (async () => {
-      try {
-        await projectManager.dispose();
-      } finally {
-        await runtimeManager.dispose();
-      }
-    })(),
+    runtimeManager.dispose(),
   ]);
 
   for (const result of results) {
