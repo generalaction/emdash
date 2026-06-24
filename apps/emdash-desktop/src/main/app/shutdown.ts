@@ -44,14 +44,20 @@ export async function runQuitCleanup(): Promise<void> {
   prSyncScheduler.dispose();
 
   // critical phase
-  const criticalSteps: Array<() => Promise<void>> = [
-    () => projectManager.release(),
-    () => runtimeManager.dispose(),
-    () => telemetryService.dispose(),
+  const criticalSteps: Array<[string, () => Promise<void>]> = [
+    ['projectManager.release', () => projectManager.release()],
+    ['runtimeManager.dispose', () => runtimeManager.dispose()],
+    ['telemetryService.dispose', () => telemetryService.dispose()],
   ];
   await withDeadline(
     (async () => {
-      for (const step of criticalSteps) await step();
+      for (const [name, step] of criticalSteps) {
+        try {
+          await step();
+        } catch (e) {
+          log.error(`quit: critical step ${name} failed`, e);
+        }
+      }
     })(),
     CRITICAL_DEADLINE_MS
   ).catch((e: unknown) => {
