@@ -140,7 +140,6 @@ export function useIssues(
       ? (activeResult.errorType ?? null)
       : null;
 
-
   return {
     issues,
     isLoading: isLoadingInitial,

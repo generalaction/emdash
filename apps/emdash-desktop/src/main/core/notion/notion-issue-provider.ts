@@ -191,7 +191,9 @@ async function searchSharedPages(
   return pages.slice(0, limit);
 }
 
-async function searchSharedDataSources(credentials: NotionCredentials): Promise<NotionDataSource[]> {
+async function searchSharedDataSources(
+  credentials: NotionCredentials
+): Promise<NotionDataSource[]> {
   const dataSources: NotionDataSource[] = [];
   let startCursor: string | undefined;
 
@@ -301,8 +303,8 @@ async function listScopedIssues(
         (dataSource) => queryDataSourcePages(credentials.token, dataSource.id, limit)
       );
       const dataSourceIssues = pagesBySource.flat().map((page) => toIssue(page));
-      const sharedPageIssues = (await searchSharedPages(credentials, undefined, limit)).map((page) =>
-        toIssue(page)
+      const sharedPageIssues = (await searchSharedPages(credentials, undefined, limit)).map(
+        (page) => toIssue(page)
       );
       return sortByUpdatedAtDesc(
         dedupeIssuesByIdentifier([...dataSourceIssues, ...sharedPageIssues])

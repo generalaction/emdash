@@ -144,8 +144,9 @@ describe('NotionConnectionService', () => {
 
       expect(result.success).toBe(true);
       expect((mockFetch.mock.calls[0][1] as RequestInit).headers).toEqual(expect.any(Headers));
-      expect(((mockFetch.mock.calls[0][1] as RequestInit).headers as Headers).get('Authorization'))
-        .toBe('Bearer stored-token');
+      expect(
+        ((mockFetch.mock.calls[0][1] as RequestInit).headers as Headers).get('Authorization')
+      ).toBe('Bearer stored-token');
       expect(mockSetSecret).toHaveBeenCalledWith(
         'emdash-notion-credentials',
         JSON.stringify({

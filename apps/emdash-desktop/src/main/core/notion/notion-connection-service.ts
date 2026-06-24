@@ -155,7 +155,10 @@ function getNotionErrorType(status: number, apiMessage?: string): IssueListError
 
 function toNotionApiError(status: number, apiMessage?: string): NotionApiError {
   if (apiMessage) {
-    return new NotionApiError(normalizeNotionApiMessage(apiMessage), getNotionErrorType(status, apiMessage));
+    return new NotionApiError(
+      normalizeNotionApiMessage(apiMessage),
+      getNotionErrorType(status, apiMessage)
+    );
   }
 
   if (status === 401) {
