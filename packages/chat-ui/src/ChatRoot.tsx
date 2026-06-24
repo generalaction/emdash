@@ -36,6 +36,8 @@ import { CommandsContext } from './components/contexts/CommandsContext';
 import { DebugContext } from './components/contexts/debug-context';
 import { ThemeContext } from './components/contexts/ThemeContext';
 import { TurnStateContext } from './components/contexts/TurnStateContext';
+import { createFrameScheduler } from './components/engine/frame-scheduler';
+import { createTweenRegistry } from './components/engine/tween-registry';
 import { SEGMENTERS, UNIT_REGISTRY } from './components/engine/unit-registry';
 import { UnitRow } from './components/engine/UnitRow';
 import { PinnedUserMessage } from './components/rows/message/PinnedUserMessage';
@@ -47,7 +49,7 @@ import type { ChatHighlighter } from './core/highlight/highlighter';
 import { genericEstimate } from './core/layout/generic-estimate';
 import type { MentionProvider } from './core/markdown/mention-provider';
 import { registerFontsReadyClear } from './core/measure/pretext-cache';
-import { StickToBottom } from './core/stick-to-bottom';
+import { STICK_THRESHOLD_PX } from './core/stick-to-bottom';
 import type { ChatTheme } from './core/theme';
 import { unitReservedHeight } from './core/units';
 import { Virtualizer } from './core/virtualizer';
@@ -224,7 +226,6 @@ export function ChatRoot(props: ChatRootProps) {
   let canvasEl: HTMLDivElement | undefined;
   let outerEl: HTMLDivElement | undefined;
   const virt = new Virtualizer();
-  let sticky: StickToBottom | null = null;
 
   const [totalHeight, setTotalHeight] = createSignal(0);
   const [scrollTop, setScrollTop] = createSignal(0);
@@ -246,6 +247,18 @@ export function ChatRoot(props: ChatRootProps) {
   const refreshTotal = () => {
     setTotalHeight(virt.total());
   };
+
+  // ── Geometry shadow ───────────────────────────────────────────────────────
+  //
+  // These derived getters are the ONLY way code outside the single rAF read
+  // phase reads scroll geometry. Reading scrollEl.scrollTop/scrollHeight/
+  // clientHeight directly elsewhere causes forced synchronous reflows (O(n)
+  // in scroll-region size). Everything reads these signals instead.
+  const contentH = () => totalHeight() + padTop() + padBottom();
+  const maxScrollTop = () => Math.max(0, contentH() - viewHeight());
+  // True when the scroll container is within STICK_THRESHOLD_PX of the bottom,
+  // computed entirely from cached signals — no DOM read.
+  const stuckIntent = () => maxScrollTop() - scrollTop() <= STICK_THRESHOLD_PX;
 
   // ── Flat unit array ───────────────────────────────────────────────────────
   //
@@ -298,7 +311,14 @@ export function ChatRoot(props: ChatRootProps) {
         return unitReservedHeight(u, contentH);
       });
       refreshTotal();
-      if (props.stickToBottom !== false) sticky?.schedule();
+      if (props.stickToBottom !== false && stuckIntent()) {
+        const target = maxScrollTop();
+        if (scrollEl) {
+          scrollEl.scrollTop = target;
+          expectedScrollTop = target;
+        }
+        setScrollTop(target);
+      }
     });
   });
 
@@ -426,85 +446,82 @@ export function ChatRoot(props: ChatRootProps) {
 
   // ── Row top positions ─────────────────────────────────────────────────────
 
-  let programmaticScroll = false;
+  // Tracks the scrollTop value we last wrote programmatically. In the read
+  // phase we compare the freshly-read scrollTop against this; equal ⇒ our write
+  // (suppress prefetch-cursor reset), differ ⇒ user scrolled. Initialized to 0;
+  // reset to el.scrollTop on first frame.
+  let expectedScrollTop = 0;
 
-  // ── Collapse/expand animation tracker ────────────────────────────────────
+  // ── Per-frame height coalescing ───────────────────────────────────────────
   //
-  // While any row is tweening, skip the per-frame forced-layout reads in
-  // onHeightChanged / onScroll / StickToBottom so the animation cost becomes
-  // O(log n) in the virtualizer instead of O(scrollRegion height).
-  // One reconcileAfterAnimation() call corrects any drift when all tweens end.
-  let animatingCount = 0;
-  let stuckAtStart = false;
-  const isAnimating = () => animatingCount > 0;
-
-  // Assigned inside onMount where schedulePrefetch/flushScroll are in scope.
-  let reconcileAfterAnimation: () => void = () => {};
-
-  const onUnitAnimatingChange = (animating: boolean) => {
-    if (animating) {
-      if (animatingCount === 0) {
-        stuckAtStart = sticky?.isStuck() ?? false;
-        sticky?.setPaused(true);
-      }
-      animatingCount++;
-    } else {
-      animatingCount = Math.max(0, animatingCount - 1);
-      if (animatingCount === 0) {
-        sticky?.setPaused(false);
-        reconcileAfterAnimation();
-      }
-    }
+  // N row-settles per frame each used to call refreshTotal() immediately,
+  // producing N signal writes that each invalidated visibleRange/pinState/unitTop.
+  // queueTotalFlush() coalesces these into one write per frame: it marks a dirty
+  // flag and arms the frame scheduler; the write phase drains the flag once per
+  // frame. refreshTotal() is kept for paths that need an immediate synchronous
+  // update (count-sync effect, doLoadOlder).
+  let totalDirty = false;
+  // Reference to the frame scheduler created in onMount. Set before the first
+  // queueTotalFlush call (rows don't mount until after onMount).
+  let schedulerRef: { request: () => void } | null = null;
+  const queueTotalFlush = () => {
+    if (totalDirty) return;
+    totalDirty = true;
+    schedulerRef?.request();
   };
 
+  // ── onHeightChanged — fully read-free ─────────────────────────────────────
+  //
+  // Previously both branches read scrollEl.scrollTop (forced synchronous
+  // reflow on every measurement settle — 853ms in a 100k sweep). All geometry
+  // now comes from the shadow signals. The two branches (animating vs normal)
+  // are collapsed into one because the read-free path is correct for both.
   const onHeightChanged = (index: number, delta: number) => {
-    refreshTotal();
     if (delta === 0) return;
+    queueTotalFlush();
 
-    if (isAnimating()) {
-      // During a tween: keep scroll position consistent using cached signals
-      // only — no live DOM reads — to avoid forced-layout on the full canvas.
-      if (props.stickToBottom !== false && stuckAtStart) {
-        // Pin to bottom arithmetically using signal values already in memory.
-        const target = totalHeight() + padTop() + padBottom() - viewHeight();
-        programmaticScroll = true;
-        scrollEl!.scrollTop = target;
-        setScrollTop(target);
-      } else if (virt.top(index) + padTop() < scrollTop()) {
-        // Shift the cached offset by the delta (no scrollHeight read).
-        const next = scrollTop() + delta;
-        programmaticScroll = true;
-        scrollEl!.scrollTop = next;
-        setScrollTop(next);
+    if (props.stickToBottom !== false && stuckIntent()) {
+      // Pin to bottom arithmetically — no scrollHeight read.
+      const target = maxScrollTop();
+      if (scrollEl) {
+        scrollEl.scrollTop = target;
+        expectedScrollTop = target;
       }
-      return;
-    }
-
-    // Non-animating path: original behavior.
-    if (props.stickToBottom !== false && sticky?.isStuck()) {
-      sticky.schedule();
-      return;
-    }
-
-    if (virt.top(index) + padTop() < scrollEl!.scrollTop) {
-      const next = scrollEl!.scrollTop + delta;
-      programmaticScroll = true;
-      scrollEl!.scrollTop = next;
+      setScrollTop(target);
+    } else if (virt.top(index) + padTop() < scrollTop()) {
+      // Shift anchor by the delta using the cached signal — no scrollTop read.
+      const next = scrollTop() + delta;
+      if (scrollEl) {
+        scrollEl.scrollTop = next;
+        expectedScrollTop = next;
+      }
       setScrollTop(next);
     }
   };
+
+  // ── Central tween registry ────────────────────────────────────────────────
+  //
+  // Replaces per-row createHeightTween rAF loops with a single store advanced
+  // once per frame by the scheduler's animate phase. UnitRow registers its
+  // logical height and receives reactive height/animating/clipHeight back.
+  // requestFrame is wired to schedulerRef.request() so starting a tween wakes
+  // the scheduler; schedulerRef is set in onMount.
+  const tweenRegistry = createTweenRegistry(virt, onHeightChanged, {
+    requestFrame: () => schedulerRef?.request(),
+  });
 
   // ── Scroll helpers ────────────────────────────────────────────────────────
 
   const doScrollToBottom = (opts?: { behavior?: ScrollBehavior }) => {
     const el = scrollEl;
     if (!el) return;
+    const target = maxScrollTop();
     if (opts?.behavior === 'smooth') {
-      el.scrollTo({ top: el.scrollHeight - el.clientHeight, behavior: 'smooth' });
-    } else if (sticky) {
-      sticky.scrollToBottom();
+      el.scrollTo({ top: target, behavior: 'smooth' });
     } else {
-      el.scrollTo({ top: el.scrollHeight - el.clientHeight });
+      el.scrollTop = target;
+      expectedScrollTop = target;
+      setScrollTop(target);
     }
   };
 
@@ -551,14 +568,16 @@ export function ChatRoot(props: ChatRootProps) {
       return Math.max(0, target + extraOffset);
     };
 
-    el.scrollTo({ top: computeTarget(), behavior });
+    const t0 = computeTarget();
+    el.scrollTo({ top: t0, behavior });
+    expectedScrollTop = t0;
 
     // Settle pass: after one rAF the row may have measured; re-read its top.
     if (behavior !== 'smooth') {
-      programmaticScroll = true;
       requestAnimationFrame(() => {
-        programmaticScroll = false;
-        el.scrollTo({ top: computeTarget(), behavior: 'auto' });
+        const t1 = computeTarget();
+        el.scrollTo({ top: t1, behavior: 'auto' });
+        expectedScrollTop = t1;
       });
     }
   };
@@ -612,8 +631,8 @@ export function ChatRoot(props: ChatRootProps) {
       }
       if (newUnitIdx >= 0) {
         const newTop = virt.top(newUnitIdx) + padTop() + anchorOffset;
-        programmaticScroll = true;
         el.scrollTop = newTop;
+        expectedScrollTop = newTop;
         setScrollTop(newTop);
       }
     }
@@ -624,8 +643,6 @@ export function ChatRoot(props: ChatRootProps) {
   onMount(() => {
     const el = scrollEl!;
 
-    sticky = new StickToBottom(el);
-
     // Populate the controls holder so handle delegates resolve immediately.
     if (props.controls) {
       props.controls.scrollToBottom = doScrollToBottom;
@@ -633,20 +650,32 @@ export function ChatRoot(props: ChatRootProps) {
       props.controls.loadOlder = doLoadOlder;
     }
 
-    let rafId: number | null = null;
     let lastScrollTop = 0;
-    let atBottom = sticky.isStuck();
+    // atBottom tracks the last-reported value of stuckIntent() so we only fire
+    // onAtBottomChange on transitions, not on every read-phase tick.
+    let atBottom = stuckIntent();
     let reachStartFired = false;
 
-    const flushScroll = () => {
-      rafId = null;
+    // Sync expectedScrollTop with the current DOM on mount.
+    expectedScrollTop = el.scrollTop;
+
+    // ── Frame scheduler ─────────────────────────────────────────────────────
+    //
+    // Enforces read-before-write so scrollTop/clientHeight are read exactly once
+    // per frame before any writes happen. The loop sleeps when idle (re-schedules
+    // only when at least one phase returns true / signals more work).
+
+    // Read phase: read DOM geometry once → shadow signals.
+    const readPhase = () => {
       const st = el.scrollTop;
+      const userScrolled = st !== expectedScrollTop;
       setScrollVelocity(st - lastScrollTop);
       lastScrollTop = st;
       setScrollTop(st);
 
-      // onAtBottomChange
-      const nowAtBottom = sticky!.isStuck();
+      // onAtBottomChange — stuckIntent() is now derived from the shadow signals
+      // so it updates automatically once setScrollTop/setViewHeight/setTotalHeight run.
+      const nowAtBottom = stuckIntent();
       if (nowAtBottom !== atBottom) {
         atBottom = nowAtBottom;
         props.onAtBottomChange?.(atBottom);
@@ -662,9 +691,38 @@ export function ChatRoot(props: ChatRootProps) {
         reachStartFired = false;
       }
 
+      if (userScrolled) {
+        // Cancel any in-flight prefetch; reset cursor for the new position.
+        cancelPrefetch();
+        prefetchStart = -1;
+        prefetchEnd = -1;
+      }
       // Arm idle prefetch after scroll settles.
       schedulePrefetch();
     };
+
+    // Animate phase: advance all active tweens; returns true while any are live.
+    const animatePhase = (): boolean => tweenRegistry.advance(performance.now());
+
+    // Write phase: flush coalesced height total. Returns false (no pending work).
+    const writePhase = (): boolean => {
+      if (totalDirty) {
+        totalDirty = false;
+        setTotalHeight(virt.total());
+      }
+      return false;
+    };
+
+    const scheduler = createFrameScheduler({
+      read: readPhase,
+      animate: animatePhase,
+      write: writePhase,
+    });
+    schedulerRef = scheduler;
+    onCleanup(() => {
+      scheduler.dispose();
+      schedulerRef = null;
+    });
 
     // ── Idle-time prefetch scheduler ────────────────────────────────────────────
     //
@@ -677,7 +735,7 @@ export function ChatRoot(props: ChatRootProps) {
     // Cancellation / rescheduling:
     //   - Cancelled immediately when a new scroll event fires (so it never
     //     competes with active scrolling).
-    //   - Re-scheduled after each flushScroll (settle).
+    //   - Re-scheduled after each read phase (scroll settle).
     //   - Per-slice budget: stop if deadline.timeRemaining() < PREFETCH_MIN_REMAINING_MS.
     //   - Reschedules itself if work remains within the current window.
     //
@@ -777,58 +835,13 @@ export function ChatRoot(props: ChatRootProps) {
 
     const onScroll = () => {
       if (el.offsetParent === null) return;
-      if (programmaticScroll) {
-        programmaticScroll = false;
-        return;
-      }
-      // Per-frame programmatic scrollTop writes from onHeightChanged during a
-      // tween would otherwise trigger the full flushScroll/prefetch cascade on
-      // every animation frame. Skip the cascade while any tween is running;
-      // reconcileAfterAnimation() resynchronises once at tween end.
-      if (isAnimating()) return;
-      // Cancel any in-flight prefetch so it never competes with active scrolling.
-      cancelPrefetch();
-      // Reset cursor so the next settle re-targets the new viewport position.
-      prefetchStart = -1;
-      prefetchEnd = -1;
-      if (rafId === null) {
-        rafId = requestAnimationFrame(flushScroll);
-      }
+      scheduler.request();
     };
     el.addEventListener('scroll', onScroll, { passive: true });
     onCleanup(() => {
       el.removeEventListener('scroll', onScroll);
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-        rafId = null;
-      }
       cancelPrefetch();
     });
-
-    // Assign the reconcile function now that flushScroll/schedulePrefetch are
-    // in scope. Called once when the last concurrent tween ends.
-    reconcileAfterAnimation = () => {
-      refreshTotal();
-      // Re-sync the cached scrollTop from the DOM once (single forced layout
-      // replaces per-frame reads during the tween).
-      const st = el.scrollTop;
-      setScrollTop(st);
-      // Re-evaluate stuck state using live DOM now that we are back to steady
-      // state (sticky was paused during the tween).
-      sticky?.recalcStuck();
-      if (sticky?.isStuck()) {
-        sticky.schedule();
-      }
-      // Drive one flushScroll on the next frame so velocity/prefetch/atBottom
-      // are recalculated cleanly after the tween settles.
-      if (rafId === null) {
-        rafId = requestAnimationFrame(flushScroll);
-      }
-      // Re-arm idle prefetch from the current viewport position.
-      prefetchStart = -1;
-      prefetchEnd = -1;
-      schedulePrefetch();
-    };
 
     const roHeight = new ResizeObserver((entries) => {
       const h = entries[0]?.contentRect.height;
@@ -888,13 +901,11 @@ export function ChatRoot(props: ChatRootProps) {
     });
 
     if (props.stickToBottom !== false) {
-      sticky?.scrollToBottom();
+      const target = el.scrollHeight - el.clientHeight;
+      el.scrollTop = target;
+      expectedScrollTop = target;
+      setScrollTop(target);
     }
-
-    onCleanup(() => {
-      sticky?.dispose();
-      sticky = null;
-    });
 
     onCleanup(() => caches.clear());
   });
@@ -986,7 +997,7 @@ export function ChatRoot(props: ChatRootProps) {
                                 viewState={props.viewState}
                                 virt={virt}
                                 onHeightChanged={onHeightChanged}
-                                onAnimatingChange={onUnitAnimatingChange}
+                                tweenRegistry={tweenRegistry}
                                 isActiveTurn={isActiveTurn()}
                                 caches={caches}
                                 measureEpoch={measureEpoch()}

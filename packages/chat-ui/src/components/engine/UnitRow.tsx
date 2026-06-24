@@ -41,9 +41,10 @@ import type { RenderUnit } from '@core/units';
 import { unitReservedHeight } from '@core/units';
 import type { Virtualizer } from '@core/virtualizer';
 import type { ViewState } from '@state/view-state';
-import { Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, untrack } from 'solid-js';
+import { Show, createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
 import { createHeightTween } from './create-height-tween';
+import type { TweenHandle, TweenRegistry } from './tween-registry';
 import { UNIT_REGISTRY } from './unit-registry';
 import {
   debugLabel,
@@ -109,11 +110,11 @@ export type UnitRowProps = {
   virt: Virtualizer;
   onHeightChanged: (index: number, delta: number) => void;
   /**
-   * Called whenever this row's tween starts (true) or settles (false). Used by
-   * ChatRoot to suppress expensive per-frame scroll-geometry reads while a tween
-   * is running and to perform a single reconcile once it ends.
+   * Central tween registry from ChatRoot. When provided, height tweens are
+   * managed centrally (Phase 2). When absent, falls back to a local
+   * createHeightTween (legacy path for isolated stories / tests).
    */
-  onAnimatingChange?: (animating: boolean) => void;
+  tweenRegistry?: TweenRegistry;
   /** True when the unit's source item is in activeTurn (currently streaming). */
   isActiveTurn?: boolean;
   /** Per-instance cache bundle from ChatRoot. */
@@ -172,7 +173,7 @@ export function UnitRow(props: UnitRowProps) {
   //
   // We detect a real toggle by comparing the row's expand signature to the value
   // captured at the previous target change. `shouldAnimate` is invoked untracked
-  // by the tween exactly once per target change, so this stays in lockstep.
+  // exactly once per target change so lastExpandSig stays in lockstep.
   // Inverted semantics throughout: `isCollapsed(id) === true` means "expanded".
   const rowExpanded = (): boolean =>
     props.viewState.isCollapsed(props.unit.itemId) || props.expandedId === props.unit.itemId;
@@ -185,20 +186,46 @@ export function UnitRow(props: UnitRowProps) {
     return changed;
   };
 
-  const { height: animatedReserved, animating } = createHeightTween(logicalReserved, {
-    shouldAnimate,
-  });
+  // Tween handle: reactive height/animating/clipHeight accessors.
+  // Uses the central registry when available; falls back to a local rAF tween
+  // for isolated stories and tests that don't wire up a ChatRoot.
+  let tweenHandle: TweenHandle;
 
-  // Notify ChatRoot when this row's tween starts or settles.
-  // `defer: true` skips the initial false→false no-op on mount.
-  createEffect(on(animating, (a) => props.onAnimatingChange?.(a), { defer: true }));
+  if (props.tweenRegistry) {
+    const reg = props.tweenRegistry;
+    const getIndex = () => props.index;
+    const itemId = props.unit.itemId;
 
-  // Drive the virtualizer from the animated height so rows below reposition
-  // in lockstep every rAF tick.
-  createEffect(() => {
-    const delta = props.virt.setSize(props.index, animatedReserved());
-    if (delta !== 0) props.onHeightChanged(props.index, delta);
-  });
+    // Register the initial target; the effect below will call set() on changes.
+    tweenHandle = reg.set(itemId, getIndex, untrack(logicalReserved), false);
+
+    createEffect(() => {
+      const target = logicalReserved();
+      const anim = untrack(shouldAnimate);
+      tweenHandle = reg.set(itemId, getIndex, target, anim);
+    });
+
+    onCleanup(() => reg.unregister(itemId));
+  } else {
+    // Legacy path: per-row rAF tween (for stories / tests without ChatRoot).
+    const localTween = createHeightTween(logicalReserved, { shouldAnimate });
+
+    // Drive the virtualizer from the animated height so rows below reposition.
+    createEffect(() => {
+      const delta = props.virt.setSize(props.index, localTween.height());
+      if (delta !== 0) props.onHeightChanged(props.index, delta);
+    });
+
+    tweenHandle = {
+      height: localTween.height,
+      animating: localTween.animating,
+      clipHeight: (gapBefore: number) =>
+        localTween.animating() ? localTween.height() - gapBefore : null,
+    };
+  }
+
+  const animatedReserved = () => tweenHandle.height();
+  const animating = () => tweenHandle.animating();
 
   // ── DISPLAY state — lags logical while collapsing ──────────────────────────
   // While the animated height is larger than the logical target (shrinking),
@@ -244,15 +271,13 @@ export function UnitRow(props: UnitRowProps) {
   // At rest (animating === false), use `auto` / `visible` so steady-state
   // rendering is exactly as before — no clip, no overflow truncation.
 
-  const animatedContentH = () => animatedReserved() - props.unit.gapBefore;
-
   // clipHeight is threaded into RenderCtx so card-style rows (plan, execute)
   // can track their root height to the animated value and keep the bottom
   // border visible throughout the tween.
   const renderCtx: RenderCtx = {
     viewState: displayViewState,
     measureCtx: displayMeasureCtx,
-    clipHeight: () => (animating() ? animatedContentH() : null),
+    clipHeight: () => tweenHandle.clipHeight(props.unit.gapBefore),
   };
 
   return (
@@ -277,7 +302,7 @@ export function UnitRow(props: UnitRowProps) {
               {/* Clip wrapper — only active while animating */}
               <div
                 style={{
-                  height: animating() ? `${animatedContentH()}px` : 'auto',
+                  height: animating() ? `${tweenHandle.clipHeight(props.unit.gapBefore) ?? animatedReserved() - props.unit.gapBefore}px` : 'auto',
                   overflow: animating() ? 'hidden' : 'visible',
                 }}
               >

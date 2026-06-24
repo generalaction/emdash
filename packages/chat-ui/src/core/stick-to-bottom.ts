@@ -3,7 +3,8 @@
  * and scrolls to bottom on demand if stuck.
  */
 
-const STICK_THRESHOLD_PX = 48;
+/** Distance from the bottom (px) within which the container is considered "stuck". */
+export const STICK_THRESHOLD_PX = 48;
 
 export class StickToBottom {
   private el: HTMLElement;
