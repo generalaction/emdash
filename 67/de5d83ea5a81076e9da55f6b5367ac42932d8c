@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/main/core/git/legacy/git-service.ts
+  s_2c85608e47d1c1::t_961b64fc7f8e4e 59-85,234-235,249,1026-1027,1054-1055,1064-1065,1194-1195
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-git.test.ts
+  s_2c85608e47d1c1::t_84b07343164814 33-35
+  s_2c85608e47d1c1::t_985905bb33bb66 65,69,127,182
+  s_2c85608e47d1c1::t_eb7267798d7198 3-5,9-32,36-46,119-123,172-178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "67de5d83ea5a81076e9da55f6b5367ac42932d8c",
+  "prompts": {},
+  "sessions": {
+    "s_2c85608e47d1c1": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ef840-cce3-7d39-9371-e4a11b8889ba",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
