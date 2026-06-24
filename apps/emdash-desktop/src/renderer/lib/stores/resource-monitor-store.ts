@@ -10,6 +10,7 @@ export class ResourceMonitorStore {
   private offSnapshot: (() => void) | null = null;
   private clientId = crypto.randomUUID();
   private sequence = 0;
+  private requestId = 0;
   private subscriptionId: string | null = null;
 
   constructor() {
@@ -59,11 +60,14 @@ export class ResourceMonitorStore {
   start(): void {
     if (this.started) return;
     this.started = true;
-    this.isLoadingInitialSnapshot = this.snapshot === null;
+    this.snapshot = null;
+    this.isLoadingInitialSnapshot = true;
+    const requestId = ++this.requestId;
     const subscriptionId = crypto.randomUUID();
     this.subscriptionId = subscriptionId;
     void rpc.resourceMonitor.setOpen(this.clientId, subscriptionId, true, ++this.sequence);
     this.offSnapshot = events.on(resourceSnapshotChannel, (snap) => {
+      if (!this.isCurrentRequest(requestId)) return;
       runInAction(() => {
         this.snapshot = snap;
         this.isLoadingInitialSnapshot = false;
@@ -72,18 +76,16 @@ export class ResourceMonitorStore {
     rpc.resourceMonitor
       .getSnapshot()
       .then((res) => {
-        if (!res?.success) {
-          runInAction(() => {
-            this.isLoadingInitialSnapshot = false;
-          });
-          return;
-        }
+        if (!this.isCurrentRequest(requestId)) return;
         runInAction(() => {
-          this.applyFetchedSnapshot(res.data);
+          if (res?.success && res.data) {
+            this.applyFetchedSnapshot(res.data);
+          }
           this.isLoadingInitialSnapshot = false;
         });
       })
       .catch(() => {
+        if (!this.isCurrentRequest(requestId)) return;
         runInAction(() => {
           this.isLoadingInitialSnapshot = false;
         });
@@ -105,15 +107,19 @@ export class ResourceMonitorStore {
 
   async refresh(): Promise<void> {
     const res = await rpc.resourceMonitor.getSnapshot();
-    if (!res?.success) return;
+    if (!res?.success || !res.data) return;
     runInAction(() => {
       this.applyFetchedSnapshot(res.data);
     });
   }
 
-  private applyFetchedSnapshot(snap: ResourceSnapshot | null): void {
-    if (snap && this.snapshot && this.snapshot.timestamp > snap.timestamp) return;
+  private applyFetchedSnapshot(snap: ResourceSnapshot): void {
+    if (this.snapshot && this.snapshot.timestamp > snap.timestamp) return;
     this.snapshot = snap;
+  }
+
+  private isCurrentRequest(requestId: number): boolean {
+    return this.started && this.requestId === requestId;
   }
 
   /** Normalized CPU% (relative to all cores) for a single entry. */
