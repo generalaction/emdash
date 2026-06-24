@@ -27,6 +27,12 @@ import { AddContextPopover } from './add-context-popover';
 import { buildIssueContextText, buildTaskContextActions } from './context-actions';
 import { useEffectiveProvider } from './use-effective-provider';
 
+function compactIssueIdentifier(issue: LinkedIssue): string {
+  return issue.provider === 'notion' && issue.identifier.length > 12
+    ? `${issue.identifier.slice(0, 8)}…`
+    : issue.identifier;
+}
+
 export type InitialConversationState = {
   provider: AgentProviderId | null;
   setProvider: (provider: AgentProviderId | null) => void;
@@ -243,12 +249,17 @@ export function InitialConversationField({
                 )}
               >
                 <ProviderLogo provider={linkedIssue.provider} className="size-3 shrink-0" />
-                <span className="font-mono">{linkedIssue.identifier}</span>
                 {linkedIssue.title && (
-                  <span className="max-w-48 truncate text-foreground-passive">
+                  <span className="max-w-56 min-w-0 truncate text-foreground-passive">
                     {linkedIssue.title}
                   </span>
                 )}
+                <span
+                  className="shrink-0 font-mono text-foreground-muted"
+                  title={linkedIssue.identifier}
+                >
+                  {compactIssueIdentifier(linkedIssue)}
+                </span>
                 <button
                   type="button"
                   onClick={(e) => {
