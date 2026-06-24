@@ -1,7 +1,7 @@
 import type { Result } from '@emdash/shared';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
-import { fsWatchEventChannel } from '@shared/core/fs/fsEvents';
+import { fileChangesChannel } from '@shared/core/fs/fsEvents';
 import {
   PROJECT_CONFIG_FILE,
   type MigrateProjectConfigRequest,
@@ -34,12 +34,11 @@ export class ProjectSettingsStore {
       return result.data;
     }, [{ kind: 'demand' }]);
 
-    this._unsubscribeConfigWatch = events.on(fsWatchEventChannel, (data) => {
+    this._unsubscribeConfigWatch = events.on(fileChangesChannel, (data) => {
       if (data.projectId !== projectId) return;
       if (
-        data.events.some(
-          (event) => event.path === PROJECT_CONFIG_FILE || event.oldPath === PROJECT_CONFIG_FILE
-        )
+        data.update.kind === 'resync' ||
+        data.update.changes.some((change) => change.path === PROJECT_CONFIG_FILE)
       ) {
         this.pageData.invalidate();
       }

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileEntry, FileListResult } from '@main/core/fs/types';
-import { LegacySshFileTreeRuntime } from './ssh-file-tree';
+import { LegacySshFilesRuntime } from './ssh-files';
 
 function listResult(entries: FileEntry[]): FileListResult {
   return { entries, total: entries.length };
@@ -27,7 +27,7 @@ function dirEntry(path: string): FileEntry {
   };
 }
 
-describe('LegacySshFileTreeRuntime', () => {
+describe('LegacySshFilesRuntime file tree', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -39,8 +39,8 @@ describe('LegacySshFileTreeRuntime', () => {
       return listResult([]);
     });
 
-    const runtime = new LegacySshFileTreeRuntime({} as never);
-    const opened = await runtime.open('/repo');
+    const runtime = new LegacySshFilesRuntime({} as never);
+    const opened = await runtime.openTree('/repo');
     expect(opened.success).toBe(true);
     if (!opened.success) return;
 
@@ -69,7 +69,7 @@ describe('LegacySshFileTreeRuntime', () => {
       expandedSnapshot.data.entries.find(([, node]) => node.path === 'src/index.ts')?.[1]
     ).toMatchObject({ parentId: src.id });
 
-    opened.data.release();
+    await opened.data.release();
     await runtime.dispose();
   });
 });

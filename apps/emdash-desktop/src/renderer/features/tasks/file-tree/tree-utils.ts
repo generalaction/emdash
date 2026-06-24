@@ -1,4 +1,4 @@
-import type { FileNode as CoreFileNode, NodeId } from '@emdash/core/file-tree';
+import type { FileNode as CoreFileNode, NodeId } from '@emdash/core/files';
 
 export interface RenderableFileNode {
   id: NodeId;

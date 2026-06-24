@@ -1,35 +1,19 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { err, ok } from '@emdash/shared';
-import { fsEvents } from '@main/core/fs/fs-events';
 import { events } from '@main/lib/events';
-import { fsWatchEventChannel } from '@shared/core/fs/fsEvents';
 import { planEventChannel } from '@shared/events/appEvents';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { resolveWorkspace } from '../projects/utils';
-import {
-  FileSystemErrorCodes,
-  type FileWatcher,
-  type ListOptions,
-  type SearchOptions,
-} from './types';
+import { FileSystemErrorCodes, type ListOptions, type SearchOptions } from './types';
 
 /**
  * Legacy workspace filesystem RPC surface.
  *
- * Keep this for non-tree file operations: editor read/write/image/copy, Monaco
- * invalidation, lifecycle script config watches, project settings, and related
- * workspace services. The file tree no longer uses this surface; new tree code
- * should go through `workspace.fileTree` / `@emdash/core/file-tree`.
+ * Keep this for non-tree file operations: editor read/write/image/copy,
+ * project setup, and related workspace services. File tree and file-change
+ * subscriptions go through the runtime-owned file domain.
  */
-
-// One watcher per (projectId, workspaceId) pair, shared across all consumers via labels.
-// Local: single recursive @parcel/watcher subscription — update() is a no-op.
-// SSH:   poll-based — update() receives the union of all labels' paths to poll.
-const watcherRegistry = new Map<string, FileWatcher>();
-// Per-label path groups, keyed by `${projectId}::${workspaceId}` → label → paths.
-// Paths are forwarded to update() for SSH compatibility; local ignores them.
-const watcherLabeledPaths = new Map<string, Map<string, string[]>>();
 
 function normalizeRelativePath(filePath: string, options?: { allowEmpty?: boolean }): string {
   if (!filePath && options?.allowEmpty) return '';
@@ -302,59 +286,5 @@ export const filesController = createRPCController({
     } catch (e) {
       return err({ type: 'fs_error' as const, message: String(e) });
     }
-  },
-
-  watchSetPaths: async (
-    projectId: string,
-    workspaceId: string,
-    paths: string[],
-    label = 'default'
-  ) => {
-    // Legacy raw filesystem watch channel. Do not use this for the file tree;
-    // tree subscriptions are served by `workspace.fileTree` and `fileTreeUpdateChannel`.
-    const env = resolveWorkspace(projectId, workspaceId);
-    if (!env) {
-      return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
-    }
-
-    if (!env.fs.watch) {
-      return ok({ supported: false as const });
-    }
-
-    const key = `${projectId}::${workspaceId}`;
-    const groups = watcherLabeledPaths.get(key) ?? new Map<string, string[]>();
-    groups.set(label, paths);
-    watcherLabeledPaths.set(key, groups);
-    const union = [...new Set([...groups.values()].flat())];
-
-    const existing = watcherRegistry.get(key);
-    if (existing) {
-      existing.update(union);
-    } else {
-      const watcher = env.fs.watch((evts) => {
-        const event = { projectId, workspaceId, events: evts };
-        events.emit(fsWatchEventChannel, event);
-        fsEvents.emitWatchEvent(event);
-      });
-      watcher.update(union);
-      watcherRegistry.set(key, watcher);
-    }
-    return ok({ supported: true as const });
-  },
-
-  watchStop: async (projectId: string, workspaceId: string, label = 'default') => {
-    const key = `${projectId}::${workspaceId}`;
-    const groups = watcherLabeledPaths.get(key);
-    groups?.delete(label);
-
-    if (!groups?.size) {
-      watcherLabeledPaths.delete(key);
-      watcherRegistry.get(key)?.close();
-      watcherRegistry.delete(key);
-    } else {
-      const union = [...new Set([...groups.values()].flat())];
-      watcherRegistry.get(key)?.update(union);
-    }
-    return ok({});
   },
 });

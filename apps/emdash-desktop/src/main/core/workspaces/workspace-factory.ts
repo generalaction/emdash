@@ -24,7 +24,7 @@ import { type WorkspaceFactoryResult } from '@main/core/workspaces/workspace-reg
 import { handleGitWorktreeUpdate } from '@main/core/workspaces/workspace-worktree-update';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { fileTreeUpdateChannel } from '@shared/core/fs/fsEvents';
+import { fileChangesChannel, fileTreeUpdateChannel } from '@shared/core/fs/fsEvents';
 import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
 import type { Task } from '@shared/core/tasks/tasks';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
@@ -131,7 +131,7 @@ export function createWorkspaceFactory(
     });
 
     const runtime = await acquireWorkspaceRuntime(context.workspaceRuntime, workDir);
-    const { gitWorktree, fileTree } = runtime;
+    const { gitWorktree, fileTree, filesRuntime } = runtime;
 
     const gitRepository =
       context.gitRepository ?? new GitRepositoryService(gitWorktree.repository, context.settings);
@@ -142,6 +142,7 @@ export function createWorkspaceFactory(
       new GitRepositoryFetchService(gitRepository, () => gitRepository.getBaseRemote());
     let unsubscribeGitUpdates: (() => void) | undefined;
     let unsubscribeFileTreeUpdates: (() => void) | undefined;
+    let unsubscribeFileChanges: (() => void) | undefined;
 
     const workspace: Workspace = {
       id: workspaceId,
@@ -158,6 +159,8 @@ export function createWorkspaceFactory(
         unsubscribeGitUpdates = undefined;
         unsubscribeFileTreeUpdates?.();
         unsubscribeFileTreeUpdates = undefined;
+        unsubscribeFileChanges?.();
+        unsubscribeFileChanges = undefined;
         await runtime.release();
       },
     };
@@ -184,6 +187,34 @@ export function createWorkspaceFactory(
             update,
           });
         });
+        const fileChanges = filesRuntime.watchChanges(
+          workDir,
+          (update) => {
+            events.emit(fileChangesChannel, {
+              projectId: context.projectId,
+              workspaceId,
+              update,
+            });
+            workspaceFileIndexService.onWorkspaceFileChange(workspaceId, update);
+          },
+          { paths: [''] }
+        );
+        if (fileChanges.success) {
+          unsubscribeFileChanges = fileChanges.data.unsubscribe;
+          void fileChanges.data.ready().then((result) => {
+            if (!result.success) {
+              log.warn('WorkspaceFactory: file change feed failed to become ready', {
+                workspaceId,
+                error: result.error,
+              });
+            }
+          });
+        } else {
+          log.warn('WorkspaceFactory: failed to start file change feed', {
+            workspaceId,
+            error: fileChanges.error,
+          });
+        }
 
         if (ownsFetchService) {
           gitRepositoryFetchService.start();
@@ -287,7 +318,7 @@ async function acquireWorkspaceRuntime(
   try {
     const worktreeLease = await runtimeLease.value.git.openWorktree(workDir);
     try {
-      const openedFileTree = await runtimeLease.value.fileTree.open(workDir);
+      const openedFileTree = await runtimeLease.value.files.openTree(workDir);
       if (!openedFileTree.success) {
         throw new Error(`Failed to open file tree: ${JSON.stringify(openedFileTree.error)}`);
       }
@@ -297,6 +328,7 @@ async function acquireWorkspaceRuntime(
       return {
         gitWorktree: worktreeLease.value,
         fileTree: fileTreeLease.value,
+        filesRuntime: runtimeLease.value.files,
         release: async () => {
           if (released) return;
           released = true;

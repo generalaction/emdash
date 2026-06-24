@@ -64,10 +64,6 @@ vi.mock('@renderer/lib/ipc', () => ({
           data: { entries: [], generation: 1, sequence: 0 },
         }),
       },
-      fs: {
-        watchSetPaths: vi.fn().mockResolvedValue(undefined),
-        watchStop: vi.fn().mockResolvedValue(undefined),
-      },
     },
   },
 }));

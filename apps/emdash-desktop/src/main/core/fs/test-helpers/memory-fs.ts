@@ -78,11 +78,4 @@ export class MemoryFs implements FileSystemProvider {
   }
 
   async mkdir(): Promise<void> {}
-
-  watch(): { update(paths: string[]): void; close(): void } {
-    return {
-      update: () => {},
-      close: () => {},
-    };
-  }
 }

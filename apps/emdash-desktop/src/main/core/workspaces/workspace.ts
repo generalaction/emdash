@@ -1,4 +1,4 @@
-import type { IFileTree } from '@emdash/core/file-tree';
+import type { IFileTree } from '@emdash/core/files';
 import type { IGitWorktree } from '@emdash/core/git';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';

@@ -1,4 +1,4 @@
-import type { FileTreeError } from '@emdash/core/file-tree';
+import type { FileTreeError } from '@emdash/core/files';
 
 export type FileTreeNotFoundError = { type: 'not_found' };
 export type FileTreeOperationError = FileTreeNotFoundError | FileTreeError;

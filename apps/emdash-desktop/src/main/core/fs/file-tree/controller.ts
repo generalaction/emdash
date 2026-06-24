@@ -1,4 +1,4 @@
-import type { NodeId } from '@emdash/core/file-tree';
+import type { NodeId } from '@emdash/core/files';
 import { err, ok } from '@emdash/shared';
 import { resolveWorkspace } from '@main/core/projects/utils';
 import type { FileTreeMutationResult, FileTreeSnapshotResult } from '@shared/core/fs/file-tree';

@@ -1,4 +1,4 @@
-import type { FileTreeSequences, FileTreeSnapshot } from '@emdash/core/file-tree';
+import type { FileTreeSequences, FileTreeSnapshot } from '@emdash/core/files';
 import type { Result } from '@emdash/shared';
 import type { FileTreeOperationError } from './file-tree-errors';
 

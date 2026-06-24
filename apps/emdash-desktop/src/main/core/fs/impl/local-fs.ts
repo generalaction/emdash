@@ -1,19 +1,16 @@
-import { createReadStream, promises as fs, statSync, type Stats } from 'node:fs';
+import { createReadStream, promises as fs, type Stats } from 'node:fs';
 import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
-import { isIgnored, resolveInsideRoot, watchIgnoreGlobs } from '@emdash/core/file-tree';
-import parcelWatcher from '@parcel/watcher';
+import { isIgnored, resolveInsideRoot } from '@emdash/core/files';
 import { glob } from 'glob';
 import ignore from 'ignore';
 import { log } from '@main/lib/logger';
-import type { FileWatchEvent } from '@shared/core/fs/fs';
 import {
   FileSystemError,
   FileSystemErrorCodes,
   type FileEntry,
   type FileListResult,
   type FileSystemProvider,
-  type FileWatcher,
   type ListOptions,
   type ReadResult,
   type SearchMatch,
@@ -97,7 +94,7 @@ const IMAGE_MIME_TYPES: Record<string, string> = {
  * Legacy local `FileSystemProvider` implementation.
  *
  * Keep for non-tree workspace file operations. The editor file tree uses
- * `@emdash/core/file-tree` directly and should not add new behavior here.
+ * `@emdash/core/files` directly and should not add new behavior here.
  */
 export class LocalFileSystem implements FileSystemProvider {
   private listAbort: AbortController | null = null;
@@ -681,77 +678,5 @@ export class LocalFileSystem implements FileSystemProvider {
 
   async copyLocalFile(localAbsPath: string, destRelPath: string): Promise<void> {
     await fs.copyFile(localAbsPath, this.resolveWorkspacePath(destRelPath));
-  }
-
-  watch(
-    callback: (events: FileWatchEvent[]) => void,
-    options: { debounceMs?: number } = {}
-  ): FileWatcher {
-    const stabilityMs = options.debounceMs ?? 200;
-    let pending: FileWatchEvent[] = [];
-    let flushTimer: ReturnType<typeof setTimeout> | null = null;
-    // Set when the async subscribe resolves; used by close() if it resolves after close() is called.
-    let resolvedSub: parcelWatcher.AsyncSubscription | null = null;
-    let closed = false;
-
-    const flush = () => {
-      if (pending.length) {
-        callback(pending);
-        pending = [];
-      }
-    };
-
-    const enqueue = (evt: FileWatchEvent) => {
-      pending.push(evt);
-      if (flushTimer) clearTimeout(flushTimer);
-      flushTimer = setTimeout(flush, stabilityMs);
-    };
-
-    const toRel = (absPath: string) => relative(this.projectPath, absPath).replace(/\\/g, '/');
-
-    void parcelWatcher
-      .subscribe(
-        this.projectPath,
-        (err, events) => {
-          if (err) return;
-          for (const e of events) {
-            const rel = toRel(e.path);
-            // Skip paths outside the project root (shouldn't happen, but guard anyway).
-            if (rel.startsWith('..')) continue;
-
-            let entryType: 'file' | 'directory' = 'file';
-            if (e.type !== 'delete') {
-              try {
-                entryType = statSync(e.path).isDirectory() ? 'directory' : 'file';
-              } catch {
-                // File removed between the event and the stat — treat as file.
-              }
-            }
-            const type = e.type === 'update' ? ('modify' as const) : e.type;
-            enqueue({ type, entryType, path: rel });
-          }
-        },
-        { ignore: watchIgnoreGlobs() }
-      )
-      .then((sub) => {
-        if (closed) {
-          void sub.unsubscribe();
-        } else {
-          resolvedSub = sub;
-        }
-      })
-      .catch(() => {
-        // Subscription failed (e.g. project path removed before watch started).
-      });
-
-    return {
-      // No-op: the recursive subscription already covers the entire worktree.
-      update(_paths: string[]) {},
-      close() {
-        closed = true;
-        if (flushTimer) clearTimeout(flushTimer);
-        if (resolvedSub) void resolvedSub.unsubscribe();
-      },
-    };
   }
 }

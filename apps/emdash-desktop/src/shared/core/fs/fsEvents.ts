@@ -1,12 +1,14 @@
-import type { FileTreeUpdate } from '@emdash/core/file-tree';
-import type { FileWatchEvent } from '@shared/core/fs/fs';
+import type { FileTreeUpdate } from '@emdash/core/files';
+import type { FileChangeUpdate } from '@emdash/core/files';
 import { defineEvent } from '@shared/lib/ipc/events';
 
-export const fsWatchEventChannel = defineEvent<{
+export type FileChangesEvent = {
   projectId: string;
   workspaceId: string;
-  events: FileWatchEvent[];
-}>('fs:watch-event');
+  update: FileChangeUpdate;
+};
+
+export const fileChangesChannel = defineEvent<FileChangesEvent>('files:changes');
 
 export type FileTreeUpdateEvent = {
   projectId: string;

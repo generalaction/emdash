@@ -62,7 +62,7 @@ function fileEntryMetadataChanged(prev: FileEntry, next: FileEntry): boolean {
  * Legacy SSH `FileSystemProvider` implementation using SFTP/SSH exec.
  *
  * This remains active for non-tree file operations and transitional SSH
- * adapters. The editor file tree uses `LegacySshFileTreeRuntime` only as a
+ * adapters. The editor file tree uses `LegacySshFilesRuntime` only as a
  * temporary bridge until the `@emdash/core` file-tree runtime can run where the
  * remote workspace lives.
  */

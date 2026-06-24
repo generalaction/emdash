@@ -1,6 +1,5 @@
 import { basename } from 'node:path';
-import { isIgnored } from '@emdash/core/file-tree';
-import { fsEvents } from '@main/core/fs/fs-events';
+import { isIgnored, type FileChangeUpdate } from '@emdash/core/files';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { sqlite } from '@main/db/client';
@@ -19,10 +18,10 @@ class WorkspaceFileIndexService {
 
   initialize(): void {
     this.evictStale();
+  }
 
-    fsEvents.on('watch:event', ({ workspaceId }) => {
-      this.scheduleReindex(workspaceId);
-    });
+  onWorkspaceFileChange(workspaceId: string, update: FileChangeUpdate): void {
+    if (update.kind === 'resync' || update.changes.length > 0) this.scheduleReindex(workspaceId);
   }
 
   async onWorkspaceCreated(workspaceId: string, workspace: Workspace): Promise<void> {

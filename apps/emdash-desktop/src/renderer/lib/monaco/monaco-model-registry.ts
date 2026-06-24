@@ -871,12 +871,12 @@ export class MonacoModelRegistry {
    * Return all registered disk:// URIs for the given workspace and file path.
    * Used by the FS-event invalidation bridge.
    */
-  findDiskUris(filter: { workspaceId: string; filePath: string }): string[] {
+  findDiskUris(filter: { workspaceId: string; filePath?: string }): string[] {
     const result: string[] = [];
     for (const [uri, entry] of this.modelMap) {
       if (entry.type !== 'disk') continue;
       if (entry.workspaceId !== filter.workspaceId) continue;
-      if (entry.filePath !== filter.filePath) continue;
+      if (filter.filePath !== undefined && entry.filePath !== filter.filePath) continue;
       result.push(uri);
     }
     return result;

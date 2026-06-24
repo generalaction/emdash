@@ -1,4 +1,4 @@
-import type { FileNode as CoreFileNode, NodeId } from '@emdash/core/file-tree';
+import type { FileNode as CoreFileNode, NodeId } from '@emdash/core/files';
 import type { KeyedOp } from '@emdash/core/lib';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
 import {

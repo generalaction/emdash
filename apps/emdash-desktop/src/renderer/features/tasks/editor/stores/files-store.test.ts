@@ -1,4 +1,4 @@
-import type { FileNode, FileTreeUpdate, NodeId } from '@emdash/core/file-tree';
+import type { FileNode, FileTreeUpdate, NodeId } from '@emdash/core/files';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fileTreeUpdateChannel } from '@shared/core/fs/fsEvents';
 import { FilesStore } from './files-store';
