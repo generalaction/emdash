@@ -1,7 +1,11 @@
 import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
+import {
+  ISSUE_PROVIDER_CAPABILITIES,
+  type ConnectionStatus,
+  type IssueListError,
+} from '@shared/issue-providers';
 
 const NOTION_API_BASE_URL = 'https://api.notion.com/v1';
 const NOTION_VERSION = '2026-03-11';
@@ -15,6 +19,20 @@ export const NOTION_API_ERROR_MESSAGES = {
   RATE_LIMITED: 'Notion API rate limit exceeded. Please try again shortly.',
   UNAVAILABLE: 'Notion API is temporarily unavailable. Please try again.',
 } as const;
+
+export class NotionApiError extends Error {
+  constructor(
+    message: string,
+    readonly errorType: IssueListError['type']
+  ) {
+    super(message);
+    this.name = 'NotionApiError';
+  }
+}
+
+export function getNotionIssueErrorType(error: unknown): IssueListError['type'] | undefined {
+  return error instanceof NotionApiError ? error.errorType : undefined;
+}
 
 export type NotionPageScope =
   | { type: 'all-shared' }
@@ -118,15 +136,42 @@ function normalizeNotionApiMessage(message: string): string {
   return message;
 }
 
-function toNotionApiErrorMessage(status: number, apiMessage?: string): string {
-  if (apiMessage) return normalizeNotionApiMessage(apiMessage);
+function getNotionErrorType(status: number, apiMessage?: string): IssueListError['type'] {
+  if (
+    apiMessage &&
+    /Could not find (?:database|page|data source) with ID:|Make sure the relevant pages and databases are shared/i.test(
+      apiMessage
+    )
+  ) {
+    return 'not_found_or_no_access';
+  }
 
-  if (status === 401) return NOTION_API_ERROR_MESSAGES.AUTH_FAILED;
-  if (status === 403) return NOTION_API_ERROR_MESSAGES.MISSING_PERMISSIONS;
-  if (status === 429) return NOTION_API_ERROR_MESSAGES.RATE_LIMITED;
-  if (status >= 500) return NOTION_API_ERROR_MESSAGES.UNAVAILABLE;
+  if (status === 401) return 'auth_required';
+  if (status === 403) return 'forbidden';
+  if (status === 429) return 'rate_limited';
+  if (status >= 500) return 'host_unreachable';
+  return 'generic';
+}
 
-  return `Notion API error (${status})`;
+function toNotionApiError(status: number, apiMessage?: string): NotionApiError {
+  if (apiMessage) {
+    return new NotionApiError(normalizeNotionApiMessage(apiMessage), getNotionErrorType(status, apiMessage));
+  }
+
+  if (status === 401) {
+    return new NotionApiError(NOTION_API_ERROR_MESSAGES.AUTH_FAILED, 'auth_required');
+  }
+  if (status === 403) {
+    return new NotionApiError(NOTION_API_ERROR_MESSAGES.MISSING_PERMISSIONS, 'forbidden');
+  }
+  if (status === 429) {
+    return new NotionApiError(NOTION_API_ERROR_MESSAGES.RATE_LIMITED, 'rate_limited');
+  }
+  if (status >= 500) {
+    return new NotionApiError(NOTION_API_ERROR_MESSAGES.UNAVAILABLE, 'host_unreachable');
+  }
+
+  return new NotionApiError(`Notion API error (${status})`, 'generic');
 }
 
 function normalizeNotionId(value: string): string | null {
@@ -307,7 +352,7 @@ export class NotionConnectionService {
 
     if (!response.ok) {
       const body = await response.json().catch(() => null);
-      throw new Error(toNotionApiErrorMessage(response.status, body?.message));
+      throw toNotionApiError(response.status, body?.message);
     }
 
     return (await response.json()) as T;

@@ -153,6 +153,7 @@ export const IssueSelector = observer(function IssueSelector({
   const {
     issues,
     error,
+    errorType,
     issueProvider,
     hasAnyIntegration,
     isProviderLoading,
@@ -287,7 +288,7 @@ export const IssueSelector = observer(function IssueSelector({
               disabled={!hasAnyIntegration}
             />
             <ComboboxEmpty className={error ? 'py-0' : undefined}>
-              <IssueSearchEmptyState provider={issueProvider} error={error} />
+              <IssueSearchEmptyState provider={issueProvider} error={error} errorType={errorType} />
             </ComboboxEmpty>
             <ComboboxList>
               {(issue: LinkedIssue) => {

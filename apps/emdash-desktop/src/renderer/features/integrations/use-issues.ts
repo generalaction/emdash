@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import type { LinkedIssue } from '@shared/core/linked-issue';
-import type { IssueProviderType } from '@shared/issue-providers';
+import type { IssueListError, IssueProviderType } from '@shared/issue-providers';
 
 const INITIAL_FETCH_LIMIT = 50;
 const SEARCH_LIMIT = 20;
@@ -17,6 +17,7 @@ export interface UseIssuesResult {
   issues: LinkedIssue[];
   isLoading: boolean;
   error: string | null;
+  errorType: IssueListError['type'] | null;
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   isSearching: boolean;
@@ -134,11 +135,17 @@ export function useIssues(
       : activeQueryError instanceof Error
         ? activeQueryError.message
         : null;
+  const errorType =
+    activeResult && !activeResult.success && 'errorType' in activeResult
+      ? (activeResult.errorType ?? null)
+      : null;
+
 
   return {
     issues,
     isLoading: isLoadingInitial,
     error,
+    errorType,
     searchTerm,
     setSearchTerm,
     isSearching: isActiveSearch && isSearching,

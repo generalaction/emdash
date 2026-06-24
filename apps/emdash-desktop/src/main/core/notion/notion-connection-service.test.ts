@@ -23,7 +23,11 @@ vi.mock('@main/lib/telemetry', () => ({
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
-import { NOTION_API_ERROR_MESSAGES, NotionConnectionService } from './notion-connection-service';
+import {
+  getNotionIssueErrorType,
+  NOTION_API_ERROR_MESSAGES,
+  NotionConnectionService,
+} from './notion-connection-service';
 
 function jsonResponse(body: unknown): { ok: boolean; json: () => Promise<unknown> } {
   return { ok: true, json: async () => body };
@@ -241,11 +245,18 @@ describe('NotionConnectionService', () => {
         }),
       });
 
-      await expect(
-        service.request('token', '/data_sources/abc/query', { method: 'POST' })
-      ).rejects.toThrow(
+      let thrown: unknown;
+      try {
+        await service.request('token', '/data_sources/abc/query', { method: 'POST' });
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(Error);
+      expect((thrown as Error).message).toBe(
         'Notion cannot access the configured data source. Share the page or database with emdash, or update the scope URLs in Emdash settings.'
       );
+      expect(getNotionIssueErrorType(thrown)).toBe('not_found_or_no_access');
     });
   });
 });

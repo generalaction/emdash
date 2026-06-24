@@ -1,4 +1,5 @@
 import type { LinkedIssue } from '@shared/core/linked-issue';
+import type { IssueListError } from '@shared/issue-providers';
 
 export type IssueSearchErrorDisplay = {
   kind: 'access' | 'auth' | 'generic';
@@ -20,16 +21,13 @@ function notionAccessErrorDescription(error: string): string {
 
 export function parseIssueSearchError(
   provider: LinkedIssue['provider'] | null,
-  error: string | null
+  error: string | null,
+  errorType?: IssueListError['type'] | null
 ): IssueSearchErrorDisplay | null {
   if (!error) return null;
 
   if (provider === 'notion') {
-    if (
-      /Could not find (database|page|data source)|cannot access the configured data source|not shared with|Missing permissions|missing access/i.test(
-        error
-      )
-    ) {
+    if (errorType === 'not_found_or_no_access' || errorType === 'forbidden') {
       return {
         kind: 'access',
         title: 'Notion access required',
@@ -38,7 +36,7 @@ export function parseIssueSearchError(
       };
     }
 
-    if (/authentication failed|not connected|Failed to verify Notion/i.test(error)) {
+    if (errorType === 'auth_required' || errorType === 'token_missing') {
       return {
         kind: 'auth',
         title: 'Notion connection issue',

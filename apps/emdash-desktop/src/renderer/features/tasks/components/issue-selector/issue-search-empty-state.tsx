@@ -5,6 +5,7 @@ import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { cn } from '@renderer/utils/utils';
 import type { LinkedIssue } from '@shared/core/linked-issue';
+import type { IssueListError } from '@shared/issue-providers';
 import { parseIssueSearchError } from './parse-issue-search-error';
 
 function ProviderIcon({
@@ -33,12 +34,14 @@ function ProviderIcon({
 export function IssueSearchEmptyState({
   provider,
   error,
+  errorType,
 }: {
   provider: LinkedIssue['provider'] | null;
   error: string | null;
+  errorType: IssueListError['type'] | null;
 }) {
   const { navigate } = useNavigate();
-  const parsed = parseIssueSearchError(provider, error);
+  const parsed = parseIssueSearchError(provider, error, errorType);
 
   if (!parsed) {
     return <span>No issues found</span>;

@@ -12,7 +12,11 @@ import {
   type IssueContextResult,
   type IssueListResult,
 } from '@shared/issue-providers';
-import { notionConnectionService, type NotionCredentials } from './notion-connection-service';
+import {
+  getNotionIssueErrorType,
+  notionConnectionService,
+  type NotionCredentials,
+} from './notion-connection-service';
 
 type NotionRichText = { plain_text?: string };
 type NotionProperty = {
@@ -275,6 +279,14 @@ function dedupeIssuesByIdentifier(issues: LinkedIssue[]): LinkedIssue[] {
   return [...new Map(issues.map((issue) => [issue.identifier, issue])).values()];
 }
 
+function toIssueListError(error: unknown, fallback: string): IssueListResult {
+  return {
+    success: false,
+    error: error instanceof Error ? error.message : fallback,
+    errorType: getNotionIssueErrorType(error),
+  };
+}
+
 async function listScopedIssues(
   credentials: NotionCredentials,
   searchTerm: string | undefined,
@@ -331,10 +343,7 @@ async function listIssues(opts: IssueQueryOpts): Promise<IssueListResult> {
     const issues = await listScopedIssues(credentials, undefined, sanitizedLimit);
     return { success: true, issues: sortByUpdatedAtDesc(issues) };
   } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to fetch Notion pages.',
-    };
+    return toIssueListError(error, 'Failed to fetch Notion pages.');
   }
 }
 
@@ -355,10 +364,7 @@ async function searchIssues(opts: IssueSearchOpts): Promise<IssueListResult> {
     const issues = await listScopedIssues(credentials, term, sanitizedLimit);
     return { success: true, issues: sortByUpdatedAtDesc(issues) };
   } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to search Notion pages.',
-    };
+    return toIssueListError(error, 'Failed to search Notion pages.');
   }
 }
 
