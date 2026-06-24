@@ -32,6 +32,7 @@ export {
   SURFACE_SCOPES,
   SURFACE_STATUSES,
   STATUS_SCALE,
+  STATUS_LEVEL_SCOPES,
 } from './contract/roles';
 
 export { SEMANTIC_TEMPLATE, SEMANTIC_VARS } from './contract/semantic-template';

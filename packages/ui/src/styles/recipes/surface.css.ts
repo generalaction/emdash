@@ -11,13 +11,33 @@
  *
  * Variants:
  *   level       — sunken | base | elevated | paper (default: base)
- *   status      — destructive | warning | info (default: none)
+ *   status      — destructive | warning | info | success (default: none)
  *   interactive — true | false: adds hover/selected cursor + transition
+ *
+ * Status rooms are level-aware: when both `level` and `status` are set on the
+ * same element, the level variant rebinds the effective --surface-<status>*
+ * cascade vars to the canvas-matched tints generated at theme build time.
  */
 
 import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
 import { vars } from '@theme/core/contract/contract.css';
+import { SURFACE_STATUSES } from '@theme/core/contract/roles';
+
+const toCamel = (s: string) => s.replace(/-([a-z0-9])/g, (_: string, c: string) => c.toUpperCase());
+const vv = vars as unknown as Record<string, string>;
+
+function statusRebindings(scope: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const status of SURFACE_STATUSES) {
+    for (const sub of ['', '-hover', '-selected', '-border', '-foreground']) {
+      const effectiveKey = toCamel(`surface-${status}${sub}`);
+      const scopeKey = toCamel(`surface-${status}-${scope}${sub}`);
+      result[vv[effectiveKey]] = vv[scopeKey];
+    }
+  }
+  return result;
+}
 
 export const surface = recipe({
   base: {
@@ -36,6 +56,7 @@ export const surface = recipe({
           [vars.surfaceEmphasis]: vars.surfaceBase,
           [vars.surfaceEmphasisHover]: vars.surfaceBaseHover,
           [vars.surfaceEmphasisSelected]: vars.surfaceBaseEmphasisSelected,
+          ...statusRebindings('sunken'),
         },
       },
       // Base — default surface level (content areas, cards on sunken canvas)
@@ -47,6 +68,7 @@ export const surface = recipe({
           [vars.surfaceEmphasis]: vars.surfaceBaseEmphasis,
           [vars.surfaceEmphasisHover]: vars.surfaceBaseEmphasisHover,
           [vars.surfaceEmphasisSelected]: vars.surfaceBaseEmphasisSelected,
+          // base is the default — no status rebindings needed
         },
       },
       // Elevated — raised above base (popovers, dialogs, dropdowns)
@@ -58,6 +80,7 @@ export const surface = recipe({
           [vars.surfaceEmphasis]: vars.surfaceElevatedEmphasis,
           [vars.surfaceEmphasisHover]: vars.surfaceElevatedEmphasisHover,
           [vars.surfaceEmphasisSelected]: vars.surfaceElevatedEmphasisSelected,
+          ...statusRebindings('elevated'),
         },
       },
       // Paper — maximum elevation (tooltip-level, floating panels)
@@ -69,6 +92,7 @@ export const surface = recipe({
           [vars.surfaceEmphasis]: vars.surfaceElevatedEmphasis,
           [vars.surfaceEmphasisHover]: vars.surfaceElevatedEmphasisHover,
           [vars.surfaceEmphasisSelected]: vars.surfaceElevatedEmphasisSelected,
+          ...statusRebindings('paper'),
         },
       },
     },
@@ -99,6 +123,15 @@ export const surface = recipe({
           [vars.surfaceBorder]: vars.surfaceInfoBorder,
           [vars.surfaceHover]: vars.surfaceInfoHover,
           [vars.surfaceSelected]: vars.surfaceInfoSelected,
+        },
+      },
+      success: {
+        vars: {
+          [vars.surface]: vars.surfaceSuccess,
+          [vars.surfaceForeground]: vars.surfaceSuccessForeground,
+          [vars.surfaceBorder]: vars.surfaceSuccessBorder,
+          [vars.surfaceHover]: vars.surfaceSuccessHover,
+          [vars.surfaceSelected]: vars.surfaceSuccessSelected,
         },
       },
     },

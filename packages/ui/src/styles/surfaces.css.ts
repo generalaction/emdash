@@ -14,18 +14,46 @@
  * Elevation hierarchy (darkest → lightest in both modes):
  *   surface-sunken  → surface-base → surface-base-emphasis
  *   → surface-elevated → surface-elevated-emphasis
+ *
+ * Status rooms (destructive/warning/info/success) carry per-elevation-scope
+ * variants generated at theme build time. Each elevation scope class rebinds
+ * the effective --surface-<status>* cascade vars to the canvas-matched tokens
+ * so a status room inside any elevation context reads with the correct lightness.
  */
 
 import { THEME_MANIFEST } from '@theme/themes/registry';
 import { globalStyle } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
+import { SURFACE_STATUSES } from '@theme/core/contract/roles';
 
-// ── Helper ────────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Build a CSS color-mix expression as a static string for VE. */
 function colorMix(a: string, pct: number, b: string): string {
   return `color-mix(in srgb, ${a} ${pct}%, ${b})`;
 }
+
+const toCamel = (s: string) => s.replace(/-([a-z0-9])/g, (_: string, c: string) => c.toUpperCase());
+const vv = vars as unknown as Record<string, string>;
+
+/**
+ * Returns a vars object that rebinds each status surface's effective cascade
+ * vars to the per-scope generated tokens for the given elevation scope name.
+ * Spread this into the elevation scope class's `vars` block so any status room
+ * nested inside (or applied on the same element) uses the canvas-matched tint.
+ */
+function statusRebindings(scope: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const status of SURFACE_STATUSES) {
+    for (const sub of ['', '-hover', '-selected', '-border', '-foreground']) {
+      const effectiveKey = toCamel(`surface-${status}${sub}`);
+      const scopeKey = toCamel(`surface-${status}-${scope}${sub}`);
+      result[vv[effectiveKey]] = vv[scopeKey];
+    }
+  }
+  return result;
+}
+
 
 // ── 1. Default cascade binding (robust — works wherever .em<id> lands) ────────
 
@@ -60,6 +88,8 @@ globalStyle('.surface-sunken', {
     [vars.surfaceEmphasisHover]: vars.surfaceBaseHover,
     [vars.surfaceEmphasisSelected]: vars.surfaceBaseSelected,
     [vars.surfaceInput]: colorMix(vars.surface, 94, vars.foreground),
+    // Status rooms on sunken canvas use canvas-matched tints
+    ...statusRebindings('sunken'),
   },
 });
 
@@ -84,6 +114,8 @@ globalStyle('.surface-elevated', {
     [vars.surfaceEmphasisHover]: vars.surfaceElevatedEmphasisHover,
     [vars.surfaceEmphasisSelected]: vars.surfaceElevatedEmphasisSelected,
     [vars.surfaceInput]: colorMix(vars.surface, 94, vars.foreground),
+    // Status rooms on elevated canvas use canvas-matched tints
+    ...statusRebindings('elevated'),
   },
 });
 
@@ -97,6 +129,8 @@ globalStyle('.surface-base-emphasis', {
     [vars.surfaceEmphasisHover]: vars.surfaceElevatedHover,
     [vars.surfaceEmphasisSelected]: vars.surfaceElevatedSelected,
     [vars.surfaceInput]: colorMix(vars.surface, 94, vars.foreground),
+    // Status rooms on base-emphasis canvas use canvas-matched tints
+    ...statusRebindings('base-emphasis'),
   },
 });
 
@@ -110,6 +144,8 @@ globalStyle('.surface-elevated-emphasis', {
     [vars.surfaceEmphasisHover]: vars.surfaceElevatedEmphasisHover,
     [vars.surfaceEmphasisSelected]: vars.surfaceElevatedEmphasisSelected,
     [vars.surfaceInput]: colorMix(vars.surface, 94, vars.foreground),
+    // Status rooms on elevated-emphasis canvas use canvas-matched tints
+    ...statusRebindings('elevated-emphasis'),
   },
 });
 
@@ -125,6 +161,8 @@ globalStyle('.surface-paper', {
     [vars.surfaceEmphasisHover]: vars.surfaceBaseEmphasisHover,
     [vars.surfaceEmphasisSelected]: vars.surfaceBaseEmphasisSelected,
     [vars.surfaceInput]: colorMix(vars.surface, 94, vars.foreground),
+    // Status rooms on paper canvas use canvas-matched tints
+    ...statusRebindings('paper'),
   },
 });
 
@@ -189,6 +227,20 @@ globalStyle('.surface-info', {
     [vars.surfaceEmphasisSelected]: vars.surfaceInfoSelected,
     [vars.surfaceBorder]: vars.surfaceInfoBorder,
     [vars.surfaceForeground]: vars.surfaceInfoForeground,
+    [vars.surfaceInput]: colorMix(vars.surface, 94, vars.foreground),
+  },
+});
+
+globalStyle('.surface-success', {
+  vars: {
+    [vars.surface]: vars.surfaceSuccess,
+    [vars.surfaceHover]: vars.surfaceSuccessHover,
+    [vars.surfaceSelected]: vars.surfaceSuccessSelected,
+    [vars.surfaceEmphasis]: vars.surfaceSuccessSelected,
+    [vars.surfaceEmphasisHover]: vars.surfaceSuccessSelected,
+    [vars.surfaceEmphasisSelected]: vars.surfaceSuccessSelected,
+    [vars.surfaceBorder]: vars.surfaceSuccessBorder,
+    [vars.surfaceForeground]: vars.surfaceSuccessForeground,
     [vars.surfaceInput]: colorMix(vars.surface, 94, vars.foreground),
   },
 });

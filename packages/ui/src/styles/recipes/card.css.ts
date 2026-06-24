@@ -14,13 +14,33 @@
  *   radius      — sm | md | lg (default: md)
  *   interactive — true | false: hover/selected state (default: false)
  *   level       — sunken | base | elevated | paper (default: base)
- *   status      — destructive | warning | info (optional)
+ *   status      — destructive | warning | info | success (optional)
+ *
+ * Status rooms are level-aware: when both `level` and `status` are set on the
+ * same element, the level variant rebinds the effective --surface-<status>*
+ * cascade vars to the canvas-matched tints generated at theme build time.
  */
 
 import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
 import { tokenVars } from '../../theme/tokens.css';
 import { vars } from '@theme/core/contract/contract.css';
+import { SURFACE_STATUSES } from '@theme/core/contract/roles';
+
+const toCamel = (s: string) => s.replace(/-([a-z0-9])/g, (_: string, c: string) => c.toUpperCase());
+const vv = vars as unknown as Record<string, string>;
+
+function statusRebindings(scope: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const status of SURFACE_STATUSES) {
+    for (const sub of ['', '-hover', '-selected', '-border', '-foreground']) {
+      const effectiveKey = toCamel(`surface-${status}${sub}`);
+      const scopeKey = toCamel(`surface-${status}-${scope}${sub}`);
+      result[vv[effectiveKey]] = vv[scopeKey];
+    }
+  }
+  return result;
+}
 
 export const card = recipe({
   base: {
@@ -40,6 +60,7 @@ export const card = recipe({
           [vars.surfaceEmphasis]: vars.surfaceBase,
           [vars.surfaceEmphasisHover]: vars.surfaceBaseHover,
           [vars.surfaceEmphasisSelected]: vars.surfaceBaseEmphasisSelected,
+          ...statusRebindings('sunken'),
         },
       },
       base: {
@@ -50,6 +71,7 @@ export const card = recipe({
           [vars.surfaceEmphasis]: vars.surfaceBaseEmphasis,
           [vars.surfaceEmphasisHover]: vars.surfaceBaseEmphasisHover,
           [vars.surfaceEmphasisSelected]: vars.surfaceBaseEmphasisSelected,
+          // base is the default — no status rebindings needed
         },
       },
       elevated: {
@@ -60,6 +82,7 @@ export const card = recipe({
           [vars.surfaceEmphasis]: vars.surfaceElevatedEmphasis,
           [vars.surfaceEmphasisHover]: vars.surfaceElevatedEmphasisHover,
           [vars.surfaceEmphasisSelected]: vars.surfaceElevatedEmphasisSelected,
+          ...statusRebindings('elevated'),
         },
       },
       paper: {
@@ -70,6 +93,7 @@ export const card = recipe({
           [vars.surfaceEmphasis]: vars.surfaceElevatedEmphasis,
           [vars.surfaceEmphasisHover]: vars.surfaceElevatedEmphasisHover,
           [vars.surfaceEmphasisSelected]: vars.surfaceElevatedEmphasisSelected,
+          ...statusRebindings('paper'),
         },
       },
     },
@@ -100,6 +124,15 @@ export const card = recipe({
           [vars.surfaceBorder]: vars.surfaceInfoBorder,
           [vars.surfaceHover]: vars.surfaceInfoHover,
           [vars.surfaceSelected]: vars.surfaceInfoSelected,
+        },
+      },
+      success: {
+        vars: {
+          [vars.surface]: vars.surfaceSuccess,
+          [vars.surfaceForeground]: vars.surfaceSuccessForeground,
+          [vars.surfaceBorder]: vars.surfaceSuccessBorder,
+          [vars.surfaceHover]: vars.surfaceSuccessHover,
+          [vars.surfaceSelected]: vars.surfaceSuccessSelected,
         },
       },
     },

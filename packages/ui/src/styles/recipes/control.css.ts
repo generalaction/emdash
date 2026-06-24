@@ -102,6 +102,9 @@ export const controlVariants = recipe({
     tone: {
       neutral: {},
       destructive: {},
+      warning: {},
+      info: {},
+      success: {},
     },
 
     size: {
@@ -172,6 +175,60 @@ export const controlVariants = recipe({
         },
       },
     },
+    // ghost + warning
+    {
+      variants: { variant: 'ghost', tone: 'warning' },
+      style: {
+        color: vars.foregroundWarning,
+        selectors: {
+          '&:hover': {
+            backgroundColor: vars.surfaceWarningHover,
+            color: vars.foregroundWarning,
+          },
+          '&[data-active="true"]': { backgroundColor: vars.surfaceWarningSelected },
+          '&[aria-pressed="true"]': { backgroundColor: vars.surfaceWarningSelected },
+          '&[aria-selected="true"]': { backgroundColor: vars.surfaceWarningSelected },
+          '&[data-pressed]': { backgroundColor: vars.surfaceWarningSelected },
+          '&[data-popup-open]': { backgroundColor: vars.surfaceWarningSelected },
+        },
+      },
+    },
+    // ghost + info
+    {
+      variants: { variant: 'ghost', tone: 'info' },
+      style: {
+        color: vars.foregroundInfo,
+        selectors: {
+          '&:hover': {
+            backgroundColor: vars.surfaceInfoHover,
+            color: vars.foregroundInfo,
+          },
+          '&[data-active="true"]': { backgroundColor: vars.surfaceInfoSelected },
+          '&[aria-pressed="true"]': { backgroundColor: vars.surfaceInfoSelected },
+          '&[aria-selected="true"]': { backgroundColor: vars.surfaceInfoSelected },
+          '&[data-pressed]': { backgroundColor: vars.surfaceInfoSelected },
+          '&[data-popup-open]': { backgroundColor: vars.surfaceInfoSelected },
+        },
+      },
+    },
+    // ghost + success
+    {
+      variants: { variant: 'ghost', tone: 'success' },
+      style: {
+        color: vars.foregroundSuccess,
+        selectors: {
+          '&:hover': {
+            backgroundColor: vars.surfaceSuccessHover,
+            color: vars.foregroundSuccess,
+          },
+          '&[data-active="true"]': { backgroundColor: vars.surfaceSuccessSelected },
+          '&[aria-pressed="true"]': { backgroundColor: vars.surfaceSuccessSelected },
+          '&[aria-selected="true"]': { backgroundColor: vars.surfaceSuccessSelected },
+          '&[data-pressed]': { backgroundColor: vars.surfaceSuccessSelected },
+          '&[data-popup-open]': { backgroundColor: vars.surfaceSuccessSelected },
+        },
+      },
+    },
     // primary + destructive
     {
       variants: { variant: 'primary', tone: 'destructive' },
@@ -180,9 +237,9 @@ export const controlVariants = recipe({
         borderColor: vars.borderDestructive,
         color: vars.foregroundDestructive,
         selectors: {
-          '&:hover': {
-            backgroundColor: `color-mix(in srgb, ${vars.backgroundDestructive} 80%, transparent)`,
-          },
+          '&:hover': { backgroundColor: vars.surfaceDestructiveHover },
+          '&[data-active="true"]': { backgroundColor: vars.surfaceDestructiveSelected },
+          '&[data-pressed]': { backgroundColor: vars.surfaceDestructiveSelected },
           '&:focus-visible': {
             borderColor: `color-mix(in srgb, ${vars.borderDestructive} 40%, transparent)`,
             boxShadow: `0 0 0 3px color-mix(in srgb, ${vars.borderDestructive} 20%, transparent)`,

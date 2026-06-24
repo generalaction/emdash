@@ -10,9 +10,12 @@
  *   "mix(A pct%, B)"   → emitted as CSS color-mix(in srgb, var(--A) pct%, var(--B))
  */
 
-import { SURFACE_SCOPES, SURFACE_STATUSES, STATUS_SCALE } from '../contract/roles';
+import { SURFACE_SCOPES, SURFACE_STATUSES, STATUS_SCALE, STATUS_LEVEL_SCOPES } from '../contract/roles';
 import type { Scales, Surfaces, Polarity } from '../contract/roles';
 import { SEMANTIC_TEMPLATE } from '../contract/semantic-template';
+import { shiftOklabL } from './surfaces';
+import Color from 'colorjs.io';
+import { toP3String } from './color-format';
 
 // ── Ref resolution ────────────────────────────────────────────────────────────
 
@@ -80,17 +83,54 @@ function buildSurfaceVars(surfaces: Surfaces): Record<string, string> {
  * Steps follow the Radix semantic convention:
  *   3 = subtle background, 4 = hover, 5 = selected/active,
  *   6 = border, 11 = readable foreground text.
+ *
+ * Also emits per-elevation-scope variants for every non-base scope.
+ * Each variant is the base token shifted by the OKLab L delta between that
+ * scope's neutral surface and the neutral base surface, so status rooms
+ * track the canvas lightness without losing internal hover/selected contrast.
  */
-function buildStatusSurfaceVars(scales: Scales): Record<string, string> {
+function buildStatusSurfaceVars(scales: Scales, surfaces: Surfaces): Record<string, string> {
   const vars: Record<string, string> = {};
+
+  // Pre-compute the OKLab L of the neutral base surface once.
+  const neutralBaseL = new Color(surfaces['base'].base).to('oklab').coords[0];
+
   for (const status of SURFACE_STATUSES) {
     const scaleName = STATUS_SCALE[status];
     const ramp = scales[scaleName];
-    vars[`--surface-${status}`] = ramp.steps[2]; // step 3
-    vars[`--surface-${status}-hover`] = ramp.steps[3]; // step 4
-    vars[`--surface-${status}-selected`] = ramp.steps[4]; // step 5
-    vars[`--surface-${status}-border`] = ramp.steps[5]; // step 6
-    vars[`--surface-${status}-foreground`] = ramp.steps[10]; // step 11
+
+    // Base (default, unsuffixed) tokens — these remain the effective cascade defaults.
+    const baseColor = ramp.steps[2]; // step 3
+    const hoverColor = ramp.steps[3]; // step 4
+    const selectedColor = ramp.steps[4]; // step 5
+    const borderColor = ramp.steps[5]; // step 6
+    const fgColor = ramp.steps[10]; // step 11
+
+    vars[`--surface-${status}`] = baseColor;
+    vars[`--surface-${status}-hover`] = hoverColor;
+    vars[`--surface-${status}-selected`] = selectedColor;
+    vars[`--surface-${status}-border`] = borderColor;
+    vars[`--surface-${status}-foreground`] = fgColor;
+
+    // Per-scope variants: shift every sub-token by the neutral elevation delta.
+    for (const scope of STATUS_LEVEL_SCOPES) {
+      const neutralScopeL = new Color(surfaces[scope].base).to('oklab').coords[0];
+      const deltaL = neutralScopeL - neutralBaseL;
+
+      const shift = (cssColor: string) => {
+        const c = new Color(cssColor);
+        const shifted = shiftOklabL(c, deltaL);
+        // Gamut-map to P3 if needed (same pattern as buildSurfaceLevel).
+        const p3 = shifted.inGamut('p3') ? shifted : (shifted.toGamut({ space: 'p3' }) as Color);
+        return toP3String(p3.to('p3') as Color);
+      };
+
+      vars[`--surface-${status}-${scope}`] = shift(baseColor);
+      vars[`--surface-${status}-${scope}-hover`] = shift(hoverColor);
+      vars[`--surface-${status}-${scope}-selected`] = shift(selectedColor);
+      vars[`--surface-${status}-${scope}-border`] = shift(borderColor);
+      vars[`--surface-${status}-${scope}-foreground`] = shift(fgColor);
+    }
   }
   return vars;
 }
@@ -129,7 +169,7 @@ export function resolveCssVars(
   Object.assign(vars, buildSurfaceVars(surfaces));
 
   // 3. Status surface vars (--surface-destructive, --surface-warning, etc.)
-  Object.assign(vars, buildStatusSurfaceVars(scales));
+  Object.assign(vars, buildStatusSurfaceVars(scales, surfaces));
 
   // 4. Semantic slot vars (--background, --foreground, etc.)
   for (const [slot, ref] of Object.entries(SEMANTIC_TEMPLATE)) {

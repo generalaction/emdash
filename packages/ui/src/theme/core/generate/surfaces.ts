@@ -18,7 +18,7 @@ import { SURFACE_SCOPES } from '../contract/roles';
 import { SURFACE_L, STATE_LAYER_DELTA } from '../contract/targets';
 import { toP3String } from './color-format';
 
-function shiftOklabL(c: Color, delta: number): Color {
+export function shiftOklabL(c: Color, delta: number): Color {
   const oklab = c.to('oklab');
   const newL = Math.max(0, Math.min(1, oklab.coords[0] + delta));
   oklab.coords[0] = newL;

@@ -1,8 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
-import { SURFACE_LEVELS, SURFACE_ROLES, SURFACE_STATUSES } from '@theme/core/contract/roles';
+import {
+  SURFACE_LEVELS,
+  SURFACE_ROLES,
+  SURFACE_SCOPES,
+  SURFACE_STATUSES,
+} from '@theme/core/contract/roles';
 import type { SurfaceScopeName, SurfaceStatusName } from '@theme/core/contract/roles';
-import { AlertCircleIcon, AlertTriangleIcon, InfoIcon } from 'lucide-react';
+import { AlertCircleIcon, AlertTriangleIcon, CheckCircle2Icon, InfoIcon } from 'lucide-react';
 import React, { useState } from 'react';
 import { Box } from '../primitives/box';
 import { Button } from '../primitives/button';
@@ -191,6 +196,17 @@ function SurfaceButtons({ level }: { level: SurfaceScopeName }) {
         <Button variant="ghost" tone="destructive">
           Destructive
         </Button>
+        <Button variant="ghost" tone="warning">
+          Warning
+        </Button>
+        <Button variant="ghost" tone="info">
+          Info
+        </Button>
+        <Button variant="ghost" tone="success">
+          Success
+        </Button>
+      </Box>
+      <Box display="flex" flexWrap="wrap" gap="2">
         <Button variant="primary">Primary</Button>
         <Button variant="primary" tone="destructive">
           Primary Destructive
@@ -284,18 +300,21 @@ const STATUS_ICON: Record<SurfaceStatusName, React.ReactNode> = {
   info: <InfoIcon />,
   warning: <AlertTriangleIcon />,
   destructive: <AlertCircleIcon />,
+  success: <CheckCircle2Icon />,
 };
 
 const STATUS_LABEL: Record<SurfaceStatusName, string> = {
   info: 'Info',
   warning: 'Warning',
   destructive: 'Destructive',
+  success: 'Success',
 };
 
 const STATUS_MESSAGE: Record<SurfaceStatusName, string> = {
   info: 'This is an informational message. Ghost controls inside adapt to the tinted surface.',
   warning: 'Something needs your attention. Controls inherit the tinted hover/selected states.',
   destructive: 'This action cannot be undone. All controls respond to the destructive surface.',
+  success: 'Operation completed successfully. Controls inherit the tinted hover/selected states.',
 };
 
 function StatusRoom({ status }: { status: SurfaceStatusName }) {
@@ -469,6 +488,91 @@ export const Paper: Story = {
       <ThemeProvider theme="dark" className={cx(sx({ flex: '1' }))}>
         <PaperRoom />
       </ThemeProvider>
+    </Box>
+  ),
+};
+
+/**
+ * Status × Elevation matrix.
+ *
+ * Each cell renders a status room on a given elevation scope so you can
+ * visually verify that the generated per-level tints track the canvas lightness
+ * correctly. In dark mode each row should get progressively lighter left-to-right;
+ * in light mode they should get slightly darker. The x1.0 track_delta is the
+ * baseline — tune the shift multiplier in resolve.ts if rooms wash out.
+ */
+export const StatusLevelMatrix: Story = {
+  render: () => (
+    <Box display="flex" className={s.minHScreen}>
+      {(['light', 'dark'] as const).map((theme) => (
+        <ThemeProvider key={theme} theme={theme} className={cx(sx({ flex: '1', padding: '4' }))}>
+          <Box background="background" padding="4" className={s.spaceY4}>
+            <p
+              className={cx(
+                sx({ fontSize: 'sm', fontWeight: 'semibold', color: 'foreground', marginBottom: '3' })
+              )}
+            >
+              {theme} — status × elevation
+            </p>
+            {SURFACE_STATUSES.map((status) => (
+              <Box key={status} className={s.spaceY4}>
+                <p
+                  className={cx(
+                    sx({ fontFamily: 'mono', fontSize: 'xs', color: 'foregroundMuted' })
+                  )}
+                >
+                  {status}
+                </p>
+                <Box
+                  display="grid"
+                  gap="2"
+                  style={{
+                    gridTemplateColumns: `repeat(${SURFACE_SCOPES.length}, minmax(0, 1fr))`,
+                  }}
+                >
+                  {SURFACE_SCOPES.map((scope) => {
+                    const tokenBase =
+                      scope === 'base'
+                        ? `--surface-${status}`
+                        : `--surface-${status}-${scope}`;
+                    return (
+                      <Box key={scope} display="flex" flexDirection="column" gap="1.5">
+                        <p className={cx(sx({ fontFamily: 'mono' }), s.text10px)}>{scope}</p>
+                        <Box
+                          className={s.h10}
+                          width="full"
+                          rounded="sm"
+                          borderWidth="1"
+                          borderStyle="solid"
+                          style={{
+                            background: `var(${tokenBase})`,
+                            borderColor: `var(${tokenBase}-border)`,
+                          }}
+                          title={tokenBase}
+                        />
+                        <Box
+                          className={s.h6}
+                          width="full"
+                          rounded="sm"
+                          style={{ background: `var(${tokenBase}-hover)` }}
+                          title={`${tokenBase}-hover`}
+                        />
+                        <Box
+                          className={s.h6}
+                          width="full"
+                          rounded="sm"
+                          style={{ background: `var(${tokenBase}-selected)` }}
+                          title={`${tokenBase}-selected`}
+                        />
+                      </Box>
+                    );
+                  })}
+                </Box>
+              </Box>
+            ))}
+          </Box>
+        </ThemeProvider>
+      ))}
     </Box>
   ),
 };
