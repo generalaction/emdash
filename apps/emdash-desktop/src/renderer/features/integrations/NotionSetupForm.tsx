@@ -28,7 +28,7 @@ function NotionSetupFormLoading({ onSuccess, onClose }: SetupFormProps) {
   return (
     <SetupFormShell
       providerId="notion"
-      getInput={() => ({ token: '', databaseUrls: '' })}
+      getInput={() => ({ databaseUrls: '' })}
       canSubmit={false}
       onSuccess={onSuccess}
       onClose={onClose}
@@ -56,8 +56,9 @@ function NotionSetupFormFields({
     <SetupFormShell
       providerId="notion"
       getInput={() => ({
-        token: trimmedToken,
+        token: trimmedToken || undefined,
         databaseUrls: databaseUrls.trim(),
+        preserveToken: isEditing && !trimmedToken,
       })}
       canSubmit={isEditing || !!trimmedToken}
       submitLabel={isEditing ? 'Save changes' : 'Connect'}

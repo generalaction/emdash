@@ -13,5 +13,5 @@ export type ProviderInput = {
   asana: string;
   monday: { token: string; boardUrls: string };
   trello: { apiKey: string; token: string; boardUrls: string };
-  notion: { token: string; databaseUrls: string };
+  notion: { token?: string; databaseUrls: string; preserveToken?: boolean };
 };

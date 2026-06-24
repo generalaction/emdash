@@ -26,8 +26,9 @@ export type NotionCredentials = {
 };
 
 type SaveCredentialsInput = {
-  token: string;
+  token?: string;
   databaseUrls: string;
+  preserveToken?: boolean;
 };
 
 export type NotionConfiguration = {
@@ -178,10 +179,16 @@ export class NotionConnectionService {
   async saveCredentials(
     input: SaveCredentialsInput
   ): Promise<{ success: boolean; displayName?: string; error?: string }> {
-    const existingCredentials = await this.getStoredCredentials();
-    const token = input.token.trim() || existingCredentials?.token || '';
+    const tokenInput = input.token?.trim();
+    const existingCredentials = input.preserveToken ? await this.getStoredCredentials() : null;
+    const token = tokenInput || existingCredentials?.token || '';
     if (!token) {
-      return { success: false, error: 'Access token cannot be empty.' };
+      return {
+        success: false,
+        error: input.preserveToken
+          ? 'No existing Notion access token was found. Enter an access token and try again.'
+          : 'Access token cannot be empty.',
+      };
     }
 
     const scope = this.parseDatabaseUrls(input.databaseUrls);

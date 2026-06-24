@@ -123,7 +123,7 @@ describe('IntegrationsProvider', () => {
     expect(latest?.linearIsMutating).toBe(false);
   });
 
-  it('allows Notion scope updates without a replacement token', async () => {
+  it('allows explicit Notion scope updates without a replacement token', async () => {
     let providers: ReturnType<typeof useIntegrationsContext>['providers'] | null = null;
     mocks.checkAllConnections.mockResolvedValue({});
     mocks.notionSaveCredentials.mockResolvedValue({ success: true });
@@ -146,12 +146,15 @@ describe('IntegrationsProvider', () => {
     });
 
     await act(async () => {
-      await providers?.notion.connect({ token: '', databaseUrls: 'https://notion.com/acme/page' });
+      await providers?.notion.connect({
+        databaseUrls: 'https://notion.com/acme/page',
+        preserveToken: true,
+      });
     });
 
     expect(mocks.notionSaveCredentials).toHaveBeenCalledWith({
-      token: '',
       databaseUrls: 'https://notion.com/acme/page',
+      preserveToken: true,
     });
   });
 });

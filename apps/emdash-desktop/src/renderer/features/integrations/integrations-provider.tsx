@@ -77,10 +77,14 @@ function validateTrelloCredentials(input: {
   return null;
 }
 
-function validateNotionCredentials(input: { token: string; databaseUrls: string }): string | null {
-  // Notion setup supports editing scope URLs while keeping the existing saved token.
-  // The main-process service validates that either this input or stored credentials provide one.
-  void input;
+function validateNotionCredentials(input: {
+  token?: string;
+  databaseUrls: string;
+  preserveToken?: boolean;
+}): string | null {
+  if (!input.token?.trim() && !input.preserveToken) {
+    return 'Access token is required.';
+  }
   return null;
 }
 

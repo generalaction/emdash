@@ -126,6 +126,35 @@ describe('NotionConnectionService', () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
+    it('preserves the existing token when explicitly requested', async () => {
+      mockGetSecret.mockResolvedValueOnce(
+        JSON.stringify({ token: 'stored-token', scope: { type: 'all-shared' } })
+      );
+      mockFetch.mockResolvedValueOnce(jsonResponse({ id: 'bot-1', name: 'Emdash' }));
+
+      const dataSourceId = 'abcdefabcdefabcdefabcdefabcdefab';
+      const result = await service.saveCredentials({
+        databaseUrls: dataSourceId,
+        preserveToken: true,
+      });
+
+      expect(result.success).toBe(true);
+      expect((mockFetch.mock.calls[0][1] as RequestInit).headers).toEqual(expect.any(Headers));
+      expect(((mockFetch.mock.calls[0][1] as RequestInit).headers as Headers).get('Authorization'))
+        .toBe('Bearer stored-token');
+      expect(mockSetSecret).toHaveBeenCalledWith(
+        'emdash-notion-credentials',
+        JSON.stringify({
+          token: 'stored-token',
+          scope: {
+            type: 'data-sources',
+            dataSourceIds: [dataSourceId],
+            sourceUrls: [dataSourceId],
+          },
+        })
+      );
+    });
+
     it('returns error for empty token', async () => {
       const result = await service.saveCredentials({ token: '  ', databaseUrls: '' });
 
