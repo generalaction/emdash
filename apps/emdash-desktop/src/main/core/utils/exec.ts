@@ -1,8 +1,28 @@
 import fs from 'node:fs';
+import path from 'node:path';
 
-function resolveGitBin(): string {
+function findExecutableOnPath(name: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  const pathValue = env.PATH;
+  if (!pathValue) return null;
+
+  for (const directory of pathValue.split(path.delimiter)) {
+    if (!directory) continue;
+
+    const candidate = path.join(directory, name);
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      return candidate;
+    } catch {}
+  }
+
+  return null;
+}
+
+export function resolveGitBin(env: NodeJS.ProcessEnv = process.env): string {
+  const pathGit = findExecutableOnPath('git', env);
   const candidates = [
-    (process.env.GIT_PATH || '').trim(),
+    (env.GIT_PATH || '').trim(),
+    pathGit,
     '/opt/homebrew/bin/git',
     '/usr/local/bin/git',
     '/usr/bin/git',
