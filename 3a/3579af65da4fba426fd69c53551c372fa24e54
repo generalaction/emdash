@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/main/core/notion/notion-issue-provider.test.ts
+  s_e9be25c08194a7::t_ede9fa1a94dd78 161-252
+apps/emdash-desktop/src/main/core/notion/notion-issue-provider.ts
+  s_e9be25c08194a7::t_605f42a2fe33ea 42-47,55-58,237-275,277
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "3a3579af65da4fba426fd69c53551c372fa24e54",
+  "prompts": {},
+  "sessions": {
+    "s_e9be25c08194a7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef804-5d3d-7543-a59a-fccc1ee05286",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
