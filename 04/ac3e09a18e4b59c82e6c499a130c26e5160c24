@@ -1,0 +1,39 @@
+apps/emdash-desktop/src/main/core/dependencies/registry.test.ts
+  s_325cb390d8d872::t_fffb04f6ae5607 42-47
+packages/core/src/host-dependencies/runtime/index.ts
+  s_325cb390d8d872::t_48cad427d0d422 1
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.test.ts
+  s_325cb390d8d872::t_2c2cacc130762a 40,132-164,247,292
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.ts
+  s_325cb390d8d872::t_dbb95ae999f777 110-112,125
+packages/core/src/host-dependencies/runtime/host-dependency-manager.ts
+  s_325cb390d8d872::t_72172a67090f9f 157,224,234-235,368,856
+  s_325cb390d8d872::t_9db16308e3e3e2 687,774
+  s_325cb390d8d872::t_5604b5aeeac604 390-397,434-461
+  s_325cb390d8d872::t_7b93d56fe07cdc 252,267-268,273-286
+apps/emdash-desktop/src/main/core/dependencies/registry.ts
+  s_325cb390d8d872::t_88d96f36d7c047 2-6,71-74
+packages/core/src/host-dependencies/runtime/types.ts
+  s_325cb390d8d872::t_54e5ef2771fe8c 284
+packages/core/src/host-dependencies/core-dependencies.ts
+  s_325cb390d8d872::t_4089e4acb21117 1-43
+packages/core/src/host-dependencies/runtime/host-dependency-manager.test.ts
+  s_325cb390d8d872::t_be92325330dcb4 899-939
+  s_325cb390d8d872::t_4772d8825810db 379-425
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "04ac3e09a18e4b59c82e6c499a130c26e5160c24",
+  "prompts": {},
+  "sessions": {
+    "s_325cb390d8d872": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019efae3-a256-766a-8351-01ce7065fa26",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
