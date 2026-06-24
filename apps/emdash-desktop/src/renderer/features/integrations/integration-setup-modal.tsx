@@ -18,6 +18,7 @@ import type { SetupIntegrationType } from './types';
 
 type IntegrationSetupModalArgs = {
   integration: SetupIntegrationType;
+  mode?: 'connect' | 'edit';
 };
 
 type Props = BaseModalProps<void> & IntegrationSetupModalArgs;
@@ -36,15 +37,25 @@ const SETUP_FORMS: Record<SetupIntegrationType, ComponentType<SetupFormProps>> =
   notion: NotionSetupForm,
 };
 
-export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props) {
+export function IntegrationSetupModal({
+  integration,
+  mode = 'connect',
+  onSuccess,
+  onClose,
+}: Props) {
   const { title, subtitle } = SETUP_PROVIDER_META[integration];
   const Form = SETUP_FORMS[integration];
+  const isEditing = mode === 'edit';
+  const modalTitle = isEditing ? `Edit ${title.replace(/^Connect\s+/, '')}` : title;
+  const modalSubtitle = isEditing
+    ? 'Update the saved integration settings. Leave the access token blank to keep the current one.'
+    : subtitle;
 
   return (
     <>
       <DialogHeader className="flex-col items-start gap-1" showCloseButton={false}>
-        <DialogTitle>{title}</DialogTitle>
-        <DialogDescription className="text-xs">{subtitle}</DialogDescription>
+        <DialogTitle>{modalTitle}</DialogTitle>
+        <DialogDescription className="text-xs">{modalSubtitle}</DialogDescription>
       </DialogHeader>
       <Form onSuccess={onSuccess} onClose={onClose} />
     </>

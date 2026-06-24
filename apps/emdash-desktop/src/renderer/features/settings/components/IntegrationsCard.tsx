@@ -99,7 +99,9 @@ const IntegrationsCard: React.FC = () => {
       displayDetail: status.displayDetail,
       onConnect: () => showIntegrationSetup({ integration: provider }),
       onEdit:
-        provider === 'notion' ? () => showIntegrationSetup({ integration: provider }) : undefined,
+        provider === 'notion'
+          ? () => showIntegrationSetup({ integration: provider, mode: 'edit' })
+          : undefined,
       onDisconnect: () =>
         confirmDisconnect({
           name: meta.displayName,
