@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
-import { Ssh2PtySession } from './ssh2-pty';
+import { openSsh2Pty, Ssh2PtySession } from './ssh2-pty';
 
 class FakeClientChannel extends EventEmitter {
   writes: string[] = [];
@@ -41,5 +41,58 @@ describe('Ssh2PtySession', () => {
     expect(dataHandler).toHaveBeenCalledWith('remote output');
     expect(channel.closed).toBe(true);
     expect(exitHandler).toHaveBeenCalledWith({ exitCode: 0, signal: undefined });
+  });
+
+  it('fails SSH channel opens that never call back', async () => {
+    vi.useFakeTimers();
+    try {
+      const destroy = vi.fn();
+      const proxy = {
+        client: { destroy },
+        execPty: vi.fn(),
+      };
+
+      const resultPromise = openSsh2Pty(proxy as never, {
+        id: 'ssh-session',
+        command: 'bash',
+        cols: 80,
+        rows: 24,
+      });
+
+      await vi.advanceTimersByTimeAsync(15_000);
+      const result = await resultPromise;
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.kind).toBe('channel-open-timeout');
+        expect(result.error.message).toContain('timed out');
+      }
+      expect(destroy).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('returns a failed open when execPty throws synchronously', async () => {
+    const proxy = {
+      execPty: vi.fn(() => {
+        throw new Error('SSH connection is not available');
+      }),
+    };
+
+    const result = await openSsh2Pty(proxy as never, {
+      id: 'ssh-session',
+      command: 'bash',
+      cols: 80,
+      rows: 24,
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toEqual({
+        kind: 'channel-open-failed',
+        message: 'SSH connection is not available',
+      });
+    }
   });
 });
