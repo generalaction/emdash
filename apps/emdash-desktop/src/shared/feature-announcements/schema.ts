@@ -1,8 +1,5 @@
 import z from 'zod';
-import {
-  FEATURE_ANNOUNCEMENT_CTA_ACTIONS,
-  FEATURE_ANNOUNCEMENT_HEROES,
-} from './constants';
+import { FEATURE_ANNOUNCEMENT_CTA_ACTIONS, FEATURE_ANNOUNCEMENT_HEROES } from './constants';
 
 const featureAnnouncementCtaActionSchema = z.enum(FEATURE_ANNOUNCEMENT_CTA_ACTIONS);
 
