@@ -153,11 +153,11 @@ export function createWorkspaceFactory(
       lifecycleService,
       gitRepository,
       gitRepositoryFetchService,
-      dispose: () => {
+      dispose: async () => {
         unsubscribeGitUpdates?.();
         unsubscribeGitUpdates = undefined;
-        worktreeLease.release();
-        runtimeLease.release();
+        await worktreeLease.release();
+        await runtimeLease.release();
       },
     };
 

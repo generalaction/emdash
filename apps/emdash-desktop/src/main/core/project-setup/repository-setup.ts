@@ -89,7 +89,7 @@ export async function cloneProjectRepository(
     }
     return { success: true };
   } finally {
-    runtimeLease.release();
+    await runtimeLease.release();
   }
 }
 
@@ -121,9 +121,9 @@ export async function initializeProjectRepository(
       if (!commitResult.success) return { success: false, error: commitResult.error.message };
       return await pushInitialBranch(worktreeLease.value);
     } finally {
-      worktreeLease.release();
+      await worktreeLease.release();
     }
   } finally {
-    runtimeLease.release();
+    await runtimeLease.release();
   }
 }

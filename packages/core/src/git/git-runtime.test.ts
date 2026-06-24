@@ -36,11 +36,21 @@ async function makeRecordingGitExecutable(): Promise<{ executable: string; logPa
   return { executable, logPath };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 function createNoopWatcher(): IFileWatchService {
   return {
     watch: () => ({
       ready: async () => {},
-      release: () => {},
+      release: async () => {},
     }),
     dispose: async () => {},
   };
@@ -213,12 +223,47 @@ describe('GitRuntime', () => {
       expect(repoLease.value.gitCommonDir).toBe(commonDir);
       expect(worktreeLease.value.repository).toBe(repoLease.value);
 
-      worktreeLease.release();
-      repoLease.release();
+      await worktreeLease.release();
+      await repoLease.release();
     } finally {
       await runtime.dispose();
       await watcher.dispose();
     }
+  });
+
+  it('waits for repository watcher release during dispose', async () => {
+    const repo = await makeRepo();
+    const releaseGate = deferred<void>();
+    let releaseStarted = 0;
+    const watcher: IFileWatchService = {
+      watch: () => ({
+        ready: async () => {},
+        release: async () => {
+          releaseStarted += 1;
+          await releaseGate.promise;
+        },
+      }),
+      dispose: async () => {},
+    };
+    const runtime = new GitRuntime({ watcher });
+
+    const lease = await runtime.openRepository(repo);
+    const release = lease.release();
+
+    const dispose = runtime.dispose();
+    let disposed = false;
+    void dispose.then(() => {
+      disposed = true;
+    });
+
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(releaseStarted).toBe(1);
+    expect(disposed).toBe(false);
+
+    releaseGate.resolve();
+    await release;
+    await dispose;
+    expect(disposed).toBe(true);
   });
 
   it('resolves git identity once when opening a cold worktree', async () => {
@@ -228,7 +273,7 @@ describe('GitRuntime', () => {
 
     try {
       const lease = await runtime.openWorktree(repo);
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
     }

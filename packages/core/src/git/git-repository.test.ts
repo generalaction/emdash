@@ -129,7 +129,7 @@ describe('GitRepository', () => {
       expect(updates.some((update) => update.kind === 'refs')).toBe(true);
       subscribed.unsubscribe();
 
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
       await watcher.dispose();
@@ -165,7 +165,7 @@ describe('GitRepository', () => {
           expect.objectContaining({ type: 'local', branch: 'external-change' }),
         ])
       );
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
       await watcher.dispose();
@@ -192,7 +192,7 @@ describe('GitRepository', () => {
       expect(after.refs.sequence).toBeGreaterThan(before.refs.sequence);
       expect(afterOid).toMatch(/^[0-9a-f]{40}$/);
       expect(afterOid).not.toBe(beforeOid);
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
     }
@@ -219,7 +219,7 @@ describe('GitRepository', () => {
       expect((await repository.getRefs()).branches).toEqual(
         expect.arrayContaining([expect.objectContaining({ type: 'local', branch: 'from-remote' })])
       );
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
     }
@@ -251,7 +251,7 @@ describe('GitRepository', () => {
           }),
         ])
       );
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
     }
@@ -278,7 +278,7 @@ describe('GitRepository', () => {
       expect((await lease.value.getRefs()).branches).toEqual(
         expect.arrayContaining([expect.objectContaining({ type: 'local', branch: 'pr-7' })])
       );
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
     }

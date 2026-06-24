@@ -22,7 +22,7 @@ export type FileWatchOptions = {
 
 export type WatchHandle = {
   ready(): Promise<void>;
-  release(): void;
+  release(): Promise<void>;
 };
 
 export type IFileWatchService = {

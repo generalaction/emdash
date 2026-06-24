@@ -34,12 +34,46 @@ describe('ResourceMap', () => {
     expect(leaseA.value).toBe('value');
     expect(leaseB.value).toBe('value');
 
-    leaseA.release();
-    leaseA.release(); // idempotent
+    await leaseA.release();
+    await leaseA.release(); // idempotent - second call does not double-decrement
     expect(torndown).toEqual([]);
-    leaseB.release();
+    await leaseB.release();
     await new Promise((resolve) => setImmediate(resolve));
     expect(torndown).toEqual(['k']);
+    expect(map.idle).toBe(true);
+  });
+
+  it('concurrent release() calls on the same lease are single-flight', async () => {
+    const teardownGate = deferred<void>();
+    let teardownCount = 0;
+    const map = new ResourceMap<string>({
+      teardown: async () => {
+        teardownCount += 1;
+        await teardownGate.promise;
+      },
+    });
+
+    const lease = await map.acquire('k', async () => 'value');
+
+    // Fire two concurrent release() calls before the teardown completes.
+    const r1 = lease.release();
+    const r2 = lease.release();
+
+    // Neither resolves until teardown completes.
+    let r1Settled = false;
+    let r2Settled = false;
+    r1.then(() => (r1Settled = true));
+    r2.then(() => (r2Settled = true));
+
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(r1Settled).toBe(false);
+    expect(r2Settled).toBe(false);
+
+    teardownGate.resolve();
+    await Promise.all([r1, r2]);
+
+    // Teardown ran exactly once even though release() was called twice.
+    expect(teardownCount).toBe(1);
     expect(map.idle).toBe(true);
   });
 
@@ -53,7 +87,7 @@ describe('ResourceMap', () => {
     // A fresh acquire provisions again rather than reusing the poisoned entry.
     const lease = await map.acquire('k', async () => 'recovered');
     expect(lease.value).toBe('recovered');
-    lease.release();
+    await lease.release();
   });
 
   it('waits for an in-flight teardown before re-provisioning the same key', async () => {
@@ -68,7 +102,7 @@ describe('ResourceMap', () => {
     });
 
     const first = await map.acquire('k', async () => 'one');
-    first.release();
+    const firstRelease = first.release();
 
     const second = map.acquire('k', async () => {
       order.push('provision:two');
@@ -78,10 +112,36 @@ describe('ResourceMap', () => {
     expect(order).toEqual(['teardown:start']);
 
     teardownGate.resolve();
+    await firstRelease;
     const lease = await second;
     expect(order).toEqual(['teardown:start', 'teardown:end', 'provision:two']);
     expect(lease.value).toBe('two');
-    lease.release();
+    await lease.release();
+  });
+
+  it('waits for all in-flight teardowns during dispose', async () => {
+    const teardownGate = deferred<void>();
+    const map = new ResourceMap<string>({
+      teardown: async () => {
+        await teardownGate.promise;
+      },
+    });
+
+    const lease = await map.acquire('k', async () => 'value');
+    const release = lease.release();
+
+    let disposed = false;
+    const dispose = map.dispose().then(() => {
+      disposed = true;
+    });
+
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(disposed).toBe(false);
+
+    teardownGate.resolve();
+    await release;
+    await dispose;
+    expect(disposed).toBe(true);
   });
 
   it('tears down when the last lease releases while provisioning succeeded late', async () => {
@@ -96,7 +156,7 @@ describe('ResourceMap', () => {
     const pending = map.acquire('k', () => gate.promise);
     gate.resolve('late');
     const lease = await pending;
-    lease.release();
+    await lease.release();
     await new Promise((resolve) => setImmediate(resolve));
     expect(torndown).toEqual(['late']);
   });
@@ -111,11 +171,43 @@ describe('ResourceMap', () => {
     });
 
     const lease = await map.acquire('k', async () => 'value');
-    lease.release();
+    await lease.release();
     await new Promise((resolve) => setImmediate(resolve));
 
     expect(errors).toHaveLength(1);
     expect(errors[0]!.context).toBe('teardown k');
+  });
+
+  it('dispose() does not free held leases — release is a precondition for dispose resolving', async () => {
+    // This test encodes the critical shutdown ordering invariant:
+    // runtimeManager.dispose() (a ResourceMap.dispose()) only resolves after
+    // all holders have explicitly called lease.release(). Callers must always
+    // IReleasable.release() before relying on dispose() completing.
+    let teardownCalled = false;
+    const map = new ResourceMap<string>({
+      teardown: () => {
+        teardownCalled = true;
+      },
+    });
+
+    const lease = await map.acquire('k', async () => 'value');
+
+    let disposeResolved = false;
+    const disposing = map.dispose().then(() => {
+      disposeResolved = true;
+    });
+
+    // Yield to confirm dispose has not resolved with a live lease outstanding.
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(disposeResolved).toBe(false);
+    expect(teardownCalled).toBe(false);
+
+    // Releasing the lease lets dispose() resolve.
+    await lease.release();
+    await disposing;
+
+    expect(teardownCalled).toBe(true);
+    expect(disposeResolved).toBe(true);
   });
 
   it('rejects new acquires after dispose while existing leases stay usable', async () => {
@@ -128,13 +220,13 @@ describe('ResourceMap', () => {
     });
 
     const lease = await map.acquire('k', async () => 'value');
-    map.dispose();
+    const disposed = map.dispose();
 
     expect(lease.value).toBe('value');
     await expect(map.acquire('other', async () => 'x')).rejects.toThrow('ResourceMap disposed');
 
-    lease.release();
-    await new Promise((resolve) => setImmediate(resolve));
+    await lease.release();
+    await disposed;
     expect(emptied).toBe(1);
     expect(map.idle).toBe(true);
   });
