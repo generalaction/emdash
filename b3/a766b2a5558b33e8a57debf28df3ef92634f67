@@ -1,0 +1,21 @@
+packages/ui/src/components/command.tsx
+  s_108ed524d89cbd::t_45e0073dc266df 56
+packages/ui/src/components/kbd.tsx
+  s_108ed524d89cbd::t_45e0073dc266df 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "b3a766b2a5558b33e8a57debf28df3ef92634f67",
+  "prompts": {},
+  "sessions": {
+    "s_108ed524d89cbd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_106307baeffeY77ZjUrDh76sIi",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
