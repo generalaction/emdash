@@ -143,6 +143,13 @@ export function formatShortcutKey(key: string, platform: Platform = detectPlatfo
   return VISIBLE_KEY_LABELS[key] ?? KEY_DISPLAY_SYMBOLS[key] ?? normalizeVisibleKeyLabel(key);
 }
 
+export function formatShortcutDisplay(
+  keys: readonly string[],
+  platform: Platform = detectPlatform()
+): string {
+  return keys.map((key) => formatShortcutKey(key, platform)).join('');
+}
+
 export function getShortcutKeyOpticalAlignClass(key: string): string | undefined {
   return OPTICAL_ALIGN_CLASS[key];
 }

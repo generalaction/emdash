@@ -2,6 +2,7 @@ import { parseHotkey } from '@tanstack/react-hotkeys';
 import { describe, expect, it } from 'vitest';
 import {
   describeShortcut,
+  formatShortcutDisplay,
   formatShortcutKey,
   getShortcutKeyOpticalAlignClass,
   getShortcutKeys,
@@ -46,6 +47,11 @@ describe('shortcut formatting', () => {
     expect(formatShortcutKey('PageDown', 'mac')).toBe('PgDn');
     expect(formatShortcutKey('Home', 'mac')).toBe('Home');
     expect(formatShortcutKey('End', 'mac')).toBe('End');
+  });
+
+  it('joins formatted keys into a single display string', () => {
+    expect(formatShortcutDisplay(['Meta', 'K'], 'mac')).toBe('⌘K');
+    expect(formatShortcutDisplay(['Meta', ','], 'mac')).toBe('⌘,');
   });
 
   it('optically raises punctuation and operators with low visual centers', () => {

@@ -9,6 +9,7 @@ import { cn } from '@renderer/utils/utils';
 import { Kbd } from './kbd';
 import {
   describeShortcut,
+  formatShortcutDisplay,
   formatShortcutKey,
   getShortcutKeyOpticalAlignClass,
   getShortcutKeys,
@@ -23,12 +24,14 @@ const KEYCAP_KBD_BASE_CLASS =
 
 const KEYCAP_KBD_CLASS = cn(
   KEYCAP_KBD_BASE_CLASS,
-  'border border-border/60 bg-background-secondary shadow-[inset_0_-1px_0_rgba(255,255,255,0.05)]',
+  'bg-background-3',
+  // Sidebar menu rows use the same token as background-3 on light-mode hover.
+  'in-data-[slot=button]:group-hover:bg-background-tertiary-2 dark:in-data-[slot=button]:group-hover:bg-background-3',
   // Primary action buttons (Create, Save, etc.).
-  'in-data-[variant=default]:border-primary-button-foreground/22 in-data-[variant=default]:bg-primary-button-foreground/16 in-data-[variant=default]:shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]',
-  'in-data-[slot=combobox-trigger]:border-border/50 in-data-[slot=combobox-trigger]:bg-background-secondary in-data-[slot=combobox-trigger]:shadow-[inset_0_-1px_0_rgba(255,255,255,0.05)]',
-  'in-data-[slot=tooltip-content]:border-background/20 in-data-[slot=tooltip-content]:bg-background/15 in-data-[slot=tooltip-content]:text-background in-data-[slot=tooltip-content]:shadow-none',
-  'in-data-[slot=dropdown-menu-item]:border-border/50 in-data-[slot=dropdown-menu-item]:bg-background-secondary in-data-[slot=dropdown-menu-item]:shadow-[inset_0_-1px_0_rgba(255,255,255,0.05)]'
+  'in-data-[variant=default]:bg-primary-button-foreground/16 in-data-[variant=default]:group-hover:bg-primary-button-foreground/16',
+  'in-data-[slot=combobox-trigger]:bg-background-3',
+  'in-data-[slot=tooltip-content]:bg-background/15 in-data-[slot=tooltip-content]:text-background',
+  'in-data-[slot=dropdown-menu-item]:bg-background-3'
 );
 
 interface ShortcutProps {
@@ -55,7 +58,7 @@ function Shortcut({ hotkey, className, variant = 'text' }: ShortcutProps) {
       aria-label={describeShortcut(parsed, PLATFORM)}
       className={cn(
         variant === 'text' &&
-          'inline-flex shrink-0 items-center justify-center gap-0 rounded px-1.5 py-1 text-xs leading-none text-muted-foreground in-data-[slot=tooltip-content]:text-background',
+          'inline-block shrink-0 whitespace-nowrap rounded px-1.5 py-1 text-xs leading-none text-muted-foreground in-data-[slot=tooltip-content]:text-background',
         variant === 'badge' &&
           'inline-flex shrink-0 items-center justify-center gap-0 rounded bg-background-secondary px-1.5 py-1 text-xs leading-none text-foreground/60 in-data-[slot=tooltip-content]:bg-background/20 in-data-[slot=tooltip-content]:py-0.5 in-data-[slot=tooltip-content]:text-background dark:in-data-[slot=tooltip-content]:bg-background/10',
         variant === 'keycaps' &&
@@ -63,14 +66,18 @@ function Shortcut({ hotkey, className, variant = 'text' }: ShortcutProps) {
         className
       )}
     >
-      {keys.map((key, index) =>
-        variant === 'keycaps' ? (
+      {variant === 'keycaps' ? (
+        keys.map((key, index) => (
           <Kbd key={`${key}-${index}`} aria-hidden="true" className={KEYCAP_KBD_CLASS}>
             <span className={cn('inline-block', getShortcutKeyOpticalAlignClass(key))}>
               {formatShortcutKey(key, PLATFORM)}
             </span>
           </Kbd>
-        ) : (
+        ))
+      ) : variant === 'text' ? (
+        <span aria-hidden="true">{formatShortcutDisplay(keys, PLATFORM)}</span>
+      ) : (
+        keys.map((key, index) => (
           <span
             key={`${key}-${index}`}
             aria-hidden="true"
@@ -78,7 +85,7 @@ function Shortcut({ hotkey, className, variant = 'text' }: ShortcutProps) {
           >
             {formatShortcutKey(key, PLATFORM)}
           </span>
-        )
+        ))
       )}
     </span>
   );
