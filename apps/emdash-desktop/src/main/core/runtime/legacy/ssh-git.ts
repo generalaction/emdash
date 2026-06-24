@@ -69,6 +69,14 @@ type LegacyWorktreeResource = {
   repositoryLease: Lease<LegacySshGitRepository>;
 };
 
+async function liveModelResult<T>(compute: () => Promise<T>): Promise<Result<T, unknown>> {
+  try {
+    return ok(await compute());
+  } catch (error) {
+    return err(error);
+  }
+}
+
 /**
  * Legacy SSH compatibility layer. SSH projects still execute Git through the main
  * process until the shared Git runtime can run on the remote machine.
@@ -243,11 +251,11 @@ class LegacySshGitRepository implements IGitRepository {
     this.gitCommonDir = gitCommonDir;
     this.objectStoreDir = `${gitCommonDir}/objects`;
     this.refsModel = new LiveModel<GitRefsModel>({
-      compute: async () => ok(await this.computeRefs()),
+      compute: () => liveModelResult(() => this.computeRefs()),
       onError: (error) => log.warn('LegacySshGitRepository: refs refresh failed', { error }),
     });
     this.remotesModel = new LiveModel<GitRemotesModel>({
-      compute: async () => ok(await this.computeRemotes()),
+      compute: () => liveModelResult(() => this.computeRemotes()),
       onError: (error) => log.warn('LegacySshGitRepository: remotes refresh failed', { error }),
     });
     this.timers = [
@@ -418,11 +426,11 @@ class LegacySshGitWorktree implements IGitWorktree {
     this.worktree = worktreePath;
     this.repository = repository;
     this.statusModel = new LiveModel<GitStatusModel>({
-      compute: async () => ok(await this.computeStatus()),
+      compute: () => liveModelResult(() => this.computeStatus()),
       onError: (error) => log.warn('LegacySshGitWorktree: status refresh failed', { error }),
     });
     this.headModel = new LiveModel<GitHeadModel>({
-      compute: async () => ok(await this.computeHead()),
+      compute: () => liveModelResult(() => this.computeHead()),
       onError: (error) => log.warn('LegacySshGitWorktree: head refresh failed', { error }),
     });
     this.timers = [

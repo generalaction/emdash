@@ -43,6 +43,7 @@ export class SshTerminalProvider implements TerminalProvider {
   private shellProfiles = new Map<string, ResolvedShellProfile>();
   private respawnCounts = new Map<string, number>();
   private terminals = new Map<string, Terminal>();
+  private reconnectSizes = new Map<string, { cols: number; rows: number }>();
   private readonly projectId: string;
   private readonly workspaceId: string;
   private readonly scopeId: string;
@@ -89,7 +90,12 @@ export class SshTerminalProvider implements TerminalProvider {
     this.proxy = proxy;
     this.connectionId = connectionId;
     this._handleReconnect = (evt: SshConnectionManagerEvent) => {
-      if (evt.type === 'reconnected' && evt.connectionId === this.connectionId) {
+      if (evt.connectionId !== this.connectionId) return;
+      if (evt.type === 'disconnected') {
+        this.detachStaleSessionsForReconnect();
+        return;
+      }
+      if (evt.type === 'reconnected') {
         this.rehydrate().catch((e: unknown) => {
           log.error('SshTerminalProvider: rehydrate failed after reconnect', {
             scopeId: this.scopeId,
@@ -288,6 +294,7 @@ export class SshTerminalProvider implements TerminalProvider {
       metadata,
     });
     this.sessions.set(sessionId, pty);
+    this.reconnectSizes.delete(sessionId);
   }
 
   private async getSessionShellProfile(
@@ -322,7 +329,7 @@ export class SshTerminalProvider implements TerminalProvider {
       terminals.map(async (terminal) => {
         const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
         if (this.sessions.has(sessionId)) return;
-        await this.spawnTerminal(terminal).catch((e) => {
+        await this.spawnTerminal(terminal, this.reconnectSizes.get(sessionId)).catch((e) => {
           log.error('SshTerminalProvider: rehydrate failed', {
             terminalId: terminal.id,
             error: String(e),
@@ -371,5 +378,24 @@ export class SshTerminalProvider implements TerminalProvider {
       this.shellProfiles.delete(sessionId);
     }
     this.sessions.clear();
+  }
+
+  private detachStaleSessionsForReconnect(): void {
+    for (const [sessionId, pty] of this.sessions) {
+      const lastSize = ptySessionRegistry.getLastSize(sessionId);
+      if (lastSize) this.reconnectSizes.set(sessionId, lastSize);
+      this.sessions.delete(sessionId);
+      this.shellProfiles.delete(sessionId);
+      this.respawnCounts.delete(sessionId);
+      ptySessionRegistry.unregister(sessionId, { pty });
+      try {
+        pty.kill();
+      } catch (e) {
+        log.warn('SshTerminalProvider: error detaching stale PTY after disconnect', {
+          sessionId,
+          error: String(e),
+        });
+      }
+    }
   }
 }

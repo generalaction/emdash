@@ -9,6 +9,33 @@ import { SshTerminalProvider } from './ssh-terminal-provider';
 
 const ptyMock = vi.hoisted(() => ({
   exitHandlers: [] as Array<(info: PtyExitInfo) => void>,
+  ptys: [] as Array<{
+    write: ReturnType<typeof vi.fn>;
+    resize: ReturnType<typeof vi.fn>;
+    kill: ReturnType<typeof vi.fn>;
+    onData: ReturnType<typeof vi.fn>;
+    onExit: ReturnType<typeof vi.fn>;
+  }>,
+}));
+
+const openSsh2PtyMock = vi.hoisted(() =>
+  vi.fn(async () => {
+    const pty = {
+      write: vi.fn(),
+      resize: vi.fn(),
+      kill: vi.fn(),
+      onData: vi.fn(),
+      onExit: vi.fn((handler: (info: PtyExitInfo) => void) => {
+        ptyMock.exitHandlers.push(handler);
+      }),
+    };
+    ptyMock.ptys.push(pty);
+    return { success: true, data: pty };
+  })
+);
+
+const sshConnectionManagerMock = vi.hoisted(() => ({
+  handlers: [] as Array<(event: { type: string; connectionId: string }) => void>,
 }));
 
 const previewServerServiceMock = vi.hoisted(() => ({
@@ -21,30 +48,24 @@ const terminalUrlDetectorMock = vi.hoisted(() => ({
 }));
 
 vi.mock('@main/core/pty/ssh2-pty', () => ({
-  openSsh2Pty: vi.fn(async () => ({
-    success: true,
-    data: {
-      write: vi.fn(),
-      resize: vi.fn(),
-      kill: vi.fn(),
-      onData: vi.fn(),
-      onExit: vi.fn((handler: (info: PtyExitInfo) => void) => {
-        ptyMock.exitHandlers.push(handler);
-      }),
-    },
-  })),
+  openSsh2Pty: openSsh2PtyMock,
 }));
 
 vi.mock('@main/core/pty/pty-session-registry', () => ({
   ptySessionRegistry: {
     register: vi.fn(),
     unregister: vi.fn(),
+    getLastSize: vi.fn(),
   },
 }));
 
 vi.mock('@main/core/ssh/lifecycle/production-ssh-connection-manager', () => ({
   sshConnectionManager: {
-    on: vi.fn(),
+    on: vi.fn(
+      (_event: string, handler: (event: { type: string; connectionId: string }) => void) => {
+        sshConnectionManagerMock.handlers.push(handler);
+      }
+    ),
     off: vi.fn(),
   },
 }));
@@ -86,11 +107,15 @@ const proxy = {
 describe('SshTerminalProvider', () => {
   beforeEach(() => {
     ptyMock.exitHandlers.length = 0;
+    ptyMock.ptys.length = 0;
+    sshConnectionManagerMock.handlers.length = 0;
+    openSsh2PtyMock.mockClear();
     terminalUrlDetectorMock.wireTerminalUrlDetector.mockClear();
     previewServerServiceMock.registerDetectedTarget.mockClear();
     previewServerServiceMock.registerDetectedTarget.mockResolvedValue(undefined);
     previewServerServiceMock.handleTerminalSourceClosed.mockClear();
     vi.mocked(ptySessionRegistry.register).mockClear();
+    vi.mocked(ptySessionRegistry.getLastSize).mockReturnValue(undefined);
     proxy.getRemoteShellProfile = vi.fn(async () => ({
       shell: '/bin/bash',
       env: { PATH: '/usr/bin', HOME: '/home/me' },
@@ -178,5 +203,42 @@ describe('SshTerminalProvider', () => {
       port: 5173,
       urlPath: '/',
     });
+  });
+
+  it('detaches stale sessions on disconnect so reconnect can rehydrate them', async () => {
+    const provider = new SshTerminalProvider({
+      projectId: terminal.projectId,
+      scopeId: terminal.taskId,
+      taskPath: '/repo',
+      ctx,
+      proxy,
+      connectionId: 'ssh-1',
+    });
+
+    await provider.spawnTerminal(terminal, { cols: 120, rows: 40 });
+    const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
+    expect(
+      (provider as unknown as { sessions: Map<string, unknown> }).sessions.has(sessionId)
+    ).toBe(true);
+
+    for (const handler of sshConnectionManagerMock.handlers) {
+      handler({ type: 'disconnected', connectionId: 'ssh-1' });
+    }
+
+    expect(
+      (provider as unknown as { sessions: Map<string, unknown> }).sessions.has(sessionId)
+    ).toBe(false);
+    expect(ptySessionRegistry.unregister).toHaveBeenCalledWith(sessionId, { pty: ptyMock.ptys[0] });
+    expect(ptyMock.ptys[0]!.kill).toHaveBeenCalledOnce();
+
+    for (const handler of sshConnectionManagerMock.handlers) {
+      handler({ type: 'reconnected', connectionId: 'ssh-1' });
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(openSsh2PtyMock).toHaveBeenCalledTimes(2);
+    expect(
+      (provider as unknown as { sessions: Map<string, unknown> }).sessions.has(sessionId)
+    ).toBe(true);
   });
 });
