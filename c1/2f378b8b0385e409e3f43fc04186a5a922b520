@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/lib/stores/resource-monitor-store.ts
+  s_5dac9a9d79bbd0::t_0840440757ef25 63-66,103-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "c12f378b8b0385e409e3f43fc04186a5a922b520",
+  "prompts": {},
+  "sessions": {
+    "s_5dac9a9d79bbd0": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ef9c1-aedd-7283-b531-724daa7d99dc",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
