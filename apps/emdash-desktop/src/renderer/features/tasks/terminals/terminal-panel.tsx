@@ -1,6 +1,7 @@
 import { Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
+import { useTabShortcuts } from '@renderer/features/tabs/hooks/useTabShortcuts';
 import {
   useTaskViewContext,
   useTerminals,
@@ -12,7 +13,6 @@ import {
   DEFAULT_TERMINAL_SHELL_AVAILABILITY,
   useTerminalShellAvailability,
 } from '@renderer/lib/hooks/use-terminal-shell-availability';
-import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
 import { rpc } from '@renderer/lib/ipc';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { Button } from '@renderer/lib/ui/button';
@@ -146,7 +146,6 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           className="h-full"
           activeSession={activeSession}
           allSessionIds={allSessionIds}
-          paneId="terminal-drawer"
           autoFocus={autoFocus}
           emptyState={emptyState}
           remoteConnectionId={remoteConnectionId}
