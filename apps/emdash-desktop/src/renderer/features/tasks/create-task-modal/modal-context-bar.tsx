@@ -6,7 +6,14 @@ import {
 import { PromptActionsMenu } from '@renderer/features/tasks/conversations/prompt-actions-menu';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
+
+function compactIssueIdentifier(provider: LinkedIssue['provider'], identifier: string): string {
+  return provider === 'notion' && identifier.length > 12
+    ? `${identifier.slice(0, 8)}…`
+    : identifier;
+}
 
 interface ModalContextBarProps {
   actions: ContextAction[];
@@ -47,11 +54,21 @@ export function ModalContextBar({
                 {issueAction.provider ? (
                   <ProviderLogo provider={issueAction.provider} className="h-3.5 w-3.5" />
                 ) : null}
-                <span className="max-w-72 truncate">
-                  {issueActionPending
-                    ? 'Adding issue context...'
-                    : `${issueAction.issue.identifier} ${issueAction.issue.title}`}
-                </span>
+                {issueActionPending ? (
+                  <span className="max-w-72 truncate">Adding issue context...</span>
+                ) : (
+                  <span className="flex max-w-72 min-w-0 items-center gap-2">
+                    <span className="min-w-0 truncate text-foreground">
+                      {issueAction.issue.title}
+                    </span>
+                    <span
+                      className="shrink-0 truncate font-mono text-foreground-muted"
+                      title={issueAction.issue.identifier}
+                    >
+                      {compactIssueIdentifier(issueAction.provider, issueAction.issue.identifier)}
+                    </span>
+                  </span>
+                )}
                 {issueActionPending ? (
                   <LoaderCircle className="size-3 shrink-0 animate-spin" />
                 ) : (

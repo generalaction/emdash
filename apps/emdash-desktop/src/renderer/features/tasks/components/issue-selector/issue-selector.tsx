@@ -42,14 +42,18 @@ export function IssueIdentifier({
   className?: string;
 }) {
   if (provider === 'asana') return null;
+  const displayIdentifier =
+    provider === 'notion' && identifier.length > 12 ? `${identifier.slice(0, 8)}…` : identifier;
+
   return (
     <span
+      title={displayIdentifier === identifier ? undefined : identifier}
       className={cn(
-        'shrink-0 font-mono text-xs font-medium whitespace-nowrap text-foreground-muted',
+        'min-w-0 shrink-0 truncate font-mono text-xs font-medium whitespace-nowrap text-foreground-muted',
         className
       )}
     >
-      {identifier}
+      {displayIdentifier}
     </span>
   );
 }
@@ -320,20 +324,24 @@ export function SelectedIssueValue({ issue }: { issue: LinkedIssue }) {
             </span>
           ) : null}
           <div className="flex w-full min-w-0 flex-col gap-1 pr-1.5">
-            <span className="mt-0.5 flex items-center justify-between gap-2">
-              <span className="group flex min-w-0 items-center gap-1">
-                <div className="text-muted-foreground min-w-0 truncate">{issue.title}</div>
+            <span className="mt-0.5 flex min-w-0 items-center gap-2">
+              <span className="group flex min-w-0 flex-1 items-center gap-1">
+                <div className="min-w-0 truncate text-foreground">{issue.title}</div>
                 <button
-                  className="opacity-0 group-hover:opacity-100"
+                  className="shrink-0 opacity-0 group-hover:opacity-100"
                   disabled={!issue.url}
                   onClick={() => issue.url && rpc.app.openExternal(issue.url)}
                 >
                   <ExternalLink className="size-3" />
                 </button>
               </span>
-              <span className="flex items-center gap-1">
+              <span className="flex max-w-[38%] shrink-0 items-center gap-1">
                 <ProviderLogo provider={issue.provider} className="size-3 opacity-40" />
-                <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
+                <IssueIdentifier
+                  identifier={issue.identifier}
+                  provider={issue.provider}
+                  className="max-w-full"
+                />
               </span>
             </span>
             {issue.description ? (
