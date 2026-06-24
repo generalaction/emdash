@@ -4,10 +4,12 @@ A Solid-based chat transcript renderer with a pretext layout engine. It
 virtualizes long conversations, renders markdown/code/diffs/tool calls, and
 exposes a small imperative handle for streaming and scroll control.
 
-The package ships two entry points:
+The package ships a single entry point:
 
 - `@emdash/chat-ui` — the Solid mount function `mountChat`.
-- `@emdash/chat-ui/react` — a thin React wrapper component `ChatTranscript`.
+
+The React wrapper (`ChatTranscript`) and theme adapter (`chat-theme.css`) now
+live in `@emdash/ui/react/chat-ui`. See that package for React integration docs.
 
 Everything below is the supported surface. Internals (components, layout
 engine, stores) are not exported and may change without notice.
@@ -19,14 +21,6 @@ engine, stores) are not exported and may change without notice.
 ```ts
 import { mountChat } from '@emdash/chat-ui';
 import '@emdash/chat-ui/style.css';
-```
-
-Optionally map the renderer's colors onto the host design-system tokens by
-importing the theme bridge and applying an `.emlight` / `.emdark` class on an
-ancestor element:
-
-```ts
-import '@emdash/chat-ui/chat-theme.css';
 ```
 
 The mount container must have a **fixed height** — the virtualizer measures the
@@ -169,30 +163,15 @@ was estimated, not measured), it settles within a frame or two.
 
 ---
 
-## React adapter — `@emdash/chat-ui/react`
+## React adapter
+
+The React wrapper (`ChatTranscript`) and theme adapter (`chat-theme.css`) have
+moved to `@emdash/ui/react/chat-ui`. Import from there:
 
 ```tsx
-function ChatTranscript(props: ChatTranscriptProps): React.ReactElement;
+import { ChatTranscript } from '@emdash/ui/react/chat-ui';
+import '@emdash/ui/react/chat-ui/chat-theme.css';
 ```
-
-`ChatTranscriptProps` is `MountChatOptions` minus the imperative bits, plus:
-
-| Prop | Type | Description |
-| --- | --- | --- |
-| `onReady` | `(handle: ChatHandle) => void` | Called once after mount with the handle. |
-| `style` | `React.CSSProperties` | Style for the wrapper `div`. |
-| `className` | `string` | Class for the wrapper `div`. |
-| `padTop` / `padBottom` | `number` | Pushed reactively via `setContentPadding` (no remount). |
-| `commands` | `ChatCommands` | Pushed reactively so inline callbacks never go stale. |
-| `onReachStart` | `() => void` | Pushed reactively. |
-| `onAtBottomChange` | `(atBottom: boolean) => void` | Pushed reactively. |
-
-The component mounts the Solid root on mount, exposes the handle via `onReady`,
-and disposes on unmount. `commands`, padding, and callbacks are forwarded
-reactively so React re-renders never produce stale closures.
-
-Also re-exported from this entry point: `ChatHandle`, `ChatCommands`,
-`ScrollToItemOptions`, and `LoadOlderFn = (items: ChatItem[]) => void`.
 
 ---
 
@@ -442,13 +421,14 @@ blocks. Useful for stories, performance testing, and demos.
   `ChatFileOpToolCall`, `ChatExecute`, `ChatDiff`, `ChatRole`, `FileOpKind`,
   `FileOp`, `ToolStatus`
 
-**`@emdash/chat-ui/react`**
+**`@emdash/ui/react/chat-ui`** (React adapter, now in `@emdash/ui`)
 
-- Values: `ChatTranscript`
+- Values: `ChatTranscript`, `createDefaultHighlighter`, `generateMockTranscript`
 - Types: `ChatTranscriptProps`, `ChatHandle`, `ChatCommands`,
-  `ScrollToItemOptions`, `LoadOlderFn`
+  `ScrollToItemOptions`, `LoadOlderFn`, `MentionProvider`,
+  `ChatHighlighter`, `HighlightResult`, `CodeToken`
 
 **Styles**
 
 - `@emdash/chat-ui/style.css` — required renderer styles
-- `@emdash/chat-ui/chat-theme.css` — optional color bridge to `.emlight` / `.emdark`
+- `@emdash/ui/react/chat-ui/chat-theme.css` — optional color bridge to `.emlight` / `.emdark`

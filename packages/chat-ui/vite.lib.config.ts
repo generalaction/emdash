@@ -27,7 +27,6 @@ export default defineConfig({
     lib: {
       entry: {
         index: resolve(__dirname, 'src/index.tsx'),
-        react: resolve(__dirname, 'src/react/index.ts'),
       },
       formats: ['es'],
     },
@@ -36,8 +35,6 @@ export default defineConfig({
         'solid-js',
         'solid-js/web',
         'solid-js/store',
-        'react',
-        'react-dom',
         /^@fontsource/,
       ],
       output: {

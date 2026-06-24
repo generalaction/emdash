@@ -10,11 +10,13 @@
   "files": [
     "dist",
     "src/theme",
-    "src/styles"
+    "src/styles",
+    "src/react/chat-ui/chat-theme.css"
   ],
   "type": "module",
   "sideEffects": [
-    "./dist/style.css"
+    "./dist/style.css",
+    "./src/react/chat-ui/chat-theme.css"
   ],
   "exports": {
     "./react": {
@@ -33,6 +35,11 @@
       "types": "./dist/src/react/patterns/index.d.ts",
       "default": "./dist/react/patterns.js"
     },
+    "./react/chat-ui": {
+      "types": "./dist/src/react/chat-ui/index.d.ts",
+      "default": "./dist/react/chat-ui.js"
+    },
+    "./react/chat-ui/chat-theme.css": "./src/react/chat-ui/chat-theme.css",
     "./solid": {
       "types": "./dist/src/solid/index.d.ts",
       "default": "./dist/solid.js"
@@ -97,6 +104,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.solid.json"
   },
   "dependencies": {
+    "@emdash/chat-ui": "workspace:*",
     "@base-ui/react": "^1.3.0",
     "@fontsource-variable/jetbrains-mono": "5.2.8",
     "@tiptap/core": "^3.26.1",
@@ -109,7 +117,6 @@
     "lucide-react": "^0.564.0"
   },
   "devDependencies": {
-    "@emdash/chat-ui": "workspace:*",
     "@storybook/addon-docs": "^10.4.6",
     "@storybook/react-vite": "^10.4.6",
     "@types/node": "^20.19.42",

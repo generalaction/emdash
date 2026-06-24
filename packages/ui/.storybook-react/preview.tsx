@@ -6,7 +6,7 @@ import type { ThemeId } from '../src/react/primitives/theme-provider';
 // individual imports. Vite handles these in the Storybook build.
 import 'devicon/devicon.min.css';
 import '@emdash/chat-ui/style.css';
-import '@emdash/chat-ui/chat-theme.css';
+import '../src/react/chat-ui/chat-theme.css';
 
 const SURFACE_FAMILIES = [
   'none',

@@ -19,9 +19,13 @@
  */
 
 import { createElement, useEffect, useRef } from 'react';
-import type { ChatCommands, ChatHandle, MountChatOptions, ScrollToItemOptions } from '@/index';
-import { mountChat } from '@/index';
-import type { ChatItem } from '@/model';
+import type {
+  ChatCommands,
+  ChatHandle,
+  ChatItem,
+  MountChatOptions,
+} from '@emdash/chat-ui';
+import { mountChat } from '@emdash/chat-ui';
 
 export type ChatTranscriptProps = Omit<
   MountChatOptions,
@@ -119,9 +123,16 @@ export function ChatTranscript(props: ChatTranscriptProps): React.ReactElement {
   });
 }
 
-// Re-export imperative handle types so consumers can use them from the
-// React entry point without importing from the Solid entry point.
-export type { ChatHandle, ChatCommands, ScrollToItemOptions };
-export type { ChatHighlighter, HighlightResult, CodeToken } from '@/index';
-export { createDefaultHighlighter } from '@/index';
+// Re-export imperative handle and utility types so consumers of this React
+// entry point don't need to import from the Solid entry point directly.
+export type {
+  ChatHandle,
+  ChatCommands,
+  ScrollToItemOptions,
+  ChatHighlighter,
+  HighlightResult,
+  CodeToken,
+  MentionProvider,
+} from '@emdash/chat-ui';
+export { createDefaultHighlighter, generateMockTranscript } from '@emdash/chat-ui';
 export type LoadOlderFn = (items: ChatItem[]) => void;

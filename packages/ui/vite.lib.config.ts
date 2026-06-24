@@ -34,6 +34,7 @@ export default defineConfig({
     lib: {
       entry: {
         react: resolve(__dirname, 'src/react/index.ts'),
+        'react/chat-ui': resolve(__dirname, 'src/react/chat-ui/index.ts'),
         'react/primitives': resolve(__dirname, 'src/react/primitives/index.ts'),
         'react/components': resolve(__dirname, 'src/react/components/index.ts'),
         'react/patterns': resolve(__dirname, 'src/react/patterns/index.ts'),
@@ -50,6 +51,7 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
+        '@emdash/chat-ui',
         'react',
         'react-dom',
         'react/jsx-runtime',

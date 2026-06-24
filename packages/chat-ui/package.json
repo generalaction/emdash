@@ -10,20 +10,14 @@
   },
   "type": "module",
   "sideEffects": [
-    "./dist/style.css",
-    "./src/chat-theme.css"
+    "./dist/style.css"
   ],
   "exports": {
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/src/index.d.ts"
     },
-    "./react": {
-      "import": "./dist/react.js",
-      "types": "./dist/src/react/index.d.ts"
-    },
-    "./style.css": "./dist/style.css",
-    "./chat-theme.css": "./src/chat-theme.css"
+    "./style.css": "./dist/style.css"
   },
   "scripts": {
     "build": "vite build --config vite.lib.config.ts",

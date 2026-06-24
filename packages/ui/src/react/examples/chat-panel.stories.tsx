@@ -1,10 +1,10 @@
 /**
- * ChatPanel — composed story combining ChatTranscript (from @emdash/chat-ui)
+ * ChatPanel — composed story combining ChatTranscript (from @emdash/ui/react/chat-ui)
  * with ChatComposer (from @emdash/ui), mirroring the desktop chat-panel layout.
  */
 import type { ChatCommands, ChatHandle, MentionProvider } from '@emdash/chat-ui';
 import { generateMockTranscript } from '@emdash/chat-ui';
-import { ChatTranscript } from '@emdash/chat-ui/react';
+import { ChatTranscript } from '@react/chat-ui';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
 import { ArrowDown } from 'lucide-react';
