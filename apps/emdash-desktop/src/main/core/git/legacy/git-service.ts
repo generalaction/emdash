@@ -30,7 +30,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { IDisposable } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
-import { GIT_EXECUTABLE } from '@main/core/utils/exec';
+import { getGitExecutable } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import {
   DEFAULT_REMOTE_NAME,
@@ -425,7 +425,7 @@ export class GitService implements IDisposable {
     if (!mimeType) return { kind: 'unavailable', reason: 'unsupported' };
 
     return new Promise((resolve) => {
-      const child = spawn(GIT_EXECUTABLE, ['cat-file', '--filters', spec], {
+      const child = spawn(getGitExecutable(), ['cat-file', '--filters', spec], {
         cwd: this.ctx.root || undefined,
       });
       const chunks: Buffer[] = [];

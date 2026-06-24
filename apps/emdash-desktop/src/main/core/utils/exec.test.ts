@@ -2,16 +2,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { resolveGitBin } from './exec';
+import { getGitExecutable, GIT_EXECUTABLE, resolveGitBin, setGitExecutableOverride } from './exec';
 
 const originalPlatform = process.platform;
 let tempDir: string;
 
 beforeEach(() => {
+  setGitExecutableOverride(null);
   tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-git-bin-'));
 });
 
 afterEach(() => {
+  setGitExecutableOverride(null);
   Object.defineProperty(process, 'platform', { value: originalPlatform });
   fs.rmSync(tempDir, { recursive: true, force: true });
 });
@@ -54,5 +56,27 @@ describe('resolveGitBin', () => {
     const pathGit = executableGit(path.join(tempDir, 'path-bin'), 'git.exe');
 
     expect(resolveGitBin({ PATH: path.dirname(pathGit), PATHEXT: '.exe' })).toBe(pathGit);
+  });
+
+  it('uses the local host dependency override when present', () => {
+    setGitExecutableOverride('/opt/homebrew/bin/git');
+
+    expect(getGitExecutable()).toBe('/opt/homebrew/bin/git');
+
+    setGitExecutableOverride(null);
+    expect(getGitExecutable()).toBe(GIT_EXECUTABLE);
+  });
+
+  it('keeps remote host dependency overrides scoped by connection', () => {
+    setGitExecutableOverride('/remote-a/bin/git', 'ssh-a');
+    setGitExecutableOverride('/remote-b/bin/git', 'ssh-b');
+
+    expect(getGitExecutable('ssh-a')).toBe('/remote-a/bin/git');
+    expect(getGitExecutable('ssh-b')).toBe('/remote-b/bin/git');
+    expect(getGitExecutable('ssh-c')).toBe('git');
+
+    setGitExecutableOverride(null, 'ssh-a');
+    setGitExecutableOverride(null, 'ssh-b');
+    expect(getGitExecutable('ssh-a')).toBe('git');
   });
 });

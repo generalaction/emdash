@@ -1,7 +1,7 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
-  GIT_EXECUTABLE,
+  getGitExecutable,
   isMissingGitExecutableError,
   missingGitExecutableError,
 } from '@main/core/utils/exec';
@@ -34,7 +34,7 @@ export class LocalExecutionContext implements IExecutionContext {
   }
 
   private resolveCommand(command: string): string {
-    return command === 'git' ? GIT_EXECUTABLE : command;
+    return command === 'git' ? getGitExecutable() : command;
   }
 
   exec(command: string, args: string[] = [], opts: ExecOptions = {}): Promise<ExecResult> {
