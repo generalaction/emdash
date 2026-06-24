@@ -1,0 +1,66 @@
+apps/emdash-desktop/src/main/core/ssh/lifecycle/ssh-connection-manager.test.ts
+  s_5497fcbe209937::t_455e1e5039e897 12-58,471,473-474,476,503,513,515,522,537,548,556,558,560,567,570,614,618,637
+  s_aa22cbddd70e07::t_15a523885edbe1 466-470,472,475,477-502,603-613,615-617,619-636,638-646
+  s_ff67911b07f9f5::t_92ffc57338f67c 504-512,514,516-521,523-536,541-547
+  s_5497fcbe209937::t_5329956678096a 538-540
+  s_4ea15553afabb6::t_06512c9c36f283 549-555,557,559,561-566,568-569,571-580,582-602
+  s_4ea15553afabb6::t_2c2d32afe5b1ec 581
+apps/emdash-desktop/src/main/core/ssh/lifecycle/ssh-connection-manager.ts
+  s_ff67911b07f9f5::t_a02ad92d369fe4 52,335-337,342
+  s_4ea15553afabb6::t_281d976f91fad6 318
+  s_aa22cbddd70e07::t_4b9a1544d641d3 293-310,313-316,319-334,338-341,343-345,643-683
+  s_ff67911b07f9f5::t_2f9c2fad023269 532-539,576,578-579,585-586,589-628
+  s_aa22cbddd70e07::t_a80a3270a90cdb 311-312,317
+apps/emdash-desktop/src/main/index.ts
+  s_aa22cbddd70e07::t_36b23d31527784 4,36,174-179
+apps/emdash-desktop/src/main/core/ssh/lifecycle/ssh-client-proxy.ts
+  s_aa22cbddd70e07::t_34b809b14556da 27,38,132-134,155-157
+apps/emdash-desktop/src/main/core/ssh/lifecycle/ssh-client-proxy.test.ts
+  s_aa22cbddd70e07::t_29d1b76ff75221 90-105
+apps/emdash-desktop/src/main/core/fs/impl/ssh-fs.ts
+  s_aa22cbddd70e07::t_b8830158f6b8c8 87
+  s_aa22cbddd70e07::t_c4a758c040e659 66-71,88-90,92,95,97-104
+apps/emdash-desktop/src/main/core/fs/impl/ssh-fs.test.ts
+  s_aa22cbddd70e07::t_67121852e024a4 73-80,84-87,91-115
+  s_aa22cbddd70e07::t_b9839f46293d5b 81-83,88-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "386a1facf6f6c17248e3fedbca97dd4a2964dd5a",
+  "prompts": {},
+  "sessions": {
+    "s_4ea15553afabb6": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ee009-94d2-7a70-bc2a-a44bed6fba6e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_5497fcbe209937": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eeb6a-3928-7167-9a5a-122568349e6a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_aa22cbddd70e07": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eda64-437f-7e01-b3ab-c7311b83b891",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_ff67911b07f9f5": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ee009-9063-7be8-b377-925f4e5ee18b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
