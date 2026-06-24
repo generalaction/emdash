@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/renderer/features/command-palette/resource-monitor-view.tsx
+  s_1b41e395c85209::t_58eb0ec2404848 8,33,63-75,77-91,97-108
+apps/emdash-desktop/src/renderer/lib/stores/resource-monitor-store.ts
+  s_1b41e395c85209::t_8448ff10b46f16 8,18,62,69,75-80,83,86-90,99
+apps/emdash-desktop/src/renderer/lib/stores/resource-monitor-store.test.ts
+  s_1b41e395c85209::t_b4393b8466dd54 61-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "8c53e3b4e1b2d27d908be2eba6b9bfb758a37496",
+  "prompts": {},
+  "sessions": {
+    "s_1b41e395c85209": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef923-fbcd-73b2-9797-a4912f87dbd3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
