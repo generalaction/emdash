@@ -1,0 +1,37 @@
+apps/emdash-desktop/src/main/core/conversations/impl/conversation-provider-respawn.test.ts
+  s_283428c342e1ba::t_80e60cc39ec2c3 23-25,100-101,107-110,209,213,223,275
+  s_283428c342e1ba::t_02ca3ff39ae745 1016-1048
+  s_283428c342e1ba::t_a77ae71627cbce 102-106
+apps/emdash-desktop/src/main/core/conversations/conversation-session-supervisor.ts
+  s_283428c342e1ba::t_65f5c28986f5a8 94-104
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_283428c342e1ba::t_31f88b94d81db5 16,18,41-42,52-53,64,74,84-101,132,301,343-344,367-368,372,382-383
+  s_283428c342e1ba::t_6d16b8c9259c54 397-434
+apps/emdash-desktop/src/main/core/terminals/impl/ssh-terminal-provider.test.ts
+  s_283428c342e1ba::t_377b6c2c969824 12-38,51,110-112,207-219,223-227,231-239
+  s_283428c342e1ba::t_a77ae71627cbce 64-68,220-222,228-230,240-242
+  s_283428c342e1ba::t_9a784d30f26536 58,118
+apps/emdash-desktop/src/main/core/terminals/impl/ssh-terminal-provider.ts
+  s_283428c342e1ba::t_8f0bcdd1a83bf8 46,93-98
+  s_283428c342e1ba::t_5dee6822cb40aa 297,332,382-399
+apps/emdash-desktop/src/main/core/workspaces/workspace-factory.ts
+  s_283428c342e1ba::t_f838f2d44d03b3 319
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-git.ts
+  s_283428c342e1ba::t_7b9124c7bacfb7 72-79,254,258,429,433
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "fa80905ebf7482e672241aaf88b2443643549356",
+  "prompts": {},
+  "sessions": {
+    "s_283428c342e1ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_105bd09fbffeEXUhEhZPc4Asls",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
