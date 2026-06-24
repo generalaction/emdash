@@ -82,6 +82,9 @@ vi.mock('@main/core/pty/terminal-color-scheme', () => ({
   getTerminalColorEnv: vi.fn().mockResolvedValue({}),
 }));
 
+const { sshConnectionManager } =
+  await import('@main/core/ssh/lifecycle/production-ssh-connection-manager');
+
 const terminal: Terminal = {
   id: 'terminal-1',
   projectId: 'project-1',
@@ -110,6 +113,7 @@ describe('SshTerminalProvider', () => {
     ptyMock.ptys.length = 0;
     sshConnectionManagerMock.handlers.length = 0;
     openSsh2PtyMock.mockClear();
+    vi.mocked(sshConnectionManager.off).mockClear();
     terminalUrlDetectorMock.wireTerminalUrlDetector.mockClear();
     vi.mocked(ptySessionRegistry.unregister).mockClear();
     previewServerServiceMock.registerDetectedTarget.mockClear();
@@ -243,6 +247,29 @@ describe('SshTerminalProvider', () => {
     ).toBe(true);
   });
 
+  it('rehydrates detached sessions when manually connected', async () => {
+    const provider = new SshTerminalProvider({
+      projectId: terminal.projectId,
+      scopeId: terminal.taskId,
+      taskPath: '/repo',
+      ctx,
+      proxy,
+      connectionId: 'ssh-1',
+    });
+
+    await provider.spawnTerminal(terminal);
+
+    for (const handler of sshConnectionManagerMock.handlers) {
+      handler({ type: 'disconnected', connectionId: 'ssh-1' });
+    }
+    for (const handler of sshConnectionManagerMock.handlers) {
+      handler({ type: 'connected', connectionId: 'ssh-1' });
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(openSsh2PtyMock).toHaveBeenCalledTimes(2);
+  });
+
   it('clears reconnect sizes when killing a terminal detached for reconnect', async () => {
     const provider = new SshTerminalProvider({
       projectId: terminal.projectId,
@@ -274,5 +301,20 @@ describe('SshTerminalProvider', () => {
         sessionId
       )
     ).toBe(false);
+  });
+
+  it('unsubscribes SSH connection listeners when detached', async () => {
+    const provider = new SshTerminalProvider({
+      projectId: terminal.projectId,
+      scopeId: terminal.taskId,
+      taskPath: '/repo',
+      ctx,
+      proxy,
+      connectionId: 'ssh-1',
+    });
+
+    await provider.detachAll();
+
+    expect(sshConnectionManager.off).toHaveBeenCalledWith('connection-event', expect.any(Function));
   });
 });

@@ -95,7 +95,7 @@ export class SshTerminalProvider implements TerminalProvider {
         this.detachStaleSessionsForReconnect();
         return;
       }
-      if (evt.type === 'reconnected') {
+      if (evt.type === 'connected' || evt.type === 'reconnected') {
         this.rehydrate().catch((e: unknown) => {
           log.error('SshTerminalProvider: rehydrate failed after reconnect', {
             scopeId: this.scopeId,
@@ -359,7 +359,6 @@ export class SshTerminalProvider implements TerminalProvider {
   }
 
   async destroyAll(): Promise<void> {
-    sshConnectionManager.off('connection-event', this._handleReconnect);
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
     if (this.tmux) {
@@ -372,6 +371,7 @@ export class SshTerminalProvider implements TerminalProvider {
   }
 
   async detachAll(): Promise<void> {
+    sshConnectionManager.off('connection-event', this._handleReconnect);
     for (const [sessionId, pty] of this.sessions) {
       try {
         pty.kill();

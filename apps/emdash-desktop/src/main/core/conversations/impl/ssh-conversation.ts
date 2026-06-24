@@ -88,7 +88,7 @@ export class SshConversationProvider implements ConversationProvider {
         this.detachStaleSessionsForReconnect();
         return;
       }
-      if (evt.type === 'reconnected') {
+      if (evt.type === 'connected' || evt.type === 'reconnected') {
         this.rehydrate().catch((e: unknown) => {
           log.error('SshConversationProvider: rehydrate failed after reconnect', {
             taskId: this.taskId,
@@ -369,7 +369,6 @@ export class SshConversationProvider implements ConversationProvider {
   }
 
   async destroyAll(): Promise<void> {
-    sshConnectionManager.off('connection-event', this._handleReconnect);
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
     if (this.tmux) {
@@ -384,6 +383,7 @@ export class SshConversationProvider implements ConversationProvider {
   }
 
   async detachAll(): Promise<void> {
+    sshConnectionManager.off('connection-event', this._handleReconnect);
     for (const [sessionId, pty] of this.sessions) {
       this.supervisor.stop(sessionId);
       try {
@@ -395,11 +395,12 @@ export class SshConversationProvider implements ConversationProvider {
   }
 
   private detachStaleSessionsForReconnect(): void {
-    for (const [sessionId, pty] of this.sessions) {
+    for (const [sessionId] of this.conversations) {
       const lastSize = ptySessionRegistry.getLastSize(sessionId);
       if (lastSize) this.reconnectSizes.set(sessionId, lastSize);
-      this.supervisor.detachActive(sessionId);
+      const pty = this.supervisor.detachActive(sessionId) ?? this.sessions.get(sessionId);
       this.sessions.delete(sessionId);
+      if (!pty) continue;
       ptySessionRegistry.unregister(sessionId, { pty });
       try {
         pty.kill();
