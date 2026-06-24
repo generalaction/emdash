@@ -5,6 +5,7 @@ import type {
 } from '@shared/core/automations/automation-run';
 import type { PullRequestMergeStrategy } from '@shared/core/pull-requests/pull-requests';
 import type { TaskLifecycleStatus } from '@shared/core/tasks/tasks';
+import type { IssueProviderType } from '@shared/issue-providers';
 import type { OpenInAppId } from '@shared/openInApps';
 
 type EmptyProps = Record<string, never>;
@@ -86,18 +87,7 @@ export type TelemetryEventProperties = {
   task_created: {
     strategy: 'blank' | 'branch' | 'issue' | 'pr';
     has_initial_prompt: boolean;
-    has_issue:
-      | 'github'
-      | 'linear'
-      | 'jira'
-      | 'gitlab'
-      | 'plane'
-      | 'plain'
-      | 'forgejo'
-      | 'featurebase'
-      | 'notion'
-      | 'asana'
-      | 'none';
+    has_issue: IssueProviderType | 'none';
     provider: AgentProviderId | null;
   };
   task_provisioned: EmptyProps;
@@ -133,49 +123,14 @@ export type TelemetryEventProperties = {
   user_signed_out: EmptyProps;
 
   integration_connected: {
-    provider:
-      | 'github'
-      | 'linear'
-      | 'jira'
-      | 'gitlab'
-      | 'plane'
-      | 'plain'
-      | 'forgejo'
-      | 'featurebase'
-      | 'notion'
-      | 'asana'
-      | 'monday'
-      | 'trello';
+    provider: IssueProviderType;
+    source?: 'cli';
   };
   integration_disconnected: {
-    provider:
-      | 'github'
-      | 'linear'
-      | 'jira'
-      | 'gitlab'
-      | 'plane'
-      | 'plain'
-      | 'forgejo'
-      | 'featurebase'
-      | 'notion'
-      | 'asana'
-      | 'monday'
-      | 'trello';
+    provider: IssueProviderType;
   };
   issue_linked_to_task: {
-    provider:
-      | 'github'
-      | 'linear'
-      | 'jira'
-      | 'gitlab'
-      | 'plane'
-      | 'plain'
-      | 'forgejo'
-      | 'featurebase'
-      | 'notion'
-      | 'asana'
-      | 'monday'
-      | 'trello';
+    provider: IssueProviderType;
   };
 
   open_in_external: { app: OpenInAppId | 'browser' };
