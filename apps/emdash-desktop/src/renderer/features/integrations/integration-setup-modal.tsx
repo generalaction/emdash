@@ -5,7 +5,7 @@ import AsanaSetupForm from './AsanaSetupForm';
 import FeaturebaseSetupForm from './FeaturebaseSetupForm';
 import ForgejoSetupForm from './ForgejoSetupForm';
 import GitLabSetupForm from './GitLabSetupForm';
-import { SETUP_PROVIDER_META } from './issue-provider-meta';
+import { ISSUE_PROVIDER_META, SETUP_PROVIDER_META } from './issue-provider-meta';
 import JiraSetupForm from './JiraSetupForm';
 import LinearSetupForm from './LinearSetupForm';
 import MondaySetupForm from './MondaySetupForm';
@@ -46,7 +46,7 @@ export function IntegrationSetupModal({
   const { title, subtitle } = SETUP_PROVIDER_META[integration];
   const Form = SETUP_FORMS[integration];
   const isEditing = mode === 'edit';
-  const modalTitle = isEditing ? `Edit ${title.replace(/^Connect\s+/, '')}` : title;
+  const modalTitle = isEditing ? `Edit ${ISSUE_PROVIDER_META[integration].displayName}` : title;
   const modalSubtitle = isEditing
     ? 'Update the saved integration settings. Leave the access token blank to keep the current one.'
     : subtitle;
