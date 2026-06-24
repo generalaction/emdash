@@ -41,7 +41,7 @@ import type { RenderUnit } from '@core/units';
 import { unitReservedHeight } from '@core/units';
 import type { Virtualizer } from '@core/virtualizer';
 import type { ViewState } from '@state/view-state';
-import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
+import { Show, createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
 import { createHeightTween } from './create-height-tween';
 import { UNIT_REGISTRY } from './unit-registry';
@@ -158,8 +158,30 @@ export function UnitRow(props: UnitRowProps) {
   const logicalReserved = createMemo(() => unitReservedHeight(props.unit, contentH()));
 
   // ── Height tween ───────────────────────────────────────────────────────────
+  //
+  // Only genuine collapse/expand toggles should animate. Layout settling on
+  // mount (width measurement, font-load re-measure) and streaming growth all
+  // change `logicalReserved` too, but must SNAP — otherwise the reserved height
+  // animates during initial layout and the scrollbar jumps.
+  //
+  // We detect a real toggle by comparing the row's expand signature to the value
+  // captured at the previous target change. `shouldAnimate` is invoked untracked
+  // by the tween exactly once per target change, so this stays in lockstep.
+  // Inverted semantics throughout: `isCollapsed(id) === true` means "expanded".
+  const rowExpanded = (): boolean =>
+    props.viewState.isCollapsed(props.unit.itemId) || props.expandedId === props.unit.itemId;
 
-  const { height: animatedReserved, animating } = createHeightTween(logicalReserved);
+  let lastExpandSig = untrack(rowExpanded);
+  const shouldAnimate = (): boolean => {
+    const cur = rowExpanded();
+    const changed = cur !== lastExpandSig;
+    lastExpandSig = cur;
+    return changed;
+  };
+
+  const { height: animatedReserved, animating } = createHeightTween(logicalReserved, {
+    shouldAnimate,
+  });
 
   // Drive the virtualizer from the animated height so rows below reposition
   // in lockstep every rAF tick.

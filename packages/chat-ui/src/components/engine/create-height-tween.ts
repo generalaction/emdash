@@ -7,16 +7,21 @@
  *
  * Design:
  * - First mount: height starts at target (no animation — avoids flash on load).
- * - On target change: captures `from = height()` and eases to the new target
- *   over `durationMs` with easeOutCubic.
+ * - On target change: captures `from = height()` (untracked) and eases to the
+ *   new target over `durationMs` with easeOutCubic.
+ * - `shouldAnimate` gate: consulted on each target change; when false the new
+ *   target is applied instantly (snap). Use it to animate only genuine
+ *   transitions while snapping layout settling (width/font/streaming).
  * - Retarget mid-flight: createEffect re-runs whenever target changes; onCleanup
  *   cancels the in-progress rAF loop so the next tween starts from the current
  *   intermediate value (handles rapid re-toggles cleanly).
  * - prefers-reduced-motion: snaps instantly, no rAF overhead.
+ * - The effect depends ONLY on `target` (height is read untracked) so the
+ *   per-frame setHeight does not re-enter and restart the tween.
  * - `scheduler` is injectable for deterministic Node tests without real timers.
  */
 
-import { createEffect, createSignal, onCleanup } from 'solid-js';
+import { createEffect, createSignal, onCleanup, untrack } from 'solid-js';
 import type { Accessor } from 'solid-js';
 
 // ── Easing ────────────────────────────────────────────────────────────────────
@@ -69,6 +74,14 @@ export type HeightTweenOptions = {
   scheduler?: TweenScheduler;
   /** Override reduced-motion check — defaults to matchMedia. */
   reducedMotion?: () => boolean;
+  /**
+   * Consulted (untracked) at the moment a target change is detected. When it
+   * returns false, the new target is applied instantly (snap) instead of
+   * animating. Use this to animate only genuine, user-driven transitions while
+   * snapping for layout settling (width measurement, font load, streaming
+   * growth, resizes). Defaults to always-animate.
+   */
+  shouldAnimate?: () => boolean;
 };
 
 // ── createHeightTween ─────────────────────────────────────────────────────────
@@ -89,6 +102,7 @@ export function createHeightTween(
     durationMs = collapseAnimationDefaults.durationMs,
     scheduler = defaultScheduler,
     reducedMotion = defaultReducedMotion,
+    shouldAnimate = () => true,
   } = opts;
 
   // Initialize at target so the first mount has no animation.
@@ -97,10 +111,19 @@ export function createHeightTween(
 
   createEffect(() => {
     const to = target();
-    const from = height();
+    // Read the current height untracked so this effect depends ONLY on `target`.
+    // (If it tracked `height`, every per-frame setHeight would re-run the effect,
+    // cancel the rAF, and restart the tween — it would never settle.)
+    const from = untrack(height);
 
-    // Snap immediately: no real change, or reduced-motion requested.
-    if (from === to || reducedMotion()) {
+    // Evaluate the gate up front (unless reduced motion forces a snap) so a
+    // caller using it for change-detection stays in sync on every target change.
+    const animate = !reducedMotion() && untrack(shouldAnimate);
+
+    // Snap immediately when: no real change, reduced motion, or the gate says
+    // this target change is not an animatable transition (e.g. layout settling
+    // such as width measurement, font load, or streaming growth).
+    if (from === to || !animate) {
       setHeight(to);
       setAnimating(false);
       return;

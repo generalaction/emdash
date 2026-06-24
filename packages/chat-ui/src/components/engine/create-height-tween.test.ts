@@ -25,7 +25,7 @@ type FakeScheduler = TweenScheduler & {
 function makeSyncScheduler(nowFn?: () => number): FakeScheduler {
   let nextId = 1;
   const pending = new Map<number, (ts: number) => void>();
-  let _now = nowFn ?? (() => 0);
+  const _now = nowFn ?? (() => 0);
 
   return {
     request(fn) {
@@ -37,8 +37,6 @@ function makeSyncScheduler(nowFn?: () => number): FakeScheduler {
       pending.delete(id);
     },
     now: () => _now(),
-    // Allow overriding `now` in tests.
-    set _nowFn(fn: () => number) { _now = fn; },
 
     flush(timestamp: number) {
       const entries = [...pending.entries()];
@@ -251,6 +249,87 @@ describe('createHeightTween — reduced motion', () => {
     await tick(); // effect runs — reduced-motion path: snaps synchronously
 
     expect(height()).toBe(500);
+    expect(animating()).toBe(false);
+    expect(sched.queueLength()).toBe(0);
+
+    cleanup();
+  });
+});
+
+describe('createHeightTween — shouldAnimate gate', () => {
+  it('snaps (no rAF) when shouldAnimate returns false', async () => {
+    const sched = makeSyncScheduler();
+
+    const { height, animating, setTarget, cleanup } = createRoot((dispose) => {
+      const [target, setTarget] = createSignal(100);
+      const { height, animating } = createHeightTween(target, {
+        scheduler: sched,
+        reducedMotion: () => false,
+        shouldAnimate: () => false, // layout-settling: always snap
+      });
+      return { height, animating, setTarget, cleanup: dispose };
+    });
+
+    setTarget(400);
+    await tick();
+
+    // Snapped instantly — no animation, no queued frames.
+    expect(height()).toBe(400);
+    expect(animating()).toBe(false);
+    expect(sched.queueLength()).toBe(0);
+
+    cleanup();
+  });
+
+  it('animates only when shouldAnimate returns true (toggle) and snaps otherwise', async () => {
+    let currentTime = 0;
+    const sched = makeSyncScheduler(() => currentTime);
+
+    // Emulates UnitRow: a gate that animates only when an external "expanded"
+    // signature flips since the last target change.
+    let lastSig = false;
+    let expandedSig = false;
+    const shouldAnimate = () => {
+      const changed = expandedSig !== lastSig;
+      lastSig = expandedSig;
+      return changed;
+    };
+
+    const { height, animating, setTarget, cleanup } = createRoot((dispose) => {
+      const [target, setTarget] = createSignal(100);
+      const { height, animating } = createHeightTween(target, {
+        durationMs: 200,
+        scheduler: sched,
+        reducedMotion: () => false,
+        shouldAnimate,
+      });
+      return { height, animating, setTarget, cleanup: dispose };
+    });
+
+    // 1) Layout settle (width/font): target changes but signature unchanged -> snap.
+    setTarget(180);
+    await tick();
+    expect(height()).toBe(180);
+    expect(animating()).toBe(false);
+    expect(sched.queueLength()).toBe(0);
+
+    // 2) Genuine collapse toggle: flip the signature, then target changes -> animate.
+    expandedSig = true;
+    setTarget(320);
+    await tick();
+    expect(animating()).toBe(true);
+    expect(sched.queueLength()).toBe(1);
+
+    currentTime = 200;
+    sched.flush(200);
+    sched.flushAll(216, 16);
+    expect(height()).toBe(320);
+    expect(animating()).toBe(false);
+
+    // 3) Another layout settle after the toggle: signature unchanged -> snap.
+    setTarget(300);
+    await tick();
+    expect(height()).toBe(300);
     expect(animating()).toBe(false);
     expect(sched.queueLength()).toBe(0);
 
