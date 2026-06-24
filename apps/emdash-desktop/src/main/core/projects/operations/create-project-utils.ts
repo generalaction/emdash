@@ -62,6 +62,6 @@ export async function ensureProjectRepository(
     const baseRef = await resolveProjectBaseRef(repoLease.value, ensured.data.baseRef);
     return ok({ rootPath: ensured.data.rootPath, baseRef });
   } finally {
-    repoLease.release();
+    await repoLease.release();
   }
 }

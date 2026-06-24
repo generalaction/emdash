@@ -24,7 +24,7 @@ export interface IFileTree {
   expandDir(dirId: NodeId | null): Promise<Result<FileTreeSequences, FileTreeError>>;
   revealPath(path: string): Promise<Result<FileTreeSequences, FileTreeError>>;
   refresh(): Promise<Result<FileTreeSnapshot, FileTreeError>>;
-  dispose(): void;
+  dispose(): Promise<void>;
 }
 
 export type FileTreeLease = Lease<IFileTree>;

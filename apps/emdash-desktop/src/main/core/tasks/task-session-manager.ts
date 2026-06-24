@@ -60,7 +60,7 @@ async function executeTeardown(
     await task.conversations.destroyAll();
     await task.terminals.destroyAll();
   }
-  await workspaceRegistry.release(workspaceId, mode);
+  await workspaceRegistry.teardown(workspaceId, mode);
 }
 
 async function cleanupDetachedSessions(
@@ -169,7 +169,7 @@ class TaskSessionManager {
     const taskIds = Array.from(this._tasksByProject.get(projectId) ?? []);
     if (mode === 'detach') {
       // Detach sessions but leave workspaces alive; provider.cleanup() will call
-      // workspaceRegistry.releaseAllForProject to handle workspace teardown.
+      // workspaceRegistry.teardownAllForProject to handle workspace teardown.
       await Promise.all(
         taskIds.flatMap((id) => {
           const stored = this._lifecycle.get(id);

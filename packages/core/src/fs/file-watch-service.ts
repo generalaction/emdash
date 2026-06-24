@@ -1,4 +1,4 @@
-import type { IDisposable } from '@emdash/shared';
+import { toPendingLease, type IDisposable } from '@emdash/shared';
 import { ResourceMap } from '../lib';
 import { NativeWatch } from './native-watch';
 import { realpathOrResolve } from './paths';
@@ -12,6 +12,7 @@ export type FileWatchServiceOptions = {
 type WatchConsumer = {
   onEvents: (events: RawFileEvent[]) => void;
   onResync?: () => void;
+  releaseResource: () => Promise<void>;
   debounceMs: number;
   pending: RawFileEvent[];
   timer: ReturnType<typeof setTimeout> | null;
@@ -53,49 +54,45 @@ export class FileWatchService implements IFileWatchService, IDisposable {
     const ignore = normalizeIgnore(options.ignore);
     const key = watchKey(normalizedRoot, ignore);
 
+    const lease = toPendingLease(
+      this.subscriptions.acquire(key, async () => {
+        const native = new NativeWatch(
+          normalizedRoot,
+          ignore,
+          (events) => this.deliver(key, events),
+          () => this.resyncConsumers(key),
+          this.onError
+        );
+        try {
+          await native.ready();
+        } catch (error) {
+          await native.dispose();
+          throw error;
+        }
+        this.natives.set(key, native);
+        return native;
+      })
+    );
+
     const consumer: WatchConsumer = {
       onEvents,
       onResync: options.onResync,
+      releaseResource: () => lease.release(),
       debounceMs: options.debounceMs ?? 0,
       pending: [],
       timer: null,
     };
-    let consumerSet = this.consumers.get(key);
-    if (!consumerSet) {
-      consumerSet = new Set();
-      this.consumers.set(key, consumerSet);
-    }
+    const consumerSet = this.consumers.get(key) ?? new Set<WatchConsumer>();
+    this.consumers.set(key, consumerSet);
     consumerSet.add(consumer);
 
-    const lease = this.subscriptions.acquire(key, async () => {
-      const native = new NativeWatch(
-        normalizedRoot,
-        ignore,
-        (events) => this.deliver(key, events),
-        () => this.resyncConsumers(key),
-        this.onError
-      );
-      try {
-        await native.ready();
-      } catch (error) {
-        await native.dispose();
-        throw error;
-      }
-      this.natives.set(key, native);
-      return native;
-    });
-    lease.catch(() => {});
-
-    let closed = false;
     return {
       ready: async () => {
-        await lease;
+        await lease.ready();
       },
       release: () => {
-        if (closed) return;
-        closed = true;
         this.removeConsumer(key, consumer);
-        void lease.then((acquired) => acquired.release()).catch(() => {});
+        return lease.release();
       },
     };
   }
@@ -103,14 +100,18 @@ export class FileWatchService implements IFileWatchService, IDisposable {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
-    this.subscriptions.dispose();
+    const idle = this.subscriptions.dispose();
+    const releases: Array<Promise<void>> = [];
     for (const consumerSet of this.consumers.values()) {
-      for (const consumer of consumerSet) clearConsumer(consumer);
+      for (const consumer of consumerSet) {
+        clearConsumer(consumer);
+        releases.push(consumer.releaseResource());
+      }
     }
     this.consumers.clear();
-    const natives = [...this.natives.values()];
+    await Promise.allSettled(releases);
+    await idle;
     this.natives.clear();
-    await Promise.all(natives.map((native) => native.dispose()));
   }
 
   private deliver(key: string, events: RawFileEvent[]): void {

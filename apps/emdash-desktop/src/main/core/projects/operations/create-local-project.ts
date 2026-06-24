@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { err, ok } from '@emdash/shared';
+import { err, ok, withLease } from '@emdash/shared';
 import { sql } from 'drizzle-orm';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
@@ -38,12 +38,9 @@ export async function createLocalProject(
     });
   }
 
-  const runtimeLease = await runtimeManager.acquire({ kind: 'local' });
-  const repositoryResult = await ensureProjectRepository(
-    runtimeLease.value.git,
-    params.path,
-    params.initGitRepository
-  ).finally(() => runtimeLease.release());
+  const repositoryResult = await withLease(runtimeManager.acquire({ kind: 'local' }), (runtime) =>
+    ensureProjectRepository(runtime.git, params.path, params.initGitRepository)
+  );
   if (!repositoryResult.success) return repositoryResult;
   const gitInfo = repositoryResult.data;
 
@@ -111,6 +108,6 @@ export async function getLocalProjectPathStatus(path: string): Promise<ProjectPa
     }
     return { isDirectory: true, isGitRepo: inspection.kind === 'repository' };
   } finally {
-    runtimeLease.release();
+    await runtimeLease.release();
   }
 }

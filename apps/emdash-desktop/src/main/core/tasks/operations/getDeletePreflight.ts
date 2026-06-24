@@ -66,10 +66,10 @@ async function getTaskPreflight(
               }
               hasUncommittedChanges = status.kind === 'too-many-files';
             } finally {
-              worktreeLease.release();
+              await worktreeLease.release();
             }
           } finally {
-            runtimeLease.release();
+            await runtimeLease.release();
           }
         }
       } catch (e) {

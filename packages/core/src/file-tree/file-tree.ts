@@ -177,11 +177,11 @@ export class FileTree implements IFileTree {
     return ok(sequences);
   }
 
-  dispose(): void {
+  async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
     if (this.revalidateTimer) clearInterval(this.revalidateTimer);
-    this.watch.release();
+    await this.watch.release();
     this.collection.dispose();
   }
 
