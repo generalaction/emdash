@@ -1,15 +1,7 @@
-/**
- * Dialog — modal dialog primitive composed of Header / Body / Footer.
- *
- * Stories demonstrate:
- *  - Default composition (header + body + footer)
- *  - All size options (xs | sm | md | lg | xl) matching the desktop app
- *  - A confirmation-style dialog
- *  - A scrollable long-body dialog
- */
-
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { cx } from '@styles/utilities/cx';
 import React from 'react';
+import { Box } from './box';
 import { Button } from './button';
 import {
   Dialog,
@@ -22,6 +14,7 @@ import {
   DialogTrigger,
   type DialogSize,
 } from './dialog';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 const meta: Meta = {
   title: 'Primitives/Dialog',
@@ -30,8 +23,6 @@ const meta: Meta = {
 export default meta;
 
 type Story = StoryObj;
-
-// ── Default ───────────────────────────────────────────────────────────────────
 
 export const Default: Story = {
   render: () => (
@@ -42,7 +33,7 @@ export const Default: Story = {
           <DialogTitle>Dialog title</DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <p className="text-foreground-muted">
+          <p className={cx(sx({ color: 'foregroundMuted' }))}>
             This is the dialog body. Place forms, content, or any composition here. The body scrolls
             independently when it overflows.
           </p>
@@ -56,8 +47,6 @@ export const Default: Story = {
   ),
 };
 
-// ── Sizes ─────────────────────────────────────────────────────────────────────
-
 const SIZES: { size: DialogSize; label: string; width: string }[] = [
   { size: 'xs', label: 'Extra small', width: '20rem (320px)' },
   { size: 'sm', label: 'Small', width: '24rem (384px)' },
@@ -68,7 +57,7 @@ const SIZES: { size: DialogSize; label: string; width: string }[] = [
 
 export const Sizes: Story = {
   render: () => (
-    <div className="flex flex-wrap gap-3">
+    <Box display="flex" flexWrap="wrap" gap="3">
       {SIZES.map(({ size, label, width }) => (
         <Dialog key={size}>
           <DialogTrigger render={<Button variant="ghost">{label}</Button>} />
@@ -77,7 +66,7 @@ export const Sizes: Story = {
               <DialogTitle>{label}</DialogTitle>
             </DialogHeader>
             <DialogBody>
-              <p className="text-foreground-muted">
+              <p className={cx(sx({ color: 'foregroundMuted' }))}>
                 This dialog uses the <code>{size}</code> size option (<code>{width}</code>),
                 matching the emdash-desktop modal sizes.
               </p>
@@ -88,11 +77,9 @@ export const Sizes: Story = {
           </DialogContent>
         </Dialog>
       ))}
-    </div>
+    </Box>
   ),
 };
-
-// ── Confirmation ──────────────────────────────────────────────────────────────
 
 export const Confirmation: Story = {
   render: () => (
@@ -103,7 +90,7 @@ export const Confirmation: Story = {
           <DialogTitle>Delete item?</DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <p className="text-foreground-muted">
+          <p className={cx(sx({ color: 'foregroundMuted' }))}>
             This action cannot be undone. The item will be permanently removed.
           </p>
         </DialogBody>
@@ -122,8 +109,6 @@ export const Confirmation: Story = {
   ),
 };
 
-// ── Extra large ───────────────────────────────────────────────────────────────
-
 export const ExtraLarge: Story = {
   render: () => (
     <Dialog>
@@ -133,12 +118,12 @@ export const ExtraLarge: Story = {
           <DialogTitle>Extra large dialog</DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <p className="text-foreground-muted">
+          <p className={cx(sx({ color: 'foregroundMuted' }))}>
             The <code>xl</code> size takes up to 80% of the viewport width and is 80vh tall — useful
             for content-heavy views like previews, diffs, or browsers.
           </p>
           {Array.from({ length: 24 }, (_, i) => (
-            <p key={i} className="text-foreground-muted">
+            <p key={i} className={cx(sx({ color: 'foregroundMuted' }))}>
               {i + 1}. Lorem ipsum dolor sit amet, consectetur adipiscing elit.
             </p>
           ))}
@@ -151,8 +136,6 @@ export const ExtraLarge: Story = {
   ),
 };
 
-// ── Scrollable body ───────────────────────────────────────────────────────────
-
 export const ScrollableBody: Story = {
   render: () => (
     <Dialog>
@@ -161,9 +144,9 @@ export const ScrollableBody: Story = {
         <DialogHeader>
           <DialogTitle>Terms of service</DialogTitle>
         </DialogHeader>
-        <DialogBody className="max-h-[50vh]">
+        <DialogBody maxHeight="50vh">
           {Array.from({ length: 20 }, (_, i) => (
-            <p key={i} className="text-foreground-muted">
+            <p key={i} className={cx(sx({ color: 'foregroundMuted' }))}>
               {i + 1}. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod
               tempor incididunt ut labore et dolore magna aliqua.
             </p>

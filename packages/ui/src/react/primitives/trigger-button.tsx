@@ -1,7 +1,7 @@
+import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
+import { cx } from '@styles/utilities/cx';
 import { ChevronDownIcon } from 'lucide-react';
 import * as React from 'react';
-import { controlVariants, type ControlVariantProps } from '../../styles/recipes/control';
-import { cn } from '../lib/cn';
 import { triggerButtonChevron, triggerButtonExtra } from './trigger-button.css';
 
 export interface TriggerButtonProps
@@ -39,7 +39,7 @@ const TriggerButton = React.forwardRef<HTMLButtonElement, TriggerButtonProps>(
         ref={ref}
         type="button"
         data-slot="trigger-button"
-        className={cn(
+        className={cx(
           controlVariants({ variant: 'ghost', tone, size }),
           triggerButtonExtra,
           className

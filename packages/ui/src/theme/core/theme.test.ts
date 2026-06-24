@@ -10,11 +10,11 @@
 
 import Color from 'colorjs.io';
 import { describe, expect, it } from 'vitest';
-import { darkTheme } from '../themes/dark.theme.js';
-import { lightTheme } from '../themes/light.theme.js';
-import { SURFACE_LEVELS, SURFACE_STATUSES } from './contract/roles.js';
-import { SEMANTIC_TEMPLATE } from './contract/semantic-template.js';
-import type { ResolvedTheme } from './define-theme.js';
+import { darkTheme } from '../themes/dark.theme';
+import { lightTheme } from '../themes/light.theme';
+import { SURFACE_LEVELS, SURFACE_STATUSES, STATUS_LEVEL_SCOPES } from './contract/roles';
+import { SEMANTIC_TEMPLATE } from './contract/semantic-template';
+import type { ResolvedTheme } from './define-theme';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -230,12 +230,14 @@ describe('Theme generation', () => {
     });
   });
 
-  // 8. Status surface vars resolve and are in P3 gamut
+  // 8. Status surface vars resolve and are in P3 gamut (base + per-level scopes)
   describe('Status surfaces', () => {
+    const STATUS_VARIANTS = ['', '-hover', '-selected', '-border', '-foreground'] as const;
+
     for (const theme of [lightTheme, darkTheme]) {
-      it(`${theme.id}: all status surface vars resolve to non-empty color strings`, () => {
+      it(`${theme.id}: base status vars resolve to non-empty color strings`, () => {
         for (const status of SURFACE_STATUSES) {
-          for (const variant of ['', '-hover', '-selected', '-border', '-foreground']) {
+          for (const variant of STATUS_VARIANTS) {
             const cssVal = theme.cssVars[`--surface-${status}${variant}`];
             expect(cssVal, `--surface-${status}${variant} should be defined`).toBeTruthy();
             expect(cssVal!.length).toBeGreaterThan(0);
@@ -243,9 +245,9 @@ describe('Theme generation', () => {
         }
       });
 
-      it(`${theme.id}: all status surface colors are in P3 gamut`, () => {
+      it(`${theme.id}: base status surface colors are in P3 gamut`, () => {
         for (const status of SURFACE_STATUSES) {
-          for (const variant of ['', '-hover', '-selected', '-border', '-foreground']) {
+          for (const variant of STATUS_VARIANTS) {
             const cssVal = theme.cssVars[`--surface-${status}${variant}`];
             expect(cssVal).toBeTruthy();
             const c = new Color(cssVal!);
@@ -256,22 +258,94 @@ describe('Theme generation', () => {
           }
         }
       });
-    }
-  });
 
-  // 10. Both themes produce Shiki themes
-  describe('Shiki theme generation', () => {
-    it('light shiki theme has tokenColors', () => {
-      const theme = lightTheme.shikiTheme as { tokenColors?: unknown[] };
-      expect(Array.isArray(theme.tokenColors)).toBe(true);
-      expect(theme.tokenColors!.length).toBeGreaterThan(5);
+      it(`${theme.id}: per-scope status vars resolve to non-empty color strings`, () => {
+        for (const status of SURFACE_STATUSES) {
+          for (const scope of STATUS_LEVEL_SCOPES) {
+            for (const variant of STATUS_VARIANTS) {
+              const key = `--surface-${status}-${scope}${variant}`;
+              const cssVal = theme.cssVars[key];
+              expect(cssVal, `${key} should be defined`).toBeTruthy();
+              expect(cssVal!.length).toBeGreaterThan(0);
+            }
+          }
+        }
+      });
+
+      it(`${theme.id}: per-scope status surface colors are in P3 gamut`, () => {
+        for (const status of SURFACE_STATUSES) {
+          for (const scope of STATUS_LEVEL_SCOPES) {
+            for (const variant of STATUS_VARIANTS) {
+              const key = `--surface-${status}-${scope}${variant}`;
+              const cssVal = theme.cssVars[key];
+              expect(cssVal).toBeTruthy();
+              const c = new Color(cssVal!);
+              expect(c.inGamut('p3'), `${key}: ${cssVal} should be in P3 gamut`).toBe(true);
+            }
+          }
+        }
+      });
+    }
+
+    // Elevation-tracking regression: status rooms must follow the canvas lightness direction.
+    it('dark: elevated status room is lighter than base status room', () => {
+      for (const status of SURFACE_STATUSES) {
+        const base = darkTheme.cssVars[`--surface-${status}`];
+        const elevated = darkTheme.cssVars[`--surface-${status}-elevated`];
+        expect(base).toBeTruthy();
+        expect(elevated).toBeTruthy();
+        const baseL = new Color(base!).to('oklch').coords[0];
+        const elevatedL = new Color(elevated!).to('oklch').coords[0];
+        expect(
+          elevatedL,
+          `dark ${status}: elevated (${elevatedL.toFixed(3)}) should be lighter than base (${baseL.toFixed(3)})`
+        ).toBeGreaterThan(baseL);
+      }
     });
 
-    it('dark shiki theme has background color', () => {
-      const theme = darkTheme.shikiTheme as {
-        colors?: { 'editor.background'?: string };
-      };
-      expect(theme.colors?.['editor.background']).toBeTruthy();
+    it('light: elevated status room is lighter than base status room', () => {
+      for (const status of SURFACE_STATUSES) {
+        const base = lightTheme.cssVars[`--surface-${status}`];
+        const elevated = lightTheme.cssVars[`--surface-${status}-elevated`];
+        expect(base).toBeTruthy();
+        expect(elevated).toBeTruthy();
+        const baseL = new Color(base!).to('oklch').coords[0];
+        const elevatedL = new Color(elevated!).to('oklch').coords[0];
+        expect(
+          elevatedL,
+          `light ${status}: elevated (${elevatedL.toFixed(3)}) should be lighter than base (${baseL.toFixed(3)})`
+        ).toBeGreaterThan(baseL);
+      }
+    });
+  });
+
+  // 10. Both themes emit syntax CSS vars (--syntax-* / --syntax-editor-*)
+  describe('Syntax CSS var generation', () => {
+    it('light theme emits --syntax-* vars for all roles', () => {
+      const roles = [
+        'comment',
+        'keyword',
+        'string',
+        'number',
+        'function',
+        'type',
+        'variable',
+        'property',
+        'operator',
+        'tag',
+        'attribute',
+        'regexp',
+      ];
+      for (const role of roles) {
+        const key = `--syntax-${role}`;
+        expect(lightTheme.cssVars[key], `missing ${key}`).toBeTruthy();
+      }
+    });
+
+    it('dark theme emits --syntax-editor-* vars for alpha chrome', () => {
+      expect(darkTheme.cssVars['--syntax-editor-selection-bg']).toBeTruthy();
+      expect(darkTheme.cssVars['--syntax-editor-find-match-bg']).toBeTruthy();
+      expect(darkTheme.cssVars['--syntax-editor-scrollbar-bg']).toBeTruthy();
     });
   });
 });

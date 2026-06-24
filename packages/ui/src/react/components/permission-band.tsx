@@ -12,9 +12,9 @@
  *   other    → neutral
  */
 
+import { cx } from '@styles/utilities/cx';
 import { ShieldAlertIcon } from 'lucide-react';
 import * as React from 'react';
-import { cn } from '../lib/cn';
 import { SplitButton } from '../primitives/split-button';
 import type { SplitButtonOption } from '../primitives/split-button';
 import * as styles from './permission-band.css';
@@ -86,7 +86,7 @@ export function PermissionBand({
   }, [request.requestId]);
 
   return (
-    <div className={cn(styles.band, className)}>
+    <div className={cx(styles.band, className)}>
       <ShieldAlertIcon className={styles.bandIcon} aria-hidden />
 
       {/* Context label */}

@@ -7,10 +7,14 @@
  */
 
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { cx } from '@styles/utilities/cx';
 import { AtSign, Braces, CircleDot, File } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import { Box } from './box';
 import { Button } from './button';
 import { ComboboxPopup, type ComboboxPopupHandle, type ComboboxPopupItem } from './combobox-popup';
+import * as s from '../story-layout.css';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 const meta: Meta = {
   title: 'Primitives/ComboboxPopup',
@@ -18,8 +22,6 @@ const meta: Meta = {
 };
 export default meta;
 type Story = StoryObj;
-
-// ── Shared sample data ────────────────────────────────────────────────────────
 
 const FILE_ITEMS: ComboboxPopupItem[] = [
   {
@@ -49,13 +51,11 @@ const FILE_ITEMS: ComboboxPopupItem[] = [
 ];
 
 const MIXED_ITEMS: ComboboxPopupItem[] = [
-  { id: 'f1', icon: <File className="size-3.5" />, label: 'src/utils.ts', description: 'file' },
-  { id: 'i1', icon: <CircleDot className="size-3.5" />, label: 'Issue #42', description: 'issue' },
-  { id: 's1', icon: <Braces className="size-3.5" />, label: 'handleSubmit', description: 'symbol' },
-  { id: 'c1', icon: <AtSign className="size-3.5" />, label: 'custom item', description: 'custom' },
+  { id: 'f1', icon: <File className={s.size35} />, label: 'src/utils.ts', description: 'file' },
+  { id: 'i1', icon: <CircleDot className={s.size35} />, label: 'Issue #42', description: 'issue' },
+  { id: 's1', icon: <Braces className={s.size35} />, label: 'handleSubmit', description: 'symbol' },
+  { id: 'c1', icon: <AtSign className={s.size35} />, label: 'custom item', description: 'custom' },
 ];
-
-// ── Wrapper that anchors the popup to a button ────────────────────────────────
 
 function AnchoredPopup({
   items,
@@ -79,7 +79,6 @@ function AnchoredPopup({
     }
   }
 
-  // Forward keyboard events to the popup handle.
   useEffect(() => {
     if (!anchorRect) return;
     function handleKey(e: KeyboardEvent) {
@@ -91,11 +90,11 @@ function AnchoredPopup({
   }, [anchorRect]);
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <Box display="flex" flexDirection="column" alignItems="center" gap="2">
       <Button ref={buttonRef} variant="ghost" size="sm" onClick={toggle}>
         {anchorRect ? 'Close popup' : 'Open popup'}
       </Button>
-      <p className="text-xs text-foreground-muted">
+      <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>
         {anchorRect ? 'Arrow keys to navigate, Enter to select, Esc to dismiss' : ''}
       </p>
       <ComboboxPopup
@@ -109,11 +108,9 @@ function AnchoredPopup({
         emptyLabel={emptyLabel}
         header={header}
       />
-    </div>
+    </Box>
   );
 }
-
-// ── Stories ───────────────────────────────────────────────────────────────────
 
 export const FileItems: Story = {
   render: () => <AnchoredPopup items={FILE_ITEMS} />,
@@ -127,7 +124,9 @@ export const WithHeader: Story = {
   render: () => (
     <AnchoredPopup
       items={FILE_ITEMS.slice(0, 3)}
-      header={<span className="font-medium text-foreground">Context files</span>}
+      header={
+        <span className={cx(sx({ fontWeight: 'medium', color: 'foreground' }))}>Context files</span>
+      }
     />
   ),
 };

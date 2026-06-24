@@ -36,6 +36,8 @@ import { CommandsContext } from './components/contexts/CommandsContext';
 import { DebugContext } from './components/contexts/debug-context';
 import { ThemeContext } from './components/contexts/ThemeContext';
 import { TurnStateContext } from './components/contexts/TurnStateContext';
+import { createFrameScheduler } from './components/engine/frame-scheduler';
+import { createTweenRegistry } from './components/engine/tween-registry';
 import { SEGMENTERS, UNIT_REGISTRY } from './components/engine/unit-registry';
 import { UnitRow } from './components/engine/UnitRow';
 import { PinnedUserMessage } from './components/rows/message/PinnedUserMessage';
@@ -47,13 +49,14 @@ import type { ChatHighlighter } from './core/highlight/highlighter';
 import { genericEstimate } from './core/layout/generic-estimate';
 import type { MentionProvider } from './core/markdown/mention-provider';
 import { registerFontsReadyClear } from './core/measure/pretext-cache';
-import { StickToBottom } from './core/stick-to-bottom';
+import { STICK_THRESHOLD_PX } from './core/stick-to-bottom';
 import type { ChatTheme } from './core/theme';
 import { unitReservedHeight } from './core/units';
 import { Virtualizer } from './core/virtualizer';
 import type { ChatCommands, ScrollToItemOptions } from './index';
 import type { ChatItem, ChatMessage } from './model';
-import { flatten, collectUserTurnUnits, getUnit } from './state/flatten';
+import { flattenTier, makeUnitsView, collectUserTurnUnits } from './state/flatten';
+import type { UnitsView } from './state/flatten';
 import type { TranscriptApi } from './state/transcript';
 import type { ViewState } from './state/view-state';
 import {
@@ -73,16 +76,16 @@ import { vars } from './styles/theme.css';
 const DEFAULT_CONTENT_CLASS = defaultContentClass;
 
 // Symmetric overscan used when idle or velocity unknown
-const OVERSCAN_BASE = 4;
+const OVERSCAN_BASE = 12;
 // Leading buffer in the direction of scroll; trailing buffer behind it
-const OVERSCAN_LEADING = 12;
-const OVERSCAN_TRAILING = 3;
+const OVERSCAN_LEADING = 20;
+const OVERSCAN_TRAILING = 8;
 
 // Idle-time prefetch: how many rows beyond the overscan window to pre-measure
 // during requestIdleCallback slices. Rows ahead in scroll direction get a
 // larger budget; behind get a smaller one.
-const PREFETCH_AHEAD = 30;
-const PREFETCH_BEHIND = 10;
+const PREFETCH_AHEAD = 40;
+const PREFETCH_BEHIND = 20;
 // Stop the current idle slice if less than this many ms remain (leaves headroom
 // for the browser's own idle tasks).
 const PREFETCH_MIN_REMAINING_MS = 3;
@@ -224,7 +227,10 @@ export function ChatRoot(props: ChatRootProps) {
   let canvasEl: HTMLDivElement | undefined;
   let outerEl: HTMLDivElement | undefined;
   const virt = new Virtualizer();
-  let sticky: StickToBottom | null = null;
+  // Visible row wrapper elements keyed by unit index.
+  // Written imperatively by the <For> ref callback and read in writePhase
+  // to reposition rows without reactive unitTop memos.
+  const rowEls = new Map<number, HTMLDivElement>();
 
   const [totalHeight, setTotalHeight] = createSignal(0);
   const [scrollTop, setScrollTop] = createSignal(0);
@@ -232,9 +238,9 @@ export function ChatRoot(props: ChatRootProps) {
   const [viewHeight, setViewHeight] = createSignal(600);
   const [containerWidth, setContainerWidth] = createSignal(0);
   // Monotonically-increasing counter bumped after fonts load. Including this in
-  // blockMemo fingerprints forces a cache miss even when theme.version and width
-  // are unchanged, clearing any fallback-font geometry that was measured before
-  // Inter/JetBrains loaded.
+  // blockMemo fingerprints forces a cache miss even when width is unchanged,
+  // clearing any fallback-font geometry that was measured before Inter/JetBrains
+  // loaded.
   const [measureEpoch, setMeasureEpoch] = createSignal(0);
 
   // Id of the single currently-expanded user message card. Only one card can be
@@ -247,21 +253,81 @@ export function ChatRoot(props: ChatRootProps) {
     setTotalHeight(virt.total());
   };
 
-  // ── Flat unit array ───────────────────────────────────────────────────────
+  // ── Geometry shadow ───────────────────────────────────────────────────────
   //
-  // Recomputed when the transcript state changes (committed tier grows or
-  // activeTurn mutates). The segment cache in flatten.ts makes re-runs O(activeTurn)
-  // for committed items. Unit ids are stable across streaming ticks for committed
-  // items so the <For> keeps existing UnitRow instances mounted.
+  // These derived getters are the ONLY way code outside the single rAF read
+  // phase reads scroll geometry. Reading scrollEl.scrollTop/scrollHeight/
+  // clientHeight directly elsewhere causes forced synchronous reflows (O(n)
+  // in scroll-region size). Everything reads these signals instead.
+  const contentH = () => totalHeight() + padTop() + padBottom();
+  const maxScrollTop = () => Math.max(0, contentH() - viewHeight());
+  // True when the scroll container is within STICK_THRESHOLD_PX of the bottom,
+  // computed entirely from cached signals — no DOM read.
+  const stuckIntent = () => maxScrollTop() - scrollTop() <= STICK_THRESHOLD_PX;
+
+  // ── Flat unit view (two-tier, incremental) ────────────────────────────────
+  //
+  // committedUnitsArr is maintained incrementally by a createEffect:
+  //   - Append-only fast path: when state.committed grows by identity-stable
+  //     prefix, only the new tail is re-segmented — O(new), not O(total).
+  //   - Full rebuild for seed/prepend or any non-append change.
+  //   - committedUnitsVersion bumped after each update to propagate to
+  //     activeUnits/units memos without exposing the mutable array as a signal.
+  //
+  // activeUnits — recomputes per streaming tick but only over the small
+  //               activeTurn array; O(activeTurn), not O(total).
+  // units       — UnitsView virtual concat; no array allocation per tick.
 
   const segmentCtx = createMemo(() => ({
     caches,
     expanded: (_id: string) => false, // collapse state queried per-unit in UnitRow
   }));
 
-  const units = createMemo(() =>
-    flatten(props.transcript.state, segmentCtx(), SEGMENTERS, UNIT_REGISTRY)
-  );
+  let committedUnitsArr: ReturnType<typeof flattenTier> = [];
+  let lastCommitted: readonly ChatItem[] = [];
+  const [committedUnitsVersion, setCommittedUnitsVersion] = createSignal(0);
+
+  createEffect(() => {
+    const next = props.transcript.state.committed;
+    const prev = lastCommitted;
+    const ctx = segmentCtx();
+
+    if (
+      next.length > prev.length &&
+      (prev.length === 0 ? true : prev.every((item, i) => next[i] === item))
+    ) {
+      // Append-only fast path: segment only the new tail.
+      const tail = next.slice(prev.length);
+      const prevKind =
+        committedUnitsArr.length > 0
+          ? committedUnitsArr[committedUnitsArr.length - 1].kind
+          : undefined;
+      const newUnits = flattenTier(tail, ctx, SEGMENTERS, UNIT_REGISTRY, prevKind);
+      committedUnitsArr = [...committedUnitsArr, ...newUnits];
+    } else {
+      // Full rebuild for seed/prepend or any non-append change.
+      committedUnitsArr = flattenTier(next, ctx, SEGMENTERS, UNIT_REGISTRY);
+    }
+
+    lastCommitted = next;
+    setCommittedUnitsVersion((v) => v + 1);
+  });
+
+  const activeUnits = createMemo(() => {
+    committedUnitsVersion(); // track so prevKind update propagates
+    const at = props.transcript.state.activeTurn;
+    if (!at || at.length === 0) return [] as ReturnType<typeof flattenTier>;
+    const prevKind =
+      committedUnitsArr.length > 0
+        ? committedUnitsArr[committedUnitsArr.length - 1].kind
+        : undefined;
+    return flattenTier(at, segmentCtx(), SEGMENTERS, UNIT_REGISTRY, prevKind);
+  });
+
+  const units = createMemo<UnitsView>(() => {
+    committedUnitsVersion(); // track so units updates after append
+    return makeUnitsView(committedUnitsArr, activeUnits());
+  });
 
   // Leading gap of a user message row — used by the pin overlay to keep the
   // pinned copy vertically aligned with the real row. Reads the message def's
@@ -289,7 +355,7 @@ export function ChatRoot(props: ChatRootProps) {
         expandedId: expandedUserId(),
       };
       virt.setCount(us.length, (i) => {
-        const u = us[i];
+        const u = us.at(i);
         if (!u) return 60;
         const unitDef = UNIT_REGISTRY[u.kind];
         const contentH =
@@ -298,7 +364,14 @@ export function ChatRoot(props: ChatRootProps) {
         return unitReservedHeight(u, contentH);
       });
       refreshTotal();
-      if (props.stickToBottom !== false) sticky?.schedule();
+      if (props.stickToBottom !== false && stuckIntent()) {
+        const target = maxScrollTop();
+        if (scrollEl) {
+          scrollEl.scrollTop = target;
+          expectedScrollTop = target;
+        }
+        setScrollTop(target);
+      }
     });
   });
 
@@ -347,8 +420,10 @@ export function ChatRoot(props: ChatRootProps) {
   // ── Pinned user-message overlay ───────────────────────────────────────────
 
   // Absolute unit indices of the first unit of each committed user-message group.
-  // Recomputed when committed tier grows or units changes (turn appended / message split).
-  const userTurns = createMemo(() => collectUserTurnUnits(props.transcript.state, units()));
+  // Reads committedUnits (stable during streaming) and units() for index lookup.
+  const userTurns = createMemo(() =>
+    collectUserTurnUnits(props.transcript.state.committed, units())
+  );
 
   // The active pin state: which user message to overlay, and its overlayTop.
   //
@@ -402,11 +477,11 @@ export function ChatRoot(props: ChatRootProps) {
     // Sum the heights of all units in the active user's group for the overlay height.
     // For Phase 0 this is always exactly one unit; Phase 1 sums per-block units.
     let overlayH = 0;
-    const activeUnit = getUnit(units(), activeUserIdx);
+    const activeUnit = units().at(activeUserIdx);
     if (activeUnit) {
       const activeItemId = activeUnit.itemId;
       for (let ui = activeUserIdx; ui < units().length; ui++) {
-        const u = getUnit(units(), ui);
+        const u = units().at(ui);
         if (!u || u.itemId !== activeItemId) break;
         overlayH += virt.size(ui);
       }
@@ -426,36 +501,82 @@ export function ChatRoot(props: ChatRootProps) {
 
   // ── Row top positions ─────────────────────────────────────────────────────
 
-  let programmaticScroll = false;
+  // Tracks the scrollTop value we last wrote programmatically. In the read
+  // phase we compare the freshly-read scrollTop against this; equal ⇒ our write
+  // (suppress prefetch-cursor reset), differ ⇒ user scrolled. Initialized to 0;
+  // reset to el.scrollTop on first frame.
+  let expectedScrollTop = 0;
 
+  // ── Per-frame height coalescing ───────────────────────────────────────────
+  //
+  // N row-settles per frame each used to call refreshTotal() immediately,
+  // producing N signal writes that each invalidated visibleRange/pinState/unitTop.
+  // queueTotalFlush() coalesces these into one write per frame: it marks a dirty
+  // flag and arms the frame scheduler; the write phase drains the flag once per
+  // frame. refreshTotal() is kept for paths that need an immediate synchronous
+  // update (count-sync effect, doLoadOlder).
+  let totalDirty = false;
+  // Reference to the frame scheduler created in onMount. Set before the first
+  // queueTotalFlush call (rows don't mount until after onMount).
+  let schedulerRef: { request: () => void } | null = null;
+  const queueTotalFlush = () => {
+    if (totalDirty) return;
+    totalDirty = true;
+    schedulerRef?.request();
+  };
+
+  // ── onHeightChanged — fully read-free ─────────────────────────────────────
+  //
+  // Previously both branches read scrollEl.scrollTop (forced synchronous
+  // reflow on every measurement settle — 853ms in a 100k sweep). All geometry
+  // now comes from the shadow signals. The two branches (animating vs normal)
+  // are collapsed into one because the read-free path is correct for both.
   const onHeightChanged = (index: number, delta: number) => {
-    refreshTotal();
     if (delta === 0) return;
+    queueTotalFlush();
 
-    if (props.stickToBottom !== false && sticky?.isStuck()) {
-      sticky.schedule();
-      return;
-    }
-
-    if (virt.top(index) + padTop() < scrollEl!.scrollTop) {
-      const next = scrollEl!.scrollTop + delta;
-      programmaticScroll = true;
-      scrollEl!.scrollTop = next;
+    if (props.stickToBottom !== false && stuckIntent()) {
+      // Pin to bottom arithmetically — no scrollHeight read.
+      const target = maxScrollTop();
+      if (scrollEl) {
+        scrollEl.scrollTop = target;
+        expectedScrollTop = target;
+      }
+      setScrollTop(target);
+    } else if (virt.top(index) + padTop() < scrollTop()) {
+      // Shift anchor by the delta using the cached signal — no scrollTop read.
+      const next = scrollTop() + delta;
+      if (scrollEl) {
+        scrollEl.scrollTop = next;
+        expectedScrollTop = next;
+      }
       setScrollTop(next);
     }
   };
+
+  // ── Central tween registry ────────────────────────────────────────────────
+  //
+  // Replaces per-row createHeightTween rAF loops with a single store advanced
+  // once per frame by the scheduler's animate phase. UnitRow registers its
+  // logical height and receives reactive height/animating/clipHeight back.
+  // requestFrame is wired to schedulerRef.request() so starting a tween wakes
+  // the scheduler; schedulerRef is set in onMount.
+  const tweenRegistry = createTweenRegistry(virt, onHeightChanged, {
+    requestFrame: () => schedulerRef?.request(),
+  });
 
   // ── Scroll helpers ────────────────────────────────────────────────────────
 
   const doScrollToBottom = (opts?: { behavior?: ScrollBehavior }) => {
     const el = scrollEl;
     if (!el) return;
+    const target = maxScrollTop();
     if (opts?.behavior === 'smooth') {
-      el.scrollTo({ top: el.scrollHeight - el.clientHeight, behavior: 'smooth' });
-    } else if (sticky) {
-      sticky.scrollToBottom();
+      el.scrollTo({ top: target, behavior: 'smooth' });
     } else {
-      el.scrollTo({ top: el.scrollHeight - el.clientHeight });
+      el.scrollTop = target;
+      expectedScrollTop = target;
+      setScrollTop(target);
     }
   };
 
@@ -467,7 +588,7 @@ export function ChatRoot(props: ChatRootProps) {
     const us = units();
     let unitIdx = -1;
     for (let i = 0; i < us.length; i++) {
-      if (us[i].itemId === id) {
+      if (us.at(i)?.itemId === id) {
         unitIdx = i;
         break;
       }
@@ -477,7 +598,7 @@ export function ChatRoot(props: ChatRootProps) {
     // Compute the total height of all units belonging to this item (for center/end align).
     let itemTotalH = 0;
     for (let i = unitIdx; i < us.length; i++) {
-      if (us[i].itemId !== id) break;
+      if (us.at(i)?.itemId !== id) break;
       itemTotalH += virt.size(i);
     }
 
@@ -502,19 +623,21 @@ export function ChatRoot(props: ChatRootProps) {
       return Math.max(0, target + extraOffset);
     };
 
-    el.scrollTo({ top: computeTarget(), behavior });
+    const t0 = computeTarget();
+    el.scrollTo({ top: t0, behavior });
+    expectedScrollTop = t0;
 
     // Settle pass: after one rAF the row may have measured; re-read its top.
     if (behavior !== 'smooth') {
-      programmaticScroll = true;
       requestAnimationFrame(() => {
-        programmaticScroll = false;
-        el.scrollTo({ top: computeTarget(), behavior: 'auto' });
+        const t1 = computeTarget();
+        el.scrollTo({ top: t1, behavior: 'auto' });
+        expectedScrollTop = t1;
       });
     }
   };
 
-  const doLoadOlder = (items: Parameters<typeof props.transcript.prependHistory>[0]) => {
+  const doLoadOlder = (items: ChatItem[]) => {
     const el = scrollEl;
     if (!el || items.length === 0) return;
 
@@ -522,7 +645,7 @@ export function ChatRoot(props: ChatRootProps) {
 
     // Capture anchor: the first visible unit index and its offset from scrollTop.
     const anchorUnitIdx = virt.findIndex(Math.max(0, el.scrollTop - padTop()));
-    const anchorId = getUnit(units(), anchorUnitIdx)?.itemId;
+    const anchorId = units().at(anchorUnitIdx)?.itemId;
     const anchorOffset = el.scrollTop - (virt.top(anchorUnitIdx) + padTop());
 
     // Estimate heights for the prepended units.
@@ -547,7 +670,7 @@ export function ChatRoot(props: ChatRootProps) {
     });
 
     // Update the transcript store (triggers the count-sync effect and re-flattens).
-    props.transcript.prependHistory(items);
+    props.transcript.history.prepend(items);
     refreshTotal();
 
     // Restore scroll position so the previously-visible unit stays in view.
@@ -556,15 +679,15 @@ export function ChatRoot(props: ChatRootProps) {
       const newUs = units();
       let newUnitIdx = -1;
       for (let i = 0; i < newUs.length; i++) {
-        if (newUs[i].itemId === anchorId) {
+        if (newUs.at(i)?.itemId === anchorId) {
           newUnitIdx = i;
           break;
         }
       }
       if (newUnitIdx >= 0) {
         const newTop = virt.top(newUnitIdx) + padTop() + anchorOffset;
-        programmaticScroll = true;
         el.scrollTop = newTop;
+        expectedScrollTop = newTop;
         setScrollTop(newTop);
       }
     }
@@ -575,8 +698,6 @@ export function ChatRoot(props: ChatRootProps) {
   onMount(() => {
     const el = scrollEl!;
 
-    sticky = new StickToBottom(el);
-
     // Populate the controls holder so handle delegates resolve immediately.
     if (props.controls) {
       props.controls.scrollToBottom = doScrollToBottom;
@@ -584,20 +705,32 @@ export function ChatRoot(props: ChatRootProps) {
       props.controls.loadOlder = doLoadOlder;
     }
 
-    let rafId: number | null = null;
     let lastScrollTop = 0;
-    let atBottom = sticky.isStuck();
+    // atBottom tracks the last-reported value of stuckIntent() so we only fire
+    // onAtBottomChange on transitions, not on every read-phase tick.
+    let atBottom = stuckIntent();
     let reachStartFired = false;
 
-    const flushScroll = () => {
-      rafId = null;
+    // Sync expectedScrollTop with the current DOM on mount.
+    expectedScrollTop = el.scrollTop;
+
+    // ── Frame scheduler ─────────────────────────────────────────────────────
+    //
+    // Enforces read-before-write so scrollTop/clientHeight are read exactly once
+    // per frame before any writes happen. The loop sleeps when idle (re-schedules
+    // only when at least one phase returns true / signals more work).
+
+    // Read phase: read DOM geometry once → shadow signals.
+    const readPhase = () => {
       const st = el.scrollTop;
+      const userScrolled = st !== expectedScrollTop;
       setScrollVelocity(st - lastScrollTop);
       lastScrollTop = st;
       setScrollTop(st);
 
-      // onAtBottomChange
-      const nowAtBottom = sticky!.isStuck();
+      // onAtBottomChange — stuckIntent() is now derived from the shadow signals
+      // so it updates automatically once setScrollTop/setViewHeight/setTotalHeight run.
+      const nowAtBottom = stuckIntent();
       if (nowAtBottom !== atBottom) {
         atBottom = nowAtBottom;
         props.onAtBottomChange?.(atBottom);
@@ -613,22 +746,63 @@ export function ChatRoot(props: ChatRootProps) {
         reachStartFired = false;
       }
 
+      if (userScrolled) {
+        // Cancel any in-flight prefetch; reset cursor for the new position.
+        cancelPrefetch();
+        prefetchStart = -1;
+        prefetchEnd = -1;
+      }
       // Arm idle prefetch after scroll settles.
       schedulePrefetch();
     };
+
+    // Animate phase: advance all active tweens; returns true while any are live.
+    const animatePhase = (): boolean => tweenRegistry.advance(performance.now());
+
+    // Write phase: flush coalesced height total, then reposition all visible
+    // rows and set the canvas height. Row positions and canvas height are
+    // written imperatively from the Fenwick tree (always synchronously current)
+    // rather than through reactive bindings, so a setTotalHeight() no longer
+    // fans out to N unitTop memos. Returns false (no pending work).
+    const writePhase = (): boolean => {
+      if (totalDirty) {
+        totalDirty = false;
+        setTotalHeight(virt.total());
+      }
+      // Reposition visible rows from the Fenwick tree (read-free from signals).
+      const pt = padTop();
+      for (const idx of visibleIndexes()) {
+        const el = rowEls.get(idx);
+        if (el) el.style.transform = `translateY(${virt.top(idx) + pt}px)`;
+      }
+      // Update canvas height from the shadow getter (no DOM read).
+      if (canvasEl) canvasEl.style.height = `${contentH()}px`;
+      return false;
+    };
+
+    const scheduler = createFrameScheduler({
+      read: readPhase,
+      animate: animatePhase,
+      write: writePhase,
+    });
+    schedulerRef = scheduler;
+    onCleanup(() => {
+      scheduler.dispose();
+      schedulerRef = null;
+    });
 
     // ── Idle-time prefetch scheduler ────────────────────────────────────────────
     //
     // After each scroll settle (no new scroll event fires before the rAF callback
     // flushes) we schedule a requestIdleCallback to pre-measure rows just beyond
-    // the overscan window. This populates the shared nodeMemo WeakMap so those
+    // the overscan window. This populates the blockMemo WeakMap so those
     // rows are cache hits when they later scroll into view, converting ~1500x
     // cold-vs-warm measure cost into background idle work.
     //
     // Cancellation / rescheduling:
     //   - Cancelled immediately when a new scroll event fires (so it never
     //     competes with active scrolling).
-    //   - Re-scheduled after each flushScroll (settle).
+    //   - Re-scheduled after each read phase (scroll settle).
     //   - Per-slice budget: stop if deadline.timeRemaining() < PREFETCH_MIN_REMAINING_MS.
     //   - Reschedules itself if work remains within the current window.
     //
@@ -679,7 +853,7 @@ export function ChatRoot(props: ChatRootProps) {
 
       // Helper: prefetch one unit at absolute index ui.
       const prefetchUnit = (ui: number): void => {
-        const u = us[ui];
+        const u = us.at(ui);
         if (!u) return;
         const unitDef = UNIT_REGISTRY[u.kind];
         if (!unitDef) return;
@@ -728,26 +902,11 @@ export function ChatRoot(props: ChatRootProps) {
 
     const onScroll = () => {
       if (el.offsetParent === null) return;
-      if (programmaticScroll) {
-        programmaticScroll = false;
-        return;
-      }
-      // Cancel any in-flight prefetch so it never competes with active scrolling.
-      cancelPrefetch();
-      // Reset cursor so the next settle re-targets the new viewport position.
-      prefetchStart = -1;
-      prefetchEnd = -1;
-      if (rafId === null) {
-        rafId = requestAnimationFrame(flushScroll);
-      }
+      scheduler.request();
     };
     el.addEventListener('scroll', onScroll, { passive: true });
     onCleanup(() => {
       el.removeEventListener('scroll', onScroll);
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-        rafId = null;
-      }
       cancelPrefetch();
     });
 
@@ -809,13 +968,11 @@ export function ChatRoot(props: ChatRootProps) {
     });
 
     if (props.stickToBottom !== false) {
-      sticky?.scrollToBottom();
+      const target = el.scrollHeight - el.clientHeight;
+      el.scrollTop = target;
+      expectedScrollTop = target;
+      setScrollTop(target);
     }
-
-    onCleanup(() => {
-      sticky?.dispose();
-      sticky = null;
-    });
 
     onCleanup(() => caches.clear());
   });
@@ -874,19 +1031,19 @@ export function ChatRoot(props: ChatRootProps) {
                   <div
                     ref={(el) => {
                       canvasEl = el;
+                      // Set initial canvas height synchronously so the layout
+                      // is correct before the first scheduler write phase.
+                      el.style.height = `${contentH()}px`;
                     }}
                     data-chat-canvas
                     class={`${canvas} ${contentClass()}`}
-                    style={{ height: `${totalHeight() + padTop() + padBottom()}px` }}
                   >
                     <For each={visibleIndexes()}>
                       {(unitIndex) => {
-                        const unitTop = createMemo(() => {
-                          totalHeight();
-                          return virt.top(unitIndex) + padTop();
-                        });
-
-                        const u = createMemo(() => getUnit(units(), unitIndex));
+                        // Plain accessor (not a memo): getUnit is O(1), and the
+                        // per-row memo create/teardown on scroll churn costs more
+                        // than recomputing an array index.
+                        const u = () => units().at(unitIndex);
                         const isActiveTurn = () => {
                           const unit = u();
                           return unit ? activeTurnItemIds().has(unit.itemId) : false;
@@ -896,7 +1053,13 @@ export function ChatRoot(props: ChatRootProps) {
                           <Show when={u()}>
                             <div
                               class={unitRowWrapper}
-                              style={{ transform: `translateY(${unitTop()}px)` }}
+                              ref={(el) => {
+                                rowEls.set(unitIndex, el);
+                                // Set initial transform synchronously so the row
+                                // is placed correctly before the write phase runs.
+                                el.style.transform = `translateY(${virt.top(unitIndex) + padTop()}px)`;
+                                onCleanup(() => rowEls.delete(unitIndex));
+                              }}
                               data-index={String(unitIndex)}
                             >
                               <UnitRow
@@ -907,6 +1070,7 @@ export function ChatRoot(props: ChatRootProps) {
                                 viewState={props.viewState}
                                 virt={virt}
                                 onHeightChanged={onHeightChanged}
+                                tweenRegistry={tweenRegistry}
                                 isActiveTurn={isActiveTurn()}
                                 caches={caches}
                                 measureEpoch={measureEpoch()}
@@ -935,7 +1099,7 @@ export function ChatRoot(props: ChatRootProps) {
                       <PinnedUserMessage
                         item={
                           (() => {
-                            const unit = getUnit(units(), state().activeUserIdx);
+                            const unit = units().at(state().activeUserIdx);
                             if (!unit) return undefined;
                             // Find the ChatMessage for this itemId in committed.
                             return props.transcript.state.committed.find(

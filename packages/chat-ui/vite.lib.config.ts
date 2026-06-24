@@ -27,19 +27,11 @@ export default defineConfig({
     lib: {
       entry: {
         index: resolve(__dirname, 'src/index.tsx'),
-        react: resolve(__dirname, 'src/react/index.ts'),
       },
       formats: ['es'],
     },
     rollupOptions: {
-      external: [
-        'solid-js',
-        'solid-js/web',
-        'solid-js/store',
-        'react',
-        'react-dom',
-        /^@fontsource/,
-      ],
+      external: ['solid-js', 'solid-js/web', 'solid-js/store', /^@fontsource/],
       output: {
         // Rename the bundled stylesheet to style.css so consumers can import
         // '@emdash/chat-ui/style.css' without knowing the internal lib name.

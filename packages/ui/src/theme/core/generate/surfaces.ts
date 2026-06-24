@@ -13,31 +13,12 @@
  */
 
 import Color from 'colorjs.io';
-import type {
-  Polarity,
-  Ramp,
-  SurfaceScopeName,
-  Surfaces,
-  SurfaceLevel,
-} from '../contract/roles.js';
-import { SURFACE_SCOPES } from '../contract/roles.js';
-import { SURFACE_L, STATE_LAYER_DELTA } from '../contract/targets.js';
+import type { Polarity, Ramp, SurfaceScopeName, Surfaces, SurfaceLevel } from '../contract/roles';
+import { SURFACE_SCOPES } from '../contract/roles';
+import { SURFACE_L, STATE_LAYER_DELTA } from '../contract/targets';
+import { toP3String } from './color-format';
 
-// ── Internal constants ────────────────────────────────────────────────────────
-
-const P3_FORMAT_PRECISION = 4;
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function toP3String(c: Color): string {
-  const p3 = c.to('p3');
-  const [r, g, b] = p3.coords.map((v) =>
-    Math.max(0, Math.min(1, +Number(v).toFixed(P3_FORMAT_PRECISION)))
-  );
-  return `color(display-p3 ${r} ${g} ${b})`;
-}
-
-function shiftOklabL(c: Color, delta: number): Color {
+export function shiftOklabL(c: Color, delta: number): Color {
   const oklab = c.to('oklab');
   const newL = Math.max(0, Math.min(1, oklab.coords[0] + delta));
   oklab.coords[0] = newL;

@@ -2,6 +2,7 @@
  * User message row stories.
  */
 
+import { applyTurnEvent } from '@state/turn-reducer';
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import { ChatHost, ScriptedChat } from '@/stories/_harness/chat-host';
 import { scenario, seedStep } from '@/stories/_harness/streaming/scenario';
@@ -91,19 +92,28 @@ export const Generating: Story = {
           // Start an assistant turn so turnStatus becomes 'generating'
           {
             kind: 'call',
-            fn: (api) =>
-              api.dispatch({ type: 'message_chunk', id: 'a1', role: 'assistant', text: 'Sure! ' }),
+            fn: (api) => {
+              const ev = {
+                type: 'message_chunk' as const,
+                id: 'a1',
+                role: 'assistant' as const,
+                text: 'Sure! ',
+              };
+              api.activeTurn.set(applyTurnEvent(api.activeTurn.get(), ev), 'generating');
+            },
           },
           { kind: 'wait', ms: 600 },
           {
             kind: 'call',
-            fn: (api) =>
-              api.dispatch({
-                type: 'message_chunk',
+            fn: (api) => {
+              const ev = {
+                type: 'message_chunk' as const,
                 id: 'a1',
-                role: 'assistant',
+                role: 'assistant' as const,
                 text: 'I will start by replacing the session store with a JWT signing key…',
-              }),
+              };
+              api.activeTurn.set(applyTurnEvent(api.activeTurn.get(), ev), 'generating');
+            },
           },
           // No turn_done — leaves the turn open so turnStatus stays 'generating'
         ]

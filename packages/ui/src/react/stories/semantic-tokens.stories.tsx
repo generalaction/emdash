@@ -1,12 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { cx } from '@styles/utilities/cx';
+import { SEMANTIC_VARS } from '@theme/core/contract/semantic-template';
 import React, { useEffect, useRef } from 'react';
-import { SEMANTIC_VARS } from '../../theme/core/contract/contract.generated';
+import { Box } from '../primitives/box';
 import { ThemeProvider } from '../primitives/theme-provider';
-
-// ── Sections ──────────────────────────────────────────────────────────────────
-//
-// Tokens are grouped by prefix. The match functions run in order; the first
-// match wins. Any token not matched ends up in the final "Other" bucket.
+import * as s from '../story-layout.css';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 type Section = {
   title: string;
@@ -14,10 +13,7 @@ type Section = {
 };
 
 const SECTIONS: Section[] = [
-  {
-    title: 'Base backgrounds',
-    match: (v) => /^--background(-[0-9])?$/.test(v),
-  },
+  { title: 'Base backgrounds', match: (v) => /^--background(-[0-9])?$/.test(v) },
   {
     title: 'Secondary / tertiary / quaternary backgrounds',
     match: (v) =>
@@ -48,18 +44,9 @@ const SECTIONS: Section[] = [
       !v.startsWith('--border-warning') &&
       !v.startsWith('--border-info'),
   },
-  {
-    title: 'Primary button',
-    match: (v) => v.startsWith('--primary-button'),
-  },
-  {
-    title: 'Selection',
-    match: (v) => v.startsWith('--selection'),
-  },
-  {
-    title: 'Status',
-    match: (v) => v.startsWith('--status'),
-  },
+  { title: 'Primary button', match: (v) => v.startsWith('--primary-button') },
+  { title: 'Selection', match: (v) => v.startsWith('--selection') },
+  { title: 'Status', match: (v) => v.startsWith('--status') },
   {
     title: 'Diff / VCS',
     match: (v) =>
@@ -113,44 +100,30 @@ function categorize(vars: readonly string[]): Array<{ title: string; tokens: str
       return false;
     }),
   }));
-
   const remaining = vars.filter((v) => !assigned.has(v));
-  if (remaining.length > 0) {
-    groups.push({ title: 'Other', tokens: remaining });
-  }
-
+  if (remaining.length > 0) groups.push({ title: 'Other', tokens: remaining });
   return groups.filter((g) => g.tokens.length > 0);
 }
-
-// ── Token kind detection ──────────────────────────────────────────────────────
 
 type TokenKind = 'foreground' | 'background' | 'border' | 'mixed';
 
 function detectKind(varName: string): TokenKind {
-  if (varName.startsWith('--foreground') || varName.startsWith('--status')) {
-    return 'foreground';
-  }
+  if (varName.startsWith('--foreground') || varName.startsWith('--status')) return 'foreground';
   if (
     varName.startsWith('--background') ||
     varName === '--selection' ||
     varName.startsWith('--primary-button-background')
-  ) {
+  )
     return 'background';
-  }
-  if (varName.startsWith('--border')) {
-    return 'border';
-  }
+  if (varName.startsWith('--border')) return 'border';
   return 'background';
 }
-
-// ── Token row ─────────────────────────────────────────────────────────────────
 
 function TokenRow({ varName }: { varName: string }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const kind = detectKind(varName);
-
-  // Read the resolved value once mounted (updates on each render → theme switches)
   const resolvedRef = useRef<HTMLSpanElement | null>(null);
+
   useEffect(() => {
     if (!ref.current || !resolvedRef.current) return;
     const computed = getComputedStyle(ref.current);
@@ -165,84 +138,120 @@ function TokenRow({ varName }: { varName: string }) {
 
   const preview =
     kind === 'foreground' ? (
-      // Text preview: colored text on neutral background
-      <div
-        ref={ref}
-        className="flex h-8 w-16 shrink-0 items-center justify-center rounded border border-border bg-background text-sm font-semibold"
+      <Box
+        ref={ref as React.Ref<HTMLElement>}
+        display="flex"
+        className={cx(s.h8, s.w16)}
+        flexShrink={0}
+        alignItems="center"
+        justifyContent="center"
+        rounded="sm"
+        borderWidth="1"
+        borderStyle="solid"
+        borderColor="border"
+        background="background"
+        fontSize="sm"
+        fontWeight="semibold"
         style={{ color: `var(${varName})` }}
       >
         Aa
-      </div>
+      </Box>
     ) : kind === 'border' ? (
-      // Border preview: box drawn in that border color
-      <div
-        ref={ref}
-        className="h-8 w-16 shrink-0 rounded bg-background"
+      <Box
+        ref={ref as React.Ref<HTMLElement>}
+        className={cx(s.h8, s.w16)}
+        flexShrink={0}
+        rounded="sm"
+        background="background"
         style={{ border: `2px solid var(${varName})` }}
       />
     ) : (
-      // Background / fill preview
-      <div
-        ref={ref}
-        className="h-8 w-16 shrink-0 rounded border border-border"
+      <Box
+        ref={ref as React.Ref<HTMLElement>}
+        className={cx(s.h8, s.w16)}
+        flexShrink={0}
+        rounded="sm"
+        borderWidth="1"
+        borderStyle="solid"
+        borderColor="border"
         style={{ background: `var(${varName})` }}
       />
     );
 
   return (
-    <div className="flex items-center gap-3 py-1.5">
+    <Box display="flex" alignItems="center" gap="3" py="1.5">
       {preview}
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="font-mono text-xs text-foreground">{varName}</span>
-        <span ref={resolvedRef} className="font-mono text-[10px] text-foreground-passive" />
-      </div>
-    </div>
+      <Box display="flex" minWidth="0" flexDirection="column" gap="0.5">
+        <span className={cx(sx({ fontFamily: 'mono', fontSize: 'xs', color: 'foreground' }))}>
+          {varName}
+        </span>
+        <span
+          ref={resolvedRef}
+          className={cx(sx({ fontFamily: 'mono', color: 'foregroundPassive' }), s.text10px)}
+        />
+      </Box>
+    </Box>
   );
 }
-
-// ── Section block ─────────────────────────────────────────────────────────────
 
 function SectionBlock({ title, tokens }: { title: string; tokens: string[] }) {
   return (
-    <div>
-      <h3 className="mb-2 border-b border-border pb-1 text-[11px] font-semibold tracking-wider text-foreground-muted uppercase">
+    <Box>
+      <h3
+        className={cx(
+          sx({
+            marginBottom: '2',
+            borderBottomWidth: '1',
+            borderStyle: 'solid',
+            borderColor: 'border',
+            paddingBottom: '1',
+            fontWeight: 'semibold',
+            color: 'foregroundMuted',
+            textTransform: 'uppercase',
+          }),
+          s.text11px,
+          s.trackingWider
+        )}
+      >
         {title}
       </h3>
-      <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-3">
+      <Box display="grid" className={s.cols1} gap="0">
         {tokens.map((v) => (
           <TokenRow key={v} varName={v} />
         ))}
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 }
-
-// ── Full token page ───────────────────────────────────────────────────────────
 
 function SemanticTokenGrid() {
   const groups = categorize(SEMANTIC_VARS);
   return (
-    <div className="flex flex-col gap-8 bg-background p-6">
-      <div>
-        <h2 className="text-sm font-semibold text-foreground">Semantic Color Tokens</h2>
-        <p className="mt-1 text-xs text-foreground-muted">
+    <Box display="flex" flexDirection="column" gap="8" background="background" padding="6">
+      <Box>
+        <h2 className={cx(sx({ fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' }))}>
+          Semantic Color Tokens
+        </h2>
+        <p className={cx(sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }))}>
           Every semantic CSS custom property defined in{' '}
-          <code className="rounded bg-background-2 px-1 font-mono text-[11px]">
+          <code
+            className={cx(
+              sx({ rounded: 'sm', background: 'background2', px: '1', fontFamily: 'mono' }),
+              s.text11px
+            )}
+          >
             semantic-template.ts
           </code>
           . Foreground tokens show colored text; border tokens show a colored outline; all others
           show a filled swatch. Computed values update when the light/dark toolbar changes.
         </p>
-      </div>
-
+      </Box>
       {groups.map((g) => (
         <SectionBlock key={g.title} title={g.title} tokens={g.tokens} />
       ))}
-    </div>
+    </Box>
   );
 }
-
-// ── Storybook ─────────────────────────────────────────────────────────────────
 
 const meta: Meta = {
   title: 'Theme/Semantic Tokens',
@@ -260,19 +269,39 @@ export const SemanticTokens: Story = {
 /** Light and dark semantic tokens side-by-side. */
 export const BothModes: Story = {
   render: () => (
-    <div className="flex min-h-screen">
-      <ThemeProvider defaultTheme="light" className="flex-1 overflow-auto">
-        <div className="border-b border-border bg-background px-6 py-3 text-sm font-medium text-foreground">
+    <Box display="flex" className={s.minHScreen}>
+      <ThemeProvider defaultTheme="light" className={cx(sx({ flex: '1', overflow: 'auto' }))}>
+        <Box
+          borderBottomWidth="1"
+          borderStyle="solid"
+          borderColor="border"
+          background="background"
+          px="6"
+          py="3"
+          fontSize="sm"
+          fontWeight="medium"
+          color="foreground"
+        >
           Light
-        </div>
+        </Box>
         <SemanticTokenGrid />
       </ThemeProvider>
-      <ThemeProvider defaultTheme="dark" className="flex-1 overflow-auto">
-        <div className="border-b border-border bg-background px-6 py-3 text-sm font-medium text-foreground">
+      <ThemeProvider defaultTheme="dark" className={cx(sx({ flex: '1', overflow: 'auto' }))}>
+        <Box
+          borderBottomWidth="1"
+          borderStyle="solid"
+          borderColor="border"
+          background="background"
+          px="6"
+          py="3"
+          fontSize="sm"
+          fontWeight="medium"
+          color="foreground"
+        >
           Dark
-        </div>
+        </Box>
         <SemanticTokenGrid />
       </ThemeProvider>
-    </div>
+    </Box>
   ),
 };

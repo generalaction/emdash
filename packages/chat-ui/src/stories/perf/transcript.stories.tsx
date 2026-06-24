@@ -17,7 +17,7 @@ import { createViewState } from '@state/view-state';
 import { createEffect, createSignal, onMount } from 'solid-js';
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import { ChatRoot } from '@/ChatRoot';
-import { generateMockTranscript } from '@/mock-transcript';
+import { generateMockTranscript, mockMentionProvider } from '@/mock-transcript';
 import { resetRowCreations, runPerfSweep } from '@/stories/_harness/perf-instrument';
 
 const meta: Meta = {
@@ -28,12 +28,12 @@ export default meta;
 
 type Story = StoryObj;
 
-function PerfHost(props: { count: number; label: string; height?: number }) {
+function PerfHost(props: { count: number; label: string; height?: number; rich?: boolean }) {
   const transcript = createTranscript();
   const viewState = createViewState();
 
   createEffect(() => {
-    transcript.seed(generateMockTranscript(props.count));
+    transcript.history.seed(generateMockTranscript(props.count, 1, { richProse: props.rich }));
   });
 
   let scrollEl: HTMLDivElement | undefined;
@@ -86,7 +86,12 @@ function PerfHost(props: { count: number; label: string; height?: number }) {
           overflow: 'hidden',
         }}
       >
-        <ChatRoot transcript={transcript} viewState={viewState} theme={DEFAULT_THEME} />
+        <ChatRoot
+          transcript={transcript}
+          viewState={viewState}
+          theme={DEFAULT_THEME}
+          mentionProvider={props.rich ? mockMentionProvider : undefined}
+        />
       </div>
       <pre
         style={{
@@ -104,6 +109,16 @@ function PerfHost(props: { count: number; label: string; height?: number }) {
     </div>
   );
 }
+
+export const Million: Story = {
+  name: '1M rich scroll sweep',
+  render: () => <PerfHost count={1000000} label="1M rich rows" rich />,
+};
+
+export const FiveHundredK: Story = {
+  name: '500k rich scroll sweep',
+  render: () => <PerfHost count={500000} label="500k rich rows" rich />,
+};
 
 export const HundredK: Story = {
   name: '100k scroll sweep',

@@ -132,3 +132,8 @@ export const SEMANTIC_TEMPLATE = {
 
 export type SemanticSlot = keyof typeof SEMANTIC_TEMPLATE;
 export type SemanticVar = `--${SemanticSlot}`;
+
+/** Array of all semantic CSS custom property names for runtime validation. */
+export const SEMANTIC_VARS: readonly SemanticVar[] = Object.keys(SEMANTIC_TEMPLATE).map(
+  (k) => `--${k}` as SemanticVar
+);

@@ -15,34 +15,7 @@
  * Steps 11–12 anchor the text contrast targets (~60 / ~95 Lc).
  */
 
-import type { Polarity, SurfaceScopeName } from './roles.js';
-
-export type ApcaTargets = readonly [
-  number, // step 1  — background, Lc≈0
-  number, // step 2  — subtle bg
-  number, // step 3  — component bg
-  number, // step 4  — hover state
-  number, // step 5  — active/selected
-  number, // step 6  — subtle border
-  number, // step 7  — ui border
-  number, // step 8  — strong border / disabled text
-  number, // step 9  — solid fill (brand color)
-  number, // step 10 — hovered solid
-  number, // step 11 — accessible text (lo-contrast)
-  number, // step 12 — high-contrast text
-];
-
-/**
- * APCA Lc target per step for each polarity.
- * Negative = text darker than background (light mode convention).
- * Positive = text lighter than background (dark mode convention).
- */
-export const APCA_TARGETS: Record<Polarity, ApcaTargets> = {
-  // Light: text is darker than white bg → negative Lc
-  light: [0, -2, -5, -11, -16, -22, -28, -40, -64, -69, -84, -104],
-  // Dark: text is lighter than near-black bg → positive Lc
-  dark: [0, 2, 5, 7, 10, 14, 22, 32, 45, 52, 65, 92],
-};
+import type { Polarity, SurfaceScopeName } from './roles';
 
 /**
  * Chroma curve: relative chroma multiplier per step (0..1 scale applied to chromaPeak).
@@ -118,6 +91,3 @@ export const SYNTAX_MIN_APCA: Record<string, number> = {
   comment: 30,
   default: 45,
 };
-
-/** Minimum perceptual hue separation (ΔE in OKLCH approximation) between syntax roles. */
-export const SYNTAX_MIN_DELTA_H = 15;

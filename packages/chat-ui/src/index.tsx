@@ -41,8 +41,16 @@ export type {
   FileOp,
   ToolStatus,
 } from './model';
-export type { TurnStatus } from './state/transcript';
-export type { TranscriptApi, TranscriptEvent } from './state/transcript';
+export type { TurnStatus, TranscriptApi, ChatHistory, ActiveTurn } from './state/transcript';
+export type { ActiveTurnEvent } from './state/turn-reducer';
+export { applyTurnEvent, finalizeTurn } from './state/turn-reducer';
+export { createStreamSmoother } from './state/stream-smoother';
+export type {
+  StreamSmoother,
+  StreamSmootherOptions,
+  SmootherScheduler,
+  TranscriptEvent,
+} from './state/stream-smoother';
 export type { ViewState } from './state/view-state';
 export { generateMockTranscript } from './mock-transcript';
 export type {
@@ -117,6 +125,15 @@ export type ChatCommands = {
    * it is called at render time.
    */
   classifyLink?: (href: string) => { kind: 'workspace-file'; path: string } | { kind: 'external' };
+
+  /**
+   * Called when the user clicks a Mermaid diagram block preview.
+   * `chart` is the raw Mermaid source; `blockId` is the block's stable id;
+   * `source` identifies the click origin.
+   *
+   * The host is responsible for opening a full-size diagram viewer.
+   */
+  onViewMermaid?: (arg: { chart: string; blockId: string; source: 'mermaid-block' }) => void;
 };
 
 // ── Mount options ─────────────────────────────────────────────────────────────

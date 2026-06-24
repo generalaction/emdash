@@ -7,8 +7,8 @@ import {
   kfSlideInFromLeft,
   kfSlideOutToRight,
   kfSlideOutToLeft,
-} from '../../styles/animations.css';
-import { vars } from '../../theme/core/contract/contract.css';
+} from '@styles/effects/animations.css';
+import { vars } from '@theme/core/contract/contract.css';
 
 export const backdrop = style({
   position: 'fixed',

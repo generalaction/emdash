@@ -1,5 +1,5 @@
 import { globalStyle, style } from '@vanilla-extract/css';
-import { vars } from '../../theme/core/contract/contract.css';
+import { vars } from '@theme/core/contract/contract.css';
 
 /** Trailing chevron icon inside TriggerButton. */
 export const triggerButtonChevron = style({

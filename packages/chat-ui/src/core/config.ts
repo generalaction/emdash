@@ -124,11 +124,10 @@ export type ChatConfig = {
 
 /**
  * Output of buildChatTheme — provided via ThemeContext and threaded into every
- * MeasureCtx.theme. `version` is bumped per buildChatTheme call so blockMemo
- * fingerprints detect invalidation without deep equality.
+ * MeasureCtx.theme. Resolved once per ChatRoot mount; theme changes require a
+ * full remount.
  */
 export type ResolvedTheme = {
-  version: number;
   config: ChatConfig;
   /** Pretext measurement side: font shorthands + derived extras. */
   fonts: FontConfig;
@@ -163,7 +162,7 @@ export const DEFAULT_CONFIG: ChatConfig = {
     h2: { family: 'sans', size: 17, weight: 600, lineHeight: 25 },
     h3: { family: 'sans', size: 14, weight: 600, lineHeight: 22 },
     'inline-code': { family: 'mono', size: 12, weight: 400, lineHeight: 20 },
-    mention: { family: 'sans', size: 12, weight: 500, lineHeight: 20 },
+    mention: { family: 'sans', size: 12, weight: 400, lineHeight: 20 },
     code: { family: 'mono', size: 13, weight: 400, lineHeight: 20 },
     'code-lang': { family: 'sans', size: 11, weight: 500, lineHeight: 16 },
   },
@@ -172,7 +171,7 @@ export const DEFAULT_CONFIG: ChatConfig = {
     inlineCodePadY: 2,
     mentionPadX: 4,
     mentionPadY: 2,
-    mentionIconW: 14,
+    mentionIconW: 12,
     mentionIconGap: 4,
   },
 };
@@ -372,16 +371,13 @@ export function toThemeVars(config: ChatConfig): Record<ThemeVarKey, string> {
 
 // ── Builder ───────────────────────────────────────────────────────────────────
 
-let _version = 0;
-
 /**
  * Derive a ResolvedTheme from a ChatConfig. Call once at app creation time.
  * The result is passed as `theme` to ChatRoot (or stored as DEFAULT_THEME).
- * `version` increments on each call so blockMemo fingerprints self-invalidate.
+ * Theme changes require a full ChatRoot remount.
  */
 export function buildChatTheme(config: ChatConfig = DEFAULT_CONFIG): ResolvedTheme {
   return {
-    version: ++_version,
     config,
     fonts: toFontConfig(config),
     chips: config.chips,

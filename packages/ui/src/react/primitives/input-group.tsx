@@ -1,25 +1,30 @@
 'use client';
 
+import { cx } from '@styles/utilities/cx';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
 import * as React from 'react';
-import { cn } from '../lib/cn';
 import { Button } from './button';
-import { Input } from './input';
+import { Input, type InputProps } from './input';
 import { Textarea } from './textarea';
 import * as styles from './input-group.css';
 
-function InputGroup({ className, ...props }: React.ComponentProps<'div'>) {
+type InputGroupVariant = NonNullable<RecipeVariants<typeof styles.inputGroup>>['variant'];
+type InputGroupAddonAlign = NonNullable<RecipeVariants<typeof styles.inputGroupAddon>>['align'];
+
+function InputGroup({
+  className,
+  variant = 'default',
+  ...props
+}: React.ComponentProps<'div'> & { variant?: InputGroupVariant }) {
   return (
     <div
       data-slot="input-group"
       role="group"
-      className={cn(styles.inputGroup, className)}
+      className={cx(styles.inputGroup({ variant }), className)}
       {...props}
     />
   );
 }
-
-type InputGroupAddonAlign = NonNullable<RecipeVariants<typeof styles.inputGroupAddon>>['align'];
 
 function InputGroupAddon({
   className,
@@ -31,7 +36,7 @@ function InputGroupAddon({
       role="group"
       data-slot="input-group-addon"
       data-align={align}
-      className={cn(styles.inputGroupAddon({ align }), className)}
+      className={cx(styles.inputGroupAddon({ align }), className)}
       onClick={(e) => {
         if ((e.target as HTMLElement).closest('button')) {
           return;
@@ -55,21 +60,22 @@ function InputGroupButton({
       type={type}
       size="sm"
       icon
-      className={cn(styles.inputGroupButton, className)}
+      className={cx(styles.inputGroupButton, className)}
       {...props}
     />
   );
 }
 
 function InputGroupText({ className, ...props }: React.ComponentProps<'span'>) {
-  return <span className={cn(styles.inputGroupText, className)} {...props} />;
+  return <span className={cx(styles.inputGroupText, className)} {...props} />;
 }
 
-function InputGroupInput({ className, size: _size, ...props }: React.ComponentProps<'input'>) {
+function InputGroupInput({ className, size: _size, ...props }: Omit<InputProps, 'bare'>) {
   return (
     <Input
+      bare
       data-slot="input-group-control"
-      className={cn(styles.inputGroupControl, className)}
+      className={cx(styles.inputGroupControl, className)}
       {...props}
     />
   );
@@ -79,7 +85,7 @@ function InputGroupTextarea({ className, ...props }: React.ComponentProps<'texta
   return (
     <Textarea
       data-slot="input-group-control"
-      className={cn(styles.inputGroupTextareaControl, className)}
+      className={cx(styles.inputGroupTextareaControl, className)}
       {...props}
     />
   );

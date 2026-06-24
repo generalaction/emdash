@@ -11,9 +11,11 @@
  * This component only describes inner content.
  */
 
+import { IconError } from '@components/primitives/icons';
 import { Show } from 'solid-js';
 import type { ChatToolCall } from '@/model';
 import { textShimmer, toolRow, toolSummary } from './tool.css';
+import { vars } from '@styles/theme.css';
 
 export type ToolProps = {
   item: ChatToolCall;
@@ -25,6 +27,14 @@ export function Tool(props: ToolProps) {
       <span>{props.item.name}</span>
       <Show when={props.item.inputSummary}>
         <span class={toolSummary}>{props.item.inputSummary}</span>
+      </Show>
+      <Show when={props.item.status === 'error'}>
+        <span
+          style={{ display: 'inline-flex', 'vertical-align': 'middle', color: vars.fgError }}
+          aria-label="error"
+        >
+          <IconError />
+        </span>
       </Show>
     </div>
   );

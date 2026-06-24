@@ -1,6 +1,11 @@
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { StorybookConfig } from '@storybook/react-vite';
 import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
 import { mergeConfig } from 'vite';
+
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const root = resolve(__dirname, '../src');
 
 const config: StorybookConfig = {
   stories: ['../src/react/**/*.mdx', '../src/react/**/*.stories.tsx'],
@@ -9,7 +14,18 @@ const config: StorybookConfig = {
     name: '@storybook/react-vite',
     options: {},
   },
-  viteFinal: (config) => mergeConfig(config, { plugins: [vanillaExtractPlugin()] }),
+  viteFinal: (config) =>
+    mergeConfig(config, {
+      plugins: [vanillaExtractPlugin()],
+      resolve: {
+        alias: {
+          '@': root,
+          '@react': resolve(root, 'react'),
+          '@styles': resolve(root, 'styles'),
+          '@theme': resolve(root, 'theme'),
+        },
+      },
+    }),
 };
 
 export default config;

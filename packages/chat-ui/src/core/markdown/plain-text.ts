@@ -21,6 +21,7 @@ export function blockPlainText(block: Block): string {
     return (block as ProseBlock).runs.map(inlineRunText).join('');
   }
   if (block.kind === 'code') return block.code;
+  if (block.kind === 'mermaid') return block.source;
   if (block.kind === 'table') {
     const allRows = [block.header, ...block.rows];
     return allRows.map((row) => row.join(' | ')).join('\n');

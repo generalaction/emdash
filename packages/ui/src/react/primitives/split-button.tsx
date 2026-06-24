@@ -10,10 +10,10 @@
  * Escape, and positioning with no manual listeners required.
  */
 
+import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
+import { cx } from '@styles/utilities/cx';
 import { ChevronDownIcon } from 'lucide-react';
 import * as React from 'react';
-import { controlVariants, type ControlVariantProps } from '../../styles/recipes/control';
-import { cn } from '../lib/cn';
 import { Button, type ButtonProps } from './button';
 import {
   DropdownMenu,
@@ -91,7 +91,7 @@ export function SplitButton({
   };
 
   return (
-    <div className={cn(styles.splitButtonRoot, className)}>
+    <div className={cx(styles.splitButtonRoot, className)}>
       {/* Primary face — fires the currently selected option */}
       <Button
         variant={variant}
@@ -111,7 +111,7 @@ export function SplitButton({
         <DropdownMenuTrigger
           disabled={disabled}
           aria-label="More options"
-          className={cn(
+          className={cx(
             controlVariants({ variant, size, tone, icon: true }),
             styles.splitButtonChevronFace,
             variant === 'primary' && styles.chevronBorderLeft
