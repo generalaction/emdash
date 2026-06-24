@@ -96,8 +96,24 @@ function normalizeStoredCredentials(raw: unknown): NotionCredentials | null {
   };
 }
 
+function normalizeNotionApiMessage(message: string): string {
+  if (/Could not find (?:database|page|data source) with ID:/i.test(message)) {
+    const integrationMatch = message.match(/integration "([^"]+)"/i);
+    const integrationName = integrationMatch?.[1] ?? 'your Notion integration';
+    return `Notion cannot access the configured data source. Share the page or database with ${integrationName}, or update the scope URLs in Emdash settings.`;
+  }
+
+  if (/Make sure the relevant pages and databases are shared/i.test(message)) {
+    const integrationMatch = message.match(/integration "([^"]+)"/i);
+    const integrationName = integrationMatch?.[1] ?? 'your Notion integration';
+    return `Share the relevant pages and databases with ${integrationName}, or update the scope URLs in Emdash settings.`;
+  }
+
+  return message;
+}
+
 function toNotionApiErrorMessage(status: number, apiMessage?: string): string {
-  if (apiMessage) return apiMessage;
+  if (apiMessage) return normalizeNotionApiMessage(apiMessage);
 
   if (status === 401) return NOTION_API_ERROR_MESSAGES.AUTH_FAILED;
   if (status === 403) return NOTION_API_ERROR_MESSAGES.MISSING_PERMISSIONS;

@@ -200,4 +200,22 @@ describe('NotionConnectionService', () => {
       expect(mockDeleteSecret).toHaveBeenCalledWith('emdash-notion-credentials');
     });
   });
+
+  describe('request', () => {
+    it('normalizes Notion database access errors into actionable messages', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: async () => ({
+          message:
+            'Could not find database with ID: 94143f25-f30a-47ac-ac47-4a2d0692d2b0. Make sure the relevant pages and databases are shared with your integration "emdash".',
+        }),
+      });
+
+      await expect(service.request('token', '/data_sources/abc/query', { method: 'POST' })).rejects
+        .toThrow(
+          'Notion cannot access the configured data source. Share the page or database with emdash, or update the scope URLs in Emdash settings.'
+        );
+    });
+  });
 });

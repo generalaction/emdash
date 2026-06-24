@@ -28,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import type { LinkedIssue } from '@shared/core/linked-issue';
+import { IssueSearchEmptyState } from './issue-search-empty-state';
 import { getLinkedIssueMap, type LinkedIssueInfo } from './use-linked-issue-urls';
 import { useIssueSearch } from './useIssueSearch';
 
@@ -281,10 +282,8 @@ export const IssueSelector = observer(function IssueSelector({
               placeholder={`Search ${issueProvider ?? 'issues'}…`}
               disabled={!hasAnyIntegration}
             />
-            <ComboboxEmpty>
-              <span className={cn(error && 'text-foreground-error')}>
-                {error ?? 'No issues found'}
-              </span>
+            <ComboboxEmpty className={error ? 'py-0' : undefined}>
+              <IssueSearchEmptyState provider={issueProvider} error={error} />
             </ComboboxEmpty>
             <ComboboxList>
               {(issue: LinkedIssue) => {

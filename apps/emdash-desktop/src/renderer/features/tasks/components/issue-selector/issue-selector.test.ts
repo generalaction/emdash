@@ -85,7 +85,7 @@ vi.mock('@renderer/lib/components/inline-markdown', async () => {
 });
 
 vi.mock('@renderer/lib/layout/navigation-provider', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => ({ navigate: vi.fn() }),
 }));
 
 describe('IssueSelector', () => {
@@ -139,9 +139,11 @@ describe('IssueSelector', () => {
       );
     });
 
+    expect(container.textContent).toContain('GitHub access required');
     expect(container.textContent).toContain(
       'acme/repo on github.com was not found, or the selected GitHub account does not have access.'
     );
+    expect(container.textContent).toContain('Open integrations');
     expect(container.textContent).not.toContain('No issues found');
   });
 });
