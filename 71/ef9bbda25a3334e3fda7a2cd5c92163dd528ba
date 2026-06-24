@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/assets/images/mcp/notion.svg
+  s_8c5b2b78e3d778::t_15ce7a31f5e0a8 1-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "71ef9bbda25a3334e3fda7a2cd5c92163dd528ba",
+  "prompts": {},
+  "sessions": {
+    "s_8c5b2b78e3d778": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef956-0407-74f0-aff5-563ecf00feec",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
