@@ -4,6 +4,7 @@ import { CheckIcon, XIcon } from 'lucide-react';
 import * as React from 'react';
 import { Button } from './button';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from './input-group';
+import { ScrollContainer } from './scroll-container';
 import * as styles from './combobox.css';
 
 const Combobox = ComboboxPrimitive.Root;
@@ -116,13 +117,22 @@ function ComboboxContent({
   );
 }
 
-function ComboboxList({ className, ...props }: ComboboxPrimitive.List.Props) {
+function ComboboxList({ className, children, ...props }: ComboboxPrimitive.List.Props) {
   return (
-    <ComboboxPrimitive.List
-      data-slot="combobox-list"
-      className={cx(styles.comboboxList, className)}
-      {...props}
-    />
+    <ScrollContainer
+      maxHeight="min(18rem, calc(var(--available-height) - 2.25rem))"
+      padding={2}
+      className={styles.comboboxListScroller}
+      viewportClassName={styles.comboboxListViewport}
+    >
+      <ComboboxPrimitive.List
+        data-slot="combobox-list"
+        className={cx(styles.comboboxList, className)}
+        {...props}
+      >
+        {children}
+      </ComboboxPrimitive.List>
+    </ScrollContainer>
   );
 }
 

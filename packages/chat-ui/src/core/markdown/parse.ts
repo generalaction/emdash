@@ -338,12 +338,21 @@ function blockToBlocks(
     }
 
     case 'code': {
-      blocks.push({
-        kind: 'code',
-        id: nextId(),
-        code: node.value,
-        lang: node.lang ?? undefined,
-      });
+      const codeLang = node.lang?.toLowerCase();
+      if (codeLang === 'mermaid' || codeLang === 'mmd') {
+        blocks.push({
+          kind: 'mermaid',
+          id: nextId(),
+          source: node.value,
+        });
+      } else {
+        blocks.push({
+          kind: 'code',
+          id: nextId(),
+          code: node.value,
+          lang: node.lang ?? undefined,
+        });
+      }
       break;
     }
 

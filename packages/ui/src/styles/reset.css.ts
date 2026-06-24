@@ -53,3 +53,33 @@ globalStyle('button', {
     },
   },
 });
+
+// Remove default block margins — matches Tailwind Preflight.
+globalStyle('blockquote, dl, dd, h1, h2, h3, h4, h5, h6, hr, figure, p, pre', {
+  '@layer': {
+    reset: {
+      margin: 0,
+    },
+  },
+});
+
+// Headings inherit type styles; size/weight come from utilities or component styles.
+globalStyle('h1, h2, h3, h4, h5, h6', {
+  '@layer': {
+    reset: {
+      fontSize: 'inherit',
+      fontWeight: 'inherit',
+    },
+  },
+});
+
+// Lists: drop default indentation and margins.
+// Does not set list-style: none — left to component/utility intent.
+globalStyle('ol, ul', {
+  '@layer': {
+    reset: {
+      margin: 0,
+      padding: 0,
+    },
+  },
+});

@@ -34,6 +34,7 @@ import {
 } from '@chenglou/pretext/rich-inline';
 import { computeDiffRows } from '@components/rows/tools/diff/diff-lines';
 import type { DiffRow } from '@components/rows/tools/diff/diff-lines';
+import { renderMermaidSVG } from 'beautiful-mermaid';
 import {
   createDefaultHighlighter,
   type ChatHighlighter,
@@ -186,6 +187,18 @@ export type ChatCaches = {
   /** Compute a line-level diff with bounded LRU caching (100 entries). */
   computeDiff(oldText: string | null, newText: string): DiffRow[];
   /**
+   * Render a Mermaid diagram source to an SVG string.
+   * Returns null on invalid/unsupported input.
+   * Caches result in a bounded LRU (100 entries).
+   * Uses CSS-variable theming so a single cached SVG adapts to light/dark.
+   */
+  renderMermaid(source: string): string | null;
+  /**
+   * Cache-only Mermaid SVG lookup; never triggers rendering.
+   * Use for the synchronous fast-path on scroll-back re-mounts.
+   */
+  peekMermaid(source: string): string | null;
+  /**
    * Drop the rich-inline text cache and flush pretext's internal global caches.
    * Call on container-width changes and after fonts load.
    */
@@ -196,6 +209,7 @@ export type ChatCaches = {
 
 const HIGHLIGHT_CACHE_MAX = 200;
 const DIFF_CACHE_MAX = 100;
+const MERMAID_CACHE_MAX = 100;
 
 export function createChatCaches(
   highlighter?: ChatHighlighter,
@@ -217,6 +231,9 @@ export function createChatCaches(
 
   // Diff LRU — keyed by `${oldText ?? '\x00null'}\x00${newText}`.
   const diffCache = new Map<string, DiffRow[]>();
+
+  // Mermaid SVG LRU — keyed by source text.
+  const mermaidCache = new Map<string, string>();
 
   function diffKey(oldText: string | null, newText: string): string {
     return `${oldText ?? '\x00null'}\x00${newText}`;
@@ -311,6 +328,32 @@ export function createChatCaches(
       return result;
     },
 
+    renderMermaid(source) {
+      const hit = lruGet(mermaidCache, source);
+      if (hit !== undefined) return hit;
+      try {
+        // CSS variables as color values so a single cached SVG adapts to
+        // light/dark mode without re-rendering.
+        const svg = renderMermaidSVG(source, {
+          transparent: true,
+          bg: 'var(--chat-bg)',
+          fg: 'var(--chat-fg)',
+          line: 'var(--chat-fg-muted)',
+          muted: 'var(--chat-fg-passive)',
+          surface: 'var(--chat-bg-1)',
+          border: 'var(--chat-border)',
+        });
+        lruSet(mermaidCache, source, svg, MERMAID_CACHE_MAX);
+        return svg;
+      } catch {
+        return null;
+      }
+    },
+
+    peekMermaid(source) {
+      return mermaidCache.get(source) ?? null;
+    },
+
     clearTextMeasure() {
       richInlineCache.clear();
       clearPretextInternalCaches();
@@ -322,6 +365,7 @@ export function createChatCaches(
       richInlineCache.clear();
       highlightCache.clear();
       diffCache.clear();
+      mermaidCache.clear();
     },
   };
 }

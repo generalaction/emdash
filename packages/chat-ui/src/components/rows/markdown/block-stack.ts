@@ -1,8 +1,15 @@
 import { stack } from '@core/compose';
 import type { StackLayout } from '@core/compose';
 import type { Measured, MeasureCtx } from '@core/define';
-import type { BlockLeafLayout, RuleLeafLayout } from '@core/layout/layout-types';
-import type { Block, CodeBlock, ProseBlock, RuleBlock, TableBlock } from '@core/markdown/document';
+import type { BlockLeafLayout, MermaidLeafLayout, RuleLeafLayout } from '@core/layout/layout-types';
+import type {
+  Block,
+  CodeBlock,
+  MermaidBlock,
+  ProseBlock,
+  RuleBlock,
+  TableBlock,
+} from '@core/markdown/document';
 import { collapse } from '@core/spacing';
 import { BLOCK_REGISTRY } from './block-registry';
 
@@ -80,6 +87,17 @@ export function layoutBlockStack(
               height: 0,
               raw: block as RuleBlock,
             } satisfies RuleLeafLayout;
+          }
+          if (block.kind === 'mermaid') {
+            return {
+              kind: 'mermaid' as const,
+              id: block.id,
+              top: 0,
+              height: 0,
+              contentWidth: 0,
+              source: (block as MermaidBlock).source,
+              raw: block as MermaidBlock,
+            } satisfies MermaidLeafLayout;
           }
           return {
             kind: 'table' as const,

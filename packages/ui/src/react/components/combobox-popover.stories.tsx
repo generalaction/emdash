@@ -4,7 +4,7 @@
 
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
-import { Bot, Cpu, Zap } from 'lucide-react';
+import { Bot, Cpu, Plus, Settings, Zap } from 'lucide-react';
 import React, { useState } from 'react';
 import { Box } from '../primitives/box';
 import { ComboboxPopover } from './combobox-popover';
@@ -246,6 +246,101 @@ function DetailCardAboveStory() {
   );
 }
 
+function WithFooterStory() {
+  const [value, setValue] = useState<string>('claude-sonnet-4-5');
+  const [lastAction, setLastAction] = useState<string>('—');
+  return (
+    <Box display="flex" flexDirection="column" alignItems="center" gap="4">
+      <p className={cx(sx({ fontSize: 'xs' }))} style={{ color: 'var(--foreground-muted)' }}>
+        Selected: <strong>{MODELS.find((m) => m.id === value)?.name ?? '—'}</strong>
+        {' · '}
+        Last action: <strong>{lastAction}</strong>
+      </p>
+      <p className={cx(sx({ fontSize: 'xs' }))} style={{ color: 'var(--foreground-muted)' }}>
+        Type in the search box — footer actions stay visible while filtering.
+      </p>
+      <ComboboxPopover<ModelItem>
+        items={MODELS}
+        value={value}
+        onValueChange={setValue}
+        itemToKey={(m) => m.id}
+        itemToLabel={(m) => m.name}
+        searchPlaceholder="Search models…"
+        renderTrigger={(selected) => (
+          <span className={cx(sx({ fontSize: 'xs' }))}>{selected?.name ?? 'Pick a model'}</span>
+        )}
+        renderItem={(item) => (
+          <span className={cx(sx({ flex: '1', fontSize: 'sm' }), 'truncate')}>{item.name}</span>
+        )}
+        renderFooter={() => (
+          <Box display="flex" flexDirection="column" padding="1" gap="0.5">
+            <button
+              type="button"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                width: '100%',
+                padding: '0.375rem 0.5rem',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: 'var(--text-sm)',
+                color: 'var(--foreground-muted)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                  'var(--surface-hover)';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--foreground)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor = '';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--foreground-muted)';
+              }}
+              onClick={() => setLastAction('Add model clicked')}
+            >
+              <Plus style={{ width: '1rem', height: '1rem', flexShrink: 0 }} />
+              Add model
+            </button>
+            <button
+              type="button"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                width: '100%',
+                padding: '0.375rem 0.5rem',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: 'var(--text-sm)',
+                color: 'var(--foreground-muted)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                  'var(--surface-hover)';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--foreground)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor = '';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--foreground-muted)';
+              }}
+              onClick={() => setLastAction('Manage providers clicked')}
+            >
+              <Settings style={{ width: '1rem', height: '1rem', flexShrink: 0 }} />
+              Manage providers
+            </button>
+          </Box>
+        )}
+      />
+    </Box>
+  );
+}
+
 export const Basic: Story = {
   name: 'Basic',
   render: () => <BasicStory />,
@@ -259,4 +354,9 @@ export const WithDetailHoverCard: Story = {
 export const DetailCardAbove: Story = {
   name: 'Detail card above (detailSide=top)',
   render: () => <DetailCardAboveStory />,
+};
+
+export const WithFooter: Story = {
+  name: 'With footer actions',
+  render: () => <WithFooterStory />,
 };

@@ -7,6 +7,12 @@ export type ScrollFadeProps = {
    * or a number interpreted as pixels. Defaults to 24px.
    */
   size?: number | string;
+  /**
+   * Padding applied to the scrollable viewport. Numbers are interpreted as pixels.
+   * Placed on the viewport (not the outer wrapper) so that padding-bottom is
+   * respected by the browser during scroll and the last row is not clipped.
+   */
+  padding?: number | string;
   className?: string;
   viewportClassName?: string;
   style?: React.CSSProperties;
@@ -30,10 +36,16 @@ export type ScrollFadeProps = {
  * </ScrollFade>
  */
 const ScrollFade = React.forwardRef<HTMLDivElement, ScrollFadeProps>(function ScrollFade(
-  { size, className, viewportClassName, viewportStyle, style, children },
+  { size, padding, className, viewportClassName, viewportStyle, style, children },
   ref
 ) {
   const fadeSize = size === undefined ? undefined : typeof size === 'number' ? `${size}px` : size;
+  const resolvedPadding =
+    padding === undefined
+      ? undefined
+      : typeof padding === 'number'
+        ? `${padding}px`
+        : padding;
 
   const wrapperStyle: React.CSSProperties = { ...style };
 
@@ -41,6 +53,7 @@ const ScrollFade = React.forwardRef<HTMLDivElement, ScrollFadeProps>(function Sc
     height: '100%',
     width: '100%',
     ...(fadeSize ? ({ '--fade-size': fadeSize } as React.CSSProperties) : {}),
+    ...(resolvedPadding ? { padding: resolvedPadding } : {}),
     ...viewportStyle,
   };
 

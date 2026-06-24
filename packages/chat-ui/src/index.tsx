@@ -125,6 +125,19 @@ export type ChatCommands = {
    * it is called at render time.
    */
   classifyLink?: (href: string) => { kind: 'workspace-file'; path: string } | { kind: 'external' };
+
+  /**
+   * Called when the user clicks a Mermaid diagram block preview.
+   * `chart` is the raw Mermaid source; `blockId` is the block's stable id;
+   * `source` identifies the click origin.
+   *
+   * The host is responsible for opening a full-size diagram viewer.
+   */
+  onViewMermaid?: (arg: {
+    chart: string;
+    blockId: string;
+    source: 'mermaid-block';
+  }) => void;
 };
 
 // ── Mount options ─────────────────────────────────────────────────────────────

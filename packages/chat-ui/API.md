@@ -138,6 +138,12 @@ type ChatCommands = {
   onStop?: (arg: { itemId: string }) => void;
 
   classifyLink?: (href: string) => { kind: 'workspace-file'; path: string } | { kind: 'external' };
+
+  onViewMermaid?: (arg: {
+    chart: string;
+    blockId: string;
+    source: 'mermaid-block';
+  }) => void;
 };
 ```
 
@@ -147,6 +153,10 @@ Invoked when the user clicks interactive elements in the transcript.
 over the current user message while the agent is generating. The host should
 cancel the in-progress agent turn and then dispatch `turn_cancelled` so
 chat-ui removes the stop button and updates `turnStatus`.
+
+`onViewMermaid` is called when the user clicks a Mermaid diagram block preview.
+`chart` is the raw Mermaid source text; `blockId` is the block's stable id.
+The host is responsible for opening a full-size diagram viewer (e.g. a modal).
 
 ### `ScrollToItemOptions`
 

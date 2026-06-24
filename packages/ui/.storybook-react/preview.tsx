@@ -86,6 +86,7 @@ const preview: Preview = {
   },
   parameters: {
     controls: { matchers: { color: /(background|color)$/i, date: /date/i } },
+    docs: { codePanel: true },
   },
 };
 

@@ -74,6 +74,10 @@ function makeCommands(transcript: TranscriptApi, overrides?: ChatCommands): () =
     onStop: () => {
       transcript.activeTurn.commit('cancelled');
     },
+    onViewMermaid: (arg) => {
+      // eslint-disable-next-line no-console
+      console.log('[story] onViewMermaid', arg);
+    },
     ...overrides,
   });
 }

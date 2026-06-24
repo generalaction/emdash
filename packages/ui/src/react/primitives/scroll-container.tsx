@@ -9,6 +9,12 @@ export type ScrollContainerProps = {
    * and will scroll (and fade) when content overflows.
    */
   maxHeight?: number | string;
+  /**
+   * Padding applied to the scrollable viewport. Numbers are interpreted as pixels.
+   * Placed on the viewport so that padding-bottom is honored during scroll
+   * and the last row is not clipped.
+   */
+  padding?: number | string;
   /** Show the top fade when scrolled down. Defaults to true. */
   topFade?: boolean;
   size?: number | string;
@@ -29,7 +35,7 @@ export type ScrollContainerProps = {
  */
 const ScrollContainer = React.forwardRef<HTMLDivElement, ScrollContainerProps>(
   function ScrollContainer(
-    { maxHeight, topFade = true, size, className, viewportClassName, style, children },
+    { maxHeight, padding, topFade = true, size, className, viewportClassName, style, children },
     ref
   ) {
     const resolvedMaxHeight =
@@ -49,6 +55,7 @@ const ScrollContainer = React.forwardRef<HTMLDivElement, ScrollContainerProps>(
       <ScrollFade
         ref={ref}
         size={size}
+        padding={padding}
         className={className}
         viewportClassName={cx(!topFade && 'sf-no-top', viewportClassName)}
         viewportStyle={viewportStyle}

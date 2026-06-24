@@ -23,16 +23,20 @@ export const comboboxContent = style([
   },
 ]);
 
-export const comboboxList = style({
-  maxHeight: 'min(18rem, calc(var(--available-height) - 2.25rem))',
-  scrollPaddingTop: '0.25rem',
-  scrollPaddingBottom: '0.25rem',
-  overflowY: 'auto',
+/** Outer wrapper that ScrollContainer renders — position context for the fade overlay. */
+export const comboboxListScroller = style({});
+
+/**
+ * Applied to the scroll viewport inside ScrollContainer.
+ * overscrollBehavior must be on the actual scrolling element.
+ */
+export const comboboxListViewport = style({
   overscrollBehavior: 'contain',
-  padding: '0.25rem',
-  selectors: {
-    '&[data-empty]': { padding: 0 },
-  },
+});
+
+export const comboboxList = style({
+  scrollPaddingTop: '2px',
+  scrollPaddingBottom: '2px',
 });
 
 export const comboboxItem = style([
