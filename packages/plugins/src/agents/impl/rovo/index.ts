@@ -17,18 +17,19 @@ export const plugin = definePlugin(
     },
     hostDependency: {
       id: 'rovo',
-      binaryNames: ['rovodev', 'acli'],
+      binaryNames: ['acli'],
       installCommands: {
         macos: [
           {
-            method: 'other',
-            command: 'acli rovodev auth login',
+            method: 'homebrew',
+            command: 'brew tap atlassian/homebrew-acli && brew install acli',
           },
         ],
         linux: [
           {
-            method: 'other',
-            command: 'acli rovodev auth login',
+            method: 'apt',
+            command:
+              'sudo apt-get install -y wget gnupg2 && sudo mkdir -p -m 755 /etc/apt/keyrings && wget -nv -O- https://acli.atlassian.com/gpg/public-key.asc | sudo gpg --dearmor -o /etc/apt/keyrings/acli-archive-keyring.gpg && sudo chmod go+r /etc/apt/keyrings/acli-archive-keyring.gpg && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/acli-archive-keyring.gpg] https://acli.atlassian.com/linux/deb stable main" | sudo tee /etc/apt/sources.list.d/acli.list > /dev/null && sudo apt update && sudo apt install -y acli',
           },
         ],
       },
@@ -51,7 +52,9 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
+        defaultArgs: ['rovodev', 'run'],
         autoApproveFlag: '--yolo',
+        initialPromptFlag: '',
       }),
   },
 });

@@ -154,4 +154,45 @@ describe('pluginRegistry', () => {
       releaseSource: { kind: 'npm', package: '@ampcode/cli' },
     });
   });
+
+  it('uses current Kimi Code install and update metadata', () => {
+    const kimi = pluginRegistry.get('kimi')!;
+
+    expect(kimi.metadata.name).toBe('Kimi Code');
+    expect(kimi.metadata.websiteUrl).toBe(
+      'https://moonshotai.github.io/kimi-code/en/guides/getting-started.html'
+    );
+    expect(kimi.capabilities.hostDependency.installCommands.macos?.[0]?.command).toBe(
+      'curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash'
+    );
+    expect(kimi.capabilities.hostDependency.updates).toMatchObject({
+      kind: 'supported',
+      releaseSource: { kind: 'github', repo: 'moonshotai/kimi-code' },
+    });
+  });
+
+  it('uses current Rovo Dev ACLI install and launch metadata', () => {
+    const rovo = pluginRegistry.get('rovo')!;
+
+    expect(rovo.capabilities.hostDependency.binaryNames).toEqual(['acli']);
+    expect(rovo.capabilities.hostDependency.installCommands.macos?.[0]).toMatchObject({
+      method: 'homebrew',
+      command: 'brew tap atlassian/homebrew-acli && brew install acli',
+    });
+
+    const command = rovo.behavior.prompt!.buildCommand({
+      cli: 'acli',
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: '',
+      isResuming: false,
+      model: '',
+    });
+
+    expect(command).toEqual({
+      command: 'acli',
+      args: ['rovodev', 'run', '--yolo', 'Fix the bug'],
+      env: {},
+    });
+  });
 });

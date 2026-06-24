@@ -39,6 +39,13 @@ describe('nextDefaultConversationTitle', () => {
     expect(formatConversationTitleForDisplay('gemini', 'gemini (1)')).toBe('Gemini (1)');
   });
 
+  it('uses provider display names for default titles', () => {
+    expect(formatConversationTitleForDisplay('kimi', 'Kimi (1)')).toBe('Kimi Code (1)');
+    expect(nextDefaultConversationTitle('kimi', [{ providerId: 'kimi', title: 'Kimi (1)' }])).toBe(
+      'Kimi Code (2)'
+    );
+  });
+
   it('leaves custom conversation titles unchanged', () => {
     expect(formatConversationTitleForDisplay('codex', 'release-triage')).toBe('release-triage');
   });

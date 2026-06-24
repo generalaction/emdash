@@ -1,4 +1,4 @@
-import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import { getProvider, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 
 type ConversationTitleInput = {
   providerId: AgentProviderId;
@@ -9,8 +9,18 @@ function capitalizeProviderId(providerId: AgentProviderId): string {
   return `${providerId.charAt(0).toUpperCase()}${providerId.slice(1)}`;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getDefaultTitlePrefix(providerId: AgentProviderId): string {
+  return getProvider(providerId)?.name ?? capitalizeProviderId(providerId);
+}
+
 function parseDefaultTitleIndex(title: string, providerId: AgentProviderId): number | null {
-  const match = title.match(new RegExp(`^${providerId} \\(([1-9]\\d*)\\)$`, 'i'));
+  const prefixes = [providerId, capitalizeProviderId(providerId), getDefaultTitlePrefix(providerId)];
+  const pattern = prefixes.map(escapeRegExp).join('|');
+  const match = title.match(new RegExp(`^(?:${pattern}) \\(([1-9]\\d*)\\)$`, 'i'));
   if (!match) return null;
 
   const rawIndex = match[1];
@@ -26,7 +36,7 @@ export function formatConversationTitleForDisplay(
 ): string {
   const index = parseDefaultTitleIndex(title, providerId);
   if (index === null) return title;
-  return `${capitalizeProviderId(providerId)} (${index})`;
+  return `${getDefaultTitlePrefix(providerId)} (${index})`;
 }
 
 export function nextDefaultConversationTitle(
@@ -44,5 +54,5 @@ export function nextDefaultConversationTitle(
   let next = 1;
   while (used.has(next)) next += 1;
 
-  return `${capitalizeProviderId(providerId)} (${next})`;
+  return `${getDefaultTitlePrefix(providerId)} (${next})`;
 }

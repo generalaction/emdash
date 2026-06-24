@@ -29,10 +29,10 @@ import { icon } from './icon';
 export const plugin = definePlugin(
   {
     id: 'kimi',
-    name: 'Kimi',
+    name: 'Kimi Code',
     description:
-      'Kimi CLI by Moonshot AI, with shell execution, Zsh integration, ACP, and MCP support.',
-    websiteUrl: 'https://moonshotai.github.io/kimi-cli/en/guides/getting-started.html',
+      'Kimi Code CLI by Moonshot AI, with shell execution, ACP, MCP, plugins, subagents, and lifecycle hooks.',
+    websiteUrl: 'https://moonshotai.github.io/kimi-code/en/guides/getting-started.html',
   },
   {
     autoApprove: {
@@ -50,13 +50,13 @@ export const plugin = definePlugin(
         macos: [
           {
             method: 'curl',
-            command: 'curl -LsSf https://code.kimi.com/install.sh | bash',
+            command: 'curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash',
           },
         ],
         linux: [
           {
             method: 'curl',
-            command: 'curl -LsSf https://code.kimi.com/install.sh | bash',
+            command: 'curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash',
           },
         ],
       },
@@ -64,7 +64,7 @@ export const plugin = definePlugin(
         kind: 'supported',
         releaseSource: {
           kind: 'github',
-          repo: 'moonshotai/kimi-cli',
+          repo: 'moonshotai/kimi-code',
         },
         update: {
           kind: 'package-manager',
