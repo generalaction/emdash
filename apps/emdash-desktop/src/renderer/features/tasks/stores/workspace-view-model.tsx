@@ -185,17 +185,9 @@ export class WorkspaceViewModel implements ILifecycle {
     if (desc?.kind === 'browser') return 'browser';
     const tab = getActiveFileEntry(this.activePane);
     if (!tab) return 'agents';
-    switch (tab.renderer.kind) {
-      case 'text':
-      case 'svg-source':
-      case 'html-source':
-        return 'monaco';
-      case 'markdown':
-      case 'markdown-source':
-        return 'markdown';
-      default:
-        return 'other-file';
-    }
+    if (tab.contentType === 'markdown' && tab.viewMode === 'preview') return 'markdown';
+    if (tab.contentType === 'text' || tab.viewMode === 'source') return 'monaco';
+    return 'other-file';
   }
 
   get snapshot(): TaskViewSnapshot {

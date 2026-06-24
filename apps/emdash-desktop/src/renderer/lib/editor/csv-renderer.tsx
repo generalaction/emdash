@@ -1,10 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import { usePaneContext } from '@renderer/features/tabs/pane-context';
-import { fileEntryByPath } from '@renderer/features/tasks/editor/pane-selectors';
 import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { MAX_PREVIEW_COLUMNS, MAX_PREVIEW_ROWS, parseCsv } from '@renderer/lib/editor/csv-parser';
-import { PreviewSourceToggle } from '@renderer/lib/editor/preview-source-toggle';
 import { ModelStatusOverlay } from '@renderer/lib/monaco/model-status-overlay';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
@@ -14,10 +11,12 @@ interface CsvRendererProps {
   filePath: string;
 }
 
+/**
+ * Renders a CSV file as a table preview.
+ * The source/preview toggle lives in the FileContent container above this component.
+ */
 export const CsvRenderer = observer(function CsvRenderer({ filePath }: CsvRendererProps) {
-  const taskView = useWorkspaceViewModel();
-  const { editorView } = taskView;
-  const { pane } = usePaneContext();
+  const { editorView } = useWorkspaceViewModel();
   const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
   const modelStatus = useModelStatus(bufferUri);
 
@@ -31,20 +30,14 @@ export const CsvRenderer = observer(function CsvRenderer({ filePath }: CsvRender
     1,
     ...(parsed.rows.length ? parsed.rows.map((row) => row.length) : [1])
   );
-  const switchToSource = () => {
-    fileEntryByPath(pane, filePath)?.updateRenderer(() => ({ kind: 'csv-source' }));
-  };
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-background-secondary-1">
+    <div className="h-full w-full overflow-hidden bg-background-secondary-1">
       {modelStatus !== 'ready' ? (
         <ModelStatusOverlay status={modelStatus} />
       ) : parsed.rows.length ? (
         <div className="h-full overflow-auto">
-          <table
-            className="min-w-full border-separate border-spacing-0 cursor-text text-left text-xs"
-            onDoubleClick={switchToSource}
-          >
+          <table className="min-w-full border-separate border-spacing-0 cursor-text text-left text-xs">
             <thead>
               <tr>
                 {normalizeRow(header ?? [], columnCount).map((cell, index) => (
@@ -92,14 +85,6 @@ export const CsvRenderer = observer(function CsvRenderer({ filePath }: CsvRender
           Empty file
         </div>
       )}
-      <PreviewSourceToggle
-        activeMode="preview"
-        onSwitch={(mode) => {
-          if (mode === 'source') {
-            switchToSource();
-          }
-        }}
-      />
     </div>
   );
 });

@@ -1,26 +1,16 @@
 import { action, makeObservable, observable } from 'mobx';
-import { getFileKind } from '@renderer/lib/editor/fileKind';
-import { getDefaultRenderer } from '@renderer/lib/editor/renderer-utils';
+import { getFileKind, isPreviewableKind } from '@renderer/lib/editor/fileKind';
 import type { ManagedFileKind } from '@renderer/lib/editor/types';
 
-export type FileRendererData =
-  | { kind: 'text' }
-  | { kind: 'markdown' }
-  | { kind: 'markdown-source' }
-  | { kind: 'csv' }
-  | { kind: 'csv-source' }
-  | { kind: 'html' }
-  | { kind: 'html-source' }
-  | { kind: 'svg' }
-  | { kind: 'svg-source' }
-  | { kind: 'image' }
-  | { kind: 'binary' }
-  | { kind: 'too-large' }
-  | { kind: 'file-error' };
+/** Extends ManagedFileKind with terminal load-time states. */
+export type FileContentType = ManagedFileKind | 'file-error';
+
+/** Whether the file is shown in Monaco (source) or its rendered preview. */
+export type FileViewMode = 'source' | 'preview';
 
 /**
  * Observable store for a single open file tab.
- * Owns all file-specific display state: path, renderer kind, image content, size.
+ * Owns all file-specific display state: path, content type, view mode, image content, size.
  */
 export class FileTabStore {
   readonly tabId: string;
@@ -29,7 +19,10 @@ export class FileTabStore {
   path: string;
   isPreview: boolean;
   fileKind: ManagedFileKind;
-  renderer: FileRendererData;
+  /** The content type of the file (derived from path; may change to 'too-large'/'file-error' after load). */
+  contentType: FileContentType;
+  /** Whether to show Monaco source or the rendered preview. Defaults to 'preview' for previewable kinds. */
+  viewMode: FileViewMode;
   /** Data-URL for image files; empty string for Monaco-backed files. */
   content: string;
   /** True for image files while the data-URL is being fetched, or external files while content loads. */
@@ -45,7 +38,8 @@ export class FileTabStore {
     this.path = path;
     this.isPreview = isPreview;
     this.fileKind = fileKind;
-    this.renderer = getDefaultRenderer(fileKind);
+    this.contentType = fileKind;
+    this.viewMode = isPreviewableKind(fileKind) ? 'preview' : 'source';
     this.content = '';
     this.isLoading = fileKind === 'image';
     this.totalSize = null;
@@ -56,13 +50,15 @@ export class FileTabStore {
       path: observable,
       isPreview: observable,
       fileKind: observable,
-      renderer: observable,
+      contentType: observable,
+      viewMode: observable,
       content: observable,
       isLoading: observable,
       totalSize: observable,
       isExternal: observable,
       externalError: observable,
-      updateRenderer: action,
+      setContentType: action,
+      setViewMode: action,
       setImageContent: action,
       setTotalSize: action,
       pin: action,
@@ -73,8 +69,12 @@ export class FileTabStore {
     });
   }
 
-  updateRenderer(updater: (prev: FileRendererData) => FileRendererData): void {
-    this.renderer = updater(this.renderer);
+  setContentType(contentType: FileContentType): void {
+    this.contentType = contentType;
+  }
+
+  setViewMode(viewMode: FileViewMode): void {
+    this.viewMode = viewMode;
   }
 
   setImageContent(content: string): void {
@@ -98,7 +98,8 @@ export class FileTabStore {
     const fileKind = getFileKind(newPath);
     this.path = newPath;
     this.fileKind = fileKind;
-    this.renderer = getDefaultRenderer(fileKind);
+    this.contentType = fileKind;
+    this.viewMode = isPreviewableKind(fileKind) ? 'preview' : 'source';
     this.content = '';
     this.isLoading = fileKind === 'image';
     this.totalSize = null;

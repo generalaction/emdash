@@ -13,9 +13,11 @@ import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import type { TabDescriptor } from '@shared/view-state';
 import type { TaskTabContext } from '../stores/task-tab-context';
 import { EditorProvider } from './editor-provider';
-import { FileRenderer } from './file-renderer';
+import { FileContentPreview } from './file-content-preview';
+import { FileContentRenderer } from './file-content-renderer';
+import { FileContentToolbar } from './file-content-toolbar';
+import { FILE_CONTENT_TYPES } from './file-content-types';
 import { FileTabItem, FileTabDragPreview } from './file-tab-item';
-import { MonacoFileRenderer } from './monaco-file-renderer';
 import { FileTabStore } from './stores/file-tab-store';
 
 export interface FileOpenArgs {
@@ -43,20 +45,13 @@ type FileDescriptor = Extract<TabDescriptor, { kind: 'file' }>;
 const FileTabContent = observer(function FileTabContent({ host }: TabContentProps) {
   return (
     <EditorProvider>
-      <FileTabBody host={host} />
+      <FileContent host={host} />
     </EditorProvider>
   );
 });
 
-const MONACO_KINDS = new Set([
-  'text',
-  'csv-source',
-  'svg-source',
-  'html-source',
-  'markdown-source',
-]);
-
-const FileTabBody = observer(function FileTabBody({ host }: { host: TabHost }) {
+/** Renders the Monaco source and/or preview for the currently active file tab. */
+const FileContent = observer(function FileContent({ host }: { host: TabHost }) {
   const activeTab = host.resolvedTabs.find((t) => t.isActive);
   const activeFile =
     activeTab?.kind === 'file'
@@ -66,18 +61,34 @@ const FileTabBody = observer(function FileTabBody({ host }: { host: TabHost }) {
         )
       : null;
 
-  const monacoActive = activeFile ? MONACO_KINDS.has(activeFile.renderer.kind) : false;
+  const def = activeFile ? FILE_CONTENT_TYPES[activeFile.contentType] : null;
+  const showSource = def
+    ? def.editable && (activeFile!.viewMode === 'source' || !def.Preview)
+    : false;
+  const showPreview = def
+    ? !!def.Preview && (activeFile!.viewMode === 'preview' || !def.editable)
+    : false;
+  const canToggle = def ? def.editable && !!def.Preview : false;
 
   return (
-    <div className="relative h-full w-full overflow-hidden">
-      <div className="absolute inset-0" style={{ visibility: monacoActive ? 'visible' : 'hidden' }}>
-        <MonacoFileRenderer />
-      </div>
-      {activeFile && (
-        <div className="absolute inset-0">
-          <FileRenderer tab={activeFile} />
+    <div className="flex h-full w-full flex-col overflow-hidden">
+      {/* Top bar: file path + view mode tabs, shown whenever a file tab is active */}
+      {activeFile && <FileContentToolbar tab={activeFile} canToggle={canToggle} />}
+
+      {/* Content area */}
+      <div className="relative flex-1 overflow-hidden">
+        {/* Monaco source — always mounted, visibility-toggled to preserve scroll/cursor state */}
+        <div className="absolute inset-0" style={{ visibility: showSource ? 'visible' : 'hidden' }}>
+          <FileContentRenderer />
         </div>
-      )}
+
+        {/* Preview — only mounted when shown, so its container never covers Monaco in source mode */}
+        {activeFile && showPreview && (
+          <div className="absolute inset-0">
+            <FileContentPreview tab={activeFile} />
+          </div>
+        )}
+      </div>
     </div>
   );
 });
@@ -177,7 +188,7 @@ export const fileTabProvider: TabProvider<
     }
 
     if (args.external) {
-      // Creates a loading entry; async file read is handled by FileRenderer in Phase 4.
+      // Creates a loading entry; async file read is handled by FileContentPreview.
       const tab = new FileTabStore(args.path, false);
       tab.markExternalLoading();
       host.attachEntry(tab, { activate: true });

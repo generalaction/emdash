@@ -19,7 +19,7 @@ import { allOpenFilePaths, fileEntryByPath } from '../pane-selectors';
  *
  * Reactive model lifecycle: watches pane.openFilePaths and registers/unregisters
  * Monaco models (disk, git, buffer) accordingly. On registration results, updates the
- * corresponding FileTabStore directly (setImageContent, setTotalSize, updateRenderer).
+ * corresponding FileTabStore directly (setImageContent, setTotalSize, setContentType).
  */
 export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot> {
   readonly modelRootPath: string;
@@ -226,9 +226,7 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
       } catch {
         runInAction(() => {
           for (const { pane } of this.paneLayout.groups) {
-            fileEntryByPath(pane, filePath)?.updateRenderer(() => ({
-              kind: 'file-error' as const,
-            }));
+            fileEntryByPath(pane, filePath)?.setContentType('file-error');
           }
         });
         return;
@@ -240,7 +238,7 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
         const totalSize = modelRegistry.modelTotalSizes.get(diskUri);
         runInAction(() => {
           for (const { pane } of this.paneLayout.groups) {
-            fileEntryByPath(pane, filePath)?.updateRenderer(() => ({ kind: 'too-large' as const }));
+            fileEntryByPath(pane, filePath)?.setContentType('too-large');
             if (totalSize != null) fileEntryByPath(pane, filePath)?.setTotalSize(totalSize);
           }
         });

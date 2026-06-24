@@ -1,7 +1,5 @@
-import { Eye, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback } from 'react';
-import { fileEntryByPath } from '@renderer/features/tasks/editor/pane-selectors';
 import type { FileTabStore } from '@renderer/features/tasks/editor/stores/file-tab-store';
 import {
   useTaskViewContext,
@@ -14,32 +12,29 @@ import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
 import { Spinner } from '@renderer/lib/ui/spinner';
-import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 
 interface MarkdownEditorRendererProps {
-  filePath: string;
+  tab: FileTabStore;
 }
 
 /**
  * Renders a markdown file as a formatted preview.
- * A floating "Edit source" button in the top-right corner toggles to Monaco source view.
+ * The source/preview toggle lives in the FileContent container above this component.
  */
 export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
-  filePath,
+  tab,
 }: MarkdownEditorRendererProps) {
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
-  const taskView = useWorkspaceViewModel();
-  const { editorView, activePane } = taskView;
-  const tab: FileTabStore | undefined = fileEntryByPath(activePane, filePath);
-  const showExternalSpinner = useDelayedBoolean(!!(tab?.isExternal && tab.isLoading), 200);
-  const bufferUri = tab?.isExternal ? '' : buildMonacoModelPath(editorView.modelRootPath, filePath);
-  // Reading bufferVersions creates a MobX tracking dependency so this observer()
-  // component re-renders whenever the buffer content changes or is first populated.
+  const { editorView } = useWorkspaceViewModel();
+  const showExternalSpinner = useDelayedBoolean(!!(tab.isExternal && tab.isLoading), 200);
+  const bufferUri = tab.isExternal ? '' : buildMonacoModelPath(editorView.modelRootPath, tab.path);
 
+  // Reading bufferVersions creates a MobX tracking dependency so this observer
+  // component re-renders whenever the buffer content changes or is first populated.
   const _version = bufferUri ? modelRegistry.bufferVersions.get(bufferUri) : undefined;
-  const content = tab?.isExternal ? tab.content : (modelRegistry.getValue(bufferUri) ?? '');
-  const fileDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '';
+  const content = tab.isExternal ? tab.content : (modelRegistry.getValue(bufferUri) ?? '');
+  const fileDir = tab.path.includes('/') ? tab.path.substring(0, tab.path.lastIndexOf('/')) : '';
 
   const resolveImage = useCallback(
     async (src: string): Promise<string | null> => {
@@ -52,32 +47,13 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
 
   return (
     <div className="relative h-full overflow-y-auto bg-background-secondary-1">
-      {tab?.isExternal ? null : (
-        <ToggleGroup
-          value={['markdown']}
-          onValueChange={(value) => {
-            if (value.includes('markdown-source')) {
-              tab?.updateRenderer(() => ({ kind: 'markdown-source' }));
-            }
-          }}
-          size="sm"
-          className="sticky top-3 z-10 float-right mr-3"
-        >
-          <ToggleGroupItem value="markdown" aria-label="Preview">
-            <Eye className="h-3.5 w-3.5" />
-          </ToggleGroupItem>
-          <ToggleGroupItem value="markdown-source" aria-label="Edit source">
-            <Pencil className="h-3.5 w-3.5" />
-          </ToggleGroupItem>
-        </ToggleGroup>
-      )}
-      {tab?.isExternal && tab.isLoading ? (
+      {tab.isExternal && tab.isLoading ? (
         showExternalSpinner ? (
           <div className="flex h-full items-center justify-center">
             <Spinner />
           </div>
         ) : null
-      ) : tab?.isExternal && tab.externalError ? (
+      ) : tab.isExternal && tab.externalError ? (
         <div className="text-destructive px-8 py-8 text-sm">
           Could not load file: {tab.externalError}
         </div>
@@ -86,7 +62,7 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
           content={content}
           variant="full"
           className="w-full max-w-3xl px-8 py-8"
-          resolveImage={tab?.isExternal ? undefined : resolveImage}
+          resolveImage={tab.isExternal ? undefined : resolveImage}
         />
       )}
     </div>
