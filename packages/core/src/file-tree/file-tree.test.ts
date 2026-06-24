@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Result } from '@emdash/shared';
@@ -90,6 +90,43 @@ describe('FileTree', () => {
     unwrap(await tree.ready());
 
     expect(paths(await nodes(tree))).toEqual(['src']);
+    tree.dispose();
+  });
+
+  it('ignores symlinks consistently in snapshots and watch-created entries', async () => {
+    const root = await makeRoot();
+    await writeFile(path.join(root, 'target.txt'), 'x', 'utf8');
+    const symlinkSupported = await trySymlink('target.txt', path.join(root, 'link.txt'));
+    if (!symlinkSupported) return;
+
+    const watcher = new ManualWatchService();
+    const tree = new FileTree({ rootPath: root, watcher });
+    unwrap(await tree.ready());
+
+    expect(paths(await nodes(tree))).toEqual(['target.txt']);
+
+    const patched = tree as unknown as {
+      applyWatchEvents(events: RawFileEvent[]): Promise<void>;
+    };
+    const originalApplyWatchEvents = patched.applyWatchEvents;
+    let resolveApplied: () => void = () => {};
+    const applied = new Promise<void>((resolve) => {
+      resolveApplied = resolve;
+    });
+    patched.applyWatchEvents = async (events) => {
+      try {
+        await originalApplyWatchEvents.call(tree, events);
+      } finally {
+        resolveApplied();
+      }
+    };
+
+    await symlink('target.txt', path.join(root, 'watch-link.txt'), 'file');
+    watcher.emit([{ kind: 'create', path: path.join(root, 'watch-link.txt') }]);
+    await applied;
+
+    expect(paths(await nodes(tree))).toEqual(['target.txt']);
+    patched.applyWatchEvents = originalApplyWatchEvents;
     tree.dispose();
   });
 
@@ -396,6 +433,20 @@ async function waitFor(check: () => Promise<boolean>, timeoutMs = 500): Promise<
   }
   if (lastError) throw lastError;
   throw new Error('Timed out waiting for file tree condition');
+}
+
+async function trySymlink(target: string, linkPath: string): Promise<boolean> {
+  try {
+    await symlink(target, linkPath, 'file');
+    return true;
+  } catch (error) {
+    const code =
+      typeof error === 'object' && error !== null && 'code' in error
+        ? String((error as { code?: unknown }).code)
+        : undefined;
+    if (code === 'EPERM' || code === 'EACCES') return false;
+    throw error;
+  }
 }
 
 function unwrap<T, E>(result: Result<T, E>): T {

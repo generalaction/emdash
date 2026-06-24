@@ -1,4 +1,4 @@
-import { readdir, stat } from 'node:fs/promises';
+import { lstat, readdir } from 'node:fs/promises';
 import { err, ok, type Result } from '@emdash/shared';
 import { classifyFileTreeFsError, type FileTreeError } from './errors';
 import { isExcludedPath } from './ignores';
@@ -65,7 +65,7 @@ export async function statEntry(
   const resolved = resolveInsideRoot(rootPath, relPath);
   if (!resolved.success) return resolved;
   try {
-    const stats = await stat(resolved.data.absPath);
+    const stats = await lstat(resolved.data.absPath);
     if (!stats.isFile() && !stats.isDirectory()) {
       return err({ type: 'not-found', path: relPath });
     }
@@ -82,7 +82,7 @@ export async function statEntry(
 
 async function statDevIno(absPath: string): Promise<DevIno | undefined> {
   try {
-    const stats = await stat(absPath);
+    const stats = await lstat(absPath);
     return toDevIno(stats.dev, stats.ino);
   } catch {
     return undefined;
