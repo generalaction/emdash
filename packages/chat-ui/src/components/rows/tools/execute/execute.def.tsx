@@ -1,12 +1,10 @@
 import { ROW_H } from '@components/engine/row-metrics';
+import { CollapsibleCard } from '@components/primitives/CollapsibleCard';
 import type { MeasureCtx, RenderCtx } from '@core/define';
 import { defineUnit } from '@core/units';
-import { pxTokens } from '@styles/px-tokens';
-import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { Show, createMemo } from 'solid-js';
 import type { ChatExecute } from '@/model';
-import { ExecuteBody, ExecuteHeader } from './Execute';
-import { executeCard, executeVars } from './execute.css';
+import { ExecuteBody } from './Execute';
 
 // ── Vars ──────────────────────────────────────────────────────────────────────
 
@@ -81,11 +79,16 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
     return executeUnitH(props.data, ctx, props.vars);
   });
 
-  const styleVars = () => ({ height: totalH(), headerH: props.vars.rowH });
-
   return (
-    <div class={executeCard} style={assignInlineVars(executeVars, pxTokens(styleVars()))}>
-      <ExecuteHeader item={props.data} expanded={isExpanded()} headerH={props.vars.rowH} />
+    <CollapsibleCard
+      id={props.data.id}
+      ctx={props.ctx}
+      height={totalH()}
+      headerH={props.vars.rowH}
+      expanded={isExpanded()}
+      active={props.data.status === 'running'}
+      header="Execute"
+    >
       <Show when={codeLineH() > 0}>
         <ExecuteBody
           item={props.data}
@@ -96,7 +99,7 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
           expanded={isExpanded()}
         />
       </Show>
-    </div>
+    </CollapsibleCard>
   );
 }
 

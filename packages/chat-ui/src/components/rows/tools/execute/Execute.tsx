@@ -4,16 +4,14 @@
  * Renders ACP `kind: 'execute'` tool calls as a collapsible card:
  *
  *   ┌─────────────────────────────────────┐
- *   │  Execute                          › │  ← header (always visible)
+ *   │  Execute                          › │  ← header (CollapsibleCard primitive)
  *   ├─────────────────────────────────────┤
  *   │  pnpm run build --filter=...        │  ← body: mono, bash-highlighted
  *   │  ...                                │    clamped to collapsedMaxLines or
  *   └─────────────────────────────────────┘    expandedMaxLines with overflow scroll
  *
- * Header: shimmer while running, chevron rotates when expanded.
+ * Header + card shell are provided by CollapsibleCard.
  * Body:   collapsed = clamped height + fade overlay; expanded = scrollable.
- * Card geometry (height) is owned by execute.def via executeVars; this file
- * only describes inner content.
  */
 
 import { useCaches } from '@components/contexts/CachesContext';
@@ -22,38 +20,7 @@ import { applyTokensToElement, type CodeToken } from '@core/highlight/apply-toke
 import { fadeOverlayBottom } from '@styles/effects.css';
 import { For, Show, createEffect, onCleanup } from 'solid-js';
 import type { ChatExecute } from '@/model';
-import {
-  executeBody,
-  executeChevron,
-  executeHeader,
-  executeLine,
-  textShimmer,
-} from './execute.css';
-
-// ── ExecuteHeader ─────────────────────────────────────────────────────────────
-
-export type ExecuteHeaderProps = {
-  item: ChatExecute;
-  expanded: boolean;
-  headerH: number;
-};
-
-export function ExecuteHeader(props: ExecuteHeaderProps) {
-  return (
-    <div
-      class={executeHeader}
-      style={{ height: `${props.headerH}px` }}
-      role="button"
-      aria-expanded={props.expanded ? 'true' : 'false'}
-      data-collapse-id={props.item.id}
-    >
-      <span classList={{ [textShimmer]: props.item.status === 'running' }}>Execute</span>
-      <span class={executeChevron({ expanded: props.expanded })} aria-hidden="true">
-        ›
-      </span>
-    </div>
-  );
-}
+import { executeBody, executeLine } from './execute.css';
 
 // ── ExecuteBody ───────────────────────────────────────────────────────────────
 

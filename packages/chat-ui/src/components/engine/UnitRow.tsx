@@ -238,11 +238,6 @@ export function UnitRow(props: UnitRowProps) {
     expandedId: collapsing() ? rowItemId() : props.expandedId,
   });
 
-  const renderCtx: RenderCtx = {
-    viewState: displayViewState,
-    measureCtx: displayMeasureCtx,
-  };
-
   // ── Animated clip ─────────────────────────────────────────────────────────
   // While animating, clamp the content container to the animated content height
   // (= animatedReserved - gapBefore) and hide overflow so the reveal is smooth.
@@ -250,6 +245,15 @@ export function UnitRow(props: UnitRowProps) {
   // rendering is exactly as before — no clip, no overflow truncation.
 
   const animatedContentH = () => animatedReserved() - props.unit.gapBefore;
+
+  // clipHeight is threaded into RenderCtx so card-style rows (plan, execute)
+  // can track their root height to the animated value and keep the bottom
+  // border visible throughout the tween.
+  const renderCtx: RenderCtx = {
+    viewState: displayViewState,
+    measureCtx: displayMeasureCtx,
+    clipHeight: () => (animating() ? animatedContentH() : null),
+  };
 
   return (
     <div

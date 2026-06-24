@@ -81,8 +81,15 @@ export type MeasureCtx = {
  *                 Native UnitDef.Render components call `props.ctx.measureCtx?.()`
  *                 to access theme, width, and caches for re-measuring inside
  *                 the render (e.g. leaf blocks after `measureBlockCached`).
+ * `clipHeight`  — animated content height (px) while a collapse/expand tween
+ *                 runs; null at rest. Card-style renders (plan, execute) use
+ *                 `clipHeight?.() ?? ownHeight` so their bordered root element
+ *                 tracks the animated bottom edge instead of being clipped by
+ *                 the engine wrapper — keeping the bottom border visible
+ *                 throughout the tween. Non-card renders ignore it.
  */
 export type RenderCtx = {
   viewState: { isCollapsed: (id: string) => boolean };
   measureCtx?: () => MeasureCtx;
+  clipHeight?: () => number | null;
 };
