@@ -3,6 +3,8 @@ import type { AgentStatus } from '@shared/core/agents/agentEvents';
 
 export const MAX_CONVERSATION_TITLE_LENGTH = 100;
 
+export type ConversationType = 'pty' | 'acp';
+
 export type Conversation = {
   id: string;
   projectId: string;
@@ -19,6 +21,8 @@ export type Conversation = {
   isInitialConversation: boolean | null;
   agentStatus?: AgentStatus | null;
   agentStatusSeen?: boolean;
+  /** Transport type: 'pty' (default) uses the terminal/PTY path; 'acp' uses the Agent Client Protocol. */
+  type?: ConversationType;
 };
 
 export type RenameConversationParams = {
@@ -38,4 +42,6 @@ export type CreateConversationParams = {
   isInitialConversation?: boolean;
   initialSize?: { cols: number; rows: number };
   initialPrompt?: string;
+  /** Transport type: 'pty' (default) uses the terminal/PTY path; 'acp' uses the Agent Client Protocol. */
+  type?: ConversationType;
 };

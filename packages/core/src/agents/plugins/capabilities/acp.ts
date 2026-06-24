@@ -1,5 +1,4 @@
 import type { Readable, Writable } from 'node:stream';
-import z from 'zod';
 import type {
   Client,
   InitializeRequest,
@@ -16,6 +15,7 @@ import type {
   CloseSessionResponse,
   CancelNotification,
 } from '@agentclientprotocol/sdk';
+import z from 'zod';
 import { definePluginCapability } from '../../../lib/plugins/capability';
 
 export type AcpSpawnContext = {

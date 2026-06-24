@@ -62,7 +62,7 @@ export function resolveLogLevel(args?: { envLevel?: string; debugFlag?: boolean 
 
 export function createLogger(args?: { envLevel?: string; debugFlag?: boolean; sink?: LogSink }) {
   const level = resolveLogLevel({
-    envLevel: args?.envLevel ?? import.meta.env.VITE_LOG_LEVEL,
+    envLevel: args?.envLevel ?? import.meta.env?.VITE_LOG_LEVEL,
     debugFlag: args?.debugFlag,
   });
 
