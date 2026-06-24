@@ -236,7 +236,7 @@ function buildProvider(
     events.emit(gitRepoUpdateChannel, { projectId, update });
   });
 
-  const releaseGitRuntime = async () => {
+  const releaseProjectLeases = async () => {
     unsubscribeRepoUpdates();
     await repoLease.release();
     await runtimeLease.release();
@@ -251,7 +251,7 @@ function buildProvider(
     gitRepositoryFetchService,
     runtimeLease.value.git,
     async () => {
-      await releaseGitRuntime();
+      await releaseProjectLeases();
       await dispose();
     }
   );

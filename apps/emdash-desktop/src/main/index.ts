@@ -9,6 +9,7 @@ import { githubAccountsChangedChannel } from '@shared/events/githubEvents';
 import { registerRPCRouter } from '@shared/lib/ipc/rpc';
 import { setupApplicationMenu } from './app/menu';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
+import { registerQuitHandler } from './app/shutdown';
 import { createMainWindow } from './app/window';
 import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
@@ -23,15 +24,10 @@ import { editorBufferService } from './core/editor/editor-buffer-service';
 import { githubAccountReconciliationService } from './core/github/accounts/github-account-reconciliation-instance';
 import { githubAccountRegistry } from './core/github/accounts/github-account-registry-instance';
 import { GitHubAuthServerAdapter } from './core/github/accounts/github-auth-server-adapter';
-import { projectManager } from './core/projects/project-manager';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
 import { promptLibraryService } from './core/prompt-library/service';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
-import {
-  reconcileResourceSampler,
-  stopResourceSampler,
-} from './core/resource-monitor/resource-sampler';
-import { runtimeManager } from './core/runtime/runtime-manager';
+import { reconcileResourceSampler } from './core/resource-monitor/resource-sampler';
 import { searchService } from './core/search/search-service';
 import { workspaceFileIndexService } from './core/search/workspace-file-index-service';
 import { appSettingsService } from './core/settings/settings-service';
@@ -190,35 +186,4 @@ void app.whenReady().then(async () => {
   }
 });
 
-async function runQuitCleanup(): Promise<void> {
-  telemetryService.capture('app_closed');
-
-  automationsService.stop();
-  agentHookService.dispose();
-  stopResourceSampler();
-  updateService.dispose();
-  prSyncScheduler.dispose();
-
-  void projectManager.dispose().catch((e) => {
-    log.error('Failed to shutdown project manager:', e);
-  });
-
-  const results = await Promise.allSettled([telemetryService.dispose(), runtimeManager.dispose()]);
-
-  for (const result of results) {
-    if (result.status === 'rejected') {
-      log.error('Failed during quit cleanup:', result.reason);
-    }
-  }
-}
-
-let quitCleanupStarted = false;
-
-app.on('before-quit', (event) => {
-  event.preventDefault();
-  if (quitCleanupStarted) return;
-  quitCleanupStarted = true;
-  void runQuitCleanup().finally(() => {
-    app.exit(0);
-  });
-});
+registerQuitHandler();

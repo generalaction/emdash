@@ -143,7 +143,7 @@ export async function provisionBYOITask(
     };
   } finally {
     if (!provisionSucceeded) {
-      await workspaceRegistry.release(workspace.id, 'terminate').catch(() => {});
+      await workspaceRegistry.teardown(workspace.id, 'terminate').catch(() => {});
     }
   }
 }

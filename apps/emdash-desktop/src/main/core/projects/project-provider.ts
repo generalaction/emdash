@@ -5,8 +5,7 @@ import type {
   GitSequences,
   IGitRuntime,
 } from '@emdash/core/git';
-import type { Result } from '@emdash/shared';
-import type { IDisposable } from '@emdash/shared';
+import type { IDisposable, IReleasable, Result } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
@@ -60,7 +59,7 @@ export type ProjectProviderTransport = {
   readonly worktreeHost: WorktreeHost;
 };
 
-export class ProjectProvider implements IDisposable {
+export class ProjectProvider implements IReleasable, IDisposable {
   readonly type: string;
   readonly projectId: string;
   readonly repoPath: string;
@@ -85,7 +84,7 @@ export class ProjectProvider implements IDisposable {
     worktreeService: WorktreeService,
     gitRepositoryFetchService: GitRepositoryFetchService,
     private readonly _gitRuntime: IGitRuntime,
-    private readonly _dispose: () => void | Promise<void>
+    private readonly _releaseProjectLeases: () => void | Promise<void>
   ) {
     this.type = transport.kind;
     this.projectId = projectId;
@@ -134,16 +133,26 @@ export class ProjectProvider implements IDisposable {
     }
   }
 
+  async release(): Promise<void> {
+    this.gitRepositoryFetchService.stop();
+    const results = await Promise.allSettled([
+      workspaceRegistry.releaseLeasesForProject(this.projectId),
+      this._releaseProjectLeases(),
+    ]);
+    const failure = results.find((result) => result.status === 'rejected');
+    if (failure?.status === 'rejected') throw failure.reason;
+  }
+
   async dispose(): Promise<void> {
     try {
       this.gitRepositoryFetchService.stop();
       const projectSettings = await this.settings.get();
       const mode = projectSettings.tmux ? 'detach' : 'terminate';
       await taskSessionManager.teardownAllForProject(this.projectId, mode);
-      await workspaceRegistry.releaseAllForProject(this.projectId, mode);
+      await workspaceRegistry.teardownAllForProject(this.projectId, mode);
       await previewServerService.stopForProject(this.projectId);
     } finally {
-      await this._dispose();
+      await this.release();
     }
   }
 }
