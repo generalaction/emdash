@@ -212,10 +212,11 @@ describe('NotionConnectionService', () => {
         }),
       });
 
-      await expect(service.request('token', '/data_sources/abc/query', { method: 'POST' })).rejects
-        .toThrow(
-          'Notion cannot access the configured data source. Share the page or database with emdash, or update the scope URLs in Emdash settings.'
-        );
+      await expect(
+        service.request('token', '/data_sources/abc/query', { method: 'POST' })
+      ).rejects.toThrow(
+        'Notion cannot access the configured data source. Share the page or database with emdash, or update the scope URLs in Emdash settings.'
+      );
     });
   });
 });
