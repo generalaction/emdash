@@ -12,6 +12,7 @@ import { IntegrationsProvider, useIntegrationsContext } from './integrations-pro
 const mocks = vi.hoisted(() => ({
   checkAllConnections: vi.fn(),
   checkConfiguredConnections: vi.fn(),
+  notionSaveCredentials: vi.fn(),
 }));
 
 vi.mock('@renderer/lib/ipc', () => ({
@@ -29,7 +30,7 @@ vi.mock('@renderer/lib/ipc', () => ({
     asana: { saveToken: vi.fn(), clearToken: vi.fn() },
     monday: { saveCredentials: vi.fn(), clearCredentials: vi.fn() },
     trello: { saveCredentials: vi.fn(), clearCredentials: vi.fn() },
-    notion: { saveCredentials: vi.fn(), clearCredentials: vi.fn() },
+    notion: { saveCredentials: mocks.notionSaveCredentials, clearCredentials: vi.fn() },
   },
 }));
 
@@ -38,13 +39,20 @@ type ProbeState = {
   linearIsMutating: boolean;
 };
 
-function Probe({ onRender }: { onRender: (state: ProbeState) => void }) {
+function Probe({
+  onRender,
+  onProviders,
+}: {
+  onRender: (state: ProbeState) => void;
+  onProviders?: (providers: ReturnType<typeof useIntegrationsContext>['providers']) => void;
+}) {
   const { isCheckingConnections, providers } = useIntegrationsContext();
 
   onRender({
     isCheckingConnections,
     linearIsMutating: providers.linear.isMutating,
   });
+  onProviders?.(providers);
 
   return null;
 }
@@ -113,5 +121,37 @@ describe('IntegrationsProvider', () => {
     expect(mocks.checkAllConnections).toHaveBeenCalled();
     expect(latest?.isCheckingConnections).toBe(true);
     expect(latest?.linearIsMutating).toBe(false);
+  });
+
+  it('allows Notion scope updates without a replacement token', async () => {
+    let providers: ReturnType<typeof useIntegrationsContext>['providers'] | null = null;
+    mocks.checkAllConnections.mockResolvedValue({});
+    mocks.notionSaveCredentials.mockResolvedValue({ success: true });
+
+    await act(async () => {
+      root.render(
+        React.createElement(
+          QueryClientProvider,
+          { client: queryClient },
+          React.createElement(
+            IntegrationsProvider,
+            null,
+            React.createElement(Probe, {
+              onRender: (state) => (latest = state),
+              onProviders: (nextProviders) => (providers = nextProviders),
+            })
+          )
+        )
+      );
+    });
+
+    await act(async () => {
+      await providers?.notion.connect({ token: '', databaseUrls: 'https://notion.com/acme/page' });
+    });
+
+    expect(mocks.notionSaveCredentials).toHaveBeenCalledWith({
+      token: '',
+      databaseUrls: 'https://notion.com/acme/page',
+    });
   });
 });
