@@ -5,6 +5,7 @@ import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { getTaskKnownGitChanges } from '@renderer/features/tasks/components/task-git-diff-stats';
 import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
 import {
@@ -174,7 +175,11 @@ export const TaskList = observer(function TaskList() {
     const selectedTasks = [...taskView.selectedIds]
       .map((id) => taskManager?.tasks.get(id))
       .filter((t): t is ReadyTask => !!t)
-      .map((t) => ({ taskId: t.data.id, taskName: t.data.name }));
+      .map((t) => ({
+        taskId: t.data.id,
+        taskName: t.data.name,
+        hasKnownChanges: getTaskKnownGitChanges(t),
+      }));
 
     if (selectedTasks.length === 0) return;
 

@@ -15,7 +15,7 @@ import type { TaskDeletePreflightItem } from '@shared/core/tasks/tasks';
 
 export type DeleteTaskModalArgs = {
   projectId: string;
-  tasks: Array<{ taskId: string; taskName: string }>;
+  tasks: Array<{ taskId: string; taskName: string; hasKnownChanges?: boolean }>;
 };
 
 export type DeleteTaskModalResult = {
@@ -47,11 +47,16 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
   const isLoading = preflight === null;
 
   const worktreeTasks = preflight?.filter((t) => t.hasWorktree) ?? [];
-  const dirtyTasks = preflight?.filter((t) => t.hasUncommittedChanges) ?? [];
+  const dirtyTaskIds = new Set(tasks.filter((t) => t.hasKnownChanges).map((t) => t.taskId));
+  for (const task of preflight ?? []) {
+    if (task.hasUncommittedChanges) dirtyTaskIds.add(task.taskId);
+  }
+  const dirtyTasks = tasks.filter((t) => dirtyTaskIds.has(t.taskId));
   const branchTasks = preflight?.filter((t) => t.hasDeletableBranch) ?? [];
 
   const showWorktreeCheckbox = !isLoading && worktreeTasks.length > 0;
   const showBranchCheckbox = !isLoading && branchTasks.length > 0;
+  const showDirtyWarning = deleteWorktree && dirtyTasks.length > 0;
 
   const handleWorktreeChange = (checked: boolean) => {
     setDeleteWorktree(checked);
@@ -75,11 +80,9 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
   const dirtyWarning = (() => {
     if (dirtyTasks.length === 0) return null;
     if (!isBulk) {
-      return `"${tasks[0]!.taskName}" has uncommitted changes that will be lost.`;
+      return `"${dirtyTasks[0]?.taskName ?? tasks[0]!.taskName}" has uncommitted changes that will be lost.`;
     }
-    const names = dirtyTasks
-      .map((t) => `"${tasks.find((task) => task.taskId === t.taskId)?.taskName ?? t.taskId}"`)
-      .join(', ');
+    const names = dirtyTasks.map((t) => `"${t.taskName}"`).join(', ');
     return `${dirtyTasks.length} ${dirtyTasks.length === 1 ? 'task has' : 'tasks have'} uncommitted changes that will be lost: ${names}`;
   })();
 
@@ -91,7 +94,7 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
       <DialogContentArea className="flex flex-col gap-4 pt-0">
         <p className="text-sm text-foreground-muted">{description}</p>
 
-        {(showWorktreeCheckbox || showBranchCheckbox) && (
+        {(showWorktreeCheckbox || showBranchCheckbox || showDirtyWarning) && (
           <div className="flex flex-col gap-3">
             {showWorktreeCheckbox && (
               <div className="flex flex-col gap-2">
@@ -102,12 +105,13 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
                   />
                   {worktreeLabel}
                 </label>
-                {deleteWorktree && dirtyWarning && (
-                  <div className="flex items-start gap-1.5 rounded-md bg-background-warning px-3 py-2 text-xs text-foreground-warning">
-                    <TriangleAlert className="mt-px size-3.5 shrink-0" />
-                    <span>{dirtyWarning}</span>
-                  </div>
-                )}
+              </div>
+            )}
+
+            {showDirtyWarning && dirtyWarning && (
+              <div className="flex items-start gap-1.5 rounded-md bg-background-warning px-3 py-2 text-xs text-foreground-warning">
+                <TriangleAlert className="mt-px size-3.5 shrink-0" />
+                <span>{dirtyWarning}</span>
               </div>
             )}
 

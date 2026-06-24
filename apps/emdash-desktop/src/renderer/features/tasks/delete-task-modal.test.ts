@@ -86,4 +86,23 @@ describe('DeleteTaskModal', () => {
 
     expect(onSuccess).toHaveBeenCalledWith({ deleteWorktree: true, deleteBranch: false });
   });
+
+  it('shows known dirty changes before delete preflight finishes', () => {
+    mocks.getDeletePreflight.mockReturnValue(new Promise(() => {}));
+
+    act(() => {
+      root.render(
+        React.createElement(DeleteTaskModal, {
+          projectId: 'project-1',
+          tasks: [{ taskId: 'task-1', taskName: 'Dirty task', hasKnownChanges: true }],
+          onSuccess: vi.fn(),
+          onClose: vi.fn(),
+        })
+      );
+    });
+
+    expect(container.textContent).toContain(
+      '"Dirty task" has uncommitted changes that will be lost.'
+    );
+  });
 });

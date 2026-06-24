@@ -2,7 +2,10 @@ import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
 import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
-import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
+import {
+  getTaskKnownGitChanges,
+  TaskGitDiffStats,
+} from '@renderer/features/tasks/components/task-git-diff-stats';
 import {
   getTaskGitWorktreeStore,
   getTaskManagerStore,
@@ -42,7 +45,13 @@ export const TaskRow = observer(function TaskRow({
   const handleDelete = () =>
     showDeleteTask({
       projectId: task.data.projectId,
-      tasks: [{ taskId: task.data.id, taskName: task.data.name }],
+      tasks: [
+        {
+          taskId: task.data.id,
+          taskName: task.data.name,
+          hasKnownChanges: getTaskKnownGitChanges(task),
+        },
+      ],
       onSuccess: ({ deleteWorktree, deleteBranch }) =>
         void taskManager?.deleteTasks([task.data.id], { deleteWorktree, deleteBranch }),
     });

@@ -21,6 +21,17 @@ export function useTaskGitDiffStats(task: TaskStore): {
   return { linesAdded, linesDeleted, visible };
 }
 
+export function getTaskKnownGitChanges(task: TaskStore): boolean {
+  const projectId = isRegistered(task) ? task.data.projectId : undefined;
+  const git = projectId ? getTaskGitWorktreeStore(projectId, task.data.id) : undefined;
+  if (git) {
+    return !git.error && git.fileChanges.length > 0;
+  }
+
+  const cachedGit = isRegistered(task) ? task.data.workspaceGit : undefined;
+  return !!cachedGit && (cachedGit.linesAdded > 0 || cachedGit.linesDeleted > 0);
+}
+
 /**
  * Working-tree line add/remove totals for a task.
  * Uses live GitWorktreeStore data when the task is provisioned; falls back to the
