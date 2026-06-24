@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/main/core/utils/exec.ts
+  s_1aa8216004adc4::t_b51f2a8327020b 2,4-22,24-25
+apps/emdash-desktop/src/main/core/utils/exec.test.ts
+  s_1aa8216004adc4::t_1518e478fd019c 1-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "938b0ba501f3e567ed8f931b8d8c1c8e02b255c0",
+  "prompts": {},
+  "sessions": {
+    "s_1aa8216004adc4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef83e-5ee4-7f20-8901-84d21249f367",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
