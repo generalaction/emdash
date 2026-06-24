@@ -411,16 +411,20 @@ function blockToBlocks(
  * @param markdown  - Raw markdown string to parse.
  * @param provider  - Optional @-mention resolver; when supplied, `@token` spans
  *                    that resolve to metadata are emitted as InlineMention runs.
+ * @param startN    - Starting block counter (default 0). Used by the incremental
+ *                    streaming parser to assign continuation IDs when parsing tail
+ *                    chunks so they join seamlessly with the stable prefix IDs.
  */
 export function parseMarkdownToBlocks(
   messageId: string,
   markdown: string,
-  provider?: MentionProvider
+  provider?: MentionProvider,
+  startN = 0,
 ): Block[] {
   if (!markdown.trim()) return [];
 
   const tree = parser.parse(markdown) as Root;
-  const counter = { n: 0 };
+  const counter = { n: startN };
   const blocks: Block[] = [];
 
   for (const child of tree.children) {

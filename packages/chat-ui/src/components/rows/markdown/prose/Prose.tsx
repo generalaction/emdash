@@ -285,20 +285,28 @@ export type ProseProps = {
 export function Prose(props: ProseProps) {
   const streamAnim = useStreamAnimation();
 
-  // Pre-compute per-fragment word offsets and the block total so that
-  // ProseFragment can determine whether each word is new without scanning the
-  // whole block. Rebuilt whenever lines/runs change (i.e. each streaming tick).
+  // Pre-compute per-fragment word offsets, the block total, and a per-line
+  // base-flat index so that ProseFragment can determine whether each word is
+  // new without scanning the whole block. Rebuilt whenever lines/runs change
+  // (i.e. each streaming tick).
+  //
+  // lineBaseFlat[i] = total fragment count across lines 0…i-1, so a fragment
+  // at (lineIdx, fragIdx) maps to fragWordOffsets[lineBaseFlat[lineIdx] + fragIdx]
+  // in O(1) rather than summing per-line counts on every access (was O(lines^2)).
   const fragData = createMemo<{
     fragWordOffsets: number[];
+    lineBaseFlat: number[];
     totalWords: number;
     frontier: number;
   } | null>(() => {
     if (!streamAnim) return null;
 
     const offsets: number[] = [];
+    const lineBaseFlat: number[] = [];
     let cursor = 0;
 
     for (const line of props.block.lines) {
+      lineBaseFlat.push(offsets.length);
       for (const frag of line.fragments) {
         offsets.push(cursor);
         const run = props.runs[frag.runIndex];
@@ -316,6 +324,7 @@ export function Prose(props: ProseProps) {
 
     return {
       fragWordOffsets: offsets,
+      lineBaseFlat,
       totalWords: cursor,
       frontier: streamAnim.frontier.get(props.block.id) ?? 0,
     };
@@ -329,19 +338,6 @@ export function Prose(props: ProseProps) {
     if (d) streamAnim.frontier.set(props.block.id, d.totalWords);
   });
 
-  // Build a flat per-fragment offset array for passing down.
-  const getFragWordOffset = (lineIdx: number, fragIdx: number): number | undefined => {
-    const d = fragData();
-    if (!d) return undefined;
-    // Compute the flat fragment index across all lines up to this point.
-    let flat = 0;
-    for (let li = 0; li < lineIdx; li++) {
-      flat += props.block.lines[li].fragments.length;
-    }
-    flat += fragIdx;
-    return d.fragWordOffsets[flat];
-  };
-
   return (
     <BlockFrame layout={props.block}>
       <Show when={props.block.quoteRail}>
@@ -351,9 +347,9 @@ export function Prose(props: ProseProps) {
       <For each={props.block.lines}>
         {(line, lineIdx) => {
           const d = fragData();
-          // Build per-fragment offset array for this line.
+          // Build per-fragment offset array for this line using O(1) prefix lookup.
           const lineFragOffsets = d
-            ? line.fragments.map((_, fi) => getFragWordOffset(lineIdx(), fi) ?? 0)
+            ? line.fragments.map((_, fi) => d.fragWordOffsets[d.lineBaseFlat[lineIdx()] + fi] ?? 0)
             : undefined;
           return (
             <ProseLine

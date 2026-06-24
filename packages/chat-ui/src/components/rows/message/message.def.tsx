@@ -25,7 +25,9 @@ import {
 
 export function measureMessage(item: ChatMessage, ctx: MeasureCtx, vars: MessageVars): number {
   const { userCardPadY, cardBorder, collapsedMaxH, expandedMaxH } = vars;
-  const blocks = ctx.caches.parseBlocks(item.id, item.text);
+  const blocks = item.streaming
+    ? ctx.caches.parseBlocksStreaming(item.id, item.text)
+    : ctx.caches.parseBlocks(item.id, item.text);
 
   if (item.role === 'user') {
     const innerW = userInnerWidth(ctx.width, vars);
@@ -60,7 +62,9 @@ function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx; vars: Messa
   const stack = createMemo<Measured<StackLayout> | null>(() => {
     const ctx = mCtx();
     if (!ctx) return null;
-    const blocks = ctx.caches.parseBlocks(props.data.id, props.data.text);
+    const blocks = props.data.streaming
+      ? ctx.caches.parseBlocksStreaming(props.data.id, props.data.text)
+      : ctx.caches.parseBlocks(props.data.id, props.data.text);
     if (blocks.length === 0) return null;
     return layoutBlockStack(blocks, ctx, { isCollapsed: ctx.isCollapsed });
   });
@@ -74,7 +78,10 @@ function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx; vars: Messa
   const plainText = () => {
     const ctx = mCtx();
     if (!ctx) return props.data.text;
-    return ctx.caches.parseBlocks(props.data.id, props.data.text).map(blockPlainText).join('\n\n');
+    // Use the same parse path as the renderer so we don't trigger a full reparse
+    // during streaming just for the screen-reader text.
+    const parse = props.data.streaming ? ctx.caches.parseBlocksStreaming : ctx.caches.parseBlocks;
+    return parse(props.data.id, props.data.text).map(blockPlainText).join('\n\n');
   };
 
   const role = () =>

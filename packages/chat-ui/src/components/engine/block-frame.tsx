@@ -83,6 +83,10 @@ export function BlockFrame(props: BlockFrameProps) {
         height: `${props.layout.height}px`,
         left: '0',
         right: '0',
+        // Exact intrinsic size so the browser reserves the correct vertical space
+        // while this block is skipped by content-visibility: auto. Must stay in
+        // sync with layout.height (both come from the same measure() output).
+        'contain-intrinsic-size': `0 ${props.layout.height}px`,
       }}
     >
       {props.children}

@@ -43,6 +43,72 @@ import type { Block } from './markdown/document';
 import type { MentionProvider } from './markdown/mention-provider';
 import { parseMarkdownToBlocks } from './markdown/parse';
 
+// ── Streaming parse helpers ───────────────────────────────────────────────────
+//
+// Incremental (append-aware) streaming parser state. During streaming each new
+// chunk re-parses only the "growing" tail (text after the last blank-line
+// boundary that is not inside an open code fence). The settled prefix keeps its
+// Block object identities across chunks so blockMemo (WeakMap-keyed by Block
+// ref) hits for them — turning the O(n²) re-parse/re-measure/re-render into
+// O(tail) per chunk.
+
+type StreamingRecord = {
+  /** Portion of the message text whose blocks are stable (object-identity-stable). */
+  stableText: string;
+  /** Parsed Block objects for stableText. Never mutated after creation. */
+  stableBlocks: Block[];
+  /** Next block counter value = stableBlocks.length. */
+  counter: number;
+};
+
+/**
+ * Returns true if `text` ends inside an open code fence (a line starting with
+ * 3+ backticks or tildes). Used to avoid treating blank lines inside code blocks
+ * as safe streaming-parse boundaries.
+ */
+function endsInsideFence(text: string): boolean {
+  let inside = false;
+  let i = 0;
+  while (i < text.length) {
+    const nlIdx = text.indexOf('\n', i);
+    const lineEnd = nlIdx === -1 ? text.length : nlIdx;
+    const line = text.slice(i, lineEnd);
+    if (/^\s*(`{3,}|~{3,})/.test(line)) inside = !inside;
+    if (nlIdx === -1) break;
+    i = nlIdx + 1;
+  }
+  return inside;
+}
+
+/**
+ * Returns the position in `tail` immediately after the last safe streaming
+ * parse boundary — a blank line (`\n\n`) that is not inside an open code fence.
+ * Returns 0 when no safe boundary exists (the entire tail is still growing).
+ *
+ * `stableText` is used to determine whether the start of `tail` is already
+ * inside a code fence opened in the stable prefix.
+ */
+function findSafeStreamBoundary(stableText: string, tail: string): number {
+  let inside = endsInsideFence(stableText);
+  let lastSafe = 0;
+  let i = 0;
+
+  while (i < tail.length) {
+    const nlIdx = tail.indexOf('\n', i);
+    if (nlIdx === -1) break;
+    const line = tail.slice(i, nlIdx);
+    if (/^\s*(`{3,}|~{3,})/.test(line)) inside = !inside;
+    // A blank line is detected when the character immediately after this \n is
+    // also \n (making the sequence \n\n in the source).
+    if (!inside && tail[nlIdx + 1] === '\n') {
+      lastSafe = nlIdx + 2;
+    }
+    i = nlIdx + 1;
+  }
+
+  return lastSafe;
+}
+
 // ── Cache key helpers ─────────────────────────────────────────────────────────
 
 /**
@@ -87,6 +153,22 @@ function lruSet<V>(cache: Map<string, V>, key: string, val: V, maxSize: number):
 export type ChatCaches = {
   /** Parse markdown into a Block[] with identity-stable caching per messageId. */
   parseBlocks(id: string, markdown: string): Block[];
+  /**
+   * Incremental streaming parse — O(tail) per chunk instead of O(n²).
+   *
+   * Maintains a per-id streaming record that tracks the stable prefix (text
+   * whose Block objects are reused across chunks so blockMemo hits for them).
+   * Only the growing tail after the last blank-line boundary is re-parsed on
+   * each chunk. Call this while `item.streaming === true`; switch to the normal
+   * `parseBlocks` after the turn is frozen — that final call clears the record.
+   *
+   * Limitations (acceptable for chat use):
+   *   - Non-append mutations (edit/replay) fall back to a full reparse.
+   *   - Blank lines inside code fences are excluded from boundaries, but
+   *     link-reference definitions and exotic loose-list continuations near
+   *     a boundary may not parse identically in isolation vs. in context.
+   */
+  parseBlocksStreaming(id: string, markdown: string): Block[];
   /** Drop the cached blocks for one message (call after text is frozen). */
   evictBlocks(id: string): void;
   /** Return a cached PreparedRichInline for items; computes and caches on miss. */
@@ -123,6 +205,10 @@ export function createChatCaches(
   // Block parse cache — keyed by messageId.
   const blockCache = new Map<string, { text: string; blocks: Block[] }>();
 
+  // Streaming parse records — keyed by messageId. Cleared when the non-streaming
+  // parseBlocks path is taken (i.e. on turn freeze).
+  const streamCache = new Map<string, StreamingRecord>();
+
   // Rich-inline text measurement cache — keyed by content.
   const richInlineCache = new Map<string, PreparedRichInline>();
 
@@ -138,6 +224,8 @@ export function createChatCaches(
 
   return {
     parseBlocks(id, markdown) {
+      // Clear any streaming record — this path is taken after turn freeze.
+      streamCache.delete(id);
       const hit = blockCache.get(id);
       if (hit && hit.text === markdown) return hit.blocks;
       const blocks = parseMarkdownToBlocks(id, markdown, mentionProvider);
@@ -145,8 +233,48 @@ export function createChatCaches(
       return blocks;
     },
 
+    parseBlocksStreaming(id, markdown) {
+      if (!markdown.trim()) return [];
+
+      let rec = streamCache.get(id);
+
+      // If the text is not an append (edit/replay), reset and treat all content
+      // as a fresh growing tail with no stable prefix.
+      if (!rec || !markdown.startsWith(rec.stableText)) {
+        rec = { stableText: '', stableBlocks: [], counter: 0 };
+        streamCache.set(id, rec);
+      }
+
+      const tail = markdown.slice(rec.stableText.length);
+
+      // Find the last blank-line boundary in the tail that is outside any open
+      // code fence. Everything before it can be parsed as stable settled blocks.
+      const boundary = findSafeStreamBoundary(rec.stableText, tail);
+
+      if (boundary > 0) {
+        // Parse the newly settled chunk and append to the stable prefix. These
+        // blocks get object-stable identities on subsequent chunks (blockMemo hits).
+        const settledChunk = tail.slice(0, boundary);
+        const newBlocks = parseMarkdownToBlocks(id, settledChunk, mentionProvider, rec.counter);
+        rec.stableBlocks = [...rec.stableBlocks, ...newBlocks];
+        rec.stableText += settledChunk;
+        rec.counter += newBlocks.length;
+      }
+
+      // Re-parse the still-growing tail (small; only content after boundary).
+      const growingChunk = tail.slice(boundary);
+      const growingBlocks = growingChunk.trim()
+        ? parseMarkdownToBlocks(id, growingChunk, mentionProvider, rec.counter)
+        : [];
+
+      return growingBlocks.length > 0
+        ? [...rec.stableBlocks, ...growingBlocks]
+        : rec.stableBlocks;
+    },
+
     evictBlocks(id) {
       blockCache.delete(id);
+      streamCache.delete(id);
     },
 
     prepareRichInline(items) {
@@ -192,6 +320,7 @@ export function createChatCaches(
 
     clear() {
       blockCache.clear();
+      streamCache.clear();
       richInlineCache.clear();
       highlightCache.clear();
       diffCache.clear();
