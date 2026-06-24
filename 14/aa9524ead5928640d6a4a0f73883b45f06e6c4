@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/shared/feature-announcements/feature-announcements.toml.test.ts
+  s_135263fed19937::t_f73b7a0e1c91d6 41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "14aa9524ead5928640d6a4a0f73883b45f06e6c4",
+  "prompts": {},
+  "sessions": {
+    "s_135263fed19937": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef91a-793e-7fe1-91e6-93d6f6e930de",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
