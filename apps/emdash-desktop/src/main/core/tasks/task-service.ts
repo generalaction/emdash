@@ -186,7 +186,9 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
 
   async restoreTask(id: string): Promise<void> {
     const task = await restoreTask(id);
-    if (task) this._hooks.callHookBackground('task:updated', task);
+    if (task) {
+      this._hooks.callHookBackground('task:updated', task);
+    }
   }
 
   async renameTask(

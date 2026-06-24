@@ -1,21 +1,11 @@
 import { Command } from 'cmdk';
 import { useObserver } from 'mobx-react-lite';
-import {
-  asMounted,
-  getProjectManagerStore,
-} from '@renderer/features/projects/stores/project-selectors';
-import type { ConversationStore } from '@renderer/features/tasks/conversations/conversation-manager';
-import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
+import { getTaskNotificationItems } from '@renderer/features/tasks/stores/task-notifications';
 import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
-import { isRegistered, type TaskStore } from '@renderer/features/tasks/stores/task-store';
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { cn } from '@renderer/utils/utils';
 import { PaletteConversationItem } from './palette-conversation-item';
 import { PaletteTaskItem } from './palette-task-item';
-
-type NotificationItem =
-  | { kind: 'task'; projectId: string; taskStore: TaskStore }
-  | { kind: 'conversation'; projectId: string; taskId: string; conv: ConversationStore };
 
 const GROUP_CLASS = cn(
   '[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5',
@@ -36,38 +26,7 @@ export function PaletteNotificationsGroup({
   onClose,
   navigate,
 }: PaletteNotificationsGroupProps) {
-  const items = useObserver((): NotificationItem[] => {
-    const result: NotificationItem[] = [];
-
-    for (const projectStore of getProjectManagerStore().projects.values()) {
-      const mounted = asMounted(projectStore);
-      if (!mounted) continue;
-      const pid = mounted.data.id;
-
-      for (const [tid, taskStore] of mounted.taskManager.tasks) {
-        if (!isRegistered(taskStore)) continue;
-        const conversations = conversationRegistry.get(tid);
-        if (!conversations) continue;
-
-        const status = conversations.taskStatus;
-        // Only surface awaiting-input, error, completed — not working or idle.
-        if (!status || status === 'idle' || status === 'working') continue;
-
-        if (pid === currentProjectId && tid === currentTaskId) {
-          // We're already in this task — surface individual unseen conversations.
-          for (const conv of conversations.conversations.values()) {
-            if (!conv.seen && conv.indicatorStatus) {
-              result.push({ kind: 'conversation', projectId: pid, taskId: tid, conv });
-            }
-          }
-        } else {
-          result.push({ kind: 'task', projectId: pid, taskStore });
-        }
-      }
-    }
-
-    return result;
-  });
+  const items = useObserver(() => getTaskNotificationItems(currentProjectId, currentTaskId));
 
   if (items.length === 0) return null;
 
