@@ -1,3 +1,6 @@
+import { createRequire } from 'node:module';
+import { Readable, Writable } from 'node:stream';
+import { ClientSideConnection, ndJsonStream } from '@agentclientprotocol/sdk';
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
 import {
   buildStandardCommand,
@@ -6,6 +9,12 @@ import {
 } from '@emdash/core/agents/plugins/helpers';
 import { buildClaudeHookConfig } from './hooks';
 import { icon } from './icon';
+
+const _require = createRequire(import.meta.url);
+
+function resolveClaudeAcpEntry(): string {
+  return _require.resolve('@agentclientprotocol/claude-agent-acp/dist/index.js');
+}
 
 export const plugin = definePlugin(
   {
@@ -16,6 +25,9 @@ export const plugin = definePlugin(
     websiteUrl: 'https://code.claude.com/docs/en/quickstart',
   },
   {
+    acp: {
+      kind: 'supported',
+    },
     autoApprove: {
       kind: 'supported',
     },
@@ -102,6 +114,26 @@ export const plugin = definePlugin(
 );
 
 export const provider = registerPluginBehavior(plugin, {
+  acp: {
+    buildSpawn: (ctx) => ({
+      // Run the adapter as plain Node inside the Electron binary.
+      command: process.execPath,
+      args: [resolveClaudeAcpEntry()],
+      env: {
+        ELECTRON_RUN_AS_NODE: '1',
+        // Point the adapter's Claude Agent SDK at the host-installed claude
+        // binary instead of the SDK's auto-downloaded native binary.
+        CLAUDE_CODE_EXECUTABLE: ctx.cli,
+      },
+    }),
+    connect: (io, toClient) => {
+      const stream = ndJsonStream(
+        Writable.toWeb(io.stdin) as WritableStream<Uint8Array>,
+        Readable.toWeb(io.stdout) as unknown as ReadableStream<Uint8Array>
+      );
+      return new ClientSideConnection((agent) => toClient(agent as never), stream);
+    },
+  },
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {

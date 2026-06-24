@@ -61,6 +61,7 @@
     "typecheck": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "^0.25.1",
     "@emdash/shared": "workspace:*",
     "@parcel/watcher": "^2.5.6",
     "semver": "^7.8.4",
