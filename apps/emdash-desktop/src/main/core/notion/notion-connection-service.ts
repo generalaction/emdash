@@ -9,7 +9,7 @@ const CREDENTIALS_KEY = 'emdash-notion-credentials';
 const MAX_SELECTED_DATABASES = 50;
 
 export const NOTION_API_ERROR_MESSAGES = {
-  AUTH_FAILED: 'Notion authentication failed. Check your connection access token.',
+  AUTH_FAILED: 'Notion authentication failed. Check your access token.',
   MISSING_PERMISSIONS:
     'Notion token was accepted but is missing access to the selected pages or databases.',
   RATE_LIMITED: 'Notion API rate limit exceeded. Please try again shortly.',
@@ -159,7 +159,7 @@ export class NotionConnectionService {
   ): Promise<{ success: boolean; displayName?: string; error?: string }> {
     const token = input.token.trim();
     if (!token) {
-      return { success: false, error: 'Notion access token cannot be empty.' };
+      return { success: false, error: 'Access token cannot be empty.' };
     }
 
     const scope = this.parseDatabaseUrls(input.databaseUrls);

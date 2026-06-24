@@ -20,7 +20,7 @@ function NotionSetupForm({ onSuccess, onClose }: SetupFormProps) {
       <div className="grid gap-2">
         <Input
           type="password"
-          placeholder="Connection access token"
+          placeholder="Access token"
           value={token}
           onChange={(e) => setToken(e.target.value)}
           className="h-9 w-full"
@@ -33,10 +33,10 @@ function NotionSetupForm({ onSuccess, onClose }: SetupFormProps) {
           className="h-9 w-full"
         />
         <p className="text-muted-foreground text-xs">
-          Create a connection at{' '}
-          <span className="font-medium">notion.com/my-integrations</span>, copy its access token,
-          then share the target pages or databases with that connection. Add URLs to choose exactly
-          which data sources Emdash searches; otherwise it searches all shared pages.
+          Create a connection at <span className="font-medium">notion.com/my-integrations</span>,
+          copy the access token, then share the target pages or databases with that connection. Add
+          URLs to choose exactly which data sources Emdash searches; otherwise it searches all
+          shared pages.
         </p>
       </div>
     </SetupFormShell>

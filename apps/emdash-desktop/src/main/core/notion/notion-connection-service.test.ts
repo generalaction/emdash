@@ -131,7 +131,7 @@ describe('NotionConnectionService', () => {
 
       expect(result).toEqual({
         success: false,
-        error: 'Notion access token cannot be empty.',
+        error: 'Access token cannot be empty.',
       });
       expect(mockFetch).not.toHaveBeenCalled();
     });
