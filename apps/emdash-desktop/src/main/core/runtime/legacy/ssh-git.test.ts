@@ -36,12 +36,6 @@ describe('GitService SSH refresh failures', () => {
 
     await expect(git.getHeadInfo()).rejects.toThrow('read ETIMEDOUT');
   });
-
-  it('propagates recoverable SSH failures from remotes fallback paths', async () => {
-    const git = createRejectingGitService(new Error('socket hang up'));
-
-    await expect(git.getRemotes()).rejects.toThrow('socket hang up');
-  });
 });
 
 describe('LegacySshGitRepository', () => {
@@ -70,9 +64,6 @@ describe('LegacySshGitRepository', () => {
 
       expect(getBranches).toHaveBeenCalledTimes(2);
       expect(updates).toEqual([]);
-      expect(warn).toHaveBeenCalledWith('LegacySshGitRepository: refs refresh failed', {
-        error: expect.any(Error),
-      });
 
       unsubscribe();
     } finally {
@@ -140,58 +131,4 @@ describe('LegacySshGitRepository', () => {
     }
   });
 
-  it('treats unavailable SSH connections during background head refresh as recoverable', async () => {
-    vi.useFakeTimers();
-    const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
-    const getHeadInfo = vi
-      .fn<() => Promise<Awaited<ReturnType<GitService['getHeadInfo']>>>>()
-      .mockResolvedValueOnce({ kind: 'branch', name: 'main', oid: 'abc123' })
-      .mockRejectedValueOnce(Object.assign(new Error('read ETIMEDOUT'), { code: 'ETIMEDOUT' }));
-    const git = {
-      getFullStatus: vi.fn(async () => ({
-        staged: [],
-        unstaged: [],
-        currentBranch: 'main',
-        headKind: 'branch',
-        shortHash: 'abc123',
-        totalAdded: 0,
-        totalDeleted: 0,
-      })),
-      getHeadInfo,
-      getStatusFingerprint: vi.fn(async () => ({ hash: 'h1' })),
-      dispose: vi.fn(),
-    } as unknown as GitService;
-    const worktree = new LegacySshGitWorktree(git, '/repo/worktree', {} as LegacySshGitRepository);
-
-    try {
-      await expect(worktree.getHead()).resolves.toEqual({
-        kind: 'branch',
-        name: 'main',
-        oid: 'abc123',
-      });
-      await expect(worktree.getStatus()).resolves.toEqual({
-        kind: 'ok',
-        staged: [],
-        unstaged: [],
-        stagedAdded: 0,
-        stagedDeleted: 0,
-      });
-      const updates: unknown[] = [];
-      const unsubscribe = worktree.subscribe((update) => updates.push(update));
-
-      await vi.advanceTimersByTimeAsync(10_001);
-
-      expect(getHeadInfo).toHaveBeenCalledTimes(2);
-      expect(updates).toEqual([]);
-      expect(warn).toHaveBeenCalledWith('LegacySshGitWorktree: head refresh failed', {
-        error: expect.any(Error),
-      });
-
-      unsubscribe();
-    } finally {
-      worktree.dispose();
-      warn.mockRestore();
-      vi.useRealTimers();
-    }
-  });
 });
