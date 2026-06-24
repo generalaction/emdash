@@ -51,6 +51,7 @@ import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { GitService } from '@main/core/git/legacy/git-service';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
+import { isRecoverableSshTransportError } from '@main/core/ssh/transport-errors';
 import { log } from '@main/lib/logger';
 import type { ImageReadResult as LegacyImageReadResult } from '@shared/core/git/types';
 
@@ -59,28 +60,6 @@ const UNTRACKED_STATUS_POLL_MS = 30_000;
 const HEAD_POLL_MS = 10_000;
 const REFS_POLL_MS = 15_000;
 const REMOTES_POLL_MS = 60_000;
-
-const RECOVERABLE_SSH_REFRESH_ERROR_CODES = new Set([
-  'ECONNRESET',
-  'ECONNREFUSED',
-  'EHOSTUNREACH',
-  'ENETDOWN',
-  'ENETUNREACH',
-  'ENOTCONN',
-  'EPIPE',
-  'ETIMEDOUT',
-]);
-
-function isRecoverableSshRefreshError(error: unknown): boolean {
-  const code =
-    typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : null;
-  if (typeof code === 'string' && RECOVERABLE_SSH_REFRESH_ERROR_CODES.has(code)) return true;
-
-  const message = error instanceof Error ? error.message : String(error);
-  return /SSH connection is not available|read ETIMEDOUT|timed out|connection (?:reset|refused|closed)|not connected|socket hang up/i.test(
-    message
-  );
-}
 
 type LegacyRepositoryResource = {
   repository: LegacySshGitRepository;
@@ -418,7 +397,7 @@ export class LegacySshGitRepository implements IGitRepository {
     try {
       return ok({ branches: await this.git.getBranches() });
     } catch (error) {
-      if (isRecoverableSshRefreshError(error)) return err(error);
+      if (isRecoverableSshTransportError(error)) return err(error);
       throw error;
     }
   }
@@ -427,7 +406,7 @@ export class LegacySshGitRepository implements IGitRepository {
     try {
       return ok({ remotes: (await this.git.getRemotes()) as GitRemote[] });
     } catch (error) {
-      if (isRecoverableSshRefreshError(error)) return err(error);
+      if (isRecoverableSshTransportError(error)) return err(error);
       throw error;
     }
   }
@@ -641,7 +620,7 @@ export class LegacySshGitWorktree implements IGitWorktree {
       });
     } catch (error) {
       if (error instanceof TooManyFilesChangedError) return ok({ kind: 'too-many-files' });
-      if (isRecoverableSshRefreshError(error)) return err(error);
+      if (isRecoverableSshTransportError(error)) return err(error);
       throw error;
     }
   }
@@ -650,7 +629,7 @@ export class LegacySshGitWorktree implements IGitWorktree {
     try {
       return ok(await this.git.getHeadInfo());
     } catch (error) {
-      if (isRecoverableSshRefreshError(error)) return err(error);
+      if (isRecoverableSshTransportError(error)) return err(error);
       throw error;
     }
   }

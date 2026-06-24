@@ -30,6 +30,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { IDisposable } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
+import { isRecoverableSshTransportError } from '@main/core/ssh/transport-errors';
 import { GIT_EXECUTABLE } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import {
@@ -55,28 +56,6 @@ const STATUS_FINGERPRINT_TIMEOUT_MS: Record<GitStatusUntrackedMode, number> = {
   no: 5_000,
   normal: 10_000,
 };
-
-const RECOVERABLE_SSH_TRANSPORT_ERROR_CODES = new Set([
-  'ECONNRESET',
-  'ECONNREFUSED',
-  'EHOSTUNREACH',
-  'ENETDOWN',
-  'ENETUNREACH',
-  'ENOTCONN',
-  'EPIPE',
-  'ETIMEDOUT',
-]);
-
-function isRecoverableSshTransportError(error: unknown): boolean {
-  const code =
-    typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : null;
-  if (typeof code === 'string' && RECOVERABLE_SSH_TRANSPORT_ERROR_CODES.has(code)) return true;
-
-  const message = error instanceof Error ? error.message : String(error);
-  return /SSH connection is not available|read ETIMEDOUT|timed out|connection (?:reset|refused|closed)|not connected|socket hang up/i.test(
-    message
-  );
-}
 
 function emptyStdoutUnlessRecoverable(error: unknown): { stdout: string } {
   if (isRecoverableSshTransportError(error)) throw error;
