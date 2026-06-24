@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tasks/view/tab-bar.tsx
+  s_e5058293aeb935::t_4be3cba4e5229b 103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "20e4ceee01790f0402dccafa4eabb6d29454f865",
+  "prompts": {},
+  "sessions": {
+    "s_e5058293aeb935": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eeef2-329b-7863-8ccb-abfe4eade013",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
