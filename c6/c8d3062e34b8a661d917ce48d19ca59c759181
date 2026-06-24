@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/integrations/provider-icons.tsx
+  s_271a13d5c1354d::t_4a3c508dc5364f 203,205-210
+apps/emdash-desktop/src/assets/images/mcp/notion.svg
+  s_271a13d5c1354d::t_d7a6b3aac7a43b 1-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "c6c8d3062e34b8a661d917ce48d19ca59c759181",
+  "prompts": {},
+  "sessions": {
+    "s_271a13d5c1354d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2928e61b-bd56-44d4-9c1a-2b13391a6d9d",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
