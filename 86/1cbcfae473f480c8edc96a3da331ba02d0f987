@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/integrations/NotionSetupForm.tsx
+  s_760e6dd4de391c::t_cc0de1579d629f 61,67-68
+apps/emdash-desktop/src/renderer/features/integrations/issue-provider-meta.ts
+  s_760e6dd4de391c::t_cc0de1579d629f 152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "861cbcfae473f480c8edc96a3da331ba02d0f987",
+  "prompts": {},
+  "sessions": {
+    "s_760e6dd4de391c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef7f7-792a-74a1-a418-d97235dd6751",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
