@@ -144,7 +144,7 @@ export class SshConversationProvider implements ConversationProvider {
         sessionId: agentSession.sessionId,
         providerSessionId: conversation.providerSessionId ?? undefined,
         isResuming: agentSession.isResuming,
-        model: '',
+        model: conversation.model ?? '',
       });
 
       const customEnv = providerConfig?.env ?? {};

@@ -18,11 +18,13 @@ export function PickExistingPanel({
   strategy,
   connectionId,
   state,
+  inspectionError,
   showInitializeGitPrompt,
 }: {
   strategy: Strategy;
   connectionId?: string;
   state: PickModeState;
+  inspectionError?: string;
   showInitializeGitPrompt: boolean;
 }) {
   const nameId = useId();
@@ -54,6 +56,14 @@ export function PickExistingPanel({
           onChange={(e) => state.handleNameChange(e.target.value)}
         />
       </Field>
+      {inspectionError && (
+        <div className="border-destructive/40 overflow-hidden rounded-md border">
+          <p className="border-destructive/30 bg-destructive/10 text-destructive border-b px-2 py-1 text-xs">
+            Could not inspect this directory.
+          </p>
+          <p className="p-2 text-xs text-foreground-muted">{inspectionError}</p>
+        </div>
+      )}
       {showInitializeGitPrompt && (
         <div className="overflow-hidden rounded-md border border-border">
           <p className="border-b border-border bg-background-1 px-2 py-1 text-xs text-foreground-muted">

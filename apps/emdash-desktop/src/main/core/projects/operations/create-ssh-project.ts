@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { GitPathInspection } from '@emdash/core/git';
 import { err, ok } from '@emdash/shared';
 import { sql } from 'drizzle-orm';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
@@ -102,7 +103,14 @@ export async function getSshProjectPathStatus(
 
     const runtimeLease = await runtimeManager.acquire({ kind: 'ssh', connectionId });
     try {
-      const inspection = await runtimeLease.value.git.inspectPath(path);
+      const inspection: GitPathInspection = await runtimeLease.value.git.inspectPath(path);
+      if (inspection.kind === 'inspect-failed') {
+        return {
+          isDirectory: true,
+          isGitRepo: false,
+          error: { type: 'inspect-failed', path: inspection.path, message: inspection.message },
+        };
+      }
       return { isDirectory: true, isGitRepo: inspection.kind === 'repository' };
     } finally {
       runtimeLease.release();

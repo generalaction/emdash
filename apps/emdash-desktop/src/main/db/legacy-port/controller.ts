@@ -1,9 +1,7 @@
-import { join } from 'node:path';
 import { count } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { app } from 'electron';
 import { db } from '@main/db/client';
-import { PREVIOUS_DB_FILENAME } from '@main/db/default-path';
 import * as schema from '@main/db/schema';
 import { projects, tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -13,7 +11,8 @@ import { openLegacyReadOnly } from './legacy-source/open-readonly';
 import {
   hasBetaDatabaseFile,
   hasLegacyDatabaseFile,
-  resolveLegacyDatabasePath,
+  resolveExistingBetaDatabasePath,
+  resolveExistingLegacyDatabasePath,
 } from './legacy-source/path';
 import { createDefaultLegacyPortStateStore, runLegacyPort } from './service';
 import { createLegacyPortPreview } from './source-analysis';
@@ -41,8 +40,8 @@ export const legacyPortController = createRPCController({
     const userDataPath = app.getPath('userData');
     const hasLegacyDb = hasLegacyDatabaseFile(userDataPath);
     const hasBetaDb = hasBetaDatabaseFile(userDataPath);
-    const legacyPath = resolveLegacyDatabasePath(userDataPath);
-    const betaPath = join(userDataPath, PREVIOUS_DB_FILENAME);
+    const legacyPath = resolveExistingLegacyDatabasePath(userDataPath);
+    const betaPath = resolveExistingBetaDatabasePath(userDataPath);
     let legacyDb;
     let betaSqlite;
     try {

@@ -1,11 +1,19 @@
-import { CheckCheckIcon, PlusIcon, X } from 'lucide-react';
+import { CheckCheckIcon, ChevronDownIcon, PlusIcon, X } from 'lucide-react';
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
+import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
 import { Field } from '@renderer/lib/ui/field';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@renderer/lib/ui/select';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
@@ -29,6 +37,9 @@ export type InitialConversationState = {
   setIssueContext: (ctx: string | null) => void;
   autoApprove: boolean;
   setAutoApprove: (autoApprove: boolean) => void;
+  /** Selected model id, or null to use the agent CLI default. */
+  model: string | null;
+  setModel: (model: string | null) => void;
   connectionId?: string;
 };
 
@@ -48,9 +59,12 @@ export function useInitialConversationState(
   const [prompt, setPrompt] = useState('');
   const [issueContext, setIssueContext] = useState<string | null>(null);
   const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
+  const [model, setModel] = useState<string | null>(null);
 
   const [prevProjectId, setPrevProjectId] = useState(projectId);
+  const [prevProviderId, setPrevProviderId] = useState(providerId);
   const projectChanged = projectId !== prevProjectId;
+  const providerChanged = providerId !== prevProviderId;
 
   if (projectChanged) {
     setPrevProjectId(projectId);
@@ -60,6 +74,10 @@ export function useInitialConversationState(
     }
     setIssueContext(null);
     setAutoApproveOverride(null);
+    setModel(null);
+  } else if (providerChanged) {
+    setPrevProviderId(providerId);
+    setModel(null);
   }
 
   const autoApproveSupported = providerId ? providerSupportsAutoApprove(providerId) : false;
@@ -75,8 +93,19 @@ export function useInitialConversationState(
     setIssueContext,
     autoApprove,
     setAutoApprove: setAutoApproveOverride,
+    model,
+    setModel,
     connectionId,
   };
+}
+
+function useModelOptions(
+  providerId: AgentProviderId | null
+): Record<string, { name: string }> | null {
+  const { data: agents } = useAgents();
+  if (!providerId) return null;
+  const models = agents?.find((a) => a.id === providerId)?.capabilities.models;
+  return models?.kind === 'selectable' ? models.modelOptions : null;
 }
 
 interface InitialConversationFieldProps {
@@ -103,6 +132,7 @@ export function InitialConversationField({
     () => buildTaskContextActions(linkedIssue, [], promptLibrary),
     [linkedIssue, promptLibrary]
   );
+  const modelOptions = useModelOptions(state.provider);
 
   // Auto-inject issue context whenever the linked issue changes.
   useEffect(() => {
@@ -149,6 +179,29 @@ export function InitialConversationField({
             contentClassName="w-64"
           />
           <div className="flex items-center gap-2">
+            {modelOptions ? (
+              <Select
+                value={state.model ?? ''}
+                onValueChange={(val) => state.setModel(val || null)}
+              >
+                <SelectTrigger className="h-6 gap-1 border-0 px-1 py-0 text-xs shadow-none focus:ring-0">
+                  <SelectValue placeholder="Default model">
+                    {state.model
+                      ? (modelOptions[state.model]?.name ?? state.model)
+                      : 'Default model'}
+                  </SelectValue>
+                  <ChevronDownIcon className="size-3 opacity-60" />
+                </SelectTrigger>
+                <SelectContent className="min-w-40">
+                  <SelectItem value="">Default model</SelectItem>
+                  {Object.entries(modelOptions).map(([id, opt]) => (
+                    <SelectItem key={id} value={id}>
+                      {opt.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
             <AddContextPopover
               actions={contextActions}
               disabled={contextActions.length === 0}

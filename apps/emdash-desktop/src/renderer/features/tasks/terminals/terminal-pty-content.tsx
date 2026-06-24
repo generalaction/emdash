@@ -1,6 +1,10 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { PaneSizingProvider } from '@renderer/lib/pty/pane-sizing-context';
+import {
+  createPaneDimensionSink,
+  PaneDimensionProvider,
+} from '@renderer/features/tabs/pane-dimension-provider';
+import { PaneSizingContextProvider } from '@renderer/lib/pty/pane-sizing-context';
 import { PtyPane } from '@renderer/lib/pty/pty-pane';
 import { type PtySession } from '@renderer/lib/pty/pty-session';
 import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
@@ -11,7 +15,6 @@ import { cn } from '@renderer/utils/utils';
 export interface TerminalPtyContentProps {
   activeSession: PtySession | null;
   allSessionIds: string[];
-  paneId: string;
   autoFocus?: boolean;
   onFocusChange?: (focused: boolean) => void;
   onEnterPress?: () => void;
@@ -26,7 +29,6 @@ export interface TerminalPtyContentProps {
 export const TerminalPtyContent = observer(function TerminalPtyContent({
   activeSession,
   allSessionIds,
-  paneId,
   autoFocus,
   onFocusChange,
   onEnterPress,
@@ -81,6 +83,7 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
   }, [sessionStatus]);
 
   const sessionIds = useMemo(() => allSessionIds, [allSessionIds]);
+  const dimensionSink = useMemo(() => createPaneDimensionSink(), []);
 
   const hasSessions = sessionIds.length > 0;
 
@@ -96,42 +99,44 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
         }
       }}
     >
-      <PaneSizingProvider paneId={paneId} sessionIds={sessionIds}>
-        {!hasSessions ? (
-          emptyState
-        ) : (
-          <div className="flex min-h-0 flex-1 flex-col">
-            {activeSessionId && activeSession?.status === 'ready' && activeSession.pty ? (
-              <div ref={terminalContainerRef} className="relative flex h-full min-h-0 flex-1">
-                <TerminalSearchOverlay
-                  isOpen={isSearchOpen}
-                  fullWidth
-                  searchQuery={searchQuery}
-                  searchStatus={searchStatus}
-                  searchInputRef={searchInputRef}
-                  onQueryChange={handleSearchQueryChange}
-                  onStep={stepSearch}
-                  onClose={closeSearch}
-                />
-                <PtyPane
-                  ref={terminalRef}
-                  sessionId={activeSessionId}
-                  pty={activeSession.pty}
-                  className="h-full w-full"
-                  themeOverride={{
-                    background: cssVar('--background'),
-                  }}
-                  onEnterPress={onEnterPress}
-                  onInterruptPress={onInterruptPress}
-                  mapShiftEnterToCtrlJ={mapShiftEnterToCtrlJ}
-                  remoteConnectionId={remoteConnectionId}
-                  workspaceId={workspaceId}
-                />
-              </div>
-            ) : null}
-          </div>
-        )}
-      </PaneSizingProvider>
+      <PaneDimensionProvider sink={dimensionSink}>
+        <PaneSizingContextProvider sessionIds={sessionIds}>
+          {!hasSessions ? (
+            emptyState
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col">
+              {activeSessionId && activeSession?.status === 'ready' && activeSession.pty ? (
+                <div ref={terminalContainerRef} className="relative flex h-full min-h-0 flex-1">
+                  <TerminalSearchOverlay
+                    isOpen={isSearchOpen}
+                    fullWidth
+                    searchQuery={searchQuery}
+                    searchStatus={searchStatus}
+                    searchInputRef={searchInputRef}
+                    onQueryChange={handleSearchQueryChange}
+                    onStep={stepSearch}
+                    onClose={closeSearch}
+                  />
+                  <PtyPane
+                    ref={terminalRef}
+                    sessionId={activeSessionId}
+                    pty={activeSession.pty}
+                    className="h-full w-full"
+                    themeOverride={{
+                      background: cssVar('--background'),
+                    }}
+                    onEnterPress={onEnterPress}
+                    onInterruptPress={onInterruptPress}
+                    mapShiftEnterToCtrlJ={mapShiftEnterToCtrlJ}
+                    remoteConnectionId={remoteConnectionId}
+                    workspaceId={workspaceId}
+                  />
+                </div>
+              ) : null}
+            </div>
+          )}
+        </PaneSizingContextProvider>
+      </PaneDimensionProvider>
     </div>
   );
 });

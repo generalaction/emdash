@@ -2,8 +2,8 @@
 
 ## Source Of Truth
 
-- `src/shared/agent-provider-registry.ts`
-- `src/main/core/dependencies/dependency-manager.ts`
+- `src/shared/core/agents/agent-provider-registry.ts`
+- `src/main/core/dependencies/dependency-managers.ts`
 - `src/main/core/pty/`
 
 ## Current Providers (31)
@@ -33,12 +33,12 @@ or notify an inferred status for that event.
 - Claude uses deterministic `--session-id` values for conversation isolation.
 - Agents that cannot receive an interactive initial prompt via argv or stdin use keystroke
   injection — Emdash types the prompt into the TUI after startup.
-- `src/main/core/agent-hooks/service.ts` forwards hook events to renderer windows and can show OS notifications. It also writes hook config files for hook-capable providers, including `.claude/settings.local.json`, `.qwen/settings.json`, and provider-specific global hook files.
+- `src/main/core/agent-hooks/agent-hook-service.ts` forwards hook events to renderer windows and can show OS notifications. It also writes hook config files for hook-capable providers, including `.claude/settings.local.json`, `.qwen/settings.json`, and provider-specific global hook files.
 - Qwen Code hooks use the documented Qwen settings schema in `.qwen/settings.json`. Emdash installs command hooks for permission requests and session end/stop events while preserving unrelated user hooks.
 
 ## Adding Or Changing A Provider
 
-1. update `src/shared/agent-provider-registry.ts`
+1. update `src/shared/core/agents/agent-provider-registry.ts`
 2. update allowlisted agent env vars in `src/main/core/pty/pty-env.ts` if needed
 3. add or update hook/plugin installation in `src/main/core/agent-hooks/` if the provider
    supports explicit events

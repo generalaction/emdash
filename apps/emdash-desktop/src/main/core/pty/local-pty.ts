@@ -3,6 +3,7 @@ import type { IPty } from 'node-pty';
 import { log } from '@main/lib/logger';
 import { normalizeSignal } from './exit-signals';
 import { suppressExpectedNodePtyErrors } from './node-pty-errors';
+import { PosixPtyTerminator } from './posix-pty-terminator';
 import type { Pty, PtyDimensions, PtyExitInfo } from './pty';
 
 export interface LocalSpawnOptions extends PtyDimensions {
@@ -46,12 +47,15 @@ export function spawnLocalPty(options: LocalSpawnOptions): LocalPtySession {
 
 export class LocalPtySession implements Pty {
   readonly id: string;
-  private killTimer: ReturnType<typeof setTimeout> | null = null;
   private killed = false;
 
   constructor(
     id: string,
-    private readonly proc: IPty
+    private readonly proc: IPty,
+    private readonly posixTerminator: Pick<
+      PosixPtyTerminator,
+      'kill' | 'markExited'
+    > = new PosixPtyTerminator()
   ) {
     this.id = id;
   }
@@ -79,18 +83,15 @@ export class LocalPtySession implements Pty {
     this.killed = true;
 
     const pid = this.proc.pid;
-    if (process.platform !== 'win32' && Number.isInteger(pid) && pid > 0) {
-      try {
-        process.kill(-pid, 'SIGTERM');
-      } catch {}
-      this.killTimer = setTimeout(() => {
-        try {
-          process.kill(-pid, 'SIGKILL');
-        } catch {}
-        this.killTimer = null;
-      }, 2000);
+    if (process.platform === 'win32' || !Number.isInteger(pid) || pid <= 0) {
+      this.killPty();
+      return;
     }
 
+    this.posixTerminator.kill(pid, () => this.killPty());
+  }
+
+  private killPty(): void {
     try {
       this.proc.kill();
     } catch {}
@@ -103,10 +104,7 @@ export class LocalPtySession implements Pty {
   onExit(handler: (info: PtyExitInfo) => void): void {
     this.proc.onExit(({ exitCode, signal }) => {
       try {
-        if (this.killTimer) {
-          clearTimeout(this.killTimer);
-          this.killTimer = null;
-        }
+        this.posixTerminator.markExited();
         handler({ exitCode, signal: normalizeSignal(signal) });
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : String(e);

@@ -25,7 +25,7 @@ export async function openFileInTaskEditor(
   }
 
   focusTracker.transition({ mainPanel: 'editor' }, 'panel_switch');
-  provisioned.viewModel?.tabManager.openFile(filePath);
+  provisioned.viewModel?.activePane.open('file', { path: filePath, preview: false });
 }
 
 export async function openExternalFilePath(
@@ -37,7 +37,11 @@ export async function openExternalFilePath(
     const provisioned = asProvisioned(getTaskStore(projectId, taskId));
     if (!provisioned) return;
     focusTracker.transition({ mainPanel: 'editor' }, 'panel_switch');
-    void getTaskView(projectId, taskId)?.tabManager.openExternalFile(filePath);
+    getTaskView(projectId, taskId)?.activePane.open('file', {
+      path: filePath,
+      preview: false,
+      external: true,
+    });
     return;
   }
   const result = await rpc.app.openPath(filePath);
