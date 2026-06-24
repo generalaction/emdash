@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import type { IFileWatchService, RawFileEvent, WatchHandle } from '../fs';
-import { LiveCollection, type KeyedOp } from '../lib';
+import { KeyedMutex, LiveCollection, type KeyedOp } from '../lib';
 import { classifyFileTreeFsError, type FileTreeError, type FileTreeOnError } from './errors';
 import { isExcludedPath, watchIgnoreGlobs } from './ignores';
 import { listChildren } from './list';
@@ -33,6 +33,7 @@ export class FileTree implements IFileTree {
   });
   private readonly ids = new NodeIdAssigner();
   private readonly onError: FileTreeOnError;
+  private readonly mutationMutex = new KeyedMutex();
   private readonly revalidateTimer: ReturnType<typeof setInterval> | null;
   private readonly watch: WatchHandle;
   private readonly scopeLoads = new Map<
@@ -48,7 +49,7 @@ export class FileTree implements IFileTree {
     this.watch = options.watcher.watch(
       this.rootPath,
       (events) => {
-        void this.applyWatchEvents(events).catch((error) =>
+        void this.runMutation(() => this.applyWatchEvents(events)).catch((error) =>
           this.onError(`file-tree watch ${this.rootPath}`, error)
         );
       },
@@ -56,7 +57,7 @@ export class FileTree implements IFileTree {
         debounceMs: WATCH_DEBOUNCE_MS,
         ignore: watchIgnoreGlobs(),
         onResync: () => {
-          void this.resync().catch((error) =>
+          void this.runMutation(() => this.resync()).catch((error) =>
             this.onError(`file-tree resync ${this.rootPath}`, error)
           );
         },
@@ -67,7 +68,12 @@ export class FileTree implements IFileTree {
       interval > 0
         ? setInterval(() => {
             if (this.collection.subscriberCount === 0) return;
-            void this.refreshLoadedScopes().then(
+            void this.runMutation(() => {
+              if (this.disposed || this.collection.subscriberCount === 0) {
+                return Promise.resolve(ok<FileTreeSequences>({}));
+              }
+              return this.refreshLoadedScopes();
+            }).then(
               (result) => {
                 if (!result.success)
                   this.onError(`file-tree refresh ${this.rootPath}`, result.error);
@@ -87,7 +93,7 @@ export class FileTree implements IFileTree {
       } catch (error) {
         return err(classifyFileTreeFsError(error, ''));
       }
-      const loaded = await this.loadDirectoryScope(null);
+      const loaded = await this.runMutation(() => this.loadDirectoryScope(null));
       if (!loaded.success) return err(loaded.error);
       return ok<void>();
     })().catch((error): Result<void, FileTreeError> => {
@@ -125,37 +131,41 @@ export class FileTree implements IFileTree {
   async expandDir(dirId: NodeId | null): Promise<Result<FileTreeSequences, FileTreeError>> {
     const ready = await this.ready();
     if (!ready.success) return err(ready.error);
-    return this.loadDirectoryScope(dirId);
+    return this.runMutation(() => this.loadDirectoryScope(dirId));
   }
 
   async revealPath(pathToReveal: string): Promise<Result<FileTreeSequences, FileTreeError>> {
     const ready = await this.ready();
     if (!ready.success) return err(ready.error);
-    const normalized = resolveInsideRoot(this.rootPath, pathToReveal);
-    if (!normalized.success) return normalized;
+    return this.runMutation(async () => {
+      const normalized = resolveInsideRoot(this.rootPath, pathToReveal);
+      if (!normalized.success) return normalized;
 
-    const parts = normalized.data.relPath.split('/').filter(Boolean);
-    let sequences: FileTreeSequences = {};
-    for (let index = 0; index < parts.length; index += 1) {
-      const relPath = parts.slice(0, index + 1).join('/');
-      const node = this.ids.getByPath(relPath);
-      if (!node) return err({ type: 'not-found', path: relPath });
-      const shouldExpand = index < parts.length - 1 || node.type === 'directory';
-      if (!shouldExpand) continue;
-      if (node.type !== 'directory') {
-        return err({ type: 'not-directory', id: node.id, path: node.path });
+      const parts = normalized.data.relPath.split('/').filter(Boolean);
+      let sequences: FileTreeSequences = {};
+      for (let index = 0; index < parts.length; index += 1) {
+        const relPath = parts.slice(0, index + 1).join('/');
+        const node = this.ids.getByPath(relPath);
+        if (!node) return err({ type: 'not-found', path: relPath });
+        const shouldExpand = index < parts.length - 1 || node.type === 'directory';
+        if (!shouldExpand) continue;
+        if (node.type !== 'directory') {
+          return err({ type: 'not-directory', id: node.id, path: node.path });
+        }
+        const expanded = await this.loadDirectoryScope(node.id);
+        if (!expanded.success) return expanded;
+        sequences = mergeSequences(sequences, expanded.data);
       }
-      const expanded = await this.loadDirectoryScope(node.id);
-      if (!expanded.success) return expanded;
-      sequences = mergeSequences(sequences, expanded.data);
-    }
-    return ok(sequences);
+      return ok(sequences);
+    });
   }
 
   async refresh(): Promise<Result<FileTreeSnapshot, FileTreeError>> {
-    const refreshed = await this.refreshLoadedScopes();
-    if (!refreshed.success) return err(refreshed.error);
-    return ok(this.collection.getCached());
+    return this.runMutation(async () => {
+      const refreshed = await this.refreshLoadedScopes();
+      if (!refreshed.success) return err(refreshed.error);
+      return ok(this.collection.getCached());
+    });
   }
 
   private async refreshLoadedScopes(): Promise<Result<FileTreeSequences, FileTreeError>> {
@@ -281,6 +291,7 @@ export class FileTree implements IFileTree {
   }
 
   private async resync(): Promise<void> {
+    if (this.disposed) return;
     const refreshed = await this.refreshLoadedScopes();
     if (!refreshed.success) {
       this.onError(`file-tree resync ${this.rootPath}`, refreshed.error);
@@ -289,6 +300,10 @@ export class FileTree implements IFileTree {
     this.collection.resetWithNewGeneration(
       this.ids.entries().map((node) => [node.id, node] as const)
     );
+  }
+
+  private runMutation<T>(fn: () => Promise<T>): Promise<T> {
+    return this.mutationMutex.runExclusive('tree', fn);
   }
 }
 

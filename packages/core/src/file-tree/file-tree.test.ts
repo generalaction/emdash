@@ -237,6 +237,79 @@ describe('FileTree', () => {
     tree.dispose();
   });
 
+  it('serializes refreshes and watch event mutations', async () => {
+    const root = await makeRoot();
+    await writeFile(path.join(root, 'a.txt'), 'x', 'utf8');
+    const watcher = new ManualWatchService();
+    const tree = new FileTree({ rootPath: root, watcher });
+    unwrap(await tree.ready());
+
+    const patched = tree as unknown as {
+      refreshLoadedScopes(): Promise<Result<unknown, unknown>>;
+      applyWatchEvents(events: RawFileEvent[]): Promise<void>;
+    };
+    const originalRefreshLoadedScopes = patched.refreshLoadedScopes;
+    const originalApplyWatchEvents = patched.applyWatchEvents;
+
+    let activeMutations = 0;
+    let maxActiveMutations = 0;
+    const enterMutation = () => {
+      activeMutations += 1;
+      maxActiveMutations = Math.max(maxActiveMutations, activeMutations);
+    };
+    const exitMutation = () => {
+      activeMutations -= 1;
+    };
+
+    let releaseRefresh: () => void = () => {};
+    const refreshEntered = new Promise<void>((resolve) => {
+      patched.refreshLoadedScopes = async () => {
+        enterMutation();
+        resolve();
+        await new Promise<void>((release) => {
+          releaseRefresh = release;
+        });
+        try {
+          return await originalRefreshLoadedScopes.call(tree);
+        } finally {
+          exitMutation();
+        }
+      };
+    });
+
+    let resolveWatchApplied: () => void = () => {};
+    const watchApplied = new Promise<void>((resolve) => {
+      resolveWatchApplied = resolve;
+    });
+    patched.applyWatchEvents = async (events) => {
+      enterMutation();
+      try {
+        await originalApplyWatchEvents.call(tree, events);
+      } finally {
+        exitMutation();
+        resolveWatchApplied();
+      }
+    };
+
+    const refresh = tree.refresh();
+    await refreshEntered;
+
+    await writeFile(path.join(root, 'created.txt'), 'x', 'utf8');
+    watcher.emit([{ kind: 'create', path: path.join(root, 'created.txt') }]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(maxActiveMutations).toBe(1);
+
+    releaseRefresh();
+    await refresh;
+    await watchApplied;
+
+    expect(maxActiveMutations).toBe(1);
+    patched.refreshLoadedScopes = originalRefreshLoadedScopes;
+    patched.applyWatchEvents = originalApplyWatchEvents;
+    tree.dispose();
+  });
+
   it('runtime leases share one tree per resolved root', async () => {
     const root = await makeRoot();
     const watcher = new ManualWatchService();
