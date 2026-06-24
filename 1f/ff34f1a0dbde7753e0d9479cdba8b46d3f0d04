@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-title-utils.ts
+  s_3866aa4154ef87::t_abbf437f4ac1ff 21-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "1fff34f1a0dbde7753e0d9479cdba8b46d3f0d04",
+  "prompts": {},
+  "sessions": {
+    "s_3866aa4154ef87": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ef837-c1b9-7438-8ff2-63971a59baf9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
