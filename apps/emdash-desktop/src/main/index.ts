@@ -31,6 +31,7 @@ import {
   reconcileResourceSampler,
   stopResourceSampler,
 } from './core/resource-monitor/resource-sampler';
+import { runtimeManager } from './core/runtime/runtime-manager';
 import { searchService } from './core/search/search-service';
 import { workspaceFileIndexService } from './core/search/workspace-file-index-service';
 import { appSettingsService } from './core/settings/settings-service';
@@ -189,18 +190,40 @@ void app.whenReady().then(async () => {
   }
 });
 
+async function runQuitCleanup(): Promise<void> {
+  telemetryService.capture('app_closed');
+
+  automationsService.stop();
+  agentHookService.dispose();
+  stopResourceSampler();
+  updateService.dispose();
+  prSyncScheduler.dispose();
+
+  const results = await Promise.allSettled([
+    telemetryService.dispose(),
+    (async () => {
+      try {
+        await projectManager.dispose();
+      } finally {
+        await runtimeManager.dispose();
+      }
+    })(),
+  ]);
+
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      log.error('Failed during quit cleanup:', result.reason);
+    }
+  }
+}
+
+let quitCleanupStarted = false;
+
 app.on('before-quit', (event) => {
   event.preventDefault();
-  telemetryService.capture('app_closed');
-  void telemetryService.dispose().finally(() => {
-    automationsService.stop();
-    agentHookService.dispose();
-    stopResourceSampler();
-    updateService.dispose();
-    prSyncScheduler.dispose();
-    void projectManager.dispose().catch((e) => {
-      log.error('Failed to shutdown project manager:', e);
-    });
+  if (quitCleanupStarted) return;
+  quitCleanupStarted = true;
+  void runQuitCleanup().finally(() => {
     app.exit(0);
   });
 });
