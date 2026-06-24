@@ -60,8 +60,10 @@ export class ResourceMonitorStore {
   start(): void {
     if (this.started) return;
     this.started = true;
-    this.snapshot = null;
-    this.isLoadingInitialSnapshot = true;
+    runInAction(() => {
+      this.snapshot = null;
+      this.isLoadingInitialSnapshot = true;
+    });
     const requestId = ++this.requestId;
     const subscriptionId = crypto.randomUUID();
     this.subscriptionId = subscriptionId;
@@ -98,7 +100,9 @@ export class ResourceMonitorStore {
     this.offSnapshot?.();
     this.offSnapshot = null;
     this.started = false;
-    this.isLoadingInitialSnapshot = false;
+    runInAction(() => {
+      this.isLoadingInitialSnapshot = false;
+    });
     this.subscriptionId = null;
     if (subscriptionId) {
       void rpc.resourceMonitor.setOpen(this.clientId, subscriptionId, false, ++this.sequence);
