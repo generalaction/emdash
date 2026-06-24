@@ -9,6 +9,11 @@ export class StickToBottom {
   private el: HTMLElement;
   private stuck = true;
   private rafId: number | null = null;
+  /**
+   * While paused, the scroll listener skips its scrollHeight/clientHeight reads.
+   * Set true by ChatRoot when a height tween starts; cleared on tween end.
+   */
+  private paused = false;
 
   constructor(scrollEl: HTMLElement) {
     this.el = scrollEl;
@@ -17,6 +22,23 @@ export class StickToBottom {
   }
 
   private onScroll(): void {
+    if (this.paused) return;
+    const el = this.el;
+    const dist = el.scrollHeight - el.clientHeight - el.scrollTop;
+    this.stuck = dist <= STICK_THRESHOLD_PX;
+  }
+
+  /** Pause/resume the scroll listener to avoid forced layout during tweens. */
+  setPaused(paused: boolean): void {
+    this.paused = paused;
+  }
+
+  /**
+   * Force an immediate stuck-state recalculation from live DOM geometry.
+   * Call once after unpausing (e.g. at animation end) to resync before the
+   * next user-driven scroll event arrives.
+   */
+  recalcStuck(): void {
     const el = this.el;
     const dist = el.scrollHeight - el.clientHeight - el.scrollTop;
     this.stuck = dist <= STICK_THRESHOLD_PX;

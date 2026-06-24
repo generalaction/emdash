@@ -41,7 +41,7 @@ import type { RenderUnit } from '@core/units';
 import { unitReservedHeight } from '@core/units';
 import type { Virtualizer } from '@core/virtualizer';
 import type { ViewState } from '@state/view-state';
-import { Show, createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from 'solid-js';
+import { Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, untrack } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
 import { createHeightTween } from './create-height-tween';
 import { UNIT_REGISTRY } from './unit-registry';
@@ -108,6 +108,12 @@ export type UnitRowProps = {
   viewState: ViewState;
   virt: Virtualizer;
   onHeightChanged: (index: number, delta: number) => void;
+  /**
+   * Called whenever this row's tween starts (true) or settles (false). Used by
+   * ChatRoot to suppress expensive per-frame scroll-geometry reads while a tween
+   * is running and to perform a single reconcile once it ends.
+   */
+  onAnimatingChange?: (animating: boolean) => void;
   /** True when the unit's source item is in activeTurn (currently streaming). */
   isActiveTurn?: boolean;
   /** Per-instance cache bundle from ChatRoot. */
@@ -182,6 +188,10 @@ export function UnitRow(props: UnitRowProps) {
   const { height: animatedReserved, animating } = createHeightTween(logicalReserved, {
     shouldAnimate,
   });
+
+  // Notify ChatRoot when this row's tween starts or settles.
+  // `defer: true` skips the initial false→false no-op on mount.
+  createEffect(on(animating, (a) => props.onAnimatingChange?.(a), { defer: true }));
 
   // Drive the virtualizer from the animated height so rows below reposition
   // in lockstep every rAF tick.

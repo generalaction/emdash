@@ -428,10 +428,59 @@ export function ChatRoot(props: ChatRootProps) {
 
   let programmaticScroll = false;
 
+  // ── Collapse/expand animation tracker ────────────────────────────────────
+  //
+  // While any row is tweening, skip the per-frame forced-layout reads in
+  // onHeightChanged / onScroll / StickToBottom so the animation cost becomes
+  // O(log n) in the virtualizer instead of O(scrollRegion height).
+  // One reconcileAfterAnimation() call corrects any drift when all tweens end.
+  let animatingCount = 0;
+  let stuckAtStart = false;
+  const isAnimating = () => animatingCount > 0;
+
+  // Assigned inside onMount where schedulePrefetch/flushScroll are in scope.
+  let reconcileAfterAnimation: () => void = () => {};
+
+  const onUnitAnimatingChange = (animating: boolean) => {
+    if (animating) {
+      if (animatingCount === 0) {
+        stuckAtStart = sticky?.isStuck() ?? false;
+        sticky?.setPaused(true);
+      }
+      animatingCount++;
+    } else {
+      animatingCount = Math.max(0, animatingCount - 1);
+      if (animatingCount === 0) {
+        sticky?.setPaused(false);
+        reconcileAfterAnimation();
+      }
+    }
+  };
+
   const onHeightChanged = (index: number, delta: number) => {
     refreshTotal();
     if (delta === 0) return;
 
+    if (isAnimating()) {
+      // During a tween: keep scroll position consistent using cached signals
+      // only — no live DOM reads — to avoid forced-layout on the full canvas.
+      if (props.stickToBottom !== false && stuckAtStart) {
+        // Pin to bottom arithmetically using signal values already in memory.
+        const target = totalHeight() + padTop() + padBottom() - viewHeight();
+        programmaticScroll = true;
+        scrollEl!.scrollTop = target;
+        setScrollTop(target);
+      } else if (virt.top(index) + padTop() < scrollTop()) {
+        // Shift the cached offset by the delta (no scrollHeight read).
+        const next = scrollTop() + delta;
+        programmaticScroll = true;
+        scrollEl!.scrollTop = next;
+        setScrollTop(next);
+      }
+      return;
+    }
+
+    // Non-animating path: original behavior.
     if (props.stickToBottom !== false && sticky?.isStuck()) {
       sticky.schedule();
       return;
@@ -732,6 +781,11 @@ export function ChatRoot(props: ChatRootProps) {
         programmaticScroll = false;
         return;
       }
+      // Per-frame programmatic scrollTop writes from onHeightChanged during a
+      // tween would otherwise trigger the full flushScroll/prefetch cascade on
+      // every animation frame. Skip the cascade while any tween is running;
+      // reconcileAfterAnimation() resynchronises once at tween end.
+      if (isAnimating()) return;
       // Cancel any in-flight prefetch so it never competes with active scrolling.
       cancelPrefetch();
       // Reset cursor so the next settle re-targets the new viewport position.
@@ -750,6 +804,31 @@ export function ChatRoot(props: ChatRootProps) {
       }
       cancelPrefetch();
     });
+
+    // Assign the reconcile function now that flushScroll/schedulePrefetch are
+    // in scope. Called once when the last concurrent tween ends.
+    reconcileAfterAnimation = () => {
+      refreshTotal();
+      // Re-sync the cached scrollTop from the DOM once (single forced layout
+      // replaces per-frame reads during the tween).
+      const st = el.scrollTop;
+      setScrollTop(st);
+      // Re-evaluate stuck state using live DOM now that we are back to steady
+      // state (sticky was paused during the tween).
+      sticky?.recalcStuck();
+      if (sticky?.isStuck()) {
+        sticky.schedule();
+      }
+      // Drive one flushScroll on the next frame so velocity/prefetch/atBottom
+      // are recalculated cleanly after the tween settles.
+      if (rafId === null) {
+        rafId = requestAnimationFrame(flushScroll);
+      }
+      // Re-arm idle prefetch from the current viewport position.
+      prefetchStart = -1;
+      prefetchEnd = -1;
+      schedulePrefetch();
+    };
 
     const roHeight = new ResizeObserver((entries) => {
       const h = entries[0]?.contentRect.height;
@@ -907,6 +986,7 @@ export function ChatRoot(props: ChatRootProps) {
                                 viewState={props.viewState}
                                 virt={virt}
                                 onHeightChanged={onHeightChanged}
+                                onAnimatingChange={onUnitAnimatingChange}
                                 isActiveTurn={isActiveTurn()}
                                 caches={caches}
                                 measureEpoch={measureEpoch()}

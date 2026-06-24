@@ -1,0 +1,193 @@
+/**
+ * Collapse animation perf bench.
+ *
+ * Measures rAF frame times during a programmatic expand/collapse cycle on a
+ * large list to verify that the tween cost is O(log n) rather than
+ * O(scroll-region-size). The story mounts a 2k or 10k transcript, pre-expands
+ * a thinking block near the top, then collapses and re-expands it once the
+ * virtualizer has settled, recording frame times throughout.
+ *
+ * Open the story and inspect the browser console for a summary table. Target:
+ *   p95 frame time at 10k ≈ p95 frame time at 2k  (within ~1 frame / ~16ms).
+ */
+
+import { DEFAULT_THEME } from '@core/theme';
+import { createTranscript } from '@state/transcript';
+import { createViewState } from '@state/view-state';
+import { createSignal, onMount } from 'solid-js';
+import type { Meta, StoryObj } from 'storybook-solidjs-vite';
+import { ChatRoot } from '@/ChatRoot';
+import { generateMockTranscript } from '@/mock-transcript';
+import type { ChatItem } from '@/model';
+import type { FrameStats } from '@/stories/_harness/perf-instrument';
+
+const meta: Meta = {
+  title: 'Perf/CollapseAnimation',
+  parameters: { layout: 'centered' },
+};
+export default meta;
+
+type Story = StoryObj;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+type AnimBenchResult = {
+  collapseFrames: FrameStats;
+  expandFrames: FrameStats;
+};
+
+/**
+ * Record rAF frame deltas for `durationMs` by polling requestAnimationFrame.
+ * Returns as soon as no frame has been queued for one idle period (≥ durationMs).
+ */
+function measureFrames(durationMs: number): Promise<FrameStats> {
+  return new Promise((resolve) => {
+    const deltas: number[] = [];
+    let last = performance.now();
+    let settled = false;
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function tick(now: number) {
+      deltas.push(now - last);
+      last = now;
+      if (settleTimer !== null) clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => {
+        settled = true;
+        resolve(frameStats(deltas));
+      }, durationMs + 50);
+      if (!settled) requestAnimationFrame(tick);
+    }
+
+    requestAnimationFrame(tick);
+  });
+}
+
+function frameStats(deltas: number[]): FrameStats {
+  if (deltas.length === 0) return { count: 0, avgMs: 0, p50Ms: 0, p95Ms: 0, maxMs: 0 };
+  const sorted = [...deltas].sort((a, b) => a - b);
+  const avg = sorted.reduce((s, x) => s + x, 0) / sorted.length;
+  const p = (pct: number) => sorted[Math.floor(sorted.length * pct)] ?? sorted[sorted.length - 1];
+  return {
+    count: sorted.length,
+    avgMs: +avg.toFixed(2),
+    p50Ms: +p(0.5).toFixed(2),
+    p95Ms: +p(0.95).toFixed(2),
+    maxMs: +sorted[sorted.length - 1].toFixed(2),
+  };
+}
+
+// ── Bench component ───────────────────────────────────────────────────────────
+
+function CollapseAnimBench(props: { count: number; label: string }) {
+  const transcript = createTranscript();
+  const viewState = createViewState();
+  const [result, setResult] = createSignal<string>('Mounting…');
+
+  // Build a list with a thinking block near the top as the toggle target.
+  const TOGGLE_ID = 'bench-think';
+  const baseItems = generateMockTranscript(props.count);
+  const items: ChatItem[] = [
+    {
+      kind: 'thinking',
+      id: TOGGLE_ID,
+      text: 'This is the thinking block that will be toggled during the benchmark. It contains enough text to produce a meaningful height change that exercises the full tween path. The expand and collapse directions should both be measured.',
+      status: 'done',
+      durationMs: 2000,
+      startedAt: Date.now() - 2000,
+    },
+    ...baseItems,
+  ];
+
+  transcript.seed(items);
+  // Start expanded so the first action is collapse.
+  viewState.toggleCollapsed(TOGGLE_ID);
+
+  let scrollEl: HTMLDivElement | undefined;
+
+  onMount(() => {
+    // Wait for two frames: first for the DOM to mount, second for the
+    // virtualizer to measure and set real heights.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(async () => {
+        if (!scrollEl) return;
+
+        setResult('Collapsing…');
+        // Collapse → measure frame times while the tween runs.
+        const collapseFramesP = measureFrames(350);
+        viewState.toggleCollapsed(TOGGLE_ID);
+        const collapseFrames = await collapseFramesP;
+
+        // Wait for the item to be fully collapsed before expanding.
+        await new Promise((r) => setTimeout(r, 50));
+
+        setResult('Expanding…');
+        const expandFramesP = measureFrames(350);
+        viewState.toggleCollapsed(TOGGLE_ID);
+        const expandFrames = await expandFramesP;
+
+        const bench: AnimBenchResult = { collapseFrames, expandFrames };
+
+        const lines = [
+          `=== ${props.label} — collapse/expand animation bench ===`,
+          `Collapse: ${collapseFrames.count} frames  avg:${collapseFrames.avgMs}ms  p50:${collapseFrames.p50Ms}ms  p95:${collapseFrames.p95Ms}ms  max:${collapseFrames.maxMs}ms`,
+          `Expand:   ${expandFrames.count} frames  avg:${expandFrames.avgMs}ms  p50:${expandFrames.p50Ms}ms  p95:${expandFrames.p95Ms}ms  max:${expandFrames.maxMs}ms`,
+        ].join('\n');
+        console.log(lines);
+        console.table({
+          collapse_avg: bench.collapseFrames.avgMs,
+          collapse_p50: bench.collapseFrames.p50Ms,
+          collapse_p95: bench.collapseFrames.p95Ms,
+          collapse_max: bench.collapseFrames.maxMs,
+          expand_avg: bench.expandFrames.avgMs,
+          expand_p50: bench.expandFrames.p50Ms,
+          expand_p95: bench.expandFrames.p95Ms,
+          expand_max: bench.expandFrames.maxMs,
+        });
+        setResult(lines);
+      });
+    });
+  });
+
+  return (
+    <div>
+      <div
+        ref={(el) => {
+          scrollEl = el;
+        }}
+        style={{
+          width: '640px',
+          height: '700px',
+          border: '1px solid #e2e8f0',
+          'border-radius': '8px',
+          overflow: 'hidden',
+        }}
+      >
+        <ChatRoot transcript={transcript} viewState={viewState} theme={DEFAULT_THEME} />
+      </div>
+      <pre
+        style={{
+          'margin-top': '12px',
+          padding: '12px',
+          background: '#f1f5f9',
+          'border-radius': '6px',
+          'font-size': '12px',
+          'white-space': 'pre-wrap',
+        }}
+      >
+        {result()}
+      </pre>
+    </div>
+  );
+}
+
+// ── Stories ───────────────────────────────────────────────────────────────────
+
+export const TwoK: Story = {
+  name: '2k rows — collapse/expand bench',
+  render: () => <CollapseAnimBench count={2000} label="2k rows" />,
+};
+
+export const TenK: Story = {
+  name: '10k rows — collapse/expand bench',
+  render: () => <CollapseAnimBench count={10000} label="10k rows" />,
+};
