@@ -1,0 +1,36 @@
+apps/emdash-desktop/src/renderer/features/tasks/components/issue-selector/useIssueSearch.ts
+  s_de253ae1bad339::t_6905b3b3dc8fdd 68
+apps/emdash-desktop/src/main/core/notion/notion-connection-service.test.ts
+  s_de253ae1bad339::t_2af2d632243048 26-30,248-256,259
+apps/emdash-desktop/src/renderer/features/tasks/components/issue-selector/parse-issue-search-error.test.ts
+  s_de253ae1bad339::t_1b52ec77d0b8c6 8-9,46-57
+apps/emdash-desktop/src/main/core/notion/notion-issue-provider.ts
+  s_de253ae1bad339::t_72c44fec65fdce 15-19,282-289,346,367
+apps/emdash-desktop/src/renderer/features/tasks/components/issue-selector/issue-selector.tsx
+  s_de253ae1bad339::t_9526ecacd80866 156,291
+apps/emdash-desktop/src/renderer/features/integrations/use-issues.ts
+  s_de253ae1bad339::t_0320d73f677e6c 5,20,148
+  s_de253ae1bad339::t_069bb3f6e16521 138-141
+apps/emdash-desktop/src/renderer/features/tasks/components/issue-selector/issue-search-empty-state.tsx
+  s_de253ae1bad339::t_7dbd8e211211f5 8,37,41,44
+apps/emdash-desktop/src/main/core/notion/notion-connection-service.ts
+  s_de253ae1bad339::t_8de107378446bb 4-8,23-36,139-159,161-172,174,355
+apps/emdash-desktop/src/renderer/features/tasks/components/issue-selector/parse-issue-search-error.ts
+  s_de253ae1bad339::t_e6aaafb6cdbaff 2,24-25,30,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "e1ec7993957d804b55463e437a4ed2b84c77ff1c",
+  "prompts": {},
+  "sessions": {
+    "s_de253ae1bad339": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ef957-7441-7333-b3c1-3dde223b9c36",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
