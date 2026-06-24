@@ -1,0 +1,29 @@
+apps/emdash-desktop/src/shared/feature-announcements/schema.test.ts
+  s_950af328609f49::t_945b6ad1e8885c 43,55
+  s_950af328609f49::t_c1ba2649c68240 44-54,56-57
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-media.test.ts
+  s_950af328609f49::t_c1ba2649c68240 11
+apps/emdash-desktop/src/shared/feature-announcements/feature-announcements.toml.test.ts
+  s_950af328609f49::t_ef224bd06f362e 51
+apps/emdash-desktop/src/renderer/features/feature-announcements/feature-announcement-toast.tsx
+  s_950af328609f49::t_0ea58119b68263 92,94-97
+  s_950af328609f49::t_b3b367277c4b28 93
+apps/emdash-desktop/feature-announcements.schema.json
+  s_950af328609f49::t_967e1fea25f200 67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "cf91d72f45bda6cac9e708d6c61787e2b973f5a9",
+  "prompts": {},
+  "sessions": {
+    "s_950af328609f49": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0d28109e-8793-4a8d-8720-4b7b39e66e23",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
