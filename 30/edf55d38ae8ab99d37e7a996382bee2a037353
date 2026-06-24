@@ -1,0 +1,23 @@
+packages/plugins/src/agents/impl/index.test.ts
+  s_7f25e7b29b077a::t_1cf8542f7593f6 158,166,179
+packages/plugins/src/agents/impl/rovo/index.ts
+  s_7f25e7b29b077a::t_dd1126b8a63e29 41
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_7f25e7b29b077a::t_192640e848c098 511
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "30edf55d38ae8ab99d37e7a996382bee2a037353",
+  "prompts": {},
+  "sessions": {
+    "s_7f25e7b29b077a": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ef5d4-b828-71cb-9906-e07caeface83",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
