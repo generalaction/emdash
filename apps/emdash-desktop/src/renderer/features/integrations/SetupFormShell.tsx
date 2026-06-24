@@ -16,6 +16,9 @@ type SetupFormShellProps<P extends SetupIntegrationType> = {
   providerId: P;
   getInput: () => ProviderInput[P];
   canSubmit: boolean;
+  submitLabel?: string;
+  successTitle?: string;
+  successDescription?: string;
   onSuccess: () => void;
   onClose: () => void;
   children: ReactNode;
@@ -25,6 +28,9 @@ export function SetupFormShell<P extends SetupIntegrationType>({
   providerId,
   getInput,
   canSubmit,
+  submitLabel = 'Connect',
+  successTitle = 'Integration connected',
+  successDescription = 'Integration set up successfully.',
   onSuccess,
   onClose,
   children,
@@ -40,8 +46,8 @@ export function SetupFormShell<P extends SetupIntegrationType>({
     try {
       await providers[providerId].connect(getInput());
       toast({
-        title: 'Integration connected',
-        description: 'Integration set up successfully.',
+        title: successTitle,
+        description: successDescription,
       });
       onSuccess();
     } catch (e) {
@@ -65,7 +71,7 @@ export function SetupFormShell<P extends SetupIntegrationType>({
         </Button>
         <ConfirmButton onClick={() => void handleSubmit()} disabled={!canSubmit || isMutating}>
           {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Connect
+          {submitLabel}
         </ConfirmButton>
       </DialogFooter>
     </>

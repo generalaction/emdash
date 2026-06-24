@@ -1,4 +1,4 @@
-import { Loader2, Plus, Trash2, X } from 'lucide-react';
+import { Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { ISSUE_FEATURE_LABELS } from '@renderer/features/integrations/issue-provider-meta';
 import { PROVIDER_ICON_COMPONENTS } from '@renderer/features/integrations/provider-icons';
@@ -107,22 +107,40 @@ function SingleIntegrationAccount({ integration }: { integration: IntegrationIte
           {integration.displayDetail ?? 'Connected'}
         </p>
       </div>
-      {integration.onDisconnect && (
-        <Tooltip>
-          <TooltipTrigger>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={integration.onDisconnect}
-              aria-label={`Disconnect ${integration.name}`}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top">Disconnect</TooltipContent>
-        </Tooltip>
-      )}
+      <div className="flex items-center gap-1">
+        {integration.onEdit && (
+          <Tooltip>
+            <TooltipTrigger>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={integration.onEdit}
+                aria-label={`Edit ${integration.name}`}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Edit</TooltipContent>
+          </Tooltip>
+        )}
+        {integration.onDisconnect && (
+          <Tooltip>
+            <TooltipTrigger>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={integration.onDisconnect}
+                aria-label={`Disconnect ${integration.name}`}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Disconnect</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
     </div>
   );
 }

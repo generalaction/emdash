@@ -30,6 +30,11 @@ type SaveCredentialsInput = {
   databaseUrls: string;
 };
 
+export type NotionConfiguration = {
+  hasCredentials: boolean;
+  databaseUrls: string;
+};
+
 type NotionUser = {
   id: string;
   name?: string | null;
@@ -173,7 +178,8 @@ export class NotionConnectionService {
   async saveCredentials(
     input: SaveCredentialsInput
   ): Promise<{ success: boolean; displayName?: string; error?: string }> {
-    const token = input.token.trim();
+    const existingCredentials = await this.getStoredCredentials();
+    const token = input.token.trim() || existingCredentials?.token || '';
     if (!token) {
       return { success: false, error: 'Access token cannot be empty.' };
     }
@@ -206,6 +212,19 @@ export class NotionConnectionService {
           : 'Failed to validate Notion token. Please try again.';
       return { success: false, error: message };
     }
+  }
+
+  async getConfiguration(): Promise<NotionConfiguration> {
+    const credentials = await this.getStoredCredentials();
+    if (!credentials) {
+      return { hasCredentials: false, databaseUrls: '' };
+    }
+
+    return {
+      hasCredentials: true,
+      databaseUrls:
+        credentials.scope.type === 'data-sources' ? credentials.scope.sourceUrls.join('\n') : '',
+    };
   }
 
   async clearCredentials(): Promise<{ success: boolean; error?: string }> {

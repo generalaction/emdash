@@ -1,26 +1,57 @@
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { rpc } from '@renderer/lib/ipc';
 import { Input } from '@renderer/lib/ui/input';
 import { SetupFormShell, type SetupFormProps } from './SetupFormShell';
 
-function NotionSetupForm({ onSuccess, onClose }: SetupFormProps) {
+function NotionSetupForm(props: SetupFormProps) {
+  const { data: configuration } = useQuery({
+    queryKey: ['notion:configuration'],
+    queryFn: () => rpc.notion.getConfiguration(),
+    staleTime: 0,
+  });
+
+  return (
+    <NotionSetupFormFields
+      key={configuration?.databaseUrls ?? 'loading'}
+      {...props}
+      hasCredentials={configuration?.hasCredentials ?? false}
+      initialDatabaseUrls={configuration?.databaseUrls ?? ''}
+    />
+  );
+}
+
+function NotionSetupFormFields({
+  onSuccess,
+  onClose,
+  hasCredentials,
+  initialDatabaseUrls,
+}: SetupFormProps & { hasCredentials: boolean; initialDatabaseUrls: string }) {
   const [token, setToken] = useState('');
-  const [databaseUrls, setDatabaseUrls] = useState('');
+  const [databaseUrls, setDatabaseUrls] = useState(initialDatabaseUrls);
+  const trimmedToken = token.trim();
+  const isEditing = hasCredentials;
 
   return (
     <SetupFormShell
       providerId="notion"
       getInput={() => ({
-        token: token.trim(),
+        token: trimmedToken,
         databaseUrls: databaseUrls.trim(),
       })}
-      canSubmit={!!token.trim()}
+      canSubmit={isEditing || !!trimmedToken}
+      submitLabel={isEditing ? 'Save changes' : 'Connect'}
+      successTitle={isEditing ? 'Integration updated' : 'Integration connected'}
+      successDescription={
+        isEditing ? 'Notion settings updated successfully.' : 'Integration set up successfully.'
+      }
       onSuccess={onSuccess}
       onClose={onClose}
     >
       <div className="grid gap-2">
         <Input
           type="password"
-          placeholder="Access token"
+          placeholder={isEditing ? 'Access token (leave blank to keep current)' : 'Access token'}
           value={token}
           onChange={(e) => setToken(e.target.value)}
           className="h-9 w-full"

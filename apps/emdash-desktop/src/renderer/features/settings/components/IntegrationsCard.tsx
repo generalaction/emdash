@@ -25,6 +25,7 @@ export type IntegrationItem = {
   displayName?: string;
   displayDetail?: string;
   onConnect: () => void;
+  onEdit?: () => void;
   onDisconnect?: () => void | Promise<void>;
 };
 
@@ -97,6 +98,8 @@ const IntegrationsCard: React.FC = () => {
       displayName: status.displayName,
       displayDetail: status.displayDetail,
       onConnect: () => showIntegrationSetup({ integration: provider }),
+      onEdit:
+        provider === 'notion' ? () => showIntegrationSetup({ integration: provider }) : undefined,
       onDisconnect: () =>
         confirmDisconnect({
           name: meta.displayName,

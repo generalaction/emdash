@@ -184,6 +184,7 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
 
   const invalidateStatuses = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
+    void queryClient.invalidateQueries({ queryKey: ['notion:configuration'] });
   }, [queryClient]);
 
   const linearConnection = useProviderConnection({
