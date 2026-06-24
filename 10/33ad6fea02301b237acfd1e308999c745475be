@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/renderer/features/integrations/NotionSetupForm.tsx
+  s_229c10176a07a3::t_f43e1e861a4238 52-57,60
+apps/emdash-desktop/src/renderer/features/settings/components/IntegrationsCard.tsx
+  s_229c10176a07a3::t_09190c595284d5 102-104
+apps/emdash-desktop/src/renderer/features/integrations/integration-setup-modal.tsx
+  s_229c10176a07a3::t_1c87b34ab11705 40-45
+  s_229c10176a07a3::t_9db14092f2c58c 21,48-52,57-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "1033ad6fea02301b237acfd1e308999c745475be",
+  "prompts": {},
+  "sessions": {
+    "s_229c10176a07a3": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ef921-4a37-7af6-99eb-07f3f6373630",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
