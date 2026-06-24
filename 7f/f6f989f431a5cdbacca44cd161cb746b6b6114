@@ -1,0 +1,35 @@
+apps/emdash-desktop/src/main/core/notion/notion-connection-service.ts
+  s_271a13d5c1354d::t_21305ad473b55d 99-114,116
+apps/emdash-desktop/src/renderer/features/tasks/components/issue-selector/parse-issue-search-error.ts
+  s_271a13d5c1354d::t_479f88e4ba930e 1-65
+apps/emdash-desktop/src/renderer/features/tasks/components/issue-selector/issue-selector.tsx
+  s_271a13d5c1354d::t_1d318cef1dc120 31
+  s_271a13d5c1354d::t_1a0bfe606542a2 285-286
+apps/emdash-desktop/src/main/core/notion/notion-connection-service.test.ts
+  s_271a13d5c1354d::t_cb7bba51607eb4 203-220
+apps/emdash-desktop/src/renderer/features/tasks/components/issue-selector/parse-issue-search-error.test.ts
+  s_271a13d5c1354d::t_873f04b91d6e06 1-48
+apps/emdash-desktop/src/renderer/features/tasks/components/issue-selector/issue-search-empty-state.tsx
+  s_271a13d5c1354d::t_9e7469e25b48c4 2-3,9-31
+  s_271a13d5c1354d::t_c0ef88226e3a01 1,4-8,32-57,59-81
+  s_271a13d5c1354d::t_eb0a8963359fd4 58
+apps/emdash-desktop/src/renderer/features/tasks/components/issue-selector/issue-selector.test.ts
+  s_271a13d5c1354d::t_e19094b450bed8 142,146
+  s_271a13d5c1354d::t_cf2807752d1559 88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "7ff6f989f431a5cdbacca44cd161cb746b6b6114",
+  "prompts": {},
+  "sessions": {
+    "s_271a13d5c1354d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2928e61b-bd56-44d4-9c1a-2b13391a6d9d",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
