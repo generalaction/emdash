@@ -1,0 +1,20 @@
+apps/emdash-desktop/src/renderer/lib/ui/shortcut.tsx
+  s_9a8bfa31bcc81f::t_db5a147c6d7682 79-82
+  s_9a8bfa31bcc81f::t_ce729cc124a316 36-37,72-78,83-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "29cef474aeaff225f5b19fa7e06dba92ae91c57b",
+  "prompts": {},
+  "sessions": {
+    "s_9a8bfa31bcc81f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_105d13ecbffeAIU0J1YHKo1CiM",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
