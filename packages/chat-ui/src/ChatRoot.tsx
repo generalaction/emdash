@@ -265,38 +265,69 @@ export function ChatRoot(props: ChatRootProps) {
   // computed entirely from cached signals — no DOM read.
   const stuckIntent = () => maxScrollTop() - scrollTop() <= STICK_THRESHOLD_PX;
 
-  // ── Flat unit view (two-tier) ─────────────────────────────────────────────
+  // ── Flat unit view (two-tier, incremental) ────────────────────────────────
   //
-  // Two tier-scoped memos replace the monolithic flatten + segmentCache:
+  // committedUnitsArr is maintained incrementally by a createEffect:
+  //   - Append-only fast path: when state.committed grows by identity-stable
+  //     prefix, only the new tail is re-segmented — O(new), not O(total).
+  //   - Full rebuild for seed/prepend or any non-append change.
+  //   - committedUnitsVersion bumped after each update to propagate to
+  //     activeUnits/units memos without exposing the mutable array as a signal.
   //
-  //   committedUnits — stable; recomputes only when committed() identity
-  //                    changes (turn_done / prepend / seed). The framework
-  //                    memo replaces the old WeakMap segmentCache.
-  //   activeUnits    — recomputes per streaming tick but only over the small
-  //                    activeTurn array; O(activeTurn), not O(total).
-  //   units          — UnitsView virtual concat; no array allocation per tick.
-  //
-  // Unit ids are stable across streaming ticks for committed items so the
-  // <For> keeps existing UnitRow instances mounted.
+  // activeUnits — recomputes per streaming tick but only over the small
+  //               activeTurn array; O(activeTurn), not O(total).
+  // units       — UnitsView virtual concat; no array allocation per tick.
 
   const segmentCtx = createMemo(() => ({
     caches,
     expanded: (_id: string) => false, // collapse state queried per-unit in UnitRow
   }));
 
-  const committedUnits = createMemo(() =>
-    flattenTier(props.transcript.state.committed, segmentCtx(), SEGMENTERS, UNIT_REGISTRY)
-  );
+  let committedUnitsArr: ReturnType<typeof flattenTier> = [];
+  let lastCommitted: readonly ChatItem[] = [];
+  const [committedUnitsVersion, setCommittedUnitsVersion] = createSignal(0);
+
+  createEffect(() => {
+    const next = props.transcript.state.committed;
+    const prev = lastCommitted;
+    const ctx = segmentCtx();
+
+    if (
+      next.length > prev.length &&
+      (prev.length === 0 ? true : prev.every((item, i) => next[i] === item))
+    ) {
+      // Append-only fast path: segment only the new tail.
+      const tail = next.slice(prev.length);
+      const prevKind =
+        committedUnitsArr.length > 0
+          ? committedUnitsArr[committedUnitsArr.length - 1].kind
+          : undefined;
+      const newUnits = flattenTier(tail, ctx, SEGMENTERS, UNIT_REGISTRY, prevKind);
+      committedUnitsArr = [...committedUnitsArr, ...newUnits];
+    } else {
+      // Full rebuild for seed/prepend or any non-append change.
+      committedUnitsArr = flattenTier(next, ctx, SEGMENTERS, UNIT_REGISTRY);
+    }
+
+    lastCommitted = next;
+    setCommittedUnitsVersion((v) => v + 1);
+  });
 
   const activeUnits = createMemo(() => {
+    committedUnitsVersion(); // track so prevKind update propagates
     const at = props.transcript.state.activeTurn;
     if (!at || at.length === 0) return [] as ReturnType<typeof flattenTier>;
-    const c = committedUnits();
-    const prevKind = c.length > 0 ? c[c.length - 1].kind : undefined;
+    const prevKind =
+      committedUnitsArr.length > 0
+        ? committedUnitsArr[committedUnitsArr.length - 1].kind
+        : undefined;
     return flattenTier(at, segmentCtx(), SEGMENTERS, UNIT_REGISTRY, prevKind);
   });
 
-  const units = createMemo<UnitsView>(() => makeUnitsView(committedUnits(), activeUnits()));
+  const units = createMemo<UnitsView>(() => {
+    committedUnitsVersion(); // track so units updates after append
+    return makeUnitsView(committedUnitsArr, activeUnits());
+  });
 
   // Leading gap of a user message row — used by the pin overlay to keep the
   // pinned copy vertically aligned with the real row. Reads the message def's
@@ -606,7 +637,7 @@ export function ChatRoot(props: ChatRootProps) {
     }
   };
 
-  const doLoadOlder = (items: Parameters<typeof props.transcript.prependHistory>[0]) => {
+  const doLoadOlder = (items: ChatItem[]) => {
     const el = scrollEl;
     if (!el || items.length === 0) return;
 
@@ -639,7 +670,7 @@ export function ChatRoot(props: ChatRootProps) {
     });
 
     // Update the transcript store (triggers the count-sync effect and re-flattens).
-    props.transcript.prependHistory(items);
+    props.transcript.history.prepend(items);
     refreshTotal();
 
     // Restore scroll position so the previously-visible unit stays in view.
@@ -764,7 +795,7 @@ export function ChatRoot(props: ChatRootProps) {
     //
     // After each scroll settle (no new scroll event fires before the rAF callback
     // flushes) we schedule a requestIdleCallback to pre-measure rows just beyond
-    // the overscan window. This populates the shared nodeMemo WeakMap so those
+    // the overscan window. This populates the blockMemo WeakMap so those
     // rows are cache hits when they later scroll into view, converting ~1500x
     // cold-vs-warm measure cost into background idle work.
     //

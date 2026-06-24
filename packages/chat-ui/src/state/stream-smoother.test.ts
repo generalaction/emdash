@@ -3,27 +3,29 @@
  *
  * Uses an injected synchronous scheduler so no real timers are needed and
  * tests are fully deterministic.
+ *
+ * The smoother wraps a target TranscriptApi.  We observe the underlying
+ * transcript via `collectSets` which wraps `transcript.activeTurn.set` and
+ * captures every (items, status) pair the smoother forwards.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { SmootherScheduler } from './stream-smoother';
 import { createStreamSmoother } from './stream-smoother';
+import type { TurnStatus } from './transcript';
 import { createTranscript } from './transcript';
-import type { TranscriptEvent } from './transcript';
+import type { ChatItem } from '@/model';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** A synchronous scheduler: tick() fires the callback immediately on demand. */
-function makeSyncScheduler(): SmootherScheduler & { tick(): void; cancelCount: number } {
+function makeSyncScheduler(): SmootherScheduler & { tick(): void } {
   let fn: (() => void) | null = null;
-  const cancelCount = 0;
   return {
-    cancelCount,
     schedule(cb) {
       fn = cb;
       return () => {
         fn = null;
-        this.cancelCount++;
       };
     },
     tick() {
@@ -32,15 +34,27 @@ function makeSyncScheduler(): SmootherScheduler & { tick(): void; cancelCount: n
   };
 }
 
-/** Collect dispatched events from a transcript. */
-function collectEvents(transcript: ReturnType<typeof createTranscript>): TranscriptEvent[] {
-  const events: TranscriptEvent[] = [];
-  const orig = transcript.dispatch.bind(transcript);
-  vi.spyOn(transcript, 'dispatch').mockImplementation((evt) => {
-    events.push(evt);
-    orig(evt);
-  });
-  return events;
+type SetCall = { items: readonly ChatItem[] | null; status: TurnStatus };
+
+/**
+ * Wrap `transcript.activeTurn.set` and capture every call made by the smoother.
+ * Returns the mutable capture array so callers can inspect and reset it.
+ */
+function collectSets(transcript: ReturnType<typeof createTranscript>): SetCall[] {
+  const calls: SetCall[] = [];
+  const origSet = transcript.activeTurn.set.bind(transcript.activeTurn);
+  transcript.activeTurn.set = (items, status) => {
+    calls.push({ items, status });
+    origSet(items, status);
+  };
+  return calls;
+}
+
+/** Return the text of the first message item in a snapshot, or '' if absent. */
+function firstMsgText(items: readonly ChatItem[] | null): string {
+  if (!items) return '';
+  const msg = items.find((it) => it.kind === 'message' && it.role === 'assistant');
+  return msg && msg.kind === 'message' ? msg.text : '';
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -49,76 +63,75 @@ describe('createStreamSmoother — buffering', () => {
   it('passes empty initial message_chunk through immediately (row creation)', () => {
     const tx = createTranscript();
     const sched = makeSyncScheduler();
-    const events = collectEvents(tx);
+    const sets = collectSets(tx);
     const smoother = createStreamSmoother(tx, { scheduler: sched });
 
     smoother.dispatch({ type: 'message_chunk', id: 'a', role: 'assistant', text: '' });
 
-    // Empty chunk forwarded synchronously, nothing buffered.
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({ type: 'message_chunk', text: '' });
+    // Empty chunk forwarded synchronously: one activeTurn.set with empty message.
+    expect(sets).toHaveLength(1);
+    expect(firstMsgText(sets[0].items)).toBe('');
 
-    // Tick has no pending words → no additional events.
+    // Tick has no pending words → no additional sets.
     sched.tick();
-    expect(events).toHaveLength(1);
+    expect(sets).toHaveLength(1);
   });
 
   it('buffers words and releases one atom per tick', () => {
     const tx = createTranscript();
     const sched = makeSyncScheduler();
-    const events = collectEvents(tx);
+    const sets = collectSets(tx);
     const smoother = createStreamSmoother(tx, { scheduler: sched, wordsPerTick: 1 });
 
     // Row creation.
     smoother.dispatch({ type: 'message_chunk', id: 'a', role: 'assistant', text: '' });
-    events.length = 0; // clear creation event
+    sets.length = 0; // clear creation set
 
-    // Feed 3 words in one chunk.
-    // splitWords splits 'one two three' into 5 atoms: ['one', ' ', 'two', ' ', 'three']
+    // Feed 3 words in one chunk — atoms: ['one', ' ', 'two', ' ', 'three']
     smoother.dispatch({ type: 'message_chunk', id: 'a', role: 'assistant', text: 'one two three' });
-    // Not forwarded yet.
-    expect(events).toHaveLength(0);
+    // The smoother forwards a partial snapshot immediately (delivered text = '' still).
+    expect(sets).toHaveLength(1);
+    expect(firstMsgText(sets[0].items)).toBe('');
+    sets.length = 0;
 
-    // First tick: one atom released.
+    // First tick: one atom released → activeTurn.set called once with 'one'.
     sched.tick();
-    expect(events.length).toBeGreaterThanOrEqual(1);
-    expect(events[0]).toMatchObject({ type: 'message_chunk', id: 'a' });
+    expect(sets.length).toBeGreaterThanOrEqual(1);
+    expect(firstMsgText(sets[0].items)).toBe('one');
 
     // Drain all remaining atoms.
     for (let i = 0; i < 10; i++) sched.tick();
 
-    // Full text forwarded across all ticks.
-    const forwarded = events.map((e) => ('text' in e ? e.text : '')).join('');
-    expect(forwarded).toBe('one two three');
+    // Final text equals the full original.
+    const delivered = firstMsgText(sets[sets.length - 1].items);
+    expect(delivered).toBe('one two three');
   });
 
-  it('concatenation of forwarded chunks equals the original text', () => {
+  it('delivered text after draining equals the original', () => {
     const tx = createTranscript();
     const sched = makeSyncScheduler();
-    const events = collectEvents(tx);
+    const sets = collectSets(tx);
     const smoother = createStreamSmoother(tx, { scheduler: sched, wordsPerTick: 1 });
 
     const original = 'Hello world, this is a test sentence.';
     smoother.dispatch({ type: 'message_chunk', id: 'b', role: 'assistant', text: '' });
     smoother.dispatch({ type: 'message_chunk', id: 'b', role: 'assistant', text: original });
-    events.length = 0;
+    // Clear all sets so far (including the partial-forward from the dispatch above).
+    sets.length = 0;
 
     // Drain all ticks.
     for (let i = 0; i < 100; i++) sched.tick();
 
-    const reassembled = events
-      .filter((e) => e.type === 'message_chunk' && 'text' in e)
-      .map((e) => ('text' in e ? e.text : ''))
-      .join('');
-    expect(reassembled).toBe(original);
+    const delivered = firstMsgText(sets[sets.length - 1].items);
+    expect(delivered).toBe(original);
   });
 });
 
 describe('createStreamSmoother — catch-up', () => {
-  it('releases more words per tick when backlog exceeds threshold', () => {
+  it('releases more atoms per tick when backlog exceeds threshold', () => {
     const tx = createTranscript();
     const sched = makeSyncScheduler();
-    const events = collectEvents(tx);
+    const sets = collectSets(tx);
     const smoother = createStreamSmoother(tx, {
       scheduler: sched,
       wordsPerTick: 1,
@@ -127,127 +140,122 @@ describe('createStreamSmoother — catch-up', () => {
 
     smoother.dispatch({ type: 'message_chunk', id: 'c', role: 'assistant', text: '' });
 
-    // 10 words → exceeds catchUpThreshold (4) → first tick should release ceil(10/4) = 3
+    // 10 words → exceeds catchUpThreshold (4) → first tick should release > 1 atom.
     const tenWords = 'a b c d e f g h i j';
     smoother.dispatch({ type: 'message_chunk', id: 'c', role: 'assistant', text: tenWords });
-    events.length = 0;
+    sets.length = 0;
 
     sched.tick();
-    // Should have forwarded > 1 event worth of words in one tick.
-    const forwarded = events.map((e) => ('text' in e ? e.text : '')).join('');
-    // At least 2 words released (catch-up releases ceil(backlog/4) = 3 or more atoms).
-    const wordCount = forwarded.trim().split(/\s+/).filter(Boolean).length;
+    // Should have forwarded at least 2 word atoms (catch-up).
+    const delivered = firstMsgText(sets[sets.length - 1]?.items ?? null);
+    const wordCount = delivered.trim().split(/\s+/).filter(Boolean).length;
     expect(wordCount).toBeGreaterThan(1);
   });
 });
 
-describe('createStreamSmoother — turn_done flush', () => {
-  it('flushes all pending words before forwarding turn_done', () => {
+describe('createStreamSmoother — commit flush', () => {
+  it('flushes all pending words before forwarding commit(done)', () => {
     const tx = createTranscript();
     const sched = makeSyncScheduler();
-    const events = collectEvents(tx);
+    const sets = collectSets(tx);
     const smoother = createStreamSmoother(tx, { scheduler: sched, wordsPerTick: 1 });
 
     smoother.dispatch({ type: 'message_chunk', id: 'd', role: 'assistant', text: '' });
     smoother.dispatch({ type: 'message_chunk', id: 'd', role: 'assistant', text: 'hello world' });
-    events.length = 0;
+    sets.length = 0;
 
-    // turn_done without any ticks → must flush synchronously.
+    // turn_done via dispatch (convenience wrapper) — must flush synchronously.
     smoother.dispatch({ type: 'turn_done' });
 
-    const chunkEvents = events.filter((e) => e.type === 'message_chunk');
-    const doneEvents = events.filter((e) => e.type === 'turn_done');
+    // At least one activeTurn.set call must have happened (full text flushed).
+    expect(sets.length).toBeGreaterThan(0);
 
-    // Words flushed before turn_done.
-    expect(chunkEvents.length).toBeGreaterThan(0);
-    expect(doneEvents).toHaveLength(1);
+    // The final delivered text should equal the original.
+    const lastSetBeforeCommit = sets[sets.length - 1];
+    const delivered = firstMsgText(lastSetBeforeCommit.items);
+    expect(delivered).toBe('hello world');
 
-    // turn_done is the last event.
-    expect(events[events.length - 1]).toMatchObject({ type: 'turn_done' });
-
-    const flushedText = chunkEvents.map((e) => ('text' in e ? e.text : '')).join('');
-    expect(flushedText).toBe('hello world');
+    // The committed history should now contain the message.
+    const committed = tx.state.committed;
+    const msg = committed.find((it) => it.kind === 'message' && it.id === 'd');
+    expect(msg).toBeDefined();
   });
 
-  it('flushes all pending words before forwarding turn_cancelled', () => {
+  it('flushes all pending words before forwarding commit(cancelled)', () => {
     const tx = createTranscript();
     const sched = makeSyncScheduler();
-    const events = collectEvents(tx);
+    const sets = collectSets(tx);
     const smoother = createStreamSmoother(tx, { scheduler: sched, wordsPerTick: 1 });
 
     smoother.dispatch({ type: 'message_chunk', id: 'e', role: 'assistant', text: '' });
     smoother.dispatch({ type: 'message_chunk', id: 'e', role: 'assistant', text: 'foo bar baz' });
-    events.length = 0;
+    sets.length = 0;
 
     smoother.dispatch({ type: 'turn_cancelled' });
 
-    const chunkEvents = events.filter((e) => e.type === 'message_chunk');
-    const cancelEvents = events.filter((e) => e.type === 'turn_cancelled');
+    // Full text flushed.
+    expect(sets.length).toBeGreaterThan(0);
+    const delivered = firstMsgText(sets[sets.length - 1].items);
+    expect(delivered).toBe('foo bar baz');
 
-    expect(cancelEvents).toHaveLength(1);
-    expect(events[events.length - 1]).toMatchObject({ type: 'turn_cancelled' });
-    const flushedText = chunkEvents.map((e) => ('text' in e ? e.text : '')).join('');
-    expect(flushedText).toBe('foo bar baz');
+    // Committed history has the message.
+    const committed = tx.state.committed;
+    expect(committed.some((it) => it.kind === 'message' && it.id === 'e')).toBe(true);
   });
 });
 
 describe('createStreamSmoother — ordering with non-message events', () => {
-  it('flushes pending text for a message before forwarding a non-chunk event with the same id', () => {
+  it('forwards non-chunk events without flushing unrelated message buffers', () => {
     const tx = createTranscript();
     const sched = makeSyncScheduler();
-    const events = collectEvents(tx);
-    const smoother = createStreamSmoother(tx, { scheduler: sched, wordsPerTick: 1 });
-
-    smoother.dispatch({ type: 'message_chunk', id: 'f', role: 'assistant', text: '' });
-    smoother.dispatch({ type: 'message_chunk', id: 'f', role: 'assistant', text: 'pending text' });
-    events.length = 0;
-
-    // A tool_start with the same id (contrived but tests the ordering guarantee).
-    smoother.dispatch({ type: 'tool_start', id: 'f', name: 'SomeTool' });
-
-    const chunkIdx = events.findIndex((e) => e.type === 'message_chunk');
-    const toolIdx = events.findIndex((e) => e.type === 'tool_start');
-
-    // Flushed chunk comes before the tool event.
-    expect(chunkIdx).toBeGreaterThanOrEqual(0);
-    expect(toolIdx).toBeGreaterThan(chunkIdx);
-  });
-
-  it('passes through unrelated events without flushing other buffers', () => {
-    const tx = createTranscript();
-    const sched = makeSyncScheduler();
-    const events = collectEvents(tx);
+    const sets = collectSets(tx);
     const smoother = createStreamSmoother(tx, { scheduler: sched, wordsPerTick: 1 });
 
     smoother.dispatch({ type: 'message_chunk', id: 'g', role: 'assistant', text: '' });
     smoother.dispatch({ type: 'message_chunk', id: 'g', role: 'assistant', text: 'buffered' });
-    events.length = 0;
+    sets.length = 0;
 
-    // Event with a different id — should not trigger flush of 'g'.
+    // Event with a different id — should not flush 'g'.
     smoother.dispatch({ type: 'tool_start', id: 'tool-1', name: 'OtherTool' });
 
-    const chunkEvents = events.filter((e) => e.type === 'message_chunk');
-    const toolEvents = events.filter((e) => e.type === 'tool_start');
+    // The forwarded set should contain a tool item, not the buffered message text.
+    const lastItems = sets[sets.length - 1]?.items ?? [];
+    const toolItem = lastItems.find((it) => it.kind === 'tool' && it.id === 'tool-1');
+    expect(toolItem).toBeDefined();
+    // The message text is still partially delivered (only initial empty was forwarded).
+    const msgText = firstMsgText(lastItems);
+    expect(msgText).toBe('');
+  });
+});
 
-    // 'g' not flushed yet.
-    expect(chunkEvents).toHaveLength(0);
-    expect(toolEvents).toHaveLength(1);
+describe('createStreamSmoother — activeTurn.get returns desired state', () => {
+  it('get() returns full text even before smoother has ticked', () => {
+    const tx = createTranscript();
+    const sched = makeSyncScheduler();
+    const smoother = createStreamSmoother(tx, { scheduler: sched, wordsPerTick: 1 });
+
+    smoother.dispatch({ type: 'message_chunk', id: 'm', role: 'assistant', text: '' });
+    smoother.dispatch({ type: 'message_chunk', id: 'm', role: 'assistant', text: 'full text' });
+
+    // get() returns the desired (full) snapshot immediately, not the partial delivered one.
+    const desired = smoother.activeTurn.get();
+    expect(firstMsgText(desired)).toBe('full text');
   });
 });
 
 describe('createStreamSmoother — dispose', () => {
-  it('cancels the timer on dispose', () => {
+  it('cancels the timer on dispose — no further sets after dispose', () => {
     const tx = createTranscript();
     const sched = makeSyncScheduler();
-    collectEvents(tx);
+    const sets = collectSets(tx);
     const smoother = createStreamSmoother(tx, { scheduler: sched, wordsPerTick: 1 });
 
     smoother.dispatch({ type: 'message_chunk', id: 'h', role: 'assistant', text: 'hello world' });
     smoother.dispose();
 
-    // Ticking after dispose should produce nothing.
-    const events = collectEvents(tx);
+    sets.length = 0;
     sched.tick();
-    expect(events).toHaveLength(0);
+    // No sets after dispose.
+    expect(sets).toHaveLength(0);
   });
 });

@@ -1,27 +1,40 @@
 /**
  * createStreamSmoother — opt-in data-layer cadence smoother for streaming text.
  *
- * Wraps a `TranscriptApi` and intercepts `message_chunk` events. Bursty network
- * deltas are buffered and re-released one (or N) word(s) per tick at a steady
- * interval, so the per-word fade animation in Prose.tsx fires at even intervals
- * rather than in large bursts.
+ * Wraps a TranscriptApi and intercepts activeTurn.set. Bursty snapshots that
+ * contain growing message text are buffered; the smoother re-delivers the text
+ * one (or N) word(s) per tick so the per-word fade animation fires at even
+ * intervals rather than in large bursts.
  *
- * Non-`message_chunk` events pass through immediately after flushing any pending
- * text for the relevant message, preserving global event ordering. `turn_done`
- * and `turn_cancelled` flush all buffers synchronously before forwarding.
+ * Non-text activeTurn.set calls (tool starts, diff updates, etc.) pass through
+ * immediately after flushing any pending text for affected message ids.
+ * activeTurn.commit() flushes all pending text before delegating.
  *
  * Usage (host side):
  *   const smoother = createStreamSmoother(transcript);
- *   smoother.dispatch(event);          // instead of transcript.dispatch(event)
- *   smoother.dispose();                // cancel timers on teardown
+ *   // Drive events via the helper, or via smoother.activeTurn.set directly:
+ *   smoother.activeTurn.set(applyTurnEvent(smoother.activeTurn.get(), event), 'generating');
+ *   smoother.activeTurn.commit('done');
+ *   // — or use the convenience dispatch wrapper —
+ *   smoother.dispatch(event);        // ActiveTurnEvent or turn_done/turn_cancelled
+ *   smoother.dispose();              // cancel timers on teardown
+ *
+ * The smoother.activeTurn.get() returns the *desired* (full-text) snapshot so
+ * that applyTurnEvent can extend it correctly even when the smoother has not yet
+ * delivered all buffered words to the real transcript.
  *
  * The `scheduler` option accepts custom tick/cancel functions for deterministic
  * testing without real timers.
  */
 
-import type { TranscriptApi, TranscriptEvent } from './transcript';
+import type { TranscriptApi } from './transcript';
+import type { TurnStatus } from './transcript';
+import type { ActiveTurnEvent } from './turn-reducer';
+import { applyTurnEvent } from './turn-reducer';
+import type { ChatItem, ChatMessage } from '@/model';
+import type { ActiveTurn } from './transcript';
 
-// ── Word splitting (mirrors chunkText 'word' mode) ────────────────────────────
+// ── Word splitting ─────────────────────────────────────────────────────────────
 
 /** Split text into alternating word/whitespace atoms (preserves all chars). */
 function splitWords(text: string): string[] {
@@ -42,18 +55,33 @@ export type StreamSmootherOptions = {
    */
   wordsPerTick?: number;
   /**
-   * Tick interval in ms (default: 40 — ~25 fps, matches comfortable reading pace
-   * at a typical ~150 wpm for single-word-per-tick).
+   * Tick interval in ms (default: 40 — ~25 fps).
    */
   intervalMs?: number;
   /**
-   * Number of words in backlog before catch-up kicks in (default: 8).
-   * When backlog exceeds this threshold, each tick releases `ceil(backlog / 4)`
-   * words instead of `wordsPerTick` so display never lags far behind generation.
+   * Backlog size before catch-up kicks in (default: 8).
+   * When backlog exceeds this, each tick releases `ceil(backlog / 4)` words.
    */
   catchUpThreshold?: number;
   /** Injectable scheduler for deterministic tests. Defaults to setInterval. */
   scheduler?: SmootherScheduler;
+};
+
+/** Full TranscriptEvent union for the convenience dispatch method. */
+export type TranscriptEvent =
+  | ActiveTurnEvent
+  | { type: 'turn_done' }
+  | { type: 'turn_cancelled' };
+
+export type StreamSmoother = TranscriptApi & {
+  /**
+   * Convenience wrapper: routes an event through applyTurnEvent and
+   * activeTurn.set/commit. Equivalent to what a step-function helper does,
+   * kept here so tests and the harness can still use a single dispatch call.
+   */
+  dispatch(event: TranscriptEvent): void;
+  /** Cancel all pending timers and release resources. */
+  dispose(): void;
 };
 
 // ── Default scheduler ─────────────────────────────────────────────────────────
@@ -65,26 +93,24 @@ const defaultScheduler: SmootherScheduler = {
   },
 };
 
-// ── Per-message word buffer ───────────────────────────────────────────────────
+// ── Per-message buffer state ───────────────────────────────────────────────────
 
-type MsgBuffer = {
-  /** Queue of word atoms not yet forwarded. */
-  words: string[];
-  /** True once we've seen a turn_done or are flushing synchronously. */
-  flushing: boolean;
+type MessageState = {
+  /** Text that has been forwarded to the real transcript. */
+  deliveredText: string;
+  /** Word atoms buffered but not yet forwarded. */
+  pendingWords: string[];
 };
 
-// ── Smoother ──────────────────────────────────────────────────────────────────
-
-export type StreamSmoother = TranscriptApi & {
-  /** Cancel all pending timers and release resources. */
-  dispose(): void;
-};
+// ── createStreamSmoother ─────────────────────────────────────────────────────
 
 /**
  * Wraps `target` with a per-word cadence smoother.
  *
- * @param target - The real TranscriptApi to forward events to.
+ * Returns a full TranscriptApi so it can be used as a drop-in replacement
+ * wherever TranscriptApi is expected (e.g. ScriptedChat.wrapTranscript).
+ *
+ * @param target - The real TranscriptApi to forward to.
  * @param opts   - Tuning parameters and optional test scheduler.
  */
 export function createStreamSmoother(
@@ -98,33 +124,54 @@ export function createStreamSmoother(
     scheduler = defaultScheduler,
   } = opts;
 
-  // Per-message id → pending word queue.
-  const buffers = new Map<string, MsgBuffer>();
+  // Full desired snapshot — the last items passed to activeTurn.set.
+  // activeTurn.get() returns this so callers can extend via applyTurnEvent.
+  let desiredItems: ChatItem[] | null = null;
+  // Last status passed to activeTurn.set (used when delivering tick updates).
+  let currentStatus: TurnStatus = 'done';
+
+  // Per streaming-message id → buffered delivery state.
+  const messageStates = new Map<string, MessageState>();
 
   let cancelTick: (() => void) | null = null;
 
-  // ── Tick ────────────────────────────────────────────────────────────────────
+  // ── Snapshot builder ───────────────────────────────────────────────────────
+
+  /** Build the partial snapshot: streaming messages use deliveredText, others pass through. */
+  function buildPartialItems(): ChatItem[] | null {
+    if (!desiredItems) return null;
+    return desiredItems.map((item) => {
+      if (item.kind === 'message' && (item as ChatMessage).streaming) {
+        const ms = messageStates.get(item.id);
+        if (ms) {
+          return { ...item, text: ms.deliveredText } as ChatMessage;
+        }
+      }
+      return item;
+    });
+  }
+
+  // ── Tick ───────────────────────────────────────────────────────────────────
 
   function releaseTick() {
     let anyPending = false;
 
-    for (const [id, buf] of buffers.entries()) {
-      if (buf.words.length === 0) continue;
+    for (const ms of messageStates.values()) {
+      if (ms.pendingWords.length === 0) continue;
       anyPending = true;
 
-      // Catch-up: release proportionally more when the backlog is large.
-      const backlog = buf.words.length;
+      const backlog = ms.pendingWords.length;
       const releaseCount = backlog > catchUpThreshold ? Math.ceil(backlog / 4) : wordsPerTick;
-
-      // Collect atoms to forward in this tick.
-      const atoms = buf.words.splice(0, releaseCount);
-      const text = atoms.join('');
-      target.dispatch({ type: 'message_chunk', id, role: 'assistant', text });
+      const atoms = ms.pendingWords.splice(0, releaseCount);
+      ms.deliveredText += atoms.join('');
     }
 
-    // Stop the timer when nothing is buffered.
-    if (!anyPending && cancelTick) {
-      cancelTick();
+    if (anyPending && desiredItems) {
+      target.activeTurn.set(buildPartialItems(), currentStatus);
+    }
+
+    if (!anyPending) {
+      cancelTick?.();
       cancelTick = null;
     }
   }
@@ -135,100 +182,120 @@ export function createStreamSmoother(
     }
   }
 
-  // ── Flush ───────────────────────────────────────────────────────────────────
+  // ── Flush helpers ──────────────────────────────────────────────────────────
 
-  /** Synchronously forward all pending words for every buffered message. */
+  /** Synchronously deliver all pending words for all messages. */
   function flushAll() {
-    for (const [id, buf] of buffers.entries()) {
-      if (buf.words.length === 0) continue;
-      const text = buf.words.splice(0).join('');
-      target.dispatch({ type: 'message_chunk', id, role: 'assistant', text });
+    for (const ms of messageStates.values()) {
+      ms.deliveredText += ms.pendingWords.splice(0).join('');
     }
-    buffers.clear();
-    if (cancelTick) {
-      cancelTick();
-      cancelTick = null;
-    }
+    cancelTick?.();
+    cancelTick = null;
   }
 
-  /** Flush a single message's pending words before forwarding a non-chunk event for that id. */
-  function flushId(id: string) {
-    const buf = buffers.get(id);
-    if (!buf || buf.words.length === 0) return;
-    const text = buf.words.splice(0).join('');
-    target.dispatch({ type: 'message_chunk', id, role: 'assistant', text });
-    buffers.delete(id);
-  }
+  // ── Wrapped activeTurn API ─────────────────────────────────────────────────
 
-  // ── dispatch ────────────────────────────────────────────────────────────────
+  const wrappedActiveTurn: ActiveTurn = {
+    // Return the DESIRED snapshot (not the partial delivered one) so callers
+    // can safely call applyTurnEvent(activeTurn.get(), event) and get a
+    // correct full-text base to extend.
+    get() {
+      return desiredItems;
+    },
 
-  function dispatch(event: TranscriptEvent) {
-    if (event.type === 'message_chunk') {
-      const { id, role, text } = event;
+    status() {
+      return target.activeTurn.status();
+    },
 
-      // Pass through non-text chunks or empty initial row-creation chunks immediately.
-      if (!text) {
-        target.dispatch(event);
+    set(items, status) {
+      currentStatus = status;
+
+      if (items === null) {
+        // Clearing the turn (e.g. after commit). Flush and propagate.
+        flushAll();
+        desiredItems = null;
+        messageStates.clear();
+        target.activeTurn.set(null, status);
         return;
       }
 
-      // Buffer the words.
-      let buf = buffers.get(id);
-      if (!buf) {
-        buf = { words: [], flushing: false };
-        buffers.set(id, buf);
-      }
-      buf.words.push(...splitWords(text));
-      ensureTicking();
+      // Compute text deltas for streaming messages and buffer new words.
+      for (const item of items) {
+        if (item.kind !== 'message' || !(item as ChatMessage).streaming) continue;
+        const msg = item as ChatMessage;
 
-      // Pass through any attachments by re-dispatching without text.
-      if (event.attachments && event.attachments.length > 0) {
-        target.dispatch({
-          type: 'message_chunk',
-          id,
-          role,
-          text: '',
-          attachments: event.attachments,
-        });
-      }
-      return;
-    }
+        let ms = messageStates.get(msg.id);
+        if (!ms) {
+          ms = { deliveredText: '', pendingWords: [] };
+          messageStates.set(msg.id, ms);
+        }
 
-    // Turn-ending events: flush all pending buffers first.
-    if (event.type === 'turn_done' || event.type === 'turn_cancelled') {
+        // "already accounted" = delivered + still-pending words
+        const accounted = ms.deliveredText.length + ms.pendingWords.reduce((n, w) => n + w.length, 0);
+        if (msg.text.length > accounted) {
+          const newDelta = msg.text.slice(accounted);
+          if (newDelta.length > 0) {
+            ms.pendingWords.push(...splitWords(newDelta));
+            ensureTicking();
+          }
+        }
+      }
+
+      desiredItems = [...items] as ChatItem[];
+
+      // Forward the partial snapshot (delivered text only) to the real transcript.
+      target.activeTurn.set(buildPartialItems(), status);
+    },
+
+    commit(status = 'done') {
+      // Flush all buffers synchronously before delegating commit.
       flushAll();
-      target.dispatch(event);
-      return;
-    }
 
-    // Any event that references a specific id that has pending text: flush that id first
-    // to preserve ordering (e.g. a tool event that follows the end of a message chunk run).
-    if ('id' in event && typeof event.id === 'string' && buffers.has(event.id)) {
-      flushId(event.id);
-    }
+      // Push the full desired snapshot before committing so the store has
+      // the complete text (finalizeTurn in commit will settle streaming flags).
+      if (desiredItems) {
+        target.activeTurn.set(desiredItems, 'generating');
+      }
 
-    target.dispatch(event);
+      target.activeTurn.commit(status);
+
+      desiredItems = null;
+      messageStates.clear();
+    },
+  };
+
+  // ── Convenience dispatch method ────────────────────────────────────────────
+
+  function dispatch(event: TranscriptEvent) {
+    if (event.type === 'turn_done') {
+      wrappedActiveTurn.commit('done');
+    } else if (event.type === 'turn_cancelled') {
+      wrappedActiveTurn.commit('cancelled');
+    } else {
+      const current = wrappedActiveTurn.get();
+      wrappedActiveTurn.set(applyTurnEvent(current, event), 'generating');
+    }
   }
 
-  // ── Passthrough for non-dispatch API ────────────────────────────────────────
-
   function dispose() {
-    if (cancelTick) {
-      cancelTick();
-      cancelTick = null;
-    }
-    buffers.clear();
+    cancelTick?.();
+    cancelTick = null;
+    messageStates.clear();
+    desiredItems = null;
   }
 
   return {
-    get state() {
-      return target.state;
+    // history and non-activeTurn methods pass through unchanged.
+    history: target.history,
+    state: target.state,
+    findIndexById: (id) => target.findIndexById(id),
+    reset: () => {
+      dispose();
+      target.reset();
     },
-    seed: target.seed.bind(target),
+
+    activeTurn: wrappedActiveTurn,
     dispatch,
-    reset: target.reset.bind(target),
-    prependHistory: target.prependHistory.bind(target),
-    findIndexById: target.findIndexById.bind(target),
     dispose,
   };
 }

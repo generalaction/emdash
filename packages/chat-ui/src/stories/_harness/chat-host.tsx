@@ -72,7 +72,7 @@ export type ChatHostProps = {
 function makeCommands(transcript: TranscriptApi, overrides?: ChatCommands): () => ChatCommands {
   return () => ({
     onStop: () => {
-      transcript.dispatch({ type: 'turn_cancelled' });
+      transcript.activeTurn.commit('cancelled');
     },
     ...overrides,
   });
@@ -92,7 +92,7 @@ export function ChatHostExpanded(props: {
   const viewState = createViewState();
 
   createEffect(() => {
-    transcript.seed(props.items);
+    transcript.history.seed(props.items);
   });
 
   // Pre-toggle so the item starts in the expanded state.
@@ -123,7 +123,7 @@ export function ChatHost(props: ChatHostProps) {
   const viewState = createViewState();
 
   createEffect(() => {
-    transcript.seed(props.items ?? []);
+    transcript.history.seed(props.items ?? []);
   });
 
   const commands = createMemo(() => makeCommands(transcript, props.commands)());
@@ -180,7 +180,7 @@ export function ScriptedChat(props: {
       if (idx >= props.script.length) return;
       const step = props.script[idx++];
       if (step.kind === 'seed') {
-        api.seed(step.items);
+        api.history.seed(step.items);
         runNext();
       } else if (step.kind === 'call') {
         // Run inside the component's reactive owner so Solid tracks any store

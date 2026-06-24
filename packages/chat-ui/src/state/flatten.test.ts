@@ -25,6 +25,7 @@ import { unit } from '@core/units';
 import type { ItemSegmenter, UnitDef } from '@core/units';
 import type { ChatItem } from '@/model';
 import { flattenTier, makeUnitsView, collectUserTurnUnits } from './flatten';
+import { applyTurnEvent } from './turn-reducer';
 import { createTranscript } from './transcript';
 
 // ── Minimal segmenter stub (no DOM imports) ────────────────────────────────────
@@ -86,6 +87,10 @@ const STUB_UNIT_DEFS: StubUnitDefs = {
   plan: { margin: { top: 8, bottom: 8 } },
 };
 
+function driveEvent(tx: ReturnType<typeof createTranscript>, event: Parameters<typeof applyTurnEvent>[1]) {
+  tx.activeTurn.set(applyTurnEvent(tx.activeTurn.get(), event), 'generating');
+}
+
 function flattenCommitted(tx: ReturnType<typeof createTranscript>, unitDefs?: StubUnitDefs) {
   return flattenTier(tx.state.committed, segCtx, STUB_SEGMENTERS, unitDefs);
 }
@@ -117,7 +122,7 @@ describe('flatten — basic', () => {
 
   it('produces one unit per committed item (Phase 0 legacy)', () => {
     const tx = createTranscript();
-    tx.seed([userMsg('a'), userMsg('b'), tool('c')]);
+    tx.history.seed([userMsg('a'), userMsg('b'), tool('c')]);
     const view = flattenAll(tx);
     expect(view.length).toBe(3);
     expect(view.at(0)?.itemId).toBe('a');
@@ -127,14 +132,14 @@ describe('flatten — basic', () => {
 
   it('unit ids are ${itemId}#self for legacy units', () => {
     const tx = createTranscript();
-    tx.seed([userMsg('x')]);
+    tx.history.seed([userMsg('x')]);
     const view = flattenAll(tx);
     expect(view.at(0)?.id).toBe('x#self');
   });
 
   it('unit.kind matches item.kind', () => {
     const tx = createTranscript();
-    tx.seed([userMsg('a'), tool('b')]);
+    tx.history.seed([userMsg('a'), tool('b')]);
     const view = flattenAll(tx);
     expect(view.at(0)?.kind).toBe('message');
     expect(view.at(1)?.kind).toBe('tool');
@@ -143,7 +148,7 @@ describe('flatten — basic', () => {
   it('unit.data matches the seeded ChatItem', () => {
     const tx = createTranscript();
     const item = userMsg('a');
-    tx.seed([item]);
+    tx.history.seed([item]);
     const view = flattenAll(tx);
     // seed() may clone items, so use deep equality
     expect(view.at(0)?.data).toStrictEqual(item);
@@ -155,14 +160,14 @@ describe('flatten — basic', () => {
 describe('flatten — groupRole', () => {
   it('single-unit item has groupRole solo', () => {
     const tx = createTranscript();
-    tx.seed([tool('a')]);
+    tx.history.seed([tool('a')]);
     const view = flattenAll(tx);
     expect(view.at(0)?.groupRole).toBe('solo');
   });
 
   it('multi-unit group (streaming message still single in Phase 0) also solo', () => {
     const tx = createTranscript();
-    tx.seed([userMsg('a')]);
+    tx.history.seed([userMsg('a')]);
     const view = flattenAll(tx);
     // Phase 0: legacy passthrough always returns 1 unit → solo
     expect(view.at(0)?.groupRole).toBe('solo');
@@ -172,14 +177,14 @@ describe('flatten — groupRole', () => {
 describe('flatten — gapBefore', () => {
   it('first unit has gapBefore = 0', () => {
     const tx = createTranscript();
-    tx.seed([userMsg('a'), tool('b')]);
+    tx.history.seed([userMsg('a'), tool('b')]);
     const view = flattenAll(tx, STUB_UNIT_DEFS);
     expect(view.at(0)?.gapBefore).toBe(0);
   });
 
   it('user→assistant boundary seam collapses to the message margin (max(8,2)=8)', () => {
     const tx = createTranscript();
-    tx.seed([userMsg('a'), tool('b')]);
+    tx.history.seed([userMsg('a'), tool('b')]);
     const view = flattenAll(tx, STUB_UNIT_DEFS);
     // user.bottom=8, tool.top=2 → max = 8
     expect(view.at(1)?.gapBefore).toBe(MSG_MARGIN_TOP);
@@ -187,7 +192,7 @@ describe('flatten — gapBefore', () => {
 
   it('assistant→user boundary seam collapses to the message margin (max(8,8)=8)', () => {
     const tx = createTranscript();
-    tx.seed([assistantMsg('a'), userMsg('b')]);
+    tx.history.seed([assistantMsg('a'), userMsg('b')]);
     const view = flattenAll(tx, STUB_UNIT_DEFS);
     // assistant.bottom=8, user.top=8 → max = 8
     expect(view.at(1)?.gapBefore).toBe(MSG_MARGIN_TOP);
@@ -195,7 +200,7 @@ describe('flatten — gapBefore', () => {
 
   it('intra-turn seam collapses adjacent margins (tool→tool = max(2,2) = 2)', () => {
     const tx = createTranscript();
-    tx.seed([userMsg('u'), tool('a'), tool('b')]);
+    tx.history.seed([userMsg('u'), tool('a'), tool('b')]);
     const view = flattenAll(tx, STUB_UNIT_DEFS);
     // view.at(0)=user, view.at(1)=tool(a) boundary, view.at(2)=tool(b) intra-turn
     expect(view.at(2)?.gapBefore).toBe(2);
@@ -203,7 +208,7 @@ describe('flatten — gapBefore', () => {
 
   it('intra-turn seam collapses asymmetric margins (tool→message = max(2,8) = 8)', () => {
     const tx = createTranscript();
-    tx.seed([tool('a'), assistantMsg('b')]);
+    tx.history.seed([tool('a'), assistantMsg('b')]);
     const view = flattenAll(tx, STUB_UNIT_DEFS);
     // tool.bottom=2, message.top=8 → max = 8
     expect(view.at(1)?.gapBefore).toBe(8);
@@ -211,7 +216,7 @@ describe('flatten — gapBefore', () => {
 
   it('defaults to 0 gap when no unitDefs provided (unknown kinds have no margin)', () => {
     const tx = createTranscript();
-    tx.seed([tool('a'), tool('b')]);
+    tx.history.seed([tool('a'), tool('b')]);
     // No unitDefs → both sides have no margin → max(0,0)=0
     const view = flattenAll(tx);
     expect(view.at(1)?.gapBefore).toBe(0);
@@ -219,7 +224,7 @@ describe('flatten — gapBefore', () => {
 
   it('all seams default to 0 when no unitDefs provided', () => {
     const tx = createTranscript();
-    tx.seed([userMsg('a'), tool('b'), tool('c')]);
+    tx.history.seed([userMsg('a'), tool('b'), tool('c')]);
     const view = flattenAll(tx);
     // No unitDefs → no margins → all seams are 0
     expect(view.at(1)?.gapBefore).toBe(0);
@@ -230,8 +235,8 @@ describe('flatten — gapBefore', () => {
 describe('flatten — activeTurn', () => {
   it('includes activeTurn items at the end', () => {
     const tx = createTranscript();
-    tx.seed([userMsg('a')]);
-    tx.dispatch({ type: 'message_chunk', id: 'streaming', role: 'assistant', text: 'hi' });
+    tx.history.seed([userMsg('a')]);
+    driveEvent(tx, { type: 'message_chunk', id: 'streaming', role: 'assistant', text: 'hi' });
     const view = flattenAll(tx);
     expect(view.length).toBe(2);
     expect(view.at(1)?.itemId).toBe('streaming');
@@ -241,7 +246,7 @@ describe('flatten — activeTurn', () => {
 describe('flatten — identity stability', () => {
   it('same committed items produce same unit ids across flattenTier calls', () => {
     const tx = createTranscript();
-    tx.seed([userMsg('a'), tool('b')]);
+    tx.history.seed([userMsg('a'), tool('b')]);
     const r1 = flattenTier(tx.state.committed, segCtx, STUB_SEGMENTERS);
     const r2 = flattenTier(tx.state.committed, segCtx, STUB_SEGMENTERS);
     expect(r1[0].id).toBe(r2[0].id);
@@ -250,7 +255,7 @@ describe('flatten — identity stability', () => {
 
   it('committed items produce stable data refs across calls', () => {
     const tx = createTranscript();
-    tx.seed([userMsg('a')]);
+    tx.history.seed([userMsg('a')]);
     const r1 = flattenTier(tx.state.committed, segCtx, STUB_SEGMENTERS);
     const r2 = flattenTier(tx.state.committed, segCtx, STUB_SEGMENTERS);
     // Same plain committed object ref → same data ref in units
@@ -258,15 +263,15 @@ describe('flatten — identity stability', () => {
     expect(r1[0].data).toBe(tx.state.committed[0]);
   });
 
-  it('turn_done produces a new committed item object (streaming → committed transition)', () => {
+  it('commit produces a new committed item object (streaming → committed transition)', () => {
     const tx = createTranscript();
-    tx.dispatch({ type: 'message_chunk', id: 'msg-1', role: 'assistant', text: 'hi' });
+    driveEvent(tx, { type: 'message_chunk', id: 'msg-1', role: 'assistant', text: 'hi' });
     const streaming = tx.state.activeTurn?.[0];
     expect(streaming).toBeDefined();
 
-    tx.dispatch({ type: 'turn_done' });
+    tx.activeTurn.commit('done');
     const committed = tx.state.committed[0];
-    // finalizeAndCommit spreads+unwraps so committed is a new plain object
+    // finalizeTurn spreads+unwraps so committed is a new plain object
     expect(committed).not.toBe(streaming);
     // The committed item should not be a Solid proxy
     const r = flattenTier(tx.state.committed, segCtx, STUB_SEGMENTERS);
@@ -277,8 +282,8 @@ describe('flatten — identity stability', () => {
 describe('flatten — cross-tier boundary seam', () => {
   it('first active unit gets correct gapBefore from committed last kind', () => {
     const tx = createTranscript();
-    tx.seed([userMsg('u1')]);
-    tx.dispatch({ type: 'message_chunk', id: 'streaming', role: 'assistant', text: 'hi' });
+    tx.history.seed([userMsg('u1')]);
+    driveEvent(tx, { type: 'message_chunk', id: 'streaming', role: 'assistant', text: 'hi' });
 
     const committedUnits = flattenTier(tx.state.committed, segCtx, STUB_SEGMENTERS, STUB_UNIT_DEFS);
     const prevKind = committedUnits[committedUnits.length - 1]?.kind;
@@ -296,7 +301,7 @@ describe('flatten — cross-tier boundary seam', () => {
 
   it('no prevKind → first active unit gapBefore is 0', () => {
     const tx = createTranscript();
-    tx.dispatch({ type: 'message_chunk', id: 'streaming', role: 'assistant', text: 'hi' });
+    driveEvent(tx, { type: 'message_chunk', id: 'streaming', role: 'assistant', text: 'hi' });
 
     const activeUnits = flattenTier(
       tx.state.activeTurn ?? [],
@@ -312,14 +317,14 @@ describe('flatten — cross-tier boundary seam', () => {
 describe('collectUserTurnUnits', () => {
   it('returns empty array when no user messages', () => {
     const tx = createTranscript();
-    tx.seed([tool('a')]);
+    tx.history.seed([tool('a')]);
     const view = flattenAll(tx);
     expect(collectUserTurnUnits(tx.state.committed, view)).toEqual([]);
   });
 
   it('returns correct unit indices for user messages', () => {
     const tx = createTranscript();
-    tx.seed([userMsg('u1'), tool('t1'), userMsg('u2'), tool('t2')]);
+    tx.history.seed([userMsg('u1'), tool('t1'), userMsg('u2'), tool('t2')]);
     const view = flattenAll(tx);
     const indices = collectUserTurnUnits(tx.state.committed, view);
     expect(indices).toHaveLength(2);
@@ -333,8 +338,8 @@ describe('collectUserTurnUnits', () => {
     const tx = createTranscript();
     // activeTurn user message would be unusual, but collectUserTurnUnits
     // only inspects committed items by design.
-    tx.seed([userMsg('u1')]);
-    tx.dispatch({ type: 'message_chunk', id: 'streaming', role: 'user', text: 'hi' });
+    tx.history.seed([userMsg('u1')]);
+    driveEvent(tx, { type: 'message_chunk', id: 'streaming', role: 'user', text: 'hi' });
     const view = flattenAll(tx);
     const indices = collectUserTurnUnits(tx.state.committed, view);
     // Only the committed user message (u1) is returned, not the streaming one.
@@ -344,7 +349,7 @@ describe('collectUserTurnUnits', () => {
 
   it('returns first unit index for a multi-unit group (Phase 1+)', () => {
     const tx = createTranscript();
-    tx.seed([userMsg('u1'), assistantMsg('a1'), userMsg('u2')]);
+    tx.history.seed([userMsg('u1'), assistantMsg('a1'), userMsg('u2')]);
     const view = flattenAll(tx);
     // Phase 0: each item is one unit; user turns are at indices 0 and 2.
     const indices = collectUserTurnUnits(tx.state.committed, view);

@@ -116,18 +116,14 @@ export const controlVariants = recipe({
         height: 'auto',
         gap: '0.25rem',
         border: 'none',
-        backgroundColor: 'transparent !important',
+        backgroundColor: 'transparent',
         padding: 0,
         color: vars.foreground,
         selectors: {
           '&:hover': {
-            backgroundColor: 'transparent !important',
             textDecoration: 'underline',
             textUnderlineOffset: '2px',
           },
-          '&[aria-pressed="true"]': { backgroundColor: 'transparent !important' },
-          '&[aria-selected="true"]': { backgroundColor: 'transparent !important' },
-          '&[data-pressed]': { backgroundColor: 'transparent !important' },
         },
       },
     },
@@ -139,6 +135,25 @@ export const controlVariants = recipe({
   },
 
   compoundVariants: [
+    // ghost + link: keep transparent background across all interaction states so the ghost
+    // hover colour never bleeds through. Compound variants emit after regular variants, giving
+    // them the winning source-order position at equal specificity.
+    {
+      variants: { variant: 'ghost', size: 'link' },
+      style: {
+        backgroundColor: 'transparent',
+        selectors: {
+          '&:hover': { backgroundColor: 'transparent' },
+          '&[aria-expanded="true"]': { backgroundColor: 'transparent' },
+          '&[aria-pressed="true"]': { backgroundColor: 'transparent' },
+          '&[aria-selected="true"]': { backgroundColor: 'transparent' },
+          '&[data-pressed]': { backgroundColor: 'transparent' },
+          '&[data-selected]': { backgroundColor: 'transparent' },
+          '&[data-popup-open]': { backgroundColor: 'transparent' },
+          '&[data-active="true"]': { backgroundColor: 'transparent' },
+        },
+      },
+    },
     // ghost + destructive
     {
       variants: { variant: 'ghost', tone: 'destructive' },

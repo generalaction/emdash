@@ -98,7 +98,7 @@ function CollapseAnimBench(props: { count: number; label: string }) {
     ...baseItems,
   ];
 
-  transcript.seed(items);
+  transcript.history.seed(items);
   // Start expanded so the first action is collapse.
   viewState.toggleCollapsed(TOGGLE_ID);
 

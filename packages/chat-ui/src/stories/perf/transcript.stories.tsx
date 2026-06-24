@@ -33,7 +33,7 @@ function PerfHost(props: { count: number; label: string; height?: number; rich?:
   const viewState = createViewState();
 
   createEffect(() => {
-    transcript.seed(generateMockTranscript(props.count, 1, { richProse: props.rich }));
+    transcript.history.seed(generateMockTranscript(props.count, 1, { richProse: props.rich }));
   });
 
   let scrollEl: HTMLDivElement | undefined;

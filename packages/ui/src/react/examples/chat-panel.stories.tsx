@@ -3,7 +3,7 @@
  * with ChatComposer (from @emdash/ui), mirroring the desktop chat-panel layout.
  */
 import type { ChatCommands, ChatHandle, MentionProvider } from '@emdash/chat-ui';
-import { generateMockTranscript } from '@emdash/chat-ui';
+import { applyTurnEvent, generateMockTranscript } from '@emdash/chat-ui';
 import { ChatTranscript } from '@react/chat-ui';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { cx } from '@styles/utilities/cx';
@@ -207,7 +207,7 @@ function LiveChatPanel({
       '',
       'Preserve backward compatibility for existing sessions during the migration period.',
     ].join('\n');
-    handle.transcript.seed([
+    handle.transcript.history.seed([
       { kind: 'message', id: 'long-user-seed', role: 'user', text: longUserText },
       {
         kind: 'message',
@@ -243,23 +243,25 @@ function LiveChatPanel({
         .filter((a) => a.kind === 'image')
         .map((a) => ({ id: a.id, name: a.name, dataUrl: a.previewUrl }));
       const userId = crypto.randomUUID();
-      api.dispatch({
-        type: 'message_chunk',
+      const userEv = {
+        type: 'message_chunk' as const,
         id: userId,
-        role: 'user',
+        role: 'user' as const,
         text,
         attachments: atts.length > 0 ? atts : undefined,
-      });
-      api.dispatch({ type: 'turn_done' });
+      };
+      api.activeTurn.set(applyTurnEvent(api.activeTurn.get(), userEv), 'generating');
+      api.activeTurn.commit('done');
       setAttachments([]);
       const assistantId = crypto.randomUUID();
-      api.dispatch({
-        type: 'message_chunk',
+      const assistantEv = {
+        type: 'message_chunk' as const,
         id: assistantId,
-        role: 'assistant',
+        role: 'assistant' as const,
         text: text ? `Got it! You said: *${text}*` : 'Got it — received your image!',
-      });
-      api.dispatch({ type: 'turn_done' });
+      };
+      api.activeTurn.set(applyTurnEvent(api.activeTurn.get(), assistantEv), 'generating');
+      api.activeTurn.commit('done');
     },
     [attachments]
   );
