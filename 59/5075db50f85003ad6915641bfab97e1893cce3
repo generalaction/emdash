@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/shared/feature-announcements/schema.ts
+  s_135263fed19937::t_90486747b1586c 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "595075db50f85003ad6915641bfab97e1893cce3",
+  "prompts": {},
+  "sessions": {
+    "s_135263fed19937": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef91a-793e-7fe1-91e6-93d6f6e930de",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
