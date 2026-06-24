@@ -1,5 +1,12 @@
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@emdash/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Command } from 'cmdk';
 import { Activity, FolderOpen, GitBranch, MessageSquare, type LucideIcon } from 'lucide-react';
 import { useObserver } from 'mobx-react-lite';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -87,11 +94,11 @@ function PaletteItem({
     KIND_ICON[item.kind]
   );
   return (
-    <Command.Item value={value} onSelect={onSelect} className={cn(PALETTE_ITEM_CLASS, 'group')}>
+    <CommandItem value={value} onSelect={onSelect} className={cn(PALETTE_ITEM_CLASS, 'group')}>
       {iconNode}
       <span className="flex-1 truncate">{item.title}</span>
       {action?.shortcut && <Shortcut hotkey={action.shortcut} variant="keycaps" />}
-    </Command.Item>
+    </CommandItem>
   );
 }
 
@@ -105,13 +112,13 @@ function PaletteFileItem({
   onSelect: () => void;
 }) {
   return (
-    <Command.Item value={value} onSelect={onSelect} className={PALETTE_ITEM_CLASS}>
+    <CommandItem value={value} onSelect={onSelect} className={PALETTE_ITEM_CLASS}>
       <FileIcon filename={item.title} size={14} />
       <span className="flex min-w-0 flex-1 items-baseline gap-2 overflow-hidden">
         <span className="shrink-0">{item.title}</span>
         <span className="truncate text-xs text-foreground/40">{item.subtitle}</span>
       </span>
-    </Command.Item>
+    </CommandItem>
   );
 }
 
@@ -293,20 +300,20 @@ export function CommandPaletteModal({
   return (
     <Command className="flex flex-col overflow-hidden" shouldFilter={false} loop>
       <div className="border-b border-foreground/10 px-1">
-        <Command.Input
+        <CommandInput
           value={query}
           onValueChange={setQuery}
           placeholder="Search tasks, projects, actions…"
-          className="w-full bg-transparent px-3 py-3 text-sm outline-none placeholder:text-foreground/40"
+          className="px-3 py-3 placeholder:text-foreground/40"
           autoFocus
         />
       </div>
-      <Command.List className="h-96 overflow-y-auto p-1">
+      <CommandList className="h-96 p-1">
         {query ? (
           <>
-            <Command.Empty className="py-8 text-center text-sm text-foreground/40">
+            <CommandEmpty className="py-8 text-foreground/40">
               No results for &ldquo;{query}&rdquo;
-            </Command.Empty>
+            </CommandEmpty>
             {matchedResourceMonitor && (
               <PaletteItem
                 value={matchedResourceMonitor.id}
@@ -403,14 +410,14 @@ export function CommandPaletteModal({
               navigate={navigate}
             />
             {actionResults.length > 0 && (
-              <Command.Group heading="Suggested Actions" className={GROUP_CLASS}>
+              <CommandGroup heading="Suggested Actions" className={GROUP_CLASS}>
                 {actionResults.map((item) => (
                   <PaletteItem key={item.id} value={item.id} item={item} onSelect={item.execute} />
                 ))}
-              </Command.Group>
+              </CommandGroup>
             )}
             {taskResults.length > 0 && (
-              <Command.Group heading="Recent Tasks" className={GROUP_CLASS}>
+              <CommandGroup heading="Recent Tasks" className={GROUP_CLASS}>
                 {taskResults.slice(0, 5).map((item) => {
                   const store = item.projectId ? getTaskStore(item.projectId, item.id) : undefined;
                   return store ? (
@@ -429,7 +436,7 @@ export function CommandPaletteModal({
                     />
                   );
                 })}
-              </Command.Group>
+              </CommandGroup>
             )}
             {!taskId && (
               <PaletteProjectsGroup
@@ -440,7 +447,7 @@ export function CommandPaletteModal({
               />
             )}
             {taskId && conversationResults.length > 0 && (
-              <Command.Group heading="Recent Conversations" className={GROUP_CLASS}>
+              <CommandGroup heading="Recent Conversations" className={GROUP_CLASS}>
                 {conversationResults.slice(0, 5).map((item) => {
                   const convStore = item.taskId
                     ? conversationRegistry.get(item.taskId)?.conversations.get(item.id)
@@ -461,11 +468,11 @@ export function CommandPaletteModal({
                     />
                   );
                 })}
-              </Command.Group>
+              </CommandGroup>
             )}
           </>
         )}
-      </Command.List>
+      </CommandList>
 
       <div className="flex items-center gap-4 border-t border-foreground/10 px-3 py-2">
         <span className="flex items-center gap-1 text-xs text-foreground/40">

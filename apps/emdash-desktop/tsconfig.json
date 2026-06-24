@@ -12,6 +12,7 @@
       "@main/*": ["./src/main/*"],
       "@shared/*": ["./src/shared/*"],
       "@root/*": ["./*"],
+      "@emdash/ui": ["../../packages/ui/src/index.ts"],
       "@/*": ["./src/*"],
       "@tooling/*": ["./tooling/*"]
     }

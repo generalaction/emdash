@@ -1,4 +1,4 @@
-import { Command } from 'cmdk';
+import { CommandGroup } from '@emdash/ui';
 import { useObserver } from 'mobx-react-lite';
 import {
   asMounted,
@@ -72,7 +72,7 @@ export function PaletteNotificationsGroup({
   if (items.length === 0) return null;
 
   return (
-    <Command.Group heading="Notifications" className={GROUP_CLASS}>
+    <CommandGroup heading="Notifications" className={GROUP_CLASS}>
       {items.map((item) => {
         if (item.kind === 'conversation') {
           return (
@@ -107,6 +107,6 @@ export function PaletteNotificationsGroup({
           />
         );
       })}
-    </Command.Group>
+    </CommandGroup>
   );
 }

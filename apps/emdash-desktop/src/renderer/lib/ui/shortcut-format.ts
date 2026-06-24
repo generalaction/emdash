@@ -46,6 +46,16 @@ const SPOKEN_KEY_LABELS: Record<string, string> = {
 };
 
 const OPTICAL_ALIGN_CLASS: Record<string, string> = {
+  Alt: '-translate-y-px',
+  ArrowDown: 'translate-y-px',
+  ArrowLeft: '-translate-x-px',
+  ArrowRight: 'translate-x-px',
+  ArrowUp: '-translate-y-px',
+  Backspace: 'translate-y-px',
+  Control: '-translate-y-px',
+  Enter: 'translate-y-px',
+  Meta: '-translate-y-px',
+  Shift: '-translate-y-px',
   '(': '-translate-y-px',
   ')': '-translate-y-px',
   '+': '-translate-y-px',
@@ -151,7 +161,9 @@ export function formatShortcutDisplay(
 }
 
 export function getShortcutKeyOpticalAlignClass(key: string): string | undefined {
-  return OPTICAL_ALIGN_CLASS[key];
+  if (OPTICAL_ALIGN_CLASS[key]) return OPTICAL_ALIGN_CLASS[key];
+  if (/^[A-Z0-9]$/.test(key)) return 'translate-y-[0.5px]';
+  return undefined;
 }
 
 export function describeShortcut(

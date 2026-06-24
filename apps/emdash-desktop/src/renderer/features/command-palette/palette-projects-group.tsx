@@ -1,4 +1,4 @@
-import { Command } from 'cmdk';
+import { CommandGroup, CommandItem } from '@emdash/ui';
 import { FolderOpen } from 'lucide-react';
 import { useObserver } from 'mobx-react-lite';
 import {
@@ -45,9 +45,9 @@ export function PaletteProjectsGroup({
   if (visible.length === 0) return null;
 
   return (
-    <Command.Group heading="Projects" className={GROUP_CLASS}>
+    <CommandGroup heading="Projects" className={GROUP_CLASS}>
       {visible.map((p) => (
-        <Command.Item
+        <CommandItem
           key={p.id}
           value={`project:${p.id}`}
           onSelect={() => {
@@ -58,8 +58,8 @@ export function PaletteProjectsGroup({
         >
           <FolderOpen size={14} className="shrink-0 text-foreground/40" />
           <span className="flex-1 truncate">{p.name}</span>
-        </Command.Item>
+        </CommandItem>
       ))}
-    </Command.Group>
+    </CommandGroup>
   );
 }

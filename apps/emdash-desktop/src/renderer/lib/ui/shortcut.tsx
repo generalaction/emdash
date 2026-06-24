@@ -1,3 +1,4 @@
+import { Kbd, KbdGroup } from '@emdash/ui';
 import { detectPlatform, parseHotkey, type Hotkey } from '@tanstack/react-hotkeys';
 import { useMemo } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
@@ -6,7 +7,6 @@ import {
   type ShortcutSettingsKey,
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { cn } from '@renderer/utils/utils';
-import { Kbd } from './kbd';
 import {
   describeShortcut,
   formatShortcutDisplay,
@@ -19,8 +19,7 @@ const PLATFORM = detectPlatform();
 
 type ShortcutVariant = 'text' | 'badge' | 'keycaps';
 
-const KEYCAP_KBD_BASE_CLASS =
-  'h-5 min-w-5 shrink-0 rounded px-1 text-[11px] font-medium leading-none text-current';
+const KEYCAP_KBD_BASE_CLASS = 'shrink-0 rounded text-current';
 
 const KEYCAP_KBD_CLASS = cn(
   KEYCAP_KBD_BASE_CLASS,
@@ -62,18 +61,18 @@ function Shortcut({ hotkey, className, variant = 'text' }: ShortcutProps) {
         variant === 'badge' &&
           'inline-flex shrink-0 items-center justify-center gap-0 rounded bg-background-secondary px-1.5 py-1 text-xs leading-none text-foreground/60 in-data-[slot=tooltip-content]:bg-background/20 in-data-[slot=tooltip-content]:py-0.5 in-data-[slot=tooltip-content]:text-background dark:in-data-[slot=tooltip-content]:bg-background/10',
         variant === 'keycaps' &&
-          'inline-flex shrink-0 items-center gap-0.5 text-muted-foreground in-data-[slot=button]:text-current in-data-[slot=combobox-trigger]:text-current in-data-[slot=tooltip-content]:text-background',
+          'shrink-0 text-muted-foreground in-data-[slot=button]:text-current in-data-[slot=combobox-trigger]:text-current in-data-[slot=tooltip-content]:text-background',
         className
       )}
     >
       {variant === 'keycaps' ? (
-        keys.map((key, index) => (
-          <Kbd key={`${key}-${index}`} aria-hidden="true" className={KEYCAP_KBD_CLASS}>
-            <span className={cn('inline-block', getShortcutKeyOpticalAlignClass(key))}>
+        <KbdGroup className="items-center justify-center gap-0.5">
+          {keys.map((key, index) => (
+            <Kbd key={`${key}-${index}`} aria-hidden="true" className={KEYCAP_KBD_CLASS}>
               {formatShortcutKey(key, PLATFORM)}
-            </span>
-          </Kbd>
-        ))
+            </Kbd>
+          ))}
+        </KbdGroup>
       ) : variant === 'text' ? (
         <span aria-hidden="true">{formatShortcutDisplay(keys, PLATFORM)}</span>
       ) : (

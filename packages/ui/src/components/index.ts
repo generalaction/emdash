@@ -1,4 +1,15 @@
 export { Button, buttonVariants } from './button';
+export {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandShortcut,
+  CommandSeparator,
+} from './command';
+export { Kbd, KbdGroup } from './kbd';
 export { Input } from './input';
 export { Textarea, type TextareaProps } from './textarea';
 export {

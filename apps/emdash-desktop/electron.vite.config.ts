@@ -32,6 +32,7 @@ export default defineConfig({
       alias: {
         '@': resolve('src'),
         '@renderer': resolve('src/renderer'),
+        '@emdash/ui': resolve('../../packages/ui/src'),
         '@shared': resolve('src/shared'),
         '@root': resolve('.'),
         // cli-agent-plugins metadata/icons chunks transitively reference node:buffer

@@ -1,4 +1,4 @@
-import { Command } from 'cmdk';
+import { CommandItem } from '@emdash/ui';
 import { observer } from 'mobx-react-lite';
 import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
 import type { ConversationStore } from '@renderer/features/tasks/conversations/conversation-manager';
@@ -18,10 +18,10 @@ export const PaletteConversationItem = observer(function PaletteConversationItem
   const title = formatConversationTitleForDisplay(conv.data.providerId, conv.data.title ?? '');
 
   return (
-    <Command.Item value={value} onSelect={onSelect} className={PALETTE_ITEM_CLASS}>
+    <CommandItem value={value} onSelect={onSelect} className={PALETTE_ITEM_CLASS}>
       <AgentIcon id={conv.data.providerId} size={16} />
       <span className="flex-1 truncate">{title}</span>
       <AgentStatusIndicator status={conv.indicatorStatus} disableTooltip />
-    </Command.Item>
+    </CommandItem>
   );
 });
