@@ -278,7 +278,7 @@ export class NotionConnectionService {
     return {
       hasCredentials: true,
       databaseUrls:
-        credentials.scope.type === 'data-sources' ? credentials.scope.sourceUrls.join('\n') : '',
+        credentials.scope.type === 'data-sources' ? credentials.scope.sourceUrls.join(', ') : '',
     };
   }
 

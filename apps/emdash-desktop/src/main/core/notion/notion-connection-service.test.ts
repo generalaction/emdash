@@ -226,6 +226,30 @@ describe('NotionConnectionService', () => {
     });
   });
 
+  describe('getConfiguration', () => {
+    it('returns saved data source URLs as a single-line comma-separated value', async () => {
+      const firstUrl = 'https://www.notion.so/acme/Roadmap-abcdefabcdefabcdefabcdefabcdefab';
+      const secondUrl = 'https://app.notion.com/p/Backlog-fedcbafedcbafedcbafedcbafedcbafe';
+      mockGetSecret.mockResolvedValueOnce(
+        JSON.stringify({
+          token: 'stored-token',
+          scope: {
+            type: 'data-sources',
+            dataSourceIds: ['abcdefabcdefabcdefabcdefabcdefab', 'fedcbafedcbafedcbafedcbafedcbafe'],
+            sourceUrls: [firstUrl, secondUrl],
+          },
+        })
+      );
+
+      const result = await service.getConfiguration();
+
+      expect(result).toEqual({
+        hasCredentials: true,
+        databaseUrls: `${firstUrl}, ${secondUrl}`,
+      });
+    });
+  });
+
   describe('clearCredentials', () => {
     it('deletes stored credentials', async () => {
       const result = await service.clearCredentials();
