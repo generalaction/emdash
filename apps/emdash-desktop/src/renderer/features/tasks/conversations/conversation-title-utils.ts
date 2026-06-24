@@ -18,7 +18,11 @@ function getDefaultTitlePrefix(providerId: AgentProviderId): string {
 }
 
 function parseDefaultTitleIndex(title: string, providerId: AgentProviderId): number | null {
-  const prefixes = [providerId, capitalizeProviderId(providerId), getDefaultTitlePrefix(providerId)];
+  const prefixes = [
+    providerId,
+    capitalizeProviderId(providerId),
+    getDefaultTitlePrefix(providerId),
+  ];
   const pattern = prefixes.map(escapeRegExp).join('|');
   const match = title.match(new RegExp(`^(?:${pattern}) \\(([1-9]\\d*)\\)$`, 'i'));
   if (!match) return null;

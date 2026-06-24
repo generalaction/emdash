@@ -19,7 +19,6 @@ describe('AGENT_PROVIDERS', () => {
     });
   });
 
-
   it('validates Amp provider session ids as thread ids', () => {
     expect(isValidProviderSessionId('amp', 'T-d2fc4acc-dd1d-497f-9609-ed0da22a7c95')).toBe(true);
     expect(isValidProviderSessionId('amp', 'not-a-thread')).toBe(false);
