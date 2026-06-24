@@ -14,7 +14,6 @@ const sampleManifest = {
   minAppVersion: '1.1.27',
   features: [
     {
-      icon: 'calendar-clock',
       title: 'Run agents on a schedule',
       description: 'Launch coding agents on a cron.',
     },
@@ -39,6 +38,21 @@ describe('feature announcement schema', () => {
       ...sampleManifest,
       enabled: false,
     });
+  });
+
+  it('rejects legacy feature icon fields', () => {
+    expect(
+      parseFeatureAnnouncementManifest({
+        ...sampleManifest,
+        features: [
+          {
+            icon: 'calendar-clock',
+            title: 'Run agents on a schedule',
+            description: 'Launch coding agents on a cron.',
+          },
+        ],
+      })
+    ).toBeNull();
   });
 
   it('rejects invalid CTA definitions', () => {

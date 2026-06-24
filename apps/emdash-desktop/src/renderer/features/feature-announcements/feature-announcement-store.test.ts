@@ -25,7 +25,6 @@ const manifest: FeatureAnnouncementManifest = {
   changelogUrl: 'https://emdash.sh/changelog',
   features: [
     {
-      icon: 'sparkles',
       title: 'Something new',
       description: 'A highlighted capability.',
     },

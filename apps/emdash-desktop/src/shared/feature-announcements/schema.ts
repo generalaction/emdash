@@ -2,10 +2,7 @@ import z from 'zod';
 import {
   FEATURE_ANNOUNCEMENT_CTA_ACTIONS,
   FEATURE_ANNOUNCEMENT_HEROES,
-  FEATURE_ANNOUNCEMENT_ICONS,
 } from './constants';
-
-const featureAnnouncementIconSchema = z.enum(FEATURE_ANNOUNCEMENT_ICONS);
 
 const featureAnnouncementCtaActionSchema = z.enum(FEATURE_ANNOUNCEMENT_CTA_ACTIONS);
 
@@ -13,7 +10,6 @@ const featureAnnouncementHeroSchema = z.enum(FEATURE_ANNOUNCEMENT_HEROES);
 
 const featureAnnouncementFeatureSchema = z
   .object({
-    icon: featureAnnouncementIconSchema,
     title: z.string().min(1),
     description: z.string().min(1),
   })
@@ -48,7 +44,6 @@ export const featureAnnouncementManifestSchema = z
 
 export type FeatureAnnouncementHero = z.infer<typeof featureAnnouncementHeroSchema>;
 
-export type FeatureAnnouncementIcon = z.infer<typeof featureAnnouncementIconSchema>;
 export type FeatureAnnouncementFeature = z.infer<typeof featureAnnouncementFeatureSchema>;
 export type FeatureAnnouncementCta = z.infer<typeof featureAnnouncementCtaSchema>;
 export type FeatureAnnouncementManifest = z.infer<typeof featureAnnouncementManifestSchema>;

@@ -8,7 +8,7 @@ const baseManifest: FeatureAnnouncementManifest = {
   eyebrow: 'Now available',
   title: 'Test',
   changelogUrl: 'https://emdash.sh/changelog',
-  features: [{ icon: 'sparkles', title: 'Feature', description: 'Description.' }],
+  features: [{ title: 'Feature', description: 'Description.' }],
 };
 
 describe('resolveFeatureAnnouncementMedia', () => {

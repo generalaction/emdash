@@ -6,7 +6,6 @@ import { describe, expect, it } from 'vitest';
 import {
   FEATURE_ANNOUNCEMENT_CTA_ACTIONS,
   FEATURE_ANNOUNCEMENT_HEROES,
-  FEATURE_ANNOUNCEMENT_ICONS,
 } from '@shared/feature-announcements/constants';
 import { featureAnnouncementManifestSchema } from '@shared/feature-announcements/schema';
 
@@ -49,7 +48,7 @@ describe('feature-announcements.toml', () => {
     expect(schema.required).toEqual(['id', 'title', 'changelogUrl', 'features']);
     expect(schema.properties?.hero?.enum).toEqual([...FEATURE_ANNOUNCEMENT_HEROES]);
     expect(schema.$defs?.feature?.additionalProperties).toBe(false);
-    expect(schema.$defs?.feature?.properties?.icon?.enum).toEqual([...FEATURE_ANNOUNCEMENT_ICONS]);
+    expect(schema.$defs?.feature?.required).toEqual(['title', 'description']);
     expect(schema.$defs?.cta?.additionalProperties).toBe(false);
     expect(schema.$defs?.cta?.properties?.action?.enum).toEqual([
       ...FEATURE_ANNOUNCEMENT_CTA_ACTIONS,

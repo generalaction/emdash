@@ -64,12 +64,8 @@
     "feature": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["icon", "title", "description"],
+      "required": ["title", "description"],
       "properties": {
-        "icon": {
-          "type": "string",
-          "enum": ["calendar-clock", "list-checks", "shield", "check", "sparkles", "message-square"]
-        },
         "title": {
           "type": "string",
           "minLength": 1

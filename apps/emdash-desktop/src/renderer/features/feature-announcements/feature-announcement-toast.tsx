@@ -1,6 +1,5 @@
 import { ArrowUpRight, XIcon } from 'lucide-react';
 import { toast } from 'sonner';
-import { getFeatureAnnouncementIcon } from '@renderer/features/feature-announcements/feature-announcement-icon';
 import {
   FeatureAnnouncementMediaArea,
   resolveFeatureAnnouncementMedia,
@@ -90,18 +89,12 @@ function FeatureAnnouncementToastCard({
           <p className="mt-0.5 text-sm font-semibold text-foreground">{manifest.title}</p>
         </div>
         <ul className="flex flex-col gap-2.5">
-          {manifest.features.map((feature, index) => {
-            const Icon = getFeatureAnnouncementIcon(feature.icon);
-            return (
-              <li key={`${feature.icon}-${index}`} className="flex gap-2.5">
-                <Icon className="text-muted-foreground mt-px size-3.5 shrink-0" />
-                <div className="min-w-0 text-xs">
-                  <p className="font-medium text-foreground">{feature.title}</p>
-                  <p className="text-muted-foreground mt-0.5">{feature.description}</p>
-                </div>
-              </li>
-            );
-          })}
+          {manifest.features.map((feature, index) => (
+            <li key={`${feature.title}-${index}`} className="min-w-0 text-xs">
+              <p className="font-medium text-foreground">{feature.title}</p>
+              <p className="text-muted-foreground mt-0.5">{feature.description}</p>
+            </li>
+          ))}
         </ul>
       </div>
       <div className="flex items-center justify-between border-t border-border bg-background-quaternary-1 p-2">
