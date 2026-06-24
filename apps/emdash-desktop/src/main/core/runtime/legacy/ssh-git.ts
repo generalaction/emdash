@@ -433,7 +433,7 @@ export class LegacySshGitRepository implements IGitRepository {
   }
 }
 
-class LegacySshGitWorktree implements IGitWorktree {
+export class LegacySshGitWorktree implements IGitWorktree {
   readonly worktree: string;
   readonly repository: LegacySshGitRepository;
 
@@ -450,11 +450,11 @@ class LegacySshGitWorktree implements IGitWorktree {
     this.worktree = worktreePath;
     this.repository = repository;
     this.statusModel = new LiveModel<GitStatusModel>({
-      compute: async () => ok(await this.computeStatus()),
+      compute: () => this.computeStatus(),
       onError: (error) => log.warn('LegacySshGitWorktree: status refresh failed', { error }),
     });
     this.headModel = new LiveModel<GitHeadModel>({
-      compute: async () => ok(await this.computeHead()),
+      compute: () => this.computeHead(),
       onError: (error) => log.warn('LegacySshGitWorktree: head refresh failed', { error }),
     });
     this.timers = [
@@ -629,26 +629,30 @@ class LegacySshGitWorktree implements IGitWorktree {
     this.git.dispose();
   }
 
-  private async computeStatus(): Promise<GitStatusModel> {
+  private async computeStatus(): Promise<Result<GitStatusModel, unknown>> {
     try {
       const status = await this.git.getFullStatus();
-      return {
+      return ok({
         kind: 'ok',
         staged: status.staged,
         unstaged: status.unstaged,
         stagedAdded: status.totalAdded,
         stagedDeleted: status.totalDeleted,
-      };
+      });
     } catch (error) {
-      if (error instanceof TooManyFilesChangedError) return { kind: 'too-many-files' };
-      // Transient failures (e.g. dropped SSH connection) must not masquerade as a
-      // status; rethrowing keeps the last-good value and leaves the model dirty.
+      if (error instanceof TooManyFilesChangedError) return ok({ kind: 'too-many-files' });
+      if (isRecoverableSshRefreshError(error)) return err(error);
       throw error;
     }
   }
 
-  private async computeHead(): Promise<GitHeadModel> {
-    return this.git.getHeadInfo();
+  private async computeHead(): Promise<Result<GitHeadModel, unknown>> {
+    try {
+      return ok(await this.git.getHeadInfo());
+    } catch (error) {
+      if (isRecoverableSshRefreshError(error)) return err(error);
+      throw error;
+    }
   }
 
   private async refreshStatus(): Promise<GitSequences> {
