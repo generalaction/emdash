@@ -1,4 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react';
+import { useTabShortcuts } from './hooks/useTabShortcuts';
 import type { Pane } from './pane-layout-store';
 import type { PaneStore } from './pane-store';
 
@@ -39,6 +40,8 @@ export function PaneProvider({
   isFocusedPane,
   children,
 }: Omit<PaneProviderProps, 'taskId' | 'projectId'>) {
+  useTabShortcuts(group.pane, { focused: isFocusedPane });
+
   return (
     <PaneContext.Provider value={{ paneId: group.paneId, pane: group.pane, isFocusedPane }}>
       {children}

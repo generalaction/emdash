@@ -1,13 +1,10 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, type ReactNode } from 'react';
-import { useTabShortcuts } from '@renderer/features/tabs/hooks/useTabShortcuts';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { PaneDropZone } from './tab-bar/draggable-tab';
 
 export const TabBar = observer(function TabBar({ actionsSlot }: { actionsSlot?: ReactNode }) {
-  const { paneId, pane, isFocusedPane } = usePaneContext();
-
-  useTabShortcuts(pane, { focused: isFocusedPane });
+  const { paneId, pane } = usePaneContext();
 
   const resolvedTabs = pane.resolvedTabs;
 
