@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { PtyExitInfo } from '@main/core/pty/pty';
+import type { Pty, PtyExitInfo } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
@@ -301,6 +301,55 @@ describe('SshTerminalProvider', () => {
         sessionId
       )
     ).toBe(false);
+  });
+
+  it('cancels in-flight rehydrate starts after detachAll', async () => {
+    const provider = new SshTerminalProvider({
+      projectId: terminal.projectId,
+      scopeId: terminal.taskId,
+      taskPath: '/repo',
+      ctx,
+      proxy,
+      connectionId: 'ssh-1',
+    });
+    let resolveRehydrateOpen: ((value: { success: true; data: Pty }) => void) | undefined;
+
+    await provider.spawnTerminal(terminal);
+    const firstPty = ptyMock.ptys[0];
+    openSsh2PtyMock.mockImplementationOnce(
+      (() =>
+        new Promise<{ success: true; data: Pty }>((resolve) => {
+          resolveRehydrateOpen = resolve;
+        })) as never
+    );
+
+    for (const handler of sshConnectionManagerMock.handlers) {
+      handler({ type: 'disconnected', connectionId: 'ssh-1' });
+    }
+    for (const handler of sshConnectionManagerMock.handlers) {
+      handler({ type: 'reconnected', connectionId: 'ssh-1' });
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+
+    await provider.detachAll();
+    const rehydratedPty = {
+      write: vi.fn(),
+      resize: vi.fn(),
+      kill: vi.fn(),
+      onData: vi.fn(),
+      onExit: vi.fn(),
+    } satisfies Pty;
+    resolveRehydrateOpen?.({ success: true, data: rehydratedPty });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
+    expect(openSsh2PtyMock).toHaveBeenCalledTimes(2);
+    expect(firstPty?.kill).toHaveBeenCalledOnce();
+    expect(rehydratedPty.kill).toHaveBeenCalledOnce();
+    expect(
+      (provider as unknown as { sessions: Map<string, unknown> }).sessions.has(sessionId)
+    ).toBe(false);
+    expect(ptySessionRegistry.register).toHaveBeenCalledTimes(1);
   });
 
   it('unsubscribes SSH connection listeners when detached', async () => {

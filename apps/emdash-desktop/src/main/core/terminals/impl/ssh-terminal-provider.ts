@@ -44,6 +44,7 @@ export class SshTerminalProvider implements TerminalProvider {
   private respawnCounts = new Map<string, number>();
   private terminals = new Map<string, Terminal>();
   private reconnectSizes = new Map<string, { cols: number; rows: number }>();
+  private detached = false;
   private readonly projectId: string;
   private readonly workspaceId: string;
   private readonly scopeId: string;
@@ -163,6 +164,7 @@ export class SshTerminalProvider implements TerminalProvider {
     metadata: PtySessionMetadata | undefined,
     policy: SpawnPolicy
   ): Promise<void> {
+    if (this.detached) return;
     const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
     this.knownSessionIds.add(sessionId);
     if (this.sessions.has(sessionId)) return;
@@ -205,6 +207,13 @@ export class SshTerminalProvider implements TerminalProvider {
       throw new Error(result.error.message);
     }
     const pty = result.data;
+
+    if (this.detached) {
+      try {
+        pty.kill();
+      } catch {}
+      return;
+    }
 
     if (policy.watchDevServer) {
       wireTerminalUrlDetector({
@@ -324,9 +333,11 @@ export class SshTerminalProvider implements TerminalProvider {
    * already running.
    */
   async rehydrate(): Promise<void> {
+    if (this.detached) return;
     const terminals = Array.from(this.terminals.values());
     await Promise.all(
       terminals.map(async (terminal) => {
+        if (this.detached) return;
         const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
         if (this.sessions.has(sessionId)) return;
         await this.spawnTerminal(terminal, this.reconnectSizes.get(sessionId)).catch((e) => {
@@ -371,13 +382,17 @@ export class SshTerminalProvider implements TerminalProvider {
   }
 
   async detachAll(): Promise<void> {
+    this.detached = true;
     sshConnectionManager.off('connection-event', this._handleReconnect);
+    for (const sessionId of this.knownSessionIds) {
+      this.shellProfiles.delete(sessionId);
+      this.respawnCounts.delete(sessionId);
+    }
     for (const [sessionId, pty] of this.sessions) {
       try {
         pty.kill();
       } catch {}
       ptySessionRegistry.unregister(sessionId);
-      this.shellProfiles.delete(sessionId);
     }
     this.sessions.clear();
   }

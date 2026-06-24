@@ -41,6 +41,7 @@ export class SshConversationProvider implements ConversationProvider {
   private conversations = new Map<string, Conversation>();
   private reconnectSizes = new Map<string, { cols: number; rows: number }>();
   private supervisor = new ConversationSessionSupervisor();
+  private detached = false;
   private readonly projectId: string;
   private readonly taskPath: string;
   private readonly taskId: string;
@@ -123,6 +124,7 @@ export class SshConversationProvider implements ConversationProvider {
     requireDesired: boolean,
     options: { shellRefreshRetried: boolean }
   ): Promise<void> {
+    if (this.detached) return;
     const sessionId = makePtySessionId(
       conversation.projectId,
       conversation.taskId,
@@ -383,9 +385,12 @@ export class SshConversationProvider implements ConversationProvider {
   }
 
   async detachAll(): Promise<void> {
+    this.detached = true;
     sshConnectionManager.off('connection-event', this._handleReconnect);
-    for (const [sessionId, pty] of this.sessions) {
+    for (const sessionId of this.knownSessionIds) {
       this.supervisor.stop(sessionId);
+    }
+    for (const [sessionId, pty] of this.sessions) {
       try {
         pty.kill();
       } catch {}
@@ -414,8 +419,10 @@ export class SshConversationProvider implements ConversationProvider {
   }
 
   private async rehydrate(): Promise<void> {
+    if (this.detached) return;
     await Promise.all(
       Array.from(this.conversations.entries()).map(async ([sessionId, conversation]) => {
+        if (this.detached) return;
         if (this.sessions.has(sessionId) || !this.supervisor.isDesired(sessionId)) return;
         const initialSize = this.reconnectSizes.get(sessionId) ?? {
           cols: DEFAULT_COLS,

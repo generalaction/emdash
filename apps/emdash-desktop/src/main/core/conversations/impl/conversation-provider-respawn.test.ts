@@ -1090,6 +1090,41 @@ describe('conversation provider respawn state', () => {
     expect((provider as unknown as RespawnState).sessions.get(sessionId)).toBe(secondPty);
   });
 
+  it('cancels in-flight SSH rehydrate starts after detachAll', async () => {
+    const firstExitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    const rehydratedExitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    const firstPty = fakePty(firstExitHandlers);
+    const rehydratedPty = fakePty(rehydratedExitHandlers);
+    let resolveRehydrateOpen: ((value: { success: true; data: Pty }) => void) | undefined;
+    openSsh2Pty.mockResolvedValueOnce({ success: true, data: firstPty }).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRehydrateOpen = resolve;
+        })
+    );
+    const provider = sshProvider(undefined, { connectionId: 'ssh-1' });
+    const item = conversation();
+    const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+
+    await provider.startSession(item);
+    for (const handler of sshConnectionManagerMock.handlers) {
+      handler({ type: 'disconnected', connectionId: 'ssh-1' });
+    }
+    for (const handler of sshConnectionManagerMock.handlers) {
+      handler({ type: 'reconnected', connectionId: 'ssh-1' });
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+
+    await provider.detachAll();
+    resolveRehydrateOpen?.({ success: true, data: rehydratedPty });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(openSsh2Pty).toHaveBeenCalledTimes(2);
+    expect(rehydratedPty.kill).toHaveBeenCalledOnce();
+    expect((provider as unknown as RespawnState).sessions.has(sessionId)).toBe(false);
+    expect(ptySessionRegistry.get(sessionId)).toBeUndefined();
+  });
+
   it('unsubscribes SSH connection listeners when detached', async () => {
     const provider = sshProvider(undefined, { connectionId: 'ssh-1' });
 
