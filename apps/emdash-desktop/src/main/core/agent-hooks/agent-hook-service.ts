@@ -51,6 +51,12 @@ function determineSoundEvent(
   return undefined;
 }
 
+const EXIT_RESETTABLE_AGENT_STATUSES = new Set<AgentStatus>(['working', 'awaiting-input']);
+
+export function shouldResetAgentStatusOnSessionExit(status: AgentStatus | null): boolean {
+  return status !== null && EXIT_RESETTABLE_AGENT_STATUSES.has(status);
+}
+
 export function providerSupportsNativeStartHook(providerId: string): boolean {
   const hooks = getPlugin(providerId).capabilities.hooks;
   return hooks.kind !== 'none' && hooks.supportedEvents.includes('start');
@@ -204,9 +210,9 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
       });
     });
 
-    // Reset a stuck 'working' status to 'idle' when the agent PTY exits.
+    // Reset active statuses to 'idle' when the agent PTY exits.
     // This handles the case where the user interrupts/kills the agent before
-    // a 'stop' or 'error' hook fires.
+    // a 'stop' or 'error' hook fires, or closes a tab while it is awaiting input.
     events.on(agentSessionExitedChannel, ({ conversationId, taskId }) => {
       void (async () => {
         try {
@@ -216,7 +222,9 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
             .where(eq(conversations.id, conversationId))
             .limit(1);
 
-          if (!row || row.agentStatus !== 'working') return;
+          if (!row || !shouldResetAgentStatusOnSessionExit(row.agentStatus as AgentStatus | null)) {
+            return;
+          }
 
           await db
             .update(conversations)
@@ -234,7 +242,7 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
             soundEvent: undefined,
           });
         } catch (error) {
-          log.warn('AgentHookService: failed to reset stuck working status on exit', {
+          log.warn('AgentHookService: failed to reset active status on exit', {
             conversationId,
             error: String(error),
           });
