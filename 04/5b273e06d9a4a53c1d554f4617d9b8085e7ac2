@@ -1,0 +1,27 @@
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_1bdda5817897b1::t_0479de6163f090 308,311-312,314-316
+apps/emdash-desktop/src/main/core/conversations/dehydrateConversation.ts
+  s_1bdda5817897b1::t_b12762322e0d7f 11-12
+apps/emdash-desktop/src/main/core/conversations/dehydrateConversation.test.ts
+  s_1bdda5817897b1::t_0dfc7a5f57e116 1-51
+apps/emdash-desktop/src/main/core/conversations/impl/local-conversation.ts
+  s_1bdda5817897b1::t_e9ac1ee336ea1b 292,295-296,298-300
+apps/emdash-desktop/src/main/core/conversations/types.ts
+  s_1bdda5817897b1::t_c36503f7ce88d0 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "045b273e06d9a4a53c1d554f4617d9b8085e7ac2",
+  "prompts": {},
+  "sessions": {
+    "s_1bdda5817897b1": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ef997-dce8-7d8e-b63a-2b03da55fa27",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
