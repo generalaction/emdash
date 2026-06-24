@@ -1,6 +1,7 @@
 import { createReadStream, promises as fs, statSync, type Stats } from 'node:fs';
-import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
+import { isIgnored, resolveInsideRoot, watchIgnoreGlobs } from '@emdash/core/file-tree';
 import parcelWatcher from '@parcel/watcher';
 import { glob } from 'glob';
 import ignore from 'ignore';
@@ -68,54 +69,6 @@ const BINARY_EXTENSIONS = new Set([
   '.a',
 ]);
 
-// Directories to skip during search
-const SEARCH_IGNORES = new Set([
-  'node_modules',
-  '.git',
-  '.svn',
-  '.hg',
-  'dist',
-  'build',
-  '.next',
-  '.nuxt',
-  'coverage',
-  '.cache',
-  '.parcel-cache',
-]);
-
-const WATCH_IGNORED_NAMES = [
-  '.svn',
-  '.hg',
-  '.git',
-  'node_modules',
-  'dist',
-  'build',
-  '.next',
-  '.nuxt',
-  'coverage',
-  '__pycache__',
-  '.pytest_cache',
-  'venv',
-  '.venv',
-  'target',
-  '.terraform',
-  '.serverless',
-  'worktrees',
-  '.emdash',
-  '.conductor',
-  '.cursor',
-  '.claude',
-  '.amp',
-  '.codex',
-  '.aider',
-  '.continue',
-  '.cody',
-  '.windsurf',
-];
-
-// Glob patterns for parcel/watcher ignore option, derived from WATCH_IGNORED_NAMES.
-const WATCH_IGNORE_GLOBS = WATCH_IGNORED_NAMES.map((n) => `**/${n}/**`);
-
 // Allowed image extensions for readImage
 const ALLOWED_IMAGE_EXTENSIONS = new Set([
   '.png',
@@ -167,29 +120,14 @@ export class LocalFileSystem implements FileSystemProvider {
     }
   }
 
-  /**
-   * Resolve and validate a relative path, ensuring it doesn't escape the project root
-   */
-  private resolvePath(relPath: string): string {
-    // Normalize the path and resolve it against project root
-    const normalizedRelPath = relPath.replace(/\\/g, '/').replace(/^\//, '');
-    const fullPath = resolve(join(this.projectPath, normalizedRelPath));
-
-    // Security: ensure path is within projectPath (handle trailing separator edge cases)
-    const projectPathWithSep = this.projectPath.endsWith(sep)
-      ? this.projectPath
-      : this.projectPath + sep;
-    const fullPathWithSep = fullPath.endsWith(sep) ? fullPath : fullPath + sep;
-
-    if (!fullPathWithSep.startsWith(projectPathWithSep) && fullPath !== this.projectPath) {
-      throw new FileSystemError(
-        `Path traversal detected: ${relPath}`,
-        FileSystemErrorCodes.PATH_ESCAPE,
-        relPath
-      );
+  private resolveWorkspacePath(relPath: string, options: { allowEmpty?: boolean } = {}): string {
+    const resolved = resolveInsideRoot(this.projectPath, relPath, options);
+    if (!resolved.success) {
+      const message =
+        resolved.error.type === 'invalid-path' ? resolved.error.message : 'Invalid file path';
+      throw new FileSystemError(message, FileSystemErrorCodes.INVALID_PATH, relPath);
     }
-
-    return fullPath;
+    return resolved.data.absPath;
   }
 
   /**
@@ -203,7 +141,7 @@ export class LocalFileSystem implements FileSystemProvider {
    * Check if a path should be ignored during search
    */
   private shouldIgnore(name: string): boolean {
-    return SEARCH_IGNORES.has(name);
+    return isIgnored(name);
   }
 
   /**
@@ -231,7 +169,7 @@ export class LocalFileSystem implements FileSystemProvider {
 
   async list(path: string = '', options: ListOptions = {}): Promise<FileListResult> {
     const startTime = Date.now();
-    const fullPath = this.resolvePath(path);
+    const fullPath = this.resolveWorkspacePath(path, { allowEmpty: true });
     const entries: FileEntry[] = [];
     const maxEntries = options.maxEntries || 10000;
     const timeBudgetMs = options.timeBudgetMs || 30000;
@@ -334,7 +272,7 @@ export class LocalFileSystem implements FileSystemProvider {
   }
 
   async read(path: string, maxBytes: number = 200 * 1024): Promise<ReadResult> {
-    const fullPath = this.resolvePath(path);
+    const fullPath = this.resolveWorkspacePath(path);
 
     let stat;
     try {
@@ -378,7 +316,7 @@ export class LocalFileSystem implements FileSystemProvider {
   }
 
   async write(path: string, content: string): Promise<WriteResult> {
-    const fullPath = this.resolvePath(path);
+    const fullPath = this.resolveWorkspacePath(path);
 
     // Ensure directory exists
     const dir = dirname(fullPath);
@@ -413,7 +351,7 @@ export class LocalFileSystem implements FileSystemProvider {
 
   async exists(path: string): Promise<boolean> {
     try {
-      await fs.access(this.resolvePath(path));
+      await fs.access(this.resolveWorkspacePath(path));
       return true;
     } catch {
       return false;
@@ -422,7 +360,7 @@ export class LocalFileSystem implements FileSystemProvider {
 
   async stat(path: string): Promise<FileEntry | null> {
     try {
-      const fullPath = this.resolvePath(path);
+      const fullPath = this.resolveWorkspacePath(path);
       const stat = await fs.stat(fullPath);
       return this.statToEntry(fullPath, stat);
     } catch {
@@ -563,7 +501,7 @@ export class LocalFileSystem implements FileSystemProvider {
     path: string,
     options?: { recursive?: boolean }
   ): Promise<{ success: boolean; error?: string }> {
-    const fullPath = this.resolvePath(path);
+    const fullPath = this.resolveWorkspacePath(path);
 
     let stat;
     try {
@@ -672,7 +610,7 @@ export class LocalFileSystem implements FileSystemProvider {
     size?: number;
     error?: string;
   }> {
-    const fullPath = this.resolvePath(path);
+    const fullPath = this.resolveWorkspacePath(path);
 
     // Check file extension
     const ext = extname(path).toLowerCase();
@@ -721,24 +659,28 @@ export class LocalFileSystem implements FileSystemProvider {
   }
 
   async mkdir(dirPath: string, options?: { recursive?: boolean }): Promise<void> {
-    await fs.mkdir(this.resolvePath(dirPath), { recursive: options?.recursive ?? false });
+    await fs.mkdir(this.resolveWorkspacePath(dirPath, { allowEmpty: true }), {
+      recursive: options?.recursive ?? false,
+    });
   }
 
   async realPath(path: string): Promise<string> {
-    return fs.realpath(this.resolvePath(path));
+    return fs.realpath(this.resolveWorkspacePath(path, { allowEmpty: true }));
   }
 
   async glob(pattern: string, options?: { cwd?: string; dot?: boolean }): Promise<string[]> {
-    const cwd = options?.cwd ? this.resolvePath(options.cwd) : this.projectPath;
+    const cwd = options?.cwd
+      ? this.resolveWorkspacePath(options.cwd, { allowEmpty: true })
+      : this.projectPath;
     return glob(pattern, { cwd, dot: options?.dot ?? false, absolute: false });
   }
 
   async copyFile(src: string, dest: string): Promise<void> {
-    await fs.copyFile(this.resolvePath(src), this.resolvePath(dest));
+    await fs.copyFile(this.resolveWorkspacePath(src), this.resolveWorkspacePath(dest));
   }
 
   async copyLocalFile(localAbsPath: string, destRelPath: string): Promise<void> {
-    await fs.copyFile(localAbsPath, this.resolvePath(destRelPath));
+    await fs.copyFile(localAbsPath, this.resolveWorkspacePath(destRelPath));
   }
 
   watch(
@@ -789,7 +731,7 @@ export class LocalFileSystem implements FileSystemProvider {
             enqueue({ type, entryType, path: rel });
           }
         },
-        { ignore: WATCH_IGNORE_GLOBS }
+        { ignore: watchIgnoreGlobs() }
       )
       .then((sub) => {
         if (closed) {

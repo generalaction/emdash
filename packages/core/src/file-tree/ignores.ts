@@ -1,13 +1,17 @@
-const EXCLUDED_NAMES = new Set([
+export const IGNORED_PATH_SEGMENTS = [
   '.git',
+  '.svn',
+  '.hg',
   'dist',
   'build',
   '.next',
+  '.nuxt',
   'out',
   '.turbo',
   'coverage',
   '.nyc_output',
   '.cache',
+  '.parcel-cache',
   'tmp',
   'temp',
   '.DS_Store',
@@ -37,13 +41,15 @@ const EXCLUDED_NAMES = new Set([
   '.worktrees',
   '.emdash',
   'node_modules',
-]);
+] as const;
 
-export function isExcludedPath(relPath: string): boolean {
+const IGNORED_PATH_SEGMENT_SET = new Set<string>(IGNORED_PATH_SEGMENTS);
+
+export function isIgnored(relPath: string): boolean {
   if (!relPath) return false;
-  return relPath.split('/').some((segment) => EXCLUDED_NAMES.has(segment));
+  return relPath.split('/').some((segment) => IGNORED_PATH_SEGMENT_SET.has(segment));
 }
 
 export function watchIgnoreGlobs(): string[] {
-  return [...EXCLUDED_NAMES].flatMap((name) => [`**/${name}`, `**/${name}/**`]);
+  return IGNORED_PATH_SEGMENTS.flatMap((name) => [`**/${name}`, `**/${name}/**`]);
 }

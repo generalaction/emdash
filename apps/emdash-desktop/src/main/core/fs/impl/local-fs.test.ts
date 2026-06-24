@@ -480,12 +480,19 @@ describe('LocalFileSystem', () => {
       await expect(fsService.read('subdir/../../../etc/passwd')).rejects.toThrow();
     });
 
-    it('should normalize paths with double slashes', async () => {
-      fs.writeFileSync(path.join(tempDir, 'test.txt'), 'content');
+    it('should normalize repeated separators inside relative paths', async () => {
+      fs.mkdirSync(path.join(tempDir, 'nested'));
+      fs.writeFileSync(path.join(tempDir, 'nested/test.txt'), 'content');
 
-      const result = await fsService.read('//test.txt');
+      const result = await fsService.read('nested//test.txt');
 
       expect(result.content).toBe('content');
+    });
+
+    it('should block leading double slash paths as absolute paths', async () => {
+      fs.writeFileSync(path.join(tempDir, 'test.txt'), 'content');
+
+      await expect(fsService.read('//test.txt')).rejects.toThrow('Absolute paths are not allowed');
     });
 
     it('should allow valid subpaths', async () => {

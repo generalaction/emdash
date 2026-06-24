@@ -3,7 +3,7 @@ import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
 import type { IFileWatchService, RawFileEvent, WatchHandle } from '../fs';
 import { KeyedMutex, LiveCollection, type KeyedOp } from '../lib';
 import { classifyFileTreeFsError, type FileTreeError, type FileTreeOnError } from './errors';
-import { isExcludedPath, watchIgnoreGlobs } from './ignores';
+import { isIgnored, watchIgnoreGlobs } from './ignores';
 import { listChildren } from './list';
 import type { FileNode, NodeId } from './models/tree';
 import { NodeIdAssigner } from './node-id';
@@ -220,7 +220,7 @@ export class FileTree implements IFileTree {
     const listed = await listChildren(this.rootPath, dirPath);
     if (!listed.success) return listed;
 
-    const listedEntries = listed.data.filter((entry) => !isExcludedPath(entry.path));
+    const listedEntries = listed.data.filter((entry) => !isIgnored(entry.path));
     const listedPaths = new Set(listedEntries.map((entry) => entry.path));
     let sequence = this.removeMissingChildren(scope, listedPaths);
 

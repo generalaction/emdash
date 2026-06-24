@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { RawFileEvent } from '../../fs';
 import type { KeyedOp } from '../../lib';
-import { isExcludedPath } from '../ignores';
+import { isIgnored } from '../ignores';
 import { statEntry as statFileTreeEntry, type ListedEntry } from '../list';
 import type { FileNode, NodeId } from '../models/tree';
 import type { NodeIdAssigner, Tombstone } from '../node-id';
@@ -29,7 +29,7 @@ export async function classifyFileTreeWatchEvents(
   for (const event of events) {
     const relPath = relPathFromWatchEvent(options.rootPath, event);
     if (!relPath) continue;
-    if (isExcludedPath(relPath)) continue;
+    if (isIgnored(relPath)) continue;
     if (event.kind === 'update') continue;
 
     if (event.kind === 'delete') {

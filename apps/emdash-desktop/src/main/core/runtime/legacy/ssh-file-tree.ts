@@ -1,15 +1,17 @@
 import path from 'node:path';
-import type {
-  FileNode,
-  FileTreeError,
-  FileTreeLease,
-  FileTreeSequences,
-  FileTreeSnapshot,
-  FileTreeUpdate,
-  IFileTree,
-  IFileTreeRuntime,
-  NodeId,
-  SubscribedSnapshot,
+import {
+  isIgnored,
+  normalizeRelPath,
+  type FileNode,
+  type FileTreeError,
+  type FileTreeLease,
+  type FileTreeSequences,
+  type FileTreeSnapshot,
+  type FileTreeUpdate,
+  type IFileTree,
+  type IFileTreeRuntime,
+  type NodeId,
+  type SubscribedSnapshot,
 } from '@emdash/core/file-tree';
 import { LiveCollection, ResourceMap, type KeyedOp } from '@emdash/core/lib';
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
@@ -20,46 +22,6 @@ import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { log } from '@main/lib/logger';
 
 const SSH_FILE_TREE_POLL_MS = 4_000;
-const SSH_FILE_TREE_EXCLUDED_NAMES = new Set([
-  '.git',
-  'dist',
-  'build',
-  '.next',
-  'out',
-  '.turbo',
-  'coverage',
-  '.nyc_output',
-  '.cache',
-  'tmp',
-  'temp',
-  '.DS_Store',
-  'Thumbs.db',
-  '.vscode-test',
-  '.idea',
-  '__pycache__',
-  '.pytest_cache',
-  'venv',
-  '.venv',
-  'target',
-  '.terraform',
-  '.serverless',
-  '.checkouts',
-  'checkouts',
-  '.conductor',
-  '.cursor',
-  '.claude',
-  '.devin',
-  '.amp',
-  '.codex',
-  '.aider',
-  '.continue',
-  '.cody',
-  '.windsurf',
-  'worktrees',
-  '.worktrees',
-  '.emdash',
-  'node_modules',
-]);
 
 type LegacyListedEntry = {
   path: string;
@@ -205,7 +167,7 @@ class LegacySshFileTree implements IFileTree {
   async revealPath(pathToReveal: string): Promise<Result<FileTreeSequences, FileTreeError>> {
     const ready = await this.ready();
     if (!ready.success) return err(ready.error);
-    const normalized = normalizeRemoteRelPath(pathToReveal);
+    const normalized = normalizeRelPath(pathToReveal);
     if (!normalized.success) return normalized;
 
     const parts = normalized.data.split('/').filter(Boolean);
@@ -304,7 +266,7 @@ class LegacySshFileTree implements IFileTree {
   }
 
   private async listChildren(dirPath: string): Promise<Result<LegacyListedEntry[], FileTreeError>> {
-    const normalized = normalizeRemoteRelPath(dirPath, { allowEmpty: true });
+    const normalized = normalizeRelPath(dirPath, { allowEmpty: true });
     if (!normalized.success) return normalized;
 
     try {
@@ -312,7 +274,7 @@ class LegacySshFileTree implements IFileTree {
       const entries: LegacyListedEntry[] = [];
       for (const entry of result.entries) {
         const relPath = entry.path.replace(/\\/g, '/');
-        if (isLegacySshExcludedPath(relPath)) continue;
+        if (isIgnored(relPath)) continue;
         if (entry.type !== 'dir' && entry.type !== 'file') continue;
         entries.push(toListedEntry(entry));
       }
@@ -477,40 +439,6 @@ function toFileTreeError(error: unknown, relPath: string): FileTreeError {
 function normalizeRemoteRootPath(rootPath: string): string {
   const normalized = path.posix.normalize(rootPath.replace(/\\/g, '/'));
   return path.posix.isAbsolute(normalized) ? normalized : path.posix.resolve('/', normalized);
-}
-
-function normalizeRemoteRelPath(
-  input: string,
-  options: { allowEmpty?: boolean } = {}
-): Result<string, FileTreeError> {
-  if (input.includes('\0')) {
-    return err({ type: 'invalid-path', path: input, message: 'Path contains a null byte' });
-  }
-  if (path.posix.isAbsolute(input) || path.win32.isAbsolute(input)) {
-    return err({ type: 'invalid-path', path: input, message: 'Absolute paths are not allowed' });
-  }
-
-  const parts = input
-    .replace(/\\/g, '/')
-    .split('/')
-    .filter((part) => part.length > 0 && part !== '.');
-  if (parts.includes('..')) {
-    return err({
-      type: 'invalid-path',
-      path: input,
-      message: 'Parent path segments are not allowed',
-    });
-  }
-
-  const normalized = parts.join('/');
-  if (!normalized && !options.allowEmpty) {
-    return err({ type: 'invalid-path', path: input, message: 'Path must not be empty' });
-  }
-  return ok(normalized);
-}
-
-function isLegacySshExcludedPath(relPath: string): boolean {
-  return relPath.split('/').some((segment) => SSH_FILE_TREE_EXCLUDED_NAMES.has(segment));
 }
 
 function mergeSequences(left: FileTreeSequences, right: FileTreeSequences): FileTreeSequences {
