@@ -93,7 +93,6 @@ export type AgentProviderDefinition = {
   /** When true, the logo should be colour-inverted in dark mode. */
   invertInDark?: boolean;
   terminalOnly?: boolean;
-  supportsHooks?: boolean;
 };
 
 export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
@@ -122,7 +121,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'openai.svg',
     alt: 'Codex',
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'claude',
@@ -142,7 +140,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'claude.svg',
     alt: 'Claude Code',
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'grok',
@@ -164,7 +161,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Grok CLI',
     invertInDark: true,
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'devin',
@@ -183,7 +179,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'devin.png',
     alt: 'Devin',
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'cursor',
@@ -219,7 +214,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'gemini.svg',
     alt: 'Gemini CLI',
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'antigravity',
@@ -255,7 +249,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'qwen.svg',
     alt: 'Qwen Code CLI',
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'droid',
@@ -274,7 +267,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'droid.svg',
     alt: 'Factory Droid',
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'amp',
@@ -295,7 +287,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'ampcode.svg',
     alt: 'Amp CLI',
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'commandcode',
@@ -317,7 +308,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'commandcode.svg',
     alt: 'Command Code CLI',
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'opencode',
@@ -339,7 +329,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     iconDark: 'opencode-dark.svg',
     alt: 'OpenCode CLI',
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'hermes',
@@ -379,7 +368,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'GitHub Copilot CLI',
     invertInDark: true,
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'charm',
@@ -433,7 +421,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'goose.png',
     alt: 'Goose CLI',
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'kimi',
@@ -454,7 +441,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'kimi.svg',
     alt: 'Kimi CLI',
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'kilocode',
@@ -472,7 +458,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'kilocode.png',
     alt: 'Kilocode CLI',
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'kiro',
@@ -494,7 +479,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'kiro.png',
     alt: 'Kiro CLI',
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'rovo',
@@ -589,7 +573,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'mistral.svg',
     alt: 'Mistral Vibe CLI',
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'jules',
@@ -638,7 +621,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'pi.png',
     alt: 'Pi CLI',
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'letta',
