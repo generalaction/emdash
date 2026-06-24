@@ -1,16 +1,18 @@
 /**
  * Solid transcript store.
  *
- * Uses Solid's `createStore` with path-set mutations for fine-grained reactivity.
- * The two-tier pattern (committed + activeTurn) is preserved: committed items
- * are never mutated; activeTurn accumulates streaming state.
+ * Two-tier model: committed items are immutable (replaced wholesale) so they
+ * live in a plain createSignal — no store proxy overhead on the hot measure /
+ * render path. activeTurn + turnStatus mutate in place during streaming and
+ * stay in a fine-grained createStore.
  *
  * The public write surface is a single `dispatch(event)` method. All mutation
  * logic lives in the reducer switch, keeping callers free of internal state
  * details (delta accumulation, startedAt timing, turn lifecycle).
  */
 
-import { createStore, produce } from 'solid-js/store';
+import { createSignal } from 'solid-js';
+import { createStore, produce, unwrap } from 'solid-js/store';
 import type {
   ChatDiff,
   ChatExecute,
@@ -43,9 +45,9 @@ import type {
 export type TurnStatus = 'generating' | 'cancelled' | 'done';
 
 export type TranscriptState = {
-  committed: readonly ChatItem[];
-  activeTurn: ChatItem[] | null;
-  turnStatus: TurnStatus;
+  readonly committed: readonly ChatItem[];
+  readonly activeTurn: ChatItem[] | null;
+  readonly turnStatus: TurnStatus;
 };
 
 // ── Event union ───────────────────────────────────────────────────────────────
@@ -239,11 +241,34 @@ export function allItems(state: TranscriptState): readonly ChatItem[] {
 // ── Factory ───────────────────────────────────────────────────────────────────
 
 export function createTranscript(): TranscriptApi {
-  const [state, setState] = createStore<TranscriptState>({
-    committed: [],
+  // Committed items are immutable — they only ever change as a wholesale array
+  // replacement (turn_done/prepend/seed). A plain signal gives coarse tracking
+  // (reacts to identity changes) with zero proxy overhead on the hot path.
+  const [committed, setCommitted] = createSignal<readonly ChatItem[]>([]);
+
+  // activeTurn + turnStatus mutate in place during streaming; fine-grained
+  // store tracking here is warranted.
+  const [live, setLive] = createStore<{ activeTurn: ChatItem[] | null; turnStatus: TurnStatus }>({
     activeTurn: null,
     turnStatus: 'done',
   });
+
+  // Expose the same TranscriptState shape via getters so existing reactive
+  // readers keep working. Tracking semantics are preserved: committed() is
+  // read in the getter so any createMemo/createEffect that accesses
+  // state.committed will re-run on identity changes. live.activeTurn /
+  // live.turnStatus retain fine-grained reactivity.
+  const state: TranscriptState = {
+    get committed() {
+      return committed();
+    },
+    get activeTurn() {
+      return live.activeTurn;
+    },
+    get turnStatus() {
+      return live.turnStatus;
+    },
+  };
 
   // id → committed index map; rebuilt on seed/prepend, patched on turn_done.
   const idMap = new Map<string, number>();
@@ -259,15 +284,15 @@ export function createTranscript(): TranscriptApi {
     state,
 
     seed(history) {
-      setState({ committed: [...history], activeTurn: null, turnStatus: 'done' });
+      setCommitted([...history]);
+      setLive({ activeTurn: null, turnStatus: 'done' });
       rebuildIdMap(history);
     },
 
     prependHistory(items) {
       if (items.length === 0) return;
-      setState('committed', (prev) => [...items, ...prev]);
-      // Rebuild: indices of all existing committed items shifted by items.length.
-      rebuildIdMap(state.committed);
+      setCommitted((prev) => [...items, ...prev]);
+      rebuildIdMap(committed());
     },
 
     findIndexById(id) {
@@ -275,9 +300,9 @@ export function createTranscript(): TranscriptApi {
       const ci = idMap.get(id);
       if (ci !== undefined) return ci;
       // Fall back to activeTurn scan (small; not worth a separate map).
-      const at = state.activeTurn;
+      const at = live.activeTurn;
       if (at) {
-        const offset = state.committed.length;
+        const offset = committed().length;
         for (let i = 0; i < at.length; i++) {
           if (at[i].id === id) return offset + i;
         }
@@ -286,50 +311,56 @@ export function createTranscript(): TranscriptApi {
     },
 
     dispatch(event) {
-      setState(
-        produce((s) => {
-          // Capture before switch to detect when a new activeTurn opens.
-          const wasIdle = s.activeTurn === null;
+      // Capture before the switch to detect when a fresh activeTurn opens.
+      const wasIdle = live.activeTurn === null;
 
+      setLive(
+        produce((s) => {
           /**
            * Shared finalize helper — moves activeTurn items into committed,
            * settling any still-streaming rows. Called by both `turn_done` and
            * `turn_cancelled` so they stay in sync.
+           *
+           * Items that need no mutation are unwrapped so committed holds only
+           * plain (non-proxy) objects, keeping the hot measure/render path free
+           * of Solid store proxy overhead.
            */
-          const finalizeAndCommit = (): void => {
+          const finalizeAndCommit = (status: TurnStatus): void => {
             if (!s.activeTurn) return;
             const finalized: ChatItem[] = s.activeTurn.map((item) => {
               if (item.kind === 'message' && item.streaming) {
-                return { ...item, streaming: false };
+                return { ...unwrap(item), streaming: false };
               }
               if (item.kind === 'thinking' && item.status === 'thinking') {
                 return {
-                  ...item,
+                  ...unwrap(item),
                   status: 'done' as const,
                   durationMs: Date.now() - item.startedAt,
                 };
               }
               if (item.kind === 'execute' && item.status === 'running') {
                 return {
-                  ...item,
+                  ...unwrap(item),
                   status: 'done' as const,
                   durationMs: Date.now() - item.startedAt,
                 };
               }
               if (item.kind === 'diff' && item.status === 'running') {
-                return { ...item, status: 'done' as const };
+                return { ...unwrap(item), status: 'done' as const };
               }
               if (item.kind === 'plan' && item.streaming) {
-                return { ...item, streaming: false };
+                return { ...unwrap(item), streaming: false };
               }
               if (item.kind === 'resource-link' && item.status === 'running') {
-                return { ...item, status: 'done' as const };
+                return { ...unwrap(item), status: 'done' as const };
               }
-              return item;
+              // Pass-through: unwrap so no store proxy leaks into committed.
+              return unwrap(item) as ChatItem;
             });
-            const offset = s.committed.length;
-            s.committed = [...s.committed, ...finalized];
+            const offset = committed().length;
+            setCommitted((prev) => [...prev, ...finalized]);
             s.activeTurn = null;
+            s.turnStatus = status;
             // Patch idMap: only new items added at the tail.
             for (let i = 0; i < finalized.length; i++) {
               idMap.set(finalized[i].id, offset + i);
@@ -566,7 +597,8 @@ export function createTranscript(): TranscriptApi {
             case 'resource_link_start': {
               if (s.activeTurn === null) s.activeTurn = [];
               const existingLink = s.activeTurn.find(
-                (it): it is ChatResourceLink => it.kind === 'resource-link' && it.id === event.id
+                (it): it is ChatResourceLink =>
+                  it.kind === 'resource-link' && it.id === event.id
               );
               if (!existingLink) {
                 s.activeTurn.push({
@@ -588,7 +620,8 @@ export function createTranscript(): TranscriptApi {
             case 'resource_link_update': {
               if (s.activeTurn === null) break;
               const existingLink = s.activeTurn.find(
-                (it): it is ChatResourceLink => it.kind === 'resource-link' && it.id === event.id
+                (it): it is ChatResourceLink =>
+                  it.kind === 'resource-link' && it.id === event.id
               );
               if (existingLink) {
                 if (event.target !== undefined) existingLink.target = event.target;
@@ -627,22 +660,20 @@ export function createTranscript(): TranscriptApi {
             }
 
             case 'turn_done': {
-              finalizeAndCommit();
-              s.turnStatus = 'done';
+              finalizeAndCommit('done');
               break;
             }
 
             case 'turn_cancelled': {
-              finalizeAndCommit();
-              s.turnStatus = 'cancelled';
+              finalizeAndCommit('cancelled');
               break;
             }
           }
 
           // If this event opened a fresh activeTurn, mark as generating.
           // Terminal events (turn_done / turn_cancelled) set activeTurn = null
-          // inside the switch, so wasIdle is true for them but activeTurn is
-          // null, so this guard never clobbers a terminal status.
+          // inside finalizeAndCommit, so wasIdle is true for them but
+          // activeTurn is null, meaning this guard never clobbers terminal status.
           if (wasIdle && s.activeTurn !== null) {
             s.turnStatus = 'generating';
           }
@@ -651,7 +682,8 @@ export function createTranscript(): TranscriptApi {
     },
 
     reset() {
-      setState({ committed: [], activeTurn: null, turnStatus: 'done' });
+      setCommitted([]);
+      setLive({ activeTurn: null, turnStatus: 'done' });
       idMap.clear();
     },
   };

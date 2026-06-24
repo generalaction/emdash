@@ -55,7 +55,8 @@ import { unitReservedHeight } from './core/units';
 import { Virtualizer } from './core/virtualizer';
 import type { ChatCommands, ScrollToItemOptions } from './index';
 import type { ChatItem, ChatMessage } from './model';
-import { flatten, collectUserTurnUnits, getUnit } from './state/flatten';
+import { flattenTier, makeUnitsView, collectUserTurnUnits } from './state/flatten';
+import type { UnitsView } from './state/flatten';
 import type { TranscriptApi } from './state/transcript';
 import type { ViewState } from './state/view-state';
 import {
@@ -226,6 +227,10 @@ export function ChatRoot(props: ChatRootProps) {
   let canvasEl: HTMLDivElement | undefined;
   let outerEl: HTMLDivElement | undefined;
   const virt = new Virtualizer();
+  // Visible row wrapper elements keyed by unit index.
+  // Written imperatively by the <For> ref callback and read in writePhase
+  // to reposition rows without reactive unitTop memos.
+  const rowEls = new Map<number, HTMLDivElement>();
 
   const [totalHeight, setTotalHeight] = createSignal(0);
   const [scrollTop, setScrollTop] = createSignal(0);
@@ -260,21 +265,38 @@ export function ChatRoot(props: ChatRootProps) {
   // computed entirely from cached signals — no DOM read.
   const stuckIntent = () => maxScrollTop() - scrollTop() <= STICK_THRESHOLD_PX;
 
-  // ── Flat unit array ───────────────────────────────────────────────────────
+  // ── Flat unit view (two-tier) ─────────────────────────────────────────────
   //
-  // Recomputed when the transcript state changes (committed tier grows or
-  // activeTurn mutates). The segment cache in flatten.ts makes re-runs O(activeTurn)
-  // for committed items. Unit ids are stable across streaming ticks for committed
-  // items so the <For> keeps existing UnitRow instances mounted.
+  // Two tier-scoped memos replace the monolithic flatten + segmentCache:
+  //
+  //   committedUnits — stable; recomputes only when committed() identity
+  //                    changes (turn_done / prepend / seed). The framework
+  //                    memo replaces the old WeakMap segmentCache.
+  //   activeUnits    — recomputes per streaming tick but only over the small
+  //                    activeTurn array; O(activeTurn), not O(total).
+  //   units          — UnitsView virtual concat; no array allocation per tick.
+  //
+  // Unit ids are stable across streaming ticks for committed items so the
+  // <For> keeps existing UnitRow instances mounted.
 
   const segmentCtx = createMemo(() => ({
     caches,
     expanded: (_id: string) => false, // collapse state queried per-unit in UnitRow
   }));
 
-  const units = createMemo(() =>
-    flatten(props.transcript.state, segmentCtx(), SEGMENTERS, UNIT_REGISTRY)
+  const committedUnits = createMemo(() =>
+    flattenTier(props.transcript.state.committed, segmentCtx(), SEGMENTERS, UNIT_REGISTRY)
   );
+
+  const activeUnits = createMemo(() => {
+    const at = props.transcript.state.activeTurn;
+    if (!at || at.length === 0) return [] as ReturnType<typeof flattenTier>;
+    const c = committedUnits();
+    const prevKind = c.length > 0 ? c[c.length - 1].kind : undefined;
+    return flattenTier(at, segmentCtx(), SEGMENTERS, UNIT_REGISTRY, prevKind);
+  });
+
+  const units = createMemo<UnitsView>(() => makeUnitsView(committedUnits(), activeUnits()));
 
   // Leading gap of a user message row — used by the pin overlay to keep the
   // pinned copy vertically aligned with the real row. Reads the message def's
@@ -302,7 +324,7 @@ export function ChatRoot(props: ChatRootProps) {
         expandedId: expandedUserId(),
       };
       virt.setCount(us.length, (i) => {
-        const u = us[i];
+        const u = us.at(i);
         if (!u) return 60;
         const unitDef = UNIT_REGISTRY[u.kind];
         const contentH =
@@ -367,8 +389,10 @@ export function ChatRoot(props: ChatRootProps) {
   // ── Pinned user-message overlay ───────────────────────────────────────────
 
   // Absolute unit indices of the first unit of each committed user-message group.
-  // Recomputed when committed tier grows or units changes (turn appended / message split).
-  const userTurns = createMemo(() => collectUserTurnUnits(props.transcript.state, units()));
+  // Reads committedUnits (stable during streaming) and units() for index lookup.
+  const userTurns = createMemo(() =>
+    collectUserTurnUnits(props.transcript.state.committed, units())
+  );
 
   // The active pin state: which user message to overlay, and its overlayTop.
   //
@@ -422,11 +446,11 @@ export function ChatRoot(props: ChatRootProps) {
     // Sum the heights of all units in the active user's group for the overlay height.
     // For Phase 0 this is always exactly one unit; Phase 1 sums per-block units.
     let overlayH = 0;
-    const activeUnit = getUnit(units(), activeUserIdx);
+    const activeUnit = units().at(activeUserIdx);
     if (activeUnit) {
       const activeItemId = activeUnit.itemId;
       for (let ui = activeUserIdx; ui < units().length; ui++) {
-        const u = getUnit(units(), ui);
+        const u = units().at(ui);
         if (!u || u.itemId !== activeItemId) break;
         overlayH += virt.size(ui);
       }
@@ -533,7 +557,7 @@ export function ChatRoot(props: ChatRootProps) {
     const us = units();
     let unitIdx = -1;
     for (let i = 0; i < us.length; i++) {
-      if (us[i].itemId === id) {
+      if (us.at(i)?.itemId === id) {
         unitIdx = i;
         break;
       }
@@ -543,7 +567,7 @@ export function ChatRoot(props: ChatRootProps) {
     // Compute the total height of all units belonging to this item (for center/end align).
     let itemTotalH = 0;
     for (let i = unitIdx; i < us.length; i++) {
-      if (us[i].itemId !== id) break;
+      if (us.at(i)?.itemId !== id) break;
       itemTotalH += virt.size(i);
     }
 
@@ -590,7 +614,7 @@ export function ChatRoot(props: ChatRootProps) {
 
     // Capture anchor: the first visible unit index and its offset from scrollTop.
     const anchorUnitIdx = virt.findIndex(Math.max(0, el.scrollTop - padTop()));
-    const anchorId = getUnit(units(), anchorUnitIdx)?.itemId;
+    const anchorId = units().at(anchorUnitIdx)?.itemId;
     const anchorOffset = el.scrollTop - (virt.top(anchorUnitIdx) + padTop());
 
     // Estimate heights for the prepended units.
@@ -624,7 +648,7 @@ export function ChatRoot(props: ChatRootProps) {
       const newUs = units();
       let newUnitIdx = -1;
       for (let i = 0; i < newUs.length; i++) {
-        if (newUs[i].itemId === anchorId) {
+        if (newUs.at(i)?.itemId === anchorId) {
           newUnitIdx = i;
           break;
         }
@@ -704,12 +728,24 @@ export function ChatRoot(props: ChatRootProps) {
     // Animate phase: advance all active tweens; returns true while any are live.
     const animatePhase = (): boolean => tweenRegistry.advance(performance.now());
 
-    // Write phase: flush coalesced height total. Returns false (no pending work).
+    // Write phase: flush coalesced height total, then reposition all visible
+    // rows and set the canvas height. Row positions and canvas height are
+    // written imperatively from the Fenwick tree (always synchronously current)
+    // rather than through reactive bindings, so a setTotalHeight() no longer
+    // fans out to N unitTop memos. Returns false (no pending work).
     const writePhase = (): boolean => {
       if (totalDirty) {
         totalDirty = false;
         setTotalHeight(virt.total());
       }
+      // Reposition visible rows from the Fenwick tree (read-free from signals).
+      const pt = padTop();
+      for (const idx of visibleIndexes()) {
+        const el = rowEls.get(idx);
+        if (el) el.style.transform = `translateY(${virt.top(idx) + pt}px)`;
+      }
+      // Update canvas height from the shadow getter (no DOM read).
+      if (canvasEl) canvasEl.style.height = `${contentH()}px`;
       return false;
     };
 
@@ -786,7 +822,7 @@ export function ChatRoot(props: ChatRootProps) {
 
       // Helper: prefetch one unit at absolute index ui.
       const prefetchUnit = (ui: number): void => {
-        const u = us[ui];
+        const u = us.at(ui);
         if (!u) return;
         const unitDef = UNIT_REGISTRY[u.kind];
         if (!unitDef) return;
@@ -964,19 +1000,19 @@ export function ChatRoot(props: ChatRootProps) {
                   <div
                     ref={(el) => {
                       canvasEl = el;
+                      // Set initial canvas height synchronously so the layout
+                      // is correct before the first scheduler write phase.
+                      el.style.height = `${contentH()}px`;
                     }}
                     data-chat-canvas
                     class={`${canvas} ${contentClass()}`}
-                    style={{ height: `${totalHeight() + padTop() + padBottom()}px` }}
                   >
                     <For each={visibleIndexes()}>
                       {(unitIndex) => {
-                        const unitTop = createMemo(() => {
-                          totalHeight();
-                          return virt.top(unitIndex) + padTop();
-                        });
-
-                        const u = createMemo(() => getUnit(units(), unitIndex));
+                        // Plain accessor (not a memo): getUnit is O(1), and the
+                        // per-row memo create/teardown on scroll churn costs more
+                        // than recomputing an array index.
+                        const u = () => units().at(unitIndex);
                         const isActiveTurn = () => {
                           const unit = u();
                           return unit ? activeTurnItemIds().has(unit.itemId) : false;
@@ -986,7 +1022,13 @@ export function ChatRoot(props: ChatRootProps) {
                           <Show when={u()}>
                             <div
                               class={unitRowWrapper}
-                              style={{ transform: `translateY(${unitTop()}px)` }}
+                              ref={(el) => {
+                                rowEls.set(unitIndex, el);
+                                // Set initial transform synchronously so the row
+                                // is placed correctly before the write phase runs.
+                                el.style.transform = `translateY(${virt.top(unitIndex) + padTop()}px)`;
+                                onCleanup(() => rowEls.delete(unitIndex));
+                              }}
                               data-index={String(unitIndex)}
                             >
                               <UnitRow
@@ -1026,7 +1068,7 @@ export function ChatRoot(props: ChatRootProps) {
                       <PinnedUserMessage
                         item={
                           (() => {
-                            const unit = getUnit(units(), state().activeUserIdx);
+                            const unit = units().at(state().activeUserIdx);
                             if (!unit) return undefined;
                             // Find the ChatMessage for this itemId in committed.
                             return props.transcript.state.committed.find(
