@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import type { ClientChannel } from 'ssh2';
+import type { Client, ClientChannel } from 'ssh2';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { log } from '@main/lib/logger';
 import { normalizeSignal } from './exit-signals';
@@ -70,11 +70,12 @@ export async function openSsh2Pty(
   const { id, command, cols, rows } = options;
   return new Promise((resolve) => {
     let settled = false;
+    let clientSnapshot: Client | null = null;
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
       try {
-        proxy.client.destroy();
+        clientSnapshot?.destroy();
       } catch {}
       resolve(
         err({
@@ -85,6 +86,7 @@ export async function openSsh2Pty(
     }, CHANNEL_OPEN_TIMEOUT_MS);
 
     try {
+      clientSnapshot = proxy.client;
       proxy.execPty(
         command,
         {

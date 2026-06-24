@@ -111,6 +111,7 @@ describe('SshTerminalProvider', () => {
     sshConnectionManagerMock.handlers.length = 0;
     openSsh2PtyMock.mockClear();
     terminalUrlDetectorMock.wireTerminalUrlDetector.mockClear();
+    vi.mocked(ptySessionRegistry.unregister).mockClear();
     previewServerServiceMock.registerDetectedTarget.mockClear();
     previewServerServiceMock.registerDetectedTarget.mockResolvedValue(undefined);
     previewServerServiceMock.handleTerminalSourceClosed.mockClear();
@@ -240,5 +241,38 @@ describe('SshTerminalProvider', () => {
     expect(
       (provider as unknown as { sessions: Map<string, unknown> }).sessions.has(sessionId)
     ).toBe(true);
+  });
+
+  it('clears reconnect sizes when killing a terminal detached for reconnect', async () => {
+    const provider = new SshTerminalProvider({
+      projectId: terminal.projectId,
+      scopeId: terminal.taskId,
+      taskPath: '/repo',
+      ctx,
+      proxy,
+      connectionId: 'ssh-1',
+    });
+
+    await provider.spawnTerminal(terminal, { cols: 120, rows: 40 });
+    const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
+    vi.mocked(ptySessionRegistry.getLastSize).mockReturnValue({ cols: 120, rows: 40 });
+
+    for (const handler of sshConnectionManagerMock.handlers) {
+      handler({ type: 'disconnected', connectionId: 'ssh-1' });
+    }
+
+    expect(
+      (provider as unknown as { reconnectSizes: Map<string, unknown> }).reconnectSizes.has(
+        sessionId
+      )
+    ).toBe(true);
+
+    await provider.killTerminal(terminal.id);
+
+    expect(
+      (provider as unknown as { reconnectSizes: Map<string, unknown> }).reconnectSizes.has(
+        sessionId
+      )
+    ).toBe(false);
   });
 });

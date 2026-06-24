@@ -352,6 +352,7 @@ export class SshTerminalProvider implements TerminalProvider {
     }
     this.terminals.delete(terminalId);
     this.shellProfiles.delete(sessionId);
+    this.reconnectSizes.delete(sessionId);
     if (this.tmux) {
       await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
     }
@@ -367,6 +368,7 @@ export class SshTerminalProvider implements TerminalProvider {
     this.knownSessionIds.clear();
     this.terminals.clear();
     this.shellProfiles.clear();
+    this.reconnectSizes.clear();
   }
 
   async detachAll(): Promise<void> {

@@ -73,6 +73,39 @@ describe('Ssh2PtySession', () => {
     }
   });
 
+  it('destroys the client used to open the timed-out channel, not a later reconnect', async () => {
+    vi.useFakeTimers();
+    try {
+      const originalClient = { destroy: vi.fn() };
+      const reconnectedClient = { destroy: vi.fn() };
+      let currentClient = originalClient;
+      const proxy = {
+        get client() {
+          return currentClient;
+        },
+        execPty: vi.fn(() => {
+          currentClient = reconnectedClient;
+        }),
+      };
+
+      const resultPromise = openSsh2Pty(proxy as never, {
+        id: 'ssh-session',
+        command: 'bash',
+        cols: 80,
+        rows: 24,
+      });
+
+      await vi.advanceTimersByTimeAsync(15_000);
+      const result = await resultPromise;
+
+      expect(result.success).toBe(false);
+      expect(originalClient.destroy).toHaveBeenCalledOnce();
+      expect(reconnectedClient.destroy).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('returns a failed open when execPty throws synchronously', async () => {
     const proxy = {
       execPty: vi.fn(() => {
