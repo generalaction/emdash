@@ -26,7 +26,7 @@ export const ptyController = createRPCController({
     pty.write(data);
     if (data.includes('\r')) {
       const meta = ptySessionRegistry.getMetadata(sessionId);
-      if (meta?.providerId && !meta.isRemote) {
+      if (meta?.providerId) {
         const parsed = parsePtySessionId(sessionId);
         if (parsed) {
           conversationEvents._emit('conversation:input-submitted', {

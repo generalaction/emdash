@@ -1,7 +1,14 @@
 import { parse as parseTOML } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
 import type { PluginFs } from '../../runtime/fs';
-import { codexMcpAdapter, createMcpAdapter, passthroughMcpAdapter } from './mcp';
+import {
+  codexMcpAdapter,
+  createMcpAdapter,
+  crushMcpAdapter,
+  droidMcpAdapter,
+  opencodeMcpAdapter,
+  passthroughMcpAdapter,
+} from './mcp';
 
 // ── In-memory PluginFs ───────────────────────────────────────────────────────
 
@@ -196,6 +203,35 @@ describe('createMcpAdapter with multiple legacyReadPaths', () => {
   });
 });
 
+// ── Droid adapter ───────────────────────────────────────────────────────────
+
+describe('droidMcpAdapter', () => {
+  const adapter = droidMcpAdapter();
+
+  it('writes Factory MCP config to the documented path', async () => {
+    const fs = createMemoryFs();
+
+    await adapter.writeServers(fs, [{ name: 'filesystem', command: 'npx' }]);
+
+    const raw = await fs.read('.factory/mcp.json');
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!) as Record<string, unknown>;
+    expect(parsed.mcpServers).toEqual({ filesystem: { command: 'npx' } });
+    expect(await fs.read('.droid/settings.json')).toBeNull();
+  });
+
+  it('reads legacy Droid and Factory config paths', async () => {
+    const fs = createMemoryFs({
+      '.droid/settings.json': jsonFile({ mcpServers: { droidLegacy: { command: 'd' } } }),
+      '.factory/config.json': jsonFile({ mcpServers: { factoryLegacy: { command: 'f' } } }),
+    });
+
+    const result = await adapter.readServers(fs);
+
+    expect(result.map((server) => server.name).sort()).toEqual(['droidLegacy', 'factoryLegacy']);
+  });
+});
+
 // ── Codex TOML adapter ──────────────────────────────────────────────────────
 
 describe('codexMcpAdapter', () => {
@@ -250,5 +286,191 @@ describe('codexMcpAdapter', () => {
       headers: { Authorization: 'Bearer token' },
     });
     expect(result[0].http_headers).toBeUndefined();
+  });
+});
+
+// ── OpenCode adapter ────────────────────────────────────────────────────────
+
+describe('opencodeMcpAdapter', () => {
+  const adapter = opencodeMcpAdapter('.config/opencode/opencode.json');
+
+  it('writes local servers using OpenCode environment and enabled fields', async () => {
+    const fs = createMemoryFs();
+
+    await adapter.writeServers(fs, [
+      {
+        name: 'playwright',
+        command: 'npx',
+        args: ['-y', '@playwright/mcp'],
+        env: { BROWSER: 'chromium' },
+        enabled: false,
+        cwd: './tools',
+        timeout: 10_000,
+      },
+    ]);
+
+    const raw = await fs.read('.config/opencode/opencode.json');
+    const parsed = JSON.parse(raw!) as {
+      mcp: Record<string, Record<string, unknown>>;
+    };
+
+    expect(parsed.mcp.playwright).toEqual({
+      type: 'local',
+      command: ['npx', '-y', '@playwright/mcp'],
+      enabled: false,
+      environment: { BROWSER: 'chromium' },
+      cwd: './tools',
+      timeout: 10_000,
+    });
+  });
+
+  it('reads current OpenCode server fields', async () => {
+    const fs = createMemoryFs({
+      '.config/opencode/opencode.json': jsonFile({
+        mcp: {
+          local: {
+            type: 'local',
+            command: ['npx', '-y', '@local/mcp'],
+            enabled: false,
+            environment: { LOCAL: '1' },
+            cwd: './mcp',
+            timeout: 20_000,
+          },
+          remote: {
+            type: 'remote',
+            url: 'https://example.com/mcp',
+            enabled: false,
+            headers: { Authorization: 'Bearer token' },
+            oauth: false,
+            timeout: 30_000,
+          },
+          inherited: { enabled: false },
+        },
+      }),
+    });
+
+    const result = await adapter.readServers(fs);
+
+    expect(result).toContainEqual({
+      name: 'local',
+      command: 'npx',
+      args: ['-y', '@local/mcp'],
+      enabled: false,
+      env: { LOCAL: '1' },
+      cwd: './mcp',
+      timeout: 20_000,
+    });
+    expect(result).toContainEqual({
+      name: 'remote',
+      type: 'http',
+      url: 'https://example.com/mcp',
+      enabled: false,
+      headers: { Authorization: 'Bearer token' },
+      oauth: false,
+      timeout: 30_000,
+    });
+    expect(result).toContainEqual({ name: 'inherited', enabled: false });
+
+    await adapter.writeServers(fs, result);
+
+    const raw = await fs.read('.config/opencode/opencode.json');
+    const parsed = JSON.parse(raw!) as {
+      mcp: Record<string, Record<string, unknown>>;
+    };
+    expect(parsed.mcp.inherited).toEqual({ enabled: false });
+  });
+
+  it('prefers canonical environment when reading local OpenCode servers', async () => {
+    const fs = createMemoryFs({
+      '.config/opencode/opencode.json': jsonFile({
+        mcp: {
+          local: {
+            type: 'local',
+            command: ['npx', '-y', '@local/mcp'],
+            env: { LEGACY: '1' },
+            environment: { CANONICAL: '1' },
+          },
+        },
+      }),
+    });
+
+    const result = await adapter.readServers(fs);
+
+    expect(result).toContainEqual({
+      name: 'local',
+      command: 'npx',
+      args: ['-y', '@local/mcp'],
+      env: { CANONICAL: '1' },
+    });
+  });
+});
+
+// ── Crush adapter ───────────────────────────────────────────────────────────
+
+describe('crushMcpAdapter', () => {
+  const adapter = crushMcpAdapter('.config/crush/crush.json');
+
+  it('writes servers under the mcp key and preserves unrelated config', async () => {
+    const fs = createMemoryFs({
+      '.config/crush/crush.json': jsonFile({ options: { debug: true } }),
+    });
+
+    await adapter.writeServers(fs, [
+      {
+        name: 'docs',
+        transport: 'http',
+        type: 'http',
+        url: 'https://example.com/mcp',
+        headers: { Authorization: 'Bearer $TOKEN' },
+      },
+    ]);
+
+    const raw = await fs.read('.config/crush/crush.json');
+    const parsed = JSON.parse(raw!) as Record<string, unknown>;
+    const servers = parsed.mcp as Record<string, Record<string, unknown>>;
+
+    expect(parsed.options).toEqual({ debug: true });
+    expect(servers.docs).toEqual({
+      type: 'http',
+      url: 'https://example.com/mcp',
+      headers: { Authorization: 'Bearer $TOKEN' },
+    });
+  });
+
+  it('maps transport to type when writing servers without a type', async () => {
+    const fs = createMemoryFs({});
+
+    await adapter.writeServers(fs, [
+      {
+        name: 'docs',
+        transport: 'http',
+        url: 'https://example.com/mcp',
+      },
+    ]);
+
+    const raw = await fs.read('.config/crush/crush.json');
+    const parsed = JSON.parse(raw!) as Record<string, unknown>;
+    const servers = parsed.mcp as Record<string, Record<string, unknown>>;
+
+    expect(servers.docs).toEqual({
+      type: 'http',
+      url: 'https://example.com/mcp',
+    });
+  });
+
+  it('reads stdio and http servers from the mcp key', async () => {
+    const fs = createMemoryFs({
+      '.config/crush/crush.json': jsonFile({
+        mcp: {
+          local: { type: 'stdio', command: 'node', args: ['server.js'] },
+          remote: { type: 'http', url: 'https://example.com/mcp' },
+        },
+      }),
+    });
+
+    await expect(adapter.readServers(fs)).resolves.toEqual([
+      { name: 'local', type: 'stdio', command: 'node', args: ['server.js'] },
+      { name: 'remote', type: 'http', url: 'https://example.com/mcp' },
+    ]);
   });
 });

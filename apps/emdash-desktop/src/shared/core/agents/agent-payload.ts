@@ -158,9 +158,23 @@ export type AgentHostDependencyInfo = {
   uninstall?: AgentUninstallStrategy;
 };
 
+export type AgentModelOption = {
+  name: string;
+  description?: string;
+  modelFeatures?: {
+    contextWindowSize?: number;
+    speed?: number;
+    intelligence?: number;
+  };
+};
+
+export type AgentModelsCapability =
+  | { kind: 'none' }
+  | { kind: 'selectable'; modelOptions: Record<string, AgentModelOption> };
+
 export type AgentCapabilities = {
   hostDependency: AgentHostDependencyInfo;
-  models: { kind: string };
+  models: AgentModelsCapability;
   effort: { kind: string };
   prompt: { kind: string };
   sessions: { kind: string };

@@ -45,5 +45,6 @@ export const hooksCapability = definePluginCapability<IHooksBehavior>()(
       ),
     }),
     z.object({ kind: z.literal('none') }),
-  ])
+  ]),
+  { kind: 'none' }
 );

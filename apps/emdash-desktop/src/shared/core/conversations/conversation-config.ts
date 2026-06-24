@@ -13,6 +13,8 @@ const conversationConfigV0Schema = z.object({
   providerSessionId: z.string().optional(),
   /** Initial prompt to deliver on the first spawn; cleared from config after the session starts. */
   initialPrompt: z.string().optional(),
+  /** Model to pass to the agent CLI (e.g. 'claude-sonnet-4-5', 'o4-mini'). Empty string or absent = CLI default. */
+  model: z.string().optional(),
 });
 
 export const conversationConfig = defineVersionedSchema()

@@ -94,6 +94,7 @@ export async function prepareCreateTask(
     const configObj: ConversationConfig = {};
     if (ic.autoApprove !== undefined) configObj.autoApprove = ic.autoApprove;
     if (ic.initialPrompt?.trim()) configObj.initialPrompt = ic.initialPrompt.trim();
+    if (ic.model) configObj.model = ic.model;
     const config = Object.keys(configObj).length > 0 ? configObj : undefined;
     convInsert = {
       id: ic.id,

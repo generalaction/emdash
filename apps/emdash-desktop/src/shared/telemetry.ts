@@ -1,4 +1,8 @@
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type {
+  AutomationRunStatus,
+  AutomationRunTriggerKind,
+} from '@shared/core/automations/automation-run';
 import type { PullRequestMergeStrategy } from '@shared/core/pull-requests/pull-requests';
 import type { TaskLifecycleStatus } from '@shared/core/tasks/tasks';
 import type { OpenInAppId } from '@shared/openInApps';
@@ -22,6 +26,7 @@ export type FocusTrigger = 'navigation' | 'panel_switch' | 'region_switch';
 export interface TelemetryEnvelope {
   event_ts_ms?: number;
   session_id?: string;
+  automation_id?: string;
   project_id?: string;
   task_id?: string;
   conversation_id?: string;
@@ -57,6 +62,23 @@ export type TelemetryEventProperties = {
   skills_viewed: { from_view: FocusView | null };
   mcp_viewed: { from_view: FocusView | null };
   automations_viewed: { from_view: FocusView | null };
+
+  automation_created: {
+    enabled: boolean;
+    trigger_kind: 'cron';
+    provider: AgentProviderId | null;
+    has_initial_prompt: boolean;
+  };
+  automation_enabled_changed: { enabled: boolean; trigger_kind: 'cron' };
+  automation_run_started: { trigger_kind: AutomationRunTriggerKind };
+  automation_run_completed: {
+    status: Extract<AutomationRunStatus, 'done' | 'failed' | 'skipped'>;
+    trigger_kind: AutomationRunTriggerKind;
+    duration_ms?: number;
+    task_id?: string;
+    error_step?: string;
+    error_code?: string;
+  };
 
   project_added: { type: 'local' | 'ssh'; strategy: 'open' | 'create' | 'clone'; success: boolean };
   project_deleted: EmptyProps;

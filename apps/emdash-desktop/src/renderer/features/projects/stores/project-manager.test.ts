@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   createGithubRepository: vi.fn(),
   createProject: vi.fn(),
   deleteGithubRepository: vi.fn(),
-  initializeProject: vi.fn(),
+  initializeRepository: vi.fn(),
   inspectProjectPath: vi.fn(),
   openProject: vi.fn(),
   patchProjectSettings: vi.fn(),
@@ -24,10 +24,12 @@ vi.mock('@renderer/lib/ipc', () => ({
   },
   rpc: {
     github: {
-      cloneRepository: mocks.cloneRepository,
       createRepository: mocks.createGithubRepository,
       deleteRepository: mocks.deleteGithubRepository,
-      initializeProject: mocks.initializeProject,
+    },
+    projectSetup: {
+      cloneRepository: mocks.cloneRepository,
+      initializeRepository: mocks.initializeRepository,
     },
     projects: {
       createProject: mocks.createProject,
@@ -116,7 +118,7 @@ describe('ProjectManagerStore project creation', () => {
       nameWithOwner: 'acme/project',
     });
     mocks.deleteGithubRepository.mockResolvedValue({ success: true });
-    mocks.initializeProject.mockResolvedValue({ success: true });
+    mocks.initializeRepository.mockResolvedValue({ success: true });
     mocks.updateProjectSettings.mockResolvedValue({
       success: true,
       data: { githubAccountId: 'github.com:42' },
@@ -422,6 +424,43 @@ describe('ProjectManagerStore project creation', () => {
       expect(project.error).toBe(
         'Directory is not a git repository. Enable "Initialize git repository" to continue.'
       );
+    }
+  });
+
+  it('marks project creation with an inspection failure message', async () => {
+    mocks.createProject.mockResolvedValueOnce({
+      success: false,
+      error: {
+        type: 'inspect-failed',
+        path: '/Volumes/Data/dev/myapp',
+        message: 'Permission denied',
+      },
+    });
+    const store = new ProjectManagerStore();
+
+    const result = await store.startProjectCreation(
+      { type: 'local' },
+      { mode: 'pick', name: 'Project', path: '/Volumes/Data/dev/myapp' },
+      { id: 'optimistic-project' }
+    );
+
+    expect(result.kind).toBe('creating');
+    if (result.kind === 'creating') {
+      await expect(result.completion).resolves.toEqual({
+        success: false,
+        error: {
+          type: 'inspect-failed',
+          path: '/Volumes/Data/dev/myapp',
+          message: 'Permission denied',
+        },
+      });
+    }
+
+    const project = store.projects.get('optimistic-project');
+    expect(project && isUnregisteredProject(project)).toBe(true);
+    if (project && isUnregisteredProject(project)) {
+      expect(project.phase).toBe('error');
+      expect(project.error).toBe('Could not inspect directory: Permission denied');
     }
   });
 

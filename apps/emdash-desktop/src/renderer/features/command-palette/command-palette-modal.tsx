@@ -5,7 +5,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from '@emdash/ui';
+} from '@emdash/ui/react/primitives';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, FolderOpen, GitBranch, MessageSquare, type LucideIcon } from 'lucide-react';
 import { useObserver } from 'mobx-react-lite';
@@ -246,14 +246,20 @@ export function CommandPaletteModal({
 
   const handleNavigateToConversation = (item: SearchItem) => {
     if (!item.projectId || !item.taskId) return;
-    getTaskView(item.projectId, item.taskId)?.tabGroupManager.openConversation(item.id);
+    getTaskView(item.projectId, item.taskId)?.paneLayout.open('conversation', {
+      conversationId: item.id,
+      preview: false,
+    });
     handleClose();
     navigate('task', { projectId: item.projectId, taskId: item.taskId });
   };
 
   const handleOpenFile = (item: SearchItem) => {
     if (!item.projectId || !item.taskId) return;
-    getTaskView(item.projectId, item.taskId)?.tabManager.openFile(item.id);
+    getTaskView(item.projectId, item.taskId)?.activePane.open('file', {
+      path: item.id,
+      preview: false,
+    });
     handleClose();
     navigate('task', { projectId: item.projectId, taskId: item.taskId });
   };

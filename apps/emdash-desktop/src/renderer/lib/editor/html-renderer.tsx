@@ -1,12 +1,12 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
+import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import {
   useTaskViewContext,
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
 import { HTML_EXTS } from '@renderer/lib/editor/fileKind';
-import { PreviewSourceToggle } from '@renderer/lib/editor/preview-source-toggle';
 import { rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
@@ -33,11 +33,15 @@ const LINK_INTERCEPT_SCRIPT = `
 })();
 `;
 
+/**
+ * Renders an HTML file in a sandboxed iframe preview.
+ * The source/preview toggle lives in the FileContent container above this component.
+ */
 export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRendererProps) {
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
-  const taskView = useWorkspaceViewModel();
-  const { editorView, tabManager } = taskView;
+  const { editorView } = useWorkspaceViewModel();
+  const { pane } = usePaneContext();
   const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
 
   // Touch bufferVersions so this observer re-renders when the buffer is first
@@ -88,15 +92,15 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
       if (!target) return;
       const ext = target.split('.').pop()?.toLowerCase() ?? '';
       if (HTML_EXTS.has(ext)) {
-        tabManager.openFile(target);
+        pane.open('file', { path: target, preview: false });
       }
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [fileDir, tabManager]);
+  }, [fileDir, pane]);
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-background-secondary-1">
+    <div className="h-full w-full overflow-hidden bg-background-secondary-1">
       {processedHtml !== null ? (
         <iframe
           ref={iframeRef}
@@ -113,14 +117,6 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
           {isProcessing ? 'Loading preview…' : 'Empty file'}
         </div>
       )}
-      <PreviewSourceToggle
-        activeMode="preview"
-        onSwitch={(mode) => {
-          if (mode === 'source') {
-            tabManager.updateRenderer(filePath, () => ({ kind: 'html-source' }));
-          }
-        }}
-      />
     </div>
   );
 });

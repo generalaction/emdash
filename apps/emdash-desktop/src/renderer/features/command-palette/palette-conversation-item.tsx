@@ -1,4 +1,4 @@
-import { CommandItem } from '@emdash/ui';
+import { CommandItem } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
 import type { ConversationStore } from '@renderer/features/tasks/conversations/conversation-manager';

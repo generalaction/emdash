@@ -3,6 +3,7 @@ import {
   BROWSER_PROFILE_PARTITION,
   BROWSER_ISOLATED_PROFILE_ID,
   createBrowserSessionSnapshot,
+  isBrowsingDataKind,
   makeIsolatedBrowserPartition,
   makeBrowserSessionIdentity,
   normalizeBrowserProfileSelection,
@@ -86,6 +87,21 @@ describe('normalizeBrowserUrl', () => {
       url: 'file:///tmp/index.html',
       protocol: 'file:',
     });
+  });
+});
+
+describe('isBrowsingDataKind', () => {
+  it('accepts every supported browsing data category', () => {
+    for (const kind of ['all', 'cookies', 'siteData', 'cache']) {
+      expect(isBrowsingDataKind(kind)).toBe(true);
+    }
+  });
+
+  it('rejects unknown kinds', () => {
+    expect(isBrowsingDataKind('storage')).toBe(false);
+    expect(isBrowsingDataKind('history')).toBe(false);
+    expect(isBrowsingDataKind('downloads')).toBe(false);
+    expect(isBrowsingDataKind('')).toBe(false);
   });
 });
 

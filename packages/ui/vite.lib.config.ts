@@ -1,0 +1,66 @@
+import { resolve } from 'node:path';
+import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
+import { defineConfig } from 'vite';
+import dts from 'vite-plugin-dts';
+
+// @vitejs/plugin-react is intentionally omitted from the lib build.
+// Vite's esbuild handles React JSX natively via tsconfig "jsx": "react-jsx".
+// The plugin is only needed for Storybook (HMR / React Refresh).
+
+export default defineConfig({
+  plugins: [
+    vanillaExtractPlugin(),
+    dts({
+      tsconfigPath: './tsconfig.json',
+      // Emit per-entry declarations into dist/ (mirroring the src/ tree).
+      // Exports in package.json reference dist/src/**/*.d.ts paths accordingly.
+      // Do NOT use rollupTypes: true — we have multiple public entries.
+      outDirs: 'dist',
+      include: ['src'],
+    }),
+  ],
+  build: {
+    lib: {
+      entry: {
+        react: resolve(__dirname, 'src/react/index.ts'),
+        'react/primitives': resolve(__dirname, 'src/react/primitives/index.ts'),
+        'react/components': resolve(__dirname, 'src/react/components/index.ts'),
+        'react/patterns': resolve(__dirname, 'src/react/patterns/index.ts'),
+        'styles/recipes/control': resolve(__dirname, 'src/styles/recipes/control.ts'),
+        'styles/recipes/input': resolve(__dirname, 'src/styles/recipes/input.ts'),
+        // VE theme utilities — exports sx (Sprinkles) and vars (theme contract).
+        // Importing this entry causes style.css to include the extracted VE atoms.
+        'styles/sprinkles': resolve(__dirname, 'src/styles/sprinkles.css.ts'),
+      },
+      formats: ['es'],
+    },
+    rollupOptions: {
+      external: [
+        'react',
+        'react-dom',
+        'react/jsx-runtime',
+        'clsx',
+        '@base-ui/react',
+        'lucide-react',
+        '@tiptap/core',
+        '@tiptap/extension-mention',
+        '@tiptap/extension-placeholder',
+        '@tiptap/pm',
+        '@tiptap/react',
+        '@tiptap/starter-kit',
+        '@tiptap/suggestion',
+        /^@fontsource/,
+      ],
+      output: {
+        // Rename the bundled stylesheet so consumers import '@emdash/ui/style.css'.
+        assetFileNames: (assetInfo) => {
+          if (assetInfo.names?.some((n) => n.endsWith('.css'))) return 'style.css';
+          return '[name][extname]';
+        },
+      },
+    },
+    // Emit a single style.css containing all VE and global styles.
+    cssCodeSplit: false,
+    sourcemap: true,
+  },
+});

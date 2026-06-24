@@ -103,6 +103,13 @@ export async function getSshProjectPathStatus(
     const runtimeLease = await runtimeManager.acquire({ kind: 'ssh', connectionId });
     try {
       const inspection = await runtimeLease.value.git.inspectPath(path);
+      if (inspection.kind === 'inspect-failed') {
+        return {
+          isDirectory: true,
+          isGitRepo: false,
+          error: { type: 'inspect-failed', path: inspection.path, message: inspection.message },
+        };
+      }
       return { isDirectory: true, isGitRepo: inspection.kind === 'repository' };
     } finally {
       runtimeLease.release();

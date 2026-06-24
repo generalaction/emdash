@@ -1,3 +1,4 @@
+import type { CLIAgentPluginProvider } from '@emdash/core/agents/plugins';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import { describe, expect, it } from 'vitest';
 import { buildDescriptorFromProvider, DEPENDENCIES } from './registry';
@@ -39,7 +40,7 @@ describe('buildDescriptorFromProvider', () => {
 
 describe('DEPENDENCIES', () => {
   it('contains an entry for every registered plugin', () => {
-    const pluginIds = pluginRegistry.getAll().map((p) => p.metadata.id);
+    const pluginIds = pluginRegistry.getAll().map((p: CLIAgentPluginProvider) => p.metadata.id);
     for (const id of pluginIds) {
       expect(DEPENDENCIES.find((d) => d.id === id)).toBeDefined();
     }

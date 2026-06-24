@@ -2,7 +2,14 @@ import { webContents } from 'electron';
 import { configureBrowserProfileSession } from '@main/core/browser/browser-profile-session';
 import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
 import { isBrowserPartition } from '@main/core/browser/webview-security';
-import { isBrowserDataClearKind, type BrowserDataClearKind } from '@shared/browser';
+import { appSettingsService } from '@main/core/settings/settings-service';
+import {
+  browserProfilePartition,
+  DEFAULT_BROWSER_PROFILE_ID,
+  isBrowserDataClearKind,
+  isBrowsingDataKind,
+  type BrowserDataClearKind,
+} from '@shared/browser';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 
 export const browserController = createRPCController({
@@ -53,4 +60,26 @@ export const browserController = createRPCController({
   clearProfileStorage: async (profileId: string) => ({
     success: await browserWebContentsRegistry.clearProfileStorage(profileId),
   }),
+
+  clearBrowsingData: async (kind: string) => {
+    if (!isBrowsingDataKind(kind)) {
+      return { success: false as const, error: 'Invalid browsing data kind' };
+    }
+    const partitions = await collectBrowserPartitions();
+    return { success: await browserWebContentsRegistry.clearBrowsingData(kind, partitions) };
+  },
 });
+
+// Every persistent profile partition (default + named) plus any partitions with
+// live sessions, so clearing browsing data covers isolated-per-task tabs too.
+async function collectBrowserPartitions(): Promise<string[]> {
+  const browserSettings = await appSettingsService.get('browser');
+  const partitions = new Set<string>([browserProfilePartition(DEFAULT_BROWSER_PROFILE_ID)]);
+  for (const profile of browserSettings.profiles) {
+    partitions.add(browserProfilePartition(profile.id));
+  }
+  for (const partition of browserWebContentsRegistry.registeredPartitions) {
+    partitions.add(partition);
+  }
+  return [...partitions];
+}

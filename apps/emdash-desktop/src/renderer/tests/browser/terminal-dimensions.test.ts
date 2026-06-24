@@ -109,8 +109,8 @@ describe('measureDimensions', () => {
   });
 
   // ── Height-chain integration ───────────────────────────────────────────────
-  // Validates the CSS fix in panel.tsx + pane-sizing-context.tsx:
-  //   flex parent → flex child (flex:1) → PaneSizingProvider wrapper (flex:1 1 0%) → container
+  // Validates the CSS layout in pane-dimension-provider.tsx:
+  //   flex parent → flex child (flex:1) → PaneDimensionProvider wrapper (flex:1 1 0%) → container
   // The container must receive real pixel height via CSS flex distribution.
 
   it('resolves height correctly inside a flex column chain', () => {
@@ -141,7 +141,7 @@ describe('measureDimensions', () => {
     terminalArea.style.flexDirection = 'column';
     panel.appendChild(terminalArea);
 
-    // PaneSizingProvider wrapper: flex:1 1 0% (the pane-sizing-context.tsx fix)
+    // PaneDimensionProvider wrapper: flex:1 1 0%
     container = document.createElement('div');
     container.style.flex = '1 1 0%';
     container.style.height = '100%';

@@ -11,16 +11,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.factory.ai/cli/getting-started/quickstart',
   },
   {
-    autoApprove: {
-      kind: 'none',
-    },
-    effort: {
-      kind: 'none',
-    },
     hooks: {
       kind: 'config',
       scope: 'workspace',
-      supportedEvents: ['notification', 'stop', 'session'],
+      supportedEvents: ['notification', 'stop', 'session', 'start'],
     },
     hostDependency: {
       id: 'droid',
@@ -53,12 +47,6 @@ export const plugin = definePlugin(
       kind: 'supported',
       scope: 'global',
       supportedTransports: ['stdio', 'http'],
-    },
-    models: {
-      kind: 'none',
-    },
-    plugins: {
-      kind: 'none',
     },
     prompt: {
       kind: 'argv',

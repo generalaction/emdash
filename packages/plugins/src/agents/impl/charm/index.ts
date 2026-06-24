@@ -1,6 +1,18 @@
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
-import { buildStandardCommand, npmDependency } from '@emdash/core/agents/plugins/helpers';
+import type { CommandContext } from '@emdash/core/agents/plugins';
+import {
+  buildStandardCommand,
+  crushMcpAdapter,
+  npmDependency,
+} from '@emdash/core/agents/plugins/helpers';
 import { icon } from './icon';
+
+function buildCharmCommand(ctx: CommandContext) {
+  return buildStandardCommand(ctx, {
+    defaultArgs: ctx.initialPrompt && !ctx.isResuming ? ['run'] : undefined,
+    initialPromptFlag: '',
+  });
+}
 
 export const plugin = definePlugin(
   {
@@ -11,12 +23,6 @@ export const plugin = definePlugin(
   },
   {
     autoApprove: {
-      kind: 'supported',
-    },
-    effort: {
-      kind: 'none',
-    },
-    hooks: {
       kind: 'none',
     },
     hostDependency: npmDependency({
@@ -25,7 +31,9 @@ export const plugin = definePlugin(
       binaryNames: ['crush'],
     }),
     mcp: {
-      kind: 'none',
+      kind: 'supported',
+      scope: 'global',
+      supportedTransports: ['stdio', 'http'],
     },
     models: {
       kind: 'none',
@@ -46,9 +54,7 @@ export const plugin = definePlugin(
 
 export const provider = registerPluginBehavior(plugin, {
   prompt: {
-    buildCommand: (ctx) =>
-      buildStandardCommand(ctx, {
-        autoApproveFlag: '--yolo',
-      }),
+    buildCommand: buildCharmCommand,
   },
+  mcp: crushMcpAdapter(),
 });

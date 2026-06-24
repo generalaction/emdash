@@ -1,4 +1,4 @@
-import { Kbd, KbdGroup } from '@emdash/ui';
+import { Kbd, KbdGroup } from '@emdash/ui/react/primitives';
 import { detectPlatform, parseHotkey, type Hotkey } from '@tanstack/react-hotkeys';
 import { useMemo } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';

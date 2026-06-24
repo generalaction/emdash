@@ -53,13 +53,13 @@ function formatCreateTaskError(error: CreateTaskError, opts?: { isSshProject?: b
     case 'branch-create-failed': {
       switch (error.error.type) {
         case 'already_exists':
-          return `Branch "${error.error.name}" already exists. Try a different task name.`;
+          return `Branch "${error.error.branch}" already exists. Try a different task name.`;
         case 'fetch_failed':
           return `Could not update "${error.error.remote}/${error.error.branch}" before creating the task: ${formatFetchErrorDetail(error.error.error, opts)}`;
         case 'invalid_base':
           return `Source branch "${error.error.from}" is not a valid base. Check that it exists locally or on the selected remote.`;
         case 'invalid_name':
-          return `Branch "${error.error.name}" is not a valid branch name.`;
+          return `Branch "${error.error.branch}" is not a valid branch name.`;
         default:
           return `Could not create branch "${error.branch}": ${error.error.message}`;
       }
@@ -341,6 +341,7 @@ export class TaskManagerStore {
           title: ic.title ?? '',
           lastInteractedAt: null,
           autoApprove: ic.autoApprove ?? false,
+          model: ic.model,
           isInitialConversation: true,
         };
         const conversationManager = conversationRegistry.acquire(params.id, this.projectId, [

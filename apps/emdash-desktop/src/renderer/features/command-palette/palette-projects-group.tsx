@@ -1,4 +1,4 @@
-import { CommandGroup, CommandItem } from '@emdash/ui';
+import { CommandGroup, CommandItem } from '@emdash/ui/react/primitives';
 import { FolderOpen } from 'lucide-react';
 import { useObserver } from 'mobx-react-lite';
 import {

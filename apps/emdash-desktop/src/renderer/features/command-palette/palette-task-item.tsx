@@ -1,4 +1,4 @@
-import { CommandItem } from '@emdash/ui';
+import { CommandItem } from '@emdash/ui/react/primitives';
 import { GitBranch } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
