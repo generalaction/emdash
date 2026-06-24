@@ -4,12 +4,12 @@ import { telemetryService } from '@main/lib/telemetry';
 import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 
 const NOTION_API_BASE_URL = 'https://api.notion.com/v1';
-const NOTION_VERSION = '2022-06-28';
+const NOTION_VERSION = '2026-03-11';
 const CREDENTIALS_KEY = 'emdash-notion-credentials';
 const MAX_SELECTED_DATABASES = 50;
 
 export const NOTION_API_ERROR_MESSAGES = {
-  AUTH_FAILED: 'Notion authentication failed. Check your internal integration token.',
+  AUTH_FAILED: 'Notion authentication failed. Check your connection access token.',
   MISSING_PERMISSIONS:
     'Notion token was accepted but is missing access to the selected pages or databases.',
   RATE_LIMITED: 'Notion API rate limit exceeded. Please try again shortly.',
@@ -113,10 +113,22 @@ function normalizeNotionId(value: string): string | null {
   return compact.toLowerCase();
 }
 
+function isNotionUrlHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  return (
+    normalized === 'notion.so' ||
+    normalized.endsWith('.notion.so') ||
+    normalized === 'notion.com' ||
+    normalized.endsWith('.notion.com') ||
+    normalized === 'notion.site' ||
+    normalized.endsWith('.notion.site')
+  );
+}
+
 function parseDatabaseIdFromUrl(rawUrl: string): string | null {
   try {
     const url = new URL(rawUrl);
-    if (!url.hostname.endsWith('notion.so') && !url.hostname.endsWith('notion.site')) {
+    if (!isNotionUrlHostname(url.hostname)) {
       return null;
     }
 
@@ -147,7 +159,7 @@ export class NotionConnectionService {
   ): Promise<{ success: boolean; displayName?: string; error?: string }> {
     const token = input.token.trim();
     if (!token) {
-      return { success: false, error: 'Notion integration token cannot be empty.' };
+      return { success: false, error: 'Notion access token cannot be empty.' };
     }
 
     const scope = this.parseDatabaseUrls(input.databaseUrls);
@@ -155,13 +167,13 @@ export class NotionConnectionService {
       return {
         success: false,
         error:
-          'Could not parse database ID from one or more URLs. Paste Notion database URLs or 32-character IDs.',
+          'Could not parse Notion ID from one or more URLs. Paste Notion page, database, or data source URLs or 32-character IDs.',
       };
     }
     if (scope.type === 'data-sources' && scope.dataSourceIds.length > MAX_SELECTED_DATABASES) {
       return {
         success: false,
-        error: `Notion database scope is limited to ${MAX_SELECTED_DATABASES} databases. Remove some URLs and try again.`,
+        error: `Notion scope is limited to ${MAX_SELECTED_DATABASES} data sources. Remove some URLs and try again.`,
       };
     }
 

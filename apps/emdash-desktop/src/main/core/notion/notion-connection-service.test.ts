@@ -88,6 +88,31 @@ describe('NotionConnectionService', () => {
       );
     });
 
+    it('parses data source IDs from notion.com and app.notion.com URLs', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({ id: 'bot-1', name: 'Emdash' }));
+
+      const dataSourceId = 'abcdefabcdefabcdefabcdefabcdefab';
+      const notionComUrl = `https://www.notion.com/acme/Roadmap-${dataSourceId}?v=123`;
+      const appNotionUrl = `https://app.notion.com/p/Roadmap-${dataSourceId}`;
+      const result = await service.saveCredentials({
+        token: 'secret_token',
+        databaseUrls: `${notionComUrl}, ${appNotionUrl}`,
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockSetSecret).toHaveBeenCalledWith(
+        'emdash-notion-credentials',
+        JSON.stringify({
+          token: 'secret_token',
+          scope: {
+            type: 'data-sources',
+            dataSourceIds: [dataSourceId],
+            sourceUrls: [notionComUrl, appNotionUrl],
+          },
+        })
+      );
+    });
+
     it('returns error for invalid database URL format', async () => {
       const result = await service.saveCredentials({
         token: 'secret_token',
@@ -96,7 +121,7 @@ describe('NotionConnectionService', () => {
 
       expect(result).toEqual({
         success: false,
-        error: expect.stringContaining('Could not parse database ID'),
+        error: expect.stringContaining('Could not parse Notion ID'),
       });
       expect(mockFetch).not.toHaveBeenCalled();
     });
@@ -106,7 +131,7 @@ describe('NotionConnectionService', () => {
 
       expect(result).toEqual({
         success: false,
-        error: 'Notion integration token cannot be empty.',
+        error: 'Notion access token cannot be empty.',
       });
       expect(mockFetch).not.toHaveBeenCalled();
     });

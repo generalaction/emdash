@@ -79,7 +79,7 @@ function validateTrelloCredentials(input: {
 
 function validateNotionCredentials(input: { token: string; databaseUrls: string }): string | null {
   if (!input.token?.trim()) {
-    return 'Integration token is required.';
+    return 'Access token is required.';
   }
   return null;
 }

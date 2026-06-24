@@ -8,7 +8,7 @@ export const notionController = createRPCController({
       typeof input.token !== 'string' ||
       typeof input.databaseUrls !== 'string'
     ) {
-      return { success: false, error: 'A Notion token and database URLs are required.' };
+      return { success: false, error: 'A Notion access token and scope URLs are required.' };
     }
     return notionConnectionService.saveCredentials(input);
   },

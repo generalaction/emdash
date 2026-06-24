@@ -76,7 +76,7 @@ export const ISSUE_PROVIDER_META: Record<
     displayName: 'Notion',
     description: 'Work on Notion pages',
     features: ['issues'],
-    disconnectCredentialLabel: 'integration token',
+    disconnectCredentialLabel: 'access token',
   },
   trello: {
     displayName: 'Trello',
@@ -149,7 +149,7 @@ export const SETUP_PROVIDER_META: Record<
   },
   notion: {
     title: 'Connect Notion',
-    subtitle: 'Enter your Notion integration token and optionally specify database URLs.',
+    subtitle: 'Enter your Notion connection access token and optionally specify scope URLs.',
   },
   trello: {
     title: 'Connect Trello',
