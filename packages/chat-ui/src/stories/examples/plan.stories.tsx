@@ -2,9 +2,9 @@
  * Plan row examples — agent task list with mixed statuses and priorities.
  */
 
+import { applyTurnEvent } from '@state/turn-reducer';
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import type { ChatPlanEntry } from '@/model';
-import { applyTurnEvent } from '@state/turn-reducer';
 import { ChatHost, ChatHostExpanded, ScriptedChat } from '@/stories/_harness/chat-host';
 import type { ScriptStep } from '@/stories/_harness/chat-host';
 
@@ -182,27 +182,37 @@ export const Streaming: Story = {
       <ScriptedChat
         height={320}
         script={[
-        {
-          kind: 'call',
-          fn: (api) => {
-            const ev = { type: 'message_chunk' as const, role: 'user' as const, id: 'u1', text: 'Implement the plan renderer' };
-            api.activeTurn.set(applyTurnEvent(api.activeTurn.get(), ev), 'generating');
-          },
-        },
-        { kind: 'wait', ms: 400 },
-        // Append tasks one-by-one (each update replaces the full list, ACP-style).
-        ...STREAM_ENTRIES.flatMap((_, i): ScriptStep[] => [
           {
             kind: 'call',
             fn: (api) => {
-              const ev = { type: 'plan_update' as const, id: planId, entries: STREAM_ENTRIES.slice(0, i + 1), streaming: true };
+              const ev = {
+                type: 'message_chunk' as const,
+                role: 'user' as const,
+                id: 'u1',
+                text: 'Implement the plan renderer',
+              };
               api.activeTurn.set(applyTurnEvent(api.activeTurn.get(), ev), 'generating');
             },
           },
-          { kind: 'wait', ms: 700 },
-        ]),
-        // Settle the turn — clears the streaming flag.
-        { kind: 'call', fn: (api) => api.activeTurn.commit('done') },
+          { kind: 'wait', ms: 400 },
+          // Append tasks one-by-one (each update replaces the full list, ACP-style).
+          ...STREAM_ENTRIES.flatMap((_, i): ScriptStep[] => [
+            {
+              kind: 'call',
+              fn: (api) => {
+                const ev = {
+                  type: 'plan_update' as const,
+                  id: planId,
+                  entries: STREAM_ENTRIES.slice(0, i + 1),
+                  streaming: true,
+                };
+                api.activeTurn.set(applyTurnEvent(api.activeTurn.get(), ev), 'generating');
+              },
+            },
+            { kind: 'wait', ms: 700 },
+          ]),
+          // Settle the turn — clears the streaming flag.
+          { kind: 'call', fn: (api) => api.activeTurn.commit('done') },
         ]}
       />
     );

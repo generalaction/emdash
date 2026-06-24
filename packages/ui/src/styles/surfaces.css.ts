@@ -21,10 +21,10 @@
  * so a status room inside any elevation context reads with the correct lightness.
  */
 
+import { SURFACE_STATUSES } from '@theme/core/contract/roles';
 import { THEME_MANIFEST } from '@theme/themes/registry';
 import { globalStyle } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
-import { SURFACE_STATUSES } from '@theme/core/contract/roles';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -53,7 +53,6 @@ function statusRebindings(scope: string): Record<string, string> {
   }
   return result;
 }
-
 
 // ── 1. Default cascade binding (robust — works wherever .em<id> lands) ────────
 

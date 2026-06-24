@@ -14,10 +14,10 @@
 
 import type { RenderCtx } from '@core/define';
 import { pxTokens } from '@styles/px-tokens';
-import { vars } from '@styles/theme.css';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import type { JSX } from 'solid-js';
 import { Show } from 'solid-js';
+import { IconError } from './icons';
 import {
   cardChevron,
   cardChevronExpanded,
@@ -26,7 +26,7 @@ import {
   collapsibleCardVars,
 } from './collapsible-card.css';
 import { textShimmer } from '@styles/effects.css';
-import { IconError } from './icons';
+import { vars } from '@styles/theme.css';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

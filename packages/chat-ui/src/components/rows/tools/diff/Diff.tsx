@@ -6,7 +6,6 @@ import { applyTokensToElement } from '@core/highlight/apply-tokens';
 import type { CodeToken } from '@core/highlight/highlighter';
 import { resolveFileIconClass } from '@lib/file-icons';
 import { basename } from '@lib/path';
-import { vars } from '@styles/theme.css';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, Show, createEffect, onCleanup } from 'solid-js';
 import type { ChatDiff } from '@/model';
@@ -25,6 +24,7 @@ import {
   pdiffLine,
   textShimmer,
 } from './diff.css';
+import { vars } from '@styles/theme.css';
 
 // ── DiffHeader ────────────────────────────────────────────────────────────────
 

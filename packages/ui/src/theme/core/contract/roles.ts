@@ -161,9 +161,10 @@ export const STATUS_SCALE: Record<SurfaceStatusName, ScaleName> = {
  * Non-base elevation scopes that get per-level status surface variants.
  * The `base` scope is the default (unsuffixed) token, so it is excluded here.
  */
-export const STATUS_LEVEL_SCOPES = SURFACE_SCOPES.filter(
-  (s) => s !== 'base'
-) as readonly Exclude<SurfaceScopeName, 'base'>[];
+export const STATUS_LEVEL_SCOPES = SURFACE_SCOPES.filter((s) => s !== 'base') as readonly Exclude<
+  SurfaceScopeName,
+  'base'
+>[];
 
 // ── Surface cascade vars ────────────────────────────────────────────────────────
 

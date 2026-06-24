@@ -15,8 +15,8 @@
 
 import type { JSX } from 'solid-js';
 import { Show } from 'solid-js';
-import { chevron, chevronExpanded, collapseHeader } from './collapse-header.css';
 import { IconError } from './icons';
+import { chevron, chevronExpanded, collapseHeader } from './collapse-header.css';
 import { textShimmer } from '@styles/effects.css';
 import { vars } from '@styles/theme.css';
 

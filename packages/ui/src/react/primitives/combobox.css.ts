@@ -1,8 +1,8 @@
 import { globalStyle, style } from '@vanilla-extract/css';
-import { vars } from '@theme/core/contract/contract.css';
 import { svgDefaultSize } from '@styles/effects/svg-helpers.css';
 import { menuItemBase } from '@styles/recipes/menu-item.css';
 import { popupSurface, popupShadowSm } from '@styles/recipes/popup-surface.css';
+import { vars } from '@theme/core/contract/contract.css';
 
 export const positioner = style({
   isolation: 'isolate',

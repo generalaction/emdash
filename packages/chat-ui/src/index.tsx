@@ -133,11 +133,7 @@ export type ChatCommands = {
    *
    * The host is responsible for opening a full-size diagram viewer.
    */
-  onViewMermaid?: (arg: {
-    chart: string;
-    blockId: string;
-    source: 'mermaid-block';
-  }) => void;
+  onViewMermaid?: (arg: { chart: string; blockId: string; source: 'mermaid-block' }) => void;
 };
 
 // ── Mount options ─────────────────────────────────────────────────────────────

@@ -2,14 +2,17 @@
 
 import { describe, expect, it } from 'vitest';
 import type { ChatItem, ChatMessage } from '@/model';
-import { applyTurnEvent } from './turn-reducer';
 import { createTranscript } from './transcript';
+import { applyTurnEvent } from './turn-reducer';
 
 function msg(id: string, text = 'hi'): ChatItem {
   return { kind: 'message', id, role: 'user', text };
 }
 
-function drive(tx: ReturnType<typeof createTranscript>, ...events: Parameters<typeof applyTurnEvent>[1][]) {
+function drive(
+  tx: ReturnType<typeof createTranscript>,
+  ...events: Parameters<typeof applyTurnEvent>[1][]
+) {
   for (const event of events) {
     tx.activeTurn.set(applyTurnEvent(tx.activeTurn.get(), event), 'generating');
   }

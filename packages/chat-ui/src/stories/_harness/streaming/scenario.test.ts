@@ -7,8 +7,8 @@
  *  - scenario / seedStep: composition helpers
  */
 
-import { describe, expect, it } from 'vitest';
 import type { TurnStatus } from '@state/transcript';
+import { describe, expect, it } from 'vitest';
 import type { ChatItem } from '@/model';
 import {
   chunkText,

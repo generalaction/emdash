@@ -10,12 +10,17 @@
  *   "mix(A pct%, B)"   → emitted as CSS color-mix(in srgb, var(--A) pct%, var(--B))
  */
 
-import { SURFACE_SCOPES, SURFACE_STATUSES, STATUS_SCALE, STATUS_LEVEL_SCOPES } from '../contract/roles';
+import Color from 'colorjs.io';
+import {
+  SURFACE_SCOPES,
+  SURFACE_STATUSES,
+  STATUS_SCALE,
+  STATUS_LEVEL_SCOPES,
+} from '../contract/roles';
 import type { Scales, Surfaces, Polarity } from '../contract/roles';
 import { SEMANTIC_TEMPLATE } from '../contract/semantic-template';
-import { shiftOklabL } from './surfaces';
-import Color from 'colorjs.io';
 import { toP3String } from './color-format';
+import { shiftOklabL } from './surfaces';
 
 // ── Ref resolution ────────────────────────────────────────────────────────────
 

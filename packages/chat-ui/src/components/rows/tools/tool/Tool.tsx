@@ -11,11 +11,11 @@
  * This component only describes inner content.
  */
 
+import { IconError } from '@components/primitives/icons';
 import { Show } from 'solid-js';
 import type { ChatToolCall } from '@/model';
-import { IconError } from '@components/primitives/icons';
-import { vars } from '@styles/theme.css';
 import { textShimmer, toolRow, toolSummary } from './tool.css';
+import { vars } from '@styles/theme.css';
 
 export type ToolProps = {
   item: ChatToolCall;

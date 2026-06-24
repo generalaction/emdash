@@ -109,16 +109,14 @@ export function streamMessage(opts: {
   // Create the row synchronously so it exists before any setTimeout fires.
   steps.push({
     kind: 'call',
-    fn: (api: TranscriptApi) =>
-      driveEvent(api, { type: 'message_chunk', id, role, text: '' }),
+    fn: (api: TranscriptApi) => driveEvent(api, { type: 'message_chunk', id, role, text: '' }),
   });
 
   for (const c of chunks) {
     steps.push({ kind: 'wait', ms: chunkMs });
     steps.push({
       kind: 'call',
-      fn: (api: TranscriptApi) =>
-        driveEvent(api, { type: 'message_chunk', id, role, text: c }),
+      fn: (api: TranscriptApi) => driveEvent(api, { type: 'message_chunk', id, role, text: c }),
     });
   }
 
@@ -284,8 +282,7 @@ export function streamDiff(opts: {
     result.push({ kind: 'wait', ms: i === 0 ? headerMs : chunkMs });
     result.push({
       kind: 'call',
-      fn: (api: TranscriptApi) =>
-        driveEvent(api, { type: 'diff_update', id, newText: snapshot }),
+      fn: (api: TranscriptApi) => driveEvent(api, { type: 'diff_update', id, newText: snapshot }),
     });
   }
 
@@ -293,8 +290,7 @@ export function streamDiff(opts: {
   result.push({ kind: 'wait', ms: chunkMs });
   result.push({
     kind: 'call',
-    fn: (api: TranscriptApi) =>
-      driveEvent(api, { type: 'diff_update', id, status: finalStatus }),
+    fn: (api: TranscriptApi) => driveEvent(api, { type: 'diff_update', id, status: finalStatus }),
   });
 
   return result;

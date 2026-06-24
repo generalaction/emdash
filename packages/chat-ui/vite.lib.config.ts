@@ -31,12 +31,7 @@ export default defineConfig({
       formats: ['es'],
     },
     rollupOptions: {
-      external: [
-        'solid-js',
-        'solid-js/web',
-        'solid-js/store',
-        /^@fontsource/,
-      ],
+      external: ['solid-js', 'solid-js/web', 'solid-js/store', /^@fontsource/],
       output: {
         // Rename the bundled stylesheet to style.css so consumers can import
         // '@emdash/chat-ui/style.css' without knowing the internal lib name.

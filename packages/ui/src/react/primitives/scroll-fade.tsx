@@ -41,11 +41,7 @@ const ScrollFade = React.forwardRef<HTMLDivElement, ScrollFadeProps>(function Sc
 ) {
   const fadeSize = size === undefined ? undefined : typeof size === 'number' ? `${size}px` : size;
   const resolvedPadding =
-    padding === undefined
-      ? undefined
-      : typeof padding === 'number'
-        ? `${padding}px`
-        : padding;
+    padding === undefined ? undefined : typeof padding === 'number' ? `${padding}px` : padding;
 
   const wrapperStyle: React.CSSProperties = { ...style };
 

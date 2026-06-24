@@ -56,7 +56,10 @@ function ComboboxInput({
   inputRef?: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
-    <InputGroup variant="embedded" className={typeof className === 'string' ? className : undefined}>
+    <InputGroup
+      variant="embedded"
+      className={typeof className === 'string' ? className : undefined}
+    >
       {leftAddon && <InputGroupAddon align="inline-start">{leftAddon}</InputGroupAddon>}
       <ComboboxPrimitive.Input
         render={<InputGroupInput ref={inputRef} disabled={disabled} />}

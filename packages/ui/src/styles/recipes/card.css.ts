@@ -21,11 +21,11 @@
  * cascade vars to the canvas-matched tints generated at theme build time.
  */
 
+import { SURFACE_STATUSES } from '@theme/core/contract/roles';
 import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
 import { tokenVars } from '../../theme/tokens.css';
 import { vars } from '@theme/core/contract/contract.css';
-import { SURFACE_STATUSES } from '@theme/core/contract/roles';
 
 const toCamel = (s: string) => s.replace(/-([a-z0-9])/g, (_: string, c: string) => c.toUpperCase());
 const vv = vars as unknown as Record<string, string>;

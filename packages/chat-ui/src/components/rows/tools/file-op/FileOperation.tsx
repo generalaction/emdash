@@ -2,13 +2,13 @@ import { useCommands } from '@components/contexts/CommandsContext';
 import { CollapseHeader } from '@components/primitives/CollapseHeader';
 import { IconError } from '@components/primitives/icons';
 import { basename } from '@lib/path';
-import { vars } from '@styles/theme.css';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, Show, createEffect } from 'solid-js';
 import type { ChatFileOpToolCall, FileOpKind } from '@/model';
 import { chevronSm, fileOpHeader, fileRow, monoRunning, singleOpRow } from './file-op.css';
 import { fileOpCardVars } from './file-op.css';
 import { textShimmer } from '@styles/effects.css';
+import { vars } from '@styles/theme.css';
 
 // ── Verb map ──────────────────────────────────────────────────────────────────
 

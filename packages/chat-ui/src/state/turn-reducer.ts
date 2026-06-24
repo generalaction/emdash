@@ -38,7 +38,13 @@ import type {
 
 /** All event kinds that can occur within an active turn (excludes turn_done/turn_cancelled). */
 export type ActiveTurnEvent =
-  | { type: 'message_chunk'; id: string; role: ChatRole; text: string; attachments?: ChatImageAttachment[] }
+  | {
+      type: 'message_chunk';
+      id: string;
+      role: ChatRole;
+      text: string;
+      attachments?: ChatImageAttachment[];
+    }
   | { type: 'tool_start'; id: string; name: string; inputSummary?: string }
   | { type: 'tool_update'; id: string; status?: ToolStatus; name?: string; inputSummary?: string }
   | { type: 'thinking_chunk'; id: string; text: string; startedAt?: number }
@@ -48,8 +54,24 @@ export type ActiveTurnEvent =
   | { type: 'execute_start'; id: string; command: string; startedAt?: number }
   | { type: 'execute_update'; id: string; command?: string; status?: ToolStatus }
   | { type: 'diff_start'; id: string; path: string; oldText: string | null; newText: string }
-  | { type: 'diff_update'; id: string; status?: ToolStatus; oldText?: string | null; newText?: string }
-  | { type: 'resource_link_start'; id: string; uri: string; name: string; title?: string; description?: string; mimeType?: string; size?: number; target: ResourceTarget }
+  | {
+      type: 'diff_update';
+      id: string;
+      status?: ToolStatus;
+      oldText?: string | null;
+      newText?: string;
+    }
+  | {
+      type: 'resource_link_start';
+      id: string;
+      uri: string;
+      name: string;
+      title?: string;
+      description?: string;
+      mimeType?: string;
+      size?: number;
+      target: ResourceTarget;
+    }
   | { type: 'resource_link_update'; id: string; target?: ResourceTarget; status?: ToolStatus }
   | { type: 'plan_update'; id: string; entries: ChatPlanEntry[]; streaming?: boolean }
   | { type: 'plan_removed'; id: string };

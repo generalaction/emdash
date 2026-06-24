@@ -17,7 +17,6 @@
 import { useCommands } from '@components/contexts/CommandsContext';
 import { GenericFileIcon, IconError } from '@components/primitives/icons';
 import { resolveFileIconClass } from '@lib/file-icons';
-import { vars } from '@styles/theme.css';
 import { Show } from 'solid-js';
 import type { ChatResourceLink, ResourceTarget } from '@/model';
 import {
@@ -28,6 +27,7 @@ import {
   sizeText,
   titleText,
 } from './resource-link.css';
+import { vars } from '@styles/theme.css';
 
 // ── Secondary label ─────────────────────────────────────────────────────────
 

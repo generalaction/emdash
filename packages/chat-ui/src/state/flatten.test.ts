@@ -25,8 +25,8 @@ import { unit } from '@core/units';
 import type { ItemSegmenter, UnitDef } from '@core/units';
 import type { ChatItem } from '@/model';
 import { flattenTier, makeUnitsView, collectUserTurnUnits } from './flatten';
-import { applyTurnEvent } from './turn-reducer';
 import { createTranscript } from './transcript';
+import { applyTurnEvent } from './turn-reducer';
 
 // ── Minimal segmenter stub (no DOM imports) ────────────────────────────────────
 //
@@ -87,7 +87,10 @@ const STUB_UNIT_DEFS: StubUnitDefs = {
   plan: { margin: { top: 8, bottom: 8 } },
 };
 
-function driveEvent(tx: ReturnType<typeof createTranscript>, event: Parameters<typeof applyTurnEvent>[1]) {
+function driveEvent(
+  tx: ReturnType<typeof createTranscript>,
+  event: Parameters<typeof applyTurnEvent>[1]
+) {
   tx.activeTurn.set(applyTurnEvent(tx.activeTurn.get(), event), 'generating');
 }
 

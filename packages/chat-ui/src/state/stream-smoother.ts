@@ -27,12 +27,12 @@
  * testing without real timers.
  */
 
+import type { ChatItem, ChatMessage } from '@/model';
 import type { TranscriptApi } from './transcript';
 import type { TurnStatus } from './transcript';
+import type { ActiveTurn } from './transcript';
 import type { ActiveTurnEvent } from './turn-reducer';
 import { applyTurnEvent } from './turn-reducer';
-import type { ChatItem, ChatMessage } from '@/model';
-import type { ActiveTurn } from './transcript';
 
 // ── Word splitting ─────────────────────────────────────────────────────────────
 
@@ -68,10 +68,7 @@ export type StreamSmootherOptions = {
 };
 
 /** Full TranscriptEvent union for the convenience dispatch method. */
-export type TranscriptEvent =
-  | ActiveTurnEvent
-  | { type: 'turn_done' }
-  | { type: 'turn_cancelled' };
+export type TranscriptEvent = ActiveTurnEvent | { type: 'turn_done' } | { type: 'turn_cancelled' };
 
 export type StreamSmoother = TranscriptApi & {
   /**
@@ -231,7 +228,8 @@ export function createStreamSmoother(
         }
 
         // "already accounted" = delivered + still-pending words
-        const accounted = ms.deliveredText.length + ms.pendingWords.reduce((n, w) => n + w.length, 0);
+        const accounted =
+          ms.deliveredText.length + ms.pendingWords.reduce((n, w) => n + w.length, 0);
         if (msg.text.length > accounted) {
           const newDelta = msg.text.slice(accounted);
           if (newDelta.length > 0) {

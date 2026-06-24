@@ -2,9 +2,9 @@
  * User message row stories.
  */
 
+import { applyTurnEvent } from '@state/turn-reducer';
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import { ChatHost, ScriptedChat } from '@/stories/_harness/chat-host';
-import { applyTurnEvent } from '@state/turn-reducer';
 import { scenario, seedStep } from '@/stories/_harness/streaming/scenario';
 
 const meta: Meta = {
@@ -93,7 +93,12 @@ export const Generating: Story = {
           {
             kind: 'call',
             fn: (api) => {
-              const ev = { type: 'message_chunk' as const, id: 'a1', role: 'assistant' as const, text: 'Sure! ' };
+              const ev = {
+                type: 'message_chunk' as const,
+                id: 'a1',
+                role: 'assistant' as const,
+                text: 'Sure! ',
+              };
               api.activeTurn.set(applyTurnEvent(api.activeTurn.get(), ev), 'generating');
             },
           },
@@ -101,7 +106,12 @@ export const Generating: Story = {
           {
             kind: 'call',
             fn: (api) => {
-              const ev = { type: 'message_chunk' as const, id: 'a1', role: 'assistant' as const, text: 'I will start by replacing the session store with a JWT signing key…' };
+              const ev = {
+                type: 'message_chunk' as const,
+                id: 'a1',
+                role: 'assistant' as const,
+                text: 'I will start by replacing the session store with a JWT signing key…',
+              };
               api.activeTurn.set(applyTurnEvent(api.activeTurn.get(), ev), 'generating');
             },
           },

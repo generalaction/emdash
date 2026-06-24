@@ -509,7 +509,12 @@ export const StatusLevelMatrix: Story = {
           <Box background="background" padding="4" className={s.spaceY4}>
             <p
               className={cx(
-                sx({ fontSize: 'sm', fontWeight: 'semibold', color: 'foreground', marginBottom: '3' })
+                sx({
+                  fontSize: 'sm',
+                  fontWeight: 'semibold',
+                  color: 'foreground',
+                  marginBottom: '3',
+                })
               )}
             >
               {theme} — status × elevation
@@ -532,9 +537,7 @@ export const StatusLevelMatrix: Story = {
                 >
                   {SURFACE_SCOPES.map((scope) => {
                     const tokenBase =
-                      scope === 'base'
-                        ? `--surface-${status}`
-                        : `--surface-${status}-${scope}`;
+                      scope === 'base' ? `--surface-${status}` : `--surface-${status}-${scope}`;
                     return (
                       <Box key={scope} display="flex" flexDirection="column" gap="1.5">
                         <p className={cx(sx({ fontFamily: 'mono' }), s.text10px)}>{scope}</p>

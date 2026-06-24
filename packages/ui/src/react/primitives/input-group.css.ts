@@ -1,7 +1,7 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
-import { vars } from '@theme/core/contract/contract.css';
 import { svgContainer, svgDefaultSize } from '@styles/effects/svg-helpers.css';
+import { vars } from '@theme/core/contract/contract.css';
 
 export const inputGroup = recipe({
   base: {

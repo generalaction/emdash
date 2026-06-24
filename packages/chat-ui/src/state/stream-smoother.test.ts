@@ -10,11 +10,11 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import type { ChatItem } from '@/model';
 import type { SmootherScheduler } from './stream-smoother';
 import { createStreamSmoother } from './stream-smoother';
 import type { TurnStatus } from './transcript';
 import { createTranscript } from './transcript';
-import type { ChatItem } from '@/model';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

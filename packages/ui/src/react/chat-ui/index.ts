@@ -18,14 +18,9 @@
  * effect without remounting.
  */
 
-import { createElement, useEffect, useRef } from 'react';
-import type {
-  ChatCommands,
-  ChatHandle,
-  ChatItem,
-  MountChatOptions,
-} from '@emdash/chat-ui';
+import type { ChatCommands, ChatHandle, ChatItem, MountChatOptions } from '@emdash/chat-ui';
 import { mountChat } from '@emdash/chat-ui';
+import { createElement, useEffect, useRef } from 'react';
 
 export type ChatTranscriptProps = Omit<
   MountChatOptions,
