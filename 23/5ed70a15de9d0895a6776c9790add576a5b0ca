@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/main/core/notion/notion-connection-service.test.ts
+  s_a55e1d0773e927::t_9b215add036d85 229-252
+apps/emdash-desktop/src/main/core/notion/notion-connection-service.ts
+  s_a55e1d0773e927::t_9b215add036d85 281
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "235ed70a15de9d0895a6776c9790add576a5b0ca",
+  "prompts": {},
+  "sessions": {
+    "s_a55e1d0773e927": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef985-f279-7e20-99b6-51378e984299",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
