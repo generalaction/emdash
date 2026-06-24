@@ -5,19 +5,39 @@ import { Input } from '@renderer/lib/ui/input';
 import { SetupFormShell, type SetupFormProps } from './SetupFormShell';
 
 function NotionSetupForm(props: SetupFormProps) {
-  const { data: configuration } = useQuery({
+  const { data: configuration, isPending } = useQuery({
     queryKey: ['notion:configuration'],
     queryFn: () => rpc.notion.getConfiguration(),
     staleTime: 0,
   });
 
+  if (isPending) {
+    return <NotionSetupFormLoading {...props} />;
+  }
+
   return (
     <NotionSetupFormFields
-      key={configuration?.databaseUrls ?? 'loading'}
       {...props}
       hasCredentials={configuration?.hasCredentials ?? false}
       initialDatabaseUrls={configuration?.databaseUrls ?? ''}
     />
+  );
+}
+
+function NotionSetupFormLoading({ onSuccess, onClose }: SetupFormProps) {
+  return (
+    <SetupFormShell
+      providerId="notion"
+      getInput={() => ({ token: '', databaseUrls: '' })}
+      canSubmit={false}
+      onSuccess={onSuccess}
+      onClose={onClose}
+    >
+      <div className="grid gap-2">
+        <Input disabled placeholder="Loading Notion settings…" className="h-9 w-full" />
+        <Input disabled placeholder="Page or database URLs (optional)" className="h-9 w-full" />
+      </div>
+    </SetupFormShell>
   );
 }
 
