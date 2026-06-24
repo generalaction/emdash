@@ -21,9 +21,6 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'supported',
     },
-    effort: {
-      kind: 'none',
-    },
     hooks: {
       kind: 'plugin',
       scope: 'workspace',
@@ -34,19 +31,16 @@ export const plugin = definePlugin(
       package: '@kilocode/cli',
       binaryNames: ['kilo'],
     }),
-    mcp: {
-      kind: 'none',
-    },
-    models: {
-      kind: 'none',
-    },
     plugins: {
       kind: 'file-drop',
       scope: 'workspace',
     },
     prompt: {
       kind: 'argv',
-      flag: '',
+      // `kilo <positional>` is interpreted as the project directory and gets
+      // realpath()'d, which throws ENAMETOOLONG on large prompts (ENG-1546).
+      // The interactive TUI accepts the initial prompt via `--prompt` instead.
+      flag: '--prompt',
     },
     sessions: {
       kind: 'resumable',
@@ -60,7 +54,7 @@ export const provider = registerPluginBehavior(plugin, {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
         autoApproveFlag: '--auto',
-        initialPromptFlag: '',
+        initialPromptFlag: '--prompt',
         resumeFlag: '--continue',
       }),
   },

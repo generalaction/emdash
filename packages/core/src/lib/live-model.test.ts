@@ -1,3 +1,4 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LiveModel, type LiveValue } from './live-model';
 
@@ -26,7 +27,7 @@ describe('LiveModel', () => {
 
   it('computes lazily on first get and serves the cache afterwards', async () => {
     let computes = 0;
-    const model = new LiveModel({ compute: async () => ++computes });
+    const model = new LiveModel({ compute: async () => ok(++computes) });
 
     await expect(model.get()).resolves.toEqual(lv(1, 1));
     await expect(model.get()).resolves.toEqual(lv(1, 1));
@@ -34,9 +35,16 @@ describe('LiveModel', () => {
     expect(model.getCached()).toEqual(lv(1, 1));
   });
 
+  it('throws expected compute errors from direct reads', async () => {
+    const model = new LiveModel<number, string>({ compute: async () => err('boom') });
+
+    await expect(model.get()).rejects.toBe('boom');
+    await expect(model.refresh()).rejects.toBe('boom');
+  });
+
   it('only marks dirty on invalidate without subscribers, recomputes on next get', async () => {
     let computes = 0;
-    const model = new LiveModel({ compute: async () => ++computes });
+    const model = new LiveModel({ compute: async () => ok(++computes) });
 
     await model.get();
     model.invalidate();
@@ -48,7 +56,7 @@ describe('LiveModel', () => {
 
   it('recomputes and pushes on invalidate while subscribed, with debounce coalescing', async () => {
     let computes = 0;
-    const model = new LiveModel({ compute: async () => ++computes, debounceMs: 50 });
+    const model = new LiveModel({ compute: async () => ok(++computes), debounceMs: 50 });
     const pushed: LiveValue<number>[] = [];
 
     model.subscribe((update) => pushed.push(update));
@@ -65,10 +73,10 @@ describe('LiveModel', () => {
   });
 
   it('queues exactly one trailing run when refreshed during an in-flight compute', async () => {
-    const gates: Array<ReturnType<typeof deferred<number>>> = [];
+    const gates: Array<ReturnType<typeof deferred<Result<number>>>> = [];
     const model = new LiveModel({
       compute: () => {
-        const gate = deferred<number>();
+        const gate = deferred<Result<number>>();
         gates.push(gate);
         return gate.promise;
       },
@@ -79,22 +87,22 @@ describe('LiveModel', () => {
     const third = model.refresh();
     expect(gates).toHaveLength(1);
 
-    gates[0]!.resolve(10);
+    gates[0]!.resolve(ok(10));
     await first;
     await vi.runAllTimersAsync();
     expect(gates).toHaveLength(2);
 
-    gates[1]!.resolve(20);
+    gates[1]!.resolve(ok(20));
     await expect(second).resolves.toEqual(lv(20, 2));
     await expect(third).resolves.toEqual(lv(20, 2));
     await expect(first).resolves.toEqual(lv(10, 1));
   });
 
   it('runs again after a compute that was invalidated mid-flight (subscribed)', async () => {
-    const gates: Array<ReturnType<typeof deferred<number>>> = [];
+    const gates: Array<ReturnType<typeof deferred<Result<number>>>> = [];
     const model = new LiveModel({
       compute: () => {
-        const gate = deferred<number>();
+        const gate = deferred<Result<number>>();
         gates.push(gate);
         return gate.promise;
       },
@@ -104,24 +112,24 @@ describe('LiveModel', () => {
     expect(gates).toHaveLength(1);
 
     model.invalidate(); // arrives mid-compute
-    gates[0]!.resolve(1);
+    gates[0]!.resolve(ok(1));
     await vi.runAllTimersAsync();
     expect(gates).toHaveLength(2);
 
-    gates[1]!.resolve(2);
+    gates[1]!.resolve(ok(2));
     await vi.runAllTimersAsync();
     expect(pushed).toEqual([1, 2]);
   });
 
-  it('keeps last-good cache and stays dirty after a failed recompute', async () => {
+  it('keeps last-good cache and stays dirty after an expected recompute failure', async () => {
     let fail = false;
     let computes = 0;
-    const errors: unknown[] = [];
-    const model = new LiveModel({
+    const errors: string[] = [];
+    const model = new LiveModel<number, string>({
       compute: async () => {
         computes += 1;
-        if (fail) throw new Error('boom');
-        return computes;
+        if (fail) return err('boom');
+        return ok(computes);
       },
       onError: (error) => errors.push(error),
     });
@@ -137,15 +145,29 @@ describe('LiveModel', () => {
     expect(model.getCached()).toEqual(lv(1, 1));
     expect(pushed).toEqual([1]);
 
-    await expect(model.refresh()).rejects.toThrow('boom');
+    await expect(model.refresh()).rejects.toBe('boom');
 
     fail = false;
     await expect(model.get()).resolves.toEqual(lv(4, 2)); // dirty: recomputes
   });
 
+  it('rejects direct refresh after an unexpected thrown compute error', async () => {
+    const unexpected = new Error('boom');
+    const model = new LiveModel<number>({
+      compute: async () => {
+        throw unexpected;
+      },
+    });
+
+    await expect(model.refresh()).rejects.toBe(unexpected);
+  });
+
   it('revalidates on the configured interval while subscribed', async () => {
     let computes = 0;
-    const model = new LiveModel({ compute: async () => ++computes, revalidateIntervalMs: 1_000 });
+    const model = new LiveModel({
+      compute: async () => ok(++computes),
+      revalidateIntervalMs: 1_000,
+    });
 
     const unsubscribe = model.subscribe(() => {});
     await vi.advanceTimersByTimeAsync(0);
@@ -163,7 +185,10 @@ describe('LiveModel', () => {
 
   it('resets the revalidation timer on any recompute', async () => {
     let computes = 0;
-    const model = new LiveModel({ compute: async () => ++computes, revalidateIntervalMs: 1_000 });
+    const model = new LiveModel({
+      compute: async () => ok(++computes),
+      revalidateIntervalMs: 1_000,
+    });
     model.subscribe(() => {});
     await vi.advanceTimersByTimeAsync(0);
     expect(computes).toBe(1);
@@ -183,7 +208,7 @@ describe('LiveModel', () => {
     const model = new LiveModel({
       compute: async () => {
         computes += 1;
-        return { stable: true, items: [1, 2, 3] };
+        return ok({ stable: true, items: [1, 2, 3] });
       },
     });
     const pushed: unknown[] = [];
@@ -211,7 +236,7 @@ describe('LiveModel', () => {
   it('uses a custom isEqual when provided', async () => {
     let computes = 0;
     const model = new LiveModel({
-      compute: async () => ({ id: 1, noise: ++computes }),
+      compute: async () => ok({ id: 1, noise: ++computes }),
       isEqual: (a, b) => a.id === b.id,
     });
     const pushed: unknown[] = [];
@@ -225,8 +250,8 @@ describe('LiveModel', () => {
   });
 
   it('stamps values with a per-instance monotonic generation', async () => {
-    const first = new LiveModel({ compute: async () => 1 });
-    const second = new LiveModel({ compute: async () => 1 });
+    const first = new LiveModel({ compute: async () => ok(1) });
+    const second = new LiveModel({ compute: async () => ok(1) });
 
     const a = await first.get();
     const b = await first.refresh();
@@ -238,7 +263,10 @@ describe('LiveModel', () => {
 
   it('rejects get/refresh/subscribe after dispose and stops timers', async () => {
     let computes = 0;
-    const model = new LiveModel({ compute: async () => ++computes, revalidateIntervalMs: 1_000 });
+    const model = new LiveModel({
+      compute: async () => ok(++computes),
+      revalidateIntervalMs: 1_000,
+    });
     model.subscribe(() => {});
     await vi.advanceTimersByTimeAsync(0);
 

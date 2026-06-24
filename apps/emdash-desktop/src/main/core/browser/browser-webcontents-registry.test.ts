@@ -329,4 +329,43 @@ describe('BrowserWebContentsRegistry', () => {
       | undefined;
     expect(profileSession?.clearData).toHaveBeenCalled();
   });
+
+  it('clears the requested browsing data category across every passed partition', async () => {
+    const registry = new BrowserWebContentsRegistry();
+    const partitions = [PROFILE_PARTITION, 'persist:emdash-browser-profile-work'];
+
+    await expect(registry.clearBrowsingData('cache', partitions)).resolves.toBe(true);
+
+    for (const partition of partitions) {
+      const partitionSession = sessionsByPartition.get(partition) as
+        | { clearData: ReturnType<typeof vi.fn> }
+        | undefined;
+      expect(partitionSession?.clearData).toHaveBeenCalledWith({ dataTypes: ['cache'] });
+    }
+  });
+
+  it('passes no options for an "all" clear and dataTypes for other categories', async () => {
+    const registry = new BrowserWebContentsRegistry();
+
+    await registry.clearBrowsingData('all', [PROFILE_PARTITION]);
+    await registry.clearBrowsingData('cookies', [PROFILE_PARTITION]);
+    await registry.clearBrowsingData('siteData', [PROFILE_PARTITION]);
+
+    const partitionSession = sessionsByPartition.get(PROFILE_PARTITION) as {
+      clearData: ReturnType<typeof vi.fn>;
+    };
+    expect(partitionSession.clearData).toHaveBeenNthCalledWith(1);
+    expect(partitionSession.clearData).toHaveBeenNthCalledWith(2, { dataTypes: ['cookies'] });
+    expect(partitionSession.clearData).toHaveBeenNthCalledWith(3, {
+      dataTypes: [
+        'backgroundFetch',
+        'cacheStorage',
+        'fileSystems',
+        'indexedDB',
+        'localStorage',
+        'serviceWorkers',
+        'webSQL',
+      ],
+    });
+  });
 });

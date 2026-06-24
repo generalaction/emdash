@@ -56,8 +56,12 @@ Inside `apps/emdash-desktop/`:
 ## Build & Development Commands
 
 The repo root has aggregate scripts (`dev`, `build`, `test`, `lint`, `format`,
-`format:check`, `typecheck`) that fan out through the pnpm workspace. App-specific
-commands run from `apps/emdash-desktop/`.
+`format:check`, `typecheck`) powered by Nx. They run targets in dependency order
+across all workspace packages with local caching. App-specific commands can be
+addressed directly with `nx <target> <project>` from the root.
+
+See `agents/workflows/nx.md` for the full guide to Nx task orchestration and
+caching in this repo.
 
 Use Node `24.14.0` from `.nvmrc` and `pnpm@10.28.2`.
 
@@ -276,14 +280,8 @@ pnpm run test
 - Renderer unit tests live under `src/renderer/tests/`.
 - Renderer browser tests live under `src/renderer/tests/browser/`.
 - Integration-style tests create temporary repos and worktrees in `os.tmpdir()`.
-- CI currently runs `.github/workflows/code-consistency-check.yml`, which enforces:
-
-```bash
-pnpm run format:check
-pnpm run typecheck
-pnpm run lint
-```
-
+- CI runs `.github/workflows/code-consistency-check.yml` via `nx affected`, which
+  enforces format:check, typecheck, and lint only for projects touched by the PR.
 - Tests are still expected locally before merge even though the consistency workflow
   currently covers format, typecheck, and lint.
 
@@ -386,6 +384,7 @@ pnpm run test
 - [Main process architecture](agents/architecture/main-process.md)
 - [Renderer architecture](agents/architecture/renderer.md)
 - [Shared modules](agents/architecture/shared.md)
+- [Nx task orchestration and caching](agents/workflows/nx.md)
 - [Testing workflow](agents/workflows/testing.md)
 - [Worktrees workflow](agents/workflows/worktrees.md)
 - [Remote development workflow](agents/workflows/remote-development.md)

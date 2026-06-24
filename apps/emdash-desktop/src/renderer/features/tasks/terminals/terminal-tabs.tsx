@@ -1,13 +1,6 @@
 import { CircleFadingArrowUp, CirclePlayIcon } from 'lucide-react';
 import React from 'react';
 import { type ScriptType } from '@renderer/features/tasks/stores/lifecycle-scripts';
-import { getPaneContainer } from '@renderer/lib/pty/pane-sizing-context';
-import { measureDimensions } from '@renderer/lib/pty/pty-dimensions';
-
-export function getTerminalsPaneSize() {
-  const container = getPaneContainer('terminal-drawer');
-  return container ? (measureDimensions(container, 8, 16) ?? undefined) : undefined;
-}
 
 export function nextTerminalName(names: string[]): string {
   const taken = new Set(

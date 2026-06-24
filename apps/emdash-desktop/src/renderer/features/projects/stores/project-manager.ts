@@ -174,7 +174,7 @@ export class ProjectManagerStore {
 
         case 'clone': {
           const connectionId = projectType.type === 'ssh' ? projectType.connectionId : undefined;
-          const cloneResult = await rpc.github.cloneRepository(
+          const cloneResult = await rpc.projectSetup.cloneRepository(
             data.repositoryUrl,
             targetPath,
             connectionId
@@ -532,7 +532,7 @@ export class ProjectManagerStore {
     let result: Result<LocalProject | SshProject, ProjectCreationError>;
     try {
       this._updatePhase(opts.projectId, 'cloning');
-      const cloneResult = await rpc.github.cloneRepository(
+      const cloneResult = await rpc.projectSetup.cloneRepository(
         opts.cloneUrl,
         opts.targetPath,
         connectionId
@@ -543,7 +543,7 @@ export class ProjectManagerStore {
           message: cloneResult.error?.trim() || 'Clone failed',
         });
       } else {
-        const initResult = await rpc.github.initializeProject({
+        const initResult = await rpc.projectSetup.initializeRepository({
           targetPath: opts.targetPath,
           name: opts.name,
           connectionId,
@@ -604,7 +604,9 @@ export class ProjectManagerStore {
         store.error =
           error.type === 'not-repository'
             ? 'Directory is not a git repository. Enable "Initialize git repository" to continue.'
-            : error.message;
+            : error.type === 'inspect-failed'
+              ? `Could not inspect directory: ${error.message}`
+              : error.message;
       }
     });
   }

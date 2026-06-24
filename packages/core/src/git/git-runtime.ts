@@ -100,6 +100,9 @@ export class GitRuntime implements IGitRuntime {
     const resolvedPath = path.resolve(pathToInspect);
     const inspected = await this.inspectResolvedPath(resolvedPath);
     if (inspected.kind === 'repository') return ok(inspected);
+    if (inspected.kind === 'inspect-failed') {
+      return err({ type: 'inspect-failed', path: inspected.path, message: inspected.message });
+    }
     if (!options.initIfMissing) {
       return err({ type: 'not-repository', path: inspected.path });
     }
@@ -112,6 +115,13 @@ export class GitRuntime implements IGitRuntime {
 
     const initialized = await this.inspectResolvedPath(resolvedPath);
     if (initialized.kind === 'repository') return ok(initialized);
+    if (initialized.kind === 'inspect-failed') {
+      return err({
+        type: 'inspect-failed',
+        path: initialized.path,
+        message: initialized.message,
+      });
+    }
     return err({
       type: 'init-failed',
       path: resolvedPath,
@@ -135,8 +145,11 @@ export class GitRuntime implements IGitRuntime {
 
     const inspected = await this.inspectResolvedPath(resolvedTargetPath);
     if (inspected.kind === 'repository') return ok(inspected);
+    if (inspected.kind === 'inspect-failed') {
+      return err({ type: 'git_error', message: inspected.message });
+    }
     return err({
-      type: 'git-error',
+      type: 'git_error',
       message: `Cloned path is not a git repository: ${resolvedTargetPath}`,
     });
   }
@@ -228,30 +241,37 @@ export class GitRuntime implements IGitRuntime {
   }
 
   private async inspectResolvedPath(resolvedPath: string): Promise<GitPathInspection> {
-    const exec = this.exec.withCwd(resolvedPath);
+    const exec = (args: string[]) => this.exec.exec(['-C', resolvedPath, ...args]);
     try {
-      const { stdout } = await exec.exec(['rev-parse', '--is-inside-work-tree']);
+      const { stdout } = await exec(['rev-parse', '--is-inside-work-tree']);
       if (stdout.trim() !== 'true') return { kind: 'not-repository', path: resolvedPath };
-    } catch {
-      return { kind: 'not-repository', path: resolvedPath };
+    } catch (error) {
+      if (isNotRepositoryInspectionError(error)) {
+        return { kind: 'not-repository', path: resolvedPath };
+      }
+      return {
+        kind: 'inspect-failed',
+        path: resolvedPath,
+        message: gitErrorMessage(error),
+      };
     }
 
     let remoteName: string | undefined;
     try {
-      const { stdout } = await exec.exec(['remote']);
+      const { stdout } = await exec(['remote']);
       const remotes = stdout.trim().split('\n').filter(Boolean);
       remoteName = remotes.includes('origin') ? 'origin' : remotes[0];
     } catch {}
 
     let branch: string | undefined;
     try {
-      const { stdout } = await exec.exec(['branch', '--show-current']);
+      const { stdout } = await exec(['branch', '--show-current']);
       branch = stdout.trim() || undefined;
     } catch {}
 
     if (!branch && remoteName) {
       try {
-        const { stdout } = await exec.exec(['remote', 'show', remoteName]);
+        const { stdout } = await exec(['remote', 'show', remoteName]);
         const match = /HEAD branch:\s*(\S+)/.exec(stdout);
         branch = match?.[1] ?? undefined;
       } catch {}
@@ -259,7 +279,7 @@ export class GitRuntime implements IGitRuntime {
 
     let rootPath = resolvedPath;
     try {
-      const { stdout } = await exec.exec(['rev-parse', '--show-toplevel']);
+      const { stdout } = await exec(['rev-parse', '--show-toplevel']);
       const trimmed = stdout.trim();
       if (trimmed) rootPath = realpathOrResolve(trimmed);
     } catch {}
@@ -282,4 +302,13 @@ export class GitRuntime implements IGitRuntime {
     if (!this.worktrees.idle || !this.repositories.idle) return;
     if (this.ownsWatcher) await this.watcher.dispose();
   }
+}
+
+function isNotRepositoryInspectionError(error: unknown): boolean {
+  const message = gitErrorMessage(error).toLowerCase();
+  return (
+    message.includes('not a git repository') ||
+    message.includes('not a git directory') ||
+    message.includes('must be run in a work tree')
+  );
 }

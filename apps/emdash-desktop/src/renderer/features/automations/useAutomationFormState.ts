@@ -86,12 +86,22 @@ export function useAutomationFormState(
     ? seedConversationConfig?.provider
     : undefined;
 
-  const initialConversation = useInitialConversationState(effectiveProjectId, seedProvider);
+  const seedModel = seedConversationConfig?.model ?? undefined;
+
+  const initialConversation = useInitialConversationState(effectiveProjectId, seedProvider, false, {
+    resetPromptOnProjectChange: false,
+  });
 
   const [promptSeeded, setPromptSeeded] = useState(false);
   if (!promptSeeded && seedPrompt) {
     setPromptSeeded(true);
     initialConversation.setPrompt(seedPrompt);
+  }
+
+  const [modelSeeded, setModelSeeded] = useState(false);
+  if (!modelSeeded && seedModel) {
+    setModelSeeded(true);
+    initialConversation.setModel(seedModel);
   }
 
   const { defaultBranch, isUnborn, currentBranch, repositoryWorkspaceId } =
@@ -121,6 +131,7 @@ export function useAutomationFormState(
 
   const prompt = initialConversation.prompt;
   const provider = initialConversation.provider ?? 'claude';
+  const model = initialConversation.model;
 
   const canSave =
     name.trim().length > 0 &&
@@ -186,6 +197,7 @@ export function useAutomationFormState(
     currentBranch,
     prompt,
     provider,
+    model,
     canSave,
     triggerConfig,
     applyTemplate,

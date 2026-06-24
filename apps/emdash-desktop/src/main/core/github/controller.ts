@@ -1,10 +1,6 @@
 import { githubAccountService } from '@main/core/github/accounts/github-account-service-instance';
 import { githubDeviceFlowService } from '@main/core/github/services/github-device-flow-service-instance';
 import { repoService } from '@main/core/github/services/repo-service';
-import {
-  cloneProjectRepository,
-  initializeProjectRepository,
-} from '@main/core/projects/operations/git-repository-setup';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
@@ -196,39 +192,6 @@ export const githubController = createRPCController({
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to delete repository',
-      };
-    }
-  },
-
-  cloneRepository: async (repoUrl: string, targetPath: string, connectionId?: string) => {
-    try {
-      return await cloneProjectRepository({
-        repositoryUrl: repoUrl,
-        targetPath,
-        connectionId,
-      });
-    } catch (error) {
-      log.error('Failed to clone repository:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Clone failed',
-      };
-    }
-  },
-
-  initializeProject: async (params: {
-    targetPath: string;
-    name: string;
-    description?: string;
-    connectionId?: string;
-  }) => {
-    try {
-      return await initializeProjectRepository(params);
-    } catch (error) {
-      log.error('Failed to initialize project:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Initialize failed',
       };
     }
   },

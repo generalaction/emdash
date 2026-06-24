@@ -61,6 +61,12 @@ export type StandardCommandSpec = {
   validateSessionId?: (id: string) => boolean;
   /** Extra static env vars to inject (on top of ctx env). */
   extraEnv?: Record<string, string>;
+  /**
+   * CLI flag for model selection, e.g. '--model' or '-m'.
+   * When ctx.model is non-empty, appendFlagValue(args, modelFlag, ctx.model) is called.
+   * Supports both '--flag value' and '--flag=value' forms via appendFlagValue.
+   */
+  modelFlag?: string;
 };
 
 /**
@@ -96,14 +102,14 @@ export function buildStandardCommand(ctx: CommandContext, spec: StandardCommandS
     } else if (spec.resumeFlag) {
       if (spec.sessionIdFlag && validSessionId) {
         // resumeFlag takes the session ID (e.g. '--resume <id>' or '-r <id>')
-        args.push(spec.resumeFlag, validSessionId);
+        args.push(...splitFlag(spec.resumeFlag), validSessionId);
       } else if (spec.sessionIdFlag && !spec.sessionIdOnResumeOnly) {
         // Use emdash UUID
-        args.push(spec.resumeFlag, ctx.sessionId!);
+        args.push(...splitFlag(spec.resumeFlag), ctx.sessionId!);
       } else if (spec.resumeWithoutSessionFlag) {
         args.push(...splitFlag(spec.resumeWithoutSessionFlag));
       } else {
-        args.push(spec.resumeFlag);
+        args.push(...splitFlag(spec.resumeFlag));
       }
     }
   } else {
@@ -119,6 +125,11 @@ export function buildStandardCommand(ctx: CommandContext, spec: StandardCommandS
   const skipAutoApprove = spec.omitAutoApproveOnResume && ctx.isResuming;
   if (ctx.autoApprove && spec.autoApproveFlag && !skipAutoApprove) {
     args.push(...splitFlag(spec.autoApproveFlag));
+  }
+
+  // Model selection
+  if (spec.modelFlag && ctx.model) {
+    appendFlagValue(args, spec.modelFlag, ctx.model);
   }
 
   // User extra args

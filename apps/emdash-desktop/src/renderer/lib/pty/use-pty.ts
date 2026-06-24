@@ -1,5 +1,6 @@
 import { type Terminal } from '@xterm/xterm';
-import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { reaction } from 'mobx';
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { dispatchMatchingHotkeys } from '@renderer/lib/hotkeys/dispatch-matching-hotkeys';
 import { events, rpc } from '@renderer/lib/ipc';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
@@ -22,6 +23,7 @@ import {
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
 } from './pty-keybindings';
+import { createResizeScheduler } from './resize-scheduler';
 import { getTerminalContextLink } from './terminal-context-link';
 import { buildTerminalFontFamily } from './terminal-font';
 import { getCellMetrics } from './xterm-cell-metrics';
@@ -91,7 +93,7 @@ export type PasteFromClipboardHandler = (helpers: {
  * are auto-registered inside an async IIFE, awaiting the historical buffer
  * fetch before mounting.
  *
- * When inside a PaneSizingProvider the terminal is pre-resized to the pane's
+ * When inside a PaneSizingContextProvider the terminal is pre-resized to the pane's
  * current dimensions BEFORE being appended to the visible DOM, eliminating
  * the flash caused by a post-mount resize.
  */
@@ -128,7 +130,7 @@ export function usePty(
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
-  // When inside a PaneSizingProvider, PTY resizes are broadcast to ALL sessions
+  // When inside a PaneSizingContextProvider, PTY resizes are broadcast to ALL sessions
   // in the pane (including background ones).  Falls back to per-session resize
   // for standalone terminals (chat, task terminal panel, etc.).
   const paneSizing = usePaneSizingContext();
@@ -137,21 +139,21 @@ export function usePty(
   const paneSizingRef = useRef(paneSizing);
   paneSizingRef.current = paneSizing;
 
-  // Subscribe to panel drag state so ResizeObserver skips fits while dragging.
+  // Subscribe to panel drag state so resize triggers skip fits while dragging.
   const isPanelDragging = useSyncExternalStore(
     panelDragStore.subscribe,
     panelDragStore.getSnapshot
   );
-  // Keep a ref in sync so the ResizeObserver callback (inside the main effect)
-  // always reads the latest value without re-running the effect.
   const isPanelDraggingRef = useRef(isPanelDragging);
   isPanelDraggingRef.current = isPanelDragging;
 
   // Core xterm.js reference, kept alive across renders.
   const termRef = useRef<Terminal | null>(null);
 
-  // Resize debounce state.
-  const pendingResizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Resize debounce state.  lastRequestedResizeRef tracks the latest measured
+  // dimensions (including pending trailing values), while lastSentResizeRef
+  // tracks dimensions actually sent to rpc.pty.resize.
+  const lastRequestedResizeRef = useRef<{ cols: number; rows: number } | null>(null);
   const lastSentResizeRef = useRef<{ cols: number; rows: number } | null>(null);
 
   // First-message capture state.
@@ -171,20 +173,30 @@ export function usePty(
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
+  // Recreated per session so the trailing flush targets the current sessionId.
+  // See createResizeScheduler for the leading-edge rationale (ENG-1577).
+  const ptyResizeScheduler = useMemo(
+    () =>
+      createResizeScheduler<{ cols: number; rows: number }>((dims) => {
+        const lastSent = lastSentResizeRef.current;
+        if (lastSent?.cols === dims.cols && lastSent?.rows === dims.rows) return;
+        lastSentResizeRef.current = dims;
+        void rpc.pty.resize(sessionId, dims.cols, dims.rows);
+      }, PTY_RESIZE_DEBOUNCE_MS),
+    [sessionId]
+  );
+
   const queuePtyResize = useCallback(
     (newCols: number, newRows: number) => {
       const c = Math.max(MIN_TERMINAL_COLS, Math.floor(newCols));
       const r = Math.max(MIN_TERMINAL_ROWS, Math.floor(newRows));
-      const last = lastSentResizeRef.current;
-      if (last?.cols === c && last?.rows === r) return;
-      if (pendingResizeTimerRef.current) clearTimeout(pendingResizeTimerRef.current);
-      pendingResizeTimerRef.current = setTimeout(() => {
-        pendingResizeTimerRef.current = null;
-        lastSentResizeRef.current = { cols: c, rows: r };
-        void rpc.pty.resize(sessionId, c, r);
-      }, PTY_RESIZE_DEBOUNCE_MS);
+      const lastRequested = lastRequestedResizeRef.current;
+      if (lastRequested?.cols === c && lastRequested?.rows === r) return;
+      const dims = { cols: c, rows: r };
+      lastRequestedResizeRef.current = dims;
+      ptyResizeScheduler.schedule(dims);
     },
-    [sessionId]
+    [ptyResizeScheduler]
   );
 
   // Stable ref so measureAndResize can always call the latest queuePtyResize
@@ -663,57 +675,39 @@ export function usePty(
           )
       );
 
-      // ── ResizeObserver (observes the mount-target, not the owned container) ─
-      // Skips measuring while a panel drag is in progress; the drag-end effect
-      // below fires one measure once the drag completes.
+      // ── Resize trigger ────────────────────────────────────────────────────
+      // When inside a PaneSizingProvider: react to the observable pane dimensions
+      // set by PaneDimensionProvider's ResizeObserver. The reaction fires
+      // synchronously within the ResizeObserver callback (MobX action → reaction),
+      // preserving the "resize before next paint" guarantee that eliminates flicker.
       //
-      // Single-shot layout changes (cmd+J drawer toggle, cmd+B sidebar toggle,
-      // navigation) need an *immediate* term.resize so the xterm DOM catches
-      // up in the same paint as the container — otherwise the user sees a
-      // frame where the container is at the new size but the terminal grid
-      // is still at the old size (the flicker).  Bursty changes (continuous
-      // window-corner resize) still need coalescing so we don't spam
-      // term.resize() every frame.
-      //
-      // Strategy: leading-edge fire after a quiet period; trailing-edge fire
-      // for the tail of a burst.
-      const RESIZE_QUIET_MS = 150;
-      const RESIZE_TRAILING_MS = 50;
-      let lastResizeAt = 0;
-      let trailingTimer: ReturnType<typeof setTimeout> | null = null;
-      const fireResize = () => {
-        lastResizeAt = performance.now();
-        measureAndResizeRef.current();
-      };
-      const resizeObserver = new ResizeObserver(() => {
-        if (isPanelDraggingRef.current) return;
-        if (performance.now() - lastResizeAt > RESIZE_QUIET_MS) {
-          fireResize();
-          return;
-        }
-        if (trailingTimer) clearTimeout(trailingTimer);
-        trailingTimer = setTimeout(() => {
-          trailingTimer = null;
-          fireResize();
-        }, RESIZE_TRAILING_MS);
-      });
-      resizeObserver.observe(container);
-      cleanups.push(() => {
-        resizeObserver.disconnect();
-        if (trailingTimer) {
-          clearTimeout(trailingTimer);
-          trailingTimer = null;
-        }
-      });
+      // For standalone terminals (no pane context): fall back to a direct
+      // ResizeObserver on the terminal mount-target.
+      const paneAtMount = paneSizingRef.current;
+      if (paneAtMount) {
+        const disposeReaction = reaction(
+          () => paneAtMount.sink.dimensions,
+          () => {
+            if (isPanelDraggingRef.current) return;
+            measureAndResizeRef.current();
+          }
+        );
+        cleanups.push(disposeReaction);
+      } else {
+        const resizeObserver = new ResizeObserver(() => {
+          if (isPanelDraggingRef.current) return;
+          measureAndResizeRef.current();
+        });
+        resizeObserver.observe(container);
+        cleanups.push(() => resizeObserver.disconnect());
+      }
     }
 
     // ── Cleanup ───────────────────────────────────────────────────────────────
     return () => {
-      if (pendingResizeTimerRef.current) {
-        clearTimeout(pendingResizeTimerRef.current);
-        pendingResizeTimerRef.current = null;
-      }
+      ptyResizeScheduler.cancel();
       // Reset dedup so the next session always gets a resize on mount.
+      lastRequestedResizeRef.current = null;
       lastSentResizeRef.current = null;
       // ResizeObserver.disconnect() and other cleanups run BEFORE unmount —
       // preserving the invariant that the ResizeObserver is torn down before
@@ -740,8 +734,8 @@ export function usePty(
   }, [theme, applyTheme]);
 
   // ── Measure once when a panel drag ends ─────────────────────────────────────
-  // The ResizeObserver skips measurements during the drag; this effect fires a
-  // single measurement (which resizes the terminal and notifies PTYs) when done.
+  // Resize triggers are suppressed during drag; this effect fires a single
+  // measurement (which resizes the terminal and notifies PTYs) when drag ends.
   const prevIsPanelDraggingRef = useRef(isPanelDragging);
   useEffect(() => {
     const wasDragging = prevIsPanelDraggingRef.current;

@@ -1,6 +1,6 @@
 import { AlignJustify, Columns2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import type { DiffTabStore } from '@renderer/features/tasks/tabs/diff-tab-store';
+import type { DiffTabStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-store';
 import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { MicroLabel } from '@renderer/lib/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';

@@ -105,7 +105,10 @@ export type GitRepositoryInfo = {
   baseRef: string;
 };
 
-export type GitPathInspection = GitRepositoryInfo | { kind: 'not-repository'; path: string };
+export type GitPathInspection =
+  | GitRepositoryInfo
+  | { kind: 'not-repository'; path: string }
+  | { kind: 'inspect-failed'; path: string; message: string };
 
 export type EnsureRepositoryOptions = {
   initIfMissing?: boolean;
@@ -113,6 +116,7 @@ export type EnsureRepositoryOptions = {
 
 export type EnsureRepositoryError =
   | { type: 'not-repository'; path: string }
+  | { type: 'inspect-failed'; path: string; message: string }
   | { type: 'init-failed'; path: string; message: string };
 
 export interface IGitRepository extends IDisposable {
@@ -181,12 +185,12 @@ export interface IGitWorktree extends IDisposable {
   getImageAtIndex(filePath: string): Promise<ImageReadResult>;
   getLog(options?: GitLogOptions): Promise<GitLogResult>;
   getCommitFiles(hash: string): Promise<CommitFile[]>;
-  stage(paths: string[]): Promise<GitSequences>;
-  stageAll(): Promise<GitSequences>;
-  unstage(paths: string[]): Promise<GitSequences>;
-  unstageAll(): Promise<GitSequences>;
-  revert(paths: string[]): Promise<GitSequences>;
-  revertAll(): Promise<GitSequences>;
+  stage(paths: string[]): Promise<Result<GitSequences, GitCommandError>>;
+  stageAll(): Promise<Result<GitSequences, GitCommandError>>;
+  unstage(paths: string[]): Promise<Result<GitSequences, GitCommandError>>;
+  unstageAll(): Promise<Result<GitSequences, GitCommandError>>;
+  revert(paths: string[]): Promise<Result<GitSequences, GitCommandError>>;
+  revertAll(): Promise<Result<GitSequences, GitCommandError>>;
   commit(message: string): Promise<Result<{ hash: string; sequences: GitSequences }, CommitError>>;
   push(remote?: string): Promise<Result<{ output: string; sequences: GitSequences }, PushError>>;
   pull(): Promise<Result<{ output: string; sequences: GitSequences }, PullError>>;
