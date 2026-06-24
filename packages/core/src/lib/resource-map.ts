@@ -1,3 +1,4 @@
+import { once } from '@emdash/shared';
 import type { IDisposable, Lease } from '@emdash/shared';
 
 export type ResourceMapOptions<T> = {
@@ -19,7 +20,8 @@ type Entry<T> = {
  *
  * - Concurrent `acquire`s of the same key share one provision; each gets its own lease.
  * - A failed provision rejects every waiting acquirer and evicts the entry.
- * - The last `release()` tears the value down; releases are idempotent and concurrency-safe.
+ * - The last `release()` tears the value down; releases are single-flight: every caller
+ *   awaits the same teardown completion.
  * - Acquiring a key that is tearing down waits for the teardown, then provisions fresh.
  * - `dispose()` refuses new acquires and resolves once no entries or teardowns remain.
  */
@@ -71,15 +73,7 @@ export class ResourceMap<T> implements IDisposable {
   }
 
   private createLease(key: string, entry: Entry<T>, value: T): Lease<T> {
-    let released = false;
-    return {
-      value,
-      release: async () => {
-        if (released) return;
-        released = true;
-        await this.releaseRef(key, entry);
-      },
-    };
+    return { value, release: once(() => this.releaseRef(key, entry)) };
   }
 
   private releaseRef(key: string, entry: Entry<T>): Promise<void> {
