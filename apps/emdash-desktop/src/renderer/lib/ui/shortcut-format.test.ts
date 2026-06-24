@@ -67,5 +67,4 @@ describe('shortcut formatting', () => {
     expect(getShortcutKeyOpticalAlignClass('Shift')).toBe('-translate-y-px');
     expect(getShortcutKeyOpticalAlignClass('Enter')).toBe('translate-y-px');
   });
-
 });

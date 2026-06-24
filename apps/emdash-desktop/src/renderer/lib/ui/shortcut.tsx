@@ -76,10 +76,7 @@ function Shortcut({ hotkey, className, variant = 'text' }: ShortcutProps) {
               <Kbd
                 key={`${key}-${index}`}
                 aria-hidden="true"
-                className={cn(
-                  KEYCAP_KBD_CLASS,
-                  label.length === 1 && SHORT_KEYCAP_KBD_CLASS
-                )}
+                className={cn(KEYCAP_KBD_CLASS, label.length === 1 && SHORT_KEYCAP_KBD_CLASS)}
               >
                 {label}
               </Kbd>

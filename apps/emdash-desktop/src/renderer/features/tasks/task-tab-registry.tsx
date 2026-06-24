@@ -87,20 +87,18 @@ type TaskProviders = TaskRegistry['_providers'];
 export type TaskTabKind = KindOf<TaskRegistry>;
 export type TaskOpenArgsOf<K extends TaskTabKind> = OpenArgsOf<TaskRegistry, K>;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ProviderFor<K extends TaskTabKind> = Extract<TaskProviders[number], { kind: K }>;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ProviderEntry<P> = P extends AnyTabProvider & { serialize(entry: infer E): unknown }
   ? E
   : never;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ProviderResolved<P> = P extends AnyTabProvider & {
-  resolve(entry: any, ctx: any): (infer RD) | null;
+  resolve(entry: unknown, ctx: unknown): (infer RD) | null;
 }
   ? RD
   : never;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ProviderData<P> = P extends AnyTabProvider & { deserialize(data: infer D, ctx: any): unknown }
+type ProviderData<P> = P extends AnyTabProvider & {
+  deserialize(data: infer D, ctx: unknown): unknown;
+}
   ? D
   : never;
 

@@ -17,7 +17,7 @@ function StepSwatch({ scale, step }: { scale: ScaleName; step: number }) {
   // Intentionally omit deps: re-read on every render so the value updates
   // when the toolbar switches theme (no infinite loop — setState is skipped when
   // the string is the same reference).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (ref.current) {
       const val = getComputedStyle(ref.current).backgroundColor;
@@ -48,7 +48,7 @@ function ContrastSwatch({ scale }: { scale: ScaleName }) {
   const ref = useRef<HTMLDivElement>(null);
   const [resolved, setResolved] = useState('');
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (ref.current) {
       const val = getComputedStyle(ref.current).backgroundColor;

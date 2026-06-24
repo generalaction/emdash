@@ -2,7 +2,7 @@ import type { TabProvider } from './tab-provider';
 
 // ── Type aliases ──────────────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// oxlint-disable-next-line typescript/no-explicit-any -- Registry boundary must preserve provider variance.
 export type AnyTabProvider = TabProvider<any, any, any, any, any>;
 
 /**
@@ -87,8 +87,7 @@ export function createTabRegistry<const P extends readonly AnyTabProvider[]>(
     has(kind: string): boolean {
       return map.has(kind);
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    _providers: providers as any,
+    _providers: providers,
   };
   return registry;
 }

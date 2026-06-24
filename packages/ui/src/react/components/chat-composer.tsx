@@ -528,7 +528,7 @@ export function ChatComposer({
       });
     };
     // Intentionally omit `attachments` from deps — only run on unmount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSubmit = (text: string) => {

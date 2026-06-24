@@ -23,6 +23,7 @@ import type { MentionItem } from '../types';
 export function buildMentionExtension(
   // Use `any` for the Selected generic so our richer MentionItem attrs don't conflict
   // with TipTap's narrower built-in MentionNodeAttrs type.
+  // oxlint-disable-next-line typescript/no-explicit-any -- TipTap constrains this to MentionNodeAttrs internally.
   suggestion: Partial<SuggestionOptions<MentionItem, any>>
 ) {
   return TipTapMention.extend({
@@ -60,10 +61,11 @@ export function buildMentionExtension(
         `@${(node.attrs.label as string | null) ?? (node.attrs.id as string | null) ?? ''}`,
       ];
     },
-    // Cast to `any` to bypass the MentionNodeAttrs constraint; we control the attrs shape.
+    // Cast to bypass the MentionNodeAttrs constraint; we control the attrs shape.
     suggestion: {
       char: '@',
       allowSpaces: false,
+      // oxlint-disable-next-line typescript/no-explicit-any -- We control the mention attrs shape.
       ...(suggestion as Partial<SuggestionOptions<any, any>>),
     },
   });

@@ -104,12 +104,15 @@ function makeSuggestionRender<T>(
   setSuggestion: React.Dispatch<React.SetStateAction<SuggestionState<T>>>,
   popupRef: React.RefObject<ComboboxPopupHandle | null>
 ): () => {
+  // oxlint-disable-next-line typescript/no-explicit-any -- TipTap suggestion generics vary by extension.
   onStart?: (props: SuggestionProps<any, any>) => void;
+  // oxlint-disable-next-line typescript/no-explicit-any -- TipTap suggestion generics vary by extension.
   onUpdate?: (props: SuggestionProps<any, any>) => void;
   onExit?: () => void;
   onKeyDown?: (props: SuggestionKeyDownProps) => boolean;
 } {
   return () => ({
+    // oxlint-disable-next-line typescript/no-explicit-any -- TipTap suggestion generics vary by extension.
     onStart(props: SuggestionProps<any, any>) {
       setSuggestion({
         items: props.items as T[],
@@ -117,6 +120,7 @@ function makeSuggestionRender<T>(
         onSelect: (item) => props.command(item),
       });
     },
+    // oxlint-disable-next-line typescript/no-explicit-any -- TipTap suggestion generics vary by extension.
     onUpdate(props: SuggestionProps<any, any>) {
       setSuggestion({
         items: props.items as T[],

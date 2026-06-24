@@ -18,6 +18,7 @@ import type { CommandItem } from '../types';
 const slashCommandPluginKey = new PluginKey('slashCommand');
 
 export function buildSlashCommandExtension(
+  // oxlint-disable-next-line typescript/no-explicit-any -- TipTap constrains this to MentionNodeAttrs internally.
   suggestion: Partial<SuggestionOptions<CommandItem, any>>,
   onExecute: (item: CommandItem) => void
 ) {
@@ -72,6 +73,7 @@ export function buildSlashCommandExtension(
             .run();
         }
       },
+      // oxlint-disable-next-line typescript/no-explicit-any -- We control the slash command attrs shape.
       ...(suggestion as Partial<SuggestionOptions<any, any>>),
     },
   });

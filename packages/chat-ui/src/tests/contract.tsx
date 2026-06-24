@@ -68,6 +68,7 @@ export function makeContractCtx(opts: {
  * "expanded".
  */
 export async function renderAndMeasureUnit<D>(
+  // oxlint-disable-next-line typescript/no-explicit-any -- Unit vars are typed per definition.
   def: UnitDef<D, any>,
   data: D,
   ctx: ContractCtx
@@ -90,7 +91,7 @@ export async function renderAndMeasureUnit<D>(
   let dispose: (() => void) | undefined;
 
   try {
-    // oxlint-disable-next-line typescript/no-explicit-any -- JSX typed per-def; safe at boundary
+    // oxlint-disable-next-line typescript/no-explicit-any -- JSX props are typed per UnitDef.
     const Comp = def.Render as (p: any) => JSX.Element;
     const caches = ctx.caches;
     dispose = render(
