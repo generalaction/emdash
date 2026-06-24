@@ -1,0 +1,31 @@
+apps/emdash-desktop/src/renderer/features/integrations/provider-icons.tsx
+  s_760e6dd4de391c::t_f5c2d65af1a5a2 201-215,225
+apps/emdash-desktop/src/renderer/features/integrations/integration-setup-modal.tsx
+  s_760e6dd4de391c::t_7bffe507878cff 12,36
+apps/emdash-desktop/src/renderer/features/integrations/NotionSetupForm.tsx
+  s_760e6dd4de391c::t_f5c2d65af1a5a2 1-46
+apps/emdash-desktop/src/renderer/features/integrations/integrations-provider.test.ts
+  s_760e6dd4de391c::t_23240f9ee7b219 32
+apps/emdash-desktop/src/renderer/features/integrations/types.ts
+  s_760e6dd4de391c::t_7bffe507878cff 16
+apps/emdash-desktop/src/renderer/features/integrations/issue-provider-meta.ts
+  s_760e6dd4de391c::t_7bffe507878cff 14,75-80,150-153
+apps/emdash-desktop/src/renderer/features/integrations/integrations-provider.tsx
+  s_760e6dd4de391c::t_7bffe507878cff 80-86,140-144,229-232,248
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "fa0cdde6161431a9e40fbd2bfdf2db73744dc0a4",
+  "prompts": {},
+  "sessions": {
+    "s_760e6dd4de391c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef7f7-792a-74a1-a418-d97235dd6751",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
