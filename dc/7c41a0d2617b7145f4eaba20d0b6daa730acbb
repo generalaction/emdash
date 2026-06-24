@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/main/core/pty/ssh2-pty.test.ts
+  s_283428c342e1ba::t_ce723e3c1c78df 70
+  s_283428c342e1ba::t_08102c8c52017c 3,45-69,71-97
+apps/emdash-desktop/src/main/core/pty/ssh2-pty.ts
+  s_283428c342e1ba::t_2f8c598ff91253 9,13,15,72-76,78-81,83-86
+  s_283428c342e1ba::t_67442037243593 77
+  s_283428c342e1ba::t_e49c698992b2cc 14,82,87-98,100-108,110-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "dc7c41a0d2617b7145f4eaba20d0b6daa730acbb",
+  "prompts": {},
+  "sessions": {
+    "s_283428c342e1ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_105bd09fbffeEXUhEhZPc4Asls",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
