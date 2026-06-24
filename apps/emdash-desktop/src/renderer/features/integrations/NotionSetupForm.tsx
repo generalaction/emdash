@@ -49,12 +49,6 @@ function NotionSetupFormFields({
       onClose={onClose}
     >
       <div className="grid gap-2">
-        {isEditing ? (
-          <p className="text-xs text-foreground-muted">
-            A Notion access token is already saved. Enter a new token only if you want to replace
-            it.
-          </p>
-        ) : null}
         <Input
           type="password"
           placeholder={isEditing ? 'New access token (optional)' : 'Access token'}
@@ -64,16 +58,14 @@ function NotionSetupFormFields({
           autoFocus
         />
         <Input
-          placeholder="Page, database, or data source URLs (optional)"
+          placeholder="Page or database URLs (optional)"
           value={databaseUrls}
           onChange={(e) => setDatabaseUrls(e.target.value)}
           className="h-9 w-full"
         />
         <p className="text-muted-foreground text-xs">
-          Create a connection at <span className="font-medium">notion.com/my-integrations</span>,
-          copy the access token, then share the target pages or databases with that connection. Add
-          URLs to choose exactly which data sources Emdash searches; otherwise it searches all
-          shared pages.
+          Share pages or databases with your Notion connection. Leave URLs empty to search
+          everything shared.
         </p>
       </div>
     </SetupFormShell>

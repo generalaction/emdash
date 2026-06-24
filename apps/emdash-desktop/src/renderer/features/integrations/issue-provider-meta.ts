@@ -149,7 +149,7 @@ export const SETUP_PROVIDER_META: Record<
   },
   notion: {
     title: 'Connect Notion',
-    subtitle: 'Enter your Notion access token and optionally specify scope URLs.',
+    subtitle: 'Enter your access token and optional page or database URLs.',
   },
   trello: {
     title: 'Connect Trello',
