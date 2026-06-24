@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { cx } from '@styles/utilities/cx';
 import { SEMANTIC_VARS } from '@theme/core/contract/semantic-template';
 import React, { useEffect, useRef } from 'react';
-import { cx } from '@styles/utilities/cx';
-import { sx } from '@styles/utilities/sprinkles.css';
 import { Box } from '../primitives/box';
 import { ThemeProvider } from '../primitives/theme-provider';
 import * as s from '../story-layout.css';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 type Section = {
   title: string;
@@ -54,10 +54,37 @@ const SECTIONS: Section[] = [
       v === '--foreground-conflict' ||
       v === '--foreground-merged',
   },
-  { title: 'Success', match: (v) => v.startsWith('--foreground-success') || v.startsWith('--background-success') || v.startsWith('--border-success') },
-  { title: 'Error / Destructive', match: (v) => v.startsWith('--foreground-error') || v.startsWith('--background-error') || v.startsWith('--border-error') || v.startsWith('--foreground-destructive') || v.startsWith('--background-destructive') || v.startsWith('--border-destructive') },
-  { title: 'Warning', match: (v) => v.startsWith('--foreground-warning') || v.startsWith('--background-warning') || v.startsWith('--border-warning') },
-  { title: 'Info', match: (v) => v.startsWith('--foreground-info') || v.startsWith('--background-info') || v.startsWith('--border-info') },
+  {
+    title: 'Success',
+    match: (v) =>
+      v.startsWith('--foreground-success') ||
+      v.startsWith('--background-success') ||
+      v.startsWith('--border-success'),
+  },
+  {
+    title: 'Error / Destructive',
+    match: (v) =>
+      v.startsWith('--foreground-error') ||
+      v.startsWith('--background-error') ||
+      v.startsWith('--border-error') ||
+      v.startsWith('--foreground-destructive') ||
+      v.startsWith('--background-destructive') ||
+      v.startsWith('--border-destructive'),
+  },
+  {
+    title: 'Warning',
+    match: (v) =>
+      v.startsWith('--foreground-warning') ||
+      v.startsWith('--background-warning') ||
+      v.startsWith('--border-warning'),
+  },
+  {
+    title: 'Info',
+    match: (v) =>
+      v.startsWith('--foreground-info') ||
+      v.startsWith('--background-info') ||
+      v.startsWith('--border-info'),
+  },
 ];
 
 function categorize(vars: readonly string[]): Array<{ title: string; tokens: string[] }> {
@@ -66,7 +93,10 @@ function categorize(vars: readonly string[]): Array<{ title: string; tokens: str
     title,
     tokens: vars.filter((v) => {
       if (assigned.has(v)) return false;
-      if (match(v)) { assigned.add(v); return true; }
+      if (match(v)) {
+        assigned.add(v);
+        return true;
+      }
       return false;
     }),
   }));
@@ -79,7 +109,12 @@ type TokenKind = 'foreground' | 'background' | 'border' | 'mixed';
 
 function detectKind(varName: string): TokenKind {
   if (varName.startsWith('--foreground') || varName.startsWith('--status')) return 'foreground';
-  if (varName.startsWith('--background') || varName === '--selection' || varName.startsWith('--primary-button-background')) return 'background';
+  if (
+    varName.startsWith('--background') ||
+    varName === '--selection' ||
+    varName.startsWith('--primary-button-background')
+  )
+    return 'background';
   if (varName.startsWith('--border')) return 'border';
   return 'background';
 }
@@ -92,9 +127,13 @@ function TokenRow({ varName }: { varName: string }) {
   useEffect(() => {
     if (!ref.current || !resolvedRef.current) return;
     const computed = getComputedStyle(ref.current);
-    if (kind === 'border') { resolvedRef.current.textContent = computed.borderColor; }
-    else if (kind === 'foreground') { resolvedRef.current.textContent = computed.color; }
-    else { resolvedRef.current.textContent = computed.backgroundColor; }
+    if (kind === 'border') {
+      resolvedRef.current.textContent = computed.borderColor;
+    } else if (kind === 'foreground') {
+      resolvedRef.current.textContent = computed.color;
+    } else {
+      resolvedRef.current.textContent = computed.backgroundColor;
+    }
   });
 
   const preview =
@@ -143,7 +182,9 @@ function TokenRow({ varName }: { varName: string }) {
     <Box display="flex" alignItems="center" gap="3" py="1.5">
       {preview}
       <Box display="flex" minWidth="0" flexDirection="column" gap="0.5">
-        <span className={cx(sx({ fontFamily: 'mono', fontSize: 'xs', color: 'foreground' }))}>{varName}</span>
+        <span className={cx(sx({ fontFamily: 'mono', fontSize: 'xs', color: 'foreground' }))}>
+          {varName}
+        </span>
         <span
           ref={resolvedRef}
           className={cx(sx({ fontFamily: 'mono', color: 'foregroundPassive' }), s.text10px)}
@@ -157,7 +198,20 @@ function SectionBlock({ title, tokens }: { title: string; tokens: string[] }) {
   return (
     <Box>
       <h3
-        className={cx(sx({ marginBottom: '2', borderBottomWidth: '1', borderStyle: 'solid', borderColor: 'border', paddingBottom: '1', fontWeight: 'semibold', color: 'foregroundMuted', textTransform: 'uppercase' }), s.text11px, s.trackingWider)}
+        className={cx(
+          sx({
+            marginBottom: '2',
+            borderBottomWidth: '1',
+            borderStyle: 'solid',
+            borderColor: 'border',
+            paddingBottom: '1',
+            fontWeight: 'semibold',
+            color: 'foregroundMuted',
+            textTransform: 'uppercase',
+          }),
+          s.text11px,
+          s.trackingWider
+        )}
       >
         {title}
       </h3>
@@ -180,7 +234,12 @@ function SemanticTokenGrid() {
         </h2>
         <p className={cx(sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }))}>
           Every semantic CSS custom property defined in{' '}
-          <code className={cx(sx({ rounded: 'sm', background: 'background2', px: '1', fontFamily: 'mono' }), s.text11px)}>
+          <code
+            className={cx(
+              sx({ rounded: 'sm', background: 'background2', px: '1', fontFamily: 'mono' }),
+              s.text11px
+            )}
+          >
             semantic-template.ts
           </code>
           . Foreground tokens show colored text; border tokens show a colored outline; all others

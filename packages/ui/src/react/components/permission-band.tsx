@@ -12,9 +12,9 @@
  *   other    → neutral
  */
 
+import { cx } from '@styles/utilities/cx';
 import { ShieldAlertIcon } from 'lucide-react';
 import * as React from 'react';
-import { cx } from '@styles/utilities/cx';
 import { SplitButton } from '../primitives/split-button';
 import type { SplitButtonOption } from '../primitives/split-button';
 import * as styles from './permission-band.css';

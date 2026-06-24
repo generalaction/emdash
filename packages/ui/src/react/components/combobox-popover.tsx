@@ -16,9 +16,9 @@
  */
 
 import { type ComboboxRootChangeEventDetails } from '@base-ui/react/combobox';
+import { cx } from '@styles/utilities/cx';
 import { ChevronDown } from 'lucide-react';
 import * as React from 'react';
-import { cx } from '@styles/utilities/cx';
 import {
   Combobox,
   ComboboxContent,

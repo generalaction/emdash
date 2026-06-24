@@ -3,13 +3,13 @@
  */
 
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { cx } from '@styles/utilities/cx';
 import { Bot, Cpu, Zap } from 'lucide-react';
 import React, { useState } from 'react';
-import { cx } from '@styles/utilities/cx';
-import { sx } from '@styles/utilities/sprinkles.css';
 import { Box } from '../primitives/box';
 import { ComboboxPopover } from './combobox-popover';
 import * as s from '../story-layout.css';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 interface ModelItem {
   id: string;
@@ -22,12 +22,60 @@ interface ModelItem {
 }
 
 const MODELS: ModelItem[] = [
-  { id: 'claude-opus-4', name: 'Claude Opus 4', provider: 'Anthropic', description: 'Most capable model for complex reasoning and nuanced tasks.', contextK: 200, speed: 0.4, intelligence: 1.0 },
-  { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', provider: 'Anthropic', description: 'Excellent balance of speed and intelligence.', contextK: 200, speed: 0.75, intelligence: 0.85 },
-  { id: 'claude-haiku-4', name: 'Claude Haiku 4', provider: 'Anthropic', description: 'Fast and efficient for high-volume tasks.', contextK: 200, speed: 0.95, intelligence: 0.65 },
-  { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI', description: 'OpenAI flagship multimodal model.', contextK: 128, speed: 0.7, intelligence: 0.9 },
-  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', description: 'Lightweight, cost-efficient GPT-4o variant.', contextK: 128, speed: 0.9, intelligence: 0.7 },
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google', description: "Google's most capable model — 1M context window.", contextK: 1000, speed: 0.6, intelligence: 0.95 },
+  {
+    id: 'claude-opus-4',
+    name: 'Claude Opus 4',
+    provider: 'Anthropic',
+    description: 'Most capable model for complex reasoning and nuanced tasks.',
+    contextK: 200,
+    speed: 0.4,
+    intelligence: 1.0,
+  },
+  {
+    id: 'claude-sonnet-4-5',
+    name: 'Claude Sonnet 4.5',
+    provider: 'Anthropic',
+    description: 'Excellent balance of speed and intelligence.',
+    contextK: 200,
+    speed: 0.75,
+    intelligence: 0.85,
+  },
+  {
+    id: 'claude-haiku-4',
+    name: 'Claude Haiku 4',
+    provider: 'Anthropic',
+    description: 'Fast and efficient for high-volume tasks.',
+    contextK: 200,
+    speed: 0.95,
+    intelligence: 0.65,
+  },
+  {
+    id: 'gpt-4o',
+    name: 'GPT-4o',
+    provider: 'OpenAI',
+    description: 'OpenAI flagship multimodal model.',
+    contextK: 128,
+    speed: 0.7,
+    intelligence: 0.9,
+  },
+  {
+    id: 'gpt-4o-mini',
+    name: 'GPT-4o Mini',
+    provider: 'OpenAI',
+    description: 'Lightweight, cost-efficient GPT-4o variant.',
+    contextK: 128,
+    speed: 0.9,
+    intelligence: 0.7,
+  },
+  {
+    id: 'gemini-2.5-pro',
+    name: 'Gemini 2.5 Pro',
+    provider: 'Google',
+    description: "Google's most capable model — 1M context window.",
+    contextK: 1000,
+    speed: 0.6,
+    intelligence: 0.95,
+  },
 ];
 
 function BarMeter({ value }: { value: number }) {
@@ -49,7 +97,10 @@ function ModelDetailCard({ item }: { item: ModelItem }) {
   return (
     <Box padding="3" fontSize="sm" className={s.w52} style={{ color: 'var(--foreground)' }}>
       <Box display="flex" alignItems="center" gap="1.5">
-        <Bot className={cx(s.size4, sx({ flexShrink: 0 }))} style={{ color: 'var(--foreground-muted)' }} />
+        <Bot
+          className={cx(s.size4, sx({ flexShrink: 0 }))}
+          style={{ color: 'var(--foreground-muted)' }}
+        />
         <p className={cx(sx({ lineHeight: 'tight', fontWeight: 'medium' }))}>{item.name}</p>
       </Box>
       <p
@@ -179,7 +230,10 @@ function DetailCardAboveStory() {
               style={{ color: 'var(--foreground-muted)' }}
             />
             <span className={cx(sx({ flex: '1', fontSize: 'sm' }), 'truncate')}>{item.name}</span>
-            <span className={cx(sx({ fontSize: 'xs' }))} style={{ color: 'var(--foreground-muted)' }}>
+            <span
+              className={cx(sx({ fontSize: 'xs' }))}
+              style={{ color: 'var(--foreground-muted)' }}
+            >
               {item.provider}
             </span>
           </Box>

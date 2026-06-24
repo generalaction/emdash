@@ -21,9 +21,9 @@
  *   reactive read accessors for UnitRow to build its RenderCtx.
  */
 
+import type { Virtualizer } from '@core/virtualizer';
 import { createRoot, createSignal } from 'solid-js';
 import type { Accessor, Setter } from 'solid-js';
-import type { Virtualizer } from '@core/virtualizer';
 import { collapseAnimationDefaults } from './create-height-tween';
 
 // ── Easing ────────────────────────────────────────────────────────────────────
@@ -120,15 +120,21 @@ export type TweenRegistryOptions = {
 export function createTweenRegistry(
   virt: Virtualizer,
   onHeightChanged: (index: number, delta: number) => void,
-  opts: TweenRegistryOptions = {},
+  opts: TweenRegistryOptions = {}
 ): TweenRegistry {
-  const { reducedMotion = defaultReducedMotion, requestFrame, now: nowFn = () => performance.now() } = opts;
+  const {
+    reducedMotion = defaultReducedMotion,
+    requestFrame,
+    now: nowFn = () => performance.now(),
+  } = opts;
 
-  const armScheduler = requestFrame ?? (() => {
-    // Fallback for environments without a frame scheduler (tests, stories).
-    // A single rAF is enough; the registry will re-arm via advance() returning true.
-    if (typeof requestAnimationFrame !== 'undefined') requestAnimationFrame(() => {});
-  });
+  const armScheduler =
+    requestFrame ??
+    (() => {
+      // Fallback for environments without a frame scheduler (tests, stories).
+      // A single rAF is enough; the registry will re-arm via advance() returning true.
+      if (typeof requestAnimationFrame !== 'undefined') requestAnimationFrame(() => {});
+    });
 
   const entries = new Map<string, TweenEntry>();
 
@@ -139,7 +145,7 @@ export function createTweenRegistry(
     itemId: string,
     getIndex: () => number,
     target: number,
-    shouldAnim: boolean,
+    shouldAnim: boolean
   ): TweenHandle => {
     const existing = entries.get(itemId);
 
@@ -266,7 +272,6 @@ function makeHandle(entry: TweenEntry): TweenHandle {
   return {
     height: entry.height,
     animating: entry.animating,
-    clipHeight: (gapBefore: number) =>
-      entry.animating() ? entry.height() - gapBefore : null,
+    clipHeight: (gapBefore: number) => (entry.animating() ? entry.height() - gapBefore : null),
   };
 }

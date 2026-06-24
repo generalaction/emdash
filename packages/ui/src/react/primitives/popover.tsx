@@ -1,8 +1,8 @@
 'use client';
 
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover';
-import * as React from 'react';
 import { cx } from '@styles/utilities/cx';
+import * as React from 'react';
 import * as styles from './popover.css';
 
 function Popover({ ...props }: PopoverPrimitive.Root.Props) {

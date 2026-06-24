@@ -597,8 +597,7 @@ export function createTranscript(): TranscriptApi {
             case 'resource_link_start': {
               if (s.activeTurn === null) s.activeTurn = [];
               const existingLink = s.activeTurn.find(
-                (it): it is ChatResourceLink =>
-                  it.kind === 'resource-link' && it.id === event.id
+                (it): it is ChatResourceLink => it.kind === 'resource-link' && it.id === event.id
               );
               if (!existingLink) {
                 s.activeTurn.push({
@@ -620,8 +619,7 @@ export function createTranscript(): TranscriptApi {
             case 'resource_link_update': {
               if (s.activeTurn === null) break;
               const existingLink = s.activeTurn.find(
-                (it): it is ChatResourceLink =>
-                  it.kind === 'resource-link' && it.id === event.id
+                (it): it is ChatResourceLink => it.kind === 'resource-link' && it.id === event.id
               );
               if (existingLink) {
                 if (event.target !== undefined) existingLink.target = event.target;

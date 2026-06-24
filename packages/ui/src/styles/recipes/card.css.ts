@@ -19,8 +19,8 @@
 
 import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
-import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '../../theme/tokens.css';
+import { vars } from '@theme/core/contract/contract.css';
 
 export const card = recipe({
   base: {

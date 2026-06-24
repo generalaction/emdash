@@ -58,4 +58,3 @@ export const cardChevron = style({
 export const cardChevronExpanded = style({
   transform: 'rotate(90deg)',
 });
-

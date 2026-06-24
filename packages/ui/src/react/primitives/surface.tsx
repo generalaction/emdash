@@ -11,9 +11,9 @@
  *   <Surface emphasis level="...">  explicit emphasis that also re-scopes
  */
 
+import { cx } from '@styles/utilities/cx';
 import type { SurfaceScopeName, SurfaceStatusName } from '@theme/core/contract/roles';
 import React, { createContext, useContext } from 'react';
-import { cx } from '@styles/utilities/cx';
 
 // ── Context ───────────────────────────────────────────────────────────────────
 

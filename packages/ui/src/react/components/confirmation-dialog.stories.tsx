@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import React, { useState } from 'react';
 import { cx } from '@styles/utilities/cx';
-import { sx } from '@styles/utilities/sprinkles.css';
+import React, { useState } from 'react';
 import { Box } from '../primitives/box';
 import { Button } from '../primitives/button';
 import { ConfirmationDialog } from './confirmation-dialog';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 const meta: Meta = {
   title: 'Components/ConfirmationDialog',
@@ -22,7 +22,9 @@ function NeutralStory() {
       <Button variant="ghost" onClick={() => setOpen(true)}>
         Leave page
       </Button>
-      <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>Last action: {lastAction}</p>
+      <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>
+        Last action: {lastAction}
+      </p>
       <ConfirmationDialog
         open={open}
         onOpenChange={setOpen}

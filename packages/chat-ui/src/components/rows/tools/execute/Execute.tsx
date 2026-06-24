@@ -17,10 +17,10 @@
 import { useCaches } from '@components/contexts/CachesContext';
 import { cancelIdle, scheduleIdle } from '@components/engine/dom-utils';
 import { applyTokensToElement, type CodeToken } from '@core/highlight/apply-tokens';
-import { fadeOverlayBottom } from '@styles/effects.css';
 import { For, Show, createEffect, onCleanup } from 'solid-js';
 import type { ChatExecute } from '@/model';
 import { executeBody, executeLine } from './execute.css';
+import { fadeOverlayBottom } from '@styles/effects.css';
 
 // ── ExecuteBody ───────────────────────────────────────────────────────────────
 
@@ -83,7 +83,14 @@ export function ExecuteBody(props: ExecuteBodyProps) {
       <Show when={!props.expanded && overflows()}>
         <div
           class={fadeOverlayBottom}
-          style={{ position: 'absolute', inset: '0', 'pointer-events': 'none', height: '28px', bottom: '0', top: 'auto' }}
+          style={{
+            position: 'absolute',
+            inset: '0',
+            'pointer-events': 'none',
+            height: '28px',
+            bottom: '0',
+            top: 'auto',
+          }}
           aria-hidden="true"
         />
       </Show>

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
+import { Box } from './box';
 import {
   Select,
   SelectContent,
@@ -10,7 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from './select';
-import { Box } from './box';
 import * as s from '../story-layout.css';
 
 const meta: Meta = {

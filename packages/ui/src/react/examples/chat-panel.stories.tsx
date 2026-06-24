@@ -6,11 +6,9 @@ import type { ChatCommands, ChatHandle, MentionProvider } from '@emdash/chat-ui'
 import { generateMockTranscript } from '@emdash/chat-ui';
 import { ChatTranscript } from '@emdash/chat-ui/react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { cx } from '@styles/utilities/cx';
 import { ArrowDown } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { cx } from '@styles/utilities/cx';
-import { sx } from '@styles/utilities/sprinkles.css';
-import { Box } from '../primitives/box';
 import { ChatComposer, stopReasonNotice } from '../components/chat-composer';
 import type {
   ComposerAttachment,
@@ -23,8 +21,10 @@ import { ImageViewerDialog } from '../components/image-viewer-dialog';
 import type { ComposerPermissionRequest } from '../components/permission-band';
 import { basename, fileIconClass } from '../components/prompt-editor/mention-pill-helpers';
 import type { PromptEditorRef } from '../components/prompt-editor/types';
+import { Box } from '../primitives/box';
 import { Button } from '../primitives/button';
 import * as s from '../story-layout.css';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 const RED_1PX =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==';
@@ -32,24 +32,87 @@ const BLUE_1PX =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 const MOCK_FILES: MentionItem[] = [
-  { id: 'src/components/chat-composer.tsx', label: 'src/components/chat-composer.tsx', name: 'chat-composer.tsx', kind: 'file', description: 'UI' },
-  { id: 'src/components/prompt-editor/prompt-editor.tsx', label: 'src/components/prompt-editor/prompt-editor.tsx', name: 'prompt-editor.tsx', kind: 'file', description: 'UI' },
-  { id: 'src/lib/file-icons.ts', label: 'src/lib/file-icons.ts', name: 'file-icons.ts', kind: 'file' },
-  { id: 'src/primitives/combobox.tsx', label: 'src/primitives/combobox.tsx', name: 'combobox.tsx', kind: 'file' },
-  { id: 'src/primitives/button.tsx', label: 'src/primitives/button.tsx', name: 'button.tsx', kind: 'file' },
+  {
+    id: 'src/components/chat-composer.tsx',
+    label: 'src/components/chat-composer.tsx',
+    name: 'chat-composer.tsx',
+    kind: 'file',
+    description: 'UI',
+  },
+  {
+    id: 'src/components/prompt-editor/prompt-editor.tsx',
+    label: 'src/components/prompt-editor/prompt-editor.tsx',
+    name: 'prompt-editor.tsx',
+    kind: 'file',
+    description: 'UI',
+  },
+  {
+    id: 'src/lib/file-icons.ts',
+    label: 'src/lib/file-icons.ts',
+    name: 'file-icons.ts',
+    kind: 'file',
+  },
+  {
+    id: 'src/primitives/combobox.tsx',
+    label: 'src/primitives/combobox.tsx',
+    name: 'combobox.tsx',
+    kind: 'file',
+  },
+  {
+    id: 'src/primitives/button.tsx',
+    label: 'src/primitives/button.tsx',
+    name: 'button.tsx',
+    kind: 'file',
+  },
   { id: 'package.json', label: 'package.json', name: 'package.json', kind: 'file' },
   { id: 'README.md', label: 'README.md', name: 'README.md', kind: 'file' },
-  { id: 'issue-42', label: 'issue-42', name: 'Issue #42: Dark mode toggle', kind: 'issue', description: 'open' },
-  { id: 'handleSubmit', label: 'handleSubmit', name: 'handleSubmit()', kind: 'symbol', description: 'chat-composer.tsx' },
+  {
+    id: 'issue-42',
+    label: 'issue-42',
+    name: 'Issue #42: Dark mode toggle',
+    kind: 'issue',
+    description: 'open',
+  },
+  {
+    id: 'handleSubmit',
+    label: 'handleSubmit',
+    name: 'handleSubmit()',
+    kind: 'symbol',
+    description: 'chat-composer.tsx',
+  },
 ];
 
 const MOCK_MODELS: Record<string, ComposerModelOption> = {
-  'claude-opus-4': { name: 'Claude Opus 4', description: 'Most capable model for complex reasoning and nuanced tasks.', modelFeatures: { contextWindowSize: 200_000, speed: 0.4, intelligence: 1.0 } },
-  'claude-sonnet-4-5': { name: 'Claude Sonnet 4.5', description: 'Excellent balance of speed and intelligence for everyday tasks.', modelFeatures: { contextWindowSize: 200_000, speed: 0.75, intelligence: 0.85 } },
-  'claude-haiku-4': { name: 'Claude Haiku 4', description: 'Fast and efficient, great for high-volume straightforward tasks.', modelFeatures: { contextWindowSize: 200_000, speed: 0.95, intelligence: 0.65 } },
-  'gpt-4o': { name: 'GPT-4o', description: 'OpenAI flagship multimodal model.', modelFeatures: { contextWindowSize: 128_000, speed: 0.7, intelligence: 0.9 } },
-  'gpt-4o-mini': { name: 'GPT-4o Mini', description: 'Lightweight, cost-efficient GPT-4o variant.', modelFeatures: { contextWindowSize: 128_000, speed: 0.9, intelligence: 0.7 } },
-  'gemini-2.5-pro': { name: 'Gemini 2.5 Pro', description: "Google's most capable model with a 1M context window.", modelFeatures: { contextWindowSize: 1_000_000, speed: 0.6, intelligence: 0.95 } },
+  'claude-opus-4': {
+    name: 'Claude Opus 4',
+    description: 'Most capable model for complex reasoning and nuanced tasks.',
+    modelFeatures: { contextWindowSize: 200_000, speed: 0.4, intelligence: 1.0 },
+  },
+  'claude-sonnet-4-5': {
+    name: 'Claude Sonnet 4.5',
+    description: 'Excellent balance of speed and intelligence for everyday tasks.',
+    modelFeatures: { contextWindowSize: 200_000, speed: 0.75, intelligence: 0.85 },
+  },
+  'claude-haiku-4': {
+    name: 'Claude Haiku 4',
+    description: 'Fast and efficient, great for high-volume straightforward tasks.',
+    modelFeatures: { contextWindowSize: 200_000, speed: 0.95, intelligence: 0.65 },
+  },
+  'gpt-4o': {
+    name: 'GPT-4o',
+    description: 'OpenAI flagship multimodal model.',
+    modelFeatures: { contextWindowSize: 128_000, speed: 0.7, intelligence: 0.9 },
+  },
+  'gpt-4o-mini': {
+    name: 'GPT-4o Mini',
+    description: 'Lightweight, cost-efficient GPT-4o variant.',
+    modelFeatures: { contextWindowSize: 128_000, speed: 0.9, intelligence: 0.7 },
+  },
+  'gemini-2.5-pro': {
+    name: 'Gemini 2.5 Pro',
+    description: "Google's most capable model with a 1M context window.",
+    modelFeatures: { contextWindowSize: 1_000_000, speed: 0.6, intelligence: 0.95 },
+  },
 };
 
 const chatMentionProvider: MentionProvider = {
@@ -57,7 +120,13 @@ const chatMentionProvider: MentionProvider = {
     const match = MOCK_FILES.find((f) => f.label === token || f.name === token);
     if (!match) return null;
     const iconClass = match.kind === 'file' ? (fileIconClass(match.label) ?? undefined) : undefined;
-    return { id: match.id, label: match.label, name: match.name ?? basename(match.label), kind: match.kind, iconClass };
+    return {
+      id: match.id,
+      label: match.label,
+      name: match.name ?? basename(match.label),
+      kind: match.kind,
+      iconClass,
+    };
   },
 };
 
@@ -157,7 +226,12 @@ function LiveChatPanel({
   const handleFilesDropped = useCallback((files: File[]) => {
     const nonImages = files.filter((f) => !f.type.startsWith('image/'));
     nonImages.forEach((f) => {
-      editorApiRef.current?.insertMention({ id: f.name, label: f.name, name: f.name, kind: 'file' });
+      editorApiRef.current?.insertMention({
+        id: f.name,
+        label: f.name,
+        name: f.name,
+        kind: 'file',
+      });
     });
   }, []);
 
@@ -169,11 +243,22 @@ function LiveChatPanel({
         .filter((a) => a.kind === 'image')
         .map((a) => ({ id: a.id, name: a.name, dataUrl: a.previewUrl }));
       const userId = crypto.randomUUID();
-      api.dispatch({ type: 'message_chunk', id: userId, role: 'user', text, attachments: atts.length > 0 ? atts : undefined });
+      api.dispatch({
+        type: 'message_chunk',
+        id: userId,
+        role: 'user',
+        text,
+        attachments: atts.length > 0 ? atts : undefined,
+      });
       api.dispatch({ type: 'turn_done' });
       setAttachments([]);
       const assistantId = crypto.randomUUID();
-      api.dispatch({ type: 'message_chunk', id: assistantId, role: 'assistant', text: text ? `Got it! You said: *${text}*` : 'Got it — received your image!' });
+      api.dispatch({
+        type: 'message_chunk',
+        id: assistantId,
+        role: 'assistant',
+        text: text ? `Got it! You said: *${text}*` : 'Got it — received your image!',
+      });
       api.dispatch({ type: 'turn_done' });
     },
     [attachments]
@@ -204,10 +289,31 @@ function LiveChatPanel({
 
       <div
         ref={composerRef}
-        className={cx(s.bgSurface80, s.backdropBlurSm, s.mxAuto, s.maxW2xl, sx({ position: 'absolute', left: '0', right: '0', bottom: '0', width: 'full', paddingBottom: '2' }))}
+        className={cx(
+          s.bgSurface80,
+          s.backdropBlurSm,
+          s.mxAuto,
+          s.maxW2xl,
+          sx({
+            position: 'absolute',
+            left: '0',
+            right: '0',
+            bottom: '0',
+            width: 'full',
+            paddingBottom: '2',
+          })
+        )}
       >
         {!atBottom && (
-          <div className={cx(s.negTop2, s.left50pct, s.negTranslateX, s.negTranslateY, sx({ position: 'absolute' }))}>
+          <div
+            className={cx(
+              s.negTop2,
+              s.left50pct,
+              s.negTranslateX,
+              s.negTranslateY,
+              sx({ position: 'absolute' })
+            )}
+          >
             <Button
               variant="primary"
               size="sm"

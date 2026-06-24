@@ -1,7 +1,7 @@
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
+import { cx } from '@styles/utilities/cx';
 import { XIcon } from 'lucide-react';
 import * as React from 'react';
-import { cx } from '@styles/utilities/cx';
 import { Button } from './button';
 import { ScrollContainer } from './scroll-container';
 import * as styles from './dialog.css';

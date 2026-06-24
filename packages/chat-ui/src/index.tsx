@@ -44,7 +44,11 @@ export type {
 export type { TurnStatus } from './state/transcript';
 export type { TranscriptApi, TranscriptEvent } from './state/transcript';
 export { createStreamSmoother } from './state/stream-smoother';
-export type { StreamSmoother, StreamSmootherOptions, SmootherScheduler } from './state/stream-smoother';
+export type {
+  StreamSmoother,
+  StreamSmootherOptions,
+  SmootherScheduler,
+} from './state/stream-smoother';
 export type { ViewState } from './state/view-state';
 export { generateMockTranscript } from './mock-transcript';
 export type {

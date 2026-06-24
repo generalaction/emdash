@@ -95,7 +95,7 @@ export type HeightTweenResult = {
 
 export function createHeightTween(
   target: Accessor<number>,
-  opts: HeightTweenOptions = {},
+  opts: HeightTweenOptions = {}
 ): HeightTweenResult {
   const {
     // Fall through to the module-level default so stories can tune it.

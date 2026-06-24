@@ -106,9 +106,17 @@ describe('createFrameScheduler — read runs before write', () => {
     withFakeRaf(raf, () => {
       const order: string[] = [];
       const scheduler = createFrameScheduler({
-        read: () => { order.push('read'); },
-        animate: () => { order.push('animate'); return false; },
-        write: () => { order.push('write'); return false; },
+        read: () => {
+          order.push('read');
+        },
+        animate: () => {
+          order.push('animate');
+          return false;
+        },
+        write: () => {
+          order.push('write');
+          return false;
+        },
       });
 
       scheduler.request();
@@ -143,7 +151,10 @@ describe('createFrameScheduler — sleeps when idle', () => {
       let ticks = 0;
       const scheduler = createFrameScheduler({
         read: vi.fn(),
-        animate: () => { ticks++; return ticks < 3; }, // active for 3 ticks
+        animate: () => {
+          ticks++;
+          return ticks < 3;
+        }, // active for 3 ticks
         write: vi.fn(() => false),
       });
 
@@ -166,7 +177,10 @@ describe('createFrameScheduler — sleeps when idle', () => {
       const scheduler = createFrameScheduler({
         read: vi.fn(),
         animate: vi.fn(() => false),
-        write: () => { writes++; return writes < 2; }, // active for 2 ticks
+        write: () => {
+          writes++;
+          return writes < 2;
+        }, // active for 2 ticks
       });
 
       scheduler.request();

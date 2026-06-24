@@ -1,5 +1,5 @@
-import * as React from 'react';
 import { cx } from '@styles/utilities/cx';
+import * as React from 'react';
 
 export type ScrollFadeProps = {
   /**

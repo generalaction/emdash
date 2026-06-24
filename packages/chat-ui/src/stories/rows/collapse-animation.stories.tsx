@@ -13,9 +13,9 @@
  *   - user message card (long text — click the bubble to expand)
  */
 
-import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import { collapseAnimationDefaults } from '@components/engine/create-height-tween';
 import { createEffect } from 'solid-js';
+import type { Meta, StoryObj } from 'storybook-solidjs-vite';
 import type { ChatItem } from '@/model';
 import { ChatHost, ChatHostExpanded } from '@/stories/_harness/chat-host';
 
@@ -47,7 +47,8 @@ const ITEMS: ChatItem[] = [
   {
     kind: 'execute',
     id: 'exec1',
-    command: 'pnpm run typecheck --filter=@emdash/desktop && pnpm run test --filter=@emdash/desktop -- --run',
+    command:
+      'pnpm run typecheck --filter=@emdash/desktop && pnpm run test --filter=@emdash/desktop -- --run',
     status: 'done',
     startedAt: Date.now() - 2000,
   },
@@ -55,9 +56,21 @@ const ITEMS: ChatItem[] = [
     kind: 'plan',
     id: 'plan1',
     entries: [
-      { content: 'Extract `TokenService` with sign/verify helpers', status: 'completed', priority: 'high' },
-      { content: 'Move session state to `SessionStore` (Map + TTL)', status: 'completed', priority: 'high' },
-      { content: 'Add async mutex on the token-refresh critical section', status: 'completed', priority: 'medium' },
+      {
+        content: 'Extract `TokenService` with sign/verify helpers',
+        status: 'completed',
+        priority: 'high',
+      },
+      {
+        content: 'Move session state to `SessionStore` (Map + TTL)',
+        status: 'completed',
+        priority: 'high',
+      },
+      {
+        content: 'Add async mutex on the token-refresh critical section',
+        status: 'completed',
+        priority: 'medium',
+      },
       { content: 'Audit and sanitize all error messages', status: 'completed', priority: 'medium' },
       { content: 'Update unit tests for each new service', status: 'completed', priority: 'low' },
     ],
@@ -96,13 +109,7 @@ function CollapsePlayground(args: PlaygroundArgs) {
     collapseAnimationDefaults.durationMs = args.durationMs;
   });
 
-  return (
-    <ChatHostExpanded
-      items={ITEMS}
-      expandId="think1"
-      height={900}
-    />
-  );
+  return <ChatHostExpanded items={ITEMS} expandId="think1" height={900} />;
 }
 
 const meta: Meta<PlaygroundArgs> = {
@@ -142,7 +149,12 @@ export const Thinking: Story = {
           durationMs: 1800,
           startedAt: Date.now() - 1800,
         },
-        { kind: 'message', id: 'a1', role: 'assistant', text: 'The animation tween runs in `UnitRow` and drives `virt.setSize` every rAF tick so rows below slide in lockstep.' },
+        {
+          kind: 'message',
+          id: 'a1',
+          role: 'assistant',
+          text: 'The animation tween runs in `UnitRow` and drives `virt.setSize` every rAF tick so rows below slide in lockstep.',
+        },
       ]}
       expandId="think-solo"
       height={400}

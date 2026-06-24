@@ -17,13 +17,16 @@ import { sx } from './sprinkles.css';
 // ── Flex row helpers ─────────────────────────────────────────────────────────
 
 /** Horizontal flex container, items aligned center. */
-export const row = style([
-  sx({ display: 'flex', flexDirection: 'row', alignItems: 'center' }),
-]);
+export const row = style([sx({ display: 'flex', flexDirection: 'row', alignItems: 'center' })]);
 
 /** Horizontal flex container, items space-between + center-aligned. */
 export const rowBetween = style([
-  sx({ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }),
+  sx({
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  }),
 ]);
 
 // ── Stack / vertical ─────────────────────────────────────────────────────────

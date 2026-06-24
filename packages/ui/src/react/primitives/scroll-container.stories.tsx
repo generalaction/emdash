@@ -1,14 +1,20 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import React from 'react';
 import { cx } from '@styles/utilities/cx';
-import { sx } from '@styles/utilities/sprinkles.css';
+import React from 'react';
 import { Box } from './box';
 import { ScrollContainer } from './scroll-container';
 import { Surface } from './surface';
 import { ThemeProvider } from './theme-provider';
 import * as s from '../story-layout.css';
+import { sx } from '@styles/utilities/sprinkles.css';
 
-const SURFACE_LEVELS = ['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const;
+const SURFACE_LEVELS = [
+  'sunken',
+  'base',
+  'base-emphasis',
+  'elevated',
+  'elevated-emphasis',
+] as const;
 
 const meta: Meta<typeof ScrollContainer> = {
   title: 'Primitives/ScrollContainer',
@@ -41,7 +47,13 @@ export const WithOverflow: Story = {
     <ScrollContainer
       maxHeight={192}
       className={cx(
-        sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }),
+        sx({
+          background: 'surface',
+          borderWidth: '1',
+          borderStyle: 'solid',
+          borderColor: 'border',
+          rounded: 'sm',
+        }),
         s.w80
       )}
     >
@@ -61,7 +73,13 @@ export const NoOverflow: Story = {
     <ScrollContainer
       maxHeight={192}
       className={cx(
-        sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }),
+        sx({
+          background: 'surface',
+          borderWidth: '1',
+          borderStyle: 'solid',
+          borderColor: 'border',
+          rounded: 'sm',
+        }),
         s.w80
       )}
     >
@@ -79,7 +97,13 @@ export const TopFadeDisabled: Story = {
       maxHeight={192}
       topFade={false}
       className={cx(
-        sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }),
+        sx({
+          background: 'surface',
+          borderWidth: '1',
+          borderStyle: 'solid',
+          borderColor: 'border',
+          rounded: 'sm',
+        }),
         s.w80
       )}
     >
@@ -96,7 +120,13 @@ export const MaxHeightString: Story = {
     <ScrollContainer
       maxHeight="50vh"
       className={cx(
-        sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }),
+        sx({
+          background: 'surface',
+          borderWidth: '1',
+          borderStyle: 'solid',
+          borderColor: 'border',
+          rounded: 'sm',
+        }),
         s.w80
       )}
     >
@@ -123,7 +153,13 @@ export const SurfaceAware: Story = {
           <ScrollContainer
             maxHeight={160}
             className={cx(
-              sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }),
+              sx({
+                background: 'surface',
+                borderWidth: '1',
+                borderStyle: 'solid',
+                borderColor: 'border',
+                rounded: 'sm',
+              }),
               s.w44
             )}
           >
@@ -141,14 +177,27 @@ export const SurfaceAware: Story = {
 export const BothModes: Story = {
   render: () => (
     <Box display="flex" className={cx(s.minHScreen, s.divideX, s.divideBorder)}>
-      <ThemeProvider defaultTheme="light" className={cx(sx({ flex: '1', background: 'background', padding: '8' }))}>
-        <p className={cx(sx({ marginBottom: '4', fontSize: 'sm', fontWeight: 'medium', color: 'foreground' }))}>
+      <ThemeProvider
+        defaultTheme="light"
+        className={cx(sx({ flex: '1', background: 'background', padding: '8' }))}
+      >
+        <p
+          className={cx(
+            sx({ marginBottom: '4', fontSize: 'sm', fontWeight: 'medium', color: 'foreground' })
+          )}
+        >
           Light mode
         </p>
         <ScrollContainer
           maxHeight={192}
           className={cx(
-            sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }),
+            sx({
+              background: 'surface',
+              borderWidth: '1',
+              borderStyle: 'solid',
+              borderColor: 'border',
+              rounded: 'sm',
+            }),
             s.w80
           )}
         >
@@ -157,14 +206,27 @@ export const BothModes: Story = {
           </Box>
         </ScrollContainer>
       </ThemeProvider>
-      <ThemeProvider defaultTheme="dark" className={cx(sx({ flex: '1', background: 'background', padding: '8' }))}>
-        <p className={cx(sx({ marginBottom: '4', fontSize: 'sm', fontWeight: 'medium', color: 'foreground' }))}>
+      <ThemeProvider
+        defaultTheme="dark"
+        className={cx(sx({ flex: '1', background: 'background', padding: '8' }))}
+      >
+        <p
+          className={cx(
+            sx({ marginBottom: '4', fontSize: 'sm', fontWeight: 'medium', color: 'foreground' })
+          )}
+        >
           Dark mode
         </p>
         <ScrollContainer
           maxHeight={192}
           className={cx(
-            sx({ background: 'surface', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', rounded: 'sm' }),
+            sx({
+              background: 'surface',
+              borderWidth: '1',
+              borderStyle: 'solid',
+              borderColor: 'border',
+              rounded: 'sm',
+            }),
             s.w80
           )}
         >

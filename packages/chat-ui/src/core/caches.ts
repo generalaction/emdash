@@ -267,9 +267,7 @@ export function createChatCaches(
         ? parseMarkdownToBlocks(id, growingChunk, mentionProvider, rec.counter)
         : [];
 
-      return growingBlocks.length > 0
-        ? [...rec.stableBlocks, ...growingBlocks]
-        : rec.stableBlocks;
+      return growingBlocks.length > 0 ? [...rec.stableBlocks, ...growingBlocks] : rec.stableBlocks;
     },
 
     evictBlocks(id) {

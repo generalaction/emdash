@@ -46,10 +46,7 @@ function FileOpUnitRender(props: { data: ChatFileOpToolCall; ctx: RenderCtx; var
   });
 
   return (
-    <div
-      class={fileOpRoot}
-      style={assignInlineVars({ [fileOpCardVars.height]: `${totalH()}px` })}
-    >
+    <div class={fileOpRoot} style={assignInlineVars({ [fileOpCardVars.height]: `${totalH()}px` })}>
       <Show
         when={props.data.ops.length > 1}
         fallback={<FileOpRow item={props.data} rowH={rowH()} lineH={rowH()} />}

@@ -14,9 +14,9 @@
  * - clipHeight(): null at rest, animatedH - gapBefore while animating.
  */
 
+import type { Virtualizer } from '@core/virtualizer';
 import { createRoot } from 'solid-js';
 import { describe, expect, it, vi } from 'vitest';
-import type { Virtualizer } from '@core/virtualizer';
 import { collapseAnimationDefaults } from './create-height-tween';
 import { createTweenRegistry } from './tween-registry';
 
@@ -38,7 +38,6 @@ function makeVirt(): Virtualizer {
     },
   } as unknown as Virtualizer;
 }
-
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 

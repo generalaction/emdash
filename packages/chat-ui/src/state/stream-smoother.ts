@@ -89,7 +89,7 @@ export type StreamSmoother = TranscriptApi & {
  */
 export function createStreamSmoother(
   target: TranscriptApi,
-  opts: StreamSmootherOptions = {},
+  opts: StreamSmootherOptions = {}
 ): StreamSmoother {
   const {
     wordsPerTick = 1,
@@ -114,8 +114,7 @@ export function createStreamSmoother(
 
       // Catch-up: release proportionally more when the backlog is large.
       const backlog = buf.words.length;
-      const releaseCount =
-        backlog > catchUpThreshold ? Math.ceil(backlog / 4) : wordsPerTick;
+      const releaseCount = backlog > catchUpThreshold ? Math.ceil(backlog / 4) : wordsPerTick;
 
       // Collect atoms to forward in this tick.
       const atoms = buf.words.splice(0, releaseCount);
@@ -184,7 +183,13 @@ export function createStreamSmoother(
 
       // Pass through any attachments by re-dispatching without text.
       if (event.attachments && event.attachments.length > 0) {
-        target.dispatch({ type: 'message_chunk', id, role, text: '', attachments: event.attachments });
+        target.dispatch({
+          type: 'message_chunk',
+          id,
+          role,
+          text: '',
+          attachments: event.attachments,
+        });
       }
       return;
     }

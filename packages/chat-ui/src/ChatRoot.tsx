@@ -76,16 +76,16 @@ import { vars } from './styles/theme.css';
 const DEFAULT_CONTENT_CLASS = defaultContentClass;
 
 // Symmetric overscan used when idle or velocity unknown
-const OVERSCAN_BASE = 4;
+const OVERSCAN_BASE = 12;
 // Leading buffer in the direction of scroll; trailing buffer behind it
-const OVERSCAN_LEADING = 12;
-const OVERSCAN_TRAILING = 3;
+const OVERSCAN_LEADING = 20;
+const OVERSCAN_TRAILING = 8;
 
 // Idle-time prefetch: how many rows beyond the overscan window to pre-measure
 // during requestIdleCallback slices. Rows ahead in scroll direction get a
 // larger budget; behind get a smaller one.
-const PREFETCH_AHEAD = 30;
-const PREFETCH_BEHIND = 10;
+const PREFETCH_AHEAD = 40;
+const PREFETCH_BEHIND = 20;
 // Stop the current idle slice if less than this many ms remain (leaves headroom
 // for the browser's own idle tasks).
 const PREFETCH_MIN_REMAINING_MS = 3;

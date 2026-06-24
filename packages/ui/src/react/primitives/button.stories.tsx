@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { PlusIcon, SearchIcon, TrashIcon } from 'lucide-react';
 import React from 'react';
-import { Button } from './button';
 import { Box } from './box';
+import { Button } from './button';
 import * as s from '../story-layout.css';
 
 const meta: Meta<typeof Button> = {
@@ -101,7 +101,14 @@ export const Disabled: Story = {
 /** Surface-relative hover / active adapt correctly across all backgrounds. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <Box background="surfaceSunken" display="flex" flexDirection="column" gap="4" rounded="xl" padding="4">
+    <Box
+      background="surfaceSunken"
+      display="flex"
+      flexDirection="column"
+      gap="4"
+      rounded="xl"
+      padding="4"
+    >
       {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
         (level) => (
           <Box
@@ -114,7 +121,12 @@ export const AcrossSurfaces: Story = {
             rounded="lg"
             padding="3"
           >
-            <span className={s.w36} style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)' }}>{level}</span>
+            <span
+              className={s.w36}
+              style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)' }}
+            >
+              {level}
+            </span>
             <Button>Ghost</Button>
             <Button variant="primary">Primary</Button>
             <Button tone="destructive">Destructive</Button>

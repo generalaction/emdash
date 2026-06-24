@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
+import { Box } from './box';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,7 +8,6 @@ import {
   DropdownMenuTrigger,
 } from './dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
-import { Box } from './box';
 import { TriggerButton } from './trigger-button';
 import * as s from '../story-layout.css';
 
@@ -63,7 +63,14 @@ export const AsDropdownTrigger: Story = {
 /** Active state across all surfaces. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <Box background="surfaceSunken" display="flex" flexDirection="column" gap="4" rounded="xl" padding="4">
+    <Box
+      background="surfaceSunken"
+      display="flex"
+      flexDirection="column"
+      gap="4"
+      rounded="xl"
+      padding="4"
+    >
       {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
         (level) => (
           <Box
@@ -76,7 +83,12 @@ export const AcrossSurfaces: Story = {
             rounded="lg"
             padding="3"
           >
-            <span className={s.w36} style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)' }}>{level}</span>
+            <span
+              className={s.w36}
+              style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)' }}
+            >
+              {level}
+            </span>
             <Select>
               <SelectTrigger className={s.w40}>
                 <SelectValue placeholder="Select…" />

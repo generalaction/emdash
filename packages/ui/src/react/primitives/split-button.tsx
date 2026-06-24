@@ -11,9 +11,9 @@
  */
 
 import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
+import { cx } from '@styles/utilities/cx';
 import { ChevronDownIcon } from 'lucide-react';
 import * as React from 'react';
-import { cx } from '@styles/utilities/cx';
 import { Button, type ButtonProps } from './button';
 import {
   DropdownMenu,

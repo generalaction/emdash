@@ -14,10 +14,10 @@
  * on highlight and text-foreground-muted descriptions.
  */
 
+import { cx } from '@styles/utilities/cx';
 import { XIcon } from 'lucide-react';
 import * as React from 'react';
 import { createPortal } from 'react-dom';
-import { cx } from '@styles/utilities/cx';
 import * as styles from './combobox-popup.css';
 
 // ── Public types ──────────────────────────────────────────────────────────────

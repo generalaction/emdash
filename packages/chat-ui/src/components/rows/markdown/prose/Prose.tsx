@@ -15,7 +15,6 @@ import type {
   ProseLaidOut,
 } from '@core/layout/layout-types';
 import type { InlineMention, InlineRun } from '@core/markdown/document';
-import { streamWord } from '@styles/effects.css';
 import { For, Match, Show, Switch, createMemo, onMount } from 'solid-js';
 import {
   bulletColor,
@@ -31,6 +30,7 @@ import {
   pquoteRail,
   quoteRailBar,
 } from './prose.css';
+import { streamWord } from '@styles/effects.css';
 
 // ── Fragment ──────────────────────────────────────────────────────────────────
 

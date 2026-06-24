@@ -8,13 +8,13 @@
  * SlowMotion   — slow word cadence so the fade is easy to inspect.
  */
 
-import { streamWordDuration } from '@styles/effects.css';
+import { createStreamSmoother } from '@state/stream-smoother';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import { For, createMemo } from 'solid-js';
 import type { Meta, StoryObj } from 'storybook-solidjs-vite';
-import { createStreamSmoother } from '@state/stream-smoother';
 import { ScriptedChat } from '@/stories/_harness/chat-host';
 import { streamMessage } from '@/stories/_harness/streaming/scenario';
+import { streamWordDuration } from '@styles/effects.css';
 
 // ── Sample texts ──────────────────────────────────────────────────────────────
 

@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import React from 'react';
 import { cx } from '@styles/utilities/cx';
-import { sx } from '@styles/utilities/sprinkles.css';
+import React from 'react';
 import { Box } from './box';
 import { Button } from './button';
 import {
@@ -13,6 +12,7 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from './popover';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 const meta: Meta = {
   title: 'Primitives/Popover',
@@ -35,7 +35,9 @@ export const Default: Story = {
             This is a short description of the popover content.
           </PopoverDescription>
         </PopoverHeader>
-        <p className={cx(sx({ fontSize: 'sm', color: 'foregroundMuted' }))}>Some body content here.</p>
+        <p className={cx(sx({ fontSize: 'sm', color: 'foregroundMuted' }))}>
+          Some body content here.
+        </p>
       </PopoverContent>
     </Popover>
   ),
@@ -56,7 +58,9 @@ export const WithCloseButton: Story = {
             </Button>
           </PopoverClose>
         </PopoverHeader>
-        <p className={cx(sx({ fontSize: 'sm', color: 'foregroundMuted' }))}>Configure your preferences here.</p>
+        <p className={cx(sx({ fontSize: 'sm', color: 'foregroundMuted' }))}>
+          Configure your preferences here.
+        </p>
       </PopoverContent>
     </Popover>
   ),

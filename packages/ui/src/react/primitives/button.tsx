@@ -1,7 +1,7 @@
 import { Button as ButtonPrimitive } from '@base-ui/react/button';
 import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
-import * as React from 'react';
 import { cx } from '@styles/utilities/cx';
+import * as React from 'react';
 
 export type ButtonProps = ButtonPrimitive.Props &
   ControlVariantProps & {

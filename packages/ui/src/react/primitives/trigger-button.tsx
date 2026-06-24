@@ -1,7 +1,7 @@
 import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
+import { cx } from '@styles/utilities/cx';
 import { ChevronDownIcon } from 'lucide-react';
 import * as React from 'react';
-import { cx } from '@styles/utilities/cx';
 import { triggerButtonChevron, triggerButtonExtra } from './trigger-button.css';
 
 export interface TriggerButtonProps

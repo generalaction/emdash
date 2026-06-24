@@ -419,7 +419,7 @@ export function parseMarkdownToBlocks(
   messageId: string,
   markdown: string,
   provider?: MentionProvider,
-  startN = 0,
+  startN = 0
 ): Block[] {
   if (!markdown.trim()) return [];
 

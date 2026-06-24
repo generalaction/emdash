@@ -14,7 +14,6 @@
 
 import type { RenderCtx } from '@core/define';
 import { pxTokens } from '@styles/px-tokens';
-import { textShimmer } from '@styles/effects.css';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import type { JSX } from 'solid-js';
 import {
@@ -24,6 +23,7 @@ import {
   collapsibleCard,
   collapsibleCardVars,
 } from './collapsible-card.css';
+import { textShimmer } from '@styles/effects.css';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

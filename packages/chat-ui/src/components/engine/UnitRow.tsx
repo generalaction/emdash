@@ -41,7 +41,15 @@ import type { RenderUnit } from '@core/units';
 import { unitReservedHeight } from '@core/units';
 import type { Virtualizer } from '@core/virtualizer';
 import type { ViewState } from '@state/view-state';
-import { Show, createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from 'solid-js';
+import {
+  Show,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  onMount,
+  untrack,
+} from 'solid-js';
 import { Dynamic } from 'solid-js/web';
 import { createHeightTween } from './create-height-tween';
 import type { TweenHandle, TweenRegistry } from './tween-registry';
@@ -302,7 +310,9 @@ export function UnitRow(props: UnitRowProps) {
               {/* Clip wrapper — only active while animating */}
               <div
                 style={{
-                  height: animating() ? `${tweenHandle.clipHeight(props.unit.gapBefore) ?? animatedReserved() - props.unit.gapBefore}px` : 'auto',
+                  height: animating()
+                    ? `${tweenHandle.clipHeight(props.unit.gapBefore) ?? animatedReserved() - props.unit.gapBefore}px`
+                    : 'auto',
                   overflow: animating() ? 'hidden' : 'visible',
                 }}
               >

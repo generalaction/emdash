@@ -129,7 +129,11 @@ function PlanUnitRender(props: { data: ChatPlan; ctx: RenderCtx; vars: PlanVars 
         headerH={props.vars.rowH}
         expanded={isExpanded()}
         active={active()}
-        header={<>Plan {done()} out of {total()} Tasks done</>}
+        header={
+          <>
+            Plan {done()} out of {total()} Tasks done
+          </>
+        }
       >
         <div style={{ 'padding-left': planVars.padX, 'padding-right': planVars.padX }}>
           <Show when={!isExpanded()} fallback={<PlanList entries={entries()} />}>

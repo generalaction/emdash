@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import React from 'react';
 import { cx } from '@styles/utilities/cx';
-import { sx } from '@styles/utilities/sprinkles.css';
+import React from 'react';
 import { Box } from './box';
 import { Button } from './button';
 import {
@@ -14,6 +13,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from './sheet';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 const meta: Meta = {
   title: 'Primitives/Sheet',
@@ -64,7 +64,17 @@ export const LeftSide: Story = {
               <button
                 key={item}
                 type="button"
-                className={cx(sx({ background: 'surfaceBaseEmphasis', rounded: 'lg', px: '3', py: '2', textAlign: 'left', fontSize: 'sm', color: 'foreground' }))}
+                className={cx(
+                  sx({
+                    background: 'surfaceBaseEmphasis',
+                    rounded: 'lg',
+                    px: '3',
+                    py: '2',
+                    textAlign: 'left',
+                    fontSize: 'sm',
+                    color: 'foreground',
+                  })
+                )}
               >
                 {item}
               </button>

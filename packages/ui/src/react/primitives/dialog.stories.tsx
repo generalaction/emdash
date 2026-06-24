@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import React from 'react';
 import { cx } from '@styles/utilities/cx';
-import { sx } from '@styles/utilities/sprinkles.css';
+import React from 'react';
 import { Box } from './box';
 import { Button } from './button';
 import {
@@ -15,6 +14,7 @@ import {
   DialogTrigger,
   type DialogSize,
 } from './dialog';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 const meta: Meta = {
   title: 'Primitives/Dialog',

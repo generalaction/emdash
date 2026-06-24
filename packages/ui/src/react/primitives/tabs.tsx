@@ -1,7 +1,7 @@
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs';
 import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
-import * as React from 'react';
 import { cx } from '@styles/utilities/cx';
+import * as React from 'react';
 import * as styles from './tabs.css';
 
 // ── Root ──────────────────────────────────────────────────────────────────────

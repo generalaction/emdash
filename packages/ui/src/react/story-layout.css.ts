@@ -63,9 +63,15 @@ export const cols4 = style({ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' })
 export const cols5 = style({ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' });
 export const cols12 = style({ gridTemplateColumns: 'repeat(12, minmax(0, 1fr))' });
 
-export const lgCols2 = style({ '@media': { '(min-width: 1024px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } } });
-export const lgCols3 = style({ '@media': { '(min-width: 1024px)': { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' } } });
-export const lgCols7 = style({ '@media': { '(min-width: 1024px)': { gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' } } });
+export const lgCols2 = style({
+  '@media': { '(min-width: 1024px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } },
+});
+export const lgCols3 = style({
+  '@media': { '(min-width: 1024px)': { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' } },
+});
+export const lgCols7 = style({
+  '@media': { '(min-width: 1024px)': { gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' } },
+});
 
 // ── Child-combinator selectors (cannot be expressed in sprinkles) ─────────────
 

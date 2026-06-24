@@ -17,9 +17,9 @@
  *     absolute paths and insert them as path mentions via the editorApiRef.
  */
 
+import { cx } from '@styles/utilities/cx';
 import { ArrowUp, CircleAlert, Paperclip, Square, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import { cx } from '@styles/utilities/cx';
 import { Button } from '../primitives/button';
 import {
   Combobox,

@@ -1,6 +1,6 @@
 import { inputVariants, type InputVariantProps } from '@styles/recipes/input';
-import * as React from 'react';
 import { cx } from '@styles/utilities/cx';
+import * as React from 'react';
 import { textareaOverride } from './textarea.css';
 
 export interface TextareaProps extends React.ComponentProps<'textarea'> {

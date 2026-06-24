@@ -1,6 +1,6 @@
+import { StreamContext, type StreamAnimation } from '@components/contexts/StreamContext';
 import { BlockStackView } from '@components/primitives/BlockStackView';
 import { CopyButton } from '@components/primitives/CopyButton';
-import { StreamContext, type StreamAnimation } from '@components/contexts/StreamContext';
 import type { StackLayout } from '@core/compose';
 import type { MeasureCtx, Measured, RenderCtx } from '@core/define';
 import { layoutBlockStack } from '@core/layout/block-stack';
@@ -142,10 +142,7 @@ export const messageUnitDef = defineUnit<ChatMessage, MessageVars>({
       const lines = Math.max(1, Math.ceil(item.text.length / 60));
       const aH = attachStripHeight(item.attachments?.length ?? 0, innerW, vars);
       const est =
-        aH +
-        lines * ctx.theme.fonts.body.lineHeight +
-        2 * vars.userCardPadY +
-        2 * vars.cardBorder;
+        aH + lines * ctx.theme.fonts.body.lineHeight + 2 * vars.userCardPadY + 2 * vars.cardBorder;
       return Math.min(est, ctx.expandedId === item.id ? vars.expandedMaxH : vars.collapsedMaxH);
     }
     const lines = Math.max(1, Math.ceil(item.text.length / 60));

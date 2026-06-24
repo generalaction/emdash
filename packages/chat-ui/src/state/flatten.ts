@@ -68,7 +68,7 @@ export function flattenTier(
     { segment(item: ChatItem, ctx: SegmentCtx): RenderUnit[]; chrome?: GroupChrome }
   >,
   unitDefs?: Record<string, { margin?: Margin }>,
-  prevKind?: string,
+  prevKind?: string
 ): RenderUnit[] {
   const out: RenderUnit[] = [];
 
@@ -148,10 +148,7 @@ export function makeUnitsView(committed: RenderUnit[], active: RenderUnit[]): Un
  * Accepts the committed items array directly (no longer needs the full
  * TranscriptState) and a UnitsView for index lookup.
  */
-export function collectUserTurnUnits(
-  committed: readonly ChatItem[],
-  units: UnitsView,
-): number[] {
+export function collectUserTurnUnits(committed: readonly ChatItem[], units: UnitsView): number[] {
   // Build a set of itemIds for committed user messages.
   const userItemIds = new Set<string>();
   for (const item of committed) {

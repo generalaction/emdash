@@ -7,14 +7,14 @@
  */
 
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { cx } from '@styles/utilities/cx';
 import { AtSign, Braces, CircleDot, File } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import { cx } from '@styles/utilities/cx';
-import { sx } from '@styles/utilities/sprinkles.css';
 import { Box } from './box';
 import { Button } from './button';
 import { ComboboxPopup, type ComboboxPopupHandle, type ComboboxPopupItem } from './combobox-popup';
 import * as s from '../story-layout.css';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 const meta: Meta = {
   title: 'Primitives/ComboboxPopup',
@@ -24,10 +24,30 @@ export default meta;
 type Story = StoryObj;
 
 const FILE_ITEMS: ComboboxPopupItem[] = [
-  { id: 'src/components/chat-composer.tsx', icon: <i className="devicon-react-original colored" style={{ fontSize: '13px' }} />, label: 'chat-composer.tsx', description: 'src/components' },
-  { id: 'src/lib/file-icons.ts', icon: <i className="devicon-typescript-plain colored" style={{ fontSize: '13px' }} />, label: 'file-icons.ts', description: 'src/lib' },
-  { id: 'package.json', icon: <i className="devicon-npm-original-wordmark colored" style={{ fontSize: '13px' }} />, label: 'package.json', description: '' },
-  { id: 'README.md', icon: <i className="devicon-markdown-original" style={{ fontSize: '13px' }} />, label: 'README.md', description: '' },
+  {
+    id: 'src/components/chat-composer.tsx',
+    icon: <i className="devicon-react-original colored" style={{ fontSize: '13px' }} />,
+    label: 'chat-composer.tsx',
+    description: 'src/components',
+  },
+  {
+    id: 'src/lib/file-icons.ts',
+    icon: <i className="devicon-typescript-plain colored" style={{ fontSize: '13px' }} />,
+    label: 'file-icons.ts',
+    description: 'src/lib',
+  },
+  {
+    id: 'package.json',
+    icon: <i className="devicon-npm-original-wordmark colored" style={{ fontSize: '13px' }} />,
+    label: 'package.json',
+    description: '',
+  },
+  {
+    id: 'README.md',
+    icon: <i className="devicon-markdown-original" style={{ fontSize: '13px' }} />,
+    label: 'README.md',
+    description: '',
+  },
 ];
 
 const MIXED_ITEMS: ComboboxPopupItem[] = [
@@ -104,7 +124,9 @@ export const WithHeader: Story = {
   render: () => (
     <AnchoredPopup
       items={FILE_ITEMS.slice(0, 3)}
-      header={<span className={cx(sx({ fontWeight: 'medium', color: 'foreground' }))}>Context files</span>}
+      header={
+        <span className={cx(sx({ fontWeight: 'medium', color: 'foreground' }))}>Context files</span>
+      }
     />
   ),
 };

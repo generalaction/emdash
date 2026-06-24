@@ -93,7 +93,7 @@ function flattenCommitted(tx: ReturnType<typeof createTranscript>, unitDefs?: St
 function flattenActive(
   tx: ReturnType<typeof createTranscript>,
   prevKind?: string,
-  unitDefs?: StubUnitDefs,
+  unitDefs?: StubUnitDefs
 ) {
   const at = tx.state.activeTurn ?? [];
   return flattenTier(at, segCtx, STUB_SEGMENTERS, unitDefs, prevKind);
@@ -287,7 +287,7 @@ describe('flatten — cross-tier boundary seam', () => {
       segCtx,
       STUB_SEGMENTERS,
       STUB_UNIT_DEFS,
-      prevKind,
+      prevKind
     );
 
     // user.bottom=8, message.top=8 → max = 8
@@ -303,7 +303,7 @@ describe('flatten — cross-tier boundary seam', () => {
       segCtx,
       STUB_SEGMENTERS,
       STUB_UNIT_DEFS,
-      undefined,
+      undefined
     );
     expect(activeUnits[0]?.gapBefore).toBe(0);
   });

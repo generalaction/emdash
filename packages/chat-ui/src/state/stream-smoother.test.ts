@@ -134,9 +134,7 @@ describe('createStreamSmoother — catch-up', () => {
 
     sched.tick();
     // Should have forwarded > 1 event worth of words in one tick.
-    const forwarded = events
-      .map((e) => ('text' in e ? e.text : ''))
-      .join('');
+    const forwarded = events.map((e) => ('text' in e ? e.text : '')).join('');
     // At least 2 words released (catch-up releases ceil(backlog/4) = 3 or more atoms).
     const wordCount = forwarded.trim().split(/\s+/).filter(Boolean).length;
     expect(wordCount).toBeGreaterThan(1);

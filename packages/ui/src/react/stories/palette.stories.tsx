@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { cx } from '@styles/utilities/cx';
 import { SCALE_NAMES, STEPS } from '@theme/core/contract/roles';
 import React, { useEffect, useRef, useState } from 'react';
-import { cx } from '@styles/utilities/cx';
-import { sx } from '@styles/utilities/sprinkles.css';
 import { Box } from '../primitives/box';
 import { ThemeProvider } from '../primitives/theme-provider';
 import * as s from '../story-layout.css';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 type ScaleName = (typeof SCALE_NAMES)[number];
 
@@ -44,7 +44,12 @@ function StepSwatch({ scale, step }: { scale: ScaleName; step: number }) {
             : undefined,
         }}
       />
-      <span className={cx(sx({ fontFamily: 'mono', lineHeight: 'none', color: 'foregroundPassive' }), s.text9px)}>
+      <span
+        className={cx(
+          sx({ fontFamily: 'mono', lineHeight: 'none', color: 'foregroundPassive' }),
+          s.text9px
+        )}
+      >
         {step}
       </span>
     </Box>
@@ -81,7 +86,12 @@ function ContrastSwatch({ scale }: { scale: ScaleName }) {
           outline: '1px solid var(--border)',
         }}
       />
-      <span className={cx(sx({ fontFamily: 'mono', lineHeight: 'none', color: 'foregroundPassive' }), s.text9px)}>
+      <span
+        className={cx(
+          sx({ fontFamily: 'mono', lineHeight: 'none', color: 'foregroundPassive' }),
+          s.text9px
+        )}
+      >
         ctrst
       </span>
     </Box>
@@ -92,7 +102,11 @@ function ScaleRow({ scale }: { scale: ScaleName }) {
   return (
     <Box display="flex" alignItems="flex-start" gap="2">
       <Box paddingTop="3" flexShrink={0} className={s.w16}>
-        <span className={cx(sx({ fontFamily: 'mono', fontSize: 'xs', fontWeight: 'medium', color: 'foreground' }))}>
+        <span
+          className={cx(
+            sx({ fontFamily: 'mono', fontSize: 'xs', fontWeight: 'medium', color: 'foreground' })
+          )}
+        >
           {scale}
         </span>
       </Box>
@@ -118,7 +132,10 @@ function HeaderRow() {
         {STEPS.map((step) => (
           <div
             key={step}
-            className={cx(sx({ textAlign: 'center', fontFamily: 'mono', color: 'foregroundPassive' }), s.text9px)}
+            className={cx(
+              sx({ textAlign: 'center', fontFamily: 'mono', color: 'foregroundPassive' }),
+              s.text9px
+            )}
           >
             {step}
           </div>
@@ -127,7 +144,11 @@ function HeaderRow() {
       <Box
         flexShrink={0}
         className={cx(s.w12, s.text9px)}
-        style={{ textAlign: 'center', fontFamily: 'var(--font-mono)', color: 'var(--foreground-passive)' }}
+        style={{
+          textAlign: 'center',
+          fontFamily: 'var(--font-mono)',
+          color: 'var(--foreground-passive)',
+        }}
       >
         C
       </Box>
@@ -139,7 +160,9 @@ function PaletteGrid() {
   return (
     <Box display="flex" flexDirection="column" gap="3" background="background" padding="6">
       <Box marginBottom="2">
-        <h2 className={cx(sx({ fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' }))}>Color Palette</h2>
+        <h2 className={cx(sx({ fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' }))}>
+          Color Palette
+        </h2>
         <p className={cx(sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }))}>
           Generated from OKLCH hue seeds with APCA-targeted contrast. Step 9 (ringed) is the solid
           fill. &quot;C&quot; is the auto-selected contrast text color for use on step 9. Hover a

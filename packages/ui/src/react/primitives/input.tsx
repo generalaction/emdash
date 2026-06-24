@@ -1,7 +1,7 @@
 import { Input as InputPrimitive } from '@base-ui/react/input';
 import { inputVariants, type InputVariantProps } from '@styles/recipes/input';
-import * as React from 'react';
 import { cx } from '@styles/utilities/cx';
+import * as React from 'react';
 
 export interface InputProps
   extends Omit<React.ComponentProps<'input'>, 'size'>, InputVariantProps {}

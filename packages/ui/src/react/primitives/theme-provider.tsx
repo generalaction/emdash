@@ -50,25 +50,27 @@
 // VE barrel: layers order, non-color token contract, surfaces, reset/base
 // element defaults, sx() sprinkles atoms, animation keyframes, SVG helpers.
 import '@styles/global.css';
-
 // Generated palette ramps + per-theme semantic aliases (wrapped in @layer tokens).
 import '@theme/__generated__/theme.css';
 import '@theme/__generated__/semantic.css';
-
 // JetBrains Mono variable font + structural keyframes (accordion, panel-blur).
 import '@styles/theme.base.css';
-
 // Semantic typography role classes (.text-role-body, .text-role-h1, etc.).
 import '@styles/typography.css';
-
 // Scroll-aware overflow-fade utility (.scroll-fade / .scroll-fade__viewport).
 import '@styles/effects/overflow-fade.css';
-
+import { cx } from '@styles/utilities/cx';
 // ── Component ────────────────────────────────────────────────────────────────
 import { THEME_MANIFEST } from '@theme/themes/registry';
 import type { ThemeId } from '@theme/themes/registry';
-import React, { createContext, useCallback, useContext, useLayoutEffect, useMemo, useState } from 'react';
-import { cx } from '@styles/utilities/cx';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 // Re-export for consumers that want to enumerate themes.
 export type { ThemeId };

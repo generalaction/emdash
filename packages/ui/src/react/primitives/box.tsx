@@ -14,9 +14,9 @@
  *   <Box className={cx(card(), myStyle)}>…</Box>
  */
 
+import { cx } from '@styles/utilities/cx';
 import type { SurfaceScopeName, SurfaceStatusName } from '@theme/core/contract/roles';
 import React from 'react';
-import { cx } from '@styles/utilities/cx';
 import { sx } from '@styles/utilities/sprinkles.css';
 import type { Sprinkles } from '@styles/utilities/sprinkles.css';
 

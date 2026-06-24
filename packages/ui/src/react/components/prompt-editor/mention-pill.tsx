@@ -10,10 +10,10 @@
  * Backspace / Delete at the node boundary deletes the entire atom at once.
  */
 
+import { cx } from '@styles/utilities/cx';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { AtSign, Braces, CircleDot, File, X } from 'lucide-react';
 import React from 'react';
-import { cx } from '@styles/utilities/cx';
 import { basename, fileIconClass } from './mention-pill-helpers';
 import type { MentionKind } from './types';
 import * as styles from './mention-pill.css';

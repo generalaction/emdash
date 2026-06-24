@@ -1,10 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { cx } from '@styles/utilities/cx';
 import { SURFACE_LEVELS, SURFACE_ROLES, SURFACE_STATUSES } from '@theme/core/contract/roles';
 import type { SurfaceScopeName, SurfaceStatusName } from '@theme/core/contract/roles';
 import { AlertCircleIcon, AlertTriangleIcon, InfoIcon } from 'lucide-react';
 import React, { useState } from 'react';
-import { cx } from '@styles/utilities/cx';
-import { sx } from '@styles/utilities/sprinkles.css';
 import { Box } from '../primitives/box';
 import { Button } from '../primitives/button';
 import { Callout } from '../primitives/callout';
@@ -20,6 +19,7 @@ import { Surface } from '../primitives/surface';
 import { ThemeProvider } from '../primitives/theme-provider';
 import { Toggle } from '../primitives/toggle';
 import * as s from '../story-layout.css';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 const meta: Meta = {
   title: 'Examples/Surface Cascade',
@@ -34,7 +34,14 @@ function ElevationSwatch({ level, label }: { level: string; label: string }) {
   const isEmphasis = level.includes('emphasis');
   return (
     <Box display="flex" flexDirection="column" gap="1.5">
-      <p className={cx(sx({ fontFamily: 'mono', color: 'foreground', fontWeight: 'medium' }), s.text10px)}>{label}</p>
+      <p
+        className={cx(
+          sx({ fontFamily: 'mono', color: 'foreground', fontWeight: 'medium' }),
+          s.text10px
+        )}
+      >
+        {label}
+      </p>
       <Box
         className={s.h10}
         width="full"
@@ -114,7 +121,17 @@ function SurfaceTabs({ level }: { level: SurfaceScopeName }) {
   return (
     <Surface
       level={level}
-      className={cx(sx({ display: 'flex', flexDirection: 'column', gap: '0', rounded: 'lg', borderWidth: '1', borderStyle: 'solid', borderColor: 'border' }))}
+      className={cx(
+        sx({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0',
+          rounded: 'lg',
+          borderWidth: '1',
+          borderStyle: 'solid',
+          borderColor: 'border',
+        })
+      )}
     >
       <Box
         background="surface"
@@ -153,7 +170,18 @@ function SurfaceButtons({ level }: { level: SurfaceScopeName }) {
   return (
     <Surface
       level={level}
-      className={cx(sx({ display: 'flex', flexDirection: 'column', gap: '2', rounded: 'lg', borderWidth: '1', borderStyle: 'solid', borderColor: 'border', padding: '4' }))}
+      className={cx(
+        sx({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2',
+          rounded: 'lg',
+          borderWidth: '1',
+          borderStyle: 'solid',
+          borderColor: 'border',
+          padding: '4',
+        })
+      )}
     >
       <p className={cx(sx({ fontFamily: 'mono', fontSize: 'xs', color: 'foregroundMuted' }))}>
         .surface-{level}
@@ -294,7 +322,11 @@ function StatusRoom({ status }: { status: SurfaceStatusName }) {
         >
           Controls inside a status surface
         </span>
-        <Toggle pressed={pressed} onPressedChange={setPressed} className={cx(sx({ flexShrink: 0 }))}>
+        <Toggle
+          pressed={pressed}
+          onPressedChange={setPressed}
+          className={cx(sx({ flexShrink: 0 }))}
+        >
           {pressed ? 'Active' : 'Toggle'}
         </Toggle>
         <Button variant="ghost" tone="neutral">
@@ -317,26 +349,45 @@ export const StatusSurfaces: Story = {
   render: () => (
     <Box display="grid" className={s.cols1} gap="6" padding="6">
       <Box>
-        <p className={cx(sx({ marginBottom: '1', fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' }))}>
+        <p
+          className={cx(
+            sx({ marginBottom: '1', fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' })
+          )}
+        >
           Status surfaces — tinted rooms using the cascade
         </p>
         <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>
-          Each status box rebinds <code className={cx(sx({ fontFamily: 'mono' }))}>--surface-hover</code> and{' '}
-          <code className={cx(sx({ fontFamily: 'mono' }))}>--surface-selected</code> so any ghost Button / Toggle inside
-          already hovers/selects with the correct tint.
+          Each status box rebinds{' '}
+          <code className={cx(sx({ fontFamily: 'mono' }))}>--surface-hover</code> and{' '}
+          <code className={cx(sx({ fontFamily: 'mono' }))}>--surface-selected</code> so any ghost
+          Button / Toggle inside already hovers/selects with the correct tint.
         </p>
       </Box>
       {SURFACE_STATUSES.map((status) => (
         <StatusRoom key={status} status={status} />
       ))}
       <Box>
-        <p className={cx(sx({ marginBottom: '3', fontSize: 'sm', fontWeight: 'medium', color: 'foregroundMuted' }))}>
+        <p
+          className={cx(
+            sx({
+              marginBottom: '3',
+              fontSize: 'sm',
+              fontWeight: 'medium',
+              color: 'foregroundMuted',
+            })
+          )}
+        >
           Swatches — base / hover / selected per status
         </p>
         <Box display="grid" className={s.cols3} gap="4">
           {SURFACE_STATUSES.map((status) => (
             <Box key={status} display="flex" flexDirection="column" gap="1.5">
-              <p className={cx(sx({ fontFamily: 'mono', color: 'foreground', fontWeight: 'medium' }), s.text10px)}>
+              <p
+                className={cx(
+                  sx({ fontFamily: 'mono', color: 'foreground', fontWeight: 'medium' }),
+                  s.text10px
+                )}
+              >
                 {status}
               </p>
               <Box
@@ -380,11 +431,17 @@ function PaperRoom() {
         <p className={cx(sx({ fontSize: 'sm', fontWeight: 'semibold', color: 'foreground' }))}>
           Paper — primary content / tab background
         </p>
-        <p className={cx(sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }), s.maxWProse)}>
-          White-ish in light mode (matches <code className={cx(sx({ fontFamily: 'mono' }))}>elevated</code>) and flat
-          with <code className={cx(sx({ fontFamily: 'mono' }))}>base</code> in dark mode. Use it for the surface tabbed
-          content sits on. Cards/tabs on paper use <code className={cx(sx({ fontFamily: 'mono' }))}>base-emphasis</code>
-          .
+        <p
+          className={cx(
+            sx({ marginTop: '1', fontSize: 'xs', color: 'foregroundMuted' }),
+            s.maxWProse
+          )}
+        >
+          White-ish in light mode (matches{' '}
+          <code className={cx(sx({ fontFamily: 'mono' }))}>elevated</code>) and flat with{' '}
+          <code className={cx(sx({ fontFamily: 'mono' }))}>base</code> in dark mode. Use it for the
+          surface tabbed content sits on. Cards/tabs on paper use{' '}
+          <code className={cx(sx({ fontFamily: 'mono' }))}>base-emphasis</code>.
         </p>
       </Box>
       <div style={{ display: 'grid', gridTemplateColumns: '12rem 1fr', gap: '1.5rem' }}>
@@ -424,7 +481,9 @@ export const BothModes: Story = {
         defaultTheme="light"
         className={cx(sx({ flex: '1', background: 'background', padding: '6' }), s.spaceY6)}
       >
-        <p className={cx(sx({ fontSize: 'sm', fontWeight: 'medium', color: 'foreground' }))}>Light mode</p>
+        <p className={cx(sx({ fontSize: 'sm', fontWeight: 'medium', color: 'foreground' }))}>
+          Light mode
+        </p>
         <Box display="grid" className={s.cols3} gap="4">
           {SURFACE_LEVELS.map((level) => (
             <ElevationSwatch key={level} level={level} label={level} />
@@ -440,7 +499,9 @@ export const BothModes: Story = {
         defaultTheme="dark"
         className={cx(sx({ flex: '1', background: 'background', padding: '6' }), s.spaceY6)}
       >
-        <p className={cx(sx({ fontSize: 'sm', fontWeight: 'medium', color: 'foreground' }))}>Dark mode</p>
+        <p className={cx(sx({ fontSize: 'sm', fontWeight: 'medium', color: 'foreground' }))}>
+          Dark mode
+        </p>
         <Box display="grid" className={s.cols3} gap="4">
           {SURFACE_LEVELS.map((level) => (
             <ElevationSwatch key={level} level={level} label={level} />

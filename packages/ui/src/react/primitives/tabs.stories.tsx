@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import React from 'react';
 import { cx } from '@styles/utilities/cx';
-import { sx } from '@styles/utilities/sprinkles.css';
+import React from 'react';
 import { Box } from './box';
 import { Tabs, TabsList, TabsPanel, TabsTab } from './tabs';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 const meta: Meta = {
   title: 'Primitives/Tabs',
@@ -22,13 +22,22 @@ export const Default: Story = {
         <TabsTab value="details">Details</TabsTab>
         <TabsTab value="history">History</TabsTab>
       </TabsList>
-      <TabsPanel value="overview" className={cx(sx({ marginTop: '3', fontSize: 'sm', color: 'foregroundMuted' }))}>
+      <TabsPanel
+        value="overview"
+        className={cx(sx({ marginTop: '3', fontSize: 'sm', color: 'foregroundMuted' }))}
+      >
         Overview content
       </TabsPanel>
-      <TabsPanel value="details" className={cx(sx({ marginTop: '3', fontSize: 'sm', color: 'foregroundMuted' }))}>
+      <TabsPanel
+        value="details"
+        className={cx(sx({ marginTop: '3', fontSize: 'sm', color: 'foregroundMuted' }))}
+      >
         Details content
       </TabsPanel>
-      <TabsPanel value="history" className={cx(sx({ marginTop: '3', fontSize: 'sm', color: 'foregroundMuted' }))}>
+      <TabsPanel
+        value="history"
+        className={cx(sx({ marginTop: '3', fontSize: 'sm', color: 'foregroundMuted' }))}
+      >
         History content
       </TabsPanel>
     </Tabs>
@@ -38,7 +47,14 @@ export const Default: Story = {
 /** Tabs on each surface level — hover/selected adapt via cascade. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <Box background="surfaceSunken" display="flex" flexDirection="column" gap="4" rounded="xl" padding="4">
+    <Box
+      background="surfaceSunken"
+      display="flex"
+      flexDirection="column"
+      gap="4"
+      rounded="xl"
+      padding="4"
+    >
       {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
         (level) => (
           <Box
@@ -50,7 +66,9 @@ export const AcrossSurfaces: Story = {
             rounded="lg"
             padding="3"
           >
-            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)' }}>{level}</span>
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)' }}>
+              {level}
+            </span>
             <Tabs defaultValue="a">
               <TabsList>
                 <TabsTab value="a">Alpha</TabsTab>

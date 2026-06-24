@@ -1,6 +1,6 @@
+import { cx } from '@styles/utilities/cx';
 import type { SurfaceStatusName } from '@theme/core/contract/roles';
 import * as React from 'react';
-import { cx } from '@styles/utilities/cx';
 import { Surface } from './surface';
 import * as styles from './callout.css';
 

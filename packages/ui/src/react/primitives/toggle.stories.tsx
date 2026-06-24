@@ -49,7 +49,14 @@ export const Group: Story = {
 /** Active state across all surfaces. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <Box background="surfaceSunken" display="flex" flexDirection="column" gap="4" rounded="xl" padding="4">
+    <Box
+      background="surfaceSunken"
+      display="flex"
+      flexDirection="column"
+      gap="4"
+      rounded="xl"
+      padding="4"
+    >
       {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
         (level) => (
           <Box
@@ -62,7 +69,12 @@ export const AcrossSurfaces: Story = {
             rounded="lg"
             padding="3"
           >
-            <span className={s.w36} style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)' }}>{level}</span>
+            <span
+              className={s.w36}
+              style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)' }}
+            >
+              {level}
+            </span>
             <Toggle pressed aria-label="Bold pressed">
               <BoldIcon />
             </Toggle>

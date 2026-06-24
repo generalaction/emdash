@@ -1,6 +1,6 @@
 import { Field as FieldPrimitive } from '@base-ui/react/field';
-import * as React from 'react';
 import { cx } from '@styles/utilities/cx';
+import * as React from 'react';
 import * as styles from './field.css';
 
 // ── Root ──────────────────────────────────────────────────────────────────────

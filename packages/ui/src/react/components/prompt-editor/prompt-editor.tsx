@@ -13,6 +13,7 @@
  * `queryMentions` for new integrations.
  */
 
+import { cx } from '@styles/utilities/cx';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
@@ -20,7 +21,6 @@ import { AtSign, Braces, CircleDot, File } from 'lucide-react';
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
 import type React from 'react';
 import { createPortal } from 'react-dom';
-import { cx } from '@styles/utilities/cx';
 import {
   ComboboxPopup,
   type ComboboxPopupHandle,
