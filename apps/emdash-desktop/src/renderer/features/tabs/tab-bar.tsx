@@ -21,7 +21,10 @@ export const TabBar = observer(function TabBar({ actionsSlot }: { actionsSlot?: 
 
   return (
     <div className="task-tab-bar flex h-[41px] shrink-0 items-center justify-between border-b border-border bg-background-secondary">
-      <div ref={scrollContainerRef} className="flex h-full w-full overflow-x-auto overflow-y-hidden">
+      <div
+        ref={scrollContainerRef}
+        className="flex h-full w-full overflow-x-auto overflow-y-hidden"
+      >
         {resolvedTabs.map((tab) => {
           if (!pane.registry.has(tab.kind)) return null;
           const def = pane.registry.get(tab.kind);
