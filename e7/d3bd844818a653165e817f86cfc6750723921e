@@ -1,0 +1,23 @@
+packages/core/src/agents/plugins/helpers/parse-hook-event.ts
+  s_9b38acf0c90c0c::t_86deaccdfb2696 39-40,55-58,62
+packages/core/src/agents/plugins/helpers/parse-hook-event.test.ts
+  s_9b38acf0c90c0c::t_c8d0fe70bca3bd 1-24
+packages/core/src/agents/plugins/capabilities/hooks.ts
+  s_9b38acf0c90c0c::t_405c877f5f02ed 4,23-24,38,43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "e7d3bd844818a653165e817f86cfc6750723921e",
+  "prompts": {},
+  "sessions": {
+    "s_9b38acf0c90c0c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef806-4232-7e51-9f9e-bdc6b68c292b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
