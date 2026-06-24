@@ -1,0 +1,26 @@
+apps/emdash-desktop/src/main/core/notion/notion-issue-provider.ts
+  s_83847f9722b985::t_294a14ccd69a4e 319-322,327-330,346,367
+apps/emdash-desktop/src/renderer/features/tasks/conversations/initial-conversation-section.tsx
+  s_83847f9722b985::t_e9245d23d79e4f 23
+  s_83847f9722b985::t_294a14ccd69a4e 255
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/modal-context-bar.tsx
+  s_83847f9722b985::t_e9245d23d79e4f 9
+apps/emdash-desktop/src/renderer/features/tasks/components/issue-selector/issue-selector.tsx
+  s_83847f9722b985::t_294a14ccd69a4e 45,60-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "018a40d13781a09cb4b4bdb52eb9e2c4f833bfe9",
+  "prompts": {},
+  "sessions": {
+    "s_83847f9722b985": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_10686e9f8ffekoCPpQhcLUTHJE",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
