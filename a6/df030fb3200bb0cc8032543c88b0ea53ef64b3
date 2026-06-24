@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/main/core/conversations/dehydrateConversation.ts
+  s_4d7e221f6968fc::t_28dafef4607f34 1-2,12-14
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.test.ts
+  s_4d7e221f6968fc::t_1cf214ef55c009 2-5,43-55
+  s_4d7e221f6968fc::t_d35bad3b6428ea 26-33
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.ts
+  s_4d7e221f6968fc::t_b1e50486e3838d 54-59,213,215,225-227,245
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "a6df030fb3200bb0cc8032543c88b0ea53ef64b3",
+  "prompts": {},
+  "sessions": {
+    "s_4d7e221f6968fc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef983-e853-7a40-bef2-c79fa9654b57",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
