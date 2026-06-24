@@ -36,6 +36,8 @@ export function extractProviderSessionId(body: Record<string, unknown>): string 
  * Event-type routing:
  *  'session' | 'session-start' → kind: 'session' (if a session id is present)
  *  'start' | 'stop' | 'error'  → kind: 'status' with the matching type
+ *  'tool-use'                  → kind: 'status', type: 'start'
+ *  'tool-use-failure'          → kind: 'status', type: 'error'
  *  'notification'               → kind: 'status', type: 'notification', reads
  *                                 notification_type / notificationType from body
  *  everything else              → kind: 'ignore'
@@ -50,11 +52,14 @@ export function defaultHookEventParser(
     return { kind: 'ignore' };
   }
 
-  if (eventType === 'start' || eventType === 'stop' || eventType === 'error') {
+  const statusType =
+    eventType === 'tool-use' ? 'start' : eventType === 'tool-use-failure' ? 'error' : eventType;
+
+  if (statusType === 'start' || statusType === 'stop' || statusType === 'error') {
     const rawLam = body.last_assistant_message ?? body.lastAssistantMessage;
     return {
       kind: 'status',
-      type: eventType,
+      type: statusType,
       lastAssistantMessage: typeof rawLam === 'string' ? rawLam : undefined,
       title: typeof body.title === 'string' ? body.title : undefined,
       message: typeof body.message === 'string' ? body.message : undefined,

@@ -1,7 +1,7 @@
 import z from 'zod';
 import { definePluginCapability } from '../../../lib/plugins/capability';
 import type { PluginFs } from '../../runtime/fs';
-import type { CanonicalHookEvent, HookRegistration } from './hooks-types';
+import { HOOK_EVENTS, type CanonicalHookEvent, type HookRegistration } from './hooks-types';
 
 export type { HookRegistration };
 export type { CanonicalHookEvent, HookEvent, NotificationType } from './hooks-types';
@@ -20,6 +20,8 @@ export type IHooksBehavior = {
   parseHookEvent?(eventType: string, body: Record<string, unknown>): CanonicalHookEvent;
 };
 
+const hookEventSchema = z.enum(HOOK_EVENTS);
+
 /**
  * hooksDescriptor is used to describe the hooks that an agent supports.
  *
@@ -33,32 +35,12 @@ export const hooksCapability = definePluginCapability<IHooksBehavior>()(
     z.object({
       kind: z.literal('config'),
       scope: z.enum(['global', 'workspace']),
-      supportedEvents: z.array(
-        z.enum([
-          'notification',
-          'stop',
-          'error',
-          'session',
-          'start',
-          'tool-use',
-          'tool-use-failure',
-        ])
-      ),
+      supportedEvents: z.array(hookEventSchema),
     }),
     z.object({
       kind: z.literal('plugin'),
       scope: z.enum(['global', 'workspace']),
-      supportedEvents: z.array(
-        z.enum([
-          'notification',
-          'stop',
-          'error',
-          'session',
-          'start',
-          'tool-use',
-          'tool-use-failure',
-        ])
-      ),
+      supportedEvents: z.array(hookEventSchema),
     }),
     z.object({ kind: z.literal('none') }),
   ]),
