@@ -14,6 +14,7 @@ import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import { resolveMarkdownImagePath } from './markdown-image-path';
 
 interface MarkdownEditorRendererProps {
   filePath: string;
@@ -40,15 +41,15 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
 
   const _version = bufferUri ? modelRegistry.bufferVersions.get(bufferUri) : undefined;
   const content = tab?.isExternal ? tab.content : (modelRegistry.getValue(bufferUri) ?? '');
-  const fileDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '';
 
   const resolveImage = useCallback(
     async (src: string): Promise<string | null> => {
-      const imagePath = fileDir ? `${fileDir}/${src}` : src;
+      const imagePath = resolveMarkdownImagePath(filePath, src);
+      if (!imagePath) return null;
       const result = await rpc.workspace.fs.readImage(projectId, workspaceId, imagePath);
       return result.success ? (result.data?.dataUrl ?? null) : null;
     },
-    [projectId, workspaceId, fileDir]
+    [projectId, workspaceId, filePath]
   );
 
   return (
