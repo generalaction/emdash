@@ -1,0 +1,29 @@
+apps/emdash-desktop/src/renderer/lib/ui/shortcut-format.ts
+  s_c707674b58e12b::t_63e5be4ba239e3 146-152
+apps/emdash-desktop/src/renderer/lib/ui/shortcut.tsx
+  s_c707674b58e12b::t_9a563102e64fd3 33
+  s_c707674b58e12b::t_fc964216c1595b 28-29,31
+  s_c707674b58e12b::t_17398c7f26c8d8 12,61,69-70,76-80,88
+  s_c707674b58e12b::t_2301a236ba1c9e 27,32,34
+apps/emdash-desktop/src/renderer/features/sidebar/sidebar-primitives.tsx
+  s_c707674b58e12b::t_7478f9be333b49 84
+apps/emdash-desktop/src/renderer/lib/ui/shortcut-format.test.ts
+  s_c707674b58e12b::t_6bfe90fecbec61 5
+  s_c707674b58e12b::t_699cb4912fb284 52-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "c41b1212898247785f242283554ac63781cab58c",
+  "prompts": {},
+  "sessions": {
+    "s_c707674b58e12b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "ff4067b0-38f9-4981-8cc6-f63cf7bd3141",
+        "model": "composer-2.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
