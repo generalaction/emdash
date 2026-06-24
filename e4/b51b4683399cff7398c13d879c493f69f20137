@@ -1,0 +1,34 @@
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.test.ts
+  s_7f25e7b29b077a::t_4faf783202d0fe 29-30,32-51
+packages/plugins/src/agents/impl/index.test.ts
+  s_7f25e7b29b077a::t_6e6320da6c5531 157-197
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-title-utils.ts
+  s_7f25e7b29b077a::t_02b8675f1aee1d 1,12-19,21-23,39,57
+packages/plugins/src/agents/impl/kimi/index.ts
+  s_7f25e7b29b077a::t_70e1e9b13284d0 32,34-35,53,59,67
+apps/emdash-desktop/src/renderer/tests/conversation-title-utils.test.ts
+  s_7f25e7b29b077a::t_71d8dd4770fda4 42-48
+packages/plugins/src/agents/impl/rovo/index.ts
+  s_7f25e7b29b077a::t_dc829bd8b8cdae 20
+  s_7f25e7b29b077a::t_0fbddb0cdb0fad 24-25,30-32
+  s_7f25e7b29b077a::t_1ea39c8e8a0cbd 57
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_7f25e7b29b077a::t_5c21e9c9713f54 440,442-444,455,506,508-509,511
+  s_7f25e7b29b077a::t_afe550a7e1c555 505
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "e4b51b4683399cff7398c13d879c493f69f20137",
+  "prompts": {},
+  "sessions": {
+    "s_7f25e7b29b077a": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019ef5d4-b828-71cb-9906-e07caeface83",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
