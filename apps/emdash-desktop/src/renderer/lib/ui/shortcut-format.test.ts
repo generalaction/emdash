@@ -2,7 +2,9 @@ import { parseHotkey } from '@tanstack/react-hotkeys';
 import { describe, expect, it } from 'vitest';
 import {
   describeShortcut,
+  formatShortcutDisplay,
   formatShortcutKey,
+  getShortcutKeyOpticalAlignClass,
   getShortcutKeys,
 } from './shortcut-format';
 
@@ -45,6 +47,25 @@ describe('shortcut formatting', () => {
     expect(formatShortcutKey('PageDown', 'mac')).toBe('PgDn');
     expect(formatShortcutKey('Home', 'mac')).toBe('Home');
     expect(formatShortcutKey('End', 'mac')).toBe('End');
+  });
+
+  it('formats shortcut display keys without separators', () => {
+    expect(formatShortcutDisplay(['Meta', 'Shift', 'K'], 'mac')).toBe('⌘⇧K');
+    expect(formatShortcutDisplay(['Control', 'Alt', 'Delete'], 'windows')).toBe('CtrlAltDel');
+  });
+
+  it('optically aligns single uppercase letters and digits', () => {
+    expect(getShortcutKeyOpticalAlignClass('A')).toBe('translate-y-[0.5px]');
+    expect(getShortcutKeyOpticalAlignClass('7')).toBe('translate-y-[0.5px]');
+    expect(getShortcutKeyOpticalAlignClass('a')).toBeUndefined();
+  });
+
+  it('optically aligns modifier and navigation keycaps', () => {
+    expect(getShortcutKeyOpticalAlignClass('Alt')).toBe('-translate-y-px');
+    expect(getShortcutKeyOpticalAlignClass('Control')).toBe('-translate-y-px');
+    expect(getShortcutKeyOpticalAlignClass('Meta')).toBe('-translate-y-px');
+    expect(getShortcutKeyOpticalAlignClass('Shift')).toBe('-translate-y-px');
+    expect(getShortcutKeyOpticalAlignClass('Enter')).toBe('translate-y-px');
   });
 
 });

@@ -57,11 +57,7 @@ const KIND_ICON: Record<string, React.ReactNode> = {
   conversation: <MessageSquare size={14} className="shrink-0 text-foreground/40" />,
 };
 
-const GROUP_CLASS = cn(
-  '[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5',
-  '[&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium',
-  '[&_[cmdk-group-heading]]:text-foreground/50'
-);
+const GROUP_CLASS = '[&_[cmdk-group-heading]]:text-foreground/50';
 
 // Ordered allowlists for the "Suggested Actions" empty-state group. Defined at
 // module scope so the arrays keep stable references across renders.
