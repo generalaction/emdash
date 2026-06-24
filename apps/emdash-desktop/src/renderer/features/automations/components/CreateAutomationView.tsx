@@ -75,6 +75,7 @@ export const CreateAutomationView = observer(function CreateAutomationView({
       prompt: prompt.trim(),
       provider,
       autoApprove: false,
+      model: formState.model ?? undefined,
     };
     try {
       const trimmedName = name.trim();

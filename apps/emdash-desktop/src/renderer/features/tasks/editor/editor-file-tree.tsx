@@ -34,6 +34,7 @@ import {
 } from '@renderer/lib/ui/context-menu';
 import { cn } from '@renderer/utils/utils';
 import { basenameFromAnyPath } from '@shared/path-name';
+import { activeFilePath as getActiveFilePath } from './pane-selectors';
 
 const MAX_COPY_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -143,7 +144,7 @@ const FileTreeRow = observer(function FileTreeRow({
 
   const node = row.node;
   const isExpanded = isChainExpanded(row.chain, editorView.expandedPaths);
-  const isSelected = taskView.tabManager.activeFilePath === node.path;
+  const isSelected = getActiveFilePath(taskView.activePane) === node.path;
   const fileStatus = workspace.gitWorktree.fileChanges?.find((c) => c.path === node.path)?.status;
   const paddingLeft = row.renderDepth * 12 + 4;
   const targetDirPath = node.type === 'directory' ? node.path : (node.parentPath ?? '');
@@ -172,14 +173,14 @@ const FileTreeRow = observer(function FileTreeRow({
     if (node.type === 'directory') {
       toggleExpand();
     } else {
-      taskView.tabManager.openFilePreview(node.path);
+      taskView.activePane.open('file', { path: node.path, preview: true });
     }
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (node.type === 'file') {
-      taskView.tabManager.openFile(node.path);
+      taskView.activePane.open('file', { path: node.path, preview: false });
     }
   };
 
@@ -189,7 +190,7 @@ const FileTreeRow = observer(function FileTreeRow({
       if (node.type === 'directory') {
         toggleExpand();
       } else {
-        taskView.tabManager.openFilePreview(node.path);
+        taskView.activePane.open('file', { path: node.path, preview: true });
       }
     }
   };

@@ -89,7 +89,7 @@ export const PreviewServerPill = observer(function PreviewServerPill({
           disabled={!canOpen}
           onClick={() => {
             if (canOpen && url) {
-              taskView.tabGroupManager.openBrowser(url);
+              taskView.paneLayout.open('browser', { initialUrl: url });
               taskView.setFocusedRegion('main');
             }
           }}

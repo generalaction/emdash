@@ -153,12 +153,12 @@ export function createWorkspaceFactory(
       lifecycleService,
       gitRepository,
       gitRepositoryFetchService,
-      dispose: () => {
+      dispose: async () => {
         unsubscribeGitUpdates?.();
         unsubscribeGitUpdates = undefined;
         unsubscribeFileTreeUpdates?.();
         unsubscribeFileTreeUpdates = undefined;
-        runtime.release();
+        await runtime.release();
       },
     };
 
@@ -297,20 +297,20 @@ async function acquireWorkspaceRuntime(
       return {
         gitWorktree: worktreeLease.value,
         fileTree: fileTreeLease.value,
-        release: () => {
+        release: async () => {
           if (released) return;
           released = true;
-          fileTreeLease.release();
-          worktreeLease.release();
-          runtimeLease.release();
+          await fileTreeLease.release();
+          await worktreeLease.release();
+          await runtimeLease.release();
         },
       };
     } catch (error) {
-      worktreeLease.release();
+      await worktreeLease.release();
       throw error;
     }
   } catch (error) {
-    runtimeLease.release();
+    await runtimeLease.release();
     throw error;
   }
 }

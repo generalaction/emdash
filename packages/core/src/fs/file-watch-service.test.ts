@@ -46,7 +46,7 @@ describe('FileWatchService', () => {
       expect(firstEvents[0]).not.toHaveProperty('type');
       expect(firstEvents[0]).not.toHaveProperty('entryType');
 
-      first.release();
+      await first.release();
       const secondOnlyFile = path.join(root, 'second-only.txt');
       await writeFile(secondOnlyFile, 'still watching\n', 'utf8');
       await eventually(() =>
@@ -58,7 +58,7 @@ describe('FileWatchService', () => {
         false
       );
 
-      second.release();
+      await second.release();
     } finally {
       await watch.dispose();
     }
@@ -74,7 +74,7 @@ describe('FileWatchService', () => {
       await first.ready();
       // Release the only consumer and immediately re-watch: the new consumer must wait for
       // the in-flight native teardown and then provision a fresh subscription.
-      first.release();
+      await first.release();
       const second = watch.watch(root, (incoming) => events.push(...incoming));
       await second.ready();
 
@@ -82,7 +82,7 @@ describe('FileWatchService', () => {
       await eventually(() =>
         events.some((event) => path.basename(event.path) === 'after-rewatch.txt') ? true : undefined
       );
-      second.release();
+      await second.release();
     } finally {
       await watch.dispose();
     }
@@ -96,15 +96,25 @@ describe('FileWatchService', () => {
       const handle = watch.watch(root, () => {});
 
       await expect(handle.ready()).rejects.toThrow();
-      handle.release();
+      await handle.release();
 
       // A failed subscription is evicted: creating the root and re-watching recovers.
       await mkdir(root, { recursive: true });
       const recovered = watch.watch(root, () => {});
       await expect(recovered.ready()).resolves.toBeUndefined();
-      recovered.release();
+      await recovered.release();
     } finally {
       await watch.dispose();
     }
+  });
+
+  it('disposes active handles by releasing their shared native subscription', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-shared-watch-dispose-'));
+    const watch = new FileWatchService();
+    const handle = watch.watch(root, () => {});
+
+    await handle.ready();
+    await expect(watch.dispose()).resolves.toBeUndefined();
+    await expect(handle.release()).resolves.toBeUndefined();
   });
 });

@@ -2,11 +2,11 @@ import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import {
   getRegisteredTaskData,
   getTaskStore,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
 import {
   useConversations,
   useTaskViewContext,
@@ -33,7 +33,7 @@ export const ContextBar = observer(function ContextBar({
   hideTrigger = false,
 }: ContextBarProps) {
   const { projectId, taskId } = useTaskViewContext();
-  const { groupId } = useTabGroupContext();
+  const { paneId } = usePaneContext();
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
   const { update: updateInterfaceSettings, isSaving: isSavingInterfaceSettings } =
@@ -55,7 +55,7 @@ export const ContextBar = observer(function ContextBar({
     [task?.linkedIssue, draftComments?.comments, promptLibrary]
   );
 
-  const isActivePane = taskView.tabGroupManager.activeGroupId === groupId;
+  const isActivePane = taskView.paneLayout.activePaneId === paneId;
   const hasVisibleContextBar = Boolean(draftComments && hasConversation && actions.length > 0);
   const popoverActions = canApplyContext ? actions : [];
 

@@ -40,6 +40,10 @@ vi.mock('./add-context-popover', () => ({
   AddContextPopover: () => null,
 }));
 
+vi.mock('@renderer/lib/stores/use-agents', () => ({
+  useAgents: () => ({ data: [] }),
+}));
+
 vi.mock('./use-effective-provider', () => ({
   useEffectiveProvider: () => ({
     providerId: 'claude',

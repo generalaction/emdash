@@ -27,7 +27,7 @@ class ManualWatchService implements IFileWatchService {
     this.readyCalls += 1;
     return {
       ready: async () => {},
-      release: () => {
+      release: async () => {
         this.releaseCalls += 1;
         this.consumers = this.consumers.filter((consumer) => consumer !== onEvents);
       },
@@ -75,7 +75,7 @@ describe('FileTree', () => {
     const expanded = await nodes(tree);
     expect(paths(expanded)).toEqual(['src', 'README.md', 'src/nested']);
     expect(nodeByPath(expanded, 'src').childrenLoaded).toBe(true);
-    tree.dispose();
+    await tree.dispose();
   });
 
   it('hard-excludes noisy directories in core', async () => {
@@ -90,7 +90,7 @@ describe('FileTree', () => {
     unwrap(await tree.ready());
 
     expect(paths(await nodes(tree))).toEqual(['src']);
-    tree.dispose();
+    await tree.dispose();
   });
 
   it('ignores symlinks consistently in snapshots and watch-created entries', async () => {
@@ -144,7 +144,7 @@ describe('FileTree', () => {
     });
 
     expect(paths(await nodes(tree))).toEqual(['src', 'src/a', 'src/a/file.ts']);
-    tree.dispose();
+    await tree.dispose();
   });
 
   it('returns not-found when revealPath cannot find a loaded path component', async () => {
@@ -158,7 +158,7 @@ describe('FileTree', () => {
       success: false,
       error: { type: 'not-found', path: 'src/missing' },
     });
-    tree.dispose();
+    await tree.dispose();
   });
 
   it('does not cache a rejected ready promise after unexpected load failures', async () => {
@@ -181,7 +181,7 @@ describe('FileTree', () => {
       expect(calls).toBe(2);
     } finally {
       patched.loadDirectoryScope = originalLoadDirectoryScope;
-      tree.dispose();
+      await tree.dispose();
     }
   });
 
@@ -209,7 +209,7 @@ describe('FileTree', () => {
     const after = await nodes(tree);
     expect(nodeByPath(after, 'b.txt').id).toBe(before.id);
     expect(after.some((node) => node.path === 'a.txt')).toBe(false);
-    tree.dispose();
+    await tree.dispose();
   });
 
   it('reuses directory and descendant ids when a loaded directory is renamed', async () => {
@@ -237,7 +237,7 @@ describe('FileTree', () => {
     expect(nodeByPath(after, 'lib').id).toBe(src.id);
     expect(nodeByPath(after, 'lib/nested').id).toBe(nested.id);
     expect(nodeByPath(after, 'lib/nested/a.ts').id).toBe(file.id);
-    tree.dispose();
+    await tree.dispose();
   });
 
   it('cascades loaded descendants when a directory disappears', async () => {
@@ -255,7 +255,7 @@ describe('FileTree', () => {
     await waitForPaths(tree, []);
 
     expect(paths(await nodes(tree))).toEqual([]);
-    tree.dispose();
+    await tree.dispose();
   });
 
   it('cascades loaded descendants during refresh when a directory disappeared', async () => {
@@ -271,7 +271,7 @@ describe('FileTree', () => {
     unwrap(await tree.refresh());
 
     expect(paths(await nodes(tree))).toEqual([]);
-    tree.dispose();
+    await tree.dispose();
   });
 
   it('serializes refreshes and watch event mutations', async () => {
@@ -360,8 +360,8 @@ describe('FileTree', () => {
     expect(firstLease.value).toBe(secondLease.value);
     expect(watcher.watchCount).toBe(1);
 
-    firstLease.release();
-    secondLease.release();
+    await firstLease.release();
+    await secondLease.release();
     await runtime.dispose();
   });
 

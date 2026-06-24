@@ -67,8 +67,8 @@ export class GitRuntime implements IGitRuntime {
       });
 
     this.repositories = new ResourceMap<GitRepository>({
-      teardown: (_key, repository) => {
-        repository.dispose();
+      teardown: async (_key, repository) => {
+        await repository.dispose();
       },
       onError: this.onError,
       onEmpty: () => {
@@ -76,9 +76,9 @@ export class GitRuntime implements IGitRuntime {
       },
     });
     this.worktrees = new ResourceMap<WorktreeResource>({
-      teardown: (_key, resource) => {
-        resource.worktree.dispose();
-        resource.repositoryLease.release();
+      teardown: async (_key, resource) => {
+        await resource.worktree.dispose();
+        await resource.repositoryLease.release();
       },
       onError: this.onError,
       onEmpty: () => {
@@ -177,12 +177,12 @@ export class GitRuntime implements IGitRuntime {
         try {
           await worktree.ready();
         } catch (error) {
-          worktree.dispose();
+          await worktree.dispose();
           throw error;
         }
         return { worktree, repositoryLease };
       } catch (error) {
-        repositoryLease.release();
+        await repositoryLease.release();
         throw error;
       }
     });
@@ -191,8 +191,10 @@ export class GitRuntime implements IGitRuntime {
 
   async dispose(): Promise<void> {
     this.disposeRequested = true;
-    this.repositories.dispose();
-    this.worktrees.dispose();
+    const repositoriesDisposed = this.repositories.dispose();
+    const worktreesDisposed = this.worktrees.dispose();
+    await worktreesDisposed;
+    await repositoriesDisposed;
     await this.disposeIfIdle();
   }
 
@@ -209,7 +211,7 @@ export class GitRuntime implements IGitRuntime {
       try {
         await repository.ready();
       } catch (error) {
-        repository.dispose();
+        await repository.dispose();
         throw error;
       }
       return repository;

@@ -2,14 +2,13 @@ import type { ILifecycle } from '@emdash/shared';
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
 import { DiffTabLifecycleStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
+import { activeFileEntry as getActiveFileEntry } from '@renderer/features/tasks/editor/pane-selectors';
 import { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
 import {
   buildVisibleRows,
   expandedDirectoryPathsNeedingLoad,
 } from '@renderer/features/tasks/file-tree/tree-utils';
 import { PreviewServerStore } from '@renderer/features/tasks/stores/preview-server-store';
-import { TabGroupManagerStore } from '@renderer/features/tasks/tabs/tab-group-manager-store';
-import type { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { type SidebarTab } from '@renderer/features/tasks/types';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -23,14 +22,15 @@ import type {
   TaskViewSnapshot,
   TerminalDrawerActiveItem,
 } from '@shared/view-state';
+import { taskTabView } from '../task-tab-registry';
 import { ConversationHydrationReconciler } from './conversation-hydration-reconciler';
 import { conversationRegistry } from './conversation-registry';
 import { PrStore } from './pr-store';
 import type { TaskStore } from './task-store';
+import type { TaskTabContext } from './task-tab-context';
 import { terminalRegistry } from './terminal-registry';
 import { workspaceRegistry } from './workspace-registry';
 
-// Re-export RendererKind for consumers that imported it from task-view
 export type RendererKind = 'monaco' | 'markdown' | 'diff' | 'agents' | 'browser' | 'other-file';
 
 export class WorkspaceViewModel implements ILifecycle {
@@ -41,17 +41,17 @@ export class WorkspaceViewModel implements ILifecycle {
   terminalDrawerActiveItem: TerminalDrawerActiveItem | undefined;
 
   /** Stable sub-stores — live for the full WorkspaceViewModel lifetime. */
-  readonly tabGroupManager: TabGroupManagerStore;
+  readonly paneLayout: ReturnType<typeof taskTabView.createPaneLayoutStore>;
   readonly terminalTabs: TerminalTabViewStore;
   readonly editorView: FileModelLifecycleStore;
 
   /**
-   * Backwards-compatible getter returning the focused pane's TabManagerStore.
-   * All callers outside the split-pane render tree use this to access tab state
-   * without needing to know about multiple groups.
+   * Returns the focused pane's PaneStore.
+   * Callers outside the split-pane render tree use this to access tab state
+   * without needing to know about multiple panes.
    */
-  get tabManager(): TabManagerStore {
-    return this.tabGroupManager.focusedGroup;
+  get activePane(): ReturnType<typeof taskTabView.createPaneLayoutStore>['focusedPane'] {
+    return this.paneLayout.focusedPane;
   }
 
   /**
@@ -96,21 +96,19 @@ export class WorkspaceViewModel implements ILifecycle {
 
     const workspaceId = taskData.workspaceId ?? taskData.id;
 
-    this.tabGroupManager = new TabGroupManagerStore(
-      () => conversationRegistry.get(this.taskId) ?? null,
+    const taskCtx: TaskTabContext = {
+      viewId: this.taskId,
+      projectId: taskData.projectId,
       workspaceId,
-      taskData.projectId,
-      this.taskId
-    );
+      taskId: this.taskId,
+      modelRootPath: `workspace:${workspaceId}`,
+    };
+    this.paneLayout = taskTabView.createPaneLayoutStore(taskCtx);
     this.terminalTabs = new TerminalTabViewStore(() => terminalRegistry.get(this.taskId) ?? null);
-    this.editorView = new FileModelLifecycleStore(
-      this.tabGroupManager,
-      taskData.projectId,
-      workspaceId
-    );
+    this.editorView = new FileModelLifecycleStore(this.paneLayout, taskData.projectId, workspaceId);
 
     makeAutoObservable<WorkspaceViewModel, '_conversationHydration'>(this, {
-      tabGroupManager: false,
+      paneLayout: false,
       terminalTabs: false,
       editorView: false,
       _conversationHydration: false,
@@ -142,14 +140,14 @@ export class WorkspaceViewModel implements ILifecycle {
               ?.taskId === this.taskId;
           return {
             isActive,
-            activeGroupId: this.tabGroupManager.activeGroupId,
-            groupCount: this.tabGroupManager.groups.length,
+            activePaneId: this.paneLayout.activePaneId,
+            groupCount: this.paneLayout.groups.length,
           };
         },
-        ({ isActive, activeGroupId }) => {
-          for (const { groupId, tabManager } of this.tabGroupManager.groups) {
-            tabManager.setVisible(isActive);
-            tabManager.setFocused(isActive && groupId === activeGroupId);
+        ({ isActive, activePaneId }) => {
+          for (const { paneId, pane } of this.paneLayout.groups) {
+            pane.setVisible(isActive);
+            pane.setFocused(isActive && paneId === activePaneId);
           }
         },
         { fireImmediately: true }
@@ -159,7 +157,7 @@ export class WorkspaceViewModel implements ILifecycle {
     // Push tab-level history whenever the focused group's active tab changes.
     this._disposers.push(
       reaction(
-        () => this.tabGroupManager.focusedGroup.resolvedActiveTabId,
+        () => this.paneLayout.focusedPane.resolvedActiveTabId,
         (tabId) => {
           if (!tabId) return;
           appState.history.push({
@@ -186,22 +184,14 @@ export class WorkspaceViewModel implements ILifecycle {
   // -------------------------------------------------------------------------
 
   get activeRenderer(): RendererKind {
-    const desc = this.tabManager.activeDescriptor;
+    const desc = this.activePane.activeEntry;
     if (desc?.kind === 'diff') return 'diff';
     if (desc?.kind === 'browser') return 'browser';
-    const tab = this.tabManager.activeFileEntry;
+    const tab = getActiveFileEntry(this.activePane);
     if (!tab) return 'agents';
-    switch (tab.renderer.kind) {
-      case 'text':
-      case 'svg-source':
-      case 'html-source':
-        return 'monaco';
-      case 'markdown':
-      case 'markdown-source':
-        return 'markdown';
-      default:
-        return 'other-file';
-    }
+    if (tab.contentType === 'markdown' && tab.viewMode === 'preview') return 'markdown';
+    if (tab.contentType === 'text' || tab.viewMode === 'source') return 'monaco';
+    return 'other-file';
   }
 
   get snapshot(): TaskViewSnapshot {
@@ -211,7 +201,6 @@ export class WorkspaceViewModel implements ILifecycle {
       focusedRegion: this.focusedRegion,
       isTerminalDrawerOpen: this.isTerminalDrawerOpen,
       terminalDrawerActiveItem: this.terminalDrawerActiveItem,
-      tabGroups: this.tabGroupManager.snapshot,
       terminals: this.terminalTabs.snapshot,
       editor: this.editorView.snapshot,
       diffView: this.diffView?.snapshot ?? this._savedDiffViewSnapshot,
@@ -227,50 +216,15 @@ export class WorkspaceViewModel implements ILifecycle {
    * initialize() so the reaction baseline is correct.
    */
   restoreSnapshot(savedSnapshot: TaskViewSnapshot): void {
-    const hasRestoredTabSnapshot =
-      savedSnapshot.tabGroups !== undefined ||
-      savedSnapshot.tabManager !== undefined ||
-      (savedSnapshot.conversations?.tabOrder?.length ?? 0) > 0;
-    this._hasConsumedDefaultConversationAutoOpen = hasRestoredTabSnapshot;
-
     this.sidebarTab = (savedSnapshot.sidebarTab as SidebarTab) ?? 'conversations';
     this.isSidebarCollapsed = savedSnapshot.isSidebarCollapsed ?? true;
     this.focusedRegion = savedSnapshot.focusedRegion === 'bottom' ? 'bottom' : 'main';
     this.isTerminalDrawerOpen = savedSnapshot.isTerminalDrawerOpen ?? false;
     this.terminalDrawerActiveItem = savedSnapshot.terminalDrawerActiveItem;
 
-    if (savedSnapshot.tabGroups) {
-      // Current format: multi-group snapshot.
-      this.tabGroupManager.restoreSnapshot(savedSnapshot.tabGroups);
-    } else if (savedSnapshot.tabManager) {
-      // Legacy migration: single-pane tabManager snapshot from before split panes.
-      this.tabGroupManager.restoreSnapshot({
-        groups: [{ groupId: crypto.randomUUID(), tabManager: savedSnapshot.tabManager }],
-        activeGroupId: '',
-        paneSizes: [100],
-      });
-    } else if (savedSnapshot.conversations?.tabOrder?.length) {
-      // Legacy migration: conversation tabs were stored under `conversations` before
-      // the unified tab refactor.
-      this.tabGroupManager.restoreSnapshot({
-        groups: [
-          {
-            groupId: crypto.randomUUID(),
-            tabManager: {
-              tabs: savedSnapshot.conversations.tabOrder.map((id) => ({
-                kind: 'conversation' as const,
-                tabId: crypto.randomUUID(),
-                conversationId: id,
-                isPreview: false,
-              })),
-              activeTabId: undefined,
-            },
-          },
-        ],
-        activeGroupId: '',
-        paneSizes: [100],
-      });
-    }
+    // Pass the aggregate blob as fallback so the persistor can migrate legacy
+    // tabGroups/tabManager/conversations fields when no dedicated key exists yet.
+    this._hasConsumedDefaultConversationAutoOpen = this.paneLayout.hydrate(savedSnapshot);
 
     if (savedSnapshot.terminals) {
       this.terminalTabs.restoreSnapshot(savedSnapshot.terminals);
@@ -315,7 +269,7 @@ export class WorkspaceViewModel implements ILifecycle {
     }
 
     this._diffTabLifecycle = new DiffTabLifecycleStore(
-      this.tabGroupManager.focusedGroup,
+      this.paneLayout.focusedPane,
       workspace.gitWorktree,
       this.prStore,
       this.diffView
@@ -323,6 +277,7 @@ export class WorkspaceViewModel implements ILifecycle {
 
     // Register snapshot with the persistence layer.
     this._snapshotDisposer = snapshotRegistry.register(`task:${this.taskId}`, () => this.snapshot);
+    this.paneLayout.startPersistence();
 
     // Open the default conversation tab only for fresh task views. If tab state was
     // restored, even an empty tab list represents the user's persisted choice.
@@ -414,6 +369,7 @@ export class WorkspaceViewModel implements ILifecycle {
     // Stop snapshot persistence.
     this._snapshotDisposer?.();
     this._snapshotDisposer = null;
+    this.paneLayout.stopPersistence();
 
     // Dispose session-scoped reactions.
     for (const d of this._sessionDisposers) d();
@@ -428,7 +384,7 @@ export class WorkspaceViewModel implements ILifecycle {
     this.suspend();
     appState.history.prune((e) => e.kind === 'tab' && e.taskId === this.taskId);
     for (const d of this._disposers) d();
-    this.tabGroupManager.dispose();
+    this.paneLayout.dispose();
     this.terminalTabs.dispose();
     this.editorView.dispose();
   }
@@ -438,9 +394,9 @@ export class WorkspaceViewModel implements ILifecycle {
   // -------------------------------------------------------------------------
 
   activateLastTabOfKind(kind: 'conversation' | 'file' | 'diff' | 'browser'): void {
-    const tabId = [...this.tabManager.tabOrder]
+    const tabId = [...this.activePane.tabOrder]
       .reverse()
-      .find((id) => this.tabManager.entries.get(id)?.kind === kind);
+      .find((id) => this.activePane.entries.get(id)?.kind === kind);
     if (!tabId) return;
     const panelView =
       kind === 'conversation'
@@ -451,7 +407,7 @@ export class WorkspaceViewModel implements ILifecycle {
             ? 'diff'
             : 'browser';
     focusTracker.transition({ mainPanel: panelView }, 'panel_switch');
-    this.tabManager.setActiveTab(tabId);
+    this.activePane.setActiveTab(tabId);
   }
 
   setSidebarTab(v: SidebarTab): void {
@@ -523,17 +479,31 @@ export class WorkspaceViewModel implements ILifecycle {
     if (!conversations || conversations.conversations.size === 0) return;
 
     this._hasConsumedDefaultConversationAutoOpen = true;
-    if (this.tabGroupManager.focusedGroup.tabOrder.length === 0) {
-      runInAction(() => this.tabGroupManager.focusedGroup.initializeDefault());
+    if (this.paneLayout.focusedPane.tabOrder.length === 0) {
+      runInAction(() => {
+        for (const [id, store] of conversations.conversations) {
+          if (store.isInitialConversation) {
+            this.paneLayout.focusedPane.open('conversation', {
+              conversationId: id,
+              preview: false,
+            });
+            return;
+          }
+        }
+      });
     }
   }
 
   private get openConversationIds(): string[] {
     const ids = new Set<string>();
-    for (const { tabManager } of this.tabGroupManager.groups) {
-      for (const tabId of tabManager.tabOrder) {
-        const entry = tabManager.entries.get(tabId);
-        if (entry?.kind === 'conversation') ids.add(entry.conversationId);
+    for (const { pane } of this.paneLayout.groups) {
+      for (const tabId of pane.tabOrder) {
+        const entry = pane.entries.get(tabId);
+        if (entry?.kind === 'conversation') {
+          ids.add(
+            (entry as unknown as { kind: 'conversation'; conversationId: string }).conversationId
+          );
+        }
       }
     }
     return [...ids].sort();

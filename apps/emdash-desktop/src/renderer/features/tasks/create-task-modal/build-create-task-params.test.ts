@@ -16,6 +16,8 @@ function makeInitialConversationState(
     setIssueContext: () => {},
     autoApprove,
     setAutoApprove: () => {},
+    model: null,
+    setModel: () => {},
   };
 }
 

@@ -5,8 +5,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useDiffEditorComments } from '@renderer/features/tasks/diff-view/comments/use-diff-editor-comments';
 import { ImageDiffView } from '@renderer/features/tasks/diff-view/main-panel/image-diff-view';
 import { isMissingFileError } from '@renderer/features/tasks/diff-view/main-panel/missing-file-error';
+import type { DiffTabStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-store';
 import { getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
-import type { DiffTabStore } from '@renderer/features/tasks/tabs/diff-tab-store';
 import {
   useTaskViewContext,
   useWorkspaceId,

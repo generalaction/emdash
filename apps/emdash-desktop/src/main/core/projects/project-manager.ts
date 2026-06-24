@@ -1,5 +1,4 @@
-import { err, ok, type Result } from '@emdash/shared';
-import type { IDisposable } from '@emdash/shared';
+import { err, ok, type IDisposable, type IReleasable, type Result } from '@emdash/shared';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { LifecycleMap } from '@main/lib/lifecycle-map';
 import { log } from '@main/lib/logger';
@@ -31,7 +30,9 @@ function toTeardownError(e: unknown): ProviderLifecycleError {
   return { type: 'error', message: e instanceof Error ? e.message : String(e) };
 }
 
-class ProjectSessionManager implements Hookable<ProjectSessionManagerHooks>, IDisposable {
+class ProjectSessionManager
+  implements Hookable<ProjectSessionManagerHooks>, IReleasable, IDisposable
+{
   private readonly _hooks = new HookCore<ProjectSessionManagerHooks>((name, e) =>
     log.error(`ProjectManager: ${String(name)} hook error`, e)
   );
@@ -100,6 +101,16 @@ class ProjectSessionManager implements Hookable<ProjectSessionManagerHooks>, IDi
         });
       }
     }
+  }
+
+  async release(): Promise<void> {
+    const providers = Array.from(this._lifecycle.values());
+    const results = await Promise.allSettled(providers.map((provider) => provider.release()));
+    const failures = results.filter((result) => result.status === 'rejected');
+    for (const failure of failures) {
+      log.error('ProjectManager: failed to release', failure.reason);
+    }
+    if (failures.length > 0) throw failures[0].reason;
   }
 }
 

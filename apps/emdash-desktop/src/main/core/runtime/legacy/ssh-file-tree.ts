@@ -67,12 +67,12 @@ export class LegacySshFileTreeRuntime implements IFileTreeRuntime {
     try {
       const ready = await lease.value.ready();
       if (!ready.success) {
-        lease.release();
+        await lease.release();
         return err(ready.error);
       }
       return ok(lease);
     } catch (error) {
-      lease.release();
+      await lease.release();
       throw error;
     }
   }
@@ -194,7 +194,7 @@ class LegacySshFileTree implements IFileTree {
     return ok(this.collection.getCached());
   }
 
-  dispose(): void {
+  async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
     clearInterval(this.pollTimer);

@@ -1,3 +1,4 @@
+import { once } from '@emdash/shared';
 import type { IDisposable, Lease } from '@emdash/shared';
 
 export type ResourceMapOptions<T> = {
@@ -19,13 +20,15 @@ type Entry<T> = {
  *
  * - Concurrent `acquire`s of the same key share one provision; each gets its own lease.
  * - A failed provision rejects every waiting acquirer and evicts the entry.
- * - The last `release()` tears the value down; releases are idempotent and concurrency-safe.
+ * - The last `release()` tears the value down; releases are single-flight: every caller
+ *   awaits the same teardown completion.
  * - Acquiring a key that is tearing down waits for the teardown, then provisions fresh.
- * - `dispose()` refuses new acquires; teardown still happens when the last lease releases.
+ * - `dispose()` refuses new acquires and resolves once no entries or teardowns remain.
  */
 export class ResourceMap<T> implements IDisposable {
   private readonly entries = new Map<string, Entry<T>>();
   private readonly teardowns = new Map<string, Promise<void>>();
+  private idleWaiters: Array<() => void> = [];
   private disposeRequested = false;
 
   constructor(private readonly options: ResourceMapOptions<T>) {}
@@ -57,33 +60,26 @@ export class ResourceMap<T> implements IDisposable {
     try {
       value = await entry.promise;
     } catch (error) {
-      this.releaseRef(key, entry);
+      await this.releaseRef(key, entry);
       throw error;
     }
     return this.createLease(key, entry, value);
   }
 
-  dispose(): void {
+  async dispose(): Promise<void> {
     this.disposeRequested = true;
-    if (this.idle) this.options.onEmpty?.();
+    this.notifyIdle();
+    await this.waitForIdle();
   }
 
   private createLease(key: string, entry: Entry<T>, value: T): Lease<T> {
-    let released = false;
-    return {
-      value,
-      release: () => {
-        if (released) return;
-        released = true;
-        this.releaseRef(key, entry);
-      },
-    };
+    return { value, release: once(() => this.releaseRef(key, entry)) };
   }
 
-  private releaseRef(key: string, entry: Entry<T>): void {
+  private releaseRef(key: string, entry: Entry<T>): Promise<void> {
     entry.refs -= 1;
-    if (entry.refs > 0) return;
-    if (this.entries.get(key) !== entry) return;
+    if (entry.refs > 0) return Promise.resolve();
+    if (this.entries.get(key) !== entry) return Promise.resolve();
     this.entries.delete(key);
 
     const teardown = (async () => {
@@ -100,9 +96,25 @@ export class ResourceMap<T> implements IDisposable {
       }
     })().finally(() => {
       this.teardowns.delete(key);
-      if (this.idle) this.options.onEmpty?.();
+      this.notifyIdle();
     });
     this.teardowns.set(key, teardown);
+    return teardown;
+  }
+
+  private async waitForIdle(): Promise<void> {
+    if (this.idle) return;
+    await new Promise<void>((resolve) => {
+      this.idleWaiters.push(resolve);
+    });
+  }
+
+  private notifyIdle(): void {
+    if (!this.idle) return;
+    this.options.onEmpty?.();
+    const waiters = this.idleWaiters;
+    this.idleWaiters = [];
+    for (const resolve of waiters) resolve();
   }
 
   private assertOpen(): void {

@@ -1,5 +1,7 @@
 import { makeObservable, observable, runInAction } from 'mobx';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { rpc } from '@renderer/lib/ipc';
+import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import type { Task } from '@shared/core/tasks/tasks';
 import type { Terminal } from '@shared/core/terminals/terminals';
@@ -12,6 +14,28 @@ import { terminalRegistry } from './terminal-registry';
 import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';
 
+vi.mock('@renderer/features/browser/browser-tab-item', () => ({
+  BrowserTabItem: () => null,
+  BrowserTabDragPreview: () => null,
+}));
+vi.mock('@renderer/features/tasks/editor/file-tab-item', () => ({
+  FileTabItem: () => null,
+  FileTabDragPreview: () => null,
+}));
+vi.mock('@renderer/features/tasks/conversations/conversation-tab-item', () => ({
+  ConversationTabItem: () => null,
+  ConversationTabDragPreview: () => null,
+}));
+vi.mock('@renderer/features/tasks/diff-view/diff-tab-item', () => ({
+  DiffTabItem: () => null,
+  DiffTabDragPreview: () => null,
+  diffGroupSuffix: (group: string) => `(${group})`,
+}));
+vi.mock('@renderer/features/tasks/conversations/conversation-title-utils', () => ({
+  formatConversationTitleForDisplay: (_providerId: unknown, title: unknown) =>
+    (title as string) ?? 'Conversation',
+}));
+
 vi.mock('@renderer/lib/ipc', () => ({
   events: { on: () => () => {} },
   rpc: {
@@ -22,6 +46,9 @@ vi.mock('@renderer/lib/ipc', () => ({
     },
     viewState: {
       save: vi.fn(),
+    },
+    conversations: {
+      markConversationSeen: vi.fn().mockResolvedValue(undefined),
     },
     gitRepository: {
       getDefaultBranch: vi
@@ -127,8 +154,10 @@ function addConversation(
 }
 
 function conversationTabIds(viewModel: WorkspaceViewModel): string[] {
-  return viewModel.tabManager.resolvedTabs.flatMap((tab) =>
-    tab.kind === 'conversation' ? [tab.conversationId] : []
+  return viewModel.activePane.resolvedTabs.flatMap((tab) =>
+    tab.kind === 'conversation'
+      ? [(tab as unknown as { kind: 'conversation'; conversationId: string }).conversationId]
+      : []
   );
 }
 
@@ -188,6 +217,9 @@ afterEach(() => {
   terminalRegistry.release('task-1');
   terminalRegistryEntries().delete('task-1');
   workspaceRegistry.release('project-1', 'workspace-1');
+  // Clear cache keys written by TaskTabViewPersistor so tests don't pollute each other.
+  viewStateCache.delete('task:task-1:tabs');
+  viewStateCache.delete('task:task-persistor:tabs');
 });
 
 describe('WorkspaceViewModel terminal drawer snapshot', () => {
@@ -361,21 +393,24 @@ describe('WorkspaceViewModel default conversation tab', () => {
 
     runInAction(() => {
       addConversation(conversations, { id: 'conversation-1', isInitialConversation: true });
-      viewModel.tabManager.openConversation('conversation-1');
+      viewModel.activePane.open('conversation', {
+        conversationId: 'conversation-1',
+        preview: false,
+      });
     });
     await Promise.resolve();
 
-    viewModel.tabManager.closeTab(viewModel.tabManager.resolvedActiveTabId!);
-    expect(viewModel.tabManager.resolvedTabs).toHaveLength(0);
+    viewModel.activePane.closeTab(viewModel.activePane.resolvedActiveTabId!);
+    expect(viewModel.activePane.resolvedTabs).toHaveLength(0);
 
     runInAction(() => {
       addConversation(conversations, { id: 'conversation-2', title: 'Conversation 2' });
     });
     await Promise.resolve();
 
-    expect(viewModel.tabManager.resolvedTabs).toHaveLength(0);
+    expect(viewModel.activePane.resolvedTabs).toHaveLength(0);
 
-    viewModel.tabManager.openConversation('conversation-2');
+    viewModel.activePane.open('conversation', { conversationId: 'conversation-2', preview: false });
 
     expect(conversationTabIds(viewModel)).toEqual(['conversation-2']);
 
@@ -405,14 +440,14 @@ describe('WorkspaceViewModel default conversation tab', () => {
     });
     await Promise.resolve();
 
-    expect(viewModel.tabManager.resolvedTabs).toHaveLength(0);
+    expect(viewModel.activePane.resolvedTabs).toHaveLength(0);
 
     runInAction(() => {
       addConversation(conversations, { id: 'conversation-2', title: 'Conversation 2' });
     });
     await Promise.resolve();
 
-    expect(viewModel.tabManager.resolvedTabs).toHaveLength(0);
+    expect(viewModel.activePane.resolvedTabs).toHaveLength(0);
 
     viewModel.dispose();
   });
@@ -428,17 +463,20 @@ describe('WorkspaceViewModel default conversation tab', () => {
 
     runInAction(() => {
       addConversation(conversations, { id: 'conversation-1', isInitialConversation: true });
-      viewModel.tabManager.openConversation('conversation-1');
+      viewModel.activePane.open('conversation', {
+        conversationId: 'conversation-1',
+        preview: false,
+      });
     });
     await Promise.resolve();
 
-    viewModel.tabManager.closeTab(viewModel.tabManager.resolvedActiveTabId!);
+    viewModel.activePane.closeTab(viewModel.activePane.resolvedActiveTabId!);
 
     runInAction(() => {
       addConversation(conversations, { id: 'conversation-2', title: 'Conversation 2' });
     });
     viewModel.initialize();
-    viewModel.tabManager.openConversation('conversation-2');
+    viewModel.activePane.open('conversation', { conversationId: 'conversation-2', preview: false });
 
     expect(conversationTabIds(viewModel)).toEqual(['conversation-2']);
 
@@ -453,7 +491,7 @@ describe('WorkspaceViewModel conversation hydration', () => {
     const hydrateConversation = vi.spyOn(conversations, 'hydrateConversation').mockResolvedValue();
     vi.spyOn(conversations, 'dehydrateConversation').mockResolvedValue();
 
-    viewModel.tabManager.openConversation('conversation-1');
+    viewModel.activePane.open('conversation', { conversationId: 'conversation-1', preview: false });
     asHydrationHarness(viewModel).syncConversationHydration(
       asHydrationHarness(viewModel).openConversationIds
     );
@@ -479,13 +517,19 @@ describe('WorkspaceViewModel conversation hydration', () => {
       .spyOn(conversations, 'dehydrateConversation')
       .mockResolvedValue();
 
-    viewModel.tabGroupManager.openConversationPreview('conversation-1');
+    viewModel.paneLayout.open('conversation', {
+      conversationId: 'conversation-1',
+      preview: true,
+    });
     asHydrationHarness(viewModel).syncConversationHydration(
       asHydrationHarness(viewModel).openConversationIds
     );
     await Promise.resolve();
 
-    viewModel.tabGroupManager.openConversationPreview('conversation-2');
+    viewModel.paneLayout.open('conversation', {
+      conversationId: 'conversation-2',
+      preview: true,
+    });
     asHydrationHarness(viewModel).syncConversationHydration(
       asHydrationHarness(viewModel).openConversationIds
     );
@@ -494,7 +538,7 @@ describe('WorkspaceViewModel conversation hydration', () => {
     expect(dehydrateConversation).toHaveBeenCalledTimes(1);
     expect(dehydrateConversation).toHaveBeenCalledWith('conversation-1');
 
-    viewModel.tabManager.closeTab(viewModel.tabManager.resolvedActiveTabId!);
+    viewModel.activePane.closeTab(viewModel.activePane.resolvedActiveTabId!);
     asHydrationHarness(viewModel).syncConversationHydration(
       asHydrationHarness(viewModel).openConversationIds
     );
@@ -557,15 +601,15 @@ describe('WorkspaceViewModel conversation hydration', () => {
 
     expect(hydrateConversation).toHaveBeenCalledTimes(1);
 
-    const [firstGroup, secondGroup] = viewModel.tabGroupManager.groups;
-    firstGroup.tabManager.closeTab('tab-1');
+    const [firstGroup, secondGroup] = viewModel.paneLayout.groups;
+    firstGroup.pane.closeTab('tab-1');
     asHydrationHarness(viewModel).syncConversationHydration(
       asHydrationHarness(viewModel).openConversationIds
     );
 
     expect(dehydrateConversation).not.toHaveBeenCalled();
 
-    secondGroup.tabManager.closeTab('tab-2');
+    secondGroup.pane.closeTab('tab-2');
     asHydrationHarness(viewModel).syncConversationHydration(
       asHydrationHarness(viewModel).openConversationIds
     );
@@ -587,8 +631,8 @@ describe('WorkspaceViewModel conversation hydration', () => {
       .spyOn(conversations, 'dehydrateConversation')
       .mockResolvedValue();
 
-    viewModel.tabManager.openConversation('conversation-1');
-    viewModel.tabManager.openConversation('conversation-2');
+    viewModel.activePane.open('conversation', { conversationId: 'conversation-1', preview: false });
+    viewModel.activePane.open('conversation', { conversationId: 'conversation-2', preview: false });
     asHydrationHarness(viewModel).syncConversationHydration(
       asHydrationHarness(viewModel).openConversationIds
     );
@@ -612,12 +656,12 @@ describe('WorkspaceViewModel conversation hydration', () => {
       .spyOn(conversations, 'dehydrateConversation')
       .mockResolvedValue();
 
-    viewModel.tabManager.openConversation('conversation-1');
+    viewModel.activePane.open('conversation', { conversationId: 'conversation-1', preview: false });
     asHydrationHarness(viewModel).syncConversationHydration(
       asHydrationHarness(viewModel).openConversationIds
     );
 
-    viewModel.tabManager.closeTab(viewModel.tabManager.resolvedActiveTabId!);
+    viewModel.activePane.closeTab(viewModel.activePane.resolvedActiveTabId!);
     asHydrationHarness(viewModel).syncConversationHydration(
       asHydrationHarness(viewModel).openConversationIds
     );
@@ -645,7 +689,7 @@ describe('WorkspaceViewModel conversation hydration', () => {
       .spyOn(conversations, 'dehydrateConversation')
       .mockResolvedValue();
 
-    viewModel.tabManager.openConversation('conversation-1');
+    viewModel.activePane.open('conversation', { conversationId: 'conversation-1', preview: false });
     asHydrationHarness(viewModel).syncConversationHydration(
       asHydrationHarness(viewModel).openConversationIds
     );
@@ -658,7 +702,7 @@ describe('WorkspaceViewModel conversation hydration', () => {
 
     expect(hydrateConversation).toHaveBeenCalledTimes(2);
 
-    viewModel.tabManager.closeTab(viewModel.tabManager.resolvedActiveTabId!);
+    viewModel.activePane.closeTab(viewModel.activePane.resolvedActiveTabId!);
     asHydrationHarness(viewModel).syncConversationHydration(
       asHydrationHarness(viewModel).openConversationIds
     );
@@ -666,6 +710,96 @@ describe('WorkspaceViewModel conversation hydration', () => {
     expect(dehydrateConversation).toHaveBeenCalledTimes(1);
     expect(dehydrateConversation).toHaveBeenCalledWith('conversation-1');
 
+    viewModel.dispose();
+  });
+});
+
+describe('WorkspaceViewModel tab persistence adapter', () => {
+  const PERSISTOR_TASK_ID = 'task-persistor';
+
+  function makePersistorViewModel(): WorkspaceViewModel {
+    return new WorkspaceViewModel({
+      data: makeTask({ id: PERSISTOR_TASK_ID }),
+    } as unknown as TaskStore);
+  }
+
+  it('restores tabs from legacy aggregate tabGroups via the persistor', () => {
+    const viewModel = makePersistorViewModel();
+    viewModel.restoreSnapshot({
+      focusedRegion: 'main',
+      tabGroups: {
+        groups: [
+          {
+            groupId: 'group-1',
+            tabManager: { tabs: [], activeTabId: undefined },
+          },
+        ],
+        activeGroupId: 'group-1',
+        paneSizes: [100],
+      },
+    });
+
+    expect(viewModel.paneLayout.groups).toHaveLength(1);
+    expect(viewModel.paneLayout.groups[0].paneId).toBe('group-1');
+    viewModel.dispose();
+  });
+
+  it('gates default-conversation auto-open when tab state is restored', () => {
+    const conversations = conversationRegistry.acquire(PERSISTOR_TASK_ID, 'project-1', [
+      makeConversation({
+        id: 'conversation-1',
+        isInitialConversation: true,
+        taskId: PERSISTOR_TASK_ID,
+      }),
+    ]);
+    const viewModel = makePersistorViewModel();
+
+    viewModel.restoreSnapshot({
+      focusedRegion: 'main',
+      tabGroups: {
+        groups: [
+          {
+            groupId: 'group-1',
+            tabManager: { tabs: [], activeTabId: undefined },
+          },
+        ],
+        activeGroupId: 'group-1',
+        paneSizes: [100],
+      },
+    });
+
+    // Conversation list changes should not open a default conversation when tabs were restored.
+    runInAction(() => {
+      const conv = makeConversation({
+        id: 'conversation-2',
+        title: 'Conversation 2',
+        taskId: PERSISTOR_TASK_ID,
+      });
+      conversations.conversations.set(conv.id, new ConversationStore(conv));
+    });
+
+    expect(conversationTabIds(viewModel)).toHaveLength(0);
+    viewModel.dispose();
+    conversationRegistry.release(PERSISTOR_TASK_ID);
+  });
+
+  it('eager-writes dedicated tabs key when migrating from legacy aggregate', () => {
+    vi.mocked(rpc.viewState.save).mockClear();
+
+    const viewModel = makePersistorViewModel();
+    viewModel.restoreSnapshot({
+      focusedRegion: 'main',
+      tabGroups: {
+        groups: [{ groupId: 'g1', tabManager: { tabs: [], activeTabId: undefined } }],
+        activeGroupId: 'g1',
+        paneSizes: [100],
+      },
+    });
+
+    expect(vi.mocked(rpc.viewState.save)).toHaveBeenCalledWith(
+      `task:${PERSISTOR_TASK_ID}:tabs`,
+      expect.objectContaining({ groups: expect.any(Array) })
+    );
     viewModel.dispose();
   });
 });

@@ -27,6 +27,17 @@ describe('conversation-config', () => {
     expect(conversationConfig.parseJson(json)).toEqual(config);
   });
 
+  it('parses and round-trips model field', () => {
+    const result = conversationConfig.safeParse({ model: 'claude-sonnet-4-5' });
+    expect(result.status).toBe('ok');
+    if (result.status === 'ok') {
+      expect(result.data.model).toBe('claude-sonnet-4-5');
+    }
+    const config = { autoApprove: false, model: 'claude-opus-4-5' };
+    const json = conversationConfig.serialize(config);
+    expect(conversationConfig.parseJson(json)).toEqual(config);
+  });
+
   it('parseJson returns null for invalid JSON', () => {
     expect(conversationConfig.parseJson('not-json')).toBeNull();
   });

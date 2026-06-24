@@ -21,9 +21,9 @@ class LocalMachineRuntime implements MachineRuntime {
   });
   readonly health = new ConstantHealthSource();
 
-  dispose(): void {
-    void this.fileTree.dispose();
-    void this.git.dispose();
+  async dispose(): Promise<void> {
+    await this.fileTree.dispose();
+    await this.git.dispose();
   }
 }
 
@@ -42,9 +42,9 @@ class SshMachineRuntime implements MachineRuntime {
     this.git = new LegacySshGitRuntime(proxy);
   }
 
-  dispose(): void {
-    void this.fileTree.dispose();
-    this.git.dispose();
+  async dispose(): Promise<void> {
+    await this.fileTree.dispose();
+    await this.git.dispose();
   }
 }
 
@@ -63,9 +63,9 @@ class DefaultRuntimeManager implements RuntimeManager {
     });
   }
 
-  dispose(): void {
-    this.runtimes.dispose();
+  async dispose(): Promise<void> {
+    await this.runtimes.dispose();
   }
 }
 
-export const runtimeManager: RuntimeManager = new DefaultRuntimeManager();
+export const runtimeManager = new DefaultRuntimeManager();

@@ -20,7 +20,7 @@ export function confirmOpenExternalLink(url: string, onError?: (error: unknown) 
     canOpenInEmdashBrowser: taskView !== undefined,
     onSuccess: (choice) => {
       if (choice === 'emdash-browser') {
-        taskView?.tabGroupManager.openBrowser(normalizedUrl);
+        taskView?.paneLayout.open('browser', { initialUrl: normalizedUrl });
         taskView?.setFocusedRegion('main');
         return;
       }
