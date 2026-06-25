@@ -37,10 +37,12 @@ export default defineConfig({
         'react/primitives': resolve(__dirname, 'src/react/primitives/index.ts'),
         'react/components': resolve(__dirname, 'src/react/components/index.ts'),
         'react/patterns': resolve(__dirname, 'src/react/patterns/index.ts'),
+        'react/form': resolve(__dirname, 'src/react/form/index.ts'),
         'styles/recipes/control': resolve(__dirname, 'src/styles/recipes/control.ts'),
         'styles/recipes/input': resolve(__dirname, 'src/styles/recipes/input.ts'),
         'styles/recipes/surface': resolve(__dirname, 'src/styles/recipes/surface.css.ts'),
         'styles/recipes/card': resolve(__dirname, 'src/styles/recipes/card.css.ts'),
+        'styles/recipes/box': resolve(__dirname, 'src/styles/recipes/box.ts'),
         // VE theme utilities — exports sx (Sprinkles) and vars (theme contract).
         // Importing this entry causes style.css to include the extracted VE atoms.
         'styles/utilities/sprinkles': resolve(__dirname, 'src/styles/utilities/sprinkles.css.ts'),
@@ -51,6 +53,8 @@ export default defineConfig({
     rollupOptions: {
       external: [
         '@emdash/chat-ui',
+        '@tanstack/react-form',
+        '@tanstack/react-store',
         'react',
         'react-dom',
         'react/jsx-runtime',

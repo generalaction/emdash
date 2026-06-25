@@ -31,6 +31,7 @@ export const w52 = style({ width: '13rem' });
 export const w64 = style({ width: '16rem' });
 export const w72 = style({ width: '18rem' });
 export const w80 = style({ width: '20rem' });
+export const w96 = style({ width: '24rem' });
 export const maxW2xl = style({ maxWidth: '42rem' });
 export const maxWProse = style({ maxWidth: '65ch' });
 

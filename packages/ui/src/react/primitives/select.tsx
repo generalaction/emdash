@@ -34,11 +34,13 @@ function SelectTrigger({
   className,
   size = 'base',
   showChevron = true,
+  appearance = 'control',
   children,
   ...props
 }: SelectPrimitive.Trigger.Props & {
   size?: ControlVariantProps['size'];
   showChevron?: boolean;
+  appearance?: 'control' | 'input';
 }) {
   return (
     <SelectPrimitive.Trigger
@@ -47,6 +49,7 @@ function SelectTrigger({
         <TriggerButton
           size={size}
           showChevron={showChevron}
+          appearance={appearance}
           className={cx(styles.triggerInvalidOverride, className)}
         />
       }

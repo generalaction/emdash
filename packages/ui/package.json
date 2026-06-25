@@ -35,6 +35,10 @@
       "types": "./dist/src/react/patterns/index.d.ts",
       "default": "./dist/react/patterns.js"
     },
+    "./react/form": {
+      "types": "./dist/src/react/form/index.d.ts",
+      "default": "./dist/react/form.js"
+    },
     "./react/chat-ui": {
       "types": "./dist/src/react/chat-ui/index.d.ts",
       "default": "./dist/react/chat-ui.js"
@@ -64,6 +68,10 @@
     "./styles/recipes/card": {
       "types": "./dist/src/styles/recipes/card.css.d.ts",
       "default": "./dist/styles/recipes/card.js"
+    },
+    "./styles/recipes/box": {
+      "types": "./dist/src/styles/recipes/box.d.ts",
+      "default": "./dist/styles/recipes/box.js"
     },
     "./theme/theme.css": "./src/theme/__generated__/theme.css",
     "./theme/semantic.css": "./src/theme/__generated__/semantic.css",
@@ -109,6 +117,7 @@
   "devDependencies": {
     "@storybook/addon-docs": "^10.4.6",
     "@storybook/react-vite": "^10.4.6",
+    "@tanstack/react-form": "^1.28.4",
     "@types/node": "^20.19.42",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
@@ -132,6 +141,7 @@
     "vitest": "^4.1.0"
   },
   "peerDependencies": {
+    "@tanstack/react-form": "^1.28.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

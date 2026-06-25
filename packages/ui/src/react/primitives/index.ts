@@ -9,7 +9,14 @@ export {
 } from './toggle';
 export { Tabs, TabsList, TabsTab, TabsPanel, TabsIndicator, type TabsTabProps } from './tabs';
 export { TriggerButton, type TriggerButtonProps } from './trigger-button';
-export { Field, FieldLabel, FieldDescription, FieldError } from './field';
+export {
+  Field,
+  FieldContent,
+  FieldLabel,
+  FieldDescription,
+  FieldError,
+  type FieldVariants,
+} from './field';
 export { ScrollFade, type ScrollFadeProps } from './scroll-fade';
 export { ScrollContainer, type ScrollContainerProps } from './scroll-container';
 export { Text, type TextProps } from './typography/Text';
@@ -137,5 +144,14 @@ export {
   type SplitButtonOptionTone,
 } from './split-button';
 export { resolveFileIconClass } from '../lib/file-icons';
+export { Switch, type SwitchProps } from './switch';
+export { SeparatedList, type SeparatedListProps } from './separated-list';
+export {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsiblePanel,
+  type CollapsibleTriggerProps,
+} from './collapsible';
+export { Alert, AlertTitle, AlertDescription, type AlertProps } from './alert';
 export { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
 export { inputVariants, type InputVariantProps } from '@styles/recipes/input';
