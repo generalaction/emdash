@@ -176,7 +176,10 @@ describe('pluginRegistry', () => {
     });
 
     for (const flag of flags) {
-      expect(result.args.filter((arg) => arg === flag), `${id} ${flag}`).toHaveLength(1);
+      expect(
+        result.args.filter((arg) => arg === flag),
+        `${id} ${flag}`
+      ).toHaveLength(1);
     }
   });
 
