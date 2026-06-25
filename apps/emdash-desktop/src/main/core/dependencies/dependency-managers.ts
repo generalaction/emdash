@@ -136,6 +136,7 @@ async function createSshDependencyManager(connectionId: string): Promise<HostDep
 export function clearDependencyManager(connectionId: string): void {
   sshManagers.delete(connectionId);
   sshManagerPromises.delete(connectionId);
+  setGitExecutableOverride(null, connectionId);
 }
 
 export async function ensureAgentDependenciesProbed(

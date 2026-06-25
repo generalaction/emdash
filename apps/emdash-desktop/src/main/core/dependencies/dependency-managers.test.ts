@@ -358,6 +358,14 @@ describe('ensureAgentDependenciesProbed', () => {
     expect(mocks.connect).toHaveBeenCalledTimes(2);
   });
 
+  it('clears remote git executable overrides with remote managers', async () => {
+    const { clearDependencyManager } = await import('./dependency-managers');
+
+    clearDependencyManager('ssh-1');
+
+    expect(mocks.setGitExecutableOverride).toHaveBeenCalledWith(null, 'ssh-1');
+  });
+
   it('keeps in-flight probes deduped for a manager after cache clear', async () => {
     const { clearDependencyManager, ensureAgentDependenciesProbed, getDependencyManager } =
       await import('./dependency-managers');
