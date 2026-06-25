@@ -187,11 +187,12 @@ describe('createTaskCommandProvider', () => {
     });
 
     const modalOptions = mocks.showModal.mock.calls[0][1];
-    modalOptions.onSuccess({ conversationId: 'conversation-1' });
+    modalOptions.onSuccess({ conversationId: 'conversation-1', openBrowserTab: true });
 
     expect(taskView.tabGroupManager.openConversationInRightSplit).toHaveBeenCalledWith(
       'conversation-1'
     );
+    expect(taskView.tabGroupManager.openBrowser).toHaveBeenCalledWith();
     expect(taskView.setFocusedRegion).toHaveBeenCalledWith('main');
   });
 

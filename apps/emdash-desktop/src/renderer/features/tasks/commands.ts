@@ -89,8 +89,9 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
             showModal('createConversationModal', {
               projectId,
               taskId,
-              onSuccess: ({ conversationId }) => {
+              onSuccess: ({ conversationId, openBrowserTab }) => {
                 taskView?.tabGroupManager.openConversation(conversationId);
+                if (openBrowserTab) taskView?.tabGroupManager.openBrowser();
                 taskView?.setFocusedRegion('main');
               },
             });
@@ -106,8 +107,9 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
             showModal('createConversationModal', {
               projectId,
               taskId,
-              onSuccess: ({ conversationId }) => {
+              onSuccess: ({ conversationId, openBrowserTab }) => {
                 taskView?.tabGroupManager.openConversationInRightSplit(conversationId);
+                if (openBrowserTab) taskView?.tabGroupManager.openBrowser();
                 taskView?.setFocusedRegion('main');
               },
             });

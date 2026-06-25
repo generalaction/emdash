@@ -186,8 +186,9 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
     showCreateConversationModal({
       projectId,
       taskId,
-      onSuccess: ({ conversationId }) => {
+      onSuccess: ({ conversationId, openBrowserTab }) => {
         tabGroupManager.openConversation(conversationId);
+        if (openBrowserTab) tabGroupManager.openBrowser();
       },
     });
   };

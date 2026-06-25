@@ -49,7 +49,10 @@ export const TabBarActions = observer(function TabBarActions() {
               showCreateConversationModal({
                 projectId,
                 taskId,
-                onSuccess: ({ conversationId }) => tabManager.openConversation(conversationId),
+                onSuccess: ({ conversationId, openBrowserTab }) => {
+                  tabManager.openConversation(conversationId);
+                  if (openBrowserTab) tabManager.openBrowser();
+                },
               })
             }
           >

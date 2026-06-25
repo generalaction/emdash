@@ -20,7 +20,10 @@ export function PaneEmptyState() {
       showCreateConversationModal({
         projectId,
         taskId,
-        onSuccess: ({ conversationId }) => tabManager.openConversation(conversationId),
+        onSuccess: ({ conversationId, openBrowserTab }) => {
+          tabManager.openConversation(conversationId);
+          if (openBrowserTab) tabManager.openBrowser();
+        },
       }),
     () => showCommandPalette({ projectId, taskId, workspaceId: workspaceId ?? undefined }),
   ];
