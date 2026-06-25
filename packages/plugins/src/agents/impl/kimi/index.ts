@@ -21,6 +21,7 @@ function buildKimiCommand(ctx: CommandContext): AgentCommand {
     sessionIdOnResumeOnly: true,
     resumeWithoutSessionFlag: '-C',
     omitAutoApproveOnResume: true,
+    deduplicateFlags: ['--yolo'],
   });
   return { ...cmd, args: injectKimiHooksIntoInlineConfig(cmd.args) };
 }

@@ -50,6 +50,7 @@ export const provider = registerPluginBehavior(plugin, {
         resumeFlag: '--resume',
         sessionIdFlag: '--resume',
         sessionIdOnResumeOnly: true,
+        deduplicateFlags: ['--allow-all-tools'],
       }),
   },
   hooks: buildCopilotHookConfig(),

@@ -61,6 +61,7 @@ export const provider = registerPluginBehavior(plugin, {
         resumeFlag: 'threads continue',
         sessionIdFlag: 'threads continue',
         sessionIdOnResumeOnly: true,
+        deduplicateFlags: ['--dangerously-allow-all'],
       }),
   },
   mcp: ampMcpAdapter(),

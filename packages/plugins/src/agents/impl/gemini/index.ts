@@ -43,6 +43,7 @@ export const provider = registerPluginBehavior(plugin, {
         initialPromptFlag: '-i',
         resumeFlag: '--resume',
         extraEnv: ctx.autoApprove ? { GEMINI_CLI_TRUST_WORKSPACE: 'true' } : {},
+        deduplicateFlags: ['--approval-mode=yolo', '--skip-trust'],
       }),
   },
   mcp: geminiMcpAdapter(),

@@ -56,6 +56,7 @@ export const provider = registerPluginBehavior(plugin, {
         autoApproveFlag: '--auto',
         initialPromptFlag: '--prompt',
         resumeFlag: '--continue',
+        deduplicateFlags: ['--auto'],
       }),
   },
   plugins: createFileDropPlugin({

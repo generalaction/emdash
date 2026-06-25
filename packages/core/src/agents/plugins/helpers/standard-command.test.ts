@@ -100,4 +100,25 @@ describe('buildStandardCommand', () => {
     expect(mIdx).toBeGreaterThanOrEqual(0);
     expect(result.args[mIdx + 1]).toBe('gpt-5-codex');
   });
+
+  it('deduplicates singleton flags across generated and user extra args', () => {
+    const result = buildStandardCommand(
+      {
+        cli: 'codex',
+        autoApprove: true,
+        extraArgs: ['--dangerously-bypass-hook-trust', '--verbose'],
+        sessionId: 'conv-1',
+        isResuming: false,
+        model: '',
+      },
+      {
+        autoApproveFlag:
+          '-c approval_policy="never" -c sandbox_mode="danger-full-access" --dangerously-bypass-hook-trust',
+        deduplicateFlags: ['--dangerously-bypass-hook-trust'],
+      }
+    );
+
+    expect(result.args.filter((arg) => arg === '--dangerously-bypass-hook-trust')).toHaveLength(1);
+    expect(result.args).toContain('--verbose');
+  });
 });

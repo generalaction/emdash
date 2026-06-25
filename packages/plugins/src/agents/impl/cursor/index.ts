@@ -64,6 +64,7 @@ export const provider = registerPluginBehavior(plugin, {
         autoApproveFlag: '-f --approve-mcps',
         initialPromptFlag: '',
         resumeFlag: '--resume',
+        deduplicateFlags: ['-f', '--approve-mcps'],
       }),
   },
   mcp: cursorMcpAdapter(),

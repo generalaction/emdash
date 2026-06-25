@@ -47,6 +47,7 @@ export const provider = registerPluginBehavior(plugin, {
         resumeFlag: '--resume',
         sessionIdFlag: '--resume',
         sessionIdOnResumeOnly: true,
+        deduplicateFlags: ['--trust', '--skip-onboarding', '--yolo'],
       }),
   },
   hooks: buildCommandCodeHookConfig(),

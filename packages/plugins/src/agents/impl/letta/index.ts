@@ -35,6 +35,7 @@ export const provider = registerPluginBehavior(plugin, {
       buildStandardCommand(ctx, {
         autoApproveFlag: '--yolo',
         newConversationFlag: '--new',
+        deduplicateFlags: ['--yolo', '--new'],
       }),
   },
 });
