@@ -32,12 +32,14 @@ import { AutoCleanupScheduler } from './auto-cleanup-scheduler';
 
 const FIXED_NOW = new Date('2026-06-25T12:00:00.000Z');
 
-function setSettings(overrides: Partial<{
-  autoCleanupMergedEnabled: boolean;
-  autoCleanupMergedAction: 'archive' | 'delete';
-  autoCleanupMergedDeleteBranch: boolean;
-  autoCleanupMergedDelayMs: number;
-}>) {
+function setSettings(
+  overrides: Partial<{
+    autoCleanupMergedEnabled: boolean;
+    autoCleanupMergedAction: 'archive' | 'delete';
+    autoCleanupMergedDeleteBranch: boolean;
+    autoCleanupMergedDelayMs: number;
+  }>
+) {
   mocks.getSettings.mockResolvedValue({
     autoGenerateName: true,
     autoApproveByDefault: false,

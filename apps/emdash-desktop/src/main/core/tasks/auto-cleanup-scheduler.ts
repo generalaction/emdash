@@ -1,9 +1,9 @@
-import { and, desc, eq, isNotNull, lte, sql } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { archiveTask } from '@main/core/tasks/operations/archiveTask';
 import { deleteTask } from '@main/core/tasks/operations/deleteTask';
 import { db } from '@main/db/client';
-import { pullRequests, tasks, workspaces } from '@main/db/schema';
+import { projectRemotes, pullRequests, tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 
@@ -17,10 +17,11 @@ interface Candidate {
 
 export class AutoCleanupScheduler {
   private _interval: ReturnType<typeof setInterval> | null = null;
+  private _running = false;
 
   initialize(): void {
     if (this._interval) return;
-    // First tick on next macrotask so initialization order is unaffected.
+    // First tick on the next microtask so initialization order is unaffected.
     queueMicrotask(() => {
       void this.runOnce();
     });
@@ -37,6 +38,8 @@ export class AutoCleanupScheduler {
   }
 
   async runOnce(): Promise<void> {
+    if (this._running) return;
+    this._running = true;
     try {
       const settings = await appSettingsService.get('tasks');
       if (!settings.autoCleanupMergedEnabled) return;
@@ -63,6 +66,8 @@ export class AutoCleanupScheduler {
       }
     } catch (e: unknown) {
       log.warn('auto-cleanup: tick failed', { error: String(e) });
+    } finally {
+      this._running = false;
     }
   }
 
@@ -76,10 +81,20 @@ export class AutoCleanupScheduler {
       })
       .from(tasks)
       .innerJoin(workspaces, eq(workspaces.id, tasks.workspaceId))
-      .innerJoin(pullRequests, eq(pullRequests.headRefName, workspaces.branchName))
+      .innerJoin(projectRemotes, eq(projectRemotes.projectId, tasks.projectId))
+      .innerJoin(
+        pullRequests,
+        and(
+          eq(pullRequests.headRefName, workspaces.branchName),
+          or(
+            eq(pullRequests.repositoryUrl, projectRemotes.remoteUrl),
+            eq(pullRequests.headRepositoryUrl, projectRemotes.remoteUrl)
+          )
+        )
+      )
       .where(
         and(
-          sql`${tasks.archivedAt} IS NULL`,
+          isNull(tasks.archivedAt),
           eq(tasks.autoCleanupOptOut, false),
           eq(pullRequests.status, 'merged'),
           isNotNull(pullRequests.mergedAt),
@@ -88,8 +103,9 @@ export class AutoCleanupScheduler {
       )
       .orderBy(desc(pullRequests.mergedAt));
 
-    // If multiple PRs match the same branch (e.g. a closed+reopened pair),
-    // we may see the same task twice. Keep the most recent merge per task.
+    // The join can yield duplicates per task: multiple PRs match the same branch
+    // (e.g. closed+reopened pair), or one PR matches multiple project remotes.
+    // Order by mergedAt desc above + Set dedup below keeps the most recent merge per task.
     const seen = new Set<string>();
     const out: Candidate[] = [];
     for (const row of rows) {

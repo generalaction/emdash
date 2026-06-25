@@ -25,7 +25,6 @@ import { githubAccountReconciliationService } from './core/github/accounts/githu
 import { githubAccountRegistry } from './core/github/accounts/github-account-registry-instance';
 import { GitHubAuthServerAdapter } from './core/github/accounts/github-auth-server-adapter';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
-import { autoCleanupScheduler } from './core/tasks/auto-cleanup-scheduler';
 import { promptLibraryService } from './core/prompt-library/service';
 import { remoteTmuxReaperService } from './core/pty/remote-tmux-reaper-service';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
@@ -33,6 +32,7 @@ import { reconcileResourceSampler } from './core/resource-monitor/resource-sampl
 import { searchService } from './core/search/search-service';
 import { workspaceFileIndexService } from './core/search/workspace-file-index-service';
 import { appSettingsService } from './core/settings/settings-service';
+import { autoCleanupScheduler } from './core/tasks/auto-cleanup-scheduler';
 import { updateService } from './core/updates/update-service';
 import { viewStateService } from './core/view-state/view-state-service';
 import { initializeDatabase } from './db/initialize';

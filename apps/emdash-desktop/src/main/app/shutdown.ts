@@ -6,6 +6,7 @@ import { remoteTmuxReaperService } from '@main/core/pty/remote-tmux-reaper-servi
 import { autoCleanupScheduler } from '@main/core/tasks/auto-cleanup-scheduler';
 import { stopResourceSampler } from '@main/core/resource-monitor/resource-sampler';
 import { runtimeManager } from '@main/core/runtime/runtime-manager';
+import { autoCleanupScheduler } from '@main/core/tasks/auto-cleanup-scheduler';
 import { updateService } from '@main/core/updates/update-service';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';

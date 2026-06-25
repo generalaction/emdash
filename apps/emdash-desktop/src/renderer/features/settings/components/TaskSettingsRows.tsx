@@ -238,18 +238,57 @@ export const EnableTmuxRow: React.FC = () => {
   );
 };
 
+const DURATION_DEBOUNCE_MS = 300;
+
 export const AutoCleanupMergedTasksRow: React.FC = () => {
   const taskSettings = useTaskSettings();
   const { value, unit } = msToDuration(taskSettings.autoCleanupMergedDelayMs);
   const disabled =
     taskSettings.loading || taskSettings.saving || !taskSettings.autoCleanupMergedEnabled;
 
-  const updateValue = (nextValue: number) => {
+  const [draftValue, setDraftValue] = React.useState<string>(String(value));
+  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Re-sync the draft when the persisted value changes from outside (reset, external update,
+  // or unit change that re-derives the number).
+  React.useEffect(() => {
+    setDraftValue(String(value));
+  }, [value]);
+
+  React.useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  const commitValue = (nextValue: number) => {
     const clamped = Math.max(1, Math.floor(nextValue));
     taskSettings.updateAutoCleanupMergedDelayMs(durationToMs(clamped, unit));
   };
 
+  const onValueChange = (raw: string) => {
+    setDraftValue(raw);
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n <= 0) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => commitValue(n), DURATION_DEBOUNCE_MS);
+  };
+
+  const onValueBlur = () => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    const n = Number(draftValue);
+    if (Number.isFinite(n) && n >= 1) commitValue(n);
+    else setDraftValue(String(value));
+  };
+
   const updateUnit = (nextUnit: DurationUnit) => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
     taskSettings.updateAutoCleanupMergedDelayMs(durationToMs(value, nextUnit));
   };
 
@@ -322,12 +361,10 @@ export const AutoCleanupMergedTasksRow: React.FC = () => {
             <Input
               type="number"
               min={1}
-              value={value}
+              value={draftValue}
               disabled={disabled}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                if (Number.isFinite(n) && n > 0) updateValue(n);
-              }}
+              onChange={(e) => onValueChange(e.target.value)}
+              onBlur={onValueBlur}
               className="w-20"
             />
             <Select
