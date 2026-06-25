@@ -12,15 +12,16 @@
  */
 
 import type { ChatHandle, ChatItem } from '@emdash/chat-ui';
-import type { AcpPermissionRequest, AcpTurn, SessionLifecycle, TerminalSnapshot } from '@emdash/core/acp';
-import {
-  action,
-  makeObservable,
-  observable,
-  runInAction,
-} from 'mobx';
+import { applyTurnEvent } from '@emdash/chat-ui';
+import type {
+  AgentUpdate,
+  AcpPermissionRequest,
+  AcpTurn,
+  SessionLifecycle,
+  TerminalSnapshot,
+} from '@emdash/core/acp';
+import { action, makeObservable, observable, runInAction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
-import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import {
   acpPermissionRequestChannel,
   acpPermissionResolvedChannel,
@@ -33,8 +34,7 @@ import {
   acpTerminalReleasedChannel,
   acpTurnCommittedChannel,
 } from '@shared/core/acp/acpEvents';
-import { applyTurnEvent } from '@emdash/chat-ui';
-import { foldHistory, foldTurn, mapSessionUpdate } from './acp-update-mapper';
+import { foldHistory, foldTurn, mapAgentUpdate } from './acp-update-mapper';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -53,7 +53,7 @@ export class AcpChatStore {
   terminals: TerminalSnapshot[] = [];
 
   /** Buffered active-turn updates, keyed by seq, awaiting handle attachment. */
-  private _activeTurnUpdates = new Map<number, { seq: number; update: SessionUpdate }>();
+  private _activeTurnUpdates = new Map<number, { seq: number; update: AgentUpdate }>();
   /** The current active turn id (null when idle). */
   private _activeTurnId: string | null = null;
 
@@ -299,7 +299,7 @@ export class AcpChatStore {
     }
   }
 
-  private _handleSessionUpdate(seq: number, update: SessionUpdate): void {
+  private _handleSessionUpdate(seq: number, update: AgentUpdate): void {
     this._activeTurnUpdates.set(seq, { seq, update });
     this._replayActiveUpdates();
   }
@@ -312,7 +312,7 @@ export class AcpChatStore {
 
     let items: ChatItem[] = [];
     for (const { update } of sorted) {
-      const evts = mapSessionUpdate(update);
+      const evts = mapAgentUpdate(update);
       for (const evt of evts) {
         items = applyTurnEvent(items, evt);
       }

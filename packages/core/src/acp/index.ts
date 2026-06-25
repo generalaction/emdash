@@ -26,5 +26,12 @@ export type {
   ResolveAcpProvider,
   SetSessionIdError,
 } from './runtime';
-export type { EmdashUpdateMeta } from './normalized';
-export { readEmdashMeta } from './normalized';
+export type {
+  AgentDiff,
+  AgentPlanEntry,
+  AgentPlanEntryPriority,
+  AgentPlanEntryStatus,
+  AgentToolStatus,
+  AgentUpdate,
+} from './agent-update';
+export { toAgentUpdate } from './agent-update';

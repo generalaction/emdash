@@ -6,7 +6,6 @@ import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-sel
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { Button } from '@renderer/lib/ui/button';
 import { Field } from '@renderer/lib/ui/field';
-import { Switch } from '@renderer/lib/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import {
   Select,
@@ -15,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@renderer/lib/ui/select';
+import { Switch } from '@renderer/lib/ui/switch';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';

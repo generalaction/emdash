@@ -14,7 +14,7 @@
 import { IconError } from '@components/primitives/icons';
 import { Show } from 'solid-js';
 import type { ChatToolCall } from '@/model';
-import { textShimmer, toolRow, toolSummary } from './tool.css';
+import { textShimmer, toolName, toolRow, toolSummary } from './tool.css';
 import { vars } from '@styles/theme.css';
 
 export type ToolProps = {
@@ -24,7 +24,7 @@ export type ToolProps = {
 export function Tool(props: ToolProps) {
   return (
     <div class={toolRow} classList={{ [textShimmer]: props.item.status === 'running' }}>
-      <span>{props.item.name}</span>
+      <span class={toolName}>{props.item.name}</span>
       <Show when={props.item.inputSummary}>
         <span class={toolSummary}>{props.item.inputSummary}</span>
       </Show>

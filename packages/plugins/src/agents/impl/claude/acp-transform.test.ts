@@ -1,77 +1,129 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
+import type { AgentUpdate } from '@emdash/core/acp';
 import { describe, expect, it } from 'vitest';
-import { normalizeClaudeUpdate } from './acp-transform';
+import { enrichClaudeUpdate } from './acp-transform';
 
-/** Minimal text chunk fixture — overrides replace the top-level object. */
-function textChunk(metaOverride?: Record<string, unknown>): SessionUpdate {
-  const base: SessionUpdate = {
-    sessionUpdate: 'agent_message_chunk',
-    content: { type: 'text', text: 'hello' },
+// ── fixtures ──────────────────────────────────────────────────────────────────
+
+function makeToolCall(overrides: Partial<AgentUpdate & { kind: 'tool_call' }> = {}): AgentUpdate {
+  return {
+    kind: 'tool_call',
+    toolCallId: 'tc-1',
+    title: 'Run bash',
+    toolKind: 'execute',
+    status: 'in_progress',
+    parentToolCallId: null,
+    diffs: [],
+    ...overrides,
   };
-  if (metaOverride !== undefined) {
-    return { ...base, _meta: metaOverride };
-  }
-  return base;
 }
 
-describe('normalizeClaudeUpdate', () => {
-  it('is identity when _meta is absent', () => {
-    const update = textChunk();
-    expect(normalizeClaudeUpdate(update)).toBe(update);
+function makeToolUpdate(
+  overrides: Partial<AgentUpdate & { kind: 'tool_update' }> = {}
+): AgentUpdate {
+  return {
+    kind: 'tool_update',
+    toolCallId: 'tc-1',
+    title: null,
+    toolKind: null,
+    status: 'completed',
+    parentToolCallId: null,
+    diffs: [],
+    ...overrides,
+  };
+}
+
+function makeRaw(meta?: Record<string, unknown>): SessionUpdate {
+  return {
+    sessionUpdate: 'tool_call',
+    toolCallId: 'tc-1',
+    title: 'Run bash',
+    ...(meta !== undefined ? { _meta: meta } : {}),
+  };
+}
+
+// ── enrichClaudeUpdate ────────────────────────────────────────────────────────
+
+describe('enrichClaudeUpdate', () => {
+  it('is identity for message kind', () => {
+    const update: AgentUpdate = {
+      kind: 'message',
+      role: 'assistant',
+      messageId: null,
+      text: 'hello',
+    };
+    const raw = makeRaw({ claudeCode: { parentToolUseId: 'parent-1' } });
+    expect(enrichClaudeUpdate(update, raw)).toBe(update);
   });
 
-  it('is identity when _meta.claudeCode is absent', () => {
-    const update = textChunk({ other: 'value' });
-    expect(normalizeClaudeUpdate(update)).toBe(update);
+  it('is identity for thinking kind', () => {
+    const update: AgentUpdate = { kind: 'thinking', messageId: null, text: 'thinking...' };
+    const raw = makeRaw({ claudeCode: { parentToolUseId: 'parent-1' } });
+    expect(enrichClaudeUpdate(update, raw)).toBe(update);
   });
 
-  it('is identity when parentToolUseId is absent from claudeCode', () => {
-    const update = textChunk({ claudeCode: { toolName: 'Bash' } });
-    expect(normalizeClaudeUpdate(update)).toBe(update);
+  it('is identity for ignored kind', () => {
+    const update: AgentUpdate = { kind: 'ignored' };
+    const raw = makeRaw({ claudeCode: { parentToolUseId: 'parent-1' } });
+    expect(enrichClaudeUpdate(update, raw)).toBe(update);
   });
 
-  it('is identity when parentToolUseId is not a string', () => {
-    const update = textChunk({ claudeCode: { parentToolUseId: 42 } });
-    expect(normalizeClaudeUpdate(update)).toBe(update);
+  it('is identity for tool_call when _meta is absent', () => {
+    const update = makeToolCall();
+    const raw = makeRaw();
+    expect(enrichClaudeUpdate(update, raw)).toBe(update);
   });
 
-  it('promotes parentToolUseId to _meta.emdash.parentToolCallId', () => {
-    const update = textChunk({ claudeCode: { parentToolUseId: 'tool-abc-123' } });
-    const result = normalizeClaudeUpdate(update);
+  it('is identity for tool_call when claudeCode is absent', () => {
+    const update = makeToolCall();
+    const raw = makeRaw({ other: 'value' });
+    expect(enrichClaudeUpdate(update, raw)).toBe(update);
+  });
+
+  it('is identity for tool_call when parentToolUseId is absent', () => {
+    const update = makeToolCall();
+    const raw = makeRaw({ claudeCode: { toolName: 'Bash' } });
+    expect(enrichClaudeUpdate(update, raw)).toBe(update);
+  });
+
+  it('is identity for tool_call when parentToolUseId is not a string', () => {
+    const update = makeToolCall();
+    const raw = makeRaw({ claudeCode: { parentToolUseId: 42 } });
+    expect(enrichClaudeUpdate(update, raw)).toBe(update);
+  });
+
+  it('promotes parentToolUseId to parentToolCallId on tool_call', () => {
+    const update = makeToolCall();
+    const raw = makeRaw({ claudeCode: { parentToolUseId: 'parent-abc' } });
+    const result = enrichClaudeUpdate(update, raw);
     expect(result).not.toBe(update);
-    expect((result._meta as { emdash?: { parentToolCallId?: string } }).emdash?.parentToolCallId).toBe(
-      'tool-abc-123'
-    );
+    expect(result).toMatchObject({ kind: 'tool_call', parentToolCallId: 'parent-abc' });
   });
 
-  it('preserves existing _meta fields alongside the promoted value', () => {
-    const update = textChunk({
-      claudeCode: { parentToolUseId: 'tool-parent', toolName: 'Read' },
-      existingKey: 'preserved',
-    });
-    const result = normalizeClaudeUpdate(update);
-    const meta = result._meta as Record<string, unknown>;
-    expect(meta.existingKey).toBe('preserved');
-    expect((meta.claudeCode as { toolName: string }).toolName).toBe('Read');
-    expect((meta.emdash as { parentToolCallId: string }).parentToolCallId).toBe('tool-parent');
+  it('promotes parentToolUseId to parentToolCallId on tool_update', () => {
+    const update = makeToolUpdate();
+    const raw = makeRaw({ claudeCode: { parentToolUseId: 'parent-xyz' } });
+    const result = enrichClaudeUpdate(update, raw);
+    expect(result).not.toBe(update);
+    expect(result).toMatchObject({ kind: 'tool_update', parentToolCallId: 'parent-xyz' });
   });
 
-  it('preserves existing _meta.emdash fields when promoting', () => {
-    const update = textChunk({
-      claudeCode: { parentToolUseId: 'tool-xyz' },
-      emdash: { otherField: 'keep-me' },
+  it('preserves all other fields on tool_call when enriching', () => {
+    const update = makeToolCall({ toolCallId: 'tc-99', title: 'Read file', toolKind: 'read' });
+    const raw = makeRaw({ claudeCode: { parentToolUseId: 'parent-1' } });
+    const result = enrichClaudeUpdate(update, raw);
+    expect(result).toMatchObject({
+      kind: 'tool_call',
+      toolCallId: 'tc-99',
+      title: 'Read file',
+      toolKind: 'read',
     });
-    const result = normalizeClaudeUpdate(update);
-    const emdash = (result._meta as { emdash?: Record<string, unknown> }).emdash;
-    expect(emdash?.parentToolCallId).toBe('tool-xyz');
-    expect(emdash?.otherField).toBe('keep-me');
   });
 
   it('does not mutate the original update', () => {
-    const update = textChunk({ claudeCode: { parentToolUseId: 'tool-xyz' } });
-    normalizeClaudeUpdate(update);
-    const cc = (update._meta as { claudeCode: { parentToolUseId: string } }).claudeCode;
-    expect(cc.parentToolUseId).toBe('tool-xyz');
-    expect((update._meta as { emdash?: unknown }).emdash).toBeUndefined();
+    const update = makeToolCall();
+    const raw = makeRaw({ claudeCode: { parentToolUseId: 'parent-42' } });
+    enrichClaudeUpdate(update, raw);
+    expect(update).toMatchObject({ kind: 'tool_call', parentToolCallId: null });
   });
 });

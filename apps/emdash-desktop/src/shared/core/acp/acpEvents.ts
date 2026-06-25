@@ -1,5 +1,5 @@
-import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import type {
+  AgentUpdate,
   AcpPermissionRequest,
   AcpTerminalExit,
   AcpTurn,
@@ -16,7 +16,7 @@ export const acpSessionUpdateChannel = defineEvent<{
   conversationId: string;
   /** Turn this update belongs to (matches the current activeTurnId). */
   turnId: string;
-  update: SessionUpdate;
+  update: AgentUpdate;
   /** Monotonic per-conversation sequence number for cross-reload dedup. */
   seq: number;
 }>('acp:session-update');

@@ -7,7 +7,7 @@
  * reconstructing it from a replay event stream.
  */
 
-import type { SessionUpdate } from '@agentclientprotocol/sdk';
+import type { AgentUpdate } from './agent-update';
 import type { AcpPermissionRequest } from './permissions';
 
 /**
@@ -39,7 +39,7 @@ export interface AcpTurn {
   startSeq: number;
   /** Conversation-global seq after the last update (null while active). */
   endSeq: number | null;
-  updates: { seq: number; update: SessionUpdate }[];
+  updates: { seq: number; update: AgentUpdate }[];
 }
 
 /**

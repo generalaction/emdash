@@ -12,15 +12,15 @@
  *   └──────────────────────────────────┘
  */
 
-import { ChatComposer } from '@emdash/ui/react/components';
-import type { ComposerPermissionRequest } from '@emdash/ui/react/components';
 import { ChatTranscript } from '@emdash/ui/react/chat-ui';
 import type { ChatHandle } from '@emdash/ui/react/chat-ui';
+import { ChatComposer } from '@emdash/ui/react/components';
+import type { ComposerPermissionRequest } from '@emdash/ui/react/components';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
-import type { AcpChatResolvedData } from './acp-chat-tab-provider';
 import type { AcpChatStore } from './acp-chat-store';
+import type { AcpChatResolvedData } from './acp-chat-tab-provider';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -42,11 +42,7 @@ function toComposerPermission(
 
 // ── Inner panel for a single store ────────────────────────────────────────────
 
-const AcpChatStorePanel = observer(function AcpChatStorePanel({
-  store,
-}: {
-  store: AcpChatStore;
-}) {
+const AcpChatStorePanel = observer(function AcpChatStorePanel({ store }: { store: AcpChatStore }) {
   const composerRef = useRef<HTMLDivElement>(null);
   const [padBottom, setPadBottom] = useState(0);
 
@@ -122,7 +118,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
 
   const activeTab = pane.resolvedTabs.find(
     (t): t is typeof t & AcpChatResolvedData => t.isActive && t.kind === 'acp-chat'
-  ) as (typeof pane.resolvedTabs[0] & AcpChatResolvedData) | undefined;
+  ) as ((typeof pane.resolvedTabs)[0] & AcpChatResolvedData) | undefined;
 
   if (!activeTab) return null;
 

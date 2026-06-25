@@ -1,21 +1,20 @@
 /**
- * Pure mapping functions that translate ACP SessionUpdate events into the
+ * Pure mapping functions that translate AgentUpdate events into the
  * ActiveTurnEvent vocabulary consumed by @emdash/chat-ui.
  *
- * Only foundational variants are mapped here; the rest are stubbed with TODO
- * comments so they can be wired up incrementally.
+ * ACP-specific decoding (text extraction, diff extraction, status/kind
+ * passthrough) is handled upstream in core by `toAgentUpdate`. This mapper
+ * is a thin adapter: it converts the provider-neutral `AgentUpdate` fields
+ * into the UI vocabulary, keeping all UI-specific decisions here.
  */
 
-import type { SessionUpdate, ToolCallContent } from '@agentclientprotocol/sdk';
 import { applyTurnEvent, finalizeTurn } from '@emdash/chat-ui';
 import type { ActiveTurnEvent, ChatItem, ToolStatus } from '@emdash/chat-ui';
-import type { AcpTurn, ChatHistory } from '@emdash/core/acp';
+import type { AgentDiff, AgentToolStatus, AgentUpdate, AcpTurn, ChatHistory } from '@emdash/core/acp';
 
-// ── ToolCallStatus → ToolStatus mapping ───────────────────────────────────────
+// ── AgentToolStatus → ToolStatus mapping ──────────────────────────────────────
 
-type AcpToolStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
-
-function mapToolStatus(status: AcpToolStatus | null | undefined): ToolStatus | undefined {
+function mapToolStatus(status: AgentToolStatus | null | undefined): ToolStatus | undefined {
   switch (status) {
     case 'pending':
     case 'in_progress':
@@ -29,86 +28,36 @@ function mapToolStatus(status: AcpToolStatus | null | undefined): ToolStatus | u
   }
 }
 
-// ── Diff content extraction ───────────────────────────────────────────────────
-
-interface AcpDiffBlock {
-  path: string;
-  oldText: string | null;
-  newText: string;
-}
-
-/**
- * Pulls `type: 'diff'` blocks out of a tool call's content array. ACP delivers
- * file edits as diff content blocks (one per changed file) on `tool_call` /
- * `tool_call_update` updates; the chat-ui renders each as a ChatDiff row.
- */
-function extractDiffs(content: readonly ToolCallContent[] | null | undefined): AcpDiffBlock[] {
-  if (!content) return [];
-  const diffs: AcpDiffBlock[] = [];
-  for (const block of content) {
-    if (block.type === 'diff') {
-      diffs.push({ path: block.path, oldText: block.oldText ?? null, newText: block.newText });
-    }
-  }
-  return diffs;
-}
-
 // ── Core mapper ───────────────────────────────────────────────────────────────
 
 /**
- * Maps a single ACP SessionUpdate to zero or more ActiveTurnEvents.
- * Foundational variants: user/agent message chunks, thinking chunks, tool calls.
- * Other variants return [] with inline TODO markers.
+ * Maps a single AgentUpdate to zero or more ActiveTurnEvents.
  */
-export function mapSessionUpdate(update: SessionUpdate): ActiveTurnEvent[] {
-  switch (update.sessionUpdate) {
-    case 'user_message_chunk': {
-      const { content, messageId } = update;
-      if (content.type === 'text' && content.text) {
-        return [
-          {
-            type: 'message_chunk',
-            id: messageId ?? 'user-message',
-            role: 'user',
-            text: content.text,
-          },
-        ];
-      }
-      // TODO: handle image / resource_link content blocks in user messages
-      return [];
+export function mapAgentUpdate(update: AgentUpdate): ActiveTurnEvent[] {
+  switch (update.kind) {
+    case 'message': {
+      if (!update.text) return [];
+      return [
+        {
+          type: 'message_chunk',
+          id: update.messageId ?? (update.role === 'user' ? 'user-message' : 'agent-message'),
+          role: update.role,
+          text: update.text,
+        },
+      ];
     }
 
-    case 'agent_message_chunk': {
-      const { content, messageId } = update;
-      if (content.type === 'text' && content.text) {
-        return [
-          {
-            type: 'message_chunk',
-            id: messageId ?? 'agent-message',
-            role: 'assistant',
-            text: content.text,
-          },
-        ];
-      }
-      // TODO: handle image / resource_link content blocks in agent messages
-      return [];
-    }
-
-    case 'agent_thought_chunk': {
-      const { content, messageId } = update;
-      if (content.type === 'text' && content.text) {
-        return [{ type: 'thinking_chunk', id: messageId ?? 'thinking', text: content.text }];
-      }
-      return [];
+    case 'thinking': {
+      if (!update.text) return [];
+      return [{ type: 'thinking_chunk', id: update.messageId ?? 'thinking', text: update.text }];
     }
 
     case 'tool_call': {
-      const { toolCallId, title, status, kind, content } = update;
+      const { toolCallId, title, toolKind, status, diffs } = update;
 
       // Edits carry their changes as diff content blocks → render ChatDiff rows.
-      const diffs = extractDiffs(content);
       if (diffs.length > 0) {
-        return diffs.flatMap((d) => {
+        return diffs.flatMap((d: AgentDiff) => {
           const id = `${toolCallId}:${d.path}`;
           const events: ActiveTurnEvent[] = [
             { type: 'diff_start', id, path: d.path, oldText: d.oldText, newText: d.newText },
@@ -120,9 +69,9 @@ export function mapSessionUpdate(update: SessionUpdate): ActiveTurnEvent[] {
         });
       }
 
-      // An edit whose diff arrives in a later tool_call_update: suppress the
+      // An edit whose diff arrives in a later tool_update: suppress the
       // generic tool row so it isn't rendered as a placeholder beside the diff.
-      if (kind === 'edit') return [];
+      if (toolKind === 'edit') return [];
 
       return [
         {
@@ -144,12 +93,11 @@ export function mapSessionUpdate(update: SessionUpdate): ActiveTurnEvent[] {
       ];
     }
 
-    case 'tool_call_update': {
-      const { toolCallId, status, title, content } = update;
+    case 'tool_update': {
+      const { toolCallId, title, status, diffs } = update;
 
-      const diffs = extractDiffs(content);
       if (diffs.length > 0) {
-        return diffs.flatMap((d) => {
+        return diffs.flatMap((d: AgentDiff) => {
           const id = `${toolCallId}:${d.path}`;
           return [
             // diff_start is idempotent in the reducer; safe if the row already exists.
@@ -182,14 +130,19 @@ export function mapSessionUpdate(update: SessionUpdate): ActiveTurnEvent[] {
     }
 
     case 'plan':
-    case 'plan_update':
-    case 'plan_removed':
-      // TODO: map plan events to plan_update / plan_removed ActiveTurnEvents
-      return [];
+      // ACP's stable `plan` update carries no id — use a constant so the reducer
+      // replaces the same row in place on each wholesale update. `streaming: true`
+      // enables the shimmer/auto-scroll; finalizeTurn settles it to false at turn end.
+      return [
+        {
+          type: 'plan_update',
+          id: 'plan',
+          entries: update.entries,
+          streaming: true,
+        },
+      ];
 
-    case 'available_commands_update':
-    case 'current_mode_update':
-    case 'config_option_update':
+    case 'ignored':
       return [];
 
     default:
@@ -206,7 +159,7 @@ export function mapSessionUpdate(update: SessionUpdate): ActiveTurnEvent[] {
 export function foldTurn(turn: AcpTurn): ChatItem[] {
   let items: ChatItem[] = [];
   for (const { update } of turn.updates) {
-    const events = mapSessionUpdate(update);
+    const events = mapAgentUpdate(update);
     for (const event of events) {
       items = applyTurnEvent(items, event);
     }

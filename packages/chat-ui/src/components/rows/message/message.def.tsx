@@ -57,7 +57,14 @@ function AssistantRender(props: { data: ChatMessage; ctx: RenderCtx; vars: Messa
   // One frontier Map per mounted instance — persists across streaming chunks
   // because the <For> in UnitRow keeps this component alive. Shared by ref with
   // StreamContext so Prose.tsx can update it after each render without reactivity.
-  const streamAnimation: StreamAnimation = { frontier: new Map() };
+  //
+  // `streaming` is a reactive accessor (not a plain boolean) so that Code.tsx
+  // effects which read it via useStreamAnimation()?.streaming() track the
+  // streaming→committed transition and run exactly one highlight at the end.
+  const streamAnimation: StreamAnimation = {
+    frontier: new Map(),
+    streaming: () => props.data.streaming === true,
+  };
 
   const stack = createMemo<Measured<StackLayout> | null>(() => {
     const ctx = mCtx();

@@ -7,6 +7,7 @@ import {
   makeAcpHarness,
   makeStartInput,
 } from './acp-test-support';
+import type { AgentUpdate } from './agent-update';
 
 // ---------------------------------------------------------------------------
 // Pooling
@@ -880,29 +881,37 @@ describe('AcpSessionRuntime – terminals', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Transform
+// Enrich / normalize
 // ---------------------------------------------------------------------------
 
-describe('AcpSessionRuntime – transform', () => {
-  const textUpdate = (): SessionUpdate => ({
+describe('AcpSessionRuntime – enrich', () => {
+  const rawTextUpdate = (): SessionUpdate => ({
     sessionUpdate: 'agent_message_chunk',
     content: { type: 'text', text: 'hello' },
   });
 
-  it('applies provider transform before storing the update in the turn', async () => {
-    const transformed: SessionUpdate = {
-      sessionUpdate: 'agent_message_chunk',
-      content: { type: 'text', text: 'hello' },
-      _meta: { emdash: { parentToolCallId: 'parent-42' } },
-    };
+  const expectedAgentMessage: AgentUpdate = {
+    kind: 'message',
+    role: 'assistant',
+    messageId: null,
+    text: 'hello',
+  };
 
-    const h = makeAcpHarness();
-    const transformFn = vi.fn().mockReturnValue(transformed);
-    (h.deps as { resolveAcp: unknown }).resolveAcp = () => ({
-      behavior: {
-        buildSpawn: () => ({ command: '/fake/node', args: ['agent.js'], env: {} }),
-        connect: h.agent.behavior.connect,
-        transform: transformFn,
+  it('baseline toAgentUpdate runs even without a provider enrich', async () => {
+    const emittedUpdates: AgentUpdate[] = [];
+    const h = makeAcpHarness({
+      listener: {
+        onState: () => {},
+        onSessionUpdate: (e) => emittedUpdates.push(e.update),
+        onTurnCommitted: () => {},
+        onPermissionRequest: () => {},
+        onPermissionResolved: () => {},
+        onClosed: () => {},
+        onAgentEvent: () => {},
+        onTerminalCreated: () => {},
+        onTerminalOutput: () => {},
+        onTerminalExit: () => {},
+        onTerminalReleased: () => {},
       },
     });
 
@@ -910,48 +919,35 @@ describe('AcpSessionRuntime – transform', () => {
     h.agent.newSession.mockResolvedValue({ sessionId: 'sess-1' });
     await rt.start(makeStartInput({ conversationId: 'conv-1' }));
 
-    const original = textUpdate();
-    await h.client().sessionUpdate({ sessionId: 'sess-1', update: original });
+    await h.client().sessionUpdate({ sessionId: 'sess-1', update: rawTextUpdate() });
 
-    expect(transformFn).toHaveBeenCalledTimes(1);
-    expect(transformFn).toHaveBeenCalledWith(original);
+    expect(emittedUpdates).toHaveLength(1);
+    expect(emittedUpdates[0]).toStrictEqual(expectedAgentMessage);
+  });
 
-    // The normalized update is what lands in the session state (stored in the turn).
+  it('stores the normalized AgentUpdate in the turn', async () => {
+    const h = makeAcpHarness();
+
+    const rt = new AcpSessionRuntime(h.deps);
+    h.agent.newSession.mockResolvedValue({ sessionId: 'sess-1' });
+    await rt.start(makeStartInput({ conversationId: 'conv-1' }));
+
+    await h.client().sessionUpdate({ sessionId: 'sess-1', update: rawTextUpdate() });
+
     // getSessionState returns a structuredClone, so use deep equality.
     const state = rt.getSessionState('conv-1');
     const storedUpdate = state.activeTurn?.updates[0]?.update;
-    expect(storedUpdate).toStrictEqual(transformed);
+    expect(storedUpdate).toStrictEqual(expectedAgentMessage);
   });
 
-  it('emits the transformed update via onSessionUpdate', async () => {
-    const transformed: SessionUpdate = {
-      sessionUpdate: 'agent_message_chunk',
-      content: { type: 'text', text: 'hello' },
-      _meta: { emdash: { parentToolCallId: 'parent-42' } },
-    };
-
-    const emittedUpdates: SessionUpdate[] = [];
-    const h = makeAcpHarness({
-      listener: {
-        onState: () => {},
-        onSessionUpdate: (e) => emittedUpdates.push(e.update),
-        onTurnCommitted: () => {},
-        onPermissionRequest: () => {},
-        onPermissionResolved: () => {},
-        onClosed: () => {},
-        onAgentEvent: () => {},
-        onTerminalCreated: () => {},
-        onTerminalOutput: () => {},
-        onTerminalExit: () => {},
-        onTerminalReleased: () => {},
-      },
-    });
-    const transformFn = vi.fn().mockReturnValue(transformed);
+  it('provider enrich is called with the baseline AgentUpdate and the raw SessionUpdate', async () => {
+    const h = makeAcpHarness();
+    const enrichFn = vi.fn().mockImplementation((u: AgentUpdate) => u);
     (h.deps as { resolveAcp: unknown }).resolveAcp = () => ({
       behavior: {
         buildSpawn: () => ({ command: '/fake/node', args: ['agent.js'], env: {} }),
         connect: h.agent.behavior.connect,
-        transform: transformFn,
+        enrich: enrichFn,
       },
     });
 
@@ -959,14 +955,26 @@ describe('AcpSessionRuntime – transform', () => {
     h.agent.newSession.mockResolvedValue({ sessionId: 'sess-1' });
     await rt.start(makeStartInput({ conversationId: 'conv-1' }));
 
-    await h.client().sessionUpdate({ sessionId: 'sess-1', update: textUpdate() });
+    const raw = rawTextUpdate();
+    await h.client().sessionUpdate({ sessionId: 'sess-1', update: raw });
 
-    expect(emittedUpdates).toHaveLength(1);
-    expect(emittedUpdates[0]).toBe(transformed);
+    expect(enrichFn).toHaveBeenCalledTimes(1);
+    // First arg is the decoded AgentUpdate, second is the original raw SessionUpdate.
+    expect(enrichFn).toHaveBeenCalledWith(expectedAgentMessage, raw);
   });
 
-  it('uses identity passthrough when provider has no transform', async () => {
-    const emittedUpdates: SessionUpdate[] = [];
+  it('provider enrich can override parentToolCallId', async () => {
+    const enriched: AgentUpdate = {
+      kind: 'tool_call',
+      toolCallId: 'tc-1',
+      title: 'Bash',
+      toolKind: 'execute',
+      status: 'in_progress',
+      parentToolCallId: 'parent-42',
+      diffs: [],
+    };
+
+    const emittedUpdates: AgentUpdate[] = [];
     const h = makeAcpHarness({
       listener: {
         onState: () => {},
@@ -982,15 +990,33 @@ describe('AcpSessionRuntime – transform', () => {
         onTerminalReleased: () => {},
       },
     });
+    const enrichFn = vi.fn().mockReturnValue(enriched);
+    (h.deps as { resolveAcp: unknown }).resolveAcp = () => ({
+      behavior: {
+        buildSpawn: () => ({ command: '/fake/node', args: ['agent.js'], env: {} }),
+        connect: h.agent.behavior.connect,
+        enrich: enrichFn,
+      },
+    });
 
     const rt = new AcpSessionRuntime(h.deps);
     h.agent.newSession.mockResolvedValue({ sessionId: 'sess-1' });
     await rt.start(makeStartInput({ conversationId: 'conv-1' }));
 
-    const original = textUpdate();
-    await h.client().sessionUpdate({ sessionId: 'sess-1', update: original });
+    const raw: SessionUpdate = {
+      sessionUpdate: 'tool_call',
+      toolCallId: 'tc-1',
+      title: 'Bash',
+      kind: 'execute',
+      status: 'in_progress',
+    };
+    await h.client().sessionUpdate({ sessionId: 'sess-1', update: raw });
 
     expect(emittedUpdates).toHaveLength(1);
-    expect(emittedUpdates[0]).toBe(original);
+    expect(emittedUpdates[0]).toBe(enriched);
+
+    const state = rt.getSessionState('conv-1');
+    const stored = state.activeTurn?.updates[0]?.update as AgentUpdate & { kind: 'tool_call' };
+    expect(stored?.parentToolCallId).toBe('parent-42');
   });
 });

@@ -110,10 +110,13 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
               projectId,
               taskId,
               onSuccess: ({ conversationId, type }) => {
-                taskView?.paneLayout.openInRightSplit(type === 'acp' ? 'acp-chat' : 'conversation', {
-                  conversationId,
-                  preview: false,
-                });
+                taskView?.paneLayout.openInRightSplit(
+                  type === 'acp' ? 'acp-chat' : 'conversation',
+                  {
+                    conversationId,
+                    preview: false,
+                  }
+                );
                 taskView?.setFocusedRegion('main');
               },
             });

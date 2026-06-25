@@ -1,5 +1,6 @@
 import type { Result } from '@emdash/shared';
 import type { IAcpBehavior } from '../agents/plugins/capabilities/acp';
+import type { AgentUpdate } from './agent-update';
 import type { AcpPermissionRequest } from './permissions';
 import type { TerminalSnapshot } from './terminals';
 import type { AcpProcessHost, AcpTerminalExit } from './transport';
@@ -54,7 +55,7 @@ export interface AcpRuntimeListener {
   onSessionUpdate(e: {
     conversationId: string;
     turnId: string;
-    update: import('@agentclientprotocol/sdk').SessionUpdate;
+    update: AgentUpdate;
     seq: number;
   }): void;
   onTurnCommitted(e: { conversationId: string; turn: AcpTurn }): void;

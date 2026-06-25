@@ -1,22 +1,23 @@
 import type { Readable, Writable } from 'node:stream';
 import type {
+  CancelNotification,
   Client,
+  CloseSessionRequest,
+  CloseSessionResponse,
   InitializeRequest,
   InitializeResponse,
-  NewSessionRequest,
-  NewSessionResponse,
   LoadSessionRequest,
   LoadSessionResponse,
+  NewSessionRequest,
+  NewSessionResponse,
   PromptRequest,
   PromptResponse,
   SessionUpdate,
   SetSessionConfigOptionRequest,
   SetSessionConfigOptionResponse,
-  CloseSessionRequest,
-  CloseSessionResponse,
-  CancelNotification,
 } from '@agentclientprotocol/sdk';
 import z from 'zod';
+import type { AgentUpdate } from '../../../acp/agent-update';
 import { definePluginCapability } from '../../../lib/plugins/capability';
 
 export type AcpSpawnContext = {
@@ -76,14 +77,15 @@ export interface IAcpBehavior {
   connect(io: AcpProcessIo, toClient: AcpClientFactory): AcpAgentApi;
 
   /**
-   * Optional pure normalization run in the main process for every inbound
-   * SessionUpdate before it is stored or emitted over IPC.
+   * Optional enrichment hook run in the main process after the baseline
+   * `toAgentUpdate` conversion. Receives the already-decoded `AgentUpdate`
+   * and the original raw `SessionUpdate` so implementations can promote
+   * vendor-specific `_meta` fields (e.g. `_meta.claudeCode.parentToolUseId`)
+   * into first-class `AgentUpdate` fields such as `parentToolCallId`.
    *
-   * Implementations should promote provider-specific `_meta` fields into the
-   * neutral `_meta.emdash` namespace (see `EmdashUpdateMeta`) so downstream
-   * consumers stay provider-agnostic. Omit for standard-ACP passthrough.
+   * Omit for standard-ACP passthrough — `toAgentUpdate` handles baseline decoding.
    */
-  transform?(update: SessionUpdate): SessionUpdate;
+  enrich?(update: AgentUpdate, raw: SessionUpdate): AgentUpdate;
 }
 
 /**

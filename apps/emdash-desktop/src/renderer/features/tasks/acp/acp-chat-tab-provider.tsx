@@ -1,23 +1,23 @@
+import { MessageSquareCode } from 'lucide-react';
 import { action, reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import { MessageSquareCode } from 'lucide-react';
 import type {
   TabProvider,
   TabViewContext,
   ResolvedTab,
   ResolveContext,
 } from '@renderer/features/tabs/core/tab-provider';
+import type { TabItemProps } from '@renderer/features/tabs/core/tab-provider';
 import {
   GenericTabDragPreview,
   GenericTabItem,
 } from '@renderer/features/tabs/tab-bar/generic-tab-item';
-import type { TabItemProps } from '@renderer/features/tabs/core/tab-provider';
 import type { TabDescriptor } from '@shared/view-state';
+import type { TaskTabContext } from '../stores/task-tab-context';
+import { AcpChatPanel } from './acp-chat-panel';
 import { acpChatRegistry } from './acp-chat-registry';
 import type { AcpChatStore } from './acp-chat-store';
 import { AcpChatTabEntry } from './acp-chat-tab-entry';
-import { AcpChatPanel } from './acp-chat-panel';
-import type { TaskTabContext } from '../stores/task-tab-context';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -61,12 +61,7 @@ export const AcpChatTabDragPreview = observer(function AcpChatTabDragPreview({
   tab: ResolvedTab<AcpChatResolvedData>;
 }) {
   void tab;
-  return (
-    <GenericTabDragPreview
-      preSlot={<MessageSquareCode size={16} />}
-      label="ACP Chat"
-    />
-  );
+  return <GenericTabDragPreview preSlot={<MessageSquareCode size={16} />} label="ACP Chat" />;
 });
 
 // ---------------------------------------------------------------------------
@@ -137,8 +132,7 @@ export const acpChatTabProvider: TabProvider<
       }
       const previewEntry = host.findEntry(
         (e): e is AcpChatTabEntry =>
-          (e as AcpChatTabEntry).kind === 'acp-chat' &&
-          (e as AcpChatTabEntry).isPreview
+          (e as AcpChatTabEntry).kind === 'acp-chat' && (e as AcpChatTabEntry).isPreview
       );
       if (previewEntry) {
         previewEntry.conversationId = args.conversationId;

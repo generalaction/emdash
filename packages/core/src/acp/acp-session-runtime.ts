@@ -29,6 +29,8 @@ import type {
   WriteTextFileResponse,
 } from '@agentclientprotocol/sdk';
 import type { AcpAgentApi } from '../agents/plugins/capabilities/acp';
+import type { AgentUpdate } from './agent-update';
+import { toAgentUpdate } from './agent-update';
 import type { AcpPermissionRequest } from './permissions';
 import type { AcpSessionRuntimeDeps, AcpStartInput, IAcpSessionRuntime } from './runtime';
 import type { TerminalSnapshot } from './terminals';
@@ -198,8 +200,11 @@ interface AcpPool {
   handle: AcpProcessHandle;
   host: AcpProcessHost;
   connection: AcpAgentApi;
-  /** Provider-supplied normalization applied to every inbound SessionUpdate before store+emit. */
-  transform: (update: SessionUpdate) => SessionUpdate;
+  /**
+   * Converts a raw ACP `SessionUpdate` into an `AgentUpdate`.
+   * Composed of the baseline `toAgentUpdate` plus the optional provider `enrich` hook.
+   */
+  normalize: (raw: SessionUpdate) => AgentUpdate;
   providerId: string;
   workspaceId: string;
   path: string;
@@ -558,7 +563,9 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       handle,
       host,
       connection: null as unknown as AcpAgentApi,
-      transform: binding.behavior.transform ? (u) => binding.behavior.transform!(u) : (u) => u,
+      normalize: binding.behavior.enrich
+        ? (raw) => binding.behavior.enrich!(toAgentUpdate(raw), raw)
+        : (raw) => toAgentUpdate(raw),
       providerId,
       workspaceId,
       path,
@@ -674,7 +681,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   private buildClientHandler(pool: AcpPool): Client {
     return {
       sessionUpdate: async (params: SessionNotification): Promise<void> => {
-        const update = pool.transform(params.update);
+        const update = pool.normalize(params.update);
         let conversationId = pool.sessionToConversation.get(params.sessionId);
         if (!conversationId && pool.loadingConversations.size > 0) {
           const pendingId = pool.loadingConversations.values().next().value;
@@ -907,43 +914,32 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   }
 
   /**
-   * Records the user's prompt as the leading update(s) of a live turn. Emits an
-   * `image` chunk per attached image followed by a `text` chunk, mirroring the
-   * shape ACP agents use when replaying user messages on loadSession.
+   * Records the user's prompt as the leading update of a live turn.
+   * Images are currently not rendered by the client and are skipped.
    */
   private recordUserPrompt(
     conv: AcpConversation,
     turn: AcpTurn,
     text: string,
-    images?: AcpPromptImage[]
+    _images?: AcpPromptImage[]
   ): void {
+    if (!text) return;
+
     const messageId = `${turn.id}-user`;
-    const emit = (update: SessionUpdate): void => {
-      const seq = conv.nextSeq++;
-      turn.updates.push({ seq, update });
-      this.deps.listener.onSessionUpdate({
-        conversationId: conv.conversationId,
-        turnId: turn.id,
-        update,
-        seq,
-      });
+    const update: AgentUpdate = {
+      kind: 'message',
+      role: 'user',
+      messageId,
+      text,
     };
-
-    for (const img of images ?? []) {
-      emit({
-        sessionUpdate: 'user_message_chunk',
-        messageId,
-        content: { type: 'image', data: img.data, mimeType: img.mimeType },
-      });
-    }
-
-    if (text) {
-      emit({
-        sessionUpdate: 'user_message_chunk',
-        messageId,
-        content: { type: 'text', text },
-      });
-    }
+    const seq = conv.nextSeq++;
+    turn.updates.push({ seq, update });
+    this.deps.listener.onSessionUpdate({
+      conversationId: conv.conversationId,
+      turnId: turn.id,
+      update,
+      seq,
+    });
   }
 
   private closeTurnInternal(conv: AcpConversation, status: Exclude<TurnStatus, 'active'>): void {

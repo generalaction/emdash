@@ -1,6 +1,7 @@
 import { useCommands } from '@components/contexts/CommandsContext';
 import { useTurnState } from '@components/contexts/TurnStateContext';
 import { BlockStackView } from '@components/primitives/BlockStackView';
+import { clipTrackedHeight, isCardAnimating } from '@components/primitives/card-clip';
 import { IconStop, ImageOffIcon } from '@components/primitives/icons';
 import type { StackLayout } from '@core/compose';
 import type { Measured, RenderCtx } from '@core/define';
@@ -34,7 +35,6 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
   const showStop = () => isCurrent() && turn.turnStatus() === 'generating';
 
   const styleVars = () => ({
-    height: clampedH(),
     userCardPadX: props.vars.userCardPadX,
     userCardPadY: props.vars.userCardPadY,
     cardBorder: props.vars.cardBorder,
@@ -80,6 +80,10 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
   const clampedH = () => Math.min(fullContentH(), maxH());
   const isOverflowing = () => fullContentH() > maxH();
 
+  // Track the animated clip edge during expand/collapse tween so the bottom
+  // border and rounded corners are never hidden by the UnitRow overflow clip.
+  const cardH = clipTrackedHeight(props.ctx, clampedH);
+
   const plainText = () => {
     const ctx = mCtx();
     if (!ctx) return props.data.text;
@@ -91,8 +95,11 @@ export function UserMessageCard(props: { data: ChatMessage; ctx: RenderCtx; vars
       data-user-card={props.data.id}
       class={`${card({ state: isOverflowing() && !isExpanded() ? 'overflowing' : 'static', current: showStop() })} ${cardRoot} ${userCardGroup}`}
       style={{
-        ...assignInlineVars(cardVars, pxTokens(styleVars())),
-        'overflow-y': isExpanded() ? 'auto' : 'hidden',
+        ...assignInlineVars(cardVars, pxTokens({ ...styleVars(), height: cardH() })),
+        // Force overflow:hidden while the UnitRow tween is in flight to avoid
+        // a transient scrollbar mid-animation; restore auto only when expanded
+        // at rest (so the user can scroll long messages).
+        'overflow-y': isCardAnimating(props.ctx) || !isExpanded() ? 'hidden' : 'auto',
         cursor: !isExpanded() && isOverflowing() ? 'pointer' : 'default',
       }}
     >
