@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
 import { taskSessionManager } from '../tasks/task-session-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
@@ -46,6 +46,15 @@ function makePty(write = vi.fn()) {
 describe('ptyController', () => {
   beforeEach(() => {
     emitSpy.mockClear();
+  });
+
+  afterEach(() => {
+    // Tests below mutate the shared mock singletons; reset them so a later test
+    // still sees the empty `{}` the vi.mock factories return.
+    const taskMgr = taskSessionManager as unknown as Record<string, unknown>;
+    delete taskMgr.getTask;
+    delete taskMgr.getWorkspaceId;
+    delete (workspaceRegistry as unknown as Record<string, unknown>).get;
   });
 
   it('emits input-submitted for remote agent PTYs on enter', () => {
