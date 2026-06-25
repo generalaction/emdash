@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/main/core/dependencies/dependency-managers.ts
+  s_b75f5fe10b1a25::t_9505e3fcd07333 139
+apps/emdash-desktop/src/main/core/dependencies/dependency-managers.test.ts
+  s_b75f5fe10b1a25::t_96c4ce3c69fdf6 361-368
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.1",
+  "base_commit_sha": "a6064ad67740f4716104fffe029ec46f2c18a114",
+  "prompts": {},
+  "sessions": {
+    "s_b75f5fe10b1a25": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019efec0-70d8-7f06-b814-fb45a2f67e87",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
