@@ -1,0 +1,22 @@
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-selectors.ts
+  s_55210501c457e5::t_eddc61706ddb22 85
+apps/emdash-desktop/src/renderer/features/tasks/stores/git-worktree-store.ts
+  s_55210501c457e5::t_a34fcc6f383bcf 110,206-210
+  s_55210501c457e5::t_fd8048be370e25 211-212
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.1",
+  "base_commit_sha": "86e4c3f0c2a542f83b33a7f38a966cc9649ee342",
+  "prompts": {},
+  "sessions": {
+    "s_55210501c457e5": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019efe2d-1c7b-77ef-a5e3-5f608778210b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
