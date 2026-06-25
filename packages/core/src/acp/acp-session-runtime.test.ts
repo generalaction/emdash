@@ -1,7 +1,12 @@
 import type { PermissionOptionKind } from '@agentclientprotocol/sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { AcpSessionRuntime } from './acp-session-runtime';
-import { FakeAcpProcessHandle, makeAcpHarness, makeStartInput } from './acp-test-support';
+import {
+  FakeAcpProcessHandle,
+  FakeAcpTerminalProcess,
+  makeAcpHarness,
+  makeStartInput,
+} from './acp-test-support';
 
 // ---------------------------------------------------------------------------
 // Pooling
@@ -630,5 +635,246 @@ describe('FakeAcpProcessHandle', () => {
     const err = new Error('oops');
     handle.emitError(err);
     expect(cb).toHaveBeenCalledWith(err);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Terminals
+// ---------------------------------------------------------------------------
+
+/** Small helper — start a conversation and return {rt, h, client, sessionId}. */
+async function setupSession(sessionId = 'sess-t1') {
+  const h = makeAcpHarness();
+  const rt = new AcpSessionRuntime(h.deps);
+  h.agent.newSession.mockResolvedValue({ sessionId });
+  await rt.start(makeStartInput({ conversationId: 'conv-t1', workspaceId: 'ws-t' }));
+  const client = h.client();
+  return { h, rt, client, sessionId };
+}
+
+describe('AcpSessionRuntime – terminals', () => {
+  it('advertises terminal capability when host has spawnTerminal', async () => {
+    const { h } = await setupSession();
+    expect(h.agent.initialize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientCapabilities: expect.objectContaining({ terminal: true }),
+      })
+    );
+  });
+
+  it('does NOT advertise terminal capability when host lacks spawnTerminal', async () => {
+    const h = makeAcpHarness();
+    // Remove spawnTerminal from the host
+    (h.fakeHost as { spawnTerminal?: unknown }).spawnTerminal = undefined;
+    const rt = new AcpSessionRuntime(h.deps);
+    h.agent.newSession.mockResolvedValue({ sessionId: 'sess-no-term' });
+    await rt.start(makeStartInput({ conversationId: 'conv-no-term', workspaceId: 'ws-nt' }));
+    expect(h.agent.initialize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientCapabilities: expect.objectContaining({ terminal: false }),
+      })
+    );
+  });
+
+  it('createTerminal spawns a process and emits onTerminalCreated', async () => {
+    const { h, client, sessionId } = await setupSession();
+    const proc = new FakeAcpTerminalProcess();
+    h.fakeHost.nextTerminal = proc;
+
+    const resp = await client.createTerminal!({
+      sessionId,
+      command: 'echo',
+      args: ['hello'],
+      cwd: '/tmp',
+      env: [{ name: 'FOO', value: 'bar' }],
+    });
+
+    expect(resp.terminalId).toBeTypeOf('string');
+    expect(h.fakeHost.spawnTerminalFn).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'echo', args: ['hello'], cwd: '/tmp' })
+    );
+    expect(h.recording.terminalCreated).toHaveLength(1);
+    expect(h.recording.terminalCreated[0]).toMatchObject({
+      conversationId: 'conv-t1',
+      terminalId: resp.terminalId,
+      command: 'echo',
+      args: ['hello'],
+      cwd: '/tmp',
+    });
+  });
+
+  it('stdout output is buffered and emitted via onTerminalOutput', async () => {
+    const { h, client, sessionId } = await setupSession();
+    const proc = new FakeAcpTerminalProcess();
+    h.fakeHost.nextTerminal = proc;
+
+    const { terminalId } = await client.createTerminal!({ sessionId, command: 'cat' });
+
+    proc.pushOutput('hello ');
+    proc.pushOutput('world');
+
+    // Drain microtask queue so PassThrough events propagate
+    await new Promise<void>((r) => setImmediate(r));
+
+    expect(h.recording.terminalOutput.map((e) => e.chunk)).toEqual(['hello ', 'world']);
+    expect(h.recording.terminalOutput.every((e) => e.terminalId === terminalId)).toBe(true);
+    expect(h.recording.terminalOutput.every((e) => e.truncated === false)).toBe(true);
+  });
+
+  it('output is truncated when byteLimit is exceeded', async () => {
+    const { h, client, sessionId } = await setupSession();
+    const proc = new FakeAcpTerminalProcess();
+    h.fakeHost.nextTerminal = proc;
+
+    // 10-byte limit
+    const { terminalId } = await client.createTerminal!({
+      sessionId,
+      command: 'flood',
+      outputByteLimit: 10,
+    });
+
+    proc.pushOutput('12345');
+    proc.pushOutput('67890');
+    proc.pushOutput('ABCDE'); // exceeds limit — oldest bytes discarded
+    await new Promise<void>((r) => setImmediate(r));
+
+    // Snapshot output should be at most 10 bytes
+    const snap = await client.terminalOutput!({ sessionId, terminalId });
+    expect(snap.truncated).toBe(true);
+    expect(Buffer.byteLength(snap.output, 'utf8')).toBeLessThanOrEqual(10);
+  });
+
+  it('terminalOutput returns snapshot before exit', async () => {
+    const { h, client, sessionId } = await setupSession();
+    const proc = new FakeAcpTerminalProcess();
+    h.fakeHost.nextTerminal = proc;
+
+    const { terminalId } = await client.createTerminal!({ sessionId, command: 'sleep' });
+    proc.pushOutput('progress');
+    await new Promise<void>((r) => setImmediate(r));
+
+    const snap = await client.terminalOutput!({ sessionId, terminalId });
+    expect(snap.output).toBe('progress');
+    expect(snap.exitStatus).toBeUndefined();
+  });
+
+  it('waitForTerminalExit resolves once the process exits', async () => {
+    const { h, client, sessionId } = await setupSession();
+    const proc = new FakeAcpTerminalProcess();
+    h.fakeHost.nextTerminal = proc;
+
+    const { terminalId } = await client.createTerminal!({ sessionId, command: 'sleep' });
+
+    const waitPromise = client.waitForTerminalExit!({ sessionId, terminalId });
+    proc.triggerExit({ exitCode: 0, signal: null });
+    await new Promise<void>((r) => setImmediate(r));
+
+    const result = await waitPromise;
+    expect(result).toMatchObject({ exitCode: 0 });
+
+    expect(h.recording.terminalExit).toHaveLength(1);
+    expect(h.recording.terminalExit[0]).toMatchObject({
+      conversationId: 'conv-t1',
+      terminalId,
+      exitStatus: { exitCode: 0, signal: null },
+    });
+  });
+
+  it('killTerminal sends SIGTERM to the process', async () => {
+    const { h, client, sessionId } = await setupSession();
+    const proc = new FakeAcpTerminalProcess();
+    h.fakeHost.nextTerminal = proc;
+
+    const { terminalId } = await client.createTerminal!({ sessionId, command: 'long' });
+    await client.killTerminal!({ sessionId, terminalId });
+
+    expect(proc.killFn).toHaveBeenCalledWith('SIGTERM');
+  });
+
+  it('releaseTerminal disposes the process and emits onTerminalReleased', async () => {
+    const { h, client, sessionId, rt } = await setupSession();
+    const proc = new FakeAcpTerminalProcess();
+    h.fakeHost.nextTerminal = proc;
+
+    const { terminalId } = await client.createTerminal!({ sessionId, command: 'tmp' });
+    expect(rt.getTerminals('conv-t1')).toHaveLength(1);
+
+    await client.releaseTerminal!({ sessionId, terminalId });
+
+    expect(proc.killFn).toHaveBeenCalledWith('SIGTERM');
+    expect(rt.getTerminals('conv-t1')).toHaveLength(0);
+    expect(h.recording.terminalReleased).toHaveLength(1);
+    expect(h.recording.terminalReleased[0]).toMatchObject({
+      conversationId: 'conv-t1',
+      terminalId,
+    });
+  });
+
+  it('getTerminals returns snapshots for all live terminals', async () => {
+    const { h, client, sessionId, rt } = await setupSession();
+
+    const proc1 = new FakeAcpTerminalProcess();
+    h.fakeHost.nextTerminal = proc1;
+    const { terminalId: t1 } = await client.createTerminal!({ sessionId, command: 'cmd1' });
+    proc1.pushOutput('out1');
+
+    const proc2 = new FakeAcpTerminalProcess();
+    h.fakeHost.nextTerminal = proc2;
+    const { terminalId: t2 } = await client.createTerminal!({ sessionId, command: 'cmd2' });
+    proc2.pushOutput('out2');
+
+    await new Promise<void>((r) => setImmediate(r));
+
+    const snaps = rt.getTerminals('conv-t1');
+    expect(snaps).toHaveLength(2);
+    expect(snaps.find((s) => s.terminalId === t1)?.output).toBe('out1');
+    expect(snaps.find((s) => s.terminalId === t2)?.output).toBe('out2');
+  });
+
+  it('stop() disposes all terminals and emits onTerminalReleased for each', async () => {
+    const { h, client, sessionId, rt } = await setupSession();
+
+    const proc1 = new FakeAcpTerminalProcess();
+    h.fakeHost.nextTerminal = proc1;
+    await client.createTerminal!({ sessionId, command: 't1' });
+
+    const proc2 = new FakeAcpTerminalProcess();
+    h.fakeHost.nextTerminal = proc2;
+    await client.createTerminal!({ sessionId, command: 't2' });
+
+    rt.stop('conv-t1');
+
+    expect(proc1.killFn).toHaveBeenCalled();
+    expect(proc2.killFn).toHaveBeenCalled();
+    expect(h.recording.terminalReleased).toHaveLength(2);
+  });
+
+  it('handlePoolClosed disposes all terminals in all pool conversations', async () => {
+    const h = makeAcpHarness();
+    const rt = new AcpSessionRuntime(h.deps);
+    h.agent.newSession
+      .mockResolvedValueOnce({ sessionId: 'sess-a' })
+      .mockResolvedValueOnce({ sessionId: 'sess-b' });
+
+    await rt.start(makeStartInput({ conversationId: 'conv-a', workspaceId: 'ws-shared' }));
+    await rt.start(makeStartInput({ conversationId: 'conv-b', workspaceId: 'ws-shared' }));
+
+    const clientA = h.client(); // same client handler since same pool
+
+    const procA = new FakeAcpTerminalProcess();
+    h.fakeHost.nextTerminal = procA;
+    await clientA.createTerminal!({ sessionId: 'sess-a', command: 'ta' });
+
+    const procB = new FakeAcpTerminalProcess();
+    h.fakeHost.nextTerminal = procB;
+    await clientA.createTerminal!({ sessionId: 'sess-b', command: 'tb' });
+
+    // Simulate child process death
+    h.lastChild.emitExit(1);
+
+    expect(procA.killFn).toHaveBeenCalled();
+    expect(procB.killFn).toHaveBeenCalled();
+    const released = h.recording.terminalReleased.map((e) => e.terminalId);
+    expect(released).toHaveLength(2);
   });
 });

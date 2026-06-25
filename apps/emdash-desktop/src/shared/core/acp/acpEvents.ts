@@ -1,6 +1,10 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
-import type { AcpPermissionRequest } from '@emdash/core/acp';
-import type { AcpTurn, SessionLifecycle } from '@emdash/core/acp';
+import type {
+  AcpPermissionRequest,
+  AcpTerminalExit,
+  AcpTurn,
+  SessionLifecycle,
+} from '@emdash/core/acp';
 import { defineEvent } from '@shared/lib/ipc/events';
 
 /**
@@ -60,3 +64,47 @@ export const acpPermissionResolvedChannel = defineEvent<{
   conversationId: string;
   requestId: string;
 }>('acp:permission-resolved');
+
+/**
+ * Emitted when the ACP agent creates a new terminal via the client terminal API.
+ * The renderer can use this to show a terminal panel for the conversation.
+ */
+export const acpTerminalCreatedChannel = defineEvent<{
+  conversationId: string;
+  terminalId: string;
+  command: string;
+  args: string[];
+  cwd: string;
+}>('acp:terminal-created');
+
+/**
+ * Emitted for each chunk of output captured from a running terminal.
+ * `truncated` is true once the ring-buffer byte limit has been exceeded and
+ * older output has been discarded.  The renderer should treat this as a
+ * streaming append to the terminal's output buffer.
+ */
+export const acpTerminalOutputChannel = defineEvent<{
+  conversationId: string;
+  terminalId: string;
+  chunk: string;
+  truncated: boolean;
+}>('acp:terminal-output');
+
+/**
+ * Emitted when a terminal command exits.  The renderer should mark the
+ * terminal as finished and display the exit status.
+ */
+export const acpTerminalExitChannel = defineEvent<{
+  conversationId: string;
+  terminalId: string;
+  exitStatus: AcpTerminalExit;
+}>('acp:terminal-exit');
+
+/**
+ * Emitted when a terminal is released (resources freed).
+ * The renderer should remove the terminal panel for this terminalId.
+ */
+export const acpTerminalReleasedChannel = defineEvent<{
+  conversationId: string;
+  terminalId: string;
+}>('acp:terminal-released');

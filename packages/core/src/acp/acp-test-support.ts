@@ -17,7 +17,13 @@ import type {
   AcpSessionRuntimeDeps,
   AcpStartInput,
 } from './runtime';
-import type { AcpProcessHandle, AcpProcessHost, AcpFs } from './transport';
+import type {
+  AcpProcessHandle,
+  AcpProcessHost,
+  AcpFs,
+  AcpTerminalExit,
+  AcpTerminalProcess,
+} from './transport';
 import type { AcpTurn, SessionLifecycle } from './turns';
 
 // ---------------------------------------------------------------------------
@@ -40,6 +46,25 @@ export function createRecordingListener() {
   const permissionResolved: { conversationId: string; requestId: string }[] = [];
   const closed: { conversationId: string; taskId: string; exitCode: number | null }[] = [];
   const agentEvents: { type: string; conversationId: string }[] = [];
+  const terminalCreated: {
+    conversationId: string;
+    terminalId: string;
+    command: string;
+    args: string[];
+    cwd: string;
+  }[] = [];
+  const terminalOutput: {
+    conversationId: string;
+    terminalId: string;
+    chunk: string;
+    truncated: boolean;
+  }[] = [];
+  const terminalExit: {
+    conversationId: string;
+    terminalId: string;
+    exitStatus: AcpTerminalExit;
+  }[] = [];
+  const terminalReleased: { conversationId: string; terminalId: string }[] = [];
 
   const listener: AcpRuntimeListener = {
     onState: (e) => states.push(e),
@@ -49,6 +74,10 @@ export function createRecordingListener() {
     onPermissionResolved: (e) => permissionResolved.push(e),
     onClosed: (e) => closed.push(e),
     onAgentEvent: (e) => agentEvents.push(e),
+    onTerminalCreated: (e) => terminalCreated.push(e),
+    onTerminalOutput: (e) => terminalOutput.push(e),
+    onTerminalExit: (e) => terminalExit.push(e),
+    onTerminalReleased: (e) => terminalReleased.push(e),
   };
 
   return {
@@ -60,6 +89,10 @@ export function createRecordingListener() {
     permissionResolved,
     closed,
     agentEvents,
+    terminalCreated,
+    terminalOutput,
+    terminalExit,
+    terminalReleased,
     clear() {
       states.length = 0;
       updates.length = 0;
@@ -68,6 +101,10 @@ export function createRecordingListener() {
       permissionResolved.length = 0;
       closed.length = 0;
       agentEvents.length = 0;
+      terminalCreated.length = 0;
+      terminalOutput.length = 0;
+      terminalExit.length = 0;
+      terminalReleased.length = 0;
     },
   };
 }
@@ -109,6 +146,46 @@ export class FakeAcpAgent implements AcpAgentApi {
     this.prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' });
     this.setSessionConfigOption = vi.fn().mockResolvedValue({});
     this.capturedClient = null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// FakeAcpTerminalProcess
+// ---------------------------------------------------------------------------
+
+/**
+ * A controllable fake AcpTerminalProcess for use in tests.
+ * Push output via `pushOutput(chunk)` and trigger exit via `triggerExit(status)`.
+ */
+export class FakeAcpTerminalProcess extends EventEmitter implements AcpTerminalProcess {
+  readonly stdout = new PassThrough();
+  readonly stderr = new PassThrough();
+  exitCode: number | null = null;
+  readonly killFn = vi.fn<(signal?: NodeJS.Signals) => void>();
+
+  onExit(cb: (status: AcpTerminalExit) => void): void {
+    this.on('exit', cb);
+  }
+
+  onError(cb: (err: Error) => void): void {
+    this.on('error', cb);
+  }
+
+  kill(signal?: NodeJS.Signals): void {
+    this.killFn(signal);
+  }
+
+  /** Push a chunk of text to stdout so ManagedTerminal buffers it. */
+  pushOutput(chunk: string): void {
+    this.stdout.push(chunk);
+  }
+
+  /** Simulate process exit. */
+  triggerExit(status: AcpTerminalExit): void {
+    this.exitCode = status.exitCode;
+    this.emit('exit', status);
+    this.stdout.push(null);
+    this.stderr.push(null);
   }
 }
 
@@ -157,6 +234,18 @@ export const fakeAcpFs: AcpFs = {
 export class FakeAcpProcessHost implements AcpProcessHost {
   readonly fs: AcpFs = fakeAcpFs;
   private readonly handles: FakeAcpProcessHandle[] = [];
+  private readonly terminalProcs: FakeAcpTerminalProcess[] = [];
+  /** When set, the next spawnTerminal call returns this instance. */
+  nextTerminal: FakeAcpTerminalProcess | null = null;
+  readonly spawnTerminalFn =
+    vi.fn<
+      (spec: {
+        command: string;
+        args: string[];
+        env: Record<string, string>;
+        cwd: string;
+      }) => Promise<AcpTerminalProcess>
+    >();
 
   resolveSpawnContext = vi.fn().mockResolvedValue({
     cli: '/usr/local/bin/fake-agent',
@@ -174,6 +263,19 @@ export class FakeAcpProcessHost implements AcpProcessHost {
     return handle;
   }
 
+  async spawnTerminal(spec: {
+    command: string;
+    args: string[];
+    env: Record<string, string>;
+    cwd: string;
+  }): Promise<AcpTerminalProcess> {
+    const proc = this.nextTerminal ?? new FakeAcpTerminalProcess();
+    this.nextTerminal = null;
+    this.terminalProcs.push(proc);
+    this.spawnTerminalFn(spec);
+    return proc;
+  }
+
   get lastHandle(): FakeAcpProcessHandle {
     const h = this.handles.at(-1);
     if (!h) throw new Error('FakeAcpProcessHost: no handle spawned yet');
@@ -182,6 +284,16 @@ export class FakeAcpProcessHost implements AcpProcessHost {
 
   get allHandles(): FakeAcpProcessHandle[] {
     return this.handles;
+  }
+
+  get lastTerminalProc(): FakeAcpTerminalProcess {
+    const p = this.terminalProcs.at(-1);
+    if (!p) throw new Error('FakeAcpProcessHost: no terminal spawned yet');
+    return p;
+  }
+
+  get allTerminalProcs(): FakeAcpTerminalProcess[] {
+    return this.terminalProcs;
   }
 }
 

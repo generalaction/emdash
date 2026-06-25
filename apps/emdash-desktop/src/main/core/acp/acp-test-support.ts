@@ -17,6 +17,7 @@ import type {
   AcpRuntimeLog,
   AcpSessionRuntimeDeps,
   AcpStartInput,
+  AcpTerminalExit,
   AcpPermissionRequest,
   AcpTurn,
   SessionLifecycle,
@@ -43,6 +44,25 @@ export function createRecordingListener() {
   const permissionResolved: { conversationId: string; requestId: string }[] = [];
   const closed: { conversationId: string; taskId: string; exitCode: number | null }[] = [];
   const agentEvents: { type: string; conversationId: string }[] = [];
+  const terminalCreated: {
+    conversationId: string;
+    terminalId: string;
+    command: string;
+    args: string[];
+    cwd: string;
+  }[] = [];
+  const terminalOutput: {
+    conversationId: string;
+    terminalId: string;
+    chunk: string;
+    truncated: boolean;
+  }[] = [];
+  const terminalExit: {
+    conversationId: string;
+    terminalId: string;
+    exitStatus: AcpTerminalExit;
+  }[] = [];
+  const terminalReleased: { conversationId: string; terminalId: string }[] = [];
 
   const listener: AcpRuntimeListener = {
     onState: (e) => states.push(e),
@@ -52,6 +72,10 @@ export function createRecordingListener() {
     onPermissionResolved: (e) => permissionResolved.push(e),
     onClosed: (e) => closed.push(e),
     onAgentEvent: (e) => agentEvents.push(e),
+    onTerminalCreated: (e) => terminalCreated.push(e),
+    onTerminalOutput: (e) => terminalOutput.push(e),
+    onTerminalExit: (e) => terminalExit.push(e),
+    onTerminalReleased: (e) => terminalReleased.push(e),
   };
 
   return {
@@ -63,6 +87,10 @@ export function createRecordingListener() {
     permissionResolved,
     closed,
     agentEvents,
+    terminalCreated,
+    terminalOutput,
+    terminalExit,
+    terminalReleased,
     clear() {
       states.length = 0;
       updates.length = 0;
@@ -71,6 +99,10 @@ export function createRecordingListener() {
       permissionResolved.length = 0;
       closed.length = 0;
       agentEvents.length = 0;
+      terminalCreated.length = 0;
+      terminalOutput.length = 0;
+      terminalExit.length = 0;
+      terminalReleased.length = 0;
     },
   };
 }

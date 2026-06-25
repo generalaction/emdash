@@ -1,6 +1,13 @@
 import { spawn } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import type { AcpFs, AcpProcessHandle, AcpProcessHost } from '@emdash/core/acp';
+import type {
+  AcpFs,
+  AcpProcessHandle,
+  AcpProcessHost,
+  AcpTerminalExit,
+  AcpTerminalProcess,
+} from '@emdash/core/acp';
 import { getPlugin } from '@main/core/agents/plugin-registry';
 import { resolveAgentExecutable } from '@main/core/conversations/impl/resolve-agent-executable';
 import { localDependencyManager } from '@main/core/dependencies/dependency-managers';
@@ -39,6 +46,48 @@ class ChildProcessHandle implements AcpProcessHandle {
 
   onError(cb: (err: Error) => void): void {
     this.child.on('error', cb);
+  }
+
+  kill(signal?: NodeJS.Signals): void {
+    this.child.kill(signal ?? 'SIGTERM');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// LocalAcpTerminalProcess
+// ---------------------------------------------------------------------------
+
+class LocalAcpTerminalProcess extends EventEmitter implements AcpTerminalProcess {
+  private _exitCode: number | null = null;
+
+  constructor(private readonly child: ReturnType<typeof spawn>) {
+    super();
+    child.on('exit', (code, signal) => {
+      this._exitCode = code;
+      this.emit('exit', { exitCode: code, signal: signal ?? null } satisfies AcpTerminalExit);
+    });
+    child.on('error', (err) => this.emit('error', err));
+  }
+
+  get stdout() {
+    if (!this.child.stdout) throw new Error('LocalAcpTerminalProcess: child has no stdout');
+    return this.child.stdout;
+  }
+
+  get stderr() {
+    return this.child.stderr ?? undefined;
+  }
+
+  get exitCode() {
+    return this._exitCode;
+  }
+
+  onExit(cb: (status: AcpTerminalExit) => void): void {
+    this.on('exit', cb);
+  }
+
+  onError(cb: (err: Error) => void): void {
+    this.on('error', cb);
   }
 
   kill(signal?: NodeJS.Signals): void {
@@ -99,5 +148,25 @@ export class LocalAcpProcessHost implements AcpProcessHost {
     }
 
     return new ChildProcessHandle(child);
+  }
+
+  async spawnTerminal(spec: {
+    command: string;
+    args: string[];
+    env: Record<string, string>;
+    cwd: string;
+  }): Promise<AcpTerminalProcess> {
+    const child = spawn(spec.command, spec.args, {
+      cwd: spec.cwd,
+      env: spec.env,
+      // stdin ignored; stdout + stderr piped so ManagedTerminal can buffer them
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    if (!child.stdout) {
+      throw new Error('LocalAcpProcessHost: failed to spawn terminal — no stdout stream');
+    }
+
+    return new LocalAcpTerminalProcess(child);
   }
 }

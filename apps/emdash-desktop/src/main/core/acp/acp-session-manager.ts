@@ -1,12 +1,15 @@
-import type {
-  AcpProcessHost,
-  AcpPromptImage,
-  ChatHistory,
-  IAcpSessionRuntime,
-  SessionState,
+import {
+  AcpSessionRuntime,
+  type AcpProcessHost,
+  type AcpPromptImage,
+  type AcpRuntimeListener,
+  type AcpRuntimeLog,
+  type ChatHistory,
+  type IAcpSessionRuntime,
+  type ResolveAcpProvider,
+  type SessionState,
+  type TerminalSnapshot,
 } from '@emdash/core/acp';
-import { AcpSessionRuntime } from '@emdash/core/acp';
-import type { AcpRuntimeListener, AcpRuntimeLog, ResolveAcpProvider } from '@emdash/core/acp';
 import type { getPlugin } from '@main/core/agents/plugin-registry';
 import { machineKey, type MachineRef } from '@main/core/runtime/types';
 import type { Conversation } from '@shared/core/conversations/conversations';
@@ -129,6 +132,12 @@ export class AcpSessionManager {
     if (!runtime)
       return { lifecycle: 'closed', activeTurn: null, model: null, pendingPermissions: [] };
     return runtime.getSessionState(conversationId);
+  }
+
+  getTerminals(conversationId: string): TerminalSnapshot[] {
+    const key = this.convToMachine.get(conversationId);
+    const runtime = key ? this.runtimes.get(key) : undefined;
+    return runtime?.getTerminals(conversationId) ?? [];
   }
 
   // -------------------------------------------------------------------------

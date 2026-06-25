@@ -9,7 +9,14 @@ export type {
   TurnSource,
   TurnStatus,
 } from './turns';
-export type { AcpFs, AcpProcessHandle, AcpProcessHost } from './transport';
+export type {
+  AcpFs,
+  AcpProcessHandle,
+  AcpProcessHost,
+  AcpTerminalExit,
+  AcpTerminalProcess,
+} from './transport';
+export type { TerminalSnapshot } from './terminals';
 export type {
   AcpRuntimeListener,
   AcpRuntimeLog,

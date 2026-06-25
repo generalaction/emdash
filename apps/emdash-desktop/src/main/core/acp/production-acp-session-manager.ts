@@ -12,6 +12,10 @@ import {
   acpSessionClosedChannel,
   acpSessionStateChannel,
   acpSessionUpdateChannel,
+  acpTerminalCreatedChannel,
+  acpTerminalExitChannel,
+  acpTerminalOutputChannel,
+  acpTerminalReleasedChannel,
   acpTurnCommittedChannel,
 } from '@shared/core/acp/acpEvents';
 import { agentSessionExitedChannel, type AgentEvent } from '@shared/core/agents/agentEvents';
@@ -50,6 +54,18 @@ const listener: AcpRuntimeListener = {
       payload: {},
     };
     agentHookService.emitAgentEvent(event, isAppFocused());
+  },
+  onTerminalCreated: (e) => {
+    events.emit(acpTerminalCreatedChannel, e);
+  },
+  onTerminalOutput: (e) => {
+    events.emit(acpTerminalOutputChannel, e);
+  },
+  onTerminalExit: (e) => {
+    events.emit(acpTerminalExitChannel, e);
+  },
+  onTerminalReleased: (e) => {
+    events.emit(acpTerminalReleasedChannel, e);
   },
 };
 

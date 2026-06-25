@@ -1,5 +1,12 @@
+import { EventEmitter } from 'node:events';
 import type { Readable, Writable } from 'node:stream';
-import type { AcpFs, AcpProcessHandle, AcpProcessHost } from '@emdash/core/acp';
+import type {
+  AcpFs,
+  AcpProcessHandle,
+  AcpProcessHost,
+  AcpTerminalExit,
+  AcpTerminalProcess,
+} from '@emdash/core/acp';
 import type { ClientChannel } from 'ssh2';
 import { getPlugin } from '@main/core/agents/plugin-registry';
 import { resolveAgentExecutable } from '@main/core/conversations/impl/resolve-agent-executable';
@@ -55,6 +62,54 @@ class SshChannelHandle implements AcpProcessHandle {
   kill(_signal?: NodeJS.Signals): void {
     // ssh2 does not expose a reliable remote signal-send mechanism for non-PTY
     // exec channels; closing the channel is the best available approximation.
+    try {
+      this.channel.close();
+    } catch {
+      // ignore — channel may already be closed
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SshExecTerminalProcess: wraps an SSH exec ClientChannel as AcpTerminalProcess
+// ---------------------------------------------------------------------------
+
+class SshExecTerminalProcess extends EventEmitter implements AcpTerminalProcess {
+  private _exitCode: number | null = null;
+
+  constructor(private readonly channel: ClientChannel) {
+    super();
+    channel.on('close', (code: number | null, signal: string | undefined) => {
+      this._exitCode = code ?? null;
+      this.emit('exit', {
+        exitCode: this._exitCode,
+        signal: signal ?? null,
+      } satisfies AcpTerminalExit);
+    });
+    channel.on('error', (err: Error) => this.emit('error', err));
+  }
+
+  get stdout(): Readable {
+    return this.channel as unknown as Readable;
+  }
+
+  get stderr(): Readable | undefined {
+    return (this.channel as { stderr?: Readable }).stderr;
+  }
+
+  get exitCode(): number | null {
+    return this._exitCode;
+  }
+
+  onExit(cb: (status: AcpTerminalExit) => void): void {
+    this.on('exit', cb);
+  }
+
+  onError(cb: (err: Error) => void): void {
+    this.on('error', cb);
+  }
+
+  kill(_signal?: NodeJS.Signals): void {
     try {
       this.channel.close();
     } catch {
@@ -160,6 +215,36 @@ export class LegacySshAcpProcessHost implements AcpProcessHost {
           return;
         }
         resolve(new SshChannelHandle(channel));
+      });
+    });
+  }
+
+  async spawnTerminal(spec: {
+    command: string;
+    args: string[];
+    env: Record<string, string>;
+    cwd: string;
+  }): Promise<AcpTerminalProcess> {
+    const profile = await this.proxy.getRemoteShellProfile();
+
+    const envPrefix = Object.entries(spec.env)
+      .map(([k, v]) => `${k}=${quoteShellArg(v)}`)
+      .join(' ');
+
+    const argsStr = spec.args.map(quoteShellArg).join(' ');
+    const innerCmd = envPrefix
+      ? `${envPrefix} ${spec.command} ${argsStr}`.trimEnd()
+      : `${spec.command} ${argsStr}`.trimEnd();
+
+    const fullCmd = buildSshCommand(spec.cwd, innerCmd, [], profile);
+
+    return new Promise<AcpTerminalProcess>((resolve, reject) => {
+      this.proxy.exec(fullCmd, (err, channel) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(new SshExecTerminalProcess(channel));
       });
     });
   }

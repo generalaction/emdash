@@ -31,6 +31,10 @@ function makeManagerDeps(overrides: Partial<AcpSessionManagerDeps> = {}): AcpSes
     onPermissionResolved: vi.fn(),
     onClosed: vi.fn(),
     onAgentEvent: vi.fn(),
+    onTerminalCreated: vi.fn(),
+    onTerminalOutput: vi.fn(),
+    onTerminalExit: vi.fn(),
+    onTerminalReleased: vi.fn(),
   };
 
   return {

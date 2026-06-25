@@ -1,3 +1,4 @@
+import type { TerminalSnapshot } from '@emdash/core/acp';
 import type { AcpPromptImage, ChatHistory, SessionState } from '@shared/core/acp/acpTurns';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { acpSessionManager } from './production-acp-session-manager';
@@ -35,6 +36,10 @@ function resolvePermission(
   return Promise.resolve();
 }
 
+function getTerminals(conversationId: string): Promise<TerminalSnapshot[]> {
+  return Promise.resolve(acpSessionManager.getTerminals(conversationId));
+}
+
 export const acpController = createRPCController({
   prompt,
   cancel,
@@ -42,4 +47,5 @@ export const acpController = createRPCController({
   getChatHistory,
   getSessionState,
   resolvePermission,
+  getTerminals,
 });

@@ -1,7 +1,8 @@
 import type { Result } from '@emdash/shared';
 import type { IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import type { AcpPermissionRequest } from './permissions';
-import type { AcpProcessHost } from './transport';
+import type { TerminalSnapshot } from './terminals';
+import type { AcpProcessHost, AcpTerminalExit } from './transport';
 import type { AcpPromptImage, AcpTurn, ChatHistory, SessionLifecycle, SessionState } from './turns';
 
 // ---------------------------------------------------------------------------
@@ -67,6 +68,29 @@ export interface AcpRuntimeListener {
     taskId: string;
     providerId: string;
   }): void;
+  /** A new terminal was created by the agent and is now running. */
+  onTerminalCreated(e: {
+    conversationId: string;
+    terminalId: string;
+    command: string;
+    args: string[];
+    cwd: string;
+  }): void;
+  /** A chunk of output was received from a running terminal. */
+  onTerminalOutput(e: {
+    conversationId: string;
+    terminalId: string;
+    chunk: string;
+    truncated: boolean;
+  }): void;
+  /** A terminal command has exited. */
+  onTerminalExit(e: {
+    conversationId: string;
+    terminalId: string;
+    exitStatus: AcpTerminalExit;
+  }): void;
+  /** A terminal was released (resources freed). */
+  onTerminalReleased(e: { conversationId: string; terminalId: string }): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -126,4 +150,6 @@ export interface IAcpSessionRuntime {
   isRunning(conversationId: string): boolean;
   getChatHistory(conversationId: string): ChatHistory;
   getSessionState(conversationId: string): SessionState;
+  /** Returns snapshots of all live terminals for a conversation. Empty if none or unknown. */
+  getTerminals(conversationId: string): TerminalSnapshot[];
 }
