@@ -1,15 +1,13 @@
 import { observer } from 'mobx-react-lite';
 import { TaskSidebarTrailingSlot } from '@renderer/features/sidebar/task-sidebar-agent-status';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
-import {
-  getTaskKnownGitChanges,
-  TaskGitDiffStats,
-} from '@renderer/features/tasks/components/task-git-diff-stats';
+import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
 import {
   getTaskGitWorktreeStore,
   getTaskManagerStore,
   getTaskStore,
   getWorkspaceForTask,
+  taskHasKnownExclusiveWorkspaceChanges,
 } from '@renderer/features/tasks/stores/task-selectors';
 import { type TaskStore } from '@renderer/features/tasks/stores/task-store';
 import {
@@ -71,7 +69,13 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
   const handleDelete = () =>
     showDeleteTask({
       projectId,
-      tasks: [{ taskId, taskName, hasKnownChanges: getTaskKnownGitChanges(task) }],
+      tasks: [
+        {
+          taskId,
+          taskName,
+          hasKnownUncommittedChanges: taskHasKnownExclusiveWorkspaceChanges(task),
+        },
+      ],
       onSuccess: ({ deleteWorktree, deleteBranch }) => {
         void taskManager?.deleteTasks([taskId], { deleteWorktree, deleteBranch });
         if (isActive) navigate('project', { projectId });

@@ -94,7 +94,7 @@ describe('DeleteTaskModal', () => {
       root.render(
         React.createElement(DeleteTaskModal, {
           projectId: 'project-1',
-          tasks: [{ taskId: 'task-1', taskName: 'Dirty task', hasKnownChanges: true }],
+          tasks: [{ taskId: 'task-1', taskName: 'Dirty task', hasKnownUncommittedChanges: true }],
           onSuccess: vi.fn(),
           onClose: vi.fn(),
         })

@@ -7,6 +7,7 @@ import type { Task } from '@shared/core/tasks/tasks';
 import { conversationRegistry } from './conversation-registry';
 import type { TaskManagerStore } from './task-manager';
 import {
+  isRegistered,
   isProvisioned,
   isUnprovisioned,
   isUnregistered,
@@ -57,6 +58,35 @@ export function getTaskGitWorktreeStore(projectId: string, taskId: string) {
   const store = getTaskStore(projectId, taskId);
   if (!store?.workspaceId) return undefined;
   return workspaceRegistry.get(projectId, store.workspaceId)?.gitWorktree;
+}
+
+function registeredWorkspaceId(store: TaskStore): string | undefined {
+  if (!isRegistered(store)) return undefined;
+  return store.workspaceId ?? store.data.workspaceId;
+}
+
+export function taskHasKnownExclusiveWorkspaceChanges(store: TaskStore): boolean {
+  if (!isRegistered(store)) return false;
+
+  const workspaceId = registeredWorkspaceId(store);
+  if (!workspaceId) return false;
+
+  const taskManager = getTaskManagerStore(store.data.projectId);
+  if (!taskManager) return false;
+
+  let workspaceTaskCount = 0;
+  for (const task of taskManager.tasks.values()) {
+    if (registeredWorkspaceId(task) === workspaceId) workspaceTaskCount += 1;
+    if (workspaceTaskCount > 1) return false;
+  }
+
+  const git = getTaskGitWorktreeStore(store.data.projectId, store.data.id);
+  if (git) {
+    return !git.error && git.fileChanges.length > 0;
+  }
+
+  const cachedGit = store.data.workspaceGit;
+  return !!cachedGit && (cachedGit.linesAdded > 0 || cachedGit.linesDeleted > 0);
 }
 
 export function taskAgentStatus(store: TaskStore): AgentStatus | null {

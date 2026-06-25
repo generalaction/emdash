@@ -15,7 +15,7 @@ import type { TaskDeletePreflightItem } from '@shared/core/tasks/tasks';
 
 export type DeleteTaskModalArgs = {
   projectId: string;
-  tasks: Array<{ taskId: string; taskName: string; hasKnownChanges?: boolean }>;
+  tasks: Array<{ taskId: string; taskName: string; hasKnownUncommittedChanges?: boolean }>;
 };
 
 export type DeleteTaskModalResult = {
@@ -47,7 +47,9 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
   const isLoading = preflight === null;
 
   const worktreeTasks = preflight?.filter((t) => t.hasWorktree) ?? [];
-  const dirtyTaskIds = new Set(tasks.filter((t) => t.hasKnownChanges).map((t) => t.taskId));
+  const dirtyTaskIds = new Set(
+    tasks.filter((t) => t.hasKnownUncommittedChanges).map((t) => t.taskId)
+  );
   for (const task of preflight ?? []) {
     if (task.hasUncommittedChanges) dirtyTaskIds.add(task.taskId);
   }

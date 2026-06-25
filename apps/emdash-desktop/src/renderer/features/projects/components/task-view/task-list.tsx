@@ -5,8 +5,10 @@ import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { getTaskKnownGitChanges } from '@renderer/features/tasks/components/task-git-diff-stats';
-import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
+import {
+  getTaskManagerStore,
+  taskHasKnownExclusiveWorkspaceChanges,
+} from '@renderer/features/tasks/stores/task-selectors';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
 import {
   getEffectiveHotkey,
@@ -178,7 +180,7 @@ export const TaskList = observer(function TaskList() {
       .map((t) => ({
         taskId: t.data.id,
         taskName: t.data.name,
-        hasKnownChanges: getTaskKnownGitChanges(t),
+        hasKnownUncommittedChanges: taskHasKnownExclusiveWorkspaceChanges(t),
       }));
 
     if (selectedTasks.length === 0) return;
