@@ -1,0 +1,22 @@
+packages/plugins/src/agents/impl/qwen/index.ts
+  s_670e3b962a61b9::t_2dd4a2bc58a53d 27
+packages/plugins/src/agents/impl/qwen/index.test.ts
+  s_670e3b962a61b9::t_6e26aa00d60fa0 33
+  s_670e3b962a61b9::t_e9a269a2ee6c48 32,34-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "37086440162a082ad20e25358364e255d2087975",
+  "prompts": {},
+  "sessions": {
+    "s_670e3b962a61b9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef092-0f0c-7bd1-a224-84719c55973c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
