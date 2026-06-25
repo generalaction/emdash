@@ -31,6 +31,10 @@ export const SETTINGS_DEFAULTS = {
     createBranchAndWorktree: true,
     preserveNameCapitalization: false,
     includeIssueContextByDefault: true,
+    autoCleanupMergedEnabled: false,
+    autoCleanupMergedAction: 'archive' as const,
+    autoCleanupMergedDeleteBranch: false,
+    autoCleanupMergedDelayMs: 24 * 60 * 60 * 1000,
   },
   notifications: {
     enabled: true,
