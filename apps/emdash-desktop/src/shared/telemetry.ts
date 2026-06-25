@@ -103,6 +103,12 @@ export type TelemetryEventProperties = {
   task_archived: EmptyProps;
   task_status_changed: { from_status: TaskLifecycleStatus; to_status: TaskLifecycleStatus };
   task_deleted: EmptyProps;
+  task_auto_cleaned_up: {
+    project_id: string;
+    task_id: string;
+    action: 'archive' | 'delete';
+    delay_ms: number;
+  };
 
   conversation_created: { provider: AgentProviderId; is_first_in_task: boolean };
   conversation_deleted: EmptyProps;
