@@ -143,6 +143,43 @@ describe('pluginRegistry', () => {
     });
   });
 
+  it.each([
+    ['amp', ['--dangerously-allow-all']],
+    ['antigravity', ['--dangerously-skip-permissions']],
+    ['auggie', ['--allow-indexing']],
+    ['autohand', ['--unrestricted']],
+    ['claude', ['--dangerously-skip-permissions']],
+    ['cline', ['--yolo']],
+    ['codex', ['--dangerously-bypass-hook-trust']],
+    ['commandcode', ['--trust', '--skip-onboarding', '--yolo']],
+    ['continue', ['--auto']],
+    ['copilot', ['--allow-all-tools']],
+    ['cursor', ['-f', '--approve-mcps']],
+    ['devin', ['--permission-mode=bypass']],
+    ['gemini', ['--approval-mode=yolo', '--skip-trust']],
+    ['grok', ['--always-approve']],
+    ['hermes', ['--yolo']],
+    ['kilocode', ['--auto']],
+    ['kimi', ['--yolo']],
+    ['kiro', ['--trust-all-tools']],
+    ['letta', ['--yolo', '--new']],
+    ['qwen', ['--yolo']],
+    ['rovo', ['--yolo']],
+  ])('deduplicates generated singleton flags for %s', (id, flags) => {
+    const result = pluginRegistry.get(id)!.behavior.prompt!.buildCommand({
+      cli: id,
+      autoApprove: true,
+      extraArgs: flags,
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: '',
+    });
+
+    for (const flag of flags) {
+      expect(result.args.filter((arg) => arg === flag), `${id} ${flag}`).toHaveLength(1);
+    }
+  });
+
   it('uses the current Amp npm package for install and updates', () => {
     const amp = pluginRegistry.get('amp')!;
 
