@@ -5,16 +5,16 @@ type ConversationTitleInput = {
   title: string;
 };
 
-function capitalizeProviderId(providerId: AgentProviderId): string {
-  return `${providerId.charAt(0).toUpperCase()}${providerId.slice(1)}`;
-}
-
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function getDefaultTitlePrefix(providerId: AgentProviderId): string {
-  return getProvider(providerId)?.name ?? capitalizeProviderId(providerId);
+  const provider = getProvider(providerId);
+  if (!provider) {
+    throw new Error(`Missing provider definition for "${providerId}"`);
+  }
+  return provider.name;
 }
 
 function parseDefaultTitleIndex(title: string, providerId: AgentProviderId): number | null {
