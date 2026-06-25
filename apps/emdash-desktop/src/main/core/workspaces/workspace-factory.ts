@@ -171,6 +171,10 @@ export function createWorkspaceFactory(
       workspace,
 
       onCreateSideEffect: (ws) => {
+        void workspaceFileIndexService.onWorkspaceActivated(workspaceId, {
+          rootPath: ws.path,
+          filesRuntime,
+        });
         unsubscribeGitUpdates = ws.gitWorktree.subscribe((update) =>
           handleGitWorktreeUpdate(workspaceId, update, (emitted) => {
             events.emit(gitWorktreeUpdateChannel, {
@@ -219,7 +223,6 @@ export function createWorkspaceFactory(
         if (ownsFetchService) {
           gitRepositoryFetchService.start();
         }
-        void workspaceFileIndexService.onWorkspaceCreated(workspaceId, ws);
         void (async () => {
           if (scripts?.setup && (projectSettings.autoRunSetupScriptOnTaskCreation ?? true)) {
             const setupResult = await runLifecycleScriptWithPolicy({
@@ -271,7 +274,7 @@ export function createWorkspaceFactory(
         if (ownsFetchService) {
           gitRepositoryFetchService.stop();
         }
-        workspaceFileIndexService.onWorkspaceDestroyed(workspaceId);
+        workspaceFileIndexService.onWorkspaceDeactivated(workspaceId);
         const latestTaskSettings = await getEffectiveTaskSettings({
           projectSettings: context.settings,
           taskFs: ws.fs,
