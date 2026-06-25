@@ -113,13 +113,14 @@ describe('DeleteTaskModal', () => {
 
   it('shows known dirty changes before delete preflight finishes', () => {
     mocks.getDeletePreflight.mockReturnValue(new Promise(() => {}));
+    const onSuccess = vi.fn();
 
     act(() => {
       root.render(
         React.createElement(DeleteTaskModal, {
           projectId: 'project-1',
           tasks: [{ taskId: 'task-1', taskName: 'Dirty task', hasKnownUncommittedChanges: true }],
-          onSuccess: vi.fn(),
+          onSuccess,
           onClose: vi.fn(),
         })
       );
@@ -128,6 +129,17 @@ describe('DeleteTaskModal', () => {
     expect(container.textContent).toContain(
       '"Dirty task" has uncommitted changes that will be lost.'
     );
+    expect(container.textContent).toContain('Delete anyway');
+
+    const deleteAnywayButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Delete anyway')
+    );
+
+    act(() => {
+      deleteAnywayButton?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(onSuccess).toHaveBeenCalledWith({ deleteWorktree: true, deleteBranch: false });
   });
 
   it('requires a second confirm when pending preflight discovers dirty changes', async () => {

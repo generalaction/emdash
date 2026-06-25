@@ -31,7 +31,6 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
   const [deleteWorktree, setDeleteWorktree] = useState(true);
   const [deleteBranch, setDeleteBranch] = useState(false);
   const [isResolvingDelete, setIsResolvingDelete] = useState(false);
-  const [needsDirtyConfirm, setNeedsDirtyConfirm] = useState(false);
   const preflightPromiseRef = useRef<Promise<TaskDeletePreflightItem[]> | null>(null);
 
   const count = tasks.length;
@@ -71,7 +70,6 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
 
   const handleWorktreeChange = (checked: boolean) => {
     setDeleteWorktree(checked);
-    setNeedsDirtyConfirm(false);
     if (!checked) setDeleteBranch(false);
   };
 
@@ -88,10 +86,7 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
     setIsResolvingDelete(false);
     setPreflight(items);
 
-    if (dirtyTasksFor(items).length > 0) {
-      setNeedsDirtyConfirm(true);
-      return;
-    }
+    if (dirtyTasksFor(items).length > 0) return;
 
     onSuccess({ deleteWorktree, deleteBranch });
   };
@@ -145,7 +140,7 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
 
         <div className="flex flex-col gap-3" aria-live="polite">
           <label
-            className="flex items-center gap-2 text-sm aria-disabled:cursor-default aria-disabled:text-foreground-muted"
+            className="flex cursor-pointer items-center gap-2 text-sm aria-disabled:cursor-default aria-disabled:text-foreground-muted"
             aria-disabled={isLoading || !showWorktreeCheckbox}
           >
             <Checkbox
@@ -159,7 +154,7 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
           <AnimatePresence initial={false}>{dirtyWarningNode}</AnimatePresence>
 
           <label
-            className="flex items-center gap-2 text-sm aria-disabled:cursor-default aria-disabled:text-foreground-muted"
+            className="flex cursor-pointer items-center gap-2 text-sm aria-disabled:cursor-default aria-disabled:text-foreground-muted"
             aria-disabled={isLoading || !showBranchCheckbox || !deleteWorktree}
           >
             <Checkbox
@@ -182,7 +177,7 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
         >
           {isResolvingDelete
             ? 'Verifying…'
-            : needsDirtyConfirm && showDirtyWarning
+            : showDirtyWarning
               ? 'Delete anyway'
               : isBulk
                 ? `Delete ${count} tasks`
