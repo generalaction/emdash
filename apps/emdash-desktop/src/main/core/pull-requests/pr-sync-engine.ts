@@ -127,6 +127,7 @@ interface GqlPrNode {
   isDraft: boolean;
   createdAt: string;
   updatedAt: string;
+  mergedAt: string | null;
   headRefName: string;
   headRefOid: string;
   baseRefName: string;
@@ -1079,6 +1080,7 @@ export class PrSyncEngine {
         reviewDecision: node.reviewDecision ?? null,
         pullRequestCreatedAt: node.createdAt,
         pullRequestUpdatedAt: node.updatedAt,
+        mergedAt: node.mergedAt,
       })
       .onConflictDoUpdate({
         target: pullRequests.url,
@@ -1101,6 +1103,7 @@ export class PrSyncEngine {
           mergeStateStatus: node.mergeStateStatus ?? null,
           reviewDecision: node.reviewDecision ?? null,
           pullRequestUpdatedAt: node.updatedAt,
+          mergedAt: node.mergedAt,
         },
       })
       .returning();
