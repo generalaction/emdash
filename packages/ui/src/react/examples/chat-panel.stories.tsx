@@ -1,30 +1,14 @@
 /**
- * ChatPanel — composed story combining ChatTranscript (from @emdash/chat-ui)
+ * ChatPanel — composed story combining ChatTranscript (from @emdash/ui/react/chat-ui)
  * with ChatComposer (from @emdash/ui), mirroring the desktop chat-panel layout.
- *
- * CSS load order:
- *   1. devicon/devicon.min.css  — file icons for diff / resource-link headers
- *   2. @emdash/chat-ui/style.css — prebuilt chat-ui utility bundle
- *   3. @emdash/chat-ui/chat-theme.css — binds --chat-* → @emdash/ui semantic tokens
- *
- * The @emdash/ui base tokens (theme.css / semantic.css) and the .emlight /
- * .emdark wrapper class come from the global ThemeProvider decorator in
- * .storybook/preview.tsx, so chat-theme.css resolves var(--foreground) etc.
- * correctly without any extra imports here.
- *
- * Build-order note: @emdash/chat-ui must be built (pnpm --filter @emdash/chat-ui build)
- * before running this Storybook so that ./dist/react.js resolves.
  */
-
-import 'devicon/devicon.min.css';
-import '@emdash/chat-ui/style.css';
-import '@emdash/chat-ui/chat-theme.css';
 import type { ChatCommands, ChatHandle, MentionProvider } from '@emdash/chat-ui';
-import { generateMockTranscript } from '@emdash/chat-ui';
-import { ChatTranscript } from '@emdash/chat-ui/react';
+import { applyTurnEvent, generateMockTranscript } from '@emdash/chat-ui';
+import { ChatTranscript } from '@react/chat-ui';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { cx } from '@styles/utilities/cx';
 import { ArrowDown } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChatComposer, stopReasonNotice } from '../components/chat-composer';
 import type {
   ComposerAttachment,
@@ -37,16 +21,15 @@ import { ImageViewerDialog } from '../components/image-viewer-dialog';
 import type { ComposerPermissionRequest } from '../components/permission-band';
 import { basename, fileIconClass } from '../components/prompt-editor/mention-pill-helpers';
 import type { PromptEditorRef } from '../components/prompt-editor/types';
+import { Box } from '../primitives/box';
 import { Button } from '../primitives/button';
-
-// ── Small coloured data URLs used as seeded image attachment previews ─────────
+import * as s from '../story-layout.css';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 const RED_1PX =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==';
 const BLUE_1PX =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
-
-// ── Mock mention provider ─────────────────────────────────────────────────────
 
 const MOCK_FILES: MentionItem[] = [
   {
@@ -99,8 +82,6 @@ const MOCK_FILES: MentionItem[] = [
   },
 ];
 
-// ── Mock model options ────────────────────────────────────────────────────────
-
 const MOCK_MODELS: Record<string, ComposerModelOption> = {
   'claude-opus-4': {
     name: 'Claude Opus 4',
@@ -134,17 +115,10 @@ const MOCK_MODELS: Record<string, ComposerModelOption> = {
   },
 };
 
-/**
- * Synchronous chat-ui MentionProvider — resolves @label tokens in submitted
- * messages back to rich metadata for pill rendering in the transcript.
- * Distinct from mockMentionProvider (async, for the composer popup).
- */
 const chatMentionProvider: MentionProvider = {
   resolve(token: string) {
     const match = MOCK_FILES.find((f) => f.label === token || f.name === token);
     if (!match) return null;
-    // Supply the same devicon class the ChatComposer MentionPill uses for files,
-    // so the transcript pill renders the exact same icon.
     const iconClass = match.kind === 'file' ? (fileIconClass(match.label) ?? undefined) : undefined;
     return {
       id: match.id,
@@ -158,7 +132,7 @@ const chatMentionProvider: MentionProvider = {
 
 const mockMentionProvider: ContextMentionProvider = {
   async search(query: string) {
-    await new Promise((r) => setTimeout(r, 80)); // simulate latency
+    await new Promise((r) => setTimeout(r, 80));
     const q = query.toLowerCase();
     return q
       ? MOCK_FILES.filter(
@@ -174,10 +148,6 @@ const mockMentionProvider: ContextMentionProvider = {
 const PAD_TOP = 16;
 const PAD_BOTTOM_MARGIN = 12;
 
-// ── Inner panel component ─────────────────────────────────────────────────────
-
-// Seeded mock image attachments — use tiny data URLs so no network request
-// is needed and the 32x32 preview row is visible in Storybook by default.
 const SEED_ATTACHMENTS: ComposerAttachment[] = [
   { id: 'mock-img-1', name: 'screenshot.png', kind: 'image', previewUrl: RED_1PX },
   { id: 'mock-img-2', name: 'diagram.png', kind: 'image', previewUrl: BLUE_1PX },
@@ -201,7 +171,6 @@ function LiveChatPanel({
   const [attachments, setAttachments] = useState<ComposerAttachment[]>(SEED_ATTACHMENTS);
   const [viewer, setViewer] = useState<{ src?: string; alt?: string } | null>(null);
 
-  // Measure the floating composer so the transcript can reserve matching space.
   useEffect(() => {
     const el = composerRef.current;
     if (!el) return;
@@ -223,9 +192,6 @@ function LiveChatPanel({
   const handleReady = useCallback((handle: ChatHandle) => {
     handleRef.current = handle;
     const items = generateMockTranscript(40, 1);
-    // Prepend a long user message so the collapse/expand + sticky-mirror mechanism
-    // is exercisable immediately: click it to expand (360px), click outside to collapse.
-    const longUserId = 'long-user-seed';
     const longUserText = [
       'Refactor the authentication module to use JWT tokens:',
       '',
@@ -241,9 +207,8 @@ function LiveChatPanel({
       '',
       'Preserve backward compatibility for existing sessions during the migration period.',
     ].join('\n');
-    handle.transcript.seed([
-      { kind: 'message', id: longUserId, role: 'user', text: longUserText },
-      // Seeded message with image attachments — click either thumbnail to open the viewer.
+    handle.transcript.history.seed([
+      { kind: 'message', id: 'long-user-seed', role: 'user', text: longUserText },
       {
         kind: 'message',
         id: 'seed-img-user',
@@ -258,7 +223,6 @@ function LiveChatPanel({
     ]);
   }, []);
 
-  // Mock onFilesDropped: insert non-image dropped files as path mentions.
   const handleFilesDropped = useCallback((files: File[]) => {
     const nonImages = files.filter((f) => !f.type.startsWith('image/'));
     nonImages.forEach((f) => {
@@ -275,42 +239,46 @@ function LiveChatPanel({
     (text: string) => {
       const api = handleRef.current?.transcript;
       if (!api) return;
-
-      // Carry any staged image attachments onto the user bubble, then clear them.
       const atts = attachments
         .filter((a) => a.kind === 'image')
         .map((a) => ({ id: a.id, name: a.name, dataUrl: a.previewUrl }));
-
-      // Append the user's message as a committed turn.
       const userId = crypto.randomUUID();
-      api.dispatch({
-        type: 'message_chunk',
+      const userEv = {
+        type: 'message_chunk' as const,
         id: userId,
-        role: 'user',
+        role: 'user' as const,
         text,
         attachments: atts.length > 0 ? atts : undefined,
-      });
-      api.dispatch({ type: 'turn_done' });
+      };
+      api.activeTurn.set(applyTurnEvent(api.activeTurn.get(), userEv), 'generating');
+      api.activeTurn.commit('done');
       setAttachments([]);
-
-      // Echo a short canned assistant response so both roles are visible.
       const assistantId = crypto.randomUUID();
-      api.dispatch({
-        type: 'message_chunk',
+      const assistantEv = {
+        type: 'message_chunk' as const,
         id: assistantId,
-        role: 'assistant',
+        role: 'assistant' as const,
         text: text ? `Got it! You said: *${text}*` : 'Got it — received your image!',
-      });
-      api.dispatch({ type: 'turn_done' });
+      };
+      api.activeTurn.set(applyTurnEvent(api.activeTurn.get(), assistantEv), 'generating');
+      api.activeTurn.commit('done');
     },
     [attachments]
   );
 
   return (
-    <div className="surface-paper bg-surface relative h-full overflow-hidden rounded-xl border border-border">
-      {/* Full-bleed transcript — reserves canvas space for the floating composer */}
+    <Box
+      surface="paper"
+      position="relative"
+      height="full"
+      overflow="hidden"
+      rounded="xl"
+      borderWidth="1"
+      borderStyle="solid"
+      borderColor="border"
+    >
       <ChatTranscript
-        className="absolute inset-0"
+        className={cx(sx({ position: 'absolute', inset: '0' }))}
         stickToBottom
         pinUserMessages
         mentionProvider={chatMentionProvider}
@@ -321,23 +289,40 @@ function LiveChatPanel({
         commands={commands}
       />
 
-      {/* Floating composer — aligned to the max-w-2xl content column with no
-          horizontal padding so it sits flush with user message bubble edges */}
       <div
         ref={composerRef}
-        className="bg-surface/80 absolute inset-x-0 bottom-0 mx-auto w-full max-w-2xl pb-2 backdrop-blur-sm"
+        className={cx(
+          s.bgSurface80,
+          s.backdropBlurSm,
+          s.mxAuto,
+          s.maxW2xl,
+          sx({
+            position: 'absolute',
+            left: '0',
+            right: '0',
+            bottom: '0',
+            width: 'full',
+            paddingBottom: '2',
+          })
+        )}
       >
-        {/* Scroll-to-bottom affordance — floats above the composer while the
-            transcript is scrolled up past the stick threshold (48px). */}
         {!atBottom && (
-          <div className="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full">
+          <div
+            className={cx(
+              s.negTop2,
+              s.left50pct,
+              s.negTranslateX,
+              s.negTranslateY,
+              sx({ position: 'absolute' })
+            )}
+          >
             <Button
               variant="primary"
               size="sm"
               icon
               aria-label="Scroll to bottom"
               onClick={() => handleRef.current?.scrollToBottom({ behavior: 'smooth' })}
-              className="rounded-full shadow-md"
+              className={cx(sx({ rounded: 'full' }), s.shadowMd)}
             >
               <ArrowDown />
             </Button>
@@ -357,7 +342,6 @@ function LiveChatPanel({
           permissionRequest={permissionRequest}
           permissionQueueCount={permissionQueueCount}
           onResolvePermission={(optionId) => {
-            // In Storybook: just log the resolved choice.
             console.log('Permission resolved:', optionId);
           }}
           onViewImage={(att) => setViewer({ src: att.previewUrl, alt: att.name })}
@@ -369,68 +353,55 @@ function LiveChatPanel({
         src={viewer?.src}
         alt={viewer?.alt}
       />
-    </div>
+    </Box>
   );
 }
 
-// ── Story meta ────────────────────────────────────────────────────────────────
-
 const meta: Meta = {
   title: 'Examples/ChatPanel',
-  parameters: {
-    // Fill the preview pane so the panel can use full height.
-    layout: 'fullscreen',
-  },
+  parameters: { layout: 'fullscreen' },
 };
 export default meta;
 
 type Story = StoryObj;
 
-/**
- * Live panel — type a message and press Enter (or click Send) to append it to
- * the transcript. The panel seeds a 40-item mock transcript on first mount.
- * Use the color-mode toolbar to switch between light and dark themes.
- */
 export const Live: Story = {
   render: () => (
-    <div className="flex h-screen items-stretch p-6">
-      <div className="flex-1">
+    <Box display="flex" className={s.hScreen} alignItems="stretch" padding="6">
+      <Box flex="1">
         <LiveChatPanel />
-      </div>
-    </div>
+      </Box>
+    </Box>
   ),
 };
 
-/** ACP stop reason: max_turn_requests — notice band with turn-limit error. */
 export const MaxTurnRequests: Story = {
   render: () => (
-    <div className="flex h-screen items-stretch p-6">
-      <div className="flex-1">
+    <Box display="flex" className={s.hScreen} alignItems="stretch" padding="6">
+      <Box flex="1">
         <LiveChatPanel notice={stopReasonNotice('max_turn_requests')} />
-      </div>
-    </div>
+      </Box>
+    </Box>
   ),
 };
 
-/** ACP stop reason: refusal — notice band with agent refusal error. */
 export const Refusal: Story = {
   render: () => (
-    <div className="flex h-screen items-stretch p-6">
-      <div className="flex-1">
+    <Box display="flex" className={s.hScreen} alignItems="stretch" padding="6">
+      <Box flex="1">
         <LiveChatPanel notice={stopReasonNotice('refusal')} />
-      </div>
-    </div>
+      </Box>
+    </Box>
   ),
 };
 
-/** ACP stop reason: max_tokens — notice band with response truncation error. */
 export const MaxTokens: Story = {
   render: () => (
-    <div className="flex h-screen items-stretch p-6">
-      <div className="flex-1">
+    <Box display="flex" className={s.hScreen} alignItems="stretch" padding="6">
+      <Box flex="1">
         <LiveChatPanel notice={stopReasonNotice('max_tokens')} />
-      </div>
-    </div>
+      </Box>
+    </Box>
   ),
 };
 
@@ -445,33 +416,30 @@ const MOCK_PERMISSION: ComposerPermissionRequest = {
   ],
 };
 
-/** Single pending permission request — "Allow Read a File?" band above the composer. */
 export const PermissionSingle: Story = {
   render: () => (
-    <div className="flex h-screen items-stretch p-6">
-      <div className="flex-1">
+    <Box display="flex" className={s.hScreen} alignItems="stretch" padding="6">
+      <Box flex="1">
         <LiveChatPanel permissionRequest={MOCK_PERMISSION} permissionQueueCount={1} />
-      </div>
-    </div>
+      </Box>
+    </Box>
   ),
 };
 
-/** Two queued permission requests — "1 of 2" counter visible. */
 export const PermissionQueued: Story = {
   render: () => (
-    <div className="flex h-screen items-stretch p-6">
-      <div className="flex-1">
+    <Box display="flex" className={s.hScreen} alignItems="stretch" padding="6">
+      <Box flex="1">
         <LiveChatPanel permissionRequest={MOCK_PERMISSION} permissionQueueCount={2} />
-      </div>
-    </div>
+      </Box>
+    </Box>
   ),
 };
 
-/** Execute permission variant — shows "Allow Execute?" */
 export const PermissionExecute: Story = {
   render: () => (
-    <div className="flex h-screen items-stretch p-6">
-      <div className="flex-1">
+    <Box display="flex" className={s.hScreen} alignItems="stretch" padding="6">
+      <Box flex="1">
         <LiveChatPanel
           permissionRequest={{
             requestId: 'req-exec',
@@ -483,7 +451,7 @@ export const PermissionExecute: Story = {
           }}
           permissionQueueCount={1}
         />
-      </div>
-    </div>
+      </Box>
+    </Box>
   ),
 };

@@ -1,6 +1,6 @@
 import { globalStyle, style } from '@vanilla-extract/css';
-import { kfPopupIn } from '../../styles/animations.css';
-import { vars } from '../../theme/core/contract/contract.css';
+import { kfPopupIn } from '@styles/effects/animations.css';
+import { vars } from '@theme/core/contract/contract.css';
 
 export const popupRoot = style({
   zIndex: 50,

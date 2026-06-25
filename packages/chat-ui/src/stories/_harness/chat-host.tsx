@@ -72,7 +72,11 @@ export type ChatHostProps = {
 function makeCommands(transcript: TranscriptApi, overrides?: ChatCommands): () => ChatCommands {
   return () => ({
     onStop: () => {
-      transcript.dispatch({ type: 'turn_cancelled' });
+      transcript.activeTurn.commit('cancelled');
+    },
+    onViewMermaid: (arg) => {
+      // eslint-disable-next-line no-console
+      console.log('[story] onViewMermaid', arg);
     },
     ...overrides,
   });
@@ -92,7 +96,7 @@ export function ChatHostExpanded(props: {
   const viewState = createViewState();
 
   createEffect(() => {
-    transcript.seed(props.items);
+    transcript.history.seed(props.items);
   });
 
   // Pre-toggle so the item starts in the expanded state.
@@ -123,7 +127,7 @@ export function ChatHost(props: ChatHostProps) {
   const viewState = createViewState();
 
   createEffect(() => {
-    transcript.seed(props.items ?? []);
+    transcript.history.seed(props.items ?? []);
   });
 
   const commands = createMemo(() => makeCommands(transcript, props.commands)());
@@ -157,13 +161,22 @@ export function ScriptedChat(props: {
   height?: number;
   width?: number;
   commands?: ChatCommands;
+  /**
+   * Optional transcript wrapper. Receives the internally-created TranscriptApi
+   * and must return a compatible API (e.g. createStreamSmoother). Any `dispose`
+   * method returned by the wrapper is called on cleanup.
+   */
+  wrapTranscript?: (api: TranscriptApi) => TranscriptApi & { dispose?: () => void };
 }) {
   const transcript = createTranscript();
   const viewState = createViewState();
 
+  // Apply the optional wrapper (e.g. createStreamSmoother) so the script
+  // drives the wrapper which in turn feeds the real transcript.
+  const api = props.wrapTranscript ? props.wrapTranscript(transcript) : transcript;
+
   onMount(() => {
     const owner = getOwner();
-    const api = transcript;
     let idx = 0;
     let pendingTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -171,7 +184,7 @@ export function ScriptedChat(props: {
       if (idx >= props.script.length) return;
       const step = props.script[idx++];
       if (step.kind === 'seed') {
-        api.seed(step.items);
+        api.history.seed(step.items);
         runNext();
       } else if (step.kind === 'call') {
         // Run inside the component's reactive owner so Solid tracks any store
@@ -193,6 +206,10 @@ export function ScriptedChat(props: {
       if (pendingTimer !== undefined) {
         clearTimeout(pendingTimer);
         pendingTimer = undefined;
+      }
+      // Dispose the wrapper (e.g. clear smoother timers) after the script timers.
+      if (props.wrapTranscript && 'dispose' in api && typeof api.dispose === 'function') {
+        api.dispose();
       }
     });
 

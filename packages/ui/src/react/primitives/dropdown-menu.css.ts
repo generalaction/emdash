@@ -6,8 +6,8 @@ import {
   kfPopupInSlideFromBottom,
   kfPopupInSlideFromLeft,
   kfPopupInSlideFromRight,
-} from '../../styles/animations.css';
-import { vars } from '../../theme/core/contract/contract.css';
+} from '@styles/effects/animations.css';
+import { vars } from '@theme/core/contract/contract.css';
 
 export const positioner = style({
   isolation: 'isolate',

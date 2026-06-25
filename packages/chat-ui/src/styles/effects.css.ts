@@ -8,7 +8,7 @@
  * The keyframe names are scoped by VE so they never collide in the host app.
  */
 
-import { keyframes, style } from '@vanilla-extract/css';
+import { createVar, fallbackVar, keyframes, style } from '@vanilla-extract/css';
 import { vars } from './theme.css';
 
 // ── Keyframes ─────────────────────────────────────────────────────────────────
@@ -20,6 +20,11 @@ const shimmerMove = keyframes({
 
 const planSpin = keyframes({
   to: { transform: 'rotate(360deg)' },
+});
+
+const fadeIn = keyframes({
+  from: { opacity: 0 },
+  to: { opacity: 1 },
 });
 
 // ── text-shimmer ──────────────────────────────────────────────────────────────
@@ -61,6 +66,26 @@ export const fadeOverlayBottom = style({
     color-mix(in oklab, ${vars.bg}, transparent 50%) 40%,
     color-mix(in oklab, ${vars.bg}, transparent 100%) 100%
   )`,
+});
+
+// ── stream-word ───────────────────────────────────────────────────────────────
+
+/**
+ * Duration of the per-word fade-in. Override on any ancestor (e.g. ChatRoot or
+ * a story container) to tune the effect without rebuilding the stylesheet.
+ */
+export const streamWordDuration = createVar();
+
+/**
+ * Applied to each newly-revealed word span during streaming. A pure paint-only
+ * fade (`opacity`), so it never reflows: pretext geometry and the reserved
+ * block height are untouched. `inline-block` keeps exact character widths inside
+ * the `white-space: pre` fragment.
+ */
+export const streamWord = style({
+  display: 'inline-block',
+  // easeOutCubic — a soft, decelerating curve so words settle gently.
+  animation: `${fadeIn} ${fallbackVar(streamWordDuration, '200ms')} cubic-bezier(0.215, 0.61, 0.355, 1) both`,
 });
 
 // ── plan-spinner ──────────────────────────────────────────────────────────────

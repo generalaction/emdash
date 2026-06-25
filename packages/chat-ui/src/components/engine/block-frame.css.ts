@@ -14,6 +14,12 @@ export const pblock = style({
   overflow: 'visible',
   // Ensure border-box sizing regardless of host preflight.
   boxSizing: 'border-box',
+  // Skip layout/paint for off-screen blocks inside tall units (long messages,
+  // code blocks, tables). The exact contain-intrinsic-size is set as an inline
+  // style in BlockFrame using the measured height, so the browser reserves the
+  // correct space while the block is skipped. On-screen blocks are unaffected
+  // (content-visibility: auto removes containment for visible elements).
+  contentVisibility: 'auto',
 });
 
 // ── Debug overlay ─────────────────────────────────────────────────────────────

@@ -123,7 +123,7 @@ export function mountTranscript(
 
   const transcript = createTranscript();
   const viewState = createViewState();
-  transcript.seed(items);
+  transcript.history.seed(items);
 
   const dispose = render(
     () => (

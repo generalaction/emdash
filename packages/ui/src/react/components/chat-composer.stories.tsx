@@ -3,12 +3,12 @@
  *
  * Toggle every composer state from the Storybook Controls panel, including
  * `showNotice`, to watch the notice band animate in and out above the input.
- * The "Dismiss" button (and the band's own ✕) hide the notice so the exit
- * transition can be observed; flip `showNotice` back on to replay the enter.
  */
 
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { cx } from '@styles/utilities/cx';
 import { useEffect, useState } from 'react';
+import { Box } from '../primitives/box';
 import { Button } from '../primitives/button';
 import { ChatComposer } from './chat-composer';
 import type {
@@ -17,8 +17,8 @@ import type {
   ComposerNotice,
   ComposerNoticeVariant,
 } from './chat-composer';
-
-// ── Mock model options ────────────────────────────────────────────────────────
+import * as s from '../story-layout.css';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 const MOCK_MODELS: Record<string, ComposerModelOption> = {
   'claude-opus-4': {
@@ -37,8 +37,6 @@ const MOCK_MODELS: Record<string, ComposerModelOption> = {
     modelFeatures: { contextWindowSize: 128_000, speed: 0.7, intelligence: 0.9 },
   },
 };
-
-// ── Mock agent options ─────────────────────────────────────────────────────────
 
 function AgentDot({ color }: { color: string }) {
   return (
@@ -80,8 +78,6 @@ const MOCK_AGENTS: ComposerAgentOption[] = [
   },
 ];
 
-// ── Story args ────────────────────────────────────────────────────────────────
-
 interface PlaygroundArgs {
   disabled: boolean;
   isWorking: boolean;
@@ -115,8 +111,6 @@ function ComposerPlayground(args: PlaygroundArgs) {
   const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
   const [dismissed, setDismissed] = useState(false);
 
-  // Re-arm the notice whenever the control is toggled back on so the enter
-  // transition can be replayed after a manual dismiss.
   useEffect(() => {
     if (showNotice) setDismissed(false);
   }, [showNotice]);
@@ -132,8 +126,8 @@ function ComposerPlayground(args: PlaygroundArgs) {
     : null;
 
   return (
-    <div className="mx-auto w-full max-w-2xl">
-      <div className="mb-3 flex items-center gap-3">
+    <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
+      <Box marginBottom="3" display="flex" alignItems="center" gap="3">
         <Button
           size="sm"
           variant="ghost"
@@ -143,10 +137,10 @@ function ComposerPlayground(args: PlaygroundArgs) {
         >
           Dismiss
         </Button>
-        <span className="text-xs text-foreground-muted">
+        <span className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>
           Toggle <code>showNotice</code> in Controls to watch the band transition in and out.
         </span>
-      </div>
+      </Box>
 
       <ChatComposer
         disabled={disabled}
@@ -164,11 +158,9 @@ function ComposerPlayground(args: PlaygroundArgs) {
         onAttach={showAttachButton ? () => {} : undefined}
         notice={notice}
       />
-    </div>
+    </Box>
   );
 }
-
-// ── Meta ──────────────────────────────────────────────────────────────────────
 
 const meta: Meta<PlaygroundArgs> = {
   title: 'Components/ChatComposer',
@@ -190,8 +182,7 @@ const meta: Meta<PlaygroundArgs> = {
     },
     agentLocked: {
       control: 'boolean',
-      description:
-        'When true (prompt has been sent), the agent button is disabled — ACP cannot switch agents mid-conversation.',
+      description: 'When true (prompt has been sent), the agent button is disabled.',
     },
     showModelSelector: {
       control: 'boolean',

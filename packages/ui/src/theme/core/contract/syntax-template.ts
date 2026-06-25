@@ -10,7 +10,7 @@
  * The generator can override individual assignments per theme.
  */
 
-import type { SyntaxRole, Polarity } from './roles.js';
+import type { SyntaxRole } from './roles';
 
 export type SyntaxScopeEntry = {
   scopes: string[];
@@ -120,10 +120,3 @@ export const SYNTAX_TEMPLATE: Record<SyntaxRole, SyntaxScopeEntry> = {
     darkDefault: 'blue.11',
   },
 };
-
-/** Resolve the palette ref for a role given a polarity. */
-export function getDefaultRef(role: SyntaxRole, polarity: Polarity): string {
-  return polarity === 'light'
-    ? SYNTAX_TEMPLATE[role].lightDefault
-    : SYNTAX_TEMPLATE[role].darkDefault;
-}

@@ -6,6 +6,11 @@ import { createVariableThemeContract } from '@styles/variable-theme-contract.css
 
 // ── Runtime geometry contract ─────────────────────────────────────────────────
 
+/**
+ * Contract for the file-op card vars. `height` is set on the root by the def;
+ * `padY` is set locally by FileOpList / FileOpPreviewBody where it is consumed
+ * via `padding-block`.
+ */
 export type FileOpStyleVars = {
   height: number;
   padY: number;

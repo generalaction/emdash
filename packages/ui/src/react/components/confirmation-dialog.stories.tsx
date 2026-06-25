@@ -1,16 +1,10 @@
-/**
- * ConfirmationDialog — controlled confirm/cancel dialog.
- *
- * Stories demonstrate:
- *  - A neutral confirmation
- *  - A destructive confirmation
- *  - An async confirm with a pending state
- */
-
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { cx } from '@styles/utilities/cx';
 import React, { useState } from 'react';
+import { Box } from '../primitives/box';
 import { Button } from '../primitives/button';
 import { ConfirmationDialog } from './confirmation-dialog';
+import { sx } from '@styles/utilities/sprinkles.css';
 
 const meta: Meta = {
   title: 'Components/ConfirmationDialog',
@@ -24,11 +18,13 @@ function NeutralStory() {
   const [open, setOpen] = useState(false);
   const [lastAction, setLastAction] = useState<string>('—');
   return (
-    <div className="flex flex-col items-center gap-3">
+    <Box display="flex" flexDirection="column" alignItems="center" gap="3">
       <Button variant="ghost" onClick={() => setOpen(true)}>
         Leave page
       </Button>
-      <p className="text-xs text-foreground-muted">Last action: {lastAction}</p>
+      <p className={cx(sx({ fontSize: 'xs', color: 'foregroundMuted' }))}>
+        Last action: {lastAction}
+      </p>
       <ConfirmationDialog
         open={open}
         onOpenChange={setOpen}
@@ -39,7 +35,7 @@ function NeutralStory() {
         onConfirm={() => setLastAction('confirmed')}
         onCancel={() => setLastAction('cancelled')}
       />
-    </div>
+    </Box>
   );
 }
 

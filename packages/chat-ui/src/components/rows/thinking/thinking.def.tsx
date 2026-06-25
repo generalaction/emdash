@@ -16,7 +16,7 @@ import { thinkingCardVars, thinkingRoot, type ThinkingStyleVars } from './thinki
 import { sx } from '@styles/sprinkles.css';
 
 export type ThinkingVars = {
-  /** Style-relevant: vertical padding inside the expanded body. Consumed by thinkingCardVars. */
+  /** Measure-only: vertical padding baked into the body block-stack layout. */
   padY: number;
   /** Measure-only: preview window height during active thinking. */
   windowH: number;
@@ -124,7 +124,7 @@ function ThinkingUnitRender(props: { data: ChatThinking; ctx: RenderCtx; vars: T
   const showBody = () => isExpanded() || props.data.status === 'thinking';
   const bodyH = () => body()?.height ?? 0;
 
-  const styleVars = (): ThinkingStyleVars => ({ height: totalH(), padY: props.vars.padY });
+  const styleVars = (): ThinkingStyleVars => ({ height: totalH() });
 
   return (
     <div

@@ -1,9 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import React from 'react';
+import { Box } from './box';
 import { Field, FieldDescription, FieldError, FieldLabel } from './field';
 import { Input } from './input';
-import { Surface } from './surface';
 import { Textarea } from './textarea';
+import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Primitives/Field',
@@ -16,46 +17,46 @@ type Story = StoryObj;
 /** Simple text field with label, description, and error. */
 export const Default: Story = {
   render: () => (
-    <div className="w-72">
+    <Box className={s.w72}>
       <Field>
         <FieldLabel>Email address</FieldLabel>
         <Input type="email" placeholder="you@example.com" />
         <FieldDescription>We'll never share your email.</FieldDescription>
       </Field>
-    </div>
+    </Box>
   ),
 };
 
 /** Invalid state — error message appears, input border turns destructive. */
 export const Invalid: Story = {
   render: () => (
-    <div className="w-72">
+    <Box className={s.w72}>
       <Field>
         <FieldLabel>Email address</FieldLabel>
         <Input type="email" defaultValue="not-an-email" aria-invalid="true" />
         <FieldError>Please enter a valid email address.</FieldError>
       </Field>
-    </div>
+    </Box>
   ),
 };
 
 /** Disabled state. */
 export const Disabled: Story = {
   render: () => (
-    <div className="w-72">
+    <Box className={s.w72}>
       <Field>
         <FieldLabel>Name</FieldLabel>
         <Input defaultValue="David Konopka" disabled />
         <FieldDescription>This field cannot be changed.</FieldDescription>
       </Field>
-    </div>
+    </Box>
   ),
 };
 
 /** Base (32 px) vs SM (24 px) input sizes. */
 export const Sizes: Story = {
   render: () => (
-    <div className="flex w-72 flex-col gap-4">
+    <Box display="flex" flexDirection="column" gap="4" className={s.w72}>
       <Field>
         <FieldLabel>Base (32 px)</FieldLabel>
         <Input size="base" placeholder="Base size input" />
@@ -64,36 +65,49 @@ export const Sizes: Story = {
         <FieldLabel>Small (24 px)</FieldLabel>
         <Input size="sm" placeholder="Small size input" />
       </Field>
-    </div>
+    </Box>
   ),
 };
 
 /** Textarea with field composition. */
 export const WithTextarea: Story = {
   render: () => (
-    <div className="w-72">
+    <Box className={s.w72}>
       <Field>
         <FieldLabel>Message</FieldLabel>
         <Textarea placeholder="Type your message…" />
         <FieldDescription>Max 500 characters.</FieldDescription>
       </Field>
-    </div>
+    </Box>
   ),
 };
 
 /** All states on each surface level — verifies contrast and bg-transparent. */
 export const AcrossSurfaces: Story = {
   render: () => (
-    <div className="bg-surface-sunken flex flex-col gap-4 rounded-xl p-4">
+    <Box
+      background="surfaceSunken"
+      display="flex"
+      flexDirection="column"
+      gap="4"
+      rounded="xl"
+      padding="4"
+    >
       {(['sunken', 'base', 'base-emphasis', 'elevated', 'elevated-emphasis'] as const).map(
         (level) => (
-          <Surface
+          <Box
             key={level}
-            level={level}
-            className="bg-surface flex flex-col gap-3 rounded-lg p-4"
+            surface={level}
+            display="flex"
+            flexDirection="column"
+            gap="3"
+            rounded="lg"
+            padding="4"
           >
-            <span className="text-xs text-foreground-muted">{level}</span>
-            <div className="grid grid-cols-2 gap-3">
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--foreground-muted)' }}>
+              {level}
+            </span>
+            <Box display="grid" className={s.cols2} gap="3">
               <Field>
                 <FieldLabel>Default</FieldLabel>
                 <Input placeholder="Placeholder" />
@@ -111,10 +125,10 @@ export const AcrossSurfaces: Story = {
                 <FieldLabel>Small</FieldLabel>
                 <Input size="sm" placeholder="Small" />
               </Field>
-            </div>
-          </Surface>
+            </Box>
+          </Box>
         )
       )}
-    </div>
+    </Box>
   ),
 };

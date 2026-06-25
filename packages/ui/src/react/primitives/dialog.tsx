@@ -1,9 +1,9 @@
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
+import { cx } from '@styles/utilities/cx';
 import { XIcon } from 'lucide-react';
 import * as React from 'react';
-import { cn } from '../lib/cn';
 import { Button } from './button';
-import { ScrollFade } from './scroll-fade';
+import { ScrollContainer } from './scroll-container';
 import * as styles from './dialog.css';
 
 // ── Size options (match emdash-desktop modal sizes) ───────────────────────────
@@ -32,7 +32,7 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
-      className={cn(styles.overlay, className)}
+      className={cx(styles.overlay, className)}
       {...props}
     />
   );
@@ -49,13 +49,15 @@ function DialogContent({
   return (
     <DialogPortal>
       <DialogOverlay />
-      <DialogPrimitive.Popup
-        data-slot="dialog-content"
-        className={cn('surface-base', styles.content({ size }), className)}
-        {...props}
-      >
-        {children}
-      </DialogPrimitive.Popup>
+      <div className={styles.positioner}>
+        <DialogPrimitive.Popup
+          data-slot="dialog-content"
+          className={cx('surface-base', styles.content({ size }), className)}
+          {...props}
+        >
+          {children}
+        </DialogPrimitive.Popup>
+      </div>
     </DialogPortal>
   );
 }
@@ -69,7 +71,7 @@ function DialogHeader({
   ...props
 }: React.ComponentProps<'div'> & { showCloseButton?: boolean }) {
   return (
-    <div data-slot="dialog-header" className={cn(styles.header, className)} {...props}>
+    <div data-slot="dialog-header" className={cx(styles.header, className)} {...props}>
       <div className={styles.headerInner}>{children}</div>
       {showCloseButton && (
         <DialogPrimitive.Close
@@ -94,26 +96,30 @@ function DialogBody({
   className,
   children,
   style,
+  maxHeight,
+  topFade = true,
 }: {
   className?: string;
   children?: React.ReactNode;
   style?: React.CSSProperties;
+  maxHeight?: number | string;
+  topFade?: boolean;
 }) {
   return (
-    <ScrollFade
-      axis="y"
-      edges={['top']}
+    <ScrollContainer
+      maxHeight={maxHeight}
+      topFade={topFade}
       style={{ minHeight: 0, ...style }}
-      viewportClassName={cn(styles.body, className)}
+      viewportClassName={cx(styles.body, className)}
     >
       {children}
-    </ScrollFade>
+    </ScrollContainer>
   );
 }
 
 function DialogFooter({ className, children, ...props }: React.ComponentProps<'div'>) {
   return (
-    <div data-slot="dialog-footer" className={cn(styles.footer, className)} {...props}>
+    <div data-slot="dialog-footer" className={cx(styles.footer, className)} {...props}>
       {children}
     </div>
   );
@@ -123,7 +129,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn(styles.title, className)}
+      className={cx(styles.title, className)}
       {...props}
     />
   );

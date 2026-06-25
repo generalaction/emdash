@@ -5,7 +5,7 @@
 
 import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
-import { vars } from '../../theme/core/contract/contract.css';
+import { vars } from '@theme/core/contract/contract.css';
 
 export const inputVariants = recipe({
   base: {
@@ -56,10 +56,29 @@ export const inputVariants = recipe({
         fontSize: 'var(--text-xs)',
       },
     },
+
+    /**
+     * bare — strips the standalone border, background, and focus ring so the input
+     * can live inside a group container that provides those affordances.
+     * Removes the need for !important overrides on the wrapping control slot.
+     */
+    bare: {
+      true: {
+        border: 0,
+        backgroundColor: 'transparent',
+        boxShadow: 'none',
+        selectors: {
+          '&:hover': { borderColor: 'inherit' },
+          '&:focus-visible': { borderColor: 'inherit', boxShadow: 'none' },
+          '&[aria-invalid="true"]': { borderColor: 'inherit', boxShadow: 'none' },
+        },
+      },
+    },
   },
 
   defaultVariants: {
     size: 'base',
+    bare: false,
   },
 });
 

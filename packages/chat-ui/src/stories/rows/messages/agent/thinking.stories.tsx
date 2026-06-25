@@ -76,7 +76,7 @@ export const GeneratingExpanded: Story = {
       {
         kind: 'call',
         fn: (api: TranscriptApi) => {
-          api.seed([
+          api.history.seed([
             {
               kind: 'thinking',
               id: 'th1',
@@ -124,7 +124,7 @@ export const DoneExpanded: Story = {
       {
         kind: 'call',
         fn: (api: TranscriptApi) => {
-          api.seed([
+          api.history.seed([
             {
               kind: 'thinking',
               id: 'th1',
@@ -189,7 +189,7 @@ export const ExpandedProse: Story = {
       {
         kind: 'call',
         fn: (api: TranscriptApi) => {
-          api.seed([
+          api.history.seed([
             {
               kind: 'thinking',
               id: 'th-prose',

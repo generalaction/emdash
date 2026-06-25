@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { SearchIcon, XIcon } from 'lucide-react';
 import React from 'react';
+import { Box } from './box';
 import {
   InputGroup,
   InputGroupAddon,
@@ -9,6 +10,7 @@ import {
   InputGroupText,
   InputGroupTextarea,
 } from './input-group';
+import * as s from '../story-layout.css';
 
 const meta: Meta = {
   title: 'Primitives/InputGroup',
@@ -20,20 +22,20 @@ type Story = StoryObj;
 
 export const WithLeadingIcon: Story = {
   render: () => (
-    <div className="w-72">
+    <Box className={s.w72}>
       <InputGroup>
         <InputGroupAddon align="inline-start">
           <SearchIcon />
         </InputGroupAddon>
         <InputGroupInput placeholder="Search…" />
       </InputGroup>
-    </div>
+    </Box>
   ),
 };
 
 export const WithTrailingButton: Story = {
   render: () => (
-    <div className="w-72">
+    <Box className={s.w72}>
       <InputGroup>
         <InputGroupInput placeholder="Search…" />
         <InputGroupAddon align="inline-end">
@@ -42,45 +44,45 @@ export const WithTrailingButton: Story = {
           </InputGroupButton>
         </InputGroupAddon>
       </InputGroup>
-    </div>
+    </Box>
   ),
 };
 
 export const WithPrefixText: Story = {
   render: () => (
-    <div className="w-72">
+    <Box className={s.w72}>
       <InputGroup>
         <InputGroupAddon align="inline-start">
           <InputGroupText>https://</InputGroupText>
         </InputGroupAddon>
         <InputGroupInput placeholder="example.com" />
       </InputGroup>
-    </div>
+    </Box>
   ),
 };
 
 export const WithTextarea: Story = {
   render: () => (
-    <div className="w-72">
+    <Box className={s.w72}>
       <InputGroup>
         <InputGroupAddon align="block-start">
           <InputGroupText>Note</InputGroupText>
         </InputGroupAddon>
         <InputGroupTextarea placeholder="Write something…" rows={3} />
       </InputGroup>
-    </div>
+    </Box>
   ),
 };
 
 export const Invalid: Story = {
   render: () => (
-    <div className="w-72">
+    <Box className={s.w72}>
       <InputGroup>
         <InputGroupAddon align="inline-start">
           <SearchIcon />
         </InputGroupAddon>
         <InputGroupInput placeholder="Search…" aria-invalid="true" />
       </InputGroup>
-    </div>
+    </Box>
   ),
 };

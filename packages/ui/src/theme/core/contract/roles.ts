@@ -139,13 +139,14 @@ export type Surfaces = Record<SurfaceScopeName, SurfaceLevel>;
 // ── Status surface names ───────────────────────────────────────────────────────
 
 /** Named status surfaces that produce tinted colored "rooms". */
-export type SurfaceStatusName = 'destructive' | 'warning' | 'info';
+export type SurfaceStatusName = 'destructive' | 'warning' | 'info' | 'success';
 
 /** Canonical ordered list of status surface names. */
 export const SURFACE_STATUSES = [
   'destructive',
   'warning',
   'info',
+  'success',
 ] as const satisfies readonly SurfaceStatusName[];
 
 /** Maps each status surface to the palette scale it derives its colors from. */
@@ -153,7 +154,17 @@ export const STATUS_SCALE: Record<SurfaceStatusName, ScaleName> = {
   destructive: 'red',
   warning: 'amber',
   info: 'blue',
+  success: 'green',
 };
+
+/**
+ * Non-base elevation scopes that get per-level status surface variants.
+ * The `base` scope is the default (unsuffixed) token, so it is excluded here.
+ */
+export const STATUS_LEVEL_SCOPES = SURFACE_SCOPES.filter((s) => s !== 'base') as readonly Exclude<
+  SurfaceScopeName,
+  'base'
+>[];
 
 // ── Surface cascade vars ────────────────────────────────────────────────────────
 
@@ -208,6 +219,17 @@ export function allSurfaceVarNames(): string[] {
     names.push(`surface-${status}-selected`);
     names.push(`surface-${status}-border`);
     names.push(`surface-${status}-foreground`);
+  }
+
+  // Per-level status variants (every non-base scope)
+  for (const status of SURFACE_STATUSES) {
+    for (const scope of STATUS_LEVEL_SCOPES) {
+      names.push(`surface-${status}-${scope}`);
+      names.push(`surface-${status}-${scope}-hover`);
+      names.push(`surface-${status}-${scope}-selected`);
+      names.push(`surface-${status}-${scope}-border`);
+      names.push(`surface-${status}-${scope}-foreground`);
+    }
   }
 
   return names;
