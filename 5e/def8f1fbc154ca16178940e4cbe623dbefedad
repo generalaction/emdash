@@ -1,0 +1,19 @@
+packages/plugins/src/agents/impl/commandcode/index.ts
+  s_68be1b72ecaba9::t_a70febb4123c4d 50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "5edef8f1fbc154ca16178940e4cbe623dbefedad",
+  "prompts": {},
+  "sessions": {
+    "s_68be1b72ecaba9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019efd2b-b395-7f91-898c-6ee0230d8a76",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
