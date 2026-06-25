@@ -30,6 +30,7 @@ import { useEffectiveProvider } from './use-effective-provider';
 export type InitialConversationState = {
   provider: AgentProviderId | null;
   setProvider: (provider: AgentProviderId | null) => void;
+  createDisabled: boolean;
   projectId?: string;
   prompt: string;
   setPrompt: Dispatch<SetStateAction<string>>;
@@ -55,7 +56,10 @@ export function useInitialConversationState(
 ): InitialConversationState {
   const { resetPromptOnProjectChange = true } = options;
   const connectionId = projectId ? getProjectSshConnectionId(projectId) : undefined;
-  const { providerId, setProviderOverride } = useEffectiveProvider(connectionId, initialProvider);
+  const { providerId, setProviderOverride, createDisabled } = useEffectiveProvider(
+    connectionId,
+    initialProvider
+  );
   const [prompt, setPrompt] = useState('');
   const [issueContext, setIssueContext] = useState<string | null>(null);
   const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
@@ -86,6 +90,7 @@ export function useInitialConversationState(
   return {
     provider: providerId,
     setProvider: setProviderOverride,
+    createDisabled,
     projectId,
     prompt,
     setPrompt,

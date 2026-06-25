@@ -187,8 +187,9 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
     showCreateConversationModal({
       projectId,
       taskId,
-      onSuccess: ({ conversationId }) => {
+      onSuccess: ({ conversationId, openBrowserTab }) => {
         paneLayout.open('conversation', { conversationId, preview: false });
+        if (openBrowserTab) paneLayout.open('browser', {});
       },
     });
   };

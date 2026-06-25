@@ -10,6 +10,7 @@ function makeInitialConversationState(
   return {
     provider,
     setProvider: () => {},
+    createDisabled: false,
     prompt: 'Check this',
     setPrompt: () => {},
     issueContext: null,

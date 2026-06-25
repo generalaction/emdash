@@ -181,12 +181,34 @@ describe('createTaskCommandProvider', () => {
     });
 
     const modalOptions = mocks.showModal.mock.calls[0][1];
-    modalOptions.onSuccess({ conversationId: 'conversation-1' });
+    modalOptions.onSuccess({ conversationId: 'conversation-1', openBrowserTab: true });
 
     expect(taskView.paneLayout.openInRightSplit).toHaveBeenCalledWith('conversation', {
       conversationId: 'conversation-1',
       preview: false,
     });
+    expect(taskView.paneLayout.open).toHaveBeenCalledWith('browser', {});
+    expect(taskView.setFocusedRegion).toHaveBeenCalledWith('main');
+  });
+
+  it('opens requested browser tabs from the create conversation command modal result', () => {
+    const provider = createTaskCommandProvider('project-1', 'task-1');
+
+    const command = provider
+      .getCommands()
+      .find((candidate) => candidate.id === 'task.newConversation');
+    const taskView = mocks.getTaskView.mock.results.at(-1)?.value ?? mocks.getTaskView();
+
+    command?.execute();
+
+    const modalOptions = mocks.showModal.mock.calls[0][1];
+    modalOptions.onSuccess({ conversationId: 'conversation-1', openBrowserTab: true });
+
+    expect(taskView.paneLayout.open).toHaveBeenCalledWith('conversation', {
+      conversationId: 'conversation-1',
+      preview: false,
+    });
+    expect(taskView.paneLayout.open).toHaveBeenCalledWith('browser', {});
     expect(taskView.setFocusedRegion).toHaveBeenCalledWith('main');
   });
 

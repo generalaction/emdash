@@ -1,12 +1,11 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
-import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
-import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
+import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
-import { useAgents } from '@renderer/lib/stores/use-agents';
+import { Checkbox } from '@renderer/lib/ui/checkbox';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
@@ -14,63 +13,54 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
-import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@renderer/lib/ui/select';
-import { Switch } from '@renderer/lib/ui/switch';
-import { providerSupportsAutoApprove } from '@shared/core/agents/agent-auto-approve';
+import { buildFinalPrompt } from '../create-task-modal/initial-conversation-text';
 import { nextDefaultConversationTitle } from './conversation-title-utils';
-import { useEffectiveProvider } from './use-effective-provider';
+import {
+  InitialConversationField,
+  useInitialConversationState,
+} from './initial-conversation-section';
+
+export interface CreateConversationModalResult {
+  conversationId: string;
+  openBrowserTab: boolean;
+}
 
 export const CreateConversationModal = observer(function CreateConversationModal({
   onSuccess,
   projectId,
   taskId,
-}: BaseModalProps<{ conversationId: string }> & {
+}: BaseModalProps<CreateConversationModalResult> & {
   projectId: string;
   taskId: string;
 }) {
-  const connectionId = getProjectSshConnectionId(projectId);
-  const { providerId, setProviderOverride, createDisabled } = useEffectiveProvider(connectionId);
   const conversationMgr = conversationRegistry.get(taskId);
-  const taskSettings = useTaskSettings();
+  const task = getRegisteredTaskData(projectId, taskId);
+  const { autoApproveByDefault, includeIssueContextByDefault } = useTaskSettings();
+  const initialConversation = useInitialConversationState(
+    projectId,
+    undefined,
+    autoApproveByDefault
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [openBrowserTab, setOpenBrowserTab] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string | null>(null);
   useCloseGuard(isSubmitting);
 
-  const { data: agents } = useAgents();
-  const modelsCapability = agents?.find((a) => a.id === providerId)?.capabilities.models;
-  const modelOptions =
-    modelsCapability?.kind === 'selectable' ? modelsCapability.modelOptions : null;
-
-  const showAutoApproveToggle = providerId ? providerSupportsAutoApprove(providerId) : false;
-  const skipPermissions =
-    showAutoApproveToggle && (autoApproveOverride ?? taskSettings.autoApproveByDefault);
+  const providerId = initialConversation.provider;
+  const createDisabled = initialConversation.createDisabled;
   const titleProviderId = providerId ?? 'claude';
   const title = nextDefaultConversationTitle(
     titleProviderId,
     Array.from(conversationMgr?.conversations.values() ?? [], (conversation) => conversation.data)
   );
 
-  // Reset model when the provider changes (model ids are provider-specific).
-  const handleProviderChange = useCallback(
-    (next: typeof providerId) => {
-      setProviderOverride(next);
-      setSelectedModel(null);
-    },
-    [setProviderOverride]
-  );
-
   const handleCreateConversation = useCallback(async () => {
     if (createDisabled || isSubmitting || !conversationMgr || !providerId) return;
     const id = crypto.randomUUID();
+    const initialPrompt = buildFinalPrompt(
+      initialConversation.issueContext,
+      initialConversation.prompt
+    );
     setIsSubmitting(true);
     setError(null);
     try {
@@ -78,13 +68,14 @@ export const CreateConversationModal = observer(function CreateConversationModal
         projectId,
         taskId,
         id,
-        autoApprove: skipPermissions,
+        autoApprove: initialConversation.autoApprove,
         provider: providerId,
         title,
-        model: selectedModel ?? undefined,
+        model: initialConversation.model ?? undefined,
+        initialPrompt,
       });
       setIsSubmitting(false);
-      onSuccess({ conversationId: id });
+      onSuccess({ conversationId: id, openBrowserTab });
     } catch {
       setError('Failed to create conversation');
       setIsSubmitting(false);
@@ -92,14 +83,17 @@ export const CreateConversationModal = observer(function CreateConversationModal
   }, [
     conversationMgr,
     createDisabled,
+    initialConversation.issueContext,
+    initialConversation.prompt,
+    initialConversation.autoApprove,
+    initialConversation.model,
     isSubmitting,
+    openBrowserTab,
     providerId,
     title,
     onSuccess,
     projectId,
     taskId,
-    skipPermissions,
-    selectedModel,
   ]);
 
   return (
@@ -108,55 +102,21 @@ export const CreateConversationModal = observer(function CreateConversationModal
         <DialogTitle>Create Conversation</DialogTitle>
       </DialogHeader>
       <DialogContentArea>
-        <FieldGroup>
-          <Field>
-            <FieldLabel>Agent</FieldLabel>
-            <AgentSelector
-              autoFocus
-              value={providerId}
-              onChange={handleProviderChange}
-              connectionId={connectionId}
+        <div className="flex flex-col gap-3">
+          <InitialConversationField
+            state={initialConversation}
+            linkedIssue={task?.linkedIssue}
+            includeIssueContextByDefault={includeIssueContextByDefault}
+          />
+          <label className="flex w-fit items-center gap-2 text-sm text-foreground-muted">
+            <Checkbox
+              checked={openBrowserTab}
+              onCheckedChange={(checked) => setOpenBrowserTab(checked === true)}
             />
-          </Field>
-          {modelOptions ? (
-            <Field>
-              <FieldLabel>Model</FieldLabel>
-              <Select
-                value={selectedModel ?? ''}
-                onValueChange={(val) => setSelectedModel(val || null)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Default model">
-                    {selectedModel
-                      ? (modelOptions[selectedModel]?.name ?? selectedModel)
-                      : 'Default model'}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Default model</SelectItem>
-                  {Object.entries(modelOptions).map(([id, opt]) => (
-                    <SelectItem key={id} value={id}>
-                      {opt.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          ) : null}
-          {showAutoApproveToggle ? (
-            <Field>
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={skipPermissions}
-                  disabled={!providerId || taskSettings.loading || taskSettings.saving}
-                  onCheckedChange={setAutoApproveOverride}
-                />
-                <FieldLabel>Auto-approve permissions</FieldLabel>
-              </div>
-            </Field>
-          ) : null}
+            <span>Open browser tab</span>
+          </label>
           {error && <p className="text-destructive text-xs">{error}</p>}
-        </FieldGroup>
+        </div>
       </DialogContentArea>
       <DialogFooter>
         <ConfirmButton
