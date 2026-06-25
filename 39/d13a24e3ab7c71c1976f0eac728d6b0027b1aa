@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/shared/core/mcp/catalog.ts
+  s_c643dbf97da3f3::t_2063d165b7e243 249-258
+apps/emdash-desktop/src/assets/images/mcp/openrouter.svg
+  s_c643dbf97da3f3::t_87a30a24212eeb 1-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.1",
+  "base_commit_sha": "39d13a24e3ab7c71c1976f0eac728d6b0027b1aa",
+  "prompts": {},
+  "sessions": {
+    "s_c643dbf97da3f3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eff6a-75d8-7192-a31e-7f566fa16776",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
