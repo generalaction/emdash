@@ -1,14 +1,17 @@
 import { err, ok, type Result } from '@emdash/shared';
-import type { ClientChannel } from 'ssh2';
+import type { Client, ClientChannel } from 'ssh2';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { log } from '@main/lib/logger';
 import { normalizeSignal } from './exit-signals';
 import type { Pty, PtyDimensions, PtyExitInfo } from './pty';
 
 export type Ssh2OpenError = {
-  readonly kind: 'channel-open-failed';
+  readonly kind: 'channel-open-failed' | 'channel-open-timeout';
   readonly message: string;
 };
+
+const CHANNEL_OPEN_TIMEOUT_MS = 15_000;
+const CHANNEL_OPEN_TIMEOUT_MESSAGE = `SSH channel open timed out after ${CHANNEL_OPEN_TIMEOUT_MS}ms`;
 
 export interface Ssh2SpawnOptions extends PtyDimensions {
   id: string;
@@ -66,25 +69,53 @@ export async function openSsh2Pty(
 ): Promise<Result<Ssh2PtySession, Ssh2OpenError>> {
   const { id, command, cols, rows } = options;
   return new Promise((resolve) => {
-    proxy.execPty(
-      command,
-      {
-        pty: {
-          term: 'xterm-256color',
-          cols,
-          rows,
-          // width/height in pixels — set to 0, terminal uses cols/rows instead
-          width: 0,
-          height: 0,
+    let settled = false;
+    let clientSnapshot: Client | null = null;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try {
+        clientSnapshot?.destroy();
+      } catch {}
+      resolve(
+        err({
+          kind: 'channel-open-timeout',
+          message: CHANNEL_OPEN_TIMEOUT_MESSAGE,
+        })
+      );
+    }, CHANNEL_OPEN_TIMEOUT_MS);
+
+    try {
+      clientSnapshot = proxy.client;
+      proxy.execPty(
+        command,
+        {
+          pty: {
+            term: 'xterm-256color',
+            cols,
+            rows,
+            // width/height in pixels — set to 0, terminal uses cols/rows instead
+            width: 0,
+            height: 0,
+          },
         },
-      },
-      (e, channel) => {
-        if (e) {
-          const message = e instanceof Error ? e.message : String(e);
-          return resolve(err({ kind: 'channel-open-failed', message }));
+        (e, channel) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          if (e) {
+            const message = e instanceof Error ? e.message : String(e);
+            return resolve(err({ kind: 'channel-open-failed', message }));
+          }
+          resolve(ok(new Ssh2PtySession(id, channel)));
         }
-        resolve(ok(new Ssh2PtySession(id, channel)));
-      }
-    );
+      );
+    } catch (e) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      const message = e instanceof Error ? e.message : String(e);
+      resolve(err({ kind: 'channel-open-failed', message }));
+    }
   });
 }

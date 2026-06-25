@@ -316,6 +316,7 @@ export async function buildTaskProviders(
         shellSetup: opts.shellSetup,
         ctx,
         proxy: type.proxy,
+        connectionId: type.connectionId,
         taskEnvVars: opts.taskEnvVars,
       }),
       terminals: new SshTerminalProvider({

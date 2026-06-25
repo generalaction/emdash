@@ -91,6 +91,17 @@ export class ConversationSessionSupervisor {
     return pty;
   }
 
+  detachActive(sessionId: string): Pty | undefined {
+    const runtime = this.runtimes.get(sessionId);
+    if (!runtime) return undefined;
+
+    runtime.spawnInFlight = undefined;
+    this.clearRecoveryGraceTimer(runtime);
+    const pty = runtime.active?.pty;
+    runtime.active = undefined;
+    return pty;
+  }
+
   isDesired(sessionId: string): boolean {
     return this.runtimes.get(sessionId)?.desired === true;
   }

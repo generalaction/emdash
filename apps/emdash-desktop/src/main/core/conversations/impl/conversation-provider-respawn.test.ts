@@ -20,6 +20,9 @@ const buildCommandMock = vi.hoisted(() =>
 );
 const installPluginMock = vi.hoisted(() => vi.fn(async () => []));
 const writeHooksMock = vi.hoisted(() => vi.fn(async () => []));
+const sshConnectionManagerMock = vi.hoisted(() => ({
+  handlers: [] as Array<(event: { type: string; connectionId: string }) => void>,
+}));
 
 vi.mock('@main/core/dependencies/host-dependency-store', () => ({
   hostDependencyStore: {
@@ -94,6 +97,17 @@ vi.mock('@main/core/pty/ssh2-pty', () => ({
   openSsh2Pty,
 }));
 
+vi.mock('@main/core/ssh/lifecycle/production-ssh-connection-manager', () => ({
+  sshConnectionManager: {
+    on: vi.fn(
+      (_event: string, handler: (event: { type: string; connectionId: string }) => void) => {
+        sshConnectionManagerMock.handlers.push(handler);
+      }
+    ),
+    off: vi.fn(),
+  },
+}));
+
 vi.mock('./keystroke-injection', () => ({
   scheduleInitialPromptInjection: vi.fn(),
 }));
@@ -153,6 +167,8 @@ vi.mock('@main/core/settings/settings-service', () => ({
 const { events } = await import('@main/lib/events');
 const { agentHookService } = await import('@main/core/agent-hooks/agent-hook-service');
 const { appSettingsService } = await import('@main/core/settings/settings-service');
+const { sshConnectionManager } =
+  await import('@main/core/ssh/lifecycle/production-ssh-connection-manager');
 
 type RespawnState = {
   knownSessionIds: Set<string>;
@@ -192,9 +208,11 @@ function sshProvider(
   {
     tmux = false,
     ctx = {} as never,
+    connectionId = 'ssh-1',
   }: {
     tmux?: boolean;
     ctx?: ConstructorParameters<typeof SshConversationProvider>[0]['ctx'];
+    connectionId?: string;
   } = {}
 ) {
   return new SshConversationProvider({
@@ -204,6 +222,7 @@ function sshProvider(
     tmux,
     ctx,
     proxy: proxy as never,
+    connectionId,
   });
 }
 
@@ -255,6 +274,8 @@ describe('conversation provider respawn state', () => {
     installPluginMock.mockResolvedValue([]);
     writeHooksMock.mockReset();
     writeHooksMock.mockResolvedValue([]);
+    sshConnectionManagerMock.handlers.length = 0;
+    vi.mocked(sshConnectionManager.off).mockClear();
     mockSettings();
     vi.mocked(events.emit).mockClear();
     vi.mocked(agentHookService.getPort).mockReturnValue(0);
@@ -994,5 +1015,121 @@ describe('conversation provider respawn state', () => {
 
     expect((provider as unknown as RespawnState).sessions.get(sessionId)).toBe(secondPty);
     expect(events.emit).not.toHaveBeenCalledWith(agentSessionExitedChannel, expect.anything());
+  });
+
+  it('detaches stale SSH conversations on disconnect and resumes them when connected', async () => {
+    const firstExitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    const secondExitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    const firstPty = fakePty(firstExitHandlers);
+    const secondPty = fakePty(secondExitHandlers);
+    openSsh2Pty
+      .mockResolvedValueOnce({ success: true, data: firstPty })
+      .mockResolvedValueOnce({ success: true, data: secondPty });
+    const provider = sshProvider(undefined, { connectionId: 'ssh-1' });
+    const item = conversation();
+    const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+
+    await provider.startSession(item);
+    expect((provider as unknown as RespawnState).sessions.get(sessionId)).toBe(firstPty);
+
+    for (const handler of sshConnectionManagerMock.handlers) {
+      handler({ type: 'disconnected', connectionId: 'ssh-1' });
+    }
+
+    expect((provider as unknown as RespawnState).sessions.has(sessionId)).toBe(false);
+    expect(ptySessionRegistry.get(sessionId)).toBeUndefined();
+    expect(firstPty.kill).toHaveBeenCalledOnce();
+
+    for (const handler of sshConnectionManagerMock.handlers) {
+      handler({ type: 'connected', connectionId: 'ssh-1' });
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(openSsh2Pty).toHaveBeenCalledTimes(2);
+    expect((provider as unknown as RespawnState).sessions.get(sessionId)).toBe(secondPty);
+    expect(ptySessionRegistry.get(sessionId)).toBe(secondPty);
+  });
+
+  it('clears in-flight SSH conversation starts on disconnect so reconnect can resume', async () => {
+    const firstExitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    const secondExitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    const firstPty = fakePty(firstExitHandlers);
+    const secondPty = fakePty(secondExitHandlers);
+    let resolveFirstOpen: ((value: { success: true; data: Pty }) => void) | undefined;
+    openSsh2Pty
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirstOpen = resolve;
+          })
+      )
+      .mockResolvedValueOnce({ success: true, data: secondPty });
+    const provider = sshProvider(undefined, { connectionId: 'ssh-1' });
+    const item = conversation();
+    const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+
+    const firstStart = provider.startSession(item);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(openSsh2Pty).toHaveBeenCalledTimes(1);
+
+    for (const handler of sshConnectionManagerMock.handlers) {
+      handler({ type: 'disconnected', connectionId: 'ssh-1' });
+    }
+    for (const handler of sshConnectionManagerMock.handlers) {
+      handler({ type: 'reconnected', connectionId: 'ssh-1' });
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(openSsh2Pty).toHaveBeenCalledTimes(2);
+    expect((provider as unknown as RespawnState).sessions.get(sessionId)).toBe(secondPty);
+
+    resolveFirstOpen?.({ success: true, data: firstPty });
+    await firstStart;
+
+    expect(firstPty.kill).toHaveBeenCalledOnce();
+    expect((provider as unknown as RespawnState).sessions.get(sessionId)).toBe(secondPty);
+  });
+
+  it('cancels in-flight SSH rehydrate starts after detachAll', async () => {
+    const firstExitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    const rehydratedExitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    const firstPty = fakePty(firstExitHandlers);
+    const rehydratedPty = fakePty(rehydratedExitHandlers);
+    let resolveRehydrateOpen: ((value: { success: true; data: Pty }) => void) | undefined;
+    openSsh2Pty.mockResolvedValueOnce({ success: true, data: firstPty }).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRehydrateOpen = resolve;
+        })
+    );
+    const provider = sshProvider(undefined, { connectionId: 'ssh-1' });
+    const item = conversation();
+    const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+
+    await provider.startSession(item);
+    for (const handler of sshConnectionManagerMock.handlers) {
+      handler({ type: 'disconnected', connectionId: 'ssh-1' });
+    }
+    for (const handler of sshConnectionManagerMock.handlers) {
+      handler({ type: 'reconnected', connectionId: 'ssh-1' });
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+
+    await provider.detachAll();
+    resolveRehydrateOpen?.({ success: true, data: rehydratedPty });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(openSsh2Pty).toHaveBeenCalledTimes(2);
+    expect(rehydratedPty.kill).toHaveBeenCalledOnce();
+    expect((provider as unknown as RespawnState).sessions.has(sessionId)).toBe(false);
+    expect(ptySessionRegistry.get(sessionId)).toBeUndefined();
+  });
+
+  it('unsubscribes SSH connection listeners when detached', async () => {
+    const provider = sshProvider(undefined, { connectionId: 'ssh-1' });
+
+    await provider.detachAll();
+
+    expect(sshConnectionManager.off).toHaveBeenCalledWith('connection-event', expect.any(Function));
   });
 });
