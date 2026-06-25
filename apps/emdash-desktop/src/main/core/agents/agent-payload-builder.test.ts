@@ -145,7 +145,6 @@ describe('buildAgentPayload', () => {
     vi.mocked(getPlugin).mockImplementation(() => {
       throw new Error('No plugin found');
     });
-    vi.mocked(providerOverrideSettings.getItemWithMeta).mockResolvedValue(null);
 
     const { buildAgentPayload } = await import('./agent-payload-builder');
     await expect(buildAgentPayload('unknown-agent')).rejects.toThrow('No plugin found');
