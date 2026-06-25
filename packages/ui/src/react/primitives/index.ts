@@ -153,5 +153,6 @@ export {
   type CollapsibleTriggerProps,
 } from './collapsible';
 export { Alert, AlertTitle, AlertDescription, type AlertProps } from './alert';
+export { SearchInput, type SearchInputProps } from './search-input';
 export { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
 export { inputVariants, type InputVariantProps } from '@styles/recipes/input';
