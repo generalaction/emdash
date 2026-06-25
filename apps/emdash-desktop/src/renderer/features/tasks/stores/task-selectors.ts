@@ -82,7 +82,7 @@ export function taskHasKnownExclusiveWorkspaceChanges(store: TaskStore): boolean
 
   const git = getTaskGitWorktreeStore(store.data.projectId, store.data.id);
   if (git) {
-    return !git.error && git.fileChanges.length > 0;
+    return git.hasKnownChanges;
   }
 
   const cachedGit = store.data.workspaceGit;

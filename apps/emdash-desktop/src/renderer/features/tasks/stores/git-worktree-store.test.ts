@@ -114,6 +114,34 @@ describe('GitWorktreeStore', () => {
     store.dispose();
   });
 
+  it('exposes known changes for normal and too-large dirty statuses', async () => {
+    mocks.getWorktreeSnapshot.mockResolvedValue(snapshot(status(['src/a.ts'])));
+
+    const store = createStore();
+    store.start();
+
+    await vi.waitFor(() => expect(store.hasKnownChanges).toBe(true));
+
+    for (const handler of worktreeHandlers) {
+      handler({
+        projectId: 'project-1',
+        workspaceId: 'workspace-1',
+        update: { kind: 'status', model: status(), sequence: 2, generation: 1 },
+      });
+    }
+    expect(store.hasKnownChanges).toBe(false);
+
+    for (const handler of worktreeHandlers) {
+      handler({
+        projectId: 'project-1',
+        workspaceId: 'workspace-1',
+        update: { kind: 'status', model: { kind: 'too-many-files' }, sequence: 3, generation: 1 },
+      });
+    }
+    expect(store.hasKnownChanges).toBe(true);
+    store.dispose();
+  });
+
   it('ignores pushed updates for another workspace', async () => {
     mocks.getWorktreeSnapshot.mockResolvedValue(snapshot(status(['src/a.ts'])));
 

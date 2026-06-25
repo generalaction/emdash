@@ -107,6 +107,7 @@ export class GitWorktreeStore {
       unstagedFileChanges: computed,
       totalLinesAdded: computed,
       totalLinesDeleted: computed,
+      hasKnownChanges: computed,
       hasData: computed,
       isLoading: computed,
       error: computed,
@@ -200,6 +201,13 @@ export class GitWorktreeStore {
     return (
       status.stagedDeleted + status.unstaged.reduce((sum, change) => sum + change.deletions, 0)
     );
+  }
+
+  get hasKnownChanges(): boolean {
+    const status = this.effectiveStatus;
+    if (status?.kind === 'too-many-files') return true;
+    if (status?.kind !== 'ok') return false;
+    return status.staged.length > 0 || status.unstaged.length > 0;
   }
 
   get hasData(): boolean {
