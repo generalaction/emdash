@@ -30,6 +30,7 @@ export const provider = registerPluginBehavior(plugin, {
         defaultArgs: ['--allow-indexing'],
         initialPromptFlag: '',
         resumeFlag: '--continue',
+        deduplicateFlags: ['--allow-indexing'],
       }),
   },
 });
