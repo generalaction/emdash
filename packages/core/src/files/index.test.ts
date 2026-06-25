@@ -6,6 +6,7 @@ describe('@emdash/core/files public exports', () => {
     const exported = files as Record<string, unknown>;
 
     expect(exported.FilesRuntime).toBeTypeOf('function');
+    expect(exported.enumerate).toBeTypeOf('function');
     expect(exported.isIgnored).toBeTypeOf('function');
     expect(exported.watchIgnoreGlobs).toBeTypeOf('function');
     expect(exported.normalizeRelPath).toBeTypeOf('function');

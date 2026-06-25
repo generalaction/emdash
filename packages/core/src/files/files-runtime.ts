@@ -3,11 +3,13 @@ import { err, ok, type Result } from '@emdash/shared';
 import { ResourceMap } from '../lib';
 import { WatchService, realpathOrResolve, type IWatchService } from '../watch';
 import { FileChanges } from './changes/changes';
+import { enumerate as enumerateFiles } from './enumerate';
 import type { FileError, FilesOnError } from './errors';
 import type { FileTreeError, FileTreeOnError } from './tree/errors';
 import { FileTree } from './tree/file-tree';
 import type { FileTreeLease } from './tree/types';
 import type {
+  FileEnumeration,
   FileChangeSubscription,
   FileChangeUpdate,
   FileChangeWatchOptions,
@@ -95,6 +97,17 @@ export class FilesRuntime implements IFilesRuntime {
         changes.dispose();
       },
     });
+  }
+
+  enumerate(rootPath: string): Result<FileEnumeration, FileError> {
+    if (this.disposeRequested) {
+      return err({
+        type: 'fs-error',
+        path: '',
+        message: 'FilesRuntime disposed',
+      });
+    }
+    return ok(enumerateFiles(realpathOrResolve(path.resolve(rootPath))));
   }
 
   async dispose(): Promise<void> {

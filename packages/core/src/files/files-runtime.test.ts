@@ -38,6 +38,12 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
+async function collect(iterable: AsyncIterable<string>): Promise<string[]> {
+  const paths: string[] = [];
+  for await (const relPath of iterable) paths.push(relPath);
+  return paths;
+}
+
 describe('FilesRuntime', () => {
   it('wires file tree and change feeds through the same watch root and ignore set', async () => {
     const root = await makeRoot();
@@ -60,6 +66,24 @@ describe('FilesRuntime', () => {
 
     changes.data.unsubscribe();
     await fileTree.data.release();
+    await runtime.dispose();
+  });
+
+  it('enumerates files without acquiring a watch subscription', async () => {
+    const root = await makeRoot();
+    await mkdir(path.join(root, 'src'));
+    await writeFile(path.join(root, 'src/index.ts'), 'content');
+    await writeFile(path.join(root, '.env'), 'env');
+    const watcher = new RecordingWatchService();
+    const runtime = new FilesRuntime({ watcher });
+
+    const enumeration = runtime.enumerate(root);
+    expect(enumeration.success).toBe(true);
+    if (!enumeration.success) return;
+
+    await expect(collect(enumeration.data)).resolves.toEqual(['.env', 'src/index.ts']);
+    expect(watcher.watches).toEqual([]);
+
     await runtime.dispose();
   });
 });

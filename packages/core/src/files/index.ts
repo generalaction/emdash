@@ -1,3 +1,4 @@
+export { enumerate } from './enumerate';
 export { FilesRuntime, type FilesRuntimeOptions } from './files-runtime';
 export { classifyFileError, type FileError, type FilesOnError } from './errors';
 export { IGNORED_PATH_SEGMENTS, isIgnored, watchIgnoreGlobs } from './ignores';
