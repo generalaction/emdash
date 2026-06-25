@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { TriangleAlert } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -30,6 +30,9 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
   const [preflight, setPreflight] = useState<TaskDeletePreflightItem[] | null>(null);
   const [deleteWorktree, setDeleteWorktree] = useState(true);
   const [deleteBranch, setDeleteBranch] = useState(false);
+  const [isResolvingDelete, setIsResolvingDelete] = useState(false);
+  const [needsDirtyConfirm, setNeedsDirtyConfirm] = useState(false);
+  const preflightPromiseRef = useRef<Promise<TaskDeletePreflightItem[]> | null>(null);
 
   const count = tasks.length;
   const isBulk = count > 1;
@@ -38,23 +41,28 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
   const taskIds = useMemo(() => tasks.map((t) => t.taskId), [tasks]);
 
   useEffect(() => {
-    rpc.tasks.getDeletePreflight(projectId, taskIds).then(
-      (result) => setPreflight(result.tasks),
-      // On error, allow the modal to proceed without preflight info (no checkboxes shown).
-      () => setPreflight([])
+    const promise = rpc.tasks.getDeletePreflight(projectId, taskIds).then(
+      (result) => result.tasks,
+      // On error, allow the modal to proceed without preflight info.
+      () => []
     );
+    preflightPromiseRef.current = promise;
+    void promise.then((items) => setPreflight(items));
   }, [projectId, taskIds]);
 
   const isLoading = preflight === null;
 
   const worktreeTasks = preflight?.filter((t) => t.hasWorktree) ?? [];
-  const dirtyTaskIds = new Set(
-    tasks.filter((t) => t.hasKnownUncommittedChanges).map((t) => t.taskId)
-  );
-  for (const task of preflight ?? []) {
-    if (task.hasUncommittedChanges) dirtyTaskIds.add(task.taskId);
-  }
-  const dirtyTasks = tasks.filter((t) => dirtyTaskIds.has(t.taskId));
+  const dirtyTasksFor = (items: TaskDeletePreflightItem[] | null) => {
+    const dirtyTaskIds = new Set(
+      tasks.filter((t) => t.hasKnownUncommittedChanges).map((t) => t.taskId)
+    );
+    for (const task of items ?? []) {
+      if (task.hasUncommittedChanges) dirtyTaskIds.add(task.taskId);
+    }
+    return tasks.filter((t) => dirtyTaskIds.has(t.taskId));
+  };
+  const dirtyTasks = dirtyTasksFor(preflight);
   const branchTasks = preflight?.filter((t) => t.hasDeletableBranch) ?? [];
 
   const showWorktreeCheckbox = !isLoading && worktreeTasks.length > 0;
@@ -63,7 +71,29 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
 
   const handleWorktreeChange = (checked: boolean) => {
     setDeleteWorktree(checked);
+    setNeedsDirtyConfirm(false);
     if (!checked) setDeleteBranch(false);
+  };
+
+  const handleConfirm = async () => {
+    if (isResolvingDelete) return;
+
+    if (!deleteWorktree || dirtyTasks.length > 0 || preflight !== null) {
+      onSuccess({ deleteWorktree, deleteBranch });
+      return;
+    }
+
+    setIsResolvingDelete(true);
+    const items = await (preflightPromiseRef.current ?? Promise.resolve([]));
+    setIsResolvingDelete(false);
+    setPreflight(items);
+
+    if (dirtyTasksFor(items).length > 0) {
+      setNeedsDirtyConfirm(true);
+      return;
+    }
+
+    onSuccess({ deleteWorktree, deleteBranch });
   };
 
   const title = isBulk ? `Delete ${count} tasks` : 'Delete task';
@@ -147,9 +177,16 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
         </Button>
         <ConfirmButton
           variant="destructive"
-          onClick={() => onSuccess({ deleteWorktree, deleteBranch })}
+          disabled={isResolvingDelete}
+          onClick={() => void handleConfirm()}
         >
-          {isBulk ? `Delete ${count} tasks` : 'Delete'}
+          {isResolvingDelete
+            ? 'Verifying…'
+            : needsDirtyConfirm && showDirtyWarning
+              ? 'Delete anyway'
+              : isBulk
+                ? `Delete ${count} tasks`
+                : 'Delete'}
         </ConfirmButton>
       </DialogFooter>
     </>
