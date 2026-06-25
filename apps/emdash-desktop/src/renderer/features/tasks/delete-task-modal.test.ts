@@ -79,7 +79,8 @@ describe('DeleteTaskModal', () => {
 
     expect(deleteButton).toBeDefined();
     expect(deleteButton?.hasAttribute('disabled')).toBe(false);
-    expect(container.textContent).toContain('Checking for uncommitted changes…');
+    expect(container.textContent).toContain('Delete worktree');
+    expect(container.textContent).not.toContain('Checking');
 
     act(() => {
       deleteButton?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
