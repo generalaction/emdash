@@ -198,6 +198,8 @@ interface AcpPool {
   handle: AcpProcessHandle;
   host: AcpProcessHost;
   connection: AcpAgentApi;
+  /** Provider-supplied normalization applied to every inbound SessionUpdate before store+emit. */
+  transform: (update: SessionUpdate) => SessionUpdate;
   providerId: string;
   workspaceId: string;
   path: string;
@@ -556,6 +558,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       handle,
       host,
       connection: null as unknown as AcpAgentApi,
+      transform: binding.behavior.transform ? (u) => binding.behavior.transform!(u) : (u) => u,
       providerId,
       workspaceId,
       path,
@@ -671,7 +674,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   private buildClientHandler(pool: AcpPool): Client {
     return {
       sessionUpdate: async (params: SessionNotification): Promise<void> => {
-        const update = params.update;
+        const update = pool.transform(params.update);
         let conversationId = pool.sessionToConversation.get(params.sessionId);
         if (!conversationId && pool.loadingConversations.size > 0) {
           const pendingId = pool.loadingConversations.values().next().value;

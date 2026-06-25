@@ -9,6 +9,7 @@ import type {
   LoadSessionResponse,
   PromptRequest,
   PromptResponse,
+  SessionUpdate,
   SetSessionConfigOptionRequest,
   SetSessionConfigOptionResponse,
   CloseSessionRequest,
@@ -73,6 +74,16 @@ export interface IAcpBehavior {
    * The plugin owns adapter/SDK wiring; the app owns the process lifecycle.
    */
   connect(io: AcpProcessIo, toClient: AcpClientFactory): AcpAgentApi;
+
+  /**
+   * Optional pure normalization run in the main process for every inbound
+   * SessionUpdate before it is stored or emitted over IPC.
+   *
+   * Implementations should promote provider-specific `_meta` fields into the
+   * neutral `_meta.emdash` namespace (see `EmdashUpdateMeta`) so downstream
+   * consumers stay provider-agnostic. Omit for standard-ACP passthrough.
+   */
+  transform?(update: SessionUpdate): SessionUpdate;
 }
 
 /**

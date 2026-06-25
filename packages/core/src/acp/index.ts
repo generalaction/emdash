@@ -26,3 +26,5 @@ export type {
   ResolveAcpProvider,
   SetSessionIdError,
 } from './runtime';
+export type { EmdashUpdateMeta } from './normalized';
+export { readEmdashMeta } from './normalized';

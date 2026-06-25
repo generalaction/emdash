@@ -1,4 +1,4 @@
-import type { PermissionOptionKind } from '@agentclientprotocol/sdk';
+import type { PermissionOptionKind, SessionUpdate } from '@agentclientprotocol/sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { AcpSessionRuntime } from './acp-session-runtime';
 import {
@@ -876,5 +876,121 @@ describe('AcpSessionRuntime – terminals', () => {
     expect(procB.killFn).toHaveBeenCalled();
     const released = h.recording.terminalReleased.map((e) => e.terminalId);
     expect(released).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Transform
+// ---------------------------------------------------------------------------
+
+describe('AcpSessionRuntime – transform', () => {
+  const textUpdate = (): SessionUpdate => ({
+    sessionUpdate: 'agent_message_chunk',
+    content: { type: 'text', text: 'hello' },
+  });
+
+  it('applies provider transform before storing the update in the turn', async () => {
+    const transformed: SessionUpdate = {
+      sessionUpdate: 'agent_message_chunk',
+      content: { type: 'text', text: 'hello' },
+      _meta: { emdash: { parentToolCallId: 'parent-42' } },
+    };
+
+    const h = makeAcpHarness();
+    const transformFn = vi.fn().mockReturnValue(transformed);
+    (h.deps as { resolveAcp: unknown }).resolveAcp = () => ({
+      behavior: {
+        buildSpawn: () => ({ command: '/fake/node', args: ['agent.js'], env: {} }),
+        connect: h.agent.behavior.connect,
+        transform: transformFn,
+      },
+    });
+
+    const rt = new AcpSessionRuntime(h.deps);
+    h.agent.newSession.mockResolvedValue({ sessionId: 'sess-1' });
+    await rt.start(makeStartInput({ conversationId: 'conv-1' }));
+
+    const original = textUpdate();
+    await h.client().sessionUpdate({ sessionId: 'sess-1', update: original });
+
+    expect(transformFn).toHaveBeenCalledTimes(1);
+    expect(transformFn).toHaveBeenCalledWith(original);
+
+    // The normalized update is what lands in the session state (stored in the turn).
+    // getSessionState returns a structuredClone, so use deep equality.
+    const state = rt.getSessionState('conv-1');
+    const storedUpdate = state.activeTurn?.updates[0]?.update;
+    expect(storedUpdate).toStrictEqual(transformed);
+  });
+
+  it('emits the transformed update via onSessionUpdate', async () => {
+    const transformed: SessionUpdate = {
+      sessionUpdate: 'agent_message_chunk',
+      content: { type: 'text', text: 'hello' },
+      _meta: { emdash: { parentToolCallId: 'parent-42' } },
+    };
+
+    const emittedUpdates: SessionUpdate[] = [];
+    const h = makeAcpHarness({
+      listener: {
+        onState: () => {},
+        onSessionUpdate: (e) => emittedUpdates.push(e.update),
+        onTurnCommitted: () => {},
+        onPermissionRequest: () => {},
+        onPermissionResolved: () => {},
+        onClosed: () => {},
+        onAgentEvent: () => {},
+        onTerminalCreated: () => {},
+        onTerminalOutput: () => {},
+        onTerminalExit: () => {},
+        onTerminalReleased: () => {},
+      },
+    });
+    const transformFn = vi.fn().mockReturnValue(transformed);
+    (h.deps as { resolveAcp: unknown }).resolveAcp = () => ({
+      behavior: {
+        buildSpawn: () => ({ command: '/fake/node', args: ['agent.js'], env: {} }),
+        connect: h.agent.behavior.connect,
+        transform: transformFn,
+      },
+    });
+
+    const rt = new AcpSessionRuntime(h.deps);
+    h.agent.newSession.mockResolvedValue({ sessionId: 'sess-1' });
+    await rt.start(makeStartInput({ conversationId: 'conv-1' }));
+
+    await h.client().sessionUpdate({ sessionId: 'sess-1', update: textUpdate() });
+
+    expect(emittedUpdates).toHaveLength(1);
+    expect(emittedUpdates[0]).toBe(transformed);
+  });
+
+  it('uses identity passthrough when provider has no transform', async () => {
+    const emittedUpdates: SessionUpdate[] = [];
+    const h = makeAcpHarness({
+      listener: {
+        onState: () => {},
+        onSessionUpdate: (e) => emittedUpdates.push(e.update),
+        onTurnCommitted: () => {},
+        onPermissionRequest: () => {},
+        onPermissionResolved: () => {},
+        onClosed: () => {},
+        onAgentEvent: () => {},
+        onTerminalCreated: () => {},
+        onTerminalOutput: () => {},
+        onTerminalExit: () => {},
+        onTerminalReleased: () => {},
+      },
+    });
+
+    const rt = new AcpSessionRuntime(h.deps);
+    h.agent.newSession.mockResolvedValue({ sessionId: 'sess-1' });
+    await rt.start(makeStartInput({ conversationId: 'conv-1' }));
+
+    const original = textUpdate();
+    await h.client().sessionUpdate({ sessionId: 'sess-1', update: original });
+
+    expect(emittedUpdates).toHaveLength(1);
+    expect(emittedUpdates[0]).toBe(original);
   });
 });

@@ -7,6 +7,7 @@ import {
   homebrewOption,
   passthroughMcpAdapter,
 } from '@emdash/core/agents/plugins/helpers';
+import { normalizeClaudeUpdate } from './acp-transform';
 import { buildClaudeHookConfig } from './hooks';
 import { icon } from './icon';
 
@@ -133,6 +134,7 @@ export const provider = registerPluginBehavior(plugin, {
       );
       return new ClientSideConnection((agent) => toClient(agent as never), stream);
     },
+    transform: normalizeClaudeUpdate,
   },
   prompt: {
     buildCommand: (ctx) =>
