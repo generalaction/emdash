@@ -905,6 +905,9 @@ describe('HostDependencyManager enumeration', () => {
       if (command === 'which' && args[0] === '-a' && args[1] === 'git') {
         return { stdout: '/usr/bin/git\n', stderr: '' };
       }
+      if (command === 'which' && args[0] === pinnedPath) {
+        return { stdout: `${pinnedPath}\n`, stderr: '' };
+      }
       if (command === 'realpath') {
         return { stdout: `${args[0]}\n`, stderr: '' };
       }
@@ -933,6 +936,42 @@ describe('HostDependencyManager enumeration', () => {
         pathEntry: null,
         status: 'available',
         version: '2.45.0',
+      })
+    );
+  });
+
+  it('reports a missing pinned installation as missing', async () => {
+    const pinnedPath = '/missing/git';
+    const ctx = makeCtx(async (command, args = []) => {
+      if (command === 'which' && args[0] === 'git') {
+        return { stdout: '/usr/bin/git\n', stderr: '' };
+      }
+      if (command === 'which' && args[0] === '-a' && args[1] === 'git') {
+        return { stdout: '/usr/bin/git\n', stderr: '' };
+      }
+      if (command === 'realpath') {
+        return { stdout: `${args[0]}\n`, stderr: '' };
+      }
+      if (command === '/usr/bin/git' && args[0] === '--version') {
+        return { stdout: 'git version 2.40.0\n', stderr: '' };
+      }
+      throw new Error(`Unexpected: ${command} ${args.join(' ')}`);
+    });
+    const manager = new HostDependencyManager(ctx, {
+      dependencies: TEST_DEPENDENCIES,
+      getSelection: async (id) =>
+        id === 'git' ? { kind: 'pinned' as const, realpath: pinnedPath } : null,
+      installMethodDetector: unknownDetector,
+    });
+
+    await manager.probe('git');
+
+    expect(manager.getHostDependency('git')?.installations).toContainEqual(
+      expect.objectContaining({
+        realpath: pinnedPath,
+        pathEntry: null,
+        status: 'missing',
+        version: null,
       })
     );
   });

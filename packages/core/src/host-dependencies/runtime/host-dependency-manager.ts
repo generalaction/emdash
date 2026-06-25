@@ -435,17 +435,28 @@ export class HostDependencyManager {
     descriptor: DependencyDescriptor,
     pinnedRealpath: string
   ): Promise<Installation> {
+    const resolvedPinnedPath = await resolveCommandPath(pinnedRealpath, this.ctx, this.platform);
+    if (!resolvedPinnedPath) {
+      return {
+        id: pinnedRealpath,
+        realpath: pinnedRealpath,
+        pathEntry: null,
+        isActive: false,
+        manageable: false,
+        provenance: { kind: 'unknown', confidence: 'inferred' },
+        status: 'missing',
+        version: null,
+        latestVersion: null,
+        updateAvailable: false,
+      };
+    }
+
+    const canonicalRealpath = await resolveRealpath(resolvedPinnedPath, this.ctx, this.platform);
     const versionArgs = descriptor.versionArgs ?? ['--version'];
-    const probe = await runVersionProbe(pinnedRealpath, null, versionArgs, this.ctx);
-    const exists = probe.exitCode !== null || !!probe.stdout || !!probe.stderr;
-    const canonicalRealpath = exists
-      ? await resolveRealpath(pinnedRealpath, this.ctx, this.platform)
-      : pinnedRealpath;
-    const status = dependencyStateFromProbeResult(
-      descriptor,
-      exists ? canonicalRealpath : null,
-      probe
-    ).status;
+    const probe = descriptor.skipVersionProbe
+      ? null
+      : await runVersionProbe(resolvedPinnedPath, resolvedPinnedPath, versionArgs, this.ctx);
+    const state = dependencyStateFromProbeResult(descriptor, resolvedPinnedPath, probe);
 
     return {
       id: canonicalRealpath,
@@ -454,8 +465,8 @@ export class HostDependencyManager {
       isActive: false,
       manageable: false,
       provenance: { kind: 'unknown', confidence: 'inferred' },
-      status,
-      version: status === 'available' ? extractVersion(probe) : null,
+      status: state.status,
+      version: state.version,
       latestVersion: null,
       updateAvailable: false,
     };
