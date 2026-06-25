@@ -10,7 +10,13 @@
 
 import { applyTurnEvent, finalizeTurn } from '@emdash/chat-ui';
 import type { ActiveTurnEvent, ChatItem, ToolStatus } from '@emdash/chat-ui';
-import type { AgentDiff, AgentToolStatus, AgentUpdate, AcpTurn, ChatHistory } from '@emdash/core/acp';
+import type {
+  AgentDiff,
+  AgentToolStatus,
+  AgentUpdate,
+  AcpTurn,
+  ChatHistory,
+} from '@emdash/core/acp';
 
 // ── AgentToolStatus → ToolStatus mapping ──────────────────────────────────────
 

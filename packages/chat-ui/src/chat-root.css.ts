@@ -67,3 +67,17 @@ export const defaultContentClass = style({
   width: '100%',
   maxWidth: '42rem', // Tailwind max-w-2xl = 672px = 42rem
 });
+
+/**
+ * Composer slot — sticky bottom slot inside outerClip for hosting a
+ * React-portalled composer. The view's internal ResizeObserver on this
+ * element drives padBottom so the last row always clears the composer.
+ */
+export const composerSlotClass = style({
+  position: 'sticky',
+  bottom: 0,
+  left: 0,
+  right: 0,
+  width: '100%',
+  zIndex: 20,
+});

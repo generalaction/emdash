@@ -1,18 +1,20 @@
 /**
  * AcpChatStore — per-conversation MobX store that bridges ACP RPC/events to
- * the @emdash/chat-ui ChatHandle.
+ * the @emdash/chat-ui transcript.
  *
  * Lifecycle:
- *   1. Construct with (conversationId, projectId, taskId).
+ *   1. Construct with (conversationId, projectId, taskId) — creates ChatContext
+ *      and ChatState immediately so transcript writes work before view mounts.
  *   2. Call bootstrap() once — subscribes to IPC events, starts the ACP
  *      session via hydrateConversation, then seeds committed history.
- *   3. When the ChatTranscript mounts, call attachHandle(handle) — seeds
- *      history and sets any active turn if one is already in flight.
- *   4. Call dispose() when the tab closes to clean up subscriptions.
+ *   3. When ChatTranscript renders, pass store.chatContext + store.chatState as
+ *      props so it creates a ChatView without an extra attachHandle round-trip.
+ *   4. Call dispose() when the tab closes to clean up subscriptions and
+ *      dispose the ChatState (ChatContext is shared; host disposes it).
  */
 
-import type { ChatHandle, ChatItem } from '@emdash/chat-ui';
-import { applyTurnEvent } from '@emdash/chat-ui';
+import type { ChatContext, ChatItem, ChatState, ChatView } from '@emdash/chat-ui';
+import { applyTurnEvent, createChatContext, createChatState } from '@emdash/chat-ui';
 import type {
   AgentUpdate,
   AcpPermissionRequest,
@@ -47,20 +49,21 @@ export class AcpChatStore {
   readonly projectId: string;
   readonly taskId: string;
 
+  /** Global services (theme, caches, highlighter). Owned by this store. */
+  readonly chatContext: ChatContext;
+  /** Per-conversation state (transcript + parse caches). Owned by this store. */
+  readonly chatState: ChatState;
+
   lifecycle: AcpChatLifecycle = 'idle';
   model: string | null = null;
   permissionQueue: AcpPermissionRequest[] = [];
   terminals: TerminalSnapshot[] = [];
 
-  /** Buffered active-turn updates, keyed by seq, awaiting handle attachment. */
+  /** Buffered active-turn updates, keyed by seq, until the initial state fetch completes. */
   private _activeTurnUpdates = new Map<number, { seq: number; update: AgentUpdate }>();
   /** The current active turn id (null when idle). */
   private _activeTurnId: string | null = null;
 
-  /** Committed history seeded from RPC, held until the handle is ready. */
-  private _pendingHistoryItems: ChatItem[] | null = null;
-
-  private _handle: ChatHandle | null = null;
   private _bootstrapped = false;
 
   private readonly _unsubs: Array<() => void> = [];
@@ -70,12 +73,16 @@ export class AcpChatStore {
     this.projectId = projectId;
     this.taskId = taskId;
 
+    // Create context + state eagerly so transcript writes work immediately,
+    // before the ChatTranscript React component mounts.
+    this.chatContext = createChatContext();
+    this.chatState = createChatState(this.chatContext);
+
     makeObservable(this, {
       lifecycle: observable,
       model: observable,
       permissionQueue: observable,
       terminals: observable,
-      attachHandle: action,
       submitPrompt: action,
       stop: action,
       setModel: action,
@@ -106,20 +113,13 @@ export class AcpChatStore {
   }
 
   /**
-   * Called by the ChatTranscript onReady callback. Seeds history and sets any
-   * in-flight active turn so the UI catches up immediately.
+   * Called by AcpChatStorePanel after the ChatView mounts. The view handle is
+   * not stored — transcript operations go directly through chatState.transcript.
+   * This method is a lifecycle hook for any view-specific initialization needed
+   * in subclasses (e.g. scroll-to-bottom on first attach).
    */
-  attachHandle(handle: ChatHandle): void {
-    this._handle = handle;
-
-    // Seed committed history if we have it.
-    if (this._pendingHistoryItems) {
-      handle.transcript.history.seed(this._pendingHistoryItems);
-      this._pendingHistoryItems = null;
-    }
-
-    // If there are buffered active-turn updates, replay them.
-    this._replayActiveUpdates();
+  attachView(_view: ChatView): void {
+    // no-op: transcript is seeded directly through chatState.transcript.
   }
 
   /** Send a new user prompt to the ACP session. */
@@ -157,11 +157,12 @@ export class AcpChatStore {
       });
   }
 
-  /** Clean up event subscriptions. The ChatHandle is disposed by React on unmount. */
+  /** Clean up event subscriptions and dispose the Solid reactive state. */
   dispose(): void {
     for (const unsub of this._unsubs) unsub();
     this._unsubs.length = 0;
-    this._handle = null;
+    this.chatState.dispose();
+    this.chatContext.dispose();
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────
@@ -185,7 +186,7 @@ export class AcpChatStore {
           this._activeTurnId = e.activeTurnId;
         });
         if (e.lifecycle === 'closed') {
-          this._handle?.transcript.activeTurn.commit('done');
+          this.chatState.transcript.activeTurn.commit('done');
         }
       }),
 
@@ -194,7 +195,7 @@ export class AcpChatStore {
         runInAction(() => {
           this.lifecycle = 'closed';
         });
-        this._handle?.transcript.activeTurn.commit('done');
+        this.chatState.transcript.activeTurn.commit('done');
       }),
 
       events.on(acpPermissionRequestChannel, (e) => {
@@ -288,12 +289,12 @@ export class AcpChatStore {
         }
       });
 
-      if (this._handle) {
-        this._handle.transcript.history.seed(historyItems);
-        this._replayActiveUpdates();
-      } else {
-        this._pendingHistoryItems = historyItems;
-      }
+      // Seed history directly through chatState.transcript (always available).
+      // _pendingHistoryItems is only used if the view hasn't mounted yet and
+      // attachView hasn't been called, but since transcript is independent of
+      // the view we can seed it now unconditionally.
+      this.chatState.transcript.history.seed(historyItems);
+      this._replayActiveUpdates();
     } catch (err) {
       console.error('[AcpChatStore] _fetchInitialState error', err);
     }
@@ -305,7 +306,6 @@ export class AcpChatStore {
   }
 
   private _replayActiveUpdates(): void {
-    if (!this._handle) return;
     if (this._activeTurnUpdates.size === 0) return;
 
     const sorted = Array.from(this._activeTurnUpdates.values()).sort((a, b) => a.seq - b.seq);
@@ -318,18 +318,16 @@ export class AcpChatStore {
       }
     }
 
-    this._handle.transcript.activeTurn.set(items, 'generating');
+    this.chatState.transcript.activeTurn.set(items, 'generating');
   }
 
   private _handleTurnCommitted(turn: AcpTurn): void {
     const items = foldTurn(turn);
     this._activeTurnUpdates.clear();
 
-    if (this._handle) {
-      // Replace the activeTurn snapshot with the finalized version and commit.
-      this._handle.transcript.activeTurn.set(items, 'generating');
-      this._handle.transcript.activeTurn.commit('done');
-    }
+    // Replace the activeTurn snapshot with the finalized version and commit.
+    this.chatState.transcript.activeTurn.set(items, 'generating');
+    this.chatState.transcript.activeTurn.commit('done');
 
     runInAction(() => {
       this._activeTurnId = null;

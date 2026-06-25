@@ -6,18 +6,24 @@
  *
  * Layout:
  *   ┌──────────────────────────────────┐
- *   │  ChatTranscript (flex-1)         │
- *   ├──────────────────────────────────┤
- *   │  ChatComposer (auto-height)      │
+ *   │  ChatTranscript (fills parent)   │
+ *   │  ┌────────────────────────────┐  │
+ *   │  │ composer slot (sticky bot) │  │  ← rendered inside the Solid root
+ *   │  └────────────────────────────┘  │     portaled via createPortal
  *   └──────────────────────────────────┘
+ *
+ * The composer slot is a sticky bottom div inside ChatTranscript. ChatView's
+ * internal ResizeObserver drives padBottom automatically so the transcript
+ * content stays clear of the composer. No external ResizeObserver needed.
  */
 
 import { ChatTranscript } from '@emdash/ui/react/chat-ui';
-import type { ChatHandle } from '@emdash/ui/react/chat-ui';
+import type { ChatView } from '@emdash/ui/react/chat-ui';
 import { ChatComposer } from '@emdash/ui/react/components';
 import type { ComposerPermissionRequest } from '@emdash/ui/react/components';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import type { AcpChatStore } from './acp-chat-store';
 import type { AcpChatResolvedData } from './acp-chat-tab-provider';
@@ -43,23 +49,12 @@ function toComposerPermission(
 // ── Inner panel for a single store ────────────────────────────────────────────
 
 const AcpChatStorePanel = observer(function AcpChatStorePanel({ store }: { store: AcpChatStore }) {
-  const composerRef = useRef<HTMLDivElement>(null);
-  const [padBottom, setPadBottom] = useState(0);
-
-  // Measure the composer height for ChatTranscript padBottom.
-  useEffect(() => {
-    if (!composerRef.current) return;
-    const observer = new ResizeObserver((entries) => {
-      const height = entries[0]?.contentRect.height ?? 0;
-      setPadBottom(height);
-    });
-    observer.observe(composerRef.current);
-    return () => observer.disconnect();
-  }, []);
+  const [composerSlot, setComposerSlot] = useState<HTMLElement | null>(null);
 
   const handleReady = useCallback(
-    (handle: ChatHandle) => {
-      store.attachHandle(handle);
+    (view: ChatView) => {
+      store.attachView(view);
+      setComposerSlot(view.composerSlot);
     },
     [store]
   );
@@ -89,24 +84,33 @@ const AcpChatStorePanel = observer(function AcpChatStorePanel({ store }: { store
 
   return (
     <div
-      className="flex h-full flex-col overflow-hidden"
+      className="relative h-full overflow-hidden"
       style={{ backgroundColor: 'var(--surface-paper)' }}
     >
-      <div className="min-h-0 flex-1">
-        <ChatTranscript padBottom={padBottom} pinUserMessages onReady={handleReady} />
-      </div>
-      {/* Match the composer background to the tab's paper background. */}
-      <div ref={composerRef} style={{ '--composer-bg': 'var(--surface-paper)' } as CSSProperties}>
-        <ChatComposer
-          isWorking={isWorking}
-          canSubmit={isReady}
-          onSubmit={handleSubmit}
-          onStop={isWorking ? handleStop : undefined}
-          permissionRequest={permissionRequest}
-          permissionQueueCount={store.permissionQueue.length}
-          onResolvePermission={handleResolvePermission}
-        />
-      </div>
+      <ChatTranscript
+        context={store.chatContext}
+        state={store.chatState}
+        composer="slot"
+        stickToBottom
+        pinUserMessages
+        onReady={handleReady}
+        style={{ position: 'absolute', inset: 0 }}
+      />
+      {composerSlot &&
+        createPortal(
+          <div style={{ '--composer-bg': 'var(--surface-paper)' } as CSSProperties}>
+            <ChatComposer
+              isWorking={isWorking}
+              canSubmit={isReady}
+              onSubmit={handleSubmit}
+              onStop={isWorking ? handleStop : undefined}
+              permissionRequest={permissionRequest}
+              permissionQueueCount={store.permissionQueue.length}
+              onResolvePermission={handleResolvePermission}
+            />
+          </div>,
+          composerSlot
+        )}
     </div>
   );
 });
