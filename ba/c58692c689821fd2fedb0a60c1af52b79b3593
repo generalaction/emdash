@@ -1,0 +1,30 @@
+packages/core/src/host-dependencies/runtime/host-dependency-manager.ts
+  s_9826c65da072ee::t_4d13213088698f 438-454,456-459,468-469
+packages/core/src/host-dependencies/runtime/host-dependency-manager.test.ts
+  s_9826c65da072ee::t_38e178955755d2 908-910,943-974
+  s_55210501c457e5::t_9a7263fa6e4906 975-978
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.1",
+  "base_commit_sha": "bac58692c689821fd2fedb0a60c1af52b79b3593",
+  "prompts": {},
+  "sessions": {
+    "s_55210501c457e5": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019efe2d-1c7b-77ef-a5e3-5f608778210b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_9826c65da072ee": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019efe28-87e8-7eee-8d60-973948555617",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
