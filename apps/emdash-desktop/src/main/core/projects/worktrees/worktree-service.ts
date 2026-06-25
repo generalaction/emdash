@@ -1,6 +1,6 @@
 import { promises as fsPromises } from 'node:fs';
 import type { GitBranchRef } from '@emdash/core/git';
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, toSerializedError, type Result, type SerializedError } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
@@ -10,7 +10,7 @@ import type { ProjectSettingsProvider } from '../settings/provider';
 import type { WorktreeHost } from './hosts/worktree-host';
 
 export type ServeWorktreeError =
-  | { type: 'worktree-setup-failed'; cause: unknown }
+  | { type: 'worktree-setup-failed'; cause: SerializedError }
   | { type: 'branch-not-found'; branch: string };
 
 export class WorktreeService {
@@ -256,7 +256,7 @@ export class WorktreeService {
         await this.removePathForReuse(targetPath);
         await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
       } catch (cause) {
-        return err({ type: 'worktree-setup-failed', cause });
+        return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
       }
     }
 
@@ -280,7 +280,7 @@ export class WorktreeService {
       await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
       await this.ctx.exec('git', ['worktree', 'add', targetPath, branchName]);
     } catch (cause) {
-      return err({ type: 'worktree-setup-failed', cause });
+      return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
     }
 
     if (options.copyPreservedFiles ?? true) {
@@ -336,7 +336,7 @@ export class WorktreeService {
         await this.removePathForReuse(targetPath);
         await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
       } catch (cause) {
-        return err({ type: 'worktree-setup-failed', cause });
+        return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
       }
     }
 
@@ -378,7 +378,7 @@ export class WorktreeService {
       await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
       await this.ctx.exec('git', ['worktree', 'add', targetPath, branchName]);
     } catch (cause) {
-      return err({ type: 'worktree-setup-failed', cause });
+      return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
     }
 
     if (options.copyPreservedFiles ?? true) {

@@ -7,7 +7,7 @@ import type {
   LocalBranch,
   RemoteBranch,
 } from '@emdash/core/git';
-import { err, ok, type Result } from '@emdash/shared';
+import { Result, type Result as ResultType } from '@emdash/shared/result';
 import { computed, makeObservable, reaction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
 import { bindMirror, coalesce, ModelMirror, type MirrorBinding } from '@renderer/lib/stores/live';
@@ -40,11 +40,8 @@ export class GitRepositoryStore {
     private readonly baseRef: string
   ) {
     const snapshot = coalesce(
-      async (): Promise<Result<GitRepoSnapshot, GitRepositorySnapshotError>> => {
-        const result = await rpc.gitRepository.getRepoSnapshot(this.projectId);
-        if (!result.success) return err(result.error);
-        return ok(result.data);
-      }
+      async (): Promise<ResultType<GitRepoSnapshot, GitRepositorySnapshotError>> =>
+        Result.fromAsync(rpc.gitRepository.getRepoSnapshot(this.projectId))
     );
     this.bindings = [
       bindMirror<GitRefsModel, GitRepositorySnapshotError>({
@@ -59,10 +56,7 @@ export class GitRepositoryStore {
               });
             }
           }),
-        snapshot: async () => {
-          const result = await snapshot();
-          return result.success ? ok(result.data.refs) : err(result.error);
-        },
+        snapshot: async () => Result.fromAsync(snapshot()).map((s) => s.refs),
       }),
       bindMirror<GitRemotesModel, GitRepositorySnapshotError>({
         mirror: this.remotesModel,
@@ -76,10 +70,7 @@ export class GitRepositoryStore {
               });
             }
           }),
-        snapshot: async () => {
-          const result = await snapshot();
-          return result.success ? ok(result.data.remotes) : err(result.error);
-        },
+        snapshot: async () => Result.fromAsync(snapshot()).map((s) => s.remotes),
       }),
     ];
 

@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, toSerializedError, type Result } from '@emdash/shared';
 import {
   SESSION_EXPIRED_MESSAGE,
   type AccountAuthServerError,
@@ -43,7 +43,7 @@ export class AccountAuthServerClient {
       return err({
         type: 'auth_server_error',
         message: unknownErrorMessage(error, 'Account link start failed'),
-        cause: error,
+        cause: toSerializedError(error),
       });
     }
 
@@ -70,7 +70,7 @@ export class AccountAuthServerClient {
       return err({
         type: 'invalid_auth_response',
         message: 'Invalid account link start response',
-        cause: error,
+        cause: toSerializedError(error),
       });
     }
 

@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, toSerializedError, type Result } from '@emdash/shared';
 import { KV } from '@main/db/kv';
 import {
   type AccountNotSignedInError,
@@ -164,6 +164,6 @@ function toSessionPersistenceError(
   return {
     type: 'session_persistence_failed',
     message: unknownErrorMessage(error, fallback),
-    cause: error,
+    cause: toSerializedError(error),
   };
 }
