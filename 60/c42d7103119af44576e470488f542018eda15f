@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/renderer/features/tabs/pane-store.test.ts
+  s_325cb390d8d872::t_25a549ded0dc89 18-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "60c42d7103119af44576e470488f542018eda15f",
+  "prompts": {},
+  "sessions": {
+    "s_325cb390d8d872": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019efae3-a256-766a-8351-01ce7065fa26",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
