@@ -1,0 +1,2341 @@
+apps/emdash-desktop/src/main/index.ts
+  s_5f26174735f387::t_647a9a06b2c564 37
+  s_f9f8b0c2327531::t_93d6e5c50dd4d7 2,6,12,20,29,31,77,134,139,146-155,166,193
+apps/emdash-desktop/src/main/app/shutdown.ts
+  s_5f26174735f387::t_4e25b5fa92dd95 9-44
+  s_f9f8b0c2327531::t_b479b6c1ae04f7 1-8,45-94
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversations-panel.tsx
+  s_5f26174735f387::t_5a036695095f23 36,42,44-45,48,50-53,100,110
+  s_f9f8b0c2327531::t_0f104aef3a7810 4-5,15,22-26,113,131,158,161-164
+apps/emdash-desktop/src/renderer/features/tasks/commands.ts
+  s_5f26174735f387::t_16bb47b6c949ab 5,10,22,45-46,48-51,53-54,56,58-59,98,115-118,219,318-322,327
+  s_5f26174735f387::t_6cfafc5afb886b 2-4
+.github/workflows/code-consistency-check.yml
+  s_5f26174735f387::t_d5bd8db986bb23 17-21,48-49
+.gitignore
+  s_5f26174735f387::t_59c68900100e2b 96-99
+.prettierignore
+  s_5f26174735f387::t_619401a9efacbc 1-2
+AGENTS.md
+  s_5f26174735f387::t_114cb9bbe89529 1-15,35-39,58-66,74-75,81-88,103-110,113,115-119,283-284,387,398
+CONTRIBUTING.md
+  s_5f26174735f387::t_b2142c2ef39180 3-5,9,11-17,19-29,34,36-38,40,42-51,53-170,172,179-185,187-189,191,193-194,196,198-200,202,204-206,209,211-212,214,216-226,228,230,232-234,236-282,284-285,288-293,296-300,302,304-307,309-313,315,317,319-320,322-329,331,333-336,338,340-348,350,352-354,356,358-360,362,364-365,368-369,371,373-379,382-383,385,387,389-395,397-398,400,402-427,429-445
+agents/README.md
+  s_5f26174735f387::t_dae1894a63a503 16
+agents/conventions/ui-styling.md
+  s_5f26174735f387::t_69dbfd025e1151 1-220
+agents/integrations/providers.md
+  s_5f26174735f387::t_054b66baf0e070 5-6,34-36,41
+agents/workflows/nx.md
+  s_5f26174735f387::t_4a2a9a394ac910 1-180,182
+agents/workflows/testing.md
+  s_5f26174735f387::t_000d1981ac1655 37-39
+apps/emdash-desktop/.oxlintrc.json
+  s_5f26174735f387::t_fc828920fb9fb5 84-85
+apps/emdash-desktop/electron-builder.canary.config.ts
+  s_5f26174735f387::t_6fedbece5895ff 67,81
+apps/emdash-desktop/electron-builder.config.ts
+  s_5f26174735f387::t_7b7df4e7780108 46,50,60,68
+apps/emdash-desktop/package.json
+  s_5f26174735f387::t_9ed1b8ed7f0eac 3,49,54,65,80
+apps/emdash-desktop/src/assets/images/athas.svg
+  s_5f26174735f387::t_77fd77e9528418 1-75
+apps/emdash-desktop/src/assets/images/mcp/amplitude.svg
+  s_5f26174735f387::t_290dd002ba1bf6 1-4
+apps/emdash-desktop/src/assets/images/mcp/asana.svg
+  s_5f26174735f387::t_2ba72335b20586 1-4
+apps/emdash-desktop/src/assets/images/mcp/atlassian.svg
+  s_5f26174735f387::t_4719ce6625ce92 1-4
+apps/emdash-desktop/src/assets/images/mcp/aws_marketplace.svg
+  s_5f26174735f387::t_8997a79025a2a0 1-4
+apps/emdash-desktop/src/assets/images/mcp/axiom.svg
+  s_5f26174735f387::t_909e4111ac184e 1-4
+apps/emdash-desktop/src/assets/images/mcp/azure.svg
+  s_5f26174735f387::t_c2863f8f544a1f 1-4
+apps/emdash-desktop/src/assets/images/mcp/bigquery.svg
+  s_5f26174735f387::t_e4cf8cf8526474 1-4
+apps/emdash-desktop/src/assets/images/mcp/canva.svg
+  s_5f26174735f387::t_c957306671de54 1-4
+apps/emdash-desktop/src/assets/images/mcp/chrome_devtools.svg
+  s_5f26174735f387::t_485f2a704731e0 1-4
+apps/emdash-desktop/src/assets/images/mcp/clerk.svg
+  s_5f26174735f387::t_04bfd3e3fb467b 1-4
+apps/emdash-desktop/src/assets/images/mcp/clickup.svg
+  s_5f26174735f387::t_8888365449bad9 1-4
+apps/emdash-desktop/src/assets/images/mcp/cloudflare.svg
+  s_5f26174735f387::t_8e9a1308949582 1-4
+apps/emdash-desktop/src/assets/images/mcp/cloudinary.svg
+  s_5f26174735f387::t_33c0ae54baa74b 1-4
+apps/emdash-desktop/src/assets/images/mcp/context7.svg
+  s_5f26174735f387::t_c28a32fd7e28cb 1-6
+apps/emdash-desktop/src/assets/images/mcp/dev_manager.svg
+  s_5f26174735f387::t_2b45189a5380bf 1-3
+apps/emdash-desktop/src/assets/images/mcp/devrev.svg
+  s_5f26174735f387::t_fc1ee0c2352858 1-4
+apps/emdash-desktop/src/assets/images/mcp/exa.svg
+  s_5f26174735f387::t_fcdca1dc0c59e7 1-4
+apps/emdash-desktop/src/assets/images/mcp/figma.svg
+  s_5f26174735f387::t_fe3a84677bc02d 1-4
+apps/emdash-desktop/src/assets/images/mcp/graphite.svg
+  s_5f26174735f387::t_fdfdc352d6f223 1-3
+apps/emdash-desktop/src/assets/images/mcp/graphos.svg
+  s_5f26174735f387::t_3dbc858920efe4 1-4
+apps/emdash-desktop/src/assets/images/mcp/honeycomb.svg
+  s_5f26174735f387::t_6ba169edc8944f 1-7
+apps/emdash-desktop/src/assets/images/mcp/hugging_face.svg
+  s_5f26174735f387::t_059e0d613d91a8 1-4
+apps/emdash-desktop/src/assets/images/mcp/intercom.svg
+  s_5f26174735f387::t_a4f19914669856 1-4
+apps/emdash-desktop/src/assets/images/mcp/linear.svg
+  s_5f26174735f387::t_df8d1e905929c8 1-4
+apps/emdash-desktop/src/assets/images/mcp/magic_patterns.svg
+  s_5f26174735f387::t_0fdbc59acb8910 1-4
+apps/emdash-desktop/src/assets/images/mcp/make.svg
+  s_5f26174735f387::t_74d43248daaa8d 1-4
+apps/emdash-desktop/src/assets/images/mcp/mcp_default.svg
+  s_5f26174735f387::t_7cefd7913a9c0d 1-6
+apps/emdash-desktop/src/assets/images/mcp/microsoft_learn.svg
+  s_5f26174735f387::t_37d5eb0517bdc6 1-4
+apps/emdash-desktop/src/assets/images/mcp/miro.svg
+  s_5f26174735f387::t_a671d5c32f0c58 1-4
+apps/emdash-desktop/src/assets/images/mcp/monday.svg
+  s_5f26174735f387::t_887fe144b21647 1-4
+apps/emdash-desktop/src/assets/images/mcp/mongodb.svg
+  s_5f26174735f387::t_b41a84a4b4a2e9 1-4
+apps/emdash-desktop/src/assets/images/mcp/motherduck.svg
+  s_5f26174735f387::t_1569fe6c77eccd 1-4
+apps/emdash-desktop/src/assets/images/mcp/neon.svg
+  s_5f26174735f387::t_055a4e7e9c31b0 1,3
+apps/emdash-desktop/src/assets/images/mcp/netlify.svg
+  s_5f26174735f387::t_4e02ded745163c 1-4
+apps/emdash-desktop/src/assets/images/mcp/notion.svg
+  s_5f26174735f387::t_27311ef2a31ac2 1-4
+apps/emdash-desktop/src/assets/images/mcp/notra.svg
+  s_5f26174735f387::t_884313e73d986d 1-4
+apps/emdash-desktop/src/assets/images/mcp/parallel.svg
+  s_5f26174735f387::t_3e2e108bf86154 1-11
+apps/emdash-desktop/src/assets/images/mcp/planetscale.svg
+  s_5f26174735f387::t_d98cbb97ef578f 1-4
+apps/emdash-desktop/src/assets/images/mcp/playwright.svg
+  s_5f26174735f387::t_8d440e520f9972 1-4
+apps/emdash-desktop/src/assets/images/mcp/posthog.svg
+  s_5f26174735f387::t_b8afdd17ee09b3 1-4
+apps/emdash-desktop/src/assets/images/mcp/prisma.svg
+  s_5f26174735f387::t_151167f34e486c 1-4
+apps/emdash-desktop/src/assets/images/mcp/railway.svg
+  s_5f26174735f387::t_323b77ef921d7b 1-4
+apps/emdash-desktop/src/assets/images/mcp/resend.svg
+  s_5f26174735f387::t_3bafd524fd7013 1-4
+apps/emdash-desktop/src/assets/images/mcp/sanity.svg
+  s_5f26174735f387::t_0dfa91d8d79137 1-4
+apps/emdash-desktop/src/assets/images/mcp/sentry.svg
+  s_5f26174735f387::t_c576e394e4d980 1-4
+apps/emdash-desktop/src/assets/images/mcp/shopify.svg
+  s_5f26174735f387::t_c75a00d1ca6b0b 1-4
+apps/emdash-desktop/src/assets/images/mcp/slack.svg
+  s_5f26174735f387::t_42f5f5d5d74af6 1-4
+apps/emdash-desktop/src/assets/images/mcp/stripe.svg
+  s_5f26174735f387::t_7af45dd6337a1f 1-4
+apps/emdash-desktop/src/assets/images/mcp/supabase.svg
+  s_5f26174735f387::t_6b3284d1a437ac 1-4
+apps/emdash-desktop/src/assets/images/mcp/vercel.svg
+  s_5f26174735f387::t_5a14ac06884d92 1-4
+apps/emdash-desktop/src/assets/images/mcp/webflow.svg
+  s_5f26174735f387::t_2075993d2f6a48 1-4
+apps/emdash-desktop/src/assets/images/mcp/wix.svg
+  s_5f26174735f387::t_415679a913a5e9 1-4
+apps/emdash-desktop/src/assets/images/mcp/wordpress.svg
+  s_5f26174735f387::t_8ef88cbca7e931 1-4
+apps/emdash-desktop/src/main/app/window.ts
+  s_5f26174735f387::t_df8ec46e6658a7 3,10,15,28,47-51,83-91
+apps/emdash-desktop/src/main/core/account/account-errors.ts
+  s_5f26174735f387::t_b11ea8946ef994 1-85
+apps/emdash-desktop/src/main/core/account/account-types.ts
+  s_5f26174735f387::t_4657da7f601bba 1-54
+apps/emdash-desktop/src/main/core/account/controller.ts
+  s_5f26174735f387::t_513692bcc0ec3c 8-10,13,17-19,22-23,26-28,32-36,39-40,43-50,54-57,59-61,65,69-71
+apps/emdash-desktop/src/main/core/account/provider-token-registry.test.ts
+  s_5f26174735f387::t_e30da17c48827f 52-77
+apps/emdash-desktop/src/main/core/account/provider-token-registry.ts
+  s_5f26174735f387::t_32281d63f77eaa 14-21,30-33,35-36
+apps/emdash-desktop/src/main/core/account/services/account-auth-response-parser.ts
+  s_5f26174735f387::t_f006438760505c 1-96
+apps/emdash-desktop/src/main/core/account/services/account-auth-server-client.ts
+  s_5f26174735f387::t_d7a726eba714ad 1-98
+apps/emdash-desktop/src/main/core/account/services/account-oauth-client.ts
+  s_5f26174735f387::t_8b71e9dd238e86 1-57
+apps/emdash-desktop/src/main/core/account/services/account-session-store.ts
+  s_5f26174735f387::t_48afa8b39e89a9 1-170
+apps/emdash-desktop/src/main/core/account/services/credential-store.ts
+  s_5f26174735f387::t_832e49573b6833 1,4,9,11,14-18,22,25,28-32,36,39,42-46
+apps/emdash-desktop/src/main/core/account/services/emdash-account-service.test.ts
+  s_5f26174735f387::t_22b8291120f67b 1,26-28,53-68,74-76,79-81,87,101,108,119-120,134-135,156,178,199,227,235,245-250,260,268,285-288,290,323,334-365,367,369-373,380-385,391-402,409-443,449,455-459,465,472-476,490,494,508,512-544,549-550,562,567,569,585,589-590
+apps/emdash-desktop/src/main/core/account/services/emdash-account-service.ts
+  s_5f26174735f387::t_c655811887eb96 1-2,5-26,37-43,49-51,53,56-58,61-62,65-67,69-71,73-76,78-79,81-84,87-89,92-123,125-126,129-131,133-137,140-141,143-149,152-159,162,164-165,167-168,170,174,177-179,181-182
+apps/emdash-desktop/src/main/core/account/services/provider-token-dispatcher.ts
+  s_5f26174735f387::t_f4190b3575153b 1-39
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.test.ts
+  s_5f26174735f387::t_1ba697a216477d 2,4-17,19-21,23-26,28-29
+apps/emdash-desktop/src/main/core/agent-hooks/agent-hook-service.ts
+  s_5f26174735f387::t_bd64456e84f79b 1,54-58,83-84,129-133,135-151,153-157,159-170,174,179-190,202-203,225,233,247-250
+apps/emdash-desktop/src/main/core/agent-hooks/event-enricher.ts
+  s_5f26174735f387::t_1dedaaf8e788d3 1-2
+apps/emdash-desktop/src/main/core/agents/agent-payload-builder.test.ts
+  s_5f26174735f387::t_92900fc89a38fa 1-2
+apps/emdash-desktop/src/main/core/agents/agent-payload-builder.ts
+  s_5f26174735f387::t_401c6075bd5fea 1-2,9,15,88
+apps/emdash-desktop/src/main/core/agents/controller.test.ts
+  s_5f26174735f387::t_8bbc910a5e621a 1-151
+apps/emdash-desktop/src/main/core/agents/controller.ts
+  s_5f26174735f387::t_5acab24757b782 1,7,13-16,37,43,51,65,102,104
+apps/emdash-desktop/src/main/core/agents/plugin-fs.ts
+  s_5f26174735f387::t_108d13e3135feb 3
+apps/emdash-desktop/src/main/core/agents/plugin-registry.ts
+  s_5f26174735f387::t_dbbf4adf18f959 1
+apps/emdash-desktop/src/main/core/app/controller.ts
+  s_5f26174735f387::t_0b770d8198ee14 44-57,96-108
+apps/emdash-desktop/src/main/core/app/service.test.ts
+  s_5f26174735f387::t_1ff1a3f9656168 8-14,28,37-39,56,118-157
+apps/emdash-desktop/src/main/core/app/service.ts
+  s_5f26174735f387::t_3ae701433b3b2d 5,7,19-25,240-295,300-321
+apps/emdash-desktop/src/main/core/automations/actions/taskCreate.ts
+  s_5f26174735f387::t_2374305560d5de 2,17,191
+apps/emdash-desktop/src/main/core/automations/automation-scheduler.db.test.ts
+  s_5f26174735f387::t_dc54288199a062 1,68,70-84,208,233,618-619,654-662
+apps/emdash-desktop/src/main/core/automations/runtime.ts
+  s_5f26174735f387::t_d16cd3ce563122 1
+apps/emdash-desktop/src/main/core/browser/browser-cors-relaxation.test.ts
+  s_5f26174735f387::t_b58d1cf5349dc6 3-5,7-8,10-14,16-18,20-22,25,27-37,39-44,46-48,50-60,62-66
+apps/emdash-desktop/src/main/core/browser/browser-cors-relaxation.ts
+  s_5f26174735f387::t_ee936be2a3d83f 1-97
+apps/emdash-desktop/src/main/core/browser/browser-profile-session.ts
+  s_5f26174735f387::t_0c02ea5446b74e 3-8,25-29,44-45,50-56,60-79
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.test.ts
+  s_5f26174735f387::t_9970a85f015dad 4,46,226-320,332-370
+apps/emdash-desktop/src/main/core/browser/browser-webcontents-registry.ts
+  s_5f26174735f387::t_3dbafa16ef0f48 7,18,21,23-28,52-62,69,88,206-215,243-268,344-367,440-475,477,480-496
+apps/emdash-desktop/src/main/core/browser/controller.ts
+  s_5f26174735f387::t_d75e9136d371fb 5-12,63-70,72-85
+apps/emdash-desktop/src/main/core/conversations/createConversation.ts
+  s_5f26174735f387::t_ac427bfaef7831 10,54-57
+apps/emdash-desktop/src/main/core/conversations/impl/conversation-provider-respawn.test.ts
+  s_5f26174735f387::t_673a5f328600fc 210,220,468-512
+apps/emdash-desktop/src/main/core/conversations/impl/keystroke-injection.test.ts
+  s_5f26174735f387::t_b7d92a9ca3d141 115-128
+apps/emdash-desktop/src/main/core/conversations/impl/local-conversation.ts
+  s_5f26174735f387::t_e32a0565c56cac 8-11,118,146-153,158,162,211-212,259,269-270
+apps/emdash-desktop/src/main/core/conversations/impl/resolve-agent-executable.test.ts
+  s_5f26174735f387::t_278724e3a2cdcf 1,9
+apps/emdash-desktop/src/main/core/conversations/impl/resolve-agent-executable.ts
+  s_5f26174735f387::t_355be11caeccbc 1-2
+apps/emdash-desktop/src/main/core/conversations/impl/ssh-conversation.ts
+  s_5f26174735f387::t_38de5608e80aae 14-15,126,148,335,344-346
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_5f26174735f387::t_df06bec91fb7af 57-120,180-199
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.ts
+  s_5f26174735f387::t_50465b615ec3cd 3-11,17
+apps/emdash-desktop/src/main/core/conversations/spill-large-prompt.test.ts
+  s_5f26174735f387::t_1603cc3a72827a 1-106
+apps/emdash-desktop/src/main/core/conversations/spill-large-prompt.ts
+  s_5f26174735f387::t_7add0357006a53 1-92
+apps/emdash-desktop/src/main/core/conversations/utils.ts
+  s_5f26174735f387::t_5f6040aa5ecaf6 19
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.test.ts
+  s_5f26174735f387::t_a94457e91773dc 1-3,215
+apps/emdash-desktop/src/main/core/dependencies/agent-update-service.ts
+  s_5f26174735f387::t_692096f8969b4b 10-11,67
+apps/emdash-desktop/src/main/core/dependencies/dependency-managers.test.ts
+  s_5f26174735f387::t_7034778545b559 1-326
+apps/emdash-desktop/src/main/core/dependencies/dependency-managers.ts
+  s_5f26174735f387::t_70ff86eacc4b02 1-6,18,36,51-52,68-85,87-103,106-129
+apps/emdash-desktop/src/main/core/dependencies/host-dependency-store.ts
+  s_5f26174735f387::t_39c031d4cecc64 1-2
+apps/emdash-desktop/src/main/core/dependencies/install-runner.ts
+  s_5f26174735f387::t_ced9df87e48b05 2-3
+apps/emdash-desktop/src/main/core/dependencies/latest-version-service.ts
+  s_5f26174735f387::t_181e17b452a87d 1-2
+apps/emdash-desktop/src/main/core/dependencies/registry.test.ts
+  s_5f26174735f387::t_b32f04ac5ee5a5 1,43
+apps/emdash-desktop/src/main/core/dependencies/registry.ts
+  s_5f26174735f387::t_b70feaca12838c 1,6-7,71-73
+apps/emdash-desktop/src/main/core/execution-context/types.ts
+  s_5f26174735f387::t_bfd6ea16732d6c 2
+apps/emdash-desktop/src/main/core/forgejo/forgejo-connection-service.ts
+  s_5f26174735f387::t_4e2fa5d8f8d1e4 4,180,183
+apps/emdash-desktop/src/main/core/forgejo/forgejo-issue-provider.ts
+  s_5f26174735f387::t_a6a525e51073bf 5,31,35-36,58,70-71,107-109,112,116-118,121
+apps/emdash-desktop/src/main/core/fs/controller.ts
+  s_5f26174735f387::t_f07e9e787c6bcd 3
+apps/emdash-desktop/src/main/core/git/legacy/git-service.test.ts
+  s_5f26174735f387::t_e35f21f26c57de 2,44-46,80,85,91,95,104,113,120,131,141,148,160,170,180,191,201-205,227,237-238,243-267,272,275,289,380-395
+apps/emdash-desktop/src/main/core/git/legacy/git-service.ts
+  s_5f26174735f387::t_99a87a051943d8 5-8,11,22,28-42,48-51,92,119-121,124-129,138,160-162,176,239,249,259,269,714-716,724,732,745-747,776,804,844,915,981,985-996,998-999,1001,1004-1015,1019-1028,1032,1034-1035,1037,1054,1059-1063,1067,1073-1074,1086,1093,1215,1222,1229,1231,1245-1246,1294,1296,1308,1311,1313-1314,1316,1326-1329
+apps/emdash-desktop/src/main/core/git/repository/controller.ts
+  s_5f26174735f387::t_3d0a97c55aba06 1-2,4,6-8,10-11,13-17,21,23-27,31,35,37,41-45,48,60,72-73,75-90,102-103
+apps/emdash-desktop/src/main/core/git/repository/fetch-service.test.ts
+  s_5f26174735f387::t_5f45a56ba0d4b8 2-3,5-8,11,13,19-22
+apps/emdash-desktop/src/main/core/git/repository/fetch-service.ts
+  s_5f26174735f387::t_d177eccf37268d 1-2,4,8-11,13,17,34,44,47-53,76
+apps/emdash-desktop/src/main/core/git/repository/service.ts
+  s_5f26174735f387::t_d70bf35b8d5373 6-9,11-15,20,24-35,39,41,56-57,61,64-68,77-79,83,94-103,106-107,114-116
+apps/emdash-desktop/src/main/core/git/worktree/controller.ts
+  s_5f26174735f387::t_25d1dff51d3fa8 1-2,6-10,12,14-15,17-18,20-25,29,31-36,42-47,53-58,64-69,75-80,84-94,97-100,102-107,109,114-117,121-131,134-137,139-144,146,151-154,158-168,171-174,176-184,186,191-194,198-205,209-211,218,222-224,229,231,245-247,256-258,264-269
+apps/emdash-desktop/src/main/core/git/worktree/mutations.ts
+  s_5f26174735f387::t_d0390b3191d831 1-80
+apps/emdash-desktop/src/main/core/github/accounts/github-account-backfill.test.ts
+  s_5f26174735f387::t_fda60fcc04c950 109
+apps/emdash-desktop/src/main/core/github/accounts/github-account-backfill.ts
+  s_5f26174735f387::t_48504df724effd 44
+apps/emdash-desktop/src/main/core/github/accounts/github-account-registry.test.ts
+  s_5f26174735f387::t_30bd1fbcc50893 66-78,82,122,144-173,175,194,226
+apps/emdash-desktop/src/main/core/github/accounts/github-account-registry.ts
+  s_5f26174735f387::t_de2d224efde4a6 37-41,63,86-89
+apps/emdash-desktop/src/main/core/github/accounts/github-account-service.test.ts
+  s_5f26174735f387::t_8974ef6bfc24e3 78-90,128-140
+apps/emdash-desktop/src/main/core/github/accounts/github-auth-server-adapter.test.ts
+  s_5f26174735f387::t_33a68d172bce7a 79,82-85,107,110-113,128-152
+apps/emdash-desktop/src/main/core/github/accounts/github-auth-server-adapter.ts
+  s_5f26174735f387::t_663c3a763fa3a2 1-4,10-12,21,32-36
+apps/emdash-desktop/src/main/core/github/accounts/github-cli-account-import.test.ts
+  s_5f26174735f387::t_50738bdd3be081 257,291
+apps/emdash-desktop/src/main/core/github/accounts/github-cli-account-import.ts
+  s_5f26174735f387::t_8122ebfb0d45d4 78-89
+apps/emdash-desktop/src/main/core/github/controller.ts
+  s_5f26174735f387::t_c276794a761c77 1,20-21,28,31,72-73,76,78-79,85,88,90-91,95,98,100-101,106,109,111-112,115,118,122-123,126-137,140,142-143,145,152-171,187,189-190,192-197,202,204-205
+apps/emdash-desktop/src/main/core/github/github-issue-provider.test.ts
+  s_5f26174735f387::t_cf6a5c5ae0fb25 1
+apps/emdash-desktop/src/main/core/github/github-issue-provider.ts
+  s_5f26174735f387::t_2b43e680f1c09e 1-2,56-92,151-158,160-165
+apps/emdash-desktop/src/main/core/github/services/github-api-auth-service.test.ts
+  s_5f26174735f387::t_3fe1054c27662d 1,80-92
+apps/emdash-desktop/src/main/core/github/services/github-api-auth-service.ts
+  s_5f26174735f387::t_671d3556e3c96e 1
+apps/emdash-desktop/src/main/core/github/services/github-device-flow-service.ts
+  s_5f26174735f387::t_8bfebd0d517086 80
+apps/emdash-desktop/src/main/core/github/services/github-host-service.ts
+  s_5f26174735f387::t_5c04e8f0cc7b85 1
+apps/emdash-desktop/src/main/core/github/services/github-repository-resolver.test.ts
+  s_5f26174735f387::t_24806115a539ab 1
+apps/emdash-desktop/src/main/core/github/services/github-repository-resolver.ts
+  s_5f26174735f387::t_55f5809242e8d6 1
+apps/emdash-desktop/src/main/core/github/services/issue-service.test.ts
+  s_5f26174735f387::t_27e263bcb33e23 1
+apps/emdash-desktop/src/main/core/github/services/issue-service.ts
+  s_5f26174735f387::t_7d1d2252797444 1,3,176-201,215-249
+apps/emdash-desktop/src/main/core/github/services/octokit-provider.test.ts
+  s_5f26174735f387::t_73c06e27348061 1
+apps/emdash-desktop/src/main/core/github/services/octokit-provider.ts
+  s_5f26174735f387::t_4edf143addaf5d 1
+apps/emdash-desktop/src/main/core/github/services/project-github-account-backfill.ts
+  s_5f26174735f387::t_1e0e52fdc422b1 1
+apps/emdash-desktop/src/main/core/github/services/project-github-auth-context-resolver.ts
+  s_5f26174735f387::t_47bc7b00a8b124 1
+apps/emdash-desktop/src/main/core/github/services/project-github-auth-context.test.ts
+  s_5f26174735f387::t_f7cd3188260fea 1
+apps/emdash-desktop/src/main/core/github/services/project-github-auth-context.ts
+  s_5f26174735f387::t_4d7366b03a4cc3 1
+apps/emdash-desktop/src/main/core/github/services/repo-service.test.ts
+  s_5f26174735f387::t_376a7f42fd6c26 1
+apps/emdash-desktop/src/main/core/gitlab/gitlab-connection-service.ts
+  s_5f26174735f387::t_d9b318d134b215 2,179,184
+apps/emdash-desktop/src/main/core/gitlab/gitlab-issue-provider.ts
+  s_5f26174735f387::t_eaa6e1b249d212 4,65,69-70,96,108-109,145-147,150,154-156,159
+apps/emdash-desktop/src/main/core/issues/controller.ts
+  s_5f26174735f387::t_c456c08c1ed954 78-90
+apps/emdash-desktop/src/main/core/issues/git-remote-resolver.test.ts
+  s_5f26174735f387::t_fb067bed860ed8 2,31-46
+apps/emdash-desktop/src/main/core/issues/git-remote-resolver.ts
+  s_5f26174735f387::t_705a09e4bedc80 13-16,19-21,23
+apps/emdash-desktop/src/main/core/issues/helpers/provider-inputs.test.ts
+  s_5f26174735f387::t_ac8c7ac2b42c54 2-7,24-32
+apps/emdash-desktop/src/main/core/issues/helpers/provider-inputs.ts
+  s_5f26174735f387::t_1606b70f53cd64 11-15
+apps/emdash-desktop/src/main/core/mcp/controller.ts
+  s_5f26174735f387::t_79ce8d4e0b42bf 1-2,13-14
+apps/emdash-desktop/src/main/core/mcp/services/McpService.test.ts
+  s_5f26174735f387::t_523433f1f13a86 1,162-185
+apps/emdash-desktop/src/main/core/mcp/services/McpService.ts
+  s_5f26174735f387::t_48a00160caa393 2,17-20,48,156
+apps/emdash-desktop/src/main/core/mcp/utils/registration.test.ts
+  s_5f26174735f387::t_509920bee77fb4 1-36
+apps/emdash-desktop/src/main/core/mcp/utils/registration.ts
+  s_5f26174735f387::t_f093872fcb2d2c 1,27-33,50-53,63,65,68-71
+apps/emdash-desktop/src/main/core/port-forwards/port-forward-service.test.ts
+  s_5f26174735f387::t_5bdfa095d93f2f 1-78
+apps/emdash-desktop/src/main/core/port-forwards/port-forward-service.ts
+  s_5f26174735f387::t_afbee3a3a1688b 1,3-16,18-24,27-29,31-52,55-58,60-62,64-68,70-80,83-88,91-95,98-102,105-108,112-121
+apps/emdash-desktop/src/main/core/port-forwards/port-forward-tunnel.test.ts
+  s_5f26174735f387::t_de0bbfd9097b1f 1-347
+apps/emdash-desktop/src/main/core/port-forwards/port-forward-tunnel.ts
+  s_5f26174735f387::t_f018e70e4667aa 1-161
+apps/emdash-desktop/src/main/core/preview-servers/controller.ts
+  s_5f26174735f387::t_d1db2c209e81b4 1-15
+apps/emdash-desktop/src/main/core/preview-servers/preview-server-service-instance.ts
+  s_5f26174735f387::t_49cb701b797609 1-16
+apps/emdash-desktop/src/main/core/preview-servers/preview-server-service.test.ts
+  s_5f26174735f387::t_44ccf95dea1ef8 1-593
+apps/emdash-desktop/src/main/core/preview-servers/preview-server-service.ts
+  s_5f26174735f387::t_59b121be47d984 1-546
+apps/emdash-desktop/src/main/core/preview-servers/terminal-url-detector.test.ts
+  s_5f26174735f387::t_e616acd6d8dd79 1-115
+apps/emdash-desktop/src/main/core/preview-servers/terminal-url-detector.ts
+  s_5f26174735f387::t_3fb28e51681c0a 2-7,12,15-80,83-84,91,93-98,104-111,128,131,135,158
+apps/emdash-desktop/src/main/core/project-setup/controller.test.ts
+  s_5f26174735f387::t_52ec8d7186c322 1-59
+apps/emdash-desktop/src/main/core/project-setup/controller.ts
+  s_5f26174735f387::t_cdd21605e9e8db 1-3,5-14,16-17,20-26,28-30,32-33,36-37
+apps/emdash-desktop/src/main/core/project-setup/repository-setup.test.ts
+  s_5f26174735f387::t_a8f41fea8eba1f 1-226
+apps/emdash-desktop/src/main/core/project-setup/repository-setup.ts
+  s_5f26174735f387::t_a6edf3edf0a6b1 1-132
+apps/emdash-desktop/src/main/core/projects/create-project-provider.ts
+  s_5f26174735f387::t_1ded36ec308a0f 3-4,10-11,13-14,17,19,40-42,44,46-89,100-101,109,112-119,121-129,131-151,153-164,175-187,202-205,210-212,223,231-243,249,251-256
+apps/emdash-desktop/src/main/core/projects/operations/create-local-project.ts
+  s_5f26174735f387::t_8103a7732f3a46 2,6,10-12,22-38,41-45,54,64,83,87-95,99-112
+apps/emdash-desktop/src/main/core/projects/operations/create-project-utils.ts
+  s_5f26174735f387::t_6c9cc65ac21094 1-3,8-9,12,19,21,23-27,38-40,42-45,47-65
+apps/emdash-desktop/src/main/core/projects/operations/create-ssh-project.ts
+  s_5f26174735f387::t_914faf465bd6b0 2,7,12-13,24-26,32-36,38-46,56,67,86,101-114
+apps/emdash-desktop/src/main/core/projects/operations/createProject.test.ts
+  s_5f26174735f387::t_096d69e1360aaa 4,6,10-17,27-30,60-65,73-100,126-129,132-139,141-146,166-202,211-218,220-224,239-241,245-251,253-255,270-283,287-293,313-326,330-336,345-388,402-405,408-416,419-425,443-445,455-461,463-465,478-481,483,492-505,509-516,534,538-539,541,547-564
+apps/emdash-desktop/src/main/core/projects/operations/createProject.ts
+  s_5f26174735f387::t_ad045041c186de 3,11
+apps/emdash-desktop/src/main/core/projects/operations/deleteProject.test.ts
+  s_5f26174735f387::t_a5cef596ce20a7 1,100
+apps/emdash-desktop/src/main/core/projects/operations/openProject.ts
+  s_5f26174735f387::t_0537dd6645fd4f 1
+apps/emdash-desktop/src/main/core/projects/path-utils.ts
+  s_5f26174735f387::t_8f474680fe4324 3-19,21-27
+apps/emdash-desktop/src/main/core/projects/project-manager.ts
+  s_5f26174735f387::t_3ea5a4294c6958 1,33-35,105-114
+apps/emdash-desktop/src/main/core/projects/project-provider.ts
+  s_5f26174735f387::t_c3e223ac40416e 1-8,11-14,41,53,55,62,66,68,71,74,83,85-87,92,96,98,100,109,123-143,147-156
+apps/emdash-desktop/src/main/core/projects/settings/legacy-project-settings-migration.ts
+  s_5f26174735f387::t_7416acefd0faca 1,4,28,34-37
+apps/emdash-desktop/src/main/core/projects/settings/project-settings-service.ts
+  s_5f26174735f387::t_aa6aa90fd8e4cc 1-2
+apps/emdash-desktop/src/main/core/projects/settings/provider.ts
+  s_5f26174735f387::t_5bfeb691a6b080 1
+apps/emdash-desktop/src/main/core/projects/settings/providers/db-project-settings-provider.ts
+  s_5f26174735f387::t_c4cdeb690e921a 1,5,18-21,29,131,145,159,161
+apps/emdash-desktop/src/main/core/projects/settings/providers/local-project-settings-provider.ts
+  s_5f26174735f387::t_7019b34dbe4a21 4
+apps/emdash-desktop/src/main/core/projects/settings/providers/ssh-project-settings-provider.ts
+  s_5f26174735f387::t_50e77f4dd7ee92 2
+apps/emdash-desktop/src/main/core/projects/settings/sharing/codex-config-migration.ts
+  s_5f26174735f387::t_7049e91dff02cc 1
+apps/emdash-desktop/src/main/core/projects/settings/sharing/conductor-config-migration.ts
+  s_5f26174735f387::t_66265f5cae9a75 1
+apps/emdash-desktop/src/main/core/projects/settings/sharing/config-migration.ts
+  s_5f26174735f387::t_fd5a6399529a75 1
+apps/emdash-desktop/src/main/core/projects/settings/sharing/paseo-config-migration.ts
+  s_5f26174735f387::t_db1fac8785dfab 1
+apps/emdash-desktop/src/main/core/projects/settings/sharing/share-project-settings-to-config.ts
+  s_5f26174735f387::t_00cc1d7ee78c9c 1
+apps/emdash-desktop/src/main/core/projects/settings/sharing/superset-config-migration.ts
+  s_5f26174735f387::t_b2e0391b4a8875 1
+apps/emdash-desktop/src/main/core/projects/settings/worktree-directory.ts
+  s_5f26174735f387::t_a982cd0960511d 2
+apps/emdash-desktop/src/main/core/projects/worktrees/worktree-service.test.ts
+  s_5f26174735f387::t_07c525a5ef365e 4-5,44,263-264
+apps/emdash-desktop/src/main/core/projects/worktrees/worktree-service.ts
+  s_5f26174735f387::t_6b139d9b872097 2-3,7,13,144,169,227,238,259,283,308,339,381
+apps/emdash-desktop/src/main/core/prompt-library/service.ts
+  s_5f26174735f387::t_641714bea9fb4f 1
+apps/emdash-desktop/src/main/core/pty/controller.test.ts
+  s_5f26174735f387::t_3a448597fa46ea 1-115
+apps/emdash-desktop/src/main/core/pty/controller.ts
+  s_5f26174735f387::t_d879e7b0bb1cec 3,8,30,159-164,167-169
+apps/emdash-desktop/src/main/core/pty/local-pty.test.ts
+  s_5f26174735f387::t_d11f866bb25ce6 3,14,24,26,33-38,40-42,52,57-63,66-67,71-72,75,77,81-82,85-86,88,91-92,95-101,103-104,106-109
+apps/emdash-desktop/src/main/core/pty/local-pty.ts
+  s_5f26174735f387::t_bbc431b76b5616 6,54-58,86-88,91-94,106
+apps/emdash-desktop/src/main/core/pty/posix-pty-terminator.test.ts
+  s_5f26174735f387::t_48475016b498d6 1-196
+apps/emdash-desktop/src/main/core/pty/posix-pty-terminator.ts
+  s_5f26174735f387::t_0f5a376082732c 1-112
+apps/emdash-desktop/src/main/core/pty/process-tree.test.ts
+  s_5f26174735f387::t_2a45375a62af09 1-117
+apps/emdash-desktop/src/main/core/pty/process-tree.ts
+  s_5f26174735f387::t_39aab91ed50b02 1-163
+apps/emdash-desktop/src/main/core/pty/pty-env.test.ts
+  s_5f26174735f387::t_0bf9da5186a4f6 167,176
+apps/emdash-desktop/src/main/core/pty/pty-env.ts
+  s_5f26174735f387::t_8e3d58f90cc64a 161,289
+apps/emdash-desktop/src/main/core/pty/remote-tmux-reaper-service.ts
+  s_5f26174735f387::t_7b42ec42b18486 1-5,8-11,13-15,17-23,25-28,30-38,41-42
+apps/emdash-desktop/src/main/core/pty/spawn-utils.test.ts
+  s_5f26174735f387::t_d62d787e1d161f 60-74,181-188
+apps/emdash-desktop/src/main/core/pty/ssh2-pty.test.ts
+  s_5f26174735f387::t_2b324e107d9116 9-10,14,47-96
+apps/emdash-desktop/src/main/core/pty/ssh2-pty.ts
+  s_5f26174735f387::t_ef10e9cf6c5e0e 1,20-28,38-48,51-62,76-78
+apps/emdash-desktop/src/main/core/pty/tmux-reaper.test.ts
+  s_5f26174735f387::t_2840e7108dd0d9 1-121
+apps/emdash-desktop/src/main/core/pty/tmux-reaper.ts
+  s_5f26174735f387::t_16cfd7ba5b9d37 1-106
+apps/emdash-desktop/src/main/core/pty/tmux-reconcile.test.ts
+  s_5f26174735f387::t_6a7ee2defae47b 1-114
+apps/emdash-desktop/src/main/core/pty/tmux-reconcile.ts
+  s_5f26174735f387::t_7c248f11a05d3c 1-59
+apps/emdash-desktop/src/main/core/pty/tmux-session-name.test.ts
+  s_5f26174735f387::t_41f6e478c2edcf 2-7,25-45
+apps/emdash-desktop/src/main/core/pty/tmux-session-name.ts
+  s_5f26174735f387::t_651f4547982cae 4,28-46
+apps/emdash-desktop/src/main/core/pull-requests/controller.test.ts
+  s_5f26174735f387::t_ddf2b4bb2e1ef8 1
+apps/emdash-desktop/src/main/core/pull-requests/controller.ts
+  s_5f26174735f387::t_5f4861743e46e6 1-2,50-56,58-60,63-118
+apps/emdash-desktop/src/main/core/pull-requests/pr-sync-engine.test.ts
+  s_5f26174735f387::t_afd48f215660e0 1-2
+apps/emdash-desktop/src/main/core/pull-requests/pr-sync-engine.ts
+  s_5f26174735f387::t_9a6f5651a6f4a3 2
+apps/emdash-desktop/src/main/core/pull-requests/pr-sync-errors.ts
+  s_5f26174735f387::t_9a077e1059760c 1,54-72
+apps/emdash-desktop/src/main/core/pull-requests/pr-sync-scheduler.test.ts
+  s_5f26174735f387::t_e7892bb6d0be03 1-3,84-111,120,148-213,215,243,276,304-306,334,372
+apps/emdash-desktop/src/main/core/pull-requests/pr-sync-scheduler.ts
+  s_5f26174735f387::t_b40120ad73c51d 1,24,31,50-55,61-62,82-84,107,172-188,245
+apps/emdash-desktop/src/main/core/pull-requests/project-pull-request-context.test.ts
+  s_5f26174735f387::t_9bfea5bbae9a0f 1
+apps/emdash-desktop/src/main/core/pull-requests/project-pull-request-context.ts
+  s_5f26174735f387::t_abf9e216a1e32c 1-2,59-81
+apps/emdash-desktop/src/main/core/pull-requests/project-remotes-service.ts
+  s_5f26174735f387::t_1780d0d9ba1504 1,11,13
+apps/emdash-desktop/src/main/core/repository/provider-repository-service.test.ts
+  s_5f26174735f387::t_63e323aea38016 1
+apps/emdash-desktop/src/main/core/repository/provider-repository-service.ts
+  s_5f26174735f387::t_24d56c27fd682b 1-2,16-43
+apps/emdash-desktop/src/main/core/resource-monitor/controller.ts
+  s_5f26174735f387::t_b0665214875e40 1
+apps/emdash-desktop/src/main/core/runtime/health.ts
+  s_5f26174735f387::t_cad142719e037e 1,3-11
+apps/emdash-desktop/src/main/core/runtime/legacy/ssh-git.ts
+  s_5f26174735f387::t_420762e0603e28 1-663
+apps/emdash-desktop/src/main/core/runtime/runtime-manager.ts
+  s_5f26174735f387::t_e5c19b515964f6 1-20,23-38,40-61
+apps/emdash-desktop/src/main/core/runtime/types.ts
+  s_5f26174735f387::t_c56a8f79d86f1d 1-28
+apps/emdash-desktop/src/main/core/search/workspace-file-index-service.ts
+  s_5f26174735f387::t_1d5ceea6a5d386 2,102-120,220
+apps/emdash-desktop/src/main/core/settings/controller.ts
+  s_5f26174735f387::t_58181f241e7495 1,7-17,33,38,43
+apps/emdash-desktop/src/main/core/settings/override-settings.test.ts
+  s_5f26174735f387::t_d185b428fa0e76 1-79
+apps/emdash-desktop/src/main/core/settings/override-settings.ts
+  s_5f26174735f387::t_2985c15851bce4 76,78
+apps/emdash-desktop/src/main/core/settings/provider-config-migrations.ts
+  s_5f26174735f387::t_9b34e57d45f033 1-2
+apps/emdash-desktop/src/main/core/settings/provider-settings-controller.ts
+  s_5f26174735f387::t_2b29dc20e605dc 17
+apps/emdash-desktop/src/main/core/settings/schema.ts
+  s_5f26174735f387::t_f0173274f89d9f 37,108
+apps/emdash-desktop/src/main/core/settings/settings-registry.ts
+  s_5f26174735f387::t_80f6a73021a9d1 29,68
+apps/emdash-desktop/src/main/core/settings/settings-service.ts
+  s_5f26174735f387::t_75d0742343793a 1-2,9
+apps/emdash-desktop/src/main/core/settings/utils.ts
+  s_5f26174735f387::t_33424bde45dd6e 1
+apps/emdash-desktop/src/main/core/skills/bundled-catalog.json
+  s_5f26174735f387::t_31642429865491 3,5-44,60-62,64,66,68-69,73-75,77-78,80,82-83,87-89,91-92,94,96-139,150,156-183,213-215,217,219,221-222,253-264,338,343,346,351-365,367-368,370,372-373,459,488,496,502,510-524,541-568,596-598,600,603-604,608-610,612,615-616,620-622,624,627-628,632-634,636,639-640,644-646,648,651-664,670,676,680-682,684,687-688,692-694,696,699-700,704-706,708,711-712,716-718,720,723-724,730,736,740-742,744,747-748,752-754,756,759-760,764-766,768,771-772
+apps/emdash-desktop/src/main/core/ssh/config/connection-metadata.ts
+  s_5f26174735f387::t_8ad1e80d687b24 1
+apps/emdash-desktop/src/main/core/ssh/controller.ts
+  s_5f26174735f387::t_8ed89ae70682c8 21,171,195
+apps/emdash-desktop/src/main/core/ssh/lifecycle/remote-shell-profile.test.ts
+  s_5f26174735f387::t_a32732caf36e44 142-158,210-211,216-222
+apps/emdash-desktop/src/main/core/ssh/lifecycle/remote-shell-profile.ts
+  s_5f26174735f387::t_952e0b3a21d8ba 27,78-79,96,98,100,104-112
+apps/emdash-desktop/src/main/core/tasks/operations/archiveTask.test.ts
+  s_5f26174735f387::t_432e3cef283c5d 8,22,42,46-54,56,58-66,68-73
+apps/emdash-desktop/src/main/core/tasks/operations/archiveTask.ts
+  s_5f26174735f387::t_e6c4aef32dfb60 4,21
+apps/emdash-desktop/src/main/core/tasks/operations/createTask.ts
+  s_5f26174735f387::t_cc8db029d39a46 2,97
+apps/emdash-desktop/src/main/core/tasks/operations/deleteTask.test.ts
+  s_5f26174735f387::t_6dc81da02739b4 1-88
+apps/emdash-desktop/src/main/core/tasks/operations/deleteTask.ts
+  s_5f26174735f387::t_e4d5a53bff6878 58,68-73
+apps/emdash-desktop/src/main/core/tasks/operations/getDeletePreflight.ts
+  s_5f26174735f387::t_1459c32c3c457b 3,53-73
+apps/emdash-desktop/src/main/core/tasks/operations/renameTask.ts
+  s_5f26174735f387::t_125cce30fff7ac 1
+apps/emdash-desktop/src/main/core/tasks/operations/restoreTask.test.ts
+  s_5f26174735f387::t_35e9dabb1a9959 1-59
+apps/emdash-desktop/src/main/core/tasks/operations/task-lifecycle-utils.test.ts
+  s_5f26174735f387::t_d35eaffe0aa8bc 3,6,20-22,35,88-109
+apps/emdash-desktop/src/main/core/tasks/operations/task-lifecycle-utils.ts
+  s_5f26174735f387::t_94be77644277bb 11-12,14-15,52,81-82,84-88
+apps/emdash-desktop/src/main/core/tasks/provision-task-error.ts
+  s_5f26174735f387::t_9585856b0b6156 1,38-48,63-65,69-81
+apps/emdash-desktop/src/main/core/tasks/session-targets.ts
+  s_5f26174735f387::t_7177ad75ef9273 30-51
+apps/emdash-desktop/src/main/core/tasks/stored-branch.test.ts
+  s_5f26174735f387::t_a6cfd9278d0989 1,7,14
+apps/emdash-desktop/src/main/core/tasks/stored-branch.ts
+  s_5f26174735f387::t_6202520aba8b63 1,9,13-15,33,57
+apps/emdash-desktop/src/main/core/tasks/task-builder.ts
+  s_5f26174735f387::t_da261be522c4ca 1,52,65
+apps/emdash-desktop/src/main/core/tasks/task-service.ts
+  s_5f26174735f387::t_85c08bad905abc 1
+apps/emdash-desktop/src/main/core/tasks/task-session-manager.ts
+  s_5f26174735f387::t_67b82df742e063 1,63,172
+apps/emdash-desktop/src/main/core/telemetry/automation-telemetry.ts
+  s_5f26174735f387::t_75b0617a816cf3 1-87
+apps/emdash-desktop/src/main/core/terminal-shell/resolver.test.ts
+  s_5f26174735f387::t_2b9595d2224ce3 443,454,456-458
+apps/emdash-desktop/src/main/core/terminals/impl/local-terminal-provider.test.ts
+  s_5f26174735f387::t_839b74d99ef174 13-21,41-46,71-74,120-152
+apps/emdash-desktop/src/main/core/terminals/impl/local-terminal-provider.ts
+  s_5f26174735f387::t_85084c8f9372f3 2-3,47,57,66,75,186-217
+apps/emdash-desktop/src/main/core/terminals/impl/ssh-terminal-provider.test.ts
+  s_5f26174735f387::t_bef3d5db705475 14-22,52-57,89-92,146-181
+apps/emdash-desktop/src/main/core/terminals/impl/ssh-terminal-provider.ts
+  s_5f26174735f387::t_d32f3936c483a4 2-3,10-11,48,61,72,83,205,207-238,350,359-361
+apps/emdash-desktop/src/main/core/updates/update-service.ts
+  s_5f26174735f387::t_e5ce0d9e2445b2 1
+apps/emdash-desktop/src/main/core/view-state/view-state-service.ts
+  s_5f26174735f387::t_2b4ff838cc0b77 20,22-26
+apps/emdash-desktop/src/main/core/workspaces/byoi/provision-byoi-task.ts
+  s_5f26174735f387::t_af1d69fcaeaed5 1,4-5,11-14,83-84,89-113,115-116,130,146
+apps/emdash-desktop/src/main/core/workspaces/byoi/provision-output.ts
+  s_5f26174735f387::t_8825a62454380f 1
+apps/emdash-desktop/src/main/core/workspaces/local-workspace-setup-executor.ts
+  s_5f26174735f387::t_5f8cc2067b0778 1,16-19,33-34,39-40,45-49,72-73,75
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/add-worktree.ts
+  s_5f26174735f387::t_70fa8e4f80fd28 1
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/copy-preserved-files.ts
+  s_5f26174735f387::t_938961727597f9 1
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/create-local-branch.ts
+  s_5f26174735f387::t_641c1f55acf685 1
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/ensure-remote.ts
+  s_5f26174735f387::t_b47f7be2a16f0b 1
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/git-fetch.test.ts
+  s_5f26174735f387::t_f1c573e2591056 1-102
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/git-fetch.ts
+  s_5f26174735f387::t_7a99f5e9c1646c 1,5-27,42-49
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/push-branch.ts
+  s_5f26174735f387::t_05f57150737aa7 1
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/set-branch-base.ts
+  s_5f26174735f387::t_4d98efee92ad7d 1
+apps/emdash-desktop/src/main/core/workspaces/setup-steps/set-branch-tracking.ts
+  s_5f26174735f387::t_90c8f90d651a92 1
+apps/emdash-desktop/src/main/core/workspaces/workspace-bootstrap-service.db.test.ts
+  s_5f26174735f387::t_4878b00bfd4378 2,7,119-149,162,165
+apps/emdash-desktop/src/main/core/workspaces/workspace-bootstrap-service.ts
+  s_5f26174735f387::t_e2802306071bf1 1-2,6,83,173,177,267,274,325,346-349,352-353,389,401
+apps/emdash-desktop/src/main/core/workspaces/workspace-current-branch-cache.test.ts
+  s_5f26174735f387::t_4149c63e893048 1-104
+apps/emdash-desktop/src/main/core/workspaces/workspace-current-branch-cache.ts
+  s_5f26174735f387::t_fb21cf1a3602a0 15,18
+apps/emdash-desktop/src/main/core/workspaces/workspace-factory.ts
+  s_5f26174735f387::t_12e3f5424e5ffb 8-11,24-25,27,43-46,49-50,53,105,117,132-136,138-139,141-145,151,154-161,170-178,181,231,233,267,277,323,351
+apps/emdash-desktop/src/main/core/workspaces/workspace-lifecycle-service.ts
+  s_5f26174735f387::t_02e187e6654add 1
+apps/emdash-desktop/src/main/core/workspaces/workspace-registry.test.ts
+  s_5f26174735f387::t_38eae6b4e619c5 18,23-24,77,82,89,102,112,114,164,173,176,201,206,222,230,238,245,253,269,272,276,288,293-320
+apps/emdash-desktop/src/main/core/workspaces/workspace-registry.ts
+  s_5f26174735f387::t_66efd9df7ab921 1,21-22,50,52,57-60,62-64,74,80,94,115,119,122,130,138-144
+apps/emdash-desktop/src/main/core/workspaces/workspace-setup-executor.ts
+  s_5f26174735f387::t_aaa9c10540e1b3 1
+apps/emdash-desktop/src/main/core/workspaces/workspace-worktree-update.test.ts
+  s_5f26174735f387::t_c91b81b3022910 1-4,10-21,24-25,27-28,31-32,35-40,42,44,47-56,58,60-64,66-70,73-77,79-83,85-87,89-93,95-99,101-102,105-112,114-118,120-125,127-135,138-148
+apps/emdash-desktop/src/main/core/workspaces/workspace-worktree-update.ts
+  s_5f26174735f387::t_2e49b2f84b6d32 1-2,4-6,8-10,12-25,27,29-33,35-54
+apps/emdash-desktop/src/main/core/workspaces/workspace.ts
+  s_5f26174735f387::t_a7f8838cf92229 1,3-4,12,15-17
+apps/emdash-desktop/src/main/db/legacy-port/controller.ts
+  s_5f26174735f387::t_df3f4b6833fe1a 14-15,43-44
+apps/emdash-desktop/src/main/db/legacy-port/importers/relational/relational.test.ts
+  s_5f26174735f387::t_0d6684abc58b40 9,71-89,101-103,164-185,216-233,241-242,312-326,350,357,367,372-397,415-462
+apps/emdash-desktop/src/main/db/legacy-port/importers/settings/importer.test.ts
+  s_5f26174735f387::t_e61487e2df9ea3 4,8
+apps/emdash-desktop/src/main/db/legacy-port/legacy-source/path.test.ts
+  s_5f26174735f387::t_6de2c52a6fc8bf 1-26
+apps/emdash-desktop/src/main/db/legacy-port/legacy-source/path.ts
+  s_5f26174735f387::t_9a6715c23191d1 2,5-19,24-35,37-39,46-53,55-57
+apps/emdash-desktop/src/main/db/legacy-port/service.test.ts
+  s_5f26174735f387::t_79921e6e358c65 66-84,95-97,253-278
+apps/emdash-desktop/src/main/db/legacy-port/service.ts
+  s_5f26174735f387::t_115e187a486df0 25-27,32,139,158-159,174,220,226,244
+apps/emdash-desktop/src/main/db/legacy-port/task-workspace-backfill.db.test.ts
+  s_5f26174735f387::t_5f46fec3a577a7 1-215
+apps/emdash-desktop/src/main/db/legacy-port/task-workspace-backfill.ts
+  s_5f26174735f387::t_f512f499df9072 1-209
+apps/emdash-desktop/src/main/lib/lifecycle-map.ts
+  s_5f26174735f387::t_c242ea2758e772 1
+apps/emdash-desktop/src/main/lib/telemetry.ts
+  s_5f26174735f387::t_9096aa49c1c581 2,22-24,149-154,172-174,176
+apps/emdash-desktop/src/main/rpc.ts
+  s_5f26174735f387::t_d73255ca2534f0 13-14,24-25,55,74,76,88
+apps/emdash-desktop/src/main/utils/userEnv.test.ts
+  s_5f26174735f387::t_707faf6a132c4d 6,9,17-27,83-84,98-99,112-119,121-122
+apps/emdash-desktop/src/main/utils/userEnv.ts
+  s_5f26174735f387::t_20b8c8b1339e6c 1,121-127,129,134-141
+apps/emdash-desktop/src/renderer/App.tsx
+  s_5f26174735f387::t_c274e38a7b2172 8,66-68,70,73-78,80-91
+apps/emdash-desktop/src/renderer/app/app-menu-events.tsx
+  s_5f26174735f387::t_5142193297a49e 78-81
+apps/emdash-desktop/src/renderer/app/welcome.tsx
+  s_5f26174735f387::t_0fed01b416cf1c 145
+apps/emdash-desktop/src/renderer/app/workspace.tsx
+  s_5f26174735f387::t_131d13b220ace2 4,22
+apps/emdash-desktop/src/renderer/features/automations/automations-view.tsx
+  s_5f26174735f387::t_87f4514540806b 26
+apps/emdash-desktop/src/renderer/features/automations/components/AutomationSettingsFields.tsx
+  s_5f26174735f387::t_1512da8c39a0f5 82
+apps/emdash-desktop/src/renderer/features/automations/components/AutomationsView.tsx
+  s_5f26174735f387::t_c50e7f8107af55 64-66
+apps/emdash-desktop/src/renderer/features/automations/components/CreateAutomationView.tsx
+  s_5f26174735f387::t_7624b69aa145a8 78
+apps/emdash-desktop/src/renderer/features/automations/useAutomationFormState.ts
+  s_5f26174735f387::t_d0236db0b604a5 1,14,29,89-93,101-105,107-108,134,171,200
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.tsx
+  s_5f26174735f387::t_da566de6071146 3-5,7,22-28,30-31,91,93-105,264
+apps/emdash-desktop/src/renderer/features/browser/browser-tab-entry.ts
+  s_5f26174735f387::t_44065894676e0e 1-26
+apps/emdash-desktop/src/renderer/features/browser/browser-tab-item.tsx
+  s_5f26174735f387::t_50c90cfec8ecbd 3-8,10,22-24,28-39,43-47,50-53
+apps/emdash-desktop/src/renderer/features/browser/browser-tab-provider.tsx
+  s_5f26174735f387::t_1cc2d1c72ce6ce 1-175
+apps/emdash-desktop/src/renderer/features/command-palette/command-palette-modal.tsx
+  s_5f26174735f387::t_9fbf732fe0e46c 93,242-245,252-255,290-291,478-479,483,487
+apps/emdash-desktop/src/renderer/features/command-palette/palette-notifications-group.tsx
+  s_5f26174735f387::t_e0632b373514fd 84-87
+apps/emdash-desktop/src/renderer/features/command-palette/resource-monitor-view.tsx
+  s_5f26174735f387::t_dca6e6341595a2 8,33,63-90,97-109,233-240
+apps/emdash-desktop/src/renderer/features/mcp/components/McpCard.tsx
+  s_5f26174735f387::t_132b5714a83129 19-20,39-40,65-66,74-75,78-82,87
+apps/emdash-desktop/src/renderer/features/mcp/components/McpModal.tsx
+  s_5f26174735f387::t_ab65b33fa6e537 344
+apps/emdash-desktop/src/renderer/features/projects/components/add-project-modal/add-project-modal.tsx
+  s_5f26174735f387::t_4170bd38e21d02 253,257,265,328-333,440
+apps/emdash-desktop/src/renderer/features/projects/components/add-project-modal/content.tsx
+  s_5f26174735f387::t_f50068548c8ba6 21,27,59-66
+apps/emdash-desktop/src/renderer/features/projects/components/main-panel/pending-project.tsx
+  s_5f26174735f387::t_686415a4fd0199 39,46,72-73,79
+apps/emdash-desktop/src/renderer/features/projects/components/pr-view/pr-view.tsx
+  s_5f26174735f387::t_b442a70edee1aa 11,212
+apps/emdash-desktop/src/renderer/features/projects/components/project-titlebar.tsx
+  s_5f26174735f387::t_0330b279c6c915 7,35
+apps/emdash-desktop/src/renderer/features/projects/components/settings-view/project-config-import-modal.tsx
+  s_5f26174735f387::t_4e8e7c258245b9 1
+apps/emdash-desktop/src/renderer/features/projects/components/settings-view/project-settings-form-model.test.ts
+  s_5f26174735f387::t_2ce6df380bff5c 1,14-15
+apps/emdash-desktop/src/renderer/features/projects/components/settings-view/project-settings-form-model.ts
+  s_5f26174735f387::t_5dd27b75ee7de7 1-2,23
+apps/emdash-desktop/src/renderer/features/projects/components/settings-view/project-settings-form.tsx
+  s_5f26174735f387::t_ff717b6f737d07 1-2,4,42,57
+apps/emdash-desktop/src/renderer/features/projects/components/settings-view/sections/base-project-settings-section.tsx
+  s_5f26174735f387::t_05e7a95a1d0f02 1,36,171
+apps/emdash-desktop/src/renderer/features/projects/components/settings-view/share-project-config-modal.tsx
+  s_5f26174735f387::t_72318d4ebff83b 1
+apps/emdash-desktop/src/renderer/features/projects/components/settings-view/use-project-settings-form.ts
+  s_5f26174735f387::t_53d58cf316f5ab 1-2,39
+apps/emdash-desktop/src/renderer/features/projects/components/task-view/task-list-empty-state.tsx
+  s_5f26174735f387::t_e9dcbd61c7699e 4,28
+apps/emdash-desktop/src/renderer/features/projects/components/task-view/task-list.tsx
+  s_5f26174735f387::t_ac3fa31f9774de 122,236
+apps/emdash-desktop/src/renderer/features/projects/components/task-view/task-row.tsx
+  s_5f26174735f387::t_1d6bc95ae27df1 7,59-60
+apps/emdash-desktop/src/renderer/features/projects/stores/git-repository-store.test.ts
+  s_5f26174735f387::t_d35367dff56e15 1-2,4-5,9-10,17-19,28,30,36,42,48-59,62-63,66,68-69,72-73,76-78,82,85-86,91,94,97,99-104,106,110,113,115-120,122,126-127,130,132-137,139,179-190
+apps/emdash-desktop/src/renderer/features/projects/stores/git-repository-store.ts
+  s_5f26174735f387::t_7b6f77c2588c55 2-6,9-17,22,27-32,34-35,40,42-44,46-79,81-83,86,93,98-153,157,160-167,170-179,183,187,191,194,198,202-203,231,238-240,244,247-248,251-257,260-261,264-274
+apps/emdash-desktop/src/renderer/features/projects/stores/project-creation-types.ts
+  s_5f26174735f387::t_03e94681bf9b91 1-3,32-40,43
+apps/emdash-desktop/src/renderer/features/projects/stores/project-manager.test.ts
+  s_5f26174735f387::t_ed9773ebbfc955 1-3,11,17-18,29-32,52-55,83-101,103-106,109,111,121,130-131,158-159,198,221,248,275,282-284,309-377,379-381,396-466,468-470,494-496,533,548-550,596-599,633-636
+apps/emdash-desktop/src/renderer/features/projects/stores/project-manager.ts
+  s_5f26174735f387::t_f3e0103232da15 1,23-24,35-42,47,49,51-60,91-92,134,140-166,171-172,175-177,182-189,191-213,216,224-228,231-235,238,247-252,255-256,259-266,268-275,382-430,528,532,535,540-554,556-583,589,599-614,619
+apps/emdash-desktop/src/renderer/features/projects/stores/project-selectors.ts
+  s_5f26174735f387::t_41ef64c0aa23c5 3,91-93
+apps/emdash-desktop/src/renderer/features/projects/stores/project-settings-store.ts
+  s_5f26174735f387::t_25847d03a13562 1
+apps/emdash-desktop/src/renderer/features/projects/stores/project.ts
+  s_5f26174735f387::t_97cada9872a476 6,29,46-47,49,57,65
+apps/emdash-desktop/src/renderer/features/settings/components/BrowserSettingsCard.tsx
+  s_5f26174735f387::t_9e2f852e17c11f 1,25-26,35,50-51,94-128,181-192,347-411,416-465
+apps/emdash-desktop/src/renderer/features/settings/components/InterfaceSettingsCard.tsx
+  s_5f26174735f387::t_9bcc53c53a1548 23
+apps/emdash-desktop/src/renderer/features/settings/components/SettingsPage.tsx
+  s_5f26174735f387::t_706dae69ad41be 18,57
+apps/emdash-desktop/src/renderer/features/settings/components/TaskSettingsRows.tsx
+  s_5f26174735f387::t_08c6002bcbfacd 57-82
+apps/emdash-desktop/src/renderer/features/settings/components/UpdateCard.tsx
+  s_5f26174735f387::t_393c95ce64105a 44,54-58,133-134,141-142,149-150,157-158
+apps/emdash-desktop/src/renderer/features/settings/components/github-connect-modal.tsx
+  s_5f26174735f387::t_a398106d2223de 72-75,77-80,82-86
+apps/emdash-desktop/src/renderer/features/settings/use-app-settings-key.tsx
+  s_5f26174735f387::t_415eb8b4f9dd65 78
+apps/emdash-desktop/src/renderer/features/sidebar/left-sidebar.tsx
+  s_5f26174735f387::t_5f387ff59e1c97 94,106
+apps/emdash-desktop/src/renderer/features/sidebar/project-item.tsx
+  s_5f26174735f387::t_13ddb8daacca49 16,22,43,74,102-107,171,211
+apps/emdash-desktop/src/renderer/features/sidebar/projects-group-label.tsx
+  s_5f26174735f387::t_8bf21ebc28cabb 89
+apps/emdash-desktop/src/renderer/features/sidebar/sidebar-primitives.tsx
+  s_5f26174735f387::t_fbebdce974dc60 93
+apps/emdash-desktop/src/renderer/features/sidebar/sidebar-search-trigger.tsx
+  s_5f26174735f387::t_a82cdd54f3e408 45
+apps/emdash-desktop/src/renderer/features/sidebar/sidebar-space.tsx
+  s_5f26174735f387::t_dab469f7580c12 27
+apps/emdash-desktop/src/renderer/features/sidebar/sidebar-store.test.ts
+  s_5f26174735f387::t_2f0b8a2b033fbc 23-61,87-114
+apps/emdash-desktop/src/renderer/features/sidebar/sidebar-store.ts
+  s_5f26174735f387::t_a1ef165102696f 116-122
+apps/emdash-desktop/src/renderer/features/sidebar/task-item.tsx
+  s_5f26174735f387::t_24abb7537b31d5 6,81
+apps/emdash-desktop/src/renderer/features/sidebar/use-sidebar-drop.ts
+  s_5f26174735f387::t_00d6e8e523b2f2 57-64
+apps/emdash-desktop/src/renderer/features/tabs/core/tab-provider-registry.ts
+  s_5f26174735f387::t_ad33d020465c81 1-94
+apps/emdash-desktop/src/renderer/features/tabs/core/tab-provider.ts
+  s_5f26174735f387::t_e270692be9e02e 1-255
+apps/emdash-desktop/src/renderer/features/tabs/hooks/useTabShortcuts.ts
+  s_5f26174735f387::t_48c935e8ccb331 3-7,11,18-20,52-58,72-73,89-104,109,113-129
+apps/emdash-desktop/src/renderer/features/tabs/pane-content.tsx
+  s_5f26174735f387::t_dd1b7445be9527 3-4,7-26,28,30-45,47-48,50-51,56-57,61-76
+apps/emdash-desktop/src/renderer/features/tabs/pane-context.tsx
+  s_5f26174735f387::t_4b43a3da9399a7 2-4,6-10,13,16-17,19-20,22,27-29,34-36,38-44,46-48
+apps/emdash-desktop/src/renderer/features/tabs/pane-dimension-provider.tsx
+  s_5f26174735f387::t_9b8ad34c43647e 1-81
+apps/emdash-desktop/src/renderer/features/tabs/pane-layout-context.tsx
+  s_5f26174735f387::t_a37f2e3f1dcd9a 1-27
+apps/emdash-desktop/src/renderer/features/tabs/pane-layout-store.ts
+  s_5f26174735f387::t_0f25be5d2cd6d4 2,4-6,10-12,16-17,19-20,23-24,26-28,31-34,38-43,45,50,52,54-55,61,65-66,72,75-76,79,85-86,89-93,95,99,101,105-106,110,113,116,124-125,127-128,133-134,138-141,143,147-148,150,152,154-155,159,162,164,168,171-172,180,187,190-192,202-203,209-211,213,221,226-229,232,234,242-270,272,277-278,282-286,289-290,300,302,305,309
+apps/emdash-desktop/src/renderer/features/tabs/pane-store.test.ts
+  s_5f26174735f387::t_cf63d6b2920dc4 35-73,76,86,88,93-94,99,123-125,142,144,154-156,165-167,185-187,200
+apps/emdash-desktop/src/renderer/features/tabs/pane-store.ts
+  s_5f26174735f387::t_d533fa88b07974 1,11-13,16-18,20-21,23-25,27,34-35,37-41,44-59,66,68,71-73,83-88,91-94,97-103,122-124,126-128,131-133,136,138,141-144,152-163,172-174,180,183-185,188,191-192,195-202,205-208,210-213,217,220-221,224-226,229-233,237-238,241-242,245-246,249-250,254,257-260,263-270,274-275,277-280,282,285-288,291-293,296-298,301-305,308-319,322-324,327-331,334-350,355-358,366-367,376-382,385-390,396-400,414-423,426-429,433-448,451
+apps/emdash-desktop/src/renderer/features/tabs/persistence.ts
+  s_5f26174735f387::t_29d3af5a333a87 1-28
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar.tsx
+  s_5f26174735f387::t_1757df7f70e03a 3,6-7,9,14,20,24-34,36
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/draggable-tab.tsx
+  s_5f26174735f387::t_1c9f5db0eeadf3 32-33
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/generic-tab-item.tsx
+  s_5f26174735f387::t_824f8bcebcc09d 2-9,12,14-16,18-42,45-105,108-178,180-182,185-196
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/tab-context-menu.tsx
+  s_5f26174735f387::t_c977d85063a1e5 1-88
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/tab-drag-preview.tsx
+  s_5f26174735f387::t_340ce887bf75e0 2,5-8,10-14
+apps/emdash-desktop/src/renderer/features/tabs/tab-bar/tab-title.tsx
+  s_5f26174735f387::t_c507a9b1ec31d2 3,20,28
+apps/emdash-desktop/src/renderer/features/tasks/add-remote-modal.tsx
+  s_5f26174735f387::t_0a36649aa79d0e 6,75,120,131,143,149,152-153,157,169
+apps/emdash-desktop/src/renderer/features/tasks/commands.test.ts
+  s_5f26174735f387::t_1bc7e85705c23b 8,18-21,42,70-72,116-118,123,130-134,186-189,202,208,240,260,288-323
+apps/emdash-desktop/src/renderer/features/tasks/components/agent-status-indicator.tsx
+  s_5f26174735f387::t_668d9267b70aa6 51
+apps/emdash-desktop/src/renderer/features/tasks/components/preview-servers/manual-forward-button.tsx
+  s_5f26174735f387::t_e62af21dcc8b94 1-31
+apps/emdash-desktop/src/renderer/features/tasks/components/preview-servers/manual-forward-dialog.tsx
+  s_5f26174735f387::t_7b64f851ff0ddf 1-125
+apps/emdash-desktop/src/renderer/features/tasks/components/preview-servers/preview-server-format.ts
+  s_5f26174735f387::t_05e3a62cad1694 1-44
+apps/emdash-desktop/src/renderer/features/tasks/components/preview-servers/preview-server-pill.tsx
+  s_5f26174735f387::t_26fba25478abe4 1-9,11-14,20,23-31,33-34,36,38,40-45,48-93,95-126
+apps/emdash-desktop/src/renderer/features/tasks/components/preview-servers/preview-server-pills.tsx
+  s_5f26174735f387::t_7d5be82c1e9d84 1-22
+apps/emdash-desktop/src/renderer/features/tasks/components/task-git-diff-stats.tsx
+  s_5f26174735f387::t_85b5bca49e8fec 2,13,26
+apps/emdash-desktop/src/renderer/features/tasks/conversations/add-context-popover.tsx
+  s_5f26174735f387::t_0a3e3617b61097 16,79-81,96-98,130-132,186-194,196,208,243,248
+apps/emdash-desktop/src/renderer/features/tasks/conversations/context-bar.tsx
+  s_5f26174735f387::t_99c08c23a1ab9a 5,28,31-34,36,58-60,77,92-110,115
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-manager.ts
+  s_5f26174735f387::t_66cd3fbfbd8c78 1,125
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-tab-entry.ts
+  s_5f26174735f387::t_3616dd39f2dba4 1-27
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-tab-item.tsx
+  s_5f26174735f387::t_3a83077010eeaf 2,4-7,9-11,15-17,22-44,51,55-62
+apps/emdash-desktop/src/renderer/features/tasks/conversations/conversation-tab-provider.tsx
+  s_5f26174735f387::t_01ac3b5ce37e78 1-204
+apps/emdash-desktop/src/renderer/features/tasks/conversations/create-conversation-modal.tsx
+  s_5f26174735f387::t_1e9d245628d23f 4,8-9,18-24,26,41,44-55,62-70,84,86,102,117,121-157
+apps/emdash-desktop/src/renderer/features/tasks/conversations/initial-conversation-section.test.ts
+  s_5f26174735f387::t_2fb5ada03212e5 1-130
+apps/emdash-desktop/src/renderer/features/tasks/conversations/initial-conversation-section.tsx
+  s_5f26174735f387::t_f7a3a657121a67 1,6,10-16,20,38-42,46-49,52-54,56,61-62,65-69,72-74,76-80,83-85,94-97,102-110,118,128,135,145,149,182-204,215-231
+apps/emdash-desktop/src/renderer/features/tasks/conversations/pane-selectors.ts
+  s_5f26174735f387::t_37c9b153eb3095 1-28
+apps/emdash-desktop/src/renderer/features/tasks/conversations/sidebar-conversations-list.tsx
+  s_5f26174735f387::t_74b6a500ffc271 26,39,55,78,100,105,167,191
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/build-create-task-params.test.ts
+  s_5f26174735f387::t_0cf5097db5a41e 1,3-4,6-9,11-20,23-36
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/build-create-task-params.ts
+  s_5f26174735f387::t_99f6399965006f 1,11,21-22
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/create-task-modal.tsx
+  s_5f26174735f387::t_4b2d53c8c513cd 6,31,69-70,72-74,79,96,101-106
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-branch-name.ts
+  s_5f26174735f387::t_51b87988e4fc70 2,70
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-branch-selection.ts
+  s_5f26174735f387::t_5bee77a18c6625 1,10,15,39,46,54
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-create-task-callback.ts
+  s_5f26174735f387::t_21d5febb758ed4 41,49
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-create-task-state.ts
+  s_5f26174735f387::t_7dfde04f74d369 1,18
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-project-git-context.ts
+  s_5f26174735f387::t_f01b12c6134d1d 1-45
+apps/emdash-desktop/src/renderer/features/tasks/create-task-modal/use-workspace-config.ts
+  s_5f26174735f387::t_5ec9e7d99e71a7 1,3,118,252
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/changes-panel.tsx
+  s_5f26174735f387::t_3f9df943455d5a 29
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/changes-list-item.tsx
+  s_5f26174735f387::t_8577a9bc32b5b3 1
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/changes-tree-utils.ts
+  s_5f26174735f387::t_3ec5b833031e06 1
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/commit-card.tsx
+  s_5f26174735f387::t_c6300c5fe03534 4-5,16,36,47,51,55-66,69,72,87,90,104,114,117
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/base-branch.test.ts
+  s_5f26174735f387::t_5270390f7753ac 1,10,16,27,32,48,52,69-70,87
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/base-branch.ts
+  s_5f26174735f387::t_1db7b962497c3c 1,5,16-18,37-39,41
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/commits-list.tsx
+  s_5f26174735f387::t_b0ae636db8c737 1,7,16,195,197-200,204-205,214-216,220-221,230-232
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/create-pr-modal.tsx
+  s_5f26174735f387::t_4e3c62655643ef 1,5,29,55,59,108,115
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/files-list.tsx
+  s_5f26174735f387::t_9b5f62ff6964a0 1,4,10,29,31-35,39-40,50-52,56-57,67-69
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/pr-entry.tsx
+  s_5f26174735f387::t_ddb7c897b414f6 1,3,15,58-79,131,133,143-160
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/target-remote.test.ts
+  s_5f26174735f387::t_808bac5bc7dc10 1,5
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/target-remote.ts
+  s_5f26174735f387::t_10c3d54c326aba 1,5,10
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/use-commit-files.ts
+  s_5f26174735f387::t_693a3c52704250 1,17-21
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/pr-entry/use-pr-commits.ts
+  s_5f26174735f387::t_c37c16e1bfb350 3,19
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/virtualized-changes-list.tsx
+  s_5f26174735f387::t_f9190cdf7de38a 1
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/components/virtualized-changes-tree.tsx
+  s_5f26174735f387::t_f457684fae9067 1
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/git-status-section.tsx
+  s_5f26174735f387::t_1ea20aa40a2bc1 5,8-11,22,27
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/hooks/use-prefetch-diff-models.ts
+  s_5f26174735f387::t_b7e046ccf87b2f 6
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/pr-section.tsx
+  s_5f26174735f387::t_4969c378366337 13,37-38
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/staged-section.tsx
+  s_5f26174735f387::t_2dd3d6ddc5f5ff 1,4-5,14-16,30,37-38,47-48,54-56,60-61,67-69,74-80,84-88
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/changes-panel/unstaged-section.tsx
+  s_5f26174735f387::t_97275816cfff7c 1,4-5,15-17,31,39-40,51-52,58-60,64-65,71-73,85-90,101-106,112-118,122-126
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/diff-tab-item.tsx
+  s_5f26174735f387::t_0cb403e885a6f6 2-7,9-10,12,27-29,34-56,58,62-66,70-77
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/diff-tab-provider.tsx
+  s_5f26174735f387::t_22bd345934b4ed 1-22,24-45,48,52-53,55-80,82-91,93,95-111,113-131,133-135,137-181,183-184
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/diff-file-renderer.tsx
+  s_5f26174735f387::t_f48dfcf45fe7a6 1,8,19-20
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/diff-toolbar.tsx
+  s_5f26174735f387::t_9bc96fe2c39563 3
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/diff-view.tsx
+  s_5f26174735f387::t_bfa3ca02aa5177 2
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/image-diff-view.tsx
+  s_5f26174735f387::t_3ae8275f8455d0 1,13-14,78,123,234,239-240,242
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/main-panel/stacked-diff-view.tsx
+  s_5f26174735f387::t_d9b0f145805e43 24,34
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/pane-selectors.ts
+  s_5f26174735f387::t_d45b47ef33d538 1-12
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/changes-view-store.test.ts
+  s_5f26174735f387::t_456b86cd2c560b 1,5,8,51,53,115-154
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/changes-view-store.ts
+  s_5f26174735f387::t_c76fca4ee3bd98 3,22,35-36,56,58-59,77-78,130,138,157,163-166,181,187-190
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/diff-selectors.ts
+  s_5f26174735f387::t_26b1e2c1581fc5 1,12
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store.ts
+  s_5f26174735f387::t_ca2ef4c2805199 2-4,7,24-25,32,59-62,71-73,82-83,85
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/diff-tab-store.ts
+  s_5f26174735f387::t_3a9260c16850c9 1,6-10
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/diff-view-store.ts
+  s_5f26174735f387::t_da0f72f231ffaa 1,6,8,44,47,97-102,170,181-183,205,207
+apps/emdash-desktop/src/renderer/features/tasks/diff-view/stores/stacked-diff-panel-store.ts
+  s_5f26174735f387::t_2da453ac259bf4 1,8-9,11,117,201
+apps/emdash-desktop/src/renderer/features/tasks/editor/editor-file-tree.tsx
+  s_5f26174735f387::t_bfdf7e013246f0 37,146-147,175,182,192
+apps/emdash-desktop/src/renderer/features/tasks/editor/editor-provider.tsx
+  s_5f26174735f387::t_5c11e5852102cc 5,11,19-23,28,46,48-49,74,79-80,83,100,110,144,155,165,177,187-193,240,247,262
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-content-preview.tsx
+  s_5f26174735f387::t_cf1a19310e4dfb 1-10,13-22,24-26,28,30-42,44,48,50-54
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-content-renderer.tsx
+  s_5f26174735f387::t_0d9f9429c2b7a1 2,4-8,11-13,15-16,18-24,29
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-content-toolbar.tsx
+  s_5f26174735f387::t_c56cb27b2f2d0c 1,3,5-7,10-14,16-37,39
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-content-types.tsx
+  s_5f26174735f387::t_e09c1acd83ff75 1-12,14,21,23-27,30-57,59-74
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-tab-item.tsx
+  s_5f26174735f387::t_8cd7e579b0cfcc 3-7,11,27-29,43,46-70,74,77-84
+apps/emdash-desktop/src/renderer/features/tasks/editor/file-tab-provider.tsx
+  s_5f26174735f387::t_152838307a3745 1-222
+apps/emdash-desktop/src/renderer/features/tasks/editor/pane-selectors.ts
+  s_5f26174735f387::t_500fac95843eda 1-40
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/file-model-lifecycle-store.ts
+  s_5f26174735f387::t_812ecc3bdce1d6 2-3,10,12,20,22,39,42-43,59,83,208-209,215,228-229,240-242
+apps/emdash-desktop/src/renderer/features/tasks/editor/stores/file-tab-store.ts
+  s_5f26174735f387::t_437539787a0cdd 2,5-10,13,22-25,41-42,53-54,60-61,72-77,101-102
+apps/emdash-desktop/src/renderer/features/tasks/git-action-handlers.ts
+  s_5f26174735f387::t_0f0c68060c1760 1-64
+apps/emdash-desktop/src/renderer/features/tasks/hooks/useTaskSettings.ts
+  s_5f26174735f387::t_ab8fb3eb9074bd 5,15,22,28,47,56,62
+apps/emdash-desktop/src/renderer/features/tasks/pane-empty-state.tsx
+  s_5f26174735f387::t_3dc6da21aa6a2b 3,14,23-24,75,87
+apps/emdash-desktop/src/renderer/features/tasks/stores/conversation-hydration-reconciler.ts
+  s_5f26174735f387::t_c0368cb94fcaee 1
+apps/emdash-desktop/src/renderer/features/tasks/stores/git-status-optimistic-updates.test.ts
+  s_5f26174735f387::t_fc106961460c78 1-202
+apps/emdash-desktop/src/renderer/features/tasks/stores/git-status-optimistic-updates.ts
+  s_5f26174735f387::t_02877e914d9cf9 1-100
+apps/emdash-desktop/src/renderer/features/tasks/stores/git-worktree-store.test.ts
+  s_5f26174735f387::t_8864275c059f41 1-2,4-5,8,15-16,19-21,28-34,36,38-40,44-57,60,72-73,76-77,82,88,91-92,95-96,99,101-103,105,108-109,117-118,121,123-127,130-131,139-140,143,145-149,152-153,157,161-187,190-194,196-197,200-201,204,206-214
+apps/emdash-desktop/src/renderer/features/tasks/stores/git-worktree-store.ts
+  s_5f26174735f387::t_03d177a5d66dd6 1-9,11-29,33-39,44,46-79,81-91,93-97,99-101,103-104,119-121,125-154,156-158,160-161,164,182-183,187-188,192-194,198-202,206,210,214-220,224-226,230,234-236,241,246,251,254-260,263-269,272-278,281-287,290-296,299-305,309-315,319-322,326-328,331-332
+apps/emdash-desktop/src/renderer/features/tasks/stores/open-file-in-file-editor.ts
+  s_5f26174735f387::t_a5ae6f4bef8443 28,40-44
+apps/emdash-desktop/src/renderer/features/tasks/stores/pr-store.ts
+  s_5f26174735f387::t_f9842e5eb2cb61 1,3,7-8,37,70-71,73-74,78,177,199,202
+apps/emdash-desktop/src/renderer/features/tasks/stores/preview-server-store.test.ts
+  s_5f26174735f387::t_566182aff989a2 1-207
+apps/emdash-desktop/src/renderer/features/tasks/stores/preview-server-store.ts
+  s_5f26174735f387::t_a5389797607f02 1-3,5-43,47,50-59,65,67-73,75-76,80-114,118-125,128-134
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-manager.test.ts
+  s_5f26174735f387::t_7bc01f68cf8181 25,65,150,179
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-manager.ts
+  s_5f26174735f387::t_0eb5b0416f6ae3 3-4,10,15,49-56,58,60,62,64,66,68-86,90-104,108-113,118,127,138-139,219,244-245,356,490,520,673-674
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-selectors.ts
+  s_5f26174735f387::t_b54b5aeea8ed47 56,59
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-store.test.ts
+  s_5f26174735f387::t_f8c9e59bdcd561 104,129
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-store.ts
+  s_5f26174735f387::t_b33509b75a2c34 1,3,104,109
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-tab-context.ts
+  s_5f26174735f387::t_5815a6fdfcb3f0 1-17,19-21
+apps/emdash-desktop/src/renderer/features/tasks/stores/task-tab-view-persistor.ts
+  s_5f26174735f387::t_4ddc1a3ec2c55d 1-91
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-registry.ts
+  s_5f26174735f387::t_bb0323ad539a41 2,32,42
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.test.ts
+  s_5f26174735f387::t_417f49dd8ebb01 3-4,17-38,50-56,60,152-155,215-217,240-242,391-394,398-399,406,408,438,445,451-453,461-464,468,474,489,515-518,524-527,536,599-600,607,629-630,654,659,687,700,711-800
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace-view-model.tsx
+  s_5f26174735f387::t_6f9d974d963b38 1,5,7,21,26,40,45-47,49-50,59,95-97,99-102,104,107,139-140,143-146,156,183,186,188-190,221-223,248-253,257,262,268-269,276,336-337,344,359,369,371,382,454-465,471-478
+apps/emdash-desktop/src/renderer/features/tasks/stores/workspace.ts
+  s_5f26174735f387::t_3d5b2d4faadca2 1,3,7,12,14,22,28-29,46,55
+apps/emdash-desktop/src/renderer/features/tasks/tab-bar-actions.tsx
+  s_5f26174735f387::t_5ad496189c59d7 5-9,22-23,27,33,52-53,61,78,86,97
+apps/emdash-desktop/src/renderer/features/tasks/task-config/conversation-field.tsx
+  s_5f26174735f387::t_92b36f9be3e3d9 8,15,27
+apps/emdash-desktop/src/renderer/features/tasks/task-tab-registry.tsx
+  s_5f26174735f387::t_ea555b335a5411 1-112
+apps/emdash-desktop/src/renderer/features/tasks/task-titlebar.tsx
+  s_5f26174735f387::t_1d3d8f711e2146 49,124-125,171,281,314,337,384,396,408
+apps/emdash-desktop/src/renderer/features/tasks/task-view-context.tsx
+  s_5f26174735f387::t_ce21fb04027572 5,76-77,79-81
+apps/emdash-desktop/src/renderer/features/tasks/terminals/terminal-drawer-sidebar.tsx
+  s_5f26174735f387::t_c65642bec8d3d0 85
+apps/emdash-desktop/src/renderer/features/tasks/terminals/terminal-manager.ts
+  s_5f26174735f387::t_8db08910e9586a 1
+apps/emdash-desktop/src/renderer/features/tasks/terminals/terminal-panel.tsx
+  s_5f26174735f387::t_3310f1aaab00f2 4,123
+apps/emdash-desktop/src/renderer/features/tasks/terminals/terminal-pty-content.tsx
+  s_5f26174735f387::t_d9aefd895b0f28 3-7,86,102-139
+apps/emdash-desktop/src/renderer/features/tasks/use-git-actions.ts
+  s_5f26174735f387::t_215846dbad53db 2-7,10-12,17,21,25,29
+apps/emdash-desktop/src/renderer/features/tasks/utils.test.ts
+  s_5f26174735f387::t_9df33fb7756570 48,73
+apps/emdash-desktop/src/renderer/features/tasks/utils.ts
+  s_5f26174735f387::t_09cc63f4a28db6 1-2,13-18,49-52,54-68
+apps/emdash-desktop/src/renderer/features/tasks/view/task-main-column.tsx
+  s_5f26174735f387::t_6f00a7b45bfc0b 12-16,19-22,62-95,99,105-136
+apps/emdash-desktop/src/renderer/lib/CronPicker/CronPicker.tsx
+  s_5f26174735f387::t_1ef6e96b973509 1,38-55,94-202,231-232,255-259,321,325
+apps/emdash-desktop/src/renderer/lib/CronPicker/cron-utils.ts
+  s_5f26174735f387::t_194d72d8d63cf0 29-34
+apps/emdash-desktop/src/renderer/lib/commit-history-invalidation.ts
+  s_5f26174735f387::t_6663e9f4651622 3,6-7
+apps/emdash-desktop/src/renderer/lib/components/agent-selector/agent-info-card.tsx
+  s_5f26174735f387::t_51133cb0e8a006 4,9,16,31-36,39-44,70-85
+apps/emdash-desktop/src/renderer/lib/components/agent-selector/agent-install.ts
+  s_5f26174735f387::t_647f6c04a1e933 1,13-23,56-63
+apps/emdash-desktop/src/renderer/lib/components/branch-selector-utils.test.ts
+  s_5f26174735f387::t_f17d94c583e289 1,8,44,58,70
+apps/emdash-desktop/src/renderer/lib/components/branch-selector-utils.ts
+  s_5f26174735f387::t_58e6df88e7a853 1,6,14,17,26,29,44
+apps/emdash-desktop/src/renderer/lib/components/branch-selector.tsx
+  s_5f26174735f387::t_08794ca29b0e0a 1,32-34,40
+apps/emdash-desktop/src/renderer/lib/components/browser-app-shortcut-events.tsx
+  s_5f26174735f387::t_605d2a89d2c185 1-102
+apps/emdash-desktop/src/renderer/lib/components/card-grid.tsx
+  s_5f26174735f387::t_fe9119d2e18251 7-13
+apps/emdash-desktop/src/renderer/lib/components/monaco-keyboard-bridge.tsx
+  s_5f26174735f387::t_77bf1cb938023c 1-9,27-44,51-54,63
+apps/emdash-desktop/src/renderer/lib/components/nav-buttons.tsx
+  s_5f26174735f387::t_cd21f170c11aeb 18,40,57
+apps/emdash-desktop/src/renderer/lib/components/page-header.tsx
+  s_5f26174735f387::t_1d4fdbb383738e 16,20,29-31
+apps/emdash-desktop/src/renderer/lib/components/page-layout.tsx
+  s_5f26174735f387::t_0817016842b3e2 21-22
+apps/emdash-desktop/src/renderer/lib/components/project-branch-selector.tsx
+  s_5f26174735f387::t_ccbd1c0824b153 1,4,9-10,28,35
+apps/emdash-desktop/src/renderer/lib/components/remote-select-content.tsx
+  s_5f26174735f387::t_ee75cd3d872713 1,5,28
+apps/emdash-desktop/src/renderer/lib/components/titlebar/Titlebar.tsx
+  s_5f26174735f387::t_ed738808d79793 1,10-14,21-26,29,48,61
+apps/emdash-desktop/src/renderer/lib/components/titlebar/open-in-menu.tsx
+  s_5f26174735f387::t_2462761145aec4 160
+apps/emdash-desktop/src/renderer/lib/components/titlebar/window-controls.tsx
+  s_5f26174735f387::t_757854acf2c99f 1-81
+apps/emdash-desktop/src/renderer/lib/editor/csv-parser.test.ts
+  s_5f26174735f387::t_6e80d3d77ef61e 1-28
+apps/emdash-desktop/src/renderer/lib/editor/csv-parser.ts
+  s_5f26174735f387::t_88ab065fcada04 1-60
+apps/emdash-desktop/src/renderer/lib/editor/csv-renderer.tsx
+  s_5f26174735f387::t_2e1d8f331bba8d 2-7,10-11,14-21,23-31,35-82,84-86,90,92-94
+apps/emdash-desktop/src/renderer/lib/editor/fileKind.test.ts
+  s_5f26174735f387::t_42342d79d64ada 1-11
+apps/emdash-desktop/src/renderer/lib/editor/fileKind.ts
+  s_5f26174735f387::t_ed50b9b29afdba 63,72-77
+apps/emdash-desktop/src/renderer/lib/editor/html-renderer.tsx
+  s_5f26174735f387::t_a760de32688b6d 3,36-39,43-44,95,100,103
+apps/emdash-desktop/src/renderer/lib/editor/markdown-renderer.tsx
+  s_5f26174735f387::t_c193fb9c2654af 3,17,22,25,29-31,33-34,36-37,50,56,65
+apps/emdash-desktop/src/renderer/lib/editor/svg-renderer.tsx
+  s_5f26174735f387::t_cc4e6e539b49d9 13-14,17,31
+apps/emdash-desktop/src/renderer/lib/editor/types.ts
+  s_5f26174735f387::t_da833b3019f335 4
+apps/emdash-desktop/src/renderer/lib/external-url.ts
+  s_5f26174735f387::t_9b7b5fc8b57f33 1,4
+apps/emdash-desktop/src/renderer/lib/hooks/useAccount.ts
+  s_5f26174735f387::t_23f1820886cd7d 44-46
+apps/emdash-desktop/src/renderer/lib/hotkeys/dispatch-matching-hotkeys.ts
+  s_5f26174735f387::t_c7e02ff921d6e6 1-46
+apps/emdash-desktop/src/renderer/lib/monaco/invalidation-bridges.ts
+  s_5f26174735f387::t_e17effecc8bc6d 4-5,51-52,58-62
+apps/emdash-desktop/src/renderer/lib/monaco/model-status-overlay.tsx
+  s_5f26174735f387::t_5a202f82afa392 1-20
+apps/emdash-desktop/src/renderer/lib/monaco/monaco-bootstrap.ts
+  s_5f26174735f387::t_543b78dc20a3e8 1,3,7-42,44-46
+apps/emdash-desktop/src/renderer/lib/monaco/monaco-model-registry.test.ts
+  s_5f26174735f387::t_f479d428457282 2,13,23-28
+apps/emdash-desktop/src/renderer/lib/monaco/monaco-model-registry.ts
+  s_5f26174735f387::t_bb14953acbb40c 4-5,84-91,97-99,112,357-361,364,570-575,615-657,826,831
+apps/emdash-desktop/src/renderer/lib/monaco/sticky-diff-editor.tsx
+  s_5f26174735f387::t_f3c0b44ecfc155 5,46,48,95,115,139-140,143-149
+apps/emdash-desktop/src/renderer/lib/open-external-link.tsx
+  s_5f26174735f387::t_e1d7d3bf990e41 23
+apps/emdash-desktop/src/renderer/lib/pty/file-link-provider.ts
+  s_5f26174735f387::t_b65987e5f6cf00 8,91,144-147
+apps/emdash-desktop/src/renderer/lib/pty/pane-sizing-context.tsx
+  s_5f26174735f387::t_465ce81eda8b77 2,4-6,9-12,20,31-34,37-47,49,51
+apps/emdash-desktop/src/renderer/lib/pty/pty-dimensions.ts
+  s_5f26174735f387::t_b30c457c6a22fa 6
+apps/emdash-desktop/src/renderer/lib/pty/pty.ts
+  s_5f26174735f387::t_8ea58089270117 8,98,111
+apps/emdash-desktop/src/renderer/lib/pty/resize-scheduler.ts
+  s_5f26174735f387::t_93970a8a80702c 1-65
+apps/emdash-desktop/src/renderer/lib/pty/terminal-context-link.ts
+  s_5f26174735f387::t_3a3729fe05487d 1-125
+apps/emdash-desktop/src/renderer/lib/pty/use-pty-pane-resize.ts
+  s_5f26174735f387::t_b0517439770f9d 1-88
+apps/emdash-desktop/src/renderer/lib/pty/use-pty.ts
+  s_5f26174735f387::t_d507f55a1fabfe 2-4,11-12,26-27,29,39-41,50-55,96,133,142,153-156,172,176-188,193-197,199,434-440,574-628,678-682,684-703,708,710,737-738
+apps/emdash-desktop/src/renderer/lib/pty/xterm-cell-metrics.ts
+  s_5f26174735f387::t_c93de56bd940fb 1-30
+apps/emdash-desktop/src/renderer/lib/stores/live/bind-mirror.test.ts
+  s_5f26174735f387::t_92c2ab40382001 1-233
+apps/emdash-desktop/src/renderer/lib/stores/live/bind-mirror.ts
+  s_5f26174735f387::t_3d1c2e50056c3f 1-174
+apps/emdash-desktop/src/renderer/lib/stores/live/coalesce.test.ts
+  s_5f26174735f387::t_a608c791dc4f10 1-42
+apps/emdash-desktop/src/renderer/lib/stores/live/coalesce.ts
+  s_5f26174735f387::t_c723cbf7c1e03e 1-15
+apps/emdash-desktop/src/renderer/lib/stores/live/collection-mirror.test.ts
+  s_5f26174735f387::t_cb657e3efa9974 1-204
+apps/emdash-desktop/src/renderer/lib/stores/live/collection-mirror.ts
+  s_5f26174735f387::t_c13eb3dcb13aff 1-167
+apps/emdash-desktop/src/renderer/lib/stores/live/index.ts
+  s_5f26174735f387::t_c97b5d5f0a4883 1-11
+apps/emdash-desktop/src/renderer/lib/stores/live/mirror-version.ts
+  s_5f26174735f387::t_3116d775743008 1,3-7,10-13,16-21,25-27,29-33,35-37,39-41,44-60,63-65,68,71-76,79-85,89-94
+apps/emdash-desktop/src/renderer/lib/stores/live/model-mirror.test.ts
+  s_5f26174735f387::t_c1207a7c3d525d 1-82
+apps/emdash-desktop/src/renderer/lib/stores/live/model-mirror.ts
+  s_5f26174735f387::t_be6013c5077da4 1-56
+apps/emdash-desktop/src/renderer/lib/stores/live/optimistic-model.test.ts
+  s_5f26174735f387::t_c8e5a9a272d08b 1-83
+apps/emdash-desktop/src/renderer/lib/stores/live/optimistic-model.ts
+  s_5f26174735f387::t_5a188905cf8db1 1-101
+apps/emdash-desktop/src/renderer/lib/stores/resource-monitor-store.test.ts
+  s_5f26174735f387::t_58a92f5079a5fe 37-41,66-146,158
+apps/emdash-desktop/src/renderer/lib/stores/resource-monitor-store.ts
+  s_5f26174735f387::t_aca4f7168e233a 8,13,19,63-67,72,75,81,83-86,89-94,103-105,114,120-121,125-128
+apps/emdash-desktop/src/renderer/lib/stores/ssh-connection-store.test.ts
+  s_5f26174735f387::t_a9ccca0d78678f 97-114
+apps/emdash-desktop/src/renderer/lib/stores/ssh-connection-store.ts
+  s_5f26174735f387::t_b6869d2c386914 152,154-158
+apps/emdash-desktop/src/renderer/lib/stores/tab-utils.test.ts
+  s_5f26174735f387::t_706a9e1c229ee8 2,4-8,11,13,16-22,24
+apps/emdash-desktop/src/renderer/lib/stores/tab-utils.ts
+  s_5f26174735f387::t_cacf82ac1ceb6d 32-35,39-43
+apps/emdash-desktop/src/renderer/lib/stores/use-agent-installation-statuses.ts
+  s_5f26174735f387::t_83ca848f25e961 63-66
+apps/emdash-desktop/src/renderer/lib/stores/view-state-cache.ts
+  s_5f26174735f387::t_abec9d63eca5c5 35-39
+apps/emdash-desktop/src/renderer/lib/theme/theme-toggle.ts
+  s_5f26174735f387::t_e326f7493ae212 1
+apps/emdash-desktop/src/renderer/lib/ui/action-list-item.tsx
+  s_5f26174735f387::t_83dd5f017ee696 2,27,54
+apps/emdash-desktop/src/renderer/lib/ui/button.tsx
+  s_5f26174735f387::t_74e39be0e7e4d4 54
+apps/emdash-desktop/src/renderer/lib/ui/confirm-button.tsx
+  s_5f26174735f387::t_2376b93864f727 28
+apps/emdash-desktop/src/renderer/lib/ui/mermaid-diagram-preview.tsx
+  s_5f26174735f387::t_a594f562169be5 2,14-25,27,36-37,48-50,52,55-56
+apps/emdash-desktop/src/renderer/lib/ui/panel-tabs.tsx
+  s_5f26174735f387::t_1ae405fde9d99a 28
+apps/emdash-desktop/src/renderer/lib/ui/shortcut.tsx
+  s_5f26174735f387::t_985d68f2f88884 21-33,62,68
+apps/emdash-desktop/src/renderer/main.tsx
+  s_5f26174735f387::t_a48c54db5d43fb 13,37-39
+apps/emdash-desktop/src/renderer/tests/browser/terminal-dimensions.test.ts
+  s_5f26174735f387::t_e993303cdb0dda 112-113,144
+apps/emdash-desktop/src/renderer/tests/changes-list-item.test.ts
+  s_5f26174735f387::t_feaeae995e1f54 1
+apps/emdash-desktop/src/renderer/tests/file-link-provider.test.ts
+  s_5f26174735f387::t_4f884188b50539 8,140-145,184-195,198-209
+apps/emdash-desktop/src/renderer/tests/mermaid-diagram-preview.test.ts
+  s_5f26174735f387::t_223197a0c2e8e0 1-135
+apps/emdash-desktop/src/renderer/tests/terminal-context-link.test.ts
+  s_5f26174735f387::t_712c0bd3b96af7 1-81
+apps/emdash-desktop/src/renderer/tests/use-branch-selection.test.ts
+  s_5f26174735f387::t_45967c41d166e2 1,11,19,25
+apps/emdash-desktop/src/renderer/utils/mcp-icon-data.ts
+  s_5f26174735f387::t_6854d38cfca7d6 18-56,58-63
+apps/emdash-desktop/src/renderer/utils/mcpIcons.tsx
+  s_5f26174735f387::t_338d08739b49d7 2,6-33,43-45,47-57,60-62,64-76,78-81,83,85-104,107-108
+apps/emdash-desktop/src/renderer/utils/soundPlayer.ts
+  s_5f26174735f387::t_044ea40690f8bd 19,22-30,180,184-191
+apps/emdash-desktop/src/shared/browser.test.ts
+  s_5f26174735f387::t_9163c6e27c6292 6,93-107
+apps/emdash-desktop/src/shared/browser.ts
+  s_5f26174735f387::t_ba4fd94d4df4fb 74-82
+apps/emdash-desktop/src/shared/commands.ts
+  s_5f26174735f387::t_ef3f513f8627ad 288,297
+apps/emdash-desktop/src/shared/core/agents/agent-auto-approve.test.ts
+  s_5f26174735f387::t_8fe719dbd62deb 1-18
+apps/emdash-desktop/src/shared/core/agents/agent-payload.ts
+  s_5f26174735f387::t_f727ea9c12b513 4,31,37,95,115,161-174,177,188
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.test.ts
+  s_5f26174735f387::t_0c253b6940a37e 1-26
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_5f26174735f387::t_f4ee1404532ae8 82-83,158,285,292-294,307,313-315,320,393,431-432,436,475,592,703
+apps/emdash-desktop/src/shared/core/automations/config.ts
+  s_5f26174735f387::t_108a959920d099 22-23
+apps/emdash-desktop/src/shared/core/conversations/conversation-config.test.ts
+  s_5f26174735f387::t_4ca099375de7b2 30-40
+apps/emdash-desktop/src/shared/core/conversations/conversation-config.ts
+  s_5f26174735f387::t_ae1a69332f8f6d 16-17
+apps/emdash-desktop/src/shared/core/conversations/conversationEvents.ts
+  s_5f26174735f387::t_f8a88e6525c706 22
+apps/emdash-desktop/src/shared/core/conversations/conversations.ts
+  s_5f26174735f387::t_773e0a68ae39b4 17-18,36-37
+apps/emdash-desktop/src/shared/core/git/events.ts
+  s_5f26174735f387::t_c7ffd6fe9d48f6 1,4,6,9,11,14,17
+apps/emdash-desktop/src/shared/core/git/rpc.ts
+  s_5f26174735f387::t_787942a8eec520 2-37
+apps/emdash-desktop/src/shared/core/git/types.ts
+  s_5f26174735f387::t_cc4e81093e81f2 1,9,38,40-42,47
+apps/emdash-desktop/src/shared/core/git/utils.test.ts
+  s_5f26174735f387::t_64741a8678c726 1,3,6,9-10,14,16,24-75,78,135
+apps/emdash-desktop/src/shared/core/git/utils.ts
+  s_5f26174735f387::t_399d094abc38f2 1,3,5-65,69-70,82,101-102,112,115,122,132,142-143,163-165,188
+apps/emdash-desktop/src/shared/core/mcp/catalog.ts
+  s_5f26174735f387::t_7e3e6cc5eb1f54 47,57,68,78,113,117-118,134,144,149,204,228-231,236-237,279,299,320,360,370,376,478-480,484-568
+apps/emdash-desktop/src/shared/core/mcp/types.ts
+  s_5f26174735f387::t_3af09cdb42ee1c 13-16
+apps/emdash-desktop/src/shared/core/preview-servers/events.ts
+  s_5f26174735f387::t_db5c983c486a87 2,4
+apps/emdash-desktop/src/shared/core/preview-servers/types.ts
+  s_5f26174735f387::t_f035273b9fc774 1-71
+apps/emdash-desktop/src/shared/core/pull-requests/pull-requests.ts
+  s_5f26174735f387::t_fd128bbd6e8f9b 1-2,197-237
+apps/emdash-desktop/src/shared/core/ssh/ssh-connection-metadata.ts
+  s_5f26174735f387::t_8cc8998b44903f 1
+apps/emdash-desktop/src/shared/core/tasks/task-config.ts
+  s_5f26174735f387::t_087652e3cb8938 17
+apps/emdash-desktop/src/shared/core/tasks/tasks.ts
+  s_5f26174735f387::t_caaad285975525 4,6-8,25,134
+apps/emdash-desktop/src/shared/core/terminals/terminals.ts
+  s_5f26174735f387::t_855c02f92b06e5 21-23,25
+apps/emdash-desktop/src/shared/core/workspaces/build-workspace-config-from-preset.test.ts
+  s_5f26174735f387::t_aa81258b15c2fc 1,9,67
+apps/emdash-desktop/src/shared/core/workspaces/workspace-presets.ts
+  s_5f26174735f387::t_114a3cc7243947 1,81,106
+apps/emdash-desktop/src/shared/events/appEvents.ts
+  s_5f26174735f387::t_99c382a2e41d54 3,10-16,26-30,35-44
+apps/emdash-desktop/src/shared/issue-providers.ts
+  s_5f26174735f387::t_53f4a4071a36ab 28-29,38-39
+apps/emdash-desktop/src/shared/lib/ipc/rpc.test.ts
+  s_5f26174735f387::t_da6415a6537673 14,24,28-31,37,42-43,77,79,86,88,104,128-129,138-139,147,155,176,180,188,194,210-211
+apps/emdash-desktop/src/shared/lib/ipc/rpc.ts
+  s_5f26174735f387::t_5836870542e225 26,46-47
+apps/emdash-desktop/src/shared/openInApps.test.ts
+  s_5f26174735f387::t_764c926b6bcc4d 48-69
+apps/emdash-desktop/src/shared/openInApps.ts
+  s_5f26174735f387::t_fcb3bd01c700bc 57,384-410
+apps/emdash-desktop/src/shared/projects.ts
+  s_5f26174735f387::t_db5ae634235be8 1-2,6,55-63
+apps/emdash-desktop/src/shared/provider-repository.ts
+  s_5f26174735f387::t_32ddd8da9d49da 1
+apps/emdash-desktop/src/shared/repository-ref.ts
+  s_5f26174735f387::t_05e8f996f18557 1
+apps/emdash-desktop/src/shared/shortcuts.test.ts
+  s_5f26174735f387::t_00f928dfd81331 1-76
+apps/emdash-desktop/src/shared/shortcuts.ts
+  s_5f26174735f387::t_f6c84a7b8bea3e 16-85,192-205,213-226,240
+apps/emdash-desktop/src/shared/telemetry.ts
+  s_5f26174735f387::t_4bf42e9cf89c05 2-5,29,66-82
+apps/emdash-desktop/src/shared/terminal-url.test.ts
+  s_5f26174735f387::t_672e38199b40d2 1-17
+apps/emdash-desktop/src/shared/terminal-url.ts
+  s_5f26174735f387::t_39b0de0073fd72 1-56
+apps/emdash-desktop/src/shared/view-state.ts
+  s_5f26174735f387::t_d1f6bbadaf11ef 1
+apps/emdash-desktop/tooling/seeds/baseline.ts
+  s_5f26174735f387::t_eb66bfd1e43ca0 1,6
+nx.json
+  s_5f26174735f387::t_97e22d363112ee 1-65
+package.json
+  s_5f26174735f387::t_8ab069553074b3 6-14,28,36-38
+packages/chat-ui/.oxlintrc.json
+  s_5f26174735f387::t_27afc564be0c7d 1-6
+packages/chat-ui/.storybook/main.ts
+  s_5f26174735f387::t_d50b1377939221 1-52
+packages/chat-ui/.storybook/preview.css
+  s_5f26174735f387::t_4a37b647b672c3 1-34
+packages/chat-ui/.storybook/vite-env.d.ts
+  s_5f26174735f387::t_d4776eff217286 1
+packages/chat-ui/API.md
+  s_5f26174735f387::t_3df4cdaeefa707 1-444
+packages/chat-ui/ARCHITECTURE.md
+  s_5f26174735f387::t_329a7348f66356 1-746
+packages/chat-ui/package.json
+  s_5f26174735f387::t_f54671d5448dec 1-79
+packages/chat-ui/src/ChatRoot.tsx
+  s_5f26174735f387::t_8c65d8314eb609 1-1125
+packages/chat-ui/src/chat-fonts.css
+  s_5f26174735f387::t_ccdc58f8914fe0 1-8
+packages/chat-ui/src/chat-root.css.ts
+  s_5f26174735f387::t_1c18b69c56a921 1-69
+packages/chat-ui/src/components/contexts/CachesContext.ts
+  s_5f26174735f387::t_36889323026bfa 1-40
+packages/chat-ui/src/components/contexts/CommandsContext.ts
+  s_5f26174735f387::t_91438bfd386233 1-20
+packages/chat-ui/src/components/contexts/StreamContext.ts
+  s_5f26174735f387::t_040c3192b53b0f 1-26
+packages/chat-ui/src/components/contexts/ThemeContext.ts
+  s_5f26174735f387::t_f66d46ba1380f3 1-21
+packages/chat-ui/src/components/contexts/TurnStateContext.ts
+  s_5f26174735f387::t_1d75e6f2449a64 1-32
+packages/chat-ui/src/components/contexts/debug-context.ts
+  s_5f26174735f387::t_f73d2a1b752501 1-28
+packages/chat-ui/src/components/engine/UnitRow.tsx
+  s_5f26174735f387::t_3113e3ff74daf2 1-339
+packages/chat-ui/src/components/engine/block-frame.css.ts
+  s_5f26174735f387::t_43a70b3895babd 1-57
+packages/chat-ui/src/components/engine/block-frame.tsx
+  s_5f26174735f387::t_ef081fc71367aa 1-98
+packages/chat-ui/src/components/engine/create-height-tween.test.ts
+  s_5f26174735f387::t_f872460587d789 1-357
+packages/chat-ui/src/components/engine/create-height-tween.ts
+  s_5f26174735f387::t_49f2b9e4393adb 1-166
+packages/chat-ui/src/components/engine/dom-utils.ts
+  s_5f26174735f387::t_75b21029af5cd9 1-18
+packages/chat-ui/src/components/engine/frame-scheduler.test.ts
+  s_5f26174735f387::t_0e1d83dc46c8b7 1-217
+packages/chat-ui/src/components/engine/frame-scheduler.ts
+  s_5f26174735f387::t_e68ec40a850ebe 1-57
+packages/chat-ui/src/components/engine/row-metrics.ts
+  s_5f26174735f387::t_fbac46e7f14b7f 1-18
+packages/chat-ui/src/components/engine/tween-registry.test.ts
+  s_5f26174735f387::t_86129a44117b2e 1-314
+packages/chat-ui/src/components/engine/tween-registry.ts
+  s_5f26174735f387::t_10d56be436ac57 1-277
+packages/chat-ui/src/components/engine/unit-registry.ts
+  s_5f26174735f387::t_c43035a77621f5 1-117
+packages/chat-ui/src/components/engine/unit-row.css.ts
+  s_5f26174735f387::t_b7b25e53bd22df 1-41
+packages/chat-ui/src/components/primitives/BlockStackView.tsx
+  s_5f26174735f387::t_6d44e141ef6f14 1-40
+packages/chat-ui/src/components/primitives/CollapseHeader.tsx
+  s_5f26174735f387::t_0a8ab7af3ad861 1-62
+packages/chat-ui/src/components/primitives/CollapsibleCard.tsx
+  s_5f26174735f387::t_38534fa4829fb3 1-100
+packages/chat-ui/src/components/primitives/CopyButton.tsx
+  s_5f26174735f387::t_69edbe8bde8f25 1-56
+packages/chat-ui/src/components/primitives/PreviewWindow.tsx
+  s_5f26174735f387::t_959f75301cbb46 1-70
+packages/chat-ui/src/components/primitives/ShrinkWrap.tsx
+  s_5f26174735f387::t_b39c3b4ee2a493 1-91
+packages/chat-ui/src/components/primitives/collapse-header.css.ts
+  s_5f26174735f387::t_3482bef850f4f5 1-31
+packages/chat-ui/src/components/primitives/collapsible-card.css.ts
+  s_5f26174735f387::t_88f6e3d266e907 1-60
+packages/chat-ui/src/components/primitives/copy-button.css.ts
+  s_5f26174735f387::t_0ae2b7dc0d08af 1-70
+packages/chat-ui/src/components/primitives/icons.css.ts
+  s_5f26174735f387::t_b20a8387cc17a1 1-8
+packages/chat-ui/src/components/primitives/icons.tsx
+  s_5f26174735f387::t_3cb14c5b1bb838 1-237
+packages/chat-ui/src/components/primitives/preview-window.css.ts
+  s_5f26174735f387::t_d73de4ff703fa6 1-17
+packages/chat-ui/src/components/primitives/shrink-wrap.css.ts
+  s_5f26174735f387::t_0531597945780f 1-7
+packages/chat-ui/src/components/primitives/use-clipboard.ts
+  s_5f26174735f387::t_03ca1f19bbb345 1-15,17,19-21,24-26,28-40,42-43
+packages/chat-ui/src/components/rows/markdown/block-def.ts
+  s_5f26174735f387::t_b2bb916aed2e5f 1-27
+packages/chat-ui/src/components/rows/markdown/block-registry.ts
+  s_5f26174735f387::t_53f09d8ab01ea1 1-16
+packages/chat-ui/src/components/rows/markdown/block-stack.ts
+  s_5f26174735f387::t_b0df93ebcbf823 1-144
+packages/chat-ui/src/components/rows/markdown/code/Code.tsx
+  s_5f26174735f387::t_a20f2e8d5019f7 1-131
+packages/chat-ui/src/components/rows/markdown/code/code.css.ts
+  s_5f26174735f387::t_972ec449fa3afd 1-46
+packages/chat-ui/src/components/rows/markdown/code/code.def.tsx
+  s_5f26174735f387::t_dd30d4e941003f 1-22
+packages/chat-ui/src/components/rows/markdown/code/layout.ts
+  s_5f26174735f387::t_7a010a132c72a9 1-48
+packages/chat-ui/src/components/rows/markdown/mermaid/Mermaid.tsx
+  s_5f26174735f387::t_63b58fa2825055 1-105
+packages/chat-ui/src/components/rows/markdown/mermaid/mermaid.css.ts
+  s_5f26174735f387::t_e2e111a8d57a2f 1-62
+packages/chat-ui/src/components/rows/markdown/mermaid/mermaid.def.tsx
+  s_5f26174735f387::t_a3ee094380935e 1-34
+packages/chat-ui/src/components/rows/markdown/prose/Prose.tsx
+  s_5f26174735f387::t_fd7809e1367345 1-370
+packages/chat-ui/src/components/rows/markdown/prose/geometry.ts
+  s_5f26174735f387::t_5a16f10c845e33 1-15
+packages/chat-ui/src/components/rows/markdown/prose/layout.ts
+  s_5f26174735f387::t_3b58bc29070e35 1-197
+packages/chat-ui/src/components/rows/markdown/prose/prose.css.ts
+  s_5f26174735f387::t_4fabef6b872f61 1-208
+packages/chat-ui/src/components/rows/markdown/prose/prose.def.tsx
+  s_5f26174735f387::t_9c64cdeb83e472 1-46
+packages/chat-ui/src/components/rows/markdown/rule/rule.css.ts
+  s_5f26174735f387::t_5d7a0356445d8a 1-9
+packages/chat-ui/src/components/rows/markdown/rule/rule.def.tsx
+  s_5f26174735f387::t_32a2bdf736fac6 1-33
+packages/chat-ui/src/components/rows/markdown/table/Table.tsx
+  s_5f26174735f387::t_4126b86e00c3ea 1-74
+packages/chat-ui/src/components/rows/markdown/table/layout.ts
+  s_5f26174735f387::t_ec8e7056613ed6 1-55
+packages/chat-ui/src/components/rows/markdown/table/table-visual.css.ts
+  s_5f26174735f387::t_c95c18927bf0c5 1-49
+packages/chat-ui/src/components/rows/markdown/table/table.css.ts
+  s_5f26174735f387::t_566d9aa425c55e 1-33
+packages/chat-ui/src/components/rows/markdown/table/table.def.tsx
+  s_5f26174735f387::t_782efb0f2b857f 1-21
+packages/chat-ui/src/components/rows/message/PinnedUserMessage.tsx
+  s_5f26174735f387::t_b625f261a0f8e6 1-59
+packages/chat-ui/src/components/rows/message/UserMessageCard.tsx
+  s_5f26174735f387::t_3487949e9aaf6d 1-154
+packages/chat-ui/src/components/rows/message/message.css.ts
+  s_5f26174735f387::t_7c61bd172c99bf 1-45
+packages/chat-ui/src/components/rows/message/message.def.tsx
+  s_5f26174735f387::t_f7f27d6334a31d 1-156
+packages/chat-ui/src/components/rows/message/metrics.ts
+  s_5f26174735f387::t_899fbb5d4c62f1 1-36
+packages/chat-ui/src/components/rows/message/user-message.css.ts
+  s_5f26174735f387::t_0247a492798673 1-175
+packages/chat-ui/src/components/rows/plan/Plan.tsx
+  s_5f26174735f387::t_cc6b2c12eaea6d 1-83
+packages/chat-ui/src/components/rows/plan/plan.css.ts
+  s_5f26174735f387::t_d608df86bb5894 1-21
+packages/chat-ui/src/components/rows/plan/plan.def.tsx
+  s_5f26174735f387::t_26fa4aa6166537 1-184
+packages/chat-ui/src/components/rows/resource-link/ResourceLink.tsx
+  s_5f26174735f387::t_ffabcfaf99fb3e 1-15,17-47,50,52-56,58,60-62,64-65,67-73,75-84,86,90-93,95-112,115
+packages/chat-ui/src/components/rows/resource-link/resource-link.css.ts
+  s_5f26174735f387::t_d2225a2eb4b598 1-66
+packages/chat-ui/src/components/rows/resource-link/resource-link.def.tsx
+  s_5f26174735f387::t_dcc9eb49ba3686 1-28
+packages/chat-ui/src/components/rows/thinking/thinking.css.ts
+  s_5f26174735f387::t_6e39de88881076 1-14
+packages/chat-ui/src/components/rows/thinking/thinking.def.tsx
+  s_5f26174735f387::t_64f69fa1de31a7 1-180
+packages/chat-ui/src/components/rows/tools/diff/Diff.tsx
+  s_5f26174735f387::t_6716a5d0031186 1-200
+packages/chat-ui/src/components/rows/tools/diff/diff-lines.ts
+  s_5f26174735f387::t_7d99a2e34d93aa 1-189
+packages/chat-ui/src/components/rows/tools/diff/diff.css.ts
+  s_5f26174735f387::t_e5861373e5435a 1-128
+packages/chat-ui/src/components/rows/tools/diff/diff.def.tsx
+  s_5f26174735f387::t_4eec02a29897dc 1-120
+packages/chat-ui/src/components/rows/tools/diff/lang.ts
+  s_5f26174735f387::t_4224a95aee0e7b 1-52
+packages/chat-ui/src/components/rows/tools/execute/Execute.tsx
+  s_5f26174735f387::t_8324180615f665 1-116
+packages/chat-ui/src/components/rows/tools/execute/execute.css.ts
+  s_5f26174735f387::t_dc7943f6d39252 1-2,4,6-9,11,13-31
+packages/chat-ui/src/components/rows/tools/execute/execute.def.tsx
+  s_5f26174735f387::t_c35643cadfc1b4 1-128
+packages/chat-ui/src/components/rows/tools/file-op/FileOperation.tsx
+  s_5f26174735f387::t_a6fbb301c76e79 1-256
+packages/chat-ui/src/components/rows/tools/file-op/file-op.css.ts
+  s_5f26174735f387::t_9b0af554763d65 1-84
+packages/chat-ui/src/components/rows/tools/file-op/file-op.def.tsx
+  s_5f26174735f387::t_1f26df319eb3ba 1-94
+packages/chat-ui/src/components/rows/tools/tool/Tool.tsx
+  s_5f26174735f387::t_012f0993195da1 1-41
+packages/chat-ui/src/components/rows/tools/tool/tool.css.ts
+  s_5f26174735f387::t_b74baeeb681290 1-35
+packages/chat-ui/src/components/rows/tools/tool/tool.def.tsx
+  s_5f26174735f387::t_b60590a088ca17 1-25
+packages/chat-ui/src/core/caches.test.ts
+  s_5f26174735f387::t_d57a1bf327758c 1-175
+packages/chat-ui/src/core/caches.ts
+  s_5f26174735f387::t_991f59e4adea26 1-387
+packages/chat-ui/src/core/compose.ts
+  s_5f26174735f387::t_bc740ac7731e99 1-61
+packages/chat-ui/src/core/config.ts
+  s_5f26174735f387::t_bfc16548b96c45 1-386
+packages/chat-ui/src/core/define.ts
+  s_5f26174735f387::t_30fc287791c309 1-95
+packages/chat-ui/src/core/highlight/apply-tokens.ts
+  s_5f26174735f387::t_b492032fba15f5 1-46
+packages/chat-ui/src/core/highlight/bundled-themes.ts
+  s_5f26174735f387::t_36eca53cb0c850 1-238
+packages/chat-ui/src/core/highlight/highlighter.ts
+  s_5f26174735f387::t_7512f38bfce9f2 1-147
+packages/chat-ui/src/core/layout/block-stack.ts
+  s_5f26174735f387::t_e5bab45c2ef76e 1-3,5-8
+packages/chat-ui/src/core/layout/box.tsx
+  s_5f26174735f387::t_2d309e1ddfc596 1-331
+packages/chat-ui/src/core/layout/generic-estimate.ts
+  s_5f26174735f387::t_eeb357d3e66c1b 1-40
+packages/chat-ui/src/core/layout/layout-types.ts
+  s_5f26174735f387::t_9a890c16a50056 1-135
+packages/chat-ui/src/core/layout/measure.bench.ts
+  s_5f26174735f387::t_56524032ca405a 1-110
+packages/chat-ui/src/core/layout/reserve-height.ts
+  s_5f26174735f387::t_01e8860936616e 1-29
+packages/chat-ui/src/core/markdown/document.ts
+  s_5f26174735f387::t_a3720c19a304de 1-126
+packages/chat-ui/src/core/markdown/mention-provider.ts
+  s_5f26174735f387::t_94503819704055 1-50
+packages/chat-ui/src/core/markdown/parse.test.ts
+  s_5f26174735f387::t_515ee920f3c4d8 1-167
+packages/chat-ui/src/core/markdown/parse.ts
+  s_5f26174735f387::t_01e253ddbd9a86 1-467
+packages/chat-ui/src/core/markdown/plain-text.ts
+  s_5f26174735f387::t_6bc28a20face4c 1-30
+packages/chat-ui/src/core/measure/fonts.ts
+  s_5f26174735f387::t_681f16b4125550 1-14
+packages/chat-ui/src/core/measure/pretext-cache.ts
+  s_5f26174735f387::t_397ad098cd02af 1-41
+packages/chat-ui/src/core/measure/text.ts
+  s_5f26174735f387::t_ae2d868a66ec04 1-45
+packages/chat-ui/src/core/measure/to-rich-items.ts
+  s_5f26174735f387::t_3bd6d0ccb842bb 1-55
+packages/chat-ui/src/core/spacing.test.ts
+  s_5f26174735f387::t_01ce784d353346 1-124
+packages/chat-ui/src/core/spacing.ts
+  s_5f26174735f387::t_7a05aed16cc16b 1-7,9,11-21,23,25-32,34,36-52
+packages/chat-ui/src/core/stick-to-bottom.ts
+  s_5f26174735f387::t_fd1c787069c93f 2-3,6-7,9-12,14-15,17,19-30,32-34,38-40,42-46,48-51,53-61,63-64,66-68,71-76
+packages/chat-ui/src/core/theme.ts
+  s_5f26174735f387::t_d1b1c1e375fcf1 1-32
+packages/chat-ui/src/core/units.ts
+  s_5f26174735f387::t_7e4e3c570e2231 1-248
+packages/chat-ui/src/core/virtualizer.test.ts
+  s_5f26174735f387::t_53c6026fbae3c5 1-141
+packages/chat-ui/src/core/virtualizer.ts
+  s_5f26174735f387::t_c404946cd9246f 1-31,34-38,40,43-44,46-47,49-85,90-92,94-103,105-106,110-112,114-133,136-138,141-143,146-168,170-172,175-192,194-222
+packages/chat-ui/src/index.tsx
+  s_5f26174735f387::t_ded712d0f30b5e 1-310
+packages/chat-ui/src/lib/file-icons.ts
+  s_5f26174735f387::t_32587fa128575a 1-216
+packages/chat-ui/src/lib/format.ts
+  s_5f26174735f387::t_c89de91e09ca10 1-8
+packages/chat-ui/src/lib/path.ts
+  s_5f26174735f387::t_6e243988fd0bee 2,4-8
+packages/chat-ui/src/mock-transcript.ts
+  s_5f26174735f387::t_44515b2acb8303 1-689
+packages/chat-ui/src/model.ts
+  s_5f26174735f387::t_446fc04cd4b50a 1-226
+packages/chat-ui/src/state/flatten.test.ts
+  s_5f26174735f387::t_8b2fbee583ce34 1-362
+packages/chat-ui/src/state/flatten.ts
+  s_5f26174735f387::t_e5310bf4cea764 1-171
+packages/chat-ui/src/state/stream-smoother.test.ts
+  s_5f26174735f387::t_1602de8ad4ce41 1-261
+packages/chat-ui/src/state/stream-smoother.ts
+  s_5f26174735f387::t_9b2a568535dabe 1-299
+packages/chat-ui/src/state/transcript.test.ts
+  s_5f26174735f387::t_a08d276d3273b0 1-345
+packages/chat-ui/src/state/transcript.ts
+  s_5f26174735f387::t_098faa918d3a65 1-295
+packages/chat-ui/src/state/turn-reducer.ts
+  s_5f26174735f387::t_e7c34637c0a99d 1-445
+packages/chat-ui/src/state/view-state.ts
+  s_5f26174735f387::t_d2ed377ca94937 1-46
+packages/chat-ui/src/stories/_harness/chat-host.css.ts
+  s_5f26174735f387::t_36c636749da0ef 1-10
+packages/chat-ui/src/stories/_harness/chat-host.tsx
+  s_5f26174735f387::t_d9646d89d0ba4e 1-233
+packages/chat-ui/src/stories/_harness/perf-instrument.ts
+  s_5f26174735f387::t_5657249c9a8306 1-137
+packages/chat-ui/src/stories/_harness/state-matrix.tsx
+  s_5f26174735f387::t_5150cb9ec509f0 1-89
+packages/chat-ui/src/stories/_harness/streaming/scenario.test.ts
+  s_5f26174735f387::t_85a08db473f014 1-278
+packages/chat-ui/src/stories/_harness/streaming/scenario.ts
+  s_5f26174735f387::t_9bc754250d59f6 1-373
+packages/chat-ui/src/stories/docs/public-api.mdx
+  s_5f26174735f387::t_87599a161856ee 1-2,4,6
+packages/chat-ui/src/stories/docs/tool-lifecycle.mdx
+  s_5f26174735f387::t_cdea338c53a2bb 1-47
+packages/chat-ui/src/stories/examples/large.stories.tsx
+  s_5f26174735f387::t_6ddeaddfa79862 1-25
+packages/chat-ui/src/stories/examples/mixed-transcript.stories.tsx
+  s_5f26174735f387::t_8c9ab773576fa3 1-247
+packages/chat-ui/src/stories/examples/plan.stories.tsx
+  s_5f26174735f387::t_56e32566cc4c5c 1-220
+packages/chat-ui/src/stories/perf/collapse-animation.stories.tsx
+  s_5f26174735f387::t_8d118135c73ef9 1-193
+packages/chat-ui/src/stories/perf/transcript.stories.tsx
+  s_5f26174735f387::t_c1b3a6b7c2ce28 1-136
+packages/chat-ui/src/stories/rows/collapse-animation.stories.tsx
+  s_5f26174735f387::t_377eda49f1217e 1-209
+packages/chat-ui/src/stories/rows/markdown/blockquote.stories.tsx
+  s_5f26174735f387::t_7b4ab0f8ecc866 1-48
+packages/chat-ui/src/stories/rows/markdown/body-text.stories.tsx
+  s_5f26174735f387::t_1f71d6b036b218 1-48
+packages/chat-ui/src/stories/rows/markdown/bullet-list.stories.tsx
+  s_5f26174735f387::t_50bfdd6c2d81b8 1-51
+packages/chat-ui/src/stories/rows/markdown/code-block.stories.tsx
+  s_5f26174735f387::t_d80837018b4633 1-92
+packages/chat-ui/src/stories/rows/markdown/full-spec.stories.tsx
+  s_5f26174735f387::t_18d78d745313d0 1-128
+packages/chat-ui/src/stories/rows/markdown/headings.stories.tsx
+  s_5f26174735f387::t_8839f1c6e390a4 1-50
+packages/chat-ui/src/stories/rows/markdown/horizontal-rule.stories.tsx
+  s_5f26174735f387::t_4eea50b7117ca9 1-30
+packages/chat-ui/src/stories/rows/markdown/mermaid.stories.tsx
+  s_5f26174735f387::t_3e01056e10755f 1-146
+packages/chat-ui/src/stories/rows/markdown/spacing.stories.tsx
+  s_5f26174735f387::t_1a8ae35334ccab 1-49
+packages/chat-ui/src/stories/rows/markdown/table.stories.tsx
+  s_5f26174735f387::t_25bd614cb55e6b 1-112
+packages/chat-ui/src/stories/rows/messages/agent/message.stories.tsx
+  s_5f26174735f387::t_d0f9b78a4c2a21 1-151
+packages/chat-ui/src/stories/rows/messages/agent/plan.stories.tsx
+  s_5f26174735f387::t_bad73c3ae9f2af 1-84
+packages/chat-ui/src/stories/rows/messages/agent/resource-link.stories.tsx
+  s_5f26174735f387::t_5a4ff17f394310 1-123
+packages/chat-ui/src/stories/rows/messages/agent/streaming-text.stories.tsx
+  s_5f26174735f387::t_de526175838a8c 1-216
+packages/chat-ui/src/stories/rows/messages/agent/thinking.stories.tsx
+  s_5f26174735f387::t_c71fe5cf6c3f0f 1-230
+packages/chat-ui/src/stories/rows/messages/user-message.stories.tsx
+  s_5f26174735f387::t_97ecaa88c60efd 1-123
+packages/chat-ui/src/stories/rows/tools/diff.stories.tsx
+  s_5f26174735f387::t_bacc5c2da53a2d 1-247
+packages/chat-ui/src/stories/rows/tools/execute.stories.tsx
+  s_5f26174735f387::t_42bc187108e004 1-211
+packages/chat-ui/src/stories/rows/tools/file-operation.stories.tsx
+  s_5f26174735f387::t_a5d94d676a18ee 1-266
+packages/chat-ui/src/stories/rows/tools/tool.stories.tsx
+  s_5f26174735f387::t_297664b5f71413 1-118
+packages/chat-ui/src/styles/effects.css.ts
+  s_5f26174735f387::t_a4423d159129a2 1-97
+packages/chat-ui/src/styles/global.css.ts
+  s_5f26174735f387::t_21b54979b761ac 1-19
+packages/chat-ui/src/styles/px-tokens.ts
+  s_5f26174735f387::t_d1659f59c7b8a1 1-5
+packages/chat-ui/src/styles/reset.css.ts
+  s_5f26174735f387::t_c296bed11ea69e 1-40
+packages/chat-ui/src/styles/sprinkles.css.ts
+  s_5f26174735f387::t_15ae25decc1294 1-231
+packages/chat-ui/src/styles/theme.css.ts
+  s_5f26174735f387::t_0b1f36a15f5a71 1-265
+packages/chat-ui/src/tests/contract-setup.ts
+  s_5f26174735f387::t_9b2874ea780203 1-5
+packages/chat-ui/src/tests/contract.tsx
+  s_5f26174735f387::t_7c25436fea76e7 1-120
+packages/chat-ui/src/tests/perf/harness.tsx
+  s_5f26174735f387::t_95b92b6e6c66cb 1-226
+packages/chat-ui/src/vite-env.d.ts
+  s_5f26174735f387::t_c46b01e27f65f2 1
+packages/chat-ui/tsconfig.json
+  s_5f26174735f387::t_5fbc641dc5b3d7 1-28
+packages/chat-ui/vite.config.ts
+  s_5f26174735f387::t_f0e4b2343b530c 1-90
+packages/chat-ui/vite.lib.config.ts
+  s_5f26174735f387::t_cf25fa5a2008fc 1-5,9-13,16-46
+packages/core/package.json
+  s_5f26174735f387::t_7f0a3c95384297 1-77
+packages/core/src/agents/plugins/capabilities/auto-approve.ts
+  s_5f26174735f387::t_92f3cc72e3149a 14-15
+packages/core/src/agents/plugins/capabilities/effort.ts
+  s_5f26174735f387::t_6fe78f14f6052b 27-28
+packages/core/src/agents/plugins/capabilities/hooks.ts
+  s_5f26174735f387::t_e790909ce6af8d 48-49
+packages/core/src/agents/plugins/capabilities/mcp.ts
+  s_5f26174735f387::t_7a12a9f8d79d68 22-25,40-41
+packages/core/src/agents/plugins/capabilities/models.ts
+  s_5f26174735f387::t_fae483e702abbf 30-31
+packages/core/src/agents/plugins/capabilities/plugins.ts
+  s_5f26174735f387::t_766265f8bae4d9 32-33
+packages/core/src/agents/plugins/helpers/hook-config.ts
+  s_5f26174735f387::t_5054ea1af73fac 1,28-47,82-130,140-153,158,163,165-168,184
+packages/core/src/agents/plugins/helpers/hooks.test.ts
+  s_5f26174735f387::t_ce4465756961e9 1-40
+packages/core/src/agents/plugins/helpers/hooks.ts
+  s_5f26174735f387::t_61eb3b131e7770 29,44,50,55-58,60-63
+packages/core/src/agents/plugins/helpers/mcp.test.ts
+  s_5f26174735f387::t_86376f92f1f316 4-11,206-234,291-476
+packages/core/src/agents/plugins/helpers/mcp.ts
+  s_5f26174735f387::t_9938587c7cae66 274,289,299,302-303,310-311,313-314,320,332-335,374,377-378,393-415
+packages/core/src/agents/plugins/helpers/standard-command.test.ts
+  s_5f26174735f387::t_857f952137d4be 1-103
+packages/core/src/agents/plugins/helpers/standard-command.ts
+  s_5f26174735f387::t_661b57c38a8e53 64-69,105,108,110,112,130-134
+packages/core/src/exec/bound-exec.ts
+  s_5f26174735f387::t_5a9f06ea1158f4 131
+packages/core/src/exec/execution-context.ts
+  s_5f26174735f387::t_b0761520d1bfd5 1
+packages/core/src/file-tree/errors.ts
+  s_5f26174735f387::t_81d73de335b804 1-19
+packages/core/src/file-tree/file-tree-runtime.ts
+  s_5f26174735f387::t_a8532151981882 1-66
+packages/core/src/file-tree/file-tree.test.ts
+  s_5f26174735f387::t_2325b8574edec2 1-331
+packages/core/src/file-tree/file-tree.ts
+  s_5f26174735f387::t_9cd4a8a29b4e27 1-298
+packages/core/src/file-tree/ignores.ts
+  s_5f26174735f387::t_fb3aa9296c3314 1-49
+packages/core/src/file-tree/index.test.ts
+  s_5f26174735f387::t_8d1da4bb24706c 1-16
+packages/core/src/file-tree/index.ts
+  s_5f26174735f387::t_94f45d6d677a73 1-12
+packages/core/src/file-tree/list.ts
+  s_5f26174735f387::t_893ba178122af7 1-88
+packages/core/src/file-tree/models/tree.ts
+  s_5f26174735f387::t_2aa97b0295366d 1-13
+packages/core/src/file-tree/node-id.ts
+  s_5f26174735f387::t_e8c6f8a895b194 1-192
+packages/core/src/file-tree/paths.ts
+  s_5f26174735f387::t_a83499b38b9bd9 1-68
+packages/core/src/file-tree/types.ts
+  s_5f26174735f387::t_5e6c562ac9ceb3 1-4,6-8,10-35
+packages/core/src/file-tree/watch/classifier.test.ts
+  s_5f26174735f387::t_9d7b8102f38aae 1-208
+packages/core/src/file-tree/watch/classifier.ts
+  s_5f26174735f387::t_7da3f2d6ae8d20 1-97
+packages/core/src/fs/file-watch-service.test.ts
+  s_5f26174735f387::t_2acdbf8ce57193 5,49,61,77,85,99,105,110-119
+packages/core/src/fs/file-watch-service.ts
+  s_5f26174735f387::t_6ce154011813af 1,15,57-76,80,85-86,91,95,103-104,106-109,112-113
+packages/core/src/fs/native-watch.ts
+  s_5f26174735f387::t_69bc5868421901 2
+packages/core/src/fs/types.ts
+  s_5f26174735f387::t_62ee544c69af88 25
+packages/core/src/git/cat-file-batch.ts
+  s_5f26174735f387::t_da1514ba903139 2
+packages/core/src/git/errors.ts
+  s_5f26174735f387::t_2275c05961b59d 4,9-14,16-19,23-25,29-30,32-34,38-42,46-49,53,57-59,62-66,71-74,80,82-83,87-111,115-120,122-137,140,156,165,168-171,179-187,193-205,214-227,229-238,249,251,258,261,268-275,277,280
+packages/core/src/git/file-line-count.test.ts
+  s_5f26174735f387::t_27f874a7f7cc1d 1,3,5,7-15,18-26,29-36,39-66
+packages/core/src/git/file-line-count.ts
+  s_5f26174735f387::t_480fb82571273d 1-40
+packages/core/src/git/git-repository.test.ts
+  s_5f26174735f387::t_d8fc983434f55e 8,80,83-86,109,112,132,168,175-200,222,254,281,287-292
+packages/core/src/git/git-repository.ts
+  s_5f26174735f387::t_70ef805f6b910c 1,5,28,81,87,150,175-176,178-179,215,218,224,230-233,237,245,253,261,270,273,281,298,314-316,323,335,344,355,362-363,388,393-394,406,412
+packages/core/src/git/git-runtime.test.ts
+  s_5f26174735f387::t_3aa14134c295be 7-8,18-20,39-77,79-210,216,226-227,234-268,272,276
+packages/core/src/git/git-runtime.ts
+  s_5f26174735f387::t_07ee581fc5b32c 2,4-7,11-20,70-71,79-81,90-156,180,185,194-197,214,245-295,308-316
+packages/core/src/git/git-worktree.test.ts
+  s_5f26174735f387::t_9a2f333029ebd8 61-68,83-87,89-97,133-134,136,155,160-166,190-308,356,368,372-373,398,424,446,479,501-502,513-514,520-525,530-531,541,548-699,712-713,715-716,720
+packages/core/src/git/git-worktree.ts
+  s_5f26174735f387::t_86d04932096815 3,5-6,12,14,18,39,96,102,164,315-316,318-319,347-354,357-363,366-373,376,378-384,387-408,411,413-420,423-425,429,435-437,440,446,449,455,457,495-496,501-505,509,511,514,520,524-530,534-554,575,587,590
+packages/core/src/git/index.test.ts
+  s_5f26174735f387::t_c9d00220895e87 4
+packages/core/src/git/index.ts
+  s_5f26174735f387::t_6078f863bd6567 2-3,5,19-29,42-43,47,49,53,64-69
+packages/core/src/git/models/diff-target.ts
+  s_5f26174735f387::t_a583a9c623379f 1,6
+packages/core/src/git/models/head.ts
+  s_5f26174735f387::t_b648fab9195d5f 2-3
+packages/core/src/git/models/refs.ts
+  s_5f26174735f387::t_395163ab41b9aa 6-19
+packages/core/src/git/models/status.ts
+  s_5f26174735f387::t_1e4c10e9e9c017 8
+packages/core/src/git/parsers/status-parser.test.ts
+  s_5f26174735f387::t_daf8064803d72b 5-8,11-17,20-26,32-69,73-84,86,93
+packages/core/src/git/parsers/status-parser.ts
+  s_5f26174735f387::t_3139305f1a33ee 16-17,54-69,71-104,106-112,114-129,131,133-143,145-152,154-166
+packages/core/src/git/types.ts
+  s_5f26174735f387::t_204133b0e54567 1-3,5,42-43,52-53,55,102-121,140-147,151,154,158,188-196,200-208
+packages/core/src/git/watch/classifier.test.ts
+  s_5f26174735f387::t_72436065350f5e 27-80
+packages/core/src/git/watch/classifier.ts
+  s_5f26174735f387::t_b9cecb96d4263d 42-50,57-61,67-70,100-103
+packages/core/src/host-dependencies/runtime/host-dependency-manager.test.ts
+  s_5f26174735f387::t_77df97502334b2 1
+packages/core/src/host-dependencies/runtime/host-dependency-manager.ts
+  s_5f26174735f387::t_7926be11023670 1
+packages/core/src/host-dependencies/runtime/types.ts
+  s_5f26174735f387::t_96ff2b54906608 1
+packages/core/src/lib/index.ts
+  s_5f26174735f387::t_57872e0fae1449 2-9
+packages/core/src/lib/live-collection.test.ts
+  s_5f26174735f387::t_d0eab2402495fc 1-330
+packages/core/src/lib/live-collection.ts
+  s_5f26174735f387::t_c4498877a170a1 1-72,74-95,98-110,113,115-122,125-126,129-130,133-134,137-138,141-148,150-160,163-164,167-168,171-179,182-194,197-200,203-205,208-211,213-217,219-235,238-240,243-245,248-252,255-257,261-266,269-270
+packages/core/src/lib/live-model.test.ts
+  s_5f26174735f387::t_03cde1356d7cb9 1,15-18,30,32-33,35-42,47,54,59,64,72,76,79,90,95-98,102,105,115,119,124,127-128,131-132,145,148,151-162,167-170,188-191,206-263,266-269
+packages/core/src/lib/live-model.ts
+  s_5f26174735f387::t_67621b0b459066 1-9,13-14,17-22,24,29-32,38,47-53,55,58,60,62,64-66,79-81,103-105,122-127,138,144,149,151-154,164,173-191,202-210
+packages/core/src/lib/plugins/capability.ts
+  s_5f26174735f387::t_08f62354df9df2 12-18,21-29,32,35,43,46,63-72,74-80
+packages/core/src/lib/plugins/framework.ts
+  s_5f26174735f387::t_aa25691ea7efe2 3-8,31-37,40,47
+packages/core/src/lib/resource-map.test.ts
+  s_5f26174735f387::t_b476b5017f4bf3 37-38,40,46-79,90,105,115,119-144,159,174,181-212,223,228-229
+packages/core/src/lib/resource-map.ts
+  s_5f26174735f387::t_a9bdefef41edf4 1-2,23-24,26,31,63,69,71-72,76,79,81-82,99,102-117
+packages/core/tsconfig.json
+  s_5f26174735f387::t_74c353445b7f7c 1-19
+packages/core/tsdown.config.ts
+  s_5f26174735f387::t_00f6fbfa3e80dd 5-13,18
+packages/plugins/package.json
+  s_5f26174735f387::t_209e3b54f5c39c 27,30,35
+packages/plugins/src/agents/impl/amp/icon.ts
+  s_5f26174735f387::t_0f7eb85b9bc950 1
+packages/plugins/src/agents/impl/amp/index.ts
+  s_5f26174735f387::t_dd0c750d2e7921 1,7,28,32,48,61-63
+packages/plugins/src/agents/impl/amp/plugin-file.ts
+  s_5f26174735f387::t_b7a9bfd7c72ff6 5,7,9,30-36,39-40
+packages/plugins/src/agents/impl/antigravity/icon.ts
+  s_5f26174735f387::t_997ff0d8f72c2b 1
+packages/plugins/src/agents/impl/antigravity/index.ts
+  s_5f26174735f387::t_b86a9ec77b2b97 1-2
+packages/plugins/src/agents/impl/auggie/icon.ts
+  s_5f26174735f387::t_136c26114744d6 1
+packages/plugins/src/agents/impl/auggie/index.ts
+  s_5f26174735f387::t_8f8d756d38b9fe 1-2
+packages/plugins/src/agents/impl/autohand/icon.ts
+  s_5f26174735f387::t_437faf445a3206 1
+packages/plugins/src/agents/impl/autohand/index.ts
+  s_5f26174735f387::t_25be1649fa6fd3 1-2
+packages/plugins/src/agents/impl/charm/icon.ts
+  s_5f26174735f387::t_d43779a914f1f9 1
+packages/plugins/src/agents/impl/charm/index.test.ts
+  s_5f26174735f387::t_d7920f82a2ee3c 1-64
+packages/plugins/src/agents/impl/charm/index.ts
+  s_5f26174735f387::t_fadbd5b9b978ed 1-7,10-16,34-36,57,59
+packages/plugins/src/agents/impl/claude/hooks.ts
+  s_5f26174735f387::t_e35ee94579347f 1,6
+packages/plugins/src/agents/impl/claude/icon.ts
+  s_5f26174735f387::t_9c4586149a66ab 1
+packages/plugins/src/agents/impl/claude/index.ts
+  s_5f26174735f387::t_688942e213785a 1,6,22-37,112
+packages/plugins/src/agents/impl/cline/icon.ts
+  s_5f26174735f387::t_3eb76848c08685 1
+packages/plugins/src/agents/impl/cline/index.ts
+  s_5f26174735f387::t_1c114c5f07653a 1-2
+packages/plugins/src/agents/impl/codebuff/icon.ts
+  s_5f26174735f387::t_33f55e99d3a9c5 1
+packages/plugins/src/agents/impl/codebuff/index.ts
+  s_5f26174735f387::t_537da16a843e75 1-2
+packages/plugins/src/agents/impl/codex/hooks.test.ts
+  s_5f26174735f387::t_2057b5c6c06025 1-138
+packages/plugins/src/agents/impl/codex/hooks.ts
+  s_5f26174735f387::t_71e8ab086f94fe 1-2,11,13-14,17-18,25,63-99,142-149,152-155,167-168,170,173-174,178-189,192-195
+packages/plugins/src/agents/impl/codex/icon.ts
+  s_5f26174735f387::t_5e4ce758b1b5d4 1
+packages/plugins/src/agents/impl/codex/index.ts
+  s_5f26174735f387::t_c97a1a57d6434a 1,7,23-38,90
+packages/plugins/src/agents/impl/commandcode/hooks.ts
+  s_5f26174735f387::t_e54dbf1756a820 1-13
+packages/plugins/src/agents/impl/commandcode/icon.ts
+  s_5f26174735f387::t_1d78d476b7fe88 1
+packages/plugins/src/agents/impl/commandcode/index.test.ts
+  s_5f26174735f387::t_df8c9bf43ef598 1-101
+packages/plugins/src/agents/impl/commandcode/index.ts
+  s_5f26174735f387::t_4a969d86cfe03c 1-3,19-21,26,47-49,52
+packages/plugins/src/agents/impl/continue/icon.ts
+  s_5f26174735f387::t_ac91ce3c6e0d45 1
+packages/plugins/src/agents/impl/continue/index.ts
+  s_5f26174735f387::t_244a70f961b757 1-2
+packages/plugins/src/agents/impl/copilot/hooks.ts
+  s_5f26174735f387::t_bcdebec5d488ed 1-2,11
+packages/plugins/src/agents/impl/copilot/icon.ts
+  s_5f26174735f387::t_4a388ee77ee667 1
+packages/plugins/src/agents/impl/copilot/index.ts
+  s_5f26174735f387::t_05945f4373b144 1,6
+packages/plugins/src/agents/impl/cursor/icon.ts
+  s_5f26174735f387::t_2072ad003db867 1
+packages/plugins/src/agents/impl/cursor/index.ts
+  s_5f26174735f387::t_3a79f87c1a8564 1-2
+packages/plugins/src/agents/impl/devin/hooks.ts
+  s_5f26174735f387::t_02e16928f65673 5
+packages/plugins/src/agents/impl/devin/icon.ts
+  s_5f26174735f387::t_573501fba56a9e 1
+packages/plugins/src/agents/impl/devin/index.ts
+  s_5f26174735f387::t_3bc3c9f802c0e2 1-2
+packages/plugins/src/agents/impl/droid/hooks.test.ts
+  s_5f26174735f387::t_4f355b3497de89 1-147
+packages/plugins/src/agents/impl/droid/hooks.ts
+  s_5f26174735f387::t_34a2e6ab4edd34 1,3-5,7-9,11-68,71-103
+packages/plugins/src/agents/impl/droid/icon.ts
+  s_5f26174735f387::t_fd1b6c5aaf30b1 1
+packages/plugins/src/agents/impl/droid/index.ts
+  s_5f26174735f387::t_f572e87708a62e 1-2,17
+packages/plugins/src/agents/impl/freebuff/icon.ts
+  s_5f26174735f387::t_0fece2214807ef 1
+packages/plugins/src/agents/impl/freebuff/index.ts
+  s_5f26174735f387::t_d989f151ec9e46 1-2,16-18,29
+packages/plugins/src/agents/impl/gemini/icon.ts
+  s_5f26174735f387::t_a210a467abe77f 1
+packages/plugins/src/agents/impl/gemini/index.ts
+  s_5f26174735f387::t_7c8ecdd1e01af3 1,6
+packages/plugins/src/agents/impl/goose/icon.ts
+  s_5f26174735f387::t_039cfc295ba135 1
+packages/plugins/src/agents/impl/goose/index.test.ts
+  s_5f26174735f387::t_b2b4c7c129522e 1-164
+packages/plugins/src/agents/impl/goose/index.ts
+  s_5f26174735f387::t_863d864c882f89 1-2,20-22,76-129,131
+packages/plugins/src/agents/impl/grok/hooks.ts
+  s_5f26174735f387::t_b0f9a1677908f5 1-2,8,12,20,26,31,36
+packages/plugins/src/agents/impl/grok/icon.ts
+  s_5f26174735f387::t_93b05161deb8d9 1
+packages/plugins/src/agents/impl/grok/index.ts
+  s_5f26174735f387::t_6b20dc20568585 1-2,51-52,66
+packages/plugins/src/agents/impl/hermes/icon.ts
+  s_5f26174735f387::t_85e72d8c53a57d 1
+packages/plugins/src/agents/impl/hermes/index.ts
+  s_5f26174735f387::t_b631bce24fbd9e 1-2
+packages/plugins/src/agents/impl/index.test.ts
+  s_5f26174735f387::t_f44ac4d1ae29f4 128-156
+packages/plugins/src/agents/impl/jules/icon.ts
+  s_5f26174735f387::t_823de728a9ab44 1
+packages/plugins/src/agents/impl/jules/index.ts
+  s_5f26174735f387::t_26c0c834634800 1-2,31-33
+packages/plugins/src/agents/impl/junie/icon.ts
+  s_5f26174735f387::t_abb32de3f48c31 1
+packages/plugins/src/agents/impl/junie/index.ts
+  s_5f26174735f387::t_efa66252d8f4e6 1-2
+packages/plugins/src/agents/impl/kilocode/icon.ts
+  s_5f26174735f387::t_7c56f38910d0d0 1
+packages/plugins/src/agents/impl/kilocode/index.ts
+  s_5f26174735f387::t_51ae0654508336 1-6,8-10,25-27,35-36,40-43,57,61-64
+packages/plugins/src/agents/impl/kilocode/plugin-file.test.ts
+  s_5f26174735f387::t_f80231b4da7410 1-45
+packages/plugins/src/agents/impl/kilocode/plugin-file.ts
+  s_5f26174735f387::t_d03d67c2bdf760 1-82
+packages/plugins/src/agents/impl/kimi/hooks.ts
+  s_5f26174735f387::t_3402931551ca44 1-2,7
+packages/plugins/src/agents/impl/kimi/icon.ts
+  s_5f26174735f387::t_1349544976b10f 1
+packages/plugins/src/agents/impl/kimi/index.ts
+  s_5f26174735f387::t_2045d12812ed7c 1-3
+packages/plugins/src/agents/impl/kiro/hooks.ts
+  s_5f26174735f387::t_f9ce5b8f8896e9 4
+packages/plugins/src/agents/impl/kiro/icon.ts
+  s_5f26174735f387::t_af7e9c2851fa4c 1
+packages/plugins/src/agents/impl/kiro/index.ts
+  s_5f26174735f387::t_7fe764b5f7d5cd 1-2
+packages/plugins/src/agents/impl/letta/icon.ts
+  s_5f26174735f387::t_d0f933835ff296 1
+packages/plugins/src/agents/impl/letta/index.ts
+  s_5f26174735f387::t_9cd5d66f1800b1 1-2
+packages/plugins/src/agents/impl/mistral/hooks.test.ts
+  s_5f26174735f387::t_d9f682d0152bb5 1-53
+packages/plugins/src/agents/impl/mistral/hooks.ts
+  s_5f26174735f387::t_48f7e1b0214fdc 1-57
+packages/plugins/src/agents/impl/mistral/icon.ts
+  s_5f26174735f387::t_78064c82499042 1
+packages/plugins/src/agents/impl/mistral/index.ts
+  s_5f26174735f387::t_97f2751c397863 1-3,19-21,63
+packages/plugins/src/agents/impl/opencode/icon.ts
+  s_5f26174735f387::t_3bb60cc11d71db 1
+packages/plugins/src/agents/impl/opencode/index.ts
+  s_5f26174735f387::t_264786bfedbdff 1,7
+packages/plugins/src/agents/impl/opencode/plugin-file.ts
+  s_5f26174735f387::t_d896c0577d112c 8
+packages/plugins/src/agents/impl/pi/icon.ts
+  s_5f26174735f387::t_84511e1dba4e89 1
+packages/plugins/src/agents/impl/pi/index.ts
+  s_5f26174735f387::t_1675c97c77738d 1,6
+packages/plugins/src/agents/impl/pi/plugin-file.ts
+  s_5f26174735f387::t_4b054fef8774ea 3,10
+packages/plugins/src/agents/impl/prompt-delivery.test.ts
+  s_5f26174735f387::t_ff0c1c00902b4c 1-53
+packages/plugins/src/agents/impl/qwen/hooks.ts
+  s_5f26174735f387::t_78fd0668d770d9 1,6
+packages/plugins/src/agents/impl/qwen/icon.ts
+  s_5f26174735f387::t_0ebd258c142386 1
+packages/plugins/src/agents/impl/qwen/index.ts
+  s_5f26174735f387::t_eeb7847a172347 1,6
+packages/plugins/src/agents/impl/rovo/icon.ts
+  s_5f26174735f387::t_d6cecb03964320 1
+packages/plugins/src/agents/impl/rovo/index.ts
+  s_5f26174735f387::t_9c141d5766eb2a 1-2
+packages/plugins/src/agents/registry.ts
+  s_5f26174735f387::t_bf696bf035e5d7 2
+packages/plugins/tsdown.config.ts
+  s_5f26174735f387::t_040777af450780 10
+packages/shared/package.json
+  s_5f26174735f387::t_8890249e400ac1 4,16-18,20-22,35
+packages/shared/src/deep-equal.test.ts
+  s_5f26174735f387::t_0dd241f44e1919 1-32
+packages/shared/src/deep-equal.ts
+  s_5f26174735f387::t_08a9b7f20bb1a7 1-32
+packages/shared/src/index.ts
+  s_5f26174735f387::t_e3acc7a4f5f06f 1-49
+packages/shared/src/lifecycle.test.ts
+  s_5f26174735f387::t_bcd11d1d559ff3 1-189
+packages/shared/src/lifecycle.ts
+  s_5f26174735f387::t_6de499752b1a2f 3-6,11-16,19-53
+packages/shared/src/result/index.test.ts
+  s_5f26174735f387::t_ef79d72db7cd6a 1-426
+packages/shared/src/result/index.ts
+  s_5f26174735f387::t_8d4e7215ebb86e 1-30,38-198,201-369
+packages/shared/tsdown.config.ts
+  s_5f26174735f387::t_8a761930e9940b 4,7
+packages/ui/.gitignore
+  s_5f26174735f387::t_a029f9537fee43 1-5
+packages/ui/.storybook-react/main.ts
+  s_5f26174735f387::t_bf3d0d203eade1 1-2,4-8,11-12,17-28
+packages/ui/.storybook-react/preview.tsx
+  s_5f26174735f387::t_0f9c420b98569c 2-9,11-18,22,24-26,29-43,45-48,50,52,65-68,84,89
+packages/ui/package.json
+  s_5f26174735f387::t_578aef39c41ca6 12-14,17-20,22-73,75-80,84-85,87-90,98-107,110-111,115-119,122,127-128,130-131
+packages/ui/src/react/chat-ui/chat-theme.css
+  s_5f26174735f387::t_9bd339aad381af 1-105
+packages/ui/src/react/chat-ui/index.ts
+  s_5f26174735f387::t_ad6dc0e769daf5 1-133
+packages/ui/src/react/components/chat-composer.css.ts
+  s_5f26174735f387::t_e250154738e8c6 1-284
+packages/ui/src/react/components/chat-composer.stories.tsx
+  s_5f26174735f387::t_0052c7a6c901f8 1-228
+packages/ui/src/react/components/chat-composer.tsx
+  s_5f26174735f387::t_82b28b7faa3ebf 1-776
+packages/ui/src/react/components/combobox-popover.css.ts
+  s_5f26174735f387::t_0734b9da7d88e8 1-40
+packages/ui/src/react/components/combobox-popover.stories.tsx
+  s_5f26174735f387::t_ec52ba2484c30d 1-362
+packages/ui/src/react/components/combobox-popover.tsx
+  s_5f26174735f387::t_a719e347cb2fdf 1-199
+packages/ui/src/react/components/confirmation-dialog.css.ts
+  s_5f26174735f387::t_7537a881b44fc0 1-7
+packages/ui/src/react/components/confirmation-dialog.stories.tsx
+  s_5f26174735f387::t_7c370ffad1e7cb 1-89
+packages/ui/src/react/components/confirmation-dialog.tsx
+  s_5f26174735f387::t_274e16f08786d2 1-105
+packages/ui/src/react/components/image-viewer-dialog.css.ts
+  s_5f26174735f387::t_531c40a4a42ba5 1-24
+packages/ui/src/react/components/image-viewer-dialog.tsx
+  s_5f26174735f387::t_a378fc98017426 1-39
+packages/ui/src/react/components/index.ts
+  s_5f26174735f387::t_a2a1a2028792b3 1-23
+packages/ui/src/react/components/permission-band.css.ts
+  s_5f26174735f387::t_be7e12d947da45 1-41
+packages/ui/src/react/components/permission-band.tsx
+  s_5f26174735f387::t_bf10d19e62e626 1-113
+packages/ui/src/react/components/prompt-editor/chip-classes.css.ts
+  s_5f26174735f387::t_9b471c2b4876f1 1-40
+packages/ui/src/react/components/prompt-editor/extensions/mention.ts
+  s_5f26174735f387::t_6e6f3551306704 1-70
+packages/ui/src/react/components/prompt-editor/extensions/slash-command.ts
+  s_5f26174735f387::t_7e441501a0864e 1-78
+packages/ui/src/react/components/prompt-editor/extensions/submit-keymap.ts
+  s_5f26174735f387::t_5ff7f65fef1ed8 1-28
+packages/ui/src/react/components/prompt-editor/mention-pill-helpers.test.ts
+  s_5f26174735f387::t_5492827de45bd1 1-5,7,9-11,14-15,18-19,22-23,26-27,30-32,34,36-39,42-44,47-49,52-53,56-57
+packages/ui/src/react/components/prompt-editor/mention-pill-helpers.ts
+  s_5f26174735f387::t_7eae14bf957e2c 1-47
+packages/ui/src/react/components/prompt-editor/mention-pill.css.ts
+  s_5f26174735f387::t_249444e8445e47 1-60
+packages/ui/src/react/components/prompt-editor/mention-pill.tsx
+  s_5f26174735f387::t_1fa4877d79f3a1 1-78
+packages/ui/src/react/components/prompt-editor/prompt-editor.css.ts
+  s_5f26174735f387::t_34a7d295d6940e 1-32
+packages/ui/src/react/components/prompt-editor/prompt-editor.tsx
+  s_5f26174735f387::t_3c6ddcc38c7ad6 1-339
+packages/ui/src/react/components/prompt-editor/serialize.test.ts
+  s_5f26174735f387::t_d47c7260013ca9 1-131
+packages/ui/src/react/components/prompt-editor/serialize.ts
+  s_5f26174735f387::t_68568cc8b2f9d6 1-63
+packages/ui/src/react/components/prompt-editor/types.ts
+  s_5f26174735f387::t_90aed859186895 1-109
+packages/ui/src/react/examples/chat-panel.stories.tsx
+  s_5f26174735f387::t_18b4d90a6ac93c 1-457
+packages/ui/src/react/examples/surface-cascade.stories.tsx
+  s_5f26174735f387::t_f7b0c034d6d855 1-625
+packages/ui/src/react/index.ts
+  s_5f26174735f387::t_a70d164175d710 1-5,7
+packages/ui/src/react/lib/file-icons.ts
+  s_5f26174735f387::t_04fe084d47d3e1 1-213
+packages/ui/src/react/patterns/index.ts
+  s_5f26174735f387::t_3aa828c4aa91d6 1-3
+packages/ui/src/react/primitives/box.stories.tsx
+  s_5f26174735f387::t_fd0ca2a385ac6b 1-93
+packages/ui/src/react/primitives/box.tsx
+  s_5f26174735f387::t_b0e1dac518e2fe 1-66
+packages/ui/src/react/primitives/button.stories.tsx
+  s_5f26174735f387::t_538535a7e24fbd 2,4-6,9,13-16,25,28-29,31-41,45-46,48-62,66-67,69-70,73,76-82,86,89-92,94-95,97,101-102,104-139
+packages/ui/src/react/primitives/button.tsx
+  s_5f26174735f387::t_4e17e571d55ae7 2-3,6-10,12-15,20,26
+packages/ui/src/react/primitives/callout.css.ts
+  s_5f26174735f387::t_fbdfefd4a2ba3a 1-31
+packages/ui/src/react/primitives/callout.tsx
+  s_5f26174735f387::t_4c58f730814dbb 1-31
+packages/ui/src/react/primitives/combobox-popup.css.ts
+  s_5f26174735f387::t_6064cb9c57e867 1-104
+packages/ui/src/react/primitives/combobox-popup.stories.tsx
+  s_5f26174735f387::t_e22b936dada4fa 1-136
+packages/ui/src/react/primitives/combobox-popup.tsx
+  s_5f26174735f387::t_98bb4027926a59 1-178
+packages/ui/src/react/primitives/combobox.stories.tsx
+  s_5f26174735f387::t_ce3c6682422a88 3,17-18,21,33,47,53,79,88,107,114,127
+packages/ui/src/react/primitives/combobox.tsx
+  s_5f26174735f387::t_0c6708bd314417 2,7-8,20,32-33,36,60-61,74,109,115,123,125-138,151,155,157,166,174,188,198,211,228,234-235,238,249
+packages/ui/src/react/primitives/dialog.css.ts
+  s_5f26174735f387::t_f1226c1b269613 1-120
+packages/ui/src/react/primitives/dialog.stories.tsx
+  s_5f26174735f387::t_55ebaeba83197b 1-162
+packages/ui/src/react/primitives/dialog.tsx
+  s_5f26174735f387::t_ad77b0fb50c232 1-149
+packages/ui/src/react/primitives/dropdown-menu.css.ts
+  s_5f26174735f387::t_76fa9a6bb15459 1-193
+packages/ui/src/react/primitives/dropdown-menu.stories.tsx
+  s_5f26174735f387::t_d8d87fdbe13d5c 4,20,23,34,60,94,117,135
+packages/ui/src/react/primitives/dropdown-menu.tsx
+  s_5f26174735f387::t_eb9744a1d6135c 2,5,31,39,62,82,104,108,124,147,151,177,180,194,204
+packages/ui/src/react/primitives/field.css.ts
+  s_5f26174735f387::t_e54ed9e4a8a100 1-29
+packages/ui/src/react/primitives/field.stories.tsx
+  s_5f26174735f387::t_c8427d95f7b81f 1-134
+packages/ui/src/react/primitives/field.tsx
+  s_5f26174735f387::t_063a6d02723c12 1-58
+packages/ui/src/react/primitives/hover-card.css.ts
+  s_5f26174735f387::t_c1cd08afb31cf0 1-9
+packages/ui/src/react/primitives/hover-card.tsx
+  s_5f26174735f387::t_f32be17d8be174 1-254
+packages/ui/src/react/primitives/index.ts
+  s_5f26174735f387::t_118ef79a3759bb 1-18,49-73,109-141
+packages/ui/src/react/primitives/input-group.css.ts
+  s_5f26174735f387::t_beb0d100544ac3 1-192
+packages/ui/src/react/primitives/input-group.stories.tsx
+  s_5f26174735f387::t_6eac1c51568f1f 4,12-13,16,25,32,38,42,47,53,60,66,73,79,86
+packages/ui/src/react/primitives/input-group.tsx
+  s_5f26174735f387::t_b8befc2355ad9b 3-4,7,9,11-18,23,33,39,55-57,61-63,70,73,76,78,88,94
+packages/ui/src/react/primitives/input.stories.tsx
+  s_5f26174735f387::t_35356def2dbf16 3-5,8,12,23,25-34,40,42,48,50,56,58,64,70
+packages/ui/src/react/primitives/input.tsx
+  s_5f26174735f387::t_b75ed04625c1ec 2-3,6-10,18
+packages/ui/src/react/primitives/popover.css.ts
+  s_5f26174735f387::t_50b577931c9bfc 1-59
+packages/ui/src/react/primitives/popover.stories.tsx
+  s_5f26174735f387::t_980b34f6a8d6ec 2,4-5,14-15,18,29,38-40,50,56,61-63,71,75,80,84
+packages/ui/src/react/primitives/popover.tsx
+  s_5f26174735f387::t_c1d2a959b2b56e 4,6,37,41,51,59,69
+packages/ui/src/react/primitives/scroll-container.stories.tsx
+  s_5f26174735f387::t_4ffd661ac985ee 1-240
+packages/ui/src/react/primitives/scroll-container.tsx
+  s_5f26174735f387::t_f1dc7d12f9f20b 1-70
+packages/ui/src/react/primitives/scroll-fade.stories.tsx
+  s_5f26174735f387::t_cbbc1ab2bb0b25 1-267
+packages/ui/src/react/primitives/scroll-fade.tsx
+  s_5f26174735f387::t_780b884026d6fb 1-69
+packages/ui/src/react/primitives/select.css.ts
+  s_5f26174735f387::t_0ed94abe90fc7d 1-143
+packages/ui/src/react/primitives/select.stories.tsx
+  s_5f26174735f387::t_4ff97b092c665c 3,13-14,17,26,37,43,62,68,79,85,94,100,113
+packages/ui/src/react/primitives/select.tsx
+  s_5f26174735f387::t_41e8dd2f255d8e 4-5,8-9,17,27,35,40,46-52,82,87,103,113,116,119-120,130,143,158
+packages/ui/src/react/primitives/sheet.css.ts
+  s_5f26174735f387::t_b91ce4bffebd41 1-127
+packages/ui/src/react/primitives/sheet.stories.tsx
+  s_5f26174735f387::t_272f414f59bbf4 1-146
+packages/ui/src/react/primitives/sheet.tsx
+  s_5f26174735f387::t_24100b3a4e4546 1-144
+packages/ui/src/react/primitives/split-button.css.ts
+  s_5f26174735f387::t_a3dd3a6c5e5c41 1-54
+packages/ui/src/react/primitives/split-button.tsx
+  s_5f26174735f387::t_29da22cb6af252 1-133
+packages/ui/src/react/primitives/surface.tsx
+  s_5f26174735f387::t_e6961b1a63c2e1 1-77
+packages/ui/src/react/primitives/tabs.css.ts
+  s_5f26174735f387::t_811d1e2ba85ab0 1-33
+packages/ui/src/react/primitives/tabs.stories.tsx
+  s_5f26174735f387::t_4290752d50c2f6 1-84
+packages/ui/src/react/primitives/tabs.tsx
+  s_5f26174735f387::t_99a6aaec680a1e 1-76
+packages/ui/src/react/primitives/textarea.css.ts
+  s_5f26174735f387::t_b88e2c028f3930 1-15
+packages/ui/src/react/primitives/textarea.stories.tsx
+  s_5f26174735f387::t_b594187e049a04 3-5,8,11-13,21,23-32,38,40,46,48,54,56
+packages/ui/src/react/primitives/textarea.tsx
+  s_5f26174735f387::t_bbc7937759179c 1-2,4,6-11,15
+packages/ui/src/react/primitives/theme-provider.tsx
+  s_5f26174735f387::t_b9d70ac0551303 1-235
+packages/ui/src/react/primitives/toggle.css.ts
+  s_5f26174735f387::t_4ca08b04e3e279 1-12
+packages/ui/src/react/primitives/toggle.stories.tsx
+  s_5f26174735f387::t_58dc231cbbd8a5 1-97
+packages/ui/src/react/primitives/toggle.tsx
+  s_5f26174735f387::t_92cd9bed62a41f 1-75
+packages/ui/src/react/primitives/trigger-button.css.ts
+  s_5f26174735f387::t_042b116b4fb1de 1-27
+packages/ui/src/react/primitives/trigger-button.stories.tsx
+  s_5f26174735f387::t_a649f3ac4809d8 1-106
+packages/ui/src/react/primitives/trigger-button.tsx
+  s_5f26174735f387::t_ad793e62920a6f 1-56
+packages/ui/src/react/primitives/typography/Heading.tsx
+  s_5f26174735f387::t_546d6e636022b8 1-38
+packages/ui/src/react/primitives/typography/Text.tsx
+  s_5f26174735f387::t_f8d3bb8f3f3a24 1-33
+packages/ui/src/react/primitives/typography/typography.variants.css.ts
+  s_5f26174735f387::t_4f95fc4d6f0cd4 1-98
+packages/ui/src/react/primitives/typography/typography.variants.ts
+  s_5f26174735f387::t_1befd4e938cd39 1-4
+packages/ui/src/react/stories/palette.stories.tsx
+  s_5f26174735f387::t_2c9a7868eba3b2 1-233
+packages/ui/src/react/stories/semantic-tokens.stories.tsx
+  s_5f26174735f387::t_25fbcf019f2f2b 1-307
+packages/ui/src/react/stories/typography.stories.tsx
+  s_5f26174735f387::t_69cae6b7849e0a 1-283
+packages/ui/src/react/story-layout.css.ts
+  s_5f26174735f387::t_a43f5bcd2c8d04 1-141
+packages/ui/src/styles/base.css.ts
+  s_5f26174735f387::t_4764706b4cec45 1-88
+packages/ui/src/styles/effects/animations.css.ts
+  s_5f26174735f387::t_9ffc1fce99f649 1-86
+packages/ui/src/styles/effects/effects.css
+  s_5f26174735f387::t_4a7ecb2b83566a 1-67
+packages/ui/src/styles/effects/overflow-fade.css
+  s_5f26174735f387::t_446ddda073cca9 1-91
+packages/ui/src/styles/effects/svg-helpers.css.ts
+  s_5f26174735f387::t_67b2e2126f4681 1-23
+packages/ui/src/styles/global.css.ts
+  s_5f26174735f387::t_1664f6abec696b 1-39
+packages/ui/src/styles/layers.css.ts
+  s_5f26174735f387::t_cf447fb7abaf0f 1-27
+packages/ui/src/styles/recipes/card.css.ts
+  s_5f26174735f387::t_8d31075e028491 1-173
+packages/ui/src/styles/recipes/control.css.ts
+  s_5f26174735f387::t_f80d18a6a9d942 1-270
+packages/ui/src/styles/recipes/control.ts
+  s_5f26174735f387::t_13c6b7f1811927 1-6
+packages/ui/src/styles/recipes/input.css.ts
+  s_5f26174735f387::t_723c24c5b1e64e 1-85
+packages/ui/src/styles/recipes/input.ts
+  s_5f26174735f387::t_6dd75f0fa988dd 1-4
+packages/ui/src/styles/recipes/menu-item.css.ts
+  s_5f26174735f387::t_4249ef332bf3de 1-65
+packages/ui/src/styles/recipes/popup-surface.css.ts
+  s_5f26174735f387::t_ddab3c6e5d0566 1-60
+packages/ui/src/styles/recipes/surface.css.ts
+  s_5f26174735f387::t_aa522d05227080 1-157
+packages/ui/src/styles/reset.css.ts
+  s_5f26174735f387::t_f950415e625aa5 1-85
+packages/ui/src/styles/surfaces.css.ts
+  s_5f26174735f387::t_37779d6f14ec3a 1-245
+packages/ui/src/styles/theme.base.css
+  s_5f26174735f387::t_a19efb3e9c4cf0 1-4,6-24,26-27,31-41,44-54
+packages/ui/src/styles/tokens.css
+  s_5f26174735f387::t_7bbfe0c8d98310 1-19
+packages/ui/src/styles/typography.css
+  s_5f26174735f387::t_d49fa574a07e90 1-99
+packages/ui/src/styles/utilities/cx.ts
+  s_5f26174735f387::t_ada3dec28d7eda 1-33
+packages/ui/src/styles/utilities/index.ts
+  s_5f26174735f387::t_349db891ac9e5b 1-12
+packages/ui/src/styles/utilities/sprinkles.css.ts
+  s_5f26174735f387::t_7906804ffeef70 1-348
+packages/ui/src/theme/__generated__/semantic.css
+  s_5f26174735f387::t_528e41196b90ab 1-292
+packages/ui/src/theme/__generated__/shiki-themes.gen.ts
+  s_5f26174735f387::t_7b06c7d6ab0814 1-146
+packages/ui/src/theme/core/codegen/emit-semantic-css.ts
+  s_5f26174735f387::t_873dbc536a6001 1-32
+packages/ui/src/theme/core/codegen/emit-shiki.ts
+  s_5f26174735f387::t_a36771e6158ed6 1-61
+packages/ui/src/theme/core/codegen/emit-theme-css.ts
+  s_5f26174735f387::t_8089e1b2ee04a9 1-42
+packages/ui/src/theme/core/codegen/run.ts
+  s_5f26174735f387::t_8f0efcb3f488ea 1-12,14-15,17-24,28-29,31-36,38-39,41,43-44,46-48,50-52,54-56,58,61
+packages/ui/src/theme/core/contract/contract.css.ts
+  s_5f26174735f387::t_7c4525ba88f337 1-32
+packages/ui/src/theme/core/contract/roles.ts
+  s_5f26174735f387::t_588bd95423c6cf 1-236
+packages/ui/src/theme/core/contract/semantic-template.ts
+  s_5f26174735f387::t_70da037872a2d0 1-139
+packages/ui/src/theme/core/contract/syntax-template.ts
+  s_5f26174735f387::t_2ca01a411573c7 1-122
+packages/ui/src/theme/core/contract/targets.ts
+  s_5f26174735f387::t_ac1e41546cec63 1-93
+packages/ui/src/theme/core/define-theme.ts
+  s_5f26174735f387::t_4a3e948fb56e8f 1-221
+packages/ui/src/theme/core/generate/color-format.ts
+  s_5f26174735f387::t_d8badb8d7a16b9 1-94
+packages/ui/src/theme/core/generate/fill-gaps.ts
+  s_5f26174735f387::t_f440031569de93 1-99
+packages/ui/src/theme/core/generate/ramp.ts
+  s_5f26174735f387::t_766efd3181db92 1-259
+packages/ui/src/theme/core/generate/resolve.ts
+  s_5f26174735f387::t_78faa9f43244d8 1-185
+packages/ui/src/theme/core/generate/surfaces.ts
+  s_5f26174735f387::t_7ae66236f5a6dd 1-85
+packages/ui/src/theme/core/generate/syntax.ts
+  s_5f26174735f387::t_0c076771122918 1-211
+packages/ui/src/theme/core/index.ts
+  s_5f26174735f387::t_4613e0082ea30d 1-39
+packages/ui/src/theme/core/theme.test.ts
+  s_5f26174735f387::t_0db358d845f8ff 1-351
+packages/ui/src/theme/themes/dark.theme.ts
+  s_5f26174735f387::t_00dab72def3b86 1-47
+packages/ui/src/theme/themes/light.theme.ts
+  s_5f26174735f387::t_c0fa958cf5bf90 1-50
+packages/ui/src/theme/themes/registry.ts
+  s_5f26174735f387::t_e08a4ddbf5e11e 1-33
+packages/ui/src/theme/themes/solarized-dark.theme.ts
+  s_5f26174735f387::t_e005d8f2fcffee 1-90
+packages/ui/src/theme/themes/solarized-light.theme.ts
+  s_5f26174735f387::t_ce347ba575dbeb 1-94
+packages/ui/src/theme/tokens.css.ts
+  s_5f26174735f387::t_7bfdeb12e3224d 1-187
+packages/ui/src/types/css.d.ts
+  s_5f26174735f387::t_509f06854f7b75 1-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.1",
+  "base_commit_sha": "088451b8dd0e515b60250bb773e5c8b3347cd85a",
+  "prompts": {},
+  "sessions": {
+    "s_5f26174735f387": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f004c-0841-7da6-8bcf-366aa2adb854",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    },
+    "s_f9f8b0c2327531": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f004f-4276-7b30-b7c6-49b78908d75a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
