@@ -16,6 +16,10 @@ type ScrollableTerminal = TerminalWithBuffer & {
   scrollToLine: (line: number) => void;
 };
 
+type FocusableTerminal = ScrollableTerminal & {
+  focus: () => void;
+};
+
 export interface TerminalScrollViewportSnapshot {
   bufferType: TerminalBufferType;
   distanceFromBottom: number;
@@ -42,4 +46,10 @@ export function restoreTerminalScrollViewport(
   if (buffer.viewportY !== targetViewportY) {
     terminal.scrollToLine(targetViewportY);
   }
+}
+
+export function focusTerminalPreservingScroll(terminal: FocusableTerminal): void {
+  const scrollSnapshot = captureTerminalScrollViewport(terminal);
+  terminal.focus();
+  restoreTerminalScrollViewport(terminal, scrollSnapshot);
 }

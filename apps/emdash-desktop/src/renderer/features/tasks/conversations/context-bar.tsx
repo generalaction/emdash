@@ -14,6 +14,7 @@ import {
 } from '@renderer/features/tasks/task-view-context';
 import { rpc } from '@renderer/lib/ipc';
 import { pastePromptInjection } from '@renderer/lib/pty/prompt-injection';
+import { focusTerminalPreservingScroll } from '@renderer/lib/pty/terminal-scroll-viewport';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -81,7 +82,8 @@ export const ContextBar = observer(function ContextBar({
       await rpc.pty.sendInput(activeSessionId, '\r');
     }
 
-    activeSession?.pty?.terminal.focus();
+    const terminal = activeSession?.pty?.terminal;
+    if (terminal) focusTerminalPreservingScroll(terminal);
   };
 
   const hideContextBar = () => {

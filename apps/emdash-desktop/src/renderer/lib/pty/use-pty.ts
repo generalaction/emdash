@@ -28,6 +28,7 @@ import { getTerminalContextLink } from './terminal-context-link';
 import { buildTerminalFontFamily } from './terminal-font';
 import {
   captureTerminalScrollViewport,
+  focusTerminalPreservingScroll,
   restoreTerminalScrollViewport,
 } from './terminal-scroll-viewport';
 import { getCellMetrics } from './xterm-cell-metrics';
@@ -291,12 +292,7 @@ export function usePty(
     const term = termRef.current;
     if (!term) return;
 
-    const scrollSnapshot = captureTerminalScrollViewport(term);
-    term.focus();
-    restoreTerminalScrollViewport(term, scrollSnapshot);
-    requestAnimationFrame(() => {
-      if (termRef.current === term) restoreTerminalScrollViewport(term, scrollSnapshot);
-    });
+    focusTerminalPreservingScroll(term);
   }, []);
 
   const copySelectionToClipboard = useCallback(() => {
