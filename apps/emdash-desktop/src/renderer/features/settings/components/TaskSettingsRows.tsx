@@ -2,6 +2,17 @@ import { Info } from 'lucide-react';
 import React from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
+import { type DurationUnit, durationToMs, msToDuration } from '@renderer/lib/duration';
+import { Checkbox } from '@renderer/lib/ui/checkbox';
+import { Input } from '@renderer/lib/ui/input';
+import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@renderer/lib/ui/select';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
@@ -222,6 +233,119 @@ export const EnableTmuxRow: React.FC = () => {
             onCheckedChange={(checked) => update({ tmuxByDefault: checked })}
           />
         </>
+      }
+    />
+  );
+};
+
+export const AutoCleanupMergedTasksRow: React.FC = () => {
+  const taskSettings = useTaskSettings();
+  const { value, unit } = msToDuration(taskSettings.autoCleanupMergedDelayMs);
+  const disabled =
+    taskSettings.loading || taskSettings.saving || !taskSettings.autoCleanupMergedEnabled;
+
+  const updateValue = (nextValue: number) => {
+    const clamped = Math.max(1, Math.floor(nextValue));
+    taskSettings.updateAutoCleanupMergedDelayMs(durationToMs(clamped, unit));
+  };
+
+  const updateUnit = (nextUnit: DurationUnit) => {
+    taskSettings.updateAutoCleanupMergedDelayMs(durationToMs(value, nextUnit));
+  };
+
+  const anyOverridden =
+    taskSettings.isFieldOverridden('autoCleanupMergedEnabled') ||
+    taskSettings.isFieldOverridden('autoCleanupMergedAction') ||
+    taskSettings.isFieldOverridden('autoCleanupMergedDeleteBranch') ||
+    taskSettings.isFieldOverridden('autoCleanupMergedDelayMs');
+
+  const resetAll = () => {
+    taskSettings.resetAutoCleanupMergedEnabled();
+    taskSettings.resetAutoCleanupMergedAction();
+    taskSettings.resetAutoCleanupMergedDeleteBranch();
+    taskSettings.resetAutoCleanupMergedDelayMs();
+  };
+
+  return (
+    <SettingRow
+      title="Auto-cleanup merged tasks"
+      description="When a task's pull request has been merged for the configured delay, automatically archive or delete the task."
+      control={
+        <div className="flex flex-col items-end gap-3">
+          <div className="flex items-center gap-2">
+            <ResetToDefaultButton
+              visible={anyOverridden}
+              defaultLabel="off"
+              onReset={resetAll}
+              disabled={taskSettings.loading || taskSettings.saving}
+            />
+            <Switch
+              checked={taskSettings.autoCleanupMergedEnabled}
+              disabled={taskSettings.loading || taskSettings.saving}
+              onCheckedChange={taskSettings.updateAutoCleanupMergedEnabled}
+            />
+          </div>
+
+          <RadioGroup
+            value={taskSettings.autoCleanupMergedAction}
+            onValueChange={(v) =>
+              taskSettings.updateAutoCleanupMergedAction(v as 'archive' | 'delete')
+            }
+            disabled={disabled}
+            className="flex items-center gap-4 text-sm"
+          >
+            <label className="flex items-center gap-1.5">
+              <RadioGroupItem value="archive" />
+              Archive
+            </label>
+            <label className="flex items-center gap-1.5">
+              <RadioGroupItem value="delete" />
+              Delete
+            </label>
+          </RadioGroup>
+
+          {taskSettings.autoCleanupMergedAction === 'delete' && (
+            <label className="flex items-center gap-1.5 text-sm">
+              <Checkbox
+                checked={taskSettings.autoCleanupMergedDeleteBranch}
+                disabled={disabled}
+                onCheckedChange={(c) =>
+                  taskSettings.updateAutoCleanupMergedDeleteBranch(c === true)
+                }
+              />
+              Also delete the branch
+            </label>
+          )}
+
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">After</span>
+            <Input
+              type="number"
+              min={1}
+              value={value}
+              disabled={disabled}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (Number.isFinite(n) && n > 0) updateValue(n);
+              }}
+              className="w-20"
+            />
+            <Select
+              value={unit}
+              onValueChange={(u) => updateUnit(u as DurationUnit)}
+              disabled={disabled}
+            >
+              <SelectTrigger className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="minutes">Minutes</SelectItem>
+                <SelectItem value="hours">Hours</SelectItem>
+                <SelectItem value="days">Days</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       }
     />
   );

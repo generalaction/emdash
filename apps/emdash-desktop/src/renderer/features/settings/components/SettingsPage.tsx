@@ -16,6 +16,7 @@ import SidebarMetadataSettingsCard from './SidebarMetadataSettingsCard';
 import { SshConnectionsSettingsCard } from './SshConnectionsSettingsCard';
 import {
   AutoApproveByDefaultRow,
+  AutoCleanupMergedTasksRow,
   AutoGenerateTaskNamesRow,
   AutoTrustWorktreesRow,
   CreateBranchAndWorktreeRow,
@@ -60,6 +61,7 @@ function GeneralSettingsPage() {
       <PreserveTaskNameCapitalizationRow />
       <IncludeIssueContextByDefaultRow />
       <EnableTmuxRow />
+      <AutoCleanupMergedTasksRow />
       <NotificationSettingsCard />
     </div>
   );
