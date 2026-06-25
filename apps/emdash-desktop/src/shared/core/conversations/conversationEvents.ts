@@ -6,9 +6,7 @@ export const conversationChangedChannel = defineEvent<{
   conversationId: string;
   taskId: string;
   projectId: string;
-  changes: Partial<
-    Pick<Conversation, 'lastInteractedAt' | 'title' | 'providerSessionId' | 'model'>
-  >;
+  changes: Partial<Pick<Conversation, 'lastInteractedAt' | 'title' | 'sessionId' | 'model'>>;
 }>('conversation:changed');
 
 export const conversationCreatedChannel = defineEvent<{

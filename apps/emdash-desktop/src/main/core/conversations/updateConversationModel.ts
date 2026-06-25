@@ -20,7 +20,8 @@ export async function updateConversationModel(
 
   if (!row) return;
 
-  const config = row.config ?? {};
+  const config = row.config;
+  if (!config) return;
   if (config.model === model) return;
 
   await db

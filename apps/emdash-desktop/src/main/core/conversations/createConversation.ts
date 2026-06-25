@@ -51,12 +51,16 @@ export async function createConversation(
     .where(eq(conversations.taskId, params.taskId))
     .limit(1);
 
-  const configObj: ConversationConfig = {};
-  if (params.autoApprove !== undefined) configObj.autoApprove = params.autoApprove;
-  if (params.model) configObj.model = params.model;
-  const config = Object.keys(configObj).length > 0 ? configObj : undefined;
-
   const conversationType = params.type ?? 'pty';
+
+  const configObj: ConversationConfig = {
+    version: '1',
+    type: conversationType,
+    ...(params.autoApprove !== undefined && { autoApprove: params.autoApprove }),
+    ...(params.model && { model: params.model }),
+    ...(params.initialPrompt && { initialPrompt: params.initialPrompt }),
+  };
+  const config = configObj;
 
   const [row] = await database
     .insert(conversations)

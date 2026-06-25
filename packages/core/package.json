@@ -13,6 +13,10 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./acp": {
+      "types": "./dist/acp.d.mts",
+      "default": "./dist/acp.mjs"
+    },
     "./deps": {
       "types": "./dist/deps.d.mts",
       "default": "./dist/deps.mjs"

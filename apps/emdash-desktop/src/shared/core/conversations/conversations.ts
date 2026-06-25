@@ -14,8 +14,14 @@ export type Conversation = {
   lastInteractedAt: string | null;
   resume?: boolean;
   autoApprove?: boolean;
-  /** Provider-native session id captured at runtime for per-chat resume. */
-  providerSessionId?: string;
+  /**
+   * The agent-facing session identifier. Null / absent means the conversation has never spawned.
+   * For providers that accept a supplied id (most PTY), this is set to conversation.id before
+   * first spawn and may later be overwritten by the agent's own native id (e.g. Droid UUID).
+   * For ACP, set to the id returned by newSession/loadSession.
+   * Resume with this id when sessionId !== conversation.id; treat as fresh otherwise.
+   */
+  sessionId?: string;
   /** Model to pass to the agent CLI. Absent or empty string means use the CLI default. */
   model?: string;
   isInitialConversation: boolean | null;

@@ -2,6 +2,7 @@ import { defineConfig } from 'tsdown';
 
 export default defineConfig({
   entry: {
+    acp: 'src/acp/index.ts',
     deps: 'src/host-dependencies/capability.ts',
     'deps-runtime': 'src/host-dependencies/runtime/index.ts',
     exec: 'src/exec/index.ts',

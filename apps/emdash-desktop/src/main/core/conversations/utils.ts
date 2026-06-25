@@ -7,16 +7,16 @@ export function mapConversationRowToConversation(
   row: ConversationRow,
   resume: boolean = false
 ): Conversation {
-  const config = row.config ?? {};
+  const config = row.config;
   return {
     id: row.id,
     title: row.title,
     taskId: row.taskId,
     projectId: row.projectId,
     providerId: row.provider as AgentProviderId,
-    autoApprove: config.autoApprove,
-    providerSessionId: config.providerSessionId,
-    model: config.model,
+    autoApprove: config?.autoApprove,
+    sessionId: row.sessionId ?? undefined,
+    model: config?.model,
     resume: resume,
     lastInteractedAt: row.lastInteractedAt ?? null,
     isInitialConversation: row.isInitialConversation,

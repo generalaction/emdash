@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { acpSessionManager } from '@main/core/acp/production-acp-session-manager';
+import type { MachineRef } from '@main/core/runtime/types';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { resolveTask } from '../projects/utils';
@@ -35,8 +36,20 @@ export async function hydrateConversation(
     const workspace = workspaceRegistry.get(workspaceId);
     if (!workspace) throw new Error('Workspace not found');
 
-    const config = row.config ?? {};
-    await acpSessionManager.start(conversation, workspaceId, workspace.path, config.initialPrompt);
+    // Derive the target machine from the task session's SSH connection (if any).
+    const connId = taskSessionManager.getPersistData(taskId)?.sshConnectionId;
+    const machine: MachineRef = connId ? { kind: 'ssh', connectionId: connId } : { kind: 'local' };
+
+    const config = row.config;
+    const isFirstSpawn = row.sessionId === null;
+
+    await acpSessionManager.start(
+      conversation,
+      workspaceId,
+      workspace.path,
+      machine,
+      isFirstSpawn ? config?.initialPrompt : undefined
+    );
     return;
   }
 
@@ -54,13 +67,13 @@ export async function hydrateConversation(
       .where(eq(conversations.id, conversationId));
   }
 
-  const config = row.config ?? {};
+  const config = row.config;
   const isResuming = !isFirstSpawn;
 
   await task.conversations.startSession(
     mapConversationRowToConversation(row, isResuming),
     undefined,
     isResuming,
-    isFirstSpawn ? config.initialPrompt : undefined
+    isFirstSpawn ? config?.initialPrompt : undefined
   );
 }

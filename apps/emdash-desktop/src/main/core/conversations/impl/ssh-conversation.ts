@@ -142,7 +142,7 @@ export class SshConversationProvider implements ConversationProvider {
         autoApprove: conversation.autoApprove ?? false,
         initialPrompt: agentSession.isResuming ? undefined : initialPrompt,
         sessionId: agentSession.sessionId,
-        providerSessionId: conversation.providerSessionId ?? undefined,
+        providerSessionId: conversation.sessionId ?? undefined,
         isResuming: agentSession.isResuming,
         model: conversation.model ?? '',
       });

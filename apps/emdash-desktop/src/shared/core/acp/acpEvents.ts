@@ -1,7 +1,7 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
+import type { AcpPermissionRequest } from '@emdash/core/acp';
+import type { AcpTurn, SessionLifecycle } from '@emdash/core/acp';
 import { defineEvent } from '@shared/lib/ipc/events';
-import type { AcpPermissionRequest } from './acpPermissions';
-import type { AcpTurn, SessionLifecycle } from './acpTurns';
 
 /**
  * Forwarded from the main process whenever the ACP agent emits a

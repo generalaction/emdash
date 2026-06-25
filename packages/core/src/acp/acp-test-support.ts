@@ -1,36 +1,33 @@
 /**
- * Reusable test helpers for AcpSessionManager/AcpSessionRuntime desktop tests.
+ * Reusable test helpers for AcpSessionRuntime tests.
  *
- * These mirror the core acp-test-support.ts and share the same interfaces via
- * @emdash/core/acp, but are maintained separately to avoid bundling vitest
- * dependencies from the core package.
+ * Not a test file itself (no `.test.` suffix) — Vitest will not collect it.
+ * Import from `./acp-test-support` in test files that need it.
  */
 
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import type { Client } from '@agentclientprotocol/sdk';
+import { vi } from 'vitest';
+import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
+import type { AcpPermissionRequest } from './permissions';
 import type {
-  AcpFs,
-  AcpProcessHandle,
-  AcpProcessHost,
   AcpRuntimeListener,
   AcpRuntimeLog,
   AcpSessionRuntimeDeps,
   AcpStartInput,
-  AcpPermissionRequest,
-  AcpTurn,
-  SessionLifecycle,
-} from '@emdash/core/acp';
-import type { AcpAgentApi, IAcpBehavior } from '@emdash/core/agents/plugins';
-import { vi } from 'vitest';
-import type { AcpSessionManagerDeps } from './acp-session-manager';
-
-export type { AcpSessionManagerDeps };
+} from './runtime';
+import type { AcpProcessHandle, AcpProcessHost, AcpFs } from './transport';
+import type { AcpTurn, SessionLifecycle } from './turns';
 
 // ---------------------------------------------------------------------------
-// Recording listener (replaces events mock pattern)
+// Recording listener
 // ---------------------------------------------------------------------------
 
+/**
+ * Creates a recording AcpRuntimeListener.
+ * `emitted(field)` returns all objects emitted via that method.
+ */
 export function createRecordingListener() {
   const states: {
     conversationId: string;
@@ -79,6 +76,11 @@ export function createRecordingListener() {
 // FakeAcpAgent
 // ---------------------------------------------------------------------------
 
+/**
+ * An injectable fake that implements AcpAgentApi.
+ * After the plugin's `connect(io, toClient)` is called, `capturedClient`
+ * holds the runtime's inbound Client handler.
+ */
 export class FakeAcpAgent implements AcpAgentApi {
   initialize = vi.fn().mockResolvedValue({ protocolVersion: 1 });
   newSession = vi.fn().mockResolvedValue({ sessionId: 'session-1' });
@@ -88,6 +90,7 @@ export class FakeAcpAgent implements AcpAgentApi {
   prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' });
   setSessionConfigOption = vi.fn().mockResolvedValue({});
 
+  /** The Client handler the runtime registered via toClient(). Available after connect(). */
   capturedClient: Client | null = null;
 
   readonly behavior: Pick<IAcpBehavior, 'connect'> = {
@@ -138,6 +141,7 @@ export class FakeAcpProcessHandle extends EventEmitter implements AcpProcessHand
   }
 }
 
+// Alias for backward compat.
 export { FakeAcpProcessHandle as FakeChildProcess };
 
 // ---------------------------------------------------------------------------
@@ -212,6 +216,11 @@ export function makeAcpHarness(depOverrides: Partial<AcpSessionRuntimeDeps> = {}
     deps,
     fakeHost,
     recording,
+    /** Typed states emitted (shortcut). */
+    get states() {
+      return recording.states;
+    },
+    /** The last FakeAcpProcessHandle spawned by the harness. */
     get lastChild(): FakeAcpProcessHandle {
       return fakeHost.lastHandle;
     },
@@ -229,7 +238,7 @@ export function makeAcpHarness(depOverrides: Partial<AcpSessionRuntimeDeps> = {}
 }
 
 // ---------------------------------------------------------------------------
-// makeStartInput factory
+// AcpStartInput factory
 // ---------------------------------------------------------------------------
 
 export function makeStartInput(
@@ -245,28 +254,5 @@ export function makeStartInput(
     sessionId: null,
     model: null,
     ...overrides,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Conversation factory (for desktop AcpSessionManager tests)
-// ---------------------------------------------------------------------------
-
-import type { Conversation } from '@shared/core/conversations/conversations';
-
-export function makeConversation(
-  overrides: { conversationId?: string; sessionId?: string; model?: string } = {}
-): Conversation {
-  return {
-    id: overrides.conversationId ?? 'conv-1',
-    providerId: 'claude',
-    projectId: 'proj-1',
-    taskId: 'task-1',
-    sessionId: overrides.sessionId,
-    model: overrides.model,
-    type: 'acp',
-    title: 'Test Chat',
-    lastInteractedAt: null,
-    isInitialConversation: false,
   };
 }
