@@ -42,6 +42,7 @@ function makeTaskRow(values: Partial<TaskRow>): TaskRow {
     workspaceIntent: values.workspaceIntent ?? null,
     type: values.type ?? 'task',
     automationRunId: values.automationRunId ?? null,
+    autoCleanupOptOut: values.autoCleanupOptOut ?? false,
   };
 }
 
