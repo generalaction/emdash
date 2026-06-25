@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, toSerializedError, type Result } from '@emdash/shared';
 import { type AccountProviderTokenPersistenceError, unknownErrorMessage } from '../account-errors';
 import type { AuthProviderToken } from '../account-types';
 import {
@@ -32,7 +32,7 @@ export class ProviderTokenDispatcher {
         type: 'provider_token_persistence_failed',
         provider: token.providerId,
         message: unknownErrorMessage(error, 'Failed to persist provider token'),
-        cause: error,
+        cause: toSerializedError(error),
       });
     }
   }

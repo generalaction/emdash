@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, toSerializedError, type Result } from '@emdash/shared';
 import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
 import { type AccountOAuthError, unknownErrorMessage } from '../account-errors';
 import { ACCOUNT_CONFIG } from '../config';
@@ -50,7 +50,7 @@ export class AccountOAuthClient {
       return err({
         type: 'oauth_failed',
         message: unknownErrorMessage(error, 'OAuth flow failed'),
-        cause: error,
+        cause: toSerializedError(error),
       });
     }
   }

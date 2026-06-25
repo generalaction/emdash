@@ -47,6 +47,7 @@ import type {
 } from '@emdash/core/git';
 import { LiveModel, ResourceMap } from '@emdash/core/lib';
 import { err, ok, type Lease, type Result, type Unsubscribe } from '@emdash/shared';
+import { Result as ResultUtil } from '@emdash/shared/result';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { GitService } from '@main/core/git/legacy/git-service';
@@ -309,9 +310,9 @@ class LegacySshGitRepository implements IGitRepository {
   }
 
   async fetch(remote?: string): Promise<Result<{ sequences: GitSequences }, FetchError>> {
-    const result = await this.git.fetch(remote);
-    if (!result.success) return err(result.error);
-    return ok({ sequences: { refs: await this.refreshRefs() } });
+    return await ResultUtil.fromAsync(this.git.fetch(remote)).map(async () => ({
+      sequences: { refs: await this.refreshRefs() },
+    }));
   }
 
   async addRemote(
@@ -330,43 +331,43 @@ class LegacySshGitRepository implements IGitRepository {
   async createBranch(
     options: CreateBranchOptions
   ): Promise<Result<{ sequences: GitSequences }, CreateBranchError>> {
-    const result = await this.git.createBranch(
-      options.name,
-      options.from ?? 'HEAD',
-      options.syncWithRemote,
-      options.remote
-    );
-    if (!result.success) return err(result.error);
-    return ok({ sequences: { refs: await this.refreshRefs() } });
+    return await ResultUtil.fromAsync(
+      this.git.createBranch(
+        options.name,
+        options.from ?? 'HEAD',
+        options.syncWithRemote,
+        options.remote
+      )
+    ).map(async () => ({ sequences: { refs: await this.refreshRefs() } }));
   }
 
   async deleteBranch(
     branch: string,
     force?: boolean
   ): Promise<Result<{ sequences: GitSequences }, DeleteBranchError>> {
-    const result = await this.git.deleteBranch(branch, force);
-    if (!result.success) return err(result.error);
-    return ok({ sequences: { refs: await this.refreshRefs() } });
+    return await ResultUtil.fromAsync(this.git.deleteBranch(branch, force)).map(async () => ({
+      sequences: { refs: await this.refreshRefs() },
+    }));
   }
 
   async fetchPrForReview(
     options: FetchPrForReviewOptions
   ): Promise<Result<{ sequences: GitSequences }, FetchPrForReviewError>> {
-    const result = await this.git.fetchPrForReview(
-      options.prNumber,
-      options.headRefName,
-      options.headRepositoryUrl,
-      options.localBranch,
-      options.isFork,
-      options.configuredRemote
-    );
-    if (!result.success) return err(result.error);
-    const [refs, remotes] = await Promise.all([
-      this.refsModel.refresh(),
-      this.remotesModel.refresh(),
-    ]);
-    return ok({
-      sequences: { refs: refs.sequence, remotes: remotes.sequence },
+    return await ResultUtil.fromAsync(
+      this.git.fetchPrForReview(
+        options.prNumber,
+        options.headRefName,
+        options.headRepositoryUrl,
+        options.localBranch,
+        options.isFork,
+        options.configuredRemote
+      )
+    ).map(async () => {
+      const [refs, remotes] = await Promise.all([
+        this.refsModel.refresh(),
+        this.remotesModel.refresh(),
+      ]);
+      return { sequences: { refs: refs.sequence, remotes: remotes.sequence } };
     });
   }
 
@@ -374,9 +375,9 @@ class LegacySshGitRepository implements IGitRepository {
     branchName: string,
     remote?: string
   ): Promise<Result<{ output: string; sequences: GitSequences }, PushError>> {
-    const result = await this.git.publishBranch(branchName, remote);
-    if (!result.success) return err(result.error);
-    return ok({ output: result.data.output, sequences: { refs: await this.refreshRefs() } });
+    return await ResultUtil.fromAsync(this.git.publishBranch(branchName, remote)).map(
+      async (data) => ({ output: data.output, sequences: { refs: await this.refreshRefs() } })
+    );
   }
 
   readBlobAtRef(ref: string, filePath: string): Promise<string | null> {
@@ -573,23 +574,26 @@ class LegacySshGitWorktree implements IGitWorktree {
   async commit(
     message: string
   ): Promise<Result<{ hash: string; sequences: GitSequences }, CommitError>> {
-    const result = await this.git.commit(message);
-    if (!result.success) return err(result.error);
-    return ok({ hash: result.data.hash, sequences: await this.refreshAfterHistoryChange() });
+    return await ResultUtil.fromAsync(this.git.commit(message)).map(async (data) => ({
+      hash: data.hash,
+      sequences: await this.refreshAfterHistoryChange(),
+    }));
   }
 
   async push(
     remote?: string
   ): Promise<Result<{ output: string; sequences: GitSequences }, PushError>> {
-    const result = await this.git.push(remote);
-    if (!result.success) return err(result.error);
-    return ok({ output: result.data.output, sequences: await this.refreshAfterHistoryChange() });
+    return await ResultUtil.fromAsync(this.git.push(remote)).map(async (data) => ({
+      output: data.output,
+      sequences: await this.refreshAfterHistoryChange(),
+    }));
   }
 
   async pull(): Promise<Result<{ output: string; sequences: GitSequences }, PullError>> {
-    const result = await this.git.pull();
-    if (!result.success) return err(result.error);
-    return ok({ output: result.data.output, sequences: await this.refreshAfterHistoryChange() });
+    return await ResultUtil.fromAsync(this.git.pull()).map(async (data) => ({
+      output: data.output,
+      sequences: await this.refreshAfterHistoryChange(),
+    }));
   }
 
   async dispose(): Promise<void> {

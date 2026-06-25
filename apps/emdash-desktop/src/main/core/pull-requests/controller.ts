@@ -1,4 +1,5 @@
 import { err, ok } from '@emdash/shared';
+import { match, P } from 'ts-pattern';
 import { providerRepositoryService } from '@main/core/repository/provider-repository-service';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
@@ -46,80 +47,75 @@ function mapPrSyncEngineError(
   error: PrSyncEngineError,
   fallbackType: PrControllerFailureType
 ): PullRequestError {
-  switch (error.type) {
-    case 'invalid-repository-ref':
-      return { type: 'invalid_repository', input: error.input };
-    case 'auth_required':
-      return isGitHubDotComHost(error.host)
+  return match(error)
+    .with({ type: 'invalid-repository-ref' }, (e) => ({
+      type: 'invalid_repository' as const,
+      input: e.input,
+    }))
+    .with({ type: 'auth_required' }, (e) =>
+      isGitHubDotComHost(e.host)
         ? {
-            type: 'github_auth_required',
-            host: error.host,
-            hint: error.hint ?? 'Connect GitHub from account settings.',
+            type: 'github_auth_required' as const,
+            host: e.host,
+            hint: e.hint ?? 'Connect GitHub from account settings.',
           }
         : {
-            type: 'ghes_auth_required',
-            host: error.host,
-            hint: error.hint ?? `Run: gh auth login --hostname ${error.host}`,
-          };
-    case 'account_not_found':
-      return {
-        type: 'github_account_not_found',
-        host: error.host,
-        accountId: error.accountId,
-        message: error.message,
-      };
-    case 'account_host_mismatch':
-      return {
-        type: 'github_account_host_mismatch',
-        host: error.host,
-        accountId: error.accountId,
-        accountHost: error.accountHost,
-        message: error.message,
-      };
-    case 'token_missing':
-      return {
-        type: 'github_token_missing',
-        host: error.host,
-        accountId: error.accountId,
-        message: error.message,
-      };
-    case 'not_found_or_no_access':
-      return {
-        type: 'github_not_found_or_no_access',
-        host: error.host,
-        message: error.message,
-      };
-    case 'sso_required':
-      return {
-        type: 'github_sso_required',
-        host: error.host,
-        message: error.message,
-        ssoUrl: error.ssoUrl,
-      };
-    case 'rate_limited':
-      return {
-        type: 'github_rate_limited',
-        host: error.host,
-        message: error.message,
-        resetAt: error.resetAt,
-      };
-    case 'forbidden':
-      return {
-        type: 'github_forbidden',
-        host: error.host,
-        message: error.message,
-      };
-    case 'host_unreachable':
-      return {
-        type: 'host_unreachable',
-        host: error.host,
-        reason: error.reason,
-      };
-    case 'sync_cancelled':
-      return { type: fallbackType, message: error.message };
-    case 'api_error':
-      return { type: fallbackType, message: error.message };
-  }
+            type: 'ghes_auth_required' as const,
+            host: e.host,
+            hint: e.hint ?? `Run: gh auth login --hostname ${e.host}`,
+          }
+    )
+    .with({ type: 'account_not_found' }, (e) => ({
+      type: 'github_account_not_found' as const,
+      host: e.host,
+      accountId: e.accountId,
+      message: e.message,
+    }))
+    .with({ type: 'account_host_mismatch' }, (e) => ({
+      type: 'github_account_host_mismatch' as const,
+      host: e.host,
+      accountId: e.accountId,
+      accountHost: e.accountHost,
+      message: e.message,
+    }))
+    .with({ type: 'token_missing' }, (e) => ({
+      type: 'github_token_missing' as const,
+      host: e.host,
+      accountId: e.accountId,
+      message: e.message,
+    }))
+    .with({ type: 'not_found_or_no_access' }, (e) => ({
+      type: 'github_not_found_or_no_access' as const,
+      host: e.host,
+      message: e.message,
+    }))
+    .with({ type: 'sso_required' }, (e) => ({
+      type: 'github_sso_required' as const,
+      host: e.host,
+      message: e.message,
+      ssoUrl: e.ssoUrl,
+    }))
+    .with({ type: 'rate_limited' }, (e) => ({
+      type: 'github_rate_limited' as const,
+      host: e.host,
+      message: e.message,
+      resetAt: e.resetAt,
+    }))
+    .with({ type: 'forbidden' }, (e) => ({
+      type: 'github_forbidden' as const,
+      host: e.host,
+      message: e.message,
+    }))
+    .with({ type: 'host_unreachable' }, (e) => ({
+      type: 'host_unreachable' as const,
+      host: e.host,
+      reason: e.reason,
+    }))
+    .with(P.union({ type: 'sync_cancelled' }, { type: 'api_error' }), (e) => ({
+      type: fallbackType,
+      message: e.message,
+    }))
+    .exhaustive();
 }
 
 export const pullRequestController = createRPCController({

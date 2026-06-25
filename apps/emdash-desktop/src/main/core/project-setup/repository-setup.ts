@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { CloneRepositoryError, GitHeadModel, IGitWorktree } from '@emdash/core/git';
+import { match, P } from 'ts-pattern';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
@@ -39,14 +40,16 @@ async function createProjectFs(root: string, machine: MachineRef): Promise<FileS
 }
 
 function cloneRepositoryErrorMessage(error: CloneRepositoryError): string {
-  switch (error.type) {
-    case 'target_exists':
-      return `Target directory already exists and is not empty: ${error.path}`;
-    case 'auth_failed':
-    case 'remote_not_found':
-    case 'git_error':
-      return error.message;
-  }
+  return match(error)
+    .with(
+      { type: 'target_exists' },
+      (e) => `Target directory already exists and is not empty: ${e.path}`
+    )
+    .with(
+      P.union({ type: 'auth_failed' }, { type: 'remote_not_found' }, { type: 'git_error' }),
+      (e) => e.message
+    )
+    .exhaustive();
 }
 
 function initialReadmeContent(name: string, description: string | undefined): string {
