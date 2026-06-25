@@ -1,0 +1,26 @@
+apps/emdash-desktop/src/renderer/features/tasks/delete-task-modal.test.ts
+  s_55210501c457e5::t_ad692111171855 37-49,74-76,103-110,132-196
+apps/emdash-desktop/src/renderer/features/tasks/delete-task-modal.tsx
+  s_55210501c457e5::t_f70a3b7123598a 181
+  s_55210501c457e5::t_6a3fea46f08f8a 50
+  s_55210501c457e5::t_d4479858dc5626 74,78-96
+  s_55210501c457e5::t_72a278ef76093b 3,33-35,44-47,49,56-65,97
+  s_55210501c457e5::t_f158bac297f5de 180,183-189
+  s_55210501c457e5::t_b7a4722ecb8c2d 98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.1",
+  "base_commit_sha": "3d5401e1129dfb8dac4fd9ffdd64c263cc432cb0",
+  "prompts": {},
+  "sessions": {
+    "s_55210501c457e5": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019efe2d-1c7b-77ef-a5e3-5f608778210b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
