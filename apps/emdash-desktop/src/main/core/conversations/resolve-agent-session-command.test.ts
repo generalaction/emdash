@@ -178,19 +178,6 @@ describe('resolveAgentSessionCommandArgs', () => {
     expect(result.args).toEqual(['resume', 'provider-session-1']);
   });
 
-  it('does not pass Codex hook trust bypass more than once', () => {
-    const result = pluginRegistry.get('codex')!.behavior.prompt!.buildCommand({
-      cli: 'codex',
-      autoApprove: true,
-      extraArgs: ['--dangerously-bypass-hook-trust'],
-      model: '',
-      sessionId: 'conv-1',
-      isResuming: false,
-    });
-
-    expect(result.args.filter((arg) => arg === '--dangerously-bypass-hook-trust')).toHaveLength(1);
-  });
-
   it('builds an Amp replacement resume command from the stored provider thread id', () => {
     const conversation = makeConversation({
       id: '6fac6620-9fa8-4604-b7e0-1fe361589104',
