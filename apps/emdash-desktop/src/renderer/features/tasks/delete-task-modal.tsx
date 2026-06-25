@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from 'framer-motion';
 import { TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { rpc } from '@renderer/lib/ipc';
@@ -89,10 +90,19 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
   })();
 
   const dirtyWarningNode = showDirtyWarning && dirtyWarning && (
-    <div className="flex items-start gap-1.5 rounded-md bg-background-warning px-3 py-2 text-xs text-foreground-warning">
-      <TriangleAlert className="mt-px size-3.5 shrink-0" />
-      <span>{dirtyWarning}</span>
-    </div>
+    <motion.div
+      key="dirty-warning"
+      initial={{ height: 0, opacity: 0, y: -4 }}
+      animate={{ height: 'auto', opacity: 1, y: 0 }}
+      exit={{ height: 0, opacity: 0, y: -4 }}
+      transition={{ duration: 0.16, ease: 'easeOut' }}
+      className="overflow-hidden"
+    >
+      <div className="flex items-start gap-1.5 rounded-md bg-background-warning px-3 py-2 text-xs text-foreground-warning">
+        <TriangleAlert className="mt-px size-3.5 shrink-0" />
+        <span>{dirtyWarning}</span>
+      </div>
+    </motion.div>
   );
 
   return (
@@ -116,7 +126,7 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
             {isLoading ? (isBulk ? 'Delete worktrees' : 'Delete worktree') : worktreeLabel}
           </label>
 
-          {dirtyWarningNode}
+          <AnimatePresence initial={false}>{dirtyWarningNode}</AnimatePresence>
 
           <label
             className="flex items-center gap-2 text-sm aria-disabled:cursor-default aria-disabled:text-foreground-muted"
