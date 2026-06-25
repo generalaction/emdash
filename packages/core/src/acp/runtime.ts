@@ -1,4 +1,4 @@
-import type { Result } from '@emdash/shared';
+import type { Result } from '@emdash/shared/result';
 import type { IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import type { AgentUpdate } from './agent-update';
 import type { AcpPermissionRequest } from './permissions';
@@ -111,10 +111,6 @@ export type AcpRuntimeLog = {
 
 export type SetSessionIdError = { type: string; message?: string };
 
-// ---------------------------------------------------------------------------
-// AcpSessionRuntimeDeps
-// ---------------------------------------------------------------------------
-
 export interface AcpSessionRuntimeDeps {
   /** Resolves the ACP behavior for a given provider id. */
   resolveAcp: ResolveAcpProvider;
@@ -131,10 +127,6 @@ export interface AcpSessionRuntimeDeps {
   listener: AcpRuntimeListener;
   log: AcpRuntimeLog;
 }
-
-// ---------------------------------------------------------------------------
-// IAcpSessionRuntime
-// ---------------------------------------------------------------------------
 
 /**
  * Machine-agnostic ACP session runtime interface.

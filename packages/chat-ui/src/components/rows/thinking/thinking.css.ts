@@ -11,4 +11,7 @@ export const thinkingCardVars = createVariableThemeContract<ThinkingStyleVars>({
   height: null,
 });
 
-export const thinkingRoot = style({ height: thinkingCardVars.height });
+// overflow: hidden ensures that any transient measure-vs-render height desync
+// (e.g. during a mid-tween frame or a stale virtualizer size) degrades to
+// clipped content rather than spilling over the following row.
+export const thinkingRoot = style({ height: thinkingCardVars.height, overflow: 'hidden' });

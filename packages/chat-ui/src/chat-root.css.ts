@@ -9,6 +9,9 @@
 import { style } from '@vanilla-extract/css';
 import { vars } from './styles/theme.css';
 
+/** Max-width of the centered content column — matches user message cards. */
+const CONTAINER_WIDTH = '42rem';
+
 /** Outer clip container — clips the pinned overlay during scroll handoff. */
 export const outerClip = style({
   position: 'relative',
@@ -28,11 +31,28 @@ export const scrollContainer = style({
   width: '100%',
   overflowX: 'hidden',
   overflowY: 'auto',
+  // Reserve a stable gutter so the scrollbar appearing/disappearing does not
+  // change contentRect.width, which would trigger prose re-wrap ("flash") and
+  // transient height desync ("overlap") on every thinking expand/collapse.
+  scrollbarGutter: 'stable',
 });
 
 /** Virtualizer canvas — positions all rows absolutely inside this container. */
 export const canvas = style({
   position: 'relative',
+});
+
+/**
+ * Zero-height width probe — carries `contentClass` so it reports the capped
+ * content-column width. The width ResizeObserver targets this instead of the
+ * virtualizer canvas so it only fires on genuine layout-width changes (viewport
+ * resize or gutter toggle), never on canvas height mutations driven by streaming
+ * or expand/collapse tween updates.
+ */
+export const widthProbeClass = style({
+  height: 0,
+  overflow: 'hidden',
+  pointerEvents: 'none',
 });
 
 /** Per-unit row wrapper — translates each row to its virtualizer Y position. */
@@ -65,13 +85,12 @@ export const defaultContentClass = style({
   marginLeft: 'auto',
   marginRight: 'auto',
   width: '100%',
-  maxWidth: '42rem', // Tailwind max-w-2xl = 672px = 42rem
+  maxWidth: CONTAINER_WIDTH,
 });
 
 /**
- * Composer slot — sticky bottom slot inside outerClip for hosting a
- * React-portalled composer. The view's internal ResizeObserver on this
- * element drives padBottom so the last row always clears the composer.
+ * Composer slot — sticky positioning layer only. Transparent so the scrollbar
+ * at the viewport edge remains fully visible.
  */
 export const composerSlotClass = style({
   position: 'sticky',
@@ -80,4 +99,21 @@ export const composerSlotClass = style({
   right: 0,
   width: '100%',
   zIndex: 20,
+});
+
+/**
+ * Inner centering wrapper inside the composer slot — constrains the composer
+ * to the same max-width as the content column so it aligns with user message
+ * cards. Carries the blurred backdrop and 8px bottom gap so the blur only
+ * covers the content area, leaving the scrollbar track unobscured.
+ * This is the element exposed as `view.composerSlot` (portal target).
+ */
+export const composerSlotInnerClass = style({
+  marginLeft: 'auto',
+  marginRight: 'auto',
+  width: '100%',
+  maxWidth: CONTAINER_WIDTH,
+  paddingBottom: '8px',
+  background: `color-mix(in srgb, ${vars.bg} 80%, transparent)`,
+  backdropFilter: 'blur(8px)',
 });

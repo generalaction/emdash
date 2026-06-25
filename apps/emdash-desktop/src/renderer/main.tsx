@@ -1,6 +1,8 @@
 import ReactDOM from 'react-dom/client';
 import { setupNavigationGuards } from '@renderer/app/view-registry';
 import { prefetchAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import '@fontsource-variable/inter/index.css';
+import '@fontsource-variable/jetbrains-mono/index.css';
 import './index.css';
 import '@emdash/ui/style.css';
 import '@emdash/chat-ui/style.css';

@@ -8,39 +8,26 @@
  * `_meta.claudeCode.parentToolUseId`) into first-class fields such as
  * `parentToolCallId`.
  *
- * Naming convention: `AgentUpdate`, `AgentDiff`, `AgentToolStatus` carry no
- * `Acp` prefix because they are provider-neutral emdash domain types.  The `Acp`
- * prefix is reserved for wire-protocol-tied types (e.g. the SDK's `SessionUpdate`).
  */
 
 import type { SessionUpdate, ToolCallContent } from '@agentclientprotocol/sdk';
 
-// ── Supporting types ──────────────────────────────────────────────────────────
 
-/** Mirrors ACP `ToolCallStatus` exactly — status remapping belongs in the renderer. */
 export type AgentToolStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
 
-/** Mirrors ACP `PlanEntryStatus` — provider-neutral lifecycle status of a plan entry. */
 export type AgentPlanEntryStatus = 'pending' | 'in_progress' | 'completed';
-
-/** Mirrors ACP `PlanEntryPriority` — relative importance of a plan entry. */
 export type AgentPlanEntryPriority = 'high' | 'medium' | 'low';
-
-/** A single task in the agent's execution plan. Mirrors ACP `PlanEntry`. */
 export interface AgentPlanEntry {
   content: string;
   status: AgentPlanEntryStatus;
   priority: AgentPlanEntryPriority;
 }
 
-/** An extracted file diff, decoded from a `ToolCallContent` with `type: 'diff'`. */
 export interface AgentDiff {
   path: string;
   oldText: string | null;
   newText: string;
 }
-
-// ── AgentUpdate union ─────────────────────────────────────────────────────────
 
 export type AgentUpdate =
   | {
@@ -92,8 +79,6 @@ export type AgentUpdate =
    */
   | { kind: 'ignored' };
 
-// ── Internal helper ───────────────────────────────────────────────────────────
-
 interface AcpDiffBlock {
   path: string;
   oldText: string | null;
@@ -110,8 +95,6 @@ function extractDiffs(content: ReadonlyArray<ToolCallContent> | null | undefined
   }
   return diffs;
 }
-
-// ── toAgentUpdate ─────────────────────────────────────────────────────────────
 
 /**
  * Converts a raw ACP `SessionUpdate` into the provider-neutral `AgentUpdate`

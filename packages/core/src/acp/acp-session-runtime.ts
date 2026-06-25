@@ -1,5 +1,4 @@
 import { dirname } from 'node:path';
-import { StringDecoder } from 'node:string_decoder';
 import type {
   Client,
   CreateTerminalRequest,
@@ -28,7 +27,7 @@ import type {
   WriteTextFileRequest,
   WriteTextFileResponse,
 } from '@agentclientprotocol/sdk';
-import type { AcpAgentApi } from '../agents/plugins/capabilities/acp';
+import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import type { AgentUpdate } from './agent-update';
 import { toAgentUpdate } from './agent-update';
 import type { AcpPermissionRequest } from './permissions';
@@ -37,8 +36,6 @@ import type { TerminalSnapshot } from './terminals';
 import type {
   AcpProcessHandle,
   AcpProcessHost,
-  AcpTerminalExit,
-  AcpTerminalProcess,
 } from './transport';
 import type {
   AcpPromptImage,
@@ -49,120 +46,9 @@ import type {
   TurnSource,
   TurnStatus,
 } from './turns';
+import { ManagedAgentTerminal } from './managed-agent-terminal';
 
-// ---------------------------------------------------------------------------
-// ManagedTerminal
-// ---------------------------------------------------------------------------
 
-/** Default per-terminal output byte cap (4 MB). */
-const DEFAULT_OUTPUT_BYTE_LIMIT = 4 * 1024 * 1024;
-
-/**
- * Owns the lifecycle of a single ACP-requested terminal command.
- * Buffers stdout+stderr output up to an optional byte limit (ring-buffer:
- * oldest bytes are discarded first, `truncated` is set to true).
- * Output chunks are decoded incrementally with StringDecoder so multibyte
- * UTF-8 sequences are never split across chunk boundaries.
- */
-class ManagedTerminal {
-  private readonly decoder = new StringDecoder('utf8');
-  private readonly chunks: string[] = [];
-  private bytes = 0;
-  private _truncated = false;
-  private _exitStatus: AcpTerminalExit | null = null;
-  private readonly waiters: ((s: AcpTerminalExit) => void)[] = [];
-  private readonly byteLimit: number;
-  private readonly proc: AcpTerminalProcess;
-
-  readonly terminalId: string;
-  readonly command: string;
-  readonly args: string[];
-  readonly cwd: string;
-
-  constructor(
-    terminalId: string,
-    command: string,
-    args: string[],
-    cwd: string,
-    proc: AcpTerminalProcess,
-    private readonly onOutput: (chunk: string, truncated: boolean) => void,
-    private readonly onExitCb: (status: AcpTerminalExit) => void,
-    byteLimit?: number | null
-  ) {
-    this.terminalId = terminalId;
-    this.command = command;
-    this.args = args;
-    this.cwd = cwd;
-    this.proc = proc;
-    this.byteLimit = byteLimit ?? DEFAULT_OUTPUT_BYTE_LIMIT;
-
-    const handleData = (d: Buffer) => this.append(d);
-    proc.stdout.on('data', handleData);
-    proc.stderr?.on('data', handleData);
-
-    proc.onExit((status) => {
-      this._exitStatus = status;
-      this.waiters.splice(0).forEach((w) => w(status));
-      this.onExitCb(status);
-    });
-  }
-
-  private append(d: Buffer): void {
-    const text = this.decoder.write(d);
-    if (!text) return;
-
-    const incoming = Buffer.byteLength(text, 'utf8');
-    this.bytes += incoming;
-
-    if (this.bytes > this.byteLimit) {
-      // Discard oldest chunks until we're under the limit.
-      this._truncated = true;
-      while (this.chunks.length > 0 && this.bytes > this.byteLimit) {
-        const oldest = this.chunks.shift()!;
-        this.bytes -= Buffer.byteLength(oldest, 'utf8');
-      }
-    }
-
-    this.chunks.push(text);
-    this.onOutput(text, this._truncated);
-  }
-
-  snapshot(): TerminalSnapshot {
-    return {
-      terminalId: this.terminalId,
-      command: this.command,
-      args: this.args,
-      cwd: this.cwd,
-      output: this.chunks.join(''),
-      truncated: this._truncated,
-      exitStatus: this._exitStatus,
-    };
-  }
-
-  waitForExit(): Promise<AcpTerminalExit> {
-    if (this._exitStatus) return Promise.resolve(this._exitStatus);
-    return new Promise<AcpTerminalExit>((resolve) => this.waiters.push(resolve));
-  }
-
-  kill(): void {
-    try {
-      this.proc.kill('SIGTERM');
-    } catch {
-      // ignore
-    }
-  }
-
-  dispose(): void {
-    this.kill();
-    this.chunks.length = 0;
-    this.bytes = 0;
-    this.waiters.splice(0);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Internal types
-// ---------------------------------------------------------------------------
 
 /** Per-conversation state held inside a pool. */
 interface AcpConversation {
@@ -189,7 +75,7 @@ interface AcpConversation {
    */
   pendingPermissions: AcpPermissionRequest[];
   /** Active terminals managed by this conversation. */
-  terminals: Map<string, ManagedTerminal>;
+  terminals: Map<string, ManagedAgentTerminal>;
 }
 
 /**
@@ -218,10 +104,6 @@ interface AcpPool {
   initialized: Promise<void> | null;
   stopped: boolean;
 }
-
-// ---------------------------------------------------------------------------
-// AcpSessionRuntime
-// ---------------------------------------------------------------------------
 
 /**
  * Machine-agnostic ACP session engine.
@@ -255,10 +137,6 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     const log = deps.log ?? noopLog;
     this.deps = { ...deps, log };
   }
-
-  // -------------------------------------------------------------------------
-  // Public API (keyed by conversationId)
-  // -------------------------------------------------------------------------
 
   async start(input: AcpStartInput): Promise<void> {
     const { conversationId, providerId, workspaceId, cwd, sessionId, model, initialPrompt } = input;
@@ -529,7 +407,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     providerId: string,
     workspaceId: string,
     path: string,
-    binding: { behavior: import('../agents/plugins/capabilities/acp').IAcpBehavior }
+    binding: { behavior: IAcpBehavior }
   ): Promise<AcpPool> {
     const existing = this.pools.get(poolKey);
     if (existing) return existing;
@@ -792,7 +670,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
           cwd: resolvedCwd,
         });
 
-        const terminal = new ManagedTerminal(
+        const terminal = new ManagedAgentTerminal(
           terminalId,
           params.command,
           params.args ?? [],
@@ -893,10 +771,6 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     return conv;
   }
 
-  // -------------------------------------------------------------------------
-  // Turn lifecycle helpers
-  // -------------------------------------------------------------------------
-
   private openTurn(conv: AcpConversation, source: TurnSource): AcpTurn {
     const turn: AcpTurn = {
       id: `turn-${conv.conversationId}-${conv.turns.length}`,
@@ -973,10 +847,6 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   private statusFromStopReason(r: StopReason): Exclude<TurnStatus, 'active'> {
     return r === 'cancelled' ? 'cancelled' : 'complete';
   }
-
-  // -------------------------------------------------------------------------
-  // Internal helpers
-  // -------------------------------------------------------------------------
 
   private drainPendingPermissions(conv: AcpConversation): void {
     for (const pending of conv.pendingPermissions) {

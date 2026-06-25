@@ -57,6 +57,8 @@
     "@emdash/plugins": "workspace:*",
     "@emdash/shared": "workspace:*",
     "@emdash/ui": "workspace:*",
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource-variable/jetbrains-mono": "5.2.8",
     "@gitbeaker/rest": "^43.8.0",
     "@linear/sdk": "^77.0.0",
     "@llamaduck/forgejo-ts": "^14.0.3",

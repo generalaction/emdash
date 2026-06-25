@@ -64,11 +64,13 @@ import { createViewState } from './state/view-state';
 import {
   canvas,
   composerSlotClass,
+  composerSlotInnerClass,
   defaultContentClass,
   outerClip,
   pinnedOverlay,
   scrollContainer,
   unitRowWrapper,
+  widthProbeClass,
 } from './chat-root.css';
 import './chat-fonts.css';
 import { vars } from './styles/theme.css';
@@ -77,6 +79,9 @@ import { vars } from './styles/theme.css';
 // scrollbar sits at the viewport edge) while rows are measured and laid out
 // against this capped, centered canvas — matching the desktop composer width.
 const DEFAULT_CONTENT_CLASS = defaultContentClass;
+
+// Vertical breathing room added above the first row and below the last row.
+const TRANSCRIPT_VERTICAL_PADDING = 32;
 
 // Symmetric overscan used when idle or velocity unknown
 const OVERSCAN_BASE = 12;
@@ -214,16 +219,18 @@ export function ChatRoot(props: ChatRootProps) {
 
   const padTop = () => {
     const v = props.padTop;
-    return v === undefined ? 0 : typeof v === 'function' ? v() : v;
+    return (v === undefined ? 0 : typeof v === 'function' ? v() : v) + TRANSCRIPT_VERTICAL_PADDING;
   };
 
   // padBottom signal: either driven by the composer slot ResizeObserver (when
   // composer === 'slot') or by the external padBottom prop.
+  // TRANSCRIPT_VERTICAL_PADDING is added on both paths so there is always
+  // 32px of breathing room below the last row.
   const [slotPadBottom, setSlotPadBottom] = createSignal(0);
   const padBottom = () => {
-    if (props.composer === 'slot') return slotPadBottom();
+    if (props.composer === 'slot') return slotPadBottom() + TRANSCRIPT_VERTICAL_PADDING;
     const v = props.padBottom;
-    return v === undefined ? 0 : typeof v === 'function' ? v() : v;
+    return (v === undefined ? 0 : typeof v === 'function' ? v() : v) + TRANSCRIPT_VERTICAL_PADDING;
   };
 
   const inheritedDebug = useContext(DebugContext);
@@ -237,6 +244,9 @@ export function ChatRoot(props: ChatRootProps) {
   let scrollEl: HTMLDivElement | undefined;
   let canvasEl: HTMLDivElement | undefined;
   let outerEl: HTMLDivElement | undefined;
+  // Zero-height probe that carries contentClass; the width ResizeObserver
+  // targets this so it only fires on genuine layout-width changes.
+  let widthProbeEl: HTMLDivElement | undefined;
   let composerSlotEl: HTMLElement | undefined;
   const virt = new Virtualizer();
   // Visible row wrapper elements keyed by unit index.
@@ -771,12 +781,15 @@ export function ChatRoot(props: ChatRootProps) {
     roHeight.observe(el);
     onCleanup(() => roHeight.disconnect());
 
-    if (canvasEl) {
+    // Target the zero-height width probe (carries contentClass / max-width cap)
+    // instead of canvasEl so this observer only fires on genuine layout-width
+    // changes and not on the canvas height mutations from streaming/tween updates.
+    if (widthProbeEl) {
       const roWidth = new ResizeObserver((entries) => {
         const w = entries[0]?.contentRect.width;
         if (w && w > 0) setContainerWidth(w);
       });
-      roWidth.observe(canvasEl);
+      roWidth.observe(widthProbeEl);
       onCleanup(() => roWidth.disconnect());
     }
 
@@ -881,6 +894,16 @@ export function ChatRoot(props: ChatRootProps) {
                   class={`${scrollContainer}${props.class ? ` ${props.class}` : ''}`}
                   style={scrollElStyle}
                 >
+                  {/* Zero-height probe: same max-width cap as rows; the width
+                      ResizeObserver targets this to isolate layout-width changes
+                      from canvas height mutations (streaming / tween updates). */}
+                  <div
+                    ref={(el) => {
+                      widthProbeEl = el;
+                    }}
+                    aria-hidden="true"
+                    class={`${widthProbeClass} ${contentClass()}`}
+                  />
                   <div
                     ref={(el) => {
                       canvasEl = el;
@@ -954,15 +977,18 @@ export function ChatRoot(props: ChatRootProps) {
                     </div>
                   )}
                 </Show>
-                {/* Composer slot: empty div that the host portals its React
-                    composer into. ResizeObserver on it drives padBottom. */}
+                {/* Composer slot: full-width blurred backdrop strip; the inner
+                    centered div is what the host portals its React composer
+                    into, and what the ResizeObserver measures for padBottom. */}
                 <Show when={props.composer === 'slot'}>
-                  <div
-                    ref={(el) => {
-                      composerSlotEl = el;
-                    }}
-                    class={composerSlotClass}
-                  />
+                  <div class={composerSlotClass}>
+                    <div
+                      ref={(el) => {
+                        composerSlotEl = el;
+                      }}
+                      class={composerSlotInnerClass}
+                    />
+                  </div>
                 </Show>
               </div>
             </TurnStateContext.Provider>
