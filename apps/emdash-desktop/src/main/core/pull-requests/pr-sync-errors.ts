@@ -1,3 +1,4 @@
+import { match, P } from 'ts-pattern';
 import type { GitHubApiAuthError } from '@main/core/github/services/github-api-auth-errors';
 import {
   classifyGitHubApiError,
@@ -50,23 +51,23 @@ export function toPrApiError(
 }
 
 export function prSyncEngineErrorMessage(error: PrSyncEngineError): string {
-  switch (error.type) {
-    case 'invalid-repository-ref':
-      return `Invalid GitHub repository URL: "${error.input}"`;
-    case 'auth_required':
-    case 'account_not_found':
-    case 'account_host_mismatch':
-    case 'token_missing':
-      return error.message;
-    case 'not_found_or_no_access':
-    case 'sso_required':
-    case 'rate_limited':
-    case 'forbidden':
-      return error.message;
-    case 'host_unreachable':
-      return `Unable to reach ${error.host}: ${error.reason}`;
-    case 'sync_cancelled':
-    case 'api_error':
-      return error.message;
-  }
+  return match(error)
+    .with({ type: 'invalid-repository-ref' }, (e) => `Invalid GitHub repository URL: "${e.input}"`)
+    .with(
+      P.union(
+        { type: 'auth_required' },
+        { type: 'account_not_found' },
+        { type: 'account_host_mismatch' },
+        { type: 'token_missing' },
+        { type: 'not_found_or_no_access' },
+        { type: 'sso_required' },
+        { type: 'rate_limited' },
+        { type: 'forbidden' },
+        { type: 'sync_cancelled' },
+        { type: 'api_error' }
+      ),
+      (e) => e.message
+    )
+    .with({ type: 'host_unreachable' }, (e) => `Unable to reach ${e.host}: ${e.reason}`)
+    .exhaustive();
 }

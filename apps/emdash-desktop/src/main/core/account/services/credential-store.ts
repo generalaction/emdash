@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, toSerializedError, type Result } from '@emdash/shared';
 import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { log } from '@main/lib/logger';
 import { type AccountSessionPersistenceError, unknownErrorMessage } from '../account-errors';
@@ -14,7 +14,7 @@ export class AccountCredentialStore {
       return err({
         type: 'session_persistence_failed',
         message: unknownErrorMessage(error, 'Failed to retrieve session token'),
-        cause: error,
+        cause: toSerializedError(error),
       });
     }
   }
@@ -28,7 +28,7 @@ export class AccountCredentialStore {
       return err({
         type: 'session_persistence_failed',
         message: unknownErrorMessage(error, 'Failed to store session token'),
-        cause: error,
+        cause: toSerializedError(error),
       });
     }
   }
@@ -42,7 +42,7 @@ export class AccountCredentialStore {
       return err({
         type: 'session_persistence_failed',
         message: unknownErrorMessage(error, 'Failed to clear session token'),
-        cause: error,
+        cause: toSerializedError(error),
       });
     }
   }

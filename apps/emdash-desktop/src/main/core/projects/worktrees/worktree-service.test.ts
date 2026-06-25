@@ -260,8 +260,8 @@ describe('WorktreeService', () => {
       if (result.success) throw new Error('expected failure');
       expect(result.error.type).toBe('worktree-setup-failed');
       if (result.error.type !== 'worktree-setup-failed') throw new Error('expected setup failure');
-      expect(String(result.error.cause)).toContain('Failed to remove stale worktree directory');
-      expect(String(result.error.cause)).toContain('permission denied');
+      expect(result.error.cause?.message).toContain('Failed to remove stale worktree directory');
+      expect(result.error.cause?.message).toContain('permission denied');
     });
 
     it('uses the current resolved pool path when creating a worktree', async () => {

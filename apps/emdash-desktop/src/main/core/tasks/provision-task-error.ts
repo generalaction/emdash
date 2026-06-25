@@ -1,3 +1,4 @@
+import { match, P } from 'ts-pattern';
 import type { ProvisionStep } from '@shared/core/tasks/taskEvents';
 import { TimeoutSignal } from '../projects/utils';
 import type { ServeWorktreeError } from '../projects/worktrees/worktree-service';
@@ -34,16 +35,17 @@ export function mapWorktreeErrorToProvisionError(
   branch: string,
   error: ServeWorktreeError
 ): ProvisionTaskError {
-  switch (error.type) {
-    case 'branch-not-found':
-      return { type: 'branch-not-found', branch: error.branch };
-    case 'worktree-setup-failed':
-      return {
-        type: 'worktree-setup-failed',
-        branch,
-        message: error.cause instanceof Error ? error.cause.message : String(error.cause),
-      };
-  }
+  return match(error)
+    .with({ type: 'branch-not-found' }, (e) => ({
+      type: 'branch-not-found' as const,
+      branch: e.branch,
+    }))
+    .with({ type: 'worktree-setup-failed' }, (e) => ({
+      type: 'worktree-setup-failed' as const,
+      branch,
+      message: e.cause.message,
+    }))
+    .exhaustive();
 }
 
 export function isProvisionTaskError(e: unknown): e is ProvisionTaskError {
@@ -58,25 +60,23 @@ export function isProvisionTaskError(e: unknown): e is ProvisionTaskError {
 }
 
 export function formatTeardownTaskError(error: TeardownTaskError): string {
-  switch (error.type) {
-    case 'timeout':
-      return error.message;
-    case 'error':
-      return error.message;
-  }
+  return match(error)
+    .with(P.union({ type: 'timeout' }, { type: 'error' }), (e) => e.message)
+    .exhaustive();
 }
 
 export function formatProvisionTaskError(error: ProvisionTaskError): string {
-  switch (error.type) {
-    case 'timeout':
-      return error.step ? `${error.message} (step: ${error.step})` : error.message;
-    case 'error':
-      return error.message;
-    case 'branch-not-found':
-      return `Branch "${error.branch}" was not found locally or on remote`;
-    case 'worktree-setup-failed':
-      return error.message
-        ? `Failed to set up worktree for branch "${error.branch}": ${error.message}`
-        : `Failed to set up worktree for branch "${error.branch}"`;
-  }
+  return match(error)
+    .with({ type: 'timeout' }, (e) => (e.step ? `${e.message} (step: ${e.step})` : e.message))
+    .with({ type: 'error' }, (e) => e.message)
+    .with(
+      { type: 'branch-not-found' },
+      (e) => `Branch "${e.branch}" was not found locally or on remote`
+    )
+    .with({ type: 'worktree-setup-failed' }, (e) =>
+      e.message
+        ? `Failed to set up worktree for branch "${e.branch}": ${e.message}`
+        : `Failed to set up worktree for branch "${e.branch}"`
+    )
+    .exhaustive();
 }
