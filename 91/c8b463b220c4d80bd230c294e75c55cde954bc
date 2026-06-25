@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/main/core/workspaces/workspace-factory.ts
+  s_9826c65da072ee::t_a266537f4383e5 79-81,311
+apps/emdash-desktop/src/main/core/projects/create-project-provider.ts
+  s_9826c65da072ee::t_a42d29b9133d45 98-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.1",
+  "base_commit_sha": "91c8b463b220c4d80bd230c294e75c55cde954bc",
+  "prompts": {},
+  "sessions": {
+    "s_9826c65da072ee": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019efe28-87e8-7eee-8d60-973948555617",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
