@@ -60,6 +60,7 @@ export const provider = registerPluginBehavior(plugin, {
         initialPromptFlag: '-i',
         sessionIdFlag: '--conversation=',
         sessionIdAlways: true,
+        deduplicateFlags: ['--dangerously-skip-permissions'],
       }),
   },
 });
