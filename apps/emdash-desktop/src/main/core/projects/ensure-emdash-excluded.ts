@@ -22,9 +22,14 @@ export async function ensureEmdashGitExcluded(fs: FileSystemProvider): Promise<v
   const gitDir = await fs.stat('.git').catch(() => null);
   if (gitDir?.type !== 'dir') return;
 
-  const existing = (await fs.exists(GIT_EXCLUDE_PATH))
-    ? (await fs.read(GIT_EXCLUDE_PATH)).content
-    : '';
+  let existing = '';
+  if (await fs.exists(GIT_EXCLUDE_PATH)) {
+    const read = await fs.read(GIT_EXCLUDE_PATH);
+    // `read` caps at a default byte limit; rewriting a truncated view would drop
+    // any rules past the cut. Bail rather than risk corrupting the file.
+    if (read.truncated) return;
+    existing = read.content;
+  }
 
   const alreadyExcluded = existing
     .split(/\r?\n/)

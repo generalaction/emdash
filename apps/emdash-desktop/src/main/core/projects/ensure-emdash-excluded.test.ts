@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { ensureEmdashGitExcluded } from './ensure-emdash-excluded';
 
-function makeFs(opts: { gitType?: 'dir' | 'file'; excludeContent?: string | null }) {
+function makeFs(opts: {
+  gitType?: 'dir' | 'file';
+  excludeContent?: string | null;
+  truncated?: boolean;
+}) {
   const write = vi.fn(async () => ({ success: true, bytesWritten: 1 }));
   const fs = {
     stat: vi.fn(async (p: string) =>
@@ -11,7 +15,7 @@ function makeFs(opts: { gitType?: 'dir' | 'file'; excludeContent?: string | null
     exists: vi.fn(async () => opts.excludeContent != null),
     read: vi.fn(async () => ({
       content: opts.excludeContent ?? '',
-      truncated: false,
+      truncated: opts.truncated ?? false,
       totalSize: 0,
     })),
     write,
@@ -52,6 +56,14 @@ describe('ensureEmdashGitExcluded', () => {
 
   it('treats a slashless .emdash entry as already excluded', async () => {
     const { fs, write } = makeFs({ gitType: 'dir', excludeContent: '.emdash\n' });
+    await ensureEmdashGitExcluded(fs);
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it('does not rewrite when the exclude read was truncated', async () => {
+    // A truncated view could miss an existing entry past the cut; rewriting it would
+    // drop the tail of the file, so bail instead.
+    const { fs, write } = makeFs({ gitType: 'dir', excludeContent: 'build/\n', truncated: true });
     await ensureEmdashGitExcluded(fs);
     expect(write).not.toHaveBeenCalled();
   });
