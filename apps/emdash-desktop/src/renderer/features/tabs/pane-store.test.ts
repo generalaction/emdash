@@ -1,6 +1,8 @@
+import { observable, runInAction } from 'mobx';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { browserDiagnosticsStore } from '@renderer/features/browser/browser-diagnostics-store';
 import { browserSessionStore } from '@renderer/features/browser/browser-session-store';
+import { terminalRegistry } from '@renderer/features/tasks/stores/terminal-registry';
 import { events } from '@renderer/lib/ipc';
 import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 
@@ -14,6 +16,11 @@ vi.mock('@renderer/lib/ipc', () => ({
     },
     browser: {
       unregisterSession: vi.fn(),
+    },
+    ssh: {
+      getConnections: vi.fn(async () => []),
+      getConnectionState: vi.fn(async () => ({})),
+      getHealthStates: vi.fn(async () => ({})),
     },
   },
 }));
@@ -51,6 +58,10 @@ vi.mock('@renderer/features/tasks/diff-view/diff-tab-item', () => ({
   DiffTabDragPreview: () => null,
   diffGroupSuffix: (group: string) => `(${group})`,
 }));
+vi.mock('@renderer/features/tasks/terminals/terminal-tab-item', () => ({
+  TerminalTabItem: () => null,
+  TerminalTabDragPreview: () => null,
+}));
 vi.mock('@renderer/features/tasks/conversations/conversation-title-utils', () => ({
   formatConversationTitleForDisplay: (_providerId: unknown, title: unknown) =>
     (title as string) ?? 'Conversation',
@@ -73,11 +84,43 @@ function createTabManager() {
   return new PaneStore(taskTabView.registry, testCtx);
 }
 
+function terminalRegistryEntries(): Map<string, unknown> {
+  return (
+    terminalRegistry as unknown as {
+      entries: Map<string, unknown>;
+    }
+  ).entries;
+}
+
+function setTerminalRegistry(ids: string[], renameTerminal = vi.fn()) {
+  const terminals = observable.map(
+    ids.map((id) => [
+      id,
+      {
+        data: {
+          id,
+          projectId: 'project-1',
+          taskId: 'task-1',
+          shellId: 'system',
+          name: id === 'terminal-1' ? 'Terminal 1' : 'Terminal 2',
+        },
+      },
+    ])
+  );
+  terminalRegistryEntries().set('task-1', {
+    terminals,
+    sessions: observable.map(),
+    renameTerminal,
+  });
+  return { terminals, renameTerminal };
+}
+
 describe('PaneStore browser tabs', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     browserDiagnosticsStore.clear();
     browserSessionStore.clear();
+    terminalRegistryEntries().delete('task-1');
   });
 
   it('opens browser tabs backed by the default browser profile session', () => {
@@ -199,5 +242,64 @@ describe('PaneStore browser tabs', () => {
     expect(
       (manager.resolvedTabs[1] as ResolvedTab<BrowserResolvedData> | undefined)?.session.currentUrl
     ).toBe('https://target.example/path');
+  });
+
+  it('opens terminal tabs backed by task terminal records', () => {
+    setTerminalRegistry(['terminal-1']);
+    const manager = createTabManager();
+
+    manager.open('terminal', { terminalId: 'terminal-1' });
+
+    expect(manager.resolvedTabs[0]).toMatchObject({
+      kind: 'terminal',
+      terminalId: 'terminal-1',
+      isActive: true,
+    });
+    expect(manager.snapshot.tabs).toEqual([
+      expect.objectContaining({
+        kind: 'terminal',
+        terminalId: 'terminal-1',
+        isPreview: false,
+      }),
+    ]);
+  });
+
+  it('restores terminal tab descriptors through tab manager state', () => {
+    setTerminalRegistry(['terminal-1']);
+    const manager = createTabManager();
+
+    manager.restoreSnapshot({
+      tabs: [
+        {
+          kind: 'terminal',
+          tabId: 'tab-terminal-1',
+          terminalId: 'terminal-1',
+          isPreview: false,
+        },
+      ],
+      activeTabId: 'tab-terminal-1',
+    });
+
+    expect(manager.resolvedTabs).toEqual([
+      expect.objectContaining({
+        kind: 'terminal',
+        tabId: 'tab-terminal-1',
+        terminalId: 'terminal-1',
+        isActive: true,
+      }),
+    ]);
+  });
+
+  it('closes terminal tabs when the backing terminal is deleted', () => {
+    const { terminals } = setTerminalRegistry(['terminal-1']);
+    const manager = createTabManager();
+    manager.open('terminal', { terminalId: 'terminal-1' });
+
+    runInAction(() => {
+      terminals.delete('terminal-1');
+    });
+
+    expect(manager.resolvedTabs).toEqual([]);
+    expect(manager.tabOrder).toEqual([]);
   });
 });

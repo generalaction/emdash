@@ -109,6 +109,7 @@ describe('createTaskCommandProvider', () => {
       isSidebarCollapsed: false,
       isTerminalDrawerOpen: false,
       openNewTerminal: vi.fn(),
+      openNewTerminalTab: vi.fn(),
       setFocusedRegion: vi.fn(),
       setSidebarCollapsed: vi.fn(),
       setSidebarTab: vi.fn(),
@@ -181,7 +182,11 @@ describe('createTaskCommandProvider', () => {
     });
 
     const modalOptions = mocks.showModal.mock.calls[0][1];
-    modalOptions.onSuccess({ conversationId: 'conversation-1', openBrowserTab: true });
+    modalOptions.onSuccess({
+      conversationId: 'conversation-1',
+      openBrowserTab: true,
+      openTerminalTab: false,
+    });
 
     expect(taskView.paneLayout.openInRightSplit).toHaveBeenCalledWith('conversation', {
       conversationId: 'conversation-1',
@@ -191,7 +196,7 @@ describe('createTaskCommandProvider', () => {
     expect(taskView.setFocusedRegion).toHaveBeenCalledWith('main');
   });
 
-  it('opens requested browser tabs from the create conversation command modal result', () => {
+  it('opens requested browser and terminal tabs from the create conversation command modal result', () => {
     const provider = createTaskCommandProvider('project-1', 'task-1');
 
     const command = provider
@@ -202,13 +207,18 @@ describe('createTaskCommandProvider', () => {
     command?.execute();
 
     const modalOptions = mocks.showModal.mock.calls[0][1];
-    modalOptions.onSuccess({ conversationId: 'conversation-1', openBrowserTab: true });
+    modalOptions.onSuccess({
+      conversationId: 'conversation-1',
+      openBrowserTab: true,
+      openTerminalTab: true,
+    });
 
     expect(taskView.paneLayout.open).toHaveBeenCalledWith('conversation', {
       conversationId: 'conversation-1',
       preview: false,
     });
     expect(taskView.paneLayout.open).toHaveBeenCalledWith('browser', {});
+    expect(taskView.openNewTerminalTab).toHaveBeenCalledTimes(1);
     expect(taskView.setFocusedRegion).toHaveBeenCalledWith('main');
   });
 
@@ -306,6 +316,19 @@ describe('createTaskCommandProvider', () => {
     expect(taskView.openNewTerminal).toHaveBeenCalledTimes(1);
     expect(taskView.openNewTerminal).toHaveBeenCalledWith();
     expect(taskView.setTerminalDrawerOpen).not.toHaveBeenCalled();
+  });
+
+  it('creates a terminal task tab from the new terminal command', () => {
+    const provider = createTaskCommandProvider('project-1', 'task-1');
+
+    const command = provider.getCommands().find((candidate) => candidate.id === 'task.newTerminal');
+    const taskView = mocks.getTaskView.mock.results.at(-1)?.value ?? mocks.getTaskView();
+
+    command?.execute();
+
+    expect(taskView.openNewTerminalTab).toHaveBeenCalledTimes(1);
+    expect(taskView.openNewTerminalTab).toHaveBeenCalledWith();
+    expect(taskView.openNewTerminal).not.toHaveBeenCalled();
   });
 
   it('navigates to the next visible task across project boundaries', () => {

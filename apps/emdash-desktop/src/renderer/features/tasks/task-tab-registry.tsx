@@ -31,6 +31,7 @@ import { conversationTabProvider } from './conversations/conversation-tab-provid
 import { diffTabProvider } from './diff-view/diff-tab-provider';
 import { fileTabProvider } from './editor/file-tab-provider';
 import { TaskTabViewPersistor } from './stores/task-tab-view-persistor';
+import { terminalTabProvider } from './terminals/terminal-tab-provider';
 
 // ── Generic factory ───────────────────────────────────────────────────────────
 
@@ -76,6 +77,7 @@ export const taskTabView = createTabView([
   conversationTabProvider,
   fileTabProvider,
   diffTabProvider,
+  terminalTabProvider,
   browserTabProvider,
 ] as const);
 

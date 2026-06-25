@@ -49,9 +49,10 @@ export const TabBarActions = observer(function TabBarActions() {
               showCreateConversationModal({
                 projectId,
                 taskId,
-                onSuccess: ({ conversationId, openBrowserTab }) => {
+                onSuccess: ({ conversationId, openBrowserTab, openTerminalTab }) => {
                   pane.open('conversation', { conversationId, preview: false });
                   if (openBrowserTab) pane.open('browser', {});
+                  if (openTerminalTab) void taskView.openNewTerminalTab();
                 },
               })
             }

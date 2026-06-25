@@ -27,7 +27,14 @@ import type { TaskTabContext } from './task-tab-context';
 import { terminalRegistry } from './terminal-registry';
 import { workspaceRegistry } from './workspace-registry';
 
-export type RendererKind = 'monaco' | 'markdown' | 'diff' | 'agents' | 'browser' | 'other-file';
+export type RendererKind =
+  | 'monaco'
+  | 'markdown'
+  | 'diff'
+  | 'agents'
+  | 'browser'
+  | 'terminal'
+  | 'other-file';
 
 export class WorkspaceViewModel implements ILifecycle {
   sidebarTab: SidebarTab;
@@ -183,6 +190,7 @@ export class WorkspaceViewModel implements ILifecycle {
     const desc = this.activePane.activeEntry;
     if (desc?.kind === 'diff') return 'diff';
     if (desc?.kind === 'browser') return 'browser';
+    if (desc?.kind === 'terminal') return 'terminal';
     const tab = getActiveFileEntry(this.activePane);
     if (!tab) return 'agents';
     if (tab.contentType === 'markdown' && tab.viewMode === 'preview') return 'markdown';
@@ -365,7 +373,7 @@ export class WorkspaceViewModel implements ILifecycle {
   // Actions
   // -------------------------------------------------------------------------
 
-  activateLastTabOfKind(kind: 'conversation' | 'file' | 'diff' | 'browser'): void {
+  activateLastTabOfKind(kind: 'conversation' | 'file' | 'diff' | 'browser' | 'terminal'): void {
     const tabId = [...this.activePane.tabOrder]
       .reverse()
       .find((id) => this.activePane.entries.get(id)?.kind === kind);
@@ -377,7 +385,9 @@ export class WorkspaceViewModel implements ILifecycle {
           ? 'editor'
           : kind === 'diff'
             ? 'diff'
-            : 'browser';
+            : kind === 'browser'
+              ? 'browser'
+              : 'terminal';
     focusTracker.transition({ mainPanel: panelView }, 'panel_switch');
     this.activePane.setActiveTab(tabId);
   }
@@ -423,6 +433,18 @@ export class WorkspaceViewModel implements ILifecycle {
     runInAction(() => {
       this.terminalTabs.setActiveTab(terminalId);
       this.terminalDrawerActiveItem = { kind: 'terminal', id: terminalId };
+    });
+    return terminalId;
+  }
+
+  /** Creates a new terminal session and opens it as a tab in the focused task pane. */
+  async openNewTerminalTab(shell?: TerminalShellId): Promise<string | undefined> {
+    this.setFocusedRegion('main');
+
+    const terminalId = await this._createDefaultTerminal(shell);
+    if (!terminalId) return undefined;
+    runInAction(() => {
+      this.paneLayout.open('terminal', { terminalId, preview: false });
     });
     return terminalId;
   }

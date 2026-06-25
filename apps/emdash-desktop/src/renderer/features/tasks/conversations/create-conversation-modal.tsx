@@ -23,6 +23,7 @@ import {
 export interface CreateConversationModalResult {
   conversationId: string;
   openBrowserTab: boolean;
+  openTerminalTab: boolean;
 }
 
 export const CreateConversationModal = observer(function CreateConversationModal({
@@ -43,6 +44,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [openBrowserTab, setOpenBrowserTab] = useState(false);
+  const [openTerminalTab, setOpenTerminalTab] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useCloseGuard(isSubmitting);
 
@@ -75,7 +77,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
         initialPrompt,
       });
       setIsSubmitting(false);
-      onSuccess({ conversationId: id, openBrowserTab });
+      onSuccess({ conversationId: id, openBrowserTab, openTerminalTab });
     } catch {
       setError('Failed to create conversation');
       setIsSubmitting(false);
@@ -89,6 +91,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
     initialConversation.model,
     isSubmitting,
     openBrowserTab,
+    openTerminalTab,
     providerId,
     title,
     onSuccess,
@@ -114,6 +117,13 @@ export const CreateConversationModal = observer(function CreateConversationModal
               onCheckedChange={(checked) => setOpenBrowserTab(checked === true)}
             />
             <span>Open browser tab</span>
+          </label>
+          <label className="flex w-fit items-center gap-2 text-sm text-foreground-muted">
+            <Checkbox
+              checked={openTerminalTab}
+              onCheckedChange={(checked) => setOpenTerminalTab(checked === true)}
+            />
+            <span>Open terminal tab</span>
           </label>
           {error && <p className="text-destructive text-xs">{error}</p>}
         </div>
