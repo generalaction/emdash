@@ -25,6 +25,7 @@ import { githubAccountReconciliationService } from './core/github/accounts/githu
 import { githubAccountRegistry } from './core/github/accounts/github-account-registry-instance';
 import { GitHubAuthServerAdapter } from './core/github/accounts/github-auth-server-adapter';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
+import { autoCleanupScheduler } from './core/tasks/auto-cleanup-scheduler';
 import { promptLibraryService } from './core/prompt-library/service';
 import { remoteTmuxReaperService } from './core/pty/remote-tmux-reaper-service';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
@@ -131,6 +132,7 @@ void app.whenReady().then(async () => {
   projectSettingsService.initialize();
   prSyncScheduler.initialize();
   remoteTmuxReaperService.initialize();
+  autoCleanupScheduler.initialize();
   automationsService.start();
   appService.initialize();
   await appSettingsService.initialize();
