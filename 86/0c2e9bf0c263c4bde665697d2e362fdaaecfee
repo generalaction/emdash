@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/browser/browser-pane.test.ts
+  s_3ec8cc4ac5143b::t_933a14a3b6fdec 1-4,6,8-82,92-95,97-142
+  s_3ec8cc4ac5143b::t_85354bda761334 7
+  s_3ec8cc4ac5143b::t_7b9b6952de2588 5,83-91,96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.1",
+  "base_commit_sha": "860c2e9bf0c263c4bde665697d2e362fdaaecfee",
+  "prompts": {},
+  "sessions": {
+    "s_3ec8cc4ac5143b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_100512fecffe2wlwFvMlTTFUCe",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
