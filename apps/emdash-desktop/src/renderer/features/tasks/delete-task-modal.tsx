@@ -88,6 +88,18 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
     return `${dirtyTasks.length} ${dirtyTasks.length === 1 ? 'task has' : 'tasks have'} uncommitted changes that will be lost: ${names}`;
   })();
 
+  const dirtyWarningNode = showDirtyWarning && dirtyWarning && (
+    <div className="flex items-start gap-1.5 rounded-md bg-background-warning px-3 py-2 text-xs text-foreground-warning">
+      <TriangleAlert className="mt-px size-3.5 shrink-0" />
+      <span>{dirtyWarning}</span>
+    </div>
+  );
+
+  const noWorktreeLabel = isBulk
+    ? 'No separate worktrees to delete'
+    : 'No separate worktree to delete';
+  const noBranchLabel = isBulk ? 'No branches to delete' : 'No branch to delete';
+
   return (
     <>
       <DialogHeader showCloseButton={false}>
@@ -96,42 +108,64 @@ export function DeleteTaskModal({ projectId, tasks, onSuccess, onClose }: Props)
       <DialogContentArea className="flex flex-col gap-4 pt-0">
         <p className="text-sm text-foreground-muted">{description}</p>
 
-        {(showWorktreeCheckbox || showBranchCheckbox || showDirtyWarning) && (
-          <div className="flex flex-col gap-3">
-            {showWorktreeCheckbox && (
-              <div className="flex flex-col gap-2">
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={deleteWorktree}
-                    onCheckedChange={(checked) => handleWorktreeChange(Boolean(checked))}
-                  />
-                  {worktreeLabel}
-                </label>
-              </div>
-            )}
-
-            {showDirtyWarning && dirtyWarning && (
-              <div className="flex items-start gap-1.5 rounded-md bg-background-warning px-3 py-2 text-xs text-foreground-warning">
-                <TriangleAlert className="mt-px size-3.5 shrink-0" />
-                <span>{dirtyWarning}</span>
-              </div>
-            )}
-
-            {showBranchCheckbox && (
-              <label
-                className="flex cursor-pointer items-center gap-2 text-sm aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-                aria-disabled={!deleteWorktree}
-              >
+        <div className="flex flex-col gap-3" aria-live="polite">
+          {isLoading ? (
+            <label className="flex cursor-default items-center gap-2 text-sm text-foreground-muted">
+              <Checkbox checked={deleteWorktree} disabled />
+              {isBulk ? 'Delete worktrees' : 'Delete worktree'}
+              <span className="ml-auto text-xs text-foreground-tertiary-muted">Checking…</span>
+            </label>
+          ) : showWorktreeCheckbox ? (
+            <div className="flex flex-col gap-2">
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
                 <Checkbox
-                  checked={deleteBranch}
-                  onCheckedChange={(checked) => setDeleteBranch(Boolean(checked))}
-                  disabled={!deleteWorktree}
+                  checked={deleteWorktree}
+                  onCheckedChange={(checked) => handleWorktreeChange(Boolean(checked))}
                 />
-                {branchLabel}
+                {worktreeLabel}
               </label>
-            )}
-          </div>
-        )}
+            </div>
+          ) : (
+            <label className="flex cursor-default items-center gap-2 text-sm text-foreground-muted">
+              <Checkbox checked={false} disabled />
+              {noWorktreeLabel}
+            </label>
+          )}
+
+          {dirtyWarningNode || (
+            <div className="flex items-start gap-1.5 rounded-md bg-background-1 px-3 py-2 text-xs text-foreground-muted">
+              <TriangleAlert className="mt-px size-3.5 shrink-0 opacity-50" />
+              <span>
+                {isLoading ? 'Checking for uncommitted changes…' : 'No uncommitted changes found'}
+              </span>
+            </div>
+          )}
+
+          {isLoading ? (
+            <label className="flex cursor-default items-center gap-2 text-sm text-foreground-muted">
+              <Checkbox checked={false} disabled />
+              {isBulk ? 'Delete branches' : 'Delete branch'}
+              <span className="ml-auto text-xs text-foreground-tertiary-muted">Checking…</span>
+            </label>
+          ) : showBranchCheckbox ? (
+            <label
+              className="flex cursor-pointer items-center gap-2 text-sm aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+              aria-disabled={!deleteWorktree}
+            >
+              <Checkbox
+                checked={deleteBranch}
+                onCheckedChange={(checked) => setDeleteBranch(Boolean(checked))}
+                disabled={!deleteWorktree}
+              />
+              {branchLabel}
+            </label>
+          ) : (
+            <label className="flex cursor-default items-center gap-2 text-sm text-foreground-muted">
+              <Checkbox checked={false} disabled />
+              {noBranchLabel}
+            </label>
+          )}
+        </div>
       </DialogContentArea>
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>
