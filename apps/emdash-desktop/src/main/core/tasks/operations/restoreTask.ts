@@ -9,6 +9,7 @@ export async function restoreTask(id: string): Promise<Task | undefined> {
     .update(tasks)
     .set({
       archivedAt: null,
+      autoCleanupOptOut: true,
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
     .where(eq(tasks.id, id))
