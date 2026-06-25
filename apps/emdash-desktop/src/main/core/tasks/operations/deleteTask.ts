@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import { getProjectById } from '@main/core/projects/operations/getProjects';
 import { projectManager } from '@main/core/projects/project-manager';
 import { taskSessionManager } from '@main/core/tasks/task-session-manager';
 import { viewStateService } from '@main/core/view-state/view-state-service';
@@ -9,7 +10,11 @@ import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import type { DeleteTaskOptions } from '@shared/core/tasks/tasks';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
-import { deleteWorkspaceIfUnused, removeWorktreeIfUnused } from './task-lifecycle-utils';
+import {
+  deleteWorkspaceIfUnused,
+  removeOwnedLocalWorktreeDirectoryIfUnused,
+  removeWorktreeIfUnused,
+} from './task-lifecycle-utils';
 
 export async function deleteTask(
   projectId: string,
@@ -38,7 +43,10 @@ export async function deleteTask(
   let wsRow:
     | {
         id: string;
+        type: 'local' | 'project-ssh' | 'byoi' | null;
         kind: 'worktree' | 'project-root' | 'byoi' | null;
+        location: 'local' | 'remote' | null;
+        path: string | null;
         branchName: string | null;
         config: WorkspaceConfig | null;
       }
@@ -58,10 +66,33 @@ export async function deleteTask(
   void viewStateService.del(`task:${taskId}:tabs`);
   telemetryService.capture('task_deleted', { project_id: projectId, task_id: taskId });
 
-  if (project && deleteWorktree && wsRow) {
-    const worktreeRemoved = await removeWorktreeIfUnused(wsRow, project, false);
+  if (deleteWorktree && wsRow) {
+    let worktreeRemoved = false;
+    if (project) {
+      worktreeRemoved = await removeWorktreeIfUnused(wsRow, project, false);
+    }
+
+    if (!worktreeRemoved) {
+      const projectRow = await getProjectById(projectId);
+      if (projectRow?.type === 'local') {
+        worktreeRemoved = await removeOwnedLocalWorktreeDirectoryIfUnused(
+          wsRow,
+          projectRow.path,
+          false
+        ).catch((e) => {
+          log.warn('deleteTask: owned worktree directory cleanup failed', {
+            taskId,
+            workspaceId: wsRow.id,
+            path: wsRow.path,
+            error: String(e),
+          });
+          return false;
+        });
+      }
+    }
+
     const provisionedBranch = getProvisionedWorkspaceBranch(wsRow);
-    if (worktreeRemoved && deleteBranch && provisionedBranch) {
+    if (project && worktreeRemoved && deleteBranch && provisionedBranch) {
       const fromBranch =
         wsRow.config?.git.kind === 'create-branch' ? wsRow.config.git.fromBranch : undefined;
       if (fromBranch && provisionedBranch !== fromBranch.branch) {

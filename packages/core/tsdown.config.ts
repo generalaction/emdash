@@ -12,6 +12,7 @@ export default defineConfig({
     watch: 'src/watch/index.ts',
     git: 'src/git/index.ts',
     lib: 'src/lib/index.ts',
+    storage: 'src/storage/index.ts',
     'agents-plugins': 'src/agents/plugins/index.ts',
     'agents-plugins-helpers': 'src/agents/plugins/helpers/index.ts',
     live: 'src/live/index.ts',

@@ -18,6 +18,7 @@ import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-reque
 import {
   lifecycleScriptStatusChannel,
   taskCreatedChannel,
+  taskDeletedChannel,
   taskProvisionProgressChannel,
   taskProvisionedChannel,
   taskStatusUpdatedChannel,
@@ -113,6 +114,10 @@ function formatCreateTaskWarning(warning: CreateTaskWarning): string {
     .exhaustive();
 }
 
+function formatErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export class TaskManagerStore {
   private readonly projectId: string;
   private readonly _repository: GitRepositoryStore;
@@ -122,6 +127,7 @@ export class TaskManagerStore {
   private _provisionPromises = new Map<string, Promise<void>>();
 
   private _unsubTaskCreated: (() => void) | null = null;
+  private _unsubTaskDeleted: (() => void) | null = null;
   private _unsubPrUpdated: (() => void) | null = null;
   private _unsubPrSyncProgress: (() => void) | null = null;
   private _unsubGitWorktreeUpdate: (() => void) | null = null;
@@ -154,6 +160,14 @@ export class TaskManagerStore {
         terminalRegistry.acquire(task.id, this.projectId);
       });
     });
+
+    this._unsubTaskDeleted = events.on(
+      taskDeletedChannel,
+      ({ taskId, projectId: evtProjectId }) => {
+        if (evtProjectId !== this.projectId) return;
+        this._removeTaskLocally(taskId);
+      }
+    );
 
     this._unsubStatusUpdated = events.on(
       taskStatusUpdatedChannel,
@@ -277,6 +291,16 @@ export class TaskManagerStore {
   private _releaseTaskRegistries(taskId: string): void {
     conversationRegistry.release(taskId);
     terminalRegistry.release(taskId);
+  }
+
+  private _removeTaskLocally(taskId: string): void {
+    const task = this.tasks.get(taskId);
+    if (!task) return;
+    this._releaseTaskRegistries(taskId);
+    task.dispose();
+    runInAction(() => {
+      this.tasks.delete(taskId);
+    });
   }
 
   loadTasks(): Promise<void> {
@@ -639,6 +663,9 @@ export class TaskManagerStore {
       runInAction(() => {
         removed.forEach((t, id) => this.tasks.set(id, t));
       });
+      toast.error(`Could not delete ${taskIds.length === 1 ? 'task' : 'tasks'}`, {
+        description: formatErrorMessage(e),
+      });
       throw e;
     }
   }
@@ -646,6 +673,8 @@ export class TaskManagerStore {
   dispose(): void {
     this._unsubTaskCreated?.();
     this._unsubTaskCreated = null;
+    this._unsubTaskDeleted?.();
+    this._unsubTaskDeleted = null;
     this._unsubPrUpdated?.();
     this._unsubPrUpdated = null;
     this._unsubPrSyncProgress?.();

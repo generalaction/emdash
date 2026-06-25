@@ -1,11 +1,25 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
-import { deleteWorkspaceIfUnused, removeWorktreeIfUnused } from './task-lifecycle-utils';
+import {
+  deleteWorkspaceIfUnused,
+  hasWorktreeGitMarker,
+  pathExists,
+  removeOwnedLocalWorktreeDirectory,
+  removeWorktreeIfUnused,
+} from './task-lifecycle-utils';
 
 const mocks = vi.hoisted(() => ({
   deleteWhere: vi.fn(),
+  execFile: vi.fn(),
   selectLimit: vi.fn(),
   deleteIndex: vi.fn(),
+}));
+
+vi.mock('node:child_process', () => ({
+  execFile: mocks.execFile,
 }));
 
 vi.mock('@main/db/client', () => ({
@@ -30,9 +44,20 @@ vi.mock('@main/core/search/workspace-file-index-service', () => ({
 }));
 
 describe('task lifecycle workspace cleanup', () => {
-  beforeEach(() => {
+  let tempDir: string;
+
+  beforeEach(async () => {
     vi.clearAllMocks();
     mocks.deleteWhere.mockResolvedValue(undefined);
+    mocks.execFile.mockImplementation((_cmd, _args, _options, callback) => {
+      callback(null, '', '');
+      return {};
+    });
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'emdash-task-cleanup-'));
+  });
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true });
   });
 
   it('does not remove a project-root workspace when branchName is a current-branch cache', async () => {
@@ -106,5 +131,58 @@ describe('task lifecycle workspace cleanup', () => {
 
     expect(mocks.deleteWhere).not.toHaveBeenCalled();
     expect(mocks.deleteIndex).not.toHaveBeenCalled();
+  });
+
+  it('removes an owned local worktree directory and prunes stale git worktree entries', async () => {
+    const projectPath = path.join(tempDir, 'project');
+    const worktreePath = path.join(tempDir, 'task-worktree');
+    await mkdir(path.join(worktreePath, '.git'), { recursive: true });
+    await mkdir(projectPath, { recursive: true });
+    await writeFile(path.join(worktreePath, 'file.txt'), 'content');
+
+    await expect(
+      removeOwnedLocalWorktreeDirectory(
+        {
+          kind: 'worktree',
+          type: 'local',
+          location: 'local',
+          path: worktreePath,
+        },
+        projectPath
+      )
+    ).resolves.toBe(true);
+
+    await expect(pathExists(worktreePath)).resolves.toBe(false);
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      'git',
+      ['-C', projectPath, 'worktree', 'prune'],
+      { timeout: 5_000 },
+      expect.any(Function)
+    );
+  });
+
+  it('refuses to remove the project root', async () => {
+    const projectPath = path.join(tempDir, 'project');
+    await mkdir(projectPath, { recursive: true });
+
+    await expect(
+      removeOwnedLocalWorktreeDirectory(
+        {
+          kind: 'worktree',
+          type: 'local',
+          location: 'local',
+          path: projectPath,
+        },
+        projectPath
+      )
+    ).rejects.toThrow('Refusing to remove project root path');
+  });
+
+  it('detects a worktree git marker without shelling out', async () => {
+    const worktreePath = path.join(tempDir, 'task-worktree');
+    await mkdir(path.join(worktreePath, '.git'), { recursive: true });
+
+    await expect(hasWorktreeGitMarker(worktreePath)).resolves.toBe(true);
+    expect(mocks.execFile).not.toHaveBeenCalled();
   });
 });
