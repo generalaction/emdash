@@ -23,7 +23,9 @@ import {
   SelectValue,
 } from '@renderer/lib/ui/select';
 import { Switch } from '@renderer/lib/ui/switch';
+import { providerSupportsAcp } from '@shared/core/agents/agent-acp';
 import { providerSupportsAutoApprove } from '@shared/core/agents/agent-auto-approve';
+import type { ConversationType } from '@shared/core/conversations/conversations';
 import { nextDefaultConversationTitle } from './conversation-title-utils';
 import { useEffectiveProvider } from './use-effective-provider';
 
@@ -31,7 +33,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
   onSuccess,
   projectId,
   taskId,
-}: BaseModalProps<{ conversationId: string }> & {
+}: BaseModalProps<{ conversationId: string; type: ConversationType }> & {
   projectId: string;
   taskId: string;
 }) {
@@ -43,6 +45,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const [error, setError] = useState<string | null>(null);
   const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [useAcpChat, setUseAcpChat] = useState(false);
   useCloseGuard(isSubmitting);
 
   const { data: agents } = useAgents();
@@ -51,6 +54,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
     modelsCapability?.kind === 'selectable' ? modelsCapability.modelOptions : null;
 
   const showAutoApproveToggle = providerId ? providerSupportsAutoApprove(providerId) : false;
+  const showAcpToggle = providerId ? providerSupportsAcp(providerId) : false;
   const skipPermissions =
     showAutoApproveToggle && (autoApproveOverride ?? taskSettings.autoApproveByDefault);
   const titleProviderId = providerId ?? 'claude';
@@ -59,11 +63,12 @@ export const CreateConversationModal = observer(function CreateConversationModal
     Array.from(conversationMgr?.conversations.values() ?? [], (conversation) => conversation.data)
   );
 
-  // Reset model when the provider changes (model ids are provider-specific).
+  // Reset model and ACP toggle when the provider changes.
   const handleProviderChange = useCallback(
     (next: typeof providerId) => {
       setProviderOverride(next);
       setSelectedModel(null);
+      if (next && !providerSupportsAcp(next)) setUseAcpChat(false);
     },
     [setProviderOverride]
   );
@@ -71,6 +76,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const handleCreateConversation = useCallback(async () => {
     if (createDisabled || isSubmitting || !conversationMgr || !providerId) return;
     const id = crypto.randomUUID();
+    const type: ConversationType = useAcpChat ? 'acp' : 'pty';
     setIsSubmitting(true);
     setError(null);
     try {
@@ -82,9 +88,10 @@ export const CreateConversationModal = observer(function CreateConversationModal
         provider: providerId,
         title,
         model: selectedModel ?? undefined,
+        type,
       });
       setIsSubmitting(false);
-      onSuccess({ conversationId: id });
+      onSuccess({ conversationId: id, type });
     } catch {
       setError('Failed to create conversation');
       setIsSubmitting(false);
@@ -100,6 +107,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
     taskId,
     skipPermissions,
     selectedModel,
+    useAcpChat,
   ]);
 
   return (
@@ -152,6 +160,14 @@ export const CreateConversationModal = observer(function CreateConversationModal
                   onCheckedChange={setAutoApproveOverride}
                 />
                 <FieldLabel>Auto-approve permissions</FieldLabel>
+              </div>
+            </Field>
+          ) : null}
+          {showAcpToggle ? (
+            <Field>
+              <div className="flex items-center gap-2">
+                <Switch checked={useAcpChat} onCheckedChange={setUseAcpChat} />
+                <FieldLabel>Use ACP Chat UI</FieldLabel>
               </div>
             </Field>
           ) : null}

@@ -455,7 +455,8 @@ export class WorkspaceViewModel implements ILifecycle {
       runInAction(() => {
         for (const [id, store] of conversations.conversations) {
           if (store.isInitialConversation) {
-            this.paneLayout.focusedPane.open('conversation', {
+            const tabKind = store.data.type === 'acp' ? 'acp-chat' : 'conversation';
+            this.paneLayout.focusedPane.open(tabKind, {
               conversationId: id,
               preview: false,
             });

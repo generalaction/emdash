@@ -49,8 +49,11 @@ export const TabBarActions = observer(function TabBarActions() {
               showCreateConversationModal({
                 projectId,
                 taskId,
-                onSuccess: ({ conversationId }: { conversationId: string }) =>
-                  pane.open('conversation', { conversationId, preview: false }),
+                onSuccess: ({ conversationId, type }) =>
+                  pane.open(type === 'acp' ? 'acp-chat' : 'conversation', {
+                    conversationId,
+                    preview: false,
+                  }),
               })
             }
           >

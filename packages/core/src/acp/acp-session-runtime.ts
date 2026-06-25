@@ -18,6 +18,7 @@ import type {
   RequestPermissionRequest,
   RequestPermissionResponse,
   SessionNotification,
+  SessionUpdate,
   SetSessionConfigOptionRequest,
   StopReason,
   TerminalOutputRequest,
@@ -902,6 +903,46 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     return turn;
   }
 
+  /**
+   * Records the user's prompt as the leading update(s) of a live turn. Emits an
+   * `image` chunk per attached image followed by a `text` chunk, mirroring the
+   * shape ACP agents use when replaying user messages on loadSession.
+   */
+  private recordUserPrompt(
+    conv: AcpConversation,
+    turn: AcpTurn,
+    text: string,
+    images?: AcpPromptImage[]
+  ): void {
+    const messageId = `${turn.id}-user`;
+    const emit = (update: SessionUpdate): void => {
+      const seq = conv.nextSeq++;
+      turn.updates.push({ seq, update });
+      this.deps.listener.onSessionUpdate({
+        conversationId: conv.conversationId,
+        turnId: turn.id,
+        update,
+        seq,
+      });
+    };
+
+    for (const img of images ?? []) {
+      emit({
+        sessionUpdate: 'user_message_chunk',
+        messageId,
+        content: { type: 'image', data: img.data, mimeType: img.mimeType },
+      });
+    }
+
+    if (text) {
+      emit({
+        sessionUpdate: 'user_message_chunk',
+        messageId,
+        content: { type: 'text', text },
+      });
+    }
+  }
+
   private closeTurnInternal(conv: AcpConversation, status: Exclude<TurnStatus, 'active'>): void {
     const turn = conv.turns.find((t) => t.id === conv.activeTurnId);
     if (!turn) return;
@@ -991,7 +1032,12 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     images?: AcpPromptImage[]
   ): Promise<void> {
     if (!conv.acpSessionId) return;
-    this.openTurn(conv, 'live');
+    const turn = this.openTurn(conv, 'live');
+    // ACP agents do not echo the user's own prompt back as a user_message_chunk
+    // during a live turn (only on loadSession replay). Synthesize one here so the
+    // user's message is recorded in the turn — rendered live, persisted in
+    // history, and surviving tab reopen within the session.
+    this.recordUserPrompt(conv, turn, text, images);
     this.emitAgentEventInternal(conv, 'start');
 
     try {

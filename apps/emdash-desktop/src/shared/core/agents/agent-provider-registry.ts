@@ -94,6 +94,8 @@ export type AgentProviderDefinition = {
   invertInDark?: boolean;
   terminalOnly?: boolean;
   supportsHooks?: boolean;
+  /** When true, the provider supports the ACP (Agent Client Protocol) transport. */
+  acpCapable?: boolean;
 };
 
 export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
@@ -143,6 +145,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Claude Code',
     terminalOnly: true,
     supportsHooks: true,
+    acpCapable: true,
   },
   {
     id: 'grok',

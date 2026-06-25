@@ -107,6 +107,7 @@ export async function prepareCreateTask(
       config: configObj,
       isInitialConversation: true,
       lastInteractedAt: new Date().toISOString(),
+      type: ic.type ?? null,
     };
   }
 

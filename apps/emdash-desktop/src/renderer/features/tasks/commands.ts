@@ -89,8 +89,11 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
             showModal('createConversationModal', {
               projectId,
               taskId,
-              onSuccess: ({ conversationId }) => {
-                taskView?.paneLayout.open('conversation', { conversationId, preview: false });
+              onSuccess: ({ conversationId, type }) => {
+                taskView?.paneLayout.open(type === 'acp' ? 'acp-chat' : 'conversation', {
+                  conversationId,
+                  preview: false,
+                });
                 taskView?.setFocusedRegion('main');
               },
             });
@@ -106,8 +109,8 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
             showModal('createConversationModal', {
               projectId,
               taskId,
-              onSuccess: ({ conversationId }) => {
-                taskView?.paneLayout.openInRightSplit('conversation', {
+              onSuccess: ({ conversationId, type }) => {
+                taskView?.paneLayout.openInRightSplit(type === 'acp' ? 'acp-chat' : 'conversation', {
                   conversationId,
                   preview: false,
                 });

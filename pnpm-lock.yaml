@@ -17,6 +17,9 @@ importers:
       '@agentclientprotocol/sdk':
         specifier: ^0.25.1
         version: 0.25.1(zod@4.4.3)
+      '@emdash/chat-ui':
+        specifier: workspace:*
+        version: link:../../packages/chat-ui
       '@emdash/core':
         specifier: workspace:*
         version: link:../../packages/core

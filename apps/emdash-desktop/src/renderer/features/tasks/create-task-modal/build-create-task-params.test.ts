@@ -18,6 +18,8 @@ function makeInitialConversationState(
     setAutoApprove: () => {},
     model: null,
     setModel: () => {},
+    useAcpChat: false,
+    setUseAcpChat: () => {},
   };
 }
 

@@ -27,6 +27,7 @@ import {
   usePaneLayoutContext,
 } from '@renderer/features/tabs/pane-layout-context';
 import { PaneLayoutStore } from '@renderer/features/tabs/pane-layout-store';
+import { acpChatTabProvider } from './acp/acp-chat-tab-provider';
 import { conversationTabProvider } from './conversations/conversation-tab-provider';
 import { diffTabProvider } from './diff-view/diff-tab-provider';
 import { fileTabProvider } from './editor/file-tab-provider';
@@ -74,6 +75,7 @@ function createTabView<const P extends readonly AnyTabProvider[]>(providers: P) 
 
 export const taskTabView = createTabView([
   conversationTabProvider,
+  acpChatTabProvider,
   fileTabProvider,
   diffTabProvider,
   browserTabProvider,

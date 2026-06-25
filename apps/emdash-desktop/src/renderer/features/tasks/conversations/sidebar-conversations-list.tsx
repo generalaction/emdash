@@ -74,8 +74,13 @@ const ConversationRow = observer(function ConversationRow({
     void conversations.renameConversation(conversationId, newTitle);
   };
 
+  const conversationType = conversation.data.type;
+
   const handleDoubleClick = () => {
-    paneLayout.open('conversation', { conversationId, preview: false });
+    paneLayout.open(conversationType === 'acp' ? 'acp-chat' : 'conversation', {
+      conversationId,
+      preview: false,
+    });
     handleRename();
   };
 
@@ -97,12 +102,20 @@ const ConversationRow = observer(function ConversationRow({
         <div
           role="button"
           tabIndex={0}
-          onClick={() => paneLayout.open('conversation', { conversationId, preview: true })}
+          onClick={() =>
+            paneLayout.open(conversationType === 'acp' ? 'acp-chat' : 'conversation', {
+              conversationId,
+              preview: true,
+            })
+          }
           onDoubleClick={handleDoubleClick}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              paneLayout.open('conversation', { conversationId, preview: true });
+              paneLayout.open(conversationType === 'acp' ? 'acp-chat' : 'conversation', {
+                conversationId,
+                preview: true,
+              });
             }
           }}
           className={cn(
@@ -187,8 +200,11 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
     showCreateConversationModal({
       projectId,
       taskId,
-      onSuccess: ({ conversationId }) => {
-        paneLayout.open('conversation', { conversationId, preview: false });
+      onSuccess: ({ conversationId, type }) => {
+        paneLayout.open(type === 'acp' ? 'acp-chat' : 'conversation', {
+          conversationId,
+          preview: false,
+        });
       },
     });
   };

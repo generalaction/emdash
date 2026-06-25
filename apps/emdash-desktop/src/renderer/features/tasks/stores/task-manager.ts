@@ -31,6 +31,7 @@ import type {
   TaskLifecycleStatus,
 } from '@shared/core/tasks/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
+import { acpChatRegistry } from '../acp/acp-chat-registry';
 import { formatFetchErrorDetail, formatPushErrorDetail } from '../utils';
 import { conversationRegistry } from './conversation-registry';
 import {
@@ -277,6 +278,7 @@ export class TaskManagerStore {
   private _releaseTaskRegistries(taskId: string): void {
     conversationRegistry.release(taskId);
     terminalRegistry.release(taskId);
+    acpChatRegistry.release(taskId);
   }
 
   loadTasks(): Promise<void> {
