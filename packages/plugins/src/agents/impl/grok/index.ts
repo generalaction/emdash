@@ -68,6 +68,7 @@ export const provider = registerPluginBehavior(plugin, {
         sessionIdFlag: '-r',
         sessionIdOnResumeOnly: true,
         resumeWithoutSessionFlag: '-r',
+        deduplicateFlags: ['--always-approve'],
       }),
   },
   hooks: buildGrokHookConfig(),
