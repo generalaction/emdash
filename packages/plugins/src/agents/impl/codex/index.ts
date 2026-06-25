@@ -86,7 +86,10 @@ export const provider = registerPluginBehavior(plugin, {
         sessionIdFlag: ' ',
         sessionIdOnResumeOnly: true,
         resumeWithoutSessionFlag: 'resume --last',
-        deduplicateFlags: ['--dangerously-bypass-approvals-and-sandbox'],
+        deduplicateFlags: [
+          '--dangerously-bypass-approvals-and-sandbox',
+          '--dangerously-bypass-hook-trust',
+        ],
         modelFlag: '-m',
       }),
   },
