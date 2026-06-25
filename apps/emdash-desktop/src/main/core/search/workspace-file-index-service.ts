@@ -1,4 +1,5 @@
 import { basename } from 'node:path';
+import { Result } from '@emdash/shared/result';
 import { fsEvents } from '@main/core/fs/fs-events';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
@@ -98,21 +99,25 @@ class WorkspaceFileIndexService {
     if (terms.length === 0) return [];
 
     const ftsQuery = terms.map((t) => `"${t}"`).join(' AND ');
-    try {
-      return sqlite
-        .prepare(
-          `SELECT path, filename
-           FROM workspace_file_index
-           WHERE workspace_file_index MATCH ?
-             AND workspace_id = ?
-           ORDER BY bm25(workspace_file_index, 1.0, 2.0)
-           LIMIT 20`
-        )
-        .all(ftsQuery, workspaceId) as FileHit[];
-    } catch (e) {
-      log.warn('WorkspaceFileIndexService: search failed', { workspaceId, error: String(e) });
-      return [];
-    }
+    return Result.from(
+      Result.try(
+        () =>
+          sqlite
+            .prepare(
+              `SELECT path, filename
+             FROM workspace_file_index
+             WHERE workspace_file_index MATCH ?
+               AND workspace_id = ?
+             ORDER BY bm25(workspace_file_index, 1.0, 2.0)
+             LIMIT 20`
+            )
+            .all(ftsQuery, workspaceId) as FileHit[]
+      )
+    )
+      .tapErr((e) =>
+        log.warn('WorkspaceFileIndexService: search failed', { workspaceId, error: e.message })
+      )
+      .unwrapOr([]);
   }
 
   private async crawl(workspaceId: string, workspace: Workspace): Promise<void> {

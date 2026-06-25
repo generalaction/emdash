@@ -1,3 +1,5 @@
+import { match, P } from 'ts-pattern';
+
 export type PullRequestStatus = 'open' | 'closed' | 'merged';
 
 export type MergeableState = 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
@@ -192,33 +194,47 @@ export interface PullRequestFile {
 }
 
 export function pullRequestErrorMessage(error: PullRequestError): string {
-  switch (error.type) {
-    case 'invalid_repository':
-      return `Invalid GitHub repository URL: "${error.input}"`;
-    case 'remote_not_ready':
-      return `Remote not ready: ${error.status}`;
-    case 'github_auth_required':
-      return `GitHub authentication required. ${error.hint}`;
-    case 'ghes_auth_required':
-      return `GitHub Enterprise authentication required for ${error.host}. ${error.hint}`;
-    case 'github_no_account_selected':
-    case 'github_account_disabled':
-    case 'github_account_not_found':
-    case 'github_account_host_mismatch':
-    case 'github_token_missing':
-    case 'github_not_found_or_no_access':
-    case 'github_sso_required':
-    case 'github_rate_limited':
-    case 'github_forbidden':
-    case 'github_account_resolution_failed':
-      return error.message;
-    case 'cross_host_pr':
-      return `Cannot create a pull request across different GitHub hosts (${error.headHost} -> ${error.baseHost}). Push and base remotes must use the same GitHub or GitHub Enterprise host.`;
-    case 'host_unreachable':
-      return `Unable to reach GitHub host ${error.host}: ${error.reason}`;
-    default:
-      return error.message;
-  }
+  return match(error)
+    .with({ type: 'invalid_repository' }, (e) => `Invalid GitHub repository URL: "${e.input}"`)
+    .with({ type: 'remote_not_ready' }, (e) => `Remote not ready: ${e.status}`)
+    .with({ type: 'github_auth_required' }, (e) => `GitHub authentication required. ${e.hint}`)
+    .with(
+      { type: 'ghes_auth_required' },
+      (e) => `GitHub Enterprise authentication required for ${e.host}. ${e.hint}`
+    )
+    .with(
+      { type: 'cross_host_pr' },
+      (e) =>
+        `Cannot create a pull request across different GitHub hosts (${e.headHost} -> ${e.baseHost}). Push and base remotes must use the same GitHub or GitHub Enterprise host.`
+    )
+    .with({ type: 'host_unreachable' }, (e) => `Unable to reach GitHub host ${e.host}: ${e.reason}`)
+    .with(
+      P.union(
+        { type: 'github_no_account_selected' },
+        { type: 'github_account_disabled' },
+        { type: 'github_account_not_found' },
+        { type: 'github_account_host_mismatch' },
+        { type: 'github_token_missing' },
+        { type: 'github_not_found_or_no_access' },
+        { type: 'github_sso_required' },
+        { type: 'github_rate_limited' },
+        { type: 'github_forbidden' },
+        { type: 'github_account_resolution_failed' },
+        { type: 'list_failed' },
+        { type: 'filter_options_failed' },
+        { type: 'task_pull_requests_failed' },
+        { type: 'sync_failed' },
+        { type: 'refresh_failed' },
+        { type: 'checks_failed' },
+        { type: 'comments_failed' },
+        { type: 'create_failed' },
+        { type: 'merge_failed' },
+        { type: 'mark_ready_failed' },
+        { type: 'files_failed' }
+      ),
+      (e) => e.message
+    )
+    .exhaustive();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

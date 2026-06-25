@@ -1,4 +1,5 @@
 import { err, ok, toSerializedError, type Result } from '@emdash/shared';
+import { Result as ResultUtil } from '@emdash/shared/result';
 import { KV } from '@main/db/kv';
 import {
   type AccountNotSignedInError,
@@ -67,15 +68,14 @@ export class AccountSessionStore {
   async requireToken(): Promise<
     Result<string, AccountNotSignedInError | AccountSessionPersistenceError>
   > {
-    const token = await this.ensureTokenLoaded();
-    if (!token.success) return token;
-    if (!token.data) {
-      return err({
-        type: 'not_signed_in',
-        message: 'You must be signed in to link a provider account',
-      });
-    }
-    return ok(token.data);
+    return await ResultUtil.fromAsync(this.ensureTokenLoaded()).andThen((token) =>
+      token === null
+        ? err<AccountNotSignedInError>({
+            type: 'not_signed_in',
+            message: 'You must be signed in to link a provider account',
+          })
+        : ok(token)
+    );
   }
 
   async saveSignedInSession(
@@ -93,17 +93,18 @@ export class AccountSessionStore {
       lastValidated,
     };
 
-    try {
-      const persistedToken = await accountCredentialStore.set(sessionToken);
-      if (!persistedToken.success) return persistedToken;
-
-      await accountKV.setOrThrow('profile', profile);
-      this.sessionToken = sessionToken;
-      this.cachedProfile = profile;
-      return ok();
-    } catch (error) {
-      return err(toSessionPersistenceError(error, 'Failed to persist account session'));
-    }
+    return await ResultUtil.fromAsync(accountCredentialStore.set(sessionToken)).andThen(
+      async () => {
+        try {
+          await accountKV.setOrThrow('profile', profile);
+          this.sessionToken = sessionToken;
+          this.cachedProfile = profile;
+          return ok();
+        } catch (error) {
+          return err(toSessionPersistenceError(error, 'Failed to persist account session'));
+        }
+      }
+    );
   }
 
   async markValidated(

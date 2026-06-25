@@ -321,6 +321,14 @@ class AsyncResult<T, E> implements PromiseLike<Result<T, E>> {
     return new AsyncResult(this.p.then((r) => tapErr(r, f)));
   }
 
+  unwrapOr(fallback: T): Promise<T> {
+    return this.p.then((r) => unwrapOr(r, fallback));
+  }
+
+  unwrapOrElse(f: (e: E) => T | Promise<T>): Promise<T> {
+    return this.p.then((r) => (r.success ? r.data : f(r.error)));
+  }
+
   /**
    * PromiseLike implementation: `await asyncResult` resolves to a plain Result,
    * ready for use on either side of the IPC boundary.
@@ -351,7 +359,8 @@ export const Result = {
   from: <T, E>(r: Result<T, E>): FluentResult<T, E> => new FluentResult(r),
   fromAsync: <T, E>(p: Promise<Result<T, E>>): AsyncResult<T, E> => new AsyncResult(p),
   try: tryCatch,
-  tryAsync: tryCatchAsync,
+  tryAsync: <T>(fn: () => Promise<T>): AsyncResult<T, SerializedError> =>
+    new AsyncResult(tryCatchAsync(fn)),
 };
 
 // ---------------------------------------------------------------------------
