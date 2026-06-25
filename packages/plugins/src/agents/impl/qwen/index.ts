@@ -48,6 +48,7 @@ export const provider = registerPluginBehavior(plugin, {
         autoApproveFlag: '--yolo',
         initialPromptFlag: '-i',
         resumeFlag: '--continue',
+        deduplicateFlags: ['--yolo'],
       }),
   },
   hooks: buildQwenHookConfig(),
