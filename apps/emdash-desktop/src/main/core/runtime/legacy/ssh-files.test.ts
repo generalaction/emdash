@@ -106,6 +106,22 @@ describe('LegacySshFilesRuntime', () => {
     await runtime.dispose();
   });
 
+  it('enumerates remote files with one streamed command', async () => {
+    const { proxy, exec } = makeSnapshotProxy([
+      enumeration(['README.md', 'src/a.ts', 'node_modules/pkg/index.js']),
+    ]);
+    const runtime = new LegacySshFilesRuntime(proxy);
+
+    const result = runtime.enumerate('/repo');
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    await expect(collect(result.data)).resolves.toEqual(['README.md', 'src/a.ts']);
+    expect(exec).toHaveBeenCalledTimes(1);
+
+    await runtime.dispose();
+  });
+
   it('returns a disposed error when watched after disposal', async () => {
     const runtime = new LegacySshFilesRuntime({} as never);
     await runtime.dispose();
@@ -122,6 +138,12 @@ describe('LegacySshFilesRuntime', () => {
   });
 });
 
+async function collect(iterable: AsyncIterable<string>): Promise<string[]> {
+  const paths: string[] = [];
+  for await (const relPath of iterable) paths.push(relPath);
+  return paths;
+}
+
 function snapshot(records: SnapshotRecord[]): Buffer {
   const fields = records.flatMap((record) => [
     record.kind,
@@ -130,6 +152,10 @@ function snapshot(records: SnapshotRecord[]): Buffer {
     record.path,
   ]);
   return Buffer.from(`${fields.join('\0')}\0`);
+}
+
+function enumeration(paths: string[]): Buffer {
+  return Buffer.from(`${paths.join('\0')}\0`);
 }
 
 function makeSnapshotProxy(snapshots: Buffer[]): {
