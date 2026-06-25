@@ -2,7 +2,7 @@ import type { FileChange } from '@emdash/core/files';
 import { events } from '@renderer/lib/ipc';
 import { fileChangesChannel } from '@shared/core/fs/fsEvents';
 import { gitRepoUpdateChannel, gitWorktreeUpdateChannel } from '@shared/core/git/events';
-import { HEAD_REF, STAGED_REF } from '@shared/core/git/types';
+import { invalidateWorktreeGitModels } from './git-model-invalidation';
 import type { MonacoModelRegistry } from './monaco-model-registry';
 
 /** Disk models for paths affected by a watch event (atomic saves often use create/delete, not modify). */
@@ -43,12 +43,9 @@ export function wireModelRegistryInvalidation(registry: MonacoModelRegistry): ()
     }
   });
 
-  // Workspace index/HEAD changes → invalidate staged or HEAD git:// models.
+  // Workspace index/HEAD changes → invalidate staged or HEAD-following git:// models.
   const unsubWorkspace = events.on(gitWorktreeUpdateChannel, ({ workspaceId, update }) => {
-    const ref = update.kind === 'status' ? STAGED_REF : HEAD_REF;
-    for (const uri of registry.findGitUris({ workspaceId, ref })) {
-      void registry.invalidateModel(uri);
-    }
+    invalidateWorktreeGitModels(registry, workspaceId, update.kind);
   });
 
   const unsubRefs = events.on(gitRepoUpdateChannel, ({ projectId, update }) => {
