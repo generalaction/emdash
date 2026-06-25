@@ -66,6 +66,7 @@ export const provider = registerPluginBehavior(plugin, {
         autoApproveFlag: '--auto',
         initialPromptFlag: '',
         resumeFlag: '--resume',
+        deduplicateFlags: ['--auto'],
       }),
   },
 });
