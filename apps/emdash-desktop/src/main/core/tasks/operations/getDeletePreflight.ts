@@ -6,6 +6,7 @@ import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import type { DeletePreflightResult, TaskDeletePreflightItem } from '@shared/core/tasks/tasks';
+import { hasUncommittedStatusChanges } from './delete-preflight-status';
 
 async function getTaskPreflight(
   projectId: string,
@@ -60,11 +61,9 @@ async function getTaskPreflight(
                   taskId,
                   error: status.message,
                 });
+              } else {
+                hasUncommittedChanges = hasUncommittedStatusChanges(status);
               }
-              if (status.kind === 'ok') {
-                hasUncommittedChanges = status.staged.length > 0 || status.unstaged.length > 0;
-              }
-              hasUncommittedChanges = status.kind === 'too-many-files';
             } finally {
               worktreeLease.release();
             }
