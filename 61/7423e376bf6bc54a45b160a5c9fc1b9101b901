@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/main/core/tasks/operations/delete-preflight-status.test.ts
+  s_97a2e52a103aa5::t_b25bfd9b665d1b 1-38
+apps/emdash-desktop/src/main/core/tasks/operations/getDeletePreflight.ts
+  s_97a2e52a103aa5::t_faf591eb5e2f18 64
+  s_97a2e52a103aa5::t_b25bfd9b665d1b 9,65
+apps/emdash-desktop/src/main/core/tasks/operations/delete-preflight-status.ts
+  s_97a2e52a103aa5::t_b25bfd9b665d1b 1-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.1",
+  "base_commit_sha": "617423e376bf6bc54a45b160a5c9fc1b9101b901",
+  "prompts": {},
+  "sessions": {
+    "s_97a2e52a103aa5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ef2c6-d858-77f0-9f4b-165806256ddb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
