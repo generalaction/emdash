@@ -76,7 +76,9 @@ export function createWorkspaceFactory(
       type.kind === 'ssh' ? new SshFileSystem(type.proxy, workDir) : new LocalFileSystem(workDir);
 
     const ctx =
-      type.kind === 'ssh' ? new SshExecutionContext(type.proxy) : new LocalExecutionContext();
+      type.kind === 'ssh'
+        ? new SshExecutionContext(type.proxy, { connectionId: type.connectionId })
+        : new LocalExecutionContext();
 
     // Settings (shared)
     const projectSettings = await context.settings.get();
@@ -306,7 +308,7 @@ export async function buildTaskProviders(
   opts: TaskProviderOpts
 ): Promise<{ conversations: ConversationProvider; terminals: TerminalProvider }> {
   if (type.kind === 'ssh') {
-    const ctx = new SshExecutionContext(type.proxy);
+    const ctx = new SshExecutionContext(type.proxy, { connectionId: type.connectionId });
     return {
       conversations: new SshConversationProvider({
         projectId: opts.projectId,
