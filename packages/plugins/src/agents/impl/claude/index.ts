@@ -110,6 +110,7 @@ export const provider = registerPluginBehavior(plugin, {
         resumeFlag: '--resume',
         sessionIdFlag: '--session-id',
         modelFlag: '--model',
+        deduplicateFlags: ['--dangerously-skip-permissions'],
       }),
   },
   hooks: buildClaudeHookConfig(),
