@@ -145,6 +145,9 @@ export const tasks = sqliteTable(
     workspaceIntent: text('workspace_intent'), // JSON: { git: GitSetup; workspace: WorkspaceLocation }
     type: text('type').notNull().default('task'), // 'task' | 'automation-run'
     automationRunId: text('automation_run_id'), // set when type = 'automation-run'; FK added after automationRuns is defined
+    autoCleanupOptOut: integer('auto_cleanup_opt_out', { mode: 'boolean' })
+      .notNull()
+      .default(false),
   },
   (table) => ({
     projectIdIdx: index('idx_tasks_project_id').on(table.projectId),
@@ -233,6 +236,7 @@ export const pullRequests = sqliteTable(
     pullRequestUpdatedAt: text('pull_request_updated_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
+    mergedAt: text('merged_at'),
   },
   (table) => ({
     urlIdx: uniqueIndex('idx_pull_requests_url').on(table.url),
