@@ -1,0 +1,23 @@
+packages/core/src/agents/plugins/helpers/standard-command.test.ts
+  s_68be1b72ecaba9::t_605478095042e5 103-123
+apps/emdash-desktop/src/main/core/conversations/resolve-agent-session-command.test.ts
+  s_68be1b72ecaba9::t_e8347b0e436cba 181-193
+packages/plugins/src/agents/impl/codex/index.ts
+  s_68be1b72ecaba9::t_dc24354c251c21 89-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "2f619eb40f6eb579384bc0445211268a010e5494",
+  "prompts": {},
+  "sessions": {
+    "s_68be1b72ecaba9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019efd2b-b395-7f91-898c-6ee0230d8a76",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
