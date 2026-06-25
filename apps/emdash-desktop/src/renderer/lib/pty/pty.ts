@@ -8,6 +8,10 @@ import { ptyDataChannel } from '@shared/core/pty/ptyEvents';
 import { FileLinkProvider, isPrimaryMouseButton } from './file-link-provider';
 import { decodeOsc52ClipboardData } from './pty-clipboard';
 import { buildTerminalFontFamily } from './terminal-font';
+import {
+  captureTerminalScrollViewport,
+  restoreTerminalScrollViewport,
+} from './terminal-scroll-viewport';
 import { ensureXtermHost } from './xterm-host';
 
 const SCROLLBACK_LINES = 100_000;
@@ -188,7 +192,9 @@ export class FrontendPty {
       targetDims &&
       (this.terminal.cols !== targetDims.cols || this.terminal.rows !== targetDims.rows)
     ) {
+      const scrollSnapshot = captureTerminalScrollViewport(this.terminal);
       this.terminal.resize(targetDims.cols, targetDims.rows);
+      restoreTerminalScrollViewport(this.terminal, scrollSnapshot);
     }
     mountTarget.appendChild(this.ownedContainer);
     // Force a Canvas2D repaint after reparenting in the DOM.

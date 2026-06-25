@@ -8,7 +8,7 @@ const CONTENT_FOCUS_SELECTOR = 'textarea, webview, [contenteditable="true"]';
 
 function focusActiveContentElement(container: HTMLElement): void {
   for (const el of container.querySelectorAll<HTMLElement>(CONTENT_FOCUS_SELECTOR)) {
-    el.focus();
+    el.focus({ preventScroll: true });
     if (document.activeElement === el) return;
   }
 }

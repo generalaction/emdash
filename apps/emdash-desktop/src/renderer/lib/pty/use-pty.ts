@@ -26,6 +26,10 @@ import {
 import { createResizeScheduler } from './resize-scheduler';
 import { getTerminalContextLink } from './terminal-context-link';
 import { buildTerminalFontFamily } from './terminal-font';
+import {
+  captureTerminalScrollViewport,
+  restoreTerminalScrollViewport,
+} from './terminal-scroll-viewport';
 import { getCellMetrics } from './xterm-cell-metrics';
 
 const PTY_RESIZE_DEBOUNCE_MS = 120;
@@ -246,7 +250,9 @@ export function usePty(
         const { cols: targetCols, rows: targetRows } = dims;
 
         if (term.cols !== targetCols || term.rows !== targetRows) {
+          const scrollSnapshot = captureTerminalScrollViewport(term);
           term.resize(targetCols, targetRows);
+          restoreTerminalScrollViewport(term, scrollSnapshot);
         }
 
         if (pane) {
@@ -282,7 +288,15 @@ export function usePty(
 
   const focus = useCallback(() => {
     if (document.activeElement?.closest('[role="dialog"]')) return;
-    termRef.current?.focus();
+    const term = termRef.current;
+    if (!term) return;
+
+    const scrollSnapshot = captureTerminalScrollViewport(term);
+    term.focus();
+    restoreTerminalScrollViewport(term, scrollSnapshot);
+    requestAnimationFrame(() => {
+      if (termRef.current === term) restoreTerminalScrollViewport(term, scrollSnapshot);
+    });
   }, []);
 
   const copySelectionToClipboard = useCallback(() => {
