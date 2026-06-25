@@ -202,6 +202,40 @@ describe('GitWorktree', () => {
     }
   });
 
+  it('resolves HEAD against the calling worktree, not the shared repository (#2576)', async () => {
+    // The GitRepository is shared per common dir and its exec is bound to the first
+    // worktree that opens it. A symbolic ref like HEAD must still resolve against the
+    // worktree that asks, otherwise a linked worktree on its own branch reads the wrong
+    // branch's blob (the stale Changed-diff in #2576).
+    const repo = await makeRepo(); // main: tracked.txt = 'before\n'
+    const linkedParent = await mkdtemp(path.join(tmpdir(), 'emdash-shared-linked-'));
+    const linkedPath = path.join(linkedParent, 'wt'); // must not pre-exist for `worktree add`
+    await execFileAsync('git', ['branch', 'feature'], { cwd: repo });
+    await execFileAsync('git', ['worktree', 'add', linkedPath, 'feature'], { cwd: repo });
+    await writeFile(path.join(linkedPath, 'tracked.txt'), 'feature-content\n', 'utf8');
+    await execFileAsync('git', ['commit', '-am', 'feature change'], { cwd: linkedPath });
+
+    const watcher = new WatchService();
+    const runtime = new GitRuntime({ watcher });
+    try {
+      // Open the main worktree first so the shared repository binds its exec to it.
+      const mainLease = await runtime.openWorktree(repo);
+      await expect(mainLease.value.getFileAtRef('tracked.txt', 'HEAD')).resolves.toBe('before\n');
+
+      // The linked worktree shares that repository but its HEAD is on `feature`.
+      const linkedLease = await runtime.openWorktree(linkedPath);
+      await expect(linkedLease.value.getFileAtRef('tracked.txt', 'HEAD')).resolves.toBe(
+        'feature-content\n'
+      );
+
+      await linkedLease.release();
+      await mainLease.release();
+    } finally {
+      await runtime.dispose();
+      await watcher.dispose();
+    }
+  });
+
   it('refreshes staged status when an external commit advances the branch ref', async () => {
     const repo = await makeRepo();
     const watcher = new WatchService();
