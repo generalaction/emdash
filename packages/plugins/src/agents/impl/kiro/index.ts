@@ -69,6 +69,7 @@ export const provider = registerPluginBehavior(plugin, {
         sessionIdFlag: '--resume-id',
         sessionIdOnResumeOnly: true,
         resumeWithoutSessionFlag: '--resume',
+        deduplicateFlags: ['--trust-all-tools'],
       }),
   },
   hooks: buildKiroHookConfig(),
