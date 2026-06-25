@@ -24,7 +24,7 @@ export const plugin = definePlugin(
     },
     hooks: {
       kind: 'config',
-      scope: 'workspace',
+      scope: 'global',
       supportedEvents: ['notification', 'stop', 'session'],
     },
     hostDependency: npmDependency({ id: 'qwen', package: '@qwen-code/qwen-code' }),

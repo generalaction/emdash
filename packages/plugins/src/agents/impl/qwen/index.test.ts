@@ -29,6 +29,14 @@ function createMemoryFs(files = new Map<string, string>()): PluginFs {
 }
 
 describe('qwen provider', () => {
+  it('installs hooks globally because Qwen ignores project hooks in untrusted workspaces', () => {
+    expect(provider.capabilities.hooks).toEqual({
+      kind: 'config',
+      scope: 'global',
+      supportedEvents: ['notification', 'stop', 'session'],
+    });
+  });
+
   it('uses approval-mode=yolo for auto-approve', () => {
     const command = provider.behavior.prompt!.buildCommand({
       ...baseContext,
