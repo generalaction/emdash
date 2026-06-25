@@ -86,4 +86,23 @@ describe('FilesRuntime', () => {
 
     await runtime.dispose();
   });
+
+  it('opens file systems without acquiring a watch subscription', async () => {
+    const root = await makeRoot();
+    await writeFile(path.join(root, 'file.txt'), 'content');
+    const watcher = new RecordingWatchService();
+    const runtime = new FilesRuntime({ watcher });
+
+    const fileSystem = runtime.fileSystem(root);
+    expect(fileSystem.success).toBe(true);
+    if (!fileSystem.success) return;
+
+    await expect(fileSystem.data.readText('file.txt')).resolves.toMatchObject({
+      success: true,
+      data: { content: 'content', truncated: false, totalSize: 7 },
+    });
+    expect(watcher.watches).toEqual([]);
+
+    await runtime.dispose();
+  });
 });

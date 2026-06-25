@@ -5,6 +5,7 @@ import { WatchService, realpathOrResolve, type IWatchService } from '../watch';
 import { FileChanges } from './changes/changes';
 import { enumerate as enumerateFiles } from './enumerate';
 import type { FileError, FilesOnError } from './errors';
+import { FileSystem } from './fs/file-system';
 import type { FileTreeError, FileTreeOnError } from './tree/errors';
 import { FileTree } from './tree/file-tree';
 import type { FileTreeLease } from './tree/types';
@@ -13,6 +14,7 @@ import type {
   FileChangeSubscription,
   FileChangeUpdate,
   FileChangeWatchOptions,
+  IFileSystem,
   IFilesRuntime,
 } from './types';
 
@@ -108,6 +110,17 @@ export class FilesRuntime implements IFilesRuntime {
       });
     }
     return ok(enumerateFiles(realpathOrResolve(path.resolve(rootPath))));
+  }
+
+  fileSystem(rootPath: string): Result<IFileSystem, FileError> {
+    if (this.disposeRequested) {
+      return err({
+        type: 'fs-error',
+        path: '',
+        message: 'FilesRuntime disposed',
+      });
+    }
+    return ok(new FileSystem(realpathOrResolve(path.resolve(rootPath))));
   }
 
   async dispose(): Promise<void> {
