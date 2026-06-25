@@ -65,6 +65,7 @@ export const provider = registerPluginBehavior(plugin, {
         autoApproveFlag: '--permission-mode=bypass',
         initialPromptFlag: '--',
         resumeFlag: '--continue',
+        deduplicateFlags: ['--permission-mode=bypass'],
       }),
   },
   hooks: buildDevinHookConfig(),
