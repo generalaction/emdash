@@ -54,7 +54,7 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
-        autoApproveFlag: '--yolo',
+        autoApproveFlag: '--approval-mode=yolo',
         initialPromptFlag: '-i',
         resumeFlag: '--continue',
       }),

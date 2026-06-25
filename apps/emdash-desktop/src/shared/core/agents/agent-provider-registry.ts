@@ -247,7 +247,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['qwen'],
     versionArgs: ['--version'],
     cli: 'qwen',
-    autoApproveFlag: '--yolo',
+    autoApproveFlag: '--approval-mode=yolo',
     initialPromptFlag: '-i',
     resumeFlag: '--continue',
     icon: 'qwen.svg',

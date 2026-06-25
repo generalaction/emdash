@@ -133,6 +133,12 @@ describe('buildAgentEnv provider env forwarding', () => {
       GOOSE_PROVIDER__HOST: 'https://goose.example.test',
       OPENCODE_MODEL: 'anthropic/claude-sonnet-4-5',
       AMP_TOOLBOX: '/tmp/amp-toolbox',
+      QWEN_HOME: '/tmp/qwen-home',
+      QWEN_RUNTIME_DIR: '/tmp/qwen-runtime',
+      QWEN_DEFAULT_AUTH_TYPE: 'openai',
+      QWEN_MODEL: 'qwen3-coder-plus',
+      QWEN_SANDBOX: '1',
+      QWEN_CODE_SUPPRESS_YOLO_WARNING: '1',
       ALL_PROXY: 'socks5://127.0.0.1:9000',
     };
     Object.assign(process.env, providerEnv, {
