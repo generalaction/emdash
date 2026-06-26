@@ -9,7 +9,8 @@ import type {
   IGitRepository,
   PushError,
 } from '@emdash/core/git';
-import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
+import type { Unsubscribe } from '@emdash/shared';
+import { Result } from '@emdash/shared/result';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import { resolveConfiguredRemotes } from '@shared/core/git/utils';
 import type { ProjectRemoteState } from '@shared/projects';
@@ -73,15 +74,13 @@ export class GitRepositoryService {
     syncWithRemote?: boolean,
     remote?: string
   ): Promise<Result<void, CreateBranchError>> {
-    const result = await this.gitRepository.createBranch({ name, from, syncWithRemote, remote });
-    if (!result.success) return err(result.error);
-    return ok();
+    return Result.fromAsync(
+      this.gitRepository.createBranch({ name, from, syncWithRemote, remote })
+    ).map(() => undefined);
   }
 
   async deleteBranch(branch: string, force?: boolean): Promise<Result<void, DeleteBranchError>> {
-    const result = await this.gitRepository.deleteBranch(branch, force);
-    if (!result.success) return err(result.error);
-    return ok();
+    return Result.fromAsync(this.gitRepository.deleteBranch(branch, force)).map(() => undefined);
   }
 
   async fetchPrForReview(
@@ -92,16 +91,16 @@ export class GitRepositoryService {
     isFork: boolean,
     remote?: string
   ): Promise<Result<void, FetchPrForReviewError>> {
-    const result = await this.gitRepository.fetchPrForReview({
-      prNumber,
-      headRefName,
-      headRepositoryUrl,
-      localBranch,
-      isFork,
-      configuredRemote: remote,
-    });
-    if (!result.success) return err(result.error);
-    return ok();
+    return Result.fromAsync(
+      this.gitRepository.fetchPrForReview({
+        prNumber,
+        headRefName,
+        headRepositoryUrl,
+        localBranch,
+        isFork,
+        configuredRemote: remote,
+      })
+    ).map(() => undefined);
   }
 
   async fetch(remote?: string): Promise<Result<{ sequences: GitSequences }, FetchError>> {
@@ -112,9 +111,9 @@ export class GitRepositoryService {
     branchName: string,
     remote?: string
   ): Promise<Result<{ output: string }, PushError>> {
-    const result = await this.gitRepository.publishBranch(branchName, remote);
-    if (!result.success) return err(result.error);
-    return ok({ output: result.data.output });
+    return Result.fromAsync(this.gitRepository.publishBranch(branchName, remote)).map((d) => ({
+      output: d.output,
+    }));
   }
 
   async getRemoteState(): Promise<ProjectRemoteState> {

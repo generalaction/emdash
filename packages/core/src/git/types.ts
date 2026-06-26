@@ -105,7 +105,10 @@ export type GitRepositoryInfo = {
   baseRef: string;
 };
 
-export type GitPathInspection = GitRepositoryInfo | { kind: 'not-repository'; path: string };
+export type GitPathInspection =
+  | GitRepositoryInfo
+  | { kind: 'not-repository'; path: string }
+  | { kind: 'inspect-failed'; path: string; message: string };
 
 export type EnsureRepositoryOptions = {
   initIfMissing?: boolean;
@@ -113,6 +116,7 @@ export type EnsureRepositoryOptions = {
 
 export type EnsureRepositoryError =
   | { type: 'not-repository'; path: string }
+  | { type: 'inspect-failed'; path: string; message: string }
   | { type: 'init-failed'; path: string; message: string };
 
 export interface IGitRepository extends IDisposable {

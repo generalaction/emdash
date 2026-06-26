@@ -1,10 +1,14 @@
-import { createLogger } from '@shared/logger';
-import { writeLogEntry } from './file-logger';
+import { createVariadicAdapter } from '@emdash/shared/logger';
+import { createPinoLogger } from '@emdash/shared/logger/pino';
+import { getLogFileDestination } from './file-logger';
 
-export const log = createLogger({
+const inner = createPinoLogger({
   envLevel: process.env.LOG_LEVEL,
   debugFlag: process.argv.includes('--debug-logs'),
-  sink: writeLogEntry,
+  bindings: { source: 'main' },
+  destination: getLogFileDestination(),
 });
 
-export type Logger = ReturnType<typeof createLogger>;
+export const log = createVariadicAdapter(inner);
+
+export type Logger = typeof log;

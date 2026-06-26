@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
+import { ExecError, type BoundExec } from '../exec';
 import type { IFileWatchService } from '../fs';
 import { GitRuntime } from './index';
 
@@ -14,6 +15,9 @@ async function makeRepo(): Promise<string> {
   await execFileAsync('git', ['init', '-b', 'main'], { cwd: repo });
   await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo });
   await execFileAsync('git', ['config', 'user.name', 'Test User'], { cwd: repo });
+  await writeFile(path.join(repo, 'INITIAL.md'), '# Initial\n', 'utf8');
+  await execFileAsync('git', ['add', 'INITIAL.md'], { cwd: repo });
+  await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: repo });
   return repo;
 }
 
@@ -32,13 +36,42 @@ async function makeRecordingGitExecutable(): Promise<{ executable: string; logPa
   return { executable, logPath };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 function createNoopWatcher(): IFileWatchService {
   return {
     watch: () => ({
       ready: async () => {},
-      release: () => {},
+      release: async () => {},
     }),
     dispose: async () => {},
+  };
+}
+
+function createFailingExec(error: unknown): BoundExec {
+  return {
+    file: 'git',
+    cwd: '/',
+    async exec() {
+      throw error;
+    },
+    async execStreaming() {
+      throw error;
+    },
+    async execBuffer() {
+      throw error;
+    },
+    withCwd() {
+      return this;
+    },
   };
 }
 
@@ -57,6 +90,49 @@ describe('GitRuntime', () => {
         kind: 'repository',
         rootPath: await realpath(repo),
         baseRef: 'main',
+      });
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it('inspects paths with git -C instead of spawning inside the target directory', async () => {
+    const repo = await makeRepo();
+    const { executable, logPath } = await makeRecordingGitExecutable();
+    const runtime = new GitRuntime({ executable });
+
+    try {
+      await expect(runtime.inspectPath(repo)).resolves.toMatchObject({
+        kind: 'repository',
+        rootPath: await realpath(repo),
+      });
+    } finally {
+      await runtime.dispose();
+    }
+
+    const calls = (await readFile(logPath, 'utf8')).trim().split('\n').filter(Boolean);
+    expect(calls[0]).toBe(`-C ${repo} rev-parse --is-inside-work-tree`);
+  });
+
+  it('does not classify git inspection failures as non-repositories', async () => {
+    const targetPath = '/Volumes/Data/dev/myapp';
+    const error = new ExecError(
+      'git',
+      ['-C', targetPath, 'rev-parse', '--is-inside-work-tree'],
+      128,
+      '',
+      `fatal: cannot change to '${targetPath}': Permission denied`
+    );
+    const runtime = new GitRuntime({
+      exec: createFailingExec(error),
+      watcher: createNoopWatcher(),
+    });
+
+    try {
+      await expect(runtime.inspectPath(targetPath)).resolves.toEqual({
+        kind: 'inspect-failed',
+        path: targetPath,
+        message: `fatal: cannot change to '${targetPath}': Permission denied`,
       });
     } finally {
       await runtime.dispose();
@@ -147,12 +223,47 @@ describe('GitRuntime', () => {
       expect(repoLease.value.gitCommonDir).toBe(commonDir);
       expect(worktreeLease.value.repository).toBe(repoLease.value);
 
-      worktreeLease.release();
-      repoLease.release();
+      await worktreeLease.release();
+      await repoLease.release();
     } finally {
       await runtime.dispose();
       await watcher.dispose();
     }
+  });
+
+  it('waits for repository watcher release during dispose', async () => {
+    const repo = await makeRepo();
+    const releaseGate = deferred<void>();
+    let releaseStarted = 0;
+    const watcher: IFileWatchService = {
+      watch: () => ({
+        ready: async () => {},
+        release: async () => {
+          releaseStarted += 1;
+          await releaseGate.promise;
+        },
+      }),
+      dispose: async () => {},
+    };
+    const runtime = new GitRuntime({ watcher });
+
+    const lease = await runtime.openRepository(repo);
+    const release = lease.release();
+
+    const dispose = runtime.dispose();
+    let disposed = false;
+    void dispose.then(() => {
+      disposed = true;
+    });
+
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(releaseStarted).toBe(1);
+    expect(disposed).toBe(false);
+
+    releaseGate.resolve();
+    await release;
+    await dispose;
+    expect(disposed).toBe(true);
   });
 
   it('resolves git identity once when opening a cold worktree', async () => {
@@ -162,7 +273,7 @@ describe('GitRuntime', () => {
 
     try {
       const lease = await runtime.openWorktree(repo);
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
     }

@@ -22,8 +22,9 @@ import { openLegacyReadOnly } from './legacy-source/open-readonly';
 import {
   hasBetaDatabaseFile,
   hasLegacyDatabaseFile,
-  resolveBetaDatabasePath,
-  resolveLegacyDatabasePath,
+  resolveExistingBetaDatabasePath,
+  resolveExistingLegacyDatabasePath,
+  resolveExistingLegacyUserDataPath,
 } from './legacy-source/path';
 import { clearDestinationDataPreservingSignIn } from './reset';
 import { buildLegacyProjectSelection } from './source-analysis';
@@ -135,7 +136,7 @@ export async function runLegacyPort(
   }
 
   if (selectedSources.has('v1-beta') && !selectedSources.has('v0')) {
-    const betaPath = resolveBetaDatabasePath(userDataPath);
+    const betaPath = resolveExistingBetaDatabasePath(userDataPath);
     if (hasBetaDatabaseFile(userDataPath)) {
       importBetaDatabaseIntoDestination(appTarget.sqlite, betaPath);
     } else {
@@ -154,7 +155,8 @@ export async function runLegacyPort(
     return;
   }
 
-  const legacyPath = resolveLegacyDatabasePath(userDataPath);
+  const legacyUserDataPath = resolveExistingLegacyUserDataPath(userDataPath);
+  const legacyPath = resolveExistingLegacyDatabasePath(userDataPath);
   let legacyDb: Database.Database;
 
   try {
@@ -169,7 +171,7 @@ export async function runLegacyPort(
 
   const start = Date.now();
 
-  const betaPath = resolveBetaDatabasePath(userDataPath);
+  const betaPath = resolveExistingBetaDatabasePath(userDataPath);
   const shouldCopyBeta = selectedSources.has('v1-beta') && hasBetaDatabaseFile(userDataPath);
   const runImport = async (): Promise<{
     sshSummary: PortSummary;
@@ -221,7 +223,7 @@ export async function runLegacyPort(
         legacyDb,
         remap,
         mergedLegacyTaskIds: taskResult.mergedLegacyTaskIds,
-        userDataPath,
+        userDataPath: legacyUserDataPath,
         tmuxExec: new LocalExecutionContext(),
       });
 
@@ -239,7 +241,7 @@ export async function runLegacyPort(
     logSummary(conversationsSummary);
 
     try {
-      const settingsSummary = await portLegacySettings(userDataPath, {
+      const settingsSummary = await portLegacySettings(legacyUserDataPath, {
         appDb: appTarget.db,
         appSqlite: appTarget.sqlite,
       });

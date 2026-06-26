@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
   deleteIndex: vi.fn(),
   deleteWhere: vi.fn(),
+  delViewState: vi.fn(),
   getProject: vi.fn(),
   selectLimit: vi.fn(),
   teardownTask: vi.fn(),
@@ -39,7 +40,7 @@ vi.mock('@main/core/tasks/task-session-manager', () => ({
 
 vi.mock('@main/core/view-state/view-state-service', () => ({
   viewStateService: {
-    del: vi.fn(),
+    del: mocks.delViewState,
   },
 }));
 
@@ -60,6 +61,15 @@ describe('deleteTask', () => {
     vi.clearAllMocks();
     mocks.deleteWhere.mockResolvedValue(undefined);
     mocks.getProject.mockReturnValue(undefined);
+  });
+
+  it('deletes both the aggregate view-state key and the dedicated tabs key', async () => {
+    mocks.selectLimit.mockResolvedValueOnce([{ id: 'task-1', workspaceId: null }]);
+
+    await deleteTask('project-1', 'task-1');
+
+    expect(mocks.delViewState).toHaveBeenCalledWith('task:task-1');
+    expect(mocks.delViewState).toHaveBeenCalledWith('task:task-1:tabs');
   });
 
   it('preserves the workspace file index when an archived sibling still references the workspace', async () => {

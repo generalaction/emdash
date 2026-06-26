@@ -2,6 +2,7 @@ import type { GitChange } from '@emdash/core/git';
 import { Plus, Undo2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { toast } from 'sonner';
+import { activeDiffEntry } from '@renderer/features/tasks/diff-view/pane-selectors';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -35,11 +36,8 @@ export const UnstagedSection = observer(function UnstagedSection() {
   const hasChanges = changes.length > 0;
   const hasStagedChanges = git.stagedFileChanges.length > 0;
 
-  const activePath =
-    taskView.tabManager.activeDescriptor?.kind === 'diff' &&
-    taskView.tabManager.activeDescriptor.diffGroup === 'disk'
-      ? taskView.tabManager.activeDescriptor.path
-      : undefined;
+  const _activeDiff = activeDiffEntry(taskView.activePane);
+  const activePath = _activeDiff?.diffGroup === 'disk' ? _activeDiff.path : undefined;
 
   const prefetch = usePrefetchDiffModels(projectId, workspaceId, 'disk', HEAD_REF);
 
@@ -50,27 +48,29 @@ export const UnstagedSection = observer(function UnstagedSection() {
   if (!diffView || !changesView) return null;
 
   const handleSelectChange = (change: GitChange) => {
-    taskView.tabManager.openDiffPreview(
-      {
+    taskView.activePane.open('diff', {
+      activeFile: {
         path: change.path,
         type: 'disk',
         group: 'disk',
         originalRef: commitRef('HEAD'),
       },
-      change.status
-    );
+      status: change.status,
+      preview: true,
+    });
   };
 
   const handleDoubleClickChange = (change: GitChange) => {
-    taskView.tabManager.openDiff(
-      {
+    taskView.activePane.open('diff', {
+      activeFile: {
         path: change.path,
         type: 'disk',
         group: 'disk',
         originalRef: commitRef('HEAD'),
       },
-      change.status
-    );
+      status: change.status,
+      preview: false,
+    });
   };
 
   const handleDiscardSelection = () => {

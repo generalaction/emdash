@@ -20,6 +20,23 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'supported',
     },
+    models: {
+      kind: 'selectable',
+      modelOptions: {
+        'codex-mini-latest': {
+          name: 'Codex Mini',
+          modelFeatures: { intelligence: 3, speed: 5 },
+        },
+        'o4-mini': {
+          name: 'o4-mini',
+          modelFeatures: { intelligence: 4, speed: 4 },
+        },
+        o3: {
+          name: 'o3',
+          modelFeatures: { intelligence: 5, speed: 2 },
+        },
+      },
+    },
     hooks: {
       kind: 'config',
       scope: 'global',
@@ -70,6 +87,7 @@ export const provider = registerPluginBehavior(plugin, {
         sessionIdOnResumeOnly: true,
         resumeWithoutSessionFlag: 'resume --last',
         deduplicateFlags: ['--dangerously-bypass-approvals-and-sandbox'],
+        modelFlag: '-m',
       }),
   },
   hooks: buildCodexHookConfig(),

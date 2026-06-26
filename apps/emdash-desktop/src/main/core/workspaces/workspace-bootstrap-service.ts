@@ -398,7 +398,7 @@ export class WorkspaceBootstrapService {
       });
     } finally {
       if (!buildSucceeded) {
-        await workspaceRegistry.release(workspaceId, 'terminate').catch(() => {});
+        await workspaceRegistry.teardown(workspaceId, 'terminate').catch(() => {});
       }
     }
   }

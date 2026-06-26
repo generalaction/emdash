@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { err, ok } from '@emdash/shared';
+import { err, ok, withLease } from '@emdash/shared';
 import { sql } from 'drizzle-orm';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
@@ -8,7 +8,7 @@ import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import type { CreateProjectResult, ProjectPathStatus } from '@shared/projects';
-import { checkIsValidDirectory } from '../path-utils';
+import { getDirectoryStatus } from '../path-utils';
 import { ensureProjectRepository } from './create-project-utils';
 import { ensureRepositoryWorkspace } from './ensure-repository-workspace';
 
@@ -22,8 +22,15 @@ export type CreateLocalProjectParams = {
 export async function createLocalProject(
   params: CreateLocalProjectParams
 ): Promise<CreateProjectResult> {
-  const isValidDirectory = checkIsValidDirectory(params.path);
-  if (!isValidDirectory) {
+  const directoryStatus = getDirectoryStatus(params.path);
+  if (directoryStatus.kind === 'inspect-failed') {
+    return err({
+      type: 'inspect-failed',
+      path: params.path,
+      message: directoryStatus.message,
+    });
+  }
+  if (directoryStatus.kind !== 'directory') {
     return err({
       type: 'invalid-directory',
       path: params.path,
@@ -31,12 +38,9 @@ export async function createLocalProject(
     });
   }
 
-  const runtimeLease = await runtimeManager.acquire({ kind: 'local' });
-  const repositoryResult = await ensureProjectRepository(
-    runtimeLease.value.git,
-    params.path,
-    params.initGitRepository
-  ).finally(() => runtimeLease.release());
+  const repositoryResult = await withLease(runtimeManager.acquire({ kind: 'local' }), (runtime) =>
+    ensureProjectRepository(runtime.git, params.path, params.initGitRepository)
+  );
   if (!repositoryResult.success) return repositoryResult;
   const gitInfo = repositoryResult.data;
 
@@ -80,16 +84,30 @@ export async function createLocalProject(
 }
 
 export async function getLocalProjectPathStatus(path: string): Promise<ProjectPathStatus> {
-  const isDirectory = checkIsValidDirectory(path);
-  if (!isDirectory) {
+  const directoryStatus = getDirectoryStatus(path);
+  if (directoryStatus.kind === 'inspect-failed') {
+    return {
+      isDirectory: false,
+      isGitRepo: false,
+      error: { type: 'inspect-failed', path, message: directoryStatus.message },
+    };
+  }
+  if (directoryStatus.kind !== 'directory') {
     return { isDirectory: false, isGitRepo: false };
   }
 
   const runtimeLease = await runtimeManager.acquire({ kind: 'local' });
   try {
     const inspection = await runtimeLease.value.git.inspectPath(path);
+    if (inspection.kind === 'inspect-failed') {
+      return {
+        isDirectory: true,
+        isGitRepo: false,
+        error: { type: 'inspect-failed', path: inspection.path, message: inspection.message },
+      };
+    }
     return { isDirectory: true, isGitRepo: inspection.kind === 'repository' };
   } finally {
-    runtimeLease.release();
+    await runtimeLease.release();
   }
 }

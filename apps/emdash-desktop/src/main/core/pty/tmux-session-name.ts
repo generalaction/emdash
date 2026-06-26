@@ -1,7 +1,7 @@
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { log } from '@main/lib/logger';
 
-const TMUX_SESSION_PREFIX = 'emdash-';
+export const TMUX_SESSION_PREFIX = 'emdash-';
 const TMUX_HISTORY_LIMIT = 100_000;
 
 export function buildTmuxShellLine(sessionName: string, commandLine: string): string {
@@ -23,6 +23,25 @@ export function buildTmuxShellLine(sessionName: string, commandLine: string): st
 export function makeTmuxSessionName(sessionId: string): string {
   const encoded = Buffer.from(sessionId, 'utf8').toString('base64url');
   return `${TMUX_SESSION_PREFIX}${encoded}`;
+}
+
+/**
+ * Inverse of {@link makeTmuxSessionName}. Returns the encoded PTY session id, or
+ * `null` if the name is not a well-formed emdash tmux session name. The
+ * round-trip guard rejects anything that does not re-encode to exactly the same
+ * name, so unrelated `emdash-*` sessions are never misread as ours.
+ */
+export function decodeTmuxSessionName(sessionName: string): string | null {
+  if (!sessionName.startsWith(TMUX_SESSION_PREFIX)) return null;
+  const encoded = sessionName.slice(TMUX_SESSION_PREFIX.length);
+  if (!encoded) return null;
+  try {
+    const sessionId = Buffer.from(encoded, 'base64url').toString('utf8');
+    if (makeTmuxSessionName(sessionId) !== sessionName) return null;
+    return sessionId;
+  } catch {
+    return null;
+  }
 }
 
 export async function killTmuxSession(ctx: IExecutionContext, sessionName: string): Promise<void> {

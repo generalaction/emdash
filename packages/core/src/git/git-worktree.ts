@@ -452,9 +452,9 @@ export class GitWorktree implements IGitWorktree {
     }
   }
 
-  dispose(): void {
+  async dispose(): Promise<void> {
     this.unregisterFromRepository();
-    this.worktreeWatch.release();
+    await this.worktreeWatch.release();
     this.statusModel.dispose();
     this.headModel.dispose();
   }

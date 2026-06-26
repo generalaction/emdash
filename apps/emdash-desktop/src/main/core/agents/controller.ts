@@ -99,9 +99,9 @@ export const agentsController = createRPCController({
 
   // ── Settings ─────────────────────────────────────────────────────────────────
 
-  getDefaultSettings: async (id: string): Promise<ProviderCustomConfig | null> => {
+  getDefaultSettings: async (id: string): Promise<ProviderCustomConfig> => {
     const meta = await providerOverrideSettings.getItemWithMeta(id);
-    return meta?.defaults ?? null;
+    return meta.defaults;
   },
 
   getSettings: async (id: string) => {

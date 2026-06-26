@@ -3,7 +3,7 @@
  *
  * Extracted from FitAddon.proposeDimensions() but decoupled from any specific
  * terminal instance — accepts a container element and cell metrics directly.
- * This lets callers measure any DOM element (e.g. PaneSizingProvider's
+ * This lets callers measure any DOM element (e.g. the PaneDimensionProvider's
  * container) without first mounting a terminal inside it.
  */
 

@@ -142,4 +142,16 @@ describe('pluginRegistry', () => {
       env: {},
     });
   });
+
+  it('uses the current Amp npm package for install and updates', () => {
+    const amp = pluginRegistry.get('amp')!;
+
+    expect(amp.capabilities.hostDependency.installCommands.macos?.[0]?.command).toBe(
+      'npm install -g @ampcode/cli@latest'
+    );
+    expect(amp.capabilities.hostDependency.updates).toMatchObject({
+      kind: 'supported',
+      releaseSource: { kind: 'npm', package: '@ampcode/cli' },
+    });
+  });
 });

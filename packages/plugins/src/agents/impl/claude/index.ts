@@ -19,6 +19,23 @@ export const plugin = definePlugin(
     autoApprove: {
       kind: 'supported',
     },
+    models: {
+      kind: 'selectable',
+      modelOptions: {
+        'claude-opus-4-5': {
+          name: 'Claude Opus 4.5',
+          modelFeatures: { intelligence: 5, speed: 2 },
+        },
+        'claude-sonnet-4-5': {
+          name: 'Claude Sonnet 4.5',
+          modelFeatures: { intelligence: 4, speed: 4 },
+        },
+        'claude-haiku-4-5': {
+          name: 'Claude Haiku 4.5',
+          modelFeatures: { intelligence: 3, speed: 5 },
+        },
+      },
+    },
     hooks: {
       kind: 'config',
       scope: 'workspace',
@@ -92,6 +109,7 @@ export const provider = registerPluginBehavior(plugin, {
         initialPromptFlag: '',
         resumeFlag: '--resume',
         sessionIdFlag: '--session-id',
+        modelFlag: '--model',
       }),
   },
   hooks: buildClaudeHookConfig(),

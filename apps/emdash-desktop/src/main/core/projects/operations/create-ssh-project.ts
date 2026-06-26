@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { err, ok } from '@emdash/shared';
+import { err, ok, withLease } from '@emdash/shared';
 import { sql } from 'drizzle-orm';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { projectEvents } from '@main/core/projects/project-events';
@@ -35,15 +35,13 @@ export async function createSshProject(
       message: 'Invalid directory',
     });
   }
-  const runtimeLease = await runtimeManager.acquire({
-    kind: 'ssh',
-    connectionId: params.connectionId,
-  });
-  const repositoryResult = await ensureProjectRepository(
-    runtimeLease.value.git,
-    params.path,
-    params.initGitRepository
-  ).finally(() => runtimeLease.release());
+  const repositoryResult = await withLease(
+    runtimeManager.acquire({
+      kind: 'ssh',
+      connectionId: params.connectionId,
+    }),
+    (runtime) => ensureProjectRepository(runtime.git, params.path, params.initGitRepository)
+  );
   if (!repositoryResult.success) return repositoryResult;
   const gitInfo = repositoryResult.data;
 
@@ -103,9 +101,16 @@ export async function getSshProjectPathStatus(
     const runtimeLease = await runtimeManager.acquire({ kind: 'ssh', connectionId });
     try {
       const inspection = await runtimeLease.value.git.inspectPath(path);
+      if (inspection.kind === 'inspect-failed') {
+        return {
+          isDirectory: true,
+          isGitRepo: false,
+          error: { type: 'inspect-failed', path: inspection.path, message: inspection.message },
+        };
+      }
       return { isDirectory: true, isGitRepo: inspection.kind === 'repository' };
     } finally {
-      runtimeLease.release();
+      await runtimeLease.release();
     }
   } catch {
     return { isDirectory: false, isGitRepo: false };

@@ -187,7 +187,7 @@ describe('GitWorktree', () => {
 
       expect(updates.some((update) => update.kind === 'head')).toBe(true);
       expect(repoUpdates.some((update) => update.kind === 'refs')).toBe(true);
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
       await watcher.dispose();
@@ -240,7 +240,7 @@ describe('GitWorktree', () => {
         unstaged: [],
       });
 
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
       await watcher.dispose();
@@ -305,7 +305,7 @@ describe('GitWorktree', () => {
         unstaged: [],
       });
 
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
       await watcher.dispose();
@@ -353,7 +353,7 @@ describe('GitWorktree', () => {
           }),
         ])
       );
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
       await watcher.dispose();
@@ -365,11 +365,12 @@ describe('GitWorktree', () => {
     const runtime = new GitRuntime();
     const lease = await runtime.openWorktree(repo);
 
-    await runtime.dispose();
+    const dispose = runtime.dispose();
 
     await expect(lease.value.getStatus()).resolves.toMatchObject({ kind: 'ok' });
     await expect(runtime.openWorktree(repo)).rejects.toThrow('GitRuntime disposed');
-    lease.release();
+    await lease.release();
+    await dispose;
   });
 
   it('reads image bytes from git refs as serializable data URLs', async () => {
@@ -394,7 +395,7 @@ describe('GitWorktree', () => {
           dataUrl: expect.stringContaining('data:image/png;base64,'),
         },
       });
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
       await watcher.dispose();
@@ -420,7 +421,7 @@ describe('GitWorktree', () => {
       await expect(lease.value.getImageAtRef('pixel.png', 'HEAD')).resolves.toMatchObject({
         kind: 'image',
       });
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
       await watcher.dispose();
@@ -442,7 +443,7 @@ describe('GitWorktree', () => {
         kind: 'error',
         message: expect.stringContaining('not a git repository'),
       });
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
     }
@@ -475,7 +476,7 @@ describe('GitWorktree', () => {
       const calls = (await readFile(logPath, 'utf8')).trim().split('\n').filter(Boolean);
       expect(calls).not.toContain('tag');
       expect(calls).not.toContain('branch');
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
     }
@@ -537,7 +538,7 @@ describe('GitWorktree', () => {
       expect(await readFile(path.join(repo, 'to-delete.txt'), 'utf8')).toBe('gone\n');
       await expect(readFile(path.join(repo, 'untracked.txt'), 'utf8')).rejects.toThrow();
 
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
       await watcher.dispose();
@@ -564,7 +565,7 @@ describe('GitWorktree', () => {
         ]),
       });
 
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
     }
@@ -592,7 +593,7 @@ describe('GitWorktree', () => {
       await expect(readFile(path.join(repo, 'tracked.txt'), 'utf8')).resolves.toBe('before\n');
       await expect(readFile(path.join(repo, 'untracked.txt'), 'utf8')).rejects.toThrow();
 
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
     }
@@ -620,7 +621,7 @@ describe('GitWorktree', () => {
         unstaged: [],
       });
 
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
     }
@@ -646,7 +647,7 @@ describe('GitWorktree', () => {
         unstaged: [],
       });
 
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
     }
@@ -690,7 +691,7 @@ describe('GitWorktree', () => {
       expect(secondChange?.indexOid).not.toBe(firstChange?.indexOid);
       await expect(worktree.getFileAtIndex('tracked.txt')).resolves.toBe('too\n');
 
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
     }
@@ -716,7 +717,7 @@ describe('GitWorktree', () => {
       await expect(readFile(path.join(repo, 'untracked.txt'), 'utf8')).rejects.toThrow();
       await expect(readFile(path.join(repo, 'extra.txt'), 'utf8')).rejects.toThrow();
 
-      lease.release();
+      await lease.release();
     } finally {
       await runtime.dispose();
     }

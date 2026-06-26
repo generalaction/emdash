@@ -1,8 +1,9 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import type { ResolvedTab } from '@renderer/features/tabs/core/tab-provider';
+import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { useIsActiveTask } from '@renderer/features/tasks/hooks/use-is-active-task';
-import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
 import {
   useConversations,
   useTaskViewContext,
@@ -10,12 +11,17 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
-import { PaneSizingProvider } from '@renderer/lib/pty/pane-sizing-context';
+import { PaneSizingContextProvider } from '@renderer/lib/pty/pane-sizing-context';
 import { PtyPane } from '@renderer/lib/pty/pty-pane';
 import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
 import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
 import { ContextBar } from './context-bar';
 import type { ConversationStore } from './conversation-manager';
+import type { ConversationResolvedData } from './conversation-tab-provider';
+import {
+  activeConversation as getActiveConversation,
+  activeConversationId as getActiveConversationId,
+} from './pane-selectors';
 
 export const ConversationsPanel = observer(function ConversationsPanel() {
   const { taskId } = useTaskViewContext();
@@ -24,21 +30,24 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const workspace = useWorkspace();
   const workspaceId = useWorkspaceId();
   const { value: interfaceSettings } = useAppSettingsKey('interface');
-  const { groupId, tabManager: tm } = useTabGroupContext();
+  const { pane } = usePaneContext();
   const isActive = useIsActiveTask(taskId);
   const remoteConnectionId = workspace.sshConnectionId;
 
   const autoFocus = isActive && taskView.focusedRegion === 'main';
 
-  // Build session ID list for PaneSizingProvider (all open conversation tabs).
+  // Build session ID list for PaneSizingContextProvider (all open conversation tabs).
   const allSessionIds = useMemo(() => {
-    return tm.resolvedTabs
-      .filter((t) => t.kind === 'conversation')
+    return pane.resolvedTabs
+      .filter((t): t is ResolvedTab<ConversationResolvedData> => t.kind === 'conversation')
       .map((t) => conversations.sessions.get(t.store.data.id)?.sessionId)
       .filter((id): id is string => Boolean(id));
-  }, [tm.resolvedTabs, conversations.sessions]);
+  }, [pane.resolvedTabs, conversations.sessions]);
 
-  const activeConversation: ConversationStore | undefined = tm.activeConversation;
+  const activeConversation: ConversationStore | undefined = getActiveConversation(
+    pane,
+    conversations
+  );
   const activeSession = activeConversation
     ? (conversations.sessions.get(activeConversation.data.id) ?? null)
     : null;
@@ -102,7 +111,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
             }
           }}
         >
-          <PaneSizingProvider paneId={`conversations-${groupId}`} sessionIds={allSessionIds}>
+          <PaneSizingContextProvider sessionIds={allSessionIds}>
             <div className="flex min-h-0 flex-1 flex-col">
               {activeSessionId && activeSession?.status === 'ready' && activeSession.pty ? (
                 <div ref={terminalContainerRef} className="relative flex h-full min-h-0 flex-1">
@@ -129,10 +138,13 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
                 </div>
               ) : null}
             </div>
-          </PaneSizingProvider>
+          </PaneSizingContextProvider>
         </div>
       </div>
-      <ContextBar conversationId={tm.activeConversationId} hideTrigger={hideContextBarTrigger} />
+      <ContextBar
+        conversationId={getActiveConversationId(pane)}
+        hideTrigger={hideContextBarTrigger}
+      />
     </div>
   );
 });
