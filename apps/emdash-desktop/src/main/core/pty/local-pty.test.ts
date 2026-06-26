@@ -1,5 +1,6 @@
+import * as nodePty from 'node-pty';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { LocalPtySession } from './local-pty';
+import { LocalPtySession, spawnLocalPty } from './local-pty';
 import type { PosixPtyTerminator } from './posix-pty-terminator';
 
 vi.mock('node-pty', () => ({
@@ -107,5 +108,47 @@ describe('LocalPtySession', () => {
       handler.mock.invocationCallOrder[0]!
     );
     expect(handler).toHaveBeenCalledWith({ exitCode: 143, signal: 'SIGTERM' });
+  });
+
+  it('uses node-pty default ConPTY backend on Windows', () => {
+    setPlatform('win32');
+    vi.mocked(nodePty.spawn).mockReturnValue(mockProc);
+
+    spawnLocalPty({
+      id: 'session-1',
+      command: 'cmd.exe',
+      args: [],
+      cwd: 'C:\\repo',
+      env: { PATH: 'C:\\Windows\\System32' },
+      cols: 80,
+      rows: 24,
+    });
+
+    expect(nodePty.spawn).toHaveBeenCalledWith(
+      'cmd.exe',
+      [],
+      expect.not.objectContaining({ useConpty: expect.anything() })
+    );
+  });
+
+  it('does not force a Windows PTY backend on POSIX', () => {
+    setPlatform('linux');
+    vi.mocked(nodePty.spawn).mockReturnValue(mockProc);
+
+    spawnLocalPty({
+      id: 'session-1',
+      command: '/bin/bash',
+      args: [],
+      cwd: '/repo',
+      env: { PATH: '/usr/bin' },
+      cols: 80,
+      rows: 24,
+    });
+
+    expect(nodePty.spawn).toHaveBeenCalledWith(
+      '/bin/bash',
+      [],
+      expect.not.objectContaining({ useConpty: expect.anything() })
+    );
   });
 });

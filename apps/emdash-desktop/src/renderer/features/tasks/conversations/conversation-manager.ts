@@ -1,5 +1,6 @@
 import type { IDisposable } from '@emdash/shared';
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
@@ -275,7 +276,10 @@ export class ConversationManagerStore implements IDisposable {
       undefined,
       handlers.onOpenFile,
       handlers.onOpenExternal,
-      { clearOnBackendStart: true }
+      {
+        clearOnBackendStart: true,
+        isRemote: getProjectSshConnectionId(conversation.projectId) !== undefined,
+      }
     );
   }
 }

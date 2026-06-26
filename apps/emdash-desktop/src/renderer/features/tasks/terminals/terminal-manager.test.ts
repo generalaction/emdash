@@ -14,6 +14,10 @@ vi.mock('@renderer/features/settings/app-settings-client', () => ({
   getAppSettingValueSnapshot,
 }));
 
+vi.mock('@renderer/features/projects/stores/project-selectors', () => ({
+  getProjectSshConnectionId: vi.fn(() => undefined),
+}));
+
 vi.mock('@renderer/lib/ipc', () => ({
   events: { on: () => () => {} },
   rpc: {

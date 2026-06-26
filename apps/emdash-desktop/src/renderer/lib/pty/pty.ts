@@ -18,6 +18,10 @@ export interface SessionTheme {
   override?: ITerminalOptions['theme'];
 }
 
+export interface FrontendPtyOptions {
+  windowsPtyBackend?: 'conpty';
+}
+
 export function readXtermCssVars(): ITerminalOptions['theme'] {
   const color = (name: string) => cssColorToHex(cssVar(name));
   return {
@@ -69,7 +73,8 @@ export class FrontendPty {
     readonly sessionId: string,
     theme?: SessionTheme,
     onOpenFile?: (filePath: string) => void,
-    onOpenExternal?: (filePath: string) => void
+    onOpenExternal?: (filePath: string) => void,
+    options: FrontendPtyOptions = {}
   ) {
     this.theme = theme;
     this.ownedContainer = document.createElement('div');
@@ -92,6 +97,13 @@ export class FrontendPty {
       lineHeight: 1.2,
       letterSpacing: 0,
       allowProposedApi: true,
+      ...(options.windowsPtyBackend
+        ? {
+            // Tell xterm about the Windows PTY backend so it applies the matching
+            // reflow/scrollback heuristics for local ConPTY sessions.
+            windowsPty: { backend: options.windowsPtyBackend },
+          }
+        : {}),
       scrollOnUserInput: false,
       linkHandler: {
         activate: (_event: MouseEvent, text: string) => {

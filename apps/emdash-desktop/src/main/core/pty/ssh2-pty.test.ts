@@ -10,7 +10,7 @@ class FakeClientChannel extends EventEmitter {
   acceptWrites = true;
 
   write(data: string): boolean {
-    this.writes.push(data);
+    this.writes.push(data.toString());
     return this.acceptWrites;
   }
 

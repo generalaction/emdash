@@ -60,7 +60,7 @@ export class LocalPtySession implements Pty {
     this.id = id;
   }
 
-  write(data: string): void {
+  write(data: string | Buffer): void {
     this.proc.write(data);
   }
 

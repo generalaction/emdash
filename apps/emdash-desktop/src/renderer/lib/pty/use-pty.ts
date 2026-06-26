@@ -53,6 +53,14 @@ function createContextMenuRequestId(): string {
     : `${Date.now()}-${Math.random()}`;
 }
 
+function binaryStringToBytes(data: string): Uint8Array {
+  const bytes = new Uint8Array(data.length);
+  for (let i = 0; i < data.length; i++) {
+    bytes[i] = data.charCodeAt(i) & 0xff;
+  }
+  return bytes;
+}
+
 export interface UsePtyOptions {
   /** Deterministic PTY session ID: makePtySessionId(projectId, scopeId, leafId). */
   sessionId: string;
@@ -393,39 +401,7 @@ export function usePty(
         }
       );
 
-      // ── DECRQM xterm.js 6.0 bug workaround ────────────────────────────────
       const terminal = frontendPty.terminal;
-      try {
-        const parser = (
-          terminal as unknown as {
-            parser?: { registerCsiHandler?: (...args: unknown[]) => { dispose(): void } };
-          }
-        ).parser;
-        if (parser?.registerCsiHandler) {
-          const ansiDisp = parser.registerCsiHandler(
-            { intermediates: '$', final: 'p' },
-            (params: (number | number[])[]) => {
-              const mode = (params[0] as number) ?? 0;
-              sendInput(`\x1b[${mode};0$y`, { track: false });
-              return true;
-            }
-          );
-          const decDisp = parser.registerCsiHandler(
-            { prefix: '?', intermediates: '$', final: 'p' },
-            (params: (number | number[])[]) => {
-              const mode = (params[0] as number) ?? 0;
-              sendInput(`\x1b[?${mode};0$y`, { track: false });
-              return true;
-            }
-          );
-          cleanups.push(
-            () => ansiDisp.dispose(),
-            () => decDisp.dispose()
-          );
-        }
-      } catch (err) {
-        log.warn('useTerminal: failed to register DECRQM workaround', { error: err });
-      }
 
       // ── Keyboard shortcuts ─────────────────────────────────────────────────
       terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
@@ -534,6 +510,12 @@ export function usePty(
 
       const inputDisposable = terminal.onData((data) => handleTerminalInput(data));
       cleanups.push(() => inputDisposable.dispose());
+
+      const binaryInputDisposable = terminal.onBinary((data) => {
+        onActivityRef.current?.();
+        void rpc.pty.sendBinaryInput(sessionId, binaryStringToBytes(data));
+      });
+      cleanups.push(() => binaryInputDisposable.dispose());
 
       // ── ptyStartedRef — detect first PTY output ────────────────────────────
       // FrontendPty owns the data subscription and writes directly to the

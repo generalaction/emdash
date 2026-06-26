@@ -42,6 +42,14 @@ export const ptyController = createRPCController({
     return ok();
   },
 
+  /** Send binary input data to a PTY session. Used for xterm mouse reports. */
+  sendBinaryInput: (sessionId: string, data: Uint8Array | number[]) => {
+    const pty = ptySessionRegistry.get(sessionId);
+    if (!pty) return err({ type: 'not_found' as const });
+    pty.write(Buffer.from(data));
+    return ok();
+  },
+
   /** Resize a PTY session to the given terminal dimensions. */
   resize: (sessionId: string, cols: number, rows: number) => {
     const resized = ptySessionRegistry.resize(sessionId, cols, rows);

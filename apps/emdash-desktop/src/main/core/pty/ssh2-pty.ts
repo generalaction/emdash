@@ -23,7 +23,7 @@ export class Ssh2PtySession implements Pty {
    * channel — a tmux mouse drag floods SGR reports faster than the remote can
    * drain, freezing the panel and the remote tmux server. See issue #1994.
    */
-  private readonly pendingWrites: string[] = [];
+  private readonly pendingWrites: Array<string | Buffer> = [];
   private draining = false;
   private closed = false;
 
@@ -34,7 +34,7 @@ export class Ssh2PtySession implements Pty {
     this.id = id;
   }
 
-  write(data: string): void {
+  write(data: string | Buffer): void {
     if (this.closed) return;
     if (this.draining) {
       this.pendingWrites.push(data);

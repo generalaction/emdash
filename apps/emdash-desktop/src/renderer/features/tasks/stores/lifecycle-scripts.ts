@@ -1,4 +1,5 @@
 import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
+import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import { type TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
@@ -47,7 +48,8 @@ export class LifecycleScriptStore {
           type: data.type,
         }),
       undefined,
-      undefined
+      undefined,
+      { isRemote: getProjectSshConnectionId(projectId) !== undefined }
     );
     this.offStatus = events.on(lifecycleScriptStatusChannel, (event) => {
       if (

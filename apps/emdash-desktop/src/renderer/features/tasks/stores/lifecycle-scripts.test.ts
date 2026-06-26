@@ -31,6 +31,10 @@ vi.mock('@renderer/lib/ipc', () => ({
   },
 }));
 
+vi.mock('@renderer/features/projects/stores/project-selectors', () => ({
+  getProjectSshConnectionId: vi.fn(() => undefined),
+}));
+
 vi.mock('@renderer/lib/pty/pty-session', () => ({
   PtySession: class {
     pty = null;

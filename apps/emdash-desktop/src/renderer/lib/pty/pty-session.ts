@@ -7,7 +7,12 @@ export type PtySessionStatus = 'disconnected' | 'connecting' | 'ready';
 
 export type PtySessionOptions = {
   clearOnBackendStart?: boolean;
+  isRemote?: boolean;
 };
+
+function isWindowsPlatform(): boolean {
+  return typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
+}
 
 export class PtySession {
   pty: FrontendPty | null = null;
@@ -17,6 +22,7 @@ export class PtySession {
   private hasSeenBackendStart = false;
   private offPtyStarted: (() => void) | null = null;
   private readonly clearOnBackendStart: boolean;
+  private readonly windowsPtyBackend: 'conpty' | undefined;
 
   constructor(
     readonly sessionId: string,
@@ -26,6 +32,8 @@ export class PtySession {
     options: PtySessionOptions = {}
   ) {
     this.clearOnBackendStart = options.clearOnBackendStart ?? false;
+    this.windowsPtyBackend =
+      isWindowsPlatform() && options.isRemote !== true ? 'conpty' : undefined;
     makeAutoObservable(this, {
       pty: false,
     });
@@ -50,7 +58,9 @@ export class PtySession {
       await this.prepare?.();
       if (version !== this.version) return;
       if (this.pty) return;
-      const pty = new FrontendPty(this.sessionId, undefined, this.onOpenFile, this.onOpenExternal);
+      const pty = new FrontendPty(this.sessionId, undefined, this.onOpenFile, this.onOpenExternal, {
+        windowsPtyBackend: this.windowsPtyBackend,
+      });
       runInAction(() => {
         this.pty = pty;
         this.status = 'connecting';

@@ -78,6 +78,22 @@ describe('ptyController', () => {
     ptySessionRegistry.unregister(sessionId);
   });
 
+  it('writes binary input as bytes without emitting submitted input', () => {
+    const write = vi.fn();
+    const sessionId = 'proj-1:task-1:conv-1';
+    ptySessionRegistry.register(sessionId, makePty(write), {
+      metadata: { providerId: 'amp', isRemote: true },
+    });
+
+    const result = ptyController.sendBinaryInput(sessionId, new Uint8Array([0x1b, 0x5b, 0xff]));
+
+    expect(result.success).toBe(true);
+    expect(write).toHaveBeenCalledWith(Buffer.from([0x1b, 0x5b, 0xff]));
+    expect(emitSpy).not.toHaveBeenCalled();
+
+    ptySessionRegistry.unregister(sessionId);
+  });
+
   it('uploads remote attachments into the git-ignored .emdash dir, not the worktree root (#2680)', async () => {
     const mkdir = vi.fn().mockResolvedValue(undefined);
     const copyLocalFile = vi.fn().mockResolvedValue(undefined);

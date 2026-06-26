@@ -28,6 +28,11 @@ export default defineConfig({
   renderer: {
     root: 'src/renderer',
     plugins: [react(), tailwindcss()],
+    esbuild: {
+      // @xterm/xterm 6.0.0 ships pre-minified ESM. Re-minifying identifiers can
+      // break InputHandler.requestMode, which fullscreen TUIs use for mode queries.
+      minifyIdentifiers: false,
+    },
     resolve: {
       alias: {
         '@': resolve('src'),

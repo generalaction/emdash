@@ -8,6 +8,7 @@ const frontendClear = vi.hoisted(() => vi.fn());
 const frontendDispose = vi.hoisted(() => vi.fn());
 const frontendInstances = vi.hoisted(() => [] as Array<{ sessionId: string }>);
 const frontendConnectedSessionIds = vi.hoisted(() => [] as string[]);
+const frontendOptions = vi.hoisted(() => [] as Array<{ windowsPtyBackend?: string }>);
 
 vi.mock('@renderer/lib/ipc', () => ({
   events: {
@@ -17,8 +18,15 @@ vi.mock('@renderer/lib/ipc', () => ({
 
 vi.mock('@renderer/lib/pty/pty', () => ({
   FrontendPty: class {
-    constructor(readonly sessionId: string) {
+    constructor(
+      readonly sessionId: string,
+      _theme?: unknown,
+      _onOpenFile?: unknown,
+      _onOpenExternal?: unknown,
+      options?: { windowsPtyBackend?: string }
+    ) {
       frontendInstances.push(this);
+      frontendOptions.push(options ?? {});
     }
 
     connect = () => {
@@ -54,8 +62,25 @@ describe('PtySession', () => {
     frontendDispose.mockReset();
     frontendInstances.length = 0;
     frontendConnectedSessionIds.length = 0;
+    frontendOptions.length = 0;
     vi.mocked(events.on).mockReset();
     vi.mocked(events.on).mockReturnValue(() => {});
+    vi.stubGlobal('navigator', { platform: 'MacIntel' });
+  });
+
+  it('enables xterm ConPTY mode for local Windows sessions only', async () => {
+    vi.stubGlobal('navigator', { platform: 'Win32' });
+    frontendConnect.mockResolvedValue(undefined);
+
+    await new PtySession('local-session').connect();
+    await new PtySession('remote-session', undefined, undefined, undefined, {
+      isRemote: true,
+    }).connect();
+
+    expect(frontendOptions.map((options) => options.windowsPtyBackend)).toEqual([
+      'conpty',
+      undefined,
+    ]);
   });
 
   it('does not mark the session ready when disposed while connect is in flight', async () => {

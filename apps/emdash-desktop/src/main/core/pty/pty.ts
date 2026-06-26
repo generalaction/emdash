@@ -9,7 +9,7 @@ export interface PtyDimensions {
 }
 
 export interface Pty {
-  write(data: string): void;
+  write(data: string | Buffer): void;
   resize(cols: number, rows: number): void;
   kill(): void;
   onData(handler: (data: string) => void): void;

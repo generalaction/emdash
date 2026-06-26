@@ -1,5 +1,6 @@
 import type { IDisposable } from '@emdash/shared';
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import { getAppSettingValueSnapshot } from '@renderer/features/settings/app-settings-client';
 import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { rpc } from '@renderer/lib/ipc';
@@ -191,7 +192,8 @@ export class TerminalManagerStore implements IDisposable {
       makePtySessionId(terminal.projectId, terminal.taskId, terminal.id),
       () => this.hydrateTerminal(terminal.id),
       handlers.onOpenFile,
-      handlers.onOpenExternal
+      handlers.onOpenExternal,
+      { isRemote: getProjectSshConnectionId(terminal.projectId) !== undefined }
     );
   }
 }
