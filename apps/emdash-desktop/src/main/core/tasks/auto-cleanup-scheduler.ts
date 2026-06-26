@@ -46,12 +46,6 @@ export class AutoCleanupScheduler {
 
       const cutoffIso = new Date(Date.now() - settings.autoCleanupMergedDelayMs).toISOString();
       const candidates = await this._loadCandidates(cutoffIso);
-      log.info('auto-cleanup: tick', {
-        action: settings.autoCleanupMergedAction,
-        delayMs: settings.autoCleanupMergedDelayMs,
-        cutoffIso,
-        candidates: candidates.length,
-      });
       if (candidates.length === 0) return;
 
       for (const candidate of candidates) {
