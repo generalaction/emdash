@@ -12,6 +12,7 @@ import { noopLogger } from '@emdash/shared/logger';
 import { vi } from 'vitest';
 import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import type { AcpRuntimeListener, AcpSessionRuntimeDeps, AcpStartInput } from './runtime';
+import type { AcpTurn, SessionSnapshot } from './state';
 import type {
   AcpProcessHandle,
   AcpProcessHost,
@@ -19,7 +20,6 @@ import type {
   AcpTerminalExit,
   AcpTerminalProcess,
 } from './transport';
-import type { AcpTurn, SessionSnapshot } from './state';
 
 /**
  * Creates a recording AcpRuntimeListener.

@@ -35,11 +35,11 @@ import type { AcpPermissionRequest } from './permissions';
 import type { AcpSessionRuntimeDeps, AcpStartInput, IAcpSessionRuntime } from './runtime';
 import { SessionMachine } from './session-machine';
 import type { Command, DomainEvent, Effect } from './session-machine';
+import type { AcpPromptImage, ChatHistory, SessionState } from './state';
+import { toSessionSnapshot } from './state';
 import type { TerminalSnapshot } from './terminals';
 import type { AcpProcessHandle } from './transport';
 import { readTextFile, writeTextFile } from './transport';
-import type { AcpPromptImage, ChatHistory, SessionState } from './state';
-import { toSessionSnapshot } from './state';
 
 interface AcpConversation {
   conversationId: string;

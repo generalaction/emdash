@@ -71,7 +71,6 @@ export async function writeTextFile(fs: AcpFs, path: string, content: string): P
   await fs.writeFile(path, content, 'utf8');
 }
 
-
 /**
  * Represents a specific machine's ACP process host: can resolve the agent
  * executable + env for a given provider, spawn an agent process, and provide a

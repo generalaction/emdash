@@ -20,8 +20,8 @@ import type {
   AcpTurn,
   SessionSnapshot,
 } from '@emdash/core/acp';
-import { noopLogger } from '@emdash/shared/logger';
 import type { AcpAgentApi, IAcpBehavior } from '@emdash/core/agents/plugins';
+import { noopLogger } from '@emdash/shared/logger';
 import { vi } from 'vitest';
 import type { AcpSessionManagerDeps } from './acp-session-manager';
 
