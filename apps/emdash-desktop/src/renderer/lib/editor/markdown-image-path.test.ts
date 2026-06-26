@@ -9,7 +9,7 @@ describe('resolveMarkdownImagePath', () => {
   });
 
   it('resolves root-anchored image paths from the workspace root', () => {
-    expect(resolveMarkdownImagePath('docs/readme.md', '/assets/logo.png')).toBe('assets/logo.png');
+    expect(resolveMarkdownImagePath('docs/readme.md', '/assets/logo.png')).toBe('/assets/logo.png');
   });
 
   it('rejects paths that escape the workspace root', () => {

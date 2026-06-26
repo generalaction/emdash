@@ -40,8 +40,8 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
     async (src: string): Promise<string | null> => {
       const imagePath = resolveMarkdownImagePath(tab.path, src);
       if (!imagePath) return null;
-      const result = await rpc.workspace.fs.readImage(projectId, workspaceId, imagePath);
-      return result.success ? (result.data?.dataUrl ?? null) : null;
+      const result = await rpc.workspace.files.readImage(projectId, workspaceId, imagePath);
+      return result.success && result.data?.success ? result.data.dataUrl : null;
     },
     [projectId, workspaceId, tab.path]
   );

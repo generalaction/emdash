@@ -281,7 +281,7 @@ export class MonacoModelRegistry {
       type DiskFetchResult = { content: string; truncated: boolean; totalSize: number };
       const [fetchResult, monaco_] = await Promise.all([
         this.dedupFetch<DiskFetchResult>(fetchKey, async () => {
-          const res = await rpc.workspace.fs.readFile(projectId, workspaceId, filePath);
+          const res = await rpc.workspace.files.readFile(projectId, workspaceId, filePath);
           if (!res.success)
             throw new Error(`registerModel(disk): readFile failed for ${filePath}: ${res.error}`);
           const result = res.data.content;
@@ -724,6 +724,10 @@ export class MonacoModelRegistry {
     return this.modelMap.get(uri)?.model;
   }
 
+  filePathForUri(uri: string): string | undefined {
+    return this.modelMap.get(uri)?.filePath;
+  }
+
   /** Current text content of the buffer model. */
   getValue(uri: string): string | null {
     const entry = this.modelMap.get(uri);
@@ -788,7 +792,7 @@ export class MonacoModelRegistry {
     if (!buf || buf.type !== 'buffer') return null;
 
     const content = buf.model.getValue();
-    const result = await rpc.workspace.fs.writeFile(
+    const result = await rpc.workspace.files.writeFile(
       buf.projectId,
       buf.workspaceId,
       buf.filePath,
@@ -814,7 +818,7 @@ export class MonacoModelRegistry {
     const entry = this.modelMap.get(uri);
     if (!entry) return;
     if (entry.type === 'disk') {
-      const res = await rpc.workspace.fs.readFile(
+      const res = await rpc.workspace.files.readFile(
         entry.projectId,
         entry.workspaceId,
         entry.filePath

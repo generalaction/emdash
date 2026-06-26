@@ -253,7 +253,7 @@ async function readWorkspaceText(
   workspaceId: string,
   filePath: string
 ): Promise<string | null> {
-  const result = await rpc.workspace.fs.readFile(projectId, workspaceId, filePath);
+  const result = await rpc.workspace.files.readFile(projectId, workspaceId, filePath);
   return result.success ? (result.data?.content ?? null) : null;
 }
 
@@ -262,8 +262,8 @@ async function readWorkspaceImage(
   workspaceId: string,
   filePath: string
 ): Promise<string | null> {
-  const result = await rpc.workspace.fs.readImage(projectId, workspaceId, filePath);
-  return result.success ? (result.data?.dataUrl ?? null) : null;
+  const result = await rpc.workspace.files.readImage(projectId, workspaceId, filePath);
+  return result.success && result.data?.success ? result.data.dataUrl : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -279,20 +279,15 @@ function isAbsoluteOrSpecial(href: string): boolean {
   return false;
 }
 
-/**
- * Resolves a relative href against the directory of the host file. Returns
- * a workspace-relative path with no leading slash, or null if the path
- * escapes the workspace root.
- */
 function resolveRelativePath(fileDir: string, href: string): string | null {
   if (!href) return null;
   const cleanHref = href.split('#')[0]?.split('?')[0] ?? '';
   if (!cleanHref) return null;
 
-  // Absolute (root-anchored) paths resolve from workspace root.
+  const absolute = cleanHref.startsWith('/') || fileDir.startsWith('/');
   const segments = cleanHref.startsWith('/')
     ? cleanHref.slice(1).split('/')
-    : [...(fileDir ? fileDir.split('/') : []), ...cleanHref.split('/')];
+    : [...(fileDir ? fileDir.replace(/^\/+/, '').split('/') : []), ...cleanHref.split('/')];
 
   const normalized: string[] = [];
   for (const seg of segments) {
@@ -304,7 +299,8 @@ function resolveRelativePath(fileDir: string, href: string): string | null {
     }
     normalized.push(seg);
   }
-  return normalized.join('/');
+  if (normalized.length === 0) return absolute ? '/' : null;
+  return `${absolute ? '/' : ''}${normalized.join('/')}`;
 }
 
 function getParentDir(filePath: string): string {

@@ -7,9 +7,10 @@ export function resolveMarkdownImagePath(markdownFilePath: string, src: string):
   const fileDir = markdownFilePath.includes('/')
     ? markdownFilePath.substring(0, markdownFilePath.lastIndexOf('/'))
     : '';
+  const absolute = cleanSrc.startsWith('/') || markdownFilePath.startsWith('/');
   const parts = cleanSrc.startsWith('/')
     ? cleanSrc.slice(1).split('/')
-    : [...(fileDir ? fileDir.split('/') : []), ...cleanSrc.split('/')];
+    : [...(fileDir ? fileDir.replace(/^\/+/, '').split('/') : []), ...cleanSrc.split('/')];
 
   const normalized: string[] = [];
   for (const part of parts) {
@@ -22,5 +23,6 @@ export function resolveMarkdownImagePath(markdownFilePath: string, src: string):
     normalized.push(part);
   }
 
-  return normalized.length > 0 ? normalized.join('/') : null;
+  if (normalized.length === 0) return absolute ? '/' : null;
+  return `${absolute ? '/' : ''}${normalized.join('/')}`;
 }
