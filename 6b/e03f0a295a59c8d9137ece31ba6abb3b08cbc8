@@ -1,0 +1,26 @@
+apps/emdash-desktop/src/main/core/skills/SkillsService.ts
+  s_7dc2f89118bbba::t_8c081853eaaff1 713-718,749-759
+  s_7dc2f89118bbba::t_41a6e9b7e13a90 1258,1263
+  s_7dc2f89118bbba::t_988eef0923f867 1259-1260
+  s_7dc2f89118bbba::t_73b30a04740a3e 760-761
+apps/emdash-desktop/src/main/core/mcp/services/McpService.ts
+  s_7dc2f89118bbba::t_3b1df0105f0b3a 23-46,85-90
+apps/emdash-desktop/src/main/core/mcp/services/McpService.test.ts
+  s_7dc2f89118bbba::t_3ded39b831c905 162-183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "6be03f0a295a59c8d9137ece31ba6abb3b08cbc8",
+  "prompts": {},
+  "sessions": {
+    "s_7dc2f89118bbba": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f0545-c466-79ea-ab45-48bc8d01188c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
