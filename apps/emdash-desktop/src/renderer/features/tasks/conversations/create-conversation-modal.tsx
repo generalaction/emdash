@@ -5,6 +5,7 @@ import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings'
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { modalStore } from '@renderer/lib/modal/modal-store';
 import { useAgents } from '@renderer/lib/stores/use-agents';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
@@ -81,9 +82,11 @@ export const CreateConversationModal = observer(function CreateConversationModal
         title,
         model: selectedModel ?? undefined,
       });
+      if (modalStore.activeModalArgs?.onSuccess !== onSuccess) return;
       setIsSubmitting(false);
       onSuccess({ conversationId: id });
     } catch {
+      if (modalStore.activeModalArgs?.onSuccess !== onSuccess) return;
       setError('Failed to create conversation');
       setIsSubmitting(false);
     }
