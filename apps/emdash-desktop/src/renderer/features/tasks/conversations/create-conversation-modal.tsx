@@ -5,8 +5,8 @@ import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings'
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
-import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
 import { useAgents } from '@renderer/lib/stores/use-agents';
+import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
@@ -28,6 +28,7 @@ import { nextDefaultConversationTitle } from './conversation-title-utils';
 import { useEffectiveProvider } from './use-effective-provider';
 
 export const CreateConversationModal = observer(function CreateConversationModal({
+  onClose,
   onSuccess,
   projectId,
   taskId,
@@ -43,7 +44,6 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const [error, setError] = useState<string | null>(null);
   const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
-  useCloseGuard(isSubmitting);
 
   const { data: agents } = useAgents();
   const modelsCapability = agents?.find((a) => a.id === providerId)?.capabilities.models;
@@ -158,8 +158,12 @@ export const CreateConversationModal = observer(function CreateConversationModal
           {error && <p className="text-destructive text-xs">{error}</p>}
         </FieldGroup>
       </DialogContentArea>
-      <DialogFooter>
+      <DialogFooter className="gap-2 sm:gap-2">
+        <Button type="button" variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
         <ConfirmButton
+          type="button"
           onClick={() => void handleCreateConversation()}
           disabled={createDisabled || isSubmitting}
         >
