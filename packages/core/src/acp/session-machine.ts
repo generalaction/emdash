@@ -48,6 +48,10 @@ import type {
   TurnStatus,
 } from './turns';
 
+// Re-export the snapshot mirror primitives so renderer-safe consumers can import
+// them from this node-free entry instead of the full `@emdash/core/acp` barrel.
+export { toSessionSnapshot, type SessionSnapshot } from './turns';
+
 // ---------------------------------------------------------------------------
 // Phase (discriminated union carrying the active turn in-line)
 // ---------------------------------------------------------------------------

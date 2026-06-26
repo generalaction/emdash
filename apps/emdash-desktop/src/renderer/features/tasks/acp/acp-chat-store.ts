@@ -15,9 +15,12 @@
 
 import type { ChatContext, ChatItem, ChatState, ChatView } from '@emdash/chat-ui';
 import { applyTurnEvent, createChatContext, createChatState } from '@emdash/chat-ui';
-import type { AgentUpdate, AcpTurn, SessionSnapshot, TerminalSnapshot } from '@emdash/core/acp';
-import { toSessionSnapshot } from '@emdash/core/acp';
-import { SessionMachine } from '@emdash/core/acp/session-machine';
+import type { AgentUpdate, AcpTurn, TerminalSnapshot } from '@emdash/core/acp';
+import {
+  SessionMachine,
+  toSessionSnapshot,
+  type SessionSnapshot,
+} from '@emdash/core/acp/session-machine';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
 import {

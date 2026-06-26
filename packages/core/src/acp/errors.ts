@@ -1,16 +1,9 @@
 /**
  * Tagged error union for AcpSessionRuntime public API failures.
- *
- * All public methods return Result<void, AcpRuntimeError> instead of throwing,
- * keeping the failure vocabulary serializable across the IPC boundary.
  */
 
 import type { BaseError, SerializedError } from '@emdash/shared';
 import { fail } from '@emdash/shared';
-
-// ---------------------------------------------------------------------------
-// Error variants
-// ---------------------------------------------------------------------------
 
 /** Provider does not support the ACP transport. */
 export type ProviderUnsupportedError = BaseError<'provider_unsupported'>;
@@ -51,10 +44,6 @@ export type SetConfigFailedError = BaseError<'set_config_failed', SerializedErro
 /** A setSessionMode() call to the agent failed. */
 export type SetModeFailedError = BaseError<'set_mode_failed', SerializedError>;
 
-// ---------------------------------------------------------------------------
-// Union
-// ---------------------------------------------------------------------------
-
 export type AcpRuntimeError =
   | ProviderUnsupportedError
   | ConversationNotFoundError
@@ -68,10 +57,6 @@ export type AcpRuntimeError =
   | CancelFailedError
   | SetConfigFailedError
   | SetModeFailedError;
-
-// ---------------------------------------------------------------------------
-// Constructors
-// ---------------------------------------------------------------------------
 
 export const acpErr = {
   providerUnsupported: (providerId: string) =>

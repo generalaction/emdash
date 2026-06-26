@@ -6,10 +6,6 @@ import type { TerminalSnapshot } from './terminals';
 import type { AcpProcessHost, AcpTerminalExit } from './transport';
 import type { AcpPromptImage, AcpTurn, ChatHistory, SessionSnapshot, SessionState } from './turns';
 
-// ---------------------------------------------------------------------------
-// AcpStartInput
-// ---------------------------------------------------------------------------
-
 /**
  * Minimal per-conversation input to AcpSessionRuntime.start().
  * Replaces the desktop Conversation row so the runtime stays core-only.
@@ -26,20 +22,12 @@ export interface AcpStartInput {
   initialPrompt?: string;
 }
 
-// ---------------------------------------------------------------------------
-// ResolveAcpProvider
-// ---------------------------------------------------------------------------
-
 /**
  * Narrow resolver injected into AcpSessionRuntime.
  * Returns the ACP behavior for the given provider, or null if unsupported.
  * The desktop adapter wraps getPlugin + capability check; tests inject a stub.
  */
 export type ResolveAcpProvider = (providerId: string) => { behavior: IAcpBehavior } | null;
-
-// ---------------------------------------------------------------------------
-// AcpRuntimeListener
-// ---------------------------------------------------------------------------
 
 /**
  * Outbound event sink injected into AcpSessionRuntime.
@@ -95,21 +83,6 @@ export interface AcpRuntimeListener {
   onTerminalReleased(e: { conversationId: string; terminalId: string }): void;
 }
 
-// ---------------------------------------------------------------------------
-// AcpRuntimeLog
-// ---------------------------------------------------------------------------
-
-export type AcpRuntimeLog = {
-  debug: (message: string, metadata?: Record<string, unknown>) => void;
-  info: (message: string, metadata?: Record<string, unknown>) => void;
-  warn: (message: string, metadata?: Record<string, unknown>) => void;
-  error: (message: string, metadata?: Record<string, unknown>) => void;
-};
-
-// ---------------------------------------------------------------------------
-// SetSessionIdError (kept minimal here; desktop impl uses a richer variant)
-// ---------------------------------------------------------------------------
-
 export type SetSessionIdError = { type: string; message?: string };
 
 export interface AcpSessionRuntimeDeps {
@@ -126,7 +99,6 @@ export interface AcpSessionRuntimeDeps {
   persistModel: (conversationId: string, model: string) => Promise<void>;
   /** Outbound event sink (mapped to IPC channels by the desktop adapter). */
   listener: AcpRuntimeListener;
-  log: AcpRuntimeLog;
 }
 
 /**
