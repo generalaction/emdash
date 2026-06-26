@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -31,7 +31,7 @@ async function makeRepo(): Promise<string> {
   await writeFile(path.join(repo, 'tracked.txt'), 'before\n', 'utf8');
   await execFileAsync('git', ['add', 'tracked.txt'], { cwd: repo });
   await execFileAsync('git', ['commit', '-m', 'init'], { cwd: repo });
-  return repo;
+  return await realpath(repo);
 }
 
 async function makeRepoWithRemote(): Promise<{ repo: string; remote: string }> {
@@ -64,6 +64,10 @@ function expectSuccess<T>(
   expect(result.success).toBe(true);
   if (!result.success) throw new Error(String(result.error));
   return result.data;
+}
+
+function repoFile(repo: string, filePath: string): string {
+  return path.join(repo, filePath);
 }
 
 describe('GitWorktree', () => {
@@ -110,7 +114,7 @@ describe('GitWorktree', () => {
           (update) =>
             update.kind === 'status' &&
             update.model.kind === 'ok' &&
-            update.model.unstaged.some((change) => change.path === 'tracked.txt')
+            update.model.unstaged.some((change) => change.path === repoFile(repo, 'tracked.txt'))
         )
           ? true
           : undefined
@@ -119,7 +123,9 @@ describe('GitWorktree', () => {
       const changedStatus = await worktree.getStatus();
       expect(changedStatus).toMatchObject({
         kind: 'ok',
-        unstaged: [expect.objectContaining({ path: 'tracked.txt', status: 'modified' })],
+        unstaged: [
+          expect.objectContaining({ path: repoFile(repo, 'tracked.txt'), status: 'modified' }),
+        ],
       });
       expect(changedStatus).not.toHaveProperty('currentBranch');
       expect(changedStatus).not.toHaveProperty('headKind');
@@ -127,7 +133,7 @@ describe('GitWorktree', () => {
 
       await expect(worktree.getFileAtRef('tracked.txt', 'HEAD')).resolves.toBe('before\n');
       await expect(worktree.getChangedFiles({ kind: 'head' })).resolves.toEqual([
-        expect.objectContaining({ path: 'tracked.txt', status: 'modified' }),
+        expect.objectContaining({ path: repoFile(repo, 'tracked.txt'), status: 'modified' }),
       ]);
 
       const stageSequences = expectSuccess(await worktree.stage(['tracked.txt']));
@@ -136,7 +142,9 @@ describe('GitWorktree', () => {
       expect(snapshotAfterStage.status.sequence).toBeGreaterThanOrEqual(stageSequences.status!);
       expect(await worktree.getStatus()).toMatchObject({
         kind: 'ok',
-        staged: [expect.objectContaining({ path: 'tracked.txt', status: 'modified' })],
+        staged: [
+          expect.objectContaining({ path: repoFile(repo, 'tracked.txt'), status: 'modified' }),
+        ],
         unstaged: [],
         stagedAdded: 1,
         stagedDeleted: 1,
@@ -145,7 +153,7 @@ describe('GitWorktree', () => {
       expect(await worktree.getStatus()).not.toHaveProperty('totalDeleted');
       await expect(worktree.getFileAtIndex('tracked.txt')).resolves.toBe('after\n');
       await expect(worktree.getChangedFiles({ kind: 'staged' })).resolves.toEqual([
-        expect.objectContaining({ path: 'tracked.txt', status: 'modified' }),
+        expect.objectContaining({ path: repoFile(repo, 'tracked.txt'), status: 'modified' }),
       ]);
 
       const commit = await worktree.commit('change tracked');
@@ -182,7 +190,7 @@ describe('GitWorktree', () => {
         ],
       });
       await expect(worktree.getCommitFiles(commit.data.hash)).resolves.toEqual([
-        expect.objectContaining({ path: 'tracked.txt', status: 'modified' }),
+        expect.objectContaining({ path: repoFile(repo, 'tracked.txt'), status: 'modified' }),
       ]);
 
       expect(updates.some((update) => update.kind === 'head')).toBe(true);
@@ -213,7 +221,7 @@ describe('GitWorktree', () => {
           (update) =>
             update.kind === 'status' &&
             update.model.kind === 'ok' &&
-            update.model.staged.some((change) => change.path === 'tracked.txt')
+            update.model.staged.some((change) => change.path === repoFile(repo, 'tracked.txt'))
         )
           ? true
           : undefined
@@ -275,7 +283,7 @@ describe('GitWorktree', () => {
           (update) =>
             update.kind === 'status' &&
             update.model.kind === 'ok' &&
-            update.model.staged.some((change) => change.path === 'tracked.txt')
+            update.model.staged.some((change) => change.path === repoFile(repo, 'tracked.txt'))
         )
           ? true
           : undefined
@@ -503,9 +511,9 @@ describe('GitWorktree', () => {
       expect(await worktree.getStatus()).toMatchObject({
         kind: 'ok',
         staged: expect.arrayContaining([
-          expect.objectContaining({ path: 'tracked.txt', status: 'modified' }),
-          expect.objectContaining({ path: 'untracked.txt', status: 'added' }),
-          expect.objectContaining({ path: 'to-delete.txt', status: 'deleted' }),
+          expect.objectContaining({ path: repoFile(repo, 'tracked.txt'), status: 'modified' }),
+          expect.objectContaining({ path: repoFile(repo, 'untracked.txt'), status: 'added' }),
+          expect.objectContaining({ path: repoFile(repo, 'to-delete.txt'), status: 'deleted' }),
         ]),
         unstaged: [],
       });
@@ -516,14 +524,14 @@ describe('GitWorktree', () => {
         kind: 'ok',
         staged: [],
         unstaged: expect.arrayContaining([
-          expect.objectContaining({ path: 'tracked.txt', status: 'modified' }),
+          expect.objectContaining({ path: repoFile(repo, 'tracked.txt'), status: 'modified' }),
           expect.objectContaining({
-            path: 'untracked.txt',
+            path: repoFile(repo, 'untracked.txt'),
             status: 'added',
             additions: 1,
             deletions: 0,
           }),
-          expect.objectContaining({ path: 'to-delete.txt', status: 'deleted' }),
+          expect.objectContaining({ path: repoFile(repo, 'to-delete.txt'), status: 'deleted' }),
         ]),
       });
 
@@ -557,7 +565,7 @@ describe('GitWorktree', () => {
         kind: 'ok',
         unstaged: expect.arrayContaining([
           expect.objectContaining({
-            path: 'untracked.txt',
+            path: repoFile(repo, 'untracked.txt'),
             status: 'added',
             additions: 1,
             deletions: 0,
@@ -617,7 +625,9 @@ describe('GitWorktree', () => {
       await expect(readFile(path.join(repo, 'tracked.txt'), 'utf8')).resolves.toBe('staged\n');
       await expect(worktree.getStatus()).resolves.toMatchObject({
         kind: 'ok',
-        staged: [expect.objectContaining({ path: 'tracked.txt', status: 'modified' })],
+        staged: [
+          expect.objectContaining({ path: repoFile(repo, 'tracked.txt'), status: 'modified' }),
+        ],
         unstaged: [],
       });
 
@@ -667,7 +677,7 @@ describe('GitWorktree', () => {
       if (firstStatus.kind !== 'ok') throw new Error('Expected ok status');
       const firstChange = firstStatus.staged[0];
       expect(firstChange).toMatchObject({
-        path: 'tracked.txt',
+        path: repoFile(repo, 'tracked.txt'),
         status: 'modified',
         additions: 1,
         deletions: 1,
@@ -682,7 +692,7 @@ describe('GitWorktree', () => {
 
       expect(secondSequences.status).toBeGreaterThan(firstSequences.status!);
       expect(secondChange).toMatchObject({
-        path: 'tracked.txt',
+        path: repoFile(repo, 'tracked.txt'),
         status: 'modified',
         additions: 1,
         deletions: 1,
