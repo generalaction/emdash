@@ -35,6 +35,7 @@ export {
   type Serializable,
   type SerializedError,
 } from './result/index';
+export { Secret, secret, isSecret, reveal, REDACTED } from './secret';
 export { Emitter } from './emitter';
 export { isDeepEqual } from './deep-equal';
 export { once, toPendingLease, withLease } from './lifecycle';
