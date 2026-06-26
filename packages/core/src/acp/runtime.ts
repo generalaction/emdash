@@ -2,10 +2,9 @@ import type { Result } from '@emdash/shared/result';
 import type { IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import type { AgentUpdate } from './agent-update';
 import type { AcpRuntimeError } from './errors';
-import type { AcpPermissionRequest } from './permissions';
 import type { TerminalSnapshot } from './terminals';
 import type { AcpProcessHost, AcpTerminalExit } from './transport';
-import type { AcpPromptImage, AcpTurn, ChatHistory, SessionLifecycle, SessionState } from './turns';
+import type { AcpPromptImage, AcpTurn, ChatHistory, SessionSnapshot, SessionState } from './turns';
 
 // ---------------------------------------------------------------------------
 // AcpStartInput
@@ -48,11 +47,14 @@ export type ResolveAcpProvider = (providerId: string) => { behavior: IAcpBehavio
  * Keeps the runtime free of @main IPC imports.
  */
 export interface AcpRuntimeListener {
-  onState(e: {
-    conversationId: string;
-    lifecycle: SessionLifecycle;
-    activeTurnId: string | null;
-  }): void;
+  /**
+   * Session-level state changed (lifecycle, permissions, modes, config options,
+   * available commands). Carries a full `SessionSnapshot` so the renderer can
+   * apply it directly without a follow-up RPC call.
+   * Replaces the previous `onState`, `onPermissionRequest`,
+   * `onPermissionResolved`, and `onSessionMeta` callbacks.
+   */
+  onSnapshot(e: { conversationId: string; snapshot: SessionSnapshot }): void;
   onSessionUpdate(e: {
     conversationId: string;
     turnId: string;
@@ -60,8 +62,6 @@ export interface AcpRuntimeListener {
     seq: number;
   }): void;
   onTurnCommitted(e: { conversationId: string; turn: AcpTurn }): void;
-  onPermissionRequest(request: AcpPermissionRequest): void;
-  onPermissionResolved(e: { conversationId: string; requestId: string }): void;
   onClosed(e: { conversationId: string; taskId: string; exitCode: number | null }): void;
   onAgentEvent(e: {
     type: 'start' | 'stop' | 'error';
@@ -70,12 +70,6 @@ export interface AcpRuntimeListener {
     taskId: string;
     providerId: string;
   }): void;
-  /**
-   * Session-scoped metadata changed: modes, config options (including model
-   * selector), or available commands. The renderer should re-fetch
-   * getSessionState() to obtain the full updated snapshot.
-   */
-  onSessionMeta(e: { conversationId: string }): void;
   /** A new terminal was created by the agent and is now running. */
   onTerminalCreated(e: {
     conversationId: string;
@@ -164,4 +158,8 @@ export interface IAcpSessionRuntime {
   getSessionState(conversationId: string): SessionState;
   /** Returns snapshots of all live terminals for a conversation. Empty if none or unknown. */
   getTerminals(conversationId: string): TerminalSnapshot[];
+  /** Returns snapshots of all live terminals across all conversations on this host. */
+  getHostTerminals(): TerminalSnapshot[];
+  /** Dispose and SIGTERM all live terminals on this host (e.g. on host teardown). */
+  killAllTerminals(): void;
 }

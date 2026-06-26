@@ -19,16 +19,6 @@ import type { Conversation } from '@shared/core/conversations/conversations';
 import type { setSessionId } from '../conversations/set-session-id';
 import type { updateConversationModel } from '../conversations/updateConversationModel';
 
-// ---------------------------------------------------------------------------
-// AcpSessionManagerLog (kept for prod wiring type convenience)
-// ---------------------------------------------------------------------------
-
-export type AcpSessionManagerLog = AcpRuntimeLog;
-
-// ---------------------------------------------------------------------------
-// AcpSessionManagerDeps
-// ---------------------------------------------------------------------------
-
 export interface AcpSessionManagerDeps {
   /** Resolves the getPlugin result for a given provider id. */
   getPlugin: (providerId: string) => ReturnType<typeof getPlugin>;
@@ -40,12 +30,8 @@ export interface AcpSessionManagerDeps {
   setSessionId: typeof setSessionId;
   /** Persistence port for model selections. */
   updateConversationModel: typeof updateConversationModel;
-  log: AcpSessionManagerLog;
+  log: AcpRuntimeLog;
 }
-
-// ---------------------------------------------------------------------------
-// AcpSessionManager — thin per-machine router
-// ---------------------------------------------------------------------------
 
 /**
  * Desktop-side ACP manager. Holds a Map<machineKey, IAcpSessionRuntime> and
@@ -62,10 +48,6 @@ export class AcpSessionManager {
   constructor(deps: AcpSessionManagerDeps) {
     this.deps = deps;
   }
-
-  // -------------------------------------------------------------------------
-  // Public API — all effectful methods return Result, never throw
-  // -------------------------------------------------------------------------
 
   async start(
     conversation: Conversation,
@@ -172,9 +154,15 @@ export class AcpSessionManager {
     return rt?.getTerminals(conversationId) ?? [];
   }
 
-  // -------------------------------------------------------------------------
-  // Runtime creation
-  // -------------------------------------------------------------------------
+  getHostTerminals(machine: MachineRef): TerminalSnapshot[] {
+    const key = machineKey(machine);
+    return this.runtimes.get(key)?.getHostTerminals() ?? [];
+  }
+
+  killHostTerminals(machine: MachineRef): void {
+    const key = machineKey(machine);
+    this.runtimes.get(key)?.killAllTerminals();
+  }
 
   private async getOrCreateRuntime(key: string, machine: MachineRef): Promise<IAcpSessionRuntime> {
     const existing = this.runtimes.get(key);
@@ -202,7 +190,6 @@ export class AcpSessionManager {
     return runtime;
   }
 
-  /** Returns the runtime for a conversation, or null if not found (never throws). */
   private findRuntime(conversationId: string): IAcpSessionRuntime | null {
     const key = this.convToMachine.get(conversationId);
     if (!key) return null;

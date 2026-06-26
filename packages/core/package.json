@@ -17,6 +17,10 @@
       "types": "./dist/acp.d.mts",
       "default": "./dist/acp.mjs"
     },
+    "./acp/session-machine": {
+      "types": "./dist/acp-session-machine.d.mts",
+      "default": "./dist/acp-session-machine.mjs"
+    },
     "./deps": {
       "types": "./dist/deps.d.mts",
       "default": "./dist/deps.mjs"

@@ -24,7 +24,7 @@
  *   working → ready      (E: TurnEnded)
  *   working → cancelling (C: Cancel → E: CancellationRequested)
  *   cancelling → ready   (E: TurnEnded)
- *   {ready,working,cancelling} → closed (E: PoolClosed)
+ *   {ready,working,cancelling} → closed (E: ProcessClosed)
  */
 
 import type {
@@ -39,7 +39,14 @@ import type { AgentUpdate } from './agent-update';
 import type { AcpRuntimeError } from './errors';
 import { acpErr } from './errors';
 import type { AcpPermissionRequest } from './permissions';
-import type { AcpTurn, TurnSource, TurnStatus } from './turns';
+import type {
+  AcpTurn,
+  ChatHistory,
+  SessionSnapshot,
+  SessionState,
+  TurnSource,
+  TurnStatus,
+} from './turns';
 
 // ---------------------------------------------------------------------------
 // Phase (discriminated union carrying the active turn in-line)
@@ -187,7 +194,7 @@ export type DomainEvent =
       availableCommands?: readonly AvailableCommand[] | null;
     }
   /** The agent process exited or the connection closed. */
-  | { type: 'PoolClosed'; exitCode: number | null };
+  | { type: 'ProcessClosed'; exitCode: number | null };
 
 export type TurnOutcome = { kind: 'stopped'; stopReason: StopReason } | { kind: 'errored' };
 
@@ -232,7 +239,7 @@ export function decide(
 ): Result<DomainEvent[], AcpRuntimeError> {
   switch (cmd.type) {
     case 'Prompt': {
-      if (s.phase.kind !== 'ready') {
+      if (!isPromptReady(phaseToLifecycle(s.phase))) {
         return acpErr.invalidState(`Cannot send a prompt while session is '${s.phase.kind}'`);
       }
       return ok([{ type: 'PromptStarted', userUpdate: cmd.userUpdate }]);
@@ -505,7 +512,7 @@ export function evolve(
       };
     }
 
-    case 'PoolClosed': {
+    case 'ProcessClosed': {
       const drainEffects: Effect[] = s.pendingPermissions.map((p) => ({
         type: 'permissionResolved' as const,
         requestId: p.requestId,
@@ -584,4 +591,203 @@ function needsMetaEffect(
   ev: { modes?: SessionModeState | null; configOptions?: readonly SessionConfigOption[] | null }
 ): boolean {
   return ev.modes !== undefined || ev.configOptions !== undefined;
+}
+
+// ---------------------------------------------------------------------------
+// isPromptReady — shared predicate (no longer from affordances.ts)
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns true when the lifecycle allows sending a prompt.
+ * Shared between the state machine `decide` logic and the UI affordance layer.
+ */
+export function isPromptReady(lifecycle: SessionLifecycle): boolean {
+  return lifecycle === 'ready';
+}
+
+// ---------------------------------------------------------------------------
+// SessionMachine — stateful wrapper around the pure decide/evolve functions
+// ---------------------------------------------------------------------------
+
+/**
+ * Stateful wrapper around `decide` and `evolve`. Holds one `SessionMachineState`
+ * and exposes a command/event API that returns Effects for the runtime (or the
+ * renderer) to interpret. Performs no I/O.
+ */
+export class SessionMachine {
+  private _state: SessionMachineState;
+
+  constructor(conversationId: string) {
+    this._state = initialMachineState(conversationId);
+  }
+
+  // --- Raw state passthrough (runtime needs direct access) ---
+
+  get phase(): SessionPhase {
+    return this._state.phase;
+  }
+  get lifecycle(): SessionLifecycle {
+    return phaseToLifecycle(this._state.phase);
+  }
+  get pendingPermissions(): readonly AcpPermissionRequest[] {
+    return this._state.pendingPermissions;
+  }
+  get modes(): SessionModeState | null {
+    return this._state.modes;
+  }
+  get nextTurnIndex(): number {
+    return this._state.nextTurnIndex;
+  }
+  get committedTurns(): readonly AcpTurn[] {
+    return this._state.committedTurns;
+  }
+  get lastStopReason(): StopReason | null {
+    return this._state.lastStopReason;
+  }
+
+  // --- UI affordance getters ---
+
+  /** True while the agent is actively working or acknowledging a cancel. */
+  get isWorking(): boolean {
+    return this._state.phase.kind === 'working' || this._state.phase.kind === 'cancelling';
+  }
+
+  /** True in any transient state where the agent is not idle or ready. */
+  get isBusy(): boolean {
+    const k = this._state.phase.kind;
+    return k === 'starting' || k === 'replaying' || k === 'working' || k === 'cancelling';
+  }
+
+  /** True when at least one permission request is awaiting a user decision. */
+  get hasPendingPermission(): boolean {
+    return this._state.pendingPermissions.length > 0;
+  }
+
+  /** True when the user may submit a new prompt (ready and no pending permission). */
+  get canSubmit(): boolean {
+    return isPromptReady(this.lifecycle) && !this.hasPendingPermission;
+  }
+
+  /** True when the user may cancel the current turn. */
+  get canCancel(): boolean {
+    return this._state.phase.kind === 'working';
+  }
+
+  // --- Command / event API ---
+
+  /**
+   * Validate a command, apply the resulting events, and return all effects.
+   * Returns an Err if the command is rejected; no state change occurs on rejection.
+   */
+  dispatch(cmd: Command): Result<Effect[], AcpRuntimeError> {
+    const decision = decide(this._state, cmd);
+    if (!decision.success) return decision;
+    const allEffects: Effect[] = [];
+    for (const event of decision.data) {
+      const { state, effects } = evolve(this._state, event);
+      this._state = state;
+      allEffects.push(...effects);
+    }
+    return ok(allEffects);
+  }
+
+  /**
+   * Unconditionally fold one or more domain events and return all effects.
+   * Out-of-place events yield only a diagnostic `warn` effect.
+   */
+  apply(...events: DomainEvent[]): Effect[] {
+    const allEffects: Effect[] = [];
+    for (const event of events) {
+      const { state, effects } = evolve(this._state, event);
+      this._state = state;
+      allEffects.push(...effects);
+    }
+    return allEffects;
+  }
+
+  /**
+   * Reconstruct session-level state from a `SessionSnapshot` received over IPC.
+   * The renderer uses this to mirror the runtime's state without re-running the
+   * full event stream. The `committedTurns` and seq counters are left untouched —
+   * the FE tracks the transcript separately via the turn-update channel.
+   */
+  applySnapshot(s: SessionSnapshot): void {
+    const activeTurnId = s.activeTurnId;
+    let phase: SessionPhase;
+    switch (s.lifecycle) {
+      case 'starting':
+        phase = { kind: 'starting' };
+        break;
+      case 'replaying':
+        phase = {
+          kind: 'replaying',
+          turn: activeTurnId ? placeholderTurn(activeTurnId) : placeholderTurn('replay'),
+        };
+        break;
+      case 'working':
+        phase = {
+          kind: 'working',
+          turn: activeTurnId ? placeholderTurn(activeTurnId) : placeholderTurn('working'),
+        };
+        break;
+      case 'cancelling':
+        phase = {
+          kind: 'cancelling',
+          turn: activeTurnId ? placeholderTurn(activeTurnId) : placeholderTurn('cancelling'),
+        };
+        break;
+      case 'ready':
+        phase = { kind: 'ready' };
+        break;
+      case 'closed':
+        phase = { kind: 'closed', exitCode: null };
+        break;
+    }
+    this._state = {
+      ...this._state,
+      phase,
+      pendingPermissions: s.pendingPermissions,
+      modes: s.modes,
+      configOptions: s.configOptions,
+      availableCommands: s.availableCommands,
+      lastStopReason: s.lastStopReason,
+    };
+  }
+
+  // --- Delegation helpers matching the runtime's public API ---
+
+  /** Returns the full session state (mirrors getSessionState on the runtime). */
+  sessionState(): SessionState {
+    const activeTurn = activeTurnFromPhase(this._state.phase);
+    return {
+      lifecycle: this.lifecycle,
+      activeTurn: activeTurn ? structuredClone(activeTurn) : null,
+      pendingPermissions: structuredClone([...this._state.pendingPermissions]),
+      modes: this._state.modes ? structuredClone(this._state.modes) : null,
+      configOptions: structuredClone([...this._state.configOptions]),
+      availableCommands: structuredClone([...this._state.availableCommands]),
+      lastStopReason: this._state.lastStopReason,
+    };
+  }
+
+  /** Returns the committed chat history (mirrors getChatHistory on the runtime). */
+  chatHistory(): ChatHistory {
+    return {
+      turns: this._state.committedTurns.map((t) => structuredClone(t)),
+      complete: this._state.phase.kind !== 'starting' && this._state.phase.kind !== 'replaying',
+    };
+  }
+}
+
+/** Create a lightweight placeholder turn for applySnapshot phase reconstruction. */
+function placeholderTurn(id: string): AcpTurn {
+  return {
+    id,
+    status: 'active',
+    source: 'live',
+    startSeq: 0,
+    endSeq: null,
+    stopReason: null,
+    updates: [],
+  };
 }

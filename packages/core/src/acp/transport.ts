@@ -1,3 +1,4 @@
+import { dirname } from 'node:path';
 import type { Readable, Writable } from 'node:stream';
 
 // ---------------------------------------------------------------------------
@@ -63,6 +64,23 @@ export interface AcpFs {
   readFile(path: string, encoding: 'utf8'): Promise<string>;
   writeFile(path: string, content: string, encoding: 'utf8'): Promise<void>;
   mkdir(path: string, opts: { recursive: boolean }): Promise<unknown>;
+}
+
+/** Read a UTF-8 file via an AcpFs adapter, wrapping errors with the file path. */
+export async function readTextFile(fs: AcpFs, path: string): Promise<string> {
+  try {
+    return await fs.readFile(path, 'utf8');
+  } catch (err) {
+    throw new Error(
+      `readTextFile failed for ${path}: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+}
+
+/** Create parent directories and write a UTF-8 file via an AcpFs adapter. */
+export async function writeTextFile(fs: AcpFs, path: string, content: string): Promise<void> {
+  await fs.mkdir(dirname(path), { recursive: true });
+  await fs.writeFile(path, content, 'utf8');
 }
 
 // ---------------------------------------------------------------------------

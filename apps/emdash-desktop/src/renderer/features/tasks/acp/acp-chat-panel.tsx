@@ -78,10 +78,7 @@ const AcpChatStorePanel = observer(function AcpChatStorePanel({ store }: { store
     [store]
   );
 
-  const isWorking = store.lifecycle === 'working' || store.lifecycle === 'cancelling';
-  const hasPendingPermission = store.permissionQueue.length > 0;
-  // Block new submissions when working, cancelling, or waiting on a permission
-  const canSubmit = store.lifecycle === 'ready' && !hasPendingPermission;
+  const a = store.affordances;
   const permissionRequest = toComposerPermission(store.permissionQueue[0]);
 
   return (
@@ -102,10 +99,10 @@ const AcpChatStorePanel = observer(function AcpChatStorePanel({ store }: { store
         createPortal(
           <div style={{ '--composer-bg': 'var(--surface-paper)' } as CSSProperties}>
             <ChatComposer
-              isWorking={isWorking}
-              canSubmit={canSubmit}
+              isWorking={a.isWorking}
+              canSubmit={a.canSubmit}
               onSubmit={handleSubmit}
-              onStop={isWorking ? handleStop : undefined}
+              onStop={a.isWorking ? handleStop : undefined}
               permissionRequest={permissionRequest}
               permissionQueueCount={store.permissionQueue.length}
               onResolvePermission={handleResolvePermission}

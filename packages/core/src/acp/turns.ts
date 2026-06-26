@@ -84,6 +84,35 @@ export interface ChatHistory {
   complete: boolean;
 }
 
+/**
+ * Lean snapshot of session-level state suitable for IPC mirroring to the
+ * renderer. Excludes the heavy turn update stream (`activeTurn.updates`) —
+ * the renderer tracks the transcript separately via the turn-update channel.
+ */
+export interface SessionSnapshot {
+  lifecycle: SessionLifecycle;
+  /** Id of the in-flight turn, if any. */
+  activeTurnId: string | null;
+  pendingPermissions: AcpPermissionRequest[];
+  modes: SessionModeState | null;
+  configOptions: SessionConfigOption[];
+  availableCommands: AvailableCommand[];
+  lastStopReason: StopReason | null;
+}
+
+/** Project `SessionState` down to a `SessionSnapshot` (drops the full activeTurn). */
+export function toSessionSnapshot(s: SessionState): SessionSnapshot {
+  return {
+    lifecycle: s.lifecycle,
+    activeTurnId: s.activeTurn?.id ?? null,
+    pendingPermissions: s.pendingPermissions,
+    modes: s.modes,
+    configOptions: s.configOptions,
+    availableCommands: s.availableCommands,
+    lastStopReason: s.lastStopReason,
+  };
+}
+
 /** Current session state returned by getSessionState(). */
 export interface SessionState {
   lifecycle: SessionLifecycle;

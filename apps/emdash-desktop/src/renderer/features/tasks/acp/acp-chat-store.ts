@@ -15,20 +15,13 @@
 
 import type { ChatContext, ChatItem, ChatState, ChatView } from '@emdash/chat-ui';
 import { applyTurnEvent, createChatContext, createChatState } from '@emdash/chat-ui';
-import type {
-  AgentUpdate,
-  AcpPermissionRequest,
-  AcpTurn,
-  SessionLifecycle,
-  TerminalSnapshot,
-} from '@emdash/core/acp';
-import { action, makeObservable, observable, runInAction } from 'mobx';
+import type { AgentUpdate, AcpTurn, SessionSnapshot, TerminalSnapshot } from '@emdash/core/acp';
+import { toSessionSnapshot } from '@emdash/core/acp';
+import { SessionMachine } from '@emdash/core/acp/session-machine';
+import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
 import {
-  acpPermissionRequestChannel,
-  acpPermissionResolvedChannel,
   acpSessionClosedChannel,
-  acpSessionMetaChannel,
   acpSessionStateChannel,
   acpSessionUpdateChannel,
   acpTerminalCreatedChannel,
@@ -41,7 +34,16 @@ import { foldHistory, foldTurn, mapAgentUpdate } from './acp-update-mapper';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-export type AcpChatLifecycle = SessionLifecycle | 'idle';
+export type AcpChatLifecycle = 'idle' | SessionSnapshot['lifecycle'];
+
+/** Which UI actions are currently available given the machine state. */
+export interface AgentAffordances {
+  isWorking: boolean;
+  isBusy: boolean;
+  hasPendingPermission: boolean;
+  canSubmit: boolean;
+  canCancel: boolean;
+}
 
 // ── Store ──────────────────────────────────────────────────────────────────────
 
@@ -55,22 +57,17 @@ export class AcpChatStore {
   /** Per-conversation state (transcript + parse caches). Owned by this store. */
   readonly chatState: ChatState;
 
-  lifecycle: AcpChatLifecycle = 'idle';
-  /**
-   * Currently selected model derived from configOptions (category === 'model').
-   * Null if the agent doesn't report a model config option.
-   */
-  model: string | null = null;
-  permissionQueue: AcpPermissionRequest[] = [];
+  /** Current session snapshot from IPC, null until bootstrapped. */
+  snapshot: SessionSnapshot | null = null;
+
   terminals: TerminalSnapshot[] = [];
-  /** The stop reason from the last completed turn. Used for notice bands. */
-  lastStopReason: string | null = null;
 
   /** Buffered active-turn updates, keyed by seq, until the initial state fetch completes. */
   private _activeTurnUpdates = new Map<number, { seq: number; update: AgentUpdate }>();
   /** The current active turn id (null when idle). */
   private _activeTurnId: string | null = null;
 
+  private readonly _machine: SessionMachine;
   private _bootstrapped = false;
 
   private readonly _unsubs: Array<() => void> = [];
@@ -80,22 +77,87 @@ export class AcpChatStore {
     this.projectId = projectId;
     this.taskId = taskId;
 
+    this._machine = new SessionMachine(conversationId);
+
     // Create context + state eagerly so transcript writes work immediately,
     // before the ChatTranscript React component mounts.
     this.chatContext = createChatContext();
     this.chatState = createChatState(this.chatContext);
 
     makeObservable(this, {
-      lifecycle: observable,
-      model: observable,
-      permissionQueue: observable,
+      snapshot: observable.ref,
       terminals: observable,
-      lastStopReason: observable,
+      affordances: computed,
+      lifecycle: computed,
+      model: computed,
+      permissionQueue: computed,
+      lastStopReason: computed,
+      applySnapshot: action,
       submitPrompt: action,
       stop: action,
       setModel: action,
       resolvePermission: action,
     });
+  }
+
+  // ── Derived state ──────────────────────────────────────────────────────────
+
+  /** Coarse lifecycle — 'idle' until the first snapshot arrives. */
+  get lifecycle(): AcpChatLifecycle {
+    return this.snapshot?.lifecycle ?? 'idle';
+  }
+
+  /**
+   * Currently selected model derived from configOptions (category === 'model').
+   * Null if the agent doesn't report a model config option.
+   */
+  get model(): string | null {
+    return this._extractModel(this.snapshot?.configOptions ?? []);
+  }
+
+  /** FIFO queue of pending permission requests awaiting user resolution. */
+  get permissionQueue(): SessionSnapshot['pendingPermissions'] {
+    return this.snapshot?.pendingPermissions ?? [];
+  }
+
+  /** The stop reason from the last completed turn. Used for notice bands. */
+  get lastStopReason(): string | null {
+    return this.snapshot?.lastStopReason ?? null;
+  }
+
+  /** Derived UI affordances — stable reference when snapshot inputs are unchanged. */
+  get affordances(): AgentAffordances {
+    // Reading `this.snapshot` registers MobX reactivity on the snapshot ref.
+    if (!this.snapshot) {
+      return {
+        isWorking: false,
+        isBusy: false,
+        hasPendingPermission: false,
+        canSubmit: false,
+        canCancel: false,
+      };
+    }
+    return {
+      isWorking: this._machine.isWorking,
+      isBusy: this._machine.isBusy,
+      hasPendingPermission: this._machine.hasPendingPermission,
+      canSubmit: this._machine.canSubmit,
+      canCancel: this._machine.canCancel,
+    };
+  }
+
+  // ── Public actions ──────────────────────────────────────────────────────────
+
+  /**
+   * Apply a session snapshot received from IPC (or from bootstrap).
+   * Updates both the machine mirror and the observable snapshot ref.
+   */
+  applySnapshot(s: SessionSnapshot): void {
+    this._machine.applySnapshot(s);
+    this.snapshot = s;
+    if (s.lifecycle === 'closed') {
+      this.chatState.transcript.activeTurn.commit('done');
+    }
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────
@@ -146,9 +208,6 @@ export class AcpChatStore {
 
   /** Switch the active model. */
   setModel(modelId: string): void {
-    runInAction(() => {
-      this.model = modelId;
-    });
     void rpc.acp.setModel(this.conversationId, modelId).catch((err: unknown) => {
       console.error('[AcpChatStore] setModel error', err);
     });
@@ -190,34 +249,17 @@ export class AcpChatStore {
       events.on(acpSessionStateChannel, (e) => {
         if (e.conversationId !== this.conversationId) return;
         runInAction(() => {
-          this.lifecycle = e.lifecycle;
-          this._activeTurnId = e.activeTurnId;
+          this.applySnapshot(e.snapshot);
+          this._activeTurnId = e.snapshot.activeTurnId;
         });
-        if (e.lifecycle === 'closed') {
-          this.chatState.transcript.activeTurn.commit('done');
-        }
       }),
 
       events.on(acpSessionClosedChannel, (e) => {
         if (e.conversationId !== this.conversationId) return;
         runInAction(() => {
-          this.lifecycle = 'closed';
-        });
-        this.chatState.transcript.activeTurn.commit('done');
-      }),
-
-      events.on(acpPermissionRequestChannel, (e) => {
-        if (e.conversationId !== this.conversationId) return;
-        runInAction(() => {
-          this.permissionQueue.push(e);
-        });
-      }),
-
-      events.on(acpPermissionResolvedChannel, (e) => {
-        if (e.conversationId !== this.conversationId) return;
-        runInAction(() => {
-          const idx = this.permissionQueue.findIndex((r) => r.requestId === e.requestId);
-          if (idx >= 0) this.permissionQueue.splice(idx, 1);
+          if (this.snapshot) {
+            this.applySnapshot({ ...this.snapshot, lifecycle: 'closed', activeTurnId: null });
+          }
         });
       }),
 
@@ -262,11 +304,6 @@ export class AcpChatStore {
           const idx = this.terminals.findIndex((t) => t.terminalId === e.terminalId);
           if (idx >= 0) this.terminals.splice(idx, 1);
         });
-      }),
-
-      events.on(acpSessionMetaChannel, (e) => {
-        if (e.conversationId !== this.conversationId) return;
-        void this._refreshSessionMeta();
       })
     );
   }
@@ -282,16 +319,9 @@ export class AcpChatStore {
       const historyItems = foldHistory(history);
 
       runInAction(() => {
-        this.lifecycle = state.lifecycle;
-        this.model = this._extractModel(state.configOptions);
-        this.lastStopReason = state.lastStopReason;
+        this.applySnapshot(toSessionSnapshot(state));
         this._activeTurnId = state.activeTurn?.id ?? null;
         this.terminals = terminals;
-
-        // Rebuild permission queue from server state (avoids duplicates from events).
-        this.permissionQueue = state.pendingPermissions.filter(
-          (p) => !this.permissionQueue.some((q) => q.requestId === p.requestId)
-        );
 
         // Seed in-flight active turn updates from the server state.
         if (state.activeTurn) {
@@ -308,18 +338,6 @@ export class AcpChatStore {
       this._replayActiveUpdates();
     } catch (err) {
       console.error('[AcpChatStore] _fetchInitialState error', err);
-    }
-  }
-
-  private async _refreshSessionMeta(): Promise<void> {
-    try {
-      const state = await rpc.acp.getSessionState(this.conversationId);
-      runInAction(() => {
-        this.model = this._extractModel(state.configOptions);
-        this.lastStopReason = state.lastStopReason;
-      });
-    } catch (err) {
-      console.error('[AcpChatStore] _refreshSessionMeta error', err);
     }
   }
 

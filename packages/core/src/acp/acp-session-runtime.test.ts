@@ -145,7 +145,7 @@ describe('AcpSessionRuntime – routing', () => {
     });
     expect(h.agent.newSession).not.toHaveBeenCalled();
 
-    const lifecycles = h.recording.states.map((e) => e.lifecycle);
+    const lifecycles = h.recording.snapshots.map((e) => e.snapshot.lifecycle);
     expect(lifecycles).toContain('replaying');
     expect(lifecycles).toContain('ready');
 
@@ -236,7 +236,7 @@ describe('AcpSessionRuntime – turn model', () => {
 
     await rt.prompt('conv-1', 'hello');
 
-    const lifecycles = h.recording.states.map((e) => e.lifecycle);
+    const lifecycles = h.recording.snapshots.map((e) => e.snapshot.lifecycle);
     expect(lifecycles).toContain('working');
     expect(lifecycles).toContain('ready');
 
@@ -417,17 +417,14 @@ describe('AcpSessionRuntime – permission requests', () => {
     await Promise.resolve();
     expect(settled).toBe(false);
 
-    expect(h.recording.permissionRequests).toHaveLength(1);
-    expect(h.recording.permissionRequests[0].conversationId).toBe('conv-perm');
-    expect(h.recording.permissionRequests[0].title).toBe('Read a File');
-    expect(h.recording.permissionRequests[0].toolKind).toBe('read');
-    expect(typeof h.recording.permissionRequests[0].requestId).toBe('string');
-
     const state = rt.getSessionState('conv-perm');
     expect(state.pendingPermissions).toHaveLength(1);
+    expect(state.pendingPermissions[0].conversationId).toBe('conv-perm');
     expect(state.pendingPermissions[0].title).toBe('Read a File');
+    expect(state.pendingPermissions[0].toolKind).toBe('read');
+    expect(typeof state.pendingPermissions[0].requestId).toBe('string');
 
-    rt.resolvePermission('conv-perm', h.recording.permissionRequests[0].requestId, 'allow-once');
+    rt.resolvePermission('conv-perm', state.pendingPermissions[0].requestId, 'allow-once');
     await permPromise;
   });
 
@@ -443,19 +440,13 @@ describe('AcpSessionRuntime – permission requests', () => {
       .client()
       .requestPermission(makePermissionParams('session-perm'));
 
-    const requestId = h.recording.permissionRequests[0].requestId;
+    await Promise.resolve();
+    const requestId = rt.getSessionState('conv-resolve').pendingPermissions[0].requestId;
 
     rt.resolvePermission('conv-resolve', requestId, 'allow-once');
 
     const result = await resultPromise;
     expect(result.outcome).toEqual({ outcome: 'selected', optionId: 'allow-once' });
-
-    expect(h.recording.permissionResolved).toHaveLength(1);
-    expect(h.recording.permissionResolved[0]).toMatchObject({
-      conversationId: 'conv-resolve',
-      requestId,
-    });
-
     expect(rt.getSessionState('conv-resolve').pendingPermissions).toHaveLength(0);
   });
 
@@ -471,7 +462,8 @@ describe('AcpSessionRuntime – permission requests', () => {
       .client()
       .requestPermission(makePermissionParams('session-perm'));
 
-    const requestId = h.recording.permissionRequests[0].requestId;
+    await Promise.resolve();
+    const requestId = rt.getSessionState('conv-cancel').pendingPermissions[0].requestId;
 
     rt.resolvePermission('conv-cancel', requestId, null);
     const result = await resultPromise;
@@ -487,14 +479,17 @@ describe('AcpSessionRuntime – permission requests', () => {
     await rt.start(makeStartInput({ conversationId: 'conv-idem' }));
 
     const resultPromise = h.client().requestPermission(makePermissionParams('session-perm'));
-    const requestId = h.recording.permissionRequests[0].requestId;
+
+    await Promise.resolve();
+    const requestId = rt.getSessionState('conv-idem').pendingPermissions[0].requestId;
 
     rt.resolvePermission('conv-idem', requestId, 'allow-once');
     await resultPromise;
 
+    // Second call is a no-op — no snapshot emitted for an unknown requestId
     h.recording.clear();
     rt.resolvePermission('conv-idem', requestId, 'allow-once');
-    expect(h.recording.permissionResolved).toHaveLength(0);
+    expect(h.recording.snapshots).toHaveLength(0);
   });
 
   it('stop() drains pending permissions with cancelled outcome', async () => {
@@ -509,14 +504,14 @@ describe('AcpSessionRuntime – permission requests', () => {
       .client()
       .requestPermission(makePermissionParams('session-perm'));
 
-    const requestId = h.recording.permissionRequests[0].requestId;
+    await Promise.resolve();
+    const requestId = rt.getSessionState('conv-stop').pendingPermissions[0].requestId;
+    expect(requestId).toBeDefined();
 
     rt.stop('conv-stop');
 
     const result = await resultPromise;
     expect(result.outcome).toEqual({ outcome: 'cancelled' });
-
-    expect(h.recording.permissionResolved.some((r) => r.requestId === requestId)).toBe(true);
   });
 
   it('getSessionState includes pendingPermissions for reload rehydration', async () => {
@@ -530,18 +525,12 @@ describe('AcpSessionRuntime – permission requests', () => {
     const p1 = h.client().requestPermission(makePermissionParams('session-perm', 'tool-1'));
     const p2 = h.client().requestPermission(makePermissionParams('session-perm', 'tool-2'));
 
-    expect(rt.getSessionState('conv-rehydrate').pendingPermissions).toHaveLength(2);
+    await Promise.resolve();
+    const pendingPerms = rt.getSessionState('conv-rehydrate').pendingPermissions;
+    expect(pendingPerms).toHaveLength(2);
 
-    rt.resolvePermission(
-      'conv-rehydrate',
-      h.recording.permissionRequests[0].requestId,
-      'allow-once'
-    );
-    rt.resolvePermission(
-      'conv-rehydrate',
-      h.recording.permissionRequests[1].requestId,
-      'allow-once'
-    );
+    rt.resolvePermission('conv-rehydrate', pendingPerms[0].requestId, 'allow-once');
+    rt.resolvePermission('conv-rehydrate', pendingPerms[1].requestId, 'allow-once');
     await Promise.all([p1, p2]);
   });
 
@@ -864,7 +853,7 @@ describe('AcpSessionRuntime – terminals', () => {
     expect(h.recording.terminalReleased).toHaveLength(2);
   });
 
-  it('handlePoolClosed disposes all terminals in all pool conversations', async () => {
+  it('handleProcessClosed disposes all terminals in all process conversations', async () => {
     const h = makeAcpHarness();
     const rt = new AcpSessionRuntime(h.deps);
     h.agent.newSession
@@ -915,14 +904,11 @@ describe('AcpSessionRuntime – enrich', () => {
     const emittedUpdates: AgentUpdate[] = [];
     const h = makeAcpHarness({
       listener: {
-        onState: () => {},
+        onSnapshot: () => {},
         onSessionUpdate: (e) => emittedUpdates.push(e.update),
         onTurnCommitted: () => {},
-        onPermissionRequest: () => {},
-        onPermissionResolved: () => {},
         onClosed: () => {},
         onAgentEvent: () => {},
-        onSessionMeta: () => {},
         onTerminalCreated: () => {},
         onTerminalOutput: () => {},
         onTerminalExit: () => {},
@@ -1010,14 +996,11 @@ describe('AcpSessionRuntime – enrich', () => {
     const emittedUpdates: AgentUpdate[] = [];
     const h = makeAcpHarness({
       listener: {
-        onState: () => {},
+        onSnapshot: () => {},
         onSessionUpdate: (e) => emittedUpdates.push(e.update),
         onTurnCommitted: () => {},
-        onPermissionRequest: () => {},
-        onPermissionResolved: () => {},
         onClosed: () => {},
         onAgentEvent: () => {},
-        onSessionMeta: () => {},
         onTerminalCreated: () => {},
         onTerminalOutput: () => {},
         onTerminalExit: () => {},

@@ -1,10 +1,4 @@
-import type {
-  AgentUpdate,
-  AcpPermissionRequest,
-  AcpTerminalExit,
-  AcpTurn,
-  SessionLifecycle,
-} from '@emdash/core/acp';
+import type { AgentUpdate, AcpTerminalExit, AcpTurn, SessionSnapshot } from '@emdash/core/acp';
 import { defineEvent } from '@shared/lib/ipc/events';
 
 /**
@@ -28,15 +22,13 @@ export const acpSessionClosedChannel = defineEvent<{
 }>('acp:session-closed');
 
 /**
- * Emitted when the session lifecycle changes (starting → replaying → ready →
- * working → closed) so the renderer can update isReady / isWorking without
- * polling.
+ * Emitted whenever session-level state changes (lifecycle, permissions, modes,
+ * config options, available commands). Carries a full `SessionSnapshot` so the
+ * renderer can apply it directly via `SessionMachine.applySnapshot`.
  */
 export const acpSessionStateChannel = defineEvent<{
   conversationId: string;
-  lifecycle: SessionLifecycle;
-  /** Non-null when lifecycle === 'working'. */
-  activeTurnId: string | null;
+  snapshot: SessionSnapshot;
 }>('acp:session-state');
 
 /**
@@ -47,23 +39,6 @@ export const acpTurnCommittedChannel = defineEvent<{
   conversationId: string;
   turn: AcpTurn;
 }>('acp:turn-committed');
-
-/**
- * Emitted when an ACP agent requests user permission to execute a tool call.
- * The renderer should add this to its FIFO permission queue and show the band.
- */
-export const acpPermissionRequestChannel =
-  defineEvent<AcpPermissionRequest>('acp:permission-request');
-
-/**
- * Emitted when a pending permission request has been resolved (either by the
- * user's choice or by a session close/cancel draining the queue).
- * The renderer should remove the matching requestId from its queue.
- */
-export const acpPermissionResolvedChannel = defineEvent<{
-  conversationId: string;
-  requestId: string;
-}>('acp:permission-resolved');
 
 /**
  * Emitted when the ACP agent creates a new terminal via the client terminal API.
@@ -108,12 +83,3 @@ export const acpTerminalReleasedChannel = defineEvent<{
   conversationId: string;
   terminalId: string;
 }>('acp:terminal-released');
-
-/**
- * Emitted when session-scoped metadata changes: modes, config options
- * (including the model selector), or available commands. The renderer should
- * call getSessionState() to get the full updated snapshot.
- */
-export const acpSessionMetaChannel = defineEvent<{
-  conversationId: string;
-}>('acp:session-meta');

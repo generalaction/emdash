@@ -18,9 +18,8 @@ import type {
   AcpSessionRuntimeDeps,
   AcpStartInput,
   AcpTerminalExit,
-  AcpPermissionRequest,
   AcpTurn,
-  SessionLifecycle,
+  SessionSnapshot,
 } from '@emdash/core/acp';
 import type { AcpAgentApi, IAcpBehavior } from '@emdash/core/agents/plugins';
 import { vi } from 'vitest';
@@ -33,15 +32,9 @@ export type { AcpSessionManagerDeps };
 // ---------------------------------------------------------------------------
 
 export function createRecordingListener() {
-  const states: {
-    conversationId: string;
-    lifecycle: SessionLifecycle;
-    activeTurnId: string | null;
-  }[] = [];
+  const snapshots: { conversationId: string; snapshot: SessionSnapshot }[] = [];
   const updates: { conversationId: string; turnId: string; seq: number }[] = [];
   const turns: { conversationId: string; turn: AcpTurn }[] = [];
-  const permissionRequests: AcpPermissionRequest[] = [];
-  const permissionResolved: { conversationId: string; requestId: string }[] = [];
   const closed: { conversationId: string; taskId: string; exitCode: number | null }[] = [];
   const agentEvents: { type: string; conversationId: string }[] = [];
   const terminalCreated: {
@@ -64,17 +57,12 @@ export function createRecordingListener() {
   }[] = [];
   const terminalReleased: { conversationId: string; terminalId: string }[] = [];
 
-  const sessionMeta: { conversationId: string }[] = [];
-
   const listener: AcpRuntimeListener = {
-    onState: (e) => states.push(e),
+    onSnapshot: (e) => snapshots.push(e),
     onSessionUpdate: (e) => updates.push(e),
     onTurnCommitted: (e) => turns.push(e),
-    onPermissionRequest: (req) => permissionRequests.push(req),
-    onPermissionResolved: (e) => permissionResolved.push(e),
     onClosed: (e) => closed.push(e),
     onAgentEvent: (e) => agentEvents.push(e),
-    onSessionMeta: (e) => sessionMeta.push(e),
     onTerminalCreated: (e) => terminalCreated.push(e),
     onTerminalOutput: (e) => terminalOutput.push(e),
     onTerminalExit: (e) => terminalExit.push(e),
@@ -83,27 +71,21 @@ export function createRecordingListener() {
 
   return {
     listener,
-    states,
+    snapshots,
     updates,
     turns,
-    permissionRequests,
-    permissionResolved,
     closed,
     agentEvents,
-    sessionMeta,
     terminalCreated,
     terminalOutput,
     terminalExit,
     terminalReleased,
     clear() {
-      states.length = 0;
+      snapshots.length = 0;
       updates.length = 0;
       turns.length = 0;
-      permissionRequests.length = 0;
-      permissionResolved.length = 0;
       closed.length = 0;
       agentEvents.length = 0;
-      sessionMeta.length = 0;
       terminalCreated.length = 0;
       terminalOutput.length = 0;
       terminalExit.length = 0;

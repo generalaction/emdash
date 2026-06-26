@@ -1,3 +1,4 @@
+import { LifecycleMap } from '@emdash/shared';
 import { ok, type Result } from '@emdash/shared';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
@@ -5,7 +6,6 @@ import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import type { WorkspaceBootstrapResult } from '@main/core/workspaces/workspace-bootstrap-service';
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
 import { HookCore, type Hookable } from '@main/lib/hookable';
-import { LifecycleMap } from '@main/lib/lifecycle-map';
 import { log } from '@main/lib/logger';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import type { TaskBootstrapStatus } from '@shared/core/tasks/tasks';

@@ -363,32 +363,32 @@ describe('evolve MetaChanged', () => {
 });
 
 // ---------------------------------------------------------------------------
-// evolve — PoolClosed
+// evolve — ProcessClosed
 // ---------------------------------------------------------------------------
 
-describe('evolve PoolClosed', () => {
+describe('evolve ProcessClosed', () => {
   it('transitions to closed with exitCode', () => {
     const s0 = makeReady();
-    const { state } = evolve(s0, { type: 'PoolClosed', exitCode: 1 });
+    const { state } = evolve(s0, { type: 'ProcessClosed', exitCode: 1 });
     expect(phaseToLifecycle(state.phase)).toBe('closed');
     if (state.phase.kind === 'closed') {
       expect(state.phase.exitCode).toBe(1);
     }
   });
 
-  it('commits active turn as error when pool closes while working', () => {
+  it('commits active turn as error when process closes while working', () => {
     const s0 = makeWorking();
-    const { state, effects } = evolve(s0, { type: 'PoolClosed', exitCode: null });
+    const { state, effects } = evolve(s0, { type: 'ProcessClosed', exitCode: null });
     expect(phaseToLifecycle(state.phase)).toBe('closed');
     expect(state.committedTurns).toHaveLength(1);
     expect(state.committedTurns[0].status).toBe('error');
     expect(effects.some((e) => e.type === 'turnCommitted')).toBe(true);
   });
 
-  it('drains permissions when pool closes while working with pending permissions', () => {
+  it('drains permissions when process closes while working with pending permissions', () => {
     let s = makeWorking();
     ({ state: s } = evolve(s, { type: 'PermissionRequested', request: permRequest }));
-    const { state: s2, effects } = evolve(s, { type: 'PoolClosed', exitCode: null });
+    const { state: s2, effects } = evolve(s, { type: 'ProcessClosed', exitCode: null });
     expect(s2.pendingPermissions).toHaveLength(0);
     const resolved = effects.filter((e) => e.type === 'permissionResolved');
     expect(resolved).toHaveLength(1);
@@ -396,7 +396,7 @@ describe('evolve PoolClosed', () => {
 
   it('emits closed effect', () => {
     const s0 = makeReady();
-    const { effects } = evolve(s0, { type: 'PoolClosed', exitCode: 0 });
+    const { effects } = evolve(s0, { type: 'ProcessClosed', exitCode: 0 });
     const closedEffect = effects.find((e) => e.type === 'closed');
     expect(closedEffect).toBeDefined();
     if (closedEffect?.type === 'closed') {

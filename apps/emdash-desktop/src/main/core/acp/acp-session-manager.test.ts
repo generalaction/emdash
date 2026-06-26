@@ -24,14 +24,11 @@ function makeManagerDeps(overrides: Partial<AcpSessionManagerDeps> = {}): AcpSes
   const noopLog = { debug: noop, info: noop, warn: noop, error: noop };
 
   const listener: AcpRuntimeListener = {
-    onState: vi.fn(),
+    onSnapshot: vi.fn(),
     onSessionUpdate: vi.fn(),
     onTurnCommitted: vi.fn(),
-    onPermissionRequest: vi.fn(),
-    onPermissionResolved: vi.fn(),
     onClosed: vi.fn(),
     onAgentEvent: vi.fn(),
-    onSessionMeta: vi.fn(),
     onTerminalCreated: vi.fn(),
     onTerminalOutput: vi.fn(),
     onTerminalExit: vi.fn(),

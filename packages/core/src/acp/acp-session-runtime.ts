@@ -1,10 +1,7 @@
-import { dirname } from 'node:path';
 import type {
   Client,
   CreateTerminalRequest,
   CreateTerminalResponse,
-  InitializeRequest,
-  InitializeResponse,
   KillTerminalRequest,
   KillTerminalResponse,
   LoadSessionRequest,
@@ -27,53 +24,35 @@ import type {
   WriteTextFileResponse,
 } from '@agentclientprotocol/sdk';
 import type { Result } from '@emdash/shared';
-import { ok, toSerializedError } from '@emdash/shared';
+import { isErr, LifecycleMap, ok, toSerializedError } from '@emdash/shared';
 import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
+import { createAcpAgentConnection } from './acp-agent-connection';
+import { AgentTerminalManager } from './agent-terminal-manager';
 import type { AgentUpdate } from './agent-update';
-import { toAgentUpdate } from './agent-update';
 import type { AcpRuntimeError } from './errors';
 import { acpErr } from './errors';
-import { ManagedAgentTerminal } from './managed-agent-terminal';
 import type { AcpPermissionRequest } from './permissions';
 import type { AcpSessionRuntimeDeps, AcpStartInput, IAcpSessionRuntime } from './runtime';
-import type { Command, DomainEvent, Effect, SessionMachineState } from './session-machine';
-import {
-  activeTurnFromPhase,
-  decide,
-  evolve,
-  initialMachineState,
-  phaseToLifecycle,
-} from './session-machine';
+import { SessionMachine } from './session-machine';
+import type { Command, DomainEvent, Effect } from './session-machine';
 import type { TerminalSnapshot } from './terminals';
-import type { AcpProcessHandle, AcpProcessHost } from './transport';
+import type { AcpProcessHandle } from './transport';
+import { readTextFile, writeTextFile } from './transport';
 import type { AcpPromptImage, ChatHistory, SessionState } from './turns';
-
-// ---------------------------------------------------------------------------
-// AcpConversation — per-conversation state held inside a pool
-// ---------------------------------------------------------------------------
+import { toSessionSnapshot } from './turns';
 
 interface AcpConversation {
   conversationId: string;
   projectId: string;
   taskId: string;
   providerId: string;
-  /** ACP-native session id assigned by newSession / loadSession. */
   acpSessionId: string | null;
-  /** Pure state machine — owns lifecycle, turns, permissions, and metadata. */
-  machine: SessionMachineState;
-  /** Active terminals managed by this conversation. */
-  terminals: Map<string, ManagedAgentTerminal>;
+  machine: SessionMachine;
 }
 
-// ---------------------------------------------------------------------------
-// AcpPool — one child process + connection shared by all conversations
-// in a (provider, workspace) pair.  poolKey = `${providerId}:${workspaceId}`.
-// ---------------------------------------------------------------------------
-
-interface AcpPool {
+interface AcpAgentProcess {
   handle: AcpProcessHandle;
-  host: AcpProcessHost;
-  connection: AcpAgentApi;
+  agent: AcpAgentApi;
   /**
    * Converts a raw ACP `SessionUpdate` into an `AgentUpdate`.
    * Composed of the baseline `toAgentUpdate` plus the optional provider `enrich` hook.
@@ -81,49 +60,28 @@ interface AcpPool {
   normalize: (raw: SessionUpdate) => AgentUpdate;
   providerId: string;
   workspaceId: string;
-  path: string;
+  cwd: string;
   /** All conversations currently multiplexed on this connection. */
   conversations: Map<string, AcpConversation>;
   /** Maps ACP sessionId → conversationId for routing incoming events. */
   sessionToConversation: Map<string, string>;
   /** Conversations currently awaiting loadSession so unknown-sessionId notifications can be routed. */
   loadingConversations: Set<string>;
-  /** Promise that resolves once the pool's `initialize` call completes. */
-  initialized: Promise<void> | null;
   /** Whether the agent advertised loadSession support during initialize. */
   supportsLoadSession: boolean;
-  stopped: boolean;
 }
-
-// ---------------------------------------------------------------------------
-// AcpSessionRuntime
-// ---------------------------------------------------------------------------
 
 /**
  * Machine-agnostic ACP session engine.
- *
- * Manages a pool-per-(provider,workspace) within a single machine. All public
- * methods return Result<void, AcpRuntimeError> and never throw. State
- * transitions are handled by the pure `decide`/`evolve` functions in
- * session-machine.ts; the runtime's job is to interpret the resulting effects
- * (listener calls, permission resolver answers, etc.).
  */
 export class AcpSessionRuntime implements IAcpSessionRuntime {
   private readonly deps: Required<AcpSessionRuntimeDeps>;
-
-  /** Pools keyed by `${providerId}:${workspaceId}`. */
-  private pools = new Map<string, AcpPool>();
-
-  /**
-   * Secondary index: conversationId → { poolKey, acpSessionId } for fast
-   * lookup from the public API without scanning pools.
-   */
-  private conversationIndex = new Map<string, { poolKey: string; acpSessionId: string | null }>();
-
-  /**
-   * Non-serializable resolver callbacks for pending permission requests,
-   * keyed by requestId.
-   */
+  private readonly terminals: AgentTerminalManager;
+  private readonly processes = new LifecycleMap<AcpAgentProcess, AcpRuntimeError, void>();
+  private conversationIndex = new Map<
+    string,
+    { processKey: string; acpSessionId: string | null }
+  >();
   private permissionResolvers = new Map<string, (r: RequestPermissionResponse) => void>();
 
   constructor(deps: AcpSessionRuntimeDeps) {
@@ -131,11 +89,8 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     const noopLog = { debug: noop, info: noop, warn: noop, error: noop };
     const log = deps.log ?? noopLog;
     this.deps = { ...deps, log };
+    this.terminals = new AgentTerminalManager(this.deps.host, this.deps.listener);
   }
-
-  // -------------------------------------------------------------------------
-  // Public API — all effectful methods return Result, never throw
-  // -------------------------------------------------------------------------
 
   async start(input: AcpStartInput): Promise<Result<void, AcpRuntimeError>> {
     const { conversationId, providerId, workspaceId, cwd, sessionId, model, initialPrompt } = input;
@@ -154,25 +109,17 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
 
     // Reserve a slot synchronously before the first await so concurrent start()
     // calls cannot both proceed past the has() guard above.
-    const poolKey = `${providerId}:${workspaceId}`;
-    this.conversationIndex.set(conversationId, { poolKey, acpSessionId: null });
+    const processKey = `${providerId}:${workspaceId}`;
+    this.conversationIndex.set(conversationId, { processKey, acpSessionId: null });
 
-    let pool: AcpPool;
-    try {
-      pool = await this.getOrCreatePool(poolKey, providerId, workspaceId, cwd, binding);
-    } catch (e) {
+    const procResult = await this.processes.provision(processKey, () =>
+      this.provisionProcess(processKey, providerId, workspaceId, cwd, binding)
+    );
+    if (isErr(procResult)) {
       this.conversationIndex.delete(conversationId);
-      return acpErr.spawnFailed(toSerializedError(e));
+      return procResult;
     }
-
-    if (pool.initialized) {
-      try {
-        await pool.initialized;
-      } catch (e) {
-        this.conversationIndex.delete(conversationId);
-        return acpErr.initializeFailed(toSerializedError(e));
-      }
-    }
+    const proc = procResult.data;
 
     const conv: AcpConversation = {
       conversationId,
@@ -180,34 +127,33 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       taskId: input.taskId,
       providerId,
       acpSessionId: sessionId,
-      machine: initialMachineState(conversationId),
-      terminals: new Map(),
+      machine: new SessionMachine(conversationId),
     };
 
-    pool.conversations.set(conversationId, conv);
-    this.conversationIndex.set(conversationId, { poolKey, acpSessionId: conv.acpSessionId });
+    proc.conversations.set(conversationId, conv);
+    this.conversationIndex.set(conversationId, { processKey, acpSessionId: conv.acpSessionId });
 
-    // Emit initial 'starting' state
-    this.emitStateEffect(conv);
+    // Emit initial 'starting' snapshot
+    this.emitSnapshot(conv);
 
     try {
       // Assigned in all success paths; TypeScript needs the initializer for control flow
       let acpSessionId = '';
 
-      if (conv.acpSessionId && pool.supportsLoadSession && pool.connection.loadSession) {
+      if (conv.acpSessionId && proc.supportsLoadSession && proc.agent.loadSession) {
         const originalSessionId = conv.acpSessionId;
-        pool.sessionToConversation.set(originalSessionId, conversationId);
-        pool.loadingConversations.add(conversationId);
+        proc.sessionToConversation.set(originalSessionId, conversationId);
+        proc.loadingConversations.add(conversationId);
 
         // Open replay turn
         this.applyEvent(conv, { type: 'ReplayStarted' });
 
         let loadedSuccessfully = false;
         try {
-          const resp = await pool.connection.loadSession!(
+          const resp = await proc.agent.loadSession!(
             this.buildLoadSessionRequest(cwd, originalSessionId)
           );
-          pool.loadingConversations.delete(conversationId);
+          proc.loadingConversations.delete(conversationId);
           // Seed metadata from loadSession response
           if (resp.modes !== undefined || resp.configOptions !== undefined) {
             this.applyEvent(conv, {
@@ -219,11 +165,11 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
           this.applyEvent(conv, { type: 'ReplayEnded', status: 'complete' });
           acpSessionId = conv.acpSessionId!;
           if (acpSessionId !== originalSessionId) {
-            pool.sessionToConversation.delete(originalSessionId);
+            proc.sessionToConversation.delete(originalSessionId);
           }
           loadedSuccessfully = true;
         } catch {
-          pool.loadingConversations.delete(conversationId);
+          proc.loadingConversations.delete(conversationId);
         }
 
         if (!loadedSuccessfully) {
@@ -234,13 +180,13 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
           // with a fresh newSession, so the empty replay turn is not an error from the
           // user's perspective.
           this.applyEvent(conv, { type: 'ReplayEnded', status: 'complete' });
-          pool.sessionToConversation.delete(originalSessionId);
+          proc.sessionToConversation.delete(originalSessionId);
           if (conv.acpSessionId !== originalSessionId) {
-            pool.sessionToConversation.delete(conv.acpSessionId!);
+            proc.sessionToConversation.delete(conv.acpSessionId!);
           }
 
           try {
-            const newResp = await pool.connection.newSession(this.buildNewSessionRequest(cwd));
+            const newResp = await proc.agent.newSession(this.buildNewSessionRequest(cwd));
             acpSessionId = newResp.sessionId;
             this.applyEvent(conv, {
               type: 'SessionReady',
@@ -248,14 +194,14 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
               configOptions: newResp.configOptions,
             });
           } catch (e) {
-            this.cleanupFailedConversation(pool, conv);
+            this.cleanupFailedConversation(processKey, proc, conv);
             return acpErr.newSessionFailed(toSerializedError(e));
           }
         }
       } else {
         // No existing session id, or loadSession not supported — start fresh
         try {
-          const newResp = await pool.connection.newSession(this.buildNewSessionRequest(cwd));
+          const newResp = await proc.agent.newSession(this.buildNewSessionRequest(cwd));
           acpSessionId = newResp.sessionId;
           this.applyEvent(conv, {
             type: 'SessionReady',
@@ -263,14 +209,14 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
             configOptions: newResp.configOptions,
           });
         } catch (e) {
-          this.cleanupFailedConversation(pool, conv);
+          this.cleanupFailedConversation(processKey, proc, conv);
           return acpErr.newSessionFailed(toSerializedError(e));
         }
       }
 
       conv.acpSessionId = acpSessionId;
-      pool.sessionToConversation.set(acpSessionId, conversationId);
-      this.conversationIndex.set(conversationId, { poolKey, acpSessionId });
+      proc.sessionToConversation.set(acpSessionId, conversationId);
+      this.conversationIndex.set(conversationId, { processKey, acpSessionId });
 
       void this.deps
         .persistSessionId(conversationId, acpSessionId)
@@ -285,12 +231,12 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         .catch(() => {});
 
       // Apply pending model from persisted config as a setSessionConfigOption call
-      if (model && pool.connection.setSessionConfigOption) {
-        await this.applyConfigOptionInternal(pool.connection, acpSessionId, 'model', model, conv);
+      if (model && proc.agent.setSessionConfigOption) {
+        await this.applyConfigOptionInternal(proc.agent, acpSessionId, 'model', model, conv);
       }
 
       if (initialPrompt?.trim()) {
-        const promptResult = await this.sendPromptInternal(pool, conv, initialPrompt);
+        const promptResult = await this.sendPromptInternal(proc, conv, initialPrompt);
         if (!promptResult.success) {
           this.deps.log.warn('AcpSessionRuntime: initial prompt failed', {
             conversationId,
@@ -305,7 +251,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         conversationId,
         error: err instanceof Error ? err.message : String(err),
       });
-      this.cleanupFailedConversation(pool, conv);
+      this.cleanupFailedConversation(processKey, proc, conv);
       return acpErr.initializeFailed(toSerializedError(err));
     }
   }
@@ -319,17 +265,17 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     if (!conv) return acpErr.conversationNotFound(conversationId);
     const entry = this.conversationIndex.get(conversationId);
     if (!entry?.acpSessionId) return acpErr.noActiveSession(conversationId);
-    const pool = this.pools.get(entry.poolKey);
-    if (!pool) return acpErr.noActiveSession(conversationId);
-    return this.sendPromptInternal(pool, conv, text, images);
+    const proc = this.processes.get(entry.processKey);
+    if (!proc) return acpErr.noActiveSession(conversationId);
+    return this.sendPromptInternal(proc, conv, text, images);
   }
 
   async cancel(conversationId: string): Promise<Result<void, AcpRuntimeError>> {
     const entry = this.conversationIndex.get(conversationId);
     if (!entry?.acpSessionId) return ok();
-    const pool = this.pools.get(entry.poolKey);
-    if (!pool) return ok();
-    const conv = pool.conversations.get(conversationId);
+    const proc = this.processes.get(entry.processKey);
+    if (!proc) return ok();
+    const conv = proc.conversations.get(conversationId);
     if (!conv) return ok();
 
     // Dispatch Cancel command — drains permissions, flips to cancelling
@@ -337,7 +283,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     if (!dispatchResult.success) return dispatchResult;
 
     try {
-      await pool.connection.cancel({ sessionId: entry.acpSessionId! });
+      await proc.agent.cancel({ sessionId: entry.acpSessionId! });
     } catch (e) {
       const err = acpErr.cancelFailed(toSerializedError(e));
       this.deps.log.warn('AcpSessionRuntime: cancel failed', {
@@ -390,24 +336,24 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   stop(conversationId: string): Result<void, AcpRuntimeError> {
     const entry = this.conversationIndex.get(conversationId);
     if (!entry) return ok();
-    const pool = this.pools.get(entry.poolKey);
-    if (!pool) {
+    const proc = this.processes.get(entry.processKey);
+    if (!proc) {
       this.conversationIndex.delete(conversationId);
       return ok();
     }
-    const conv = pool.conversations.get(conversationId);
+    const conv = proc.conversations.get(conversationId);
 
-    if (conv?.acpSessionId && pool.connection.closeSession) {
-      void pool.connection.closeSession({ sessionId: conv.acpSessionId }).catch(() => {});
-      pool.sessionToConversation.delete(conv.acpSessionId);
+    if (conv?.acpSessionId && proc.agent.closeSession) {
+      void proc.agent.closeSession({ sessionId: conv.acpSessionId }).catch(() => {});
+      proc.sessionToConversation.delete(conv.acpSessionId);
     }
 
-    pool.conversations.delete(conversationId);
+    proc.conversations.delete(conversationId);
     this.conversationIndex.delete(conversationId);
 
     if (conv) {
       this.drainPermissionResolvers(conv);
-      this.disposeTerminals(conv);
+      this.terminals.disposeConversation(conv.conversationId);
     }
 
     if (conv) {
@@ -418,20 +364,20 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       });
     }
 
-    if (pool.conversations.size === 0) {
-      this.destroyPool(pool);
+    if (proc.conversations.size === 0) {
+      this.teardownProcess(entry.processKey, proc);
     }
     return ok();
   }
 
   async setModel(conversationId: string, model: string): Promise<Result<void, AcpRuntimeError>> {
     const entry = this.conversationIndex.get(conversationId);
-    const pool = entry ? this.pools.get(entry.poolKey) : undefined;
-    const conv = pool ? pool.conversations.get(conversationId) : undefined;
+    const proc = entry ? this.processes.get(entry.processKey) : undefined;
+    const conv = proc ? proc.conversations.get(conversationId) : undefined;
 
-    if (pool && conv && entry?.acpSessionId && pool.connection.setSessionConfigOption) {
+    if (proc && conv && entry?.acpSessionId && proc.agent.setSessionConfigOption) {
       const result = await this.applyConfigOptionInternal(
-        pool.connection,
+        proc.agent,
         entry.acpSessionId,
         'model',
         model,
@@ -453,18 +399,18 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
 
   async setMode(conversationId: string, modeId: string): Promise<Result<void, AcpRuntimeError>> {
     const entry = this.conversationIndex.get(conversationId);
-    const pool = entry ? this.pools.get(entry.poolKey) : undefined;
-    const conv = pool ? pool.conversations.get(conversationId) : undefined;
+    const proc = entry ? this.processes.get(entry.processKey) : undefined;
+    const conv = proc ? proc.conversations.get(conversationId) : undefined;
 
     if (!conv) return acpErr.conversationNotFound(conversationId);
     if (!entry?.acpSessionId) return acpErr.noActiveSession(conversationId);
-    if (!pool) return acpErr.noActiveSession(conversationId);
+    if (!proc) return acpErr.noActiveSession(conversationId);
 
     // Validate the mode exists
     const decideResult = this.dispatch(conv, { type: 'SetMode', modeId });
     if (!decideResult.success) return decideResult;
 
-    if (!pool.connection.setSessionMode) {
+    if (!proc.agent.setSessionMode) {
       return acpErr.setModeFailed({
         name: 'Error',
         message: 'Agent connection does not support setSessionMode',
@@ -476,13 +422,10 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       modeId,
     };
     try {
-      await pool.connection.setSessionMode(req);
+      await proc.agent.setSessionMode(req);
     } catch (e) {
       return acpErr.setModeFailed(toSerializedError(e));
     }
-
-    // The mode change will come through as a current_mode_update notification.
-    // No need to update machine state here — the notification is authoritative.
     return ok();
   }
 
@@ -493,11 +436,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   getChatHistory(conversationId: string): ChatHistory {
     const conv = this.resolveConv(conversationId);
     if (!conv) return { turns: [], complete: true };
-    const { machine } = conv;
-    return {
-      turns: machine.committedTurns.map((t) => structuredClone(t)),
-      complete: machine.phase.kind !== 'starting' && machine.phase.kind !== 'replaying',
-    };
+    return conv.machine.chatHistory();
   }
 
   getSessionState(conversationId: string): SessionState {
@@ -513,23 +452,19 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         lastStopReason: null,
       };
     }
-    const { machine } = conv;
-    const activeTurn = activeTurnFromPhase(machine.phase);
-    return {
-      lifecycle: phaseToLifecycle(machine.phase),
-      activeTurn: activeTurn ? structuredClone(activeTurn) : null,
-      pendingPermissions: structuredClone([...machine.pendingPermissions]),
-      modes: machine.modes ? structuredClone(machine.modes) : null,
-      configOptions: structuredClone([...machine.configOptions]),
-      availableCommands: structuredClone([...machine.availableCommands]),
-      lastStopReason: machine.lastStopReason,
-    };
+    return conv.machine.sessionState();
   }
 
   getTerminals(conversationId: string): TerminalSnapshot[] {
-    const conv = this.resolveConv(conversationId);
-    if (!conv) return [];
-    return Array.from(conv.terminals.values()).map((t) => t.snapshot());
+    return this.terminals.listByConversation(conversationId);
+  }
+
+  getHostTerminals(): TerminalSnapshot[] {
+    return this.terminals.listAll();
+  }
+
+  killAllTerminals(): void {
+    this.terminals.killAll();
   }
 
   // -------------------------------------------------------------------------
@@ -537,41 +472,58 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   // -------------------------------------------------------------------------
 
   /**
-   * Validate a command and, if valid, apply the resulting events to `conv`.
-   * Returns the decision result (success = all events applied, error = rejected).
+   * Validate a command, apply the resulting events, and interpret all effects.
+   * Returns an Err if the command is rejected; no state change occurs on rejection.
+   * Emits one consolidated snapshot if any snapshot-triggering effects appeared.
    */
   private dispatch(conv: AcpConversation, command: Command): Result<void, AcpRuntimeError> {
-    const decision = decide(conv.machine, command);
-    if (!decision.success) return decision;
-    for (const event of decision.data) {
-      this.applyEventToMachine(conv, event);
-    }
+    const result = conv.machine.dispatch(command);
+    if (!result.success) return result;
+    this._interpretEffects(conv, result.data);
     return ok();
   }
 
   /**
    * Feed a DomainEvent into the machine and interpret all resulting effects.
    * Always succeeds — facts are unconditionally folded.
+   * Emits one consolidated snapshot if any snapshot-triggering effects appeared.
    */
   private applyEvent(conv: AcpConversation, event: DomainEvent): void {
-    this.applyEventToMachine(conv, event);
+    const effects = conv.machine.apply(event);
+    this._interpretEffects(conv, effects);
   }
 
-  private applyEventToMachine(conv: AcpConversation, event: DomainEvent): void {
-    const { state, effects } = evolve(conv.machine, event);
-    conv.machine = state;
+  private _interpretEffects(conv: AcpConversation, effects: Effect[]): void {
+    let needsSnapshot = false;
     for (const effect of effects) {
-      this.interpretEffect(conv, effect);
+      switch (effect.type) {
+        case 'state':
+        case 'meta':
+        case 'permissionRequest':
+          needsSnapshot = true;
+          break;
+        case 'permissionResolved':
+          needsSnapshot = true;
+          if (effect.cancelled) {
+            const resolver = this.permissionResolvers.get(effect.requestId);
+            if (resolver) {
+              this.permissionResolvers.delete(effect.requestId);
+              resolver({ outcome: { outcome: 'cancelled' } });
+            }
+          }
+          break;
+        default:
+          this.interpretEffect(conv, effect);
+      }
+    }
+    if (needsSnapshot) {
+      this.emitSnapshot(conv);
     }
   }
 
   private interpretEffect(conv: AcpConversation, effect: Effect): void {
     try {
       switch (effect.type) {
-        case 'state':
-          this.emitStateEffect(conv);
-          break;
-
         case 'update':
           this.deps.listener.onSessionUpdate({
             conversationId: conv.conversationId,
@@ -586,30 +538,6 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
             conversationId: conv.conversationId,
             turn: structuredClone(effect.turn),
           });
-          break;
-
-        case 'permissionRequest':
-          this.deps.listener.onPermissionRequest(effect.request);
-          break;
-
-        case 'permissionResolved': {
-          if (effect.cancelled) {
-            // Drain the resolver when cancelled by the machine (cancel/poolClose)
-            const resolver = this.permissionResolvers.get(effect.requestId);
-            if (resolver) {
-              this.permissionResolvers.delete(effect.requestId);
-              resolver({ outcome: { outcome: 'cancelled' } });
-            }
-          }
-          this.deps.listener.onPermissionResolved({
-            conversationId: conv.conversationId,
-            requestId: effect.requestId,
-          });
-          break;
-        }
-
-        case 'meta':
-          this.deps.listener.onSessionMeta({ conversationId: conv.conversationId });
           break;
 
         case 'closed':
@@ -645,174 +573,112 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     }
   }
 
-  private emitStateEffect(conv: AcpConversation): void {
-    const activeTurn = activeTurnFromPhase(conv.machine.phase);
-    this.deps.listener.onState({
+  private emitSnapshot(conv: AcpConversation): void {
+    const snapshot = toSessionSnapshot(conv.machine.sessionState());
+    this.deps.listener.onSnapshot({
       conversationId: conv.conversationId,
-      lifecycle: phaseToLifecycle(conv.machine.phase),
-      activeTurnId: activeTurn?.id ?? null,
+      snapshot,
     });
   }
 
   // -------------------------------------------------------------------------
-  // Pool management
+  // Process management
   // -------------------------------------------------------------------------
 
-  private async getOrCreatePool(
-    poolKey: string,
+  /**
+   * Provisions a fully-initialized `AcpAgentProcess`. Called by `LifecycleMap.provision`
+   * with deduplication, so concurrent `start()` calls on the same key wait for the
+   * same promise instead of spawning duplicate processes.
+   */
+  private async provisionProcess(
+    processKey: string,
     providerId: string,
     workspaceId: string,
-    path: string,
+    cwd: string,
     binding: { behavior: IAcpBehavior }
-  ): Promise<AcpPool> {
-    const existing = this.pools.get(poolKey);
-    if (existing) return existing;
+  ): Promise<Result<AcpAgentProcess, AcpRuntimeError>> {
+    const connResult = await createAcpAgentConnection(
+      { host: this.deps.host, behavior: binding.behavior, logger: this.deps.log },
+      {
+        providerId,
+        cwd,
+        buildClient: () => this.buildClientHandler(processKey),
+        onClosed: () => this.onProcessClosed(processKey),
+      }
+    );
 
-    const host = this.deps.host;
-    const { cli, agentEnv } = await host.resolveSpawnContext(providerId);
+    if (isErr(connResult)) return connResult;
 
-    const { command, args, env } = binding.behavior.buildSpawn({
-      cwd: path,
-      env: agentEnv,
-      cli,
-    });
+    const conn = connResult.data;
 
-    const handle = await host.spawn({
-      command,
-      args,
-      env: { ...agentEnv, ...env },
-      cwd: path,
-    });
+    const capsResult = await conn.initialized;
+    if (isErr(capsResult)) return capsResult;
 
-    if (handle.stderr) {
-      handle.stderr.on('data', (data: Buffer) => {
-        this.deps.log.debug('AcpSessionRuntime: agent stderr', {
-          poolKey,
-          text: data.toString().trim(),
-        });
-      });
-    }
-
-    const pool: AcpPool = {
-      handle,
-      host,
-      connection: null as unknown as AcpAgentApi,
-      normalize: binding.behavior.enrich
-        ? (raw) => binding.behavior.enrich!(toAgentUpdate(raw), raw)
-        : (raw) => toAgentUpdate(raw),
+    const proc: AcpAgentProcess = {
+      handle: conn.handle,
+      agent: conn.agent,
+      normalize: conn.normalize,
       providerId,
       workspaceId,
-      path,
+      cwd,
       conversations: new Map(),
       sessionToConversation: new Map(),
       loadingConversations: new Set(),
-      initialized: null,
-      supportsLoadSession: false,
-      stopped: false,
+      supportsLoadSession: capsResult.data.supportsLoadSession,
     };
 
-    pool.connection = binding.behavior.connect(
-      { stdin: handle.stdin, stdout: handle.stdout },
-      (_agent) => this.buildClientHandler(pool)
-    );
-
-    this.pools.set(poolKey, pool);
-
-    handle.onExit(() => {
-      this.handlePoolClosed(pool);
-    });
-
-    handle.onError((err) => {
-      this.deps.log.error('AcpSessionRuntime: agent process error', {
-        poolKey,
-        error: err.message,
-      });
-      this.handlePoolClosed(pool);
-    });
-
-    const initReq: InitializeRequest = {
-      protocolVersion: 1,
-      clientInfo: { name: 'emdash', version: '1' },
-      clientCapabilities: {
-        fs: { readTextFile: true, writeTextFile: true },
-        terminal: typeof pool.host.spawnTerminal === 'function',
-      },
-    };
-
-    pool.initialized = pool.connection
-      .initialize(initReq)
-      .then((resp: InitializeResponse) => {
-        pool.supportsLoadSession = resp.agentCapabilities?.loadSession === true;
-        this.deps.log.debug('AcpSessionRuntime: pool initialized', {
-          poolKey,
-          supportsLoadSession: pool.supportsLoadSession,
-        });
-      })
-      .catch((err) => {
-        this.deps.log.error('AcpSessionRuntime: pool initialize failed', {
-          poolKey,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        this.handlePoolClosed(pool);
-        throw err;
-      });
-
-    return pool;
+    return ok(proc);
   }
 
-  private destroyPool(pool: AcpPool): void {
-    if (pool.stopped) return;
-    pool.stopped = true;
-    this.pools.delete(`${pool.providerId}:${pool.workspaceId}`);
+  private teardownProcess(processKey: string, proc: AcpAgentProcess): void {
     try {
-      pool.handle.kill('SIGTERM');
+      proc.handle.kill('SIGTERM');
     } catch {
       // ignore
     }
+    this.processes.teardown(processKey, async () => ok());
   }
 
-  private handlePoolClosed(pool: AcpPool): void {
-    if (pool.stopped) {
-      for (const conv of pool.conversations.values()) {
-        this.conversationIndex.delete(conv.conversationId);
-      }
-      return;
-    }
-    pool.stopped = true;
-    this.pools.delete(`${pool.providerId}:${pool.workspaceId}`);
+  private onProcessClosed(processKey: string): void {
+    const proc = this.processes.get(processKey);
+    if (!proc) return;
 
-    const exitCode = pool.handle.exitCode;
+    const exitCode = proc.handle.exitCode;
 
-    for (const conv of pool.conversations.values()) {
+    for (const conv of proc.conversations.values()) {
       this.conversationIndex.delete(conv.conversationId);
-      this.applyEvent(conv, { type: 'PoolClosed', exitCode });
-      this.disposeTerminals(conv);
+      this.applyEvent(conv, { type: 'ProcessClosed', exitCode });
+      this.terminals.disposeConversation(conv.conversationId);
     }
 
-    this.deps.log.debug('AcpSessionRuntime: pool closed', {
-      poolKey: `${pool.providerId}:${pool.workspaceId}`,
+    this.deps.log.debug('AcpSessionRuntime: process closed', {
+      processKey,
       exitCode,
-      conversationCount: pool.conversations.size,
+      conversationCount: proc.conversations.size,
     });
 
-    pool.conversations.clear();
-    pool.sessionToConversation.clear();
+    proc.conversations.clear();
+    proc.sessionToConversation.clear();
+
+    this.processes.teardown(processKey, async () => ok());
   }
 
   // -------------------------------------------------------------------------
-  // Client handler (built once per pool, routes by sessionId)
+  // Client handler (built once per process, routes by sessionId)
   // -------------------------------------------------------------------------
 
-  private buildClientHandler(pool: AcpPool): Client {
+  private buildClientHandler(processKey: string): Client {
     return {
       sessionUpdate: async (params: SessionNotification): Promise<void> => {
-        let conversationId = pool.sessionToConversation.get(params.sessionId);
-        if (!conversationId && pool.loadingConversations.size > 0) {
-          const pendingId = pool.loadingConversations.values().next().value;
+        const proc = this.processes.get(processKey);
+        if (!proc) return;
+        let conversationId = proc.sessionToConversation.get(params.sessionId);
+        if (!conversationId && proc.loadingConversations.size > 0) {
+          const pendingId = proc.loadingConversations.values().next().value;
           if (pendingId) {
             conversationId = pendingId;
-            pool.sessionToConversation.set(params.sessionId, pendingId);
-            const conv = pool.conversations.get(pendingId);
+            proc.sessionToConversation.set(params.sessionId, pendingId);
+            const conv = proc.conversations.get(pendingId);
             if (conv) conv.acpSessionId = params.sessionId;
           }
         }
@@ -822,7 +688,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
           });
           return;
         }
-        const conv = pool.conversations.get(conversationId);
+        const conv = proc.conversations.get(conversationId);
         if (!conv) return;
 
         const rawUpdate = params.update;
@@ -862,15 +728,16 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         }
 
         // Route as a turn update — machine will warn if no active turn
-        const update = pool.normalize(rawUpdate);
+        const update = proc.normalize(rawUpdate);
         this.applyEvent(conv, { type: 'Updated', update });
       },
 
       requestPermission: (params: RequestPermissionRequest): Promise<RequestPermissionResponse> => {
-        const conversationId = pool.sessionToConversation.get(params.sessionId);
-        const conv = conversationId ? pool.conversations.get(conversationId) : undefined;
+        const proc = this.processes.get(processKey);
+        const conversationId = proc?.sessionToConversation.get(params.sessionId);
+        const conv = conversationId ? proc?.conversations.get(conversationId) : undefined;
 
-        if (!conv || !conversationId) {
+        if (!proc || !conv || !conversationId) {
           this.deps.log.warn('AcpSessionRuntime: requestPermission for unknown session', {
             sessionId: params.sessionId,
           });
@@ -905,79 +772,34 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       },
 
       readTextFile: async (params: ReadTextFileRequest): Promise<ReadTextFileResponse> => {
-        try {
-          const content = await pool.host.fs.readFile(params.path, 'utf8');
-          return { content };
-        } catch (err) {
-          throw new Error(
-            `readTextFile failed for ${params.path}: ${err instanceof Error ? err.message : String(err)}`
-          );
-        }
+        const content = await readTextFile(this.deps.host.fs, params.path);
+        return { content };
       },
 
       writeTextFile: async (params: WriteTextFileRequest): Promise<WriteTextFileResponse> => {
-        await pool.host.fs.mkdir(dirname(params.path), { recursive: true });
-        await pool.host.fs.writeFile(params.path, params.content, 'utf8');
+        await writeTextFile(this.deps.host.fs, params.path, params.content);
         return {};
       },
 
       createTerminal: async (params: CreateTerminalRequest): Promise<CreateTerminalResponse> => {
-        if (!pool.host.spawnTerminal) {
-          throw new Error(
-            'AcpSessionRuntime: host does not support terminal spawning (spawnTerminal is undefined)'
-          );
-        }
-        const conv = this.convForSession(pool, params.sessionId);
-        const terminalId = crypto.randomUUID();
+        const proc = this.processes.get(processKey);
+        if (!proc) throw new Error('AcpSessionRuntime: process not found for createTerminal');
+        const conv = this.convForSession(proc, params.sessionId);
         const envRecord = params.env
           ? Object.fromEntries(params.env.map((e) => [e.name, e.value]))
           : {};
-        const resolvedCwd = params.cwd ?? pool.path;
-        const proc = await pool.host.spawnTerminal({
+        const terminalId = await this.terminals.create(conv.conversationId, {
           command: params.command,
           args: params.args ?? [],
           env: envRecord,
-          cwd: resolvedCwd,
-        });
-
-        const terminal = new ManagedAgentTerminal(
-          terminalId,
-          params.command,
-          params.args ?? [],
-          resolvedCwd,
-          proc,
-          (chunk, truncated) => {
-            this.deps.listener.onTerminalOutput({
-              conversationId: conv.conversationId,
-              terminalId,
-              chunk,
-              truncated,
-            });
-          },
-          (exitStatus) => {
-            this.deps.listener.onTerminalExit({
-              conversationId: conv.conversationId,
-              terminalId,
-              exitStatus,
-            });
-          },
-          params.outputByteLimit
-        );
-
-        conv.terminals.set(terminalId, terminal);
-        this.deps.listener.onTerminalCreated({
-          conversationId: conv.conversationId,
-          terminalId,
-          command: params.command,
-          args: params.args ?? [],
-          cwd: resolvedCwd,
+          cwd: params.cwd ?? proc.cwd,
+          outputByteLimit: params.outputByteLimit,
         });
         return { terminalId };
       },
 
       terminalOutput: async (params: TerminalOutputRequest): Promise<TerminalOutputResponse> => {
-        const conv = this.convForSession(pool, params.sessionId);
-        const terminal = conv.terminals.get(params.terminalId);
+        const terminal = this.terminals.get(params.terminalId);
         if (!terminal) {
           throw new Error(`AcpSessionRuntime: terminal not found: ${params.terminalId}`);
         }
@@ -992,8 +814,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       waitForTerminalExit: async (
         params: WaitForTerminalExitRequest
       ): Promise<WaitForTerminalExitResponse> => {
-        const conv = this.convForSession(pool, params.sessionId);
-        const terminal = conv.terminals.get(params.terminalId);
+        const terminal = this.terminals.get(params.terminalId);
         if (!terminal) {
           throw new Error(`AcpSessionRuntime: terminal not found: ${params.terminalId}`);
         }
@@ -1002,8 +823,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       },
 
       killTerminal: async (params: KillTerminalRequest): Promise<KillTerminalResponse> => {
-        const conv = this.convForSession(pool, params.sessionId);
-        const terminal = conv.terminals.get(params.terminalId);
+        const terminal = this.terminals.get(params.terminalId);
         if (!terminal) {
           throw new Error(`AcpSessionRuntime: terminal not found: ${params.terminalId}`);
         }
@@ -1012,17 +832,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       },
 
       releaseTerminal: async (params: ReleaseTerminalRequest): Promise<ReleaseTerminalResponse> => {
-        const conv = this.convForSession(pool, params.sessionId);
-        const terminal = conv.terminals.get(params.terminalId);
-        if (!terminal) {
-          throw new Error(`AcpSessionRuntime: terminal not found: ${params.terminalId}`);
-        }
-        terminal.dispose();
-        conv.terminals.delete(params.terminalId);
-        this.deps.listener.onTerminalReleased({
-          conversationId: conv.conversationId,
-          terminalId: params.terminalId,
-        });
+        this.terminals.release(params.terminalId);
         return {};
       },
     };
@@ -1033,14 +843,14 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   // -------------------------------------------------------------------------
 
   /** Resolve a conversation by ACP sessionId, throwing if not found. */
-  private convForSession(pool: AcpPool, sessionId: string): AcpConversation {
-    const conversationId = pool.sessionToConversation.get(sessionId);
+  private convForSession(proc: AcpAgentProcess, sessionId: string): AcpConversation {
+    const conversationId = proc.sessionToConversation.get(sessionId);
     if (!conversationId) {
       throw new Error(`AcpSessionRuntime: no conversation for ACP sessionId ${sessionId}`);
     }
-    const conv = pool.conversations.get(conversationId);
+    const conv = proc.conversations.get(conversationId);
     if (!conv) {
-      throw new Error(`AcpSessionRuntime: conversation ${conversationId} not found in pool`);
+      throw new Error(`AcpSessionRuntime: conversation ${conversationId} not found in process`);
     }
     return conv;
   }
@@ -1048,12 +858,12 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   private resolveConv(conversationId: string): AcpConversation | null {
     const entry = this.conversationIndex.get(conversationId);
     if (!entry) return null;
-    const pool = this.pools.get(entry.poolKey);
-    return pool?.conversations.get(conversationId) ?? null;
+    const proc = this.processes.get(entry.processKey);
+    return proc?.conversations.get(conversationId) ?? null;
   }
 
   private async sendPromptInternal(
-    pool: AcpPool,
+    proc: AcpAgentProcess,
     conv: AcpConversation,
     text: string,
     images?: AcpPromptImage[]
@@ -1064,7 +874,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     const userUpdate: AgentUpdate = {
       kind: 'message',
       role: 'user',
-      messageId: `${conv.conversationId}-${conv.machine.nextTurnIndex}-user`,
+      messageId: `${conv.conversationId}-${conv.machine.nextTurnIndex}-user`, // stable per-turn id
       text,
     };
 
@@ -1072,7 +882,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     if (!dispatchResult.success) return dispatchResult;
 
     try {
-      const res = await pool.connection.prompt({
+      const res = await proc.agent.prompt({
         sessionId: conv.acpSessionId!,
         prompt: [
           ...(images ?? []).map((img) => ({
@@ -1100,16 +910,16 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   }
 
   private async applyConfigOptionInternal(
-    connection: AcpAgentApi,
+    agent: AcpAgentApi,
     acpSessionId: string,
     configId: string,
     value: string,
     conv: AcpConversation
   ): Promise<Result<void, AcpRuntimeError>> {
-    if (!connection.setSessionConfigOption) return ok();
+    if (!agent.setSessionConfigOption) return ok();
     const req: SetSessionConfigOptionRequest = { sessionId: acpSessionId, configId, value };
     try {
-      const resp = await connection.setSessionConfigOption(req);
+      const resp = await agent.setSessionConfigOption(req);
       this.applyEvent(conv, {
         type: 'MetaChanged',
         configOptions: resp.configOptions,
@@ -1134,16 +944,20 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     return { sessionId, cwd, mcpServers: [] };
   }
 
-  private cleanupFailedConversation(pool: AcpPool, conv: AcpConversation): void {
-    for (const [sid, cId] of pool.sessionToConversation) {
+  private cleanupFailedConversation(
+    processKey: string,
+    proc: AcpAgentProcess,
+    conv: AcpConversation
+  ): void {
+    for (const [sid, cId] of proc.sessionToConversation) {
       if (cId === conv.conversationId) {
-        pool.sessionToConversation.delete(sid);
+        proc.sessionToConversation.delete(sid);
       }
     }
-    pool.conversations.delete(conv.conversationId);
+    proc.conversations.delete(conv.conversationId);
     this.conversationIndex.delete(conv.conversationId);
-    if (pool.conversations.size === 0) {
-      this.destroyPool(pool);
+    if (proc.conversations.size === 0) {
+      this.teardownProcess(processKey, proc);
     }
   }
 
@@ -1154,21 +968,6 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         this.permissionResolvers.delete(pending.requestId);
         resolver({ outcome: { outcome: 'cancelled' } });
       }
-      this.deps.listener.onPermissionResolved({
-        conversationId: conv.conversationId,
-        requestId: pending.requestId,
-      });
     }
-  }
-
-  private disposeTerminals(conv: AcpConversation): void {
-    for (const terminal of conv.terminals.values()) {
-      terminal.dispose();
-      this.deps.listener.onTerminalReleased({
-        conversationId: conv.conversationId,
-        terminalId: terminal.terminalId,
-      });
-    }
-    conv.terminals.clear();
   }
 }

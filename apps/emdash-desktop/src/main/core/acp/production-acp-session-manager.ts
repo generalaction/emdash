@@ -7,10 +7,7 @@ import { updateConversationModel } from '@main/core/conversations/updateConversa
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import {
-  acpPermissionRequestChannel,
-  acpPermissionResolvedChannel,
   acpSessionClosedChannel,
-  acpSessionMetaChannel,
   acpSessionStateChannel,
   acpSessionUpdateChannel,
   acpTerminalCreatedChannel,
@@ -24,20 +21,14 @@ import { AcpSessionManager } from './acp-session-manager';
 import { acpProcessHostManager } from './transport/acp-process-host-manager';
 
 const listener: AcpRuntimeListener = {
-  onState: ({ conversationId, lifecycle, activeTurnId }) => {
-    events.emit(acpSessionStateChannel, { conversationId, lifecycle, activeTurnId });
+  onSnapshot: ({ conversationId, snapshot }) => {
+    events.emit(acpSessionStateChannel, { conversationId, snapshot });
   },
   onSessionUpdate: ({ conversationId, turnId, update, seq }) => {
     events.emit(acpSessionUpdateChannel, { conversationId, turnId, update, seq });
   },
   onTurnCommitted: ({ conversationId, turn }) => {
     events.emit(acpTurnCommittedChannel, { conversationId, turn });
-  },
-  onPermissionRequest: (request) => {
-    events.emit(acpPermissionRequestChannel, request);
-  },
-  onPermissionResolved: ({ conversationId, requestId }) => {
-    events.emit(acpPermissionResolvedChannel, { conversationId, requestId });
   },
   onClosed: ({ conversationId, taskId, exitCode }) => {
     events.emit(acpSessionClosedChannel, { conversationId, exitCode });
@@ -55,9 +46,6 @@ const listener: AcpRuntimeListener = {
       payload: {},
     };
     agentHookService.emitAgentEvent(event, isAppFocused());
-  },
-  onSessionMeta: ({ conversationId }) => {
-    events.emit(acpSessionMetaChannel, { conversationId });
   },
   onTerminalCreated: (e) => {
     events.emit(acpTerminalCreatedChannel, e);
