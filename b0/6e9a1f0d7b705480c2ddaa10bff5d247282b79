@@ -1,0 +1,24 @@
+apps/emdash-desktop/src/main/core/fs/controller.ts
+  s_c35847f4944758::t_1c6036a6ae10d6 107-112,125
+apps/emdash-desktop/src/renderer/features/tasks/editor/editor-file-tree.tsx
+  s_c35847f4944758::t_433f634e7f88fa 2-10,257-265,268-289,422-424
+  s_c35847f4944758::t_f2f50c42463f4d 41,421
+  s_c35847f4944758::t_ac40a7b6486c51 266-267
+  s_c35847f4944758::t_d1ff62147137af 425
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.1",
+  "base_commit_sha": "b06e9a1f0d7b705480c2ddaa10bff5d247282b79",
+  "prompts": {},
+  "sessions": {
+    "s_c35847f4944758": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0259-8deb-75f2-91a1-faced4d3275b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
