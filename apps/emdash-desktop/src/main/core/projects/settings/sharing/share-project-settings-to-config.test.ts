@@ -1,3 +1,5 @@
+import type { IFileSystem } from '@emdash/core/files';
+import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ShareableProjectSettings } from '@shared/core/project-settings/project-settings';
 import { computeProjectSettingsOverrideState } from './project-settings-override-state';
@@ -36,6 +38,83 @@ vi.mock('@main/lib/logger', () => ({
   },
 }));
 
+const repoPath = '/repo';
+const configPath = `${repoPath}/.emdash.json`;
+
+function createMemoryFileSystem(initialFiles: Record<string, string> = {}) {
+  const files = new Map(
+    Object.entries(initialFiles).map(([filePath, content]) => [
+      filePath.startsWith('/') ? filePath : `${repoPath}/${filePath}`,
+      content,
+    ])
+  );
+  const fileSystem = {
+    exists: vi.fn(async (filePath: string) => ok(files.has(filePath))),
+    readText: vi.fn(async (filePath: string) => {
+      const content = files.get(filePath);
+      if (content === undefined) {
+        return err({
+          type: 'fs-error' as const,
+          path: filePath,
+          message: `Missing file: ${filePath}`,
+          code: 'ENOENT',
+        });
+      }
+      return ok({ content, truncated: false, totalSize: Buffer.byteLength(content) });
+    }),
+    writeText: vi.fn(async (filePath: string, content: string) => {
+      files.set(filePath, content);
+      return ok({ bytesWritten: Buffer.byteLength(content) });
+    }),
+    readBytes: vi.fn(),
+    writeBytes: vi.fn(),
+    stat: vi.fn(),
+    mkdir: vi.fn(),
+    remove: vi.fn(),
+    realPath: vi.fn(),
+    copyFile: vi.fn(),
+    glob: vi.fn(),
+    enumerate: vi.fn(),
+    content(filePath: string) {
+      return files.get(filePath) ?? files.get(`${repoPath}/${filePath}`);
+    },
+  };
+  return fileSystem as unknown as IFileSystem & typeof fileSystem;
+}
+
+function joinPath(...parts: string[]): string {
+  return parts.join('/').replace(/\/+/g, '/');
+}
+
+function configPathForDirectory(directoryPath: string): string {
+  return joinPath(directoryPath, '.emdash.json');
+}
+
+function projectFixture(fileSystem: IFileSystem, overrides: Record<string, unknown> = {}) {
+  return {
+    projectId: 'project-1',
+    repoPath,
+    fileSystem,
+    projectConfigPath: configPath,
+    resolveProjectPath: (relativePath: string) => joinPath(repoPath, relativePath),
+    configPathForDirectory,
+    defaultWorkspaceType: { kind: 'local' },
+    ...overrides,
+  };
+}
+
+function workspaceFixture(workspacePath: string, fileSystem: IFileSystem) {
+  return {
+    path: workspacePath,
+    fileSystem,
+    configPath: configPathForDirectory(workspacePath),
+  };
+}
+
+function projectTarget(fileSystem: IFileSystem) {
+  return { type: 'project' as const, label: 'Repo Name', path: repoPath, fileSystem, configPath };
+}
+
 describe('shareProjectSettingsToConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -44,13 +123,10 @@ describe('shareProjectSettingsToConfig', () => {
   });
 
   it('writes selected shareable project settings to .emdash.json', async () => {
-    const write = vi.fn().mockResolvedValue({ success: true, bytesWritten: 100 });
+    const fileSystem = createMemoryFileSystem();
+    const write = fileSystem.writeText;
     const patch = vi.fn().mockResolvedValue({ success: true });
     const project = {
-      fs: {
-        exists: vi.fn().mockResolvedValue(false),
-        write,
-      },
       settings: {
         get: vi.fn().mockResolvedValue({
           defaultBranch: 'origin/main',
@@ -73,12 +149,12 @@ describe('shareProjectSettingsToConfig', () => {
         target: { type: 'project' },
         fields: ['preservePatterns', 'shellSetup', 'scripts.setup', 'scripts.run'],
       },
-      [{ type: 'project', label: 'Repo Name', path: '/repo', fs: project.fs as never }]
+      [projectTarget(fileSystem)]
     );
 
     expect(result.success).toBe(true);
     expect(write).toHaveBeenCalledWith(
-      '.emdash.json',
+      configPath,
       `${JSON.stringify(
         {
           preservePatterns: ['.env', '.env.local'],
@@ -98,20 +174,11 @@ describe('shareProjectSettingsToConfig', () => {
   });
 
   it('preserves existing config fields when sharing a later script field to the same target', async () => {
-    let configContent = '';
+    const fileSystem = createMemoryFileSystem();
     let shareableSettings: ShareableProjectSettings = {
       preservePatterns: ['.env', '.env.local'],
     };
-    const fs = {
-      exists: vi.fn().mockImplementation(() => Promise.resolve(configContent !== '')),
-      read: vi.fn().mockImplementation(() => Promise.resolve({ content: configContent })),
-      write: vi.fn().mockImplementation((_path: string, content: string) => {
-        configContent = content;
-        return Promise.resolve({ success: true, bytesWritten: content.length });
-      }),
-    };
     const project = {
-      fs,
       settings: {
         get: vi.fn().mockImplementation(() => Promise.resolve(shareableSettings)),
         patch: vi.fn().mockImplementation(({ clearShareableFields }) => {
@@ -125,7 +192,7 @@ describe('shareProjectSettingsToConfig', () => {
         }),
       },
     };
-    const targets = [{ type: 'project' as const, label: 'Repo Name', path: '/repo', fs }];
+    const targets = [projectTarget(fileSystem)];
 
     await shareProjectSettingsToConfig(
       project as never,
@@ -152,7 +219,7 @@ describe('shareProjectSettingsToConfig', () => {
     );
 
     expect(result.success).toBe(true);
-    expect(JSON.parse(configContent)).toEqual({
+    expect(JSON.parse(fileSystem.content('.emdash.json') ?? '{}')).toEqual({
       preservePatterns: ['.env', '.env.local'],
       scripts: {
         run: 'pnpm dev',
@@ -161,16 +228,12 @@ describe('shareProjectSettingsToConfig', () => {
   });
 
   it('only clears fields that were actually written to .emdash.json', async () => {
-    const write = vi.fn().mockResolvedValue({ success: true, bytesWritten: 100 });
+    const fileSystem = createMemoryFileSystem({
+      '.emdash.json': JSON.stringify({ preservePatterns: ['.env'] }),
+    });
+    const write = fileSystem.writeText;
     const patch = vi.fn().mockResolvedValue({ success: true });
     const project = {
-      fs: {
-        exists: vi.fn().mockResolvedValue(true),
-        read: vi.fn().mockResolvedValue({
-          content: JSON.stringify({ preservePatterns: ['.env'] }),
-        }),
-        write,
-      },
       settings: {
         get: vi.fn().mockResolvedValue({
           preservePatterns: ['.env.local'],
@@ -185,12 +248,12 @@ describe('shareProjectSettingsToConfig', () => {
         target: { type: 'project' },
         fields: ['preservePatterns', 'scripts.run'],
       },
-      [{ type: 'project', label: 'Repo Name', path: '/repo', fs: project.fs as never }]
+      [projectTarget(fileSystem)]
     );
 
     expect(result.success).toBe(true);
     expect(write).toHaveBeenCalledWith(
-      '.emdash.json',
+      configPath,
       `${JSON.stringify({ preservePatterns: ['.env.local'] }, null, 2)}\n`
     );
     expect(patch).toHaveBeenCalledWith({
@@ -200,15 +263,17 @@ describe('shareProjectSettingsToConfig', () => {
 
   it('returns an error when the filesystem reports an unsuccessful write', async () => {
     const patch = vi.fn();
+    const fileSystem = {
+      ...createMemoryFileSystem(),
+      writeText: vi.fn(async (filePath: string) =>
+        err({
+          type: 'fs-error' as const,
+          path: filePath,
+          message: 'permission denied',
+        })
+      ),
+    };
     const project = {
-      fs: {
-        exists: vi.fn().mockResolvedValue(false),
-        write: vi.fn().mockResolvedValue({
-          success: false,
-          bytesWritten: 0,
-          error: 'permission denied',
-        }),
-      },
       settings: {
         get: vi.fn().mockResolvedValue({
           preservePatterns: ['.env'],
@@ -223,30 +288,29 @@ describe('shareProjectSettingsToConfig', () => {
         target: { type: 'project' },
         fields: ['preservePatterns'],
       },
-      [{ type: 'project', label: 'Repo Name', path: '/repo', fs: project.fs as never }]
+      [projectTarget(fileSystem as never)]
     );
 
     expect(result).toEqual({
       success: false,
-      error: { type: 'write-config-failed', message: 'permission denied' },
+      error: {
+        type: 'write-config-failed',
+        message: 'Could not write .emdash.json: permission denied',
+      },
     });
     expect(patch).not.toHaveBeenCalled();
   });
 
   it('returns an error when clearing shared fields fails after writing config', async () => {
-    const write = vi.fn().mockResolvedValue({ success: true, bytesWritten: 100 });
+    const fileSystem = createMemoryFileSystem({
+      '.emdash.json': `${JSON.stringify({ shellSetup: 'old setup' }, null, 2)}\n`,
+    });
+    const write = fileSystem.writeText;
     const patch = vi.fn().mockResolvedValue({
       success: false,
       error: { type: 'error' },
     });
     const project = {
-      fs: {
-        exists: vi.fn().mockResolvedValue(true),
-        read: vi.fn().mockResolvedValue({
-          content: `${JSON.stringify({ shellSetup: 'old setup' }, null, 2)}\n`,
-        }),
-        write,
-      },
       settings: {
         get: vi.fn().mockResolvedValue({
           preservePatterns: ['.env'],
@@ -261,7 +325,7 @@ describe('shareProjectSettingsToConfig', () => {
         target: { type: 'project' },
         fields: ['preservePatterns'],
       },
-      [{ type: 'project', label: 'Repo Name', path: '/repo', fs: project.fs as never }]
+      [projectTarget(fileSystem)]
     );
 
     expect(result).toEqual({
@@ -275,11 +339,8 @@ describe('shareProjectSettingsToConfig', () => {
   });
 
   it('returns the read/parse failure when existing .emdash.json cannot be parsed', async () => {
+    const fileSystem = createMemoryFileSystem({ '.emdash.json': '{ invalid json' });
     const project = {
-      fs: {
-        exists: vi.fn().mockResolvedValue(true),
-        read: vi.fn().mockResolvedValue({ content: '{ invalid json' }),
-      },
       settings: {
         get: vi.fn().mockResolvedValue({
           preservePatterns: ['.env'],
@@ -293,7 +354,7 @@ describe('shareProjectSettingsToConfig', () => {
         target: { type: 'project' },
         fields: ['preservePatterns'],
       },
-      [{ type: 'project', label: 'Repo Name', path: '/repo', fs: project.fs as never }]
+      [projectTarget(fileSystem)]
     );
 
     if (result.success) {
@@ -306,6 +367,41 @@ describe('shareProjectSettingsToConfig', () => {
       throw new Error(`Unexpected error type: ${result.error.type}`);
     }
     expect(result.error.message).toContain('Could not read existing .emdash.json');
+  });
+
+  it('does not overwrite an existing .emdash.json when the read is truncated', async () => {
+    const fileSystem = {
+      ...createMemoryFileSystem({ '.emdash.json': '{"shellSetup":' }),
+      readText: vi.fn(async () =>
+        ok({ content: '{"shellSetup":', truncated: true, totalSize: 204_801 })
+      ),
+    };
+    const project = {
+      settings: {
+        get: vi.fn().mockResolvedValue({
+          preservePatterns: ['.env'],
+        }),
+        patch: vi.fn(),
+      },
+    };
+
+    const result = await shareProjectSettingsToConfig(
+      project as never,
+      {
+        target: { type: 'project' },
+        fields: ['preservePatterns'],
+      },
+      [projectTarget(fileSystem as never)]
+    );
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'write-config-failed',
+        message: 'Could not read existing .emdash.json: file was truncated.',
+      },
+    });
+    expect(fileSystem.writeText).not.toHaveBeenCalled();
   });
 
   it('returns target resolution failures instead of rejecting the RPC', async () => {
@@ -333,15 +429,12 @@ describe('shareProjectSettingsToConfig', () => {
 
   it('includes task worktrees from git branch discovery, not only active workspaces', async () => {
     const findBranchAnywhere = vi.fn().mockResolvedValue('/external/worktrees/task-one');
-    const project = {
-      projectId: 'project-1',
-      repoPath: '/repo',
-      fs: {},
-      defaultWorkspaceType: { kind: 'local' },
+    const projectFs = createMemoryFileSystem();
+    const project = projectFixture(projectFs, {
       worktreeService: {
         findBranchAnywhere,
       },
-    };
+    });
     mocks.select
       .mockReturnValueOnce({
         from: () => ({
@@ -381,32 +474,26 @@ describe('shareProjectSettingsToConfig', () => {
   });
 
   it('excludes task targets that use the project root working directory', async () => {
-    const projectRootFs = {
-      exists: vi.fn().mockResolvedValue(true),
-      read: vi.fn().mockResolvedValue({
-        content: JSON.stringify({ shellSetup: 'root setup' }),
+    const projectRootFs = createMemoryFileSystem({
+      '.emdash.json': JSON.stringify({ shellSetup: 'root setup' }),
+    });
+    const worktreeFs = createMemoryFileSystem({
+      '/repo/.emdash/worktrees/task-two/.emdash.json': JSON.stringify({
+        shellSetup: 'worktree setup',
       }),
-    };
-    const worktreeFs = {
-      exists: vi.fn().mockResolvedValue(true),
-      read: vi.fn().mockResolvedValue({
-        content: JSON.stringify({ shellSetup: 'worktree setup' }),
-      }),
-    };
+    });
     const findBranchAnywhere = vi.fn();
-    const project = {
-      projectId: 'project-1',
-      repoPath: '/repo',
-      fs: projectRootFs,
-      defaultWorkspaceType: { kind: 'local' },
+    const project = projectFixture(projectRootFs, {
       worktreeService: {
         findBranchAnywhere,
       },
-    };
+    });
     mocks.workspaceGet.mockImplementation((workspaceId: string) => {
-      if (workspaceId === 'root-workspace') return { path: '/repo', fs: projectRootFs };
+      if (workspaceId === 'root-workspace') {
+        return workspaceFixture('/repo', projectRootFs);
+      }
       if (workspaceId === 'worktree-workspace') {
-        return { path: '/repo/.emdash/worktrees/task-two', fs: worktreeFs };
+        return workspaceFixture('/repo/.emdash/worktrees/task-two', worktreeFs);
       }
       return undefined;
     });
@@ -465,15 +552,12 @@ describe('shareProjectSettingsToConfig', () => {
 
   it('skips task target resolution when the project row no longer exists', async () => {
     const findBranchAnywhere = vi.fn();
-    const project = {
-      projectId: 'project-1',
-      repoPath: '/repo',
-      fs: {},
-      defaultWorkspaceType: { kind: 'local' },
+    const projectFs = createMemoryFileSystem();
+    const project = projectFixture(projectFs, {
       worktreeService: {
         findBranchAnywhere,
       },
-    };
+    });
     mocks.select.mockReturnValueOnce({
       from: () => ({
         where: () => ({
@@ -492,28 +576,22 @@ describe('shareProjectSettingsToConfig', () => {
   });
 
   it('detects workspace setting overrides from .emdash.json files', async () => {
-    const project = {
-      projectId: 'project-1',
-      repoPath: '/repo',
-      fs: {
-        exists: vi.fn().mockResolvedValue(true),
-        read: vi.fn().mockResolvedValue({
-          content: JSON.stringify({
-            preservePatterns: ['.env', '.env.local'],
-            shellSetup: 'nvm use',
-            scripts: {
-              setup: 'pnpm install',
-              run: 'pnpm dev',
-              teardown: 'docker compose down',
-            },
-          }),
-        }),
-      },
-      defaultWorkspaceType: { kind: 'local' },
+    const projectFs = createMemoryFileSystem({
+      '.emdash.json': JSON.stringify({
+        preservePatterns: ['.env', '.env.local'],
+        shellSetup: 'nvm use',
+        scripts: {
+          setup: 'pnpm install',
+          run: 'pnpm dev',
+          teardown: 'docker compose down',
+        },
+      }),
+    });
+    const project = projectFixture(projectFs, {
       worktreeService: {
         findBranchAnywhere: vi.fn(),
       },
-    };
+    });
     mocks.select
       .mockReturnValueOnce({
         from: () => ({

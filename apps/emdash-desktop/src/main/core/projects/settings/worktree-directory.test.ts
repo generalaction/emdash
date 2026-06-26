@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { err, ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { canonicalizeWorktreeDirectory, normalizeWorktreeDirectory } from './worktree-directory';
 
@@ -150,8 +151,8 @@ describe('worktree-directory', () => {
   describe('canonicalizeWorktreeDirectory', () => {
     it('creates and canonicalizes directory through fs provider', async () => {
       const fs = {
-        mkdir: vi.fn().mockResolvedValue(undefined),
-        realPath: vi.fn().mockResolvedValue('/canonical/path'),
+        mkdir: vi.fn().mockResolvedValue(ok()),
+        realPath: vi.fn().mockResolvedValue(ok('/canonical/path')),
       };
 
       const resolved = await canonicalizeWorktreeDirectory('/input/path', fs);
@@ -165,7 +166,7 @@ describe('worktree-directory', () => {
 
     it('rejects inaccessible directories', async () => {
       const fs = {
-        mkdir: vi.fn().mockRejectedValue(new Error('permission denied')),
+        mkdir: vi.fn().mockResolvedValue(err({ message: 'permission denied' })),
         realPath: vi.fn(),
       };
 

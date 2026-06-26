@@ -1,7 +1,7 @@
-import { err, ok, type Result } from '@emdash/shared';
+import type { IFileSystem } from '@emdash/core/files';
+import type { Result } from '@emdash/shared';
 import * as toml from 'smol-toml';
 import z from 'zod';
-import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
 import {
   type MigrateProjectConfigRequest,
@@ -9,11 +9,18 @@ import {
   type ShareableProjectSettings,
   type ShareableProjectSettingsWriteField,
 } from '@shared/core/project-settings/project-settings';
-import { mergeShareableProjectSettings } from '@shared/core/project-settings/project-settings-fields';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import type { ProjectProvider } from '../../project-provider';
 import type { ProjectConfigMigrator } from './config-migration';
-import { CONFIG_FILE } from './workspace-config-file';
+import {
+  addScript,
+  applyProjectConfigMigration,
+  errorMessage,
+  openProjectFileSystem,
+  projectPath,
+  trimmedText,
+  writeConfigFailed,
+} from './config-migration-utils';
 
 const CODEX_ENVIRONMENT_FILE = '.codex/environments/environment.toml';
 
@@ -46,35 +53,6 @@ type CodexMigrationData = {
   unsupportedFields: string[];
 };
 
-function writeConfigFailed(message: string): Result<never, UpdateProjectSettingsError> {
-  return err({ type: 'write-config-failed', message });
-}
-
-function trimmedText(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-function setScript(
-  settings: ShareableProjectSettings,
-  field: ShareableProjectSettingsWriteField,
-  value: string
-): void {
-  settings.scripts ??= {};
-  if (field === 'scripts.setup') settings.scripts.setup = value;
-  if (field === 'scripts.teardown') settings.scripts.teardown = value;
-}
-
-function addScript(
-  data: CodexMigrationData,
-  field: ShareableProjectSettingsWriteField,
-  value: string | undefined
-): void {
-  if (!value) return;
-  setScript(data.settings, field, value);
-  data.fields.push(field);
-}
-
 function actionLabel(action: z.infer<typeof codexActionSchema>, index: number): string {
   const name = action.name?.trim();
   return name ? name : String(index);
@@ -105,7 +83,8 @@ function toCodexMigration(data: CodexMigrationData): ProjectConfigMigration | nu
 }
 
 async function readCodexMigrationData(
-  fs: Pick<FileSystemProvider, 'exists' | 'read'>
+  project: ProjectProvider,
+  fileSystem: IFileSystem
 ): Promise<CodexMigrationData> {
   const data: CodexMigrationData = {
     settings: {},
@@ -114,10 +93,27 @@ async function readCodexMigrationData(
     unsupportedFields: [],
   };
 
-  if (!(await fs.exists(CODEX_ENVIRONMENT_FILE))) return data;
+  const environmentPath = projectPath(project, CODEX_ENVIRONMENT_FILE);
+  const exists = await fileSystem.exists(environmentPath);
+  if (!exists.success) {
+    log.warn('Failed to inspect Codex environment file for migration', exists.error);
+    return data;
+  }
+  if (!exists.data) return data;
 
-  const { content } = await fs.read(CODEX_ENVIRONMENT_FILE);
-  const codexEnvironment = codexEnvironmentSchema.parse(toml.parse(content));
+  const content = await fileSystem.readText(environmentPath);
+  if (!content.success) {
+    log.warn('Failed to read Codex environment file for migration', content.error);
+    return data;
+  }
+  if (content.data.truncated) {
+    log.warn('Codex environment file was truncated during migration', {
+      path: environmentPath,
+      totalSize: content.data.totalSize,
+    });
+    return data;
+  }
+  const codexEnvironment = codexEnvironmentSchema.parse(toml.parse(content.data.content));
   data.files.push(CODEX_ENVIRONMENT_FILE);
 
   addScript(data, 'scripts.setup', trimmedText(codexEnvironment.setup?.script));
@@ -132,47 +128,25 @@ async function migrateCodexConfig(
   request: MigrateProjectConfigRequest
 ): Promise<Result<ProjectConfigMigration, UpdateProjectSettingsError>> {
   try {
-    const data = await readCodexMigrationData(project.fs);
+    const fileSystem = openProjectFileSystem(project);
+    if (!fileSystem.success) return fileSystem;
+
+    const data = await readCodexMigrationData(project, fileSystem.data);
     const migration = toCodexMigration(data);
     if (!migration) {
       return writeConfigFailed('No supported Codex settings were found.');
     }
 
-    if (request.destination === 'local') {
-      const currentSettings = await project.settings.get();
-      const shareableSettings = mergeShareableProjectSettings(currentSettings, data.settings);
-      const updateResult = await project.settings.update({
-        ...currentSettings,
-        ...shareableSettings,
-      });
-      if (!updateResult.success) return updateResult;
-      return ok(migration);
-    }
-
-    const writeResult = await project.fs.write(
-      CONFIG_FILE,
-      `${JSON.stringify(data.settings, null, 2)}\n`
-    );
-    if (!writeResult.success) {
-      log.warn('Failed to write migrated project config file', writeResult.error);
-      return writeConfigFailed(writeResult.error ?? `Failed to write ${CONFIG_FILE}.`);
-    }
-
-    const clearResult = await project.settings.patch({ clearShareableFields: data.fields });
-    if (!clearResult.success) {
-      log.warn('Failed to clear imported local project settings', clearResult.error);
-      return writeConfigFailed(`Wrote ${CONFIG_FILE}, but failed to clear local project settings.`);
-    }
-
-    return ok(migration);
+    return await applyProjectConfigMigration(project, request, data, migration);
   } catch (error) {
     log.warn('Failed to migrate Codex config to project config', error);
-    return writeConfigFailed(error instanceof Error ? error.message : String(error));
+    return writeConfigFailed(errorMessage(error));
   }
 }
 
 export const codexConfigMigrator: ProjectConfigMigrator = {
   provider: 'codex',
-  inspect: async (fs) => toCodexMigration(await readCodexMigrationData(fs)),
+  inspect: async (project, fileSystem) =>
+    toCodexMigration(await readCodexMigrationData(project, fileSystem)),
   migrate: migrateCodexConfig,
 };

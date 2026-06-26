@@ -1,3 +1,4 @@
+import type { Result } from '@emdash/shared';
 import z from 'zod';
 
 export const PROJECT_CONFIG_FILE = '.emdash.json';
@@ -77,6 +78,12 @@ export function defaultShareableProjectSettings(): ShareableProjectSettings {
 }
 
 export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
+
+export type ProjectSettingsLoadError =
+  | { type: 'not_found'; entity: 'workspace'; workspaceId: string }
+  | { type: 'fs_error'; message: string };
+
+export type ProjectSettingsLoadResult = Result<ProjectSettings, ProjectSettingsLoadError>;
 
 export type ProjectSettingsPatch = {
   clearShareableFields?: ShareableProjectSettingsWriteField[];

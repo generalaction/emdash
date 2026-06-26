@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { Result } from '@emdash/shared';
+import type { IFileSystem } from '@emdash/core/files';
+import { err, ok, type Result } from '@emdash/shared';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import {
@@ -24,21 +25,10 @@ export class LocalProjectSettingsProvider extends DbProjectSettingsProvider {
     projectId: string,
     projectPath: string,
     defaultBranchFallback: string = 'main',
+    configReader: Pick<IFileSystem, 'exists' | 'readText'>,
     options: DbProjectSettingsProviderOptions = {}
   ) {
-    super(
-      projectId,
-      projectPath,
-      defaultBranchFallback,
-      {
-        exists: async (filePath) => fs.existsSync(path.join(projectPath, filePath)),
-        read: async (filePath) => {
-          const content = await fs.promises.readFile(path.join(projectPath, filePath), 'utf8');
-          return { content, truncated: false, totalSize: Buffer.byteLength(content) };
-        },
-      },
-      options
-    );
+    super(projectId, projectPath, defaultBranchFallback, configReader, path.join, options);
   }
 
   protected defaultWorktreeDirectory(): Promise<string> {
@@ -53,9 +43,20 @@ export class LocalProjectSettingsProvider extends DbProjectSettingsProvider {
       pathPlatform: localPathPlatform,
       fs: {
         mkdir: async (p, options) => {
-          await fs.promises.mkdir(p, options);
+          try {
+            await fs.promises.mkdir(p, options);
+            return ok();
+          } catch (error: unknown) {
+            return err({ message: error instanceof Error ? error.message : String(error) });
+          }
         },
-        realPath: async (p) => fs.promises.realpath(p),
+        realPath: async (p) => {
+          try {
+            return ok(await fs.promises.realpath(p));
+          } catch (error: unknown) {
+            return err({ message: error instanceof Error ? error.message : String(error) });
+          }
+        },
       },
       homeDirectory: os.homedir(),
     });
