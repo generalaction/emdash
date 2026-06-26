@@ -66,6 +66,8 @@ export function createRecordingListener() {
   }[] = [];
   const terminalReleased: { conversationId: string; terminalId: string }[] = [];
 
+  const sessionMeta: { conversationId: string }[] = [];
+
   const listener: AcpRuntimeListener = {
     onState: (e) => states.push(e),
     onSessionUpdate: (e) => updates.push(e),
@@ -74,6 +76,7 @@ export function createRecordingListener() {
     onPermissionResolved: (e) => permissionResolved.push(e),
     onClosed: (e) => closed.push(e),
     onAgentEvent: (e) => agentEvents.push(e),
+    onSessionMeta: (e) => sessionMeta.push(e),
     onTerminalCreated: (e) => terminalCreated.push(e),
     onTerminalOutput: (e) => terminalOutput.push(e),
     onTerminalExit: (e) => terminalExit.push(e),
@@ -89,6 +92,7 @@ export function createRecordingListener() {
     permissionResolved,
     closed,
     agentEvents,
+    sessionMeta,
     terminalCreated,
     terminalOutput,
     terminalExit,
@@ -101,6 +105,7 @@ export function createRecordingListener() {
       permissionResolved.length = 0;
       closed.length = 0;
       agentEvents.length = 0;
+      sessionMeta.length = 0;
       terminalCreated.length = 0;
       terminalOutput.length = 0;
       terminalExit.length = 0;
@@ -119,7 +124,10 @@ export function createRecordingListener() {
  * holds the runtime's inbound Client handler.
  */
 export class FakeAcpAgent implements AcpAgentApi {
-  initialize = vi.fn().mockResolvedValue({ protocolVersion: 1 });
+  initialize = vi.fn().mockResolvedValue({
+    protocolVersion: 1,
+    agentCapabilities: { loadSession: true },
+  });
   newSession = vi.fn().mockResolvedValue({ sessionId: 'session-1' });
   loadSession = vi.fn().mockResolvedValue({});
   closeSession = vi.fn().mockResolvedValue({});
@@ -138,7 +146,10 @@ export class FakeAcpAgent implements AcpAgentApi {
   };
 
   reset() {
-    this.initialize = vi.fn().mockResolvedValue({ protocolVersion: 1 });
+    this.initialize = vi.fn().mockResolvedValue({
+      protocolVersion: 1,
+      agentCapabilities: { loadSession: true },
+    });
     this.newSession = vi.fn().mockResolvedValue({ sessionId: 'session-1' });
     this.loadSession = vi.fn().mockResolvedValue({});
     this.closeSession = vi.fn().mockResolvedValue({});

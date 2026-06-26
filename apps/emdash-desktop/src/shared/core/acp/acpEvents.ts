@@ -108,3 +108,12 @@ export const acpTerminalReleasedChannel = defineEvent<{
   conversationId: string;
   terminalId: string;
 }>('acp:terminal-released');
+
+/**
+ * Emitted when session-scoped metadata changes: modes, config options
+ * (including the model selector), or available commands. The renderer should
+ * call getSessionState() to get the full updated snapshot.
+ */
+export const acpSessionMetaChannel = defineEvent<{
+  conversationId: string;
+}>('acp:session-meta');

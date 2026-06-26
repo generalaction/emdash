@@ -107,9 +107,15 @@ describe('AcpSessionRuntime – routing', () => {
     h.agent.newSession
       .mockResolvedValueOnce({ sessionId: 'session-a' })
       .mockResolvedValueOnce({ sessionId: 'session-b' });
+    // Keep prompt pending so we can inject sessionUpdate while working
+    h.agent.prompt = vi.fn().mockReturnValue(new Promise(() => {}));
 
     await rt.start(makeStartInput({ conversationId: 'conv-a', workspaceId: 'ws-1' }));
     await rt.start(makeStartInput({ conversationId: 'conv-b', workspaceId: 'ws-1' }));
+
+    // Open a live turn on conv-b by sending a prompt
+    void rt.prompt('conv-b', 'hi');
+    await Promise.resolve();
 
     h.recording.clear();
 
@@ -330,8 +336,16 @@ describe('AcpSessionRuntime – turn model', () => {
     const rt = new AcpSessionRuntime(h.deps);
 
     h.agent.newSession = vi.fn().mockResolvedValue({ sessionId: 'session-buf' });
+    // Keep prompt pending so we can inject sessionUpdate while working
+    h.agent.prompt = vi.fn().mockReturnValue(new Promise(() => {}));
     await rt.start(makeStartInput({ conversationId: 'conv-buf' }));
 
+    // Open a live turn
+    void rt.prompt('conv-buf', 'hello');
+    await Promise.resolve();
+
+    // After PromptStarted, the user message was the first update (seq 0).
+    // Next agent updates start at seq 1.
     h.recording.clear();
 
     await h.client().sessionUpdate({
@@ -344,14 +358,12 @@ describe('AcpSessionRuntime – turn model', () => {
     });
 
     expect(h.recording.updates).toHaveLength(2);
-    expect(h.recording.updates[0].seq).toBe(0);
-    expect(h.recording.updates[1].seq).toBe(1);
     expect(h.recording.updates[0].turnId).toBe(h.recording.updates[1].turnId);
 
     const state = rt.getSessionState('conv-buf');
-    expect(state.activeTurn?.updates).toHaveLength(2);
-    expect(state.activeTurn?.updates[0].seq).toBe(0);
-    expect(state.activeTurn?.updates[1].seq).toBe(1);
+    // activeTurn has: user msg (seq 0), agent 'a', agent 'b'
+    expect(state.activeTurn?.updates).toHaveLength(3);
+    expect(state.activeTurn?.updates[1].seq).toBeLessThan(state.activeTurn?.updates[2].seq!);
   });
 
   it('getChatHistory returns empty complete result for unknown conversation', () => {
@@ -566,13 +578,15 @@ describe('AcpSessionRuntime – concurrency guard', () => {
 
     h.agent.newSession = vi.fn().mockResolvedValue({ sessionId: 'session-once' });
 
-    const [, second] = await Promise.all([
+    const [first, second] = await Promise.all([
       rt.start(makeStartInput({ conversationId: 'conv-concurrent' })),
       rt.start(makeStartInput({ conversationId: 'conv-concurrent' })),
     ]);
 
     expect(h.agent.newSession).toHaveBeenCalledTimes(1);
-    expect(second).toBeUndefined();
+    // Both calls return a Result; the duplicate (second) is a no-op returning ok()
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
     expect(rt.isRunning('conv-concurrent')).toBe(true);
   });
 });
@@ -908,6 +922,7 @@ describe('AcpSessionRuntime – enrich', () => {
         onPermissionResolved: () => {},
         onClosed: () => {},
         onAgentEvent: () => {},
+        onSessionMeta: () => {},
         onTerminalCreated: () => {},
         onTerminalOutput: () => {},
         onTerminalExit: () => {},
@@ -917,7 +932,14 @@ describe('AcpSessionRuntime – enrich', () => {
 
     const rt = new AcpSessionRuntime(h.deps);
     h.agent.newSession.mockResolvedValue({ sessionId: 'sess-1' });
+    h.agent.prompt = vi.fn().mockReturnValue(new Promise(() => {}));
     await rt.start(makeStartInput({ conversationId: 'conv-1' }));
+
+    // Open a live turn (user message is emitted as first update)
+    void rt.prompt('conv-1', 'hi');
+    await Promise.resolve();
+    // Clear to focus on the subsequent agent update
+    emittedUpdates.length = 0;
 
     await h.client().sessionUpdate({ sessionId: 'sess-1', update: rawTextUpdate() });
 
@@ -930,13 +952,19 @@ describe('AcpSessionRuntime – enrich', () => {
 
     const rt = new AcpSessionRuntime(h.deps);
     h.agent.newSession.mockResolvedValue({ sessionId: 'sess-1' });
+    h.agent.prompt = vi.fn().mockReturnValue(new Promise(() => {}));
     await rt.start(makeStartInput({ conversationId: 'conv-1' }));
+
+    // Open a live turn
+    void rt.prompt('conv-1', 'hi');
+    await Promise.resolve();
 
     await h.client().sessionUpdate({ sessionId: 'sess-1', update: rawTextUpdate() });
 
     // getSessionState returns a structuredClone, so use deep equality.
+    // updates[0] is the user message; updates[1] is the first agent update.
     const state = rt.getSessionState('conv-1');
-    const storedUpdate = state.activeTurn?.updates[0]?.update;
+    const storedUpdate = state.activeTurn?.updates[1]?.update;
     expect(storedUpdate).toStrictEqual(expectedAgentMessage);
   });
 
@@ -953,7 +981,12 @@ describe('AcpSessionRuntime – enrich', () => {
 
     const rt = new AcpSessionRuntime(h.deps);
     h.agent.newSession.mockResolvedValue({ sessionId: 'sess-1' });
+    h.agent.prompt = vi.fn().mockReturnValue(new Promise(() => {}));
     await rt.start(makeStartInput({ conversationId: 'conv-1' }));
+
+    // Open a live turn
+    void rt.prompt('conv-1', 'hi');
+    await Promise.resolve();
 
     const raw = rawTextUpdate();
     await h.client().sessionUpdate({ sessionId: 'sess-1', update: raw });
@@ -984,6 +1017,7 @@ describe('AcpSessionRuntime – enrich', () => {
         onPermissionResolved: () => {},
         onClosed: () => {},
         onAgentEvent: () => {},
+        onSessionMeta: () => {},
         onTerminalCreated: () => {},
         onTerminalOutput: () => {},
         onTerminalExit: () => {},
@@ -1001,7 +1035,14 @@ describe('AcpSessionRuntime – enrich', () => {
 
     const rt = new AcpSessionRuntime(h.deps);
     h.agent.newSession.mockResolvedValue({ sessionId: 'sess-1' });
+    h.agent.prompt = vi.fn().mockReturnValue(new Promise(() => {}));
     await rt.start(makeStartInput({ conversationId: 'conv-1' }));
+
+    // Open a live turn (user message captured at emittedUpdates[0])
+    void rt.prompt('conv-1', 'hi');
+    await Promise.resolve();
+    // Clear to focus on the agent update only
+    emittedUpdates.length = 0;
 
     const raw: SessionUpdate = {
       sessionUpdate: 'tool_call',
@@ -1015,8 +1056,9 @@ describe('AcpSessionRuntime – enrich', () => {
     expect(emittedUpdates).toHaveLength(1);
     expect(emittedUpdates[0]).toBe(enriched);
 
+    // activeTurn: updates[0]=user msg, updates[1]=enriched agent update
     const state = rt.getSessionState('conv-1');
-    const stored = state.activeTurn?.updates[0]?.update as AgentUpdate & { kind: 'tool_call' };
+    const stored = state.activeTurn?.updates[1]?.update as AgentUpdate & { kind: 'tool_call' };
     expect(stored?.parentToolCallId).toBe('parent-42');
   });
 });

@@ -28,6 +28,7 @@ import {
   acpPermissionRequestChannel,
   acpPermissionResolvedChannel,
   acpSessionClosedChannel,
+  acpSessionMetaChannel,
   acpSessionStateChannel,
   acpSessionUpdateChannel,
   acpTerminalCreatedChannel,
@@ -55,9 +56,15 @@ export class AcpChatStore {
   readonly chatState: ChatState;
 
   lifecycle: AcpChatLifecycle = 'idle';
+  /**
+   * Currently selected model derived from configOptions (category === 'model').
+   * Null if the agent doesn't report a model config option.
+   */
   model: string | null = null;
   permissionQueue: AcpPermissionRequest[] = [];
   terminals: TerminalSnapshot[] = [];
+  /** The stop reason from the last completed turn. Used for notice bands. */
+  lastStopReason: string | null = null;
 
   /** Buffered active-turn updates, keyed by seq, until the initial state fetch completes. */
   private _activeTurnUpdates = new Map<number, { seq: number; update: AgentUpdate }>();
@@ -83,6 +90,7 @@ export class AcpChatStore {
       model: observable,
       permissionQueue: observable,
       terminals: observable,
+      lastStopReason: observable,
       submitPrompt: action,
       stop: action,
       setModel: action,
@@ -254,6 +262,11 @@ export class AcpChatStore {
           const idx = this.terminals.findIndex((t) => t.terminalId === e.terminalId);
           if (idx >= 0) this.terminals.splice(idx, 1);
         });
+      }),
+
+      events.on(acpSessionMetaChannel, (e) => {
+        if (e.conversationId !== this.conversationId) return;
+        void this._refreshSessionMeta();
       })
     );
   }
@@ -270,7 +283,8 @@ export class AcpChatStore {
 
       runInAction(() => {
         this.lifecycle = state.lifecycle;
-        this.model = state.model;
+        this.model = this._extractModel(state.configOptions);
+        this.lastStopReason = state.lastStopReason;
         this._activeTurnId = state.activeTurn?.id ?? null;
         this.terminals = terminals;
 
@@ -290,14 +304,43 @@ export class AcpChatStore {
       });
 
       // Seed history directly through chatState.transcript (always available).
-      // _pendingHistoryItems is only used if the view hasn't mounted yet and
-      // attachView hasn't been called, but since transcript is independent of
-      // the view we can seed it now unconditionally.
       this.chatState.transcript.history.seed(historyItems);
       this._replayActiveUpdates();
     } catch (err) {
       console.error('[AcpChatStore] _fetchInitialState error', err);
     }
+  }
+
+  private async _refreshSessionMeta(): Promise<void> {
+    try {
+      const state = await rpc.acp.getSessionState(this.conversationId);
+      runInAction(() => {
+        this.model = this._extractModel(state.configOptions);
+        this.lastStopReason = state.lastStopReason;
+      });
+    } catch (err) {
+      console.error('[AcpChatStore] _refreshSessionMeta error', err);
+    }
+  }
+
+  /**
+   * Extracts the currently selected model from an array of config options.
+   * The model option is identified by `category === 'model'` and must be a
+   * select-type option (type === 'select') where currentValue is a string.
+   */
+  private _extractModel(
+    configOptions: ReadonlyArray<{
+      id: string;
+      category?: string | null;
+      type?: string;
+      currentValue?: string | boolean;
+    }>
+  ): string | null {
+    const modelOption = configOptions.find((o) => o.category === 'model' && o.type === 'select');
+    if (modelOption && typeof modelOption.currentValue === 'string') {
+      return modelOption.currentValue;
+    }
+    return null;
   }
 
   private _handleSessionUpdate(seq: number, update: AgentUpdate): void {

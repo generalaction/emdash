@@ -10,6 +10,7 @@ import {
   acpPermissionRequestChannel,
   acpPermissionResolvedChannel,
   acpSessionClosedChannel,
+  acpSessionMetaChannel,
   acpSessionStateChannel,
   acpSessionUpdateChannel,
   acpTerminalCreatedChannel,
@@ -54,6 +55,9 @@ const listener: AcpRuntimeListener = {
       payload: {},
     };
     agentHookService.emitAgentEvent(event, isAppFocused());
+  },
+  onSessionMeta: ({ conversationId }) => {
+    events.emit(acpSessionMetaChannel, { conversationId });
   },
   onTerminalCreated: (e) => {
     events.emit(acpTerminalCreatedChannel, e);

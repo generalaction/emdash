@@ -15,6 +15,8 @@ import type {
   SessionUpdate,
   SetSessionConfigOptionRequest,
   SetSessionConfigOptionResponse,
+  SetSessionModeRequest,
+  SetSessionModeResponse,
 } from '@agentclientprotocol/sdk';
 import z from 'zod';
 import type { AgentUpdate } from '../../../acp/agent-update';
@@ -56,6 +58,8 @@ export interface AcpAgentApi {
   setSessionConfigOption?(
     params: SetSessionConfigOptionRequest
   ): Promise<SetSessionConfigOptionResponse>;
+  /** Optional — only available when the agent advertises the `session.setMode` capability. */
+  setSessionMode?(params: SetSessionModeRequest): Promise<SetSessionModeResponse>;
   /** Optional — only available when the agent advertises the `session.close` capability. */
   closeSession?(params: CloseSessionRequest): Promise<CloseSessionResponse | void>;
 }

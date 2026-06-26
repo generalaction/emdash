@@ -1,4 +1,5 @@
 export { AcpSessionRuntime } from './acp-session-runtime';
+export type { AcpRuntimeError } from './errors';
 export type { AcpPermissionOption, AcpPermissionRequest } from './permissions';
 export type {
   AcpPromptImage,

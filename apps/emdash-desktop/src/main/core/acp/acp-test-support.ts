@@ -64,6 +64,8 @@ export function createRecordingListener() {
   }[] = [];
   const terminalReleased: { conversationId: string; terminalId: string }[] = [];
 
+  const sessionMeta: { conversationId: string }[] = [];
+
   const listener: AcpRuntimeListener = {
     onState: (e) => states.push(e),
     onSessionUpdate: (e) => updates.push(e),
@@ -72,6 +74,7 @@ export function createRecordingListener() {
     onPermissionResolved: (e) => permissionResolved.push(e),
     onClosed: (e) => closed.push(e),
     onAgentEvent: (e) => agentEvents.push(e),
+    onSessionMeta: (e) => sessionMeta.push(e),
     onTerminalCreated: (e) => terminalCreated.push(e),
     onTerminalOutput: (e) => terminalOutput.push(e),
     onTerminalExit: (e) => terminalExit.push(e),
@@ -87,6 +90,7 @@ export function createRecordingListener() {
     permissionResolved,
     closed,
     agentEvents,
+    sessionMeta,
     terminalCreated,
     terminalOutput,
     terminalExit,
@@ -99,6 +103,7 @@ export function createRecordingListener() {
       permissionResolved.length = 0;
       closed.length = 0;
       agentEvents.length = 0;
+      sessionMeta.length = 0;
       terminalCreated.length = 0;
       terminalOutput.length = 0;
       terminalExit.length = 0;
@@ -118,7 +123,8 @@ export class FakeAcpAgent implements AcpAgentApi {
   closeSession = vi.fn().mockResolvedValue({});
   cancel = vi.fn().mockResolvedValue({});
   prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' });
-  setSessionConfigOption = vi.fn().mockResolvedValue({});
+  setSessionConfigOption = vi.fn().mockResolvedValue({ configOptions: [] });
+  setSessionMode = vi.fn().mockResolvedValue({});
 
   capturedClient: Client | null = null;
 
@@ -136,7 +142,8 @@ export class FakeAcpAgent implements AcpAgentApi {
     this.closeSession = vi.fn().mockResolvedValue({});
     this.cancel = vi.fn().mockResolvedValue({});
     this.prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' });
-    this.setSessionConfigOption = vi.fn().mockResolvedValue({});
+    this.setSessionConfigOption = vi.fn().mockResolvedValue({ configOptions: [] });
+    this.setSessionMode = vi.fn().mockResolvedValue({});
     this.capturedClient = null;
   }
 }

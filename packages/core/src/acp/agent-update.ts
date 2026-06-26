@@ -12,7 +12,6 @@
 
 import type { SessionUpdate, ToolCallContent } from '@agentclientprotocol/sdk';
 
-
 export type AgentToolStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
 
 export type AgentPlanEntryStatus = 'pending' | 'in_progress' | 'completed';

@@ -9,7 +9,6 @@ import type {
   KillTerminalResponse,
   LoadSessionRequest,
   NewSessionRequest,
-  PromptResponse,
   ReadTextFileRequest,
   ReadTextFileResponse,
   ReleaseTerminalRequest,
@@ -19,7 +18,7 @@ import type {
   SessionNotification,
   SessionUpdate,
   SetSessionConfigOptionRequest,
-  StopReason,
+  SetSessionModeRequest,
   TerminalOutputRequest,
   TerminalOutputResponse,
   WaitForTerminalExitRequest,
@@ -27,30 +26,32 @@ import type {
   WriteTextFileRequest,
   WriteTextFileResponse,
 } from '@agentclientprotocol/sdk';
+import type { Result } from '@emdash/shared';
+import { ok, toSerializedError } from '@emdash/shared';
 import type { AcpAgentApi, IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import type { AgentUpdate } from './agent-update';
 import { toAgentUpdate } from './agent-update';
+import type { AcpRuntimeError } from './errors';
+import { acpErr } from './errors';
+import { ManagedAgentTerminal } from './managed-agent-terminal';
 import type { AcpPermissionRequest } from './permissions';
 import type { AcpSessionRuntimeDeps, AcpStartInput, IAcpSessionRuntime } from './runtime';
+import type { Command, DomainEvent, Effect, SessionMachineState } from './session-machine';
+import {
+  activeTurnFromPhase,
+  decide,
+  evolve,
+  initialMachineState,
+  phaseToLifecycle,
+} from './session-machine';
 import type { TerminalSnapshot } from './terminals';
-import type {
-  AcpProcessHandle,
-  AcpProcessHost,
-} from './transport';
-import type {
-  AcpPromptImage,
-  AcpTurn,
-  ChatHistory,
-  SessionLifecycle,
-  SessionState,
-  TurnSource,
-  TurnStatus,
-} from './turns';
-import { ManagedAgentTerminal } from './managed-agent-terminal';
+import type { AcpProcessHandle, AcpProcessHost } from './transport';
+import type { AcpPromptImage, ChatHistory, SessionState } from './turns';
 
+// ---------------------------------------------------------------------------
+// AcpConversation — per-conversation state held inside a pool
+// ---------------------------------------------------------------------------
 
-
-/** Per-conversation state held inside a pool. */
 interface AcpConversation {
   conversationId: string;
   projectId: string;
@@ -58,30 +59,17 @@ interface AcpConversation {
   providerId: string;
   /** ACP-native session id assigned by newSession / loadSession. */
   acpSessionId: string | null;
-  /** Model to apply after session is established (from persisted config). */
-  pendingModel: string | null;
-  /** All turns for this conversation (committed + at most one active). */
-  turns: AcpTurn[];
-  /** Id of the currently-active turn, or null when idle. */
-  activeTurnId: string | null;
-  /** Monotonic per-conversation sequence counter for cross-reload dedup. */
-  nextSeq: number;
-  /** Coarse session lifecycle state. */
-  lifecycle: SessionLifecycle;
-  /**
-   * Serializable FIFO queue of pending permission requests. Persisted in
-   * main-process memory so a renderer reload can rehydrate the queue via
-   * getSessionState without losing pending decisions.
-   */
-  pendingPermissions: AcpPermissionRequest[];
+  /** Pure state machine — owns lifecycle, turns, permissions, and metadata. */
+  machine: SessionMachineState;
   /** Active terminals managed by this conversation. */
   terminals: Map<string, ManagedAgentTerminal>;
 }
 
-/**
- * One child process + connection shared by all conversations in a
- * (provider, workspace) pair.  poolKey = `${providerId}:${workspaceId}`.
- */
+// ---------------------------------------------------------------------------
+// AcpPool — one child process + connection shared by all conversations
+// in a (provider, workspace) pair.  poolKey = `${providerId}:${workspaceId}`.
+// ---------------------------------------------------------------------------
+
 interface AcpPool {
   handle: AcpProcessHandle;
   host: AcpProcessHost;
@@ -102,16 +90,23 @@ interface AcpPool {
   loadingConversations: Set<string>;
   /** Promise that resolves once the pool's `initialize` call completes. */
   initialized: Promise<void> | null;
+  /** Whether the agent advertised loadSession support during initialize. */
+  supportsLoadSession: boolean;
   stopped: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// AcpSessionRuntime
+// ---------------------------------------------------------------------------
 
 /**
  * Machine-agnostic ACP session engine.
  *
- * Manages a pool-per-(provider,workspace) within a single machine: the
- * desktop AcpSessionManager creates one AcpSessionRuntime per host and routes
- * calls to the appropriate runtime. For SSH the same runtime class is used
- * with a LegacySshAcpProcessHost injected as the transport.
+ * Manages a pool-per-(provider,workspace) within a single machine. All public
+ * methods return Result<void, AcpRuntimeError> and never throw. State
+ * transitions are handled by the pure `decide`/`evolve` functions in
+ * session-machine.ts; the runtime's job is to interpret the resulting effects
+ * (listener calls, permission resolver answers, etc.).
  */
 export class AcpSessionRuntime implements IAcpSessionRuntime {
   private readonly deps: Required<AcpSessionRuntimeDeps>;
@@ -138,30 +133,45 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     this.deps = { ...deps, log };
   }
 
-  async start(input: AcpStartInput): Promise<void> {
+  // -------------------------------------------------------------------------
+  // Public API — all effectful methods return Result, never throw
+  // -------------------------------------------------------------------------
+
+  async start(input: AcpStartInput): Promise<Result<void, AcpRuntimeError>> {
     const { conversationId, providerId, workspaceId, cwd, sessionId, model, initialPrompt } = input;
 
     if (this.conversationIndex.has(conversationId)) {
       this.deps.log.debug('AcpSessionRuntime: conversation already running', { conversationId });
       const conv = this.resolveConv(conversationId);
-      if (conv) this.emitState(conv);
-      return;
+      if (conv) this.applyEvent(conv, { type: 'state' } as unknown as DomainEvent);
+      return ok();
     }
 
     const binding = this.deps.resolveAcp(providerId);
     if (!binding) {
-      throw new Error(`AcpSessionRuntime: provider '${providerId}' does not support ACP transport`);
+      return acpErr.providerUnsupported(providerId);
     }
 
-    // Reserve a slot synchronously before the first await so concurrent start() calls
-    // cannot both proceed past the has() guard above (double-newSession prevention).
+    // Reserve a slot synchronously before the first await so concurrent start()
+    // calls cannot both proceed past the has() guard above.
     const poolKey = `${providerId}:${workspaceId}`;
     this.conversationIndex.set(conversationId, { poolKey, acpSessionId: null });
 
-    const pool = await this.getOrCreatePool(poolKey, providerId, workspaceId, cwd, binding);
+    let pool: AcpPool;
+    try {
+      pool = await this.getOrCreatePool(poolKey, providerId, workspaceId, cwd, binding);
+    } catch (e) {
+      this.conversationIndex.delete(conversationId);
+      return acpErr.spawnFailed(toSerializedError(e));
+    }
 
     if (pool.initialized) {
-      await pool.initialized;
+      try {
+        await pool.initialized;
+      } catch (e) {
+        this.conversationIndex.delete(conversationId);
+        return acpErr.initializeFailed(toSerializedError(e));
+      }
     }
 
     const conv: AcpConversation = {
@@ -170,52 +180,92 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       taskId: input.taskId,
       providerId,
       acpSessionId: sessionId,
-      pendingModel: model,
-      turns: [],
-      activeTurnId: null,
-      nextSeq: 0,
-      lifecycle: 'starting',
-      pendingPermissions: [],
+      machine: initialMachineState(conversationId),
       terminals: new Map(),
     };
 
     pool.conversations.set(conversationId, conv);
     this.conversationIndex.set(conversationId, { poolKey, acpSessionId: conv.acpSessionId });
 
-    this.emitState(conv);
+    // Emit initial 'starting' state
+    this.emitStateEffect(conv);
 
     try {
-      let acpSessionId: string;
+      // Assigned in all success paths; TypeScript needs the initializer for control flow
+      let acpSessionId = '';
 
-      if (conv.acpSessionId) {
+      if (conv.acpSessionId && pool.supportsLoadSession && pool.connection.loadSession) {
         const originalSessionId = conv.acpSessionId;
         pool.sessionToConversation.set(originalSessionId, conversationId);
         pool.loadingConversations.add(conversationId);
-        this.openTurn(conv, 'replay');
+
+        // Open replay turn
+        this.applyEvent(conv, { type: 'ReplayStarted' });
+
+        let loadedSuccessfully = false;
         try {
-          await pool.connection.loadSession!(this.buildLoadSessionRequest(cwd, originalSessionId));
-          this.closeTurn(conv, 'complete');
-          acpSessionId = conv.acpSessionId;
+          const resp = await pool.connection.loadSession!(
+            this.buildLoadSessionRequest(cwd, originalSessionId)
+          );
+          pool.loadingConversations.delete(conversationId);
+          // Seed metadata from loadSession response
+          if (resp.modes !== undefined || resp.configOptions !== undefined) {
+            this.applyEvent(conv, {
+              type: 'SessionLoaded',
+              modes: resp.modes,
+              configOptions: resp.configOptions,
+            });
+          }
+          this.applyEvent(conv, { type: 'ReplayEnded', status: 'complete' });
+          acpSessionId = conv.acpSessionId!;
           if (acpSessionId !== originalSessionId) {
             pool.sessionToConversation.delete(originalSessionId);
           }
+          loadedSuccessfully = true;
         } catch {
+          pool.loadingConversations.delete(conversationId);
+        }
+
+        if (!loadedSuccessfully) {
           this.deps.log.warn('AcpSessionRuntime: loadSession failed, starting new session', {
             conversationId,
           });
-          this.closeTurn(conv, 'complete');
+          // Commit the replay turn as 'complete' even on failure: the session continues
+          // with a fresh newSession, so the empty replay turn is not an error from the
+          // user's perspective.
+          this.applyEvent(conv, { type: 'ReplayEnded', status: 'complete' });
           pool.sessionToConversation.delete(originalSessionId);
           if (conv.acpSessionId !== originalSessionId) {
             pool.sessionToConversation.delete(conv.acpSessionId!);
           }
-          const newResp = await pool.connection.newSession(this.buildNewSessionRequest(cwd));
-          acpSessionId = newResp.sessionId;
-        } finally {
-          pool.loadingConversations.delete(conversationId);
+
+          try {
+            const newResp = await pool.connection.newSession(this.buildNewSessionRequest(cwd));
+            acpSessionId = newResp.sessionId;
+            this.applyEvent(conv, {
+              type: 'SessionReady',
+              modes: newResp.modes,
+              configOptions: newResp.configOptions,
+            });
+          } catch (e) {
+            this.cleanupFailedConversation(pool, conv);
+            return acpErr.newSessionFailed(toSerializedError(e));
+          }
         }
       } else {
-        const newResp = await pool.connection.newSession(this.buildNewSessionRequest(cwd));
-        acpSessionId = newResp.sessionId;
+        // No existing session id, or loadSession not supported — start fresh
+        try {
+          const newResp = await pool.connection.newSession(this.buildNewSessionRequest(cwd));
+          acpSessionId = newResp.sessionId;
+          this.applyEvent(conv, {
+            type: 'SessionReady',
+            modes: newResp.modes,
+            configOptions: newResp.configOptions,
+          });
+        } catch (e) {
+          this.cleanupFailedConversation(pool, conv);
+          return acpErr.newSessionFailed(toSerializedError(e));
+        }
       }
 
       conv.acpSessionId = acpSessionId;
@@ -234,89 +284,116 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         })
         .catch(() => {});
 
-      if (conv.pendingModel) {
-        await this.applyModelInternal(pool.connection, acpSessionId, conv.pendingModel, conv);
+      // Apply pending model from persisted config as a setSessionConfigOption call
+      if (model && pool.connection.setSessionConfigOption) {
+        await this.applyConfigOptionInternal(pool.connection, acpSessionId, 'model', model, conv);
       }
-
-      conv.lifecycle = 'ready';
-      this.emitState(conv);
 
       if (initialPrompt?.trim()) {
-        await this.sendPromptInternal(pool, conv, initialPrompt);
-      }
-    } catch (err) {
-      this.deps.log.error('AcpSessionRuntime: failed to initialize ACP conversation', {
-        conversationId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      for (const [sid, cId] of pool.sessionToConversation) {
-        if (cId === conversationId) {
-          pool.sessionToConversation.delete(sid);
+        const promptResult = await this.sendPromptInternal(pool, conv, initialPrompt);
+        if (!promptResult.success) {
+          this.deps.log.warn('AcpSessionRuntime: initial prompt failed', {
+            conversationId,
+            error: promptResult.error.type,
+          });
         }
       }
-      pool.conversations.delete(conversationId);
-      this.conversationIndex.delete(conversationId);
-      if (pool.conversations.size === 0) {
-        this.destroyPool(pool);
-      }
-      throw err;
-    }
-  }
 
-  async prompt(conversationId: string, text: string, images?: AcpPromptImage[]): Promise<void> {
-    const { pool, conv } = this.resolveConversation(conversationId);
-    await this.sendPromptInternal(pool, conv, text, images);
-  }
-
-  async cancel(conversationId: string): Promise<void> {
-    const entry = this.conversationIndex.get(conversationId);
-    if (!entry?.acpSessionId) return;
-    const pool = this.pools.get(entry.poolKey);
-    if (!pool) return;
-    try {
-      await pool.connection.cancel({ sessionId: entry.acpSessionId });
+      return ok();
     } catch (err) {
-      this.deps.log.warn('AcpSessionRuntime: cancel failed', {
+      this.deps.log.error('AcpSessionRuntime: unexpected error during start', {
         conversationId,
         error: err instanceof Error ? err.message : String(err),
       });
+      this.cleanupFailedConversation(pool, conv);
+      return acpErr.initializeFailed(toSerializedError(err));
     }
   }
 
-  resolvePermission(conversationId: string, requestId: string, optionId: string | null): void {
+  async prompt(
+    conversationId: string,
+    text: string,
+    images?: AcpPromptImage[]
+  ): Promise<Result<void, AcpRuntimeError>> {
     const conv = this.resolveConv(conversationId);
-    const resolver = this.permissionResolvers.get(requestId);
+    if (!conv) return acpErr.conversationNotFound(conversationId);
+    const entry = this.conversationIndex.get(conversationId);
+    if (!entry?.acpSessionId) return acpErr.noActiveSession(conversationId);
+    const pool = this.pools.get(entry.poolKey);
+    if (!pool) return acpErr.noActiveSession(conversationId);
+    return this.sendPromptInternal(pool, conv, text, images);
+  }
 
+  async cancel(conversationId: string): Promise<Result<void, AcpRuntimeError>> {
+    const entry = this.conversationIndex.get(conversationId);
+    if (!entry?.acpSessionId) return ok();
+    const pool = this.pools.get(entry.poolKey);
+    if (!pool) return ok();
+    const conv = pool.conversations.get(conversationId);
+    if (!conv) return ok();
+
+    // Dispatch Cancel command — drains permissions, flips to cancelling
+    const dispatchResult = this.dispatch(conv, { type: 'Cancel' });
+    if (!dispatchResult.success) return dispatchResult;
+
+    try {
+      await pool.connection.cancel({ sessionId: entry.acpSessionId! });
+    } catch (e) {
+      const err = acpErr.cancelFailed(toSerializedError(e));
+      this.deps.log.warn('AcpSessionRuntime: cancel failed', {
+        conversationId,
+        error: err.error.type,
+      });
+      return err;
+    }
+    return ok();
+  }
+
+  resolvePermission(
+    conversationId: string,
+    requestId: string,
+    optionId: string | null
+  ): Result<void, AcpRuntimeError> {
+    const conv = this.resolveConv(conversationId);
+    if (!conv) return acpErr.conversationNotFound(conversationId);
+
+    const resolver = this.permissionResolvers.get(requestId);
     if (!resolver) {
       this.deps.log.warn('AcpSessionRuntime: resolvePermission for unknown requestId', {
         conversationId,
         requestId,
       });
-      return;
+      return acpErr.invalidState(`No resolver for requestId '${requestId}'`);
     }
 
-    if (conv) {
-      conv.pendingPermissions = conv.pendingPermissions.filter((p) => p.requestId !== requestId);
-    }
+    // Validate via dispatch first
+    const dispatchResult = this.dispatch(conv, {
+      type: 'ResolvePermission',
+      requestId,
+      optionId,
+    });
+    if (!dispatchResult.success) return dispatchResult;
 
+    // Answer the non-serializable resolver callback.
+    // The effect interpreter already calls onPermissionResolved for cancelled drains;
+    // for user-initiated resolutions we call the resolver directly here and the
+    // effect from dispatch() handles the listener notification.
     this.permissionResolvers.delete(requestId);
-
     resolver(
       optionId
         ? { outcome: { outcome: 'selected', optionId } }
         : { outcome: { outcome: 'cancelled' } }
     );
-
-    this.deps.listener.onPermissionResolved({ conversationId, requestId });
+    return ok();
   }
 
-  stop(conversationId: string): void {
+  stop(conversationId: string): Result<void, AcpRuntimeError> {
     const entry = this.conversationIndex.get(conversationId);
-    if (!entry) return;
+    if (!entry) return ok();
     const pool = this.pools.get(entry.poolKey);
     if (!pool) {
       this.conversationIndex.delete(conversationId);
-      return;
+      return ok();
     }
     const conv = pool.conversations.get(conversationId);
 
@@ -329,7 +406,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     this.conversationIndex.delete(conversationId);
 
     if (conv) {
-      this.drainPendingPermissions(conv);
+      this.drainPermissionResolvers(conv);
       this.disposeTerminals(conv);
     }
 
@@ -344,15 +421,23 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     if (pool.conversations.size === 0) {
       this.destroyPool(pool);
     }
+    return ok();
   }
 
-  async setModel(conversationId: string, model: string): Promise<void> {
+  async setModel(conversationId: string, model: string): Promise<Result<void, AcpRuntimeError>> {
     const entry = this.conversationIndex.get(conversationId);
     const pool = entry ? this.pools.get(entry.poolKey) : undefined;
     const conv = pool ? pool.conversations.get(conversationId) : undefined;
 
-    if (pool && conv && entry?.acpSessionId) {
-      await this.applyModelInternal(pool.connection, entry.acpSessionId, model, conv);
+    if (pool && conv && entry?.acpSessionId && pool.connection.setSessionConfigOption) {
+      const result = await this.applyConfigOptionInternal(
+        pool.connection,
+        entry.acpSessionId,
+        'model',
+        model,
+        conv
+      );
+      if (!result.success) return result;
     }
 
     void this.deps.persistModel(conversationId, model).catch((err) => {
@@ -362,6 +447,43 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         error: err instanceof Error ? err.message : String(err),
       });
     });
+
+    return ok();
+  }
+
+  async setMode(conversationId: string, modeId: string): Promise<Result<void, AcpRuntimeError>> {
+    const entry = this.conversationIndex.get(conversationId);
+    const pool = entry ? this.pools.get(entry.poolKey) : undefined;
+    const conv = pool ? pool.conversations.get(conversationId) : undefined;
+
+    if (!conv) return acpErr.conversationNotFound(conversationId);
+    if (!entry?.acpSessionId) return acpErr.noActiveSession(conversationId);
+    if (!pool) return acpErr.noActiveSession(conversationId);
+
+    // Validate the mode exists
+    const decideResult = this.dispatch(conv, { type: 'SetMode', modeId });
+    if (!decideResult.success) return decideResult;
+
+    if (!pool.connection.setSessionMode) {
+      return acpErr.setModeFailed({
+        name: 'Error',
+        message: 'Agent connection does not support setSessionMode',
+      });
+    }
+
+    const req: SetSessionModeRequest = {
+      sessionId: entry.acpSessionId,
+      modeId,
+    };
+    try {
+      await pool.connection.setSessionMode(req);
+    } catch (e) {
+      return acpErr.setModeFailed(toSerializedError(e));
+    }
+
+    // The mode change will come through as a current_mode_update notification.
+    // No need to update machine state here — the notification is authoritative.
+    return ok();
   }
 
   isRunning(conversationId: string): boolean {
@@ -371,24 +493,36 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   getChatHistory(conversationId: string): ChatHistory {
     const conv = this.resolveConv(conversationId);
     if (!conv) return { turns: [], complete: true };
+    const { machine } = conv;
     return {
-      turns: conv.turns.filter((t) => t.status !== 'active').map((t) => structuredClone(t)),
-      complete: conv.lifecycle !== 'starting' && conv.lifecycle !== 'replaying',
+      turns: machine.committedTurns.map((t) => structuredClone(t)),
+      complete: machine.phase.kind !== 'starting' && machine.phase.kind !== 'replaying',
     };
   }
 
   getSessionState(conversationId: string): SessionState {
     const conv = this.resolveConv(conversationId);
-    if (!conv)
-      return { lifecycle: 'closed', activeTurn: null, model: null, pendingPermissions: [] };
-    const activeTurn = conv.activeTurnId
-      ? (conv.turns.find((t) => t.id === conv.activeTurnId) ?? null)
-      : null;
+    if (!conv) {
+      return {
+        lifecycle: 'closed',
+        activeTurn: null,
+        pendingPermissions: [],
+        modes: null,
+        configOptions: [],
+        availableCommands: [],
+        lastStopReason: null,
+      };
+    }
+    const { machine } = conv;
+    const activeTurn = activeTurnFromPhase(machine.phase);
     return {
-      lifecycle: conv.lifecycle,
+      lifecycle: phaseToLifecycle(machine.phase),
       activeTurn: activeTurn ? structuredClone(activeTurn) : null,
-      model: conv.pendingModel,
-      pendingPermissions: structuredClone(conv.pendingPermissions),
+      pendingPermissions: structuredClone([...machine.pendingPermissions]),
+      modes: machine.modes ? structuredClone(machine.modes) : null,
+      configOptions: structuredClone([...machine.configOptions]),
+      availableCommands: structuredClone([...machine.availableCommands]),
+      lastStopReason: machine.lastStopReason,
     };
   }
 
@@ -396,6 +530,128 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     const conv = this.resolveConv(conversationId);
     if (!conv) return [];
     return Array.from(conv.terminals.values()).map((t) => t.snapshot());
+  }
+
+  // -------------------------------------------------------------------------
+  // State machine integration
+  // -------------------------------------------------------------------------
+
+  /**
+   * Validate a command and, if valid, apply the resulting events to `conv`.
+   * Returns the decision result (success = all events applied, error = rejected).
+   */
+  private dispatch(conv: AcpConversation, command: Command): Result<void, AcpRuntimeError> {
+    const decision = decide(conv.machine, command);
+    if (!decision.success) return decision;
+    for (const event of decision.data) {
+      this.applyEventToMachine(conv, event);
+    }
+    return ok();
+  }
+
+  /**
+   * Feed a DomainEvent into the machine and interpret all resulting effects.
+   * Always succeeds — facts are unconditionally folded.
+   */
+  private applyEvent(conv: AcpConversation, event: DomainEvent): void {
+    this.applyEventToMachine(conv, event);
+  }
+
+  private applyEventToMachine(conv: AcpConversation, event: DomainEvent): void {
+    const { state, effects } = evolve(conv.machine, event);
+    conv.machine = state;
+    for (const effect of effects) {
+      this.interpretEffect(conv, effect);
+    }
+  }
+
+  private interpretEffect(conv: AcpConversation, effect: Effect): void {
+    try {
+      switch (effect.type) {
+        case 'state':
+          this.emitStateEffect(conv);
+          break;
+
+        case 'update':
+          this.deps.listener.onSessionUpdate({
+            conversationId: conv.conversationId,
+            turnId: effect.turnId,
+            update: effect.update,
+            seq: effect.seq,
+          });
+          break;
+
+        case 'turnCommitted':
+          this.deps.listener.onTurnCommitted({
+            conversationId: conv.conversationId,
+            turn: structuredClone(effect.turn),
+          });
+          break;
+
+        case 'permissionRequest':
+          this.deps.listener.onPermissionRequest(effect.request);
+          break;
+
+        case 'permissionResolved': {
+          if (effect.cancelled) {
+            // Drain the resolver when cancelled by the machine (cancel/poolClose)
+            const resolver = this.permissionResolvers.get(effect.requestId);
+            if (resolver) {
+              this.permissionResolvers.delete(effect.requestId);
+              resolver({ outcome: { outcome: 'cancelled' } });
+            }
+          }
+          this.deps.listener.onPermissionResolved({
+            conversationId: conv.conversationId,
+            requestId: effect.requestId,
+          });
+          break;
+        }
+
+        case 'meta':
+          this.deps.listener.onSessionMeta({ conversationId: conv.conversationId });
+          break;
+
+        case 'closed':
+          this.deps.listener.onClosed({
+            conversationId: conv.conversationId,
+            taskId: conv.taskId,
+            exitCode: effect.exitCode,
+          });
+          break;
+
+        case 'agentEvent':
+          this.deps.listener.onAgentEvent({
+            type: effect.phase,
+            conversationId: conv.conversationId,
+            projectId: conv.projectId,
+            taskId: conv.taskId,
+            providerId: conv.providerId,
+          });
+          break;
+
+        case 'warn':
+          this.deps.log.warn(`AcpSessionRuntime: ${effect.message}`, {
+            conversationId: conv.conversationId,
+          });
+          break;
+      }
+    } catch (err) {
+      this.deps.log.error('AcpSessionRuntime: effect interpreter caught listener error', {
+        conversationId: conv.conversationId,
+        effectType: effect.type,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  private emitStateEffect(conv: AcpConversation): void {
+    const activeTurn = activeTurnFromPhase(conv.machine.phase);
+    this.deps.listener.onState({
+      conversationId: conv.conversationId,
+      lifecycle: phaseToLifecycle(conv.machine.phase),
+      activeTurnId: activeTurn?.id ?? null,
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -451,6 +707,7 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
       sessionToConversation: new Map(),
       loadingConversations: new Set(),
       initialized: null,
+      supportsLoadSession: false,
       stopped: false,
     };
 
@@ -484,8 +741,12 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
 
     pool.initialized = pool.connection
       .initialize(initReq)
-      .then((_resp: InitializeResponse) => {
-        this.deps.log.debug('AcpSessionRuntime: pool initialized', { poolKey });
+      .then((resp: InitializeResponse) => {
+        pool.supportsLoadSession = resp.agentCapabilities?.loadSession === true;
+        this.deps.log.debug('AcpSessionRuntime: pool initialized', {
+          poolKey,
+          supportsLoadSession: pool.supportsLoadSession,
+        });
       })
       .catch((err) => {
         this.deps.log.error('AcpSessionRuntime: pool initialize failed', {
@@ -524,22 +785,8 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
 
     for (const conv of pool.conversations.values()) {
       this.conversationIndex.delete(conv.conversationId);
-
-      if (conv.activeTurnId) {
-        this.closeTurnInternal(conv, 'error');
-      }
-
-      this.drainPendingPermissions(conv);
+      this.applyEvent(conv, { type: 'PoolClosed', exitCode });
       this.disposeTerminals(conv);
-
-      conv.lifecycle = 'closed';
-      this.emitState(conv);
-
-      this.deps.listener.onClosed({
-        conversationId: conv.conversationId,
-        taskId: conv.taskId,
-        exitCode,
-      });
     }
 
     this.deps.log.debug('AcpSessionRuntime: pool closed', {
@@ -559,7 +806,6 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
   private buildClientHandler(pool: AcpPool): Client {
     return {
       sessionUpdate: async (params: SessionNotification): Promise<void> => {
-        const update = pool.normalize(params.update);
         let conversationId = pool.sessionToConversation.get(params.sessionId);
         if (!conversationId && pool.loadingConversations.size > 0) {
           const pendingId = pool.loadingConversations.values().next().value;
@@ -579,19 +825,45 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
         const conv = pool.conversations.get(conversationId);
         if (!conv) return;
 
-        if (!conv.activeTurnId) {
-          this.openTurn(conv, 'live');
-        }
-        const turn = conv.turns.find((t) => t.id === conv.activeTurnId)!;
+        const rawUpdate = params.update;
 
-        const seq = conv.nextSeq++;
-        turn.updates.push({ seq, update });
-        this.deps.listener.onSessionUpdate({
-          conversationId,
-          turnId: turn.id,
-          update,
-          seq,
-        });
+        // Route metadata notifications as MetaChanged facts before turn routing
+        switch (rawUpdate.sessionUpdate) {
+          case 'current_mode_update': {
+            const currentModeId = rawUpdate.currentModeId;
+            const currentModes = conv.machine.modes;
+            if (currentModes) {
+              this.applyEvent(conv, {
+                type: 'MetaChanged',
+                modes: { ...currentModes, currentModeId },
+              });
+            }
+            return;
+          }
+
+          case 'config_option_update': {
+            this.applyEvent(conv, {
+              type: 'MetaChanged',
+              configOptions: rawUpdate.configOptions,
+            });
+            return;
+          }
+
+          case 'available_commands_update': {
+            this.applyEvent(conv, {
+              type: 'MetaChanged',
+              availableCommands: rawUpdate.availableCommands,
+            });
+            return;
+          }
+
+          default:
+            break;
+        }
+
+        // Route as a turn update — machine will warn if no active turn
+        const update = pool.normalize(rawUpdate);
+        this.applyEvent(conv, { type: 'Updated', update });
       },
 
       requestPermission: (params: RequestPermissionRequest): Promise<RequestPermissionResponse> => {
@@ -619,15 +891,13 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
           })),
         };
 
-        conv.pendingPermissions.push(payload);
-
         this.deps.log.debug('AcpSessionRuntime: requesting user permission', {
           conversationId,
           requestId,
           title: payload.title,
         });
 
-        this.deps.listener.onPermissionRequest(payload);
+        this.applyEvent(conv, { type: 'PermissionRequested', request: payload });
 
         return new Promise<RequestPermissionResponse>((resolve) => {
           this.permissionResolvers.set(requestId, resolve);
@@ -758,6 +1028,10 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     };
   }
 
+  // -------------------------------------------------------------------------
+  // Internal helpers
+  // -------------------------------------------------------------------------
+
   /** Resolve a conversation by ACP sessionId, throwing if not found. */
   private convForSession(pool: AcpPool, sessionId: string): AcpConversation {
     const conversationId = pool.sessionToConversation.get(sessionId);
@@ -771,109 +1045,6 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     return conv;
   }
 
-  private openTurn(conv: AcpConversation, source: TurnSource): AcpTurn {
-    const turn: AcpTurn = {
-      id: `turn-${conv.conversationId}-${conv.turns.length}`,
-      status: 'active',
-      source,
-      startSeq: conv.nextSeq,
-      endSeq: null,
-      updates: [],
-    };
-    conv.turns.push(turn);
-    conv.activeTurnId = turn.id;
-    conv.lifecycle = source === 'replay' ? 'replaying' : 'working';
-    this.emitState(conv);
-    return turn;
-  }
-
-  /**
-   * Records the user's prompt as the leading update of a live turn.
-   * Images are currently not rendered by the client and are skipped.
-   */
-  private recordUserPrompt(
-    conv: AcpConversation,
-    turn: AcpTurn,
-    text: string,
-    _images?: AcpPromptImage[]
-  ): void {
-    if (!text) return;
-
-    const messageId = `${turn.id}-user`;
-    const update: AgentUpdate = {
-      kind: 'message',
-      role: 'user',
-      messageId,
-      text,
-    };
-    const seq = conv.nextSeq++;
-    turn.updates.push({ seq, update });
-    this.deps.listener.onSessionUpdate({
-      conversationId: conv.conversationId,
-      turnId: turn.id,
-      update,
-      seq,
-    });
-  }
-
-  private closeTurnInternal(conv: AcpConversation, status: Exclude<TurnStatus, 'active'>): void {
-    const turn = conv.turns.find((t) => t.id === conv.activeTurnId);
-    if (!turn) return;
-    turn.status = status;
-    turn.endSeq = conv.nextSeq;
-    conv.activeTurnId = null;
-    this.deps.listener.onTurnCommitted({
-      conversationId: conv.conversationId,
-      turn: structuredClone(turn),
-    });
-  }
-
-  private closeTurn(conv: AcpConversation, status: Exclude<TurnStatus, 'active'>): void {
-    this.closeTurnInternal(conv, status);
-    if (conv.lifecycle !== 'closed') {
-      conv.lifecycle = 'ready';
-    }
-    this.emitState(conv);
-  }
-
-  private emitState(conv: AcpConversation): void {
-    this.deps.listener.onState({
-      conversationId: conv.conversationId,
-      lifecycle: conv.lifecycle,
-      activeTurnId: conv.activeTurnId,
-    });
-  }
-
-  private statusFromStopReason(r: StopReason): Exclude<TurnStatus, 'active'> {
-    return r === 'cancelled' ? 'cancelled' : 'complete';
-  }
-
-  private drainPendingPermissions(conv: AcpConversation): void {
-    for (const pending of conv.pendingPermissions) {
-      const resolver = this.permissionResolvers.get(pending.requestId);
-      if (resolver) {
-        this.permissionResolvers.delete(pending.requestId);
-        resolver({ outcome: { outcome: 'cancelled' } });
-      }
-      this.deps.listener.onPermissionResolved({
-        conversationId: conv.conversationId,
-        requestId: pending.requestId,
-      });
-    }
-    conv.pendingPermissions = [];
-  }
-
-  private disposeTerminals(conv: AcpConversation): void {
-    for (const terminal of conv.terminals.values()) {
-      terminal.dispose();
-      this.deps.listener.onTerminalReleased({
-        conversationId: conv.conversationId,
-        terminalId: terminal.terminalId,
-      });
-    }
-    conv.terminals.clear();
-  }
-
   private resolveConv(conversationId: string): AcpConversation | null {
     const entry = this.conversationIndex.get(conversationId);
     if (!entry) return null;
@@ -881,37 +1052,28 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     return pool?.conversations.get(conversationId) ?? null;
   }
 
-  private resolveConversation(conversationId: string): { pool: AcpPool; conv: AcpConversation } {
-    const entry = this.conversationIndex.get(conversationId);
-    if (!entry?.acpSessionId) {
-      throw new Error(`AcpSessionRuntime: no active session for conversation ${conversationId}`);
-    }
-    const pool = this.pools.get(entry.poolKey);
-    const conv = pool?.conversations.get(conversationId);
-    if (!pool || !conv) {
-      throw new Error(`AcpSessionRuntime: pool not found for conversation ${conversationId}`);
-    }
-    return { pool, conv };
-  }
-
   private async sendPromptInternal(
     pool: AcpPool,
     conv: AcpConversation,
     text: string,
     images?: AcpPromptImage[]
-  ): Promise<void> {
-    if (!conv.acpSessionId) return;
-    const turn = this.openTurn(conv, 'live');
-    // ACP agents do not echo the user's own prompt back as a user_message_chunk
-    // during a live turn (only on loadSession replay). Synthesize one here so the
-    // user's message is recorded in the turn — rendered live, persisted in
-    // history, and surviving tab reopen within the session.
-    this.recordUserPrompt(conv, turn, text, images);
-    this.emitAgentEventInternal(conv, 'start');
+  ): Promise<Result<void, AcpRuntimeError>> {
+    if (!conv.acpSessionId) return acpErr.noActiveSession(conv.conversationId);
+
+    // Synthesize user message update
+    const userUpdate: AgentUpdate = {
+      kind: 'message',
+      role: 'user',
+      messageId: `${conv.conversationId}-${conv.machine.nextTurnIndex}-user`,
+      text,
+    };
+
+    const dispatchResult = this.dispatch(conv, { type: 'Prompt', userUpdate });
+    if (!dispatchResult.success) return dispatchResult;
 
     try {
-      const res: PromptResponse = await pool.connection.prompt({
-        sessionId: conv.acpSessionId,
+      const res = await pool.connection.prompt({
+        sessionId: conv.acpSessionId!,
         prompt: [
           ...(images ?? []).map((img) => ({
             type: 'image' as const,
@@ -921,39 +1083,46 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
           ...(text ? [{ type: 'text' as const, text }] : []),
         ],
       });
-      this.closeTurn(conv, this.statusFromStopReason(res.stopReason));
-      this.emitAgentEventInternal(conv, 'stop');
-    } catch (err) {
+      this.applyEvent(conv, {
+        type: 'TurnEnded',
+        outcome: { kind: 'stopped', stopReason: res.stopReason },
+      });
+      return ok();
+    } catch (e) {
+      const errResult = acpErr.promptFailed(toSerializedError(e));
       this.deps.log.error('AcpSessionRuntime: prompt error', {
         conversationId: conv.conversationId,
-        error: err instanceof Error ? err.message : String(err),
+        error: errResult.error.type,
       });
-      this.closeTurn(conv, 'error');
-      this.emitAgentEventInternal(conv, 'error');
+      this.applyEvent(conv, { type: 'TurnEnded', outcome: { kind: 'errored' } });
+      return errResult;
     }
   }
 
-  private async applyModelInternal(
+  private async applyConfigOptionInternal(
     connection: AcpAgentApi,
     acpSessionId: string,
-    model: string,
+    configId: string,
+    value: string,
     conv: AcpConversation
-  ): Promise<void> {
-    if (!connection.setSessionConfigOption) return;
+  ): Promise<Result<void, AcpRuntimeError>> {
+    if (!connection.setSessionConfigOption) return ok();
+    const req: SetSessionConfigOptionRequest = { sessionId: acpSessionId, configId, value };
     try {
-      const req: SetSessionConfigOptionRequest = {
-        sessionId: acpSessionId,
-        configId: 'model',
-        value: model,
-      };
-      await connection.setSessionConfigOption(req);
-      conv.pendingModel = model;
-    } catch (err) {
-      this.deps.log.warn('AcpSessionRuntime: failed to apply model selection', {
-        conversationId: conv.conversationId,
-        model,
-        error: err instanceof Error ? err.message : String(err),
+      const resp = await connection.setSessionConfigOption(req);
+      this.applyEvent(conv, {
+        type: 'MetaChanged',
+        configOptions: resp.configOptions,
       });
+      return ok();
+    } catch (e) {
+      const errResult = acpErr.setConfigFailed(toSerializedError(e));
+      this.deps.log.warn('AcpSessionRuntime: failed to apply config option', {
+        conversationId: conv.conversationId,
+        configId,
+        error: errResult.error.type,
+      });
+      return errResult;
     }
   }
 
@@ -965,13 +1134,41 @@ export class AcpSessionRuntime implements IAcpSessionRuntime {
     return { sessionId, cwd, mcpServers: [] };
   }
 
-  private emitAgentEventInternal(conv: AcpConversation, type: 'start' | 'stop' | 'error'): void {
-    this.deps.listener.onAgentEvent({
-      type,
-      conversationId: conv.conversationId,
-      projectId: conv.projectId,
-      taskId: conv.taskId,
-      providerId: conv.providerId,
-    });
+  private cleanupFailedConversation(pool: AcpPool, conv: AcpConversation): void {
+    for (const [sid, cId] of pool.sessionToConversation) {
+      if (cId === conv.conversationId) {
+        pool.sessionToConversation.delete(sid);
+      }
+    }
+    pool.conversations.delete(conv.conversationId);
+    this.conversationIndex.delete(conv.conversationId);
+    if (pool.conversations.size === 0) {
+      this.destroyPool(pool);
+    }
+  }
+
+  private drainPermissionResolvers(conv: AcpConversation): void {
+    for (const pending of conv.machine.pendingPermissions) {
+      const resolver = this.permissionResolvers.get(pending.requestId);
+      if (resolver) {
+        this.permissionResolvers.delete(pending.requestId);
+        resolver({ outcome: { outcome: 'cancelled' } });
+      }
+      this.deps.listener.onPermissionResolved({
+        conversationId: conv.conversationId,
+        requestId: pending.requestId,
+      });
+    }
+  }
+
+  private disposeTerminals(conv: AcpConversation): void {
+    for (const terminal of conv.terminals.values()) {
+      terminal.dispose();
+      this.deps.listener.onTerminalReleased({
+        conversationId: conv.conversationId,
+        terminalId: terminal.terminalId,
+      });
+    }
+    conv.terminals.clear();
   }
 }

@@ -1,6 +1,7 @@
 import type { Result } from '@emdash/shared/result';
 import type { IAcpBehavior } from '../agents/plugins/capabilities/acp';
 import type { AgentUpdate } from './agent-update';
+import type { AcpRuntimeError } from './errors';
 import type { AcpPermissionRequest } from './permissions';
 import type { TerminalSnapshot } from './terminals';
 import type { AcpProcessHost, AcpTerminalExit } from './transport';
@@ -69,6 +70,12 @@ export interface AcpRuntimeListener {
     taskId: string;
     providerId: string;
   }): void;
+  /**
+   * Session-scoped metadata changed: modes, config options (including model
+   * selector), or available commands. The renderer should re-fetch
+   * getSessionState() to obtain the full updated snapshot.
+   */
+  onSessionMeta(e: { conversationId: string }): void;
   /** A new terminal was created by the agent and is now running. */
   onTerminalCreated(e: {
     conversationId: string;
@@ -132,14 +139,26 @@ export interface AcpSessionRuntimeDeps {
  * Machine-agnostic ACP session runtime interface.
  * Implemented by AcpSessionRuntime (local/SSH via transport injection) and
  * in the future by WorkspaceServerAcpSessionRuntime (RPC client).
+ *
+ * All effectful methods return Result<void, AcpRuntimeError> and never throw.
+ * Pure snapshot getters return plain values and are guaranteed total/non-throwing.
  */
 export interface IAcpSessionRuntime {
-  start(input: AcpStartInput): Promise<void>;
-  prompt(conversationId: string, text: string, images?: AcpPromptImage[]): Promise<void>;
-  cancel(conversationId: string): Promise<void>;
-  setModel(conversationId: string, model: string): Promise<void>;
-  stop(conversationId: string): void;
-  resolvePermission(conversationId: string, requestId: string, optionId: string | null): void;
+  start(input: AcpStartInput): Promise<Result<void, AcpRuntimeError>>;
+  prompt(
+    conversationId: string,
+    text: string,
+    images?: AcpPromptImage[]
+  ): Promise<Result<void, AcpRuntimeError>>;
+  cancel(conversationId: string): Promise<Result<void, AcpRuntimeError>>;
+  setModel(conversationId: string, model: string): Promise<Result<void, AcpRuntimeError>>;
+  setMode(conversationId: string, modeId: string): Promise<Result<void, AcpRuntimeError>>;
+  stop(conversationId: string): Result<void, AcpRuntimeError>;
+  resolvePermission(
+    conversationId: string,
+    requestId: string,
+    optionId: string | null
+  ): Result<void, AcpRuntimeError>;
   isRunning(conversationId: string): boolean;
   getChatHistory(conversationId: string): ChatHistory;
   getSessionState(conversationId: string): SessionState;

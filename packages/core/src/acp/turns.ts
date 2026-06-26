@@ -7,6 +7,12 @@
  * reconstructing it from a replay event stream.
  */
 
+import type {
+  AvailableCommand,
+  SessionConfigOption,
+  SessionModeState,
+  StopReason,
+} from '@agentclientprotocol/sdk';
 import type { AgentUpdate } from './agent-update';
 import type { AcpPermissionRequest } from './permissions';
 
@@ -40,6 +46,13 @@ export interface AcpTurn {
   /** Conversation-global seq after the last update (null while active). */
   endSeq: number | null;
   updates: { seq: number; update: AgentUpdate }[];
+  /**
+   * The ACP stop reason for this turn. Non-null only for committed turns that
+   * ended via a stopReason. Null for active turns, error turns, or replay turns.
+   * Preserved so the composer can render the correct notice band (e.g.
+   * max_tokens, max_turn_requests, refusal).
+   */
+  stopReason: StopReason | null;
 }
 
 /**
@@ -49,9 +62,16 @@ export interface AcpTurn {
  *   starting → replaying | ready
  *   replaying → ready
  *   ready → working | closed
- *   working → ready | closed
+ *   working → cancelling | ready | closed
+ *   cancelling → ready | closed
  */
-export type SessionLifecycle = 'starting' | 'replaying' | 'ready' | 'working' | 'closed';
+export type SessionLifecycle =
+  | 'starting'
+  | 'replaying'
+  | 'ready'
+  | 'working'
+  | 'cancelling'
+  | 'closed';
 
 /** The committed history snapshot returned by getChatHistory(). */
 export interface ChatHistory {
@@ -69,12 +89,28 @@ export interface SessionState {
   lifecycle: SessionLifecycle;
   /** The in-flight turn, if any. */
   activeTurn: AcpTurn | null;
-  /** Currently selected model (null if none configured). */
-  model: string | null;
   /**
    * FIFO queue of pending permission requests awaiting user resolution.
    * Persisted in main-process memory so a renderer reload can rehydrate the
    * queue from this bootstrap response and show the permission band again.
    */
   pendingPermissions: AcpPermissionRequest[];
+  /**
+   * Agent-advertised session modes. Null if the agent doesn't support modes
+   * or the session hasn't been established yet.
+   */
+  modes: SessionModeState | null;
+  /**
+   * Full set of session config options as reported by the agent. The model
+   * selector is an option with category === 'model'. Authoritative — derived
+   * from newSession/loadSession responses and updated by notifications.
+   */
+  configOptions: SessionConfigOption[];
+  /** Slash commands the agent currently supports. */
+  availableCommands: AvailableCommand[];
+  /**
+   * The stop reason from the last completed turn. Null on first start or if
+   * no turn has completed yet. Drives the composer's notice band.
+   */
+  lastStopReason: StopReason | null;
 }

@@ -2,6 +2,7 @@ import {
   AcpSessionRuntime,
   type AcpProcessHost,
   type AcpPromptImage,
+  type AcpRuntimeError,
   type AcpRuntimeListener,
   type AcpRuntimeLog,
   type ChatHistory,
@@ -10,6 +11,8 @@ import {
   type SessionState,
   type TerminalSnapshot,
 } from '@emdash/core/acp';
+import type { Result } from '@emdash/shared';
+import { ok } from '@emdash/shared';
 import type { getPlugin } from '@main/core/agents/plugin-registry';
 import { machineKey, type MachineRef } from '@main/core/runtime/types';
 import type { Conversation } from '@shared/core/conversations/conversations';
@@ -61,7 +64,7 @@ export class AcpSessionManager {
   }
 
   // -------------------------------------------------------------------------
-  // Public API (matches the existing signature expected by controller + hydrate)
+  // Public API — all effectful methods return Result, never throw
   // -------------------------------------------------------------------------
 
   async start(
@@ -70,13 +73,13 @@ export class AcpSessionManager {
     path: string,
     machine: MachineRef,
     initialPrompt?: string
-  ): Promise<void> {
+  ): Promise<Result<void, AcpRuntimeError>> {
     const key = machineKey(machine);
     const runtime = await this.getOrCreateRuntime(key, machine);
 
     this.convToMachine.set(conversation.id, key);
 
-    await runtime.start({
+    return runtime.start({
       conversationId: conversation.id,
       projectId: conversation.projectId,
       taskId: conversation.taskId,
@@ -89,28 +92,51 @@ export class AcpSessionManager {
     });
   }
 
-  async prompt(conversationId: string, text: string, images?: AcpPromptImage[]): Promise<void> {
-    await this.getRuntime(conversationId).prompt(conversationId, text, images);
+  async prompt(
+    conversationId: string,
+    text: string,
+    images?: AcpPromptImage[]
+  ): Promise<Result<void, AcpRuntimeError>> {
+    const rt = this.findRuntime(conversationId);
+    if (!rt) return ok();
+    return rt.prompt(conversationId, text, images);
   }
 
-  async cancel(conversationId: string): Promise<void> {
-    await this.getRuntime(conversationId).cancel(conversationId);
+  async cancel(conversationId: string): Promise<Result<void, AcpRuntimeError>> {
+    const rt = this.findRuntime(conversationId);
+    if (!rt) return ok();
+    return rt.cancel(conversationId);
   }
 
-  async setModel(conversationId: string, model: string): Promise<void> {
-    await this.getRuntime(conversationId).setModel(conversationId, model);
+  async setModel(conversationId: string, model: string): Promise<Result<void, AcpRuntimeError>> {
+    const rt = this.findRuntime(conversationId);
+    if (!rt) return ok();
+    return rt.setModel(conversationId, model);
   }
 
-  stop(conversationId: string): void {
+  async setMode(conversationId: string, modeId: string): Promise<Result<void, AcpRuntimeError>> {
+    const rt = this.findRuntime(conversationId);
+    if (!rt) return ok();
+    return rt.setMode(conversationId, modeId);
+  }
+
+  stop(conversationId: string): Result<void, AcpRuntimeError> {
     const key = this.convToMachine.get(conversationId);
     const runtime = key ? this.runtimes.get(key) : undefined;
-    if (!runtime) return;
-    runtime.stop(conversationId);
+    if (!runtime) return ok();
+    const result = runtime.stop(conversationId);
     this.convToMachine.delete(conversationId);
+    return result;
   }
 
-  resolvePermission(conversationId: string, requestId: string, optionId: string | null): void {
-    this.getRuntime(conversationId).resolvePermission(conversationId, requestId, optionId);
+  resolvePermission(
+    conversationId: string,
+    requestId: string,
+    optionId: string | null
+  ): Result<void, AcpRuntimeError> {
+    const rt = this.findRuntime(conversationId);
+    if (!rt) return ok();
+    return rt.resolvePermission(conversationId, requestId, optionId);
   }
 
   isRunning(conversationId: string): boolean {
@@ -120,24 +146,30 @@ export class AcpSessionManager {
   }
 
   getChatHistory(conversationId: string): ChatHistory {
-    const key = this.convToMachine.get(conversationId);
-    const runtime = key ? this.runtimes.get(key) : undefined;
-    if (!runtime) return { turns: [], complete: true };
-    return runtime.getChatHistory(conversationId);
+    const rt = this.findRuntime(conversationId);
+    if (!rt) return { turns: [], complete: true };
+    return rt.getChatHistory(conversationId);
   }
 
   getSessionState(conversationId: string): SessionState {
-    const key = this.convToMachine.get(conversationId);
-    const runtime = key ? this.runtimes.get(key) : undefined;
-    if (!runtime)
-      return { lifecycle: 'closed', activeTurn: null, model: null, pendingPermissions: [] };
-    return runtime.getSessionState(conversationId);
+    const rt = this.findRuntime(conversationId);
+    if (!rt) {
+      return {
+        lifecycle: 'closed',
+        activeTurn: null,
+        pendingPermissions: [],
+        modes: null,
+        configOptions: [],
+        availableCommands: [],
+        lastStopReason: null,
+      };
+    }
+    return rt.getSessionState(conversationId);
   }
 
   getTerminals(conversationId: string): TerminalSnapshot[] {
-    const key = this.convToMachine.get(conversationId);
-    const runtime = key ? this.runtimes.get(key) : undefined;
-    return runtime?.getTerminals(conversationId) ?? [];
+    const rt = this.findRuntime(conversationId);
+    return rt?.getTerminals(conversationId) ?? [];
   }
 
   // -------------------------------------------------------------------------
@@ -170,12 +202,10 @@ export class AcpSessionManager {
     return runtime;
   }
 
-  private getRuntime(conversationId: string): IAcpSessionRuntime {
+  /** Returns the runtime for a conversation, or null if not found (never throws). */
+  private findRuntime(conversationId: string): IAcpSessionRuntime | null {
     const key = this.convToMachine.get(conversationId);
-    const runtime = key ? this.runtimes.get(key) : undefined;
-    if (!runtime) {
-      throw new Error(`AcpSessionManager: no runtime for conversation ${conversationId}`);
-    }
-    return runtime;
+    if (!key) return null;
+    return this.runtimes.get(key) ?? null;
   }
 }
