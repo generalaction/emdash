@@ -7,6 +7,7 @@ import devIcon from '@/assets/images/emdash/emdash-dev.png?asset';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { githubAccountsChangedChannel } from '@shared/events/githubEvents';
 import { registerRPCRouter } from '@shared/lib/ipc/rpc';
+import { withRpcLogging } from './lib/rpc-logging';
 import { setupApplicationMenu } from './app/menu';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
 import { registerQuitHandler } from './app/shutdown';
@@ -158,7 +159,7 @@ void app.whenReady().then(async () => {
     githubAuthServerAdapter.storeOAuthToken(payload)
   );
 
-  registerRPCRouter(rpcRouter, ipcMain);
+  registerRPCRouter(rpcRouter, app.isPackaged ? ipcMain : withRpcLogging(ipcMain));
 
   void reconcileResourceSampler();
 
