@@ -1,0 +1,40 @@
+apps/emdash-desktop/src/main/core/skills/SkillsService.ts
+  s_7dc2f89118bbba::t_8b32f3c9bc9051 247-248,261-263,894,1012-1014
+  s_7dc2f89118bbba::t_db198fd335a341 895-915
+  s_7dc2f89118bbba::t_4c4527a1373843 788-800,806-809,832-859,862
+  s_7dc2f89118bbba::t_d915ec807b8055 644-669,672-681,683-704,710-723
+  s_7dc2f89118bbba::t_27df11622c7e57 143,178,183,201
+  s_7dc2f89118bbba::t_85135e9fa025f5 211,246,249-250,252-260,264-269
+  s_7dc2f89118bbba::t_e7868f6d02652f 801-805
+  s_7dc2f89118bbba::t_b2ad796b84a0c5 1001
+  s_7dc2f89118bbba::t_19a460d4fc3ba8 74,76-77,86-91,97,108,113-114,120,123,135-139
+  s_7dc2f89118bbba::t_e497e0c5691ca6 343,353,359,368
+  s_7dc2f89118bbba::t_4725ff7e54162f 945-947,954-1000,1002-1011,1015-1079
+  s_7dc2f89118bbba::t_eb4bbcbb4ae641 19,22-23,26-34,41-54,57-59,140
+  s_7dc2f89118bbba::t_f141de4c7c4057 410-411
+  s_7dc2f89118bbba::t_277ce059429c6e 1341-1342,1350,1392-1393,1399
+  s_7dc2f89118bbba::t_08596be2f75734 948-953
+  s_7dc2f89118bbba::t_1693a93ee0dd9b 1202-1216
+  s_7dc2f89118bbba::t_4c9949e173357f 324-327,329
+  s_7dc2f89118bbba::t_d6e8d74b74c9ad 547-558
+  s_7dc2f89118bbba::t_60beac166cee5d 141
+apps/emdash-desktop/src/main/core/skills/SkillsService.test.ts
+  s_7dc2f89118bbba::t_e6452fb4e92241 8-16,59-81
+  s_7dc2f89118bbba::t_1dee29485f80dc 82-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "fe4457505e31b91331114cadcef62737d89231fc",
+  "prompts": {},
+  "sessions": {
+    "s_7dc2f89118bbba": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019f0545-c466-79ea-ab45-48bc8d01188c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
