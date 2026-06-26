@@ -36,8 +36,12 @@ describe('runLifecycleScript', () => {
   it('runs manual lifecycle scripts with exit and restores the prompt afterward', async () => {
     const lifecycleRun = vi.fn(async () => {});
     vi.mocked(resolveWorkspace).mockReturnValue({
+      path: '/workspace',
       settings: {},
-      fs: {},
+      files: {
+        fileSystem: () => ({ success: true, data: {} }),
+        path: { join: (...parts: string[]) => parts.join('/') },
+      },
       lifecycleService: {
         runLifecycleScript: lifecycleRun,
       },
@@ -49,13 +53,14 @@ describe('runLifecycleScript', () => {
       },
     } as never);
 
-    await runLifecycleScript({
+    const result = await runLifecycleScript({
       projectId: 'project-1',
       taskId: 'task-1',
       workspaceId: 'branch:feature',
       type: 'run',
     });
 
+    expect(result).toEqual({ success: true, data: undefined });
     expect(lifecycleRun).toHaveBeenCalledWith(
       { type: 'run', script: 'pnpm dev', shellSetup: 'source .envrc' },
       { exit: true, waitForExit: true, respawnAfterExit: true }

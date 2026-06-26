@@ -1,3 +1,4 @@
+import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fileChangesChannel } from '@shared/core/fs/fsEvents';
 import { projectSettingsChangedChannel } from '@shared/core/projects/projectEvents';
@@ -100,8 +101,8 @@ describe('LifecycleScriptsStore', () => {
 
   it('uses stable script IDs and reconciles command changes from .emdash.json watch events', async () => {
     getSettings
-      .mockResolvedValueOnce({ scripts: { run: 'pnpm dev' } })
-      .mockResolvedValueOnce({ scripts: { run: 'pnpm start' } });
+      .mockResolvedValueOnce(ok({ scripts: { run: 'pnpm dev' } }))
+      .mockResolvedValueOnce(ok({ scripts: { run: 'pnpm start' } }));
     const store = new LifecycleScriptsStore('project-1', 'workspace-1');
 
     await (store as unknown as { load(): Promise<void> }).load();
@@ -127,8 +128,8 @@ describe('LifecycleScriptsStore', () => {
 
   it('reloads lifecycle scripts when project settings change', async () => {
     getSettings
-      .mockResolvedValueOnce({ scripts: { setup: 'pnpm install' } })
-      .mockResolvedValueOnce({ scripts: { setup: 'corepack install', run: 'pnpm dev' } });
+      .mockResolvedValueOnce(ok({ scripts: { setup: 'pnpm install' } }))
+      .mockResolvedValueOnce(ok({ scripts: { setup: 'corepack install', run: 'pnpm dev' } }));
     const store = new LifecycleScriptsStore('project-1', 'workspace-1');
 
     await (store as unknown as { load(): Promise<void> }).load();
@@ -151,8 +152,20 @@ describe('LifecycleScriptsStore', () => {
 
     const loadPromise = (store as unknown as { load(): Promise<void> }).load();
     store.dispose();
-    resolveSettings({ scripts: { run: 'pnpm dev' } });
+    resolveSettings(ok({ scripts: { run: 'pnpm dev' } }));
     await loadPromise;
+
+    expect(store.tabs).toEqual([]);
+  });
+
+  it('keeps lifecycle script tabs empty when settings fail to load', async () => {
+    getSettings.mockResolvedValue({
+      success: false,
+      error: { type: 'fs_error', message: 'filesystem unavailable' },
+    });
+    const store = new LifecycleScriptsStore('project-1', 'workspace-1');
+
+    await (store as unknown as { load(): Promise<void> }).load();
 
     expect(store.tabs).toEqual([]);
   });

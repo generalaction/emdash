@@ -40,12 +40,14 @@ export class LifecycleScriptStore {
     this.data = data;
     this.session = new PtySession(
       makePtySessionId(projectId, workspaceId, data.id),
-      () =>
-        rpc.terminals.prepareLifecycleScript({
+      async () => {
+        const result = await rpc.terminals.prepareLifecycleScript({
           projectId,
           workspaceId,
           type: data.type,
-        }),
+        });
+        return result.success ? undefined : false;
+      },
       undefined,
       undefined
     );
@@ -184,8 +186,10 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
   private async reload(): Promise<void> {
     if (this._disposed) return;
     const refreshSeq = ++this._refreshSeq;
-    const settings = await rpc.projectSettings.getSettings(this.workspaceId);
+    const result = await rpc.projectSettings.getSettings(this.workspaceId);
     if (this._disposed) return;
+    if (!result.success) return;
+    const settings = result.data;
 
     const entries: { type: ScriptType; command: string; label: string }[] = [];
     if (settings.scripts?.setup) {

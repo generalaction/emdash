@@ -1,4 +1,6 @@
+import { ok, type Result } from '@emdash/shared';
 import { resolveLifecycleScript } from './lifecycle-script-settings';
+import type { LifecycleScriptSettingsError } from './lifecycle-script-settings';
 
 export async function prepareLifecycleScript({
   projectId,
@@ -8,17 +10,20 @@ export async function prepareLifecycleScript({
   projectId: string;
   workspaceId: string;
   type: 'setup' | 'run' | 'teardown';
-}): Promise<void> {
-  const { workspace, script, shellSetup } = await resolveLifecycleScript({
+}): Promise<Result<void, LifecycleScriptSettingsError>> {
+  const resolved = await resolveLifecycleScript({
     projectId,
     workspaceId,
     type,
   });
-  if (!script) return;
+  if (!resolved.success) return resolved;
+  const { workspace, script, shellSetup } = resolved.data;
+  if (!script) return ok();
 
   await workspace.lifecycleService.prepareLifecycleScript({
     type,
     script,
     shellSetup,
   });
+  return ok();
 }

@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { err, ok } from '@emdash/shared';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
+import { joinMachinePath } from '@main/core/files/path-utils';
 import { log } from '@main/lib/logger';
 import { parsePtySessionId } from '@shared/core/pty/ptySessionId';
 import { createRPCController } from '@shared/lib/ipc/rpc';
@@ -153,15 +155,18 @@ export const ptyController = createRPCController({
 
       const workspaceId = taskSessionManager.getWorkspaceId(scopeId) ?? '';
       const workspace = workspaceRegistry.get(workspaceId);
-      if (!workspace?.fs.copyLocalFile) return err({ type: 'not_ssh' as const });
-
-      const remotePaths = await Promise.all(
-        args.localPaths.map(async (localPath) => {
-          const remoteName = `${randomUUID()}-${basename(localPath)}`;
-          await workspace.fs.copyLocalFile!(localPath, remoteName);
-          return `${workspace.path}/${remoteName}`;
-        })
-      );
+      if (!workspace) return err({ type: 'not_ssh' as const });
+      const remotePaths: string[] = [];
+      for (const localPath of args.localPaths) {
+        const remoteName = `${randomUUID()}-${basename(localPath)}`;
+        const remotePath = joinMachinePath(workspace.path, remoteName);
+        const bytes = await readFile(localPath);
+        const written = await workspace.fileSystem.writeBytes(remotePath, bytes);
+        if (!written.success) {
+          return err({ type: 'upload_failed' as const, message: written.error.message });
+        }
+        remotePaths.push(remotePath);
+      }
       return ok({ remotePaths });
     } catch (e: unknown) {
       log.error('pty:uploadFiles failed', {
