@@ -263,10 +263,13 @@ export function InitialConversationField({
                   <X className="size-3" />
                 </button>
               </PopoverTrigger>
-              <PopoverContent side="bottom" align="start" sideOffset={6} className="w-80 gap-0 p-0">
-                <pre className="p-3 font-mono text-xs whitespace-pre-wrap text-foreground-passive">
-                  {state.issueContext}
-                </pre>
+              <PopoverContent side="bottom" align="start" sideOffset={6} className="w-80 gap-0 p-2">
+                <Textarea
+                  value={state.issueContext ?? ''}
+                  onChange={(e) => state.setIssueContext(e.target.value || null)}
+                  placeholder="Edit the issue context sent to the agent..."
+                  className="max-h-64 min-h-32 resize-none font-mono text-xs"
+                />
               </PopoverContent>
             </Popover>
           </div>
