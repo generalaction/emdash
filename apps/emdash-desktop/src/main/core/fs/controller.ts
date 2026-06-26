@@ -104,7 +104,12 @@ export const filesController = createRPCController({
     }
   },
 
-  removeFile: async (projectId: string, workspaceId: string, filePath: string) => {
+  removeFile: async (
+    projectId: string,
+    workspaceId: string,
+    filePath: string,
+    options?: { recursive?: boolean }
+  ) => {
     const env = resolveWorkspace(projectId, workspaceId);
     if (!env)
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
@@ -117,7 +122,7 @@ export const filesController = createRPCController({
     }
 
     try {
-      const result = await env.fs.remove(filePath);
+      const result = await env.fs.remove(filePath, options);
       return ok(result);
     } catch (e) {
       if (
